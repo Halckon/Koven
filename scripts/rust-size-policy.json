@@ -22,7 +22,7 @@
     "crates/lang-frontend/src/name_resolution/resolver.rs": 1134,
     "crates/lang-frontend/src/ownership_checking/checker.rs": 1371,
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner.rs": 1655,
-    "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs": 14688,
+    "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs": 1876,
     "crates/lang-frontend/src/ownership_checking/compilation_unit.rs": 1116,
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": 1185,
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/drop_planner.rs": 1435,
@@ -49,6 +49,28 @@
     "crates/lang-frontend/tests/parser_expression.rs": 1926,
     "crates/lang-frontend/tests/type_checking.rs": 2251
   },
-  "exceptions": {},
+  "exceptions": {
+    "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs": {
+      "max_lines": 1155,
+      "reason": "单个条件叶phi场景以同一形成快照与presence状态完成fallthrough/continue/break回放；完整1159行原helper及6行调用case不可在纯搬迁中切断断言或重构状态。",
+      "owner": "lang-frontend ownership/drop tests（Halckon）",
+      "split_plan": "后续单独评审从完整场景提取形成快照/入边回放与末端清理oracle helper，保持三条tail矩阵与全部断言。",
+      "review": "下次修改本场景、共用回放helper或instance_replay合同前复查；增加职责或超过当前上限必须独立评审。"
+    },
+    "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/file_parent.rs": {
+      "max_lines": 1143,
+      "reason": "六个跨循环/嵌套环境场景共享一个1072行原helper，其文件级release layout与连续实例状态必须一起验收；纯搬迁不拆断状态或断言。",
+      "owner": "lang-frontend ownership/drop tests（Halckon）",
+      "split_plan": "后续独立评审将跨loop parent形成/快照回放与最终release oracle提取成明确helper，六个完整参数化场景保持可追溯。",
+      "review": "下次修改本场景、共用回放helper或instance_replay合同前复查；增加职责或超过当前上限必须独立评审。"
+    },
+    "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/sibling_shared_loans.rs": {
+      "max_lines": 1145,
+      "reason": "单个同lambda兄弟实例shared-loan场景包含连续形成、Entry/回边/出口、loan-end与最终释放oracle；1156行原case在纯搬迁中保持完整。",
+      "owner": "lang-frontend ownership/drop tests（Halckon）",
+      "split_plan": "后续独立评审按形成实例、逐边运输及最终loan/release oracle提取helper，保留单个端到端场景与所有断言。",
+      "review": "下次修改本场景、共用回放helper或instance_replay合同前复查；增加职责或超过当前上限必须独立评审。"
+    }
+  },
   "generated": {}
 }

@@ -1,0 +1,3340 @@
+{
+  "base": "9f9ee5230b6bc0affd2b7af727294c7f1bbc328b",
+  "code_commit": "1df4df198c069b196f152e17a0df65e2d54aaeb2",
+  "source": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+  "package": "lang-frontend",
+  "target": "lang_frontend",
+  "kind": "lib",
+  "inventory": [
+    {
+      "name": "replay_owned_closure_release",
+      "start": 1901,
+      "end": 1934,
+      "lines": 34,
+      "test": false
+    },
+    {
+      "name": "selected",
+      "start": 1936,
+      "end": 1954,
+      "lines": 19,
+      "test": false
+    },
+    {
+      "name": "replay_edge_presence",
+      "start": 1956,
+      "end": 1969,
+      "lines": 14,
+      "test": false
+    },
+    {
+      "name": "replay_edge_candidates",
+      "start": 1971,
+      "end": 1995,
+      "lines": 25,
+      "test": false
+    },
+    {
+      "name": "ReplayInstances",
+      "start": 1997,
+      "end": 2003,
+      "lines": 7,
+      "test": false
+    },
+    {
+      "name": "replay_captured_edge_presence",
+      "start": 2005,
+      "end": 2097,
+      "lines": 93,
+      "test": false
+    },
+    {
+      "name": "replay_captured_edge",
+      "start": 2099,
+      "end": 2204,
+      "lines": 106,
+      "test": false
+    },
+    {
+      "name": "replay_snapshot_choices",
+      "start": 2206,
+      "end": 2228,
+      "lines": 23,
+      "test": false
+    },
+    {
+      "name": "coexisting_capture_paths_include_the_root_instance",
+      "start": 2230,
+      "end": 2298,
+      "lines": 69,
+      "test": true
+    },
+    {
+      "name": "owned_cycle_release_does_not_claim_independent_leaf_roots",
+      "start": 2300,
+      "end": 2352,
+      "lines": 53,
+      "test": true
+    },
+    {
+      "name": "nested_phi_selector_writes_keep_local_instance_paths",
+      "start": 2354,
+      "end": 2461,
+      "lines": 108,
+      "test": true
+    },
+    {
+      "name": "conditional_leaf_phi_replays_formed_instance_and_presence",
+      "start": 2463,
+      "end": 2468,
+      "lines": 6,
+      "test": true
+    },
+    {
+      "name": "assert_conditional_leaf_replay",
+      "start": 2470,
+      "end": 3628,
+      "lines": 1159,
+      "test": false
+    },
+    {
+      "name": "planner_enclosing_environment_drop_reaches_owned_descendant",
+      "start": 3630,
+      "end": 3697,
+      "lines": 68,
+      "test": true
+    },
+    {
+      "name": "enclosing_environment_keeps_opaque_parent_drop",
+      "start": 3699,
+      "end": 3768,
+      "lines": 70,
+      "test": true
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "start": 3770,
+      "end": 4305,
+      "lines": 536,
+      "test": true
+    },
+    {
+      "name": "conditional_seed_recursive_rebinding_jump_matrix",
+      "start": 4307,
+      "end": 4312,
+      "lines": 6,
+      "test": true
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "start": 4314,
+      "end": 4927,
+      "lines": 614,
+      "test": false
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "start": 4929,
+      "end": 5415,
+      "lines": 487,
+      "test": true
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "start": 5417,
+      "end": 5988,
+      "lines": 572,
+      "test": true
+    },
+    {
+      "name": "recursive_return_releases_the_formed_chain_once",
+      "start": 5990,
+      "end": 6303,
+      "lines": 314,
+      "test": true
+    },
+    {
+      "name": "recursive_capture_jump_edges_carry_the_new_root_instance",
+      "start": 6305,
+      "end": 6836,
+      "lines": 532,
+      "test": true
+    },
+    {
+      "name": "recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+      "start": 6838,
+      "end": 7110,
+      "lines": 273,
+      "test": true
+    },
+    {
+      "name": "recursive_loop_keeps_independent_shared_capture_loan_end",
+      "start": 7112,
+      "end": 7201,
+      "lines": 90,
+      "test": true
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "start": 7203,
+      "end": 7716,
+      "lines": 514,
+      "test": true
+    },
+    {
+      "name": "independent_closure_survives_a_recursive_loop_into_the_next_loop",
+      "start": 7718,
+      "end": 7805,
+      "lines": 88,
+      "test": true
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "start": 7807,
+      "end": 8640,
+      "lines": 834,
+      "test": true
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "start": 8642,
+      "end": 9713,
+      "lines": 1072,
+      "test": false
+    },
+    {
+      "name": "parent_of_two_recursive_loops_needs_file_wide_release_layout",
+      "start": 9715,
+      "end": 9726,
+      "lines": 12,
+      "test": true
+    },
+    {
+      "name": "file_parent_with_recursive_chains_and_shared_child_keeps_one_release_root",
+      "start": 9728,
+      "end": 9739,
+      "lines": 12,
+      "test": true
+    },
+    {
+      "name": "file_parent_shared_source_crosses_two_recursive_loops",
+      "start": 9741,
+      "end": 9752,
+      "lines": 12,
+      "test": true
+    },
+    {
+      "name": "parent_of_recursive_snapshot_needs_file_wide_release_layout",
+      "start": 9754,
+      "end": 9765,
+      "lines": 12,
+      "test": true
+    },
+    {
+      "name": "nested_environment_capture_needs_file_wide_release_layout",
+      "start": 9767,
+      "end": 9778,
+      "lines": 12,
+      "test": true
+    },
+    {
+      "name": "nested_environment_capture_of_ordinary_sibling_keeps_ordinary_drop",
+      "start": 9780,
+      "end": 9791,
+      "lines": 12,
+      "test": true
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "start": 9793,
+      "end": 10708,
+      "lines": 916,
+      "test": true
+    },
+    {
+      "name": "next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+      "start": 10710,
+      "end": 10813,
+      "lines": 104,
+      "test": true
+    },
+    {
+      "name": "next_recursive_loop_entry_keeps_previous_phi_root_sources",
+      "start": 10815,
+      "end": 10901,
+      "lines": 87,
+      "test": true
+    },
+    {
+      "name": "moved_recursive_phi_releases_instances_through_new_binding",
+      "start": 10903,
+      "end": 10967,
+      "lines": 65,
+      "test": true
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "start": 10969,
+      "end": 11035,
+      "lines": 67,
+      "test": true
+    },
+    {
+      "name": "conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+      "start": 11037,
+      "end": 11129,
+      "lines": 93,
+      "test": true
+    },
+    {
+      "name": "captured_phi_release_does_not_duplicate_child_drop",
+      "start": 11131,
+      "end": 11202,
+      "lines": 72,
+      "test": true
+    },
+    {
+      "name": "mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+      "start": 11204,
+      "end": 11291,
+      "lines": 88,
+      "test": true
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "start": 11293,
+      "end": 12285,
+      "lines": 993,
+      "test": true
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "start": 12287,
+      "end": 13442,
+      "lines": 1156,
+      "test": true
+    },
+    {
+      "name": "untracked_copyable_shared_capture_keeps_loan_ends",
+      "start": 13444,
+      "end": 13512,
+      "lines": 69,
+      "test": true
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "start": 13514,
+      "end": 14394,
+      "lines": 881,
+      "test": true
+    },
+    {
+      "name": "optional_nested_capture_requires_instance_presence",
+      "start": 14396,
+      "end": 14481,
+      "lines": 86,
+      "test": true
+    },
+    {
+      "name": "finite_capture_graph_checks_long_chains_without_recursive_traversal",
+      "start": 14483,
+      "end": 14495,
+      "lines": 13,
+      "test": true
+    },
+    {
+      "name": "finite_layout_order_is_bounded_on_diamond_ladders_and_deep_chains",
+      "start": 14497,
+      "end": 14521,
+      "lines": 25,
+      "test": true
+    },
+    {
+      "name": "recursive_capture_layout_visits_each_static_lambda_once",
+      "start": 14523,
+      "end": 14620,
+      "lines": 98,
+      "test": true
+    },
+    {
+      "name": "self_recursive_capture_layout_registers_finite_static_slots",
+      "start": 14622,
+      "end": 14687,
+      "lines": 66,
+      "test": true
+    }
+  ],
+  "mapping": [
+    {
+      "name": "coexisting_capture_paths_include_the_root_instance",
+      "start": 2230,
+      "end": 2298,
+      "lines": 69,
+      "test": true,
+      "module": "capture_graph",
+      "super_adjustments": 0
+    },
+    {
+      "name": "owned_cycle_release_does_not_claim_independent_leaf_roots",
+      "start": 2300,
+      "end": 2352,
+      "lines": 53,
+      "test": true,
+      "module": "capture_graph",
+      "super_adjustments": 1
+    },
+    {
+      "name": "nested_phi_selector_writes_keep_local_instance_paths",
+      "start": 2354,
+      "end": 2461,
+      "lines": 108,
+      "test": true,
+      "module": "capture_graph",
+      "super_adjustments": 0
+    },
+    {
+      "name": "optional_nested_capture_requires_instance_presence",
+      "start": 14396,
+      "end": 14481,
+      "lines": 86,
+      "test": true,
+      "module": "capture_graph",
+      "super_adjustments": 6
+    },
+    {
+      "name": "finite_capture_graph_checks_long_chains_without_recursive_traversal",
+      "start": 14483,
+      "end": 14495,
+      "lines": 13,
+      "test": true,
+      "module": "capture_graph",
+      "super_adjustments": 0
+    },
+    {
+      "name": "finite_layout_order_is_bounded_on_diamond_ladders_and_deep_chains",
+      "start": 14497,
+      "end": 14521,
+      "lines": 25,
+      "test": true,
+      "module": "capture_graph",
+      "super_adjustments": 0
+    },
+    {
+      "name": "recursive_capture_layout_visits_each_static_lambda_once",
+      "start": 14523,
+      "end": 14620,
+      "lines": 98,
+      "test": true,
+      "module": "capture_graph",
+      "super_adjustments": 0
+    },
+    {
+      "name": "self_recursive_capture_layout_registers_finite_static_slots",
+      "start": 14622,
+      "end": 14687,
+      "lines": 66,
+      "test": true,
+      "module": "capture_graph",
+      "super_adjustments": 0
+    },
+    {
+      "name": "conditional_leaf_phi_replays_formed_instance_and_presence",
+      "start": 2463,
+      "end": 2468,
+      "lines": 6,
+      "test": true,
+      "module": "conditional_leaf",
+      "super_adjustments": 0
+    },
+    {
+      "name": "assert_conditional_leaf_replay",
+      "start": 2470,
+      "end": 3628,
+      "lines": 1159,
+      "test": false,
+      "module": "conditional_leaf",
+      "super_adjustments": 6
+    },
+    {
+      "name": "planner_enclosing_environment_drop_reaches_owned_descendant",
+      "start": 3630,
+      "end": 3697,
+      "lines": 68,
+      "test": true,
+      "module": "environment_drop",
+      "super_adjustments": 6
+    },
+    {
+      "name": "enclosing_environment_keeps_opaque_parent_drop",
+      "start": 3699,
+      "end": 3768,
+      "lines": 70,
+      "test": true,
+      "module": "environment_drop",
+      "super_adjustments": 6
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "start": 3770,
+      "end": 4305,
+      "lines": 536,
+      "test": true,
+      "module": "recursive_body",
+      "super_adjustments": 6
+    },
+    {
+      "name": "conditional_seed_recursive_rebinding_jump_matrix",
+      "start": 4307,
+      "end": 4312,
+      "lines": 6,
+      "test": true,
+      "module": "conditional_rebinding",
+      "super_adjustments": 0
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "start": 4314,
+      "end": 4927,
+      "lines": 614,
+      "test": false,
+      "module": "conditional_rebinding",
+      "super_adjustments": 6
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "start": 4929,
+      "end": 5415,
+      "lines": 487,
+      "test": true,
+      "module": "recursive_chains",
+      "super_adjustments": 6
+    },
+    {
+      "name": "recursive_return_releases_the_formed_chain_once",
+      "start": 5990,
+      "end": 6303,
+      "lines": 314,
+      "test": true,
+      "module": "recursive_chains",
+      "super_adjustments": 6
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "start": 5417,
+      "end": 5988,
+      "lines": 572,
+      "test": true,
+      "module": "recursive_chain_jumps",
+      "super_adjustments": 6
+    },
+    {
+      "name": "recursive_capture_jump_edges_carry_the_new_root_instance",
+      "start": 6305,
+      "end": 6836,
+      "lines": 532,
+      "test": true,
+      "module": "recursive_jump_roots",
+      "super_adjustments": 6
+    },
+    {
+      "name": "recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+      "start": 6838,
+      "end": 7110,
+      "lines": 273,
+      "test": true,
+      "module": "independent_roots",
+      "super_adjustments": 6
+    },
+    {
+      "name": "recursive_loop_keeps_independent_shared_capture_loan_end",
+      "start": 7112,
+      "end": 7201,
+      "lines": 90,
+      "test": true,
+      "module": "independent_roots",
+      "super_adjustments": 6
+    },
+    {
+      "name": "independent_closure_survives_a_recursive_loop_into_the_next_loop",
+      "start": 7718,
+      "end": 7805,
+      "lines": 88,
+      "test": true,
+      "module": "independent_roots",
+      "super_adjustments": 6
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "start": 7203,
+      "end": 7716,
+      "lines": 514,
+      "test": true,
+      "module": "recursive_shared_layout",
+      "super_adjustments": 6
+    },
+    {
+      "name": "untracked_copyable_shared_capture_keeps_loan_ends",
+      "start": 13444,
+      "end": 13512,
+      "lines": 69,
+      "test": true,
+      "module": "recursive_shared_layout",
+      "super_adjustments": 6
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "start": 7807,
+      "end": 8640,
+      "lines": 834,
+      "test": true,
+      "module": "snapshot_mixed_roots",
+      "super_adjustments": 6
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "start": 8642,
+      "end": 9713,
+      "lines": 1072,
+      "test": false,
+      "module": "file_parent",
+      "super_adjustments": 6
+    },
+    {
+      "name": "parent_of_two_recursive_loops_needs_file_wide_release_layout",
+      "start": 9715,
+      "end": 9726,
+      "lines": 12,
+      "test": true,
+      "module": "file_parent",
+      "super_adjustments": 0
+    },
+    {
+      "name": "file_parent_with_recursive_chains_and_shared_child_keeps_one_release_root",
+      "start": 9728,
+      "end": 9739,
+      "lines": 12,
+      "test": true,
+      "module": "file_parent",
+      "super_adjustments": 0
+    },
+    {
+      "name": "file_parent_shared_source_crosses_two_recursive_loops",
+      "start": 9741,
+      "end": 9752,
+      "lines": 12,
+      "test": true,
+      "module": "file_parent",
+      "super_adjustments": 0
+    },
+    {
+      "name": "parent_of_recursive_snapshot_needs_file_wide_release_layout",
+      "start": 9754,
+      "end": 9765,
+      "lines": 12,
+      "test": true,
+      "module": "file_parent",
+      "super_adjustments": 0
+    },
+    {
+      "name": "nested_environment_capture_needs_file_wide_release_layout",
+      "start": 9767,
+      "end": 9778,
+      "lines": 12,
+      "test": true,
+      "module": "file_parent",
+      "super_adjustments": 0
+    },
+    {
+      "name": "nested_environment_capture_of_ordinary_sibling_keeps_ordinary_drop",
+      "start": 9780,
+      "end": 9791,
+      "lines": 12,
+      "test": true,
+      "module": "file_parent",
+      "super_adjustments": 0
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "start": 9793,
+      "end": 10708,
+      "lines": 916,
+      "test": true,
+      "module": "snapshot_recursive_roots",
+      "super_adjustments": 6
+    },
+    {
+      "name": "next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+      "start": 10710,
+      "end": 10813,
+      "lines": 104,
+      "test": true,
+      "module": "loop_handoff",
+      "super_adjustments": 6
+    },
+    {
+      "name": "next_recursive_loop_entry_keeps_previous_phi_root_sources",
+      "start": 10815,
+      "end": 10901,
+      "lines": 87,
+      "test": true,
+      "module": "loop_handoff",
+      "super_adjustments": 6
+    },
+    {
+      "name": "moved_recursive_phi_releases_instances_through_new_binding",
+      "start": 10903,
+      "end": 10967,
+      "lines": 65,
+      "test": true,
+      "module": "snapshot_cleanup",
+      "super_adjustments": 6
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "start": 10969,
+      "end": 11035,
+      "lines": 67,
+      "test": true,
+      "module": "snapshot_cleanup",
+      "super_adjustments": 6
+    },
+    {
+      "name": "conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+      "start": 11037,
+      "end": 11129,
+      "lines": 93,
+      "test": true,
+      "module": "snapshot_cleanup",
+      "super_adjustments": 6
+    },
+    {
+      "name": "captured_phi_release_does_not_duplicate_child_drop",
+      "start": 11131,
+      "end": 11202,
+      "lines": 72,
+      "test": true,
+      "module": "snapshot_cleanup",
+      "super_adjustments": 6
+    },
+    {
+      "name": "mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+      "start": 11204,
+      "end": 11291,
+      "lines": 88,
+      "test": true,
+      "module": "snapshot_cleanup",
+      "super_adjustments": 6
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "start": 11293,
+      "end": 12285,
+      "lines": 993,
+      "test": true,
+      "module": "coexisting_paths",
+      "super_adjustments": 6
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "start": 12287,
+      "end": 13442,
+      "lines": 1156,
+      "test": true,
+      "module": "sibling_shared_loans",
+      "super_adjustments": 6
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "start": 13514,
+      "end": 14394,
+      "lines": 881,
+      "test": true,
+      "module": "conditional_diamond",
+      "super_adjustments": 6
+    }
+  ],
+  "fidelity": [
+    {
+      "name": "replay_owned_closure_release",
+      "test": false,
+      "module": "tests",
+      "original_block_sha256": "c1cb30c30c562f39667f0fa4d880369b7740e234b42966e3c5d7e8ff3e66f34f",
+      "new_block_sha256": "872df178392ced29c9721a7840c61f2e6e5ee7fca51e7ea6f73f2b2ff0e507e8",
+      "literal_sha256": "174541df52ef6ea770ace18bdbae05cca1d502bf690593c8d3f3980570b50a8e",
+      "literal_count": 2,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "selected",
+      "test": false,
+      "module": "tests",
+      "original_block_sha256": "6a0406d402a74d55330a4e9f7b3583edcf2bbe3dd749a52d9d84f600f4dd00c0",
+      "new_block_sha256": "4f4707076447dc2f333fc1b70f4082c6f04af74d5b995bf3a84dcf5393215656",
+      "literal_sha256": "9698bc43a04da1e512fb43392c031c1589398c602333e46446c4bc2c964ce13a",
+      "literal_count": 1,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "replay_edge_presence",
+      "test": false,
+      "module": "tests",
+      "original_block_sha256": "bb9ce9e7407149063e2dcd4d93df384a580ca1c7aca210af2aee0ee14dde4497",
+      "new_block_sha256": "936fc64de1ca598719b54fa05da35971260da2fc4716cc88d0c00a03c999e5a9",
+      "literal_sha256": "f4be2c7d5cde8d6d66311539b08598f988ededc5f13a1c1e6e76bd4de0f1cd84",
+      "literal_count": 1,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "replay_edge_candidates",
+      "test": false,
+      "module": "tests",
+      "original_block_sha256": "7b4c19f8ed9718f0b24543b108094f07a18d51cf9c40df199d751538497ed591",
+      "new_block_sha256": "905bc376a75ff2c3f80f6c77132137065407ccd259950917d9b885c8a9b5a6e1",
+      "literal_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "literal_count": 0,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "ReplayInstances",
+      "test": false,
+      "module": "tests",
+      "original_block_sha256": "9bf645639f97f3c242d20a01cfc8533278e9841da57d072777084d6793abb8a0",
+      "new_block_sha256": "e0ca1bcaa7ac60700be3aeb03e6764ecc37ec11f96282944ad599bab451e2a7c",
+      "literal_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "literal_count": 0,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "replay_captured_edge_presence",
+      "test": false,
+      "module": "tests",
+      "original_block_sha256": "ee6bb2ae389b947ee703a46680d83440f1e5af6383d66e8436b5aeaeb1959b4b",
+      "new_block_sha256": "7c4eda0fe77b5888a57324783fb333383855a683c1722a87899ff7d98374ee1e",
+      "literal_sha256": "f73bf7de97a718fc6059b8926598d28603f1ea6368898b497cec659229562318",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "replay_captured_edge",
+      "test": false,
+      "module": "tests",
+      "original_block_sha256": "8f78ffee0ce743e920e8e2af16af31e8e342122c400ddfd11cc2d8f26a96bb16",
+      "new_block_sha256": "81fb5008c09d94e54be36f30f5769294cbc9c9b77cbc373f87e35071e26cb654",
+      "literal_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "literal_count": 0,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "replay_snapshot_choices",
+      "test": false,
+      "module": "tests",
+      "original_block_sha256": "ba9059dd5752dd24f6c211273a3544c182a0649e59a386336ec964fce276f4f4",
+      "new_block_sha256": "e0c02faf14e23403249c22e1512acc120b05887aabf138f16e014fa8452652f8",
+      "literal_sha256": "fb889184e2261dc49cc4e051e8fbaf6f476646c92034fbb4d51a1e2bdcead193",
+      "literal_count": 1,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "coexisting_capture_paths_include_the_root_instance",
+      "test": true,
+      "module": "capture_graph",
+      "original_block_sha256": "572f46ad355d5a84ce68fbea53cedf9af924977c2fd5bff6ccce165797a1331b",
+      "new_block_sha256": "5ce18b0773546f6e3fd0897941aafacf378c22e6cf9b6af2c9a635a240c0faf2",
+      "literal_sha256": "7faaeb0863627a81961c7d2342bba69a2b0541a17ca5ded403f38511c44a038c",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "owned_cycle_release_does_not_claim_independent_leaf_roots",
+      "test": true,
+      "module": "capture_graph",
+      "original_block_sha256": "f533907dd973f5ebd8b0afd501a72d7cd8e52f8c2e6fd0acd2cf6d988e3f8ef5",
+      "new_block_sha256": "08f74acb037d362af192dee114c28ca82fbd9cced105b38d0f0632bf050af650",
+      "literal_sha256": "784b411af985ce414000f11cfb764b8c3e55b94d98e0fc3b12da804c0c3a7612",
+      "literal_count": 2,
+      "super_adjustments": 1,
+      "format_token_edits": 0
+    },
+    {
+      "name": "nested_phi_selector_writes_keep_local_instance_paths",
+      "test": true,
+      "module": "capture_graph",
+      "original_block_sha256": "fe70e5af089865ba9867c2409e61ffeff8cdd2c9c20345a071f8489aa578e195",
+      "new_block_sha256": "f666747f1e69e479d96b8b2b2ba74cea453b2da2fc23971442db3449192def28",
+      "literal_sha256": "ad2a1f55c30bac39a5dabed02170ab99b478bbbbbccd0d97a7b0f5fa68ec9a96",
+      "literal_count": 2,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "conditional_leaf_phi_replays_formed_instance_and_presence",
+      "test": true,
+      "module": "conditional_leaf",
+      "original_block_sha256": "a9c0d0f957959f46e4b1c4ec7c5a9c2e21dd943bdfcd199826e54f882f31cc82",
+      "new_block_sha256": "dd6053fdac29951f2b5ec4fcb0efd0f176b2340fab509977aca272a2dc66ac6c",
+      "literal_sha256": "96fd5f79ea980ff2606f89e9aa08931488eccda421480a27ce93ed35f10bbd23",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "assert_conditional_leaf_replay",
+      "test": false,
+      "module": "conditional_leaf",
+      "original_block_sha256": "136d991adf0d281605ebde47b83f89ca031a56596b5d4e7830713b211bfd1ae1",
+      "new_block_sha256": "3624ca93d06e076ab54d81dae79134812949bb39de9094e90a1448e1ed014c28",
+      "literal_sha256": "8274afc7ac8dab84b1189cbb34cc13371708746cf2778b6b6b374275ccbe88b9",
+      "literal_count": 31,
+      "super_adjustments": 6,
+      "format_token_edits": 8
+    },
+    {
+      "name": "planner_enclosing_environment_drop_reaches_owned_descendant",
+      "test": true,
+      "module": "environment_drop",
+      "original_block_sha256": "12fc79f523d3bc68f0034c0d38f76e17d74ab0df7f64620dbc0697d5684bd1ed",
+      "new_block_sha256": "a467a803369958a510fde9bde328679d76a4458f2ffd0758295d82745b93cf61",
+      "literal_sha256": "4dcb8ae7ccf0b21d43bda71761587bb8aa2c5aa440fb1edf122aafe8ba356a7d",
+      "literal_count": 4,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "enclosing_environment_keeps_opaque_parent_drop",
+      "test": true,
+      "module": "environment_drop",
+      "original_block_sha256": "04518e2b7985815720f517efd95fa687fdd53f5fff1d40b66216a57b7a699a7a",
+      "new_block_sha256": "90fe6b79075aeb10d9e2cf27775b6778b5f2b3b4186fcd95e4c7aea92d7e9ba5",
+      "literal_sha256": "171127decebb1935815540d7797a7bc8a2d7981401a3618177c3292cd447bd4c",
+      "literal_count": 4,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "test": true,
+      "module": "recursive_body",
+      "original_block_sha256": "63906fedde28af16c95dea8205a685c68af7b042bcc4c4990d3072a16f83c273",
+      "new_block_sha256": "b9ce753541ab89189d448350568445a27e2a3a574960c160d1d763eee7736f84",
+      "literal_sha256": "6d81145abbfe075fbb802b2a15bd6ebede50ee4547a4f0610003f275a4f5b920",
+      "literal_count": 14,
+      "super_adjustments": 6,
+      "format_token_edits": 2
+    },
+    {
+      "name": "conditional_seed_recursive_rebinding_jump_matrix",
+      "test": true,
+      "module": "conditional_rebinding",
+      "original_block_sha256": "67011fcf788126e1d925139c1d3fd75ac1afa80cd62971d8a908dbf050ac088f",
+      "new_block_sha256": "726d52fd076b4901eeb81fadb37a2b51abd981f4ad18f1ad3c6ef49caa37738c",
+      "literal_sha256": "133646b040b232b9d1d0ed34baf87ce4d74a2765f5269d544ae76f8de419f4a7",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "test": false,
+      "module": "conditional_rebinding",
+      "original_block_sha256": "82a814f4e9e1d4d63eaec7c6b6926d39b69d930bd506a7bd8882a7d1ef1d8564",
+      "new_block_sha256": "88e3270bcbe5941c22ce3d87423dfde91c0d5b9dacdadfc534c09ad1155539eb",
+      "literal_sha256": "7a398fac8f5b9271667cbb7f05e5f7f6b406abc6d0d143ee735bf4911a5dc860",
+      "literal_count": 19,
+      "super_adjustments": 6,
+      "format_token_edits": 2
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "test": true,
+      "module": "recursive_chains",
+      "original_block_sha256": "5cf998dc237524ff961e9ba489954de58c8623e595f9202fddcceb219ac84399",
+      "new_block_sha256": "8e05c73ed8b00234c51dedc555bfd96a60ef53e4e1e3a2f426187a98059ca5ed",
+      "literal_sha256": "056a65041a61bf9e54590fb7d810480406fe55eedc65b6f87ca272fdb5bc72a9",
+      "literal_count": 10,
+      "super_adjustments": 6,
+      "format_token_edits": 2
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "test": true,
+      "module": "recursive_chain_jumps",
+      "original_block_sha256": "e2c8ec5f817a3924d10f3405a4647b5682487b976bfcf68198db6188681d716d",
+      "new_block_sha256": "68d5204d3c98dc3d20b887bcd2463b8554004959932e5ae0e441ecff9adcec7e",
+      "literal_sha256": "8473c541b842b188e68c44ecba846718c7c3061838dd48c2812d4b953a782b01",
+      "literal_count": 42,
+      "super_adjustments": 6,
+      "format_token_edits": 2
+    },
+    {
+      "name": "recursive_return_releases_the_formed_chain_once",
+      "test": true,
+      "module": "recursive_chains",
+      "original_block_sha256": "eafa66992c7da36bf0c10de4173709b5b8b2fcc25f11072f87277fca4e1c7849",
+      "new_block_sha256": "5cad0b3f2d700842d1e18a4ca1f6b09e2c6aaaa71d563d0a4649e66f2c6f6716",
+      "literal_sha256": "09a27be03fb4eca9c1ef2857ebffe1a1980232240d207b42a715f664d9fb4663",
+      "literal_count": 12,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "recursive_capture_jump_edges_carry_the_new_root_instance",
+      "test": true,
+      "module": "recursive_jump_roots",
+      "original_block_sha256": "ab81794d8a64d318c3f01674215d580b499954c876f11d6422f95001cda63ff3",
+      "new_block_sha256": "a19cbd49021c90443169dbf2e0503e2eb78eacf682aed6709b803be54a45bca6",
+      "literal_sha256": "1475d464440ea9982be6439f63d4573ee959864590dcb51f84ff92c7a1c6421c",
+      "literal_count": 42,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+      "test": true,
+      "module": "independent_roots",
+      "original_block_sha256": "6a50e93ccf77bacc84374ad7e251e2ef5292f8a95656c6702dd24d69c401a23b",
+      "new_block_sha256": "82cf5de2237181d347d95f7f852a04ecfc94fd5dc77cf0b6a9c65398a484d4f0",
+      "literal_sha256": "fd31e2a27bba7d5bae88d84b4abcf7a551de27bfe6e9d376c706a735dab854fe",
+      "literal_count": 7,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "recursive_loop_keeps_independent_shared_capture_loan_end",
+      "test": true,
+      "module": "independent_roots",
+      "original_block_sha256": "784c0e7212af4453c4a63ba0fbd5d4de75a6e1689e15948922811089a51843ca",
+      "new_block_sha256": "19eba78a3dbceb149b5e3d40ad26cc56579361ba9c072704839a3b186cc19070",
+      "literal_sha256": "4c206a6c99d1f7734952e077f697c010baa7648aaa6396fb53e25dbe5666a0fe",
+      "literal_count": 4,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "test": true,
+      "module": "recursive_shared_layout",
+      "original_block_sha256": "37c24e58b97ba11f86cdfd0e9c731d741161ff05c63b2918bb0e29e85ce68655",
+      "new_block_sha256": "a90f834c970065cc107611142df6cf168dc12371792760a08c7309aec1b82b6f",
+      "literal_sha256": "058b27dc4c192b26b434eef0b45747c73c6001219679d596de5bced3f79b1fab",
+      "literal_count": 16,
+      "super_adjustments": 6,
+      "format_token_edits": 2
+    },
+    {
+      "name": "independent_closure_survives_a_recursive_loop_into_the_next_loop",
+      "test": true,
+      "module": "independent_roots",
+      "original_block_sha256": "e4e340ddd5caa3943109187eaefc6124a1aa988fee1ddae448004ea0feb176cb",
+      "new_block_sha256": "f3f2a1db1a5122191827b5e2cbc317314754125d1936a5f232075be38b3c15ce",
+      "literal_sha256": "ea7173048ed6bd43b58a217744738a677cf63b8fcd6978b10857fad78565fdc2",
+      "literal_count": 3,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "test": true,
+      "module": "snapshot_mixed_roots",
+      "original_block_sha256": "64a85755475ce4898ce7a0e85cd7ee7c8288827b31295e7eb7c7976eea50d2b2",
+      "new_block_sha256": "e94ab8e81d1e68e8e4634ca4112d3f53cb7cd2b140f00ca2c1c730ca458351d3",
+      "literal_sha256": "a3a9da9fcffe58b219805c26028607da3dae305d9f2570558893c9ff1474bc66",
+      "literal_count": 23,
+      "super_adjustments": 6,
+      "format_token_edits": 2
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "test": false,
+      "module": "file_parent",
+      "original_block_sha256": "541204a00b4626aaf148156db7744c0d2d581d811f8ea73d1ecb1fd2bc9414d2",
+      "new_block_sha256": "639d4fccf22ffd3fc64a39d8e520796105ceb1ef3ab38c7033b3a9a87ef8bd98",
+      "literal_sha256": "507951a6444c0ff7abc3b7b2b279e138412e1de702743b13557e1d5337ba6c7e",
+      "literal_count": 41,
+      "super_adjustments": 6,
+      "format_token_edits": 4
+    },
+    {
+      "name": "parent_of_two_recursive_loops_needs_file_wide_release_layout",
+      "test": true,
+      "module": "file_parent",
+      "original_block_sha256": "bcc7b1ac3f9470ad5950e1cdb9d98913c92f6ffb8bdef91031776e7983f77409",
+      "new_block_sha256": "1c7a57e50d6f36d1de48967cfc3a851aede438f9bb14f6f7e31ddf094f26a4c3",
+      "literal_sha256": "eab45250f432777ef605ecf7cf8040211520dfccd61234fd8ebc6935d6421591",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "file_parent_with_recursive_chains_and_shared_child_keeps_one_release_root",
+      "test": true,
+      "module": "file_parent",
+      "original_block_sha256": "e6edc45c53d7dc55d7eb9e7fcdd464ad5623112377cad4a81f68b0bbe77c7933",
+      "new_block_sha256": "af7a55275c496b4872411cf4d2a5fcc65e284006c73f497fb6190af494021202",
+      "literal_sha256": "d184f01046fb5a7023493af66831504207fe138df2e2a1a5676afcee2e8658de",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "file_parent_shared_source_crosses_two_recursive_loops",
+      "test": true,
+      "module": "file_parent",
+      "original_block_sha256": "c7c7de2f17c685c8b7a53270d1c070274d6b9cab01d15406324723f9de7cbb10",
+      "new_block_sha256": "fe1d8adb80943980bf52afb79d1f731d88b190c35dc2a982b4314137dba3a29f",
+      "literal_sha256": "c95b3bb17bb7957e4be74e2b2c292bcfebf1cf63c0f01348b91cb07bb8a830f1",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "parent_of_recursive_snapshot_needs_file_wide_release_layout",
+      "test": true,
+      "module": "file_parent",
+      "original_block_sha256": "8ab4d18221be8e18186e76129dbc62a691d4dc83804dd6de2b95ced866a52cf0",
+      "new_block_sha256": "521f5f77c080a181687e809700678af628dd1adf6a1da7740dadfca0f00265f2",
+      "literal_sha256": "5fd90479f580a5b2d7941b739a5be48bbeb4b782e30225a580ddd8960f6db6cf",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "nested_environment_capture_needs_file_wide_release_layout",
+      "test": true,
+      "module": "file_parent",
+      "original_block_sha256": "15c22b8b16a4005257d6de055686524f39e45251f9251eb413f13c3856257576",
+      "new_block_sha256": "06f494876f5555602270e815f4e275f3af6665c900d3438405bf92c045d1deed",
+      "literal_sha256": "a05f8fe0125f783d13dfb2dd5a26357818d9a1e3ee46db8688b24529c2a46754",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "nested_environment_capture_of_ordinary_sibling_keeps_ordinary_drop",
+      "test": true,
+      "module": "file_parent",
+      "original_block_sha256": "5ff7782d5705c10309376678d25c1d488749541397a685f628b8e1732a7019cd",
+      "new_block_sha256": "975765e3d7e29fb9e8d0e6b7ac732f1d7c73af44824fe334e52612fb6d768e36",
+      "literal_sha256": "74f9c55afc39eaaefcfb468eecaabe5728748edb9f2f98e5c07337c62a9e22ed",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "test": true,
+      "module": "snapshot_recursive_roots",
+      "original_block_sha256": "bc1d1da726670942e7a611b6d3f6bd26fe40e40dbb81ccc75aaad2ac0131850f",
+      "new_block_sha256": "4266d9b3a14c82a8557722f71dedafc2c1ccb0824a9abc81d28eab4c73b34d36",
+      "literal_sha256": "8dd7e72fbca5df508fbd46341f5aa101b79b75909e9f1be1e61e0907d69d7aa8",
+      "literal_count": 15,
+      "super_adjustments": 6,
+      "format_token_edits": 4
+    },
+    {
+      "name": "next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+      "test": true,
+      "module": "loop_handoff",
+      "original_block_sha256": "8c34aa9cebb651a302c3b0a0b152007cea43d88fe699bfade5a8897c9562350f",
+      "new_block_sha256": "c4674ef248b445a731f65cdf5ab465cd088a222d70bc1125a5d19ea860a3a907",
+      "literal_sha256": "fd642860e2322366840e358cf2d5f9d42a1103521d6225ba33ea4f37f1131ab1",
+      "literal_count": 4,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "next_recursive_loop_entry_keeps_previous_phi_root_sources",
+      "test": true,
+      "module": "loop_handoff",
+      "original_block_sha256": "d382d117e40e75dbd733a97a77f914d5b480f042de77062c0b050425b5274412",
+      "new_block_sha256": "7bc7aa70089e80947f7dcb4eb67a3a1e88088f1e9e4e19208fb67c926b2fd706",
+      "literal_sha256": "284a0d3f0d266a98b7f06f93cbe446ee02dd80465887717ce7050391a3a9e5f6",
+      "literal_count": 3,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "moved_recursive_phi_releases_instances_through_new_binding",
+      "test": true,
+      "module": "snapshot_cleanup",
+      "original_block_sha256": "99b39a5b2936c27d6b00633006199e2284e2382cb97d479af163d04bd8b9fca7",
+      "new_block_sha256": "ea802fc5ef02f0fe8f03cfbb3168ac48d1b3326285f13124cfa362b0919a3c35",
+      "literal_sha256": "7b350a1f95cc5ac24464b49dea8893386c6a135603ee023fa2f24a74a0f8b7c2",
+      "literal_count": 3,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "test": true,
+      "module": "snapshot_cleanup",
+      "original_block_sha256": "64b037b3b2bac3c140368435d8036788235adc745174fe359549cbea1a9b82a0",
+      "new_block_sha256": "42e91c200cbfd53f720614aa2b9a64c96e3171455571be11e0c7707344849311",
+      "literal_sha256": "22014f63d0f75f59b9464a1b9971a8a8cc46622c5351f31c1889ff8e9cb4712e",
+      "literal_count": 5,
+      "super_adjustments": 6,
+      "format_token_edits": 2
+    },
+    {
+      "name": "conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+      "test": true,
+      "module": "snapshot_cleanup",
+      "original_block_sha256": "826c17504110024cedee55acd7d0ebfcfbf073c8f08a67fb1b73fbcaaace66c2",
+      "new_block_sha256": "bd7c7f86fe3d7038b8eacf131cdc1468e7bf02b2028467a3bbed2da1b6757ccc",
+      "literal_sha256": "541bd50ae019def051e6792d234ac3a739d22d0976c09e2d94ee052ee55c891f",
+      "literal_count": 4,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "captured_phi_release_does_not_duplicate_child_drop",
+      "test": true,
+      "module": "snapshot_cleanup",
+      "original_block_sha256": "0331ba2e188319a5d8c9e4e4c9cd100c36fe175ed5e4ffa891d23acd6c96d429",
+      "new_block_sha256": "327425cf9baadcbbaed9015ea7de87335fd2dceaef6937b23ddb5de099640e3f",
+      "literal_sha256": "b034801f1ed944cd0ee48d2926aee8d0e1bf4c7a69b9b9f184d9d3243dbf42d9",
+      "literal_count": 5,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+      "test": true,
+      "module": "snapshot_cleanup",
+      "original_block_sha256": "3f00ee88b7a647c386adc0696ae4637da8c7b85a908c848efedc88879ca469e1",
+      "new_block_sha256": "43811c68eaae1471b50ab346197915ffe8b56251f584eeddc8914c959641702b",
+      "literal_sha256": "fee4295fe61bd63abbbb5cdc6058ea02c8d6edd53897c6b2f05a674dcec30784",
+      "literal_count": 7,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "test": true,
+      "module": "coexisting_paths",
+      "original_block_sha256": "697cdb35fde15f0f23ef85041c5d670e64473a866245497ae92596955d62a962",
+      "new_block_sha256": "becab129cca23aec702050bb407eeab5eef432dd1ad05f6e22929455899c4d0d",
+      "literal_sha256": "e7d720f11a867fcb57223f7d9e5cb6d3e0d5d7059193a1ffd04c80510caeb5a7",
+      "literal_count": 32,
+      "super_adjustments": 6,
+      "format_token_edits": 1
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "test": true,
+      "module": "sibling_shared_loans",
+      "original_block_sha256": "98ccca83e3868b337010fcf85a63bad1092aed80f34aaf0e1a7fc98b2b2bc484",
+      "new_block_sha256": "a91127505efb6be7a9727a53bbf7d494494f8cd7716b7feaa7a2e9794484ebbb",
+      "literal_sha256": "420c0009cf8338c06c1461d7a6fc53799a6d69d7d1b5d1c5517467048098e4db",
+      "literal_count": 21,
+      "super_adjustments": 6,
+      "format_token_edits": 4
+    },
+    {
+      "name": "untracked_copyable_shared_capture_keeps_loan_ends",
+      "test": true,
+      "module": "recursive_shared_layout",
+      "original_block_sha256": "59d0b94b473f870e4c0bf2b2e31ca6b0d32a7d1a73fcfc0a0d1e6444b3837bd8",
+      "new_block_sha256": "0f70762ad8bf1e1b6ba08739e7aecc3ff9ae0a3ffd1dcc9f00dcf31b8aa8e2f5",
+      "literal_sha256": "79da2e7903d6a8bb86a9d8af6623158cc38e1cff1de29775e809cecf5ca62352",
+      "literal_count": 4,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "test": true,
+      "module": "conditional_diamond",
+      "original_block_sha256": "779357bca2fa43f3820404e3b7974044e8165236395ee04adb5a2e29e3621399",
+      "new_block_sha256": "067e9a6487505a2ec539558adddb464ada5f144d8fb514b1e59d2ec552ca868f",
+      "literal_sha256": "a526183c4e74421a1925e8d01b8d2ca9afc711b01d7c9b3a5afa53cc0a21a49f",
+      "literal_count": 23,
+      "super_adjustments": 6,
+      "format_token_edits": 7
+    },
+    {
+      "name": "optional_nested_capture_requires_instance_presence",
+      "test": true,
+      "module": "capture_graph",
+      "original_block_sha256": "3c1b1608258e9421224cc765e24bf9492a172948208375aa1168232cc1747d97",
+      "new_block_sha256": "7fb3d5f7441cce5b66354d2121a06e822071ec2f9f12f48d168f4a25959d1878",
+      "literal_sha256": "fa37ec9c6bcf8f26aac1180e0f41396898002ff004d79358e9f60da1b0cf53c7",
+      "literal_count": 4,
+      "super_adjustments": 6,
+      "format_token_edits": 0
+    },
+    {
+      "name": "finite_capture_graph_checks_long_chains_without_recursive_traversal",
+      "test": true,
+      "module": "capture_graph",
+      "original_block_sha256": "a09958b8ea0b91d4a87530f13d260b3c70e25564204376c44b0207f0d65a4fb0",
+      "new_block_sha256": "a74288c6176941f7e2223c45ddb9829693fba6543e33e43fc9d95cb66a404d32",
+      "literal_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "literal_count": 0,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "finite_layout_order_is_bounded_on_diamond_ladders_and_deep_chains",
+      "test": true,
+      "module": "capture_graph",
+      "original_block_sha256": "8a49eeb72bd805299bcbee759fed27053e18b92f844ea0f59eb234fe724e83a7",
+      "new_block_sha256": "e9965891ca520a5c6c5311a0e9289331f5321048afb265149f28d7673846d7c7",
+      "literal_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "literal_count": 0,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "recursive_capture_layout_visits_each_static_lambda_once",
+      "test": true,
+      "module": "capture_graph",
+      "original_block_sha256": "589cfbe2a2bcbee409e77b4cf91cf6cc5788472a34057dfa07ab6cb3150df248",
+      "new_block_sha256": "f24d80b25e6c1783ab2901b016fc6e5d17f76ff9175ff7c98f453f1eb33f90c5",
+      "literal_sha256": "7ab865458bf7a0e4ea315485421efbcef83ff1a5a2be7c9e0c01080eb13a38cd",
+      "literal_count": 3,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    },
+    {
+      "name": "self_recursive_capture_layout_registers_finite_static_slots",
+      "test": true,
+      "module": "capture_graph",
+      "original_block_sha256": "b2f70ec9c1315c304addfcf5cd7b7b394bb56af2458b43fca5c533fc2c81fbcf",
+      "new_block_sha256": "99930c2fd0d52a8d4ff7a372e1433a1485e966f2645140065291cea8c87a8b72",
+      "literal_sha256": "94a927591a819f5cc37460c22152ff70a8a1d6ccffad1b596f7144be02ad9046",
+      "literal_count": 4,
+      "super_adjustments": 0,
+      "format_token_edits": 0
+    }
+  ],
+  "format_token_edits": [
+    {
+      "name": "assert_conditional_leaf_replay",
+      "edits": [
+        {
+          "old_token_index": 7525,
+          "new_token_index": 7525,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 7527,
+          "new_token_index": 7526,
+          "old": [
+            "}"
+          ],
+          "new": [
+            ","
+          ]
+        },
+        {
+          "old_token_index": 7578,
+          "new_token_index": 7577,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 7595,
+          "new_token_index": 7593,
+          "old": [
+            "}"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 8001,
+          "new_token_index": 7998,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 8020,
+          "new_token_index": 8016,
+          "old": [
+            "}"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 8346,
+          "new_token_index": 8341,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 8365,
+          "new_token_index": 8359,
+          "old": [
+            "}"
+          ],
+          "new": []
+        }
+      ]
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "edits": [
+        {
+          "old_token_index": 897,
+          "new_token_index": 897,
+          "old": [],
+          "new": [
+            "{"
+          ]
+        },
+        {
+          "old_token_index": 918,
+          "new_token_index": 919,
+          "old": [],
+          "new": [
+            "}"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "edits": [
+        {
+          "old_token_index": 2756,
+          "new_token_index": 2756,
+          "old": [],
+          "new": [
+            "{"
+          ]
+        },
+        {
+          "old_token_index": 2761,
+          "new_token_index": 2762,
+          "old": [
+            ","
+          ],
+          "new": [
+            "}"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "edits": [
+        {
+          "old_token_index": 3494,
+          "new_token_index": 3494,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 3496,
+          "new_token_index": 3495,
+          "old": [
+            "}"
+          ],
+          "new": [
+            ","
+          ]
+        }
+      ]
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "edits": [
+        {
+          "old_token_index": 4324,
+          "new_token_index": 4324,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 4330,
+          "new_token_index": 4329,
+          "old": [
+            "}"
+          ],
+          "new": [
+            ","
+          ]
+        }
+      ]
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "edits": [
+        {
+          "old_token_index": 1553,
+          "new_token_index": 1553,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 1578,
+          "new_token_index": 1577,
+          "old": [
+            "}"
+          ],
+          "new": []
+        }
+      ]
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "edits": [
+        {
+          "old_token_index": 1559,
+          "new_token_index": 1559,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 1580,
+          "new_token_index": 1579,
+          "old": [
+            "}"
+          ],
+          "new": []
+        }
+      ]
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "edits": [
+        {
+          "old_token_index": 1706,
+          "new_token_index": 1706,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 1720,
+          "new_token_index": 1719,
+          "old": [
+            "}"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 3398,
+          "new_token_index": 3396,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 3404,
+          "new_token_index": 3401,
+          "old": [
+            "}"
+          ],
+          "new": []
+        }
+      ]
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "edits": [
+        {
+          "old_token_index": 1217,
+          "new_token_index": 1217,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 1238,
+          "new_token_index": 1237,
+          "old": [
+            "}"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 4358,
+          "new_token_index": 4356,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 4364,
+          "new_token_index": 4361,
+          "old": [
+            "}"
+          ],
+          "new": [
+            ","
+          ]
+        }
+      ]
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "edits": [
+        {
+          "old_token_index": 542,
+          "new_token_index": 542,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 548,
+          "new_token_index": 547,
+          "old": [
+            "}"
+          ],
+          "new": [
+            ","
+          ]
+        }
+      ]
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "edits": [
+        {
+          "old_token_index": 4539,
+          "new_token_index": 4539,
+          "old": [
+            ","
+          ],
+          "new": []
+        }
+      ]
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "edits": [
+        {
+          "old_token_index": 5428,
+          "new_token_index": 5428,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 5449,
+          "new_token_index": 5448,
+          "old": [
+            "}"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 5478,
+          "new_token_index": 5476,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 5499,
+          "new_token_index": 5496,
+          "old": [
+            "}"
+          ],
+          "new": []
+        }
+      ]
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "edits": [
+        {
+          "old_token_index": 2685,
+          "new_token_index": 2685,
+          "old": [],
+          "new": [
+            "{"
+          ]
+        },
+        {
+          "old_token_index": 2697,
+          "new_token_index": 2698,
+          "old": [
+            ","
+          ],
+          "new": [
+            "}"
+          ]
+        },
+        {
+          "old_token_index": 4361,
+          "new_token_index": 4362,
+          "old": [
+            "{"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 4386,
+          "new_token_index": 4386,
+          "old": [
+            "}"
+          ],
+          "new": []
+        },
+        {
+          "old_token_index": 4544,
+          "new_token_index": 4543,
+          "old": [],
+          "new": [
+            ","
+          ]
+        },
+        {
+          "old_token_index": 5668,
+          "new_token_index": 5668,
+          "old": [],
+          "new": [
+            "{"
+          ]
+        },
+        {
+          "old_token_index": 5669,
+          "new_token_index": 5670,
+          "old": [
+            ","
+          ],
+          "new": [
+            "}"
+          ]
+        }
+      ]
+    }
+  ],
+  "super_path_mapping": [
+    {
+      "name": "owned_cycle_release_does_not_claim_independent_leaf_roots",
+      "old_line": 2325,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/capture_graph.rs",
+      "old_path": "super::PhiCaptureNode",
+      "new_path": "super::super::PhiCaptureNode",
+      "resolved_path": "ownership_checking::checker::drop_planner::iteration::PhiCaptureNode"
+    },
+    {
+      "name": "assert_conditional_leaf_replay",
+      "old_line": 2824,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "assert_conditional_leaf_replay",
+      "old_line": 2825,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "assert_conditional_leaf_replay",
+      "old_line": 2828,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "assert_conditional_leaf_replay",
+      "old_line": 2833,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "assert_conditional_leaf_replay",
+      "old_line": 2834,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "assert_conditional_leaf_replay",
+      "old_line": 2835,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "planner_enclosing_environment_drop_reaches_owned_descendant",
+      "old_line": 3648,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "planner_enclosing_environment_drop_reaches_owned_descendant",
+      "old_line": 3649,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "planner_enclosing_environment_drop_reaches_owned_descendant",
+      "old_line": 3652,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "planner_enclosing_environment_drop_reaches_owned_descendant",
+      "old_line": 3657,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "planner_enclosing_environment_drop_reaches_owned_descendant",
+      "old_line": 3658,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "planner_enclosing_environment_drop_reaches_owned_descendant",
+      "old_line": 3659,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "enclosing_environment_keeps_opaque_parent_drop",
+      "old_line": 3717,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "enclosing_environment_keeps_opaque_parent_drop",
+      "old_line": 3718,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "enclosing_environment_keeps_opaque_parent_drop",
+      "old_line": 3721,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "enclosing_environment_keeps_opaque_parent_drop",
+      "old_line": 3726,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "enclosing_environment_keeps_opaque_parent_drop",
+      "old_line": 3727,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "enclosing_environment_keeps_opaque_parent_drop",
+      "old_line": 3728,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "old_line": 3788,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_body.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "old_line": 3789,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_body.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "old_line": 3792,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_body.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "old_line": 3797,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_body.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "old_line": 3798,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_body.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "recursive_body_formation_reads_the_current_header_instance",
+      "old_line": 3799,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_body.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "old_line": 4332,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_rebinding.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "old_line": 4333,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_rebinding.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "old_line": 4336,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_rebinding.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "old_line": 4341,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_rebinding.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "old_line": 4342,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_rebinding.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "assert_conditional_seed_rebinding",
+      "old_line": 4343,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_rebinding.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "old_line": 4947,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "old_line": 4948,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "old_line": 4951,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "old_line": 4956,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "old_line": 4957,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "alternating_recursive_capture_releases_the_formed_instance_chain",
+      "old_line": 4958,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "old_line": 5450,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chain_jumps.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "old_line": 5451,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chain_jumps.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "old_line": 5454,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chain_jumps.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "old_line": 5459,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chain_jumps.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "old_line": 5460,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chain_jumps.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+      "old_line": 5461,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chain_jumps.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "recursive_return_releases_the_formed_chain_once",
+      "old_line": 6008,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "recursive_return_releases_the_formed_chain_once",
+      "old_line": 6009,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "recursive_return_releases_the_formed_chain_once",
+      "old_line": 6012,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "recursive_return_releases_the_formed_chain_once",
+      "old_line": 6017,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "recursive_return_releases_the_formed_chain_once",
+      "old_line": 6018,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "recursive_return_releases_the_formed_chain_once",
+      "old_line": 6019,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "recursive_capture_jump_edges_carry_the_new_root_instance",
+      "old_line": 6333,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_jump_roots.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "recursive_capture_jump_edges_carry_the_new_root_instance",
+      "old_line": 6334,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_jump_roots.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "recursive_capture_jump_edges_carry_the_new_root_instance",
+      "old_line": 6337,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_jump_roots.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "recursive_capture_jump_edges_carry_the_new_root_instance",
+      "old_line": 6342,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_jump_roots.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "recursive_capture_jump_edges_carry_the_new_root_instance",
+      "old_line": 6343,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_jump_roots.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "recursive_capture_jump_edges_carry_the_new_root_instance",
+      "old_line": 6344,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_jump_roots.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+      "old_line": 6863,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+      "old_line": 6864,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+      "old_line": 6867,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+      "old_line": 6872,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+      "old_line": 6873,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+      "old_line": 6874,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "recursive_loop_keeps_independent_shared_capture_loan_end",
+      "old_line": 7135,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "recursive_loop_keeps_independent_shared_capture_loan_end",
+      "old_line": 7136,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "recursive_loop_keeps_independent_shared_capture_loan_end",
+      "old_line": 7139,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "recursive_loop_keeps_independent_shared_capture_loan_end",
+      "old_line": 7144,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "recursive_loop_keeps_independent_shared_capture_loan_end",
+      "old_line": 7145,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "recursive_loop_keeps_independent_shared_capture_loan_end",
+      "old_line": 7146,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "old_line": 7230,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "old_line": 7231,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "old_line": 7234,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "old_line": 7239,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "old_line": 7240,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "recursive_release_layout_keeps_untracked_shared_capture",
+      "old_line": 7241,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "independent_closure_survives_a_recursive_loop_into_the_next_loop",
+      "old_line": 7743,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "independent_closure_survives_a_recursive_loop_into_the_next_loop",
+      "old_line": 7744,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "independent_closure_survives_a_recursive_loop_into_the_next_loop",
+      "old_line": 7747,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "independent_closure_survives_a_recursive_loop_into_the_next_loop",
+      "old_line": 7752,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "independent_closure_survives_a_recursive_loop_into_the_next_loop",
+      "old_line": 7753,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "independent_closure_survives_a_recursive_loop_into_the_next_loop",
+      "old_line": 7754,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "old_line": 7839,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_mixed_roots.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "old_line": 7840,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_mixed_roots.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "old_line": 7843,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_mixed_roots.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "old_line": 7848,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_mixed_roots.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "old_line": 7849,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_mixed_roots.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+      "old_line": 7850,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_mixed_roots.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "old_line": 8667,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/file_parent.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "old_line": 8668,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/file_parent.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "old_line": 8671,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/file_parent.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "old_line": 8676,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/file_parent.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "old_line": 8677,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/file_parent.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "assert_cross_loop_parent_release",
+      "old_line": 8678,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/file_parent.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "old_line": 9822,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_recursive_roots.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "old_line": 9823,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_recursive_roots.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "old_line": 9826,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_recursive_roots.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "old_line": 9831,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_recursive_roots.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "old_line": 9832,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_recursive_roots.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+      "old_line": 9833,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_recursive_roots.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+      "old_line": 10733,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+      "old_line": 10734,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+      "old_line": 10737,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+      "old_line": 10742,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+      "old_line": 10743,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+      "old_line": 10744,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "next_recursive_loop_entry_keeps_previous_phi_root_sources",
+      "old_line": 10837,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "next_recursive_loop_entry_keeps_previous_phi_root_sources",
+      "old_line": 10838,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "next_recursive_loop_entry_keeps_previous_phi_root_sources",
+      "old_line": 10841,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "next_recursive_loop_entry_keeps_previous_phi_root_sources",
+      "old_line": 10846,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "next_recursive_loop_entry_keeps_previous_phi_root_sources",
+      "old_line": 10847,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "next_recursive_loop_entry_keeps_previous_phi_root_sources",
+      "old_line": 10848,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "moved_recursive_phi_releases_instances_through_new_binding",
+      "old_line": 10925,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "moved_recursive_phi_releases_instances_through_new_binding",
+      "old_line": 10926,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "moved_recursive_phi_releases_instances_through_new_binding",
+      "old_line": 10929,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "moved_recursive_phi_releases_instances_through_new_binding",
+      "old_line": 10934,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "moved_recursive_phi_releases_instances_through_new_binding",
+      "old_line": 10935,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "moved_recursive_phi_releases_instances_through_new_binding",
+      "old_line": 10936,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "old_line": 10991,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "old_line": 10992,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "old_line": 10995,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "old_line": 11000,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "old_line": 11001,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "conditional_snapshot_of_recursive_phi_keeps_instance_release",
+      "old_line": 11002,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+      "old_line": 11062,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+      "old_line": 11063,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+      "old_line": 11066,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+      "old_line": 11071,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+      "old_line": 11072,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+      "old_line": 11073,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "captured_phi_release_does_not_duplicate_child_drop",
+      "old_line": 11156,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "captured_phi_release_does_not_duplicate_child_drop",
+      "old_line": 11157,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "captured_phi_release_does_not_duplicate_child_drop",
+      "old_line": 11160,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "captured_phi_release_does_not_duplicate_child_drop",
+      "old_line": 11165,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "captured_phi_release_does_not_duplicate_child_drop",
+      "old_line": 11166,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "captured_phi_release_does_not_duplicate_child_drop",
+      "old_line": 11167,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+      "old_line": 11232,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+      "old_line": 11233,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+      "old_line": 11236,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+      "old_line": 11241,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+      "old_line": 11242,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+      "old_line": 11243,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "old_line": 11334,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/coexisting_paths.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "old_line": 11335,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/coexisting_paths.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "old_line": 11338,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/coexisting_paths.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "old_line": 11343,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/coexisting_paths.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "old_line": 11344,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/coexisting_paths.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "coexisting_same_lambda_paths_replay_two_rounds_and_release",
+      "old_line": 11345,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/coexisting_paths.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "old_line": 12316,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/sibling_shared_loans.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "old_line": 12317,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/sibling_shared_loans.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "old_line": 12320,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/sibling_shared_loans.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "old_line": 12325,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/sibling_shared_loans.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "old_line": 12326,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/sibling_shared_loans.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "sibling_shared_capture_loans_keep_distinct_instance_paths",
+      "old_line": 12327,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/sibling_shared_loans.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "untracked_copyable_shared_capture_keeps_loan_ends",
+      "old_line": 13473,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "untracked_copyable_shared_capture_keeps_loan_ends",
+      "old_line": 13474,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "untracked_copyable_shared_capture_keeps_loan_ends",
+      "old_line": 13477,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "untracked_copyable_shared_capture_keeps_loan_ends",
+      "old_line": 13482,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "untracked_copyable_shared_capture_keeps_loan_ends",
+      "old_line": 13483,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "untracked_copyable_shared_capture_keeps_loan_ends",
+      "old_line": 13484,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "old_line": 13608,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_diamond.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "old_line": 13609,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_diamond.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "old_line": 13612,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_diamond.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "old_line": 13624,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_diamond.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "old_line": 13625,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_diamond.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+      "old_line": 13626,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_diamond.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    },
+    {
+      "name": "optional_nested_capture_requires_instance_presence",
+      "old_line": 14423,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/capture_graph.rs",
+      "old_path": "super::super::super::Checker::new",
+      "new_path": "super::super::super::super::Checker::new",
+      "resolved_path": "ownership_checking::checker::Checker::new"
+    },
+    {
+      "name": "optional_nested_capture_requires_instance_presence",
+      "old_line": 14424,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/capture_graph.rs",
+      "old_path": "super::super::capture_liveness",
+      "new_path": "super::super::super::capture_liveness",
+      "resolved_path": "ownership_checking::checker::drop_planner::capture_liveness"
+    },
+    {
+      "name": "optional_nested_capture_requires_instance_presence",
+      "old_line": 14427,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/capture_graph.rs",
+      "old_path": "super::super::super::State::default",
+      "new_path": "super::super::super::super::State::default",
+      "resolved_path": "ownership_checking::checker::State::default"
+    },
+    {
+      "name": "optional_nested_capture_requires_instance_presence",
+      "old_line": 14432,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/capture_graph.rs",
+      "old_path": "super::super::liveness::Liveness::build",
+      "new_path": "super::super::super::liveness::Liveness::build",
+      "resolved_path": "ownership_checking::checker::drop_planner::liveness::Liveness::build"
+    },
+    {
+      "name": "optional_nested_capture_requires_instance_presence",
+      "old_line": 14433,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/capture_graph.rs",
+      "old_path": "super::super::origins::analyze",
+      "new_path": "super::super::super::origins::analyze",
+      "resolved_path": "ownership_checking::checker::drop_planner::origins::analyze"
+    },
+    {
+      "name": "optional_nested_capture_requires_instance_presence",
+      "old_line": 14434,
+      "new_file": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/capture_graph.rs",
+      "old_path": "super::super::DropPlanner::new",
+      "new_path": "super::super::super::DropPlanner::new",
+      "resolved_path": "ownership_checking::checker::drop_planner::DropPlanner::new"
+    }
+  ],
+  "measurements": {
+    "after-build-1": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 25.077207334999912,
+      "max_rss_kib": 2532048,
+      "user_s": 41.478016,
+      "system_s": 2.500677,
+      "exit_code": 0
+    },
+    "after-build-2": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 23.236271167999803,
+      "max_rss_kib": 2551252,
+      "user_s": 39.529152,
+      "system_s": 2.466443,
+      "exit_code": 0
+    },
+    "after-execute-1": {
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/lang_frontend-f53cabb3492d1feb",
+        "ownership_checking::checker::drop_planner::iteration::tests"
+      ],
+      "elapsed_s": 0.04786514900115435,
+      "max_rss_kib": 22056,
+      "user_s": 0.09795799999999999,
+      "system_s": 0.043565,
+      "exit_code": 0
+    },
+    "after-execute-2": {
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/lang_frontend-f53cabb3492d1feb",
+        "ownership_checking::checker::drop_planner::iteration::tests"
+      ],
+      "elapsed_s": 0.049161640999955125,
+      "max_rss_kib": 22356,
+      "user_s": 0.12221599999999999,
+      "system_s": 0.024565999999999998,
+      "exit_code": 0
+    },
+    "after-execute-3": {
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/lang_frontend-f53cabb3492d1feb",
+        "ownership_checking::checker::drop_planner::iteration::tests"
+      ],
+      "elapsed_s": 0.04884431800019229,
+      "max_rss_kib": 22968,
+      "user_s": 0.107069,
+      "system_s": 0.031831,
+      "exit_code": 0
+    },
+    "after-noop-1": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 0.037150423999264603,
+      "max_rss_kib": 29420,
+      "user_s": 0.024415,
+      "system_s": 0.012858999999999999,
+      "exit_code": 0
+    },
+    "after-noop-2": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 0.042840476000492345,
+      "max_rss_kib": 29384,
+      "user_s": 0.017717,
+      "system_s": 0.025547999999999998,
+      "exit_code": 0
+    },
+    "after-noop-3": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 0.03398856499916292,
+      "max_rss_kib": 29744,
+      "user_s": 0.029835999999999998,
+      "system_s": 0.00439,
+      "exit_code": 0
+    },
+    "before-build-1": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 25.26399415800006,
+      "max_rss_kib": 2592952,
+      "user_s": 42.648894,
+      "system_s": 2.622974,
+      "exit_code": 0
+    },
+    "before-build-2": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 24.835444900998482,
+      "max_rss_kib": 2581832,
+      "user_s": 40.746255,
+      "system_s": 2.402885,
+      "exit_code": 0
+    },
+    "before-execute-1": {
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/lang_frontend-f53cabb3492d1feb",
+        "ownership_checking::checker::drop_planner::iteration::tests"
+      ],
+      "elapsed_s": 0.04912676000094507,
+      "max_rss_kib": 23300,
+      "user_s": 0.129385,
+      "system_s": 0.028485999999999997,
+      "exit_code": 0
+    },
+    "before-execute-2": {
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/lang_frontend-f53cabb3492d1feb",
+        "ownership_checking::checker::drop_planner::iteration::tests"
+      ],
+      "elapsed_s": 0.040285633998792036,
+      "max_rss_kib": 22712,
+      "user_s": 0.096873,
+      "system_s": 0.030045,
+      "exit_code": 0
+    },
+    "before-execute-3": {
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/lang_frontend-f53cabb3492d1feb",
+        "ownership_checking::checker::drop_planner::iteration::tests"
+      ],
+      "elapsed_s": 0.04080686799898103,
+      "max_rss_kib": 22248,
+      "user_s": 0.12884199999999998,
+      "system_s": 0.026243,
+      "exit_code": 0
+    },
+    "before-noop-1": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 0.03388335399904463,
+      "max_rss_kib": 28252,
+      "user_s": 0.025592,
+      "system_s": 0.008674,
+      "exit_code": 0
+    },
+    "before-noop-2": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 0.03675443700012693,
+      "max_rss_kib": 29524,
+      "user_s": 0.033204,
+      "system_s": 0.004376,
+      "exit_code": 0
+    },
+    "before-noop-3": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "elapsed_s": 0.036633754998547374,
+      "max_rss_kib": 29816,
+      "user_s": 0.01213,
+      "system_s": 0.024595,
+      "exit_code": 0
+    }
+  }
+}
