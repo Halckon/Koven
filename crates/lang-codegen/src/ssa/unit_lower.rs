@@ -14,6 +14,7 @@ mod deinit;
 mod deinit_borrow;
 mod enum_lower;
 mod field_replace;
+mod handoff;
 mod integer;
 mod loop_control;
 mod non_null_assertion;
@@ -26,6 +27,16 @@ mod string_clone;
 mod type_lower;
 mod type_plan;
 
+pub(crate) use handoff::lower_owned_unit_with_entry;
+#[cfg_attr(
+    not(test),
+    expect(
+        unused_imports,
+        reason = "保留旧 crate-private lowering 入口路径供直接消费者使用"
+    )
+)]
+pub(crate) use handoff::lower_scalar_unit_with_entry;
+
 use std::collections::BTreeMap;
 
 use lang_frontend::{
@@ -34,10 +45,7 @@ use lang_frontend::{
         DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
         UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{
-        CompilationUnitOwnership, ConstEnabledOwnedUnit, UnitDropPoint,
-        ValidatedCompilationUnitOwnership,
-    },
+    ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit, UnitDropPoint},
     parser::{
         Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
         Statement,
@@ -45,8 +53,8 @@ use lang_frontend::{
     source::{SourceMap, Span},
     type_checking::{
         BuiltinType, CompilationUnitTypes, Copyability, ExpressionCategory, ParameterMode,
-        TypeEnvironment, UnitCallableSignature, UnitCallableTarget, UnitExpressionId, UnitItemId,
-        UnitStatementId, UnitTypeId, UnitTypeKind, ValidatedCompilationUnitTypes,
+        UnitCallableSignature, UnitCallableTarget, UnitExpressionId, UnitItemId, UnitStatementId,
+        UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -60,7 +68,6 @@ use super::{
     unit_plan::{
         MAX_UNIT_GENERIC_INSTANCES, UnitFunctionInstanceKey, UnitPlannedInstance,
         UnitRuntimeTypeDemand, plan_unit_instances_from_facts, resolve_concrete_type,
-        validate_unit_inputs,
     },
     verify::verify_program,
 };
@@ -126,28 +133,6 @@ impl From<ReceiverBinding> for ConsumedReceiver {
             origin: receiver.origin,
         }
     }
-}
-
-/// 把 compilation unit 当前封闭的 scalar expression-body 子集 lower 为 verified SSA。
-pub(crate) fn lower_scalar_unit_with_entry(
-    sources: &SourceMap,
-    inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
-    environment: &TypeEnvironment,
-    typed: &ValidatedCompilationUnitTypes,
-    owned: &ValidatedCompilationUnitOwnership,
-    entry: DeclarationId,
-) -> Result<(Program, FunctionId), LoweringError> {
-    validate_unit_inputs(sources, inputs, names, environment, typed, owned)?;
-    lower_unit_from_facts(
-        sources,
-        inputs,
-        names,
-        typed.types(),
-        owned.ownership(),
-        None,
-        entry,
-    )
 }
 
 /// 共享 lowering 只读取本轮事实；调用方必须先验证完整分析身份链。

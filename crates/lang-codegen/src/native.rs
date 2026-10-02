@@ -18,7 +18,8 @@ use lang_frontend::{
         ValidatedCompilationUnitNames,
     },
     ownership_checking::{
-        ConstEnabledOwnedUnit, OwnershipCheckedFile, ValidatedCompilationUnitOwnership,
+        ConstEnabledOwnedUnit, OwnedCompilationUnitView, OwnedCompilationUnitViewError,
+        OwnershipCheckedFile, ValidatedCompilationUnitOwnership, owned_compilation_unit_view,
     },
     parser::ParsedFile,
     source::{SourceMap, Span},
@@ -34,7 +35,7 @@ use crate::{
     llvm::entry::NativeEntryPlan,
     ssa::{
         LoweringError, LoweringErrorKind, lower_scalar_file_with_entry,
-        unit_lower::lower_scalar_unit_with_entry, unit_plan::validate_unit_inputs,
+        unit_lower::lower_owned_unit_with_entry,
     },
 };
 
@@ -208,19 +209,24 @@ pub fn emit_native_unit_object(
     output: &Path,
 ) -> Result<(), NativeObjectError> {
     let entry = entry.into();
-    validate_unit_inputs(sources, inputs, names, environment, typed, owned)
-        .map_err(map_lowering_error)?;
-    validate_unit_entry(names, typed.types(), entry)?;
-    let (program, function) = lower_scalar_unit_with_entry(
-        sources,
-        inputs,
-        names,
-        environment,
-        typed,
-        owned,
-        entry.declaration(),
-    )
-    .map_err(map_lowering_error)?;
+    let unit = owned_compilation_unit_view(sources, inputs, names, environment, typed, owned)?;
+    emit_native_owned_unit_object(&unit, entry, output)
+}
+
+/// 从已封闭的普通 owned-unit 借用生成原子发布的 native object。
+///
+/// 本入口不重建来源 index；entry shape、verified SSA 和 native entry plan 在 reserve 前检查。
+/// LLVM/layout/object emission 仍在 sibling temporary 上执行，成功后才原子提交。
+pub fn emit_native_owned_unit_object(
+    unit: &OwnedCompilationUnitView<'_, '_>,
+    entry: impl Into<NativeUnitEntry>,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    let entry = entry.into();
+    let sources = unit.sources();
+    validate_unit_entry(unit.names(), unit.types(), entry)?;
+    let (program, function) =
+        lower_owned_unit_with_entry(unit, entry.declaration()).map_err(map_lowering_error)?;
     let plan = native_unit_entry_plan(&program, entry, function)?;
     let temporary = SiblingObject::reserve(output)?;
     llvm::emit_verified_object(&program, sources, plan, temporary.path())
@@ -460,6 +466,12 @@ fn invalid_entry(span: Option<Span>) -> NativeObjectError {
         span,
         detail: "entry must match its declared native process shape and return Unit".to_owned(),
         diagnostic: None,
+    }
+}
+
+impl From<OwnedCompilationUnitViewError> for NativeObjectError {
+    fn from(error: OwnedCompilationUnitViewError) -> Self {
+        map_lowering_error(error.into())
     }
 }
 

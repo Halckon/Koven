@@ -10,10 +10,10 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 234 archive；原P1批次历史1/233保留，0182继续独立补强 |
+| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 235 archive（0249有界归档）；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
 | P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留，无新例外；原stage双平台选集已覆盖，同target不改CI；其余大integration与生产职责仍待后继 |
-| P3a/P3b 交接与编排 | 普通unit前置合同测试本地已验，待review/PR CI；生产view与编排尚未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
+| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30首轮双宿主通过，编排尚未开始 | 封闭普通 unit 能力与 provenance，后迁 const 和共享分析门面；不得合并能力边界 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
 
@@ -260,3 +260,52 @@ P2仍待其余大integration与独立生产职责；P3/P4/P5未自动完成，01
 三个codegen测试源逐字不变；索引/账本冲突同时保全双方条目，当前P2摘要标明PR28已合并。
 同步后8项、native92、导入multifile107及必要工程门禁已重跑通过，确切范围见
 [合同基线](unit-handoff-contract-baseline.md#发布前同步-pr28-主干)。发布前窄review与新head双宿主CI另验。
+
+
+## PR29 合并与 SPEC-0249 开始（2026-10-02）
+
+[PR29](https://github.com/Halckon/Koven/pull/29)已合并为
+`7b3ac11fe1770339f2c5170981839477dae8cbf5`；本片从该main建立 `feature/spec-0249`。
+[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)限定普通 owned-unit 的封闭六借用工厂、
+旧API转接与CLI ordinary消费者；const、ABI、语言语义和长期架构决定不变，不新建ADR。
+本片验收只记入该Spec唯一账本；当前为in-progress，最小工厂与普通消费者已实现，
+直接工厂1项、compile-contract7项及双路native9项通过；native/factory 和独立 lower 动态 index
+及同期性能已测，噪声不能证明耗时改善；仓内摘要/JSON 独立窄核无 finding，Draft/CI 待验。当前2 active / 234 archive。
+
+旧合同片的8项身份、24条exact、7项能力compile-fail及原红/绿历史保留。新增Display/Into、
+两路reserve和same-T0已在9项中执行；compile-contract首轮5过2失败为诊断oracle的lifetime
+文本不匹配，修正后7项全部通过，保留该失败历史。Architecture随真实实现同步；不提前宣称P3a
+完成、性能改善或整体治理完成。
+
+该实现新增两个frontend integration targets并接入现有双宿主stage选集，selection policy先红
+后绿；全Python policy现97项通过。fmt、workspace all-targets check及frontend/codegen/CLI
+严格Clippy已过；frontend九targets共253、typed bodies5、frontend docs12、完整codegen739＋
+docs4、CLI66及build通过。metadata129→131；682手写Rust/48超限/0生成，policy仅收紧
+model/lower/plan 三项历史额度。新增 fresh 链正例曾因 fixture 环境配对错误在类型阶段失败，
+修正后 native 9 项通过，9 组合×双路共 18 组真实 object/link/run；fmt、workspace check 与
+codegen strict Clippy 亦重跑通过。本地未跑整个 stage 或 frontend 全量。
+
+固定 main 与实现 tree 的两 fixture 动态计数已核：旧 native 4→1、旧 lower 独立2→1、
+factory 1、预建 view 的 native/lower 各0；入口与构造器双计数一致。14个 native/factory 与
+16个 lower fresh exact 进程成功，后者没有执行原738/739项 libtest；不把 probe 当完整回归。
+[仓内测量页](owned-unit-handoff-measurement.md)保留完整 counts 和104进程同期性能样本，
+配对差额样本范围跨0且 setup 噪声触发，不能宣称提速、回归或等价。四路 object bytes 相同，
+前后真实 link/run 输出42/248保持。生产、原始测量及仓内摘要/JSON 独立窄核均无 finding，
+Draft PR尚未发布，exact-head双宿主CI未开始，不提前标完成。
+
+
+## SPEC-0249 首轮双宿主验收与归档（2026-10-02）
+
+[PR30](https://github.com/Halckon/Koven/pull/30) 首轮 head `410ed04c94608798d66bdebd2b3e6423cdf2b2cf`
+的 [CI 37054717054](https://github.com/Halckon/Koven/actions/runs/37054717054) 9/9 success。
+本地 `ffcef525` 与该远端完整 tree 同为 `192363b74005a9d40f660328b98ca4f65a2c61f4`，
+不是以不同 SHA 的假定等价替代核验。双宿主17项合同＋7项关键回归逐名各恰1次 ok；
+这一24项集合与 PR29 的原24基线不同。macOS codegen738＋既有LLDB1 ignored、CLI65；
+Ubuntu codegen739、CLI66；两宿主 frontend lib187、LSP26、ownership iteration184及
+stage/Guide实际通过，完整映射见[归档0249后继账本](../archive/specs/0249-owned-unit-borrowed-handoff.md#8-首轮-exact-head-双宿主验收与归档2026-10-02)。
+
+0249 仅完成普通 owned-unit 封闭借用交接，当前1 active/235 archive；上节in-progress、
+未发布和CI未开始文字保留为当时历史。0182继续active，P2其余职责、P3b/P4/P5及整体计划
+未自动完成。归档文档新 head CI 仍待实际运行，最终结果留 PR，不反复追加 Git 外部状态；
+本归档不自动改变 PR 的 Draft 状态或启用 auto-merge；最终合并遵循现有授权与最终门禁，
+原外部审计排队次序不变。

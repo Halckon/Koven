@@ -3,7 +3,7 @@
 > **性质**：变更合同索引 · **状态**：current · **读取时机**：计划、实施或验收一项具体变更时 · **唯一真源**：各 Spec 正文；语言演进进度见演进实施账本
 
 Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批准 Spec。
-此前文档批次已按各合同最终证据关闭 0228–0235、0237–0242 与 0247；本批补齐0236诊断Span双宿主验收并归档，0182继续active；0248 的 Unit 容器存储已按双宿主证据完成归档。
+此前文档批次已按各合同最终证据关闭 0228–0235、0237–0242 与 0247；本批补齐0236诊断Span双宿主验收并归档，0182继续active；0248 的 Unit 容器存储已按双宿主证据完成归档；0249 普通 owned-unit 交接已按其有界合同与首轮双宿主证据归档。
 文档归档不代表原 13 项语言演进全部完成，也不扩大已验收的支持范围。
 
 ## 当前入口
@@ -19,7 +19,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [v0.40](drafts/v0.40/README.md)：现行 Guide 启用及三项规则的实施入口
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档，0182 验收补强单独进行
-- [完成 Spec Archive](../archive/specs/README.md)：234 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：235 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

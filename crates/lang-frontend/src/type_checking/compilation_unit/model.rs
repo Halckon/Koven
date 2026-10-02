@@ -1,3 +1,5 @@
+mod provenance;
+
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
@@ -9,13 +11,12 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},
     diagnostic::{Diagnostic, Severity},
     name_resolution::{
-        CompilationUnitIndex, DeclarationId, DeclarationVisibility, PackageId, SourceUnitInput,
-        UnitSymbolId, ValidatedCompilationUnitNames, index_compilation_unit,
+        CompilationUnitIndex, DeclarationId, DeclarationVisibility, PackageId, UnitSymbolId,
     },
-    source::{SourceMap, Span},
+    source::Span,
     type_checking::{
         BuiltinType, Capability, DeferredReason, IntegerConstraint, IntrinsicTypeConstructor,
-        NominalKind, ParameterMode, TypeEnvironment,
+        NominalKind, ParameterMode,
         canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
     },
 };
@@ -1290,38 +1291,6 @@ impl CompilationUnitSignatures {
             delegations: facts.delegations,
             diagnostics,
         }
-    }
-
-    /// 检查本签名产物是否来自给定 inputs、名称分析与类型环境身份链。
-    #[must_use]
-    pub fn is_compatible_with(
-        &self,
-        sources: &SourceMap,
-        inputs: &[SourceUnitInput<'_>],
-        names: &ValidatedCompilationUnitNames,
-        environment: &TypeEnvironment,
-    ) -> bool {
-        let unit_names = names.names();
-        index_compilation_unit(sources, inputs)
-            .is_ok_and(|index| index == self.provenance.input_index)
-            && unit_names.index() == &self.provenance.input_index
-            && Arc::ptr_eq(&self.provenance.environment_owner, environment.owner())
-            && self.provenance.name_analysis_owners.len() == unit_names.source_units().len()
-            && self
-                .provenance
-                .name_analysis_owners
-                .iter()
-                .zip(unit_names.source_units())
-                .all(|(owner, source)| Arc::ptr_eq(owner, source.resolution().analysis_owner()))
-    }
-
-    /// 判断两个签名产物是否来自同一次签名分析；克隆产物保持该身份。
-    #[must_use]
-    pub fn is_same_analysis(&self, other: &Self) -> bool {
-        Arc::ptr_eq(
-            &self.provenance.analysis_owner,
-            &other.provenance.analysis_owner,
-        )
     }
 
     /// 返回唯一 unit-global type table。

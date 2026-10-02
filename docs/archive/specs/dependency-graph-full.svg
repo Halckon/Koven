@@ -6,7 +6,7 @@
   </defs>
   <rect width="5216" height="6970" fill="#ffffff"/>
   <rect x="40" y="30" width="4768" height="6868" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，234 份）</text>
+  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，235 份）</text>
   <rect x="4872" y="5406" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="5012" y="5426" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -897,6 +897,7 @@
   <path d="M 1236 3852 C 1236 3884, 972 4352, 972 4384" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3852 C 1236 3884, 2028 3902, 2028 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3852 C 1236 3884, 2292 3902, 2292 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1236 3852 C 1236 3884, 1764 5564, 1764 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 2556 4058, 2556 4090" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 2820 4058, 2820 4090" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -906,11 +907,13 @@
   <path d="M 1500 3990 C 1500 4022, 972 5564, 972 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 1500 5564, 1500 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1500 3990 C 1500 4022, 1764 5564, 1764 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5532 C 708 5564, 180 5564, 180 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5532 C 708 5564, 708 5564, 708 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5532 C 708 5564, 972 5564, 972 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5532 C 708 5564, 1500 5564, 1500 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5532 C 708 5564, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 5532 C 708 5564, 1764 5564, 1764 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 3612 3264 C 3612 3296, 972 3608, 972 3640" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2694 C 708 2726, 4140 3296, 4140 3328" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2694 C 708 2726, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1929,4 +1932,8 @@
   <text x="2556" y="5463" text-anchor="middle" font-size="13">SPEC-0248</text>
   <text x="2556" y="5481" text-anchor="middle" font-size="13">列表式 Unit 容器的零大</text>
   <text x="2556" y="5499" text-anchor="middle" font-size="13">小存储</text>
+  <rect x="1644" y="5596" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1764" y="5619" text-anchor="middle" font-size="13">SPEC-0249</text>
+  <text x="1764" y="5637" text-anchor="middle" font-size="13">普通 owned-unit </text>
+  <text x="1764" y="5655" text-anchor="middle" font-size="13">封闭借用交接</text>
 </svg>

@@ -11,9 +11,10 @@ use lang_frontend::{
     ast::ItemId,
     name_resolution::{
         DeclarationId, SourceUnitId, SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames,
-        index_compilation_unit,
     },
-    ownership_checking::{CompilationUnitOwnership, ValidatedCompilationUnitOwnership},
+    ownership_checking::{
+        CompilationUnitOwnership, ValidatedCompilationUnitOwnership, owned_compilation_unit_view,
+    },
     parser::{Item, NameMarker, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{
@@ -271,12 +272,12 @@ pub(super) fn plan_unit_instances_with_limit(
     entry: DeclarationId,
     max_generic_instances: usize,
 ) -> Result<UnitInstancePlan, LoweringError> {
-    validate_unit_inputs(sources, inputs, names, environment, typed, owned)?;
+    let unit = owned_compilation_unit_view(sources, inputs, names, environment, typed, owned)?;
     plan_unit_instances_from_facts(
-        inputs,
-        names,
-        typed.types(),
-        owned.ownership(),
+        unit.inputs(),
+        unit.names(),
+        unit.types(),
+        unit.ownership(),
         entry,
         max_generic_instances,
     )
@@ -563,33 +564,6 @@ fn dependent_inherited_owner_types(
         }
     }
     Ok(dependent)
-}
-
-/// 核对 codegen 消费的 source inputs 与 validated unit analysis identity chain。
-pub(crate) fn validate_unit_inputs(
-    sources: &SourceMap,
-    inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
-    environment: &TypeEnvironment,
-    typed: &ValidatedCompilationUnitTypes,
-    owned: &ValidatedCompilationUnitOwnership,
-) -> Result<(), LoweringError> {
-    let rebuilt = index_compilation_unit(sources, inputs).map_err(|_| LoweringError {
-        kind: LoweringErrorKind::MismatchedSource,
-        span: None,
-    })?;
-    if &rebuilt != names.names().index()
-        || !typed
-            .types()
-            .is_compatible_with(sources, inputs, names, environment)
-        || !owned.ownership().is_compatible_with(typed)
-    {
-        return Err(LoweringError {
-            kind: LoweringErrorKind::MismatchedAnalysis,
-            span: None,
-        });
-    }
-    Ok(())
 }
 
 fn parsed_by_source_unit<'a>(
