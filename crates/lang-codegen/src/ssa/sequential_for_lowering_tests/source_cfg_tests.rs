@@ -126,6 +126,22 @@ fn source_cleanup_rebinds_sibling_single_and_multiple_exit_cfg() {
             "fun scan(flag: Boolean): Int {{ for (value in arrayOf(1, 2)) {{ {body} }}; return 0 }}"
         ));
     }
+    // Preserve the full original determinism failure as well as its reduced CFG cases.
+    eprintln!("original determinism red input: factory List + continue + break + total");
+    verified(
+        r#"
+        fun source(): List<Int> = listOf(7, 2, 9)
+        fun scan(): Int {
+            var total = 0
+            for (value in source()) {
+                if (value == 2) { continue }
+                if (value == 9) { break }
+                total = total + value
+            }
+            return total
+        }
+        "#,
+    );
 }
 
 #[test]

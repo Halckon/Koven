@@ -245,6 +245,118 @@ frontend 无诊断，但单文件 `lower_scalar_file_with_entry` 在该 arrayOf 
 跨 crate API 变动。其余完整 owned named/Borrow 边界与再读、nominal/mixed projection、
 nested/derived/component cleanup、ZST、真实 for 负例落盘桥接、独立分析链确定性仍未闭合。
 
+### 2026-10-02 独立分析链确定性的部分验收补测
+
+本片基于 PR21 合并后的 `main 0b1939b471099e8759eb729ea548d7155129403d`，本地测试提交
+`2a318630eb7773b6689fd21d3a4dd5adbccb9d1d`，review 后补全 origin 检查的本地测试提交为
+`27c0e825a484f35824e69bdbcae966035a6b2828`。仅新增私有测试模块及一行入口，不改变生产
+语义、frontend 身份校验或 renderer；本 Spec 保持 active，原 §5 合同与历史记录不改写。
+
+新增三项均为 `lang-codegen --lib`，完整前缀为
+`ssa::sequential_for_lowering_tests::determinism_tests::`，无平台过滤、`ignore` 或预期失败：
+
+| 测试（接上述前缀） | 输入与实际覆盖 | 固定 oracle |
+|---|---|---|
+| `temporary_list_continue_is_deterministic_across_fresh_analyses` | `source(): List<Int>` 返回 `listOf(7, 2, 9)`；temporary source，条件 continue、累加和 exhaustion | 每轮完整 SSA / LLVM 相等；恰 1 个 ContainerLength |
+| `mixed_array_destructuring_is_deterministic_across_fresh_analyses` | Borrow `Array<Parts>`，`Parts(Int, String)` mixed 解构、String Borrow println、条件 early return | 每轮完整 SSA / LLVM 相等；恰 1 个 ContainerLength |
+| `nested_array_return_is_deterministic_across_fresh_analyses` | Borrow `Array<Array<Int>>`，nested for、内层 continue / return、外层 exhaustion | 每轮完整 SSA / LLVM 相等；恰 2 个 ContainerLength |
+
+每项**两次独立调用** helper；每次新建 SourceMap 和 standard environments，重新 lex、parse、
+resolve_names、check_types、check_ownership、lower_scalar_file、verify_program，再调用现有
+`render_program` 与 `render_verified_program`。两轮不复用 AST、names/types/ownership、SSA
+Program 或 LLVM context。Lexer/Parser/names/types/ownership diagnostics 均要求为空，全部
+frontend 产品的 SourceId 必须等于本轮 source；每个函数、block、instruction、terminator，
+以及 values / places / loans 的 EntityData.origin、已有 TypeOrigin 的 primary / declaration
+均须仍属本轮 source，且 name / byte bounds 能由本轮 SourceMap 验证。最终还断言两轮
+SourceId **不相等**，因此不是重印同一 Program 或同一分析。
+
+稳定比较 key 是同一 case 的逻辑文件名、精确 UTF-8 字节和单源注册顺序。同一输入的 source
+index 因而都是 0；现有 SourceId Debug 合同仅隐藏 map owner token。测试不删除、替换或
+排序任何 renderer 文本：SSA 保留 source index / byte spans / synthetic reasons，以及 type、
+function、block、entity IDs、operation、operand 和顺序。LLVM 在同宿主、target、默认 options、
+固定 `main` module 下逐字比较全部输出，包括 ModuleID / source_filename、target triple /
+layout、symbols 和指令；没有把环境名称差异误归为随机性再随意正规化。该证据仅限**单文件
+lower_scalar_file 入口、无 debug 的 verified LLVM render**，不证明跨宿主文本、object/DWARF
+字节或 compilation-unit 入口等价；后者当前仍拒绝 Statement::For。
+
+精确输入保存在[新测试模块](../../../crates/lang-codegen/src/ssa/sequential_for_lowering_tests/determinism_tests.rs)。
+以下 SHA-256 对应原始 Rust raw string 的 UTF-8 bytes（包含首尾换行和缩进）：
+
+| case filename | 输入 SHA-256 |
+|---|---|
+| `determinism-temporary-list-continue.ko` | `b0981d6d808ab6e4e88d240d1a394c3e3e59682690f3b2a2f14dd084cd4c312e` |
+| `determinism-mixed-array.ko` | `1bc82ad503e5250ccfe167981f006613c8d66c4074fd768aa3af9a982593be03` |
+| `determinism-nested-array.ko` | `f85fe21489c5919d71c88a4a6de09b0701c874708f9734bda3ac4deb9c249c31` |
+
+跨链拒绝复用并实际重跑既有完整身份
+`ssa::lower_frontend_tests::rejects_mixed_analysis_chains_before_constructing_ssa` 与
+`native_tests::entry_shape_and_analysis_identity_fail_before_object_emission`；前者分别锁
+MismatchedSource / MismatchedAnalysis，后者锁身份不匹配时 object 不出现。新测试的不同
+SourceId / origin 断言不是新的 mixed-products 负例，不能替代这两条门禁。
+
+#### 未修复的 conditional-break 正例红证据
+
+初选的 temporary case 在 `continue` 后增加条件 `break`，frontend 无诊断，但
+lower_scalar_file 返回 `LoweringErrorKind::InvalidSsa`（span 为 None），尚未进入 LLVM 或
+文本比较。首轮 `cargo test --locked --offline -p lang-codegen --lib determinism_tests` 实际为
+2 passed / 1 failed / 0 ignored / 691 filtered，退出 101；另两项即上表 mixed / nested。
+原失败输入如下，必须由后继独立修复片闭合，不能把本片正式三项绿灯解释为该红例已修复：
+
+```kotlin
+fun source(): List<Int> = listOf(7, 2, 9)
+fun scan(): Int {
+    var total = 0
+    for (value in source()) {
+        if (value == 2) { continue }
+        if (value == 9) { break }
+        total = total + value
+    }
+    return total
+}
+```
+
+后续测试侧能力探针将失败缩到
+`fun scan(): Unit { for (value in listOf(1)) { if (value == 1) { break } } }`，
+仍是 frontend 无诊断 / InvalidSsa；无需 factory、continue、累加变量或复杂 body。
+同一 temporary 的无条件 break、normal 累加、条件 continue，以及 Borrow List 的条件
+break/continue 累加均通过 SSA + LLVM；将原 temporary provider 换为 Array 仍 InvalidSsa。
+另一个具名 owner 对照在 `val xs = listOf(1)` 更早返回 UnsupportedNode，不把它混同为同一
+InvalidSsa 根因。临时定位 harness 捕获各 case 的 panic 以继续报告，其整体退出 0 **不表示
+所有 case 通过**；未将它加入正式测试，也未用 ignore / should_panic 把正例失败当验收。
+本片没有修改生产代码，最终 temporary 测试明确只比较已支持的 conditional continue。
+
+| 实际命令 / 检查（2026-10-02，正式检查退出码均为 0） | 结果 |
+|---|---|
+| `timeout --signal=TERM --kill-after=10s 300s cargo test --locked --offline -p lang-codegen --lib sequential_for` | 30 passed / 0 failed / 0 ignored / 664 filtered；原 27 + 新 3，新三项各完整分析两次 |
+| 同上 Cargo 参数，filter `ssa::lower_frontend_tests::rejects_mixed_analysis_chains_before_constructing_ssa -- --exact` | 1 passed / 693 filtered |
+| 同上 Cargo 参数，filter `native_tests::entry_shape_and_analysis_identity_fail_before_object_emission -- --exact` | 1 passed / 693 filtered |
+| `timeout --signal=TERM --kill-after=10s 300s cargo test --locked --offline -p lang-frontend --test ownership_iteration iteration_ownership_facts_are_deterministic_across_analyses -- --exact` | 1 passed / 183 filtered；共享上游回归，不冒充 fresh frontend→LLVM 证据 |
+| `timeout --signal=TERM --kill-after=10s 120s cargo fmt --all -- --check` | 通过 |
+| `timeout --signal=TERM --kill-after=10s 600s cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings` | 通过 |
+| `python3 scripts/check_rust_sizes.py --base 0b1939b471099e8759eb729ea548d7155129403d` | merge-base 为上述 main；606 手写 / 48 历史超限 / 0 生成物，新模块 196 行；无新增例外或 legacy 超限增长 |
+| `python3 -m unittest discover -s scripts/tests -v` | 94 passed |
+| `python3 scripts/check_docs.py`、`git diff --check` | 通过 |
+
+执行宿主 x86_64 Linux，Rust/Cargo 1.96.0、LLVM/Clang 21.1.8；既有共享 Cargo target，
+`CARGO_INCREMENTAL=0`，Cargo 串行、libtest 默认并行，未 clean。本片 PR 双宿主 CI 尚未运行；
+codegen / frontend / workspace 全量、性能、cold/warm 编译与 RSS 未运行。没有生产或跨 crate API 变动。
+其余 owned named/Borrow 完整边界及再读、nominal element native、完整 projection/cleanup
+矩阵、ZST 和真实 for 负例落盘桥接仍未闭合；本片支持子集的确定性不关闭这些条款。
+
+独立 review 后补足不参与 renderer 文本的 EntityData / TypeOrigin 来源检查；按上述
+`27c0e82` 最终测试代码重新执行表中的 fmt、codegen all-targets clippy、sequential_for
+（仍 30 passed / 664 filtered），以及 docs、尺寸和 diff 检查，均通过。其余表中共享门禁的
+已执行证据仍有效；没有把补充来源断言解释为新生产修复或 mixed-products 负例。
+
+2026-10-02 发布前执行环境重置后，从变更记录重建上述三个文件；在增加本段恢复说明前，
+完整 Git tree 为 `2047417a68367a3c7612d971a7cb95ede493fba7`，与重置前最终 tree 完全相同。
+恢复后的本地测试提交为 `18699a1849e9e93a457117160c2cf7d45c29b145`，新模块仍为 196 行，
+三个输入 SHA 不变。上述重置前提交和执行结果保留为历史，未把丢失的原始日志伪造为新证据。
+在恢复的同版本 Rust/Cargo 1.96.0、LLVM/Clang 21.1.8 和 x86_64 Linux 环境，重新运行表中
+全部正式检查：fmt、clippy、sequential_for 30 / 664 filtered、两条 mixed 门禁各 1 / 693、
+frontend exact 1 / 183、94 policy、606 手写 / 48 历史超限的尺寸检查、docs 与 diff，均退出 0。
+本次没有重新执行最初的失败探针，也未进行性能、冷/热或 RSS 测量；production 仍零改动。
+
 ### 2026-10-02 conditional break 的 source-loan CFG 修复
 
 本片从 `main 0b1939b471099e8759eb729ea548d7155129403d` 独立建分支，修复现行
@@ -306,3 +418,31 @@ fmt 为 120s。宿主 x86_64 Linux，Rust 1.96.0、LLVM/Clang 21.1.8，共享 Ca
 workspace 全量、性能/RSS 未运行。无跨 crate API 变化；现有 nominal element 构造边界、
 完整 owned named/Borrow 矩阵、ZST、derived/component cleanup、真实 for 负例落盘与
 独立分析链确定性不由本修复的结果证明，保持原合同和各自后续验收范围。
+
+### 2026-10-02 PR22 合并后的 conditional-break 整合复验
+
+PR22 的独立分析链确定性片已合入 `main a7a92790a49053d110e00655f174515a13093449`。
+本修复从远端 `3536b25ff1f1d8ed4c1e4088f0eb93beed53361b` 普通 merge 该 main，
+保留 `determinism_tests` 与 `source_cfg_tests` 两个入口及以上两份验收原文，不重写历史结果。
+确定性片中记录的 temporary conditional-break `InvalidSsa` 红例，已由
+[本节 source-loan CFG 修复](#2026-10-02-conditional-break-的-source-loan-cfg-修复)闭合；
+其 named owner / `own` 参数的既存 `UnsupportedNode` 边界不包含在这项结论中。
+
+以上一节相同的命令、timeout、宿主与工具链重新运行整合树；只有尺寸比较 base 更新为
+上述新 main。旧 head 的 9/9 CI 不作为新整合树的证据，本次发布后需运行新的双宿主 CI。
+
+| 新整合树的本地验收（2026-10-02） | 实际结果 |
+|---|---|
+| `lang-codegen --lib sequential_for` | 35 passed / 0 failed / 0 ignored / 664 filtered；原 27 + 确定性 3 + 修复 5 |
+| 上节相同的五个 libtest CFG/provider/verifier/mixed 过滤器 | 99 passed / 0 failed / 0 ignored / 600 filtered |
+| fmt、codegen all-targets check、严格 clippy | 三项均通过 |
+| 尺寸检查 `--base a7a92790a49053d110e00655f174515a13093449` | 607 手写 / 48 历史超限 / 0 生成物；production 两文件与已审修复相同，无 baseline/exception 变化 |
+| policy、docs、diff | 94 passed；462 Markdown 结构通过；无空白错误 |
+
+确定性测试源和前述两段历史正文均逐字保留。本轮不扩大已声明的能力范围，也不宣称
+全部 SPEC-0182 已验收；尚未运行的项与上节范围保持。
+
+整合复核另将确定性片最初的完整红输入（`source(): List<Int> = listOf(7, 2, 9)`、
+conditional continue + break、`total` 累加）永久加入现有 CFG 测试，明确通过 fresh frontend、
+SSA verifier 与 verified LLVM，支持上述精确红例闭合引用。该测试函数另以 `--exact --nocapture`
+单独重跑 1 passed / 698 filtered，再运行同一套整合门禁；函数数不变，sequential_for 仍为 35。
