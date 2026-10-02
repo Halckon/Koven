@@ -66,7 +66,7 @@ CLI const ownership 则保留此诊断。宿主 Error variant/Display/source 与
 | A4 CLI完整协议 | `project_basic_ownership_cli` 与完整CLI/build；完整human/JSON/exit、typed gate、basic/const diagnostics/deferred早于entry、native/临时输出保全 | 干净main旧CLI build＋112次进程完整输出冻结；新oracle旧生产9/9，CLI迁移后18/18；最终完整CLI78/78（48 bin＋3format＋9native＋9原project＋9新oracle），build通过 |
 | A5 LSP完整宿主 | 完整`lang-lsp`；冻结manual全链、全部publication字段/UTF16 Locations、const+move、deferred Some、prepare/drop/sendfailure/lastgood | 新3项先在旧生产完整40/40通过；迁移后完整40/40再次通过，含原37与新3；同SourceMap手工全链raw Eq、跨source const+move、deferred Some、全UTF16和所有publication字段及last-good通过 |
 | A6 相邻合同 | snapshot/view/index/provenance、multifile types/ownership/const选集、frontend docs、native unit | 12个完整frontend targets247/247（含新10），docs12/12；native unit93/93、646 filtered；均0 failed/ignored；细分与命令见下 |
-| A7 工程门禁 | fmt、workspace all-targets check、frontend/CLI/LSP严格Clippy、docs/全部Python policy/尺寸/diff | 全部通过；Clippy -D warnings；docs474、policy99/99；695手写/48历史超限/0生成物，无增长或例外变更；API53行、CLI575、LSP482，新测试均≤339 |
+| A7 工程门禁 | fmt、workspace all-targets check、frontend/CLI/LSP严格Clippy、docs/全部Python policy/尺寸/diff | 全部通过；Clippy -D warnings；docs474、policy99/99；695手写/48历史超限/0生成物，无增长或例外变更；API52行、CLI575、LSP486，新测试均≤339 |
 | A8 双宿主交付 | 两新targets未过滤各恰一次；Draft/归档exact-head双宿主逐名与9 jobs；merge/main另验 | selection policy零选择真红→15/15绿；双宿主配置接线已核，独立code review进行中，Draft与新head CI尚未开始，不复用基底CI冒充 |
 
 本地环境 x86_64 Linux、Rust/Cargo1.96.0、LLVM/Clang21.1.8；Cargo 追加 `--locked --offline`。
