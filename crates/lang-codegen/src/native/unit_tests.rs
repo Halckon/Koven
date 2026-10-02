@@ -4,12 +4,7 @@ mod string_clone_tests;
 #[path = "unit_receiver_two_phase_tests.rs"]
 mod receiver_two_phase_tests;
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{fs, path::Path, process::Command};
 
 use lang_frontend::{
     lexer::lex,
@@ -32,7 +27,9 @@ use crate::ssa::{
     unit_lower::lower_scalar_unit_with_entry,
 };
 
-static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+#[path = "unit_test_directory.rs"]
+mod test_directory;
+use test_directory::TestDirectory;
 
 #[path = "unit_non_null_tests.rs"]
 mod non_null_assertion_tests;
@@ -90,30 +87,6 @@ impl UnitAnalysis {
             })
             .expect("fixture declaration exists")
             .id()
-    }
-}
-
-struct TestDirectory(PathBuf);
-
-impl TestDirectory {
-    fn create() -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "koven-unit-native-test-{}-{}",
-            std::process::id(),
-            NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&path).expect("test directory must be creatable");
-        Self(path)
-    }
-
-    fn join(&self, name: &str) -> PathBuf {
-        self.0.join(name)
-    }
-}
-
-impl Drop for TestDirectory {
-    fn drop(&mut self) {
-        fs::remove_dir_all(&self.0).expect("owned test directory must be removable");
     }
 }
 
