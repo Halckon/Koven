@@ -14,4 +14,8 @@
 | 新增/修改诊断、错误码、Span、机器输出 | [诊断规范](diagnostics.md) |
 | 复用开源方案或新增/升级依赖 | [依赖治理](dependencies.md) |
 
+## 有界迁移验收
+
+- [P2 LSP server 测试首片](lsp-test-migration.md)：私有边界、身份映射、实际验证及未测项
+
 具体 crate 的职责和最近测试入口由 `crates/**/AGENTS.md` 就近说明。
