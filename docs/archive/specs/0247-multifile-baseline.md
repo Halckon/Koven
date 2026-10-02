@@ -1,10 +1,10 @@
 # SPEC-0247：跨文件类型基线与恢复事实闭合
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：修复跨文件类型历史失败或消费恢复布局事实时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：修复跨文件类型历史失败或消费恢复布局事实时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P2-247` |
 | 所属 Phase | Phase 2，直接 Phase 3/4 消费者回归 |
 | 语言规范 | [类型](../../guide/03-types-generics.md)、[控制流](../../guide/06-blocks-control-flow.md)、[lambda](../../guide/07-calls-lambdas-closures.md)、[常量交接](../../guide/05-declarations-callables.md#364-import分阶段交接与非目标) |
@@ -51,7 +51,7 @@
 | `bash scripts/check_stage_integration.sh` | 64 targets / 917 passed；本次将完整 multifile suite 纳入持续门禁 |
 | `bash scripts/check_guide_litmus.sh` | 187 frontend + 14 codegen = 201 passed；另 2023 filtered 不计通过 |
 | `python3 scripts/check_docs.py` / `python3 -m unittest discover -s scripts/tests -v` / `git diff --check` | 456 Markdown / 45 tests / whitespace 均通过 |
-| Draft PR / 最终 exact-head macOS+Ubuntu CI | 待发布 |
+| Draft PR / 初始 exact-head macOS+Ubuntu CI | [PR #14](https://github.com/Halckon/Koven/pull/14)，head `d333e414` 的 run 36978695764 completed/success，8/8 jobs 成功 |
 
 默认不启动 frontend 全量。命令串行复用共享 target，`CARGO_INCREMENTAL=0`。
 本地 Linux x86_64/glibc、Rust 1.96.0、LLVM/Clang 21.1.8；macOS 以实际 CI 留证。
@@ -61,7 +61,7 @@
 1. [x] 主干复核与逐项诊断，明确四项迁移、一项真正生产错误。
 2. [x] 红测 → 最小实现 → 同一测试和直接消费者闭合。
 3. [x] 当前 Architecture/演进账本、stage 门禁与本地验收同步。
-4. [ ] 独立草稿 PR、双平台 CI 全绿后归档；不自动合并或转 Ready。
+4. [x] 独立草稿 PR、双平台 CI 全绿后归档；不自动合并或转 Ready。
 
 历史 Spec 与归档结果保持不变，只更新当前 inventory。无新语义未决项。
 
@@ -78,3 +78,27 @@
 新增下游测试通过完整 SSA lowering 核验 Error 字段 fail-closed，未为测试修改 planner 的既有职责。
 复合布局 poison 的六种 source 形态均通过；单/unit 无诊断恢复对照限定 direct Opaque，
 不声称两路径的所有 composite capability recovery 表示已统一。
+
+## 6. 双平台验收与归档
+
+2026-10-02，head `d333e41441dcb2b9b34f58b3ae5251fe75d046a0` 的
+[pull_request CI 36978695764](https://github.com/Halckon/Koven/actions/runs/36978695764)
+实际 completed/success，8/8 jobs 成功，没有必需 job 被跳过。
+
+| 实际宿主 | frontend lib | codegen / doctests | CLI / LSP | stage | Guide |
+|---|---|---|---|---|---|
+| Ubuntu 24.04 | 187 passed | 679 / 4 passed | 66 / 26 passed | 64 targets / 917 passed | 201 passed |
+| macOS 14 | 187 passed | 678 passed、1 既有 ignored / 4 passed | 65 / 26 passed | 64 targets / 917 passed | 201 passed |
+
+两平台日志都实际包含完整 multifile 107/0、三项新回归及完整 SSA fail-closed 负测通过。
+macOS 唯一 ignored 仍为既有 LLDB source-breakpoint，CI 缺 debugserver task-port 权限；
+未新增 ignore，不计调试器通过。Guide 每宿主另有 2023 filtered，不计通过。
+
+15 个新 blob 上传后逐项核 SHA，完整远端 tree `6e090801b57e87d541563d1ecaa0e0ea463760aa`
+与本地验证提交 `0b1f17ac0b879e39f6cba89e08e0b42f7eff1d97` 一致，fetch 后 diff 为空。
+本地完整 bundle 已验证；本地提交身份为 halckon <halckon0@hotmail.com>，远端 connector
+使用已连接 Halckon 账户身份。该差异不改变已核验 tree。
+
+本次仅依据以上实现、验收和实际 CI 证据归档有界切片。归档提交只同步 Spec/inventory，
+最终 head 仍需重跑双平台 CI，其结果更新同一个 PR，避免为重复日志不断追加账本提交。
+PR 保持 Draft，不自动合并或转 Ready；editor 五项历史失败及 frontend 全量未运行边界保持。

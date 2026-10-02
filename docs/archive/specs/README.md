@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 217 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 218 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -141,6 +141,8 @@
 - [SPEC-0214](./0214-implicit-it-lambda-parameter.md)：隐式 `it` lambda 参数
 
 ## Phase 2
+
+- [SPEC-0247](./0247-multifile-baseline.md)：跨文件五项类型基线闭合、恢复 layout 原子性与双平台 CI 验收
 
 - [SPEC-0179](0179-sequential-iteration-typed-plan.md)：顺序容器借用迭代 typed plan
 

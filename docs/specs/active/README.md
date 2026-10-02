@@ -2,7 +2,6 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-- [SPEC-0247](0247-multifile-baseline.md)：跨文件类型恢复与历史断言迁移，in-progress。
 
 - [SPEC-0241](0241-return-control-operands.md)：return 控制表达式与 Litmus4 单文件 enum-tag native 验证，in-progress。
 - [SPEC-0242](0242-automatic-borrow-call-migration.md)：调用点自动借用、普通 borrow 名称与编辑器迁移，in-progress。
