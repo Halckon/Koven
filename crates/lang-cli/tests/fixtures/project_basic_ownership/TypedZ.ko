@@ -1,0 +1,7 @@
+package z
+fun typed(): Unit { val item: String = 1 }
+class Resource()
+fun moved(own resource: Resource): Unit {
+    val first = resource
+    val second = resource
+}

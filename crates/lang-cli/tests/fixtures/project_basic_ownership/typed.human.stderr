@@ -1,0 +1,4 @@
+error[L0084] aroot/a/Stage.ko:2:40-2:41: expression type does not match the expected type
+  label aroot/a/Stage.ko:2:31-2:37: expected String, found Int
+error[L0084] zroot/z/Stage.ko:2:40-2:41: expression type does not match the expected type
+  label zroot/z/Stage.ko:2:31-2:37: expected String, found Int

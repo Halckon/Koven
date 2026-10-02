@@ -1,0 +1,6 @@
+package z
+class Resource()
+fun moved(own resource: Resource): Unit {
+    val first = resource
+    val second = resource
+}

@@ -1,0 +1,9 @@
+package app
+import constants.TEXT
+import constants.INDEX
+fun start(): Unit { println(TEXT + TEXT) }
+fun argv(args: Array<String>): Unit {
+    println(TEXT)
+    println(args[INDEX])
+}
+fun invalid(): Int = 0
