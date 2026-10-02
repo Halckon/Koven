@@ -20,7 +20,7 @@
 | [SPEC-0232](../archive/specs/0232-ownership-primitive-type-facts.md) | replace/swap 稳定 intrinsic、交换类型、源码顺序 operand identity、事务与结构验证 | 后继 SPEC-0244 已闭合 owned mutable whole-root 的 ownership/SSA/native；一级字段 SPEC-0246 已独立完成有界本地与首轮双平台 CI 验收并归档；其他投影/Inout ABI 不据此扩大 |
 | [SPEC-0233](../archive/specs/0233-parser-compiler-contracts.md) | 九段原文迁入 Compiler Contracts，两页唯一索引、递归门禁与预算 | 渐进拆分首片；混合语义/诊断/Span 段保留 Guide，不声称全部分离 |
 | [SPEC-0234](../archive/specs/0234-block-newline-continuation.md) | 普通/control/nested block 的 Pratt/postfix 换行边界、for-header delimiter 修复及矩阵 | 同行缺分隔符、前导/重复分号、lambda 顶层尾表达式范围另列 |
-| [SPEC-0236](active/0236-explicit-string-clone.md) | String.clone 单/unit typed→loan/drop→StringClone SSA→Linux native；heap/static/empty 与真实分配释放计数 | 原合同诊断 Span 回归缺精确 oracle，因此仍 active；Borrow Rc<String>.value.clone、inline-nullable String 和通用 clone 未扩张 |
+| [SPEC-0236](active/0236-explicit-string-clone.md) | String.clone 单/unit typed→loan/drop→StringClone SSA→Linux native；heap/static/empty 与真实分配释放计数 | 原合同诊断 Span 精确 oracle 已本地14项通过；本批新断言待PR CI，仍 active；Borrow Rc<String>.value.clone、inline-nullable String 和通用 clone 未扩张 |
 | [SPEC-0235](../archive/specs/0235-approved-language-rules.md) | 真实 v0.39 完整归档；v0.40 唯一入口启用三项批准规则，保留 clone-first | 启用合同已随 PR #7 合并且最终双宿主 CI 通过；三项规则的具体实现与非目标仍分别验收 |
 
 合并后交叉用例、统一 target 的本地门禁、实际命中数及剩余失败统一记录于

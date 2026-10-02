@@ -10,6 +10,11 @@
 不获得 intrinsic 身份。下游按 expression identity 查询 descriptor，不重新按 `clone` 拼写识别。
 实现位于 `type_checking/string.rs`、`checker/string.rs` 与 compilation-unit 对应子模块。
 
+`tests/string_clone.rs` 在单文件与unit入口对错误实参/类型实参、错误receiver和move后读取
+断言原诊断code与完整primary `Span`/source slice；唯一上下文区分相同token的不同位置，
+中文/emoji前缀使byte offset与scalar count不同。active exclusive loan与失败overload trial
+沿用同一局部oracle；原正向typed/ownership事实及deferred边界断言保持。
+
 ## String clone ownership facts
 
 `StringOwnershipEffect` 与 `UnitStringOwnershipEffect` 包装已通过检查的 typed descriptor，

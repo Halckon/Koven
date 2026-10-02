@@ -159,3 +159,43 @@ UnsupportedNode（单/多文件负测），不把 handle-slot pointer 当 contro
 Borrow `Rc<String>.value.clone()`、inline-nullable String ABI及safe-call原限制仍保留；
 Str/toString、通用clone、容器整体深拷贝均非目标。第10节失败后未执行的targets、fixture
 修正和原五项multifile失败不重写；后者由SPEC-0247单独验收，不能倒称clone阶段全量通过。
+
+
+## 12. 诊断 Span 验收补强（2026-10-02，本地）
+
+第11节所列代码/Span oracle 缺口已在独立 `fix/spec-0236-clone-span` 分支补强；
+基线为 `main 4383509`，测试提交为 `bf690f8c9b6f746ff9e17611001298dd98001d6d`。
+本节只追加新证据，不改写第9–11节的历史结论；本批最新提交的远端 CI 尚未运行，
+因此保持 `active/in-progress`，第5节最后一项与第7节最后一步继续不勾选。
+
+原 `string_clone` 的14个测试名称与顺序保持，没有为计数新增重复案例。文件内私有
+`assert_diagnostics` 以手写的唯一上下文及高亮片段独立定位期望位置，逐项比较诊断总数、
+原code顺序、包含source identity与起止byte offset的完整 `Span`，以及实际source slice。
+所有原负例加入不改变语义的中文/emoji注释，并断言诊断之前的byte offset大于Unicode
+scalar count；相同 `clone` / receiver 拼写的不同occurrence不能只凭切片相等通过。
+生产实现、诊断code/message、共享Source/Span或测试harness均未修改。
+
+| 原验收 / 既有测试 | 本轮补充的精确 oracle（单文件与unit入口均执行） |
+|---|---|
+| 第5节第4项：`clone_rejects_arguments_and_type_arguments` | L0121只指向多余实参 `1`；L0091只指向对应泛型调用的 `clone` 成员名 |
+| 第5节第4项：`clone_does_not_make_string_copyable` | L0131指向move后clone调用中的 `source` 读取，不能误指声明或此前move |
+| 第5节第4项：`clone_rejects_non_string_intrinsics_and_nullable_receiver` | Int/List/Array/Rc/Box/nullable六个L0080逐一指向所属调用的 `clone`，不能交换相同片段的来源 |
+| 相关既有负例：`clone_cannot_read_through_an_active_exclusive_loan` | L0135指向后发生的 `text` 冲突读取，保留现行Guide所有权诊断合同 |
+| 相关既有负例：`failed_clone_overload_trials_publish_no_intrinsic_fact` | L0124指向歧义调用的 `choose`；原trial失败不发布intrinsic事实断言保留 |
+| 原正例与非目标 | 原Borrow/owned/临时/元素/source可用/result独立move及loan/drop断言全部保留；普通同名member与safe-call deferred边界不变 |
+
+| 本轮验收命令 / 检查 | 实际结果 | 范围与限制 |
+|---|---|---|
+| `cargo test --locked --offline -p lang-frontend --test string_clone` | 14 passed，0 failed/ignored/filtered | Rust 1.96.0，x86_64 Linux；5个既有负例中的11条诊断各在双入口断言，合计22条精确code/Span/slice比较 |
+| oracle主动突变：同目标加 `clone_rejects_arguments_and_type_arguments -- --exact` | 0 passed / 1 failed / 13 filtered，预期退出101 | 人工将第二个 `clone` 的期望错指第一个同名token，Span比较拒绝 `114..119` 与 `64..69`；不是生产缺陷，突变不提交，恢复后上述完整14项再次通过 |
+| `cargo clippy --locked --offline -p lang-frontend --all-targets -- -D warnings` | passed，退出0 | 受影响crate全部targets严格lint；不是执行frontend全量测试 |
+| `cargo fmt --all -- --check` | passed，退出0 | 最终Rust格式检查 |
+| 测试身份与diff检查 | 14/14名称及顺序保持，`git diff --check` passed | 生产Rust零diff；已核主动突变完全恢复 |
+| `python3 scripts/check_docs.py` 与历史正文保全核对 | passed，460 Markdown；原Spec正文逐字前缀保留 | 不改inventory/DAG；脚本未变，Python policy suite本轮未运行 |
+| 原全链路最终CI复核 | PR7 exact head `11051e200441a21cdf6dee6a6d153d2e9ffe26c6` 的[run 36877486546](https://github.com/Halckon/Koven/actions/runs/36877486546)仍为8/8 jobs success | 2026-10-02重新读取GitHub run/jobs/steps；复用第11节原交付证据，不冒充本批新断言远端结果 |
+| native、完整frontend、workspace check、macOS、本批远端CI | 本轮未运行 | 本片只改局部测试oracle，没有生产/共享Span/harness/API变化；原native与双宿主证据见第10–11节，新增断言须经本批PR CI确认后独立归档 |
+
+第5节第4项已具备本地直接回归证据。下一步先对本批精确head运行现行PR CI；确认必需
+检查全绿且无未决状态后，以独立文档提交完成archive迁移、索引、inventory与DAG更新。
+Borrow `Rc<String>.value.clone()`、inline-nullable String ABI、safe-call及其余第4节非目标
+保持原范围；不以本轮断言补强证明任何这些边界已扩大，也不涉及SPEC-0182。
