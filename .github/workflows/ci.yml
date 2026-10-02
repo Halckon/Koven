@@ -186,6 +186,8 @@ jobs:
           cargo test --locked -p lang-codegen
           cargo test --locked -p lang-cli
           cargo test --locked -p lang-lsp
+      - name: Run ownership iteration integration
+        run: cargo test --locked -p lang-frontend --test ownership_iteration
       - name: Run selected frontend stage integration
         run: bash scripts/check_stage_integration.sh
       - name: Run Guide litmus with explicit known gaps
