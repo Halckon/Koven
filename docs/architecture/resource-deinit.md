@@ -77,4 +77,4 @@ instance member 调用和 nested field chain 作为 Borrow 实参的原有限制
 
 证据入口：frontend `resource_deinit_type_facts`、`ownership_resource_deinit`；codegen
 `deinit_tests`、single/unit deinit lowering 与 native 测试。当前验收记录见
-[SPEC-0245](../specs/active/0245-resource-deinit.md)，不代表整个语言/全部 frontend 完成。
+[SPEC-0245](../archive/specs/0245-resource-deinit.md)，不代表整个语言/全部 frontend 完成。

@@ -1,10 +1,10 @@
 # SPEC-0245: 具体普通 class 的资源析构闭环
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收资源 lexical drop 与用户 deinit 时 · **唯一真源**：本 Spec 范围与验收；语言语义由 Guide 定义
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收资源 lexical drop 与用户 deinit 时 · **唯一真源**：本 Spec 范围与验收；语言语义由 Guide 定义
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-RESOURCE-0245` |
 | 所属 Phase | Phase 2 类型事实、Phase 3 所有权、Phase 4 SSA/LLVM/native |
 | 语言规范 | 已启用 [Guide v0.40](../../guide/README.md) |
@@ -54,7 +54,7 @@
 | Guide | `bash scripts/check_guide_litmus.sh` | 187 frontend + 14 codegen = 201 passed；codegen 筛选另有 1888 filtered，不计作通过 |
 | 静态/格式 | workspace all-targets check、严格 clippy、fmt | 全通过，`-D warnings`；无新增 lint 豁免 |
 | 文档/Python/diff | `check_docs.py`、`unittest discover -s scripts/tests -v`、`git diff --check` | 453 Markdown / 45 tests / whitespace 全通过 |
-| Draft PR 与双宿主 | exact head 的 macOS/Ubuntu PR CI | 合并态本地通过，待发布与远端实际验证 |
+| Draft PR 与双宿主 | exact head 的 macOS/Ubuntu PR CI | head `43254d66` 的 PR #12 run `36968063513` completed/success，8/8 jobs；以下记录双平台实测 |
 
 native 的 stdout 证明 scope/body/字段逆序、字段在 body 中可读、Value delivery、temporary、
 return/break/continue、替换及 Abort 不展开。单文件 nested fixture 6 allocations/6 frees，
@@ -82,3 +82,24 @@ temporary 唯一交付、交换后按变量声明逆序清理实际对象、pend
 `CARGO_INCREMENTAL=0`。阶段 checkpoint 与 Git bundle 保留。完成 bounded acceptance 后归档，
 验证归档最终 head 的双平台 CI；保持 Draft，由用户决定合并。无全量 frontend 通过声明，
 不改无关历史失败、ignore 或性能预算。
+
+## 5. 初始实现 head 双平台 CI
+
+[PR #12](https://github.com/Halckon/Koven/pull/12) 的 head
+`43254d66a5e01beba3fca987d5601e658eea3082`、tree
+`ddb11d83ef9052d2143b34c10b6e23b0fd72dcf5` 与本地验证树一致；66 个 blob SHA 逐一核对。
+[CI run 36968063513](https://github.com/Halckon/Koven/actions/runs/36968063513)
+于 2026-10-02 completed/success，8/8 jobs success，无 job skip。两平台 check、严格 clippy、
+Core、stage、Guide 与 CI Passed 均实际执行，原语和资源 native 交叉用例均通过。
+
+| 宿主 | frontend lib | codegen / doctests | CLI / LSP | stage | Guide |
+|---|---|---|---|---|---|
+| Ubuntu 24.04 | 184 | 634 / 4 | 66 / 26 | 62 targets / 793 | 187 frontend + 14 codegen |
+| macOS 14 | 184 | 633 passed、1 既有 ignored / 4 | 65 / 26 | 62 targets / 793 | 187 frontend + 14 codegen |
+
+macOS 的唯一 ignored 是既有 LLDB source-breakpoint 测试，CI 无 debugserver task-port 权限；
+不计作 debugger 验证通过，没有新增 ignore。Guide 的 codegen 筛选另有 1888 filtered，均不计作通过。
+
+本次归档只迁移 Spec、更新索引/inventory/生成图及已验证事实，不再改 Rust 或 Rust 门禁。
+归档后 head 仍执行完整双平台 PR CI；实际最终结果回写 PR，不继续产生自引用账本提交。
+PR 保持 Draft，合并由用户决定。
