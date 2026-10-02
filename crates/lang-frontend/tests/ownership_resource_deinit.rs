@@ -881,3 +881,213 @@ fn returning_replaced_old_resource_transfers_it_without_a_second_drop() {
         ));
     });
 }
+
+#[test]
+fn direct_field_resource_replace_keeps_parent_and_old_result_until_lexical_exit() {
+    for binding in ["val", "var"] {
+        for new in ["Guard()", "incoming"] {
+            let incoming = if new == "incoming" {
+                "val incoming = Guard(); "
+            } else {
+                ""
+            };
+            let body = format!(
+                "{{ {binding} holder = Holder(Guard()); val sibling = Guard(); {incoming}val old = replace(&holder.state, {new}); inspect(holder.state); inspect(old); tick() }}"
+            );
+            let text = format!("{HEADER}class Holder(var state: Guard)\nfun run(): Unit {body}");
+            let plans = inspected_plans(&text, |sources, parsed, single, unit| {
+                assert_eq!(single.field_replacements().len(), 1);
+                assert_eq!(unit.field_replacements().len(), 1);
+                assert!(single.ownership_primitives().is_empty());
+                assert!(unit.ownership_primitives().is_empty());
+                assert_eq!(single.drops().len(), 3, "no old-field drop at commit");
+                assert_eq!(unit.drops().len(), 3, "no old-field drop at commit");
+                let parent = single.field_replacements()[0].place().root();
+                let parent_drop = single
+                    .drops()
+                    .iter()
+                    .find(|drop| drop.target() == DropTarget::Named(parent))
+                    .unwrap();
+                let owner = parent_drop
+                    .owner()
+                    .expect("parent retains its owner identity");
+                let Some(lang_frontend::ownership_checking::CleanupOwnerValue::Expression {
+                    expression,
+                    ..
+                }) = single.cleanup_conditions().owner_value(owner)
+                else {
+                    panic!("parent must retain its constructor owner definition");
+                };
+                assert_eq!(
+                    sources
+                        .slice(parsed.ast().expressions().get(*expression).unwrap().span())
+                        .unwrap(),
+                    "Holder(Guard())",
+                    "field exchange does not replace the parent owner"
+                );
+                assert_ne!(
+                    single.drops()[0].owner(),
+                    parent_drop.owner(),
+                    "old field result has an independent owner"
+                );
+                assert!(unit.clone().validate().is_ok());
+            });
+            for drops in plans {
+                assert_eq!(
+                    drops
+                        .iter()
+                        .map(|drop| drop.name.as_str())
+                        .collect::<Vec<_>>(),
+                    ["old", "sibling", "holder"]
+                );
+                assert!(
+                    drops
+                        .iter()
+                        .all(|drop| drop.boundary == "statement" && drop.text == body),
+                    "{drops:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn direct_field_resource_return_transfers_old_and_cleans_only_complete_parent() {
+    let text = format!(
+        "{HEADER}class Holder(var state: Guard)\nfun run(): Guard {{ val holder = Holder(Guard()); return replace(&holder.state, Guard()) }}"
+    );
+    let plans = inspected_plans(&text, |_, _, single, unit| {
+        assert_eq!(single.field_replacements().len(), 1);
+        assert_eq!(unit.field_replacements().len(), 1);
+        assert_eq!(single.drops().len(), 1);
+        assert_eq!(unit.drops().len(), 1);
+        assert!(matches!(single.drops()[0].target(), DropTarget::Named(_)));
+        assert!(matches!(unit.drops()[0].target(), UnitDropTarget::Named(_)));
+        assert!(unit.clone().validate().is_ok());
+    });
+    for drops in plans {
+        assert_eq!(
+            drops,
+            [NamedDrop {
+                name: "holder".into(),
+                boundary: "transfer",
+                text: "return replace(&holder.state, Guard())".into()
+            }]
+        );
+    }
+}
+
+#[test]
+fn direct_field_resource_interrupted_replacement_never_commits_or_unwinds_abort() {
+    for exit in ["return", "error(\"stop\")"] {
+        let text = format!(
+            "{HEADER}class Holder(var state: Guard)\nfun run(): Unit {{ val holder = Holder(Guard()); val sibling = Guard(); replace(&holder.state, {exit}) }}"
+        );
+        let plans = inspected_plans(&text, |_, _, single, unit| {
+            assert!(single.field_replacements().is_empty());
+            assert!(unit.field_replacements().is_empty());
+            assert!(single.ownership_primitives().is_empty());
+            assert!(unit.ownership_primitives().is_empty());
+            assert_eq!(single.drops().len(), if exit == "return" { 2 } else { 0 });
+            assert_eq!(unit.drops().len(), if exit == "return" { 2 } else { 0 });
+        });
+        for drops in plans {
+            if exit == "return" {
+                assert_eq!(
+                    drops,
+                    [
+                        NamedDrop {
+                            name: "sibling".into(),
+                            boundary: "transfer",
+                            text: "return".into()
+                        },
+                        NamedDrop {
+                            name: "holder".into(),
+                            boundary: "transfer",
+                            text: "return".into()
+                        }
+                    ]
+                );
+            } else {
+                assert!(drops.is_empty(), "{drops:?}");
+            }
+        }
+    }
+    for jump in ["break", "continue"] {
+        let body = format!(
+            "{{ val holder = Holder(Guard()); while (flag) {{ val inner = Guard(); replace(&holder.state, {jump}) }}; tick() }}"
+        );
+        let text =
+            format!("{HEADER}class Holder(var state: Guard)\nfun run(flag: Boolean): Unit {body}");
+        for drops in inspected_plans(&text, |_, _, single, unit| {
+            assert!(single.field_replacements().is_empty());
+            assert!(unit.field_replacements().is_empty());
+            assert_eq!(single.drops().len(), 2);
+            assert_eq!(unit.drops().len(), 2);
+        }) {
+            assert_eq!(
+                drops,
+                [
+                    NamedDrop {
+                        name: "inner".into(),
+                        boundary: "transfer",
+                        text: jump.into()
+                    },
+                    NamedDrop {
+                        name: "holder".into(),
+                        boundary: "statement",
+                        text: body.clone()
+                    }
+                ]
+            );
+        }
+    }
+}
+
+#[test]
+fn direct_field_resource_abandoned_result_and_parent_have_unique_cleanup() {
+    for exit in ["return", "error(\"stop\")"] {
+        let text = format!(
+            "{HEADER}class Holder(var state: Guard)\nfun accept(own first: Guard, last: Int): Unit {{}}\nfun run(): Unit {{ val holder = Holder(Guard()); accept(replace(&holder.state, Guard()), {exit}) }}"
+        );
+        inspected_plans(&text, |_, _, single, unit| {
+            assert_eq!(single.field_replacements().len(), 1);
+            assert_eq!(unit.field_replacements().len(), 1);
+            let single_drops = single
+                .drops()
+                .iter()
+                .filter(|drop| !matches!(drop.point(), DropPoint::AfterStatement(_)))
+                .collect::<Vec<_>>();
+            let unit_drops = unit
+                .drops()
+                .iter()
+                .filter(|drop| !matches!(drop.point(), UnitDropPoint::AfterStatement(_)))
+                .collect::<Vec<_>>();
+            if exit == "return" {
+                assert_eq!(single_drops.len(), 2, "{single_drops:?}");
+                assert_eq!(unit_drops.len(), 2, "{unit_drops:?}");
+                assert!(matches!(single_drops[0].target(), DropTarget::Temporary(_)));
+                assert!(matches!(single_drops[1].target(), DropTarget::Named(_)));
+                assert!(matches!(
+                    unit_drops[0].target(),
+                    UnitDropTarget::Temporary(_)
+                ));
+                assert!(matches!(unit_drops[1].target(), UnitDropTarget::Named(_)));
+                assert!(
+                    single_drops
+                        .iter()
+                        .all(|drop| matches!(drop.point(), DropPoint::ControlTransfer(_)))
+                );
+                assert!(
+                    unit_drops
+                        .iter()
+                        .all(|drop| matches!(drop.point(), UnitDropPoint::ControlTransfer(_)))
+                );
+                assert_ne!(single_drops[0].owner(), single_drops[1].owner());
+            } else {
+                assert!(single_drops.is_empty(), "{single_drops:?}");
+                assert!(unit_drops.is_empty(), "{unit_drops:?}");
+            }
+        });
+    }
+}

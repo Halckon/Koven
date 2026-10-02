@@ -95,6 +95,6 @@ pub fn check_ownership(
 }
 
 pub use ownership_primitive::{
-    OwnershipPrimitiveOwnershipPlan, OwnershipPrimitiveValueTransfer,
-    UnitOwnershipPrimitiveOwnershipPlan,
+    FieldReplaceOwnershipPlan, OwnershipPrimitiveOwnershipPlan, OwnershipPrimitiveValueTransfer,
+    UnitFieldReplaceOwnershipPlan, UnitOwnershipPrimitiveOwnershipPlan,
 };

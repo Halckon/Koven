@@ -576,3 +576,164 @@ fn root_exchange_unit_locals_use_zero_sized_storage_and_keep_void_function_abi()
     assert!(body.contains("ret void"), "{body}");
     assert!(!body.contains("call "), "{body}");
 }
+
+#[test]
+fn field_exchange_moves_all_native_storage_without_drop_or_runtime_calls() {
+    for &case in STORAGE_CASES {
+        for across_cfg in [false, true] {
+            let origin = origin();
+            let mut program = Program::default();
+            let module_id = program.add_module("field_exchange");
+            let module = program.module_mut(module_id).unwrap();
+            let ty = storage_type(module, case);
+            let payload = module
+                .add_aggregate_type("Parent.payload", vec![ty, ty])
+                .unwrap();
+            let parent = module.declare_heap_owner("Parent").unwrap();
+            module.define_heap_owner(parent, payload).unwrap();
+            let returned = module
+                .add_aggregate_type("Result", vec![parent, ty])
+                .unwrap();
+            let id = module
+                .add_function("exchange", vec![returned], origin.clone())
+                .unwrap();
+            let function = module.function_mut(id).unwrap();
+            let entry = function
+                .add_block(
+                    vec![EntityType::Value(parent), EntityType::Value(ty)],
+                    origin.clone(),
+                )
+                .unwrap();
+            let args = function.block(entry).unwrap().parameters.clone();
+            let owner = value(args[0]);
+            let replacement = value(args[1]);
+            let EntityId::Place(payload_place) = append(
+                function,
+                entry,
+                Operation::HeapPayloadPlace { owner },
+                vec![EntityType::Place(payload)],
+                &origin,
+            )[0] else {
+                panic!("payload")
+            };
+            let EntityId::Place(field_place) = append(
+                function,
+                entry,
+                Operation::FieldPlace {
+                    base: payload_place,
+                    field: 1,
+                },
+                vec![EntityType::Place(ty)],
+                &origin,
+            )[0] else {
+                panic!("field")
+            };
+            let EntityId::Loan(loan) = append(
+                function,
+                entry,
+                Operation::BorrowBegin {
+                    place: field_place,
+                    kind: LoanKind::Exclusive,
+                },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Exclusive,
+                    target: ty,
+                }],
+                &origin,
+            )[0] else {
+                panic!("loan")
+            };
+            let (entry, owner, loan, replacement) = if across_cfg {
+                let next = function
+                    .add_block(
+                        vec![
+                            EntityType::Value(parent),
+                            EntityType::Loan {
+                                kind: LoanKind::Exclusive,
+                                target: ty,
+                            },
+                            EntityType::Value(ty),
+                        ],
+                        origin.clone(),
+                    )
+                    .unwrap();
+                function
+                    .set_terminator(
+                        entry,
+                        TerminatorKind::Branch(Edge {
+                            target: next,
+                            arguments: vec![
+                                EntityId::Value(owner),
+                                EntityId::Loan(loan),
+                                EntityId::Value(replacement),
+                            ],
+                        }),
+                        origin.clone(),
+                    )
+                    .unwrap();
+                let args = &function.block(next).unwrap().parameters;
+                let EntityId::Loan(loan) = args[1] else {
+                    panic!("transported loan")
+                };
+                (next, value(args[0]), loan, value(args[2]))
+            } else {
+                (entry, owner, loan, replacement)
+            };
+            let old = value(
+                append(
+                    function,
+                    entry,
+                    Operation::HeapFieldExchange {
+                        owner,
+                        field: 1,
+                        loan,
+                        replacement,
+                    },
+                    vec![EntityType::Value(ty)],
+                    &origin,
+                )[0],
+            );
+            let result = value(
+                append(
+                    function,
+                    entry,
+                    Operation::AggregateConstruct {
+                        aggregate: returned,
+                        fields: vec![owner, old],
+                    },
+                    vec![EntityType::Value(returned)],
+                    &origin,
+                )[0],
+            );
+            function
+                .set_terminator(
+                    entry,
+                    TerminatorKind::Return {
+                        values: vec![result],
+                    },
+                    origin,
+                )
+                .unwrap();
+            let ir = render_verified_program(&program, None)
+                .unwrap_or_else(|error| panic!("{case:?}: {error:?}"));
+            let body = function_body(&ir);
+            let memory = body
+                .lines()
+                .filter(|line| line.contains("load ") || line.contains("store "))
+                .collect::<Vec<_>>();
+            assert_eq!(memory.len(), 2, "{case:?}: {body}");
+            assert!(
+                memory[0].contains(&format!("%v{} = load ", old.index())),
+                "{case:?}: {body}"
+            );
+            assert!(
+                memory[1].contains(&format!("%v{}, ptr ", replacement.index(),)),
+                "{case:?}: {body}"
+            );
+            assert!(!body.contains("call "), "{case:?}: {body}");
+            assert!(!body.contains("atomic"), "{case:?}: {body}");
+            assert!(!body.contains("alloca"), "{case:?}: {body}");
+            assert_eq!(body.contains("phi ptr"), across_cfg, "{case:?}: {body}");
+        }
+    }
+}

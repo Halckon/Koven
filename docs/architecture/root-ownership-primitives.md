@@ -44,10 +44,14 @@ payload。LLVM 定向矩阵另覆盖精确标量宽度、Char 与零大小表示
 入口或任意类型均已支持。泛型具体名义实例沿现有 storage；尚未具体化 `T` 的原语模板不
 发布执行计划。
 
-single 与 unit 均保持字段/index和普通 Inout 参数原语 native 明确 unsupported。closure、
-包含 closure 的递归来源运输独立 deferred；raw pointer、借用返回、NLL 或跨线程共享未扩展。
-普通具体 class 资源的 deinit 与词法清理已由后继[资源析构](resource-deinit.md)接入，
-root commit 无提前 drop 的合同保持，并有组合 native / 唯一释放证据。
+本页的 root 专用路径继续拒绝字段、index 与普通 Inout 参数原语 native。独立的
+[一级字段 replace](direct-field-replace.md)已在 SPEC-0246 完成原基线的有界本地与首轮双平台 CI
+验收，不放宽 root 操作的 exact direct-root 合同。closure 与包含 closure 的递归来源运输
+独立 deferred；raw pointer、借用返回、NLL 或跨线程共享未扩展。
+普通具体 class 资源的 deinit 与词法清理已由[资源析构](resource-deinit.md)接入 main，
+root commit 无提前 drop 的合同保持，并有该切片的组合 native / 唯一释放证据。
+field replace 已整合含资源析构的 main `e6e1100`；4 项前端与 8 项 native 资源交叉、
+整合后 core/stage/Guide 已通过，独立证据见字段专页，修复 head 双平台结果由 PR 跟踪。
 
 unit 的普通基础入口仍保持既有实参控制退出限制；constant-enabled 入口有真实 native
 return / break / continue 覆盖。基础 ownership 的通用短路精度不在本片重写；未到达可信

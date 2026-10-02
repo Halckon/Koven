@@ -2069,3 +2069,6 @@ mod resource_deinit_tests;
 
 #[path = "unit_resource_exchange_tests.rs"]
 mod resource_exchange_tests;
+
+#[path = "unit_field_resource_replace_tests.rs"]
+mod field_resource_replace_tests;

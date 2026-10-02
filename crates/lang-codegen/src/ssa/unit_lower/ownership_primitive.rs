@@ -44,6 +44,7 @@ impl UnitExpressionLowerer<'_> {
             loop_depth: self.loops.len(),
             pending_start,
             exclusive_root_owners: Vec::new(),
+            field_replace_owner: None,
             created_loans: Vec::new(),
         });
         let result = self.lower_ownership_primitive_in_frame(expression, arguments, call, span);
@@ -110,6 +111,16 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let copyable = self.typed.copyability(concrete) == Copyability::Copyable;
         let unit = builtin_type(self.typed, concrete) == Some(BuiltinType::Unit);
+        if primitive.kind() == OwnershipPrimitiveKind::Replace
+            && self.owned.loans().iter().any(|loan| {
+                loan.call() == expression
+                    && loan.argument() == primitive.operands()[0]
+                    && matches!(loan.target(), UnitLoanTarget::Place(place) if !place.is_root())
+            })
+        {
+            return self
+                .lower_field_replace_in_frame(primitive, arguments, target, copyable, unit, span);
+        }
         let mut roots = Vec::new();
         let mut replacement = None;
         for (index, argument) in arguments.iter().enumerate() {

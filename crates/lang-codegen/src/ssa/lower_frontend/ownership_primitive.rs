@@ -29,6 +29,13 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        if descriptor.kind() == OwnershipPrimitiveKind::Replace
+            && self.owned.loan_begin(first.value).is_some_and(
+                |fact| matches!(fact.target(), LoanTarget::Place(place) if !place.is_root()),
+            )
+        {
+            return self.lower_field_replace(expression, first, second, span);
+        }
         let ty = self.resolve_type(descriptor.value_type(), span)?;
         let target = *self
             .type_ids

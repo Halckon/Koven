@@ -6,7 +6,7 @@
 
 `lang-codegen::ssa` 自有 typed SSA，不把 LLVM 类型当作 frontend 或中间语义。`Program` 包含 module、
 function、block、entity、type 和 operation；控制流通过 block parameters 与显式 edge operands 传值。
-每个 entity 保留类型、定义位置、ownership 和 source origin；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的 commit、verifier 与 native 边界。
+每个 entity 保留类型、定义位置、ownership 和 source origin；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的 commit、verifier 与 native 边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
 
 验证分三层执行：
 

@@ -336,6 +336,14 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
         let receiver_value = self.require_expression_value(receiver.expression())?;
+        // 当前 SSA alias 合同仍按 parent owner 冲突；同父 sibling 读取不假装已封闭。
+        if self.pending_call_frames.iter().any(|frame| {
+            frame.field_replace_owner.is_some_and(|slot| {
+                self.pending_operands.get(slot) == Some(&EntityId::Value(receiver_value))
+            })
+        }) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let receiver_ssa = self.expression_ssa_type(receiver.expression(), span)?;
         let payload = self
             .heap_payloads

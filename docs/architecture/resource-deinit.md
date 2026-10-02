@@ -62,7 +62,10 @@ projection 和 ownership loan target，派生 loan 按创建逆序结束并参�
 `replace` / `swap` 仍只运输完整 owner，不在 commit 中执行 deinit。资源根在提交后继续服从
 词法义务；replace 的旧 owner 由返回值交付，swap 的两个新 owner 仍按各变量声明顺序逆序释放。
 与 [root 原语](root-ownership-primitives.md)的交叉 native 检查正常提交、旧值返回/借用、
-pending 控制退出与 Abort，保留既有纯内存类型和字段/index/Inout 参数边界。
+pending 控制退出与 Abort，保留既有纯内存类型及 root 专用操作的字段/index/Inout 参数边界。
+独立[一级字段 replace](direct-field-replace.md)与当前 main 资源析构已有 4 项前端及 8 项
+single/unit native 交叉证据，覆盖 parent/old/new 的词法顺序、唯一返回/借用、提前退出和
+Abort；不会在 exchange commit 中调用旧值 deinit。整合后 core/stage/Guide 已重跑。
 
 ## Native 范围与未交付项
 

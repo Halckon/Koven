@@ -1,5 +1,5 @@
-//! source-qualified root commit 从已检查的普通 call 契约产生。
-use super::{Checker, OwnershipCheckingError, UnitOwnershipDeferredFact};
+//! source-qualified root 与独立一级字段 commit 从已检查的普通 call 契约产生。
+use super::{Checker, OwnershipCheckingError, State, UnitOwnershipDeferredFact};
 use crate::{
     ast::ExpressionId,
     ownership_checking::{
@@ -15,6 +15,7 @@ impl Checker<'_> {
         &mut self,
         id: ExpressionId,
         arguments: &[CallArgument],
+        state: &State,
     ) -> Result<(), OwnershipCheckingError> {
         let call = self.unit_expression(id);
         let Some(descriptor) = self.typed.ownership_primitive(call) else {
@@ -52,6 +53,28 @@ impl Checker<'_> {
         } else {
             2
         };
+        if descriptor.kind() == OwnershipPrimitiveKind::Replace
+            && let Some((place, owner_type)) =
+                self.direct_field_replace_target(arguments[0].value, descriptor.value_type())?
+        {
+            if state.immutable_captures.contains_key(&place.root()) {
+                self.primitive_deferred.push(UnitOwnershipDeferredFact::new(
+                    call,
+                    OwnershipDeferredReason::OwnershipPrimitiveClosureTransport,
+                ));
+                return Ok(());
+            }
+            let transfer = self.primitive_new_value_transfer(call, descriptor.operands()[1])?;
+            self.field_replacements.push(
+                crate::ownership_checking::UnitFieldReplaceOwnershipPlan {
+                    descriptor,
+                    place,
+                    owner_type,
+                    new_value_transfer: transfer,
+                },
+            );
+            return Ok(());
+        }
         let mut places = Vec::new();
         for argument in &arguments[..count] {
             let Some(place) = self.place(argument.value)? else {
@@ -66,22 +89,7 @@ impl Checker<'_> {
             places.push(place);
         }
         let new_value_transfer = if descriptor.kind() == OwnershipPrimitiveKind::Replace {
-            let delivery = self
-                .value_deliveries
-                .iter()
-                .rev()
-                .find(|delivery| {
-                    delivery.call() == call && delivery.argument() == descriptor.operands()[1]
-                })
-                .ok_or(OwnershipCheckingError::InvalidUnitArgumentType {
-                    source_unit: self.source_unit.index(),
-                    expression: arguments[1].value.index(),
-                })?;
-            Some(match delivery.kind() {
-                UnitValueDeliveryKind::Copy => OwnershipPrimitiveValueTransfer::Copy,
-                UnitValueDeliveryKind::Move => OwnershipPrimitiveValueTransfer::Move,
-                UnitValueDeliveryKind::Temporary => OwnershipPrimitiveValueTransfer::Temporary,
-            })
+            Some(self.primitive_new_value_transfer(call, descriptor.operands()[1])?)
         } else {
             None
         };
@@ -92,6 +100,116 @@ impl Checker<'_> {
                 new_value_transfer,
             });
         Ok(())
+    }
+
+    fn primitive_new_value_transfer(
+        &self,
+        call: crate::type_checking::UnitExpressionId,
+        argument: crate::type_checking::UnitExpressionId,
+    ) -> Result<OwnershipPrimitiveValueTransfer, OwnershipCheckingError> {
+        let delivery = self
+            .value_deliveries
+            .iter()
+            .rev()
+            .find(|delivery| delivery.call() == call && delivery.argument() == argument)
+            .ok_or(OwnershipCheckingError::InvalidUnitArgumentType {
+                source_unit: self.source_unit.index(),
+                expression: argument.expression().index(),
+            })?;
+        Ok(match delivery.kind() {
+            UnitValueDeliveryKind::Copy => OwnershipPrimitiveValueTransfer::Copy,
+            UnitValueDeliveryKind::Move => OwnershipPrimitiveValueTransfer::Move,
+            UnitValueDeliveryKind::Temporary => OwnershipPrimitiveValueTransfer::Temporary,
+        })
+    }
+
+    fn direct_field_replace_target(
+        &self,
+        mut argument: ExpressionId,
+        value_type: UnitTypeId,
+    ) -> Result<
+        Option<(crate::ownership_checking::UnitOwnershipPlace, UnitTypeId)>,
+        OwnershipCheckingError,
+    > {
+        use crate::{
+            parser::Expression,
+            type_checking::{
+                NominalKind, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
+            },
+        };
+        let Some(place) = self.place(argument)? else {
+            return Ok(None);
+        };
+        if place.fields().len() != 1
+            || place.element().is_some()
+            || !self.variable_kinds.contains_key(&place.root())
+            || !self
+                .names
+                .names()
+                .source_units()
+                .get(place.root().source_unit().index())
+                .is_some_and(|source| {
+                    crate::ownership_checking::ownership_primitive::is_local_variable(
+                        source.resolution(),
+                        place.root().symbol(),
+                    )
+                })
+            || self.bindings.contains_key(&place.root())
+            || self.field_kinds.get(&place.fields()[0]) != Some(&VariableKind::Var)
+        {
+            return Ok(None);
+        }
+        while let Expression::Group { expression } =
+            self.parsed.ast().expressions().get(argument)?.payload()
+        {
+            argument = *expression;
+        }
+        let Some(projection) = self
+            .typed
+            .aggregate_projection(self.unit_expression(argument))
+        else {
+            return Ok(None);
+        };
+        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+            return Ok(None);
+        };
+        let Some(owner_type) = self.typed.symbol_type(place.root()) else {
+            return Ok(None);
+        };
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = self.typed.types().get(owner_type)
+        else {
+            return Ok(None);
+        };
+        let Some(owner) = self
+            .typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|owner| owner.nominal())
+        else {
+            return Ok(None);
+        };
+        if !arguments.is_empty()
+            || owner.kind() != NominalKind::Class
+            || !owner
+                .fields()
+                .iter()
+                .any(|field| field.symbol() == projection.field() && field.ty() == value_type)
+            || projection.field() != place.fields()[0]
+            || projection.ty() != value_type
+            || projection.kind() != UnitAggregateProjectionKind::Field
+            || self.typed.expression_type(receiver) != Some(owner_type)
+            || receiver.source_unit() != self.source_unit
+            || self.primitive_type_has_closure(owner_type)
+            || !self
+                .place(receiver.expression())?
+                .is_some_and(|receiver| receiver.is_root() && receiver.root() == place.root())
+        {
+            return Ok(None);
+        }
+        Ok(Some((place, owner_type)))
     }
 
     // Only actual type arguments decide whether a generic instance is concrete.

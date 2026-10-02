@@ -124,7 +124,11 @@ fun entry(): Unit {
     }
 }
 
-fn run_unit(provider: &str, consumer: &str, constants: bool) -> (std::process::Output, String) {
+pub(super) fn run_unit(
+    provider: &str,
+    consumer: &str,
+    constants: bool,
+) -> (std::process::Output, String) {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(&mut sources, "p/provider.ko", provider);
     let (consumer_source, consumer) = parsed(&mut sources, "q/consumer.ko", consumer);

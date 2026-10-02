@@ -56,6 +56,20 @@ impl ExpressionLowerer<'_> {
             // 隐式 `this` 的 native lowering 属于 SPEC-0191；当前必须保持确定性拒绝。
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
+        let receiver_root = self
+            .field_replace_ungroup(receiver_expression, span)
+            .ok()
+            .and_then(|receiver| self.parsed.ast().expressions().get(receiver).ok())
+            .and_then(|node| self.references.get(&super::span_key(node.span())));
+        if receiver_root.is_some_and(|root| self.owned.loans().iter().any(|active| {
+            self.pending_call_loans.contains_key(&(active.call().index(), active.argument().index()))
+                && active.kind() == lang_frontend::ownership_checking::LoanKind::Exclusive
+                && matches!(active.target(), lang_frontend::ownership_checking::LoanTarget::Place(path)
+                    if !path.is_root() && path.root() == *root)
+        })) {
+            // Source sibling paths can be disjoint, but SSA overlap is still parent-wide.
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let receiver_type = self
             .typed
             .expression_type(receiver_expression)

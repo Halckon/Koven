@@ -1,3 +1,6 @@
+#[path = "native_field_replace_tests.rs"]
+mod field_replace_tests;
+
 #[path = "native_root_primitive_tests.rs"]
 mod root_primitive_tests;
 
@@ -1289,3 +1292,6 @@ mod resource_deinit_tests;
 
 #[path = "native_resource_exchange_tests.rs"]
 mod resource_exchange_tests;
+
+#[path = "native_field_resource_replace_tests.rs"]
+mod field_resource_replace_tests;

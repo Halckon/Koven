@@ -260,15 +260,11 @@ fn unit_root_primitive_abort_has_no_commit_or_cleanup() {
 
 #[test]
 fn unit_root_primitive_projection_boundaries_remain_explicit() {
-    for source in [
-        "class Holder(var text: String)\nfun entry(): String {\nvar holder = Holder(\"old\")\nreturn replace(&holder.text, \"new\")\n}",
-        "fun entry(): String {\nvar items = arrayOf(\"old\")\nreturn replace(&items[0], \"new\")\n}",
-    ] {
-        let error = lower(source, false)
-            .err()
-            .expect("projected roots remain outside this slice");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    }
+    let source = "fun entry(): String {\nvar items = arrayOf(\"old\")\nreturn replace(&items[0], \"new\")\n}";
+    let error = lower(source, false)
+        .err()
+        .expect("indexed roots remain outside this slice");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
 }
 
 #[test]

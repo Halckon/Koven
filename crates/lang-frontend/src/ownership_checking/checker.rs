@@ -104,6 +104,7 @@ struct Checker<'a> {
     constant_materializations: BTreeMap<usize, super::ConstantMaterializationPlan>,
     non_null_assertions: BTreeMap<usize, super::NonNullAssertionOwnershipPlan>,
     ownership_primitives: BTreeMap<usize, super::OwnershipPrimitiveOwnershipPlan>,
+    field_replacements: BTreeMap<usize, super::FieldReplaceOwnershipPlan>,
     nullable_whens: BTreeMap<usize, super::NullableWhenOwnershipPlan>,
     sources: &'a SourceMap,
     parsed: &'a ParsedFile,
@@ -219,6 +220,7 @@ impl<'a> Checker<'a> {
             nullable_whens: BTreeMap::new(),
             non_null_assertions: BTreeMap::new(),
             ownership_primitives: BTreeMap::new(),
+            field_replacements: BTreeMap::new(),
             diagnostics: Vec::new(),
             loans: Vec::new(),
             deferred: Vec::new(),
@@ -317,6 +319,11 @@ impl<'a> Checker<'a> {
         } else {
             Vec::new()
         };
+        let field_replacements = if diagnostics.is_empty() && self.deferred.is_empty() {
+            self.field_replacements.into_values().collect()
+        } else {
+            Vec::new()
+        };
         let captures = if diagnostics.is_empty() {
             self.captures
         } else {
@@ -334,6 +341,7 @@ impl<'a> Checker<'a> {
                 constant_materializations,
                 non_null_assertions,
                 ownership_primitives,
+                field_replacements,
                 nullable_whens,
                 loan_ends,
                 bindings,
@@ -982,8 +990,10 @@ impl<'a> Checker<'a> {
                 if self.diagnostics.len() == diagnostic_count {
                     self.activate_receiver(id, &mut flows)?;
                 }
-                if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
-                    self.record_ownership_primitive(id, &argument_expressions)?;
+                if self.diagnostics.len() == diagnostic_count
+                    && let Some(next) = flows.next.as_ref()
+                {
+                    self.record_ownership_primitive(id, &argument_expressions, next)?;
                 }
                 self.end_call_loans(id, &mut flows);
                 self.finish_call_closures(id, &mut flows);

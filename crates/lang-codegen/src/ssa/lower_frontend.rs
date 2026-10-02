@@ -7,6 +7,7 @@ mod container;
 mod control;
 mod drops;
 mod enum_condition;
+mod field_replace;
 mod instances;
 mod integer;
 mod loop_control;

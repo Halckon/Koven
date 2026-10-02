@@ -33,8 +33,12 @@ CLI 编排构建/链接/运行，LSP 复用 frontend，lang-std 提供 Koven 标
 本地整合已包含 SPEC-0229–0234、0236 的代码或文档切片；各自的实际验证与遗留缺口见
 [演进实施账本](../specs/evolution-status.md)。[String.clone](string-clone.md) 已有单/多文件
 类型、所有权、SSA 与 Linux native 定向证据。builtin 文本类型仍是 MoveOnly String。
-Guide v0.40 新启用的调用处无 Borrow marker、位宽移位屏蔽及只读 deinit 顺序合同尚未全部
-闭环：Parser 仍可构造旧实参 Borrow marker；不得由文档启用推断实现或远端 CI 已完成。
+调用处 Borrow marker 已移除；`borrow(...)` 按普通调用解析，旧 `f(borrow x)` 进入诊断恢复。
+位宽移位屏蔽已有 [整数位运算](integer-operations.md) 定向证据。owned root replace / swap
+已有 [原子置换专页](root-ownership-primitives.md)记录的全链路验收。SPEC-0246 的
+[一级字段 replace](direct-field-replace.md)在原基线完成有界本地与首轮双平台 CI 验收，PR #13 保持 Draft。
+[资源 deinit](resource-deinit.md) 的 PR #12 已合并进入 main `e6e1100`；字段分支已整合该基线，
+资源交叉与合并后本地门禁已重新通过，修复 head 双平台结果由 PR #13 跟踪。
 
 ## 按实现领域读取
 
@@ -44,7 +48,7 @@ Guide v0.40 新启用的调用处无 Borrow marker、位宽移位屏蔽及只读
 | Source、Span、Lexer、Parser、AST | [Source 与语法前端](source-and-syntax.md) |
 | 名称解析、类型签名和 typed facts | [名称与类型](names-and-types.md) |
 | loan、move、capture、drop facts | [所有权](ownership.md) |
-- [Receiver 两阶段借用](receiver-borrows.md)：预留、激活、this 身份与直接 SSA/native 消费
+| receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md) |
 | 整数具名位运算与 inv 的 const / typed / native 链路 | [整数位运算](integer-operations.md) |
 | String clone 的 intrinsic / loan / 独立 owner 全链路 | [String clone](string-clone.md) |
@@ -53,3 +57,4 @@ Guide v0.40 新启用的调用处无 Borrow marker、位宽移位屏蔽及只读
 | CLI、project、LSP、formatter、编辑器 grammar | [工具链](tooling.md) |
 
 - [Owned root 原子所有权置换](root-ownership-primitives.md)：replace / swap 的正常 commit、SSA 与 native 边界
+- [Owned local 一级字段 replace](direct-field-replace.md)：独立 field facts、显式字段交换与有界直接验证

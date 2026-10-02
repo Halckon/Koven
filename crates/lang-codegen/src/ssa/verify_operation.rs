@@ -150,6 +150,30 @@ pub(super) fn verify_operation(
                     ) && value_type(function, *value) == Some(field)
                 })
         }
+        Operation::HeapFieldExchange {
+            owner,
+            field,
+            loan,
+            replacement,
+        } => value_type(function, *owner)
+            .and_then(|owner| module.heap_payload(owner))
+            .and_then(|payload| module.aggregate_fields(payload))
+            .and_then(|fields| fields.get(*field).copied())
+            .is_some_and(|field| {
+                (is_first_class(module, field)
+                    || matches!(module.type_kind(field), Some(SsaTypeKind::Unit)))
+                    && !matches!(
+                        module.type_kind(field),
+                        Some(SsaTypeKind::ConcreteClosure { .. })
+                    )
+                    && value_type(function, *replacement) == Some(field)
+                    && entity_type(function, EntityId::Loan(*loan))
+                        == EntityType::Loan {
+                            kind: LoanKind::Exclusive,
+                            target: field,
+                        }
+                    && results == [EntityType::Value(field)]
+            }),
         Operation::InlineFieldReplace {
             receiver,
             field,

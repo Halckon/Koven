@@ -9,6 +9,7 @@ mod constants_tests;
 mod construction;
 mod contracts;
 mod dataflow;
+mod field_replace;
 #[cfg(test)]
 mod materialization_tests;
 mod non_null_assertion;
@@ -664,6 +665,14 @@ pub struct CompilationUnitOwnership {
     constant_materializations: Option<Vec<constant::UnitConstantMaterializationPlan>>,
     non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
     ownership_primitives: Vec<super::UnitOwnershipPrimitiveOwnershipPlan>,
+    field_replacements: Vec<super::UnitFieldReplaceOwnershipPlan>,
+    field_replacement_types: Vec<(
+        UnitExpressionId,
+        UnitSymbolId,
+        UnitTypeId,
+        UnitSymbolId,
+        UnitTypeId,
+    )>,
     provenance: UnitOwnershipProvenance,
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<UnitOwnershipBindingDescriptor>,
@@ -686,6 +695,22 @@ pub struct CompilationUnitOwnership {
 }
 
 impl CompilationUnitOwnership {
+    /// 已检查的 source-qualified 一级字段原子置换。
+    #[must_use]
+    pub fn field_replacements(&self) -> &[super::UnitFieldReplaceOwnershipPlan] {
+        &self.field_replacements
+    }
+    /// 按调用 identity 查询独立字段提交能力。
+    #[must_use]
+    pub fn field_replacement(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<&super::UnitFieldReplaceOwnershipPlan> {
+        self.field_replacements
+            .iter()
+            .find(|plan| plan.descriptor().expression() == expression)
+    }
+
     /// 正常执行前缀后已获准的 source-qualified root 原子 commit。
     #[must_use]
     pub fn ownership_primitives(&self) -> &[super::UnitOwnershipPrimitiveOwnershipPlan] {
@@ -778,6 +803,15 @@ impl CompilationUnitOwnership {
                     .is_some_and(|facts| !facts.declarations().is_empty()),
             },
             non_null_assertions: dataflow.non_null_assertions,
+            field_replacement_types: Self::field_replacement_types(
+                typed,
+                &dataflow.field_replacements,
+            ),
+            field_replacements: if successful && dataflow.deferred.is_empty() {
+                dataflow.field_replacements
+            } else {
+                Vec::new()
+            },
             ownership_primitives: if successful && dataflow.deferred.is_empty() {
                 dataflow.ownership_primitives
             } else {
@@ -1036,6 +1070,7 @@ impl CompilationUnitOwnership {
             || !self.deferred.is_empty()
             || self.provenance.requires_constant_capability
             || !self.ownership_primitives_are_valid()
+            || !self.field_replacements_are_valid()
         {
             Err(Box::new(self))
         } else {

@@ -97,6 +97,36 @@ impl BodyChecker<'_> {
         }
     }
 
+    // A member of a temporary has no stable owner for replace's exclusive place.
+    fn primitive_field_has_temporary_receiver(
+        &self,
+        source: SourceUnitId,
+        mut expression: ExpressionId,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        let mut field = false;
+        loop {
+            match self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(expression)
+                .map_err(TypeCheckingError::from)?
+                .payload()
+            {
+                Expression::Group { expression: inner } => expression = *inner,
+                Expression::Member { receiver, .. } => {
+                    field = true;
+                    expression = *receiver;
+                }
+                _ => {
+                    return Ok(field
+                        && self.expression_category(source, expression)
+                            == ExpressionCategory::Temporary);
+                }
+            }
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn check_intrinsic_replace_call(
         &mut self,
@@ -155,7 +185,9 @@ impl BodyChecker<'_> {
         if self.is_error(arg0_result.ty) {
             valid = false;
         }
-        if !self.is_mutable_inout_place(source, arg0.value)? {
+        if self.primitive_field_has_temporary_receiver(source, arg0.value)?
+            || !self.is_mutable_inout_place(source, arg0.value)?
+        {
             self.emit(
                 codes::CALL_ARGUMENT_MODE,
                 "first argument to 'replace' must be a mutable place",

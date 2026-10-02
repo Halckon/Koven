@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，216 份）"]
+subgraph Garchive["已完成（archive，217 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -225,6 +225,7 @@ subgraph Garchive["已完成（archive，216 份）"]
   S0243["S0243<br/>Instance receiver 两阶段借用"]
   S0244["S0244<br/>owned mutable root 原子 replace / swap"]
   S0245["S0245<br/>具体普通 class 的资源析构闭环"]
+  S0246["S0246<br/>owned local 普通 class 一级字段 replace"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
@@ -1173,6 +1174,7 @@ S0222 --> S0223
 S0224 --> S0225
 S0226 --> S0227
 S0244 --> S0245
+S0244 --> S0246
 ```
 
 ## 节点链接
@@ -1395,6 +1397,7 @@ S0244 --> S0245
 | SPEC-0243 | archive | [0243-receiver-two-phase-borrows.md](0243-receiver-two-phase-borrows.md) |
 | SPEC-0244 | archive | [0244-root-ownership-primitives.md](0244-root-ownership-primitives.md) |
 | SPEC-0245 | archive | [0245-resource-deinit.md](0245-resource-deinit.md) |
+| SPEC-0246 | archive | [0246-direct-field-replace.md](0246-direct-field-replace.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
 | SPEC-0228 | active | [0228-linux-x86-64-native-host.md](../../specs/active/0228-linux-x86-64-native-host.md) |
 | SPEC-0229 | active | [0229-extended-numeric-literal-values.md](../../specs/active/0229-extended-numeric-literal-values.md) |

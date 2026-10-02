@@ -538,6 +538,19 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write!(output, ", {field}, ")?;
             write_entity_id(output, EntityId::Value(*value))
         }
+        Operation::HeapFieldExchange {
+            owner,
+            field,
+            loan,
+            replacement,
+        } => {
+            output.write_str("heap.field_exchange ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            write!(output, ", {field}, ")?;
+            write_entity_id(output, EntityId::Loan(*loan))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*replacement))
+        }
         Operation::InlineFieldReplace {
             receiver,
             field,

@@ -13,6 +13,7 @@ mod control;
 mod deinit;
 mod deinit_borrow;
 mod enum_lower;
+mod field_replace;
 mod integer;
 mod loop_control;
 mod non_null_assertion;

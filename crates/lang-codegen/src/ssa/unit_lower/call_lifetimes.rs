@@ -5,6 +5,8 @@ pub(super) struct PendingCallFrame {
     pub(super) loop_depth: usize,
     pub(super) pending_start: usize,
     pub(super) created_loans: Vec<usize>,
+    /// 同一父 owner 的并行字段 loan 尚无 projection-aware alias 合同。
+    pub(super) field_replace_owner: Option<usize>,
     /// 独占 root 的 owner 槽位须与 binding 保持同一 CFG identity。
     pub(super) exclusive_root_owners: Vec<usize>,
 }

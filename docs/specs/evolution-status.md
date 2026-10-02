@@ -17,7 +17,7 @@
 | [SPEC-0229](active/0229-extended-numeric-literal-values.md) | radix/underscore 统一解码、单/unit 定型与常量、索引 identity、整数 SSA/native | 浮点 native、具名位运算与 inv 不在此切片 |
 | [SPEC-0230](active/0230-recursive-boxed-enum-native.md) | 非泛型递归 Box enum 单/unit 构造、运输、真实分配/递归释放计数 | generic enum、拆箱/解引用、nullable/Rc 递归包装与前向 case 查找保持边界 |
 | [SPEC-0231](active/0231-contextual-type-ref-trials.md) | 上下文 TypeRef、nested 函数模式、strict typed-call trial 与回滚一致 | 调用处取消 Borrow marker 与三个旧 call-argument 失败由 SPEC-0242 后续切片验证，不改写本切片历史验收 |
-| [SPEC-0232](active/0232-ownership-primitive-type-facts.md) | replace/swap 稳定 intrinsic、交换类型、源码顺序 operand identity、事务与结构验证 | ownership/SSA/native 原子操作尚未接线；无可信 continuation 公开 API |
+| [SPEC-0232](active/0232-ownership-primitive-type-facts.md) | replace/swap 稳定 intrinsic、交换类型、源码顺序 operand identity、事务与结构验证 | 后继 SPEC-0244 已闭合 owned mutable whole-root 的 ownership/SSA/native；一级字段 SPEC-0246 已独立完成有界本地与首轮双平台 CI 验收并归档；其他投影/Inout ABI 不据此扩大 |
 | [SPEC-0233](active/0233-parser-compiler-contracts.md) | 九段原文迁入 Compiler Contracts，两页唯一索引、递归门禁与预算 | 渐进拆分首片；混合语义/诊断/Span 段保留 Guide，不声称全部分离 |
 | [SPEC-0234](active/0234-block-newline-continuation.md) | 普通/control/nested block 的 Pratt/postfix 换行边界、for-header delimiter 修复及矩阵 | 同行缺分隔符、前导/重复分号、lambda 顶层尾表达式范围另列 |
 | [SPEC-0236](active/0236-explicit-string-clone.md) | String.clone 单/unit typed→loan/drop→StringClone SSA→Linux native；heap/static/empty 与真实分配释放计数 | Borrow Rc<String>.value.clone、inline-nullable String 和通用 clone 未扩张 |
@@ -34,9 +34,9 @@
 | 2. 上下文关键字 | TypeRef/trial 切片已落地 | SPEC-0231 覆盖 move 普通类型名和 nested 模式；SPEC-0242 已移除调用 Borrow marker，直接 parser 31 项通过；共享路径与PR #9初始双平台CI已通过，与0240的最新main组合本地门禁已通过，新head双平台CI待验证 |
 | 3. 数值与具名位运算 | 数值与位运算本地已验收 | SPEC-0229 闭合字面量；[SPEC-0240](active/0240-integer-bitwise-execution.md) 接入六操作 const/SSA/native 与 inv 稳定身份。移位按自身位宽屏蔽且保持两 operand 同型；inv 仍不在 const call 白名单，既有投影边界不扩大 |
 | 4. Box enum | 受限 native 已落地 | SPEC-0230 覆盖具体非泛型递归构造/运输/析构计数；Box.value/unbox 已由上游 PR #6 写成后继 staged 合同，尚无对应实现证据；generic、nullable/Rc 递归包装及前向 case 查找不在已支持范围 |
-| 5. replace/swap | 可信 typed facts 已落地 | SPEC-0232 发布身份/类型/顺序并验证事务；专用 ownership/SSA/native、返回旧 owner 与原子保持仍缺 |
-| 6. 两阶段 receiver 借用 | SPEC-0243 有界验收完成并归档 | 两入口发布 reservation/CallEntry activation，保持 callee Borrow 冲突；45 项直接前端与 6 项 SSA/native 正反例通过。PR #10 初始 head 双平台 CI 全绿，各宿主 stage 742 / Guide 201 通过；PR 保持 Draft。single instance receiver、unit field/index native 既有边界不扩大 |
-| 7. deinit 双轨析构 | SPEC-0245 普通 concrete class 首片有界完成并归档 | 两入口 descriptor/递归分类与资源词法清理已接，single/unit native 已验证 body→字段逆序、控制退出和唯一回收；合并PR #11后本地634 codegen、62 targets/793 stage全绿；PR #12初始head双平台CI通过，保持Draft。资源 wrapper、条件 outer-owner 运输等边界见[实现事实](../architecture/resource-deinit.md) |
+| 5. replace/swap | owned root 与有界一级字段独立验收完成；新 main 本地整合通过 | SPEC-0232 提供 typed 身份；SPEC-0244 已归档进入 main。SPEC-0246 在原 main `8eb2cd3` 上完成直接字段验收与归档，global/captured 与 paired target 身份已闭合；[Draft PR #13](https://github.com/Halckon/Koven/pull/13) 首轮 CI 通过。归档 head 因新 main 冲突未产生 PR CI，`e6e1100` 的资源交叉与本地门禁已重新通过，修复 head 双平台 CI 由 PR 跟踪；nested/index/field swap/Inout ABI 不扩大 |
+| 6. 两阶段 receiver 借用 | SPEC-0243 有界验收完成并归档 | 两入口发布 reservation/CallEntry activation，保持 callee Borrow 冲突；45 项直接前端与 6 项 SSA/native 正反例通过。PR #10 初始 head 双平台 CI 全绿，各宿主 stage 742 / Guide 201 通过，随后已合并进入 main。single instance receiver、unit field/index native 既有边界不扩大 |
+| 7. deinit 双轨析构 | SPEC-0245 有界完成并归档，已进入 main | 两入口 descriptor/递归分类与资源词法清理已接，single/unit native 验证 body→字段逆序、控制退出与唯一回收；该切片合并 PR #11 后本地 634 codegen、62 targets/793 stage 通过，PR #12 初始 head 双平台 CI 通过，现已被用户合并。与 SPEC-0246 新组合的验收另记，不复用独立通过；资源 wrapper、条件 outer-owner 运输边界见[实现事实](../architecture/resource-deinit.md) |
 | 8. 静态 Str | 明确延后 | 字面量/const 仍为 MoveOnly + Transferable String；Str/toString/混合文本操作未启用。先行 String.clone 已有 SPEC-0236 全链路定向证据 |
 | 9. 二等借用与 Escapable | 未实现 | 仍为 owned 值与调用期 loan；Ref/InoutRef/Span/StringView、来源和逃逸需新规范 |
 | 10. inout/once closure | 新增部分未实现 | 现有函数指针+具体 inline 环境未新增 mutable/once callable；栈借用/堆逃逸分层待 Guide 与取代 ADR-0009 的决定 |
@@ -50,8 +50,10 @@
   `parser_entry_line_break_boundary_matrix`、既有 Parser matrix/资源测试
 - 数值/Box/clone：frontend `numeric_literals`、`string_clone`；codegen 的 numeric literal、boxed enum、
   string clone SSA/verifier/native 测试；两种入口与分配/释放计数分别留证
-- 原子置换：frontend `type_ownership_primitives` 与 `ownership_primitive::tests`；typed descriptor
-  不代表后续阶段已有原子执行事实
+- 原子置换：frontend `type_ownership_primitives`、`ownership_primitives` 与 root validation，
+  codegen root lowering/verifier/native 已有独立执行证据，见[root 专页](../architecture/root-ownership-primitives.md)；
+  `ownership_field_replace` 与 field exchange 直接测试已有 SPEC-0246 有界验收，typed descriptor
+  仍不能单独代替 root/field ownership commit 能力
 - 文档：Compiler Contracts、`scripts/check_docs.py`、`scripts/tests/test_check_docs.py`
 
 上述 suite 名按各 Spec 的完整命令定位；详细实现边界由 [Architecture](../architecture/README.md)维护。
@@ -74,6 +76,12 @@
 SPEC-0242 重建后的 `parser_call_argument` 已实际 31 passed / 0 failed，旧三个失败通过现行
 参数模式语法与精确 Span 断言迁移修复；`multifile_type_checking` 的五个历史失败已在本次
 联合回归重现（99 passed / 5 failed，失败名称相同）。上述旧结果保留为历史因果，不视为当前测试执行。
+
+完整编辑器 corpus 的五项历史失败仍为 `File header and declarations`、`Calls and lambda`、
+`Own remains declaration-only`、`Control flow`、`Reserved words are not identifiers`；
+具体证据与两个新增 corpus 的边界见
+[SPEC-0242](active/0242-automatic-borrow-call-migration.md#编辑器精确边界)。
+SPEC-0246 不修复这些独立失败，也不把旧结果算作本次重跑。
 
 不得通过降低断言、放宽门禁或把定向通过称作 frontend 全量通过来隐藏上述差异。
 
