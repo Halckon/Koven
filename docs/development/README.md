@@ -15,3 +15,8 @@
 | 复用开源方案或新增/升级依赖 | [依赖治理](dependencies.md) |
 
 具体 crate 的职责和最近测试入口由 `crates/**/AGENTS.md` 就近说明。
+
+## 计划与进度
+
+- [整体架构与工程治理计划](engineering-governance-plan.md)：已批准目标、迁移顺序与验收，不代表当前实现
+- [执行账本](engineering-governance-progress.md)：治理批次的实际进度、基线与下一门禁
