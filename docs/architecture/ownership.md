@@ -59,7 +59,7 @@ expression 查询；`UnitShortCircuitRhs` 与 RHS 分支编号保留执行决定
 
 单文件 `for` checker 已消费 typed iteration descriptor，source 与 element 使用独立于 call 的
 loan owner；显式 `this.field` 与裸字段共用字段 owner，source loan 覆盖两种写法；字段写入与 Inout 交付受当前 receiver mode 限制，lambda 内隐式 member call 也记录 `this` capture 并按共享能力检查；unit 的 If/When 返回分支尾值和 Elvis 直接交付操作数检查 borrowed closure 逃逸；binding/component 登记为 non-owning，Copyable 字段 Value delivery 按 Read 处理；回边和退出边检查仍持有本轮 binding capture 的 closure，形成时保存被捕获的旧 closure 来源，非法存活报 L0137 且不发布清理计划。
-drop planner 通过 iteration frame、shared capture 和具名 pending callee 保持 owner，并保存
+drop planner 的 iteration 生命周期与[有限图、phi state、入边职责](../development/ownership-planning-milestone.md#frontend-iteration)已分离；通过 iteration frame、shared capture 和具名 pending callee 保持 owner，并保存
 临时 source 退出义务及完整结果/索引 backing container 的 owner 定义身份；索引求值期间提前退出与 provider 退出共用同一 backing 定义 ID；liveness 将 provider source root 纳入 backedge。break/return/耗尽各自
 清理，continue 保留 source；nested jump 按 loop depth 选 frame，scope/return 按 binding 原声明位置逆序清理；OwnedValue 分开保存声明 Span 与当前值来源，重绑及条件合流不改变声明顺序。
 

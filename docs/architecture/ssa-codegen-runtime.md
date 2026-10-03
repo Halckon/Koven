@@ -143,7 +143,7 @@ verifier 检查 owner 唯一消费。计数注入仅存在于测试 LLVM。
 `ssa::unit_plan` 从显式 entry 对 validated typed/ownership unit 做 reachability 和单态化，使用稳定的
 callable/type instance key。planner 消费 frontend 已选择的 declaration、member、effective interface
 implementation 和 delegation route，不重新按名称或 shape 选择。
-私有 `unit_plan/runtime_layout.rs` 承接 strongest-demand 升级与 exact owner 字段布局校验，原 resolver 路径供 planner、deinit、aggregate/type lowering 共用；[迁移验收](../development/unit-runtime-layout-migration.md)记录保全边界。
+`unit_plan` 私有子模块分别处理 call routes、recipe preflight/validation、canonical type 与 runtime layout；原 resolver 生产路径保留，[组合边界](../development/ownership-planning-milestone.md#codegen-unit-planner)及[布局验收](../development/unit-runtime-layout-migration.md)记录保全合同。
 
 `ssa::unit_lower` 按 source-qualified facts 生成一个 SSA program。当前路径覆盖：
 

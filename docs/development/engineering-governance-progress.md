@@ -12,7 +12,7 @@
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
 | P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前本地2 active / 240 archive（0182与新增0255；0253归档已随PR35合并，0254归档随本批交付）；PR35主干为2 active / 239 archive，原P1历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
-| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留；runtime layout首片已随PR35合并且双宿主planner48/48通过；multifile ownership 72项/8 helpers纯搬迁已本地验收，待同批PR；其余大integration与生产职责仍待后继 |
+| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留；runtime layout首片已随PR35合并且双宿主planner48/48通过；multifile ownership 72项/8 helpers及iteration/unit planner两条生产边界已本地验收，待组合里程碑同批PR；其余责任按耦合与验收收益审阅，不按文件计PR |
 | P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | PR34完成P3b四宿主纯编排；PR35完成0254 const交接有界合同，两宿主新增25/25与const ownership20/20；真实merge主干双宿主再次通过 |
 | P4 共享内核与双轨 | 0255首个有界责任本地验收与独立review已过 | P3精确主干前置已过；error/String helper中立化与本地完整门禁已验，待精确head双宿主CI，不扩大能力或宣布P4完成 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
@@ -521,3 +521,22 @@ baseline，无新增例外，真实724手写/47超千行。两侧有限warm comp
 未触发预设复查阈值，不宣称提速；未重跑不受影响的workspace/native或frontend全量。
 独立设计及最终review均Approve，docs482与逐块复核通过；精确head双宿主CI待后继同批PR。
 P2其余职责、0182、P4/P5与整体计划后的外部审计均不因此关闭。
+
+
+## 所有权到 SSA 规划边界组合里程碑（2026-10-03）
+
+用户要求减少PR操作、在当前分支持续后续工作；本批改为一个完整责任里程碑。
+保留0254归档、0255中立helper与multifile ownership十二域，在同一分支追加iteration有限图/
+phi建立/入边转发，以及unit planner route/recipe/concrete type边界，两项生产迁移各独立commit。
+完整函数、拒绝顺序、fixture与身份保全，不重写算法、统一不同type resolver或扩大能力。
+
+新增受影响统一验收34个完整target共1743 passed（frontend187+22integration641+docs12、
+codegen770+2+4、CLI82、LSP45）；workspace check/严格Clippy/fmt、102policy和尺寸通过。
+两入口1876→275、2651→735；无新增例外，731手写Rust中45超千行继续如实报告。
+metadata142与library187/770身份不变；成本两侧有限warm样本未触发预登记复查阈值，
+不宣称提速。源码及最终文档/证据独立review均Approve，exact-head双宿主CI仍待；详见
+[唯一里程碑验收](ownership-planning-milestone.md)。
+
+本批基底的47个超限文件不是47个PR或必须全部拆分的任务，本批后为45个：原完整大场景例外继续保持，
+数据模型等凝聚的大文件先审责任，不为凑行数机械切割。剩余P2/P4/P5、0182与整体计划后
+外部附件审计均不自动关闭；0255仍active，未重复无变化主干的本地门禁。
