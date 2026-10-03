@@ -1,6 +1,6 @@
 # SPEC-0253 迁移前单文件 CLI oracle
 
-这些 `.ko` 与完整 `.human.stderr` / `.json.stderr` golden 在生产迁移前捕获，
+这些 `.ko` 与完整 `.human.stderr` / `.json.stderr` golden 由迁移前冻结的旧生产二进制捕获，
 来源为 `feature/spec-0253` 的归档基线提交 `e6dfea4e31f9d9ad1907ff646f7f4910f480ce61`
 （父 main `82610ab`），不是迁移后的 façade。
 
