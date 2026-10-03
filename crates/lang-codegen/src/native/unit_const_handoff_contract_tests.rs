@@ -1,35 +1,25 @@
-//! const unit 的六输入交接 oracle；先冻结旧 native/lower 的可观察合同。
+//! const unit 六输入交接合同；在已冻结的旧 native/lower oracle 上覆盖 view 路径。
 
 use std::{cell::Cell, ffi::OsString, path::Path, sync::atomic::Ordering};
 
-use lang_frontend::{
-    name_resolution::DeclarationId,
-    ownership_checking::{
-        ConstEnabledOwnedUnit, ConstantMaterializationKind, UnitShortCircuitRhs,
-        check_compilation_unit_constant_ownership,
-    },
-    parser::ParsedFile,
-    source::SourceId,
-    type_checking::{ConstEnabledTypedUnit, ConstValue},
+use lang_frontend::ownership_checking::{
+    OwnedCompilationUnitViewError, check_compilation_unit_constant_ownership,
 };
 
 use super::super::{
-    Command, SourceMap, SourceUnitInput, TestDirectory, TypeEnvironment,
-    ValidatedCompilationUnitNames, assert_no_sibling_temporary, check_compilation_unit_types, fs,
-    index_compilation_unit, lex, parse_file, parsed, resolve_compilation_unit_names,
-    standard_environments,
+    Command, SourceUnitInput, TestDirectory, assert_no_sibling_temporary,
+    check_compilation_unit_types, fs, index_compilation_unit, lex, parse_file,
+    resolve_compilation_unit_names, standard_environments,
 };
 use crate::{
-    NativeObjectError, NativeObjectErrorKind, NativeUnitEntry, emit_native_constant_unit_object,
+    NativeObjectErrorKind, NativeUnitEntry,
     native::NEXT_UNIT_OBJECT_TEMPORARY,
-    ssa::{
-        LoweringError, LoweringErrorKind,
-        model::{FunctionId, Program},
-        render_program,
-        unit_lower::constant::lower_constant_unit_with_entry,
-        verify::verify_program,
-    },
+    ssa::{LoweringError, LoweringErrorKind},
 };
+
+#[path = "unit_const_handoff_test_support.rs"]
+mod support;
+use support::{Handoff, PATHWAYS, Pathway, fixture};
 
 const COUNTER_CHILD: &str = "KOVEN_CONST_UNIT_HANDOFF_COUNTER_CHILD";
 const COUNTER_TEST: &str = "native::unit_tests::constants::handoff_contracts::identity_rejection_never_reserves_sibling_output";
@@ -52,185 +42,6 @@ const REPLACEMENTS: [Replacement; 6] = [
     Replacement::Typed,
     Replacement::Owned,
 ];
-
-struct ConstAnalysis {
-    sources: SourceMap,
-    provider_source: SourceId,
-    provider: ParsedFile,
-    consumer_source: SourceId,
-    consumer: ParsedFile,
-    names: ValidatedCompilationUnitNames,
-    environment: TypeEnvironment,
-    typed: ConstEnabledTypedUnit,
-    owned: ConstEnabledOwnedUnit,
-}
-
-impl ConstAnalysis {
-    fn inputs(&self) -> [SourceUnitInput<'_>; 2] {
-        [
-            SourceUnitInput::new(
-                "root",
-                "p/provider.ko",
-                self.provider_source,
-                &self.provider,
-            ),
-            SourceUnitInput::new(
-                "root",
-                "q/consumer.ko",
-                self.consumer_source,
-                &self.consumer,
-            ),
-        ]
-    }
-
-    fn declaration(&self, name: &str) -> DeclarationId {
-        self.names
-            .names()
-            .index()
-            .declarations()
-            .iter()
-            .find(|declaration| declaration.name() == name)
-            .expect("fixture declaration exists")
-            .id()
-    }
-
-    fn entries(&self) -> [NativeUnitEntry; 2] {
-        [
-            self.declaration("entry").into(),
-            self.declaration("invalid").into(),
-        ]
-    }
-}
-
-#[derive(Clone, Copy)]
-struct Handoff<'a> {
-    sources: &'a SourceMap,
-    inputs: &'a [SourceUnitInput<'a>],
-    names: &'a ValidatedCompilationUnitNames,
-    environment: &'a TypeEnvironment,
-    typed: &'a ConstEnabledTypedUnit,
-    owned: &'a ConstEnabledOwnedUnit,
-}
-
-impl<'a> Handoff<'a> {
-    fn new(analysis: &'a ConstAnalysis, inputs: &'a [SourceUnitInput<'a>]) -> Self {
-        Self {
-            sources: &analysis.sources,
-            inputs,
-            names: &analysis.names,
-            environment: &analysis.environment,
-            typed: &analysis.typed,
-            owned: &analysis.owned,
-        }
-    }
-
-    fn emit(
-        self,
-        entry: impl Into<NativeUnitEntry>,
-        output: &Path,
-    ) -> Result<(), NativeObjectError> {
-        emit_native_constant_unit_object(
-            self.sources,
-            self.inputs,
-            self.names,
-            self.environment,
-            self.typed,
-            self.owned,
-            entry,
-            output,
-        )
-    }
-
-    fn lower(self, entry: NativeUnitEntry) -> Result<(Program, FunctionId), LoweringError> {
-        lower_constant_unit_with_entry(
-            self.sources,
-            self.inputs,
-            self.names,
-            self.environment,
-            self.typed,
-            self.owned,
-            entry.declaration(),
-        )
-    }
-
-    fn verified_ssa(self, entry: NativeUnitEntry) -> String {
-        let (program, function) = self.lower(entry).expect("matching const handoff lowers");
-        verify_program(&program).expect("lowered const program verifies");
-        format!("{function:?}\n{}", render_program(&program))
-    }
-}
-
-fn fixture() -> ConstAnalysis {
-    let mut sources = SourceMap::new();
-    let (provider_source, provider) = parsed(
-        &mut sources,
-        "p/provider.ko",
-        "package p\nconst val TEXT = \"handoff-界\"\nconst val FLAG = true",
-    );
-    let (consumer_source, consumer) = parsed(
-        &mut sources,
-        "q/consumer.ko",
-        "package q\n\
-         fun probe(text: String): Boolean { println(text)\nreturn true }\n\
-         fun entry(): Unit {\n\
-             if (p.FLAG || probe(p.TEXT)) { println(p.TEXT) }\n\
-             if (p.FLAG && probe(p.TEXT)) {}\n\
-         }\n\
-         fun invalid(number: Int): Unit {}",
-    );
-    let inputs = [
-        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
-        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
-    ];
-    let (name_environment, environment) = standard_environments();
-    let index = index_compilation_unit(&sources, &inputs).expect("valid input index");
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &environment)
-        .unwrap()
-        .validate_constants()
-        .unwrap();
-    let owned =
-        check_compilation_unit_constant_ownership(&sources, &inputs, &names, &environment, &typed)
-            .unwrap()
-            .validate()
-            .unwrap();
-    assert_eq!(typed.constants().declarations().len(), 2);
-    assert_eq!(typed.constants().uses().len(), 5);
-    assert_eq!(owned.materializations().len(), 4);
-    assert_eq!(
-        owned
-            .materializations()
-            .iter()
-            .filter(|plan| {
-                plan.kind() == ConstantMaterializationKind::StringTemporary
-                    && matches!(plan.descriptor().value(), ConstValue::String(_))
-            })
-            .count(),
-        2
-    );
-    assert_eq!(
-        owned
-            .short_circuits()
-            .iter()
-            .map(|plan| plan.rhs())
-            .collect::<Vec<_>>(),
-        [UnitShortCircuitRhs::Never, UnitShortCircuitRhs::Always]
-    );
-    ConstAnalysis {
-        sources,
-        provider_source,
-        provider,
-        consumer_source,
-        consumer,
-        names,
-        environment,
-        typed,
-        owned,
-    }
-}
 
 fn directory_entries(directory: &Path) -> Vec<OsString> {
     let mut entries = fs::read_dir(directory)
@@ -268,11 +79,22 @@ fn mismatch_display(kind: LoweringErrorKind) -> &'static str {
 }
 
 fn assert_matching_control(original: Handoff<'_>, entries: [NativeUnitEntry; 2], isolated: bool) {
+    for pathway in PATHWAYS {
+        assert_matching_control_path(pathway, original, entries, isolated);
+    }
+}
+
+fn assert_matching_control_path(
+    pathway: Pathway,
+    original: Handoff<'_>,
+    entries: [NativeUnitEntry; 2],
+    isolated: bool,
+) {
     let directory = TestDirectory::create();
     let object = directory.join("control.o");
     let before = reservation_count(isolated);
     original
-        .emit(entries[0], &object)
+        .emit(pathway, entries[0], &object)
         .expect("matching chain emits");
     assert_reservation_delta(before, 1);
     crate::test_support::assert_native_object(&fs::read(&object).expect("control object"));
@@ -281,10 +103,11 @@ fn assert_matching_control(original: Handoff<'_>, entries: [NativeUnitEntry; 2],
     let invalid = directory.join("invalid.o");
     let before = reservation_count(isolated);
     let error = original
-        .emit(entries[1], &invalid)
+        .emit(pathway, entries[1], &invalid)
         .expect_err("matching chain reaches entry-shape validation");
     assert_reservation_delta(before, 0);
     assert_eq!(error.kind(), NativeObjectErrorKind::InvalidEntry);
+    assert!(error.diagnostic().is_none());
     assert_eq!(
         error.span(),
         Some(
@@ -305,11 +128,22 @@ fn assert_rejected(
     expected: LoweringErrorKind,
     isolated: bool,
 ) {
+    let before = reservation_count(isolated);
+    let factory_error = match expected {
+        LoweringErrorKind::MismatchedSource => OwnedCompilationUnitViewError::MismatchedSource,
+        LoweringErrorKind::MismatchedAnalysis => OwnedCompilationUnitViewError::MismatchedAnalysis,
+        _ => panic!("only identity errors belong in this oracle"),
+    };
+    assert_eq!(
+        handoff.view().err().expect("factory rejects mismatch"),
+        factory_error
+    );
+    assert_reservation_delta(before, 0);
     for entry in entries {
         let before = reservation_count(isolated);
         assert_eq!(
             handoff
-                .lower(entry)
+                .lower_legacy(entry)
                 .err()
                 .expect("legacy lower rejects mismatch"),
             LoweringError {
@@ -319,6 +153,18 @@ fn assert_rejected(
         );
         assert_reservation_delta(before, 0);
     }
+    for pathway in PATHWAYS {
+        assert_rejected_native(pathway, handoff, entries, expected, isolated);
+    }
+}
+
+fn assert_rejected_native(
+    pathway: Pathway,
+    handoff: Handoff<'_>,
+    entries: [NativeUnitEntry; 2],
+    expected: LoweringErrorKind,
+    isolated: bool,
+) {
     let directory = TestDirectory::create();
     fs::write(directory.join("unrelated"), b"keep unrelated").unwrap();
     for entry in entries {
@@ -330,10 +176,11 @@ fn assert_rejected(
             let before_entries = directory_entries(&directory.0);
             let before = reservation_count(isolated);
             let error = handoff
-                .emit(entry, &object)
+                .emit(pathway, entry, &object)
                 .expect_err("identity rejects before entry");
             assert_reservation_delta(before, 0);
             assert_eq!(error.kind(), NativeObjectErrorKind::MismatchedAnalysis);
+            assert!(error.diagnostic().is_none());
             assert_eq!(error.span(), None);
             assert_eq!(error.to_string(), mismatch_display(expected));
             if existing {
@@ -353,10 +200,11 @@ fn assert_rejected(
     let before_entries = directory_entries(&directory.0);
     let before = reservation_count(isolated);
     let error = handoff
-        .emit(entries[0], &missing_parent.join("output.o"))
+        .emit(pathway, entries[0], &missing_parent.join("output.o"))
         .unwrap_err();
     assert_reservation_delta(before, 0);
     assert_eq!(error.kind(), NativeObjectErrorKind::MismatchedAnalysis);
+    assert!(error.diagnostic().is_none());
     assert_eq!(error.span(), None);
     assert_eq!(error.to_string(), mismatch_display(expected));
     assert!(!missing_parent.exists());
@@ -717,7 +565,7 @@ fn accepts_cloned_chain_permuted_inputs_and_rechecked_ownership() {
         original.environment
     ));
     let entry = analysis.entries()[0];
-    let expected_ssa = original.verified_ssa(entry);
+    let expected_ssa = original.verified_ssa(Pathway::Legacy, entry);
     let mut expected_object = None;
     for (label, handoff) in [
         ("original", original),
@@ -811,30 +659,36 @@ fn accepts_cloned_chain_permuted_inputs_and_rechecked_ownership() {
             original.owned.short_circuits(),
             "{label}"
         );
-        assert_eq!(handoff.verified_ssa(entry), expected_ssa, "{label}");
-        let directory = TestDirectory::create();
-        let object = directory.join("program.o");
-        handoff.emit(entry, &object).expect(label);
-        let bytes = fs::read(&object).expect("native object");
-        crate::test_support::assert_native_object(&bytes);
-        if let Some(expected) = &expected_object {
-            assert_eq!(&bytes, expected, "{label}");
-        } else {
-            expected_object = Some(bytes);
+        for pathway in PATHWAYS {
+            assert_eq!(
+                handoff.verified_ssa(pathway, entry),
+                expected_ssa,
+                "{label}"
+            );
+            let directory = TestDirectory::create();
+            let object = directory.join("program.o");
+            handoff.emit(pathway, entry, &object).expect(label);
+            let bytes = fs::read(&object).expect("native object");
+            crate::test_support::assert_native_object(&bytes);
+            if let Some(expected) = &expected_object {
+                assert_eq!(&bytes, expected, "{label}");
+            } else {
+                expected_object = Some(bytes);
+            }
+            assert_no_sibling_temporary(&directory.0);
+            let executable = directory.join("program");
+            let linked = Command::new(crate::test_support::clang())
+                .arg(&object)
+                .arg("-o")
+                .arg(&executable)
+                .output()
+                .unwrap();
+            assert!(linked.status.success(), "{label}: {linked:?}");
+            let run = Command::new(&executable).output().unwrap();
+            assert_eq!(run.status.code(), Some(0), "{label}: {run:?}");
+            assert_eq!(run.stdout, "handoff-界\nhandoff-界\n".as_bytes(), "{label}");
+            assert!(run.stderr.is_empty(), "{label}: {run:?}");
         }
-        assert_no_sibling_temporary(&directory.0);
-        let executable = directory.join("program");
-        let linked = Command::new(crate::test_support::clang())
-            .arg(&object)
-            .arg("-o")
-            .arg(&executable)
-            .output()
-            .unwrap();
-        assert!(linked.status.success(), "{label}: {linked:?}");
-        let run = Command::new(&executable).output().unwrap();
-        assert_eq!(run.status.code(), Some(0), "{label}: {run:?}");
-        assert_eq!(run.stdout, "handoff-界\nhandoff-界\n".as_bytes(), "{label}");
-        assert!(run.stderr.is_empty(), "{label}: {run:?}");
     }
 }
 
@@ -874,7 +728,7 @@ fn legacy_entry_conversion_occurs_once_before_identity_validation() {
                 conversions: &conversions,
             };
             let object = directory.join(&format!("{matching}-{entry_index}.o"));
-            let result = handoff.emit(entry, &object);
+            let result = handoff.emit_legacy(entry, &object);
             assert_eq!(
                 conversions.get(),
                 1,
@@ -887,8 +741,22 @@ fn legacy_entry_conversion_occurs_once_before_identity_validation() {
                 let error = result.expect_err("identity or entry shape rejects after conversion");
                 if matching {
                     assert_eq!(error.kind(), NativeObjectErrorKind::InvalidEntry);
+                    assert!(error.diagnostic().is_none());
+                    assert_eq!(
+                        error.span(),
+                        Some(
+                            original.names.names().index().declarations()
+                                [analysis.declaration("invalid").index()]
+                            .name_span()
+                        )
+                    );
+                    assert_eq!(
+                        error.to_string(),
+                        "native object InvalidEntry: entry must match its declared native process shape and return Unit"
+                    );
                 } else {
                     assert_eq!(error.kind(), NativeObjectErrorKind::MismatchedAnalysis);
+                    assert!(error.diagnostic().is_none());
                     assert_eq!(error.span(), None);
                     assert_eq!(
                         error.to_string(),
@@ -909,10 +777,10 @@ fn identity_rejection_never_reserves_sibling_output() {
         for replacement in REPLACEMENTS {
             check_replacement(replacement, true);
         }
-        // 每个维度的正控 reserve 一次；10 个负交接 × 5 种 native 请求均 reserve 零次。
+        // 每维每路径正控 reserve 一次；10 负交接 × 5 native 请求 × 2 路径均 reserve 零次。
         assert_eq!(
             NEXT_UNIT_OBJECT_TEMPORARY.load(Ordering::Relaxed),
-            REPLACEMENTS.len() as u64
+            (REPLACEMENTS.len() * PATHWAYS.len()) as u64
         );
         return;
     }

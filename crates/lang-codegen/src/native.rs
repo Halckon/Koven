@@ -18,8 +18,9 @@ use lang_frontend::{
         ValidatedCompilationUnitNames,
     },
     ownership_checking::{
-        ConstEnabledOwnedUnit, OwnedCompilationUnitView, OwnedCompilationUnitViewError,
-        OwnershipCheckedFile, ValidatedCompilationUnitOwnership, owned_compilation_unit_view,
+        ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, OwnedCompilationUnitView,
+        OwnedCompilationUnitViewError, OwnershipCheckedFile, ValidatedCompilationUnitOwnership,
+        const_owned_compilation_unit_view, owned_compilation_unit_view,
     },
     parser::ParsedFile,
     source::{SourceMap, Span},
@@ -272,23 +273,25 @@ pub fn emit_native_constant_unit_object(
     output: &Path,
 ) -> Result<(), NativeObjectError> {
     let entry = entry.into();
-    crate::ssa::unit_lower::constant::validate_constant_unit_inputs(
-        sources,
-        inputs,
-        names,
-        environment,
-        typed,
-        owned,
-    )
-    .map_err(map_lowering_error)?;
-    validate_unit_entry(names, typed.types(), entry)?;
-    let (program, function) = crate::ssa::unit_lower::constant::lower_constant_unit_with_entry(
-        sources,
-        inputs,
-        names,
-        environment,
-        typed,
-        owned,
+    let unit =
+        const_owned_compilation_unit_view(sources, inputs, names, environment, typed, owned)?;
+    emit_native_const_owned_unit_object(&unit, entry, output)
+}
+
+/// 从已封闭的常量专用 owned-unit 借用生成原子发布的 native object。
+///
+/// 本入口保留完整物化与短路能力，不重建来源 index；entry/SSA 检查先于 reserve，
+/// LLVM/layout/object emission 仍在 sibling temporary 上完成，成功后才原子提交。
+pub fn emit_native_const_owned_unit_object(
+    unit: &ConstOwnedCompilationUnitView<'_, '_>,
+    entry: impl Into<NativeUnitEntry>,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    let entry = entry.into();
+    let sources = unit.sources();
+    validate_unit_entry(unit.names(), unit.types(), entry)?;
+    let (program, function) = crate::ssa::unit_lower::constant::lower_const_owned_unit_with_entry(
+        unit,
         entry.declaration(),
     )
     .map_err(map_lowering_error)?;

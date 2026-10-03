@@ -55,7 +55,7 @@ impl<'view, 'parsed: 'view> OwnedCompilationUnitView<'view, 'parsed> {
     }
 }
 
-/// 普通 owned-unit 交接的来源或分析身份错误。
+/// 普通或常量专用 owned-unit 交接的来源或分析身份错误。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OwnedCompilationUnitViewError {
     /// 源码与 inputs 不能建立合法的 compilation-unit index。

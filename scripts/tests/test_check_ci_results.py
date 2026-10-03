@@ -21,6 +21,14 @@ def needs(docs_changed="false", rust_changed="false", **results):
     return jobs
 
 
+def stage_target_occurrences(stage, target):
+    """Preserve each exact --test token, including repeats on the same command."""
+    commands = stage.replace("\\\n", " ").splitlines()
+    pattern = rf"(?:^|\s)--test\s+{re.escape(target)}(?=\s|$)"
+    return [line for line in commands if line.startswith("run cargo test ")
+            for _ in re.findall(pattern, line)]
+
+
 class CheckCiResultsTests(unittest.TestCase):
     def test_docs_only_pr_can_skip_rust(self):
         self.assertEqual([], CI.check_results(
@@ -110,6 +118,29 @@ class CheckCiResultsTests(unittest.TestCase):
                 "run cargo test --locked -p lang-frontend --no-fail-fast "))
             self.assertNotIn(" -- ", selected[0], "contract targets must not be filtered")
             self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+
+    def test_const_owned_unit_contracts_run_in_stage_integration(self):
+        root = Path(__file__).resolve().parents[2]
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        for target in ("const_owned_compilation_unit_view", "const_owned_unit_view_compile_contracts",
+                       "multifile_constant_ownership"):
+            selected = stage_target_occurrences(stage, target)
+            self.assertEqual(1, len(selected), f"{target} must execute exactly once")
+            self.assertTrue(selected[0].startswith(
+                "run cargo test --locked -p lang-frontend --no-fail-fast "))
+            self.assertNotIn(" -- ", selected[0], "contract targets must not be filtered")
+            self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+
+    def test_stage_target_count_detects_same_command_duplicates_and_exact_tokens(self):
+        target = "const_owned_compilation_unit_view"
+        command = f"run cargo test --locked -p lang-frontend --no-fail-fast --test {target}"
+        self.assertEqual(1, len(stage_target_occurrences(command, target)))
+        self.assertEqual(2, len(stage_target_occurrences(
+            f"{command} --test {target}", target)))
+        self.assertEqual(2, len(stage_target_occurrences(f"{command}\n{command}", target)))
+        self.assertEqual([], stage_target_occurrences(f"{command}_extra", target))
+        self.assertEqual([], stage_target_occurrences(f"# {command}", target))
+        self.assertEqual([], stage_target_occurrences("run cargo test --locked", target))
 
     def test_unit_name_snapshot_contracts_run_in_stage_integration(self):
         root = Path(__file__).resolve().parents[2]
