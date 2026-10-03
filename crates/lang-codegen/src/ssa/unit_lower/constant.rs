@@ -1,10 +1,11 @@
 //! 专用常量入口只消费同一轮物化事实；不重访声明 initializer。
 use super::*;
 use lang_frontend::{
-    name_resolution::{
-        DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit,
+    name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
+    ownership_checking::{
+        ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, ConstantMaterializationKind,
+        const_owned_compilation_unit_view,
     },
-    ownership_checking::{ConstEnabledOwnedUnit, ConstantMaterializationKind},
     source::{SourceMap, Span},
     type_checking::{ConstEnabledTypedUnit, ConstValue, TypeEnvironment, UnitExpressionId},
 };
@@ -19,43 +20,25 @@ pub(crate) fn lower_constant_unit_with_entry(
     owned: &ConstEnabledOwnedUnit,
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
-    validate_constant_unit_inputs(sources, inputs, names, environment, typed, owned)?;
-    lower_unit_from_facts(
-        sources,
-        inputs,
-        names,
-        typed.types(),
-        owned.ownership(),
-        Some(owned),
-        entry,
-    )
+    let unit =
+        const_owned_compilation_unit_view(sources, inputs, names, environment, typed, owned)?;
+    lower_const_owned_unit_with_entry(&unit, entry)
 }
 
-/// 专用 native 与 SSA 入口共享身份门禁，不转换成基础 capability。
-pub(crate) fn validate_constant_unit_inputs(
-    sources: &SourceMap,
-    inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
-    environment: &TypeEnvironment,
-    typed: &ConstEnabledTypedUnit,
-    owned: &ConstEnabledOwnedUnit,
-) -> Result<(), LoweringError> {
-    let rebuilt = index_compilation_unit(sources, inputs).map_err(|_| LoweringError {
-        kind: LoweringErrorKind::MismatchedSource,
-        span: None,
-    })?;
-    if &rebuilt != names.names().index()
-        || !typed
-            .types()
-            .is_compatible_with(sources, inputs, names, environment)
-        || !owned.is_compatible_with(typed)
-    {
-        return Err(LoweringError {
-            kind: LoweringErrorKind::MismatchedAnalysis,
-            span: None,
-        });
-    }
-    Ok(())
+/// 已封闭 const unit 不再重建 index；保留完整专用物化与短路 capability。
+pub(crate) fn lower_const_owned_unit_with_entry(
+    unit: &ConstOwnedCompilationUnitView<'_, '_>,
+    entry: DeclarationId,
+) -> Result<(Program, FunctionId), LoweringError> {
+    lower_unit_from_facts(
+        unit.sources(),
+        unit.inputs(),
+        unit.names(),
+        unit.types(),
+        unit.ownership(),
+        Some(unit.constant_ownership()),
+        entry,
+    )
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -139,7 +122,7 @@ mod tests {
         unit_lower_test_support::{declaration, parsed},
     };
     use lang_frontend::{
-        name_resolution::resolve_compilation_unit_names,
+        name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
         ownership_checking::check_compilation_unit_constant_ownership,
         type_checking::{check_compilation_unit_types, standard_environments},
     };

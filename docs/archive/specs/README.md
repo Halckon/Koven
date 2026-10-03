@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 238 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 239 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -319,3 +319,8 @@
 ## 2026-10-02 unit 基础所有权共享推进
 
 - [SPEC-0252](0252-basic-unit-ownership-driver.md)：按值basic ownership纯推进与CLI/LSP消费；完整事实/身份、独立旧新宿主oracle及首轮双宿主验收完成，bootstrap/legacy与const owned交接仍留后继
+
+
+## 2026-10-03 共享单文件阶段门面
+
+- [SPEC-0253](0253-single-file-analysis-facade.md)：固定纯runner与bootstrap/legacy消费；五阶段早停、typed observer、身份/借用合同和四宿主parity经最终双宿主验收，有界完成P3b；P3a const交接仍保留

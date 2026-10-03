@@ -1,3 +1,6 @@
+#[path = "unit_const_handoff_contract_tests.rs"]
+mod handoff_contracts;
+
 #[path = "unit_numeric_literal_tests.rs"]
 mod numeric_literal_tests;
 

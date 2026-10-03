@@ -4,6 +4,7 @@ mod capture;
 mod checker;
 mod cleanup_condition;
 mod compilation_unit;
+mod const_handoff;
 mod constant;
 mod construction;
 mod error;
@@ -42,6 +43,7 @@ pub use compilation_unit::{
     UnitValueDeliveryKind, UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
     check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
 };
+pub use const_handoff::{ConstOwnedCompilationUnitView, const_owned_compilation_unit_view};
 pub use constant::{
     ConstantMaterializationKind, ConstantMaterializationPlan, ValidatedConstantMaterializations,
 };

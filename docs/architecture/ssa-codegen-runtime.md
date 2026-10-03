@@ -85,8 +85,8 @@ String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop
 校验 operand 与 branch identity；LHS 退出直接传播，动态分支消费对应 BranchExit 并保留 skip
 后继。基础入口原有短路能力边界保持。String 插值按现行 guide 确定性拒绝，
 包括含常量 use 的插值；调用前缀退出与内层循环的已支持范围见下文。
-公开 `emit_native_constant_unit_object` 接受专用 typed/owned capability，按身份校验、共享
-process entry shape、SSA lowering 的顺序检查，再复用 sibling object 原子发布。基础入口
+公开 `emit_native_constant_unit_object` 将专用 typed/owned 封闭为const view；新view native
+按entry shape、SSA顺序检查，再复用sibling原子发布；[完整交接](pipeline-and-workspace.md#常量-owned-unit-交接)保留专用事实。基础入口
 仍只接受基础 capability。跨文件 String concat/println、argv 入口形状、正逆 inputs 与重复
 object 字节已有 native 证据；非法 entry、插值及分析错配在写出前拒绝并保留既有目标。
 跨文件 native 矩阵另覆盖六类 namespace 的全部 11 种常量类型，以 import 和绝对路径读取，
@@ -143,6 +143,7 @@ verifier 检查 owner 唯一消费。计数注入仅存在于测试 LLVM。
 `ssa::unit_plan` 从显式 entry 对 validated typed/ownership unit 做 reachability 和单态化，使用稳定的
 callable/type instance key。planner 消费 frontend 已选择的 declaration、member、effective interface
 implementation 和 delegation route，不重新按名称或 shape 选择。
+私有 `unit_plan/runtime_layout.rs` 承接 strongest-demand 升级与 exact owner 字段布局校验，原 resolver 路径供 planner、deinit、aggregate/type lowering 共用；[迁移验收](../development/unit-runtime-layout-migration.md)记录保全边界。
 
 `ssa::unit_lower` 按 source-qualified facts 生成一个 SSA program。当前路径覆盖：
 
@@ -196,5 +197,4 @@ CLI 的 linker/runner 与链接产物清理留宿主层；标准库源码仍作�
 ## 测试覆盖位置
 
 SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../development/codegen-receiver-test-migration.md)。
-planner的48项同样保留私有cfg(test)入口，按七域组织，见[plan验收](../development/codegen-plan-test-migration.md)。native公共路径另由 `lang-cli` integration tests 覆盖。命令与扩大范围规则见
-[开发测试指南](../development/testing.md)。
+planner的48项保留私有cfg(test)入口与七域组织，见[plan验收](../development/codegen-plan-test-migration.md)；native公共路径另由 `lang-cli` integration tests 覆盖，命令与扩大范围见[开发测试指南](../development/testing.md)。

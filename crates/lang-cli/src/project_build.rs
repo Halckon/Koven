@@ -7,7 +7,7 @@ use std::{
 };
 
 use lang_codegen::{
-    NativeObjectError, NativeUnitEntry, emit_native_constant_unit_object,
+    NativeObjectError, NativeUnitEntry, emit_native_const_owned_unit_object,
     emit_native_owned_unit_object,
 };
 use lang_frontend::{
@@ -25,7 +25,7 @@ use lang_frontend::{
     },
     ownership_checking::{
         OwnershipCheckingError, check_compilation_unit_constant_ownership,
-        owned_compilation_unit_view,
+        const_owned_compilation_unit_view, owned_compilation_unit_view,
     },
     parser::{FunctionBody, FunctionForm, Item, ParserInternalError},
     source::{SourceError, SourceMap},
@@ -216,17 +216,20 @@ pub(crate) fn emit_project_object(
                 .validate()
                 .map_err(|_| ProjectBuildError::IncompleteOwnership)?;
             let entry = select_project_entry(selector, &inputs, names, typed.types())?;
-            return emit_native_constant_unit_object(
+            let unit = const_owned_compilation_unit_view(
                 sources,
                 &inputs,
                 names,
                 &type_environment,
                 &typed,
                 &owned,
-                entry,
-                object,
             )
-            .map_err(|error| codegen_error(sources, names.names().index().source_units(), error));
+            .map_err(|error| {
+                codegen_error(sources, names.names().index().source_units(), error.into())
+            })?;
+            return emit_native_const_owned_unit_object(&unit, entry, object).map_err(|error| {
+                codegen_error(sources, names.names().index().source_units(), error)
+            });
         }
     };
     if !owned.diagnostics().is_empty() {

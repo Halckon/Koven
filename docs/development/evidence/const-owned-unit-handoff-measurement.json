@@ -1,0 +1,588 @@
+{
+  "before": {
+    "symbols": {
+      "index_entry": {
+        "demangled": "lang_frontend::name_resolution::compilation_unit::index::index_compilation_unit",
+        "mangled": "_RNvNtNtNtCslhyY1Es3h9q_13lang_frontend15name_resolution16compilation_unit5index22index_compilation_unit",
+        "type": "T",
+        "address": "1a07f20",
+        "size": "23d4",
+        "source_file": "index.rs",
+        "entry_region": [
+          169,
+          1,
+          172,
+          61
+        ]
+      },
+      "index_constructor": {
+        "demangled": "<lang_frontend::name_resolution::compilation_unit::model::CompilationUnitIndex>::new",
+        "mangled": "_RNvMs8_NtNtNtCslhyY1Es3h9q_13lang_frontend15name_resolution16compilation_unit5modelNtB5_20CompilationUnitIndex3new",
+        "type": "t",
+        "address": "177f420",
+        "size": "7e",
+        "source_file": "model.rs",
+        "entry_region": [
+          393,
+          5,
+          399,
+          14
+        ]
+      }
+    },
+    "fixtures": {
+      "small": {
+        "counts": {
+          "setup": {
+            "index_entry": 4,
+            "index_constructor": 4
+          },
+          "index": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "lower": {
+            "index_entry": 6,
+            "index_constructor": 6
+          },
+          "emit": {
+            "index_entry": 8,
+            "index_constructor": 8
+          }
+        },
+        "delta": {
+          "index": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "lower": {
+            "index_entry": 2,
+            "index_constructor": 2
+          },
+          "emit": {
+            "index_entry": 4,
+            "index_constructor": 4
+          }
+        },
+        "expected_delta": {
+          "native": 4,
+          "lower": 2
+        }
+      },
+      "representative": {
+        "counts": {
+          "setup": {
+            "index_entry": 4,
+            "index_constructor": 4
+          },
+          "index": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "lower": {
+            "index_entry": 6,
+            "index_constructor": 6
+          },
+          "emit": {
+            "index_entry": 8,
+            "index_constructor": 8
+          }
+        },
+        "delta": {
+          "index": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "lower": {
+            "index_entry": 2,
+            "index_constructor": 2
+          },
+          "emit": {
+            "index_entry": 4,
+            "index_constructor": 4
+          }
+        },
+        "expected_delta": {
+          "native": 4,
+          "lower": 2
+        }
+      }
+    },
+    "binary_sha256": "ae081dd997acb5306de7b897c1f27df9feba1ef2ce0a3f7c16ade1ad39422e6d"
+  },
+  "after": {
+    "symbols": {
+      "index_entry": {
+        "demangled": "lang_frontend::name_resolution::compilation_unit::index::index_compilation_unit",
+        "mangled": "_RNvNtNtNtCslhyY1Es3h9q_13lang_frontend15name_resolution16compilation_unit5index22index_compilation_unit",
+        "type": "T",
+        "address": "16ba090",
+        "size": "23d4",
+        "source_file": "index.rs",
+        "entry_region": [
+          169,
+          1,
+          172,
+          61
+        ]
+      },
+      "index_constructor": {
+        "demangled": "<lang_frontend::name_resolution::compilation_unit::model::CompilationUnitIndex>::new",
+        "mangled": "_RNvMs8_NtNtNtCslhyY1Es3h9q_13lang_frontend15name_resolution16compilation_unit5modelNtB5_20CompilationUnitIndex3new",
+        "type": "t",
+        "address": "1a9fd50",
+        "size": "7e",
+        "source_file": "model.rs",
+        "entry_region": [
+          393,
+          5,
+          399,
+          14
+        ]
+      }
+    },
+    "fixtures": {
+      "small": {
+        "counts": {
+          "setup": {
+            "index_entry": 4,
+            "index_constructor": 4
+          },
+          "index": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "lower": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "emit": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "factory": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "viewlower": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "viewemit": {
+            "index_entry": 5,
+            "index_constructor": 5
+          }
+        },
+        "delta": {
+          "index": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "lower": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "emit": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "factory": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "viewlower": {
+            "index_entry": 0,
+            "index_constructor": 0
+          },
+          "viewemit": {
+            "index_entry": 0,
+            "index_constructor": 0
+          }
+        },
+        "expected_delta": {
+          "native": 1,
+          "lower": 1,
+          "factory": 1,
+          "viewnative": 0,
+          "viewlower": 0
+        }
+      },
+      "representative": {
+        "counts": {
+          "setup": {
+            "index_entry": 4,
+            "index_constructor": 4
+          },
+          "index": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "lower": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "emit": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "factory": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "viewlower": {
+            "index_entry": 5,
+            "index_constructor": 5
+          },
+          "viewemit": {
+            "index_entry": 5,
+            "index_constructor": 5
+          }
+        },
+        "delta": {
+          "index": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "lower": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "emit": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "factory": {
+            "index_entry": 1,
+            "index_constructor": 1
+          },
+          "viewlower": {
+            "index_entry": 0,
+            "index_constructor": 0
+          },
+          "viewemit": {
+            "index_entry": 0,
+            "index_constructor": 0
+          }
+        },
+        "expected_delta": {
+          "native": 1,
+          "lower": 1,
+          "factory": 1,
+          "viewnative": 0,
+          "viewlower": 0
+        }
+      }
+    },
+    "binary_sha256": "4033d44f5aebf5691e4a57edfe6d9b4737609dfec45a0bc9a3c3def505db4914"
+  },
+  "fixtures": {
+    "representative": [
+      {
+        "path": "p0/provider.ko",
+        "sha256": "33b170a3850fc3afaf0777ddcfec9e9ce4cb37a8c03a3a86cc69439ad3148f35",
+        "bytes": 113,
+        "source": "package p0\nconst val TEXT: String = \"const-0-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p1/provider.ko",
+        "sha256": "c69713719b4d1b2dd406387712939e700de3bcfe70df20b6886b8b8d14cd2806",
+        "bytes": 113,
+        "source": "package p1\nconst val TEXT: String = \"const-1-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p2/provider.ko",
+        "sha256": "246b868fae38e268bc157c0f31e390311411fd8a470999c848943a8fc4c950fd",
+        "bytes": 113,
+        "source": "package p2\nconst val TEXT: String = \"const-2-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p3/provider.ko",
+        "sha256": "ebb2dbe0fc120d4d40b58d5bb47c2dd125c3fa74cec3684cb21d000221b67be4",
+        "bytes": 113,
+        "source": "package p3\nconst val TEXT: String = \"const-3-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p4/provider.ko",
+        "sha256": "8a3d3b0611142c56a7eab579beef704fa631c9612e6f204e19d713c0bd950455",
+        "bytes": 113,
+        "source": "package p4\nconst val TEXT: String = \"const-4-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p5/provider.ko",
+        "sha256": "be8d0d65d00061bb65f44479a61439182b03e82ab423d2679a7069699b350ec3",
+        "bytes": 113,
+        "source": "package p5\nconst val TEXT: String = \"const-5-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p6/provider.ko",
+        "sha256": "42bd0a710cf6e68a307a3e2ecd940fafe89890d9776b6f19f6736c5c84758870",
+        "bytes": 113,
+        "source": "package p6\nconst val TEXT: String = \"const-6-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p7/provider.ko",
+        "sha256": "e7a49b3c5dee797d5a0b139fe2d6cc3f42a1428c090f9c2659e452b0b7a9421b",
+        "bytes": 113,
+        "source": "package p7\nconst val TEXT: String = \"const-7-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p8/provider.ko",
+        "sha256": "071acb7af401be7418d8628d58d48326314ea01a8ce9f176cf22f7cd85768a4d",
+        "bytes": 113,
+        "source": "package p8\nconst val TEXT: String = \"const-8-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p9/provider.ko",
+        "sha256": "bdcd21ac5dc5a4ce0eb6813d96ee359ae498b28439a182534b36c767d7f312df",
+        "bytes": 113,
+        "source": "package p9\nconst val TEXT: String = \"const-9-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p10/provider.ko",
+        "sha256": "2a1e63c79660c6d9c8105b314580686600097d08619eea4a2807989168b00896",
+        "bytes": 115,
+        "source": "package p10\nconst val TEXT: String = \"const-10-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p11/provider.ko",
+        "sha256": "3aa4343fe23de32035912f3957e8936d2f134af42dd35efd72464689616c3a8e",
+        "bytes": 115,
+        "source": "package p11\nconst val TEXT: String = \"const-11-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p12/provider.ko",
+        "sha256": "3f2c008f8134538c53a9d48e2a1698c758971db8bfffdd8e53d0983ed469454a",
+        "bytes": 115,
+        "source": "package p12\nconst val TEXT: String = \"const-12-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p13/provider.ko",
+        "sha256": "f2652d73679e28ff74b899cfeead298bd0e57a352921d4db789cb4c3b6a77797",
+        "bytes": 115,
+        "source": "package p13\nconst val TEXT: String = \"const-13-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p14/provider.ko",
+        "sha256": "ed5481189be49763a03f7510c1aa46e88e5412da3841a9643b1661bdc84ee32f",
+        "bytes": 115,
+        "source": "package p14\nconst val TEXT: String = \"const-14-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p15/provider.ko",
+        "sha256": "58e565e7ec8aee50f14f819e183a62de443718d887be83684fb24937a6d32734",
+        "bytes": 115,
+        "source": "package p15\nconst val TEXT: String = \"const-15-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p16/provider.ko",
+        "sha256": "15b267295cba104f17f8792df457c604473db1f6c03d862a5eeeda2fbfb1c0a9",
+        "bytes": 115,
+        "source": "package p16\nconst val TEXT: String = \"const-16-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p17/provider.ko",
+        "sha256": "ae808fb81be6c973cf9b99fd5c94f741f3fdfff02628b9ec3b59dd2066f0eca9",
+        "bytes": 115,
+        "source": "package p17\nconst val TEXT: String = \"const-17-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p18/provider.ko",
+        "sha256": "7d965cff9c9327463aabf64f7fb210592f531f6df902210cad1ae2b8e82b8ae4",
+        "bytes": 115,
+        "source": "package p18\nconst val TEXT: String = \"const-18-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p19/provider.ko",
+        "sha256": "bbaf3ad46bbdca5998faca090e6191ed51302703cd7d2f44ac551bf180cc4c18",
+        "bytes": 115,
+        "source": "package p19\nconst val TEXT: String = \"const-19-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p20/provider.ko",
+        "sha256": "a62cacb99029d41d24c2d558017b259b034ae5b5d173e74fb503e54c034c5298",
+        "bytes": 115,
+        "source": "package p20\nconst val TEXT: String = \"const-20-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p21/provider.ko",
+        "sha256": "15639b658b25d709f5d4235e7bce25c66af5ae730336415784ec215933ef5f07",
+        "bytes": 115,
+        "source": "package p21\nconst val TEXT: String = \"const-21-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p22/provider.ko",
+        "sha256": "69e9f5e6a600a6b5e5db7317a076425dd58212438232c8037269a0c1a28ceb79",
+        "bytes": 115,
+        "source": "package p22\nconst val TEXT: String = \"const-22-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p23/provider.ko",
+        "sha256": "bfbb817ccc11aef39ff49dedfeb16099575abfa7ea3d5d796309ad44ba601ef4",
+        "bytes": 115,
+        "source": "package p23\nconst val TEXT: String = \"const-23-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p24/provider.ko",
+        "sha256": "67dff4aa97bdbd02a86cea3e98be7012dcec76cd125ae91fbe907f27d0809ad6",
+        "bytes": 115,
+        "source": "package p24\nconst val TEXT: String = \"const-24-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p25/provider.ko",
+        "sha256": "50e0030e0991b12df5875a4a2d4f6f33f8d1067e5e58a66be3303946227a258f",
+        "bytes": 115,
+        "source": "package p25\nconst val TEXT: String = \"const-25-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p26/provider.ko",
+        "sha256": "16ffd22701dcc26d041f8378dc428cd10bd27843561ec7104c7555377d68a710",
+        "bytes": 115,
+        "source": "package p26\nconst val TEXT: String = \"const-26-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p27/provider.ko",
+        "sha256": "67de90a1daef755fa640f6b088a4f975e9464a3690b4f340da29253fe1ad920a",
+        "bytes": 115,
+        "source": "package p27\nconst val TEXT: String = \"const-27-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p28/provider.ko",
+        "sha256": "855e6c88dbe96baef19a216d6fce64e2239edf00b807fa708e3ffd87ec8d0821",
+        "bytes": 115,
+        "source": "package p28\nconst val TEXT: String = \"const-28-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p29/provider.ko",
+        "sha256": "c3c337d250b4aa5cd64302a337b2d82241f4a14d61e06ad035423b1e6ed62154",
+        "bytes": 115,
+        "source": "package p29\nconst val TEXT: String = \"const-29-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "p30/provider.ko",
+        "sha256": "c40498d13b02d1e21f35bd0bd763c54a2f57f270dc61d2acef9de5c9623672bd",
+        "bytes": 115,
+        "source": "package p30\nconst val TEXT: String = \"const-30-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "entry/main.ko",
+        "sha256": "2382549163c9d5fd09b8fd7a78fbe03c2791b8b68214cef4af03722bd13e0e7c",
+        "bytes": 1628,
+        "source": "package entry\nfun entry(): Unit { if (p0.ENABLED && true) { println(p0.message()) }\nif (p1.ENABLED && true) { println(p1.message()) }\nif (p2.ENABLED && true) { println(p2.message()) }\nif (p3.ENABLED && true) { println(p3.message()) }\nif (p4.ENABLED && true) { println(p4.message()) }\nif (p5.ENABLED && true) { println(p5.message()) }\nif (p6.ENABLED && true) { println(p6.message()) }\nif (p7.ENABLED && true) { println(p7.message()) }\nif (p8.ENABLED && true) { println(p8.message()) }\nif (p9.ENABLED && true) { println(p9.message()) }\nif (p10.ENABLED && true) { println(p10.message()) }\nif (p11.ENABLED && true) { println(p11.message()) }\nif (p12.ENABLED && true) { println(p12.message()) }\nif (p13.ENABLED && true) { println(p13.message()) }\nif (p14.ENABLED && true) { println(p14.message()) }\nif (p15.ENABLED && true) { println(p15.message()) }\nif (p16.ENABLED && true) { println(p16.message()) }\nif (p17.ENABLED && true) { println(p17.message()) }\nif (p18.ENABLED && true) { println(p18.message()) }\nif (p19.ENABLED && true) { println(p19.message()) }\nif (p20.ENABLED && true) { println(p20.message()) }\nif (p21.ENABLED && true) { println(p21.message()) }\nif (p22.ENABLED && true) { println(p22.message()) }\nif (p23.ENABLED && true) { println(p23.message()) }\nif (p24.ENABLED && true) { println(p24.message()) }\nif (p25.ENABLED && true) { println(p25.message()) }\nif (p26.ENABLED && true) { println(p26.message()) }\nif (p27.ENABLED && true) { println(p27.message()) }\nif (p28.ENABLED && true) { println(p28.message()) }\nif (p29.ENABLED && true) { println(p29.message()) }\nif (p30.ENABLED && true) { println(p30.message()) } }\n"
+      }
+    ],
+    "small": [
+      {
+        "path": "p0/provider.ko",
+        "sha256": "33b170a3850fc3afaf0777ddcfec9e9ce4cb37a8c03a3a86cc69439ad3148f35",
+        "bytes": 113,
+        "source": "package p0\nconst val TEXT: String = \"const-0-界\"\nconst val ENABLED: Boolean = true\nfun message(): String = TEXT\n"
+      },
+      {
+        "path": "entry/main.ko",
+        "sha256": "2e166371413a5ed6179f877d87b4dc9ca2bca997b54223635cc9e02935031ca7",
+        "bytes": 86,
+        "source": "package entry\nfun entry(): Unit { if (p0.ENABLED && true) { println(p0.message()) } }\n"
+      }
+    ]
+  },
+  "method": "Exact unique demangled symbol joined to mangled name by type/address/size; coverage function count equals source entry region count; independent fresh process per mode and fixture; subtract same-probe setup, or factory for prebuilt-view modes. No timing/RSS claim.",
+  "source": {
+    "before": {
+      "commit": "c6b84ecb46563b7de2bfeb9f481e75cf4a861323",
+      "tree": "d5a305f0ce877b1630c1e32887eb645bb8e39735",
+      "probe_sha256": "2e9fac1b6782f4bc359a122d1e652c8c67830967b6cd8c7868ba9acbf5aad368",
+      "probe_source": "//! Measurement-only probe: intentionally uncommitted and outside production code.\nuse crate::ssa::unit_lower::constant::lower_constant_unit_with_entry;\nuse lang_frontend::{\n    lexer::lex,\n    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},\n    ownership_checking::check_compilation_unit_constant_ownership,\n    parser::parse_file,\n    source::SourceMap,\n    type_checking::{check_compilation_unit_types, standard_environments},\n};\nuse std::{env, fs, hint::black_box, path::PathBuf, time::Instant};\n\n#[test]\nfn const_index_probe() {\n    let fixture = PathBuf::from(env::var_os(\"P3A_FIXTURE\").expect(\"explicit fixture\"));\n    let mode = env::var(\"P3A_MODE\").expect(\"explicit mode\");\n    assert!(matches!(mode.as_str(), \"setup\" | \"index\" | \"lower\" | \"emit\"));\n    let start = Instant::now();\n    let manifest = fs::read_to_string(fixture.join(\"manifest.txt\")).expect(\"fixture manifest\");\n    let paths: Vec<_> = manifest.lines().collect();\n    let mut sources = SourceMap::new();\n    let mut parsed = Vec::new();\n    for path in &paths {\n        let text = fs::read_to_string(fixture.join(path)).expect(\"fixture file\");\n        let source = sources.add_source(*path, text).expect(\"source\");\n        let tokens = lex(&sources, source).expect(\"lex\");\n        let file = parse_file(&sources, &tokens).expect(\"parse\");\n        assert!(file.diagnostics().is_empty(), \"{:?}\", file.diagnostics());\n        parsed.push((source, file));\n    }\n    let inputs: Vec<_> = paths\n        .iter()\n        .zip(&parsed)\n        .map(|(path, (source, file))| SourceUnitInput::new(\"root\", *path, *source, file))\n        .collect();\n    let (name_environment, environment) = standard_environments();\n    let index = index_compilation_unit(&sources, &inputs).expect(\"valid unit\");\n    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)\n        .expect(\"names\")\n        .validate()\n        .expect(\"validated names\");\n    let typed = check_compilation_unit_types(&sources, &inputs, &names, &environment)\n        .expect(\"types\")\n        .validate_constants()\n        .expect(\"validated types\");\n    let owned = check_compilation_unit_constant_ownership(&sources, &inputs, &names, &environment, &typed)\n        .expect(\"ownership\")\n        .validate()\n        .expect(\"validated ownership\");\n    let mut entries = names\n        .names()\n        .index()\n        .declarations()\n        .iter()\n        .filter(|d| d.name() == \"entry\");\n    let entry = entries.next().expect(\"entry\").id();\n    assert!(entries.next().is_none(), \"unique entry\");\n    let setup_ns = start.elapsed().as_nanos();\n    let operation = Instant::now();\n    match mode.as_str() {\n        \"setup\" => {}\n        \"index\" => {\n            black_box(index_compilation_unit(&sources, &inputs).expect(\"calibration index\"));\n        }\n        \"lower\" => {\n            black_box(\n                lower_constant_unit_with_entry(\n                    &sources,\n                    &inputs,\n                    &names,\n                    &environment,\n                    &typed,\n                    &owned,\n                    entry,\n                )\n                .expect(\"legacy lower\"),\n            );\n        }\n        \"emit\" => {\n            let output = PathBuf::from(env::var_os(\"P3A_OUTPUT\").expect(\"explicit output\"));\n            crate::emit_native_constant_unit_object(&sources, &inputs, &names, &environment,\n                &typed, &owned, entry, &output).expect(\"legacy emit\");\n        }\n        _ => unreachable!(),\n    }\n    let operation_ns = operation.elapsed().as_nanos();\n    black_box((\n        &sources,\n        &inputs,\n        &names,\n        &environment,\n        &typed,\n        &owned,\n        &index,\n    ));\n    println!(\n        \"P3A_METRIC mode={mode} files={} setup_ns={setup_ns} operation_ns={operation_ns}\",\n        inputs.len()\n    );\n}\n",
+      "worktree_clean_after_probe_removal": true,
+      "attachment": "Append exactly \"\\n#[cfg(test)]\\nmod const_index_probe;\\n\" to crates/lang-codegen/src/lib.rs; place probe_source in crates/lang-codegen/src/const_index_probe.rs."
+    },
+    "after": {
+      "commit": "0d5ba88f760f805a95947f868607b945b1c66b5c",
+      "tree": "4ffd6bdab15586120ad8c3f5639c8a083a571e60",
+      "probe_sha256": "0fe324ec0568eeaf34bab9474fd39c1bbc49856f9ba5432e65063e4f98831768",
+      "probe_source": "//! Measurement-only probe: intentionally uncommitted and outside production code.\nuse crate::ssa::unit_lower::constant::lower_constant_unit_with_entry;\nuse lang_frontend::{\n    lexer::lex,\n    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},\n    ownership_checking::check_compilation_unit_constant_ownership,\n    parser::parse_file,\n    source::SourceMap,\n    type_checking::{check_compilation_unit_types, standard_environments},\n};\nuse std::{env, fs, hint::black_box, path::PathBuf, time::Instant};\n\n#[test]\nfn const_index_probe() {\n    let fixture = PathBuf::from(env::var_os(\"P3A_FIXTURE\").expect(\"explicit fixture\"));\n    let mode = env::var(\"P3A_MODE\").expect(\"explicit mode\");\n    assert!(matches!(mode.as_str(), \"setup\" | \"index\" | \"lower\" | \"emit\" | \"factory\" | \"viewlower\" | \"viewemit\"));\n    let start = Instant::now();\n    let manifest = fs::read_to_string(fixture.join(\"manifest.txt\")).expect(\"fixture manifest\");\n    let paths: Vec<_> = manifest.lines().collect();\n    let mut sources = SourceMap::new();\n    let mut parsed = Vec::new();\n    for path in &paths {\n        let text = fs::read_to_string(fixture.join(path)).expect(\"fixture file\");\n        let source = sources.add_source(*path, text).expect(\"source\");\n        let tokens = lex(&sources, source).expect(\"lex\");\n        let file = parse_file(&sources, &tokens).expect(\"parse\");\n        assert!(file.diagnostics().is_empty(), \"{:?}\", file.diagnostics());\n        parsed.push((source, file));\n    }\n    let inputs: Vec<_> = paths\n        .iter()\n        .zip(&parsed)\n        .map(|(path, (source, file))| SourceUnitInput::new(\"root\", *path, *source, file))\n        .collect();\n    let (name_environment, environment) = standard_environments();\n    let index = index_compilation_unit(&sources, &inputs).expect(\"valid unit\");\n    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)\n        .expect(\"names\")\n        .validate()\n        .expect(\"validated names\");\n    let typed = check_compilation_unit_types(&sources, &inputs, &names, &environment)\n        .expect(\"types\")\n        .validate_constants()\n        .expect(\"validated types\");\n    let owned = check_compilation_unit_constant_ownership(&sources, &inputs, &names, &environment, &typed)\n        .expect(\"ownership\")\n        .validate()\n        .expect(\"validated ownership\");\n    let mut entries = names\n        .names()\n        .index()\n        .declarations()\n        .iter()\n        .filter(|d| d.name() == \"entry\");\n    let entry = entries.next().expect(\"entry\").id();\n    assert!(entries.next().is_none(), \"unique entry\");\n    let setup_ns = start.elapsed().as_nanos();\n    let operation = Instant::now();\n    match mode.as_str() {\n        \"setup\" => {}\n        \"index\" => {\n            black_box(index_compilation_unit(&sources, &inputs).expect(\"calibration index\"));\n        }\n        \"lower\" => {\n            black_box(\n                lower_constant_unit_with_entry(\n                    &sources,\n                    &inputs,\n                    &names,\n                    &environment,\n                    &typed,\n                    &owned,\n                    entry,\n                )\n                .expect(\"legacy lower\"),\n            );\n        }\n        \"emit\" => {\n            let output = PathBuf::from(env::var_os(\"P3A_OUTPUT\").expect(\"explicit output\"));\n            crate::emit_native_constant_unit_object(&sources, &inputs, &names, &environment,\n                &typed, &owned, entry, &output).expect(\"legacy emit\");\n        }\n        \"factory\" | \"viewlower\" | \"viewemit\" => {\n            let unit = lang_frontend::ownership_checking::const_owned_compilation_unit_view(\n                &sources, &inputs, &names, &environment, &typed, &owned).expect(\"factory\");\n            if mode == \"viewlower\" {\n                black_box(crate::ssa::unit_lower::constant::lower_const_owned_unit_with_entry(\n                    &unit, entry).expect(\"view lower\"));\n            } else if mode == \"viewemit\" {\n                let output = PathBuf::from(env::var_os(\"P3A_OUTPUT\").expect(\"explicit output\"));\n                crate::emit_native_const_owned_unit_object(&unit, entry, &output).expect(\"view emit\");\n            }\n            black_box(unit);\n        }\n        _ => unreachable!(),\n    }\n    let operation_ns = operation.elapsed().as_nanos();\n    black_box((\n        &sources,\n        &inputs,\n        &names,\n        &environment,\n        &typed,\n        &owned,\n        &index,\n    ));\n    println!(\n        \"P3A_METRIC mode={mode} files={} setup_ns={setup_ns} operation_ns={operation_ns}\",\n        inputs.len()\n    );\n}\n",
+      "worktree_clean_after_probe_removal": true,
+      "attachment": "Append exactly \"\\n#[cfg(test)]\\nmod const_index_probe;\\n\" to crates/lang-codegen/src/lib.rs; place probe_source in crates/lang-codegen/src/const_index_probe.rs."
+    }
+  },
+  "toolchain": {
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "host": "x86_64-unknown-linux-gnu",
+    "rust_llvm": "22.1.2",
+    "native_llvm_clang": "21.1.8",
+    "profile": "test opt0 debug0, -C instrument-coverage, incremental=0, jobs=2"
+  },
+  "execution": {
+    "before_exact_processes": 8,
+    "after_exact_processes": 14,
+    "passed_per_process": 1,
+    "before_filtered_per_process": 739,
+    "after_filtered_per_process": 748,
+    "failed": 0,
+    "ignored": 0,
+    "scope": "Measurement probe only; lib tests filtered, not full suite evidence."
+  },
+  "objects": {
+    "small": [
+      {
+        "mode": "before-emit",
+        "sha256": "0706a3d44a61c2720455b1ccb165cf01c617745596bca455d197a073fe8ed3fe",
+        "bytes": 2584,
+        "exit": 0,
+        "stdout": "const-0-界\n",
+        "stderr": ""
+      },
+      {
+        "mode": "after-emit",
+        "sha256": "0706a3d44a61c2720455b1ccb165cf01c617745596bca455d197a073fe8ed3fe",
+        "bytes": 2584,
+        "exit": 0,
+        "stdout": "const-0-界\n",
+        "stderr": ""
+      },
+      {
+        "mode": "after-viewemit",
+        "sha256": "0706a3d44a61c2720455b1ccb165cf01c617745596bca455d197a073fe8ed3fe",
+        "bytes": 2584,
+        "exit": 0,
+        "stdout": "const-0-界\n",
+        "stderr": ""
+      }
+    ],
+    "representative": [
+      {
+        "mode": "before-emit",
+        "sha256": "a65fdb95a774517ffde5e9848738f478f506c3ac16475deef75c1b70240a6456",
+        "bytes": 18400,
+        "exit": 0,
+        "stdout": "const-0-界\nconst-1-界\nconst-2-界\nconst-3-界\nconst-4-界\nconst-5-界\nconst-6-界\nconst-7-界\nconst-8-界\nconst-9-界\nconst-10-界\nconst-11-界\nconst-12-界\nconst-13-界\nconst-14-界\nconst-15-界\nconst-16-界\nconst-17-界\nconst-18-界\nconst-19-界\nconst-20-界\nconst-21-界\nconst-22-界\nconst-23-界\nconst-24-界\nconst-25-界\nconst-26-界\nconst-27-界\nconst-28-界\nconst-29-界\nconst-30-界\n",
+        "stderr": ""
+      },
+      {
+        "mode": "after-emit",
+        "sha256": "a65fdb95a774517ffde5e9848738f478f506c3ac16475deef75c1b70240a6456",
+        "bytes": 18400,
+        "exit": 0,
+        "stdout": "const-0-界\nconst-1-界\nconst-2-界\nconst-3-界\nconst-4-界\nconst-5-界\nconst-6-界\nconst-7-界\nconst-8-界\nconst-9-界\nconst-10-界\nconst-11-界\nconst-12-界\nconst-13-界\nconst-14-界\nconst-15-界\nconst-16-界\nconst-17-界\nconst-18-界\nconst-19-界\nconst-20-界\nconst-21-界\nconst-22-界\nconst-23-界\nconst-24-界\nconst-25-界\nconst-26-界\nconst-27-界\nconst-28-界\nconst-29-界\nconst-30-界\n",
+        "stderr": ""
+      },
+      {
+        "mode": "after-viewemit",
+        "sha256": "a65fdb95a774517ffde5e9848738f478f506c3ac16475deef75c1b70240a6456",
+        "bytes": 18400,
+        "exit": 0,
+        "stdout": "const-0-界\nconst-1-界\nconst-2-界\nconst-3-界\nconst-4-界\nconst-5-界\nconst-6-界\nconst-7-界\nconst-8-界\nconst-9-界\nconst-10-界\nconst-11-界\nconst-12-界\nconst-13-界\nconst-14-界\nconst-15-界\nconst-16-界\nconst-17-界\nconst-18-界\nconst-19-界\nconst-20-界\nconst-21-界\nconst-22-界\nconst-23-界\nconst-24-界\nconst-25-界\nconst-26-界\nconst-27-界\nconst-28-界\nconst-29-界\nconst-30-界\n",
+        "stderr": ""
+      }
+    ]
+  },
+  "failure_history": [
+    "Initial before-small setup fixture declared app under logical entry/main.ko; L0146 rejected at names gate. Corrected declared package to entry before freezing successful two-fixture measurement; failed profile/stdout/stderr retained separately.",
+    "New native oracle initially assumed same-map byte-identical reparsing is incompatible; old production compatibility accepted it. Preserved behavior as success case and retained fresh names/typed rejection; no production fix."
+  ],
+  "reproduction": {
+    "run_counts_sh": "#!/usr/bin/env bash\nset -euo pipefail\nART=$(cd \"$(dirname \"$0\")\" && pwd)\nsource \"$ART/../rust-dev/activate.sh\"\nT=\"$ART/../rust-dev/llvm-tools-rust-1.96/llvm-tools-preview/lib/rustlib/x86_64-unknown-linux-gnu/bin\"\ncohort=${1:?cohort}\nBIN=$(python3 - \"$ART/$cohort-build.jsonl\" <<'PY'\nimport json,sys\nxs=[j['executable'] for l in open(sys.argv[1]) if (j:=json.loads(l)).get('reason')=='compiler-artifact' and j.get('target',{}).get('name')=='lang_codegen' and j.get('executable')]\nassert len(xs)==1,xs\nprint(xs[0])\nPY\n)\ncp \"$BIN\" \"$ART/bin/$cohort\"\n\"$T/llvm-nm\" --defined-only --format=posix \"$BIN\" > \"$ART/$cohort-mangled.txt\"\n\"$T/llvm-nm\" --defined-only --format=posix --demangle \"$BIN\" > \"$ART/$cohort-demangled.txt\"\nmodes='setup index lower emit'\nif test \"$cohort\" = after; then modes='setup index lower emit factory viewlower viewemit'; fi\nfor fixture in small representative; do\n for mode in $modes; do\n  name=\"$cohort-$fixture-$mode\"\n  test ! -e \"$ART/profiles/$name.profraw\"\n  LLVM_PROFILE_FILE=\"$ART/profiles/$name.profraw\" P3A_FIXTURE=\"$ART/fixtures/$fixture\" P3A_MODE=\"$mode\" P3A_OUTPUT=\"$ART/objects/$fixture-$cohort-$mode.o\" \"$BIN\" const_index_probe::const_index_probe --exact --nocapture > \"$ART/profiles/$name.stdout\" 2> \"$ART/profiles/$name.stderr\"\n  \"$T/llvm-profdata\" merge -sparse \"$ART/profiles/$name.profraw\" -o \"$ART/profiles/$name.profdata\"\n  \"$T/llvm-cov\" export \"$BIN\" -instr-profile=\"$ART/profiles/$name.profdata\" > \"$ART/profiles/$name.json\"\n done\ndone\n",
+    "extract_counts_py": "from pathlib import Path\nimport json,hashlib,sys\nA=Path(__file__).resolve().parent\nexact={'index_entry':('lang_frontend::name_resolution::compilation_unit::index::index_compilation_unit','index.rs'), 'index_constructor':('<lang_frontend::name_resolution::compilation_unit::model::CompilationUnitIndex>::new','model.rs')}\ndef nm(p): return [v for l in p.read_text().splitlines() if len(v:=l.rsplit(' ',3))==4]\nresult={}\nfor cohort in sys.argv[1:]:\n raw=nm(A/f'{cohort}-mangled.txt'); dem=nm(A/f'{cohort}-demangled.txt'); selected={}\n for label,(name,file) in exact.items():\n  ds=[r for r in dem if r[0]==name]; assert len(ds)==1,(label,ds)\n  rs=[r for r in raw if r[1:]==ds[0][1:]]; assert len(rs)==1,(label,rs)\n  selected[label]={'demangled':name,'mangled':rs[0][0],'type':rs[0][1],'address':rs[0][2],'size':rs[0][3],'source_file':file}\n fixtures={}; modes=['setup','index','lower','emit']+(['factory','viewlower','viewemit'] if cohort=='after' else [])\n for fixture in ['small','representative']:\n  counts={}\n  for mode in modes:\n   data=json.loads((A/'profiles'/f'{cohort}-{fixture}-{mode}.json').read_text()); fs=[f for d in data['data'] for f in d['functions']]; counts[mode]={}\n   for label,ident in selected.items():\n    matches=[f for f in fs if f['name']==ident['mangled']]; assert len(matches)==1\n    f=matches[0]; region=f['regions'][0]\n    assert f['filenames'][region[5]].endswith('/name_resolution/compilation_unit/'+ident['source_file'])\n    assert region[4]==f['count'];ident.setdefault('entry_region',region[:4]); counts[mode][label]=f['count']\n   assert len(set(counts[mode].values()))==1\n   out=(A/'profiles'/f'{cohort}-{fixture}-{mode}.stdout').read_text();assert '1 passed; 0 failed; 0 ignored;' in out\n  delta={m:{k:counts[m][k]-counts['factory' if m.startswith('view') else 'setup'][k] for k in selected} for m in modes if m!='setup'}\n  assert set(delta['index'].values())=={1}\n  fixtures[fixture]={'counts':counts,'delta':delta}\n result[cohort]={'symbols':selected,'fixtures':fixtures,'binary_sha256':hashlib.sha256((A/'bin'/cohort).read_bytes()).hexdigest()}\nresult['fixtures']={d.name:[{'path':p,'sha256':hashlib.sha256((d/p).read_bytes()).hexdigest(),'bytes':(d/p).stat().st_size} for p in (d/'manifest.txt').read_text().splitlines()] for d in (A/'fixtures').iterdir()}\n(A/'index-counts.json').write_text(json.dumps(result,indent=2)+'\\n')\nprint(json.dumps({c:{f:x['delta'] for f,x in v['fixtures'].items()} for c,v in result.items() if c!='fixtures'},indent=2))\n",
+    "build": "source rust-dev/activate.sh; LLVM_PROFILE_FILE=<artifact>/build-profiles/<cohort>-%p-%m.profraw RUSTFLAGS=\"-C instrument-coverage\" CARGO_PROFILE_TEST_DEBUG=0 CARGO_BUILD_JOBS=2 CARGO_TARGET_DIR=<isolated-coverage-target> cargo test --manifest-path <worktree>/Cargo.toml --locked --offline -p lang-codegen --lib --no-run --message-format=json > <artifact>/<cohort>-build.jsonl 2> <artifact>/<cohort>-build.stderr",
+    "note": "Scripts record actual workspace root. Reproduction requires changing that root and creating fixture bytes from the manifest; profile artifacts were not committed."
+  }
+}

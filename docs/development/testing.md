@@ -55,6 +55,10 @@ LSP完整测试保留冻结 manual 链与 publications/UTF-16/raw事实差分，
 借用逃逸和raw能力边界。CLI完整测试包含旧生产捕获的单文件全输出golden，LSP完整测试
 保留旧手工链、完整publication、UTF-16 definition及legacy特有版本/发送事务边界。
 
+stage还完整选择 `const_owned_compilation_unit_view`、`const_owned_unit_view_compile_contracts`
+及 `multifile_constant_ownership` 各恰一次，无filter。codegen完整测试含
+`const_native_view_compile_contracts` 的实际公开native API正负编译对照；选择不等于执行。
+
 ## 双宿主 CI
 
 `.github/workflows/ci.yml` 配置 macOS 14 AArch64 / Ubuntu 24.04 x86_64 的 check、严格

@@ -22,7 +22,7 @@ deferred 时整体不可用。初始化器依赖、return/Abort 后读取不登�
 位置；双 source 的 11 类型互相读取与输入顺序稳定性由 driver 测试覆盖。专用产物提供稳定
 列表与按 expression 查询，字段不可外部构造；其 recovery 视图不能转换为基础 validated
 owned。表达式/控制流清理矩阵的实际证据记录于 SPEC-0226；此为 Phase 3 capability，
-unit constant native 仍未接通。
+专用 native 已消费，六借用封闭交接见[流水线](pipeline-and-workspace.md#常量-owned-unit-交接)。
 
 unit 常量的 Group 只透传值：loan、Value delivery 和 temporary drop 的 owner 统一指向
 内部实际常量读取，drop 来源 Span 同步归一；原实参 identity、调用和清理位置保留。普通

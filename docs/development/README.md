@@ -20,6 +20,7 @@
 - [P2 LSP server 测试首片](lsp-test-migration.md)：私有边界、身份映射、实际验证及未测项
 - [P2 codegen receiver 测试拆分](codegen-receiver-test-migration.md)：46项逐字保全、领域映射、定向验证与有限warm样本
 - [P2 codegen plan 测试拆分](codegen-plan-test-migration.md)：48项逐字保全、七域映射及受控compile/link与运行样本
+- [P2 unit runtime layout 职责拆分](unit-runtime-layout-migration.md)：八函数等价移动、旧门面路径、完整codegen与尺寸收紧证据
 - [P2 iteration 私有测试拆分](drop-iteration-test-migration.md)：40项映射、18域、逐项格式/路径证据及3个完整场景例外
 
 - [P2 ownership iteration integration分组](ownership-iteration-test-migration.md)：184项逐字保全、20域、同target及双平台定向接线
@@ -29,6 +30,7 @@
 - [P3a 普通 unit 交接合同基线](unit-handoff-contract-baseline.md)：六输入独立拒绝、合法clone/重排与隔离reserve计数
 - [SPEC-0250 名称前缀](../archive/specs/0250-unit-name-snapshot.md)：CLI project 首迁、同源全事实 parity 与封闭 owner 合同
 - [SPEC-0249 交接测量](owned-unit-handoff-measurement.md)：动态 native/lower/factory 次数、完整同协议样本与噪声边界
+- [const交接动态index计数](const-owned-unit-handoff-measurement.md)：SPEC-0254两固定输入的真实前后计数与产物保全
 
 具体 crate 的职责和最近测试入口由 `crates/**/AGENTS.md` 就近说明。
 
