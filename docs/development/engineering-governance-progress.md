@@ -14,7 +14,7 @@
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
 | P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留；runtime layout首片已随PR35合并且双宿主planner48/48通过；其余大integration与生产职责仍待后继 |
 | P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | PR34完成P3b四宿主纯编排；PR35完成0254 const交接有界合同，两宿主新增25/25与const ownership20/20；真实merge主干双宿主再次通过 |
-| P4 共享内核与双轨 | 0255首个有界责任本地实施中 | P3精确主干前置已过；error/String helper中立化与本地完整门禁已验，待独立最终review与精确head双宿主CI，不扩大能力或宣布P4完成 |
+| P4 共享内核与双轨 | 0255首个有界责任本地验收与独立review已过 | P3精确主干前置已过；error/String helper中立化与本地完整门禁已验，待精确head双宿主CI，不扩大能力或宣布P4完成 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
 
 ## P0：文档首片的固定基线
@@ -503,5 +503,5 @@ receiver原UnsupportedNode/unit成功差异保留，不强行合并driver。
 既有decoder逐字迁移2089bytes，错误种类/字段及原crate-private re-export路径不变；三个同形
 Some(span)构造由neutral私有helper承接，None span构造与原validation顺序保持。
 依赖真实反向导入编译后判红、恢复绿均成立；完整codegen770+2+4、workspace check、严格Clippy、
-fmt、102项policy、docs与尺寸通过；独立最终review及远端精确CI仍待。实际结果只记[0255唯一账本](../specs/active/0255-neutral-lowering-support.md)。
+fmt、102项policy、docs与尺寸通过；独立最终review已Approve，远端精确CI仍待。实际结果只记[0255唯一账本](../specs/active/0255-neutral-lowering-support.md)。
 不声称性能改善、全部P4或整体治理完成；0182、其余P2/P5与整体计划后外部审计继续保留。

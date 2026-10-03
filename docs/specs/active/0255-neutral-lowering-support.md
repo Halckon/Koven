@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0254 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无；责任迁移属于获批实现细节，不新增长期架构决策 |
-| 阻塞项 | 本地实现与门禁已验；独立最终 review 与精确 head 双宿主 CI 尚待 |
+| 阻塞项 | 本地实现、门禁与独立最终 review 已验；精确 head 双宿主 CI 尚待 |
 | 影响范围 | `lang-codegen::ssa` 私有错误与 literal helper、相关测试和事实文档 |
 | 语言语义变更 | 否 |
 
@@ -88,13 +88,13 @@ neutral support禁止adapter/planner/LLVM/model；model/types/verify及嵌套生
 | A5 完整codegen及String/Abort/native/resource旧oracle | `cargo test --locked --offline -p lang-codegen --no-fail-fast`：library770、native compile contracts2、doc4均通过，0 failed/ignored/filtered；原748身份全部保留，新增22恰为6 helper+8 entry+8 guard |
 | A6 workspace all-targets check、codegen严格Clippy、fmt | `cargo check --locked --offline --workspace --all-targets`、`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`、`cargo fmt --all -- --check`全部通过 |
 | A7 docs、全部Python policy、尺寸、diff | docs481页、`python3 -m unittest discover -s scripts/tests -v` 102项、尺寸`--base 9ac49f3`及`git diff --check`通过；额度仅收紧 |
-| A8 独立最终review、exact-head双宿主CI | 未运行；不得由基线证据替代 |
+| A8 独立最终review、exact-head双宿主CI | 本地候选 `054fda0` / tree `c85b32ed` 独立最终review Approve，无未决阻断；精确head双宿主CI未执行，不能用P3基线替代 |
 
 ## 8. 实施与交付
 
 1. 已完成独立设计Approve与P3主干前置；原helper和有界配对合同先绿
 2. 已完成最小生产迁移、same-selection绿、guard负例及可编译真实反向import红/恢复绿
-3. A5–A7已通过，事实文档已更新；独立最终review待收尾
+3. A5–A7已通过，事实文档已更新；独立最终review已Approve
 4. 0254归档及三处事实纠正随本批组合交付，不发独立文档PR；远端发布与精确CI另记
 
 本地测试/合同、生产迁移及验收文档分别提交，均标注SPEC-0255；不发布中间阶段。
@@ -114,3 +114,7 @@ decoder SHA-256：`6f1f50e49754ea4937f21f938e2abcfcec2a85f0798a936b0c6e1203b09ce
 三个旧根文件行数分别1630→1605、1282→1275、2658→2651；新增support32与decoder67行，
 测试文件174/551/628行。全仓712个手写Rust文件、48项超千历史欠账继续报告，无新增长例外。
 收益仅为依赖归属正确，不以行数或单次测试耗时宣称性能提升。
+
+独立最终审阅另发现新Architecture页EOF空行；已仅删除该空行，并对实际交付基线运行
+`git diff --check 9ac49f3 HEAD`通过。此前无参数工作区diff检查不替代已提交patch检查。
+此修订及本次验收文字更新不改Rust/工具链输入，复用已通过Rust结果，不因文档提交重复运行。
