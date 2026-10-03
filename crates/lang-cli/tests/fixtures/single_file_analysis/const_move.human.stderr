@@ -1,0 +1,2 @@
+error[L0131] source.ko:6:23-6:31: use of moved value
+  label source.ko:5:22-5:30: value was moved here

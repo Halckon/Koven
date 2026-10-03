@@ -16,3 +16,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     io_threads.join()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod single_file_oracle;

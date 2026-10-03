@@ -1,0 +1,3 @@
+const val TEXT = "界é😀"
+fun main(): Unit { println(TEXT + TEXT) }
+fun invalid(): Int = 1

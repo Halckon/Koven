@@ -1,0 +1,11 @@
+fun names(): Unit { missing
+missing_again }
+fun types(): Unit { val item: String = 1 }
+class Resource()
+fun take(own resource: Resource): Unit {}
+fun moves(own resource: Resource): Unit {
+    val first = take(resource)
+    val second = take(resource)
+}
+fun main(): Unit {}
+fun invalid(): Int = 1

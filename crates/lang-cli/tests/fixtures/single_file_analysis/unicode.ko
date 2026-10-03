@@ -1,0 +1,5 @@
+// 界é😀
+fun names(): Unit { /* 界é😀 */ missing }
+fun types(): Unit { val item: String = 1 }
+fun main(): Unit {}
+fun invalid(): Int = 1

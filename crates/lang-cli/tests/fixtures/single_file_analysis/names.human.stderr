@@ -1,0 +1,2 @@
+error[L0080] source.ko:1:21-1:28: unresolved name
+error[L0080] source.ko:2:1-2:14: unresolved name

@@ -223,3 +223,5 @@ fn receive_log(client: &Connection) -> LogMessageParams {
     assert_eq!(notification.method, LogMessage::METHOD);
     serde_json::from_value(notification.params).expect("log params")
 }
+
+mod legacy_single_file;

@@ -1,0 +1,2 @@
+error[L0018] source.ko:1:5-1:5: expected declaration name
+error[L0018] source.ko:2:5-2:5: expected declaration name

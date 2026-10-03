@@ -1,0 +1,4 @@
+error[L0131] source.ko:5:23-5:31: use of moved value
+  label source.ko:4:22-4:30: value was moved here
+error[L0131] source.ko:6:22-6:30: use of moved value
+  label source.ko:4:22-4:30: value was moved here
