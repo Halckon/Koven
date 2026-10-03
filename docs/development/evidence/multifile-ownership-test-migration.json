@@ -1,0 +1,3321 @@
+{
+  "base": "481fb844d62ea38851dc6ccdfb1531e3815b3445",
+  "base_tree": "c284fa5061cbd9fae9fac90a4333dd16a86be37e",
+  "move_commit": "db1bb34acb12049b5991e6dd12c8a150515d1e01",
+  "source": "crates/lang-frontend/tests/multifile_ownership_checking.rs",
+  "source_ploc_before": 4692,
+  "source_sha256_before": "e6e91d6c27d41a78dc8c6076de07e795ef06f536e9ca43100c60b01fa4f47806",
+  "root_helpers": [
+    "parsed",
+    "validated_names",
+    "validated_types",
+    "source_unit",
+    "expression_with_text",
+    "symbol_named",
+    "diagnostic_codes"
+  ],
+  "groups": {
+    "provenance_contracts": [
+      "unit_parameter_bindings_cover_cross_file_member_and_lambda_modes",
+      "unit_ownership_rejects_mixed_analysis_and_duplicate_inputs",
+      "function_value_and_external_call_contracts_do_not_invent_source_parameters"
+    ],
+    "call_deliveries": [
+      "value_delivery_distinguishes_copy_move_and_temporary",
+      "borrowed_field_publishes_source_qualified_place_path",
+      "moved_value_use_reports_cross_file_parameter_and_clears_facts",
+      "moving_borrowed_binding_to_cross_file_value_parameter_is_rejected",
+      "shared_and_exclusive_alias_in_one_cross_file_call_conflict",
+      "shared_loan_allows_copyable_value_delivery_from_same_place",
+      "immutable_inout_reports_ampersand_and_clears_facts",
+      "borrowed_move_wins_over_earlier_shared_loan_conflict"
+    ],
+    "receivers": [
+      "member_receiver_is_checked_as_the_zeroth_call_operand",
+      "stateless_object_borrow_receiver_has_no_runtime_drop_fact",
+      "member_body_receiver_capability_controls_this_and_implicit_calls",
+      "implicit_value_receiver_remains_pending_until_call_commit",
+      "static_self_value_receiver_publishes_conditional_drop_without_unconditional_drop",
+      "static_self_value_calls_publish_conditional_receiver_deliveries",
+      "ownership_error_clears_conditional_receiver_delivery_facts_atomically",
+      "conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers",
+      "ownership_error_clears_conditional_receiver_drop_facts_atomically",
+      "receiver_loan_precedes_arguments_and_conflicts_with_overlapping_places",
+      "borrow_only_delegation_publishes_outer_and_field_ownership_plan",
+      "member_body_rejects_receiver_capability_escalation_and_use_after_move",
+      "explicit_this_field_cannot_supply_inout_from_borrow_or_value_receiver"
+    ],
+    "assignment_rollback": [
+      "member_assignment_requires_a_var_field_and_inout_receiver",
+      "rejected_assignment_rolls_back_rhs_move_and_executable_facts",
+      "divergent_rhs_still_checks_static_field_mutability"
+    ],
+    "capture_escape": [
+      "cross_thread_environments",
+      "implicit_member_call_in_lambda_captures_this_in_unit_product",
+      "static_self_value_call_cannot_move_a_shared_this_capture",
+      "conditional_expression_body_rejects_borrowed_closure_escape",
+      "elvis_expression_body_rejects_borrowed_closure_escape",
+      "shared_this_capture_rejects_moved_outer_and_move_from_capture",
+      "failed_this_capture_rolls_back_earlier_symbol_capture_state",
+      "failed_lambda_body_rolls_back_successful_capture_state",
+      "lambda_body_executes_ordinary_call_ownership_dataflow",
+      "closure_capture_inputs_use_unit_identity_types_and_stable_transferability",
+      "ownership_diagnostics_clear_capture_and_executable_facts_atomically",
+      "closure_formation_matches_single_file_move_borrow_and_immutability_rules",
+      "shared_capture_loan_ends_at_last_closure_use_and_still_blocks_earlier_move",
+      "borrowed_closure_cannot_escape_through_return_value_delivery_constructor_or_field",
+      "compiler_bound_cross_thread_delivery_uses_unit_closure_transferability"
+    ],
+    "container_places": [
+      "element_and_rc_payload_borrows_publish_owner_qualified_places",
+      "local_var_and_temporary_rc_payload_are_valid_loan_targets",
+      "move_only_container_element_value_delivery_reports_l0136",
+      "element_move_conflict_precedes_container_element_move_diagnostic",
+      "temporary_rc_payload_publishes_borrow_effect_and_temporary_loan",
+      "rc_move_errors_clear_all_executable_unit_facts"
+    ],
+    "constructions": [
+      "source_constructions_publish_ordered_deliveries_root_kinds_and_stable_identity",
+      "construction_use_after_move_labels_cross_file_field_and_clears_plans",
+      "construction_move_conflicts_with_earlier_call_loan_and_labels_cross_file_field",
+      "construction_rejects_move_only_container_element_with_field_label",
+      "nothing_operand_publishes_only_the_completed_construction_prefix",
+      "container_constructions_publish_value_deliveries_borrow_loans_and_stable_identity",
+      "runtime_container_nothing_operands_keep_expected_contracts_and_stop_effects",
+      "list_form_move_reports_reuse_and_clears_executable_facts"
+    ],
+    "drop_plans": [
+      "unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges",
+      "validated_unit_ownership_rejects_deferred_element_field_drop_plans"
+    ],
+    "lambda_drop": [
+      "lambda_tail_consumes_result_and_drops_only_body_owned_inputs",
+      "lambda_value_parameters_publish_entry_read_and_transfer_drop_facts"
+    ],
+    "control_flow": [
+      "when_entry_bodies_do_not_observe_later_condition_moves",
+      "move_only_control_results_transfer_branch_owners_and_drop_only_inputs",
+      "consumed_control_result_updates_main_ownership_state"
+    ],
+    "non_null": [
+      "unit_non_null_assertion_consumption_and_source_restrictions",
+      "unit_non_null_assertion_plans_bind_transfer_abort_and_result_drop",
+      "unit_non_null_assertion_plans_clear_after_later_assignment_failure",
+      "unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers",
+      "unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges"
+    ],
+    "pending_lifetime": [
+      "unit_pending_borrow_owner_survives_branches_and_nested_calls",
+      "unit_pending_borrow_in_aborting_interpolation_has_no_normal_drop",
+      "conditional_pending_receiver_drop_keeps_its_order_among_argument_and_local_owners",
+      "function_value_callee_stays_owned_until_call_or_argument_exit",
+      "nested_argument_loan_ends_at_its_own_call_before_outer_inout"
+    ]
+  },
+  "mapping": [
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_parameter_bindings_cover_cross_file_member_and_lambda_modes",
+      "new_name": "provenance_contracts::unit_parameter_bindings_cover_cross_file_member_and_lambda_modes",
+      "module": "provenance_contracts",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/provenance_contracts.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_ownership_rejects_mixed_analysis_and_duplicate_inputs",
+      "new_name": "provenance_contracts::unit_ownership_rejects_mixed_analysis_and_duplicate_inputs",
+      "module": "provenance_contracts",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/provenance_contracts.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "function_value_and_external_call_contracts_do_not_invent_source_parameters",
+      "new_name": "provenance_contracts::function_value_and_external_call_contracts_do_not_invent_source_parameters",
+      "module": "provenance_contracts",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/provenance_contracts.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "value_delivery_distinguishes_copy_move_and_temporary",
+      "new_name": "call_deliveries::value_delivery_distinguishes_copy_move_and_temporary",
+      "module": "call_deliveries",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "borrowed_field_publishes_source_qualified_place_path",
+      "new_name": "call_deliveries::borrowed_field_publishes_source_qualified_place_path",
+      "module": "call_deliveries",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "moved_value_use_reports_cross_file_parameter_and_clears_facts",
+      "new_name": "call_deliveries::moved_value_use_reports_cross_file_parameter_and_clears_facts",
+      "module": "call_deliveries",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "moving_borrowed_binding_to_cross_file_value_parameter_is_rejected",
+      "new_name": "call_deliveries::moving_borrowed_binding_to_cross_file_value_parameter_is_rejected",
+      "module": "call_deliveries",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "shared_and_exclusive_alias_in_one_cross_file_call_conflict",
+      "new_name": "call_deliveries::shared_and_exclusive_alias_in_one_cross_file_call_conflict",
+      "module": "call_deliveries",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "shared_loan_allows_copyable_value_delivery_from_same_place",
+      "new_name": "call_deliveries::shared_loan_allows_copyable_value_delivery_from_same_place",
+      "module": "call_deliveries",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "immutable_inout_reports_ampersand_and_clears_facts",
+      "new_name": "call_deliveries::immutable_inout_reports_ampersand_and_clears_facts",
+      "module": "call_deliveries",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "borrowed_move_wins_over_earlier_shared_loan_conflict",
+      "new_name": "call_deliveries::borrowed_move_wins_over_earlier_shared_loan_conflict",
+      "module": "call_deliveries",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "member_receiver_is_checked_as_the_zeroth_call_operand",
+      "new_name": "receivers::member_receiver_is_checked_as_the_zeroth_call_operand",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "stateless_object_borrow_receiver_has_no_runtime_drop_fact",
+      "new_name": "receivers::stateless_object_borrow_receiver_has_no_runtime_drop_fact",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "member_body_receiver_capability_controls_this_and_implicit_calls",
+      "new_name": "receivers::member_body_receiver_capability_controls_this_and_implicit_calls",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "implicit_value_receiver_remains_pending_until_call_commit",
+      "new_name": "receivers::implicit_value_receiver_remains_pending_until_call_commit",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "static_self_value_receiver_publishes_conditional_drop_without_unconditional_drop",
+      "new_name": "receivers::static_self_value_receiver_publishes_conditional_drop_without_unconditional_drop",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "static_self_value_calls_publish_conditional_receiver_deliveries",
+      "new_name": "receivers::static_self_value_calls_publish_conditional_receiver_deliveries",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "ownership_error_clears_conditional_receiver_delivery_facts_atomically",
+      "new_name": "receivers::ownership_error_clears_conditional_receiver_delivery_facts_atomically",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers",
+      "new_name": "receivers::conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "ownership_error_clears_conditional_receiver_drop_facts_atomically",
+      "new_name": "receivers::ownership_error_clears_conditional_receiver_drop_facts_atomically",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "receiver_loan_precedes_arguments_and_conflicts_with_overlapping_places",
+      "new_name": "receivers::receiver_loan_precedes_arguments_and_conflicts_with_overlapping_places",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "borrow_only_delegation_publishes_outer_and_field_ownership_plan",
+      "new_name": "receivers::borrow_only_delegation_publishes_outer_and_field_ownership_plan",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "member_body_rejects_receiver_capability_escalation_and_use_after_move",
+      "new_name": "receivers::member_body_rejects_receiver_capability_escalation_and_use_after_move",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "explicit_this_field_cannot_supply_inout_from_borrow_or_value_receiver",
+      "new_name": "receivers::explicit_this_field_cannot_supply_inout_from_borrow_or_value_receiver",
+      "module": "receivers",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "member_assignment_requires_a_var_field_and_inout_receiver",
+      "new_name": "assignment_rollback::member_assignment_requires_a_var_field_and_inout_receiver",
+      "module": "assignment_rollback",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/assignment_rollback.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "rejected_assignment_rolls_back_rhs_move_and_executable_facts",
+      "new_name": "assignment_rollback::rejected_assignment_rolls_back_rhs_move_and_executable_facts",
+      "module": "assignment_rollback",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/assignment_rollback.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "divergent_rhs_still_checks_static_field_mutability",
+      "new_name": "assignment_rollback::divergent_rhs_still_checks_static_field_mutability",
+      "module": "assignment_rollback",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/assignment_rollback.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "implicit_member_call_in_lambda_captures_this_in_unit_product",
+      "new_name": "capture_escape::implicit_member_call_in_lambda_captures_this_in_unit_product",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "static_self_value_call_cannot_move_a_shared_this_capture",
+      "new_name": "capture_escape::static_self_value_call_cannot_move_a_shared_this_capture",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "conditional_expression_body_rejects_borrowed_closure_escape",
+      "new_name": "capture_escape::conditional_expression_body_rejects_borrowed_closure_escape",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "elvis_expression_body_rejects_borrowed_closure_escape",
+      "new_name": "capture_escape::elvis_expression_body_rejects_borrowed_closure_escape",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "shared_this_capture_rejects_moved_outer_and_move_from_capture",
+      "new_name": "capture_escape::shared_this_capture_rejects_moved_outer_and_move_from_capture",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "failed_this_capture_rolls_back_earlier_symbol_capture_state",
+      "new_name": "capture_escape::failed_this_capture_rolls_back_earlier_symbol_capture_state",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "failed_lambda_body_rolls_back_successful_capture_state",
+      "new_name": "capture_escape::failed_lambda_body_rolls_back_successful_capture_state",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "lambda_body_executes_ordinary_call_ownership_dataflow",
+      "new_name": "capture_escape::lambda_body_executes_ordinary_call_ownership_dataflow",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "closure_capture_inputs_use_unit_identity_types_and_stable_transferability",
+      "new_name": "capture_escape::closure_capture_inputs_use_unit_identity_types_and_stable_transferability",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "ownership_diagnostics_clear_capture_and_executable_facts_atomically",
+      "new_name": "capture_escape::ownership_diagnostics_clear_capture_and_executable_facts_atomically",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "closure_formation_matches_single_file_move_borrow_and_immutability_rules",
+      "new_name": "capture_escape::closure_formation_matches_single_file_move_borrow_and_immutability_rules",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "shared_capture_loan_ends_at_last_closure_use_and_still_blocks_earlier_move",
+      "new_name": "capture_escape::shared_capture_loan_ends_at_last_closure_use_and_still_blocks_earlier_move",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "borrowed_closure_cannot_escape_through_return_value_delivery_constructor_or_field",
+      "new_name": "capture_escape::borrowed_closure_cannot_escape_through_return_value_delivery_constructor_or_field",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "compiler_bound_cross_thread_delivery_uses_unit_closure_transferability",
+      "new_name": "capture_escape::compiler_bound_cross_thread_delivery_uses_unit_closure_transferability",
+      "module": "capture_escape",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "element_and_rc_payload_borrows_publish_owner_qualified_places",
+      "new_name": "container_places::element_and_rc_payload_borrows_publish_owner_qualified_places",
+      "module": "container_places",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "local_var_and_temporary_rc_payload_are_valid_loan_targets",
+      "new_name": "container_places::local_var_and_temporary_rc_payload_are_valid_loan_targets",
+      "module": "container_places",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "move_only_container_element_value_delivery_reports_l0136",
+      "new_name": "container_places::move_only_container_element_value_delivery_reports_l0136",
+      "module": "container_places",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "element_move_conflict_precedes_container_element_move_diagnostic",
+      "new_name": "container_places::element_move_conflict_precedes_container_element_move_diagnostic",
+      "module": "container_places",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "temporary_rc_payload_publishes_borrow_effect_and_temporary_loan",
+      "new_name": "container_places::temporary_rc_payload_publishes_borrow_effect_and_temporary_loan",
+      "module": "container_places",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "rc_move_errors_clear_all_executable_unit_facts",
+      "new_name": "container_places::rc_move_errors_clear_all_executable_unit_facts",
+      "module": "container_places",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "source_constructions_publish_ordered_deliveries_root_kinds_and_stable_identity",
+      "new_name": "constructions::source_constructions_publish_ordered_deliveries_root_kinds_and_stable_identity",
+      "module": "constructions",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "construction_use_after_move_labels_cross_file_field_and_clears_plans",
+      "new_name": "constructions::construction_use_after_move_labels_cross_file_field_and_clears_plans",
+      "module": "constructions",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "construction_move_conflicts_with_earlier_call_loan_and_labels_cross_file_field",
+      "new_name": "constructions::construction_move_conflicts_with_earlier_call_loan_and_labels_cross_file_field",
+      "module": "constructions",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "construction_rejects_move_only_container_element_with_field_label",
+      "new_name": "constructions::construction_rejects_move_only_container_element_with_field_label",
+      "module": "constructions",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "nothing_operand_publishes_only_the_completed_construction_prefix",
+      "new_name": "constructions::nothing_operand_publishes_only_the_completed_construction_prefix",
+      "module": "constructions",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "container_constructions_publish_value_deliveries_borrow_loans_and_stable_identity",
+      "new_name": "constructions::container_constructions_publish_value_deliveries_borrow_loans_and_stable_identity",
+      "module": "constructions",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "runtime_container_nothing_operands_keep_expected_contracts_and_stop_effects",
+      "new_name": "constructions::runtime_container_nothing_operands_keep_expected_contracts_and_stop_effects",
+      "module": "constructions",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "list_form_move_reports_reuse_and_clears_executable_facts",
+      "new_name": "constructions::list_form_move_reports_reuse_and_clears_executable_facts",
+      "module": "constructions",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges",
+      "new_name": "drop_plans::unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges",
+      "module": "drop_plans",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/drop_plans.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "validated_unit_ownership_rejects_deferred_element_field_drop_plans",
+      "new_name": "drop_plans::validated_unit_ownership_rejects_deferred_element_field_drop_plans",
+      "module": "drop_plans",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/drop_plans.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "lambda_tail_consumes_result_and_drops_only_body_owned_inputs",
+      "new_name": "lambda_drop::lambda_tail_consumes_result_and_drops_only_body_owned_inputs",
+      "module": "lambda_drop",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/lambda_drop.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "lambda_value_parameters_publish_entry_read_and_transfer_drop_facts",
+      "new_name": "lambda_drop::lambda_value_parameters_publish_entry_read_and_transfer_drop_facts",
+      "module": "lambda_drop",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/lambda_drop.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "when_entry_bodies_do_not_observe_later_condition_moves",
+      "new_name": "control_flow::when_entry_bodies_do_not_observe_later_condition_moves",
+      "module": "control_flow",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/control_flow.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "move_only_control_results_transfer_branch_owners_and_drop_only_inputs",
+      "new_name": "control_flow::move_only_control_results_transfer_branch_owners_and_drop_only_inputs",
+      "module": "control_flow",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/control_flow.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "consumed_control_result_updates_main_ownership_state",
+      "new_name": "control_flow::consumed_control_result_updates_main_ownership_state",
+      "module": "control_flow",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/control_flow.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_non_null_assertion_consumption_and_source_restrictions",
+      "new_name": "non_null::unit_non_null_assertion_consumption_and_source_restrictions",
+      "module": "non_null",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_non_null_assertion_plans_bind_transfer_abort_and_result_drop",
+      "new_name": "non_null::unit_non_null_assertion_plans_bind_transfer_abort_and_result_drop",
+      "module": "non_null",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_non_null_assertion_plans_clear_after_later_assignment_failure",
+      "new_name": "non_null::unit_non_null_assertion_plans_clear_after_later_assignment_failure",
+      "module": "non_null",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers",
+      "new_name": "non_null::unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers",
+      "module": "non_null",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges",
+      "new_name": "non_null::unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges",
+      "module": "non_null",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_pending_borrow_owner_survives_branches_and_nested_calls",
+      "new_name": "pending_lifetime::unit_pending_borrow_owner_survives_branches_and_nested_calls",
+      "module": "pending_lifetime",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "unit_pending_borrow_in_aborting_interpolation_has_no_normal_drop",
+      "new_name": "pending_lifetime::unit_pending_borrow_in_aborting_interpolation_has_no_normal_drop",
+      "module": "pending_lifetime",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "conditional_pending_receiver_drop_keeps_its_order_among_argument_and_local_owners",
+      "new_name": "pending_lifetime::conditional_pending_receiver_drop_keeps_its_order_among_argument_and_local_owners",
+      "module": "pending_lifetime",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "function_value_callee_stays_owned_until_call_or_argument_exit",
+      "new_name": "pending_lifetime::function_value_callee_stays_owned_until_call_or_argument_exit",
+      "module": "pending_lifetime",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    },
+    {
+      "package": "lang-frontend",
+      "target": "multifile_ownership_checking",
+      "kind": "test",
+      "old_name": "nested_argument_loan_ends_at_its_own_call_before_outer_inout",
+      "new_name": "pending_lifetime::nested_argument_loan_ends_at_its_own_call_before_outer_inout",
+      "module": "pending_lifetime",
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "attributes": [
+        "test"
+      ],
+      "ignored": false,
+      "platform_cfg": []
+    }
+  ],
+  "fidelity": [
+    {
+      "name": "parsed",
+      "old_start": 29,
+      "old_end": 39,
+      "new_start": 29,
+      "new_end": 39,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking.rs",
+      "original_block_sha256": "fc563ad5f0aea75bb16e11ff4468682e38b5ce0170b5b8b563c93fef5afdd195",
+      "new_block_sha256": "fc563ad5f0aea75bb16e11ff4468682e38b5ce0170b5b8b563c93fef5afdd195",
+      "test": false,
+      "literal_count": 4,
+      "literal_sha256": "296ac1378db59748db3f115d9d35ce9ac1b80bb15a3cc0fabd15bc995c493f63",
+      "assert_macros": 1
+    },
+    {
+      "name": "validated_names",
+      "old_start": 41,
+      "old_end": 51,
+      "new_start": 41,
+      "new_end": 51,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking.rs",
+      "original_block_sha256": "3e01283780d3e0e50a9c78eda9814f1180737afc01a48c284fc456f1a13c4d60",
+      "new_block_sha256": "3e01283780d3e0e50a9c78eda9814f1180737afc01a48c284fc456f1a13c4d60",
+      "test": false,
+      "literal_count": 3,
+      "literal_sha256": "b4e39b9a71c42562f4bda4b0593657e3dceba245dde1983f4763e554bf13db28",
+      "assert_macros": 0
+    },
+    {
+      "name": "validated_types",
+      "old_start": 53,
+      "old_end": 63,
+      "new_start": 53,
+      "new_end": 63,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking.rs",
+      "original_block_sha256": "a0824d0a57127fcc5e4365c53237d9e31174961919b5687155084bdcdb3a7add",
+      "new_block_sha256": "a0824d0a57127fcc5e4365c53237d9e31174961919b5687155084bdcdb3a7add",
+      "test": false,
+      "literal_count": 2,
+      "literal_sha256": "0b319c2878950fd1b6fb8131e1876096e32dfcba316ccb1d8a7dfd664546df69",
+      "assert_macros": 0
+    },
+    {
+      "name": "source_unit",
+      "old_start": 65,
+      "old_end": 74,
+      "new_start": 65,
+      "new_end": 74,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking.rs",
+      "original_block_sha256": "8b13e0528e73aad53dc205d49bdb5f0c92fa188fe9de744800481a0f6004a7d4",
+      "new_block_sha256": "8b13e0528e73aad53dc205d49bdb5f0c92fa188fe9de744800481a0f6004a7d4",
+      "test": false,
+      "literal_count": 1,
+      "literal_sha256": "28164e513d7ac1d81c70fff769f476ec6f764369ca365ed0f53e6f040e05fc3b",
+      "assert_macros": 0
+    },
+    {
+      "name": "expression_with_text",
+      "old_start": 76,
+      "old_end": 88,
+      "new_start": 76,
+      "new_end": 88,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking.rs",
+      "original_block_sha256": "036765e313661ea358941dfa889932f0736faa7453a18cb546293713466855ca",
+      "new_block_sha256": "036765e313661ea358941dfa889932f0736faa7453a18cb546293713466855ca",
+      "test": false,
+      "literal_count": 1,
+      "literal_sha256": "ad8399d6f83b0953532ea99756b8168e556f768c7b5841bbcdcd93d8d0e7b899",
+      "assert_macros": 0
+    },
+    {
+      "name": "symbol_named",
+      "old_start": 90,
+      "old_end": 108,
+      "new_start": 90,
+      "new_end": 108,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking.rs",
+      "original_block_sha256": "edddc1040960a6446b5b4b26ae558785ad71db7cb016fa9ddfa3405fde4d530b",
+      "new_block_sha256": "edddc1040960a6446b5b4b26ae558785ad71db7cb016fa9ddfa3405fde4d530b",
+      "test": false,
+      "literal_count": 2,
+      "literal_sha256": "64a891bfc5b28d5bcea84d2e2384bf82fd4ed16206ee3c87c10a13f060b34e46",
+      "assert_macros": 0
+    },
+    {
+      "name": "diagnostic_codes",
+      "old_start": 110,
+      "old_end": 116,
+      "new_start": 110,
+      "new_end": 116,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking.rs",
+      "original_block_sha256": "e7b6b040319cc185449356466c0c6eb7ea2caf5bb556de54eaa0eabd17b371da",
+      "new_block_sha256": "e7b6b040319cc185449356466c0c6eb7ea2caf5bb556de54eaa0eabd17b371da",
+      "test": false,
+      "literal_count": 0,
+      "literal_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "assert_macros": 0
+    },
+    {
+      "name": "cross_thread_environments",
+      "old_start": 118,
+      "old_end": 166,
+      "new_start": 3,
+      "new_end": 51,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "445129edafc68d237379757718cd93562e6b30b6cf0c7489bd98b5085ab3d952",
+      "new_block_sha256": "445129edafc68d237379757718cd93562e6b30b6cf0c7489bd98b5085ab3d952",
+      "test": false,
+      "literal_count": 10,
+      "literal_sha256": "dae0c4d0fde9eb3a7304068e6fabef1a23ea10e21aceeaa1dae48cf13367ef73",
+      "assert_macros": 0
+    },
+    {
+      "name": "unit_parameter_bindings_cover_cross_file_member_and_lambda_modes",
+      "old_start": 168,
+      "old_end": 419,
+      "new_start": 3,
+      "new_end": 254,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/provenance_contracts.rs",
+      "original_block_sha256": "22e66362060bb2da6c722e8f4a9c34bdcc401e7566c2930353e61514fa8fcbbf",
+      "new_block_sha256": "22e66362060bb2da6c722e8f4a9c34bdcc401e7566c2930353e61514fa8fcbbf",
+      "test": true,
+      "literal_count": 55,
+      "literal_sha256": "8c35f86dfddcca4c46497dba26da92aaaafed91d93c526b33beb0ffb4ee1474e",
+      "assert_macros": 33
+    },
+    {
+      "name": "unit_ownership_rejects_mixed_analysis_and_duplicate_inputs",
+      "old_start": 421,
+      "old_end": 462,
+      "new_start": 256,
+      "new_end": 297,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/provenance_contracts.rs",
+      "original_block_sha256": "0e642d331137c57c0470ea37fb401b6f1b5f7d33df3e943658c943263bbe9bf5",
+      "new_block_sha256": "0e642d331137c57c0470ea37fb401b6f1b5f7d33df3e943658c943263bbe9bf5",
+      "test": true,
+      "literal_count": 5,
+      "literal_sha256": "ed2337c7ea5738e5a5fc0a2f18f159633c80b8ed7b6992ec66e1b85b7ea009d4",
+      "assert_macros": 3
+    },
+    {
+      "name": "function_value_and_external_call_contracts_do_not_invent_source_parameters",
+      "old_start": 464,
+      "old_end": 520,
+      "new_start": 299,
+      "new_end": 355,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/provenance_contracts.rs",
+      "original_block_sha256": "93d58aec735885007f27e13a67dc1fe73451948e656847c474daf72d5240de7d",
+      "new_block_sha256": "93d58aec735885007f27e13a67dc1fe73451948e656847c474daf72d5240de7d",
+      "test": true,
+      "literal_count": 16,
+      "literal_sha256": "cefcf45afc6eb130dd3a6f145d803b984cd69382c1db5ce2a561de6085621f77",
+      "assert_macros": 7
+    },
+    {
+      "name": "value_delivery_distinguishes_copy_move_and_temporary",
+      "old_start": 522,
+      "old_end": 565,
+      "new_start": 3,
+      "new_end": 46,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "original_block_sha256": "8e2076ebcfb12d169fcdd4e778fd3b1f460eeb2b445616b92c7caabfd005ca39",
+      "new_block_sha256": "8e2076ebcfb12d169fcdd4e778fd3b1f460eeb2b445616b92c7caabfd005ca39",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "52758721cf58e403a6875b5546b9fcff0598172feca205de37e6fc43d5359404",
+      "assert_macros": 3
+    },
+    {
+      "name": "member_receiver_is_checked_as_the_zeroth_call_operand",
+      "old_start": 567,
+      "old_end": 661,
+      "new_start": 3,
+      "new_end": 97,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "e3e3e53654ea9d1934127508cedd30aa0feb8d4eb6b1947880cbf2291dc1e4ce",
+      "new_block_sha256": "e3e3e53654ea9d1934127508cedd30aa0feb8d4eb6b1947880cbf2291dc1e4ce",
+      "test": true,
+      "literal_count": 17,
+      "literal_sha256": "85df208b1cf14fd8b77eab82675709fbb4b83f3324f5ed23a499d30edeb5bc2a",
+      "assert_macros": 10
+    },
+    {
+      "name": "stateless_object_borrow_receiver_has_no_runtime_drop_fact",
+      "old_start": 663,
+      "old_end": 702,
+      "new_start": 99,
+      "new_end": 138,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "5c1cb0f45d549710f2a6a798b6d00a11c9be4aee632f388549a6da6c9ce2d3b8",
+      "new_block_sha256": "5c1cb0f45d549710f2a6a798b6d00a11c9be4aee632f388549a6da6c9ce2d3b8",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "3e5d8b28737279ac33791d74351ea61d71f2ee831bb77d5d07bb9b60a5d6e2d8",
+      "assert_macros": 4
+    },
+    {
+      "name": "member_body_receiver_capability_controls_this_and_implicit_calls",
+      "old_start": 704,
+      "old_end": 755,
+      "new_start": 140,
+      "new_end": 191,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "87618f5852ad05d7a53ea236c7415df5a685ac87dd0cbee3e27f7f0bca30167c",
+      "new_block_sha256": "87618f5852ad05d7a53ea236c7415df5a685ac87dd0cbee3e27f7f0bca30167c",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "c8c08d697535229be1041deb5b09cfc43e2580363e70f2407584facf87f8a24a",
+      "assert_macros": 4
+    },
+    {
+      "name": "implicit_value_receiver_remains_pending_until_call_commit",
+      "old_start": 757,
+      "old_end": 816,
+      "new_start": 193,
+      "new_end": 252,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "f8f4dd5c07e7fd71f465a53398bbab922479bf6dd5759ab5194df7c31f75ac8e",
+      "new_block_sha256": "f8f4dd5c07e7fd71f465a53398bbab922479bf6dd5759ab5194df7c31f75ac8e",
+      "test": true,
+      "literal_count": 13,
+      "literal_sha256": "a1077adbda76b1eebae848538876486da1506d0bdf62856bd208bd711d0bd013",
+      "assert_macros": 2
+    },
+    {
+      "name": "static_self_value_receiver_publishes_conditional_drop_without_unconditional_drop",
+      "old_start": 818,
+      "old_end": 871,
+      "new_start": 254,
+      "new_end": 307,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "c9c72242215fc0b1609f6ddfd1eb0d44223478fc7092c830b65d810e90e64237",
+      "new_block_sha256": "c9c72242215fc0b1609f6ddfd1eb0d44223478fc7092c830b65d810e90e64237",
+      "test": true,
+      "literal_count": 13,
+      "literal_sha256": "b7fae18b1783fa0b1a35f2dcdfd5824f40485b8fb8a4920995a60d6733f362b9",
+      "assert_macros": 5
+    },
+    {
+      "name": "static_self_value_calls_publish_conditional_receiver_deliveries",
+      "old_start": 873,
+      "old_end": 1005,
+      "new_start": 309,
+      "new_end": 441,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "17c046bdbf11faa4ed789a7ba1c1a7a7a7021dbf01ea766bd8fa0d72e0cf49bb",
+      "new_block_sha256": "17c046bdbf11faa4ed789a7ba1c1a7a7a7021dbf01ea766bd8fa0d72e0cf49bb",
+      "test": true,
+      "literal_count": 23,
+      "literal_sha256": "ce09f05d50c6497b627f8bfeb00d178698685dce25cbba3b11c373813d9919f8",
+      "assert_macros": 16
+    },
+    {
+      "name": "ownership_error_clears_conditional_receiver_delivery_facts_atomically",
+      "old_start": 1007,
+      "old_end": 1034,
+      "new_start": 443,
+      "new_end": 470,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "9ce4d25b45383d59ed0869d195f47ac30222d6af3163c93572e66328c0fe163d",
+      "new_block_sha256": "9ce4d25b45383d59ed0869d195f47ac30222d6af3163c93572e66328c0fe163d",
+      "test": true,
+      "literal_count": 6,
+      "literal_sha256": "06e2a4e468af06020a167964fe6bdb1d32e3dd49f278c4f9dbdb342267e6d59f",
+      "assert_macros": 3
+    },
+    {
+      "name": "conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers",
+      "old_start": 1036,
+      "old_end": 1071,
+      "new_start": 472,
+      "new_end": 507,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "e8b687c0c9359f3f671c578601b5baeed6d751f6ab8e3fbe597b7f35a3cb16d3",
+      "new_block_sha256": "e8b687c0c9359f3f671c578601b5baeed6d751f6ab8e3fbe597b7f35a3cb16d3",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "8f1fc1bfa1e17740851fca5cea13f380462c809e18dd4b2a8419d68ebab943c1",
+      "assert_macros": 3
+    },
+    {
+      "name": "ownership_error_clears_conditional_receiver_drop_facts_atomically",
+      "old_start": 1073,
+      "old_end": 1096,
+      "new_start": 509,
+      "new_end": 532,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "8e71f2916157d6ea80e1378ef65f4d162af84bec46669d45bbf925352437c35c",
+      "new_block_sha256": "8e71f2916157d6ea80e1378ef65f4d162af84bec46669d45bbf925352437c35c",
+      "test": true,
+      "literal_count": 6,
+      "literal_sha256": "4b403b6668b3d8b008a74d739aa779aad385418760e475d764dd15d9df7fc9b8",
+      "assert_macros": 2
+    },
+    {
+      "name": "receiver_loan_precedes_arguments_and_conflicts_with_overlapping_places",
+      "old_start": 1098,
+      "old_end": 1123,
+      "new_start": 534,
+      "new_end": 559,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "7972a1addde90b4455ecaaffd47d38054bd6b1ecff315f428c014937fc01aa72",
+      "new_block_sha256": "7972a1addde90b4455ecaaffd47d38054bd6b1ecff315f428c014937fc01aa72",
+      "test": true,
+      "literal_count": 7,
+      "literal_sha256": "b174fb630ba0ea4cad1a72c8275c03d290921e94dbdb0296400a777b9007ac71",
+      "assert_macros": 4
+    },
+    {
+      "name": "borrow_only_delegation_publishes_outer_and_field_ownership_plan",
+      "old_start": 1125,
+      "old_end": 1155,
+      "new_start": 561,
+      "new_end": 591,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "970949b8996c1b03297f877b14102dec9a3a9d255ba6d7271e454fbc70b0cce8",
+      "new_block_sha256": "970949b8996c1b03297f877b14102dec9a3a9d255ba6d7271e454fbc70b0cce8",
+      "test": true,
+      "literal_count": 7,
+      "literal_sha256": "ca222404b11360a613359e5790ffe43109642edfdfb97452c8f51b2923d730e9",
+      "assert_macros": 6
+    },
+    {
+      "name": "member_assignment_requires_a_var_field_and_inout_receiver",
+      "old_start": 1157,
+      "old_end": 1188,
+      "new_start": 3,
+      "new_end": 34,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/assignment_rollback.rs",
+      "original_block_sha256": "740cb42c748210ae64c5736a0e2bc609728941587d96112eb036720ce45a0170",
+      "new_block_sha256": "740cb42c748210ae64c5736a0e2bc609728941587d96112eb036720ce45a0170",
+      "test": true,
+      "literal_count": 15,
+      "literal_sha256": "4c6f6a2fa2d8cb16552a4625ce9b14153dbbea0c64c42e57ac23cb544993579e",
+      "assert_macros": 3
+    },
+    {
+      "name": "rejected_assignment_rolls_back_rhs_move_and_executable_facts",
+      "old_start": 1190,
+      "old_end": 1219,
+      "new_start": 36,
+      "new_end": 65,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/assignment_rollback.rs",
+      "original_block_sha256": "f87e06f34e5dcc406ac07471bdf5821e375f0d6d2fb1c14598f2f9c2ea34b89c",
+      "new_block_sha256": "f87e06f34e5dcc406ac07471bdf5821e375f0d6d2fb1c14598f2f9c2ea34b89c",
+      "test": true,
+      "literal_count": 6,
+      "literal_sha256": "ae72c19e8e61e590ded8655056e60bc4c6d5bc540aef7d907beb1083ce6be9bf",
+      "assert_macros": 6
+    },
+    {
+      "name": "divergent_rhs_still_checks_static_field_mutability",
+      "old_start": 1221,
+      "old_end": 1254,
+      "new_start": 67,
+      "new_end": 100,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/assignment_rollback.rs",
+      "original_block_sha256": "92d3a42ccb41b5c8ecd47c70fc37d95f6cf5e2541acf277c9e45704c75bdd36c",
+      "new_block_sha256": "92d3a42ccb41b5c8ecd47c70fc37d95f6cf5e2541acf277c9e45704c75bdd36c",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "58b320ba5a781dd9b15091442018a5b2eb8b7e2589a48c8d53f40146372c684c",
+      "assert_macros": 1
+    },
+    {
+      "name": "member_body_rejects_receiver_capability_escalation_and_use_after_move",
+      "old_start": 1256,
+      "old_end": 1287,
+      "new_start": 593,
+      "new_end": 624,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "0b6367b81423ff8098391e66133ba63e5a7fb9e26d09d8f25b98d40610335456",
+      "new_block_sha256": "0b6367b81423ff8098391e66133ba63e5a7fb9e26d09d8f25b98d40610335456",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "2ba982a7343f84aee9404b71796f8755f8f23bc4a0f0dcf20da1b146ea899323",
+      "assert_macros": 2
+    },
+    {
+      "name": "explicit_this_field_cannot_supply_inout_from_borrow_or_value_receiver",
+      "old_start": 1289,
+      "old_end": 1310,
+      "new_start": 626,
+      "new_end": 647,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs",
+      "original_block_sha256": "003c060aafdb3acfbfafa633fbddb80c8351b16007d2d79d685188b8690f3d81",
+      "new_block_sha256": "003c060aafdb3acfbfafa633fbddb80c8351b16007d2d79d685188b8690f3d81",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "0c18189fd468e6989e46d1404ae176e274053d8fdd1f7cb3227f4fcd1eb17a85",
+      "assert_macros": 1
+    },
+    {
+      "name": "implicit_member_call_in_lambda_captures_this_in_unit_product",
+      "old_start": 1312,
+      "old_end": 1381,
+      "new_start": 53,
+      "new_end": 122,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "5d35204d64af578013efb64f14e790fdd3dfecfead51821553bd02c8dfdd337b",
+      "new_block_sha256": "5d35204d64af578013efb64f14e790fdd3dfecfead51821553bd02c8dfdd337b",
+      "test": true,
+      "literal_count": 18,
+      "literal_sha256": "2b4bc4b3061ee0904c570d502c3571f89556101b3cabb99a9d107bc0faebdcf2",
+      "assert_macros": 4
+    },
+    {
+      "name": "static_self_value_call_cannot_move_a_shared_this_capture",
+      "old_start": 1383,
+      "old_end": 1400,
+      "new_start": 124,
+      "new_end": 141,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "d13a29bfc0a299aef9b3a010c54f6a23dbcc5d3ed62c61400c02bccfcb5c5f9d",
+      "new_block_sha256": "d13a29bfc0a299aef9b3a010c54f6a23dbcc5d3ed62c61400c02bccfcb5c5f9d",
+      "test": true,
+      "literal_count": 6,
+      "literal_sha256": "6b24f476e7b71cfe673b2a27c000329ae87047ac68456206ade0828d591de121",
+      "assert_macros": 2
+    },
+    {
+      "name": "conditional_expression_body_rejects_borrowed_closure_escape",
+      "old_start": 1402,
+      "old_end": 1422,
+      "new_start": 143,
+      "new_end": 163,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "b80a0493303af47a10c7952628b9411fc6905404fb237c615a51b94f73c181f3",
+      "new_block_sha256": "b80a0493303af47a10c7952628b9411fc6905404fb237c615a51b94f73c181f3",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "ae3245d06837eb5a8e1adb5ed004ae87e49caf6051578626ea1bc611cbc20d86",
+      "assert_macros": 1
+    },
+    {
+      "name": "elvis_expression_body_rejects_borrowed_closure_escape",
+      "old_start": 1424,
+      "old_end": 1440,
+      "new_start": 165,
+      "new_end": 181,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "baef970832b88d179ea7172027052c5f25af0e54e0007a50438cb252ff369681",
+      "new_block_sha256": "baef970832b88d179ea7172027052c5f25af0e54e0007a50438cb252ff369681",
+      "test": true,
+      "literal_count": 6,
+      "literal_sha256": "f9e70017a37efdeeb9b6c71ab9ecba46fa9c2e6569b861a01ddcd5c8e6614842",
+      "assert_macros": 1
+    },
+    {
+      "name": "shared_this_capture_rejects_moved_outer_and_move_from_capture",
+      "old_start": 1442,
+      "old_end": 1469,
+      "new_start": 183,
+      "new_end": 210,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "92c2fde2673c008a6f7c889c9f2690f5cae7bb5102c82b677e0617aabec90a8f",
+      "new_block_sha256": "92c2fde2673c008a6f7c889c9f2690f5cae7bb5102c82b677e0617aabec90a8f",
+      "test": true,
+      "literal_count": 8,
+      "literal_sha256": "2669dbabf5c6d92eedb132e57d66e38ef2ac65ba8923086f339875c284156b4f",
+      "assert_macros": 5
+    },
+    {
+      "name": "failed_this_capture_rolls_back_earlier_symbol_capture_state",
+      "old_start": 1471,
+      "old_end": 1504,
+      "new_start": 212,
+      "new_end": 245,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "67758cfd58750b7d25c3c692e7da0dd1b413249f4287183e24aede29ec5cfe85",
+      "new_block_sha256": "67758cfd58750b7d25c3c692e7da0dd1b413249f4287183e24aede29ec5cfe85",
+      "test": true,
+      "literal_count": 6,
+      "literal_sha256": "359717fbe949efbc1cbbe88e5c7b8bb245b3c1f02388f52ab55345aca439de87",
+      "assert_macros": 6
+    },
+    {
+      "name": "failed_lambda_body_rolls_back_successful_capture_state",
+      "old_start": 1506,
+      "old_end": 1533,
+      "new_start": 247,
+      "new_end": 274,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "9ded3947808200c1390aa20c9b188e433eec8bf4d738c3ffa5d06b3dccd85e06",
+      "new_block_sha256": "9ded3947808200c1390aa20c9b188e433eec8bf4d738c3ffa5d06b3dccd85e06",
+      "test": true,
+      "literal_count": 6,
+      "literal_sha256": "310bb2960386512916651b4f409c2fda650318ec92fd798f4b24aa14a95eacdd",
+      "assert_macros": 6
+    },
+    {
+      "name": "borrowed_field_publishes_source_qualified_place_path",
+      "old_start": 1535,
+      "old_end": 1585,
+      "new_start": 48,
+      "new_end": 98,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "original_block_sha256": "6c9b19d24ebb44d7186ff1836402fbe2a8b05c1bb227271248378f4b4af8ba47",
+      "new_block_sha256": "6c9b19d24ebb44d7186ff1836402fbe2a8b05c1bb227271248378f4b4af8ba47",
+      "test": true,
+      "literal_count": 12,
+      "literal_sha256": "0d03c05c33c3981743413fcd211d606aaa6fadf27a75cd2065385d54d1ed1405",
+      "assert_macros": 6
+    },
+    {
+      "name": "moved_value_use_reports_cross_file_parameter_and_clears_facts",
+      "old_start": 1587,
+      "old_end": 1653,
+      "new_start": 100,
+      "new_end": 166,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "original_block_sha256": "6a47f504cf93631dc00b89285271181e109edd0c80d508aa61aefbd91ac71cf5",
+      "new_block_sha256": "6a47f504cf93631dc00b89285271181e109edd0c80d508aa61aefbd91ac71cf5",
+      "test": true,
+      "literal_count": 16,
+      "literal_sha256": "1b59736f1b410c3792b6c0f924a03e96d8842abe6a33484c133c993823f7bcef",
+      "assert_macros": 6
+    },
+    {
+      "name": "moving_borrowed_binding_to_cross_file_value_parameter_is_rejected",
+      "old_start": 1655,
+      "old_end": 1691,
+      "new_start": 168,
+      "new_end": 204,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "original_block_sha256": "151838149b792b9e8c2a0cb21377f571cc9c2196e8621b6618bdc7f9bac2cca5",
+      "new_block_sha256": "151838149b792b9e8c2a0cb21377f571cc9c2196e8621b6618bdc7f9bac2cca5",
+      "test": true,
+      "literal_count": 10,
+      "literal_sha256": "81635000e6241f61f4bb76d57eee3d1d46d8a04266d0aa87243b21524f711a69",
+      "assert_macros": 5
+    },
+    {
+      "name": "shared_and_exclusive_alias_in_one_cross_file_call_conflict",
+      "old_start": 1693,
+      "old_end": 1727,
+      "new_start": 206,
+      "new_end": 240,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "original_block_sha256": "b2a363672c0aefaa85b2d6a29231af1751a85d1a45cbedb715a97fb11dabf7ac",
+      "new_block_sha256": "b2a363672c0aefaa85b2d6a29231af1751a85d1a45cbedb715a97fb11dabf7ac",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "a54d0d78f1d2c79e46a420045754171f6c16bc906466c4581792b9d4447284eb",
+      "assert_macros": 5
+    },
+    {
+      "name": "shared_loan_allows_copyable_value_delivery_from_same_place",
+      "old_start": 1729,
+      "old_end": 1760,
+      "new_start": 242,
+      "new_end": 273,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "original_block_sha256": "bfb713600b0b290cddf4a6140a69e41cc6629229a3c4bd0687d1c542322e309e",
+      "new_block_sha256": "bfb713600b0b290cddf4a6140a69e41cc6629229a3c4bd0687d1c542322e309e",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "1ae135685f7e13ad50a4875ca86bbf4ad5a22e00da3173d1cc48bfcc7f698ad5",
+      "assert_macros": 4
+    },
+    {
+      "name": "immutable_inout_reports_ampersand_and_clears_facts",
+      "old_start": 1762,
+      "old_end": 1796,
+      "new_start": 275,
+      "new_end": 309,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "original_block_sha256": "9f388f62f29d1ffe145fcac54ef6f2433be21ef91aeac9d488a37edff8e8159a",
+      "new_block_sha256": "9f388f62f29d1ffe145fcac54ef6f2433be21ef91aeac9d488a37edff8e8159a",
+      "test": true,
+      "literal_count": 12,
+      "literal_sha256": "0239ea6919717dc515ed75af2c8bd3e5a220e980143dee4265473481a8a5ca29",
+      "assert_macros": 5
+    },
+    {
+      "name": "borrowed_move_wins_over_earlier_shared_loan_conflict",
+      "old_start": 1798,
+      "old_end": 1832,
+      "new_start": 311,
+      "new_end": 345,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs",
+      "original_block_sha256": "7eadec1f1e62df98437892c4aec38bc74ba6638b68260f57cdadc4e2a5623fc5",
+      "new_block_sha256": "7eadec1f1e62df98437892c4aec38bc74ba6638b68260f57cdadc4e2a5623fc5",
+      "test": true,
+      "literal_count": 10,
+      "literal_sha256": "41ee44aad69ba27f3387891a8044d16daaf068fd480052296711b06e187ca8ae",
+      "assert_macros": 3
+    },
+    {
+      "name": "lambda_body_executes_ordinary_call_ownership_dataflow",
+      "old_start": 1834,
+      "old_end": 1870,
+      "new_start": 276,
+      "new_end": 312,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "280df7f06e6c54e5909a29c0191cb4b119ee8aa5c2587b617e5b5ebfe5ff0f53",
+      "new_block_sha256": "280df7f06e6c54e5909a29c0191cb4b119ee8aa5c2587b617e5b5ebfe5ff0f53",
+      "test": true,
+      "literal_count": 10,
+      "literal_sha256": "04e9aa05c49465e6f39c489a727621fb7a86c37570e427bd7e6daef3028e7f17",
+      "assert_macros": 4
+    },
+    {
+      "name": "element_and_rc_payload_borrows_publish_owner_qualified_places",
+      "old_start": 1872,
+      "old_end": 1949,
+      "new_start": 3,
+      "new_end": 80,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "original_block_sha256": "d8558afdd7922a9d6355376bd136bd3b081ba86c26bc18d8ab7fde3ef0137ba3",
+      "new_block_sha256": "d8558afdd7922a9d6355376bd136bd3b081ba86c26bc18d8ab7fde3ef0137ba3",
+      "test": true,
+      "literal_count": 14,
+      "literal_sha256": "03cedf79d0f985976bd2428713723a69acdeeb0a44f0e6c7e14fab595d4242aa",
+      "assert_macros": 8
+    },
+    {
+      "name": "when_entry_bodies_do_not_observe_later_condition_moves",
+      "old_start": 1951,
+      "old_end": 1991,
+      "new_start": 3,
+      "new_end": 43,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/control_flow.rs",
+      "original_block_sha256": "b1be6b4b9f99b0edbfb40399b4bc18526bef61cdaf988c21bded77802a1bdde8",
+      "new_block_sha256": "b1be6b4b9f99b0edbfb40399b4bc18526bef61cdaf988c21bded77802a1bdde8",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "12e8e5cc2354f625e48ff0af503adbeaf4ff4f99c5c7533c516eda8cf35583f8",
+      "assert_macros": 4
+    },
+    {
+      "name": "local_var_and_temporary_rc_payload_are_valid_loan_targets",
+      "old_start": 1993,
+      "old_end": 2030,
+      "new_start": 82,
+      "new_end": 119,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "original_block_sha256": "e67f1c25df0c8e6d6458a9bd738923f9bf98c617ab181d2e15fe5a1eca943cf0",
+      "new_block_sha256": "e67f1c25df0c8e6d6458a9bd738923f9bf98c617ab181d2e15fe5a1eca943cf0",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "db3621c96f2f51b2448139bac3989ce7ead9dc93b95d47dd8283d4105b83090a",
+      "assert_macros": 3
+    },
+    {
+      "name": "move_only_container_element_value_delivery_reports_l0136",
+      "old_start": 2032,
+      "old_end": 2064,
+      "new_start": 121,
+      "new_end": 153,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "original_block_sha256": "d614df4b164be78a6a3d7e7d55e71b141211fe18a3372a3fad6cf47d774f87b6",
+      "new_block_sha256": "d614df4b164be78a6a3d7e7d55e71b141211fe18a3372a3fad6cf47d774f87b6",
+      "test": true,
+      "literal_count": 10,
+      "literal_sha256": "5836cd2b4d5452a700417266a008af164d958947fa148b3908b9d5e364762ca2",
+      "assert_macros": 4
+    },
+    {
+      "name": "element_move_conflict_precedes_container_element_move_diagnostic",
+      "old_start": 2066,
+      "old_end": 2100,
+      "new_start": 155,
+      "new_end": 189,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "original_block_sha256": "83e9aaff942ddc6cec26008a635c82c2e442ece3708b1e6ae33025689d018e87",
+      "new_block_sha256": "83e9aaff942ddc6cec26008a635c82c2e442ece3708b1e6ae33025689d018e87",
+      "test": true,
+      "literal_count": 10,
+      "literal_sha256": "c390255530727be74f60ea1eb1bec71125fb91875fdd0f1d9ab1ebaf7a274ff0",
+      "assert_macros": 4
+    },
+    {
+      "name": "temporary_rc_payload_publishes_borrow_effect_and_temporary_loan",
+      "old_start": 2102,
+      "old_end": 2136,
+      "new_start": 191,
+      "new_end": 225,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "original_block_sha256": "c6cb4a40e64a7f114243ec31cd5706161dd4239635354bf20c8890bf13b22f3e",
+      "new_block_sha256": "c6cb4a40e64a7f114243ec31cd5706161dd4239635354bf20c8890bf13b22f3e",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "8b3ad2a70ad4f90ddf385a9b13d5dd9885c70943b2b509fe7db7e43df548cb2c",
+      "assert_macros": 4
+    },
+    {
+      "name": "rc_move_errors_clear_all_executable_unit_facts",
+      "old_start": 2138,
+      "old_end": 2188,
+      "new_start": 227,
+      "new_end": 277,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs",
+      "original_block_sha256": "8a295ecff4c20bb00cc4564f325f7100c4603fa4d6c77886189539b9138a23ee",
+      "new_block_sha256": "8a295ecff4c20bb00cc4564f325f7100c4603fa4d6c77886189539b9138a23ee",
+      "test": true,
+      "literal_count": 12,
+      "literal_sha256": "c2a911bb8c5dbe0cc093460840acc74336d7ed6d9bf9ae62bfb0536e97576fed",
+      "assert_macros": 5
+    },
+    {
+      "name": "source_constructions_publish_ordered_deliveries_root_kinds_and_stable_identity",
+      "old_start": 2190,
+      "old_end": 2334,
+      "new_start": 3,
+      "new_end": 147,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "original_block_sha256": "0dbf35fd1386b9b54f3ac5a556c52b554d66c320043856f99a794e97b66be102",
+      "new_block_sha256": "0dbf35fd1386b9b54f3ac5a556c52b554d66c320043856f99a794e97b66be102",
+      "test": true,
+      "literal_count": 21,
+      "literal_sha256": "e75755405fcc045fca0ae9498db47697e46ae7cac8bd5086c5a36b186bb1a503",
+      "assert_macros": 9
+    },
+    {
+      "name": "construction_use_after_move_labels_cross_file_field_and_clears_plans",
+      "old_start": 2336,
+      "old_end": 2380,
+      "new_start": 149,
+      "new_end": 193,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "original_block_sha256": "5d24df6b3b8a1f4932e5687bcce2d140a30479d453d29024fc8dba51faa25b98",
+      "new_block_sha256": "5d24df6b3b8a1f4932e5687bcce2d140a30479d453d29024fc8dba51faa25b98",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "957454e6dcb77f2bb3176fbdc34bf9f53a70812026d9a79b33d01d7f491cb8ad",
+      "assert_macros": 7
+    },
+    {
+      "name": "construction_move_conflicts_with_earlier_call_loan_and_labels_cross_file_field",
+      "old_start": 2382,
+      "old_end": 2427,
+      "new_start": 195,
+      "new_end": 240,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "original_block_sha256": "805f78bedf0f83c7a48a0e18b3a77be6b11ffe2470364065d945b04c58d0384d",
+      "new_block_sha256": "805f78bedf0f83c7a48a0e18b3a77be6b11ffe2470364065d945b04c58d0384d",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "78e4c23b1ba23835a181a863597227436c0cced9d5031cafa4239762337353c2",
+      "assert_macros": 7
+    },
+    {
+      "name": "construction_rejects_move_only_container_element_with_field_label",
+      "old_start": 2429,
+      "old_end": 2470,
+      "new_start": 242,
+      "new_end": 283,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "original_block_sha256": "9b8574e5e4eeea7dc711f71f298618d39273defd8e6b25d2a0864c3747439675",
+      "new_block_sha256": "9b8574e5e4eeea7dc711f71f298618d39273defd8e6b25d2a0864c3747439675",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "572005a26d0b744f41c10feb047f881c73ffb064905d811a6fecf0bc23ecf94f",
+      "assert_macros": 4
+    },
+    {
+      "name": "nothing_operand_publishes_only_the_completed_construction_prefix",
+      "old_start": 2472,
+      "old_end": 2516,
+      "new_start": 285,
+      "new_end": 329,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "original_block_sha256": "846c42a694e84fd1434e90f3a1d145cf6d2cfce0deff724f273ce09b5dd29e9c",
+      "new_block_sha256": "846c42a694e84fd1434e90f3a1d145cf6d2cfce0deff724f273ce09b5dd29e9c",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "a8c4482b5023930b199ead63d646d4988897f77ea0b855f9f8eea0e8c39aed58",
+      "assert_macros": 4
+    },
+    {
+      "name": "container_constructions_publish_value_deliveries_borrow_loans_and_stable_identity",
+      "old_start": 2518,
+      "old_end": 2637,
+      "new_start": 331,
+      "new_end": 450,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "original_block_sha256": "aba102e02a5701dce9135cd43f84411d451f5eddbec38e92066228ebdd885494",
+      "new_block_sha256": "aba102e02a5701dce9135cd43f84411d451f5eddbec38e92066228ebdd885494",
+      "test": true,
+      "literal_count": 14,
+      "literal_sha256": "33332543b727e2f11cc07abfaab868c3635fbd856e45b520b7f87752d65bba6f",
+      "assert_macros": 11
+    },
+    {
+      "name": "runtime_container_nothing_operands_keep_expected_contracts_and_stop_effects",
+      "old_start": 2639,
+      "old_end": 2724,
+      "new_start": 452,
+      "new_end": 537,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "original_block_sha256": "26eb623d3a3f6c443834824c6eefa28ef01439ece3b0ff6d07aaccdc3c029d65",
+      "new_block_sha256": "26eb623d3a3f6c443834824c6eefa28ef01439ece3b0ff6d07aaccdc3c029d65",
+      "test": true,
+      "literal_count": 12,
+      "literal_sha256": "103846f1ef555b24f624bc59552abbf87816e9b866689e0186b134e7f41be7bc",
+      "assert_macros": 9
+    },
+    {
+      "name": "list_form_move_reports_reuse_and_clears_executable_facts",
+      "old_start": 2726,
+      "old_end": 2764,
+      "new_start": 539,
+      "new_end": 577,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs",
+      "original_block_sha256": "ccf8cd523d64d91620528125d451453ae1fb880631c1fd30201683adcdb906f1",
+      "new_block_sha256": "ccf8cd523d64d91620528125d451453ae1fb880631c1fd30201683adcdb906f1",
+      "test": true,
+      "literal_count": 10,
+      "literal_sha256": "17f4313f22d596428c0521e368fee5966bcb205c6767a15eae0558375c3d2556",
+      "assert_macros": 9
+    },
+    {
+      "name": "closure_capture_inputs_use_unit_identity_types_and_stable_transferability",
+      "old_start": 2766,
+      "old_end": 2924,
+      "new_start": 314,
+      "new_end": 472,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "32097d0f46dc6aac0c04ef5f331b16d39b1cf6dbfaa33189682f1e0b84195858",
+      "new_block_sha256": "32097d0f46dc6aac0c04ef5f331b16d39b1cf6dbfaa33189682f1e0b84195858",
+      "test": true,
+      "literal_count": 18,
+      "literal_sha256": "511835db221b428ee18813ff6f2eaf63e34e5e62414492fe608aa7018c3bd07b",
+      "assert_macros": 19
+    },
+    {
+      "name": "ownership_diagnostics_clear_capture_and_executable_facts_atomically",
+      "old_start": 2926,
+      "old_end": 2969,
+      "new_start": 474,
+      "new_end": 517,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "f250ce36d4baec2e395d736ac2073e7dd3a34fe645395aec02e8ae809060b9d9",
+      "new_block_sha256": "f250ce36d4baec2e395d736ac2073e7dd3a34fe645395aec02e8ae809060b9d9",
+      "test": true,
+      "literal_count": 10,
+      "literal_sha256": "5a0875fc26307fe6a2e311babce618b7d39f5af6bf38e1d01046fd5e70ce1709",
+      "assert_macros": 8
+    },
+    {
+      "name": "closure_formation_matches_single_file_move_borrow_and_immutability_rules",
+      "old_start": 2971,
+      "old_end": 3043,
+      "new_start": 519,
+      "new_end": 591,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "cfd49f87882fc9dcf6b902a903641c32eee5a2c6016690f345a02200e586b4ad",
+      "new_block_sha256": "cfd49f87882fc9dcf6b902a903641c32eee5a2c6016690f345a02200e586b4ad",
+      "test": true,
+      "literal_count": 15,
+      "literal_sha256": "9a40a4ca6896a2fac69dc301395597de93154081635365f4537d2dd3844f97d4",
+      "assert_macros": 5
+    },
+    {
+      "name": "shared_capture_loan_ends_at_last_closure_use_and_still_blocks_earlier_move",
+      "old_start": 3045,
+      "old_end": 3100,
+      "new_start": 593,
+      "new_end": 648,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "7af0b1b30cb553c68fbc4f2c8e7e25f30a5a72d79e61d7196fed991b672c7d11",
+      "new_block_sha256": "7af0b1b30cb553c68fbc4f2c8e7e25f30a5a72d79e61d7196fed991b672c7d11",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "cbc713af6b7bb36d523b22a9fd9826421e7a327a2b75435ac6d7f32dca8332b2",
+      "assert_macros": 2
+    },
+    {
+      "name": "borrowed_closure_cannot_escape_through_return_value_delivery_constructor_or_field",
+      "old_start": 3102,
+      "old_end": 3158,
+      "new_start": 650,
+      "new_end": 706,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "43d6d17b68ce871e06f9073522d33f82c9b5e6c1f43475f39fb84b006e43e4fe",
+      "new_block_sha256": "43d6d17b68ce871e06f9073522d33f82c9b5e6c1f43475f39fb84b006e43e4fe",
+      "test": true,
+      "literal_count": 13,
+      "literal_sha256": "6a27b5554ae50bda6723d682e64f48a54e57a20a2a5cb606951ed5a72601bb66",
+      "assert_macros": 3
+    },
+    {
+      "name": "compiler_bound_cross_thread_delivery_uses_unit_closure_transferability",
+      "old_start": 3160,
+      "old_end": 3205,
+      "new_start": 708,
+      "new_end": 753,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs",
+      "original_block_sha256": "582372412402ec535d53591f4c666f1acfc77762d832e309d57a2393609dfcf3",
+      "new_block_sha256": "582372412402ec535d53591f4c666f1acfc77762d832e309d57a2393609dfcf3",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "794802a5980dad9c3385ed03642310b95b1826d099d903bb000b909f6b44e62c",
+      "assert_macros": 4
+    },
+    {
+      "name": "unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges",
+      "old_start": 3207,
+      "old_end": 3486,
+      "new_start": 3,
+      "new_end": 282,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/drop_plans.rs",
+      "original_block_sha256": "f335a6c07be9055200045048be606936b441230cbb0c31cf167fd7de862e1e59",
+      "new_block_sha256": "f335a6c07be9055200045048be606936b441230cbb0c31cf167fd7de862e1e59",
+      "test": true,
+      "literal_count": 35,
+      "literal_sha256": "736f70b9401d9cfc33d18bf368f2ad1b62eebea8a426668f2056ac41529b4af1",
+      "assert_macros": 13
+    },
+    {
+      "name": "lambda_tail_consumes_result_and_drops_only_body_owned_inputs",
+      "old_start": 3488,
+      "old_end": 3593,
+      "new_start": 3,
+      "new_end": 108,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/lambda_drop.rs",
+      "original_block_sha256": "1cbf1a9fa9192c6012099512dbbf9fbb9fbb133d1079d868886906d6fcdcfb2e",
+      "new_block_sha256": "1cbf1a9fa9192c6012099512dbbf9fbb9fbb133d1079d868886906d6fcdcfb2e",
+      "test": true,
+      "literal_count": 19,
+      "literal_sha256": "ccfa65d28e4cc261d049285c23672052c305748f9211402cda4697874f9d53fd",
+      "assert_macros": 5
+    },
+    {
+      "name": "lambda_value_parameters_publish_entry_read_and_transfer_drop_facts",
+      "old_start": 3595,
+      "old_end": 3784,
+      "new_start": 110,
+      "new_end": 299,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/lambda_drop.rs",
+      "original_block_sha256": "e03eb2e56e9df5ffc3064b70549fbbcffe5328bbda6dd08f4be19d55a1a1493d",
+      "new_block_sha256": "e03eb2e56e9df5ffc3064b70549fbbcffe5328bbda6dd08f4be19d55a1a1493d",
+      "test": true,
+      "literal_count": 33,
+      "literal_sha256": "dac656aa16babfe93dae192b287b6e127614f89ec7f6da4d6c561d6dafda858b",
+      "assert_macros": 8
+    },
+    {
+      "name": "move_only_control_results_transfer_branch_owners_and_drop_only_inputs",
+      "old_start": 3786,
+      "old_end": 4039,
+      "new_start": 45,
+      "new_end": 298,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/control_flow.rs",
+      "original_block_sha256": "af30b2618799f797cba398b78b8840a7f4ad174254a4b61416d4cfa59664d896",
+      "new_block_sha256": "af30b2618799f797cba398b78b8840a7f4ad174254a4b61416d4cfa59664d896",
+      "test": true,
+      "literal_count": 46,
+      "literal_sha256": "d20237b83650fe669536266653d0c028756be28f014496fe475af3b80415a701",
+      "assert_macros": 16
+    },
+    {
+      "name": "consumed_control_result_updates_main_ownership_state",
+      "old_start": 4041,
+      "old_end": 4074,
+      "new_start": 300,
+      "new_end": 333,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/control_flow.rs",
+      "original_block_sha256": "cecd994de765eb2677d22823bc75ac79d2dd80ac8fb696fc361557cf87d479c4",
+      "new_block_sha256": "cecd994de765eb2677d22823bc75ac79d2dd80ac8fb696fc361557cf87d479c4",
+      "test": true,
+      "literal_count": 7,
+      "literal_sha256": "7ab757eb3e275e2ddf5bc5676802cb7ed1e8e97b68ce64862497e5db43bc85a4",
+      "assert_macros": 2
+    },
+    {
+      "name": "validated_unit_ownership_rejects_deferred_element_field_drop_plans",
+      "old_start": 4076,
+      "old_end": 4138,
+      "new_start": 284,
+      "new_end": 346,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/drop_plans.rs",
+      "original_block_sha256": "095e410badd662ef60757b40ea207599844dc003363b3fdc186a43a64dececb8",
+      "new_block_sha256": "095e410badd662ef60757b40ea207599844dc003363b3fdc186a43a64dececb8",
+      "test": true,
+      "literal_count": 14,
+      "literal_sha256": "5cf73ba9e94358e8ee3be718dd4d7d9df5e239736b898f3c5bafe397b9a126ae",
+      "assert_macros": 6
+    },
+    {
+      "name": "unit_non_null_assertion_consumption_and_source_restrictions",
+      "old_start": 4140,
+      "old_end": 4198,
+      "new_start": 3,
+      "new_end": 61,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "original_block_sha256": "320ef135443d3d0ddc5e8b89e297d738cc7001610bc609cc98c204b004feca4a",
+      "new_block_sha256": "320ef135443d3d0ddc5e8b89e297d738cc7001610bc609cc98c204b004feca4a",
+      "test": true,
+      "literal_count": 24,
+      "literal_sha256": "1b2cc5d13cb3ba0af4e16eb18c72cf7f2a5ca239931fb258d59634c11ac77182",
+      "assert_macros": 3
+    },
+    {
+      "name": "unit_non_null_assertion_plans_bind_transfer_abort_and_result_drop",
+      "old_start": 4200,
+      "old_end": 4292,
+      "new_start": 63,
+      "new_end": 155,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "original_block_sha256": "86ce6469f0a4c7a42bf4247860b850149ec4036d642920f7b4e16dffdbc53b5c",
+      "new_block_sha256": "86ce6469f0a4c7a42bf4247860b850149ec4036d642920f7b4e16dffdbc53b5c",
+      "test": true,
+      "literal_count": 12,
+      "literal_sha256": "50d6f0af0b470ac646a0913c2a6f7c57e42d692781cb4c51cc7cc78e2062bf4f",
+      "assert_macros": 12
+    },
+    {
+      "name": "unit_non_null_assertion_plans_clear_after_later_assignment_failure",
+      "old_start": 4294,
+      "old_end": 4318,
+      "new_start": 157,
+      "new_end": 181,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "original_block_sha256": "268fa872d0b9fd3acc725b8b4ea2404cc41bce7cb355f315eaf1e82172380327",
+      "new_block_sha256": "268fa872d0b9fd3acc725b8b4ea2404cc41bce7cb355f315eaf1e82172380327",
+      "test": true,
+      "literal_count": 5,
+      "literal_sha256": "a55fdf8f79983573b2a1d23ed0c47cabcabd00be122b942debaba1495a717b12",
+      "assert_macros": 3
+    },
+    {
+      "name": "unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers",
+      "old_start": 4320,
+      "old_end": 4368,
+      "new_start": 183,
+      "new_end": 231,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "original_block_sha256": "c5ee8e61a693378f7065963fa386bf7d905a78aaecd6614a6f475900c2feaecb",
+      "new_block_sha256": "c5ee8e61a693378f7065963fa386bf7d905a78aaecd6614a6f475900c2feaecb",
+      "test": true,
+      "literal_count": 7,
+      "literal_sha256": "c0d5dfbf8ed96e5ada63243a125a7e2000f297090a33223b2f53c6e9a865c0ff",
+      "assert_macros": 6
+    },
+    {
+      "name": "unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges",
+      "old_start": 4370,
+      "old_end": 4436,
+      "new_start": 233,
+      "new_end": 299,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs",
+      "original_block_sha256": "999e009e8b1f4eeee55793d169ccd58abd26e4d908d088dc9ed25d9b508a0cad",
+      "new_block_sha256": "999e009e8b1f4eeee55793d169ccd58abd26e4d908d088dc9ed25d9b508a0cad",
+      "test": true,
+      "literal_count": 28,
+      "literal_sha256": "8ea1409f31288f96b63f2d5038982fcfaff59e57f3d032a22c979d7f9b918cf4",
+      "assert_macros": 4
+    },
+    {
+      "name": "unit_pending_borrow_owner_survives_branches_and_nested_calls",
+      "old_start": 4438,
+      "old_end": 4481,
+      "new_start": 3,
+      "new_end": 46,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "original_block_sha256": "4cf05fc55a4d9708a076fd18e04ffe1c5f07dab16c2831f46c44adc2c7428a9e",
+      "new_block_sha256": "4cf05fc55a4d9708a076fd18e04ffe1c5f07dab16c2831f46c44adc2c7428a9e",
+      "test": true,
+      "literal_count": 13,
+      "literal_sha256": "26e9db2db8920b675555fab0d5e7e6d987e3fea65856ea30a878c775af4b8380",
+      "assert_macros": 2
+    },
+    {
+      "name": "unit_pending_borrow_in_aborting_interpolation_has_no_normal_drop",
+      "old_start": 4483,
+      "old_end": 4522,
+      "new_start": 48,
+      "new_end": 87,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "original_block_sha256": "1e87ff86b7d93f75336ebbe47bce5fd0182680fad944e32b3791849dff902783",
+      "new_block_sha256": "1e87ff86b7d93f75336ebbe47bce5fd0182680fad944e32b3791849dff902783",
+      "test": true,
+      "literal_count": 9,
+      "literal_sha256": "f1a6cee8ee994566d6e7b42640079d8c5f8d58d055eee5338d234f76746df2f9",
+      "assert_macros": 2
+    },
+    {
+      "name": "conditional_pending_receiver_drop_keeps_its_order_among_argument_and_local_owners",
+      "old_start": 4524,
+      "old_end": 4565,
+      "new_start": 89,
+      "new_end": 130,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "original_block_sha256": "de8264f4e0fa53ad3ca2a02fa8ffb5367c58fac0de37484094a9e92c8af6905c",
+      "new_block_sha256": "de8264f4e0fa53ad3ca2a02fa8ffb5367c58fac0de37484094a9e92c8af6905c",
+      "test": true,
+      "literal_count": 11,
+      "literal_sha256": "91bac6c52e28c2f7bf90dbd66f0da6988f3ae8d214ddfdf78c0140625e1bf225",
+      "assert_macros": 2
+    },
+    {
+      "name": "function_value_callee_stays_owned_until_call_or_argument_exit",
+      "old_start": 4567,
+      "old_end": 4653,
+      "new_start": 132,
+      "new_end": 218,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "original_block_sha256": "9947a3da85f44f83557f5e7db2983fbb264d5fa1e3b334d3f781cfb61eaff1c5",
+      "new_block_sha256": "9947a3da85f44f83557f5e7db2983fbb264d5fa1e3b334d3f781cfb61eaff1c5",
+      "test": true,
+      "literal_count": 12,
+      "literal_sha256": "4b4a3368c31464a60789ebb2e39fac5fc435927b016ec4089b1847095dfefc9c",
+      "assert_macros": 5
+    },
+    {
+      "name": "nested_argument_loan_ends_at_its_own_call_before_outer_inout",
+      "old_start": 4655,
+      "old_end": 4692,
+      "new_start": 220,
+      "new_end": 257,
+      "new_file": "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs",
+      "original_block_sha256": "ea149506dbcaec67bf821b835d7afb4525fa7cd8e0668c88f1e90ebcddd6bcfb",
+      "new_block_sha256": "ea149506dbcaec67bf821b835d7afb4525fa7cd8e0668c88f1e90ebcddd6bcfb",
+      "test": true,
+      "literal_count": 8,
+      "literal_sha256": "f9542d3dd5cce2fea6ccc87d0ef2bc4f1b4b4d82845e647b1e298bb4a0a695d1",
+      "assert_macros": 8
+    }
+  ],
+  "literal_aggregate_sha256": "fe53f6335838bc12d2bbb465449b658bccbc824530cc70e63357fe8f34f4d398",
+  "literal_count": 963,
+  "assert_macros": 412,
+  "libtest_identity_before": [
+    "borrow_only_delegation_publishes_outer_and_field_ownership_plan",
+    "borrowed_closure_cannot_escape_through_return_value_delivery_constructor_or_field",
+    "borrowed_field_publishes_source_qualified_place_path",
+    "borrowed_move_wins_over_earlier_shared_loan_conflict",
+    "closure_capture_inputs_use_unit_identity_types_and_stable_transferability",
+    "closure_formation_matches_single_file_move_borrow_and_immutability_rules",
+    "compiler_bound_cross_thread_delivery_uses_unit_closure_transferability",
+    "conditional_expression_body_rejects_borrowed_closure_escape",
+    "conditional_pending_receiver_drop_keeps_its_order_among_argument_and_local_owners",
+    "conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers",
+    "construction_move_conflicts_with_earlier_call_loan_and_labels_cross_file_field",
+    "construction_rejects_move_only_container_element_with_field_label",
+    "construction_use_after_move_labels_cross_file_field_and_clears_plans",
+    "consumed_control_result_updates_main_ownership_state",
+    "container_constructions_publish_value_deliveries_borrow_loans_and_stable_identity",
+    "divergent_rhs_still_checks_static_field_mutability",
+    "element_and_rc_payload_borrows_publish_owner_qualified_places",
+    "element_move_conflict_precedes_container_element_move_diagnostic",
+    "elvis_expression_body_rejects_borrowed_closure_escape",
+    "explicit_this_field_cannot_supply_inout_from_borrow_or_value_receiver",
+    "failed_lambda_body_rolls_back_successful_capture_state",
+    "failed_this_capture_rolls_back_earlier_symbol_capture_state",
+    "function_value_and_external_call_contracts_do_not_invent_source_parameters",
+    "function_value_callee_stays_owned_until_call_or_argument_exit",
+    "immutable_inout_reports_ampersand_and_clears_facts",
+    "implicit_member_call_in_lambda_captures_this_in_unit_product",
+    "implicit_value_receiver_remains_pending_until_call_commit",
+    "lambda_body_executes_ordinary_call_ownership_dataflow",
+    "lambda_tail_consumes_result_and_drops_only_body_owned_inputs",
+    "lambda_value_parameters_publish_entry_read_and_transfer_drop_facts",
+    "list_form_move_reports_reuse_and_clears_executable_facts",
+    "local_var_and_temporary_rc_payload_are_valid_loan_targets",
+    "member_assignment_requires_a_var_field_and_inout_receiver",
+    "member_body_receiver_capability_controls_this_and_implicit_calls",
+    "member_body_rejects_receiver_capability_escalation_and_use_after_move",
+    "member_receiver_is_checked_as_the_zeroth_call_operand",
+    "move_only_container_element_value_delivery_reports_l0136",
+    "move_only_control_results_transfer_branch_owners_and_drop_only_inputs",
+    "moved_value_use_reports_cross_file_parameter_and_clears_facts",
+    "moving_borrowed_binding_to_cross_file_value_parameter_is_rejected",
+    "nested_argument_loan_ends_at_its_own_call_before_outer_inout",
+    "nothing_operand_publishes_only_the_completed_construction_prefix",
+    "ownership_diagnostics_clear_capture_and_executable_facts_atomically",
+    "ownership_error_clears_conditional_receiver_delivery_facts_atomically",
+    "ownership_error_clears_conditional_receiver_drop_facts_atomically",
+    "rc_move_errors_clear_all_executable_unit_facts",
+    "receiver_loan_precedes_arguments_and_conflicts_with_overlapping_places",
+    "rejected_assignment_rolls_back_rhs_move_and_executable_facts",
+    "runtime_container_nothing_operands_keep_expected_contracts_and_stop_effects",
+    "shared_and_exclusive_alias_in_one_cross_file_call_conflict",
+    "shared_capture_loan_ends_at_last_closure_use_and_still_blocks_earlier_move",
+    "shared_loan_allows_copyable_value_delivery_from_same_place",
+    "shared_this_capture_rejects_moved_outer_and_move_from_capture",
+    "source_constructions_publish_ordered_deliveries_root_kinds_and_stable_identity",
+    "stateless_object_borrow_receiver_has_no_runtime_drop_fact",
+    "static_self_value_call_cannot_move_a_shared_this_capture",
+    "static_self_value_calls_publish_conditional_receiver_deliveries",
+    "static_self_value_receiver_publishes_conditional_drop_without_unconditional_drop",
+    "temporary_rc_payload_publishes_borrow_effect_and_temporary_loan",
+    "unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges",
+    "unit_non_null_assertion_consumption_and_source_restrictions",
+    "unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges",
+    "unit_non_null_assertion_plans_bind_transfer_abort_and_result_drop",
+    "unit_non_null_assertion_plans_clear_after_later_assignment_failure",
+    "unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers",
+    "unit_ownership_rejects_mixed_analysis_and_duplicate_inputs",
+    "unit_parameter_bindings_cover_cross_file_member_and_lambda_modes",
+    "unit_pending_borrow_in_aborting_interpolation_has_no_normal_drop",
+    "unit_pending_borrow_owner_survives_branches_and_nested_calls",
+    "validated_unit_ownership_rejects_deferred_element_field_drop_plans",
+    "value_delivery_distinguishes_copy_move_and_temporary",
+    "when_entry_bodies_do_not_observe_later_condition_moves"
+  ],
+  "libtest_identity_after": [
+    "assignment_rollback::divergent_rhs_still_checks_static_field_mutability",
+    "assignment_rollback::member_assignment_requires_a_var_field_and_inout_receiver",
+    "assignment_rollback::rejected_assignment_rolls_back_rhs_move_and_executable_facts",
+    "call_deliveries::borrowed_field_publishes_source_qualified_place_path",
+    "call_deliveries::borrowed_move_wins_over_earlier_shared_loan_conflict",
+    "call_deliveries::immutable_inout_reports_ampersand_and_clears_facts",
+    "call_deliveries::moved_value_use_reports_cross_file_parameter_and_clears_facts",
+    "call_deliveries::moving_borrowed_binding_to_cross_file_value_parameter_is_rejected",
+    "call_deliveries::shared_and_exclusive_alias_in_one_cross_file_call_conflict",
+    "call_deliveries::shared_loan_allows_copyable_value_delivery_from_same_place",
+    "call_deliveries::value_delivery_distinguishes_copy_move_and_temporary",
+    "capture_escape::borrowed_closure_cannot_escape_through_return_value_delivery_constructor_or_field",
+    "capture_escape::closure_capture_inputs_use_unit_identity_types_and_stable_transferability",
+    "capture_escape::closure_formation_matches_single_file_move_borrow_and_immutability_rules",
+    "capture_escape::compiler_bound_cross_thread_delivery_uses_unit_closure_transferability",
+    "capture_escape::conditional_expression_body_rejects_borrowed_closure_escape",
+    "capture_escape::elvis_expression_body_rejects_borrowed_closure_escape",
+    "capture_escape::failed_lambda_body_rolls_back_successful_capture_state",
+    "capture_escape::failed_this_capture_rolls_back_earlier_symbol_capture_state",
+    "capture_escape::implicit_member_call_in_lambda_captures_this_in_unit_product",
+    "capture_escape::lambda_body_executes_ordinary_call_ownership_dataflow",
+    "capture_escape::ownership_diagnostics_clear_capture_and_executable_facts_atomically",
+    "capture_escape::shared_capture_loan_ends_at_last_closure_use_and_still_blocks_earlier_move",
+    "capture_escape::shared_this_capture_rejects_moved_outer_and_move_from_capture",
+    "capture_escape::static_self_value_call_cannot_move_a_shared_this_capture",
+    "constructions::construction_move_conflicts_with_earlier_call_loan_and_labels_cross_file_field",
+    "constructions::construction_rejects_move_only_container_element_with_field_label",
+    "constructions::construction_use_after_move_labels_cross_file_field_and_clears_plans",
+    "constructions::container_constructions_publish_value_deliveries_borrow_loans_and_stable_identity",
+    "constructions::list_form_move_reports_reuse_and_clears_executable_facts",
+    "constructions::nothing_operand_publishes_only_the_completed_construction_prefix",
+    "constructions::runtime_container_nothing_operands_keep_expected_contracts_and_stop_effects",
+    "constructions::source_constructions_publish_ordered_deliveries_root_kinds_and_stable_identity",
+    "container_places::element_and_rc_payload_borrows_publish_owner_qualified_places",
+    "container_places::element_move_conflict_precedes_container_element_move_diagnostic",
+    "container_places::local_var_and_temporary_rc_payload_are_valid_loan_targets",
+    "container_places::move_only_container_element_value_delivery_reports_l0136",
+    "container_places::rc_move_errors_clear_all_executable_unit_facts",
+    "container_places::temporary_rc_payload_publishes_borrow_effect_and_temporary_loan",
+    "control_flow::consumed_control_result_updates_main_ownership_state",
+    "control_flow::move_only_control_results_transfer_branch_owners_and_drop_only_inputs",
+    "control_flow::when_entry_bodies_do_not_observe_later_condition_moves",
+    "drop_plans::unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges",
+    "drop_plans::validated_unit_ownership_rejects_deferred_element_field_drop_plans",
+    "lambda_drop::lambda_tail_consumes_result_and_drops_only_body_owned_inputs",
+    "lambda_drop::lambda_value_parameters_publish_entry_read_and_transfer_drop_facts",
+    "non_null::unit_non_null_assertion_consumption_and_source_restrictions",
+    "non_null::unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges",
+    "non_null::unit_non_null_assertion_plans_bind_transfer_abort_and_result_drop",
+    "non_null::unit_non_null_assertion_plans_clear_after_later_assignment_failure",
+    "non_null::unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers",
+    "pending_lifetime::conditional_pending_receiver_drop_keeps_its_order_among_argument_and_local_owners",
+    "pending_lifetime::function_value_callee_stays_owned_until_call_or_argument_exit",
+    "pending_lifetime::nested_argument_loan_ends_at_its_own_call_before_outer_inout",
+    "pending_lifetime::unit_pending_borrow_in_aborting_interpolation_has_no_normal_drop",
+    "pending_lifetime::unit_pending_borrow_owner_survives_branches_and_nested_calls",
+    "provenance_contracts::function_value_and_external_call_contracts_do_not_invent_source_parameters",
+    "provenance_contracts::unit_ownership_rejects_mixed_analysis_and_duplicate_inputs",
+    "provenance_contracts::unit_parameter_bindings_cover_cross_file_member_and_lambda_modes",
+    "receivers::borrow_only_delegation_publishes_outer_and_field_ownership_plan",
+    "receivers::conditional_receiver_drop_excludes_non_static_self_and_bodyless_receivers",
+    "receivers::explicit_this_field_cannot_supply_inout_from_borrow_or_value_receiver",
+    "receivers::implicit_value_receiver_remains_pending_until_call_commit",
+    "receivers::member_body_receiver_capability_controls_this_and_implicit_calls",
+    "receivers::member_body_rejects_receiver_capability_escalation_and_use_after_move",
+    "receivers::member_receiver_is_checked_as_the_zeroth_call_operand",
+    "receivers::ownership_error_clears_conditional_receiver_delivery_facts_atomically",
+    "receivers::ownership_error_clears_conditional_receiver_drop_facts_atomically",
+    "receivers::receiver_loan_precedes_arguments_and_conflicts_with_overlapping_places",
+    "receivers::stateless_object_borrow_receiver_has_no_runtime_drop_fact",
+    "receivers::static_self_value_calls_publish_conditional_receiver_deliveries",
+    "receivers::static_self_value_receiver_publishes_conditional_drop_without_unconditional_drop"
+  ],
+  "frontend_library_identities": [
+    "diagnostic::tests::checked_text_rejects_line_breaks_without_rewriting_content",
+    "diagnostic::tests::detail_key_variant_order_is_defined_in_one_place",
+    "diagnostic::tests::ordering_defensively_rejects_an_invalid_internal_label",
+    "formatting::tests::deeply_nested_delimiters_use_iterative_formatting_state",
+    "formatting::tests::formats_spacing_indentation_and_contextual_adjacency",
+    "formatting::tests::preserves_comments_newlines_strings_and_is_idempotent",
+    "formatting::tests::preserves_explicit_instance_receiver_mode_tokens",
+    "formatting::tests::rejects_user_diagnostics_and_foreign_source_identity",
+    "formatting::tests::removes_horizontal_space_from_empty_and_blank_lines",
+    "ownership_checking::checker::construction::tests::invalid_argument_identity_is_an_internal_error",
+    "ownership_checking::checker::drop_planner::capture::tests::merging_versions_preserves_reverse_slot_cleanup_on_each_path",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::chains::conditional_seed_candidate_exit_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::chains::owned_alternating_chain_candidate_exit_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::chains::owned_candidate_replay_rejects_release_after_final_call",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::chains::owned_self_chain_candidate_exit_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::chains::shared_recursive_chain_candidate_exit_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::chains::shared_recursive_parameter_candidate_exit_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::chains::shared_recursive_replay_rejects_early_source_drop",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::chains::shared_recursive_replay_rejects_missing_loan_layout",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::coexisting_owned_children_candidate_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::coexisting_replay_rejects_missing_phi_capture_transport",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::coexisting_replay_rejects_missing_replaced_resource_drop",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::coexisting_shared_children_candidate_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::shared_replay_clears_inactive_last_loan_choice",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::shared_replay_rejects_duplicate_loan_end",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::shared_replay_rejects_invalid_loan_address",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::shared_replay_rejects_missing_loan_end",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::shared_replay_rejects_missing_matching_capture_slot",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::shared_replay_rejects_premature_source_drop",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::coexisting::shared_source_survives_second_loop_return",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::conditional::conditional_recursive_roots_candidate_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::conditional::conditional_replay_rejects_capture_of_the_other_source_instance",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::conditional::conditional_replay_rejects_delayed_replacement_cleanup",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::conditional::conditional_replay_rejects_release_before_final_call_returns",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::conditional::conditional_replay_rejects_swapped_same_lambda_instances",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::conditional::conditional_same_shared_source_candidate_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::conditional::conditional_shared_sources_candidate_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::conditional::same_lambda_ordinary_phi_candidate_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::conditional_file_parent_candidate_exit_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::conditional_parent_rejects_missing_selected_source_cleanup",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::file_parent_candidate_exit_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::file_parent_rejects_duplicate_release_at_function_end",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::file_parent_rejects_missing_environment_pass",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::file_parent_rejects_release_during_call_entry",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::file_parent_rejects_wrong_passed_environment",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::nested_file_parent_candidate_exit_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::nested_parent_rejects_capture_slot_without_formation",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::nested_parent_rejects_missing_inner_environment_pass",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::file_parent::nested_parent_rejects_missing_retained_source_cleanup",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::old_environment::old_environment_keeps_its_selected_capture_after_next_formation",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::old_environment::old_environment_rejects_duplicate_function_end_cleanup",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::old_environment::old_environment_rejects_missing_dynamic_pass",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::old_environment::old_environment_rejects_plain_drop_for_conditional_shared_child",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::old_environment::old_environment_rejects_uninitialized_copyable_source",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::opaque::closed_capture_edge_rejects_a_node_only_present_elsewhere_in_graph",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::opaque::known_or_opaque_child_keeps_actual_instance_across_phi",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::opaque::opaque_child_requires_published_open_boundary",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::retained::recursive_retained_source_rejects_completion_before_its_root",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::retained::recursive_retained_source_rejects_duplicate_completion",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::retained::recursive_retained_source_rejects_missing_completion",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::retained::retained_owned_closure_candidate_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::retained::retained_shared_closure_cascade_candidate_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::retained::scoped_source_recursive_chain_candidate_matrix",
+    "ownership_checking::checker::drop_planner::iteration::instance_replay::retained::scoped_source_warmup_jump_matrix",
+    "ownership_checking::checker::drop_planner::iteration::tests::capture_graph::coexisting_capture_paths_include_the_root_instance",
+    "ownership_checking::checker::drop_planner::iteration::tests::capture_graph::finite_capture_graph_checks_long_chains_without_recursive_traversal",
+    "ownership_checking::checker::drop_planner::iteration::tests::capture_graph::finite_layout_order_is_bounded_on_diamond_ladders_and_deep_chains",
+    "ownership_checking::checker::drop_planner::iteration::tests::capture_graph::nested_phi_selector_writes_keep_local_instance_paths",
+    "ownership_checking::checker::drop_planner::iteration::tests::capture_graph::optional_nested_capture_requires_instance_presence",
+    "ownership_checking::checker::drop_planner::iteration::tests::capture_graph::owned_cycle_release_does_not_claim_independent_leaf_roots",
+    "ownership_checking::checker::drop_planner::iteration::tests::capture_graph::recursive_capture_layout_visits_each_static_lambda_once",
+    "ownership_checking::checker::drop_planner::iteration::tests::capture_graph::self_recursive_capture_layout_registers_finite_static_slots",
+    "ownership_checking::checker::drop_planner::iteration::tests::coexisting_paths::coexisting_same_lambda_paths_replay_two_rounds_and_release",
+    "ownership_checking::checker::drop_planner::iteration::tests::conditional_diamond::conditional_diamond_keeps_distinct_saved_paths_at_exhaustion",
+    "ownership_checking::checker::drop_planner::iteration::tests::conditional_leaf::conditional_leaf_phi_replays_formed_instance_and_presence",
+    "ownership_checking::checker::drop_planner::iteration::tests::conditional_rebinding::conditional_seed_recursive_rebinding_jump_matrix",
+    "ownership_checking::checker::drop_planner::iteration::tests::environment_drop::enclosing_environment_keeps_opaque_parent_drop",
+    "ownership_checking::checker::drop_planner::iteration::tests::environment_drop::planner_enclosing_environment_drop_reaches_owned_descendant",
+    "ownership_checking::checker::drop_planner::iteration::tests::file_parent::file_parent_shared_source_crosses_two_recursive_loops",
+    "ownership_checking::checker::drop_planner::iteration::tests::file_parent::file_parent_with_recursive_chains_and_shared_child_keeps_one_release_root",
+    "ownership_checking::checker::drop_planner::iteration::tests::file_parent::nested_environment_capture_needs_file_wide_release_layout",
+    "ownership_checking::checker::drop_planner::iteration::tests::file_parent::nested_environment_capture_of_ordinary_sibling_keeps_ordinary_drop",
+    "ownership_checking::checker::drop_planner::iteration::tests::file_parent::parent_of_recursive_snapshot_needs_file_wide_release_layout",
+    "ownership_checking::checker::drop_planner::iteration::tests::file_parent::parent_of_two_recursive_loops_needs_file_wide_release_layout",
+    "ownership_checking::checker::drop_planner::iteration::tests::independent_roots::independent_closure_survives_a_recursive_loop_into_the_next_loop",
+    "ownership_checking::checker::drop_planner::iteration::tests::independent_roots::recursive_graph_keeps_independent_unexpanded_closure_roots_owned",
+    "ownership_checking::checker::drop_planner::iteration::tests::independent_roots::recursive_loop_keeps_independent_shared_capture_loan_end",
+    "ownership_checking::checker::drop_planner::iteration::tests::loop_handoff::next_loop_entry_keeps_recursive_root_after_conditional_snapshot",
+    "ownership_checking::checker::drop_planner::iteration::tests::loop_handoff::next_recursive_loop_entry_keeps_previous_phi_root_sources",
+    "ownership_checking::checker::drop_planner::iteration::tests::recursive_body::recursive_body_formation_reads_the_current_header_instance",
+    "ownership_checking::checker::drop_planner::iteration::tests::recursive_chain_jumps::alternating_recursive_capture_jump_edges_keep_the_formed_chain",
+    "ownership_checking::checker::drop_planner::iteration::tests::recursive_chains::alternating_recursive_capture_releases_the_formed_instance_chain",
+    "ownership_checking::checker::drop_planner::iteration::tests::recursive_chains::recursive_return_releases_the_formed_chain_once",
+    "ownership_checking::checker::drop_planner::iteration::tests::recursive_jump_roots::recursive_capture_jump_edges_carry_the_new_root_instance",
+    "ownership_checking::checker::drop_planner::iteration::tests::recursive_shared_layout::recursive_release_layout_keeps_untracked_shared_capture",
+    "ownership_checking::checker::drop_planner::iteration::tests::recursive_shared_layout::untracked_copyable_shared_capture_keeps_loan_ends",
+    "ownership_checking::checker::drop_planner::iteration::tests::sibling_shared_loans::sibling_shared_capture_loans_keep_distinct_instance_paths",
+    "ownership_checking::checker::drop_planner::iteration::tests::snapshot_cleanup::captured_phi_release_does_not_duplicate_child_drop",
+    "ownership_checking::checker::drop_planner::iteration::tests::snapshot_cleanup::conditional_snapshot_of_independent_phi_does_not_duplicate_child_drop",
+    "ownership_checking::checker::drop_planner::iteration::tests::snapshot_cleanup::conditional_snapshot_of_recursive_phi_keeps_instance_release",
+    "ownership_checking::checker::drop_planner::iteration::tests::snapshot_cleanup::mixed_phi_and_new_closure_versions_do_not_duplicate_instance_release",
+    "ownership_checking::checker::drop_planner::iteration::tests::snapshot_cleanup::moved_recursive_phi_releases_instances_through_new_binding",
+    "ownership_checking::checker::drop_planner::iteration::tests::snapshot_mixed_roots::snapshot_keeps_distinct_same_lambda_phi_and_ordinary_roots",
+    "ownership_checking::checker::drop_planner::iteration::tests::snapshot_recursive_roots::snapshot_keeps_two_recursive_phi_roots_without_tree_origins",
+    "ownership_checking::checker::drop_planner::origins::tests::loop_origin_nested_fixed_point_does_not_repeat_converged_probes",
+    "ownership_checking::checker::drop_planner::snapshot::tests::snapshot_source_location_requires_one_enclosing_environment",
+    "ownership_checking::cleanup_condition::snapshot::tests::invalid_snapshot_roots_are_atomic_and_identical_inputs_are_deterministic",
+    "ownership_checking::cleanup_condition::snapshot::tests::moving_a_snapshot_then_replacing_the_source_keeps_the_old_selection",
+    "ownership_checking::cleanup_condition::snapshot::tests::rebinding_keeps_branch_local_snapshots_behind_their_reachability_guard",
+    "ownership_checking::cleanup_condition::snapshot::tests::rebound_state_can_read_a_selector_on_a_broader_path_than_the_result",
+    "ownership_checking::cleanup_condition::snapshot::tests::shared_child_selector_combines_all_parent_paths_before_copying",
+    "ownership_checking::cleanup_condition::snapshot::tests::snapshots_do_not_read_an_inner_selector_on_the_outer_else_path",
+    "ownership_checking::cleanup_condition::tests::all_branches_cover_the_control_without_repeating_or_invalid_layouts",
+    "ownership_checking::cleanup_condition::tests::nested_choices_preserve_each_path_and_canonical_boolean_operations",
+    "ownership_checking::cleanup_condition::tests::repeated_control_choices_do_not_collapse_across_owner_instances",
+    "ownership_checking::cleanup_condition::tests::unreachable_inner_choice_is_not_read_before_its_outer_guard",
+    "ownership_checking::compilation_unit::constant::primitive_tests::field_replace_constant_validation_checks_commit_structure",
+    "ownership_checking::compilation_unit::constant::primitive_tests::root_primitive_constant_short_circuit_registers_only_reachable_commit",
+    "ownership_checking::compilation_unit::constant::primitive_tests::root_primitive_constant_validation_checks_commit_structure",
+    "ownership_checking::compilation_unit::constant::tests::constant_validation_requires_complete_short_circuit_facts",
+    "ownership_checking::compilation_unit::constant::tests::short_circuit_plans_follow_typed_boolean_uses_and_exclude_initializers_and_tails",
+    "ownership_checking::compilation_unit::constants_tests::constant_borrows_and_value_deliveries_never_use_declaration_places",
+    "ownership_checking::compilation_unit::constants_tests::constant_recovery_cannot_publish_the_base_owned_capability",
+    "ownership_checking::compilation_unit::constants_tests::constants_do_not_capture_declarations_or_namespaces",
+    "ownership_checking::compilation_unit::constants_tests::each_string_binary_read_has_its_own_temporary_drop",
+    "ownership_checking::compilation_unit::constants_tests::groups_forward_the_same_materialization_owner_to_loans_deliveries_and_drops",
+    "ownership_checking::compilation_unit::contracts::tests::duplicate_container_descriptor_is_rejected_before_dataflow",
+    "ownership_checking::compilation_unit::dataflow::tests::duplicate_construction_descriptor_is_rejected_before_dataflow",
+    "ownership_checking::compilation_unit::field_replace::tests::field_replace_validation_rejects_missing_or_inconsistent_facts",
+    "ownership_checking::compilation_unit::field_replace::tests::field_replace_validation_rejects_paired_loan_target_substitution",
+    "ownership_checking::compilation_unit::materialization_tests::all_constant_types_keep_exact_values_and_source_qualified_runtime_identity",
+    "ownership_checking::compilation_unit::materialization_tests::only_runtime_reads_on_executable_paths_are_materialized",
+    "ownership_checking::compilation_unit::materialization_tests::ownership_error_or_deferred_fact_prevents_partial_materialization_publication",
+    "ownership_checking::compilation_unit::ownership_primitive::tests::root_primitive_validation_rejects_missing_or_inconsistent_facts",
+    "ownership_checking::compilation_unit::pending_temporary_tests::abandoned_call_prefix_drops_borrow_and_value_operands_on_the_exit_edge",
+    "ownership_checking::compilation_unit::pending_temporary_tests::abandoned_nested_prefix_cleans_new_local_then_reverse_temporaries_then_old_local",
+    "ownership_checking::compilation_unit::pending_temporary_tests::an_aborting_return_operand_has_no_return_cleanup",
+    "ownership_checking::compilation_unit::pending_temporary_tests::consumed_named_value_is_cleaned_as_an_uncommitted_argument",
+    "ownership_checking::compilation_unit::pending_temporary_tests::inner_loop_break_preserves_an_outer_call_prefix_owner",
+    "parser::engine::tests::block_dispatch_legal_error_and_nested_families_stay_linear",
+    "parser::engine::tests::call_recovery_with_many_terminal_owners_stays_linear",
+    "parser::engine::tests::class_family_field_and_variant_sequences_stay_linear_when_doubled",
+    "parser::engine::tests::class_family_member_dispatch_stays_linear_when_doubled",
+    "parser::engine::tests::declaration_recovery_visits_raw_lexemes_and_terminal_events_linearly",
+    "parser::engine::tests::every_parser_consumer_rejects_malformed_lexeme_streams_deterministically",
+    "parser::engine::tests::every_parser_entry_rejects_duplicate_lexer_diagnostic_anchors_deterministically",
+    "parser::engine::tests::every_parser_entry_rejects_impossible_lexical_owner_streams_deterministically",
+    "parser::engine::tests::every_parser_entry_rejects_invalid_lexer_diagnostic_streams_deterministically",
+    "parser::engine::tests::every_parser_entry_rejects_mismatched_lexer_diagnostic_anchors_deterministically",
+    "parser::engine::tests::every_parser_entry_rejects_mismatched_recovery_diagnostics_deterministically",
+    "parser::engine::tests::every_parser_entry_rejects_undiagnosed_lexer_poisons_deterministically",
+    "parser::engine::tests::function_suffix_transfers_complete_string_poison_to_the_lexer_owner",
+    "parser::engine::tests::interface_delegation_sequences_stay_linear_when_doubled",
+    "parser::engine::tests::lambda_body_legal_unsupported_and_poison_families_stay_linear",
+    "parser::engine::tests::lambda_local_recovery_preserves_inherited_hard_closers",
+    "parser::engine::tests::lexical_recovery_indexes_only_strings_that_own_invalid_escapes",
+    "parser::engine::tests::postfix_propagation_significant_visits_stay_linear_when_doubled",
+    "parser::engine::tests::terminal_owner_events_preserve_boundary_order_and_exact_owner",
+    "parser::lambda_trial::tests::deeply_nested_candidates_each_inspect_only_a_fixed_prefix",
+    "parser::lambda_trial::tests::distinguishes_absent_explicit_zero_and_parameterized_headers",
+    "parser::lambda_trial::tests::doubling_successful_headers_keeps_exactly_one_raw_pass",
+    "parser::lambda_trial::tests::first_failure_is_permanent_and_does_not_scan_the_body",
+    "parser::lambda_trial::tests::nested_terminal_events_close_inner_to_outer_without_panicking",
+    "parser::lambda_trial::tests::terminal_string_events_restore_header_indexing_after_newline_recovery",
+    "parser::trial::tests::reapplies_budget_to_cached_match_and_no_match",
+    "parser::trial::tests::recognizes_complete_strict_types_and_rejects_incomplete_candidates",
+    "parser::trial::tests::successful_failed_and_mixed_trial_families_stay_linear_when_doubled",
+    "type_checking::canonical::tests::local_and_unit_seed_kinds_have_the_same_exact_tail_order",
+    "type_checking::checker::projection::tests::component_names_are_positive_canonical_decimal_indices",
+    "type_checking::compilation_unit::bodies::checker::calls::member::tests::component_names_are_positive_canonical_decimal_indices",
+    "type_checking::compilation_unit::bodies::checker::members::deinit_context_tests::deinit_cannot_target_an_enclosing_checker_loop",
+    "type_checking::compilation_unit::bodies::ownership_primitive::tests::constant_enabled_validation_also_checks_primitive_structure",
+    "type_checking::compilation_unit::bodies::ownership_primitive::tests::primitive_validation_rejects_inconsistent_source_type_operand_and_call_facts",
+    "type_checking::compilation_unit::bodies::tests::body_input_gate_rejects_foreign_names_environment_inputs_and_signatures",
+    "type_checking::compilation_unit::bodies::tests::body_model_does_not_reuse_the_single_file_type_id",
+    "type_checking::compilation_unit::bodies::tests::product_queries_use_the_unit_type_space_and_preserve_analysis_identity",
+    "type_checking::compilation_unit::bodies::tests::source_qualified_ast_identities_do_not_collide",
+    "type_checking::compilation_unit::bodies::tests::validated_gate_rejects_body_and_signature_errors",
+    "type_checking::constant_evaluation_tests::short_circuit_and_failure_spans_follow_the_selected_source",
+    "type_checking::constant_evaluation_tests::source_qualified_children_and_selected_values_do_not_alias_local_expression_ids",
+    "type_checking::constant_value::tests::integer_operations_preserve_each_declared_width_and_signedness",
+    "type_checking::constant_value::tests::signed_division_truncates_toward_zero_and_remainder_keeps_dividend_sign",
+    "type_checking::constant_value::tests::strings_preserve_unicode_and_decoded_escape_bytes",
+    "type_checking::literal_value::tests::integer_decoder_preserves_radix_suffix_and_checked_magnitude",
+    "type_checking::tests::abort_effect_accepts_only_the_standard_error_signature",
+    "type_checking::tests::print_line_effect_accepts_only_the_standard_println_signature",
+    "type_checking::tests::standard_environments_declare_all_compiler_bound_identities_once"
+  ],
+  "target_count": 142,
+  "frontend_target_count": 132,
+  "metadata_sha256_before": "c868a70649c30278a737b1a4f3a91fa1a5f338f601e95df6afaf4f8a9c43c131",
+  "metadata_sha256_after": "c868a70649c30278a737b1a4f3a91fa1a5f338f601e95df6afaf4f8a9c43c131",
+  "files": {
+    "crates/lang-frontend/tests/multifile_ownership_checking.rs": 141,
+    "crates/lang-frontend/tests/multifile_ownership_checking/assignment_rollback.rs": 100,
+    "crates/lang-frontend/tests/multifile_ownership_checking/call_deliveries.rs": 345,
+    "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs": 753,
+    "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs": 577,
+    "crates/lang-frontend/tests/multifile_ownership_checking/container_places.rs": 277,
+    "crates/lang-frontend/tests/multifile_ownership_checking/control_flow.rs": 333,
+    "crates/lang-frontend/tests/multifile_ownership_checking/drop_plans.rs": 346,
+    "crates/lang-frontend/tests/multifile_ownership_checking/lambda_drop.rs": 299,
+    "crates/lang-frontend/tests/multifile_ownership_checking/non_null.rs": 299,
+    "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime.rs": 257,
+    "crates/lang-frontend/tests/multifile_ownership_checking/provenance_contracts.rs": 355,
+    "crates/lang-frontend/tests/multifile_ownership_checking/receivers.rs": 647
+  },
+  "support_sha256": {
+    "crates/lang-frontend/tests/support/file_output_assertions.rs": "698f5571e777161a808080ebee28339d51f24c6d34e6051a67f62670ef982a3b",
+    "crates/lang-frontend/tests/support/fixture_codes.rs": "15282414c0ccd019e29316192bbd9098da6c4b9d16c344afe58a26946191b99b",
+    "crates/lang-frontend/tests/support/frontend_matrix_assertions.rs": "be1b675f49c603f21de18b842a80aeef8f62ab1d641b986113770dd9290d9a75",
+    "crates/lang-frontend/tests/support/frontend_output_assertions.rs": "08f581994d8b89e02aaaf8cbf6d2dead760175107a05fcfd9b567a34448d9dc3",
+    "crates/lang-frontend/tests/support/lexer_matrix_assertions.rs": "82a2454335b395a474ffd648e5ca1b263ba745b6185ec8676e02943feb506092",
+    "crates/lang-frontend/tests/support/lexer_output_assertions.rs": "b1abf6f6b17d145eb982e245db31743564d723db8f61c78eb5a6ce30b8e8cdbf",
+    "crates/lang-frontend/tests/support/mod.rs": "0a426d2b64b00f90f2908ee58d7f61e77bb0816bbc187e7ddc3b0d2bc1ec6db4",
+    "crates/lang-frontend/tests/support/parser_entry_matrix.rs": "5093ded9da932e58285de91db331e8a6fc580a97912bcb465e89c38acb213a07",
+    "crates/lang-frontend/tests/support/parser_entry_mutation_support.rs": "eec1765e53986a14e45c934b001d23231b2f2ba6b140272216e08831e5563c98",
+    "crates/lang-frontend/tests/support/parser_grammar_corpus.rs": "a26b1bbacf40eccb41cbcb94817a81f46219b35c0e684b2dbc4f142788c7f3fb",
+    "crates/lang-frontend/tests/support/parser_lexical_poisons.rs": "6259984110a73f6b7aab5b6d92e05c91cb6bc2a6f42103ebd5cd10f37ad87f6e",
+    "crates/lang-frontend/tests/support/parser_line_break_carriers.rs": "e70277460ca436f69d92a6ce983abac800e17433a53601525b48074212287cd9",
+    "crates/lang-frontend/tests/support/parser_mutation_assertions.rs": "0a0d3041906289d0538ed4bf39a2eedd1532fe592eb8a991e9f1a872d08e4b96",
+    "crates/lang-frontend/tests/support/parser_mutation_gaps.rs": "e7ac1dee972cbe447374681f8abd8bbe38aa5bbc9084f5bec657383359c24d18",
+    "crates/lang-frontend/tests/support/parser_mutation_lexemes.rs": "e9ee1fbedb3291e55563d757aaa4562ac404259a32bb55fd1a1e27ad0ba7f2d0",
+    "crates/lang-frontend/tests/support/parser_mutation_modes.rs": "cc58bd6b5f998786559bd2f557813309d0266ac95fb7ce08b4be0140efd49630",
+    "crates/lang-frontend/tests/support/parser_mutation_owners.rs": "a0399c29815de7e062fd1326d3d5d61c8a85e8b6ade8f89c8d6e021db5fe5251",
+    "crates/lang-frontend/tests/support/parser_mutation_tokens.rs": "6d6e746dc7e0671681bf8d7820aade0ec3accf2e65bfb97d269702382e6bd973",
+    "crates/lang-frontend/tests/support/parser_prefixes.rs": "91f847bae84ea11a0ddd79431576a3ea7c52aee40d10a428f8ff81552343139e",
+    "crates/lang-frontend/tests/support/parser_scalar_replacements.rs": "e60ec3736f70e314b2cb99960f06a309db0df791fca3bf4dc3502ac4978cb3bf",
+    "crates/lang-frontend/tests/support/parser_test_assertions.rs": "5659f01992fb8d2ac994424ec82a1589d2c84962c2204daad4daec7c02ccb3c5",
+    "crates/lang-frontend/tests/support/parser_trivia_variants.rs": "053c6afa42b5a7dfb548f6c2e7edbc1ed478f4bbb63be1c90e5a4da0c64f5896"
+  },
+  "unchanged_inputs_sha256": {
+    ".github/actions/setup-llvm/action.yml": "97bbbf515c4c14bbe01732a45be5cfde2c74955849c51b3fe68bc606e873db4d",
+    ".github/workflows/ci.yml": "d803eb6a472eea9e7747adf039a740835e0283bab068dfb26e91aeb3da3de108",
+    "Cargo.lock": "5d66391842becd2b46a1fbae79a73199b3a426640fef9226d68d478981ba2d60",
+    "Cargo.toml": "0446ecdeb0d289a44f1bf797ffcbf099136b25a2e83eeb44b1bb10442f971ff5",
+    "crates/lang-cli/Cargo.toml": "b1674f46a364385b454dd693c2a28f6ab7d93f7646d7556f00251dccce32376c",
+    "crates/lang-codegen/Cargo.toml": "a5e9419e169192ac0d80e5c33c40a6f8afc00991d96c1ee57494ed04ed90f1e0",
+    "crates/lang-frontend/Cargo.toml": "9204a7967e74ea949ea1174065b1d72d65466d46d0601fd2fa6ecf45dff43a21",
+    "crates/lang-lsp/Cargo.toml": "44a00087b71991bc08a45fb105fad7d1cd290e6270e8264eabd2cc5033b2b2f5",
+    "crates/lang-std/Cargo.toml": "511d30fff639bdfd8ce0ac2bdecb89f005ccb9b8f10b0ca622f30b35e91f0ab7",
+    "rust-toolchain.toml": "fa0addad5676243d360310f981a69528b0341d295cb5012253d9721aba4d30c0",
+    "scripts/check_guide_litmus.sh": "1219f6ca818ec1c25ab9ccfae926f62aec597a3a4aa3e6c6e9360653876bcb64",
+    "scripts/check_stage_integration.sh": "c0ae4495269ddaae6e9228af3a497556f61ebda3c322d7103fb5c5c43d8845df"
+  },
+  "format_token_edits": [],
+  "relative_path_edits": [],
+  "external_fixture_files": [],
+  "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: x86_64-unknown-linux-gnu\nrelease: 1.96.0\nLLVM version: 22.1.2\ncargo 1.96.0 (30a34c682 2026-05-25)\n21.1.8\nDebian clang version 21.1.8 (++20251221033036+2078da43e25a-1~exp1~20251221153213.50)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/e92619458311/rust-dev/llvm-root/usr/lib/llvm-21/bin\n",
+  "cost_method": "Before measurement: investigate after/before median build wall growth exceeding max(20%,1s), peak RSS max(10%,65536KiB), execution wall max(30%,.020s). Same worktree/target/toolchain/lockfile/feature/profile. 2 dependency-warm target-only builds (touch entry), 3 noop and direct execute samples per side. No cargo clean or target copy; JSON freshness proves target-only compile+link. Not cold dependency/OS, not split compile/link, no speed claim. resource.RUSAGE_CHILDREN ru_maxrss is Linux largest child peak, not sum. Baseline first list/test warmup excluded.\n",
+  "cost_samples": [
+    {
+      "phase": "after",
+      "kind": "build",
+      "sample": 1,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 1.137815199996112,
+      "peak_child_rss_kib": 502772,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": false
+        }
+      ]
+    },
+    {
+      "phase": "after",
+      "kind": "build",
+      "sample": 2,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 1.1936627749964828,
+      "peak_child_rss_kib": 503456,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": false
+        }
+      ]
+    },
+    {
+      "phase": "after",
+      "kind": "execute",
+      "sample": 1,
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/multifile_ownership_checking-1a979edfd8c1eaea"
+      ],
+      "seconds": 0.0911168010061374,
+      "peak_child_rss_kib": 13836,
+      "returncode": 0
+    },
+    {
+      "phase": "after",
+      "kind": "execute",
+      "sample": 2,
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/multifile_ownership_checking-1a979edfd8c1eaea"
+      ],
+      "seconds": 0.08591396700649057,
+      "peak_child_rss_kib": 13888,
+      "returncode": 0
+    },
+    {
+      "phase": "after",
+      "kind": "execute",
+      "sample": 3,
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/multifile_ownership_checking-1a979edfd8c1eaea"
+      ],
+      "seconds": 0.09502399300981779,
+      "peak_child_rss_kib": 13976,
+      "returncode": 0
+    },
+    {
+      "phase": "after",
+      "kind": "noop",
+      "sample": 1,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 0.03516232900437899,
+      "peak_child_rss_kib": 29716,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": true
+        }
+      ]
+    },
+    {
+      "phase": "after",
+      "kind": "noop",
+      "sample": 2,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 0.034989349005627446,
+      "peak_child_rss_kib": 28180,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": true
+        }
+      ]
+    },
+    {
+      "phase": "after",
+      "kind": "noop",
+      "sample": 3,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 0.03611748600087594,
+      "peak_child_rss_kib": 29700,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": true
+        }
+      ]
+    },
+    {
+      "phase": "before",
+      "kind": "build",
+      "sample": 1,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 1.3648286079987884,
+      "peak_child_rss_kib": 500752,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": false
+        }
+      ]
+    },
+    {
+      "phase": "before",
+      "kind": "build",
+      "sample": 2,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 1.0468261499918299,
+      "peak_child_rss_kib": 501152,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": false
+        }
+      ]
+    },
+    {
+      "phase": "before",
+      "kind": "execute",
+      "sample": 1,
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/multifile_ownership_checking-1a979edfd8c1eaea"
+      ],
+      "seconds": 0.09569197500240989,
+      "peak_child_rss_kib": 13164,
+      "returncode": 0
+    },
+    {
+      "phase": "before",
+      "kind": "execute",
+      "sample": 2,
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/multifile_ownership_checking-1a979edfd8c1eaea"
+      ],
+      "seconds": 0.08794840399059467,
+      "peak_child_rss_kib": 13588,
+      "returncode": 0
+    },
+    {
+      "phase": "before",
+      "kind": "execute",
+      "sample": 3,
+      "command": [
+        "/workspace/scratch/e92619458311/rust-dev/target/debug/deps/multifile_ownership_checking-1a979edfd8c1eaea"
+      ],
+      "seconds": 0.08759730999008752,
+      "peak_child_rss_kib": 13476,
+      "returncode": 0
+    },
+    {
+      "phase": "before",
+      "kind": "noop",
+      "sample": 1,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 0.03393528499873355,
+      "peak_child_rss_kib": 29624,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": true
+        }
+      ]
+    },
+    {
+      "phase": "before",
+      "kind": "noop",
+      "sample": 2,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 0.0365367909980705,
+      "peak_child_rss_kib": 29308,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": true
+        }
+      ]
+    },
+    {
+      "phase": "before",
+      "kind": "noop",
+      "sample": 3,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "multifile_ownership_checking",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "seconds": 0.033035486994776875,
+      "peak_child_rss_kib": 28176,
+      "returncode": 0,
+      "artifacts": [
+        {
+          "target": "lang_frontend",
+          "kind": [
+            "lib"
+          ],
+          "fresh": true
+        },
+        {
+          "target": "multifile_ownership_checking",
+          "kind": [
+            "test"
+          ],
+          "fresh": true
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "baseline_target": {
+      "passed": 72,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "after_target": {
+      "passed": 72,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "library": "187 full identities compared only; no library execution claimed",
+    "exact_names": [
+      "provenance_contracts::unit_parameter_bindings_cover_cross_file_member_and_lambda_modes",
+      "provenance_contracts::unit_ownership_rejects_mixed_analysis_and_duplicate_inputs",
+      "capture_escape::ownership_diagnostics_clear_capture_and_executable_facts_atomically",
+      "lambda_drop::lambda_value_parameters_publish_entry_read_and_transfer_drop_facts"
+    ],
+    "legacy_filter": "unit_non_null_assertion: 5 passed / 67 filtered",
+    "commands": [
+      {
+        "command": "cargo fmt --all -- --check",
+        "result": "passed"
+      },
+      {
+        "command": "cargo check --locked --offline -p lang-frontend --all-targets",
+        "result": "passed"
+      },
+      {
+        "command": "cargo clippy --locked --offline -p lang-frontend --all-targets -- -D warnings",
+        "result": "passed"
+      },
+      {
+        "command": "python3 -m unittest discover -s scripts/tests -v",
+        "result": "102 passed"
+      },
+      {
+        "command": "python3 scripts/check_rust_sizes.py --base 481fb844d62ea38851dc6ccdfb1531e3815b3445",
+        "result": "724 handwritten; 47 over 1000; no new exception"
+      },
+      {
+        "command": "python3 scripts/check_docs.py",
+        "result": "482 Markdown passed; initial missing index fixed"
+      },
+      {
+        "command": "python3 docs/development/evidence/verify_multifile_ownership_migration.py",
+        "result": "80 functions/963 literals/412 asserts byte-identical; all invariants passed"
+      },
+      {
+        "command": "git diff --check",
+        "result": "passed"
+      }
+    ],
+    "log_evidence": {
+      "list-before.txt": {
+        "sha256": "4baa43ed6983bb732cdf0092f382eb54445b4c76c602f9f650017b72975e9670",
+        "tail": [
+          "validated_unit_ownership_rejects_deferred_element_field_drop_plans: test",
+          "value_delivery_distinguishes_copy_move_and_temporary: test",
+          "when_entry_bodies_do_not_observe_later_condition_moves: test",
+          "",
+          "72 tests, 0 benchmarks"
+        ]
+      },
+      "test-before.txt": {
+        "sha256": "0dbf2652bbd138ae0073edc27f7fb094c15e8cb3821f273bd07eedd9be255ed1",
+        "tail": [
+          "test unit_non_null_assertion_consumption_and_source_restrictions ... ok",
+          "test unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges ... ok",
+          "",
+          "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+          ""
+        ]
+      },
+      "list-after.txt": {
+        "sha256": "0ceccfdce3a74b3d5490b3c4cb32cff66713933323894e5ed5cc62fc7d451d32",
+        "tail": [
+          "receivers::stateless_object_borrow_receiver_has_no_runtime_drop_fact: test",
+          "receivers::static_self_value_calls_publish_conditional_receiver_deliveries: test",
+          "receivers::static_self_value_receiver_publishes_conditional_drop_without_unconditional_drop: test",
+          "",
+          "72 tests, 0 benchmarks"
+        ]
+      },
+      "test-after.txt": {
+        "sha256": "e0f88465093150f499d67b42bf6ae40d5bdea967cae6ac5b873e79ebfcc6b13e",
+        "tail": [
+          "test non_null::unit_non_null_assertion_consumption_and_source_restrictions ... ok",
+          "test non_null::unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges ... ok",
+          "",
+          "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+          ""
+        ]
+      },
+      "check.txt": {
+        "sha256": "101e9d73791581c291e7261d8c1cd82d07e9d2312aad9d25a6f40c529a0f0728",
+        "tail": [
+          "    Checking lang-frontend v0.1.0 (/workspace/scratch/e92619458311/koven-multifile-ownership-tests/crates/lang-frontend)",
+          "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.18s"
+        ]
+      },
+      "clippy.txt": {
+        "sha256": "47000c08d84697b7418bf6dcce98cd6be69e0c39489b7f42988a8f0e8e3637d2",
+        "tail": [
+          "    Checking lang-frontend v0.1.0 (/workspace/scratch/e92619458311/koven-multifile-ownership-tests/crates/lang-frontend)",
+          "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 12.28s"
+        ]
+      },
+      "fmt.txt": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tail": []
+      },
+      "policy.txt": {
+        "sha256": "5ad151650e8f8fd884ed7454e9cbd6d9ca8306bb22edd2265663a107b1ea5d39",
+        "tail": [
+          "",
+          "----------------------------------------------------------------------",
+          "Ran 102 tests in 6.045s",
+          "",
+          "OK"
+        ]
+      },
+      "docs.txt": {
+        "sha256": "e8f69ac0a9968ad019f45980fc57207dca52093e4c4efc45133511bb26faf0dd",
+        "tail": [
+          "documentation check passed (482 Markdown files)",
+          "note: structural checks do not prove semantic equivalence"
+        ]
+      },
+      "sizes.txt": {
+        "sha256": "4675aef41248119d538bf5eed3854c6c297c94c4109db2afec89c58f5e8015f2",
+        "tail": [
+          "BASELINE   1042 crates/lang-frontend/tests/parser_declaration.rs (base: 1042)",
+          "BASELINE   1926 crates/lang-frontend/tests/parser_expression.rs (base: 1926)",
+          "BASELINE   2251 crates/lang-frontend/tests/type_checking.rs (base: 2251)",
+          "724 handwritten Rust files; 47 over 1000; 0 explicitly registered generated files",
+          "Rust size guard passed; historical debt is reported, not silently cleared."
+        ]
+      },
+      "legacy-filter.txt": {
+        "sha256": "5c9117d07ea5fa937dd1d97dae9b8474a4c1573fe08552f1ec80dbbcc3e03d2f",
+        "tail": [
+          "test non_null::unit_non_null_assertion_consumption_and_source_restrictions ... ok",
+          "test non_null::unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges ... ok",
+          "",
+          "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 67 filtered out; finished in 0.03s",
+          ""
+        ]
+      },
+      "exact-lambda_value_parameters_publish_entry_read_and_transfer_drop_facts.txt": {
+        "sha256": "722881554ec854613817141a5f94f3d880a19457947a58a1d4df8065d7a2812d",
+        "tail": [
+          "running 1 test",
+          "test lambda_drop::lambda_value_parameters_publish_entry_read_and_transfer_drop_facts ... ok",
+          "",
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.01s",
+          ""
+        ]
+      },
+      "exact-ownership_diagnostics_clear_capture_and_executable_facts_atomically.txt": {
+        "sha256": "b88a2ea35f1d3c053a8e6a28f79af87cc953d4921dbe3ac921a84b925d91d5a9",
+        "tail": [
+          "running 1 test",
+          "test capture_escape::ownership_diagnostics_clear_capture_and_executable_facts_atomically ... ok",
+          "",
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.00s",
+          ""
+        ]
+      },
+      "exact-unit_ownership_rejects_mixed_analysis_and_duplicate_inputs.txt": {
+        "sha256": "3ca046e05ffbb5c100d66496882c138c1dee0cc236ba3b00079f1229d13c3ec6",
+        "tail": [
+          "running 1 test",
+          "test provenance_contracts::unit_ownership_rejects_mixed_analysis_and_duplicate_inputs ... ok",
+          "",
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.00s",
+          ""
+        ]
+      },
+      "exact-unit_parameter_bindings_cover_cross_file_member_and_lambda_modes.txt": {
+        "sha256": "15df2de3819f5845d0158fe6954ff1250729d1ff49388f45ad947cdfdb00cfe4",
+        "tail": [
+          "running 1 test",
+          "test provenance_contracts::unit_parameter_bindings_cover_cross_file_member_and_lambda_modes ... ok",
+          "",
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.01s",
+          ""
+        ]
+      }
+    }
+  },
+  "ci_selection": {
+    "stage": "one complete target occurrence, no name filter",
+    "guide": "one complete target occurrence, no name filter",
+    "scripts_workflow_changed": false
+  },
+  "pending": [
+    "exact-head Ubuntu/macOS PR CI",
+    "broader governance and final external audit"
+  ],
+  "cost_review_thresholds": [
+    {
+      "kind": "build",
+      "field": "seconds",
+      "before_median": 1.2058273789953091,
+      "after_median": 1.1657389874962973,
+      "growth": -0.04008839149901178,
+      "review_threshold": 1.0,
+      "triggered": false
+    },
+    {
+      "kind": "build",
+      "field": "peak_child_rss_kib",
+      "before_median": 500952.0,
+      "after_median": 503114.0,
+      "growth": 2162.0,
+      "review_threshold": 65536,
+      "triggered": false
+    },
+    {
+      "kind": "execute",
+      "field": "seconds",
+      "before_median": 0.08794840399059467,
+      "after_median": 0.0911168010061374,
+      "growth": 0.0031683970155427232,
+      "review_threshold": 0.0263845211971784,
+      "triggered": false
+    }
+  ],
+  "independent_review": {
+    "design": "Approve",
+    "final": "Approve",
+    "scope": "local P2 pure move only; exact-head Ubuntu/macOS PR CI remains pending",
+    "checks": [
+      "independent raw source-span comparison: 80 complete functions and attributes occur unchanged at exactly one destination",
+      "72 full-name identity mapping; fixtures/Span/atomic failure/nested loan preserved",
+      "private module/helper boundaries and no target/pub/cfg/ignore growth",
+      "original logs and 16 sample JSON/freshness/threshold chronology verified",
+      "read-only verifier, docs 482, size 724/47 and diff checks rerun; no Cargo rerun"
+    ]
+  }
+}
