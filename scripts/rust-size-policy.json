@@ -14,7 +14,7 @@
     "crates/lang-codegen/src/ssa/model.rs": 1341,
     "crates/lang-codegen/src/ssa/unit_lower.rs": 1282,
     "crates/lang-codegen/src/ssa/unit_lower/control.rs": 1051,
-    "crates/lang-codegen/src/ssa/unit_plan.rs": 3035,
+    "crates/lang-codegen/src/ssa/unit_plan.rs": 2658,
     "crates/lang-codegen/src/ssa/verify_operation.rs": 1168,
     "crates/lang-codegen/src/ssa/verify_ownership.rs": 1720,
     "crates/lang-codegen/src/ssa/verify_ownership_tests.rs": 1659,

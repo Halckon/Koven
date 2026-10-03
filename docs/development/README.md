@@ -20,6 +20,7 @@
 - [P2 LSP server 测试首片](lsp-test-migration.md)：私有边界、身份映射、实际验证及未测项
 - [P2 codegen receiver 测试拆分](codegen-receiver-test-migration.md)：46项逐字保全、领域映射、定向验证与有限warm样本
 - [P2 codegen plan 测试拆分](codegen-plan-test-migration.md)：48项逐字保全、七域映射及受控compile/link与运行样本
+- [P2 unit runtime layout 职责拆分](unit-runtime-layout-migration.md)：八函数等价移动、旧门面路径、完整codegen与尺寸收紧证据
 - [P2 iteration 私有测试拆分](drop-iteration-test-migration.md)：40项映射、18域、逐项格式/路径证据及3个完整场景例外
 
 - [P2 ownership iteration integration分组](ownership-iteration-test-migration.md)：184项逐字保全、20域、同target及双平台定向接线

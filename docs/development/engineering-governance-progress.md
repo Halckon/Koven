@@ -12,7 +12,7 @@
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
 | P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 239 archive（0253按PR34最终双宿主证据本地归档，待随下一相关批次发布）；原P1批次历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
-| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留，无新例外；原stage双平台选集已覆盖，同target不改CI；其余大integration与生产职责仍待后继 |
+| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留；runtime layout首片已本地拆分验收，待组合发布与双宿主CI；其余大integration与生产职责仍待后继 |
 | P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | PR34最终双宿主9/9、109有界身份各host恰一次ok；P3b四宿主纯阶段编排有界完成；P3a const交接仍留后片 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
@@ -452,3 +452,21 @@ owned交接仍属P3a，0182、其余P2/P4/P5与后续外部审计继续保持。
 次数仅证明重复index减少，不声称耗时/RSS收益；全部验证与失败历史只记本片唯一账本。
 独立实现review已Approve；精确head双宿主CI尚待，不能提前归档或结项全部P3。
 0182、其余P2/P4/P5及整体计划后外部审计仍按原范围保留。
+
+
+## P2 unit runtime layout 生产职责拆分（2026-10-03）
+
+从0254本地已验收head `2ec24abc` 独立建立 `feature/spec-p2-runtime-layout`，遵循已批准P2。
+纯移动提交 `d79a692` 将 runtime demand升级与exact owner字段布局消费八函数抽到私有模块；
+原resolver门面路径不变，parent3035→2658行、新模块398行，父文件其余字节不变。
+八函数归一后逐字相等，48项七域测试及完整748项library身份不变；不进入P4或合并
+单文件/unit的不同concrete-type算法。policy只收紧原额度到2658，余下历史欠账继续保留。
+
+本地48项前后窄测、codegen748+2+4、workspace all-targets check、codegen严格clippy、
+普通release check、fmt、102 policy与尺寸护栏通过；真实native roundtrip仍执行。
+两次/侧dependency-warm compile/link与三次no-op/直接执行样本未触发本片采用的调查阈值，
+不声称性能等价或提速。完整命令、边界、逐函数字节/身份hash和成本原值见
+[唯一验收账本](unit-runtime-layout-migration.md)。独立源码与最终验收review均Approve。
+
+本片仅本地交付，无远端写入；精确head双宿主CI尚未执行，不能由旧CI或本地结果代替。
+0254、0182及其他P2/P4/P5和整体计划后的外部审计均不据此扩大完成声明。
