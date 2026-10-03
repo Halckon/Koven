@@ -250,6 +250,7 @@ subgraph Garchive["已完成（archive，238 份）"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
+  S0253["S0253<br/>共享单文件阶段门面"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1193,7 +1194,10 @@ S0249 --> S0250
 S0249 --> S0252
 S0250 --> S0251
 S0250 --> S0252
+S0250 --> S0253
 S0251 --> S0252
+S0251 --> S0253
+S0252 --> S0253
 ```
 
 ## 节点链接
@@ -1439,3 +1443,4 @@ S0251 --> S0252
 | SPEC-0251 | archive | [0251-lsp-unit-name-snapshot.md](0251-lsp-unit-name-snapshot.md) |
 | SPEC-0252 | archive | [0252-basic-unit-ownership-driver.md](0252-basic-unit-ownership-driver.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
+| SPEC-0253 | active | [0253-single-file-analysis-facade.md](../../specs/active/0253-single-file-analysis-facade.md) |
