@@ -374,7 +374,7 @@ P3b整体和bootstrap/legacy/const后继、其余治理、0182及延期外部审
 ## SPEC-0252 unit 基础所有权共享推进（2026-10-02）
 
 从 PR32 merge `15dfb13a6d771f66fbcfa21ca8db2fed92e77868` 建立 `feature/spec-0252`。
-[唯一合同与验收账本](../specs/active/0252-basic-unit-ownership-driver.md)限定一个有界PR：
+[唯一合同与验收账本](../archive/specs/0252-basic-unit-ownership-driver.md)限定一个有界PR：
 CLI project先迁、LSP unit后迁，共享typed basic validation→普通ownership；无IO、const或
 宿主诊断策略。Outcome按值，不是完整owner或额外身份证明；LSP消费式恢复typed去除大clone。
 
@@ -392,3 +392,17 @@ NotBasic/const分流、raw诊断/deferred、entry优先级及last-good。真实�
 
 批准计划正文继续保存原目标与基线；本节是范围收敛和实施状态。0182、P2/P4/P5及全计划后的
 外部审计顺序不变，不据本片扩大完成声明或承诺性能改善。
+
+
+### SPEC-0252 首轮双宿主与归档
+
+[PR33](https://github.com/Halckon/Koven/pull/33)首轮head9b872bc3的
+[CI37074981360](https://github.com/Halckon/Koven/actions/runs/37074981360)9/9成功。
+两宿主新API6/compile4、新CLI9/原project9与完整LSP40各身份恰一次ok，完整targets
+0 failed/ignored/filtered；core、iteration、stage、Guide及check/严格Clippy均实际成功。
+合成merge b562cfb8已核父链base15dfb13＋head9b872bc3及完整tree08ac5566相同。
+完整映射、日志与有界结论见[0252唯一账本](../archive/specs/0252-basic-unit-ownership-driver.md#7-首轮精确-head-双宿主验收与有界归档2026-10-02)。
+
+当前1 active/238 archive；前节待review/未发布/CI为实施时快照。归档新head另行窄review和
+最终CI，终态留PR并由维护者决定merge后核main。P3b单文件bootstrap/legacy、P3a const
+owned交接、0182及其余治理仍保留；外部审计继续排在整个计划之后，不扩大完成声明。

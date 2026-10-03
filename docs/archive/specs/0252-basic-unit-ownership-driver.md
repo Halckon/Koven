@@ -1,16 +1,16 @@
 # SPEC-0252：unit 基础所有权共享推进
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 unit basic ownership 纯阶段推进时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审 unit basic ownership 纯阶段推进时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-252` |
 | 所属 Phase | Phase 2→3 基础所有权推进与 Phase 6 宿主编排；治理 P3b 有界切片 |
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
 | 前置 Spec | SPEC-0249、0250、0251 `done` |
 | 前置 ADR | [ADR-0020](../../adr/accepted/0020-multifile-compilation-unit.md)、[ADR-0021](../../adr/accepted/0021-lsp-explicit-source-set-protocol.md) `accepted` |
-| 阻塞项 | 无；实施与新head验证进行中 |
+| 阻塞项 | 无；有界实现与首轮双宿主验收完成，归档新head交付门禁另验 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal、批准与范围
@@ -112,3 +112,54 @@ LLVM动态库路径而返回127，补齐既有activate环境后全部重跑；�
 
 生产提交：`671ac28` frontend、`a2bfa28` CLI、`408bc51` LSP；之前`450f184`建立有界合同。
 独立review、Draft首CI、归档窄review/最终CI和merge/main闭环另行追加，不预称完成。
+
+
+## 7. 首轮精确 head 双宿主验收与有界归档（2026-10-02）
+
+[PR33](https://github.com/Halckon/Koven/pull/33)保持Draft，首轮head
+`9b872bc3dabddbc72e76ab157fb5268f001424b1`的
+[CI37074981360](https://github.com/Halckon/Koven/actions/runs/37074981360)已9/9 jobs success。
+双宿主check/严格Clippy、core、ownership iteration、stage、Guide均实际成功。
+独立实现review对本地最终`6f8cd4a86bbe5ddc7f0396ce8d429db6fc6d3987`结论Approve、无阻塞发现；
+独立从精确main15dfb13重建旧生产，CLI新oracle9与完整LSP40先绿，再在新生产复跑
+API6/compile4、原view1/compile7、CLI新旧9+9、完整LSP40全绿。完整事实与身份分别断言。
+
+### 提交内容与父链
+
+| 内容 | 本地提交 | GitHub提交 | 完整tree |
+|---|---|---|---|
+| 有界合同 | `450f184b195573b32f1d3e65e9cdd0d4b4b24a7b` | `60e49d6fc453869dfc4a8cb10a1a82aa996c0c6f` | `b66917ee0ac1c467ff613feea0f85fc00beddff7` |
+| frontend API/合同 | `671ac28bcba72159b386ed5ba8263e725296295e` | `2d60b138ee965677b81dc415ad9b4f321e4e9905` | `e8854068b4dbaedd6ef7bc5725fe880c65fac98a` |
+| CLI迁移/oracle | `a2bfa28e5aef157a8a9231c8fad471a6d86c9808` | `ea5ad26731c7efb3321f1cc00cd1c94a3f8f4cf3` | `c79689a1282e112100b29cbc096f3d78a5023438` |
+| LSP迁移/oracle | `408bc51c885c78ec4c82fa67587ae0c06f8ae0f1` | `dd4c1175202e7de24322f1a45747052ca08d7e8a` | `a5d3b4dc20f437bbe77f4e49bb63b4a376785fbe` |
+| 本地验收账本 | `2148f380982083befa0e3c3c0008327c13778792` | `4f3f9fd8425609c1304be474d7db34e7f2b408d4` | `5e4a1795ca3be5df40acb4cbbc92685658fa3f1d` |
+| 实测行数更正 | `6f8cd4a86bbe5ddc7f0396ce8d429db6fc6d3987` | `9b872bc3dabddbc72e76ab157fb5268f001424b1` | `08ac55669830a19b43fea2acb6459ec415398861` |
+
+每对完整tree一致，fetch后对应diff为空；远端父链从main15dfb13按表中顺序连续。
+两宿主test job实际checkout合成merge `b562cfb8855a6a37329e4d860094a4b94ed9e321`，
+已核双parent恰为base15dfb13与head9b872bc3，tree08ac5566与head完全相同。
+它是PR测试合成merge，不是真实合并记录；验收覆盖此精确head内容。
+
+### 双宿主实际执行
+
+| 检查 | Ubuntu 24.04 x86_64 | macOS 14 AArch64 |
+|---|---|---|
+| 新API runtime / compile | 6 / 4身份各恰一次ok，完整targets 0 failed/ignored/filtered | 相同10身份各恰一次ok，完整targets 0 failed/ignored/filtered |
+| 新CLI oracle / 原project_cli | 9 / 9身份各恰一次ok，完整targets 0 failed/ignored/filtered | 相同18身份各恰一次ok，完整targets 0 failed/ignored/filtered |
+| 完整LSP | 原37＋新增3，共40身份各恰一次ok，0 failed/ignored/filtered | 相同40身份各恰一次ok，0 failed/ignored/filtered |
+| frontend core / ownership iteration | 187 / 184 passed | 187 / 184 passed |
+| codegen core / docs | 739 / 4 passed | 738 passed＋既有LLDB1 ignored / 4 docs passed |
+| 完整CLI | bin48＋format3＋native9＋project9＋新oracle9＝78 passed | bin47＋format3＋native9＋project9＋新oracle9＝77 passed |
+| stage / Guide步骤 | 两步success | 两步success |
+
+原日志：[Ubuntu job111063219404](https://github.com/Halckon/Koven/actions/runs/37074981360/job/111063219404)、
+[macOS job111063219308](https://github.com/Halckon/Koven/actions/runs/37074981360/job/111063219308)。
+以上68个指定身份逐名匹配，每宿主各恰一次；不凭总数或配置推断测试已执行。
+macOS原LLDB ignore仍为CI缺debugserver task-port权限，未扩大ignore，不计作passed。
+§4/§6本地命令、失败和未运行记录保留为当时快照，本节单列后继真实远端验收，不倒填。
+
+本片只完成unit基础ownership共享推进与CLI/LSP消费；归档后当前1 active/238 archive。
+bootstrap/legacy单文件门面仍属P3b后继，const owned交接仍属P3a；0182、其余P2/P4/P5与
+全计划后的外部审计均未自动完成，不宣称性能改善。归档只改文档/inventory/生成图，Rust和
+CI零diff；新head另行窄review及最终CI，终态留PR，不能用首轮9/9代替最终验收，不自动
+转Ready或开启auto-merge。维护者决定merge后仍核main CI。
