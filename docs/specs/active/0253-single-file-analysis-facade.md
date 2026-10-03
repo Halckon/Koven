@@ -88,6 +88,9 @@ Eq与独立UTF16断言保留；同map raw Eq/来源合同另在frontend测试中
 初次Architecture概述写入已满200行的names-and-types被文档门禁拒绝，移至既有tooling
 职责页后通过；未压缩历史正文或放宽门禁。最后Unicode fixture补跨行CRLF，在旧binary16组合
 重新捕获验证后，完整CLI/LSP均以最终fixture复跑通过。
+收尾base-to-head diff发现真实CRLF被默认whitespace规则当作trailing whitespace；
+`.gitattributes`仅给两份明确CRLF fixture设置`-text`与`cr-at-eol`，保留其余默认whitespace
+检查；不改变fixture bytes、生产代码或Rust policy。完整base diff复查通过。
 
 17个frontend完整target计数：basic6/compile4、lexer20、names15、view1/compile7、
 ownership31/constants16、parser file27/error propagation8、single-file8/compile5、
@@ -105,7 +108,7 @@ cargo clippy --locked --offline -p lang-frontend -p lang-cli -p lang-lsp --all-t
 python3 scripts/check_docs.py
 python3 -m unittest discover -s scripts/tests -v
 python3 scripts/check_rust_sizes.py --base 82610ab9d3d8148949f2a6f485e5a0b50d045ff1
-git diff --check
+git diff 82610ab9d3d8148949f2a6f485e5a0b50d045ff1 --check
 ```
 
 本地未运行完整stage/Guide脚本、完整codegen、frontend全量、workspace全量tests或macOS；

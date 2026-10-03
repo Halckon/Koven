@@ -16,3 +16,6 @@
 - Unicode/CRLF 按原始字节保存；测试不得把 CRLF 归一化
 
 测试只读取捕获结果，不提供从新生产重录 golden 的自动更新开关。
+
+`.gitattributes`仅对`success.ko`与`unicode.ko`保留原始CRLF字节（`-text`），并把CR视为
+行尾；普通行尾空白、文件末尾空行、tab前space检查继续启用，不扩大其他文件的例外。
