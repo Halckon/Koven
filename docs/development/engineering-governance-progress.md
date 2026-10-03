@@ -438,3 +438,17 @@ P3a const owned交接、0182、其余P2/P4/P5与整体计划后的外部审计�
 前段未发布/待CI为本地实施时快照；本次按减少PR/CI频率要求，仅本地准备归档，随下一
 相关批次发布，不另发文档PR。P3b的四宿主parity与公开身份/能力退出证据闭合；const
 owned交接仍属P3a，0182、其余P2/P4/P5与后续外部审计继续保持。
+
+
+## SPEC-0254 const owned-unit 封闭交接（2026-10-03）
+
+从PR34真实main `c6b84ecb`建立`feature/spec-0254`，先携带独立审核的0253归档，
+与[本片有界合同](../specs/active/0254-const-owned-unit-borrowed-handoff.md)一起本地完成后发布一份Draft PR。
+独立const六借用工厂、旧native/lower转接与CLI project const消费已实现；空常量仍保留专用
+短路/ownership能力，LSP const无owned不变。旧生产oracle先锁，再做新API编译红与最小实现。
+
+本地frontend267、codegen748+2+4、CLI82、LSP45、frontenddocs12及工程门禁通过；
+精确双counter两fixture实测native4→1、lower2→1、factory1、预建view下游0。
+次数仅证明重复index减少，不声称耗时/RSS收益；全部验证与失败历史只记本片唯一账本。
+独立实现review已Approve；精确head双宿主CI尚待，不能提前归档或结项全部P3。
+0182、其余P2/P4/P5及整体计划后外部审计仍按原范围保留。

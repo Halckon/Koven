@@ -85,8 +85,8 @@ String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop
 校验 operand 与 branch identity；LHS 退出直接传播，动态分支消费对应 BranchExit 并保留 skip
 后继。基础入口原有短路能力边界保持。String 插值按现行 guide 确定性拒绝，
 包括含常量 use 的插值；调用前缀退出与内层循环的已支持范围见下文。
-公开 `emit_native_constant_unit_object` 接受专用 typed/owned capability，按身份校验、共享
-process entry shape、SSA lowering 的顺序检查，再复用 sibling object 原子发布。基础入口
+公开 `emit_native_constant_unit_object` 将专用 typed/owned 封闭为const view；新view native
+按entry shape、SSA顺序检查，再复用sibling原子发布；[完整交接](pipeline-and-workspace.md#常量-owned-unit-交接)保留专用事实。基础入口
 仍只接受基础 capability。跨文件 String concat/println、argv 入口形状、正逆 inputs 与重复
 object 字节已有 native 证据；非法 entry、插值及分析错配在写出前拒绝并保留既有目标。
 跨文件 native 矩阵另覆盖六类 namespace 的全部 11 种常量类型，以 import 和绝对路径读取，

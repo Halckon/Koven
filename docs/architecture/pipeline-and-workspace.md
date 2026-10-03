@@ -26,7 +26,7 @@ SourceMap
   → CompilationUnitIndex / CompilationUnitNames
   → CompilationUnitTypes
   → CompilationUnitOwnership
-  → OwnedCompilationUnitView（普通路径）/ 独立 const gate
+  → OwnedCompilationUnitView / ConstOwnedCompilationUnitView（独立能力）
   → unit plan / typed SSA Program
   → verified LLVM module
   → object
@@ -85,6 +85,18 @@ N1 只证明 commit 失败清理，尚未注入真正 LLVM emission 失败；H1/
 [原合同基线](../development/unit-handoff-contract-baseline.md)的八项身份已保留并扩双路，另加 Into 顺序测试；
 实际通过范围、Display 逐字 oracle、reserve 与生命周期证据见[0249 账本](../archive/specs/0249-owned-unit-borrowed-handoff.md#6-唯一验收账本)。
 [动态计数与同期采样](../development/owned-unit-handoff-measurement.md)分别验收；次数减少已实测，耗时噪声不支持性能收益结论。
+
+## 常量 owned-unit 交接
+
+`const_owned_compilation_unit_view`单独绑定sources/inputs/names/environment与const typed/owned
+六项借用。一次index后复用同一indexed签名身份比较，再核const owned对应的typed owner。
+`ConstOwnedCompilationUnitView`字段私有，只读facts与原`ConstEnabledOwnedUnit`一并保留；
+materialization和short-circuit不丢失，没有basic/const转换。零常量的专用ownership仍独立。
+旧`emit_native_constant_unit_object`与私有const lower各经一次工厂转接；新
+`emit_native_const_owned_unit_object`及私有view lower不再重建index。CLI project const分支
+在原entry选择之后创建view，错误仍走codegen映射；LSP const无owned保持。
+普通路径上述发布顺序、错误类型及原子提交合同同样适用；完整能力、双路身份和动态计数
+的实际验收见[本片账本](../specs/active/0254-const-owned-unit-borrowed-handoff.md)。
 
 ## 目标与产物
 

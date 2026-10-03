@@ -10,7 +10,7 @@
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
 | 前置 Spec | SPEC-0249、0252、0253 `done` |
 | 前置 ADR | [ADR-0020](../../adr/accepted/0020-multifile-compilation-unit.md) `accepted` |
-| 阻塞项 | 设计独立评审通过；旧链 oracle、动态测量、实现与验收待完成 |
+| 阻塞项 | 本地实现、验收与独立review通过；发布及精确head双宿主CI待完成 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal 与范围
@@ -71,16 +71,52 @@ factory→entry shape→lower/SSA verify→native entry plan→reserve→LLVM/la
 
 | ID / 合同 | 目标与精确证据 | 实际结果 |
 |---|---|---|
-| A1 旧六输入失配 | const native/lower六维替换、root/duplicate/missing/reparse，合法/非法entry、新旧output与missing parent；kind/span/diagnostic/Display及目录/bytes | 待执行 |
-| A2 接缝成功等价 | clone分别/全部、重排/重建inputs、same typed重check、完整fresh链；facts/verified SSA/entry/object/link/stdout/stderr/exit | 待执行 |
-| A3 Into与reserve | 用户Into成功/失败恰一次且先identity；exact子进程读取既有counter，拒绝delta0/成功delta1 | 待执行 |
-| A4 工厂完整facts | const_owned_compilation_unit_view：六getter原指针、物化/短路列表和查询、零常量loans0/1及owned来源保护 | 待新API编译红与绿测 |
-| A5 外部编译正负合同 | const_owned_unit_view_compile_contracts：全部private、basic/recovery/view互换、六产品/ParsedFile/root/path/temporary借用逃逸、只读getter，精确错误码及正控 | 待执行 |
-| A6 动态index | 固定两const fixtures；setup、显式index校准、native/lower、factory、预建view native/lower；函数入口和constructor双counter | 旧native4/lower2仅为待测假设；不当实测或性能证据 |
-| A7 能力与资源回归 | 原constant materialization、短路、String drop/alloc/free、native原子输出、完整CLI与LSP const无owned | 待执行 |
-| A8 工程验收 | fmt、workspace all-targets check、受影响三crate strict clippy、frontend/codegen docs、定向frontend、完整codegen/CLI/LSP及CLI build | 待执行 |
-| A9 文档/尺寸/CI接线 | docs、Python policy、固定main尺寸、diff；新增两target及multifile_constant_ownership在stage各恰一次完整token无filter，先红再绿 | 待执行 |
-| A10 交付 | 独立实现review；本地验证后一次Draft PR；精确head双宿主实际CI，归档与最终主干核验 | 设计Approve；其余待执行 |
+| A1 旧六输入失配 | const native/lower六维替换、root/duplicate/missing，合法/非法entry、新旧output与missing parent；kind/span/diagnostic/Display及目录/bytes | 旧生产9/9通过：50 native/20 lower失配；实现后两路100 native失配，精确kind/span/diagnostic=None/Display及目录、bytes全部通过 |
+| A2 接缝成功等价 | clone分别/全部、重排/重建/同源同字节reparse inputs、same typed重check、完整fresh链；facts/verified SSA/entry/object/link/stdout/stderr/exit | 10合法链×双路20次实际link/run通过；完整const事实、SSA/entry和object bytes相等；同map同字节reparse保留合法，fresh names/typed混轮仍拒绝 |
+| A3 Into与reserve | 用户Into成功/失败恰一次且先identity；exact子进程读取既有counter，拒绝delta0/成功delta1 | 旧exact子进程reserve最终6；双路最终12，每次失败delta0/成功delta1；用户Into四格原顺序通过 |
+| A4 工厂完整facts | const_owned_compilation_unit_view：六getter原指针、物化/短路列表和查询、零常量loans0/1及owned来源保护 | 两新frontend target真实E0432红后最小实现；本target4/4通过，六原借用、物化/短路查询、零常量loans0/1及owned来源保护 |
+| A5 外部编译正负合同 | const_owned_unit_view_compile_contracts：全部private、basic/recovery/view互换、六产品/ParsedFile/root/path/temporary借用逃逸、只读getter，精确错误码及正控 | frontend compile10/10，E0451/E0616/E0308/E0597/E0716/E0624均配正控；实际公开native API另2/2，两类view及旧typed/owned分别隔离 |
+| A6 动态index | 固定两const fixtures；setup、显式index校准、native/lower、factory、预建view native/lower；函数入口和constructor双counter | 22 exact进程成功，双counter两fixture均native4→1、lower2→1、factory1、view下游0；原始计数/fixture/hash及6次object/link/run见[测量页](../../development/const-owned-unit-handoff-measurement.md)，未做可支持结论的耗时/RSS实验 |
+| A7 能力与资源回归 | 原constant materialization、短路、String drop/alloc/free、native原子输出、完整CLI与LSP const无owned | 完整codegen748+新native compile2+docs4、CLI82、LSP45全部通过；const String资源计数/短路与原basic资源oracle、输出失败原子性及LSP const无owned均保留 |
+| A8 工程验收 | fmt、workspace all-targets check、受影响三crate strict clippy、frontend/codegen docs、定向frontend、完整codegen/CLI/LSP及CLI build | fmt、workspace check、三crate严格Clippy及CLI build通过；11个frontend完整targets267、frontend docs12通过；完整下游见A7，均0failed/ignored/filtered |
+| A9 文档/尺寸/CI接线 | docs、Python policy、固定main尺寸、diff；新增两target及multifile_constant_ownership在stage各恰一次完整token无filter，先红再绿 | docs478、Python102/102、固定main尺寸707手写/48旧超限/0生成通过，无额度变化；selection未接线0命中真红后绿，并补同命令重复token反例；diff通过 |
+| A10 交付 | 独立实现review；本地验证后一次Draft PR；精确head双宿主实际CI，归档与最终主干核验 | 设计与实现独立review均Approve；diagnosticNone与token计数缺口已修复并重验；未发布Draft PR、未跑本片双宿主CI |
 
 本地Linux不替代macOS；未执行/失败/filtered/ignored分别留证。性能/RSS不由静态调用数或
 插桩耗时推导。没有本片精确head双宿主证据前不归档、不宣称完整P3完成。
+
+## 5. 实际执行与失败历史
+
+旧生产oracle commit `eb1c2fe`，最小实现 `0d5ba88`；后继文档不改变该生产/测试字节。
+新API实际编译红不是旧语言bug；旧native首次7/9的两个失败均为测试误以为同源同字节
+reparse会改变index，改为成功控制后9/9。保留names/typed/owned混轮拒绝，没有扩大生产语义。
+测量首次fixture的package/path错误及修正只记录于测量页。独立review补足diagnostic=None
+与同命令重复`--test`计数反例；完成后完整codegen和Python政策重跑，不把此前结果代替新断言。
+
+本地x86_64 Linux，Rust/Cargo1.96.0与LLVM/Clang21.1.8。全部Cargo串行，未clean。
+定向frontend完整选择11个targets：compilation_unit_index11、multifile_constant_facts6、
+multifile_constant_ownership20、multifile_ownership_checking72、multifile_two_phase_borrows27、
+multifile_type_checking107、multifile_type_signature_provenance2、ordinary view1/compile7、
+const view4/compile10，共267；没有用frontend/workspace全量替代定向合同。
+
+```sh
+cargo fmt --all -- --check
+cargo check --locked --offline --workspace --all-targets
+cargo clippy --locked --offline -p lang-frontend -p lang-codegen -p lang-cli --all-targets -- -D warnings
+cargo test --locked --offline -p lang-frontend --no-fail-fast --test compilation_unit_index --test multifile_constant_facts --test multifile_constant_ownership --test multifile_ownership_checking --test multifile_two_phase_borrows --test multifile_type_checking --test multifile_type_signature_provenance --test owned_compilation_unit_view --test owned_unit_view_compile_contracts --test const_owned_compilation_unit_view --test const_owned_unit_view_compile_contracts
+cargo test --locked --offline -p lang-codegen
+cargo test --locked --offline -p lang-cli
+cargo test --locked --offline -p lang-lsp
+cargo test --locked --offline -p lang-frontend --doc
+cargo build --locked --offline -p lang-cli
+python3 scripts/check_docs.py
+python3 -m unittest discover -s scripts/tests -v
+python3 scripts/check_rust_sizes.py --base c6b84ecb46563b7de2bfeb9f481e75cf4a861323
+git diff --check
+```
+
+codegen本地748 lib +2 integration+4 docs；CLI48 bin+3format+9native+9project+9unit oracle+
+4single-file oracle=82；LSP45、frontend docs12，所有完整targets无ignore/filter。
+focused旧/新native oracle各9通过时739 filtered单列；测量22进程各1 passed，旧739/新748
+filtered不是完整suite。宏观stage/Guide脚本、frontend全量、workspace全量与macOS本地未运行；
+远端精确head需实际执行配置选集，不能用本地或PR34结果替代。0253归档随本片一次PR发布。
