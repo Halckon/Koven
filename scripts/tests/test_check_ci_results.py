@@ -137,6 +137,19 @@ class CheckCiResultsTests(unittest.TestCase):
             self.assertNotIn(" -- ", selected[0], "contract targets must not be filtered")
             self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
 
+    def test_single_file_analysis_contracts_run_in_stage_integration(self):
+        root = Path(__file__).resolve().parents[2]
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        commands = stage.replace("\\\n", " ").splitlines()
+        for target in ("single_file_analysis", "single_file_analysis_compile_contracts"):
+            selected = [line for line in commands
+                        if re.search(rf"--test {target}(?:\s|$)", line)]
+            self.assertEqual(1, len(selected), f"{target} must execute exactly once")
+            self.assertTrue(selected[0].startswith(
+                "run cargo test --locked -p lang-frontend --no-fail-fast "))
+            self.assertNotIn(" -- ", selected[0], "contract targets must not be filtered")
+            self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+
     def test_rust_size_guard_is_always_required(self):
         for event, ref in (("pull_request", "refs/pull/1/merge"),
                            ("push", "refs/heads/feature/test"),
