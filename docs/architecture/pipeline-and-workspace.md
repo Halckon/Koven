@@ -55,7 +55,8 @@ inputs Vec，使其 slice 的生命周期覆盖 0249 view。map 中未显式列�
 CLI project 首先完成已有 discovery/path 校验与 source 注册，再调用此前缀；同次
 standard_environments 的 type 半边留宿主。其 names 后非空诊断 gate、basic/const 分流、
 ownership/entry/native 后段保持。LSP unit 同样组合该 owner，但保留 validated_names gate、typed
-recovery、const 无 owned 与 prepare/publish/commit 生命周期；bootstrap 和 legacy LSP 尚未迁移。
+recovery、const 无 owned 与 prepare/publish/commit 生命周期。bootstrap 和 legacy LSP 已迁移到
+独立的 `analyze_single_file` 纯阶段门面，保留CLI逐阶段早停与LSP完整recovery/typed观察。
 不提供总模式开关。对应合同为 `unit_name_snapshot`、`unit_name_snapshot_compile_contracts`、
 CLI `project_cli` 与 LSP 私有 `unit_session::tests` / `server::tests::snapshot_lifecycle`。
 
@@ -96,7 +97,7 @@ materialization和short-circuit不丢失，没有basic/const转换。零常量�
 `emit_native_const_owned_unit_object`及私有view lower不再重建index。CLI project const分支
 在原entry选择之后创建view，错误仍走codegen映射；LSP const无owned保持。
 普通路径上述发布顺序、错误类型及原子提交合同同样适用；完整能力、双路身份和动态计数
-的实际验收见[本片账本](../specs/active/0254-const-owned-unit-borrowed-handoff.md)。
+的实际验收见[本片账本](../archive/specs/0254-const-owned-unit-borrowed-handoff.md)。
 
 ## 目标与产物
 

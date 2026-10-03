@@ -10,10 +10,10 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前1 active / 239 archive（0253按PR34最终双宿主证据本地归档，待随下一相关批次发布）；原P1批次历史1/233保留，0182继续独立补强 |
+| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前本地1 active / 240 archive（0253归档已随PR35合并，0254按PR/main双宿主证据本地归档，待随下一相关实施批次发布）；PR35主干为2 active / 239 archive，原P1历史1/233保留，唯一剩余0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
-| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留；runtime layout首片已本地拆分验收，待组合发布与双宿主CI；其余大integration与生产职责仍待后继 |
-| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | PR34最终双宿主9/9、109有界身份各host恰一次ok；P3b四宿主纯阶段编排有界完成；P3a const交接仍留后片 |
+| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留；runtime layout首片已随PR35合并且双宿主planner48/48通过；其余大integration与生产职责仍待后继 |
+| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | PR34完成P3b四宿主纯编排；PR35完成0254 const交接有界合同，两宿主新增25/25与const ownership20/20；真实merge主干双宿主再次通过 |
 | P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
 
@@ -443,7 +443,7 @@ owned交接仍属P3a，0182、其余P2/P4/P5与后续外部审计继续保持。
 ## SPEC-0254 const owned-unit 封闭交接（2026-10-03）
 
 从PR34真实main `c6b84ecb`建立`feature/spec-0254`，先携带独立审核的0253归档，
-与[本片有界合同](../specs/active/0254-const-owned-unit-borrowed-handoff.md)一起本地完成后发布一份Draft PR。
+与[本片有界合同](../archive/specs/0254-const-owned-unit-borrowed-handoff.md)一起本地完成后发布一份Draft PR。
 独立const六借用工厂、旧native/lower转接与CLI project const消费已实现；空常量仍保留专用
 短路/ownership能力，LSP const无owned不变。旧生产oracle先锁，再做新API编译红与最小实现。
 
@@ -470,3 +470,23 @@ owned交接仍属P3a，0182、其余P2/P4/P5与后续外部审计继续保持。
 
 本片仅本地交付，无远端写入；精确head双宿主CI尚未执行，不能由旧CI或本地结果代替。
 0254、0182及其他P2/P4/P5和整体计划后的外部审计均不据此扩大完成声明。
+
+
+## PR35 合并与0254本地归档（2026-10-03）
+
+[PR35](https://github.com/Halckon/Koven/pull/35)携带0253归档、0254 const六借用交接及P2
+runtime layout纯移动，已合并为 `9ac49f3ad3b1c8b0e5c762413f56bde719bf11d0`。
+最终head `0abc8691`、合成merge `50f4c967` 与真实merge完整tree均为 `c79e4d87`；
+[PR CI37123982795](https://github.com/Halckon/Koven/actions/runs/37123982795)为9/9 jobs、
+77/77已记录steps success。每host新增25、const ownership20、planner48及const资源60按
+phase/package/target/full_name独立核验，无异常；Ubuntu2446 passed，macOS2444 passed与
+既有LLDB ignored1明确分开。完整平台差额与未执行范围只见
+[0254最终验收](../archive/specs/0254-const-owned-unit-borrowed-handoff.md#6-pr35-精确head双宿主与归档收尾2026-10-03)。
+
+真实merge的[main CI37124524536](https://github.com/Halckon/Koven/actions/runs/37124524536)
+另有9/9 jobs、77/77steps success与双raw逐身份通过证据，平台计数及有界选集与PR一致。
+上文0254/P2“仅本地、待双宿主”保留各自
+交付时快照，当前状态由本节及唯一验收账本更新。归档后本地仅0182 active / 240 archive；
+PR35真实main仍为0182、0254两active / 239 archive，不把本地状态冒充已发布。
+P3a const封闭交接有界合同已具备PR验收；P2其余职责、P4/P5、0182与全计划后外部审计不关闭。
+本批只有文档、inventory及生成DAG变化，随下一相关实施批次发布，不另开docs PR。

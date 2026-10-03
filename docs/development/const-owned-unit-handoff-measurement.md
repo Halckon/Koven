@@ -10,7 +10,7 @@
 [完整计数与复现资料](evidence/const-owned-unit-handoff-measurement.json)保留两cohort的源码
 commit/tree、probe源码/hash、fixture完整字节/hash、精确符号/source region、计数、提取脚本、
 构建参数与object/link/run结果。大型binary/profraw/profdata/coverage export不进入仓库。
-本页不新增生产counter或长期benchmark框架，不替代[唯一验收账本](../specs/active/0254-const-owned-unit-borrowed-handoff.md)。
+本页不新增生产counter或长期benchmark框架，不替代[唯一验收账本](../archive/specs/0254-const-owned-unit-borrowed-handoff.md)。
 
 ## 固定来源与方法
 
