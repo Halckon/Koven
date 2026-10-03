@@ -1,16 +1,16 @@
 # SPEC-0253：共享单文件阶段门面
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 bootstrap 与 legacy LSP 的共享纯阶段推进时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审 bootstrap 与 legacy LSP 的共享纯阶段推进时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-253` |
 | 所属 Phase | Phase 1→3 单文件纯编排与 Phase 6 宿主适配；治理 P3b 有界切片 |
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
 | 前置 Spec | SPEC-0250、0251、0252 `done` |
 | 前置 ADR | [ADR-0020](../../adr/accepted/0020-multifile-compilation-unit.md)、[ADR-0021](../../adr/accepted/0021-lsp-explicit-source-set-protocol.md) `accepted` |
-| 阻塞项 | 本地实现与独立评审通过；发布及精确 head 双宿主验收待完成 |
+| 阻塞项 | 本片已由PR34精确head双宿主验收并合并；归档仅本地准备，随下个相关批次发布 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal 与有界交付
@@ -114,3 +114,57 @@ git diff 82610ab9d3d8148949f2a6f485e5a0b50d045ff1 --check
 本地未运行完整stage/Guide脚本、完整codegen、frontend全量、workspace全量tests或macOS；
 前者不被17个定向targets冒充，双宿主最终CI留交付阶段。本片仅局部实现验证完成，Spec仍
 in-progress，须由最终精确head双宿主证据决定P3b结项；归档0252正文完整保留。
+
+
+## 6. 精确head双宿主验收与有界归档（2026-10-03）
+
+[PR34](https://github.com/Halckon/Koven/pull/34)将0252归档与本片一起发布，没有独立归档PR。
+最终head `3e3901d4b64ed839a6053186ae96f358326909fa` 的
+[CI37082158020](https://github.com/Halckon/Koven/actions/runs/37082158020) 9/9 jobs、77/77
+已记录steps success。独立最终实现review与原始CI日志身份review均Approve，无未决finding。
+
+本地最终提交 `95862ed48c5c784c86819d7338ecf11a8558a5a0` 与远端head完整tree都为
+`d5a305f0ce877b1630c1e32887eb645bb8e39735`。8个提交先建立Git对象并逐个核tree，之后才
+一次创建branch ref并开Draft，未发布中间head；两份CRLF fixture字节保持。
+
+| 内容 | 本地提交 | GitHub提交 | 完整tree |
+|---|---|---|---|
+| 0252归档 | e6dfea4 | 406a4b0 | c3cbd895abb21facc22220ca6c3bfeb739d286d1 |
+| 0253合同 | 8aa7695 | 81abf2b | 903debb4c4897a8b75d31c645c454df653124ec2 |
+| 旧宿主oracle | c621bb5 | 4ffc920 | 439bfa2bce4e5ee133972c1c8ceb0e3a100ba201 |
+| 纯阶段门面 | 21144ba | 9dcd8f9 | 5e6b99d4e7be641b40c23aa3e3d74cd4cd5fb3de |
+| 两宿主消费 | 188b390 | 85d7835 | bb435b4841c1947a1ce88d69387ad91a4e38a254 |
+| 本地验收 | 589e0c0 | 645ab71 | 7e63e753e71be86bf3fbc2dbd3f7b866bc02fc50 |
+| CRLF属性 | 3bb95da | 4a61aaa | 1b9c1c06011f3ea8d7092432079d6bcd790ce222 |
+| 捕获时序澄清 | 95862ed | 3e3901d | d5a305f0ce877b1630c1e32887eb645bb8e39735 |
+
+两宿主实际checkout合成merge `7c92af03e56fc8d7b83b234e9cdbc805475c031c`；已核其父链为
+main `82610ab9`＋head `3e3901d4`，tree与上表末行一致。合成merge不是实际主干merge。
+
+### 双宿主逐身份与门禁
+
+每host新增22身份（frontend8＋5、CLI4、LSP5）及有界109身份均按package/target/full_name
+逐项恰一次ok；同名跨target不靠全文计数。109包括新frontend13、既有basic10/snapshot11/
+view8、完整project9/unit CLI oracle9/single-file CLI4与完整LSP45，无遗漏或重复选择。
+
+- Ubuntu：core1057 passed（frontend lib187、codegen739＋docs4、CLI82、LSP45），0 ignored
+- macOS：core1055 passed、1个既有LLDB ignored；codegen738＋docs4、CLI81、LSP45、frontend lib187
+- CLI的平台差额是Linux独有非UTF8发现用例；LLDB ignore保持既有debugserver task-port原因
+- 两边ownership iteration184、stage72targets959、Guide201均通过；check与严格Clippy实际执行成功
+- 定向选集不代表frontend全量；既有Guide known-gap仍按原合同保留，不宣称全套语言native完成
+
+### Merge与主干复核
+
+按授权转Ready并使用expected_head_sha合并。真实merge为
+`c6b84ecb46563b7de2bfeb9f481e75cf4a861323`，父链main82610ab9＋head3e3901d4，完整tree仍为
+上表末行；原分支保留。主干[CI37083070686](https://github.com/Halckon/Koven/actions/runs/37083070686)
+亦已9/9 jobs、77/77已记录steps success；两端实际checkout真实merge c6b84ecb，
+新增22/22与有界109/109身份再次各恰一次ok，0解析错误。core/iteration/stage/Guide计数与
+前述平台差额保持；该结果来自main独立raw日志，不以PR CI替代。
+
+上文§1–5的未发布、待CI与in-progress文字保留为本地验收时快照。当前有界Goal与P3b四宿主
+纯编排退出条件已具备最终PR证据；P3a const owned交接、0182、其余P2/P4/P5及整体计划后的
+外部审计仍开放，不据此宣称P3/整体治理完成或性能改善。
+
+本归档只在真实merge之后本地准备，按减少发布频率的安排随下一相关批次带出；不单独发PR，
+不向已验收PR追加文档提交，也不将本地归档状态声称为已发布。

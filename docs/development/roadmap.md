@@ -17,7 +17,8 @@ P1a 文档闭环与 P2 LSP 私有测试首片已分别由 PR15/16 合并；0236 
 其余领域、真正冷缓存和分离link性能验收仍待后继，
 P3a 普通 unit 交接本片已完成；0250已共享CLI project名称前缀，
 [0251](../archive/specs/0251-lsp-unit-name-snapshot.md)已完成有界LSP unit消费；0252已共享unit基础ownership推进，
-[0253](../specs/active/0253-single-file-analysis-facade.md)实施bootstrap/legacy单文件门面；const后继与P3b整体仍未完成。
+[0253](../archive/specs/0253-single-file-analysis-facade.md)的bootstrap/legacy单文件门面经最终双宿主验收，
+P3b四宿主纯编排有界完成；P3a const owned交接仍待独立后继。
 P4 仅在语义/recovery parity 成立时逐域收敛。
 P5 新教程依赖稳定受测示例，可独立于 P4 推进。这里不维护另一张功能状态表。
 
