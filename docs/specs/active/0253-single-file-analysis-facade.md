@@ -10,7 +10,7 @@
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
 | 前置 Spec | SPEC-0250、0251、0252 `done` |
 | 前置 ADR | [ADR-0020](../../adr/accepted/0020-multifile-compilation-unit.md)、[ADR-0021](../../adr/accepted/0021-lsp-explicit-source-set-protocol.md) `accepted` |
-| 阻塞项 | 本地实施、独立评审及精确 head 双宿主验收待完成 |
+| 阻塞项 | 本地实现与独立评审通过；发布及精确 head 双宿主验收待完成 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal 与有界交付
@@ -28,7 +28,7 @@ CLI任意非空诊断逐阶段早停、LSP完整recovery与typed之后ownership�
 
 ## 2. 阶段与身份合同
 
-拟采用固定纯 runner `analysis::analyze_single_file`，接收显式 `&SourceMap`、`SourceId`、
+采用固定纯 runner `analysis::analyze_single_file`，接收显式 `&SourceMap`、`SourceId`、
 同一次创建的 name/type environment 与两个宿主接缝：
 
 1. 每阶段完成后 `gate(stage, diagnostics)`，Err立即停止，不能先运行完整链再检查
@@ -55,14 +55,14 @@ close先remove与source-set的不同语义不变，不把legacy升级成unit事�
 
 | ID / 合同 | 目标与证据 | 实际结果 |
 |---|---|---|
-| A1 旧生产宿主基线 | CLI完整human/JSON/exit；LSP冻结manual链和协议oracle | 旧main代码的CLI build已运行并冻结二进制；新oracle待运行 |
-| A2 完整facts与来源 | `single_file_analysis`：手工链差分、原SourceId、同轮环境/typed/owned、clone/fresh负例 | 待执行 |
-| A3 阶段与恢复 | 同target：五gate/typed observer顺序与短路、foreign source/env、recovery/const/deferred | 待执行 |
-| A4 公开封闭合同 | `single_file_analysis_compile_contracts`：正控、私有字段/只读、借用不逃逸、raw与unit能力不互换 | 待执行 |
-| A5 CLI/LSP迁移 | 两宿主完整测试；CLI native build/run与失败输出保全，LSP全部publication/definition/UTF16/legacy差分 | 待执行 |
-| A6 相邻前端合同 | 单文件names/types/ownership与既有unit façade合同定向选集 | 待执行 |
-| A7 工程门禁 | fmt、workspace all-targets check、受影响三crate严格clippy、docs/Python policy/尺寸/diff | 待执行 |
-| A8 交付 | 新targets现有stage各恰一次无filter；独立实现review；一份Draft最终精确head双宿主CI | 未发布；不以基底CI替代本片 |
+| A1 旧生产宿主基线 | CLI完整human/JSON/exit；LSP冻结manual链和协议oracle | 旧生产CLI build及二进制冻结；148条进程捕获，新CLI4/4、旧链完整LSP45/45；Unicode/CRLF强化另由旧二进制16组合实跑 |
+| A2 完整facts与来源 | `single_file_analysis`：手工链差分、原SourceId、同轮环境/typed/owned、clone/fresh负例 | API准确E0432红后实现；完整8/8通过，raw全字段差分与独立兼容性断言、合法clone/recheck及fresh拒绝分别验证 |
+| A3 阶段与恢复 | 同target：五gate/typed observer顺序与短路、foreign source/env、recovery/const/deferred | A2同次8/8；6事件顺序、各gate/observer中止、payload析构、foreign错误优先级/原原因、显式非标准环境、const+move及无诊断deferred均通过 |
+| A4 公开封闭合同 | `single_file_analysis_compile_contracts`：正控、私有字段/只读、借用不逃逸、raw与unit能力不互换 | 完整5/5；E0451/E0616/E0308/E0521及精确lifetime反例配正控；T/E/capture不得借走view，move-only与合法外部借用/跨输入期按值结果均可用 |
+| A5 CLI/LSP迁移 | 两宿主完整测试；CLI native build/run与失败输出保全，LSP全部publication/definition/UTF16/legacy差分 | 最终fixture下完整CLI82/82（48bin＋3format＋9native＋9project＋9unit oracle＋4单文件），完整LSP45/45，CLI build通过；四宿主原parity均实际重跑 |
+| A6 相邻前端合同 | 单文件names/types/ownership与既有unit façade合同定向选集 | 17个完整frontend targets284/284（含新13），frontend docs12/12；全部0 failed/ignored/filtered，完整选择与计数见下 |
+| A7 工程门禁 | fmt、workspace all-targets check、受影响三crate严格clippy、docs/Python policy/尺寸/diff | 全通过；docs476、Python100/100；701手写Rust/48历史超限/0生成物，无额度或例外变化；门面202行、bootstrap366、analysis163，新增测试最大395行 |
+| A8 交付 | 新targets现有stage各恰一次无filter；独立实现review；一份Draft最终精确head双宿主CI | selection policy零选择真红→16/16绿；独立设计与实现均Approve；未发布或跑本片双宿主CI，不以基底证据替代 |
 
 本地仅x86_64 Linux；macOS留最终远端实跑。frontend全量、workspace全量tests与性能测量不在
 本片声明中。配置接线不等于执行，passed/failed/filtered/ignored及未运行分别记录。
@@ -72,3 +72,42 @@ close先remove与source-set的不同语义不变，不把legacy升级成unit事�
 四宿主parity、公开能力/身份合同与精确head双宿主证据齐全后才可结项P3b。
 const owned交接仍为P3a剩余，0182、其余P2/P4/P5与整体计划后的外部审计不被本片关闭。
 不把单文件→unit内核合并、basic/const合并或整体snapshot加入本片必做项。
+
+
+## 5. 本地执行与失败历史
+
+实际环境x86_64 Linux，Rust/Cargo1.96.0、LLVM/Clang21.1.8；全部Cargo串行复用target，
+无clean、无新dependency。原CLI binary在任何生产迁移前由e6dfea4构建并冻结；新增LSP
+oracle首次执行时bootstrap/analysis与该基底生产diff为空，期望端仍是独立旧手工链。
+
+新API首轮E0432为缺接口的真实编译红；最小实现后的首次编译因测试中impl Trait函数指针
+和unreachable observer未标返回类型发生E0283/E0282，补测试类型注解后绿，未改阶段语义。
+LSP旧链首次42/45，3项误把不同SourceMap的隐藏owner当相等；改为完整稳定raw诊断、各自
+primary/label所属map/URI校验与definition的URI/byte/slice投影，再获45/45。完整publication
+Eq与独立UTF16断言保留；同map raw Eq/来源合同另在frontend测试中执行，不降低身份要求。
+初次Architecture概述写入已满200行的names-and-types被文档门禁拒绝，移至既有tooling
+职责页后通过；未压缩历史正文或放宽门禁。最后Unicode fixture补跨行CRLF，在旧binary16组合
+重新捕获验证后，完整CLI/LSP均以最终fixture复跑通过。
+
+17个frontend完整target计数：basic6/compile4、lexer20、names15、view1/compile7、
+ownership31/constants16、parser file27/error propagation8、single-file8/compile5、
+type callable19/checking82/constants24、snapshot7/compile4，共284，均无filter或ignore。
+
+```sh
+cargo test --locked --offline -p lang-frontend --no-fail-fast --test single_file_analysis --test single_file_analysis_compile_contracts --test unit_name_snapshot --test unit_name_snapshot_compile_contracts --test basic_unit_ownership --test basic_unit_ownership_compile_contracts --test owned_compilation_unit_view --test owned_unit_view_compile_contracts --test name_resolution --test type_checking --test type_callable --test type_constants --test ownership_checking --test ownership_constants --test lexer --test parser_file --test parser_error_propagation
+cargo test --locked --offline -p lang-frontend --doc
+cargo test --locked --offline -p lang-cli
+cargo build --locked --offline -p lang-cli
+cargo test --locked --offline -p lang-lsp
+cargo fmt --all -- --check
+cargo check --locked --offline --workspace --all-targets
+cargo clippy --locked --offline -p lang-frontend -p lang-cli -p lang-lsp --all-targets -- -D warnings
+python3 scripts/check_docs.py
+python3 -m unittest discover -s scripts/tests -v
+python3 scripts/check_rust_sizes.py --base 82610ab9d3d8148949f2a6f485e5a0b50d045ff1
+git diff --check
+```
+
+本地未运行完整stage/Guide脚本、完整codegen、frontend全量、workspace全量tests或macOS；
+前者不被17个定向targets冒充，双宿主最终CI留交付阶段。本片仅局部实现验证完成，Spec仍
+in-progress，须由最终精确head双宿主证据决定P3b结项；归档0252正文完整保留。
