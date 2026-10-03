@@ -120,3 +120,9 @@ mod unit_root_primitive_tests;
 
 #[cfg(test)]
 mod unit_field_replace_tests;
+
+#[cfg(test)]
+mod lowering_support_tests;
+
+#[cfg(test)]
+mod lowering_entry_contract_tests;

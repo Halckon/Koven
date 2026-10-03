@@ -252,6 +252,7 @@ subgraph Garchive["已完成（archive，240 份）"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
+  S0255["S0255<br/>中立 lowering error 与 String helper 边界"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1202,6 +1203,7 @@ S0251 --> S0253
 S0252 --> S0253
 S0252 --> S0254
 S0253 --> S0254
+S0254 --> S0255
 ```
 
 ## 节点链接
@@ -1449,3 +1451,4 @@ S0253 --> S0254
 | SPEC-0253 | archive | [0253-single-file-analysis-facade.md](0253-single-file-analysis-facade.md) |
 | SPEC-0254 | archive | [0254-const-owned-unit-borrowed-handoff.md](0254-const-owned-unit-borrowed-handoff.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
+| SPEC-0255 | active | [0255-neutral-lowering-support.md](../../specs/active/0255-neutral-lowering-support.md) |
