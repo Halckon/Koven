@@ -25,7 +25,7 @@ use lang_frontend::{
     },
 };
 
-use super::{LoweringError, LoweringErrorKind};
+use super::{LoweringError, LoweringErrorKind, lowering_support::error as lowering_error};
 use runtime_layout::classify_runtime_type_demands;
 pub(crate) use runtime_layout::resolve_nominal_runtime_field_types;
 
@@ -2648,11 +2648,4 @@ fn span_contains(owner: Span, child: Span) -> bool {
     owner.source_id() == child.source_id()
         && owner.start() <= child.start()
         && child.end() <= owner.end()
-}
-
-const fn lowering_error(kind: LoweringErrorKind, span: Span) -> LoweringError {
-    LoweringError {
-        kind,
-        span: Some(span),
-    }
 }

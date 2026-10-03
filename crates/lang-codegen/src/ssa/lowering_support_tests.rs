@@ -7,7 +7,7 @@ use lang_frontend::{
 };
 
 use super::{
-    LoweringError, LoweringErrorKind, lower_frontend::string_literal::decode_plain,
+    LoweringError, LoweringErrorKind, lowering_support::string_literal::decode_plain,
     unit_lower_test_support::parsed,
 };
 

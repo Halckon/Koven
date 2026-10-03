@@ -19,7 +19,6 @@ mod ownership_primitive;
 mod resource_deinit;
 mod source_closure;
 mod string_clone;
-pub(in crate::ssa) mod string_literal;
 
 use std::collections::BTreeMap;
 
@@ -48,25 +47,8 @@ use super::model::{
 };
 use instances::FunctionInstanceKey;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LoweringErrorKind {
-    MismatchedSource,
-    MismatchedAnalysis,
-    FrontendDiagnostics,
-    BlockingDeferred,
-    InstanceLimitExceeded,
-    UnsupportedNode,
-    MissingFact,
-    InvalidLiteral,
-    InvalidModel,
-    InvalidSsa,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct LoweringError {
-    pub(crate) kind: LoweringErrorKind,
-    pub(crate) span: Option<Span>,
-}
+pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
+use super::lowering_support::{error, string_literal};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LoweredValue {
@@ -1620,11 +1602,4 @@ fn place(entity: EntityId) -> super::model::PlaceId {
 
 fn span_key(span: Span) -> (usize, usize) {
     (span.start(), span.end())
-}
-
-fn error(kind: LoweringErrorKind, span: Span) -> LoweringError {
-    LoweringError {
-        kind,
-        span: Some(span),
-    }
 }

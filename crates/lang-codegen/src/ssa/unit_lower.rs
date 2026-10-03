@@ -60,7 +60,7 @@ use lang_frontend::{
 
 use super::{
     LoweringError, LoweringErrorKind,
-    lower_frontend::string_literal,
+    lowering_support::{error as lowering_error, string_literal},
     model::{
         BlockId, EntityId, EntityType, Function, FunctionId, LoanId, LoanKind, Operation, Origin,
         Program, ScalarConstant, SsaTypeId, TerminatorKind, ValueId,
@@ -1268,13 +1268,6 @@ const fn present_name(marker: NameMarker) -> Option<Span> {
 
 const fn span_key(span: Span) -> (usize, usize) {
     (span.start(), span.end())
-}
-
-const fn lowering_error(kind: LoweringErrorKind, span: Span) -> LoweringError {
-    LoweringError {
-        kind,
-        span: Some(span),
-    }
 }
 
 #[cfg(test)]

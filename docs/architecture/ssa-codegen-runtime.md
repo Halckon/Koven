@@ -161,7 +161,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 普通 `lower_owned_unit_with_entry` 消费[封闭 view](pipeline-and-workspace.md#普通-owned-unit-交接)，直接进入原私有 driver/planner，不再建立交接 index。
 旧 lower/planner adapter 保留原签名与受限可见性，各经一次 factory；私有 driver 只读取同链 types/ownership facts。
-两种 view 错误仍映射原 lowering kind 与 None span；不新增公开 SSA/planner API。
+两种 view 错误仍映射原 lowering kind 与 None span；[中立支撑](lowering-support.md)保留原错误路径，不新增公开 SSA/planner API。
 常量 lowering 独立校验身份后共享原 driver；公开常量 native 仍消费专用 capability，不转换为普通 view。
 
 实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块。

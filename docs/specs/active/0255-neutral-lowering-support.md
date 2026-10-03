@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0254 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无；责任迁移属于获批实现细节，不新增长期架构决策 |
-| 阻塞项 | 本地实现、独立最终 review 与精确 head 双宿主 CI 尚待 |
+| 阻塞项 | 本地实现与门禁已验；独立最终 review 与精确 head 双宿主 CI 尚待 |
 | 影响范围 | `lang-codegen::ssa` 私有错误与 literal helper、相关测试和事实文档 |
 | 语言语义变更 | 否 |
 
@@ -83,19 +83,34 @@ neutral support禁止adapter/planner/LLVM/model；model/types/verify及嵌套生
 |---|---|
 | A1 旧helper合同 `lang-codegen --lib lowering_support_tests` | 原生产路径6 passed；0 failed/ignored，748 filtered |
 | A2 旧双入口合同 `lang-codegen --lib lowering_entry_contract_tests` | 8 passed；最终 `--lib lowering_` 57 passed/0 failed/ignored（含全部14项新合同与43项既有相关测试），705 filtered；source插入/input置换与String definition→use对照均通过。最初fixture拼写/能力假设修正不算生产缺陷红测 |
-| A3 同组后测、字节迁移和旧路径兼容 | 待实施 |
-| A4 依赖guard自测、实际树及真实reverse-import红/恢复绿 | 待实施 |
-| A5 完整codegen及String/Abort/native/resource旧oracle | 生产修改后执行；不重复运行未改动基线全套 |
-| A6 workspace all-targets check、codegen严格Clippy、fmt | 待执行 |
-| A7 docs、全部Python policy、尺寸、diff | 待执行；额度仅收紧 |
+| A3 同组后测、字节迁移和旧路径兼容 | 后测同选择57 passed/0 failed/ignored、705 filtered；前后identity集合相同。decoder 2089bytes逐字相等，旧类型路径由原消费者及真实反向import编译验证 |
+| A4 依赖guard自测、实际树及真实reverse-import红/恢复绿 | 8 passed/0 failed；真实unit_lower旧类型导入编译成功后guard在62行精确拒绝，1 failed/769 filtered；恢复同选择1 passed/769 filtered，非unresolved import红测 |
+| A5 完整codegen及String/Abort/native/resource旧oracle | `cargo test --locked --offline -p lang-codegen --no-fail-fast`：library770、native compile contracts2、doc4均通过，0 failed/ignored/filtered；原748身份全部保留，新增22恰为6 helper+8 entry+8 guard |
+| A6 workspace all-targets check、codegen严格Clippy、fmt | `cargo check --locked --offline --workspace --all-targets`、`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`、`cargo fmt --all -- --check`全部通过 |
+| A7 docs、全部Python policy、尺寸、diff | docs481页、`python3 -m unittest discover -s scripts/tests -v` 102项、尺寸`--base 9ac49f3`及`git diff --check`通过；额度仅收紧 |
 | A8 独立最终review、exact-head双宿主CI | 未运行；不得由基线证据替代 |
 
 ## 8. 实施与交付
 
-1. 已完成独立设计Approve与P3主干前置；先锁原helper和有界配对合同
-2. 最小生产迁移与same-selection绿；依赖guard负例及可编译真实反向import红/恢复绿
-3. 按A5–A7运行实际影响面门禁；补齐事实文档并做独立最终review
+1. 已完成独立设计Approve与P3主干前置；原helper和有界配对合同先绿
+2. 已完成最小生产迁移、same-selection绿、guard负例及可编译真实反向import红/恢复绿
+3. A5–A7已通过，事实文档已更新；独立最终review待收尾
 4. 0254归档及三处事实纠正随本批组合交付，不发独立文档PR；远端发布与精确CI另记
 
 本地测试/合同、生产迁移及验收文档分别提交，均标注SPEC-0255；不发布中间阶段。
 完成状态与归档仅在实际验收成立后更新，尚未运行项保留。
+
+## 9. 本地证据与未执行范围
+
+实际工具：Rust/Cargo 1.96.0、LLVM/Clang 21.1.8，x86_64 Linux。Cargo串行，无cargo clean；
+完整codegen只在最终生产修改后运行。前后契约合计57项身份相同；最终完整library770项中
+原748项全部保留，新增22项；native2与docs4也无filter/ignore。
+现有真实String UTF-8/NUL、clone/concat/drop与逐指针资源计数、Abort不展开、const物化、
+ELF/DWARF、object/link/run与原子输出oracle均在完整包内实际执行。
+未重跑无生产修改的完整CLI/LSP/frontend、stage/Guide脚本和macOS；这些不冒称本地通过。
+所需双宿主远端验收仍须绑定本批精确head，不由P3证据替代。
+
+decoder SHA-256：`6f1f50e49754ea4937f21f938e2abcfcec2a85f0798a936b0c6e1203b09cecad`。
+三个旧根文件行数分别1630→1605、1282→1275、2658→2651；新增support32与decoder67行，
+测试文件174/551/628行。全仓712个手写Rust文件、48项超千历史欠账继续报告，无新增长例外。
+收益仅为依赖归属正确，不以行数或单次测试耗时宣称性能提升。

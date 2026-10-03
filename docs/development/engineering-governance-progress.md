@@ -10,11 +10,11 @@
 | 阶段 | 当前状态 | 本批交付 / 下一门禁 |
 |---|---|---|
 | P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前本地1 active / 240 archive（0253归档已随PR35合并，0254按PR/main双宿主证据本地归档，待随下一相关实施批次发布）；PR35主干为2 active / 239 archive，原P1历史1/233保留，唯一剩余0182继续独立补强 |
+| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前本地2 active / 240 archive（0182与新增0255；0253归档已随PR35合并，0254归档随本批交付）；PR35主干为2 active / 239 archive，原P1历史1/233保留，0182继续独立补强 |
 | P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
 | P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留；runtime layout首片已随PR35合并且双宿主planner48/48通过；其余大integration与生产职责仍待后继 |
 | P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | PR34完成P3b四宿主纯编排；PR35完成0254 const交接有界合同，两宿主新增25/25与const ownership20/20；真实merge主干双宿主再次通过 |
-| P4 共享内核与双轨 | 条件阶段，未开始 | P3 稳定后逐域比较语义与 recovery，证据成立才收敛 |
+| P4 共享内核与双轨 | 0255首个有界责任本地实施中 | P3精确主干前置已过；error/String helper中立化与本地完整门禁已验，待独立最终review与精确head双宿主CI，不扩大能力或宣布P4完成 |
 | P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
 
 ## P0：文档首片的固定基线
@@ -490,3 +490,18 @@ phase/package/target/full_name独立核验，无异常；Ubuntu2446 passed，mac
 PR35真实main仍为0182、0254两active / 239 archive，不把本地状态冒充已发布。
 P3a const封闭交接有界合同已具备PR验收；P2其余职责、P4/P5、0182与全计划后外部审计不关闭。
 本批只有文档、inventory及生成DAG变化，随下一相关实施批次发布，不另开docs PR。
+
+
+## SPEC-0255 中立 lowering 支撑边界（2026-10-03）
+
+从PR35精确main `9ac49f3` 建立 `feature/spec-0255`，随批携带0254归档与三处已核实事实纠正。
+P3主干双宿主9/9及97批raw审计、独立设计Approve均先于生产修改；旧helper6与双入口8项合同
+先运行，前后同选择57项通过。新测试比较逻辑来源、StringOwner结构与definition→use关系，
+包括source插入/inputs置换、同名旁源、泛型、const、recovery与拒绝优先级；single Borrow String
+receiver原UnsupportedNode/unit成功差异保留，不强行合并driver。
+
+既有decoder逐字迁移2089bytes，错误种类/字段及原crate-private re-export路径不变；三个同形
+Some(span)构造由neutral私有helper承接，None span构造与原validation顺序保持。
+依赖真实反向导入编译后判红、恢复绿均成立；完整codegen770+2+4、workspace check、严格Clippy、
+fmt、102项policy、docs与尺寸通过；独立最终review及远端精确CI仍待。实际结果只记[0255唯一账本](../specs/active/0255-neutral-lowering-support.md)。
+不声称性能改善、全部P4或整体治理完成；0182、其余P2/P5与整体计划后外部审计继续保留。
