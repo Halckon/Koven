@@ -1,0 +1,2 @@
+error[L0001] source.ko:1:1-1:2: unexpected character
+error[L0001] source.ko:1:3-1:4: unexpected character

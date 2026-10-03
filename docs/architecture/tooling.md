@@ -23,6 +23,13 @@ frontend `analyze_basic_unit_ownership` 共享 basic validation→普通 ownersh
 基础 ownership/native，含常量时由 frontend 专用 gate 发布 typed/owned capability，再调用
 `emit_native_constant_unit_object`。同一只读 entry shape helper 服务两条已验证路径。
 
+单文件 bootstrap 使用 frontend `analyze_single_file` 固定推进五阶段，宿主在每个阶段的
+原始 diagnostics gate 上拒绝任意非空集合；不会先跑完后继再挑首错。纯门面接收原
+SourceMap/SourceId与一次创建的name/type环境，返回同轮raw产物，不负责IO、诊断渲染、
+entry或native能力。`SingleFileTypedView`字段封闭，只借出本轮parsed/names/typed；
+observer的临时借用不能作为返回值逃逸，`SingleFileAnalysis<T>`消费式拆出原raw产物。
+CLI typed observer为no-op，内部错误逐项映射回原BootstrapError。
+
 CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`，通过 `Command`
 参数数组链接已有 native object，不调用 shell 或让外部 driver 重新编译 LLVM IR。
 链接启动失败与进程失败保留现有结构化错误；受支持目标在 codegen 边界先行校验。
@@ -37,7 +44,9 @@ CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`�
 
 它有两种明确模式：
 
-- legacy 单文档：每个打开 URI 独立运行 lex → parse → names → types → ownership；
+- legacy 单文档：每个打开 URI 独立调用同一 `analyze_single_file`，五阶段gate不拒绝用户
+  诊断；typed observer在ownership之前从封闭只读view构建DefinitionIndex，随后按原
+  parsed/names/typed/owned聚合诊断（parser已含lexer，不重复添加）；
 - `koven.sourceSet` version 1：初始化 payload 提供 immutable base sources，open/change 形成 overlay，
   每次候选更新重建共同 compilation-unit snapshot，其名称前缀由 frontend `UnitNameSnapshot` 拥有。
 

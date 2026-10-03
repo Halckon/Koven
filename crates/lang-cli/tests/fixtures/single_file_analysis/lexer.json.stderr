@@ -1,0 +1,2 @@
+{"code":"L0001","details":[],"message":"unexpected character","primary":{"byte_end":1,"byte_start":0,"end":{"column":2,"line":1},"source":"source.ko","start":{"column":1,"line":1}},"schema":"koven.diagnostic","severity":"error","version":1}
+{"code":"L0001","details":[],"message":"unexpected character","primary":{"byte_end":3,"byte_start":2,"end":{"column":4,"line":1},"source":"source.ko","start":{"column":3,"line":1}},"schema":"koven.diagnostic","severity":"error","version":1}

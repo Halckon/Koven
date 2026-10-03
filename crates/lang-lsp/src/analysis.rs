@@ -3,13 +3,14 @@
 use std::{error::Error, fmt};
 
 use lang_frontend::{
+    analysis::{SingleFileAnalysisError, analyze_single_file},
     diagnostic::{Diagnostic, DiagnosticError, ordered_diagnostics},
-    lexer::{LexerInternalError, lex},
-    name_resolution::{NameResolutionError, resolve_names},
-    ownership_checking::{OwnershipCheckingError, check_ownership},
-    parser::{ParserInternalError, parse_file},
+    lexer::LexerInternalError,
+    name_resolution::NameResolutionError,
+    ownership_checking::OwnershipCheckingError,
+    parser::ParserInternalError,
     source::{SourceError, SourceMap},
-    type_checking::{TypeCheckingError, check_types, standard_environments},
+    type_checking::{TypeCheckingError, standard_environments},
 };
 
 use crate::definition::{DefinitionIndex, DefinitionIndexError};
@@ -18,13 +19,24 @@ use crate::definition::{DefinitionIndex, DefinitionIndexError};
 pub(crate) fn analyze(source_name: &str, text: &str) -> Result<Analysis, AnalysisError> {
     let mut sources = SourceMap::new();
     let source = sources.add_source(source_name, text)?;
-    let lexed = lex(&sources, source)?;
-    let parsed = parse_file(&sources, &lexed)?;
     let (name_environment, type_environment) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &name_environment)?;
-    let typed = check_types(&sources, &parsed, &names, &type_environment)?;
-    let definitions = DefinitionIndex::build(&parsed, &names, &typed)?;
-    let owned = check_ownership(&sources, &parsed, &names, &typed)?;
+    let analysis = analyze_single_file(
+        &sources,
+        source,
+        &name_environment,
+        &type_environment,
+        |_, _| Ok(()),
+        |view| DefinitionIndex::build(view.parsed(), view.names(), view.typed()),
+    )
+    .map_err(|error| match error {
+        SingleFileAnalysisError::Lexer(error) => AnalysisError::Lexer(error),
+        SingleFileAnalysisError::Parser(error) => AnalysisError::Parser(error),
+        SingleFileAnalysisError::Name(error) => AnalysisError::Name(error),
+        SingleFileAnalysisError::Type(error) => AnalysisError::Type(error),
+        SingleFileAnalysisError::Ownership(error) => AnalysisError::Ownership(error),
+        SingleFileAnalysisError::Host(error) => AnalysisError::Definition(error),
+    })?;
+    let (parsed, names, typed, owned, definitions) = analysis.into_parts();
 
     let mut diagnostics = parsed.diagnostics().to_vec();
     diagnostics.extend_from_slice(names.diagnostics());

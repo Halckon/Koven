@@ -1,0 +1,2 @@
+{"code":"L0018","details":[],"message":"expected declaration name","primary":{"byte_end":4,"byte_start":4,"end":{"column":5,"line":1},"source":"source.ko","start":{"column":5,"line":1}},"schema":"koven.diagnostic","severity":"error","version":1}
+{"code":"L0018","details":[],"message":"expected declaration name","primary":{"byte_end":12,"byte_start":12,"end":{"column":5,"line":2},"source":"source.ko","start":{"column":5,"line":2}},"schema":"koven.diagnostic","severity":"error","version":1}

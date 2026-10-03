@@ -10,17 +10,16 @@ use std::process::Command;
 
 use lang_codegen::{NativeEntry, NativeObjectError, emit_native_object};
 use lang_frontend::{
+    analysis::{SingleFileAnalysisError, analyze_single_file},
     diagnostic::Diagnostic,
-    lexer::{LexerInternalError, lex},
-    name_resolution::{
-        NameResolution, NameResolutionError, ScopeKind, SymbolId, SymbolKind, resolve_names,
-    },
-    ownership_checking::{OwnershipCheckingError, check_ownership},
-    parser::{ParserInternalError, parse_file},
+    lexer::LexerInternalError,
+    name_resolution::{NameResolution, NameResolutionError, ScopeKind, SymbolId, SymbolKind},
+    ownership_checking::OwnershipCheckingError,
+    parser::ParserInternalError,
     source::{SourceError, SourceMap},
     type_checking::{
         BuiltinType, IntrinsicTypeConstructor, ParameterMode, TypeCheckingError, TypeKind,
-        TypedFile, check_types, standard_environments,
+        TypedFile, standard_environments,
     },
 };
 
@@ -30,15 +29,7 @@ use crate::{
     machine_diagnostic_renderer::render_machine_diagnostics,
 };
 
-/// 仓库 bootstrap 中产生用户诊断的 frontend 阶段。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum FrontendStage {
-    Lexer,
-    Parser,
-    NameResolution,
-    TypeChecking,
-    OwnershipChecking,
-}
+pub(crate) use lang_frontend::analysis::SingleFileStage as FrontendStage;
 
 /// 单文件 bootstrap 的源码 entry 选择方式。
 #[derive(Clone, Copy, Debug)]
@@ -181,25 +172,24 @@ pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), Bootstr
         .add_source(source_name, text)
         .map_err(BootstrapError::Source)?;
 
-    let lexed = lex(&sources, source).map_err(BootstrapError::Lexer)?;
-    reject_diagnostics(FrontendStage::Lexer, &sources, lexed.diagnostics())?;
-    let parsed = parse_file(&sources, &lexed).map_err(BootstrapError::Parser)?;
-    reject_diagnostics(FrontendStage::Parser, &sources, parsed.diagnostics())?;
-
     let (name_environment, type_environment) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &name_environment)
-        .map_err(BootstrapError::NameResolution)?;
-    reject_diagnostics(FrontendStage::NameResolution, &sources, names.diagnostics())?;
-    let typed = check_types(&sources, &parsed, &names, &type_environment)
-        .map_err(BootstrapError::TypeChecking)?;
-    reject_diagnostics(FrontendStage::TypeChecking, &sources, typed.diagnostics())?;
-    let owned = check_ownership(&sources, &parsed, &names, &typed)
-        .map_err(BootstrapError::OwnershipChecking)?;
-    reject_diagnostics(
-        FrontendStage::OwnershipChecking,
+    let analysis = analyze_single_file(
         &sources,
-        owned.diagnostics(),
-    )?;
+        source,
+        &name_environment,
+        &type_environment,
+        |stage, diagnostics| reject_diagnostics(stage, &sources, diagnostics),
+        |_| Ok(()),
+    )
+    .map_err(|error| match error {
+        SingleFileAnalysisError::Lexer(error) => BootstrapError::Lexer(error),
+        SingleFileAnalysisError::Parser(error) => BootstrapError::Parser(error),
+        SingleFileAnalysisError::Name(error) => BootstrapError::NameResolution(error),
+        SingleFileAnalysisError::Type(error) => BootstrapError::TypeChecking(error),
+        SingleFileAnalysisError::Ownership(error) => BootstrapError::OwnershipChecking(error),
+        SingleFileAnalysisError::Host(error) => error,
+    })?;
+    let (parsed, names, typed, owned, ()) = analysis.into_parts();
 
     let entry = select_entry(&names, &typed, target.entry)?;
 

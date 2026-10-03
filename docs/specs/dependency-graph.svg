@@ -6,7 +6,7 @@
   </defs>
   <rect width="992" height="364" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，237 份）</text>
+  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，238 份）</text>
   <rect x="384" y="150" width="544" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="656" y="170" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 300 92 C 352 92, 352 230, 404 230" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -17,9 +17,9 @@
   <text x="524" y="243" text-anchor="middle" font-size="13">end→SSA→native</text>
   <text x="524" y="261" text-anchor="middle" font-size="13"> 集成</text>
   <rect x="668" y="184" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="788" y="207" text-anchor="middle" font-size="13" font-weight="600">SPEC-0252</text>
-  <text x="788" y="225" text-anchor="middle" font-size="13">unit 基础所有权共享推进</text>
+  <text x="788" y="207" text-anchor="middle" font-size="13" font-weight="600">SPEC-0253</text>
+  <text x="788" y="225" text-anchor="middle" font-size="13">共享单文件阶段门面</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
-  <text x="180" y="105" text-anchor="middle" font-size="13">archive，237 份</text>
+  <text x="180" y="105" text-anchor="middle" font-size="13">archive，238 份</text>
 </svg>

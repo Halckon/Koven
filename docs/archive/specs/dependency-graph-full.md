@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，237 份）"]
+subgraph Garchive["已完成（archive，238 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -246,10 +246,11 @@ subgraph Garchive["已完成（archive，237 份）"]
   S0249["S0249<br/>普通 owned-unit 封闭借用交接"]
   S0250["S0250<br/>封闭 unit 名称前缀 owner"]
   S0251["S0251<br/>LSP unit 消费共享名称快照"]
+  S0252["S0252<br/>unit 基础所有权共享推进"]
 end
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
-  S0252["S0252<br/>unit 基础所有权共享推进"]
+  S0253["S0253<br/>共享单文件阶段门面"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1193,7 +1194,10 @@ S0249 --> S0250
 S0249 --> S0252
 S0250 --> S0251
 S0250 --> S0252
+S0250 --> S0253
 S0251 --> S0252
+S0251 --> S0253
+S0252 --> S0253
 ```
 
 ## 节点链接
@@ -1437,5 +1441,6 @@ S0251 --> S0252
 | SPEC-0249 | archive | [0249-owned-unit-borrowed-handoff.md](0249-owned-unit-borrowed-handoff.md) |
 | SPEC-0250 | archive | [0250-unit-name-snapshot.md](0250-unit-name-snapshot.md) |
 | SPEC-0251 | archive | [0251-lsp-unit-name-snapshot.md](0251-lsp-unit-name-snapshot.md) |
+| SPEC-0252 | archive | [0252-basic-unit-ownership-driver.md](0252-basic-unit-ownership-driver.md) |
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
-| SPEC-0252 | active | [0252-basic-unit-ownership-driver.md](../../specs/active/0252-basic-unit-ownership-driver.md) |
+| SPEC-0253 | active | [0253-single-file-analysis-facade.md](../../specs/active/0253-single-file-analysis-facade.md) |

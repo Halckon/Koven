@@ -8,13 +8,13 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 237 份"))
+ARCH(("已完成<br/>archive 238 份"))
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
-  S0252["S0252<br/>unit 基础所有权共享推进"]
+  S0253["S0253<br/>共享单文件阶段门面"]
 end
 ARCH --> S0182
-ARCH --> S0252
+ARCH --> S0253
 ```
 
 ## 节点链接
@@ -22,5 +22,5 @@ ARCH --> S0252
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](active/0182-sequential-for-lowering.md) |
-| SPEC-0252 | active | [0252-basic-unit-ownership-driver.md](active/0252-basic-unit-ownership-driver.md) |
-| 已完成 Spec（237 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| SPEC-0253 | active | [0253-single-file-analysis-facade.md](active/0253-single-file-analysis-facade.md) |
+| 已完成 Spec（238 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

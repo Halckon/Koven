@@ -50,6 +50,11 @@ policy要求各恰一次、无过滤器：前者与手工 basic validation/check
 CLI完整测试自动包含 `project_basic_ownership_cli` 的旧主干 human/JSON 全输出 oracle；
 LSP完整测试保留冻结 manual 链与 publications/UTF-16/raw事实差分，不用新门面循环自证。
 
+同一stage完整选择 `single_file_analysis` 与 `single_file_analysis_compile_contracts` 各恰一次、
+无过滤器，分别锁固定五gate/typed observer顺序、原事实与身份，以及封闭字段/只读/HRTB
+借用逃逸和raw能力边界。CLI完整测试包含旧生产捕获的单文件全输出golden，LSP完整测试
+保留旧手工链、完整publication、UTF-16 definition及legacy特有版本/发送事务边界。
+
 ## 双宿主 CI
 
 `.github/workflows/ci.yml` 配置 macOS 14 AArch64 / Ubuntu 24.04 x86_64 的 check、严格

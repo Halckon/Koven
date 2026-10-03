@@ -1,0 +1,4 @@
+error[L0084] source.ko:1:40-1:41: expression type does not match the expected type
+  label source.ko:1:31-1:37: expected String, found Int
+error[L0084] source.ko:2:23-2:24: expression type does not match the expected type
+  label source.ko:2:13-2:20: expected Boolean, found Int
