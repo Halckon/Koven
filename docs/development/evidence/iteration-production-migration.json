@@ -1,0 +1,1013 @@
+{
+  "base": "6cc87fefe7d6486912d91966f751256ca256c0a0",
+  "base_source_sha256": "8dfdcd7862a091cdd1e58d08a506a84f4fb1c4bbf87880172fcb8ede905ab36c",
+  "normalization": "Preserve all literal/comment/path/algorithm tokens. Omit whitespace outside tokens, the explicitly enumerated pub(super) visibility changes, and only the optional final parameter commas of the three explicitly enumerated rustfmt-wrapped signatures. Additionally compare all 38 complete function bodies byte-for-byte.",
+  "current_files": [
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "sha256": "fa17eff1a493c4791b432cdd8f9e1c53b96320d0c5d0a7723d5d827bbc5f5c0b",
+      "physical_lines": 275
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "sha256": "f38078f71cc7260a33150f6aa1992de68d03d9069b4319c26329ca941993f656",
+      "physical_lines": 374
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_state.rs",
+      "sha256": "270d2d37bd911d9002d34e5184b63a4817e180582944b37a268ab33ed64264e2",
+      "physical_lines": 527
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "sha256": "4d77f96d0891fc7dfe8af1a7357bf14b41010e136705671ff1f5127aba691124",
+      "physical_lines": 766
+    }
+  ],
+  "visibility_changes": [
+    {
+      "declaration": "struct PhiCaptureGraph",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "struct PhiCaptureGraph.nodes",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "struct PhiCaptureGraph.by_closure",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "struct PhiCaptureNode",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "struct PhiCaptureNode.closure",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "struct PhiCaptureNode.release_captures",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "struct PhiCaptureNode.sources",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "struct PhiCaptureNode.opaque_sources",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn reachable",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn capture_layout",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn register_capture_layout",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn published",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn insert",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn expand",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn recursive_origin",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn nodes_reaching_cycle",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn owned_nodes_reaching_cycle",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn coexisting_owned_roots",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn conditional_nested_nodes",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn cyclic_node",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn phi_selector_writes",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn finite_layout_order",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn coexisting_capture_node",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn preallocate_closure_phis",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn seed_phi_state",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn exit_binding_required",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn record_phi_incoming",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    },
+    {
+      "declaration": "fn record_exhaustion_incoming",
+      "before": "private",
+      "after": "pub(super)",
+      "effective_scope_before": "iteration and descendants",
+      "effective_scope_after": "iteration and descendants"
+    }
+  ],
+  "signature_final_comma_changes": [
+    {
+      "item": "fn capture_layout",
+      "before": false,
+      "after": true
+    },
+    {
+      "item": "fn coexisting_owned_roots",
+      "before": false,
+      "after": true
+    },
+    {
+      "item": "fn record_exhaustion_incoming",
+      "before": false,
+      "after": true
+    }
+  ],
+  "items": [
+    {
+      "item": "struct IterationFrame",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 26,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "after_line": 26,
+      "base_raw_sha256": "4c21322e3fc186d9ab3a914855a88b10d88f46c5874b2f2be779bfae429e41d3",
+      "after_raw_sha256": "4c21322e3fc186d9ab3a914855a88b10d88f46c5874b2f2be779bfae429e41d3",
+      "base_normalized_sha256": "f6256a18b7f5de63421d76b576e0aec20153d104a93f4d4a228ca4ac7cd57918",
+      "after_normalized_sha256": "f6256a18b7f5de63421d76b576e0aec20153d104a93f4d4a228ca4ac7cd57918",
+      "body_byte_identical": true,
+      "base_body_sha256": "cc615431565de4cfff8b22cde2a2c22fac8eb38a8592d5430926fd4c88ff3ddf",
+      "after_body_sha256": "cc615431565de4cfff8b22cde2a2c22fac8eb38a8592d5430926fd4c88ff3ddf"
+    },
+    {
+      "item": "struct PhiAllocation",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 36,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_state.rs",
+      "after_line": 23,
+      "base_raw_sha256": "2cecedd408e7fa6026ea7e090f3dfa31f770f490115582149868af9a254bb555",
+      "after_raw_sha256": "2cecedd408e7fa6026ea7e090f3dfa31f770f490115582149868af9a254bb555",
+      "base_normalized_sha256": "ba9db41644b7745055a54f546c1bf51ce2076e94ed439feef3a4ac7b9d35b89c",
+      "after_normalized_sha256": "ba9db41644b7745055a54f546c1bf51ce2076e94ed439feef3a4ac7b9d35b89c",
+      "body_byte_identical": true,
+      "base_body_sha256": "b6cf197e12946623f4a5feed497a0c5f113b0123621ff64f5cb8750d0576bea9",
+      "after_body_sha256": "b6cf197e12946623f4a5feed497a0c5f113b0123621ff64f5cb8750d0576bea9"
+    },
+    {
+      "item": "struct PhiCaptureGraph",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 43,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 14,
+      "base_raw_sha256": "da628ace394d2d99cd8875eeb2f0115268d73e0cdb314ddc04b086b112180e90",
+      "after_raw_sha256": "b92fd34e8bb8c55fb09b8e2d04d277bf568bcb2ae75dc31f6cd93aa984fab383",
+      "base_normalized_sha256": "0fedce9087dd330739cae4e02b90b2830ffb23c9e95ca0dd52bb7a86e3c82753",
+      "after_normalized_sha256": "0fedce9087dd330739cae4e02b90b2830ffb23c9e95ca0dd52bb7a86e3c82753",
+      "body_byte_identical": false,
+      "base_body_sha256": "356ec736f3f9dacadb940fb39fbe6ce8ab396a83f30a5f9a66101e076367be5e",
+      "after_body_sha256": "a4efdfc32d7a6edc2d8be9a2d2740f80b2447eea3c3a582b874d75100ac2744f"
+    },
+    {
+      "item": "struct PhiCaptureNode",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 50,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 21,
+      "base_raw_sha256": "4f3b1fa8c6e2f3a8007fc58e43ec2e157eeaee05d327a66f2cbb2225214d0708",
+      "after_raw_sha256": "a07e5ac30d1896bea03ce1c4f759609b46968210213adbba9ec67a2103dcf718",
+      "base_normalized_sha256": "c99f7a67bf9c3bd9784e19cea23f71fc959edd85ea6412f1fbd6600a947acca8",
+      "after_normalized_sha256": "c99f7a67bf9c3bd9784e19cea23f71fc959edd85ea6412f1fbd6600a947acca8",
+      "body_byte_identical": false,
+      "base_body_sha256": "7f4eb624980d21f222ea07c5a970334f611d681f93264b3e28072fd3b0e56af6",
+      "after_body_sha256": "e34845f888ceb5071daa827c93e36e1cfeee84bfc68f24768a5b4f31f790c51a"
+    },
+    {
+      "item": "fn reachable",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 58,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 29,
+      "base_raw_sha256": "6e71cdaf7cda5b85b7be1c2e32dda740aa7b3714dfd7b3b6971d383c07fd4be1",
+      "after_raw_sha256": "0cd30ea45fc71bc4a017820edaf8bd8725c70663d018cbd9c22927c44ba90264",
+      "base_normalized_sha256": "3ea2b45f2289a9898faed6c6ffc14bd40b2d9975fb065014a3ceb883f0994a3a",
+      "after_normalized_sha256": "3ea2b45f2289a9898faed6c6ffc14bd40b2d9975fb065014a3ceb883f0994a3a",
+      "body_byte_identical": true,
+      "base_body_sha256": "0c024ab6b617649c28312cec0f6aa3aae74658b8d004d6aded064ee9afd22309",
+      "after_body_sha256": "0c024ab6b617649c28312cec0f6aa3aae74658b8d004d6aded064ee9afd22309"
+    },
+    {
+      "item": "fn capture_layout",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 79,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 50,
+      "base_raw_sha256": "f7f7132053bbcbb33d0db7523135742adfe72cd75940bf6d3fe8b74081b0e67b",
+      "after_raw_sha256": "19f63da1f060e41e1c71287685d820a8989f0321ae3906b62b250aa1eea1e8b9",
+      "base_normalized_sha256": "f65ee504f8a69b72b45eb567b071d1e59a5492febe12967139980c301abf23e5",
+      "after_normalized_sha256": "f65ee504f8a69b72b45eb567b071d1e59a5492febe12967139980c301abf23e5",
+      "body_byte_identical": true,
+      "base_body_sha256": "5d0d0010ad3626f39422d077c49c4d39a54d96a171bee0524c051dfb0e6124a9",
+      "after_body_sha256": "5d0d0010ad3626f39422d077c49c4d39a54d96a171bee0524c051dfb0e6124a9"
+    },
+    {
+      "item": "fn register_capture_layout",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 92,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 66,
+      "base_raw_sha256": "a8536ed07400dccc695b9f79989aeb74cbff4493a7de195cb381726ad88fe071",
+      "after_raw_sha256": "93c1d3d1ba399697565682906dbccfbd3f7352a49d137cdf300ad471d954e8c6",
+      "base_normalized_sha256": "8dfd109de26dbdc4cf7db2d874ed14836dfe972b248b8dc05fc10948cba466bd",
+      "after_normalized_sha256": "8dfd109de26dbdc4cf7db2d874ed14836dfe972b248b8dc05fc10948cba466bd",
+      "body_byte_identical": true,
+      "base_body_sha256": "8b3b3124954ac371e583d78d3fc1ee94eafee379c35834805f28b44bdef6781e",
+      "after_body_sha256": "8b3b3124954ac371e583d78d3fc1ee94eafee379c35834805f28b44bdef6781e"
+    },
+    {
+      "item": "fn published",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 116,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 90,
+      "base_raw_sha256": "6f245cb9e9952ae3e53cf42627d70ea8eb9a181a6edbfd67b4e393e3896f5193",
+      "after_raw_sha256": "48bf23ba9e549261733c030dc25ac01b74ae5c7d180552f80db67857fcc3f8fd",
+      "base_normalized_sha256": "75426345f14e7c923208ea2bae1f55d248dc7766127dc28c24f56dd47c99ff5c",
+      "after_normalized_sha256": "75426345f14e7c923208ea2bae1f55d248dc7766127dc28c24f56dd47c99ff5c",
+      "body_byte_identical": true,
+      "base_body_sha256": "8aacc3829bce1598f2947791665f847577928150dbaabc664e669e0160c05fc3",
+      "after_body_sha256": "8aacc3829bce1598f2947791665f847577928150dbaabc664e669e0160c05fc3"
+    },
+    {
+      "item": "fn insert",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 139,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 113,
+      "base_raw_sha256": "ba1aeb9766bb660903eb417d78855dfbdbb13cd7ba60241a937a949031224604",
+      "after_raw_sha256": "3e33be57570914ef293752674e5c08596a311c21bdea3503999bd47c5a559548",
+      "base_normalized_sha256": "dcdd03108812f662de44fa0ee0b0572494e92a8ea77977d32ab1886b85a87397",
+      "after_normalized_sha256": "dcdd03108812f662de44fa0ee0b0572494e92a8ea77977d32ab1886b85a87397",
+      "body_byte_identical": true,
+      "base_body_sha256": "9ad713ef95b93ebc533ddd8295b3aa9cb62562dbc273e64ca59b0f04889ff421",
+      "after_body_sha256": "9ad713ef95b93ebc533ddd8295b3aa9cb62562dbc273e64ca59b0f04889ff421"
+    },
+    {
+      "item": "fn expand",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 154,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 128,
+      "base_raw_sha256": "003cd76cc2fa1ed9b5a83d53e729dd675d330f007ef73e8f18a8a82000e5556b",
+      "after_raw_sha256": "54dfb0d93c11f76fb82a6cbef889165892ba5c5b6c7d5463b3f6c224cd9424b3",
+      "base_normalized_sha256": "b75f831eedb7293448fee35823ce400ca5a5efb80263284c5b5d1b47036e8546",
+      "after_normalized_sha256": "b75f831eedb7293448fee35823ce400ca5a5efb80263284c5b5d1b47036e8546",
+      "body_byte_identical": true,
+      "base_body_sha256": "d44b59f69b722423f97a38aa20459d3a464311bbc75d8181bea469db8c75e1d0",
+      "after_body_sha256": "d44b59f69b722423f97a38aa20459d3a464311bbc75d8181bea469db8c75e1d0"
+    },
+    {
+      "item": "fn recursive_origin",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 188,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 162,
+      "base_raw_sha256": "8fd8416b30106d8104770f4c868be8cb820877d5d5bad26c4806854d1e01d25e",
+      "after_raw_sha256": "d59f2411e23d8616a4a7d975041a26d47fc05c0e9bd5853e83f5da930b0beb42",
+      "base_normalized_sha256": "cccffb6e7ced8c4012cefa6ff4f14721f11ffb5c2c11d35ad8e4bf45779f5ca5",
+      "after_normalized_sha256": "cccffb6e7ced8c4012cefa6ff4f14721f11ffb5c2c11d35ad8e4bf45779f5ca5",
+      "body_byte_identical": true,
+      "base_body_sha256": "eb5f74a042e4c0250ad8a87f6b076bffd523bf27f12d635232a2a5d4a8dda499",
+      "after_body_sha256": "eb5f74a042e4c0250ad8a87f6b076bffd523bf27f12d635232a2a5d4a8dda499"
+    },
+    {
+      "item": "fn nodes_reaching_cycle",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 193,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 167,
+      "base_raw_sha256": "79168edb5dd5827e4436635f017c7a3d7f723f49571a5c4a06836b1695f04c6c",
+      "after_raw_sha256": "69ea72b446b8fb675b3f6af0783ae8cccf8f27a8c1b3b939f511992d899f0dfa",
+      "base_normalized_sha256": "b067972ed2aaef4433dfe192fe6599963a73d2c61ceb863f0464f17f62c7cd8e",
+      "after_normalized_sha256": "b067972ed2aaef4433dfe192fe6599963a73d2c61ceb863f0464f17f62c7cd8e",
+      "body_byte_identical": true,
+      "base_body_sha256": "2ef2411a6b3dd3784fc3942eec3e1205dd83cadfacf9563b53d7a4e54bf58a29",
+      "after_body_sha256": "2ef2411a6b3dd3784fc3942eec3e1205dd83cadfacf9563b53d7a4e54bf58a29"
+    },
+    {
+      "item": "fn owned_nodes_reaching_cycle",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 198,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 172,
+      "base_raw_sha256": "8675ec79cccdb90f1d6baacf62aa2549181662eb886a3d5f33d02cc7307591ea",
+      "after_raw_sha256": "fa5ff35acbc7c877a6c95b70af7d5e6e3e78c3f45f4b19c0367b8d46ea5371d3",
+      "base_normalized_sha256": "fa3561a74b8d4cc87445277198699e54e608e767eb050afced301b02980d275b",
+      "after_normalized_sha256": "fa3561a74b8d4cc87445277198699e54e608e767eb050afced301b02980d275b",
+      "body_byte_identical": true,
+      "base_body_sha256": "0918a3e2198bb912e5e709bc3f2ece517379d0b93b8b43b221d498042a296465",
+      "after_body_sha256": "0918a3e2198bb912e5e709bc3f2ece517379d0b93b8b43b221d498042a296465"
+    },
+    {
+      "item": "fn coexisting_owned_roots",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 217,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 191,
+      "base_raw_sha256": "634eda857af33cd34e20e40563d37ad40caa1609fbdbb75382d69deff68dd7ae",
+      "after_raw_sha256": "5b60531efe33a3ebc2cf689d7d3236492765280bccd4d8af40ca2114cc22edca",
+      "base_normalized_sha256": "1bc4fe23f029a8a185806af7db21bf5e1d0228c0e1b2a1f99228df8df0b56947",
+      "after_normalized_sha256": "1bc4fe23f029a8a185806af7db21bf5e1d0228c0e1b2a1f99228df8df0b56947",
+      "body_byte_identical": true,
+      "base_body_sha256": "91d43a84b8afd8fca87414293b9497968c01c96a3ce4edf4f138049e9dd37b60",
+      "after_body_sha256": "91d43a84b8afd8fca87414293b9497968c01c96a3ce4edf4f138049e9dd37b60"
+    },
+    {
+      "item": "fn edges",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 256,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 234,
+      "base_raw_sha256": "d709806e427e4c509e964ded5636d28ecf5c712e3e1402cc58adde9571a8377d",
+      "after_raw_sha256": "d709806e427e4c509e964ded5636d28ecf5c712e3e1402cc58adde9571a8377d",
+      "base_normalized_sha256": "b0cb88cd9c200803dc3cce0f3229899b1202caea7fb6e431e3d5aa2935eafe1e",
+      "after_normalized_sha256": "b0cb88cd9c200803dc3cce0f3229899b1202caea7fb6e431e3d5aa2935eafe1e",
+      "body_byte_identical": true,
+      "base_body_sha256": "4964ac820d0052f580c68baf170687f57d93f6d91a0da535956586dc5efd3583",
+      "after_body_sha256": "4964ac820d0052f580c68baf170687f57d93f6d91a0da535956586dc5efd3583"
+    },
+    {
+      "item": "fn conditional_nested_nodes",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 268,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 246,
+      "base_raw_sha256": "acd3900859a408888fdc847d34bec66c8b3117f8ddd056847299bacd29fb68d7",
+      "after_raw_sha256": "ebfd6779933d6c9b5015103c6e39c2328699395b988540bd9fe33f4f64ce6ba9",
+      "base_normalized_sha256": "b38ebd9dda213ed2318737553fc47d5bd6be3075f3841b1a9e3234701b2738f3",
+      "after_normalized_sha256": "b38ebd9dda213ed2318737553fc47d5bd6be3075f3841b1a9e3234701b2738f3",
+      "body_byte_identical": true,
+      "base_body_sha256": "453cb041b6970622d061590c6cb4c5e02f1143a5d7ed2ec1deb51782e0e02550",
+      "after_body_sha256": "453cb041b6970622d061590c6cb4c5e02f1143a5d7ed2ec1deb51782e0e02550"
+    },
+    {
+      "item": "fn nodes_reaching_cycle_in",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 291,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 269,
+      "base_raw_sha256": "c17b719dd8eb2ecfede9f62f64e73ad8345e383d05613295a1ca9d3d0422b4f0",
+      "after_raw_sha256": "c17b719dd8eb2ecfede9f62f64e73ad8345e383d05613295a1ca9d3d0422b4f0",
+      "base_normalized_sha256": "6bf6bd3a736ee4bdf0bf59560b551e9add85e581954bcf2c62abc61db89eb34c",
+      "after_normalized_sha256": "6bf6bd3a736ee4bdf0bf59560b551e9add85e581954bcf2c62abc61db89eb34c",
+      "body_byte_identical": true,
+      "base_body_sha256": "2f225bcf399707d559e0f0850d0678276bdbe5da6df8b5922be627789f4e2699",
+      "after_body_sha256": "2f225bcf399707d559e0f0850d0678276bdbe5da6df8b5922be627789f4e2699"
+    },
+    {
+      "item": "fn cyclic_node",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 315,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 293,
+      "base_raw_sha256": "5004d177a30061cfa416bd8af52178b8856cde054bc01077128cd1659c5e4734",
+      "after_raw_sha256": "405e956cbe36ce355c0969863535594f9951c3b0940b959dfa0206ddf0562e89",
+      "base_normalized_sha256": "d66a2f2cef3cb11f048faae802335faa106ab35de2f38471bbdae7b6f7a7087c",
+      "after_normalized_sha256": "d66a2f2cef3cb11f048faae802335faa106ab35de2f38471bbdae7b6f7a7087c",
+      "body_byte_identical": true,
+      "base_body_sha256": "95d9590d11dca209a52c1ddc7dd89e201bdd1a9c5f2cdcba34e957b2eb91b2a4",
+      "after_body_sha256": "95d9590d11dca209a52c1ddc7dd89e201bdd1a9c5f2cdcba34e957b2eb91b2a4"
+    },
+    {
+      "item": "fn cyclic_node_from_roots",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 319,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 297,
+      "base_raw_sha256": "c793ef39be098370afc89017d0db81c883b7513bb0f8fa8c15b58346cc29d620",
+      "after_raw_sha256": "c793ef39be098370afc89017d0db81c883b7513bb0f8fa8c15b58346cc29d620",
+      "base_normalized_sha256": "107c531315e77f4e6c1c708d01449a9cb70b4e35f2a3acd4340fa39ef8833ce0",
+      "after_normalized_sha256": "107c531315e77f4e6c1c708d01449a9cb70b4e35f2a3acd4340fa39ef8833ce0",
+      "body_byte_identical": true,
+      "base_body_sha256": "0670412d22f6db264a359abf1af9f3da94485657602ae2449ee1afb303c281de",
+      "after_body_sha256": "0670412d22f6db264a359abf1af9f3da94485657602ae2449ee1afb303c281de"
+    },
+    {
+      "item": "struct PhiSeedContext",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 351,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_state.rs",
+      "after_line": 30,
+      "base_raw_sha256": "efea15ce9b97feb7be82e85a9a2177fce3d65d4162fa8de65e752b06d61e7cb3",
+      "after_raw_sha256": "efea15ce9b97feb7be82e85a9a2177fce3d65d4162fa8de65e752b06d61e7cb3",
+      "base_normalized_sha256": "3357a67430e3419f87480b912e328e0911adc30c36c433d3cc01b7df550ac76d",
+      "after_normalized_sha256": "3357a67430e3419f87480b912e328e0911adc30c36c433d3cc01b7df550ac76d",
+      "body_byte_identical": true,
+      "base_body_sha256": "a5127a7840117cc5742aa04bb08544968effe835d895cda3e95e724f2fd47181",
+      "after_body_sha256": "a5127a7840117cc5742aa04bb08544968effe835d895cda3e95e724f2fd47181"
+    },
+    {
+      "item": "struct ForwardPhiContext",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 358,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 18,
+      "base_raw_sha256": "acbb212e35f658737e0ed9b020761017d6dfe67f8982ad3902799bc3c70ceaf7",
+      "after_raw_sha256": "acbb212e35f658737e0ed9b020761017d6dfe67f8982ad3902799bc3c70ceaf7",
+      "base_normalized_sha256": "7ed795011baad382dd717849b947cc42cc7d8af42ebb501b755d6a7eca8bf9a6",
+      "after_normalized_sha256": "7ed795011baad382dd717849b947cc42cc7d8af42ebb501b755d6a7eca8bf9a6",
+      "body_byte_identical": true,
+      "base_body_sha256": "ef2fce912fbc29e8e15f4924ad5e7202717e7a69791fa0627a8b2594e66a6356",
+      "after_body_sha256": "ef2fce912fbc29e8e15f4924ad5e7202717e7a69791fa0627a8b2594e66a6356"
+    },
+    {
+      "item": "fn record_phi_origin",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 363,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 23,
+      "base_raw_sha256": "c18427b5211542ea5bba011c8ec815ecd64427e01461c331a622a8de48e1575d",
+      "after_raw_sha256": "c18427b5211542ea5bba011c8ec815ecd64427e01461c331a622a8de48e1575d",
+      "base_normalized_sha256": "4a0d7d3d2d67299449401abf9b57d3407cc51d61647fc7f7f10dc397882a51d0",
+      "after_normalized_sha256": "4a0d7d3d2d67299449401abf9b57d3407cc51d61647fc7f7f10dc397882a51d0",
+      "body_byte_identical": true,
+      "base_body_sha256": "6c1b6747b07c4da1c20eb8cce7ab14086bb33213b2e70825947282343bad9329",
+      "after_body_sha256": "6c1b6747b07c4da1c20eb8cce7ab14086bb33213b2e70825947282343bad9329"
+    },
+    {
+      "item": "fn phi_selector_writes",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 524,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 184,
+      "base_raw_sha256": "142f655329a6ee093ba7a85e60264fa3181d8a96dce102b31ea123a0f8c8c152",
+      "after_raw_sha256": "aeac2636818dc128e699ca973bdffea30f24376b34558449a72c2f007a9ba6ff",
+      "base_normalized_sha256": "125aaa546a352b0b0b9590996f484db05d30a4aebe31402bd778463acaad3659",
+      "after_normalized_sha256": "125aaa546a352b0b0b9590996f484db05d30a4aebe31402bd778463acaad3659",
+      "body_byte_identical": true,
+      "base_body_sha256": "39b7928eab182621a34a2052932b98e3b152047ed5ff293b334c5f6523f72dac",
+      "after_body_sha256": "39b7928eab182621a34a2052932b98e3b152047ed5ff293b334c5f6523f72dac"
+    },
+    {
+      "item": "fn finite_layout_order",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 569,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 329,
+      "base_raw_sha256": "5ce11b152402699d87ce3014243fe433f3263a324c057660ced5618b6b92fcf2",
+      "after_raw_sha256": "e47b627defbe551531fdcfa39700c27224e75c825be7dc082ebb55425115298f",
+      "base_normalized_sha256": "e4ea809c801c9f4a97ca36c62e413b3ac5bb2f9bacad456d9a3126684b60c784",
+      "after_normalized_sha256": "e4ea809c801c9f4a97ca36c62e413b3ac5bb2f9bacad456d9a3126684b60c784",
+      "body_byte_identical": true,
+      "base_body_sha256": "2002827e98fce96e18d30d8b8d5553d882f89f7e6cdc910881356ff9dfcfc9a2",
+      "after_body_sha256": "2002827e98fce96e18d30d8b8d5553d882f89f7e6cdc910881356ff9dfcfc9a2"
+    },
+    {
+      "item": "fn descendant_expandable",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 586,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 229,
+      "base_raw_sha256": "20deee1d0e7d6d542d1cddf4226c885c4deba8d1bca77fee57200910a543cff5",
+      "after_raw_sha256": "20deee1d0e7d6d542d1cddf4226c885c4deba8d1bca77fee57200910a543cff5",
+      "base_normalized_sha256": "6a21ea0873ad8f884a447584e5c5f8991b4b25ad776bf1e2f1aa7d28283ed723",
+      "after_normalized_sha256": "6a21ea0873ad8f884a447584e5c5f8991b4b25ad776bf1e2f1aa7d28283ed723",
+      "body_byte_identical": true,
+      "base_body_sha256": "62011aa1265cb83c52dc7599d78924c2a86fa5b3fae330d1f5bed4b0d671274e",
+      "after_body_sha256": "62011aa1265cb83c52dc7599d78924c2a86fa5b3fae330d1f5bed4b0d671274e"
+    },
+    {
+      "item": "fn mutually_exclusive",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 597,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 240,
+      "base_raw_sha256": "d1f9c2e604ac505c09b8eccf790788124fca78e010696a49f1b10a0cabbc1d38",
+      "after_raw_sha256": "d1f9c2e604ac505c09b8eccf790788124fca78e010696a49f1b10a0cabbc1d38",
+      "base_normalized_sha256": "82030468c9105b74829e55dcab69636625a32eb596eaaaa003e01fcb5fa964ab",
+      "after_normalized_sha256": "82030468c9105b74829e55dcab69636625a32eb596eaaaa003e01fcb5fa964ab",
+      "body_byte_identical": true,
+      "base_body_sha256": "4559f18cfab248314136362604a61296fd82fbca8dbef4d4a1e0ba70ca8d3f29",
+      "after_body_sha256": "4559f18cfab248314136362604a61296fd82fbca8dbef4d4a1e0ba70ca8d3f29"
+    },
+    {
+      "item": "fn omit_coexisting_capture_writes",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 619,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 262,
+      "base_raw_sha256": "bafea431498119232c8bdb483d546599d20813eacadf4c6525e9640eb52c290f",
+      "after_raw_sha256": "bafea431498119232c8bdb483d546599d20813eacadf4c6525e9640eb52c290f",
+      "base_normalized_sha256": "0a0418070c4f4527a6ef18edf2d3cca9ce6cc2e9e1971373bf36f9dd9d491532",
+      "after_normalized_sha256": "0a0418070c4f4527a6ef18edf2d3cca9ce6cc2e9e1971373bf36f9dd9d491532",
+      "body_byte_identical": true,
+      "base_body_sha256": "06a6edf13edc37491faafe7da65ef8582453f870846c7151388591ad93799314",
+      "after_body_sha256": "06a6edf13edc37491faafe7da65ef8582453f870846c7151388591ad93799314"
+    },
+    {
+      "item": "type SeenCaptureInstances",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 633,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 276,
+      "base_raw_sha256": "191f65ccb87186805bf78c312af944a59dab2436d4d82fabf7a1a3e55b71a5ff",
+      "after_raw_sha256": "191f65ccb87186805bf78c312af944a59dab2436d4d82fabf7a1a3e55b71a5ff",
+      "base_normalized_sha256": "8e0a4c209a8965a04c443286804461b3a1ef76d93f4eae2c5450399d3032d17c",
+      "after_normalized_sha256": "8e0a4c209a8965a04c443286804461b3a1ef76d93f4eae2c5450399d3032d17c",
+      "body_byte_identical": true,
+      "base_body_sha256": null,
+      "after_body_sha256": null
+    },
+    {
+      "item": "fn coexisting_capture_node",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 636,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 279,
+      "base_raw_sha256": "45a2fc161b3b4ac28a0bc1eeea68f891b62a613843f88b499299ec2a25aac24c",
+      "after_raw_sha256": "731406f4d1cc0948791181cb6d9f3c44743405c14945f9e7e966242c118db260",
+      "base_normalized_sha256": "05638a22cc259adb044f6e51b5fd4584daa65f140077d47bd22e73934b412ae2",
+      "after_normalized_sha256": "05638a22cc259adb044f6e51b5fd4584daa65f140077d47bd22e73934b412ae2",
+      "body_byte_identical": true,
+      "base_body_sha256": "acb4630aeaa03e4673aa2fe34aa118c397bb8a4145efc7f71dc2f719fe9717a7",
+      "after_body_sha256": "acb4630aeaa03e4673aa2fe34aa118c397bb8a4145efc7f71dc2f719fe9717a7"
+    },
+    {
+      "item": "fn seed_recursive_source_holds",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 673,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_state.rs",
+      "after_line": 37,
+      "base_raw_sha256": "e5575e7ba228cdd4aec5d0399550531b721371fc540556a89734e9d08cae3eb3",
+      "after_raw_sha256": "e5575e7ba228cdd4aec5d0399550531b721371fc540556a89734e9d08cae3eb3",
+      "base_normalized_sha256": "78708b424c59aafcee5907008e74599c11a62b516251fcbd135d0020f3a488dc",
+      "after_normalized_sha256": "78708b424c59aafcee5907008e74599c11a62b516251fcbd135d0020f3a488dc",
+      "body_byte_identical": true,
+      "base_body_sha256": "b162336ea5901795378a081e1ff9ceea08a28948c57ff6d8eca8c4e9d6a5a970",
+      "after_body_sha256": "b162336ea5901795378a081e1ff9ceea08a28948c57ff6d8eca8c4e9d6a5a970"
+    },
+    {
+      "item": "fn seed_phi_origin",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 730,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_state.rs",
+      "after_line": 94,
+      "base_raw_sha256": "418ab18e32691415e5162fc023825d20beb7f251216cfe68c08396f0652638e7",
+      "after_raw_sha256": "418ab18e32691415e5162fc023825d20beb7f251216cfe68c08396f0652638e7",
+      "base_normalized_sha256": "fc1feb364e0ba70a24e27204bb9288ed46ed6f5a9ccf9a4a33b5f67bb1368370",
+      "after_normalized_sha256": "fc1feb364e0ba70a24e27204bb9288ed46ed6f5a9ccf9a4a33b5f67bb1368370",
+      "body_byte_identical": true,
+      "base_body_sha256": "64a3c43fccf71e91455b47c7fa068562c84686d0b9e2d578908fe21aa435afca",
+      "after_body_sha256": "64a3c43fccf71e91455b47c7fa068562c84686d0b9e2d578908fe21aa435afca"
+    },
+    {
+      "item": "fn iteration",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 866,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "after_line": 37,
+      "base_raw_sha256": "3b141f6025e8f621694b0fb35ee11aee2bc76b183a451dbf9d4a64c6465f7a3f",
+      "after_raw_sha256": "3b141f6025e8f621694b0fb35ee11aee2bc76b183a451dbf9d4a64c6465f7a3f",
+      "base_normalized_sha256": "121196ed8770bf08debed11b50a984eea207cfc0d61f10a60ae23a4d9d4340fe",
+      "after_normalized_sha256": "121196ed8770bf08debed11b50a984eea207cfc0d61f10a60ae23a4d9d4340fe",
+      "body_byte_identical": true,
+      "base_body_sha256": "8de3040c2cd2153256a9decdfca9cc3c9068b22ac942bf278f7f863cf49c8c5f",
+      "after_body_sha256": "8de3040c2cd2153256a9decdfca9cc3c9068b22ac942bf278f7f863cf49c8c5f"
+    },
+    {
+      "item": "fn preallocate_closure_phis",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 952,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_state.rs",
+      "after_line": 230,
+      "base_raw_sha256": "69bcd6e3816361aab57d39aa42f74133d0aae679bb82683fd4014461f6d11148",
+      "after_raw_sha256": "2823a1d79b17bdfc1b5d0e4109a15335a0d6bcc62c1a700687c413f66359b4b7",
+      "base_normalized_sha256": "57485c9800181814bc8f2e12af05e1eb75a32158603a9aee668dca42cd521115",
+      "after_normalized_sha256": "57485c9800181814bc8f2e12af05e1eb75a32158603a9aee668dca42cd521115",
+      "body_byte_identical": true,
+      "base_body_sha256": "2e7711a83c9b675c75b2687dd442846d78321e57688a59f9905c77e7894673de",
+      "after_body_sha256": "2e7711a83c9b675c75b2687dd442846d78321e57688a59f9905c77e7894673de"
+    },
+    {
+      "item": "fn phi_capture_source_tracked",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1067,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 347,
+      "base_raw_sha256": "cbe24c014deedc2e137c8c4fd59ce1e9078eafb58e988a3b973dd90e1f53eaa7",
+      "after_raw_sha256": "cbe24c014deedc2e137c8c4fd59ce1e9078eafb58e988a3b973dd90e1f53eaa7",
+      "base_normalized_sha256": "d8fe8446d96ca0e3957bf245d8264a19ca4e7e743580d74b83125978a6b087b5",
+      "after_normalized_sha256": "d8fe8446d96ca0e3957bf245d8264a19ca4e7e743580d74b83125978a6b087b5",
+      "body_byte_identical": true,
+      "base_body_sha256": "5b02f0399b4464d165a22e79127eca8dfc7ebac12efc1f608da418d48e9e2367",
+      "after_body_sha256": "5b02f0399b4464d165a22e79127eca8dfc7ebac12efc1f608da418d48e9e2367"
+    },
+    {
+      "item": "fn phi_root_conditions",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1079,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "after_line": 123,
+      "base_raw_sha256": "a7da89aea0d7e50254c1092e8a8e82aae4446d48133be1641c26d86952e0c34d",
+      "after_raw_sha256": "a7da89aea0d7e50254c1092e8a8e82aae4446d48133be1641c26d86952e0c34d",
+      "base_normalized_sha256": "095704db1e472e4078c4ea7bca7fb2ac9e240d8171ed273f988e98b5b949690d",
+      "after_normalized_sha256": "095704db1e472e4078c4ea7bca7fb2ac9e240d8171ed273f988e98b5b949690d",
+      "body_byte_identical": true,
+      "base_body_sha256": "a549e1f91bc74783d9b281d897d601cd80640f225e7de9b173ea928f5d352e93",
+      "after_body_sha256": "a549e1f91bc74783d9b281d897d601cd80640f225e7de9b173ea928f5d352e93"
+    },
+    {
+      "item": "fn phi_capture_origins",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1099,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/capture_graph.rs",
+      "after_line": 359,
+      "base_raw_sha256": "c22773ebfc91630e5f1a9ac2de2384837d7d4a4ea7638392bf08a144c65ed8f0",
+      "after_raw_sha256": "c22773ebfc91630e5f1a9ac2de2384837d7d4a4ea7638392bf08a144c65ed8f0",
+      "base_normalized_sha256": "d293366ca1bf3a97b008ae7e551d2903c0a9d1040baa5637106b59b3a77f272c",
+      "after_normalized_sha256": "d293366ca1bf3a97b008ae7e551d2903c0a9d1040baa5637106b59b3a77f272c",
+      "body_byte_identical": true,
+      "base_body_sha256": "bc26a37a679b25a7c44d40bf3bc0db822215dfbe72912de057681f71bc39562d",
+      "after_body_sha256": "bc26a37a679b25a7c44d40bf3bc0db822215dfbe72912de057681f71bc39562d"
+    },
+    {
+      "item": "fn allocate_phi_layout",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1115,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_state.rs",
+      "after_line": 345,
+      "base_raw_sha256": "7c0d5f21f1630fc661f070b74e0cad62eff81a8b418bdff6c12dcb3e9d7e709b",
+      "after_raw_sha256": "7c0d5f21f1630fc661f070b74e0cad62eff81a8b418bdff6c12dcb3e9d7e709b",
+      "base_normalized_sha256": "78176e101f1816cd2a820e99589b44e8ff14f61c6e38b716bbc6995876612f86",
+      "after_normalized_sha256": "78176e101f1816cd2a820e99589b44e8ff14f61c6e38b716bbc6995876612f86",
+      "body_byte_identical": true,
+      "base_body_sha256": "17dc2e698f6a45956ba19d45292a29539efbbde09e936920c2598822207c2486",
+      "after_body_sha256": "17dc2e698f6a45956ba19d45292a29539efbbde09e936920c2598822207c2486"
+    },
+    {
+      "item": "fn seed_phi_state",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1189,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_state.rs",
+      "after_line": 419,
+      "base_raw_sha256": "a0ad6505abb951cad46456d02a1212fd2be2ae76bcfb348a5dc370ee8cf15cb2",
+      "after_raw_sha256": "2633c36221aacf3f89a53d9003e009f0eca05f32908ac526394ef76bce86be70",
+      "base_normalized_sha256": "0ed64fde7815f5ca6ec352bff15e663d9d4f473efba206c9f8db8f5132e6ce07",
+      "after_normalized_sha256": "0ed64fde7815f5ca6ec352bff15e663d9d4f473efba206c9f8db8f5132e6ce07",
+      "body_byte_identical": true,
+      "base_body_sha256": "07ce8ea561e424755839ec457d9e897e8467d1fa4e26fcbb174b163ca353f5fe",
+      "after_body_sha256": "07ce8ea561e424755839ec457d9e897e8467d1fa4e26fcbb174b163ca353f5fe"
+    },
+    {
+      "item": "fn exit_binding_required",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1273,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_state.rs",
+      "after_line": 503,
+      "base_raw_sha256": "57201b649ae65d2721576851a5641f26a4d972410d488f07fe4bee9abcce959c",
+      "after_raw_sha256": "90e39eb443398bfb0c1cc75223452a08f6346c0201713fda2d7c9c0669a0169c",
+      "base_normalized_sha256": "45683e70199aa71f5dd392d655a4b76d371f2b6c71256f1d91d8eabd69ab7727",
+      "after_normalized_sha256": "45683e70199aa71f5dd392d655a4b76d371f2b6c71256f1d91d8eabd69ab7727",
+      "body_byte_identical": true,
+      "base_body_sha256": "3801f473a99d6d2798408755835d935bbc62afe0da35a853e7455dfe9594ac13",
+      "after_body_sha256": "3801f473a99d6d2798408755835d935bbc62afe0da35a853e7455dfe9594ac13"
+    },
+    {
+      "item": "fn record_phi_incoming",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1298,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 317,
+      "base_raw_sha256": "c59c87e8e3da22edc3c77eab6aea9287b26ab19c315b07cb8cda87e4839197d5",
+      "after_raw_sha256": "20d45932eb9df116b3413553264a40db6dbc50d88d976a2c706f7968843010a9",
+      "base_normalized_sha256": "f53dcc552081fc0d52155fef6c1d6c9205015c063115eb1e34adca16a23c5967",
+      "after_normalized_sha256": "f53dcc552081fc0d52155fef6c1d6c9205015c063115eb1e34adca16a23c5967",
+      "body_byte_identical": true,
+      "base_body_sha256": "cd26771c056fa9147e8b25ca66392316050cdbae540a274b93eb60fe1b76f4a1",
+      "after_body_sha256": "cd26771c056fa9147e8b25ca66392316050cdbae540a274b93eb60fe1b76f4a1"
+    },
+    {
+      "item": "fn record_exhaustion_incoming",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1466,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 485,
+      "base_raw_sha256": "dc71a1eaae809a7381c30e351f2b5d2b6bc410682fcb768708c6ff331da464bc",
+      "after_raw_sha256": "42323a7c0448b4643f1913b4d477bfc6680b810f2b809c7cf37bb4078608b537",
+      "base_normalized_sha256": "f3cb1ca1f6b1ab7f5395811d64011dda1829da5ef3111e945f77fd2c74613f95",
+      "after_normalized_sha256": "f3cb1ca1f6b1ab7f5395811d64011dda1829da5ef3111e945f77fd2c74613f95",
+      "body_byte_identical": true,
+      "base_body_sha256": "0b0f639351df9f5cb6f73dbc4a01122f5e7c74d313a970a1365e2ffd08d1fe05",
+      "after_body_sha256": "0b0f639351df9f5cb6f73dbc4a01122f5e7c74d313a970a1365e2ffd08d1fe05"
+    },
+    {
+      "item": "fn forward_phi_origin",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1619,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/phi_incoming.rs",
+      "after_line": 642,
+      "base_raw_sha256": "ac6e8e29009fb825ccd4a704030abcc591ca757e2b320cd97029cdd6b5e0e1db",
+      "after_raw_sha256": "ac6e8e29009fb825ccd4a704030abcc591ca757e2b320cd97029cdd6b5e0e1db",
+      "base_normalized_sha256": "9f9840c231a64e016067cf26adfc2fbf964fe18f55a9ad783cbc3ee644d68665",
+      "after_normalized_sha256": "9f9840c231a64e016067cf26adfc2fbf964fe18f55a9ad783cbc3ee644d68665",
+      "body_byte_identical": true,
+      "base_body_sha256": "109f5325d5d9cb167b9d6785ff5d341e8fe4763f4cdbee694b30d59dc2a54977",
+      "after_body_sha256": "109f5325d5d9cb167b9d6785ff5d341e8fe4763f4cdbee694b30d59dc2a54977"
+    },
+    {
+      "item": "fn end_iteration_element",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1744,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "after_line": 143,
+      "base_raw_sha256": "50473bb90dc350aa64b63bb5d82d136866bdb4009fabde95bce1e5a5faecf7dc",
+      "after_raw_sha256": "50473bb90dc350aa64b63bb5d82d136866bdb4009fabde95bce1e5a5faecf7dc",
+      "base_normalized_sha256": "552f849242220b3838559a8893d1edef47bb01ecd9244bcf8977e6f8033318ae",
+      "after_normalized_sha256": "552f849242220b3838559a8893d1edef47bb01ecd9244bcf8977e6f8033318ae",
+      "body_byte_identical": true,
+      "base_body_sha256": "bbd7566b686d17ef7f860e06fd2315df71286849fab9b904f788a088bfdea3e4",
+      "after_body_sha256": "bbd7566b686d17ef7f860e06fd2315df71286849fab9b904f788a088bfdea3e4"
+    },
+    {
+      "item": "fn finish_iteration",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1782,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "after_line": 181,
+      "base_raw_sha256": "e5f18e3d6e9154e66b47d2cbe6e395020eda1dd277a5af3ab84a430afa829355",
+      "after_raw_sha256": "e5f18e3d6e9154e66b47d2cbe6e395020eda1dd277a5af3ab84a430afa829355",
+      "base_normalized_sha256": "d9ee5bb1d0286970d8e258d0db116a198dc5a1264078c3f131ae9e5ef304b9ea",
+      "after_normalized_sha256": "d9ee5bb1d0286970d8e258d0db116a198dc5a1264078c3f131ae9e5ef304b9ea",
+      "body_byte_identical": true,
+      "base_body_sha256": "b49fc36f2a8a3258bb2af97b7470702beb51a6c770c575ccc32fd9fa3a57a8af",
+      "after_body_sha256": "b49fc36f2a8a3258bb2af97b7470702beb51a6c770c575ccc32fd9fa3a57a8af"
+    },
+    {
+      "item": "fn iteration_plans",
+      "base_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "base_line": 1816,
+      "after_path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration.rs",
+      "after_line": 215,
+      "base_raw_sha256": "5e329035fcc6d364274300179a2441e459d412e5e3b6afa3560b1da970d715b9",
+      "after_raw_sha256": "5e329035fcc6d364274300179a2441e459d412e5e3b6afa3560b1da970d715b9",
+      "base_normalized_sha256": "cc399324fee0eaec79c10bb30423a3f8e2f5cb7bcf05f85ee7fa5d27aaba61aa",
+      "after_normalized_sha256": "cc399324fee0eaec79c10bb30423a3f8e2f5cb7bcf05f85ee7fa5d27aaba61aa",
+      "body_byte_identical": true,
+      "base_body_sha256": "54a82ea3400f518aafa20b65ee3ad9478f32e605a998ca274aa9763b88ebaa43",
+      "after_body_sha256": "54a82ea3400f518aafa20b65ee3ad9478f32e605a998ca274aa9763b88ebaa43"
+    }
+  ],
+  "unchanged_test_and_replay_files": [
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay.rs",
+      "sha256": "af6b596c2bc18db2adf11978447c5d1ab8bb5fd6f1ad917507c2e30de3e73fc5"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/calls.rs",
+      "sha256": "7becbfe2b4325dfddfa4d1d0c3151a13a52a9b4a12db55170bbbd93209fbe70e"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/chains.rs",
+      "sha256": "274d676bde559fddb4b5eaf8ca1f070c0db7f4fb4c867a1ab80bd2c57d583a24"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/coexisting.rs",
+      "sha256": "3890431ad478b91244adf41e9264ae5a60b3ee33656f665526da5ac92e69b6fa"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/conditional.rs",
+      "sha256": "bd5beac03cf7a3ae380983007ea582e059aceea668422b1b2002dfa4b2f23020"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/file_parent.rs",
+      "sha256": "481bbd0e9e5861f5dad8cb942a2135c4ef1ca4e9dd631f20cc45bcf5b6f46123"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/old_environment.rs",
+      "sha256": "4d41de6d666f18eb2daf6ae2a49e3b4798d9df034717e6135fa63d17729ce936"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/opaque.rs",
+      "sha256": "13cb680fa1ce257b27d2487e7c6d83479fbc8b0c371ffd3dfaac7c508cba7b84"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/retained.rs",
+      "sha256": "0997295ae3b5e8e6d724d115fd8ed3379205c331abd6f0e1395451be98239877"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/shared.rs",
+      "sha256": "73f13f61b6141ece82dacb8e1e81b8c49ff9be492bd71b6cc3edee24f521ce5d"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/instance_replay/values.rs",
+      "sha256": "740a7eb1ea1543413243bde553107ddd15bb4f163242e52b393569e43134fb67"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests.rs",
+      "sha256": "cc1e2e8af45186830a1ec68db6e5a509056220eebb1a906da66e971bae8ce5ff"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/capture_graph.rs",
+      "sha256": "8bbf2ecbf2075f356d9f126c9efe3b809ce7135391ca922ece94827782350900"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/coexisting_paths.rs",
+      "sha256": "13cdda953fbdadc526dc6e6836eac36995f112cd8802aea2f4d12f93f2393688"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_diamond.rs",
+      "sha256": "c67fe182bd7bad985a13cf06d3a6c171e086fee1debfb15d80260829523fb5ca"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs",
+      "sha256": "1954a464fd91bec7b20a059dd59a13ca3b58c6eaa6d55c57a01a357138114af1"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_rebinding.rs",
+      "sha256": "043b7a44b19de7dcea202334a2b68b4b815f4dea11d7c433c4a224284dbb5369"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/environment_drop.rs",
+      "sha256": "b526340750ab05292ef9bee80c0be779b7ce0c87d8eaf73d5662f9e18947e6b7"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/file_parent.rs",
+      "sha256": "d879b7a118f3337741a7b399863187edf106c8ea1bfd2d0c416d98d4dfafd7a7"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/independent_roots.rs",
+      "sha256": "6308fdf41329b5f3c54ddf780be71e04ac93dba1716f861dc12890030ff839d9"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/loop_handoff.rs",
+      "sha256": "a443b817c1a439d4d76fe22e7f7f3e40cd008ea22eee1ce26dc66bb5a734f941"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_body.rs",
+      "sha256": "c78b8263b523fe32b8010a6de95099b17d7e2479b9f6e58c9bb665957db0bf06"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chain_jumps.rs",
+      "sha256": "23c0451efeda45fc870dc9838e55b9acd07a0395141b39fa950f706257a64338"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_chains.rs",
+      "sha256": "265e95c8584062405dfe0dd5f697de91ea807b7a88b8b82840e72c4868db62b9"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_jump_roots.rs",
+      "sha256": "f3a5da2d95d53b4e53489c5891d4680953998ee643e41cce4d3ca5483e66aea2"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/recursive_shared_layout.rs",
+      "sha256": "4b5cf6e9cac394b40794bff430533631785894790cecefc15f3950979adb8767"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/sibling_shared_loans.rs",
+      "sha256": "b53f5b4a7d92b70ab8028e1ae782b49f12b86eb1a7b7e702fa7ed8263b38deba"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_cleanup.rs",
+      "sha256": "622b6385d21de09f98f8937e65f050289d6d7523b5a70998b25e9a8700aad431"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_mixed_roots.rs",
+      "sha256": "3ba4b3d5e59671c698dfd4bb32d4a8326a95d08af2167f0377441d629e7b7c15"
+    },
+    {
+      "path": "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/snapshot_recursive_roots.rs",
+      "sha256": "d0983439f6308e6d7c0d94917c723d1356db15ec1a45a39def0d5753da2cafe4"
+    }
+  ],
+  "relative_path_resolution": [
+    {
+      "path": "super::origins::CapturedOrigins",
+      "before": "drop_planner::origins::CapturedOrigins",
+      "after": "iteration::origins private import -> drop_planner::origins::CapturedOrigins"
+    },
+    {
+      "path": "super::Checker",
+      "before": "drop_planner::Checker private import -> checker::Checker",
+      "after": "iteration::Checker private import -> drop_planner::Checker -> checker::Checker"
+    },
+    {
+      "path": "super::super::Checker",
+      "before": "checker::Checker",
+      "after": "drop_planner::Checker private import -> checker::Checker"
+    }
+  ]
+}

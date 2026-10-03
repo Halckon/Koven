@@ -26,6 +26,7 @@
 - [P2 ownership iteration integration分组](ownership-iteration-test-migration.md)：184项逐字保全、20域、同target及双平台定向接线
 
 - [P2 multifile type integration分组](multifile-type-test-migration.md)：107项逐字保全、17新域、source-qualified facts与原CI覆盖
+- [P2 multifile ownership integration分组](multifile-ownership-test-migration.md)：72项与8 helpers逐字保全、12域、原子失败/Span与单target证据
 
 - [P3a 普通 unit 交接合同基线](unit-handoff-contract-baseline.md)：六输入独立拒绝、合法clone/重排与隔离reserve计数
 - [SPEC-0250 名称前缀](../archive/specs/0250-unit-name-snapshot.md)：CLI project 首迁、同源全事实 parity 与封闭 owner 合同
@@ -35,6 +36,8 @@
 具体 crate 的职责和最近测试入口由 `crates/**/AGENTS.md` 就近说明。
 
 ## 计划与进度
+
+- [所有权到 SSA 规划边界里程碑](ownership-planning-milestone.md)：同分支组合交付、两条生产责任及统一验收边界
 
 - [整体架构与工程治理计划](engineering-governance-plan.md)：已批准目标、迁移顺序与验收，不代表当前实现
 - [执行账本](engineering-governance-progress.md)：治理批次的实际进度、基线与下一门禁

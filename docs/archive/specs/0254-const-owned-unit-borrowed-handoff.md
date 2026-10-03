@@ -1,16 +1,16 @@
 # SPEC-0254：const owned-unit 封闭借用交接
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：实施或评审 const unit 的 frontend→codegen 交接时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审 const unit 的 frontend→codegen 交接时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `in-progress` |
+| 状态 | `done` |
 | Goal ID | `KOV-P3-254` |
 | 所属 Phase | Phase 3→4 capability 交接及 Phase 6 CLI project 适配；治理 P3a const 剩余 |
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
 | 前置 Spec | SPEC-0249、0252、0253 `done` |
 | 前置 ADR | [ADR-0020](../../adr/accepted/0020-multifile-compilation-unit.md) `accepted` |
-| 阻塞项 | 本地实现、验收与独立review通过；发布及精确head双宿主CI待完成 |
+| 阻塞项 | 本片PR35与真实merge主干双宿主验收已完成；归档仅本地准备，随下个相关实施批次发布 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal 与范围
@@ -120,3 +120,66 @@ codegen本地748 lib +2 integration+4 docs；CLI48 bin+3format+9native+9project+
 focused旧/新native oracle各9通过时739 filtered单列；测量22进程各1 passed，旧739/新748
 filtered不是完整suite。宏观stage/Guide脚本、frontend全量、workspace全量与macOS本地未运行；
 远端精确head需实际执行配置选集，不能用本地或PR34结果替代。0253归档随本片一次PR发布。
+
+
+## 6. PR35 精确head双宿主与归档收尾（2026-10-03）
+
+[PR35](https://github.com/Halckon/Koven/pull/35)将0253归档、本片const封闭交接与P2 runtime
+layout纯职责移动组合发布；没有独立归档PR。最终head
+`0abc86916902b41d02842aa558e2d857b5b79ad8` 的
+[CI37123982795](https://github.com/Halckon/Koven/actions/runs/37123982795)首轮9/9 jobs、
+77/77已记录steps success。独立实现、最终本地head及原始CI逐身份审阅通过，无未决finding。
+
+本地组合head `11ffc029a8edaeacb782c6c7e3d37e92571d77a9` 与上述远端head完整tree均为
+`c79e4d87da25b026c6f5f61409df0e36aa3ca17b`；七个提交的逐项tree、message与父链已核实。
+本地0254实现 `0d5ba88` 对应远端 `0b215e7`，P2纯移动 `d79a692` 对应远端 `61e6816`；
+两者保持独立回退单位。两宿主实际checkout GitHub合成merge
+`50f4c967d03a9555314b8e9d06984d288d972899`，父链为main `c6b84ecb`＋head `0abc8691`，
+tree与最终head相同；合成merge不冒充真实主干merge。
+
+### 双宿主逐身份与实际范围
+
+按phase/package/target/full_name核对完整97个执行批次；每host新增25身份
+（frontend const view4＋compile10、native handoff9、native公开编译合同2）与
+`multifile_constant_ownership`20项均在规定步骤恰一次ok。P2 planner48及const资源回归60
+另按完整身份核验，均无缺失、额外、重复、失败或解析异常；Guide重复执行不替代core/stage。
+
+| 宿主 | core | ownership iteration | stage | Guide | 全部具名执行 |
+|---|---|---|---|---|---|
+| Ubuntu 24.04 x86_64 | 1068 passed，0 ignored | 184 passed | 75 targets / 993 passed | 201 passed | 2446 passed |
+| macOS 14 arm64 | 1066 passed，1 ignored | 184 passed | 75 targets / 993 passed | 201 passed | 2444 passed，1 ignored |
+
+core包含frontend lib187、codegen lib748（macOS747＋1 ignored）＋integration2＋docs4、
+CLI82（macOS81）与LSP45。macOS唯一ignored仍为既有LLDB实断点的debugserver task-port
+权限限制，不计为pass；CLI差额为Linux专有非UTF8路径发现测试，两平台专属debug/target身份
+已逐项核对。check与严格Clippy、fmt、docs、Python policy及尺寸job均实际成功。
+
+frontend docs12、`compilation_unit_index`11与`multifile_type_signature_provenance`2仅有本地
+执行证据，不宣称本次CI执行。stage/Guide选集不等于frontend或workspace全量tests；既有
+Guide known-gap与平台ignore保持。动态index结论仍仅为次数变化，不推导耗时/RSS改善。
+
+### 真实merge与主干复核
+
+PR35已合并为 `9ac49f3ad3b1c8b0e5c762413f56bde719bf11d0`，父链为
+`c6b84ecb46563b7de2bfeb9f481e75cf4a861323`＋`0abc86916902b41d02842aa558e2d857b5b79ad8`，
+完整tree仍为 `c79e4d87da25b026c6f5f61409df0e36aa3ca17b`。
+主干[CI37124524536](https://github.com/Halckon/Koven/actions/runs/37124524536)独立完成9/9 jobs、
+77/77已记录steps success；两平台原始日志实际checkout均为真实merge `9ac49f3`。再次按完整
+97批及具名身份核验，Ubuntu2446 passed、macOS2444 passed＋既有LLDB ignored1；每host
+新增25/25、const ownership20/20、planner48/48与const资源60/60均通过，缺失、额外、失败
+与解析异常为0。core/iteration/stage/Guide及平台差额与上表一致，不以PR结果替代main执行。
+
+上文§1–5的未发布、待CI与本地验收文字保留为当时快照。0254仅关闭const六借用封闭工厂、
+旧native/lower兼容转接与CLI project const消费的有界合同；普通与const能力继续隔离，
+LSP const无owned、0182、其余P2/P4/P5与全计划后的外部审计仍保留，不宣称整体治理完成。
+本归档仅在真实merge之后本地准备，随下一相关实施批次带出；不单独发布docs PR，
+不向已验收PR追加提交，不把本地归档状态称为已发布。
+
+
+本地归档基底固定为上述真实merge：迁移后仅0182 active / 240 archive，0253历史正文不动，
+本Spec §§1–5逐字保全。当前文档核验实际运行 `python3 scripts/check_docs.py`（479 Markdown）、
+`python3 -m unittest discover -s scripts/tests -v`（102/102）、
+`python3 scripts/check_rust_sizes.py --base 9ac49f3ad3b1c8b0e5c762413f56bde719bf11d0`
+（708手写/48历史超千行/0生成）及 `git diff --check`，均通过；生成DAG与inventory同步。
+本归档未重新运行Cargo、native、宏观stage/Guide、macOS或性能实验；Rust/Cargo/CI配置与
+尺寸额度相对基底无diff。有限current事实更正由真实源码核对，不改写已批准计划或语言语义。

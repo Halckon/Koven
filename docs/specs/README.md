@@ -3,12 +3,12 @@
 > **性质**：变更合同索引 · **状态**：current · **读取时机**：计划、实施或验收一项具体变更时 · **唯一真源**：各 Spec 正文；语言演进进度见演进实施账本
 
 Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批准 Spec。
-此前文档批次已按各合同最终证据关闭 0228–0235、0237–0242 与 0247；本批补齐0236诊断Span双宿主验收并归档，0182继续active；0248 的 Unit 容器存储已按双宿主证据完成归档；0249 普通 owned-unit 交接已按其有界合同与首轮双宿主证据归档；0250共享名称前缀首片已按PR31首轮双宿主证据归档；0251 LSP unit消费按PR32首轮双宿主证据有界归档；0252基础ownership共享推进与CLI/LSP消费按PR33首轮双宿主证据有界归档；0253单文件阶段门面按PR34最终精确head双宿主证据有界归档。
+此前文档批次已按各合同最终证据关闭 0228–0235、0237–0242 与 0247；本批补齐0236诊断Span双宿主验收并归档，0182继续active；0248 的 Unit 容器存储已按双宿主证据完成归档；0249 普通 owned-unit 交接已按其有界合同与首轮双宿主证据归档；0250共享名称前缀首片已按PR31首轮双宿主证据归档；0251 LSP unit消费按PR32首轮双宿主证据有界归档；0252基础ownership共享推进与CLI/LSP消费按PR33首轮双宿主证据有界归档；0253单文件阶段门面按PR34最终精确head双宿主证据有界归档；0254 const封闭交接按PR35及真实merge主干双宿主证据有界归档，本地状态随下一相关实施批次发布。
 文档归档不代表原 13 项语言演进全部完成，也不扩大已验收的支持范围。
 
 ## 当前入口
 
-- [Active](active/README.md)：2 份：SPEC-0182 `approved` 继续补集成验收；SPEC-0254 `in-progress` const owned-unit封闭交接
+- [Active](active/README.md)：2 份：SPEC-0182 `approved` 继续补集成验收；SPEC-0255 `in-progress` 中立lowering支撑边界
 - [演进实施账本](evolution-status.md)：13 项计划的当前实现、最终交付与独立缺口，唯一进度摘要
 - [当前路线图](../development/roadmap.md)：从现状导航到下一批次；不复制第二张演进状态表
 - [治理执行账本](../development/engineering-governance-progress.md)：获批整体架构与工程治理的批次基线与交付
@@ -19,7 +19,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [v0.40](drafts/v0.40/README.md)：现行 Guide 启用及三项规则的实施入口
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档，0182 验收补强单独进行
-- [完成 Spec Archive](../archive/specs/README.md)：239 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：240 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

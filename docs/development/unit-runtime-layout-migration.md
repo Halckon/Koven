@@ -1,6 +1,6 @@
 # P2 unit runtime layout 职责拆分验收
 
-> **性质**：有界生产职责迁移验收 · **状态**：本地验收通过；独立源码及验收review通过，精确head双宿主CI待后继 · **读取时机**：复核或回退runtime layout拆分时 · **唯一真源**：本页与[逐项证据](evidence/unit-runtime-layout-migration.json)；范围从属[已批准计划](engineering-governance-plan.md)
+> **性质**：有界生产职责迁移验收 · **状态**：PR35及真实merge主干双宿主验收通过，有界完成 · **读取时机**：复核或回退runtime layout拆分时 · **唯一真源**：本页与[逐项证据](evidence/unit-runtime-layout-migration.json)；范围从属[已批准计划](engineering-governance-plan.md)
 
 ## 范围、基底与提交
 
@@ -127,3 +127,16 @@ release运行成本或完整benchmark，不能把本地重编次数或尺寸下�
 
 独立源码与最终文档/验收证据review均为Approve。回退只撤销本片源码与配套文档/policy，
 不触碰0254及其既有交接实现；后续仍需精确最终head的双宿主CI。
+
+
+## PR35 组合发布后的精确验收（2026-10-03）
+
+本片与0253归档、0254 const交接一起进入[PR35](https://github.com/Halckon/Koven/pull/35)，
+最终head `0abc86916902b41d02842aa558e2d857b5b79ad8` 的双宿主CI已9/9成功，实际merge
+`9ac49f3ad3b1c8b0e5c762413f56bde719bf11d0` 的tree与本地已审组合head一致。
+每host完整core中planner48身份均恰一次ok；native inherited owner recipe roundtrip另在core核验，
+const资源60项亦通过。精确tree/checkout、平台ignored差额和main复核统一见
+[0254最终验收](../archive/specs/0254-const-owned-unit-borrowed-handoff.md#6-pr35-精确head双宿主与归档收尾2026-10-03)。
+主干run37124524536另有双raw独立执行证据，两平台planner48及const资源60再次齐全通过。
+以上本地阶段的“未发布、未跑CI”保留为历史快照，不扩大当时执行范围。P2只有本职责片完成，
+成本样本限制和其余历史尺寸欠账保持。

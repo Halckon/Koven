@@ -5,7 +5,8 @@ mod deinit;
 mod integer;
 mod lower_frontend;
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
-pub(crate) use lower_frontend::{LoweringError, LoweringErrorKind};
+mod lowering_support;
+pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
 pub(crate) mod model;
 // SPEC-0182 将在接入真实 for lowering 时消费本阶段验证的构造器。
 #[allow(dead_code)]
@@ -120,3 +121,12 @@ mod unit_root_primitive_tests;
 
 #[cfg(test)]
 mod unit_field_replace_tests;
+
+#[cfg(test)]
+mod lowering_support_tests;
+
+#[cfg(test)]
+mod lowering_entry_contract_tests;
+
+#[cfg(test)]
+mod lowering_dependency_tests;

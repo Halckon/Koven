@@ -8,13 +8,13 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 239 份"))
+ARCH(("已完成<br/>archive 240 份"))
 subgraph Gactive["现行 active"]
   S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
-  S0254["S0254<br/>const owned-unit 封闭借用交接"]
+  S0255["S0255<br/>中立 lowering error 与 String helper 边界"]
 end
 ARCH --> S0182
-ARCH --> S0254
+ARCH --> S0255
 ```
 
 ## 节点链接
@@ -22,5 +22,5 @@ ARCH --> S0254
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0182 | active | [0182-sequential-for-lowering.md](active/0182-sequential-for-lowering.md) |
-| SPEC-0254 | active | [0254-const-owned-unit-borrowed-handoff.md](active/0254-const-owned-unit-borrowed-handoff.md) |
-| 已完成 Spec（239 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| SPEC-0255 | active | [0255-neutral-lowering-support.md](active/0255-neutral-lowering-support.md) |
+| 已完成 Spec（240 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

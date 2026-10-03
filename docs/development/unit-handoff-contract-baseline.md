@@ -74,6 +74,8 @@ Cargo配置、workspace依赖、workflow与平台ignore均未改变。
 运行形态：`cargo test --locked --offline -p PACKAGE TARGET FULL_NAME -- --exact`。
 以下 `F`、`C1–C6` 为 `lang-frontend`，`S`、`N`、`C7–C8` 为 `lang-codegen`，`H` 为 `lang-cli`。
 源码归属以对应 target 或完整模块路径为准；这些名字没有在本片更改。
+后继[P2 ownership 迁移](multifile-ownership-test-migration.md)已同步 F7/F8 的现行完整名；
+原测试体、身份关系与本页历史执行结果不变。
 
 | ID | TARGET | FULL_NAME |
 |---|---|---|
@@ -83,8 +85,8 @@ Cargo配置、workspace依赖、workflow与平台ignore均未改变。
 | F4 | `--test multifile_type_signature_provenance` | `signature_provenance_rejects_structurally_equal_foreign_inputs` |
 | F5 | `--lib` | `type_checking::compilation_unit::bodies::tests::product_queries_use_the_unit_type_space_and_preserve_analysis_identity` |
 | F6 | `--lib` | `type_checking::compilation_unit::bodies::tests::body_input_gate_rejects_foreign_names_environment_inputs_and_signatures` |
-| F7 | `--test multifile_ownership_checking` | `unit_parameter_bindings_cover_cross_file_member_and_lambda_modes` |
-| F8 | `--test multifile_ownership_checking` | `unit_ownership_rejects_mixed_analysis_and_duplicate_inputs` |
+| F7 | `--test multifile_ownership_checking` | `provenance_contracts::unit_parameter_bindings_cover_cross_file_member_and_lambda_modes` |
+| F8 | `--test multifile_ownership_checking` | `provenance_contracts::unit_ownership_rejects_mixed_analysis_and_duplicate_inputs` |
 | S1 | `--lib` | `ssa::unit_plan_tests::entry_identity::rejects_non_callable_entries_and_foreign_ownership_products` |
 | S2 | `--lib` | `ssa::unit_lower_tests::lowers_cross_package_generic_alias_call_to_deterministic_verified_ssa` |
 | S3 | `--lib` | `ssa::unit_lower_tests::moves_a_string_across_files_and_drops_the_callee_owner_once` |

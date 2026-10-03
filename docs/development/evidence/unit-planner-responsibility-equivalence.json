@@ -1,0 +1,1421 @@
+{
+  "base": "6cc87fefe7d6486912d91966f751256ca256c0a0",
+  "scope": "P2 Phase 4 unit planner responsibility-only relocation; codegen source frozen after targeted rustfmt",
+  "source_before_sha256": "edc7b0b30c06fbce528f5bb3b9df3d104bfdb00eefb72d31d6b75c383391a350",
+  "root_wiring_before": "//! SPEC-0199 compilation-unit 可达 callable 与具体实例的确定性计划。\n\nmod deinit;\nmod runtime_layout;\n\nuse std::{\n    collections::{BTreeMap, BTreeSet},\n    ops::Deref,\n};\n\nuse lang_frontend::{\n    ast::ItemId,\n    name_resolution::{\n        DeclarationId, SourceUnitId, SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames,\n    },\n    ownership_checking::{\n        CompilationUnitOwnership, ValidatedCompilationUnitOwnership, owned_compilation_unit_view,\n    },\n    parser::{Item, NameMarker, ParsedFile},\n    source::{SourceMap, Span},\n    type_checking::{\n        CompilationUnitTypes, IntrinsicTypeConstructor, NominalKind, TypeEnvironment,\n        UnitCallTarget, UnitCallableSignature, UnitCallableTarget, UnitNominalSignature,\n        UnitTypeId, UnitTypeKind, ValidatedCompilationUnitTypes,\n    },\n};\n\nuse super::{LoweringError, LoweringErrorKind, lowering_support::error as lowering_error};\nuse runtime_layout::classify_runtime_type_demands;\npub(crate) use runtime_layout::resolve_nominal_runtime_field_types;\n\n",
+  "root_wiring_after": "//! SPEC-0199 compilation-unit 可达 callable 与具体实例的确定性计划。\n\nmod call_routes;\nmod concrete_types;\nmod deinit;\nmod recipe_preflight;\nmod recipe_validation;\nmod runtime_layout;\n\nuse std::{\n    collections::{BTreeMap, BTreeSet},\n    ops::Deref,\n};\n\nuse lang_frontend::{\n    ast::ItemId,\n    name_resolution::{\n        DeclarationId, SourceUnitId, SourceUnitInput, UnitSymbolId, ValidatedCompilationUnitNames,\n    },\n    ownership_checking::{\n        CompilationUnitOwnership, ValidatedCompilationUnitOwnership, owned_compilation_unit_view,\n    },\n    parser::{Item, NameMarker, ParsedFile},\n    source::{SourceMap, Span},\n    type_checking::{\n        CompilationUnitTypes, NominalKind, TypeEnvironment, UnitCallTarget, UnitCallableSignature,\n        UnitCallableTarget, UnitNominalSignature, UnitTypeId, UnitTypeKind,\n        ValidatedCompilationUnitTypes,\n    },\n};\n\nuse super::{LoweringError, LoweringErrorKind, lowering_support::error as lowering_error};\npub(crate) use call_routes::{callable_static_self_receiver, resolve_unit_call_instance};\n#[cfg(test)]\npub(super) use call_routes::{\n    resolve_delegated_dispatch_owner_argument, resolve_inherited_dispatch_owner_argument,\n};\nuse concrete_types::contains_type_parameter;\npub(crate) use concrete_types::resolve_concrete_type;\nuse recipe_preflight::{\n    collect_frontier_unit_recipe_failures, pending_recipe_frontier, preflight_unit_call_recipes,\n    stable_recipe_failure,\n};\nuse recipe_validation::recipe_root_facts_for_instance;\nuse runtime_layout::classify_runtime_type_demands;\npub(crate) use runtime_layout::resolve_nominal_runtime_field_types;\n\n",
+  "source_files": [
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan.rs",
+      "sha256": "d37f55454878a1195b31a958c34fe7457c746f93c27f14d1d72eb1fe95e6c36b",
+      "physical_lines": 735
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan/concrete_types.rs",
+      "sha256": "793811e6623d6ee171c5a1f048c12bfa95528d7c1b3c31539fcb6baaa3ef6c49",
+      "physical_lines": 160
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "sha256": "ca8781f39b31c03c09631080788c7fd26a0b014aadc23c258e98c05f201c554f",
+      "physical_lines": 798
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan/recipe_preflight.rs",
+      "sha256": "53413fbb4493e89dcb95841d87508a4e99d076c9f117bed34e4f2a85f26a80d7",
+      "physical_lines": 408
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "sha256": "b20ad7be9f3d75dbfd204dd8a136da0524ce080ca0037a17e0122249902abe15",
+      "physical_lines": 649
+    }
+  ],
+  "moved_items": [
+    {
+      "name": "specialize_preflight_type",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/concrete_types.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1153,
+      "original_sha256": "90b0b9f63caad5944dbb901ab935275b5001ff865cdc49a5a28872287c96b987",
+      "new_sha256": "31edb4cb399df4058d580bb05006789061b8d721727245875cdafa1d077ad47d",
+      "normalized_sha256": "90b0b9f63caad5944dbb901ab935275b5001ff865cdc49a5a28872287c96b987"
+    },
+    {
+      "name": "resolve_concrete_type",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/concrete_types.rs",
+      "old_visibility": "pub(crate)",
+      "new_visibility": "pub(crate)",
+      "original_start_line": 1203,
+      "original_sha256": "b24f90af00ce65b7030b03ac7532ac50b0cdba766e7826538908053a1fecae68",
+      "new_sha256": "b24f90af00ce65b7030b03ac7532ac50b0cdba766e7826538908053a1fecae68",
+      "normalized_sha256": "b24f90af00ce65b7030b03ac7532ac50b0cdba766e7826538908053a1fecae68"
+    },
+    {
+      "name": "resolve_direct_type_argument",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/concrete_types.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1251,
+      "original_sha256": "9fffa42363cdc7f62c4de6e0614002c88f20f7b2ff247693b3a815a49d19c0ad",
+      "new_sha256": "fec006cc4ff9f88c380fd917916a6f7d69d2d478b321650c6e0fcc25c8729bfd",
+      "normalized_sha256": "9fffa42363cdc7f62c4de6e0614002c88f20f7b2ff247693b3a815a49d19c0ad"
+    },
+    {
+      "name": "contains_type_parameter",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/concrete_types.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 2620,
+      "original_sha256": "537460f3f66dd5d3db9edc2a672de9c0aec6e2b4fbeea2e393cde07df16f0583",
+      "new_sha256": "fff7020a28e96bfe7a6db40a4139930c17673c1beef15e438dffdcf094542d25",
+      "normalized_sha256": "537460f3f66dd5d3db9edc2a672de9c0aec6e2b4fbeea2e393cde07df16f0583"
+    },
+    {
+      "name": "dependent_inherited_owner_types",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 511,
+      "original_sha256": "9a3ea58f91daa8ed88b4085b2bc9f3d5fa67321caa8e66bb68b98e73e5ca9455",
+      "new_sha256": "9a3ea58f91daa8ed88b4085b2bc9f3d5fa67321caa8e66bb68b98e73e5ca9455",
+      "normalized_sha256": "9a3ea58f91daa8ed88b4085b2bc9f3d5fa67321caa8e66bb68b98e73e5ca9455"
+    },
+    {
+      "name": "callable_static_self_receiver",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "pub(crate)",
+      "new_visibility": "pub(crate)",
+      "original_start_line": 1274,
+      "original_sha256": "7b1daa058785fedd3e33ef008bd9483b82abdd650881faa566c098e4eda6bd93",
+      "new_sha256": "7b1daa058785fedd3e33ef008bd9483b82abdd650881faa566c098e4eda6bd93",
+      "normalized_sha256": "7b1daa058785fedd3e33ef008bd9483b82abdd650881faa566c098e4eda6bd93"
+    },
+    {
+      "name": "resolve_unit_call_instance",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "pub(crate)",
+      "new_visibility": "pub(crate)",
+      "original_start_line": 1291,
+      "original_sha256": "524b7f67482cabd359c6c58cd0f59df63adfb96ce26507294b2224f1f76eee46",
+      "new_sha256": "524b7f67482cabd359c6c58cd0f59df63adfb96ce26507294b2224f1f76eee46",
+      "normalized_sha256": "524b7f67482cabd359c6c58cd0f59df63adfb96ce26507294b2224f1f76eee46"
+    },
+    {
+      "name": "resolve_unit_call_instance_with_recipe_failures",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1312,
+      "original_sha256": "a6adbe21cfe765c7230bbb2662f39424c2359cbaaf236564216c9c7fc91bce83",
+      "new_sha256": "db01090862c4ece525dfb9762442dc81d736f5b72eb9d79baea21768f78a69cd",
+      "normalized_sha256": "a6adbe21cfe765c7230bbb2662f39424c2359cbaaf236564216c9c7fc91bce83"
+    },
+    {
+      "name": "remap_delegation_next_hop_arguments",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 1548,
+      "original_sha256": "b573d55a4a11ff69a075a70e43ce1d9c17c375623b81785aa839382541606195",
+      "new_sha256": "b573d55a4a11ff69a075a70e43ce1d9c17c375623b81785aa839382541606195",
+      "normalized_sha256": "b573d55a4a11ff69a075a70e43ce1d9c17c375623b81785aa839382541606195"
+    },
+    {
+      "name": "resolve_direct_unit_call_instance",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 1599,
+      "original_sha256": "ce13fad0e72603e6e86b7a8ea87abdcd0c0b076af3a7ba4d0cf5d38211ce9b4f",
+      "new_sha256": "ce13fad0e72603e6e86b7a8ea87abdcd0c0b076af3a7ba4d0cf5d38211ce9b4f",
+      "normalized_sha256": "ce13fad0e72603e6e86b7a8ea87abdcd0c0b076af3a7ba4d0cf5d38211ce9b4f"
+    },
+    {
+      "name": "instantiate_dispatch_owner_arguments",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 1802,
+      "original_sha256": "38553473cfea688a0ff1091f8a37900126654a6e2f99c5086ffa2078f71db1e5",
+      "new_sha256": "38553473cfea688a0ff1091f8a37900126654a6e2f99c5086ffa2078f71db1e5",
+      "normalized_sha256": "38553473cfea688a0ff1091f8a37900126654a6e2f99c5086ffa2078f71db1e5"
+    },
+    {
+      "name": "instantiate_inherited_dispatch_owner_arguments",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 1832,
+      "original_sha256": "140a87ebddfa4d8820734b9959153b966d5b4dd72dda6c115fda2d87dafc3719",
+      "new_sha256": "140a87ebddfa4d8820734b9959153b966d5b4dd72dda6c115fda2d87dafc3719",
+      "normalized_sha256": "140a87ebddfa4d8820734b9959153b966d5b4dd72dda6c115fda2d87dafc3719"
+    },
+    {
+      "name": "instantiate_delegated_dispatch_owner_arguments",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 2507,
+      "original_sha256": "e0eb2c0a0bedefa92d2c711fde7008f61a6bf3fc18fc9221523ae0f12f38b391",
+      "new_sha256": "e0eb2c0a0bedefa92d2c711fde7008f61a6bf3fc18fc9221523ae0f12f38b391",
+      "normalized_sha256": "e0eb2c0a0bedefa92d2c711fde7008f61a6bf3fc18fc9221523ae0f12f38b391"
+    },
+    {
+      "name": "resolve_inherited_dispatch_owner_argument",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "pub(super)",
+      "new_visibility": "pub(in crate::ssa)",
+      "original_start_line": 2189,
+      "original_sha256": "ac07e217fe05b1373446e826177e2d5736fede24318f49206c9d4d7c1bd549ee",
+      "new_sha256": "683c9eb62110c6f52dc08339e1338f072a1b195ff00f09cab42690aa7cac8703",
+      "normalized_sha256": "ac07e217fe05b1373446e826177e2d5736fede24318f49206c9d4d7c1bd549ee"
+    },
+    {
+      "name": "resolve_delegated_dispatch_owner_argument",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/call_routes.rs",
+      "old_visibility": "pub(super)",
+      "new_visibility": "pub(in crate::ssa)",
+      "original_start_line": 2545,
+      "original_sha256": "b9a930539c5cbeec44badfb12aaa15ac8a172f62dedb0aea55e72322bed4ba63",
+      "new_sha256": "a7d10374aaa4c77d9ef43ac8c33b515043a4452046439938f77f577120689d1c",
+      "normalized_sha256": "b9a930539c5cbeec44badfb12aaa15ac8a172f62dedb0aea55e72322bed4ba63"
+    },
+    {
+      "name": "pending_recipe_frontier",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_preflight.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 735,
+      "original_sha256": "8709d5b4d9c8a3bab0bb4ca7d163c9ebb22e4e14b38847f8ccbc47d4bd5896e2",
+      "new_sha256": "71f443f87d75235572ee73497344118d9a4ca2b490821657646ba1993518e237",
+      "normalized_sha256": "8709d5b4d9c8a3bab0bb4ca7d163c9ebb22e4e14b38847f8ccbc47d4bd5896e2"
+    },
+    {
+      "name": "preflight_unit_call_recipes",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_preflight.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 755,
+      "original_sha256": "05db6a7334ccf4b956a9983ba1f9994cd19ebc0f6e2880391fb1b5a8b06133e6",
+      "new_sha256": "3e63181b712250ca27ca04bdc3c264ac4ff3261ba13e6cdc8d4e98e5059effd4",
+      "normalized_sha256": "05db6a7334ccf4b956a9983ba1f9994cd19ebc0f6e2880391fb1b5a8b06133e6"
+    },
+    {
+      "name": "preflight_delegation_endpoint_owner_recipes",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_preflight.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 877,
+      "original_sha256": "0ee95f172b79e12de4066a493d75ef67089e724e62bbdb9f658f201aa17ff346",
+      "new_sha256": "0ee95f172b79e12de4066a493d75ef67089e724e62bbdb9f658f201aa17ff346",
+      "normalized_sha256": "0ee95f172b79e12de4066a493d75ef67089e724e62bbdb9f658f201aa17ff346"
+    },
+    {
+      "name": "collect_frontier_unit_recipe_failures",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_preflight.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 986,
+      "original_sha256": "af15b33c8b2f791a137b180735befc41efc9a3b723d4475b24ac965d5186e1d4",
+      "new_sha256": "12949e1093e8035a594e4eefcccad2a8569c7151f78393a3be41f50d27e1be60",
+      "normalized_sha256": "af15b33c8b2f791a137b180735befc41efc9a3b723d4475b24ac965d5186e1d4"
+    },
+    {
+      "name": "collect_reachable_unit_recipe_failures",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_preflight.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 1036,
+      "original_sha256": "3b9091ab7de50f30d5e8235dd7b55decedaa35e5e20e9834c41bb8f1921c303b",
+      "new_sha256": "3b9091ab7de50f30d5e8235dd7b55decedaa35e5e20e9834c41bb8f1921c303b",
+      "normalized_sha256": "3b9091ab7de50f30d5e8235dd7b55decedaa35e5e20e9834c41bb8f1921c303b"
+    },
+    {
+      "name": "stable_recipe_failure",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_preflight.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1111,
+      "original_sha256": "4f3c06028aba1a7d0aff71e0b89a04663e8ea01864ae2bcdb6371a1b8b02110d",
+      "new_sha256": "dab051a2dd5812624844b5e8976f749f4dfc1dbf0273a3352169d348f6c44504",
+      "normalized_sha256": "4f3c06028aba1a7d0aff71e0b89a04663e8ea01864ae2bcdb6371a1b8b02110d"
+    },
+    {
+      "name": "recipe_root_facts_for_instance",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1116,
+      "original_sha256": "0768733aeb69d7c11fa5af2fa8157f84757dddda261e5b3c22529127654a3928",
+      "new_sha256": "0dbf375f6be2197083d01ec7592c153a84c81b725e9b9cd9445d87cc9d7dfbe9",
+      "normalized_sha256": "0768733aeb69d7c11fa5af2fa8157f84757dddda261e5b3c22529127654a3928"
+    },
+    {
+      "name": "extend_recipe_root_facts",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1125,
+      "original_sha256": "a29040d871d74499be3699b97d8c25dd952eee46a2e3dfc383390fbaeb84404f",
+      "new_sha256": "38efd2ee398a27cfc562c9ebbd36bc840a40befd65b9aea4d69afe4e60dd8dbf",
+      "normalized_sha256": "a29040d871d74499be3699b97d8c25dd952eee46a2e3dfc383390fbaeb84404f"
+    },
+    {
+      "name": "preflight_owner_template_recipes",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1535,
+      "original_sha256": "4d521483491ba564b1cfc5e9ab311dbf509ab531218ea9f3ff65beac2e8a469d",
+      "new_sha256": "15f92b1b28c63f788e1a51570bad0eb767440a6ca3e348863c4fceb63b3203d2",
+      "normalized_sha256": "4d521483491ba564b1cfc5e9ab311dbf509ab531218ea9f3ff65beac2e8a469d"
+    },
+    {
+      "name": "preflight_direct_inherited_owner_recipes",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1715,
+      "original_sha256": "1b0e8695be96a3bf5d30a76ba4ff70c6540178e7ddd1c923b93c88e4ce90de36",
+      "new_sha256": "019986e6aa4aee8343f9776716eaba85991ad324e398ea152f9aeda1bf9477c3",
+      "normalized_sha256": "1b0e8695be96a3bf5d30a76ba4ff70c6540178e7ddd1c923b93c88e4ce90de36"
+    },
+    {
+      "name": "preflight_direct_inherited_owner_recipes_with_facts",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1732,
+      "original_sha256": "37178b8688ccb803ea0f0c924fbe724ca3bc456ab1ce602eb77b53166f3d97a1",
+      "new_sha256": "305c301fd3b651bed5537ecadb181405a808341e887b9aab260a3b78f8f9e388",
+      "normalized_sha256": "37178b8688ccb803ea0f0c924fbe724ca3bc456ab1ce602eb77b53166f3d97a1"
+    },
+    {
+      "name": "preflight_inherited_owner_recipes",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1879,
+      "original_sha256": "ed6ff05297347e74c24bd983b386fd3c8ad6d09a4590888a7d822094a62c53b8",
+      "new_sha256": "4e378f2bd60860104aa1eb412ad505ef50de6d8497f0c8a3634391494fd2bbf3",
+      "normalized_sha256": "ed6ff05297347e74c24bd983b386fd3c8ad6d09a4590888a7d822094a62c53b8"
+    },
+    {
+      "name": "recipe_root_declarations_in_types",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 1893,
+      "original_sha256": "a5184c56406804e0243c9301a75f829b4cf1c7d2c55d83480a05ab01e05c2ca1",
+      "new_sha256": "c0e7525682710e4e146de29f8a5e39cc1550bcafdcd831bf55b56d310fbb4a8a",
+      "normalized_sha256": "a5184c56406804e0243c9301a75f829b4cf1c7d2c55d83480a05ab01e05c2ca1"
+    },
+    {
+      "name": "preflight_inherited_owner_recipes_with_facts",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 1949,
+      "original_sha256": "9574a4e0d2d43bd7321475de613335ab5978878289d40105fbbac6e909033f5e",
+      "new_sha256": "9574a4e0d2d43bd7321475de613335ab5978878289d40105fbbac6e909033f5e",
+      "normalized_sha256": "9574a4e0d2d43bd7321475de613335ab5978878289d40105fbbac6e909033f5e"
+    },
+    {
+      "name": "RecipeTraversal",
+      "kind": "enum",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 1983,
+      "original_sha256": "c6c14f561b906c589fd29a4fdcf435473436098bfcf8da2c4ee76f76c597ffa2",
+      "new_sha256": "c6c14f561b906c589fd29a4fdcf435473436098bfcf8da2c4ee76f76c597ffa2",
+      "normalized_sha256": "c6c14f561b906c589fd29a4fdcf435473436098bfcf8da2c4ee76f76c597ffa2"
+    },
+    {
+      "name": "parameter_growing_recipe_witness",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 1990,
+      "original_sha256": "66498d560111d784577a4a6a55f26548e9951f7b349829ae5773af32c7e73125",
+      "new_sha256": "66498d560111d784577a4a6a55f26548e9951f7b349829ae5773af32c7e73125",
+      "normalized_sha256": "66498d560111d784577a4a6a55f26548e9951f7b349829ae5773af32c7e73125"
+    },
+    {
+      "name": "parameter_growing_closed_recipe_witness",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 2079,
+      "original_sha256": "ba20c0b1036ce20190e5c4ef58f1fb3583ec722e419f2137ce7f163e7958b6f5",
+      "new_sha256": "ba20c0b1036ce20190e5c4ef58f1fb3583ec722e419f2137ce7f163e7958b6f5",
+      "normalized_sha256": "ba20c0b1036ce20190e5c4ef58f1fb3583ec722e419f2137ce7f163e7958b6f5"
+    },
+    {
+      "name": "validate_dependent_inherited_nominal_recipe",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "pub(super)",
+      "original_start_line": 2282,
+      "original_sha256": "f5f53d90ed2d3fe421964dc7afd222a94fd22d065ea982f8a9babfc2762833b8",
+      "new_sha256": "dbd3bf9594f2fec236c1510904ee1960015bd814bd6ba478e462ab68ae24fc6b",
+      "normalized_sha256": "f5f53d90ed2d3fe421964dc7afd222a94fd22d065ea982f8a9babfc2762833b8"
+    },
+    {
+      "name": "validate_dependent_inherited_field_recipe",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 2309,
+      "original_sha256": "2e5abcd153550c00c38cf70651ca25f7457ca9e262e96e9de2c5826023cdc3d6",
+      "new_sha256": "2e5abcd153550c00c38cf70651ca25f7457ca9e262e96e9de2c5826023cdc3d6",
+      "normalized_sha256": "2e5abcd153550c00c38cf70651ca25f7457ca9e262e96e9de2c5826023cdc3d6"
+    },
+    {
+      "name": "validate_closed_nominal_recipe_cycles",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 2367,
+      "original_sha256": "0795be7fce5e9b26cf35f46d36e45fb58dca2226d8a8f0d82a40a92043d80145",
+      "new_sha256": "0795be7fce5e9b26cf35f46d36e45fb58dca2226d8a8f0d82a40a92043d80145",
+      "normalized_sha256": "0795be7fce5e9b26cf35f46d36e45fb58dca2226d8a8f0d82a40a92043d80145"
+    },
+    {
+      "name": "resolve_closed_recipe_type",
+      "kind": "fn",
+      "destination": "crates/lang-codegen/src/ssa/unit_plan/recipe_validation.rs",
+      "old_visibility": "private",
+      "new_visibility": "private",
+      "original_start_line": 2449,
+      "original_sha256": "ce57604776b5e605da970040a3c8528c3d47e49acb869487471dc25584e22a66",
+      "new_sha256": "ce57604776b5e605da970040a3c8528c3d47e49acb869487471dc25584e22a66",
+      "normalized_sha256": "ce57604776b5e605da970040a3c8528c3d47e49acb869487471dc25584e22a66"
+    }
+  ],
+  "retained_root_functions": [
+    {
+      "name": "plan_unit_instances",
+      "visibility": "pub(crate)",
+      "sha256": "e34d5e6e1762bfb37e96778b9c689b7ac67d67c423d0cb22afbf8dd9471ebec7"
+    },
+    {
+      "name": "plan_unit_instances_with_limit",
+      "visibility": "pub(super)",
+      "sha256": "5aa7379ba132504548c065fa691ecdd7eb5dad84a03bdfbc6de7578c402c5720"
+    },
+    {
+      "name": "plan_unit_instances_from_facts",
+      "visibility": "pub(super)",
+      "sha256": "a0e2dfe4bd1e1795ac2261a9cbecb85260522bfadb4dbe5346e8d5c60c6fc6c9"
+    },
+    {
+      "name": "parsed_by_source_unit",
+      "visibility": "private",
+      "sha256": "dd32f99ba7045edb2d33c13ab14ef950767604103e96bcb6b62e64bb6510d536"
+    },
+    {
+      "name": "collect_templates",
+      "visibility": "private",
+      "sha256": "02dc7c17473634bbdffda54dbf19f6557b58b8b9c15a3f9d37bc63055a914c32"
+    },
+    {
+      "name": "callable_item",
+      "visibility": "private",
+      "sha256": "0cf054860d4b9c6c10ae596f90cbff6713d1e3a766496c57b093bfa4afbf727a"
+    },
+    {
+      "name": "index_calls",
+      "visibility": "private",
+      "sha256": "96a8815715acbf0f99557adac953c3b91f34b269928b9ad959631b2083ca7990"
+    },
+    {
+      "name": "unit_callable_signature",
+      "visibility": "private",
+      "sha256": "26b5bf3a9a9be96cfb79f02811e898a9eef32187893027666cde5ffc0034f0b5"
+    },
+    {
+      "name": "unit_callable_owner",
+      "visibility": "private",
+      "sha256": "d2c16261698792ebff1735acd19e4b99c486b5ff3604998e0641d3ca1ca25e26"
+    },
+    {
+      "name": "span_contains",
+      "visibility": "private",
+      "sha256": "e640b59156027672686165629fa051e30770230343c0e5a0299b6cdefd8cb76f"
+    }
+  ],
+  "protected_codegen_files": [
+    {
+      "path": "crates/lang-codegen/AGENTS.md",
+      "sha256": "b9961ad29cde70196ba6380bfe88c75694e129bffb5f752001b70b04940af7c1"
+    },
+    {
+      "path": "crates/lang-codegen/Cargo.toml",
+      "sha256": "a5e9419e169192ac0d80e5c33c40a6f8afc00991d96c1ee57494ed04ed90f1e0"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_field_resource_replace_tests.rs",
+      "sha256": "7f6dce7820d16ccc7101f445e730853ac5c69420d5a38d090ea791dbdf27451c"
+    },
+    {
+      "path": "crates/lang-codegen/src/lib.rs",
+      "sha256": "6a1d66a7b06a38f0f6495d1aa6f9321e432a40965037fe82558a73638d5219d8"
+    },
+    {
+      "path": "crates/lang-codegen/src/native.rs",
+      "sha256": "5baa36043137711f2630ce560f82f86ee0a91023a99c148c2057e7d18e4703b8"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm.rs",
+      "sha256": "ebbaf8db2b226d5b3d017789aad2b913dc9a735978e241a2b3961d7479509c50"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_sequential_for_tests.rs",
+      "sha256": "9065c0d9d2e68f60daf5038158cb99b0619a803ada7cf89d69237e863ea79cd3"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_root_primitive_tests.rs",
+      "sha256": "26b767477f56a37202ca9f8a572320cb775dffad47b97f35471ab59640cb12ec"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_numeric_literal_tests.rs",
+      "sha256": "62b216c180d34dc40d59bb268600c79d91832c113b63395bef3c724519a185eb"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_boxed_enum_tests.rs",
+      "sha256": "67d016167fd12a4fe20af661d017ef07b70074c9ae1679fe63d8b38e2f5a46aa"
+    },
+    {
+      "path": "crates/lang-codegen/src/test_support.rs",
+      "sha256": "67377ea3815ce209522a81e8bc5a407cfaccf469cfbef80b8539321a49d57a9e"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_bitwise_tests.rs",
+      "sha256": "ca2b266173e086f6cf0e8d53497dcdb483ee9b2d269ea025d0357ae3f44b3a22"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_resource_deinit_tests.rs",
+      "sha256": "872402e13a2a319160b42442684ba27308f8ac6ed798402b40eb07234b54409d"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_string_clone_tests.rs",
+      "sha256": "52a501dca8bd879fbfff675d6f87db01e83230df6064abaef3ca4478c0472632"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_tests.rs",
+      "sha256": "74843d5ce879c5abfefe1c4246c4c319bcbe66cdd37361fdaa807cb3587dcb14"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_field_replace_tests.rs",
+      "sha256": "51f245c287bc3f9ec5d395db9e7d3d1cc71270bd9b9356bc3606ec0eb2af4346"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_constant_tests.rs",
+      "sha256": "c52684b62210c1891449a3400548f7ab0344224bb0fca5533b7217da34f4014f"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_return_control_tests.rs",
+      "sha256": "e30d53aa5b977e9d201c0d2af7e0baaa7d3242a7d5baff264bc2594dec7860f8"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_non_null_assertion_tests.rs",
+      "sha256": "5efef95bc956b0c87e5c65df983a0005526024e7901a712b3fb59d37e4b571b4"
+    },
+    {
+      "path": "crates/lang-codegen/src/bitwise_test_support.rs",
+      "sha256": "09f4a8038667560c23be3fc11eec96ac0f11f45230f8e530e0236b55c606ddf3"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_resource_exchange_tests.rs",
+      "sha256": "e1bb7895ee5e1299e5581d7264600e03ed3e879a96e2475c598948e0d011f71b"
+    },
+    {
+      "path": "crates/lang-codegen/tests/const_native_view_compile_contracts.rs",
+      "sha256": "7d3f0e414e2268e87ac28aea6543b3b14308a152f9b4ef4c662311369d6cab1e"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_tests.rs",
+      "sha256": "5bac151efa2d14d755a44fb35fee85c7b9d982172a3eed079535debc3c3d2b67"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_non_null_tests.rs",
+      "sha256": "3239aa262066eaef3d8489ec33d050e029e6260dc571cf20a21e4a3d32f6270d"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_string_clone_tests.rs",
+      "sha256": "d869ceccffb804c07b95b1dc0992ec04e6310e2eab01b621a26a7cc6730f0794"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_test_directory.rs",
+      "sha256": "3c27495cd494361ba1b3c3b15c307b5c20733535bae9cf2b7fd5d66789a0822a"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_bitwise_tests.rs",
+      "sha256": "21d692952594a0b32e25f3c5ed22af22cb5c7ca4cbcb2de6ff5557dd04dc07ea"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_const_handoff_contract_tests.rs",
+      "sha256": "d6087838b8339fdaf3ccd2ec2f2fbc1e47c7c1bfd1f2496bb233bccf2ad02d60"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_resource_exchange_tests.rs",
+      "sha256": "a80b20e7e63d6e19c70ae4e23817099bfe33657accbd9c437404a149b741428e"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_numeric_literal_tests.rs",
+      "sha256": "ef5ee5e01b23c9d6a771e23d098dcebdaea340396d9969bd280bc9ca8a691139"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_resource_deinit_tests.rs",
+      "sha256": "8581a5f437869c6a7a0373788f046b3107676ff7a9838057da21122b88280a31"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_constant_owner_tests.rs",
+      "sha256": "43793ece2d1fa34f9cb6f52d304f268cd0c1c9ec93772506c85b86514cde5920"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_boxed_enum_tests.rs",
+      "sha256": "98c21d0239e34c25681ae11dd42852fd694dab1f93be53443a6d2a22ce42099d"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_root_primitive_tests.rs",
+      "sha256": "2ef62d3e71d749c2e474b41fa3c2e3e5df6a71e43bb77e6af476834c56935589"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_const_handoff_test_support.rs",
+      "sha256": "6cdcf3f8ec0c048d4f148ec938b91671f35218147c291d2f8a0304b26a7197c4"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_handoff_contract_tests.rs",
+      "sha256": "247e646c177fa6ff5f7e8640c80f6552f75c3f067ed301d60e05abafb9a38d36"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_receiver_two_phase_tests.rs",
+      "sha256": "8c0fbdda792e49e66a8ca8b9150eb82bac2c9f7426d5fa15e49c97722f5555cf"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_constant_tests.rs",
+      "sha256": "6e09be4bbe21ecfc630fbb5cdb10d521f581e69a745ee7b76a28c19dadf5f3dc"
+    },
+    {
+      "path": "crates/lang-codegen/src/native/unit_field_resource_replace_tests.rs",
+      "sha256": "644ae02b9457ab3530cdf88913f6495bfe594dde22da79728a2c63e68202fbe1"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/container_operation_tests.rs",
+      "sha256": "c3f6f7ec9a778c987fd6eccb4976c1171624d9fb140fdb791e269882117759d0"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/container_lowering_tests.rs",
+      "sha256": "6fffc83b2bd034adef3ca7969830b40dda407d6027da2a00efd56d12e6f8977c"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_enum_tests.rs",
+      "sha256": "dfcc30aeb1e14446935b867aff1d616749e92161b88d3de0bb5d5a5512a0e794"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_ownership_tests.rs",
+      "sha256": "c37e24e0a238a07b64a93d396dfe21b9752222a12b2b783bc4de05b601c86d26"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_field_replace_tests.rs",
+      "sha256": "c791b0d6d427af193f2b28ecc4ecc2099bf2cd794de33cbae68d697a8552b021"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_string_tests.rs",
+      "sha256": "32ee49dcfdb2d1e9a2e2bd434e0527727130e97a8e335c7e22e484b65bcf5892"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/tests.rs",
+      "sha256": "a444e35344a4ac348909fe8a776b54b230256829cd50f04dcd084a5d6a8b8a3b"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_borrow_tests.rs",
+      "sha256": "5e14c4d49db52e6af337ca1f4a770df278daa696aae41c1a738ad0b785d6d59c"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_container_tests.rs",
+      "sha256": "25a4004a09edd98554bc8b0336b7243b7d8beac4526e4b09a6d3dee828e6023e"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/type_tests.rs",
+      "sha256": "1561d50a3f8163defabe657ef80101eaaeb6b74b0d44188630a03e6d0b1582eb"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/provider.rs",
+      "sha256": "cc812e40a57d5f5613cbcfefe4356beea43f37f2ad8d55b45e9d4e0d24bcff08"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_short_circuit_tests.rs",
+      "sha256": "af576ecdac22f12e7c30443af59b43d8888f878b0c3d21552ed0cbc2a086c50c"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_ownership.rs",
+      "sha256": "a3cb8a9dbeaf7415c12e47977c4c8285c504164336444ca0b4c9fae1994abada"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/call_lifetimes_tests.rs",
+      "sha256": "48c33d51fc4523c00dc288c05aa4b93e65a01361e685320df255e1aa73c3f321"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/field_replace_lower_tests.rs",
+      "sha256": "ea13efc506d1b8c28d49d0e34221168d8ad62e0ee40a1d8ea1b0fc8ea1112431"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lowering_support_tests.rs",
+      "sha256": "d17bf35d82f3c3f6b5b5039ba3ff556f84e37c3a71a3287eaabc54b2f36acf6f"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/render.rs",
+      "sha256": "d461e3b32024f259aaa981de57455f3b316e5efd086d433243dcc67b71aedd84"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_test_support.rs",
+      "sha256": "647432fae764f8b2872531ecfa8af5f9893eb226452e730df511e2fc1cd63901"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/string_operation_tests.rs",
+      "sha256": "395b778dfa69e4763209f99a74fdfa162f5244a951480a7526ffb01787b44308"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/constant_lowering_tests.rs",
+      "sha256": "517ab9826156bf64fab2a001e212a17e8468a2ed49cd08712374796c6f8445ec"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_receiver_two_phase_control_tests.rs",
+      "sha256": "62450dad6cc3dbb2225aa82d2b12627f9b96e1d8b54a5d889098773f9aa143ac"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lowering_entry_contract_tests.rs",
+      "sha256": "3969f039b2ee14dce23d7583d21538579cfb0e5b44a6f5e8dcb7a3d907ee5307"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend_return_tests.rs",
+      "sha256": "e28e2ac768ae4c1f90717d420ce0c7893fedaf1c2c9351ecd1d9361a4cedf866"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/mod.rs",
+      "sha256": "671e59866b783e90948c624812f5dc04ef30f6e2c4e6a1dc6084ad3c874a3e1a"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lowering_support.rs",
+      "sha256": "ed0b1ea51032bf20602f59c22c3ac054c60751fd846eda3bfac7cd0859b6141b"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_scalar_tests.rs",
+      "sha256": "4514bc7469f73eaf9507e3ee63e43eca7020b8154bb01180a12a276adac585a3"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_tests.rs",
+      "sha256": "532f9338bff12b561dcf65b2ee40c5334d41771e3ae7a576efb21784fed10ac3"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/borrowed_container_lowering_tests.rs",
+      "sha256": "b0a50d244ea6389f601f362d08faa018d5af6309475e900e75c59c19865d3ae5"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/deinit_tests.rs",
+      "sha256": "4483b1909ad56c6da012550ed67f34fbcc683301900d1c913fcbb0957ce5b357"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower.rs",
+      "sha256": "0587e7f49325cd1c92b95f5006230db55d0be42bf62494dae8010b409a2af313"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_llvm_tests.rs",
+      "sha256": "8bd8f6d3a3e42362b87eef0735ac04d3284430b5de9af0e9cb089d6e69028b14"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/sequential_for_lowering_tests.rs",
+      "sha256": "3f7ee4247843d88837c54079b12fd9d0882df479a13a25e94e9b8ce643776b26"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/shared_owner_operation_tests.rs",
+      "sha256": "b05208f020173eb41d0a7a58b26a491c7c6c5886839ed793a626012e0a0a435a"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/deinit.rs",
+      "sha256": "0b9bd44e67a87c223a2c03490bd4dfa404686ec986702b6e18b93cc32bab75ef"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/model.rs",
+      "sha256": "1719d6a08805ecdeb690f39117e4dd07ef97e7e15732f7cf57925c1c8208835e"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend.rs",
+      "sha256": "117680151b77b5e864b16be9b7ffbb4c8efb284894708d55ffcb9fdf7862e48d"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/integer.rs",
+      "sha256": "51224cb28f4d8ffcd730f50f23654e8bad07e35aa30d227bc4664c5bc8f8fe58"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_deinit_tests.rs",
+      "sha256": "0e6c81198742ffc5a7dd46ac81f1e04ccfb98f501d702dc8b678d87c258588a2"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/closure_operation_tests.rs",
+      "sha256": "0756f16a344fd2afec9f62b65251c87562be1439fec8665d17381c8f3e3e3b43"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/nullable_operation_tests.rs",
+      "sha256": "cbb0160e5eab2441bdc9506bb6521c339633bd57485a833027764f528a017d26"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_aggregate_tests.rs",
+      "sha256": "e54ac1de9aa0f83b282984dba4cd9a2a8ebc83b0847a05471873786f56dd01f2"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_receiver_tests.rs",
+      "sha256": "deb2f319bae724671a7be8029caa081e9f2b6de596ed2de97b84bbbf869b9d3d"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_container_element_tests.rs",
+      "sha256": "39b2dce8155f674f8eab2210522329145cbb823d3e629784b3b22d0bb4430250"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/closure.rs",
+      "sha256": "0913f368cd66c943fbeb04868084cafae21ee55135023872f2c681d99d883079"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_types.rs",
+      "sha256": "9474e1bac1132d05d7d068061b429b7c2b1e285943d01d3f549e7d43adf28732"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_type_plan_tests.rs",
+      "sha256": "86e24368cccaf42b7f3f85090e7e2b47b6c0f2925050ca27af9a5a3ee2db6ded"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lowering_dependency_tests.rs",
+      "sha256": "327068c660f4a1e498df90d6f85e33667e0207573bb3bfdf00d02b25782fa3b3"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/root_primitive_lower_tests.rs",
+      "sha256": "e9439f95bd8f7534783b9ad4f11754a5415b04cb7a68b5e6da658209b2c29034"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_root_primitive_tests.rs",
+      "sha256": "90b22943157f9e317b72ebed311058557c6c80e54f2364fea536628ddf864d9d"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/char_constant_tests.rs",
+      "sha256": "da1c2d865468a2a51737dc91df79fcf2545110e9a6564ba1da15eea187fd0468"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/bitwise_operation_tests.rs",
+      "sha256": "d2eeb1bce35ee702a4ce736722c0806962d9eaf299f50c25633894dacaf53b0b"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend_resource_deinit_tests.rs",
+      "sha256": "93c3c4d5d66a5ff8cca3477a394f6bbef292eab4a8809c950d141c5a3973888d"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_operation.rs",
+      "sha256": "52b2bb990ceeb2c89f6665f6582ef04130b3696288ef6e4305b3d6ef78904f37"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend_tests.rs",
+      "sha256": "4844e3f964c656323863ce404453f28f1e7edde2ec5cb368edb37c094003bfec"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/aggregate_operation_tests.rs",
+      "sha256": "aa7805885708a426e6a12fd5e0b2966114bfd55043402e201c299b126b4fb7f8"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_assignment_tests.rs",
+      "sha256": "6514cfe86c7ee57b76fa99fe299205bf1d83bceeb9f35b79fd08c3cbd3e9a5ad"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_control_result_tests.rs",
+      "sha256": "8c7409e5b90e7cfbba6048b1968f7281df19f211be831a6146c81ad83e3913bb"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_when_tests.rs",
+      "sha256": "66ab06aa4abe6288d33ec879057b4c876694c4ee4126a9005e5bbed227ea3b2c"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_loop_tests.rs",
+      "sha256": "71956f0c8cac3c6dfaa1170d4ec7178058c29e3bebc5eaef9f34ca616dd93c67"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/bitwise_lowering_tests.rs",
+      "sha256": "75078850b58013748464a75a614e80560e3cdece694fed3c27b54daddadb750f"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_scalar_tests.rs",
+      "sha256": "7e8e43ac297ff97b2582693f06776c7afaf376d835fe54e5521801f4d7d450e8"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_closure_tests.rs",
+      "sha256": "57c60729df47674bb0e855f7320a2cf687b9c3c40b7c25b190cadb0c87cd4133"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_receiver_two_phase_tests.rs",
+      "sha256": "cd46c821ea758814c0d2aeb1911a57f920d17b1837e90430334b28bef13c51df"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify.rs",
+      "sha256": "1f6569bfbe92fbba14b0afcfc27a2c4324a45c1e4395dc97560c9b7d7dc38ea3"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_constant_tests.rs",
+      "sha256": "d6864f4b1728d9950215e115af061193e920b04924efc2d37d9021e745f20fe7"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_rc_tests.rs",
+      "sha256": "5b5ac999e510122fb74df461ced585aaaf2fbb58a634a2437cbc696aea487fbf"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/types.rs",
+      "sha256": "c403fafe13a1c2c3056a3c3741dbaf7b62c9bf1d393441009e9f2e8d67d5c60e"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_tests.rs",
+      "sha256": "8ae0fa0577f29a39d56e41ef20f146119997ec8442449c7e4beaa14a48b34d48"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan_tests.rs",
+      "sha256": "080266baeb83207d1313715635f237dd1070c809250799d789c3145ffde77969"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/aggregate_tests.rs",
+      "sha256": "b1c590435751348be56895d496e6f8abb33662697889aae02f8c3cce4e5c37a8"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/layout.rs",
+      "sha256": "1c1f9d90614f67a680e6ff67726be6232062122fcf3061584b51922e6bf26d57"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/entry_tests.rs",
+      "sha256": "c6ee0bd10c12bbdad6eb5f11815727c8d5fbe1e91e90d55a088e0c4b1329f6ab"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/entry.rs",
+      "sha256": "d02f077d626b06876416760d41b46dd758ea43c4c315f931dd26917b4bf55878"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/nullable_tests.rs",
+      "sha256": "4a03d8c8a8bf5006cf3be3ed30b900130c2863f9f6aa914553bc7cc9816fbe8b"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/scalar.rs",
+      "sha256": "0e9de45ed200cbf7ce1c949a43641a0fb13845c585f7069f7ea4cf5b63e12a79"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/type_map.rs",
+      "sha256": "fb388b59fe215e4bfb6efa196ba0d350797871e43b7906bb4bea00481ad6db1e"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/debug_tests.rs",
+      "sha256": "f09270961266a1317b6a4c4aaa51086695d577238c7d208b4585a6a887609952"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/entities.rs",
+      "sha256": "91a34726398768b70566e1110e79f951313e5f06c7267e33829fabee1c936194"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/tagged.rs",
+      "sha256": "4b3a59f5afa273efa5f83807bbfbfb470de8d90668a49100a87bf1d8b6523639"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/closure.rs",
+      "sha256": "7897d0aa6f1d103dc02f489b7c53080b1c2f348480e059ffddd3e7a90f72d0b9"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/unit_storage_tests.rs",
+      "sha256": "1e026b30600bde11a7e77ba3e254fe4d899e6b5e91d38b9b98d6fe8979d4a108"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/object_tests.rs",
+      "sha256": "16205ab16172eed79e99a1ec1406feceedd4f070bd47cb2b183ae0e974fb1edc"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/closure_tests.rs",
+      "sha256": "194a26bd24482eda1c9bb9d046e0b5caf32c708dff4b3d39146c8dc46932c4f2"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/container_tests.rs",
+      "sha256": "f3b78433ad6a47881b09c197a228fbf61bfe5a0bf3962e0767f17a762e55a42e"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/aggregate.rs",
+      "sha256": "a5775be6555bb2b474fe4ff5ebf2bc8cba9e6ff657f2f2ddd49f35abef020615"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/string.rs",
+      "sha256": "3d694ce34966d1cbcf84d115a713d89b457e2184b3d55a741ada2ec5cbb4df92"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/container.rs",
+      "sha256": "717ea3c85de6fa775ee512e15e292b6c79d5c8b7159e493d26782af1962bebe9"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/runtime_tests.rs",
+      "sha256": "8e1ab6ee656ef2e3aff106cac68ffbeef2f9e494a18ca8e056955e0aeda8c8ae"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/layout_tests.rs",
+      "sha256": "899f17946895e9d0340d0bb8b42e6fde382545c7bc6c5c2c6e813356fa28d100"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/adapter.rs",
+      "sha256": "34799c8ad2ee4aa52a3e57d4137aa808d29096805d35b5a40847616a7bc39160"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/runtime.rs",
+      "sha256": "ffb44c23234386be2a3cc7af37a0bde6551dd3d3a1c4831cdbd18d851ee1a183"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/string_tests.rs",
+      "sha256": "cba299c362c93c01166faacf82e85bd75a3fcd924f300e782e75d79515018b90"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/debug.rs",
+      "sha256": "580ca22f4fcb6a7209902c2e0338dcf54fbc638d602d3b465f00d670d539e33d"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_sequential_for_tests/cleanup_tests.rs",
+      "sha256": "13574ef6d84d361144b3429e625b7896921604adbe97b1fcb9e72851ea14daa6"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_sequential_for_tests/unit_storage_boundary_tests.rs",
+      "sha256": "53ab1b6a9ef491122a398d3610ffe51adeb85c31f034cd33152b1398fe15bf93"
+    },
+    {
+      "path": "crates/lang-codegen/src/native_sequential_for_tests/unit_storage_tests.rs",
+      "sha256": "e776c7d95f5ae0aacc5649ab3de517acb8436f71aca96defdbb9cd86d95e2d0f"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan_tests/layout_demand.rs",
+      "sha256": "e05ecd2094cbfe816ddfe127f10345beda3546b042ba77afab296195cde61b8d"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan_tests/entry_identity.rs",
+      "sha256": "b54795732f708c7e8b359b402be2bb90b3925665d37c17ee04e13c5fa1564a9e"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan_tests/owner_recipes.rs",
+      "sha256": "bdfcfb1f326e7154d87bbc63f019831c23c06f6700eeea77fdefb32e1479b407"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan_tests/delegation_routes.rs",
+      "sha256": "74bb623cfdd4e3f38924435fd6e7950b22df977bac015c68f5807f0bc523fd4a"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan_tests/error_order.rs",
+      "sha256": "23dcf1817b65710af87cb11d67f640b70757eaefc375733bbf42f893a0d59701"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan_tests/instances.rs",
+      "sha256": "cba10bcd62fbd387db6dba84c5266c1de9475482e7e9caf9808e49a34ced5a48"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan_tests/recipe_cycles.rs",
+      "sha256": "91446d85bfea8149efef405e4ef07e8aa76f899fdee614c68079745da0fa5369"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan/runtime_layout.rs",
+      "sha256": "191c30ef201dd15b97d1d840a14cf40e61ce8c76616d9537339a0c697f39edc4"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_plan/deinit.rs",
+      "sha256": "052d9a69d88364b77d0974e5b6db28b103de506c52a7cbb5d1c495ffd730a639"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/resource_deinit.rs",
+      "sha256": "93ff16081fc65cdbe0aa72796e59fb50e1f56f5c615c94da10e33339f81ee67a"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/field_replace.rs",
+      "sha256": "ed7a979052a64c38091fcc1c00cbd54c4983016f751e4aa2613a17ea81a5cafd"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/string_clone.rs",
+      "sha256": "d4fcb3805893fc9aa001a27786cda7300de2b7566816fb21c25af29d14f13241"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/drops.rs",
+      "sha256": "09384314c63cc19469e08a2f9037520e3da88d14592d6f834040aa092581f08b"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/enum_condition.rs",
+      "sha256": "ec16ac657144f11f06f879bb7b32563d8c590644edfeb8cdc90669d2fc1929c5"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/loop_control.rs",
+      "sha256": "28328162f50236d8f5c67dc7dc4eb65353eecd59d090d74e79f24433a8263e53"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/integer.rs",
+      "sha256": "b9cb88f67d9a44081e9a0c881750847fe7a47e8e66e9d1e92964cc794dcc4010"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/ownership_primitive.rs",
+      "sha256": "cbe38c126fec1d78aca78b07ced644a44f5aded5445b1a413ee238388eae3b92"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/nullable_when.rs",
+      "sha256": "694c8ed938ffbc917a845f1ecc0117cb6b85c87f3c16f3b803a0ca9fb5e6e9d7"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/non_null_assertion.rs",
+      "sha256": "458e931c3ad55dcf659e6a0be9e9b8a28b33e91d54ffa3f0af855deebfd756fb"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/orchestrate.rs",
+      "sha256": "4cf06afb86eb637aacfa44893ded52082fd99a8c8f997af28a90b584c979d130"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/aggregate.rs",
+      "sha256": "0861073c42c1c644a6271383ccc982347ad974ec6c44e4d4144bf232e88311e1"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/source_closure.rs",
+      "sha256": "73cb3d1bab6a00ea515a1343c5df8b897bd87254d9fbd2f0dea310621b2dd48a"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/nominal.rs",
+      "sha256": "fcbb5a651d9c518c3db925f1f3a86956dbb1930cc68e01bed5714d2ab365478b"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/constant.rs",
+      "sha256": "6fec7db619a90cd18f407b6b7b15f25450a359966312228983d31414cd3327ac"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/container.rs",
+      "sha256": "59e57340e2d2f4b960fa0f1370e0c40491be6bbcf5eedd68ded6a667ebf02fde"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/call_lifetimes.rs",
+      "sha256": "5a8e5105582ff7e67cccc5c5fc4479f712ef5e99edbe4cf7d54ca288863f7188"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/instances.rs",
+      "sha256": "882849cad761af9b3d60a57ecdbd21bc360119d27a5adcb9e931a24effb60958"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lower_frontend/control.rs",
+      "sha256": "5bee3b1827883063d7d06c661ef99284ce4188516c657686ec36b797f590c5f7"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_receiver_tests/inout_inline.rs",
+      "sha256": "03e7e377edc92eca82b7ff53fccc7a3464882a4e1c029d5e4cc291a58cbbde3d"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_receiver_tests/value_delivery.rs",
+      "sha256": "01b7676c8b87695b9b9016707b265309bca1f4e82b836a0612099becbcecf4bd"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_receiver_tests/inout_fields.rs",
+      "sha256": "405828d12e26a79d283dc9fbe6db3c18f4a33a3b6f8f17c0765f07f239a8ff7f"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_receiver_tests/borrowing.rs",
+      "sha256": "c015bb78ba92a3ec12dd1aafc64547d8c3a0eb1c0269d24b2f9941d771768b92"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_receiver_tests/delegation.rs",
+      "sha256": "6cebc7985e127c3cdc6d2cc4329cd0c7fc144c5b90e57d13b6d781346e95899b"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_receiver_tests/interface.rs",
+      "sha256": "161a6c06828ab79cf96d1aa30a3adbdd1f0337a9da2f7230fed2097604c54e41"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower_receiver_tests/representation.rs",
+      "sha256": "6babb9e2032d959c72175e4b30a679c51cedfc2c0a2065c97b3db37109c592ef"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/lowering_support/string_literal.rs",
+      "sha256": "6f1f50e49754ea4937f21f938e2abcfcec2a85f0798a936b0c6e1203b09cecad"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/call.rs",
+      "sha256": "1a077d20eb57c0998567f4fe28c614870c72225430e94e13cc3b03b438f840f5"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/field_replace.rs",
+      "sha256": "fe41184634e9903329bb96b5160d9a2967b5eabf2329902e78fd45a2f1d751e9"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/handoff.rs",
+      "sha256": "2001e42ba2b30db275547a5ec1f99e545da0d75eb6148f4160d05e890d707708"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/string_clone.rs",
+      "sha256": "cde8dd75bd44949f242bfdcfd2320f121173280903fdca37520df9cb1e9875cc"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/scalar.rs",
+      "sha256": "a6eb0ebfee95de704e72257a8026284f645f679d74f001ff3f0c514c575cacd5"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/deinit.rs",
+      "sha256": "31349eac46979af61763b60716d89b5c24bc085221816f85313d3432434b55f6"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/construction.rs",
+      "sha256": "f64044d41dc712b77ba16ff2a778f51b0867f0d7a3b980e252feed9ec9afbc7a"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/loop_control.rs",
+      "sha256": "74b996bd46b6d4d99c7fd6d3ea08045cee6dc522a70161efecef872bce9140c0"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/integer.rs",
+      "sha256": "ad26b6ae17859e1cfe5d40c4e3e63171efbb454b619d262c777318e95c5174cd"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/ownership_primitive.rs",
+      "sha256": "a0dce9707abacec559362a88f049207a2d8e2628aa0f8fb0ecc77ab40d771c17"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/type_plan.rs",
+      "sha256": "5d5a5f26b5c6b27e592798947c8255dc11f5f1309ec25b6d868ee2b9835bcc51"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/receiver.rs",
+      "sha256": "42b470fb9917934760cd883c7f25d1a2c57016206deed117de1537dd4d293128"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/deinit_borrow.rs",
+      "sha256": "4c1b795daa066b4dd7c335ed9c9843191c236593272cac43dc31920e0224134e"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/closure.rs",
+      "sha256": "082e2269e92487ed03e30f2a8874a5a75169714186afedbe3e5eceea2daff90b"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/non_null_assertion.rs",
+      "sha256": "cfbc66c1fde9d6437a491781b1680ea4ce74b162250dedf75fe553af01b782f5"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/rc.rs",
+      "sha256": "f0442723a0d713500a26aedf49289bb774b62a1ac0feaa4f63bd03d1585ef859"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/aggregate.rs",
+      "sha256": "4ba462c2b5de1ff6151cc44dc80c06dbede469d43826e0a0db3654dc55dcd4cd"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/constant.rs",
+      "sha256": "f92da930cc7f90b6569699bcc30e95631651b51811b6f7575215ef53cb380fee"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/container.rs",
+      "sha256": "96640b0b80e0e79bb2c00577658c7622749db6a90962f4f13533afd6439abad8"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/call_lifetimes.rs",
+      "sha256": "7def058cef9f1d8ca4c8cec567e9583461a87eeaa185ec82153161cf08411124"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/cfg.rs",
+      "sha256": "799d4aa106497417408a284af65486f06640ac9d3ffa69d66bf3c381ccca2c72"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/type_lower.rs",
+      "sha256": "5672843456fecbf861cf8aac124ec82556358fe083d24740ea3be8d6889f0fa6"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/enum_lower.rs",
+      "sha256": "708b2d82e2d5c485a1b6e8260399a70e3ef1bb4ed21cef219f2199b25218ef80"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/ownership.rs",
+      "sha256": "e0fcac64c748301045087d9fc46ff09802dae4c3f1f93aae809fcaa1fb0a4216"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/assignment.rs",
+      "sha256": "c2e68af3c82430c8c826f7c679abf83cd138633f762c634be39c7f42b13fd4a9"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/unit_lower/control.rs",
+      "sha256": "cbde3d8104191db41e91a13d5f1cf63b42cc3f564438b05d3024979bef1ef443"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/sequential_for_lowering_tests/source_cfg_tests.rs",
+      "sha256": "492c0e522eb56fcb0da78f3a56e8c847b92db9370c4226e27b9b522d22c58728"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/sequential_for_lowering_tests/determinism_tests.rs",
+      "sha256": "c3993f3f579facd54194633adc09e101ade0f71b2c5318bfe9b94b880c8193fb"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/sequential_for_lowering_tests/cleanup_tests.rs",
+      "sha256": "6154740335cb25566ef27f46d9f64d8113f6f67257e444897103ddbc733a305b"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/sequential_for_lowering_tests/unit_storage_boundary_tests.rs",
+      "sha256": "dcadf73288ef46f34d311abd28ebfc75b5e2fd88757ea590948f6a172eccb7f5"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/sequential_for_lowering_tests/unit_storage_tests.rs",
+      "sha256": "b0a06907cdd9676876078af837e6429c7b8df0225fb229035e037f7bec5ca1d1"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_ownership/root_exchange_tests.rs",
+      "sha256": "72e4267057b4969d6e6fb30fbae5fb357341128f277de91f03d1fa3109097a3b"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_ownership/root_exchange.rs",
+      "sha256": "ce1831508272f0553df93132b41b75a19d3406bff2ac74ff1f6f709d07170467"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_ownership/closure.rs",
+      "sha256": "bd6bea9ecb8fed80a8a98243e7f6af2c023b9aab1b6bdae27a9377099d39c037"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_ownership/field_exchange.rs",
+      "sha256": "25c3e2743cee506c66508c0e1729e9bc8b9acbc7bb025a57124bf1105dfdd071"
+    },
+    {
+      "path": "crates/lang-codegen/src/ssa/verify_ownership/field_exchange_tests.rs",
+      "sha256": "b4ff8a4b9947237752adb945c3043a645bd22eff4d765686a2f90558ca82fa51"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/runtime/narrow_tests.rs",
+      "sha256": "9223149b9f3aff68e7b3916a04a68d96ea686c179aec1822840a3f325cd05d5a"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/runtime/string.rs",
+      "sha256": "c3b79913a7ad23ab38c1fbcc1e0968221a95e378ddff0e15d61829203f08a24d"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/adapter/storage.rs",
+      "sha256": "8bb43bb40fb819ccddf9decf080afa26bc2bcd23c5fe7391e1f16932db22e93d"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/adapter/root_exchange_tests.rs",
+      "sha256": "8a18b7c428d04cef1d79c4680a4c1521c9a0bbb7c89779da521936df66ddc834"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/adapter/module_lowering.rs",
+      "sha256": "2c5ea311359890526721cd8ecac8f4ebebb5ff08d237db58169293be14a388c3"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/adapter/callable.rs",
+      "sha256": "4215f927b93e6ee99142b1a9d864e00d59190091f81544f30024d91e1eaa86dc"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/adapter/root_exchange.rs",
+      "sha256": "4a8b23e3c1c388384a389e1da77ec243bbb53b40365597be5ce943b33a7e91d2"
+    },
+    {
+      "path": "crates/lang-codegen/src/llvm/adapter/integer.rs",
+      "sha256": "a7caec5e18f3b83407b0ab02213a851e2496de5cbf8afa69fc9d5bceb7feef61"
+    }
+  ],
+  "planner_test_names": [
+    "ssa::unit_plan_tests::delegation_routes::plans_concrete_override_instead_of_abstract_requirement",
+    "ssa::unit_plan_tests::delegation_routes::plans_delegate_implementation_from_validated_forwarder_route",
+    "ssa::unit_plan_tests::delegation_routes::plans_same_requirement_delegation_chain_to_the_direct_implementation",
+    "ssa::unit_plan_tests::delegation_routes::bodyful_requirement_chain_prefers_the_nested_route_over_an_inherited_default",
+    "ssa::unit_plan_tests::delegation_routes::plans_identity_changing_delegation_chain_to_the_direct_endpoint",
+    "ssa::unit_plan_tests::delegation_routes::remaps_identity_changing_next_hop_owner_prefix_and_callable_suffix",
+    "ssa::unit_plan_tests::delegation_routes::nested_delegate_local_override_terminates_the_outer_route",
+    "ssa::unit_plan_tests::delegation_routes::rejects_delegation_cycle_before_planning_a_partial_instance",
+    "ssa::unit_plan_tests::delegation_routes::plans_parameter_independent_generic_delegate_field",
+    "ssa::unit_plan_tests::delegation_routes::plans_parameter_independent_generic_outer_receiver",
+    "ssa::unit_plan_tests::delegation_routes::plans_frontend_authorized_nested_generic_delegate_layout",
+    "ssa::unit_plan_tests::delegation_routes::remaps_generic_delegation_owner_prefix_and_callable_suffix",
+    "ssa::unit_plan_tests::delegation_routes::plans_bodyful_delegation_from_frontend_effective_targets",
+    "ssa::unit_plan_tests::entry_identity::nested_runtime_layout_requires_the_exact_frontend_owner_descriptor",
+    "ssa::unit_plan_tests::entry_identity::rejects_non_callable_entries_and_foreign_ownership_products",
+    "ssa::unit_plan_tests::entry_identity::recovery_owner_without_a_layout_cannot_become_executable_ssa",
+    "ssa::unit_plan_tests::error_order::keeps_delegation_owner_field_error_before_endpoint_recipe_failure",
+    "ssa::unit_plan_tests::error_order::keeps_earlier_unsupported_constructor_before_later_recipe_cycle",
+    "ssa::unit_plan_tests::error_order::keeps_earlier_call_error_before_later_recipe_failure",
+    "ssa::unit_plan_tests::error_order::keeps_instance_limit_before_concrete_error_in_generic_body",
+    "ssa::unit_plan_tests::error_order::keeps_earlier_sibling_instance_limit_before_helper_error",
+    "ssa::unit_plan_tests::error_order::keeps_earlier_helper_error_before_later_recipe_failure",
+    "ssa::unit_plan_tests::error_order::keeps_first_specialization_error_before_later_specialization_recipe",
+    "ssa::unit_plan_tests::error_order::keeps_declaration_frontier_before_earlier_source_symbol_recipe",
+    "ssa::unit_plan_tests::error_order::rejects_later_sibling_recipe_before_current_instance_limit",
+    "ssa::unit_plan_tests::error_order::selects_stable_recipe_root_across_limit_hit_siblings",
+    "ssa::unit_plan_tests::instances::plans_only_cross_file_reachable_functions_and_deduplicates_recursion",
+    "ssa::unit_plan_tests::instances::canonicalizes_generic_instances_and_is_input_order_independent",
+    "ssa::unit_plan_tests::instances::plans_reachable_member_instances_with_owner_and_callable_arguments",
+    "ssa::unit_plan_tests::instances::plans_one_interface_default_instance_per_concrete_static_self",
+    "ssa::unit_plan_tests::layout_demand::merges_dependent_inherited_runtime_demand_independent_of_input_order",
+    "ssa::unit_plan_tests::layout_demand::plans_dependent_inherited_owner_recipe_as_instance_key_only",
+    "ssa::unit_plan_tests::layout_demand::upgrades_dependent_inherited_owner_recipe_to_runtime_layout_required",
+    "ssa::unit_plan_tests::layout_demand::upgrades_dependent_inherited_owner_recipe_used_only_by_lambda_abi",
+    "ssa::unit_plan_tests::layout_demand::upgrades_dependent_inherited_owner_recipe_used_only_by_enum_payload",
+    "ssa::unit_plan_tests::owner_recipes::delegated_dispatch_owner_recipe_keeps_unsupported_nested_kinds_closed",
+    "ssa::unit_plan_tests::owner_recipes::inherited_dispatch_owner_recipe_keeps_dependent_kinds_and_missing_canonical_closed",
+    "ssa::unit_plan_tests::owner_recipes::remaps_requirement_arguments_to_concrete_owner_and_callable_slots",
+    "ssa::unit_plan_tests::owner_recipes::remaps_inherited_default_owner_recipe_and_callable_slots",
+    "ssa::unit_plan_tests::owner_recipes::remaps_list_inherited_owner_recipe_to_the_effective_default",
+    "ssa::unit_plan_tests::recipe_cycles::rejects_parameter_growing_recipe_at_stable_back_edge_across_input_order",
+    "ssa::unit_plan_tests::recipe_cycles::rejects_parameter_growing_recipe_at_delegation_endpoint",
+    "ssa::unit_plan_tests::recipe_cycles::rejects_generic_delegation_recipe_before_instance_limit",
+    "ssa::unit_plan_tests::recipe_cycles::keeps_generic_delegation_local_override_out_of_recipe_failures",
+    "ssa::unit_plan_tests::recipe_cycles::rejects_generic_delegation_recipe_across_helper_before_instance_limit",
+    "ssa::unit_plan_tests::recipe_cycles::rejects_generic_helper_recipe_before_instance_limit",
+    "ssa::unit_plan_tests::recipe_cycles::rejects_fixed_argument_recipe_scc_before_instance_limit",
+    "ssa::unit_plan_tests::recipe_cycles::keeps_closed_descriptor_unsupported_out_of_cycle_failures"
+  ],
+  "counts": {
+    "moved_items": 36,
+    "retained_root_functions": 10,
+    "protected_codegen_files": 215,
+    "planner_tests": 48
+  },
+  "approved_wiring_changes": [
+    "Four private production submodules and explicit imports/reexports; no public module or cross-crate API.",
+    "Private cross-child helper functions become pub(super) only where required; every item records the exact old/new visibility.",
+    "resolve_inherited_dispatch_owner_argument and resolve_delegated_dispatch_owner_argument move from root pub(super) to child pub(in crate::ssa), preserving the definition visibility upper bound.",
+    "Only the two root resolver compatibility reexports are cfg(test), explicitly approved because their old root paths have only sibling-test consumers; production call_routes uses the moved definitions directly.",
+    "The original root IntrinsicTypeConstructor import is relocated to its actual new consumers; runtime_layout.rs and deinit.rs remain byte-identical."
+  ],
+  "limitations": [
+    "This script is a read-only static relocation proof, not compilation, test execution, semantic proof, performance measurement, or remote CI evidence.",
+    "It checks fixed baseline 6cc87fefe7d6486912d91966f751256ca256c0a0, all 36 moved items including documentation/attributes, 10 retained root functions, exact complete-source reconstruction, 215 protected codegen files, frozen new source hashes, and 48 planner test identities.",
+    "Only explicitly recorded declaration-prefix visibility changes are normalized; bodies, diagnostic kind/span expressions, control/rejection order, BTree operations, and all other bytes must match.",
+    "The root import/module prefix is checked against the complete recorded approved prefix; inverse reconstruction restores its original prefix while checking all retained root body bytes.",
+    "New module headers/imports are frozen by exact file hashes and were manually reviewed; this script does not prove Rust name resolution or dependency architecture.",
+    "The fixed test-name manifest is static identity evidence; zero-miss runtime filters, native link/run oracles, compiler warnings, clippy, release, macOS and exact-head CI need separate execution evidence.",
+    "No Cargo, dependencies, targets, existing cfg/ignore, tests, fixtures, policy, documentation or external state were changed by this responsibility relocation; only the approved two new test-facade reexports add cfg(test).",
+    "No performance improvement or complete P2/governance completion is claimed. Serialized shared-target Cargo validation and before/after cost sampling are recorded separately in the milestone acceptance evidence."
+  ],
+  "inverse_reconstruction_sha256": "edc7b0b30c06fbce528f5bb3b9df3d104bfdb00eefb72d31d6b75c383391a350",
+  "inverse_reconstruction_byte_identical": true
+}

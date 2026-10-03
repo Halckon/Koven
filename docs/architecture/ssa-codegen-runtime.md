@@ -143,7 +143,7 @@ verifier 检查 owner 唯一消费。计数注入仅存在于测试 LLVM。
 `ssa::unit_plan` 从显式 entry 对 validated typed/ownership unit 做 reachability 和单态化，使用稳定的
 callable/type instance key。planner 消费 frontend 已选择的 declaration、member、effective interface
 implementation 和 delegation route，不重新按名称或 shape 选择。
-私有 `unit_plan/runtime_layout.rs` 承接 strongest-demand 升级与 exact owner 字段布局校验，原 resolver 路径供 planner、deinit、aggregate/type lowering 共用；[迁移验收](../development/unit-runtime-layout-migration.md)记录保全边界。
+`unit_plan` 私有子模块分别处理 call routes、recipe preflight/validation、canonical type 与 runtime layout；原 resolver 生产路径保留，[组合边界](../development/ownership-planning-milestone.md#codegen-unit-planner)及[布局验收](../development/unit-runtime-layout-migration.md)记录保全合同。
 
 `ssa::unit_lower` 按 source-qualified facts 生成一个 SSA program。当前路径覆盖：
 
@@ -161,7 +161,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 普通 `lower_owned_unit_with_entry` 消费[封闭 view](pipeline-and-workspace.md#普通-owned-unit-交接)，直接进入原私有 driver/planner，不再建立交接 index。
 旧 lower/planner adapter 保留原签名与受限可见性，各经一次 factory；私有 driver 只读取同链 types/ownership facts。
-两种 view 错误仍映射原 lowering kind 与 None span；不新增公开 SSA/planner API。
+两种 view 错误仍映射原 lowering kind 与 None span；[中立支撑](lowering-support.md)保留原错误路径，不新增公开 SSA/planner API。
 常量 lowering 独立校验身份后共享原 driver；公开常量 native 仍消费专用 capability，不转换为普通 view。
 
 实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块。
