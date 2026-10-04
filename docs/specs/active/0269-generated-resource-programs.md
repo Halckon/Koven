@@ -109,10 +109,10 @@ Mac 不声称 Linux RSS/pids 防护；仍有域/数量/时间/日志/产物预�
 | ID | 完成标准 | 当前证据 |
 |---|---|---|
 | G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | Python模型18项通过；独立审阅未发现具体模型错误；实际8个非法case诊断和byte span通过 |
-| G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | Mac首轮6有效通过、2有效InvalidSsa，8非法通过；已由独立0270修复分支承接，不删除失败seed；Linux未运行 |
+| G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | Mac首轮6有效通过、2有效InvalidSsa；合入已合并0270后8有效及8非法全部通过，固定V2次序通过；Linux未运行 |
 | G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | 未执行 |
 | G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 未执行 |
-| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 未执行 |
+| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 原始有效case重放、预算/分类单测已执行；同因缩小与Linux实测未完成 |
 | G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 未执行 |
 | G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 未执行 |
 
@@ -127,7 +127,7 @@ M4 起草材料列出容器迭代等候选范围；本片以两个固定形状�
 合同独立审阅发现输出+计数不能证明字段→实例 free 次序，增加固定 V2 见证，避免扩建通用 tracing。
 PR46 实现版本本机 CLI 曾通过 V1 一次、V2 四次固定 build/run 与 I1/I2 精确 byte span；
 这是启动可行性预检，未验证本 Spec 的生成、计数、sanitizer、缩小、mutant 或预算。
-所有 G1–G7 尚无正式验收；后续调整和实际命令在本页追加，不回写成已执行。
+该预检当时不构成 G1–G7 正式验收；后续实际结果见验收表和开发检查点，不回写历史。
 
 ## 10. 开发检查点与保留项
 
@@ -152,3 +152,20 @@ parse/name/type/ownership首个失败阶段只留真实诊断、不产LLVM。共
 boxed_enum原4项通过；新指纹及进程预算回归已复审关闭。Python当前46项中45通过、
 Linux /proc监控1项在Mac跳过；Clippy/fmt/docs通过。这里是未提交开发树检查点，
 未替代最终合并基线重放、完整CI或G3–G6校准。
+
+合并后检查点：已合入 PR47 的 main `299469bd7234149eaa233e49e6a90011cdedfd50`，
+集成提交 `5466d394b1e6853f292846f6f0f8d85113d23acc`。重建 exporter 后两条测试通过
+（2 passed/825 filtered/0 ignored）。实际运行 `check_generated_owners.py --exporter <fresh test binary>
+--artifacts /private/tmp/0269-post0270-generated-run`，16 个固定案例全部通过：8 有效的 stdout、
+逐指针计数及指定 V2 物理次序，8 非法的精确诊断和 UTF-8 spans。原先失败的两个 seed 保留且转绿。
+全批次最终仍按设计 exit1：`calibration-not-yet-implemented`，不是 M4b 完整通过；实际记录
+含 dirty 工作树 diff、未追踪文件和 exporter SHA256。原始有效源码重放
+`--replay /private/tmp/0269-first-generated-run/case-00` 也通过，记录在 `/private/tmp/0269-replay-valid`。
+Python 四模块再验 46 项：45 passed、1 Linux-only skipped；未运行生成案例的 Linux 动态检测。
+
+最终普通设施审阅还复现了两项判定缺陷：缩小重放的 I/O 异常覆盖首个 failure、仅换行字节
+差异被误归 harness；分别加入失败测试并修复。后续独立窄复审通过，两模块14项无跳过。
+合并基线最终 Python 四模块48项中47通过、1 Linux-only跳过；resource_deinit_ 32项通过、
+795 filtered、0 ignored；codegen all-targets Clippy、fmt、尺寸门禁和512页docs通过。
+这些是普通设施提交检查点，G3/G4与完整生成验收保持未完成；后续 draft PR 的现有CI
+仅验证已接线的门禁，不能代称完整生成批次或故障校准已执行。

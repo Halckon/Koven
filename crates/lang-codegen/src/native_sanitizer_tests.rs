@@ -152,7 +152,7 @@ fn definitions<'ctx>(module: &Module<'ctx>) -> Vec<FunctionValue<'ctx>> {
 
 /// Runtime helpers are emitted into user bodies and koven.drop functions alike.
 /// Enumerating every definition prevents a user-only attribute from missing glue.
-fn mark_address_sanitizer(context: &Context, module: &Module<'_>) -> Vec<String> {
+pub(crate) fn mark_address_sanitizer(context: &Context, module: &Module<'_>) -> Vec<String> {
     let kind = Attribute::get_named_enum_kind_id("sanitize_address");
     assert_ne!(kind, 0, "LLVM must expose the ASan function attribute");
     let functions = definitions(module);
