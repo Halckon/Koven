@@ -10,7 +10,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前入口
 
-- [Active](active/README.md)：当前1份（0266 M4a检测接线）；0263/0264/0265/0267 已归档，M1A 总退出仍开放
+- [Active](active/README.md)：当前0份；0263–0267 已归档，M1A 总退出仍开放
 - [演进实施账本](evolution-status.md)：13 项计划的当前实现、最终交付与独立缺口，唯一进度摘要
 - [当前路线图](../development/roadmap.md)：从现状导航到下一批次；不复制第二张演进状态表
 - [治理执行账本](../development/engineering-governance-progress.md)：获批整体架构与工程治理的批次基线与交付
@@ -21,7 +21,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [v0.40](drafts/v0.40/README.md)：现行 Guide 启用及三项规则的实施入口
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：253 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：254 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

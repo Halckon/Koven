@@ -8,7 +8,7 @@ Goal：让实际生成代码中的选定内存错误能被检测、复现、缩�
 区分检查器、lowering、runtime、检测接线和测试 oracle 的责任。
 覆盖 Phase 2–5 产物与 Phase 6 验证设施，不新增语言语义。
 共同启动/调整规则见[计划](post-governance-milestones.md)。用户持续实施与满足前置的
-并行授权已由[0266](../specs/active/0266-native-sanitizer-wiring.md)承接 M4a Linux 首片；
+并行授权已由[0266](../archive/specs/0266-native-sanitizer-wiring.md)承接 M4a Linux 首片；
 本页其余范围仍为候选，M4b/M4c 未因此启用。
 
 M4a 可从 [M1A](multifile-program-spec-draft.md)起按切片接入；M4b 扩展随机执行；

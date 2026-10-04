@@ -163,4 +163,4 @@ LSan的clean/leak及检测开关都使用同一C worker入口，join完成后再
 该入口复用 Cargo 现有 target，使用已缓存依赖的 `--offline` 精确选取一次导出测试；CI 在
 正常组合测试之后运行。错误类别与退出状态共同判定，超时/缺工具/零匹配一律失败；失败
 产物不清理，CI 无论成功失败均上传完整检测目录。地址测试禁用泄漏，LSan 独立执行，
-不得把关闭接线后普通崩溃当成检测成功。合同与未覆盖项见[0266](../specs/active/0266-native-sanitizer-wiring.md)。
+不得把关闭接线后普通崩溃当成检测成功。合同与未覆盖项见[0266](../archive/specs/0266-native-sanitizer-wiring.md)。

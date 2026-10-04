@@ -126,6 +126,7 @@ LSan两组通过测试专用C入口和Linux linker `--wrap=main` 在worker执行
 Linux driver 对导出 Cargo 整体限时，并对 sanitizer 命令逐项限时；超时终止对应子进程组。
 普通 codegen suite 的 counter 调用没有独立期限。源文件、IR、精确命令、版本和结果文件保留到
 CI artifact。该必需步骤属于现有 Linux test job，失败传递到 required summary。
-本机已验证资源计数、三层 IR 检查与属性关闭红测；既有Linux CI已通过ASan组，
-LSan曾因残留主线程栈指针视为可达而漏报，新的worker入口仍待Linux CI动态验收。
+本机已验证资源计数、三层 IR 检查与属性关闭红测；Linux CI实际通过8组ASan与4组LSan动态对照。
+LSan曾因残留主线程栈指针视为可达而漏报；worker入口已验证故意泄漏报告4字节/1对象，
+正常与关闭检测对照无报告。macOS仅有普通IR/counter测试证据，动态ASan/LSan未验收。
 UBSan 对 Koven IR 未覆盖；不声明栈 lifetime、容器逻辑长度、并发或完整内存安全证明。

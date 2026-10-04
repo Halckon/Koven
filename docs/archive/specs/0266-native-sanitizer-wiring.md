@@ -1,10 +1,10 @@
 # SPEC-0266: Koven native 地址与泄漏检测接线
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施或验收 M4a Linux 检测首片时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：实施或验收 M4a Linux 检测首片时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-266` |
 | 所属 Phase | Phase 6 验证；消费现有 Phase 2–5 产物 |
 | 语言规范 | [Guide v0.40 runtime](../../guide/13-program-runtime-standard-library.md) |
@@ -44,11 +44,11 @@ Abort 不展开、Rc 环允许未释放的语义保留；本片只选择正常�
 | ID | 合同 | 实际结果 |
 |---|---|---|
 | W1 | 实际 Koven fixture 正常分析/lower，三个目标定义函数各有访存检查；关闭属性无检查 | Mac LLVM21.1.8：最终两项2 passed/796 filtered；导出1 passed/797 filtered及外部三target/三off IR检查通过，均0 ignored；counter 1分配/1释放；属性换成nounwind有效红测失败，恢复后通过 |
-| W2 | Linux ASan 三类故意错误非零退出且类别准确；clean 输出和资源计数准确；关闭组不误报检测成功 | Mac普通clean与资源计数已通过；CI run37198053946的Linux ASan三种错误、clean及关闭组均通过 |
-| W3 | Linux LSan 正常无环无报告、故意泄漏有报告且非零、关闭检测无报告 | CI run37198053946的clean开/关组通过，故意泄漏启用组exit0无报告；故意泄漏关闭组未运行；后续已证明栈根，worker修复待原生CI |
+| W2 | Linux ASan 三类故意错误非零退出且类别准确；clean 输出和资源计数准确；关闭组不误报检测成功 | Mac普通clean与资源计数已通过；CI run37198053946与37200628633的Linux ASan三种错误、clean及关闭组均通过 |
+| W3 | Linux LSan 正常无环无报告、故意泄漏有报告且非零、关闭检测无报告 | CI run37200628633的worker入口clean/leak开关四组全部通过；故意泄漏exit87且报告4B/1object/f1.make |
 | W4 | LLVM21.1.8/compiler-rt 固定安装与运行；缺工具、超时、零测试匹配、普通失败不可算检测成功 | 脚本测试12/12（含缺工具、真实超时与进程树终止、零匹配、错误类别/普通失败、Debian runtime布局、诊断不替换原失败、C worker入口）；原CI政策18/18；Linux固定安装在run37198053946通过 |
 | W5 | 限时与完整失败产物、Python 负向门禁、docs/inventory/尺寸/fmt/定向 Clippy、独立评审 | 合并前Python123/脚本9/docs507通过；当前Python129、脚本12、docs508通过；尺寸、改动Rust文件fmt、codegen all-targets严格Clippy通过；独立评审P2 counter失败材料缺口已修复并复审通过；安装路径修复已通过独立窄复审 |
-| W6 | PR关联head与实际编译SHA/tree核对、Linux动态CI、双宿主普通测试、同步 Architecture 后按 PR 闭环归档 | PR #44 run37198053946编译merge tree与关联head tree一致；安装与双宿主sanitizer模块2测试通过，额外Linux步骤在LSan故意泄漏漏报处失败；后续诊断已证明栈根，新worker入口待CI |
+| W6 | PR关联head与实际编译SHA/tree核对、Linux动态CI、双宿主普通测试、同步 Architecture 后按 PR 闭环归档 | PR #44 run37198053946编译merge tree与关联head tree一致；安装与双宿主sanitizer模块2测试通过，额外Linux步骤在LSan故意泄漏漏报处失败；后续worker修复经37200628633真实动态验收且merge/head tree一致；整合main6377后的1285e11经run37201621453全11 job成功，merge/head tree一致；按此实现证据归档，归档提交仍须独立CI通过再合并 |
 
 ## 4. 实施顺序
 
@@ -140,3 +140,34 @@ root扫描关闭，也不声明Koven并发语义覆盖。C入口源一同保存�
 继承的0267编辑器实现来自已合并主干，未声称本轮重跑其独立Rust/Tree-sitter验收。
 worker入口独立复审已通过，核ABI、join同步、失败分流、同入口对照与CI接线；
 复审独立运行sanitizer和CI政策33项通过。下一轮PR原生动态CI仍待验。
+
+
+Worker修复后的 head `b924b47ff89251a54dc1292fd73ce01e904d7f5d` 经
+[CI37200628633](https://github.com/Halckon/Koven/actions/runs/37200628633)全部11个job成功。
+[成功产物11303006462](https://github.com/Halckon/Koven/actions/runs/37200628633/artifacts/11303006462)
+含36组完整command/result/stdout/stderr，无超时；8组ASan与4组LSan动态对照均齐备。
+LSan leak/on以87退出，报告4字节/1对象并定位`f1.make`；clean与关闭检测对照结果正确。
+保存的worker源与关联head逐字节一致；ELF入口确实经__wrap_main、pthread_create、原main与join。
+counter编译设置EXPECTED_ALLOCATIONS=1、未定义NDEBUG，实际exit0、stdout为read/drop。
+API核验实际编译merge SHA `0fc95740405aaedd4942119e2c623e5cfb52d77b`与关联head的tree均为
+`72670cdbcdcecbcf875c3bf5c23c44eb652c8a89`；两个SHA本身不同。
+两宿主sanitizer模块两项均实际ok，macOS另有既有LLDB debugserver权限用例ignored，
+不将该忽略计为执行通过，也不宣称macOS动态ASan/LSan已验收。
+随后本地整合main `6377f2b`为head `1285e11`，docs509、文档/CI政策58项通过；
+该整合head随后经独立PR CI验证，见下一节。
+
+
+## 7. 最终实现验收与归档（2026-10-04）
+
+[CI37201621453](https://github.com/Halckon/Koven/actions/runs/37201621453)关联head
+`1285e11b655898b2ee549f8486d57a201b8c4f6c`，全部11个job成功，Linux必需动态检测步骤实际执行。
+[产物11303346793](https://github.com/Halckon/Koven/actions/runs/37201621453/artifacts/11303346793)
+重新核对36组完整命令/结果/stdout/stderr，无超时；ASan三类错误exit86并分别定位read、make、drop，
+正常与关闭对照均exit0；LSan故意泄漏exit87且报告4字节/1对象/f1.make，其余三组exit0。
+worker源逐字节等于此head；独立counter仍验证1分配/1释放。Linux codegen 798 passed/0 ignored，
+macOS 797 passed/1 ignored（既有LLDB权限用例）；双宿主两项sanitizer模块测试均实际通过。实际编译merge SHA
+`f7ca3da5fd5159dc14a83ef5c8b211de72b42206`与关联head的tree均为
+`9d4736ce8f29429d5c06819ab5c47574c2d5fbc8`，提交SHA不同但源码树一致。
+
+W1–W6的有界实现验收闭合并归档，Architecture同步已执行事实；归档提交须另经最终PR CI才可合并。
+macOS动态ASan/LSan、Koven IR UBSan和M4其余范围仍未覆盖，不能从本片推导完整内存安全。
