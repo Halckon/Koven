@@ -1,0 +1,1766 @@
+[
+  {
+    "name": "calibration-build",
+    "side": "before",
+    "phase": "prewarm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 12.835501833120361,
+    "exit_code": 0,
+    "target_bytes": 4467998720,
+    "rustc_invocations": 5,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.318936416,
+    "rustc_nonlink_seconds_sum": 10.423823876,
+    "maximum_reported_process_rss_bytes": 2092138496,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "calibration-first-launch",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.119499082909897,
+    "exit_code": 0,
+    "target_bytes": 4467998720,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10584064,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-warm-0",
+    "side": "before",
+    "phase": "calibration-warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.7329644579440355,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.099201042,
+    "rustc_nonlink_seconds_sum": 0.48299487399999996,
+    "maximum_reported_process_rss_bytes": 258146304,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "calibration-first-launch-after-build-0",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.94172791717574,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10551296,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-warm-1",
+    "side": "before",
+    "phase": "calibration-warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.6754563329741359,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.1074545,
+    "rustc_nonlink_seconds_sum": 0.45647854200000004,
+    "maximum_reported_process_rss_bytes": 248905728,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "calibration-first-launch-after-build-1",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.9064221251755953,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10534912,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-warm-2",
+    "side": "before",
+    "phase": "calibration-warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.6722011659294367,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.112527708,
+    "rustc_nonlink_seconds_sum": 0.468134209,
+    "maximum_reported_process_rss_bytes": 254869504,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "calibration-first-launch-after-build-2",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.9931108749005944,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10534912,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-run-0",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.14061995805241168,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10747904,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-run-1",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.14501624996773899,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10764288,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-run-2",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.1398922500666231,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10485760,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-run-3",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.14962329203262925,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10518528,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-run-4",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/calibration-before/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.13536112499423325,
+    "exit_code": 0,
+    "target_bytes": 4469964800,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10452992,
+    "artifacts": []
+  },
+  {
+    "name": "cold-before-0",
+    "side": "before",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 9.668541124789044,
+    "exit_code": 0,
+    "target_bytes": 4830879744,
+    "rustc_invocations": 5,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.107669042,
+    "rustc_nonlink_seconds_sum": 9.269671623999999,
+    "maximum_reported_process_rss_bytes": 2053275648,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "cold-after-0",
+    "side": "after",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 9.121277207974344,
+    "exit_code": 0,
+    "target_bytes": 5192724480,
+    "rustc_invocations": 5,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.094404834,
+    "rustc_nonlink_seconds_sum": 8.748572583,
+    "maximum_reported_process_rss_bytes": 2116321280,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "cold-after-1",
+    "side": "after",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 9.858958208933473,
+    "exit_code": 0,
+    "target_bytes": 5551558656,
+    "rustc_invocations": 5,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.118357125,
+    "rustc_nonlink_seconds_sum": 9.462974417,
+    "maximum_reported_process_rss_bytes": 2100903936,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-1/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "cold-before-1",
+    "side": "before",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 10.476905582938343,
+    "exit_code": 0,
+    "target_bytes": 5912276992,
+    "rustc_invocations": 5,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.135517625,
+    "rustc_nonlink_seconds_sum": 10.073765292000001,
+    "maximum_reported_process_rss_bytes": 2099724288,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-1/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "cold-before-2",
+    "side": "before",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 10.484701249981299,
+    "exit_code": 0,
+    "target_bytes": 6273191936,
+    "rustc_invocations": 5,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.142341792,
+    "rustc_nonlink_seconds_sum": 10.064736707,
+    "maximum_reported_process_rss_bytes": 2103394304,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-2/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "cold-after-2",
+    "side": "after",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 17.24078854196705,
+    "exit_code": 0,
+    "target_bytes": 6638170112,
+    "rustc_invocations": 5,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.455259,
+    "rustc_nonlink_seconds_sum": 16.370773084,
+    "maximum_reported_process_rss_bytes": 2064695296,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-2/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-before",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.5710769998840988,
+    "exit_code": 0,
+    "target_bytes": 6638170112,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10731520,
+    "artifacts": []
+  },
+  {
+    "name": "first-launch-after",
+    "side": "after",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.7293200411368161,
+    "exit_code": 0,
+    "target_bytes": 6637973504,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10862592,
+    "artifacts": []
+  },
+  {
+    "name": "identity-before",
+    "side": "before",
+    "phase": "identity",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--list"
+    ],
+    "seconds": 0.012498334050178528,
+    "exit_code": 0,
+    "target_bytes": 6637973504,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 2359296,
+    "artifacts": []
+  },
+  {
+    "name": "identity-after",
+    "side": "after",
+    "phase": "identity",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--list"
+    ],
+    "seconds": 0.012623040936887264,
+    "exit_code": 0,
+    "target_bytes": 6637973504,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 2375680,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-0",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.2710019580554217,
+    "exit_code": 0,
+    "target_bytes": 6639939584,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.249244125,
+    "rustc_nonlink_seconds_sum": 0.803560792,
+    "maximum_reported_process_rss_bytes": 249626624,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-before-0",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.056749583221972,
+    "exit_code": 0,
+    "target_bytes": 6639939584,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10305536,
+    "artifacts": []
+  },
+  {
+    "name": "run-before-0",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.14519904111512005,
+    "exit_code": 0,
+    "target_bytes": 6639939584,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10698752,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-0",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.2181706249248236,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.273780625,
+    "rustc_nonlink_seconds_sum": 0.787666334,
+    "maximum_reported_process_rss_bytes": 232816640,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-after-0",
+    "side": "after",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.1009390000253916,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10846208,
+    "artifacts": []
+  },
+  {
+    "name": "run-after-0",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.13532550004310906,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10731520,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-1",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.9440235409419984,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.155131125,
+    "rustc_nonlink_seconds_sum": 0.651456292,
+    "maximum_reported_process_rss_bytes": 235175936,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-after-1",
+    "side": "after",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.005731999874115,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10469376,
+    "artifacts": []
+  },
+  {
+    "name": "run-after-1",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.14508054195903242,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10551296,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-1",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.775867709191516,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.111165916,
+    "rustc_nonlink_seconds_sum": 0.575449209,
+    "maximum_reported_process_rss_bytes": 254771200,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-before-1",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.0023122080601752,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10715136,
+    "artifacts": []
+  },
+  {
+    "name": "run-before-1",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.1453739998396486,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10698752,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-2",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.7362566669471562,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.091127125,
+    "rustc_nonlink_seconds_sum": 0.566204208,
+    "maximum_reported_process_rss_bytes": 249249792,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-before-2",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.0801028748974204,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10731520,
+    "artifacts": []
+  },
+  {
+    "name": "run-before-2",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.1424249999690801,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10338304,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-2",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.8656159171368927,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.111206459,
+    "rustc_nonlink_seconds_sum": 0.6462867489999999,
+    "maximum_reported_process_rss_bytes": 234127360,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-after-2",
+    "side": "after",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.9932917081750929,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10715136,
+    "artifacts": []
+  },
+  {
+    "name": "run-after-2",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.14698479208163917,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10698752,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-3",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.8463202498387545,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.091692792,
+    "rustc_nonlink_seconds_sum": 0.610736666,
+    "maximum_reported_process_rss_bytes": 232357888,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-after-3",
+    "side": "after",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.9959705418441445,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10452992,
+    "artifacts": []
+  },
+  {
+    "name": "run-after-3",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.1496358341537416,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10682368,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-3",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.7469862499274313,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.100030708,
+    "rustc_nonlink_seconds_sum": 0.547891876,
+    "maximum_reported_process_rss_bytes": 249987072,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-before-3",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.0260393749922514,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10223616,
+    "artifacts": []
+  },
+  {
+    "name": "run-before-3",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.14599191606976092,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10698752,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-4",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.7879663750063628,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.105282708,
+    "rustc_nonlink_seconds_sum": 0.573402542,
+    "maximum_reported_process_rss_bytes": 253296640,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-before-4",
+    "side": "before",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 1.0031915421131998,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10223616,
+    "artifacts": []
+  },
+  {
+    "name": "run-before-4",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.14418345782905817,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10272768,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-4",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.7809372500050813,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.12108375,
+    "rustc_nonlink_seconds_sum": 0.572986459,
+    "maximum_reported_process_rss_bytes": 236879872,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": false,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "first-launch-after-build-after-4",
+    "side": "after",
+    "phase": "execution-warmup",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.9874193749856204,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10715136,
+    "artifacts": []
+  },
+  {
+    "name": "run-after-4",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f",
+      "--test-threads=1"
+    ],
+    "seconds": 0.1483123330399394,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 10747904,
+    "artifacts": []
+  },
+  {
+    "name": "noop-after-0",
+    "side": "after",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.04766841698437929,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 37502976,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": true,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "noop-before-0",
+    "side": "before",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.047531332820653915,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 37486592,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": true,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "noop-after-1",
+    "side": "after",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.0470336249563843,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 37470208,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": true,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "noop-before-1",
+    "side": "before",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.046579458052292466,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 37208064,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": true,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "noop-after-2",
+    "side": "after",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.04090649983845651,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 37306368,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": true,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-after-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  },
+  {
+    "name": "noop-before-2",
+    "side": "before",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-frontend",
+      "--test",
+      "multifile_ownership_checking",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.046932708006352186,
+    "exit_code": 0,
+    "target_bytes": 6640922624,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 37175296,
+    "artifacts": [
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "multifile_ownership_checking",
+        "kind": [
+          "test"
+        ],
+        "fresh": true,
+        "executable": "<ATTEMPT_3_ROOT>/targets/cold-before-0/debug/deps/multifile_ownership_checking-5847ef993ac76a1f"
+      }
+    ]
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "members": 438,
+  "json_numeric_invariants_checked": 106,
+  "scope": "all three attempts, text raw logs and measurement inputs; no source snapshots, binaries or caches",
+  "tokens": [
+    "<LSP_PILOT_ROOT>",
+    "<REPO>",
+    "<USER_HOME>",
+    "<RUSTUP_HOME>",
+    "<CARGO_HOME>",
+    "<ATTEMPT_1_ROOT>",
+    "<ATTEMPT_2_ROOT>",
+    "<ATTEMPT_3_ROOT>"
+  ],
+  "original_hashes": "original-sha256.json",
+  "published_hashes": "raw-sha256.json",
+  "archive_sha256": "613486a28092da158a05d4d04933d90b571b3e26850df6eed729978e776be201"
+}

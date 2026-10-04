@@ -45,3 +45,4 @@
 
 - [本机重建验收](recovery-local-delivery.md)：授权范围、P0–P5与0182映射及本机证据
 - [本机治理续行](governance-local-continuation.md)：P0–P5剩余条件、LSP原始成本试点与P5教程补齐
+- [P2 frontend成本续验](p2-frontend-cost-followup.md)：PR38合并、本机72项固定配对、首启分离及构建噪声停止点
