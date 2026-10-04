@@ -7,8 +7,10 @@
 0266 检测接线与0267编辑器修复已分别通过PR44/PR45合并。0268补齐unit native for与完整应用实现验收。
 0182、0255–0261按用户授权的本机恢复验收完成本地归档，
 实际结果与未覆盖范围见[本机恢复账本](../../development/recovery-local-delivery.md)。
-后继[0262教程补齐](../../archive/specs/0262-current-tutorial-plan-coverage.md)也已按Mac有界验收本地归档。
-这不关闭原P2成本证据/预算接受缺口，也不声明原治理P0–P5全部验收或远端CI完成。
+[0262教程补齐](../../archive/specs/0262-current-tutorial-plan-coverage.md)已随PR38交付并具备精确head双宿主证据。
+0266/PR44完成Linux ASan/LSan有界接线，不表示macOS动态检测或UBSan完成。
+当前状态以[本次固定基线核对](../../development/documentation-status-sync.md)为准；旧Spec正文保留交付时快照。
+原P2成本证据/预算接受仍延期，不能从归档或CI成功推定全部治理验收完成。
 
 - [演进实施账本](../evolution-status.md)：语言能力与独立缺口
 - [完成 Spec Archive](../../archive/specs/README.md)：只按需追溯原验收
