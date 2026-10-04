@@ -1,0 +1,7 @@
+{
+  "scripts/check_tutorial.py": "3e02054b18bdf7bb2fecbed2a4e1d458a621141e77b7a27ed0618f3e7cdcdd84",
+  "scripts/tests/test_tutorial_contracts.py": "4284f61053435efd4b8ccde5c29f06e825a551102dcb109dbc7d3afa31de47f4",
+  "docs/tutorials/koven-tour.md": "eca8523311d3ce82472c2b3e00bbe0ed9a63b46a9913236830a085fffc596e8b",
+  "docs/tutorials/examples.json": "6d0eaf002ede117825b79a88e108c4a56d27d816530e0efcaabc512a57526ac2",
+  "target/debug/kovenc": "b05a1de84ad633a53d125490fd5437e396d7bed31a53560b273306998994e22b"
+}

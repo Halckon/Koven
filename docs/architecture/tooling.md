@@ -97,6 +97,8 @@ Tree-sitter 用于编辑器 concrete syntax；生产编译仍只使用 Rust Lexe
 外部Rust编译合同通过当前integration executable的Cargo 1.96 fingerprint选择实际依赖rlib；
 同目录旧flags产物可以保留，未知或歧义身份失败，不按时间戳推断。
 `editors/**`与教程修改触发Rust路径；内部直接依赖检查为无条件required job。
+当前教程以Markdown fence为源码真源，十一正例、两完整JSON负例与一planned分开；
+跨文件合同只引用fence ID，沿现行project.toml/entry协议运行，定向选择不改变CI默认完整选集。
 LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 意外跳过。配置与本地验证不代表远端已运行；实际交付证据见
 [SPEC-0239](../archive/specs/0239-linux-ci-gates.md)，使用规则见[测试与分层验收](../development/testing.md)。

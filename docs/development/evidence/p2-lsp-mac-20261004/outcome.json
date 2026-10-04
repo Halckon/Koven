@@ -1,0 +1,6 @@
+{
+  "status": "sampling-complete",
+  "elapsed_seconds": 189.73247275012545,
+  "cache_bytes": 3428995072,
+  "acceptance": "pending; no speedup/equivalence claim"
+}

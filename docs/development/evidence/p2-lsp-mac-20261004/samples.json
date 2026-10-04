@@ -1,0 +1,6903 @@
+[
+  {
+    "name": "calibration-build",
+    "side": "before",
+    "phase": "prewarm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 22.48131366702728,
+    "exit_code": 0,
+    "target_bytes": 485171200,
+    "rustc_invocations": 34,
+    "linker_invocations": 10,
+    "linker_seconds_sum": 0.9034784170000001,
+    "rustc_nonlink_seconds_sum": 22.229817456,
+    "maximum_reported_process_rss_bytes": 2056470528,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "calibration-warm-0",
+    "side": "before",
+    "phase": "calibration-warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.4346444578841329,
+    "exit_code": 0,
+    "target_bytes": 500899840,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.099603667,
+    "rustc_nonlink_seconds_sum": 1.184740166,
+    "maximum_reported_process_rss_bytes": 420872192,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "calibration-warm-1",
+    "side": "before",
+    "phase": "calibration-warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.4615316251292825,
+    "exit_code": 0,
+    "target_bytes": 500899840,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.112085084,
+    "rustc_nonlink_seconds_sum": 1.2291618739999999,
+    "maximum_reported_process_rss_bytes": 419364864,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "calibration-warm-2",
+    "side": "before",
+    "phase": "calibration-warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.3724473328329623,
+    "exit_code": 0,
+    "target_bytes": 500899840,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.126685541,
+    "rustc_nonlink_seconds_sum": 1.160107042,
+    "maximum_reported_process_rss_bytes": 421281792,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "calibration-run-0",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.3562617499846965,
+    "exit_code": 0,
+    "target_bytes": 500899840,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14843904,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-run-1",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 0.17423204192891717,
+    "exit_code": 0,
+    "target_bytes": 500899840,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 15073280,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-run-2",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 0.18321712501347065,
+    "exit_code": 0,
+    "target_bytes": 500899840,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14860288,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-run-3",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 0.18341116700321436,
+    "exit_code": 0,
+    "target_bytes": 500899840,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14876672,
+    "artifacts": []
+  },
+  {
+    "name": "calibration-run-4",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 0.18348245811648667,
+    "exit_code": 0,
+    "target_bytes": 500899840,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14794752,
+    "artifacts": []
+  },
+  {
+    "name": "cold-before-0",
+    "side": "before",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 19.818308500107378,
+    "exit_code": 0,
+    "target_bytes": 969121792,
+    "rustc_invocations": 34,
+    "linker_invocations": 10,
+    "linker_seconds_sum": 0.490472542,
+    "rustc_nonlink_seconds_sum": 22.611215959,
+    "maximum_reported_process_rss_bytes": 2075295744,
+    "artifacts": [
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "cold-after-0",
+    "side": "after",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 19.429872791981325,
+    "exit_code": 0,
+    "target_bytes": 1453096960,
+    "rustc_invocations": 34,
+    "linker_invocations": 10,
+    "linker_seconds_sum": 0.481250083,
+    "rustc_nonlink_seconds_sum": 21.97551096,
+    "maximum_reported_process_rss_bytes": 2048950272,
+    "artifacts": [
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "cold-after-1",
+    "side": "after",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 18.79609225015156,
+    "exit_code": 0,
+    "target_bytes": 1938288640,
+    "rustc_invocations": 34,
+    "linker_invocations": 10,
+    "linker_seconds_sum": 0.46987712400000003,
+    "rustc_nonlink_seconds_sum": 20.830494333,
+    "maximum_reported_process_rss_bytes": 2056847360,
+    "artifacts": [
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-after-1/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "cold-before-1",
+    "side": "before",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 22.336945000104606,
+    "exit_code": 0,
+    "target_bytes": 2425372672,
+    "rustc_invocations": 34,
+    "linker_invocations": 10,
+    "linker_seconds_sum": 0.512277334,
+    "rustc_nonlink_seconds_sum": 24.237846501,
+    "maximum_reported_process_rss_bytes": 2060058624,
+    "artifacts": [
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-before-1/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "cold-before-2",
+    "side": "before",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 21.256361917126924,
+    "exit_code": 0,
+    "target_bytes": 2909151232,
+    "rustc_invocations": 34,
+    "linker_invocations": 10,
+    "linker_seconds_sum": 0.542238127,
+    "rustc_nonlink_seconds_sum": 23.224417831,
+    "maximum_reported_process_rss_bytes": 2043183104,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-before-2/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "cold-after-2",
+    "side": "after",
+    "phase": "cold",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 23.63743241596967,
+    "exit_code": 0,
+    "target_bytes": 3398520832,
+    "rustc_invocations": 34,
+    "linker_invocations": 10,
+    "linker_seconds_sum": 0.544632706,
+    "rustc_nonlink_seconds_sum": 28.986292089,
+    "maximum_reported_process_rss_bytes": 2043133952,
+    "artifacts": [
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": false,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-after-2/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "identity-before",
+    "side": "before",
+    "phase": "identity",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--list"
+    ],
+    "seconds": 1.4071342919487506,
+    "exit_code": 0,
+    "target_bytes": 3398520832,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 2310144,
+    "artifacts": []
+  },
+  {
+    "name": "identity-after",
+    "side": "after",
+    "phase": "identity",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--list"
+    ],
+    "seconds": 1.4661650410853326,
+    "exit_code": 0,
+    "target_bytes": 3398520832,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 2293760,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-0",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.6456749578937888,
+    "exit_code": 0,
+    "target_bytes": 3414249472,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.215403375,
+    "rustc_nonlink_seconds_sum": 1.3057942500000002,
+    "maximum_reported_process_rss_bytes": 417480704,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-before-0",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.1485755839385092,
+    "exit_code": 0,
+    "target_bytes": 3414249472,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14680064,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-0",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.7035270419437438,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.239963666,
+    "rustc_nonlink_seconds_sum": 1.316214917,
+    "maximum_reported_process_rss_bytes": 421347328,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-after-0",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.1553117078728974,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 15007744,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-1",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.6901892500463873,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.170119458,
+    "rustc_nonlink_seconds_sum": 1.390541376,
+    "maximum_reported_process_rss_bytes": 410763264,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-after-1",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.1460699997842312,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14827520,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-1",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.5285420829895884,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.133406541,
+    "rustc_nonlink_seconds_sum": 1.295093625,
+    "maximum_reported_process_rss_bytes": 418054144,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-before-1",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.1405622500460595,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14696448,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-2",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.6027177500072867,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.18529575,
+    "rustc_nonlink_seconds_sum": 1.304898416,
+    "maximum_reported_process_rss_bytes": 417480704,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-before-2",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.1531330419238657,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14942208,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-2",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.6430548338685185,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.219644583,
+    "rustc_nonlink_seconds_sum": 1.289433,
+    "maximum_reported_process_rss_bytes": 409632768,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-after-2",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.1528615418355912,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14958592,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-3",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 1.8502723751589656,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.222539625,
+    "rustc_nonlink_seconds_sum": 1.518801125,
+    "maximum_reported_process_rss_bytes": 415711232,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-after-3",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.3718792910221964,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14794752,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-3",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 2.3747758748941123,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.2335375,
+    "rustc_nonlink_seconds_sum": 1.970951541,
+    "maximum_reported_process_rss_bytes": 430735360,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-before-3",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.2195082500111312,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14647296,
+    "artifacts": []
+  },
+  {
+    "name": "warm-before-4",
+    "side": "before",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 2.2054903330281377,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.228867834,
+    "rustc_nonlink_seconds_sum": 1.8697051240000002,
+    "maximum_reported_process_rss_bytes": 426049536,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-before-4",
+    "side": "before",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.1586762499064207,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14925824,
+    "artifacts": []
+  },
+  {
+    "name": "warm-after-4",
+    "side": "after",
+    "phase": "warm",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 2.260346250142902,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 1,
+    "linker_invocations": 1,
+    "linker_seconds_sum": 0.185774666,
+    "rustc_nonlink_seconds_sum": 1.9271799170000001,
+    "maximum_reported_process_rss_bytes": 422756352,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": false,
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "run-after-4",
+    "side": "after",
+    "phase": "run",
+    "argv": [
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "server::tests",
+      "--test-threads=1"
+    ],
+    "seconds": 1.1573358750902116,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 14794752,
+    "artifacts": []
+  },
+  {
+    "name": "noop-after-0",
+    "side": "after",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.07020225003361702,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 39911424,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": true,
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "noop-before-0",
+    "side": "before",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.07625920791178942,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 39944192,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": true,
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "noop-after-1",
+    "side": "after",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.07734795799478889,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 39993344,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": true,
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "noop-before-1",
+    "side": "before",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.07752895914018154,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 40206336,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": true,
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "noop-after-2",
+    "side": "after",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.07771758316084743,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 39993344,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": true,
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  },
+  {
+    "name": "noop-before-2",
+    "side": "before",
+    "phase": "noop",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-j",
+      "2",
+      "-p",
+      "lang-lsp",
+      "--bin",
+      "lang-lsp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "seconds": 0.07765575009398162,
+    "exit_code": 0,
+    "target_bytes": 3428995072,
+    "rustc_invocations": 0,
+    "linker_invocations": 0,
+    "linker_seconds_sum": 0,
+    "rustc_nonlink_seconds_sum": 0,
+    "maximum_reported_process_rss_bytes": 39829504,
+    "artifacts": [
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "unicode_ident",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "proc_macro2",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "quote",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "syn",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_core",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "build-script-build",
+        "kind": [
+          "custom-build"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "zmij",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_derive",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "memchr",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "itoa",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_json",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_utils",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "bitflags",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "fluent_uri",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "crossbeam_channel",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "serde_repr",
+        "kind": [
+          "proc-macro"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "log",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_types",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lsp_server",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang_frontend",
+        "kind": [
+          "lib"
+        ],
+        "fresh": true,
+        "executable": null
+      },
+      {
+        "name": "lang-lsp",
+        "kind": [
+          "bin"
+        ],
+        "fresh": true,
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+      }
+    ]
+  }
+]

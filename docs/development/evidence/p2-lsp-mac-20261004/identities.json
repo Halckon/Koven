@@ -1,0 +1,28 @@
+{
+  "before": [
+    "definition_uses_utf16_latest_version_and_open_document_lifecycle",
+    "memory_session_publishes_versions_clears_close_and_shuts_down",
+    "source_set_definition_rejects_private_and_unresolved_targets",
+    "source_set_definition_resolves_imports_qualified_and_same_package",
+    "source_set_diagnostics_follow_parser_type_and_ownership_validation_gates",
+    "source_set_initialization_accepts_valid_options_and_enters_session",
+    "source_set_initialization_returns_invalid_params_before_session_start",
+    "source_set_internal_analysis_failure_preserves_last_good_snapshot",
+    "source_set_lifecycle_rebuilds_all_diagnostics_and_restores_base_text",
+    "source_set_protocol_events_log_and_preserve_last_good_state",
+    "unknown_request_gets_method_not_found_and_unopened_change_is_ignored"
+  ],
+  "after": [
+    "definition_uses_utf16_latest_version_and_open_document_lifecycle",
+    "memory_session_publishes_versions_clears_close_and_shuts_down",
+    "source_set_definition_rejects_private_and_unresolved_targets",
+    "source_set_definition_resolves_imports_qualified_and_same_package",
+    "source_set_diagnostics_follow_parser_type_and_ownership_validation_gates",
+    "source_set_initialization_accepts_valid_options_and_enters_session",
+    "source_set_initialization_returns_invalid_params_before_session_start",
+    "source_set_internal_analysis_failure_preserves_last_good_snapshot",
+    "source_set_lifecycle_rebuilds_all_diagnostics_and_restores_base_text",
+    "source_set_protocol_events_log_and_preserve_last_good_state",
+    "unknown_request_gets_method_not_found_and_unopened_change_is_ignored"
+  ]
+}

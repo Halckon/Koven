@@ -1,0 +1,11 @@
+test_duplicate_project_fence_reference_is_rejected (test_tutorial_contracts.TutorialContracts.test_duplicate_project_fence_reference_is_rejected) ... ok
+test_missing_duplicate_and_unreferenced_sources_are_rejected (test_tutorial_contracts.TutorialContracts.test_missing_duplicate_and_unreferenced_sources_are_rejected) ... ok
+test_project_paths_cannot_escape_the_temporary_directory (test_tutorial_contracts.TutorialContracts.test_project_paths_cannot_escape_the_temporary_directory) ... ok
+test_project_sources_are_read_from_each_markdown_fence (test_tutorial_contracts.TutorialContracts.test_project_sources_are_read_from_each_markdown_fence) ... ok
+test_unknown_or_duplicate_selection_fails_before_cli_execution (test_tutorial_contracts.TutorialContracts.test_unknown_or_duplicate_selection_fails_before_cli_execution) ... ok
+test_unknown_status_and_duplicate_example_id_are_rejected (test_tutorial_contracts.TutorialContracts.test_unknown_status_and_duplicate_example_id_are_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.011s
+
+OK

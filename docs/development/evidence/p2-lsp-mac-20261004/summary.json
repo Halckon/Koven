@@ -1,0 +1,162 @@
+{
+  "cold": {
+    "before": {
+      "n": 3,
+      "wall_s": [
+        19.818308500107378,
+        22.336945000104606,
+        21.256361917126924
+      ],
+      "wall_median_s": 21.256361917126924,
+      "rss_median_mib": 1964.625,
+      "rustc_nonlink_sum_median_s": 23.224417831,
+      "linker_sum_median_s": 0.512277334
+    },
+    "after": {
+      "n": 3,
+      "wall_s": [
+        19.429872791981325,
+        18.79609225015156,
+        23.63743241596967
+      ],
+      "wall_median_s": 19.429872791981325,
+      "rss_median_mib": 1954.03125,
+      "rustc_nonlink_sum_median_s": 21.97551096,
+      "linker_sum_median_s": 0.481250083
+    },
+    "paired_wall_deltas_s": [
+      -0.3884357081260532,
+      -3.5408527499530464,
+      2.381070498842746
+    ],
+    "paired_wall_delta_median_s": -0.3884357081260532,
+    "investigation_threshold_s": 4.251272383425385,
+    "wall_triggered": false,
+    "rss_growth_mib": -10.59375,
+    "rss_investigation_threshold_mib": 196.4625,
+    "rss_triggered": false
+  },
+  "warm": {
+    "before": {
+      "n": 5,
+      "wall_s": [
+        1.6456749578937888,
+        1.5285420829895884,
+        1.6027177500072867,
+        2.3747758748941123,
+        2.2054903330281377
+      ],
+      "wall_median_s": 1.6456749578937888,
+      "rss_median_mib": 398.6875,
+      "rustc_nonlink_sum_median_s": 1.3057942500000002,
+      "linker_sum_median_s": 0.215403375
+    },
+    "after": {
+      "n": 5,
+      "wall_s": [
+        1.7035270419437438,
+        1.6901892500463873,
+        1.6430548338685185,
+        1.8502723751589656,
+        2.260346250142902
+      ],
+      "wall_median_s": 1.7035270419437438,
+      "rss_median_mib": 396.453125,
+      "rustc_nonlink_sum_median_s": 1.390541376,
+      "linker_sum_median_s": 0.219644583
+    },
+    "paired_wall_deltas_s": [
+      0.05785208404995501,
+      0.16164716705679893,
+      0.040337083861231804,
+      -0.5245034997351468,
+      0.05485591711476445
+    ],
+    "paired_wall_delta_median_s": 0.05485591711476445,
+    "investigation_threshold_s": 1.0,
+    "wall_triggered": false,
+    "rss_growth_mib": -2.234375,
+    "rss_investigation_threshold_mib": 64,
+    "rss_triggered": false
+  },
+  "run": {
+    "before": {
+      "n": 5,
+      "wall_s": [
+        1.1485755839385092,
+        1.1405622500460595,
+        1.1531330419238657,
+        1.2195082500111312,
+        1.1586762499064207
+      ],
+      "wall_median_s": 1.1531330419238657,
+      "rss_median_mib": 14.015625,
+      "rustc_nonlink_sum_median_s": 0,
+      "linker_sum_median_s": 0
+    },
+    "after": {
+      "n": 5,
+      "wall_s": [
+        1.1553117078728974,
+        1.1460699997842312,
+        1.1528615418355912,
+        1.3718792910221964,
+        1.1573358750902116
+      ],
+      "wall_median_s": 1.1553117078728974,
+      "rss_median_mib": 14.140625,
+      "rustc_nonlink_sum_median_s": 0,
+      "linker_sum_median_s": 0
+    },
+    "paired_wall_deltas_s": [
+      0.006736123934388161,
+      0.005507749738171697,
+      -0.0002715000882744789,
+      0.15237104101106524,
+      -0.0013403748162090778
+    ],
+    "paired_wall_delta_median_s": 0.005507749738171697,
+    "investigation_threshold_s": 0.34593991257715967,
+    "wall_triggered": false,
+    "rss_growth_mib": 0.125,
+    "rss_investigation_threshold_mib": 64,
+    "rss_triggered": false
+  },
+  "noop": {
+    "before": {
+      "n": 3,
+      "wall_s": [
+        0.07625920791178942,
+        0.07752895914018154,
+        0.07765575009398162
+      ],
+      "wall_median_s": 0.07752895914018154,
+      "rss_median_mib": 38.09375,
+      "rustc_nonlink_sum_median_s": 0,
+      "linker_sum_median_s": 0
+    },
+    "after": {
+      "n": 3,
+      "wall_s": [
+        0.07020225003361702,
+        0.07734795799478889,
+        0.07771758316084743
+      ],
+      "wall_median_s": 0.07734795799478889,
+      "rss_median_mib": 38.140625,
+      "rustc_nonlink_sum_median_s": 0,
+      "linker_sum_median_s": 0
+    },
+    "paired_wall_deltas_s": [
+      -0.006056957878172398,
+      -0.00018100114539265633,
+      6.183306686580181e-05
+    ],
+    "paired_wall_delta_median_s": -0.00018100114539265633,
+    "investigation_threshold_s": 1.0,
+    "wall_triggered": false,
+    "rss_growth_mib": 0.046875,
+    "rss_investigation_threshold_mib": 64,
+    "rss_triggered": false
+  }
+}
