@@ -202,3 +202,23 @@ M0 本次完成基线、Spec 编号及首片入口接收；历史尺寸欠账、
 unit for 调查确认 typed descriptor、provider/source loan 与有序清理事实尚缺；先闭合前端合同，
 再由后端消费，保持 Guide §37.4 的前端与 native 范围区分。并行实施使用独立分支/worktree，
 本地 Cargo 仍串行；M1A 总退出条件保持。
+
+## 13. M0 编辑器覆盖复核（2026-10-04）
+
+在 `6cdaa2c` 对当前 editor 输入进行了独立复核；本记录从主干 `f0effcd` 发布。
+逐文件 SHA256 核对两提交的 editor 输入相同，证据见
+[审计清单](evidence/m0-editor-20261004/audit.json)和
+[重新生成后的原始失败日志](evidence/m0-editor-20261004/tree-sitter-regenerated.log.gz)。
+本次没有修改 grammar、scanner、parser、corpus 或任何预期。
+
+| 检查 | 结果 | 证据边界 |
+|---|---|---|
+| Tree-sitter 0.26.12，editor 目录执行 `tree-sitter test` | exit1；10项中5通过、5失败 | 完整 corpus，不用 Rust fixture 的成功替代 |
+| 隔离副本执行 `tree-sitter generate` 后再 `tree-sitter test` | generate exit0，test exit1，仍5通过/5失败 | 新生成的 parser.c、grammar.json、node-types.json 与仓库逐字节相同；重新生成不能修复这批失败 |
+| Node v26.8.2 执行 `node editors/textmate/tests/verify-lexical-contract.mjs` | exit0；80条通过 | 词法正则合同，不代表真实编辑器完整着色或 Tree-sitter 语法通过 |
+
+五项失败分别为 File header and declarations、Calls and lambda、Own remains declaration-only、
+Control flow、Reserved words are not identifiers。日志中的树差异仍需按 Guide 与实际 parser
+区分 grammar/scanner 缺陷和过时预期；未确认根因，不能批量更新 golden 取得绿灯。
+后继应独立修复并将完整 corpus 接入必需门禁。当前 CI 的 Rust editor fixture 检查继续有用，
+但不执行此 Tree-sitter CLI corpus；本次复核不关闭编辑器交付，也不声明 M0 所有保留项完成。
