@@ -146,3 +146,13 @@ P1 合同已独立审阅，双宿主产物与材料仍待完成。
 原始本机证据以候选文件名 `koven-preview-ed4af1faa766-aarch64-apple-darwin.tar.gz` 对应的外部生产/消费账本保留。
 Python完整184项（0 skip）、教程23合同/1 planned、docs517份、尺寸与空白门禁通过；
 双宿主独立runner、实际Linux组成/加载及最终归档PR尚待执行，P1–P6不据本机结果宣称全部完成。
+
+### 首次 PR CI 与 Linux 环境修正
+
+PR #51 首次运行 `37217825869`（head `b71ad05545bdadf0c79db20136841827ec19f358`）
+的原有双宿主门禁通过；macOS producer 与独立 consumer 实际成功，12条命令通过，
+临时目录移除且哨兵保持。Ubuntu producer 的原始失败账本记录
+`HostInspectionError: loader overrides are not supported: LD_LIBRARY_PATH`，Linux consumer 未执行。
+原因是 setup-python 为自己的动态库向该 job 注入加载器覆盖。两个 Ubuntu preview job
+改用系统 `/usr/bin/python3` 并显式核验3.12；保留包工具的加载环境拒绝规则。
+CI接线回归先失败后通过；真实双宿主重跑与归档闭环仍待验证。

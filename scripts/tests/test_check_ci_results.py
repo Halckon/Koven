@@ -273,6 +273,21 @@ class CheckCiResultsTests(unittest.TestCase):
             self.assertIn('actions/download-artifact', job)
             self.assertIn('--prepare-dependencies', job)
 
+    def test_linux_preview_uses_system_python_without_loader_environment_injection(self):
+        # Both release inspection and downstream CLI commands need the ordinary loader.
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text()
+        for role in ('produce', 'consume'):
+            job = re.split(r'^  [a-z][a-z-]+:\s*$',
+                           workflow.split(f'  preview-linux-{role}:\n', 1)[1],
+                           maxsplit=1, flags=re.M)[0]
+            self.assertNotIn('actions/setup-python', job)
+            self.assertIn('/usr/bin/python3 -c', job)
+            self.assertIn('sys.version_info[:2] == (3, 12)', job)
+            entry = ('/usr/bin/python3 scripts/package_preview.py' if role == 'produce'
+                     else '/usr/bin/python3 "$RUNNER_TEMP/preview-download/check_preview_install.py"')
+            self.assertIn(entry, job)
+            self.assertNotIn('LD_LIBRARY_PATH:', job)
+
     def test_partial_retry_downloads_the_actual_producer_artifact_and_keeps_failure_reason(self):
         workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text()
         for host in ('macos', 'linux'):
