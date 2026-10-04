@@ -12,13 +12,20 @@ CI = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CI)
 
 
-def needs(docs_changed="false", rust_changed="false", editors_changed="false", **results):
+PREVIEW_JOBS = ('preview-macos-produce', 'preview-linux-produce',
+                'preview-macos-consume', 'preview-linux-consume')
+
+
+def needs(docs_changed="false", rust_changed="false", editors_changed="false",
+          preview_changed="false", **results):
     jobs = {name: {"result": results.get(name, "skipped")}
             for name in ("docs", "editors", "fmt", "clippy", "test")}
     jobs["dependencies"] = {"result": results.get("dependencies", "success")}
     jobs["rust-size"] = {"result": results.get("rust-size", "success")}
+    jobs.update({name: {"result": results.get(name, "skipped")} for name in PREVIEW_JOBS})
     jobs["changes"] = {"result": results.get("changes", "success"),
-                       "outputs": {"docs": docs_changed, "rust": rust_changed, "editors": editors_changed}}
+                       "outputs": {"docs": docs_changed, "rust": rust_changed,
+                                   "editors": editors_changed, "preview": preview_changed}}
     return jobs
 
 
@@ -46,7 +53,8 @@ class CheckCiResultsTests(unittest.TestCase):
 
     def test_main_and_manual_dispatch_require_all_gates(self):
         for event, ref in (("push", "refs/heads/main"), ("workflow_dispatch", "refs/heads/fix/test")):
-            jobs = needs("false", "false", **dict.fromkeys(("docs", "editors", "fmt", "clippy", "test"), "success"))
+            jobs = needs("false", "false", **dict.fromkeys(
+                ("docs", "editors", "fmt", "clippy", "test", *PREVIEW_JOBS), "success"))
             self.assertEqual([], CI.check_results(jobs, event, ref))
             self.assertTrue(CI.check_results(needs(), event, ref))
 
@@ -111,7 +119,8 @@ class CheckCiResultsTests(unittest.TestCase):
         workflow = (root / ".github/workflows/ci.yml").read_text()
         self.assertEqual(2, workflow.count("os: [macos-14, ubuntu-24.04]"))
         self.assertEqual(2, workflow.count("fail-fast: false"))
-        self.assertIn("needs: [changes, rust-size, dependencies, docs, editors, fmt, clippy, test]", workflow)
+        for name in ("changes", "rust-size", "dependencies", "docs", "editors", "fmt", "clippy", "test", *PREVIEW_JOBS):
+            self.assertIn(name, workflow.split('  ci-passed:\n', 1)[1].split('    if:', 1)[0])
         self.assertIn("bash scripts/check_integration.sh", workflow)
         core = (root / "scripts/check_core.sh").read_text()
         for package in ("lang-codegen", "lang-cli", "lang-lsp", "lang-std"):
@@ -234,6 +243,52 @@ class CheckCiResultsTests(unittest.TestCase):
     def test_invalid_or_missing_filter_outputs_cannot_pass(self):
         for value in ("", "unknown", None):
             self.assertTrue(CI.check_results(needs(rust_changed=value), "pull_request", "refs/pull/1/merge"))
+
+    def test_candidate_requires_each_host_producer_and_independent_consumer(self):
+        jobs = needs(preview_changed='true', fmt='success', clippy='success', test='success',
+                     **dict.fromkeys(PREVIEW_JOBS, 'success'))
+        self.assertEqual([], CI.check_results(jobs, 'pull_request', 'refs/pull/1/merge'))
+        for name in PREVIEW_JOBS:
+            for result in ('failure', 'cancelled', 'skipped', None):
+                with self.subTest(name=name, result=result):
+                    self.assertTrue(CI.check_results({**jobs, name: {'result': result}},
+                                                     'pull_request', 'refs/pull/1/merge'))
+        self.assertTrue(CI.check_results({**jobs, 'test': {'result': 'skipped'}},
+                                         'pull_request', 'refs/pull/1/merge'))
+
+    def test_candidate_skip_is_only_accepted_for_exempt_changes_or_feature_push(self):
+        self.assertEqual([], CI.check_results(needs(), 'pull_request', 'refs/pull/1/merge'))
+        self.assertTrue(CI.check_results(needs(preview_changed=None), 'pull_request', 'refs/pull/1/merge'))
+        self.assertEqual([], CI.check_results(needs(preview_changed='true', fmt='success'),
+                                            'push', 'refs/heads/feature/preview'))
+
+    def test_consumers_have_no_checkout_or_cargo_build_and_depend_on_matching_producer(self):
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text()
+        for host in ('macos', 'linux'):
+            name = f'preview-{host}-consume'
+            job = re.split(r'^  [a-z][a-z-]+:\s*$', workflow.split(f'  {name}:\n', 1)[1], maxsplit=1, flags=re.M)[0]
+            self.assertIn(f'needs: preview-{host}-produce', job)
+            self.assertNotIn('actions/checkout', job)
+            self.assertNotIn('cargo ', job)
+            self.assertIn('actions/download-artifact', job)
+            self.assertIn('--prepare-dependencies', job)
+
+    def test_partial_retry_downloads_the_actual_producer_artifact_and_keeps_failure_reason(self):
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text()
+        for host in ('macos', 'linux'):
+            producer = re.split(r'^  [a-z][a-z-]+:\s*$',
+                                workflow.split(f'  preview-{host}-produce:\n', 1)[1],
+                                maxsplit=1, flags=re.M)[0]
+            consumer = re.split(r'^  [a-z][a-z-]+:\s*$',
+                                workflow.split(f'  preview-{host}-consume:\n', 1)[1],
+                                maxsplit=1, flags=re.M)[0]
+            self.assertIn('artifact-id: ${{ steps.candidate.outputs.artifact-id }}', producer)
+            self.assertIn('preview-producer/producer-results.json', producer)
+            self.assertIn(f'artifact-ids: ${{{{ needs.preview-{host}-produce.outputs.artifact-id }}}}', consumer)
+            self.assertNotIn('github.run_attempt', consumer.split('- name: Install and run', 1)[0])
+            self.assertIn('[[ "$PREVIEW_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]', consumer)
+            self.assertLess(consumer.index('Require the matching producer artifact ID'),
+                            consumer.index('actions/download-artifact'))
 
 
 if __name__ == "__main__":

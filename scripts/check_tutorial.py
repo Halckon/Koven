@@ -63,6 +63,23 @@ def assert_output(command, expected, cwd):
         raise AssertionError(f"{command}: expected {expected!r}, got {actual!r}")
 
 
+def run_case(cli, row, case, directory, execute=None):
+    """Execute a loaded case in its own prepared project using full CLI oracles."""
+    execute = assert_output if execute is None else execute
+    inputs = (["--project", "project.toml", "--entry", row["entry"]]
+              if "files" in row else ["source.ko"])
+    build = [str(cli), "build", *inputs, "-o", "program"]
+    if row["status"] == "diagnostic":
+        build.insert(1, "--message-format=json")
+    execute(build, row["build"], directory)
+    if row["status"] == "diagnostic":
+        if {p.name for p in directory.iterdir()} != {"source.ko"}:
+            raise AssertionError("failed tutorial build left artifacts")
+    else:
+        execute([str(directory / "program"), *case["args"]], case["artifact"], directory)
+        execute([str(cli), "run", *inputs, "--", *case["args"]], case["run"], directory)
+
+
 def check(cli, selected=None):
     examples = load_examples()
     ids = {row["id"] for row, _ in examples}
@@ -84,22 +101,11 @@ def check(cli, selected=None):
                     destination = directory / path
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     destination.write_text(source)
-                inputs = ["source.ko"]
                 if "files" in row:
                     (directory / "project.toml").write_text(
                         'schema = "koven.project"\nversion = 1\n\n[project]\n'
                         'name = "tutorial"\nsource-roots = ["src"]\n')
-                    inputs = ["--project", "project.toml", "--entry", row["entry"]]
-                build = [str(cli), "build", *inputs, "-o", "program"]
-                if row["status"] == "diagnostic":
-                    build.insert(1, "--message-format=json")
-                assert_output(build, row["build"], directory)
-                if row["status"] == "diagnostic":
-                    if {p.name for p in directory.iterdir()} != {"source.ko"}:
-                        raise AssertionError("failed tutorial build left artifacts")
-                else:
-                    assert_output([str(directory / "program"), *case["args"]], case["artifact"], directory)
-                    assert_output([str(cli), "run", *inputs, "--", *case["args"]], case["run"], directory)
+                run_case(cli, row, case, directory)
                 passed += 1
                 suffix = f" argv={case['args']!r}" if "cases" in row else ""
                 print(f"passed: {row['id']}{suffix}")

@@ -58,4 +58,5 @@
 - [M3B Map](map-collections-spec-draft.md)：键/查询/更新合同、语义前置与应用替换
 - [M4 安全验证](memory-safety-validation-spec-draft.md)：检测接线、随机执行与外审材料
 - [M5 度量与分发](measurement-distribution-spec-draft.md)：成本协议、双宿主 preview 与安装验收
+- [Preview 候选包工具](preview-candidate.md)：release 来源、包内合同及独立消费命令；实际验收由0272维护
 - [M6 线程转移](thread-transfer-spec-draft.md)：v1 Transferable、启动/join/清理与未来共享边界
