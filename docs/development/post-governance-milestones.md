@@ -199,9 +199,11 @@ M0 本次完成基线、Spec 编号及首片入口接收；历史尺寸欠账、
 后续从 PR40 merge `11acf62` 启动
 [SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)实施 A3。该 merge 的主干
 [CI37193746866](https://github.com/Halckon/Koven/actions/runs/37193746866)10个任务全部成功。
-unit for 调查确认 typed descriptor、provider/source loan 与有序清理事实尚缺；先闭合前端合同，
-再由后端消费，保持 Guide §37.4 的前端与 native 范围区分。并行实施使用独立分支/worktree，
-本地 Cargo 仍串行；M1A 总退出条件保持。
+该调查发现的 unit typed descriptor、provider/source loan 与有序清理事实，现已由
+[SPEC-0265](../archive/specs/0265-unit-iteration-facts.md)补齐 conditional receiver 内外/嵌套清理后通过双宿主 CI，已完成 A4 有界验收归档。
+后继 A5 由后端消费，保持 Guide §37.4 的前端与 native 范围区分；完整三文件程序仍在
+native lowering 返回 UnsupportedNode。并行实施使用独立分支/worktree，本地 Cargo 串行，
+切换工作树后须确保实际源码重新编译；M1A 总退出条件保持。
 
 ## 13. M0 编辑器覆盖复核（2026-10-04）
 
@@ -227,5 +229,7 @@ Control flow、Reserved words are not identifiers。日志中的树差异仍需�
 上下文词与词运算符边界，明确命名参数优先级，逐项审阅两份恢复 golden。
 本地真实 corpus 为 10/10，新增 CLI 树合同为 9/9，frontend editor 交叉合同为 9/9；
 PR #45 实现 head `236625b` 的 run `37198642821` 已通过全部11项检查，
-包括双宿主测试与真实 editor CLI 门禁；Spec 已归档，归档提交仍须最终 CI 后合并。
+包括双宿主测试与真实 editor CLI 门禁；归档 head `304fe25` 的最终 PR CI
+`37199186829` 也通过11项检查，并已合并为 `5fbc664`。主干 push run `37199712000`
+同样11项成功，含真实双宿主测试。
 历史 M0 红测证据保持不变；该修复不声明完整语言或真实编辑器增量解析验收。

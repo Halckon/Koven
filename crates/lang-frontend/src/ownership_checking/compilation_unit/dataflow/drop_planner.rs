@@ -1,4 +1,5 @@
 mod control;
+mod iteration;
 mod lambda;
 mod model;
 mod pending_call;
@@ -34,6 +35,23 @@ use model::{
 
 #[derive(Default)]
 pub(super) struct Analysis {
+    pub(super) iteration_conditional_scopes:
+        Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
+    pub(super) iteration_owner_scopes: Vec<(
+        UnitStatementId,
+        crate::ownership_checking::UnitDropTarget,
+        bool,
+    )>,
+    pub(super) iteration_loan_ends: Vec<(
+        crate::ownership_checking::UnitDropPoint,
+        crate::ownership_checking::UnitIterationCleanupAction,
+    )>,
+    pub(super) iterations: Vec<crate::ownership_checking::UnitIterationOwnershipPlan>,
+    pub(super) iteration_required_exits: Vec<(
+        UnitStatementId,
+        crate::ownership_checking::UnitIterationExitKind,
+        crate::ownership_checking::UnitDropPoint,
+    )>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
@@ -50,6 +68,42 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         })
         .collect();
     let planner = DropPlanner::new(checker, liveness).run()?;
+    let iterations = planner.iteration_plans()?;
+    let mut iteration_owner_scopes: Vec<_> = planner
+        .iteration_scope_depths
+        .iter()
+        .flat_map(|(statement, depth)| {
+            planner
+                .binding_depths
+                .iter()
+                .map(move |(symbol, binding_depth)| {
+                    (
+                        *statement,
+                        crate::ownership_checking::UnitDropTarget::Named(*symbol),
+                        binding_depth > depth,
+                    )
+                })
+        })
+        .collect();
+    iteration_owner_scopes.extend(planner.iteration_temporary_scopes.iter().copied());
+    let iteration_required_exits = planner
+        .iteration_exits
+        .iter()
+        .map(|(owner, kind, point)| (*owner, *kind, point.into_unit(checker.source_unit)))
+        .collect();
+    let iteration_loan_ends = planner
+        .iteration_actions
+        .iter()
+        .filter(|(_, action)| {
+            matches!(
+                action,
+                crate::ownership_checking::UnitIterationCleanupAction::EndCallLoan(_)
+                    | crate::ownership_checking::UnitIterationCleanupAction::EndReceiverLoan(_)
+                    | crate::ownership_checking::UnitIterationCleanupAction::EndCaptureLoan { .. }
+            )
+        })
+        .map(|(point, action)| (point.into_unit(checker.source_unit), action.clone()))
+        .collect();
     deferred.extend(planner.resource_deferred.iter().copied());
     if !planner.resource_deferred.is_empty() {
         return Ok(Analysis {
@@ -60,20 +114,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
     let drops = planner
         .facts
         .into_iter()
-        .map(|fact| {
-            let fact = fact.into_unit(checker.source_unit);
-            if let crate::ownership_checking::UnitDropTarget::Temporary(expression) = fact.target()
-                && let Some((owner, origin)) =
-                    checker.constant_temporary_origin(expression.expression())
-            {
-                return UnitDropFact::new(
-                    fact.point(),
-                    crate::ownership_checking::UnitDropTarget::Temporary(owner),
-                    origin,
-                );
-            }
-            fact
-        })
+        .map(|fact| fact.into_unit(checker.source_unit))
         .collect();
     let conditional_receiver_drops = planner
         .conditional_receiver_facts
@@ -81,6 +122,11 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         .map(|fact| fact.into_unit(checker.source_unit))
         .collect();
     Ok(Analysis {
+        iteration_conditional_scopes: planner.iteration_conditional_scopes,
+        iteration_owner_scopes,
+        iteration_loan_ends,
+        iterations,
+        iteration_required_exits,
         drops,
         conditional_receiver_drops,
         deferred,
@@ -88,6 +134,23 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
 }
 
 struct DropPlanner<'a, 'checker> {
+    iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
+    iteration_temporary_scopes: Vec<(
+        UnitStatementId,
+        crate::ownership_checking::UnitDropTarget,
+        bool,
+    )>,
+    iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
+    iteration_actions: Vec<(
+        PlannerDropPoint,
+        crate::ownership_checking::UnitIterationCleanupAction,
+    )>,
+    iteration_exits: Vec<(
+        UnitStatementId,
+        crate::ownership_checking::UnitIterationExitKind,
+        PlannerDropPoint,
+    )>,
+    planned_iterations: std::collections::BTreeSet<UnitStatementId>,
     resource_deferred: Vec<UnitOwnershipDeferredFact>,
     checker: &'a Checker<'checker>,
     liveness: liveness::Liveness,
@@ -101,6 +164,12 @@ struct DropPlanner<'a, 'checker> {
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
         Self {
+            iteration_conditional_scopes: Vec::new(),
+            iteration_temporary_scopes: Vec::new(),
+            iteration_scope_depths: BTreeMap::new(),
+            iteration_actions: Vec::new(),
+            iteration_exits: Vec::new(),
+            planned_iterations: std::collections::BTreeSet::new(),
             resource_deferred: Vec::new(),
             checker,
             liveness,
@@ -127,11 +196,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             else {
                 continue;
             };
-            if self.checker.constant_control
-                && !self
-                    .checker
-                    .visited_lambdas
-                    .contains(&self.checker.unit_expression(lambda))
+            if !self
+                .checker
+                .visited_lambdas
+                .contains(&self.checker.unit_expression(lambda))
             {
                 continue;
             }
@@ -406,15 +474,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.drop_loop_exit(id, state);
                 Ok(true)
             }
-            Statement::For { source, body, .. } => {
-                self.expression(source, DropExpressionUse::Read, state)?;
-                let mut body_state = state.clone();
-                self.loop_boundaries.push(self.scope_depth);
-                self.statement(body, &mut body_state)?;
-                self.loop_boundaries.pop();
-                self.drop_loop_exit(id, state);
-                Ok(true)
-            }
+            Statement::For { source, body, .. } => self.iteration(id, source, body, state),
             Statement::Loop { body, .. } => {
                 let mut body_state = state.clone();
                 self.loop_boundaries.push(self.scope_depth);
@@ -604,7 +664,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                 .expressions()
                                 .get(expression)?
                                 .span();
-                            self.register_pending_temporary(id, expression, origin, false, state);
+                            self.register_pending_temporary(id, expression, origin, false, state)?;
                         }
                     }
                 }
@@ -687,12 +747,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 {
                     return Ok(false);
                 }
+                self.finish_return_iterations(id, state);
                 self.drop_all(PlannerDropPoint::ControlTransfer(id), state);
                 Ok(false)
             }
             Expression::Break { .. } | Expression::Continue { .. } => {
                 let boundary = self.loop_boundaries.last().copied().unwrap_or(0);
+                self.end_iteration_pending_loans(
+                    PlannerDropPoint::ControlTransfer(id),
+                    state,
+                    self.loop_boundaries.len(),
+                );
                 self.drop_deeper_than(boundary, PlannerDropPoint::ControlTransfer(id), state);
+                self.finish_jump_iteration(id, state)?;
                 Ok(false)
             }
             Expression::NonNullAssert { operand, .. } => {
@@ -874,7 +941,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     }
                     Ok(true)
                 } else {
-                    self.expression(receiver, DropExpressionUse::Read, state)
+                    let receiver_use = if usage == DropExpressionUse::Place {
+                        DropExpressionUse::Place
+                    } else {
+                        DropExpressionUse::Read
+                    };
+                    self.expression(receiver, receiver_use, state)
                 }
             }
             Expression::Call {
@@ -963,7 +1035,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                                 .span();
                                             self.register_pending_temporary(
                                                 id, temporary, origin, false, state,
-                                            );
+                                            )?;
                                         }
                                     }
                                 }
@@ -975,6 +1047,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                             }
                         }
                     }
+                    self.register_iteration_receiver_loan(id, state);
                 } else if self
                     .checker
                     .typed
@@ -1054,10 +1127,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                         .span();
                                     self.register_pending_temporary(
                                         id, temporary, origin, false, state,
-                                    );
+                                    )?;
                                 }
                             }
                         }
+                    }
+                    if kind != UnitCallArgumentOwnershipKind::Value {
+                        self.register_iteration_pending_loans(id, argument.value, state);
                     }
                 }
                 if !returns {
@@ -1077,6 +1153,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     }
                 }
                 state.pending_borrows.retain(|(call, _)| *call != id);
+                state.pending_loans.retain(|(action, _)| match action {
+                    crate::ownership_checking::UnitIterationCleanupAction::EndCallLoan(loan) => {
+                        loan.call() != self.checker.unit_expression(id)
+                    }
+                    crate::ownership_checking::UnitIterationCleanupAction::EndReceiverLoan(
+                        fact,
+                    ) => fact.call() != self.checker.unit_expression(id),
+                    _ => true,
+                });
                 self.finish_pending_temporaries(id, PlannerDropPoint::CallReturn(id), state);
                 for root in borrowed_roots {
                     if !self.liveness.expression_after[id.index()].contains(&root) {
@@ -1086,8 +1171,26 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 Ok(true)
             }
             Expression::Index { receiver, index } => {
-                self.expression(receiver, DropExpressionUse::Place, state)?;
-                self.expression(index, DropExpressionUse::Read, state)?;
+                if !self.expression(receiver, DropExpressionUse::Place, state)? {
+                    return Ok(false);
+                }
+                // The backing owner already exists if evaluating the index exits early.
+                if let Some(owner) = self.checker.temporary_element_owner(id)? {
+                    let origin = self
+                        .checker
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(owner.expression())?
+                        .span();
+                    self.register_pending_temporary(id, owner.expression(), origin, false, state)?;
+                }
+                if !self.expression(index, DropExpressionUse::Read, state)? {
+                    return Ok(false);
+                }
+                state
+                    .pending_temporaries
+                    .retain(|pending| pending.control != id);
                 if usage != DropExpressionUse::Place
                     && let Some(temporary) = self
                         .checker
@@ -1170,7 +1273,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         // The completed left owner must survive until the right operand finishes or exits.
         if let Some(StringOperandDrop::Temporary(expression, origin)) = left_drop {
-            self.register_pending_temporary(binary, expression, origin, false, state);
+            self.register_pending_temporary(binary, expression, origin, false, state)?;
         }
         if let Some(StringOperandDrop::Named(symbol)) = left_drop {
             state.pending_borrows.push((binary, symbol));
@@ -1237,6 +1340,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         symbol: UnitSymbolId,
         state: &mut ValueState,
     ) {
+        // A provider keeps its source even without a later explicit source read.
+        // Control-transfer cleanup must finish that provider before releasing the root.
+        if state
+            .iterations
+            .iter()
+            .any(|frame| frame.source_root == Some(symbol))
+        {
+            return;
+        }
         if !matches!(point, PlannerDropPoint::ControlTransfer(_))
             && (state
                 .pending_borrows
@@ -1252,6 +1364,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             if let Some(closure) = closure {
                 let captures = self.checker.captures_of(closure).collect::<Vec<_>>();
                 for capture in captures.into_iter().rev() {
+                    if capture.mode() == ClosureCaptureMode::Shared {
+                        self.iteration_actions.push((
+                            point,
+                            crate::ownership_checking::UnitIterationCleanupAction::EndCaptureLoan {
+                                closure: self.checker.unit_expression(closure),
+                                source: capture.source(),
+                            },
+                        ));
+                    }
                     if capture.mode() == ClosureCaptureMode::Owned
                         && capture.effect() == ClosureCaptureEffect::Move
                     {
@@ -1325,6 +1446,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn push_this_fact(&mut self, point: PlannerDropPoint, receiver: OwnedThis) {
+        self.push_this_fact_in_iteration_scopes(point, receiver, &[]);
+    }
+
+    /// Pending receiver保留形成时所在provider集合，独立于退出动作排列。
+    fn push_this_fact_in_iteration_scopes(
+        &mut self,
+        point: PlannerDropPoint,
+        receiver: OwnedThis,
+        scopes: &[UnitStatementId],
+    ) {
         if let Some(receiver_type) = receiver.conditional_type {
             let fact = PlannerConditionalReceiverDropFact {
                 point,
@@ -1339,6 +1470,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             };
             if !self.conditional_receiver_facts.contains(&fact) {
                 self.conditional_receiver_facts.push(fact);
+                let public = fact.into_unit(self.checker.source_unit);
+                self.iteration_conditional_scopes
+                    .push((public, scopes.to_vec()));
+                self.iteration_actions.push((
+                    point,
+                    crate::ownership_checking::UnitIterationCleanupAction::DropConditionalReceiver(
+                        public,
+                    ),
+                ));
             }
         } else {
             self.push_fact(PlannerDropFact::new(
@@ -1405,9 +1545,28 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
     }
 
-    fn push_fact(&mut self, fact: PlannerDropFact) {
+    fn push_fact(&mut self, mut fact: PlannerDropFact) {
+        // Normalize once before both the flat drop product and ordered cleanup consume it.
+        if let crate::ownership_checking::UnitDropTarget::Temporary(expression) =
+            fact.into_unit(self.checker.source_unit).target()
+            && let Some((owner, origin)) = self
+                .checker
+                .constant_temporary_origin(expression.expression())
+        {
+            fact = PlannerDropFact::new(
+                fact.point(),
+                PlannerDropTarget::Temporary(owner.expression()),
+                origin,
+            );
+        }
         if !self.facts.contains(&fact) {
             self.facts.push(fact);
+            self.iteration_actions.push((
+                fact.point(),
+                crate::ownership_checking::UnitIterationCleanupAction::Drop(
+                    fact.into_unit(self.checker.source_unit),
+                ),
+            ));
         }
     }
 

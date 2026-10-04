@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 252 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 253 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -351,3 +351,7 @@
 ## 编辑器 corpus 与必需 CI（2026-10-04）
 
 - [SPEC-0267](0267-editor-corpus-gate.md)：修复上下文词、词运算符整词边界与命名参数；真实 CLI corpus、独立树合同及双宿主 PR CI 已验收。
+
+## Unit 顺序迭代前端事实（2026-10-04）
+
+- [SPEC-0265](0265-unit-iteration-facts.md)：M1A A4 的 source-qualified typed/ownership 及有序清理；conditional receiver 内外与嵌套位置补齐后经双宿主验收，A5 native 与完整应用保持开放。

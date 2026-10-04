@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，252 份）"]
+subgraph Garchive["已完成（archive，253 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -260,6 +260,7 @@ subgraph Garchive["已完成（archive，252 份）"]
   S0262["S0262<br/>原治理计划的当前教程覆盖补齐"]
   S0263["S0263<br/>跨文件字段可变性查询"]
   S0264["S0264<br/>Unit owned class 一级字段直接 Borrow"]
+  S0265["S0265<br/>unit 顺序迭代前端事实"]
   S0267["S0267<br/>Tree-sitter corpus 解析与必需 CI 门禁"]
 end
 subgraph Gactive["现行 active"]
@@ -1092,6 +1093,7 @@ S0180 --> S0224
 S0181 --> S0191
 S0181 --> S0222
 S0181 --> S0224
+S0182 --> S0265
 S0183 --> S0044
 S0183 --> S0045
 S0183 --> S0184
@@ -1156,6 +1158,7 @@ S0197 --> S0217
 S0197 --> S0218
 S0197 --> S0219
 S0197 --> S0249
+S0197 --> S0265
 S0198 --> S0187
 S0198 --> S0199
 S0198 --> S0214
@@ -1166,6 +1169,7 @@ S0198 --> S0221
 S0198 --> S0226
 S0198 --> S0227
 S0198 --> S0249
+S0198 --> S0265
 S0199 --> S0054
 S0199 --> S0220
 S0199 --> S0221
@@ -1218,6 +1222,7 @@ S0252 --> S0254
 S0253 --> S0254
 S0254 --> S0255
 S0263 --> S0264
+S0263 --> S0265
 ```
 
 ## 节点链接
@@ -1475,5 +1480,6 @@ S0263 --> S0264
 | SPEC-0262 | archive | [0262-current-tutorial-plan-coverage.md](0262-current-tutorial-plan-coverage.md) |
 | SPEC-0263 | archive | [0263-unit-field-mutability.md](0263-unit-field-mutability.md) |
 | SPEC-0264 | archive | [0264-unit-direct-field-borrow.md](0264-unit-direct-field-borrow.md) |
+| SPEC-0265 | archive | [0265-unit-iteration-facts.md](0265-unit-iteration-facts.md) |
 | SPEC-0267 | archive | [0267-editor-corpus-gate.md](0267-editor-corpus-gate.md) |
 | SPEC-0266 | active | [0266-native-sanitizer-wiring.md](../../specs/active/0266-native-sanitizer-wiring.md) |

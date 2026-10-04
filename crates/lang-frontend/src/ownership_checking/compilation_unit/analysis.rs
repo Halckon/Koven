@@ -42,6 +42,19 @@ pub(super) fn analyze(
             UnitOwnershipBindingDescriptor::new(*symbol, binding_kind(*mode), span),
         )?;
     }
+    for plan in typed.sequential_iterations() {
+        for symbol in plan.binding().symbols() {
+            insert_binding(
+                names,
+                &mut bindings,
+                UnitOwnershipBindingDescriptor::new(
+                    symbol,
+                    OwnershipBindingKind::Shared,
+                    unit_symbol_span(names, symbol)?,
+                ),
+            )?;
+        }
+    }
     let call_argument_contracts = contracts::collect_call_argument_contracts(inputs, names, typed)?;
     let call_receiver_contracts = contracts::collect_call_receiver_contracts(inputs, names, typed)?;
     let capture = capture::analyze(inputs, names, typed)?;
