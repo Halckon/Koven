@@ -193,5 +193,5 @@ Rust job 按纯文档规则跳过；merge 为 `b92593d6f5c8d11c64bac6d0a84811b6b
 M0 本次完成基线、Spec 编号及首片入口接收；历史尺寸欠账、成本接受和外审仍按原计划保留。
 完整三文件程序的真实 CLI 红测返回 native `UnsupportedNode`，不能据此推定其它缺口通过。
 独立字段样例确认跨文件 var 误报 L0134，故拆出
-[SPEC-0263](../specs/active/0263-unit-field-mutability.md)先承接 A2。
+[SPEC-0263](../archive/specs/0263-unit-field-mutability.md)先承接 A2。
 选择、结果和未覆盖范围只记该 Spec；M1A 总验收、字段直接 Borrow 和 unit for 继续开放。

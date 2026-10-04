@@ -1,10 +1,10 @@
 # SPEC-0263: 跨文件字段可变性查询
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施或验收 M1A 跨文件字段首片时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：追溯 M1A 跨文件字段首片验收时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P3-263` |
 | 所属 Phase | Phase 3；现行语义修复 |
 | 语言规范 | [Guide v0.40 所有权](../../guide/10-ownership-borrowing-drop.md) |
@@ -52,7 +52,7 @@ unit for 三条缺口。本片只承接 A2 及其直接消费者；M1A 总退出
 | F3 | 完整 `multifile_ownership_checking`、`ownership_field_replace`、`ownership_primitives`、`multifile_constant_ownership`；codegen `--lib field_replace` | 前端77+13+14+20共124 passed，零失败/忽略/过滤；codegen25 passed、763 filtered，零失败/忽略，含真实 native 资源和 Abort 用例 |
 | F4 | CLI `project_cli project_cross_file_var_field_replace_preserves_old_and_new_values` | 1 passed、9 filtered；val/var父绑定各经build/artifact/run，stdout精确为“旧值\n新值\ndone\n”、stderr空、exit0；无临时产物残留 |
 | F5 | fmt、frontend/CLI all-targets 严格 Clippy、docs、inventory 测试、尺寸/diff；独立实现评审 | 全部通过：docs505，Python docs37+尺寸47；独立代码评审无阻断发现，三行增长例外已审阅；本机macOS arm64，LLVM21.1.8 |
-| F6 | 精确 head PR/CI、Spec 归档、Architecture 同步 | Architecture 已同步；PR/CI 与归档待交付，本地通过不冒充双宿主通过 |
+| F6 | 精确 head PR/CI、Spec 归档、Architecture 同步 | 实现 head 67e6f8b 的 PR40 CI37192335440 全部10个job成功；双host新增六项各恰一次ok；Architecture同步，同PR归档，归档提交的最终CI另在PR核验后才合并 |
 
 ## 5. 实施与交付
 
@@ -94,3 +94,18 @@ receiver/Rc/一级字段 gate、回滚和 CLI oracle，未运行或代替上述�
 
 未运行 frontend 全量、LSP 全量、性能实验或本地 Linux；无公开类型变化，未额外执行
 workspace check。远端所选双宿主结果由 F6 另记，不把本地窄测称为全部支持。
+
+## 7. 首轮双宿主与归档
+
+[PR40](https://github.com/Halckon/Koven/pull/40) 实现 head
+`67e6f8b27b3cd6b55958cc69d7c7b5eef6406d17` 的
+[CI37192335440](https://github.com/Halckon/Koven/actions/runs/37192335440) completed/success，
+10个必需job均实际成功。macOS14与Ubuntu24.04的workspace check/Clippy及bounded composition
+执行成功；独立读取两份 Targeted Tests 原始job日志，新 `field_mutability::` 五项与
+`project_cross_file_var_field_replace_preserves_old_and_new_values` 每host各恰一次 `ok`。
+新增用例没有ignore；既有macOS LLDB ignore保持，不以平台过滤或跳过冒充覆盖。
+
+本次仅迁移Spec、同步索引/inventory/生成DAG和状态链接，没有再改实现、测试、依赖或工具链。
+归档后的精确head仍需PR最终门禁通过才合并，不把旧head绿灯替代新head检查。
+独立代码评审及文档复核均已完成；M1A直接字段Borrow与unit for的独立最小CLI复现仍均为
+exit1 / native UnsupportedNode，完整应用尚未通过，不在本片归档中关闭。

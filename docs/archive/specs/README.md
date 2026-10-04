@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 249 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 250 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -186,6 +186,8 @@
 - [SPEC-0026](./0026-associated-constant-evaluation.md)：单文件关联常量选择、封闭求值与 typed facts
 
 ## Phase 3
+
+- [SPEC-0263](0263-unit-field-mutability.md)：跨文件字段可变性、来源身份、权限拒绝与双宿主 CLI 验收
 
 - [SPEC-0206](0206-non-null-assertion-ownership.md)：非空断言 Copy/Consume 所有权
 
