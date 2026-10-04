@@ -11,6 +11,108 @@ use std::{
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn project_cross_file_field_borrow_reads_without_consuming_the_parent() {
+    for binding in ["val", "var"] {
+        for field in ["val", "var"] {
+            for constants in [false, true] {
+                let project = TestProject::create("cross-file-field-borrow");
+                let manifest = project.manifest(&["src"]);
+                project.write(
+                    "src/app/Model.ko",
+                    &format!("package app\nclass Report({field} text: String)"),
+                );
+                project.write(
+                    "src/other/Model.ko",
+                    "package other\nclass Report(val text: String)",
+                );
+                project.write(
+                    "src/app/Consumer.ko",
+                    "package app\nfun show(text: String): Unit { println(text) }",
+                );
+                let prefix = if constants {
+                    "const val PREFIX = \"旧\"\n"
+                } else {
+                    ""
+                };
+                let first = if constants { "PREFIX" } else { "\"旧\"" };
+                let replacement = if field == "var" {
+                    "println(replace(&report.text, \"新\" + \"值\"))\nshow(report.text)\n"
+                } else {
+                    ""
+                };
+                project.write(
+                    "src/app/Main.ko",
+                    &format!(
+                        "package app\n{prefix}fun main(): Unit {{\n{binding} report = Report({first} + \"值\")\nshow(report.text)\nshow((report.text))\n{replacement}println(\"done\")\n}}"
+                    ),
+                );
+                let executable = project.join("field-borrow-program");
+                let built = project_build(&manifest, "app.main", &executable, None);
+                assert_eq!(built.status.code(), Some(0), "{built:?}");
+                assert!(built.stdout.is_empty(), "{built:?}");
+                assert!(built.stderr.is_empty(), "{built:?}");
+                let artifact = Command::new(&executable).output().unwrap();
+                let executed = run([
+                    OsStr::new("run"),
+                    OsStr::new("--project"),
+                    manifest.as_os_str(),
+                    OsStr::new("--entry"),
+                    OsStr::new("app.main"),
+                ]);
+                let expected = if field == "var" {
+                    "旧值\n旧值\n旧值\n新值\ndone\n"
+                } else {
+                    "旧值\n旧值\ndone\n"
+                };
+                for output in [artifact, executed] {
+                    assert_eq!(output.status.code(), Some(0), "{output:?}");
+                    assert_eq!(output.stdout, expected.as_bytes());
+                    assert!(output.stderr.is_empty(), "{output:?}");
+                }
+                assert_no_build_temporaries(project.path());
+            }
+        }
+    }
+}
+
+#[test]
+fn project_cross_file_field_borrow_conflict_preserves_outputs() {
+    let project = TestProject::create("field-borrow-conflict");
+    let manifest = project.manifest(&["src"]);
+    project.write(
+        "src/app/Model.ko",
+        "package app\nclass Report(var text: String)",
+    );
+    project.write(
+        "src/app/Main.ko",
+        "package app\nfun inspect(first: String, second: String): Unit { println(first)\nprintln(second) }\nfun main(): Unit { val report = Report(\"old\")\ninspect(report.text, replace(&report.text, \"new\")) }",
+    );
+    let existing = project.join("previous-program");
+    fs::write(&existing, b"previous artifact").unwrap();
+    let output = project.join("invalid-program");
+    let failed = project_build(&manifest, "app.main", &output, Some("json"));
+    assert_eq!(failed.status.code(), Some(1), "{failed:?}");
+    assert!(failed.stdout.is_empty(), "{failed:?}");
+    let diagnostics = String::from_utf8(failed.stderr).unwrap();
+    assert!(diagnostics.contains("L0135"), "{diagnostics}");
+    assert!(diagnostics.contains("src/app/Main.ko"), "{diagnostics}");
+    assert!(!output.exists());
+    // CLI preflight protects an existing requested target even when source is invalid.
+    let existing_failure = project_build(&manifest, "app.main", &existing, None);
+    assert_eq!(
+        existing_failure.status.code(),
+        Some(1),
+        "{existing_failure:?}"
+    );
+    assert!(
+        String::from_utf8_lossy(&existing_failure.stderr).contains("output already exists"),
+        "{existing_failure:?}"
+    );
+    assert_eq!(fs::read(&existing).unwrap(), b"previous artifact");
+    assert_no_build_temporaries(project.path());
+}
+
+#[test]
 fn project_cross_file_var_field_replace_preserves_old_and_new_values() {
     for binding in ["val", "var"] {
         let project = TestProject::create("cross-file-field-replace");

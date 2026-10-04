@@ -240,9 +240,10 @@ impl UnitExpressionLowerer<'_> {
             ));
         };
         if self.pending_call_frames.iter().any(|frame| {
-            frame.field_replace_owner.is_some_and(|slot| {
-                self.pending_operands.get(slot) == Some(&EntityId::Value(owner))
-            })
+            frame.shared_field_roots.contains(&root)
+                || frame.field_replace_owner.is_some_and(|slot| {
+                    self.pending_operands.get(slot) == Some(&EntityId::Value(owner))
+                })
         }) {
             return Err(lowering_error(
                 LoweringErrorKind::UnsupportedNode,

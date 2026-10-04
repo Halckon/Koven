@@ -28,8 +28,8 @@
 |---|---|---|
 | G0 治理交接/推进决定 | 责任 agent 的记录可对照原退出条件；剩余事项有原计划允许的处理或用户明确决定 | 用户此次明确进入里程碑；P2 成本等仍开放，不能称治理全部完成 |
 | G1 接收确定基线 | 记录交付 SHA、分支/PR、文档状态、实际验证与保留项，确认已进入 main | 已接收 PR38 + PR39 的 `b92593d`；未接收其他工作区未提交改动 |
-| G2 重新核对缺口 | 在实施基线上重查所选里程碑的入口、事实、测试与最小复现 | A2 已定位，原完整程序仍 UnsupportedNode；后续逐片核对 |
-| G3 形成可实施合同 | 分配未占用 Spec ID，确认批准依据；语义/长期架构变化完成 Guide/ADR 前置 | 已建立0263承接 A2；其它草稿仍待定稿 |
+| G2 重新核对缺口 | 在实施基线上重查所选里程碑的入口、事实、测试与最小复现 | A2 已完成，A3 拒绝点与 unit for 事实缺口已核对；原完整程序仍待通过 |
+| G3 形成可实施合同 | 分配未占用 Spec ID，确认批准依据；语义/长期架构变化完成 Guide/ADR 前置 | 0263/0264已交付 A2/A3；其它草稿仍待交付 |
 
 G0 的判断依据为[治理执行账本](engineering-governance-progress.md)及责任 agent 的交付记录。
 本页不另建第二张 P0–P5 完成表，不以 M0 定义替代原计划收尾。
@@ -195,3 +195,10 @@ M0 本次完成基线、Spec 编号及首片入口接收；历史尺寸欠账、
 独立字段样例确认跨文件 var 误报 L0134，故拆出
 [SPEC-0263](../archive/specs/0263-unit-field-mutability.md)先承接 A2。
 选择、结果和未覆盖范围只记该 Spec；M1A 总验收、字段直接 Borrow 和 unit for 继续开放。
+
+后续从 PR40 merge `11acf62` 启动
+[SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)实施 A3。该 merge 的主干
+[CI37193746866](https://github.com/Halckon/Koven/actions/runs/37193746866)10个任务全部成功。
+unit for 调查确认 typed descriptor、provider/source loan 与有序清理事实尚缺；先闭合前端合同，
+再由后端消费，保持 Guide §37.4 的前端与 native 范围区分。并行实施使用独立分支/worktree，
+本地 Cargo 仍串行；M1A 总退出条件保持。

@@ -141,6 +141,80 @@ fn fixture() -> UnitAnalysis {
     )
 }
 
+#[test]
+fn direct_field_borrow_handoff_rejects_mixed_sources_and_preserves_targets() {
+    let make = || {
+        analyze_sources(
+            "package p\nclass Holder(val text: String)\nfun make(): Holder = Holder(\"field\")",
+            "package q\nfun entry(): Unit { val holder = p.make()\nprintln(holder.text) }\nfun invalid(number: Int): Unit {}",
+        )
+    };
+    let analysis = make();
+    let foreign = make();
+    let inputs = analysis.inputs();
+    let original = Handoff::new(&analysis, &inputs);
+    let entries = entries(&analysis);
+    // The valid field program must reach emission through both public handoffs.
+    assert_matching_control(original, entries, false);
+    let changed = [
+        SourceUnitInput::new(
+            "different-root",
+            "p/provider.ko",
+            analysis.provider_source,
+            &analysis.provider,
+        ),
+        inputs[1],
+    ];
+    let duplicate = [inputs[0], inputs[0]];
+    for (handoff, expected) in [
+        (
+            Handoff {
+                sources: &foreign.sources,
+                ..original
+            },
+            OwnedCompilationUnitViewError::MismatchedSource,
+        ),
+        (
+            Handoff {
+                inputs: &changed,
+                ..original
+            },
+            OwnedCompilationUnitViewError::MismatchedAnalysis,
+        ),
+        (
+            Handoff {
+                inputs: &duplicate,
+                ..original
+            },
+            OwnedCompilationUnitViewError::MismatchedSource,
+        ),
+        (
+            Handoff {
+                names: &foreign.names,
+                ..original
+            },
+            OwnedCompilationUnitViewError::MismatchedAnalysis,
+        ),
+        (
+            Handoff {
+                typed: &foreign.typed,
+                ..original
+            },
+            OwnedCompilationUnitViewError::MismatchedAnalysis,
+        ),
+        (
+            Handoff {
+                owned: &foreign.owned,
+                ..original
+            },
+            OwnedCompilationUnitViewError::MismatchedAnalysis,
+        ),
+    ] {
+        // Reuse the absent/existing target and full directory preservation oracle.
+        assert_rejected(handoff, entries, expected, false);
+    }
+}
+
 fn entries(analysis: &UnitAnalysis) -> [NativeUnitEntry; 2] {
     [
         analysis.declaration("q", "entry").into(),

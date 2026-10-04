@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，250 份）"]
+subgraph Garchive["已完成（archive，251 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -259,6 +259,7 @@ subgraph Garchive["已完成（archive，250 份）"]
   S0261["S0261<br/>有限只读 iteration fact validator"]
   S0262["S0262<br/>原治理计划的当前教程覆盖补齐"]
   S0263["S0263<br/>跨文件字段可变性查询"]
+  S0264["S0264<br/>Unit owned class 一级字段直接 Borrow"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1211,6 +1212,7 @@ S0252 --> S0253
 S0252 --> S0254
 S0253 --> S0254
 S0254 --> S0255
+S0263 --> S0264
 ```
 
 ## 节点链接
@@ -1467,3 +1469,4 @@ S0254 --> S0255
 | SPEC-0261 | archive | [0261-finite-iteration-fact-validation.md](0261-finite-iteration-fact-validation.md) |
 | SPEC-0262 | archive | [0262-current-tutorial-plan-coverage.md](0262-current-tutorial-plan-coverage.md) |
 | SPEC-0263 | archive | [0263-unit-field-mutability.md](0263-unit-field-mutability.md) |
+| SPEC-0264 | archive | [0264-unit-direct-field-borrow.md](0264-unit-direct-field-borrow.md) |

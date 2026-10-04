@@ -19,7 +19,7 @@ use lang_frontend::{
     type_checking::{check_compilation_unit_types, standard_environments},
 };
 
-fn lower(text: &str, constants: bool) -> Result<(Program, FunctionId), LoweringError> {
+pub(super) fn lower(text: &str, constants: bool) -> Result<(Program, FunctionId), LoweringError> {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(
         &mut sources,
@@ -179,7 +179,7 @@ impl Drop for Directory {
         fs::remove_dir_all(&self.0).unwrap();
     }
 }
-fn run_native(source: &str, constants: bool, allocations: usize, stdout: &[u8]) {
+pub(super) fn run_native(source: &str, constants: bool, allocations: usize, stdout: &[u8]) {
     let (program, entry) = lower(source, constants).expect("unit field source lowers");
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
         .unwrap()
@@ -212,7 +212,7 @@ __attribute__((destructor)) static void verify(void) {{
     );
     link_and_run(&llvm, &counter, stdout);
 }
-fn link_and_run(llvm: &str, counter: &str, stdout: &[u8]) {
+pub(super) fn link_and_run(llvm: &str, counter: &str, stdout: &[u8]) {
     let directory = Directory::new();
     let ir = directory.0.join("field.ll");
     let c = directory.0.join("counter.c");
