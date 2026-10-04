@@ -8,16 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 257 份"))
-subgraph Gactive["现行 active"]
-  S0273["S0273<br/>单文件控制体正常退出的资源清理"]
-end
-ARCH --> S0273
+ARCH(("已完成<br/>archive 258 份"))
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0273 | active | [0273-control-body-resource-cleanup.md](active/0273-control-body-resource-cleanup.md) |
-| 已完成 Spec（257 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（258 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

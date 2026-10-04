@@ -107,9 +107,9 @@ required summary 拒绝该运行时却跳过的结果。
 当前教程以Markdown fence为源码真源，16正例、4完整JSON负例与1 planned分开，四组argv使执行合同共23项；
 跨文件合同只引用fence ID，沿现行project.toml/entry协议运行，定向选择不改变CI默认完整选集。
 PR49双宿主实际运行原22项，证据见 [SPEC-0271](../archive/specs/0271-tour-combination-coverage.md)。
-后继 [SPEC-0273](../specs/active/0273-control-body-resource-cleanup.md) 补齐控制体正常出口的资源清理，
+后继 [SPEC-0273](../archive/specs/0273-control-body-resource-cleanup.md) 补齐控制体正常出口的资源清理，
 原 `gap-scope-branch` 同一源码作为第23项实际合同接线；原始失败证据保留在0271，不改写为当时通过。
-线程native仍为planned，不计通过；0273本轮双宿主证据以其验收记录为准。
+PR50实现head在两宿主实际执行23项合同；线程native仍为planned，不计通过，精确证据见0273。
 LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 意外跳过。配置与本地验证不代表远端已运行；实际交付证据见
 [SPEC-0239](../archive/specs/0239-linux-ci-gates.md)，使用规则见[测试与分层验收](../development/testing.md)。

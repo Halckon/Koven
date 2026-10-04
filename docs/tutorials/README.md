@@ -7,8 +7,8 @@
 跨文件合同按路径引用本页 fence ID，自动生成现行 project manifest；源码不在 JSON 重复。
 定向验收可重复传入 `--example ID`；CI 默认选择16个正例和4个负例；parameter-report的四组argv共用一份三文件源码，
 每组分别执行build、artifact和run，总计23组执行合同。原17项由0262/0268有双宿主证据；
-原新增5项及当时22项完整选集的双宿主实际证据见 [SPEC-0271](../archive/specs/0271-tour-combination-coverage.md)；PR49实现head已通过双宿主CI。第23项及本轮完整选集验收见0273，双宿主验证待执行。
-仅线程native仍为planned，不计通过；`gap-scope-branch`由 [SPEC-0273](../specs/active/0273-control-body-resource-cleanup.md) 修复并进入实际执行合同。
+原新增5项及当时22项完整选集的双宿主实际证据见 [SPEC-0271](../archive/specs/0271-tour-combination-coverage.md)；PR49实现head已通过双宿主CI。第23项及本轮23项完整选集已在PR50实现head通过双宿主CI，验收见0273。
+仅线程native仍为planned，不计通过；`gap-scope-branch`由 [SPEC-0273](../archive/specs/0273-control-body-resource-cleanup.md) 修复并进入实际执行合同。
 编排mock测试本身不作为实际CLI证据。
 历史教程保留在 archive，不代表当前实现。planned 示例不计入通过。
 

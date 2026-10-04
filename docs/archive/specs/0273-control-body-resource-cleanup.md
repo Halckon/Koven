@@ -1,10 +1,10 @@
 # SPEC-0273: 单文件控制体正常退出的资源清理
 
-> **性质**：有界修复合同 · **状态**：in-progress · **读取时机**：修复或验收嵌套 if 资源 InvalidSsa 时 · **唯一真源**：本页
+> **性质**：有界修复合同 · **状态**：done · **读取时机**：修复或验收嵌套 if 资源 InvalidSsa 时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-273` |
 | 所属 Phase | Phase 4 typed SSA/LLVM/native；关联 Phase 6 CLI 验收 |
 | 语言规范 | [Guide v0.40](../../guide/README.md)、[资源词法析构](../../guide/10-ownership-borrowing-drop.md) |
@@ -62,7 +62,7 @@ ControlTransfer 已清理的 return/break/continue、Abort 不再执行正常出
 | C3 | 显式 return 不重复清理；MoveOnly 分支尾值交付保留结果 owner | SSA直接验证return与tail，native return四组合通过 |
 | C4 | 共享 helper 的 when 与既有 nullable/control 回归、frontend facts 不改 | 新SSA两类when通过；lower_frontend_tests 70项通过，0 ignored；frontend未改 |
 | C5 | 原始复现实际 CLI build/run，精确 stdout/stderr/退出码；native 逐指针释放账本 | 原始4份源码重新build/run全通过，3种形状逐指针计数通过 |
-| C6 | 独立完整审阅、Clippy/fmt/尺寸/docs；双宿主 PR CI、归档最终 head CI 与合并 | 待执行 |
+| C6 | 独立完整审阅、Clippy/fmt/尺寸/docs；双宿主 PR CI、归档最终 head CI 与合并 | 实现head双宿主CI及审阅/本地门禁已通过；归档后最终head CI与合并待完成 |
 
 先直接失败测试，再最小实现，再定向 `resource_deinit_`、lower_frontend 控制与 nullable
 相关测试；不默认运行 frontend 全量。多个过滤器有重叠，实际数量不相加。
@@ -123,3 +123,18 @@ PR49 已经最终归档 head CI 通过并合并为 `881253c3f2ddaf4c9833d7ff091f
 接线独立审阅指出证据入口混用旧22/新23项，已修正并窄复核关闭。Rust生产与回归文件
 逐字节等于已审阅测试的原修复提交，无新生产改动；原37资源/70SSA与Clippy证据按此内容复用。
 当前准备正式PR；本轮双宿主执行尚未发生，Spec保持active。
+
+## 7. 双宿主实现验收与归档
+
+[PR50](https://github.com/Halckon/Koven/pull/50) 的实现 head
+`7ef443f67bab0808b75da5596e7c9fab363bdb4b` 经
+[PR CI 37213487681](https://github.com/Halckon/Koven/actions/runs/37213487681) completed success。
+全部必需job成功；Tree-sitter按editors=false路径规则跳过。四个新增
+`single_resource_deinit_control_body_` SSA测试及新增nested_control native测试在Ubuntu和macOS
+逐项实际ok；两宿主完整教程23 executed/1 planned，原gap-scope-branch实际passed。
+Codegen Linux830 passed/0 ignored，Mac829 passed/1 ignored，唯一忽略仍为既有LLDB
+受debugserver task-port权限限制用例。线程planned没有执行，不计通过。
+
+本次仅消费前端已有正常出口清理事实，已验证多个资源、外层存活、尾值交付和return不重复清理。
+按上述实现证据完成有界修复并归档；最终归档head必须独立CI成功后才合并。
+此前未运行的记录保留为历史，当前证据不扩张条件owner合流或资源wrapper支持，也不关闭M4b。
