@@ -64,8 +64,9 @@ single 六项 native 与 unit 直接测试已运行 object/link/run，覆盖一�
 字段后交换，不证明 constructor 中 `Node → Node?` 隐式包装已闭合。single Unit 字段构造
 仍缺事实，unit `Rc<Int>?` 名义字段 layout 仍 Unsupported，不宣称任意源码 storage 已支持。
 
-receiver 的 class 声明仍需与使用处同 source；unit 跨文件 class `var` 字段可变性路径实测
-L0134，属于保留的前端缺口。跨文件 `make()` 产生 replacement 已有验证，两者不能混同。
+SPEC-0263 已修复 unit 跨文件 class `var` 字段可变性误报 L0134，声明与使用可位于不同
+source，仍保持本页其它 receiver/表示限制。跨文件 `make()` 产生 replacement 是既有能力，
+与本次跨文件字段声明查询分别验收。
 
 nested fields、`this` / 隐式字段、non-owning 或参数 receiver、temporary receiver、index、
 generic receiver、value-class receiver、closure/provenance、field swap 和普通 Inout ABI
