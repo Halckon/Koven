@@ -1,10 +1,10 @@
 # SPEC-0264: Unit owned class 一级字段直接 Borrow
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施或验收 M1A 字段 Borrow 时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：追溯 M1A 字段 Borrow 验收时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-264` |
 | 所属 Phase | Phase 4；现行 Borrow 语义的 unit 消费 |
 | 语言规范 | [Guide v0.40 所有权](../../guide/10-ownership-borrowing-drop.md)、[成员](../../guide/08-class-family-members.md) |
@@ -53,7 +53,7 @@ SSA 按共同父 root 判别的 sibling exclusive 冲突仍明确拒绝，不假
 | B3 | native 按 pointer 核父对象及字段唯一释放；后续参数 CFG 正常、return、break、continue、Abort；输出 oracle 证明控制流 | 包含在上述七项：正常路径逐 pointer 唯一 free、旧字段→新字段→父对象顺序；constant CFG 双 flag 下输出区分三种退出；Abort 两入口2次分配/0次free且不执行callee/后继 |
 | B4 | CLI project 跨文件 val/var 字段及父绑定、literal/const；build/artifact/run 精确 UTF-8 输出；借用冲突与输出保全 | 新增2项通过；正例8组合均build/artifact/run输出精确，冲突L0135及既有目标preflight保全通过；完整 `project_cli` 12 passed/0 failed/0 ignored/0 filtered |
 | B5 | 相邻 field replace、Borrow/receiver 与 capability/交接回归 | 6个codegen过滤器共122个唯一测试通过，均0 failed/ignored；含新七项与新native身份矩阵，详见§7 |
-| B6 | fmt、codegen/CLI Clippy、docs/inventory/尺寸、独立审阅；精确 head 双宿主 PR CI 与归档合并 | 本地fmt/严格Clippy/docs506/Python37+47/尺寸/diff通过，独立审阅发现已修并复核；远端PR CI、归档及合并待执行 |
+| B6 | fmt、codegen/CLI Clippy、docs/inventory/尺寸、独立审阅；精确 head 双宿主 PR CI 与归档合并 | 本地fmt/严格Clippy/docs506/Python37+47/尺寸/diff通过，独立审阅发现已修并复核；实现 head 6cdaa2c 的 PR41 CI37194916797 全部10个job通过；本次归档后仍须核最终head门禁才合并 |
 
 ## 5. 执行与交付
 
@@ -108,4 +108,19 @@ git diff --check
 
 尺寸检查为754份手写 Rust、45份历史超千行；有限例外不清除历史欠账。
 未运行本地 frontend/LSP 全量、Linux、sanitizer 或成本实验；没有公开类型变化，不额外
-运行本地 workspace check。双宿主 CI 待按精确 head 核验，不能用本地定向证据替代。
+运行本地 workspace check。首轮双宿主 CI 证据见§8；不把本地定向结果替代远端记录。
+
+## 8. 首轮双宿主与归档
+
+[PR41](https://github.com/Halckon/Koven/pull/41) 实现 head
+`6cdaa2c99f058c159fcf0dd8e0496c2ec1a4efaa` 的
+[CI37194916797](https://github.com/Halckon/Koven/actions/runs/37194916797) completed/success，
+全部10个job成功，包含两宿主workspace check/Clippy和Targeted Tests，无未决任务。
+轻量CI子agent读取两份原始日志：七项 `ssa::unit_field_borrow_tests`、新增native
+`direct_field_borrow_handoff_rejects_mixed_sources_and_preserves_targets`及两项
+`project_cross_file_field_borrow`每host各恰一次ok。Ubuntu无ignored；macOS仅既有LLDB
+断点测试因debugserver task-port限制ignored，新增用例未跳过。
+
+独立实现与文档审阅已完成，发现及修复见§6。当前迁移只修改Spec状态、索引/inventory、
+生成DAG和进度链接，不改变生产或测试。归档后的精确head仍需最终PR门禁全绿才合并，
+不能用以上实现head的结果代替。M1A unit for与完整三文件验收继续开放。
