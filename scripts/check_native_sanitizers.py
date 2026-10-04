@@ -203,7 +203,17 @@ def check_linux(directory):
             result = run([executable], directory, f"run-{name}-lsan-{int(enabled)}", timeout=10,
                          env={"LSAN_OPTIONS": options})
             if name == "leak" and enabled:
-                assert_detected(result, "LeakSanitizer", "detected memory leaks")
+                try:
+                    assert_detected(result, "LeakSanitizer", "detected memory leaks")
+                except AssertionError:
+                    # Diagnose conservative roots without changing the original
+                    # acceptance result or disabling any root scanning.
+                    try:
+                        run([executable], directory, "diagnose-leak-lsan", timeout=10,
+                            env={"LSAN_OPTIONS": options + ":verbosity=1:log_threads=1:log_pointers=1"})
+                    except (OSError, subprocess.TimeoutExpired):
+                        pass  # run retained diagnostic failure evidence; keep the acceptance failure.
+                    raise
                 if (b"Direct leak of 4 byte(s) in 1 object(s)" not in result.stderr
                         or rows["runtime"][0].encode() not in result.stderr):
                     raise AssertionError("leak report must identify the actual four-byte Koven Cell allocation")

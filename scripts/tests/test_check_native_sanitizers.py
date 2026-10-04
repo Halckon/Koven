@@ -1,5 +1,6 @@
 """Detection evidence must reject ordinary failure, missing wiring and empty tests."""
 import importlib.util
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -96,6 +97,65 @@ class NativeSanitizerGateTests(unittest.TestCase):
                 archives[1].unlink()
                 with self.assertRaisesRegex(AssertionError, "libclang_rt.lsan-x86_64.a"):
                     GATE.linux_runtime_archives(directory, "clang")
+
+    def test_lsan_diagnostic_never_replaces_original_missing_detection(self):
+        detector = GATE.assert_detected
+        report = b"ERROR: LeakSanitizer: detected memory leaks\nDirect leak of 4 byte(s) in 1 object(s)\ntarget"
+        outcomes = (subprocess.CompletedProcess([], 87, b"read\ndrop\n", report),
+                    subprocess.CompletedProcess([], 0, b"read\ndrop\n", b""),
+                    OSError("diagnostic spawn failed"), subprocess.TimeoutExpired("diagnostic", 10))
+        for outcome in outcomes:
+            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary) / "artifacts"
+                failures = []
+
+                def checked(_command, output, name, **_kwargs):
+                    stdout = {"llvm-version": b"21.1.8", "clang-version": b"clang version 21.1.8"}.get(name, b"")
+                    if name == "export-koven":
+                        (output / "fixtures").mkdir()
+                        (output / "fixtures/expected.stdout").write_bytes(b"read\ndrop\n")
+                    return subprocess.CompletedProcess([], 0, stdout, b"")
+
+                def detect(result, name, category):
+                    try:
+                        detector(result, name, category)
+                    except AssertionError as error:
+                        failures.append(error)
+                        raise
+
+                def execute(_command, _output, name, **_kwargs):
+                    if name == "diagnose-leak-lsan":
+                        if isinstance(outcome, Exception):
+                            raise outcome
+                        return outcome
+                    if name in {"run-user-asan", "run-runtime-asan", "run-drop-asan"}:
+                        category = "heap-use-after-free" if name == "run-drop-asan" else "heap-buffer-overflow"
+                        return subprocess.CompletedProcess([], 86, b"", f"ERROR: AddressSanitizer: {category}\ntarget".encode())
+                    # The original leak run remains a missed detection.
+                    return subprocess.CompletedProcess([], 0, b"read\ndrop\n", b"")
+
+                with mock.patch.multiple(GATE.platform, system=lambda: "Linux", machine=lambda: "x86_64"), \
+                        mock.patch.dict(os.environ, LLVM_SYS_211_PREFIX=temporary), \
+                        mock.patch.object(GATE, "checked", side_effect=checked), \
+                        mock.patch.object(GATE, "linux_runtime_archives", return_value=[]), \
+                        mock.patch.object(GATE, "fixtures", return_value={name: ("target", "load") for name in GATE.CASES}), \
+                        mock.patch.object(GATE, "check_ir"), mock.patch.object(GATE, "assert_export_ran"), \
+                        mock.patch.object(GATE, "assert_detected", side_effect=detect), \
+                        mock.patch.object(GATE, "run", side_effect=execute) as run:
+                    with self.assertRaises(AssertionError) as caught:
+                        GATE.check_linux(directory)
+                    self.assertEqual(len(failures), 1)
+                    self.assertIs(caught.exception, failures[0])
+                    diagnoses = [call for call in run.call_args_list if call.args[2] == "diagnose-leak-lsan"]
+                    self.assertEqual(len(diagnoses), 1)
+                    self.assertEqual(diagnoses[0].kwargs["timeout"], 10)
+                    options = diagnoses[0].kwargs["env"]["LSAN_OPTIONS"]
+                    self.assertIn("detect_leaks=1", options)
+                    for option in ("verbosity=1", "log_threads=1", "log_pointers=1"):
+                        self.assertIn(option, options)
+                    self.assertNotIn("use_stacks", options)
+                    self.assertNotIn("use_registers", options)
+                    self.assertFalse((directory / "acceptance.txt").exists())
 
     def test_linux_step_is_required_and_installs_pinned_runtime(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()

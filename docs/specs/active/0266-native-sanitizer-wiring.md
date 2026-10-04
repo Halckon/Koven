@@ -44,11 +44,11 @@ Abort 不展开、Rc 环允许未释放的语义保留；本片只选择正常�
 | ID | 合同 | 实际结果 |
 |---|---|---|
 | W1 | 实际 Koven fixture 正常分析/lower，三个目标定义函数各有访存检查；关闭属性无检查 | Mac LLVM21.1.8：最终两项2 passed/796 filtered；导出1 passed/797 filtered及外部三target/三off IR检查通过，均0 ignored；counter 1分配/1释放；属性换成nounwind有效红测失败，恢复后通过 |
-| W2 | Linux ASan 三类故意错误非零退出且类别准确；clean 输出和资源计数准确；关闭组不误报检测成功 | Mac普通clean与资源计数已通过；Linux ASan动态待CI |
-| W3 | Linux LSan 正常无环无报告、故意泄漏有报告且非零、关闭检测无报告 | 待 CI |
-| W4 | LLVM21.1.8/compiler-rt 固定安装与运行；缺工具、超时、零测试匹配、普通失败不可算检测成功 | 脚本测试8/8（含缺工具、真实超时与进程树终止、零匹配、错误类别/普通失败、Debian runtime布局）；原CI政策18/18；首轮Linux安装后路径检查失败，修复待CI重跑 |
-| W5 | 限时与完整失败产物、Python 负向门禁、docs/inventory/尺寸/fmt/定向 Clippy、独立评审 | Python全部122 passed，脚本8复跑通过；docs507、尺寸、改动Rust文件fmt、codegen all-targets严格Clippy通过；独立评审P2 counter失败材料缺口已修复并复审通过；安装路径修复已通过独立窄复审 |
-| W6 | PR关联head与实际编译SHA/tree核对、Linux动态CI、双宿主普通测试、同步 Architecture 后按 PR 闭环归档 | PR #44 首轮run37197238891失败，Linux安装路径修复后待重跑；动态检测及双宿主测试尚无通过证据 |
+| W2 | Linux ASan 三类故意错误非零退出且类别准确；clean 输出和资源计数准确；关闭组不误报检测成功 | Mac普通clean与资源计数已通过；CI run37198053946的Linux ASan三种错误、clean及关闭组均通过 |
+| W3 | Linux LSan 正常无环无报告、故意泄漏有报告且非零、关闭检测无报告 | CI run37198053946的clean开/关组通过，故意泄漏启用组exit0无报告；故意泄漏关闭组未运行，待诊断 |
+| W4 | LLVM21.1.8/compiler-rt 固定安装与运行；缺工具、超时、零测试匹配、普通失败不可算检测成功 | 脚本测试9/9（含缺工具、真实超时与进程树终止、零匹配、错误类别/普通失败、Debian runtime布局、诊断不替换原失败）；原CI政策18/18；Linux固定安装在run37198053946通过 |
+| W5 | 限时与完整失败产物、Python 负向门禁、docs/inventory/尺寸/fmt/定向 Clippy、独立评审 | Python全部123 passed，最新脚本9通过；docs507、尺寸、改动Rust文件fmt、codegen all-targets严格Clippy通过；独立评审P2 counter失败材料缺口已修复并复审通过；安装路径修复已通过独立窄复审 |
+| W6 | PR关联head与实际编译SHA/tree核对、Linux动态CI、双宿主普通测试、同步 Architecture 后按 PR 闭环归档 | PR #44 run37198053946编译merge tree与关联head tree一致；安装与双宿主sanitizer模块2测试通过，额外Linux步骤在LSan故意泄漏漏报处失败；待诊断CI |
 
 ## 4. 实施顺序
 
@@ -92,3 +92,25 @@ runtime 路径检查退出1；日志确认固定版本 `libclang-rt-21-dev` 已�
 archive 路径。模拟该目录差异的回归先红后绿；8项脚本测试、全部122项Python测试、
 `bash -n` 与diff检查通过。这些是路径修复和本地命令计划证据，不能替代 W2/W3 的 Linux
 动态运行；独立窄复审已通过，当前仍待 PR CI 重跑。
+
+路径修复后的 PR CI run `37198053946`（关联 head `07b5a04`，实际编译 merge SHA
+`a81558feb948009b46fb6319a638deb5960b0bea`）已通过 Linux LLVM 安装和双宿主普通
+sanitizer 模块测试；额外 Linux 动态步骤的 ASan 三种错误及关闭组完成，但 LSan 故意泄漏
+启用组返回0、stdout为 `read\ndrop\n`、stderr为空，W3尚未通过。失败产物
+[artifact 11302335740](https://github.com/Halckon/Koven/actions/runs/37198053946/artifacts/11302335740)
+的实际 IR/ELF 均确认 `f1.make` 调用拦截器 `malloc(4)`，Cell drop只保留deinit而无free；
+`.preinit_array` 指向 `__lsan_init`，执行环境明确 `detect_leaks=1:exitcode=87`。
+反汇编还显示Cell地址残留在已返回函数的栈槽；这是保守根扫描漏报的候选解释，尚未获得
+LSan扫描日志证实。当前仅为原始漏报追加一次10秒内诊断运行，开启官方debug选项
+`verbosity/log_threads/log_pointers`，保留原执行结果并仍让原断言失败；不关闭任何根扫描，
+不把诊断重跑当成验收成功。待下一轮原生CI采集原因后再决定fixture修复。
+
+已通过 GitHub API 核对上述编译 merge SHA `a81558feb948009b46fb6319a638deb5960b0bea`
+与 PR head `07b5a04bdf9c6e69336cb93d659a293ee7c2e6c6` 的 tree 均为
+`b9d5645717d5e155f873fc154e702f51d645b09b`：源码树一致，两个提交 SHA 并不相同。
+诊断回归现使用真实检测器，覆盖诊断返回有效exit87泄漏报告、普通exit0、spawn失败和超时四种
+结果，均保留首次失败异常且不生成验收成功文件。临时将实现改成“用诊断结果替代原结果并再次
+断言”的mutant，四种子场景全部失败；恢复实现后脚本9项通过。
+
+诊断补丁独立窄审确认生产异常路径保留原失败，指出原回归 mock 存在盲点；
+修订后主协调者独立以内存 mutation 复核，四种子场景均杀死替代结果错误，真实脚本9项通过。
