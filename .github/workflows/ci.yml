@@ -32,6 +32,7 @@ jobs:
     outputs:
       docs: ${{ steps.filter.outputs.docs }}
       rust: ${{ steps.filter.outputs.rust }}
+      editors: ${{ steps.filter.outputs.editors }}
       frontend: ${{ steps.filter.outputs.frontend }}
       codegen: ${{ steps.filter.outputs.codegen }}
     steps:
@@ -68,6 +69,13 @@ jobs:
               - 'docs/guide/11-copyability-layout-construction.md'
               - 'docs/guide/13-program-runtime-standard-library.md'
               - 'docs/guide/15-conformance-and-staging.md'
+            editors:
+              - 'editors/**'
+              - '.github/workflows/ci.yml'
+              - 'scripts/check_ci_results.py'
+              - 'scripts/tests/test_check_ci_results.py'
+              - 'docs/guide/01-lexical.md'
+              - 'docs/guide/07-calls-lambdas-closures.md'
             frontend:
               - 'crates/lang-frontend/**'
               - 'crates/lang-std/**'
@@ -128,6 +136,27 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Check git diff whitespace
         run: git diff --check
+
+  editors:
+    name: Tree-sitter CLI Corpus
+    needs: changes
+    if: needs.changes.outputs.editors == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install locked Tree-sitter CLI
+        run: npm ci --prefix editors/tree-sitter
+      - name: Check generated parser and actual corpus
+        run: |
+          npm run generate --prefix editors/tree-sitter
+          git diff --exit-code -- editors/tree-sitter/src
+          npm test --prefix editors/tree-sitter
 
   fmt:
     name: Rust Code Formatting
@@ -203,7 +232,7 @@ jobs:
 
   ci-passed:
     name: CI Passed
-    needs: [changes, rust-size, dependencies, docs, fmt, clippy, test]
+    needs: [changes, rust-size, dependencies, docs, editors, fmt, clippy, test]
     if: always()
     runs-on: ubuntu-latest
     steps:

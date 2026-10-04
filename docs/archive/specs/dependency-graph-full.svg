@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="6456" height="6988" viewBox="0 0 6456 6988" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="6720" height="6988" viewBox="0 0 6720 6988" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="6456" height="6988" fill="#ffffff"/>
-  <rect x="40" y="30" width="6352" height="6886" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3216" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，251 份）</text>
+  <rect width="6720" height="6988" fill="#ffffff"/>
+  <rect x="40" y="30" width="6616" height="6886" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，252 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 464, 180 496" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2009,4 +2009,9 @@
   <text x="444" y="537" text-anchor="middle" font-size="13">Unit owned cla</text>
   <text x="444" y="555" text-anchor="middle" font-size="13">ss 一级字段直接 Borr</text>
   <text x="444" y="573" text-anchor="middle" font-size="13">ow</text>
+  <rect x="6396" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="6516" y="87" text-anchor="middle" font-size="13">SPEC-0267</text>
+  <text x="6516" y="105" text-anchor="middle" font-size="13">Tree-sitter co</text>
+  <text x="6516" y="123" text-anchor="middle" font-size="13">rpus 解析与必需 CI </text>
+  <text x="6516" y="141" text-anchor="middle" font-size="13">门禁</text>
 </svg>

@@ -258,7 +258,8 @@ fun use(input: Int): Unit { consume(own input) }
             (expression
               (identifier))
             (argument_list
-              (ERROR)
+              (ERROR
+                (identifier))
               (call_argument
                 (expression
                   (identifier))))))))))
@@ -458,8 +459,12 @@ val asyncTask = 4
 
 (source_file
   (variable_declaration
+    (identifier)
+    (expression
+      (integer_literal)))
+  (variable_declaration
     (ERROR
-      (integer_literal))
+      (UNEXPECTED 'y'))
     (identifier)
     (expression
       (integer_literal)))

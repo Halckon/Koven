@@ -7,6 +7,19 @@
 enum TokenType {
   IDENTIFIER,
   DESTRUCTURING_IDENTIFIER,
+  OWN,
+  BORROW,
+  INOUT,
+  LOOP,
+  MOVE_LAMBDA,
+  MOVE_TYPE,
+  TO,
+  BY,
+  IN,
+  IS,
+  AS,
+  NOT_IN,
+  NOT_IS,
 };
 
 static const char *const RESERVED_WORDS[] = {
@@ -43,6 +56,28 @@ static bool is_reserved_word(const char *text, size_t length) {
   return false;
 }
 
+// Look ahead across the same horizontal/comment extras as grammar.js. Never skip
+// bytes here: the token start/end must remain the identifier already marked.
+static void peek_context(TSLexer *lexer) {
+  for (;;) {
+    while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
+           lexer->lookahead == '\r' || lexer->lookahead == '\f') {
+      lexer->advance(lexer, false);
+    }
+    if (lexer->lookahead != '/') return;
+    lexer->advance(lexer, false);
+    if (lexer->lookahead != '*') return;
+    lexer->advance(lexer, false);
+    bool star = false;
+    while (!lexer->eof(lexer)) {
+      const int32_t character = lexer->lookahead;
+      lexer->advance(lexer, false);
+      if (star && character == '/') break;
+      star = character == '*';
+    }
+  }
+}
+
 void *tree_sitter_koven_external_scanner_create(void) { return NULL; }
 
 void tree_sitter_koven_external_scanner_destroy(void *payload) {
@@ -71,8 +106,9 @@ bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
          lexer->lookahead == '\r' || lexer->lookahead == '\f') {
     lexer->advance(lexer, true);
   }
-  if ((!valid_symbols[IDENTIFIER] && !valid_symbols[DESTRUCTURING_IDENTIFIER]) ||
-      !is_identifier_start(lexer->lookahead)) {
+  const bool negated = lexer->lookahead == '!';
+  if (negated) lexer->advance(lexer, false);
+  if (!is_identifier_start(lexer->lookahead)) {
     return false;
   }
 
@@ -90,6 +126,50 @@ bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
   } while (is_identifier_continue(lexer->lookahead));
   lexer->mark_end(lexer);
 
+  // !in / !is are adjacent, whole-word tokens (Guide 01); !input remains
+  // punctuation plus an identifier, never a membership operator plus `put`.
+  if (negated) {
+    if (length == 2 && spelling[0] == 'i' && spelling[1] == 'n' && valid_symbols[NOT_IN]) {
+      lexer->result_symbol = NOT_IN;
+      return true;
+    }
+    if (length == 2 && spelling[0] == 'i' && spelling[1] == 's' && valid_symbols[NOT_IS]) {
+      lexer->result_symbol = NOT_IS;
+      return true;
+    }
+    return false;
+  }
+
+  // Select soft keywords only in grammar states and lookahead contexts that own
+  // them; e.g. `own: Int` and ordinary `move()` calls remain identifiers.
+  const bool safe_cast = lexer->lookahead == '?';
+  peek_context(lexer);
+  const bool next_name = is_identifier_start(lexer->lookahead);
+  const struct {
+    const char *word;
+    enum TokenType symbol;
+    bool context;
+  } contextual[] = {
+      {"own", OWN, next_name || lexer->lookahead == '('},
+      {"borrow", BORROW, next_name || lexer->lookahead == '('},
+      {"inout", INOUT, next_name || lexer->lookahead == '('},
+      {"loop", LOOP, lexer->lookahead == '{'},
+      {"move", MOVE_LAMBDA, lexer->lookahead == '{'},
+      {"move", MOVE_TYPE, lexer->lookahead == '('},
+      {"to", TO, true},
+      {"by", BY, true},
+      {"in", IN, true},
+      {"is", IS, true},
+      {"as", AS, !safe_cast},
+  };
+  for (size_t index = 0; index < sizeof(contextual) / sizeof(contextual[0]); index++) {
+    if (!overflow && valid_symbols[contextual[index].symbol] &&
+        contextual[index].context && strlen(contextual[index].word) == length &&
+        memcmp(contextual[index].word, spelling, length) == 0) {
+      lexer->result_symbol = contextual[index].symbol;
+      return true;
+    }
+  }
   if (!overflow && is_reserved_word(spelling, length)) {
     return false;
   }

@@ -20,7 +20,11 @@ module.exports = grammar({
 
   word: ($) => $.identifier,
 
-  externals: ($) => [$.identifier, $._destructuring_identifier],
+  externals: ($) => [
+    $.identifier, $._destructuring_identifier,
+    $._own, $._borrow, $._inout, $._loop, $._move_lambda, $._move_type,
+    $._to, $._by, $._in, $._is, $._as, $._not_in, $._not_is,
+  ],
 
   extras: ($) => [/[ \t\r\f]/, $.line_comment, $.block_comment],
 
@@ -30,7 +34,6 @@ module.exports = grammar({
     [$._statement, $._lambda_element],
     [$.block, $.lambda_expression],
     [$.qualified_name, $._primary_expression],
-    [$.named_argument_prefix, $._primary_expression],
     [$._file_content],
     [$._imports_and_declarations],
     [$._declarations],
@@ -78,7 +81,7 @@ module.exports = grammar({
       seq(
         "import",
         field("target", $.import_target),
-        optional(seq("as", field("alias", $.identifier))),
+        optional(seq(alias($._as, "as"), field("alias", $.identifier))),
       ),
 
     import_target: ($) =>
@@ -163,7 +166,7 @@ module.exports = grammar({
         field("type", $._type),
       ),
 
-    parameter_mode: () => choice("own", "borrow", "inout"),
+    parameter_mode: ($) => choice(alias($._own, "own"), alias($._borrow, "borrow"), alias($._inout, "inout")),
 
     classifier_declaration: ($) =>
       choice(
@@ -241,7 +244,7 @@ module.exports = grammar({
     supertype_entry: ($) =>
       seq(
         field("type", $._type),
-        optional(seq(alias("by", $.delegation_keyword), field("delegate", $.identifier))),
+        optional(seq(alias($._by, $.delegation_keyword), field("delegate", $.identifier))),
       ),
 
     class_body: ($) =>
@@ -353,7 +356,7 @@ module.exports = grammar({
         "for",
         "(",
         field("binding", $.for_binding),
-        "in",
+        alias($._in, "in"),
         field("source", $.expression),
         ")",
         $.block,
@@ -365,7 +368,7 @@ module.exports = grammar({
         seq("(", commaSep1(field("name", $.identifier)), ")"),
       ),
 
-    loop_statement: ($) => seq("loop", $.block),
+    loop_statement: ($) => seq(alias($._loop, "loop"), $.block),
 
     expression: ($) =>
       choice(
@@ -397,9 +400,9 @@ module.exports = grammar({
         [PREC.AND, "&&"],
         [PREC.EQUALITY, choice("==", "!=")],
         [PREC.COMPARISON, choice("<", ">", "<=", ">=" )],
-        [PREC.MEMBERSHIP, choice("in", "!in")],
+        [PREC.MEMBERSHIP, choice(alias($._in, "in"), alias($._not_in, "!in"))],
         [PREC.ELVIS, "?:"],
-        [PREC.TO, alias("to", $.to_operator)],
+        [PREC.TO, alias($._to, $.to_operator)],
         [PREC.RANGE, choice("..", "..<")],
         [PREC.ADDITIVE, choice("+", "-")],
         [PREC.MULTIPLICATIVE, choice("*", "/", "%")],
@@ -419,7 +422,7 @@ module.exports = grammar({
           PREC.MEMBERSHIP,
           seq(
             field("left", $.expression),
-            field("operator", choice("is", "!is")),
+            field("operator", choice(alias($._is, "is"), alias($._not_is, "!is"))),
             field("right", $._type),
           ),
         ),
@@ -431,7 +434,7 @@ module.exports = grammar({
         PREC.CAST,
         seq(
           field("value", $.expression),
-          field("operator", choice("as", "as?")),
+          field("operator", choice(alias($._as, "as"), "as?")),
           field("type", $._type),
         ),
       ),
@@ -463,7 +466,8 @@ module.exports = grammar({
         field("value", $.expression),
       ),
 
-    named_argument_prefix: ($) => seq(field("name", $.identifier), "="),
+    // An ungrouped name = prefix commits to a named argument (Guide 07).
+    named_argument_prefix: ($) => prec(1, seq(field("name", $.identifier), "=")),
 
     argument_mode: () => "&",
 
@@ -538,7 +542,7 @@ module.exports = grammar({
 
     lambda_expression: ($) =>
       seq(
-        optional("move"),
+        optional(alias($._move_lambda, "move")),
         "{",
         optional($.lambda_header),
         repeat(choice($._newline, $._lambda_element)),
@@ -589,8 +593,8 @@ module.exports = grammar({
     when_condition: ($) =>
       choice(
         $.expression,
-        seq(choice("is", "!is"), $._type),
-        seq(choice("in", "!in"), $.expression),
+        seq(choice(alias($._is, "is"), alias($._not_is, "!is")), $._type),
+        seq(choice(alias($._in, "in"), alias($._not_in, "!in")), $.expression),
       ),
 
     control_body: ($) => choice($.expression, $.control_block),
@@ -621,7 +625,7 @@ module.exports = grammar({
 
     function_type: ($) =>
       seq(
-        optional("move"),
+        optional(alias($._move_type, "move")),
         "(",
         optional(commaSep1($.function_type_parameter)),
         ")",

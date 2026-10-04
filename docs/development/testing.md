@@ -140,4 +140,10 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
 组合为77个唯一frontend integration和10次Cargo调用；接线与失败传播由Python合同测试核验。
 直接依赖job无条件运行，required summary拒绝失败/取消/跳过/缺失；仅验证五成员四条直接声明边，
 不推定第三方transitive、patch/config或lock新鲜度。editors与tutorial输入触发Rust矩阵。
+编辑器语法变化另需 `npm ci --prefix editors/tree-sitter` 后执行
+`npm run generate --prefix editors/tree-sitter` 与 `npm test --prefix editors/tree-sitter`。
+前者必须与提交的生成产物一致；后者执行真实 CLI 完整 corpus 及 Python XML 树断言。
+CI 独立 editor job 固定 lockfile 中 CLI 0.26.12，按 editor/对应门禁/词法调用规范输入触发，
+main/manual 强制执行；失败或不合法 skip 均阻止 required summary。Rust fixture 交叉检查
+不能替代此 CLI 验收。
 本机结果见[恢复账本](recovery-local-delivery.md)，不能由接线推定实际CI通过。

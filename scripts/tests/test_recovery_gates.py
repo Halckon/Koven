@@ -66,7 +66,7 @@ class DependencyContracts(unittest.TestCase):
         body = "\n".join(line for line in match[1].splitlines() if not line.lstrip().startswith("#"))
         self.assertNotRegex(body, r"\bif:")
         self.assertIn("run: python3 scripts/check_workspace_dependencies.py", body)
-        self.assertIn("needs: [changes, rust-size, dependencies, docs, fmt, clippy, test]", workflow)
+        self.assertIn("needs: [changes, rust-size, dependencies, docs, editors, fmt, clippy, test]", workflow)
         self.assertIn("- 'scripts/rust_test_artifact.rs'", workflow)
 
 
