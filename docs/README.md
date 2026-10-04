@@ -34,3 +34,7 @@
 ```bash
 python3 scripts/check_docs.py
 ```
+
+## 当前教程
+
+- [可执行 tour](tutorials/README.md)

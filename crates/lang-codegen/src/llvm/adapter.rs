@@ -1,6 +1,7 @@
 //! verified typed SSA 到 LLVM IR 的 first-class value 适配器。
 
 mod callable;
+mod constant;
 mod integer;
 mod module_lowering;
 mod root_exchange;
@@ -357,25 +358,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         };
         match &instruction.operation {
             Operation::Constant(constant) => {
-                let [result] = results.as_slice() else {
-                    return Err(invalid_result_count("constant", 1, results.len()));
-                };
-                let integer = match constant {
-                    ScalarConstant::Boolean(value) => Some((u64::from(*value), false)),
-                    ScalarConstant::Char(value) => Some((u64::from(*value), false)),
-                    ScalarConstant::Integer(value) => Some((*value as u64, *value < 0)),
-                    ScalarConstant::Unit => None,
-                };
-                let value = match integer {
-                    Some((value, signed)) => self
-                        .dependencies
-                        .type_map
-                        .int_type(value_type(self.function, *result)?)?
-                        .const_int(value, signed)
-                        .into(),
-                    None => self.context.struct_type(&[], false).const_zero().into(),
-                };
-                self.values.insert(*result, value);
+                self.lower_constant(constant, &results)?;
             }
             Operation::PrintLiteral { bytes } => {
                 if !results.is_empty() {

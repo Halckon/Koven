@@ -486,7 +486,7 @@ Map 所有权检查不在本版 Phase 3 范围内，必须等待第 8 节要求�
 - [x] **SPEC-0186（已实现）**：在 LLVM 复合类型构造前，以同一 target 的 primitive/pointer
       DataLayout 事实预检 aggregate、closure、container header 与 element stride；先建立
       IR-local 结构化失败边界；源码 `Span` 与稳定用户诊断已由 SPEC-0184 接入 nominal 类型
-- [x] **[SPEC-0182](../../../specs/active/0182-sequential-for-lowering.md)（已实现）**：只消费 0179/0211/0212
+- [x] **[SPEC-0182](../../specs/0182-sequential-for-lowering.md)（已实现）**：只消费 0179/0211/0212
       validated facts，把真实 `for` 接到无分配 preheader/header/body/exit SSA、LLVM 与 native；
       覆盖 Borrow binding、value-class projection 和全部 jump/drop；首轮 native 覆盖 owned named source、
       Borrow 参数与 temporary source（代码与 native 验证已完成，commit 8891bb5）。

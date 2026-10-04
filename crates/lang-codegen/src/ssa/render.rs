@@ -742,6 +742,8 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
 
 fn write_constant(output: &mut String, constant: &ScalarConstant) -> fmt::Result {
     match constant {
+        #[cfg(test)]
+        ScalarConstant::SyntheticZero => output.write_str("synthetic-zero"),
         ScalarConstant::Unit => output.write_str("unit"),
         ScalarConstant::Boolean(value) => write!(output, "{value}"),
         ScalarConstant::Char(value) => write!(output, "U+{value:04X}"),

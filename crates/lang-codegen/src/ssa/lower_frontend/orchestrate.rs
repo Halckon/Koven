@@ -188,7 +188,9 @@ fn lower_scalar_file_product(
         return Err(error(LoweringErrorKind::UnsupportedNode, origin));
     }
     // Saved owner choices have no SSA carrier yet; reject before planning any bindings.
-    if let Some(fact) = owned.drops().iter().find(|fact| fact.condition().is_some()) {
+    if let Some(fact) = owned.drops().iter().find(|fact| {
+        fact.condition().is_some() && !super::constant_presence::constant_drop(typed, owned, **fact)
+    }) {
         return Err(error(
             LoweringErrorKind::UnsupportedNode,
             fact.value_origin(),
@@ -574,7 +576,7 @@ fn lower_scalar_file_product(
     })
 }
 
-fn validate_inputs(
+pub(crate) fn validate_inputs(
     sources: &SourceMap,
     parsed: &ParsedFile,
     names: &NameResolution,
@@ -636,6 +638,11 @@ fn validate_inputs(
             span: None,
         });
     }
+    lang_frontend::ownership_checking::validate_iteration_facts(parsed, names, typed, owned)
+        .map_err(|failure| LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: failure.span(),
+        })?;
     Ok(())
 }
 

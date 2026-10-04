@@ -193,10 +193,16 @@ pub enum IterationCleanupAction {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IterationExitPlan {
     pub(crate) kind: IterationExitKind,
+    pub(crate) condition: CleanupConditionId,
     pub(crate) point: DropPoint,
     pub(crate) actions: Vec<IterationCleanupAction>,
 }
 impl IterationExitPlan {
+    /// 已发布退出路径事实；只读查询，不赋予新的 owner 能力。
+    #[must_use]
+    pub const fn condition(&self) -> CleanupConditionId {
+        self.condition
+    }
     /// 退出种类与 jump identity。
     #[must_use]
     pub fn kind(&self) -> IterationExitKind {

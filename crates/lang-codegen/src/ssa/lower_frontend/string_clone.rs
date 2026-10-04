@@ -81,7 +81,7 @@ impl ExpressionLowerer<'_> {
         Ok(self.typed.aggregate_projection(expression))
     }
 
-    fn clone_field_loan(
+    pub(super) fn clone_field_loan(
         &mut self,
         expression: ExpressionId,
         created: &mut Vec<super::LoanId>,

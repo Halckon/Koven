@@ -16,7 +16,9 @@ impl ExpressionLowerer<'_> {
             .collect::<Vec<_>>();
         for fact in facts {
             // Conditional cleanup needs its saved choice transported with the owner.
-            if fact.condition().is_some() {
+            if fact.condition().is_some()
+                && !super::constant_presence::constant_drop(self.typed, self.owned, fact)
+            {
                 return Err(error(
                     LoweringErrorKind::UnsupportedNode,
                     fact.value_origin(),

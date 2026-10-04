@@ -29,7 +29,10 @@ use lang_frontend::{
     },
 };
 
-use super::{LoweringError, LoweringErrorKind, lowering_support::error as lowering_error};
+use super::{
+    LoweringError, LoweringErrorKind, lowering_support::error as lowering_error,
+    unit_source_query::parsed_by_source_unit,
+};
 pub(crate) use call_routes::{callable_static_self_receiver, resolve_unit_call_instance};
 #[cfg(test)]
 pub(super) use call_routes::{
@@ -292,8 +295,9 @@ pub(super) fn plan_unit_instances_with_limit(
     max_generic_instances: usize,
 ) -> Result<UnitInstancePlan, LoweringError> {
     let unit = owned_compilation_unit_view(sources, inputs, names, environment, typed, owned)?;
+    let parsed_by_source = parsed_by_source_unit(unit.inputs(), unit.names())?;
     plan_unit_instances_from_facts(
-        unit.inputs(),
+        &parsed_by_source,
         unit.names(),
         unit.types(),
         unit.ownership(),
@@ -304,15 +308,14 @@ pub(super) fn plan_unit_instances_with_limit(
 
 /// 仅供已通过入口身份校验的 lowering driver 复用；不发布新的 frontend capability。
 pub(super) fn plan_unit_instances_from_facts(
-    inputs: &[SourceUnitInput<'_>],
+    parsed_by_source: &[&ParsedFile],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     entry: DeclarationId,
     max_generic_instances: usize,
 ) -> Result<UnitInstancePlan, LoweringError> {
-    let parsed_by_source = parsed_by_source_unit(inputs, names)?;
-    let templates = collect_templates(names, typed, &parsed_by_source)?;
+    let templates = collect_templates(names, typed, parsed_by_source)?;
     let template_by_target = templates
         .iter()
         .enumerate()
@@ -343,7 +346,7 @@ pub(super) fn plan_unit_instances_from_facts(
         ));
     }
 
-    let calls_by_template = index_calls(typed, &parsed_by_source, &templates)?;
+    let calls_by_template = index_calls(typed, parsed_by_source, &templates)?;
     let mut pending = BTreeSet::from([UnitFunctionInstanceKey::new(entry, Vec::new())]);
     let mut planned = BTreeMap::new();
     let mut runtime_type_demands = BTreeMap::new();
@@ -514,7 +517,7 @@ pub(super) fn plan_unit_instances_from_facts(
     let instances = planned.into_values().collect::<Vec<_>>();
     classify_runtime_type_demands(
         typed,
-        &parsed_by_source,
+        parsed_by_source,
         &instances,
         &mut runtime_type_demands,
     )?;
@@ -522,29 +525,6 @@ pub(super) fn plan_unit_instances_from_facts(
         instances,
         runtime_type_demands,
     })
-}
-
-fn parsed_by_source_unit<'a>(
-    inputs: &'a [SourceUnitInput<'a>],
-    names: &ValidatedCompilationUnitNames,
-) -> Result<Vec<&'a ParsedFile>, LoweringError> {
-    names
-        .names()
-        .index()
-        .source_units()
-        .iter()
-        .map(|source_unit| {
-            inputs
-                .iter()
-                .copied()
-                .find(|input| input.source_id() == source_unit.source_id())
-                .map(SourceUnitInput::parsed)
-                .ok_or(LoweringError {
-                    kind: LoweringErrorKind::MismatchedSource,
-                    span: None,
-                })
-        })
-        .collect()
 }
 
 fn collect_templates(

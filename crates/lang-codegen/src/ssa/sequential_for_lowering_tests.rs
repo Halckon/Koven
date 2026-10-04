@@ -1,5 +1,6 @@
 mod cleanup_tests;
 mod determinism_tests;
+mod provider_lifetime_tests;
 mod source_cfg_tests;
 mod unit_storage_boundary_tests;
 mod unit_storage_tests;

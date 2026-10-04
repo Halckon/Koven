@@ -1,4 +1,6 @@
 //! SPEC-0253：外部 Rust 只读、封闭构造及 observer 高阶借用合同。
+#[path = "../../../scripts/rust_test_artifact.rs"]
+mod linked_artifact;
 
 use lang_frontend::analysis::{SingleFileAnalysis, SingleFileTypedView};
 use std::{
@@ -60,30 +62,7 @@ impl Drop for Scratch {
 fn frontend_artifact(deps: &Path) -> PathBuf {
     static ARTIFACT: OnceLock<PathBuf> = OnceLock::new();
     ARTIFACT
-        .get_or_init(|| {
-            // Match the existing owned-unit contracts: do not guess which build is current.
-            let mut candidates = fs::read_dir(deps)
-                .expect("read integration target dependency directory")
-                .map(|entry| entry.expect("read dependency entry").path())
-                .filter(|path| {
-                    path.file_name()
-                        .and_then(|name| name.to_str())
-                        .is_some_and(|name| {
-                            name.starts_with("liblang_frontend-") && name.ends_with(".rlib")
-                        })
-                })
-                .collect::<Vec<_>>();
-            candidates.sort();
-            assert_eq!(
-                candidates.len(),
-                1,
-                "expected exactly one frontend rlib in {}; candidates: {candidates:?}",
-                deps.display(),
-            );
-            candidates
-                .pop()
-                .expect("exactly one frontend rlib was checked")
-        })
+        .get_or_init(|| linked_artifact::for_current_test(deps, "lang_frontend"))
         .clone()
 }
 
@@ -303,5 +282,25 @@ fn raw_single_file_result_is_not_a_validated_unit_or_const_capability() {
         "fn check() { let (_, _, _, owned, _) = fixture().into_parts(); let _: ValidatedCompilationUnitOwnership = owned; }",
         "E0308",
         &["ValidatedCompilationUnitOwnership", "OwnershipCheckedFile"],
+    );
+}
+
+#[test]
+fn iteration_validator_is_read_only_and_errors_remain_sealed() {
+    accepts(
+        "read-only validator",
+        "fn check(p: &ParsedFile, n: &NameResolution, t: &TypedFile, o: &OwnershipCheckedFile) { let _ = lang_frontend::ownership_checking::validate_iteration_facts(p, n, t, o); }",
+    );
+    rejects(
+        "iteration mutation",
+        "fn check(o: &OwnershipCheckedFile) { o.iterations().clear(); }",
+        "E0599",
+        &["clear"],
+    );
+    rejects(
+        "sealed error",
+        "fn check(error: lang_frontend::ownership_checking::IterationFactError) { let _ = error.reason; }",
+        "E0616",
+        &["private"],
     );
 }

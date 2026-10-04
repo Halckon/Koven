@@ -200,6 +200,7 @@ fn item_end(tokens: &[Token<'_>], mut index: usize) -> usize {
                 semicolon_item = Some(false);
             }
             ";" => return index + 1,
+            "," if semicolon_item.is_none() => return index + 1,
             "(" | "[" => {
                 index = group_end(tokens, index);
                 continue;
@@ -528,6 +529,7 @@ fn dependency_guard_skips_only_the_cfg_test_item() {
         "const CALLBACK: fn() = || { lower_frontend::run(); };",
         "use crate::ssa::lower_frontend::{LoweringError, LoweringErrorKind};",
         "mod external_tests;",
+        "SyntheticZero,",
     ] {
         let allowed = format!("use super::model::Program; #[cfg(test)] {item}");
         assert!(

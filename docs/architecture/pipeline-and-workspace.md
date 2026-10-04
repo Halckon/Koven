@@ -17,6 +17,10 @@
 共享 edition、MSRV、发布属性、lint 和依赖版本在根 `Cargo.toml` 集中维护；实际版本只以该文件和
 `Cargo.lock` 为准。LLVM 只出现在 `lang-codegen` 内，frontend 类型和 AST 不暴露 LLVM 表示。
 
+`scripts/check_workspace_dependencies.py`从`cargo metadata --locked --offline --no-deps`核对
+五成员和四条允许内部直接声明边；normal/dev/build、target、optional和rename声明都参与检查。
+非成员path、重复边和反向边被拒绝。它不声称验证transitive graph、patch、Cargo配置或lock freshness。
+
 ## 编译数据流
 
 ```text
@@ -81,7 +85,14 @@ const fallback、诊断分流、独立 const capability/gate 和共享 raw-facts
 普通 unit 发布顺序保持 factory→entry shape→lower/SSA verify→native entry plan→reserve→
 LLVM/layout/object emission→atomic commit；旧 native 的用户 Into 在 factory 前完成。
 身份、entry、SSA 与 entry plan 失败不 reserve；LLVM/layout 检查仍在 sibling 上执行。
-N1 只证明 commit 失败清理，尚未注入真正 LLVM emission 失败；H1/H2 证明 CLI 邻层保护。
+N1保留commit失败清理；SPEC-0259新增test-only TLS路径选择，在lower/verify之后让真实
+LLVM `write_to_file`遇到ENOTDIR，覆盖普通/const、legacy/view及目标存在/不存在。
+guard内先检查旧文件和sibling清理，移除guard后再走正常object/link/run；本机验收状态见
+[恢复账本](../development/recovery-local-delivery.md)。H1/H2仍证明CLI邻层保护。
+
+`ssa::unit_source_query`集中按canonical index和SourceId first-match查询原ParsedFile借用；
+unit driver一次构建vector，同时借给planner和lower。standalone planner仍独立构建查询，
+两driver的能力边界保持。
 
 [原合同基线](../development/unit-handoff-contract-baseline.md)的八项身份已保留并扩双路，另加 Into 顺序测试；
 实际通过范围、Display 逐字 oracle、reserve 与生命周期证据见[0249 账本](../archive/specs/0249-owned-unit-borrowed-handoff.md#6-唯一验收账本)。

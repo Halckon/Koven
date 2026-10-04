@@ -19,6 +19,9 @@ pub(crate) fn render_program(program: &model::Program) -> String {
 mod types;
 pub(crate) mod unit_lower;
 pub(crate) mod unit_plan;
+mod unit_source_query;
+#[cfg(test)]
+mod unit_source_query_tests;
 pub(crate) mod verify;
 mod verify_operation;
 mod verify_ownership;
@@ -130,3 +133,5 @@ mod lowering_entry_contract_tests;
 
 #[cfg(test)]
 mod lowering_dependency_tests;
+
+pub(crate) use lower_frontend::orchestrate::validate_inputs as validate_frontend_inputs;

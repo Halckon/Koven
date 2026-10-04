@@ -24,7 +24,7 @@ SSA、LLVM object/link/run；零字节元素仍按逻辑索引迭代并执行 bo
 既有 `EmptyMutableList` lowering 对应的 `MutableList<Unit>()` 自然复用同一 element storage，
 也纳入唯一额外空构造入口；不人为拒绝该既有路径，不推广为所有容器构造形式均获支持。
 
-本片是容器存储能力修复，独立于 [SPEC-0182](../../specs/active/0182-sequential-for-lowering.md) 的验收补测。
+本片是容器存储能力修复，独立于 [SPEC-0182](0182-sequential-for-lowering.md) 的验收补测。
 0182 保持 active，原合同、历史验收及其“不改变 container layout/drop glue”边界不改写；
 本片只向其提供明确有界的 Copyable Unit / temporary-source 正常迭代证据。
 

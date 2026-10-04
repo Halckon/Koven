@@ -266,14 +266,9 @@ pub(crate) struct EntityData {
     pub(crate) origin: Origin,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ScalarConstant {
-    Unit,
-    Boolean(bool),
-    /// Verifier rejects surrogate and out-of-range codepoints.
-    Char(u32),
-    Integer(i128),
-}
+#[path = "model/constant.rs"]
+mod constant;
+pub(crate) use constant::ScalarConstant;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BinaryOperator {

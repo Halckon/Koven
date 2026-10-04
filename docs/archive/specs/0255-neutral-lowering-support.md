@@ -1,10 +1,10 @@
 # SPEC-0255: 中立 lowering error 与 String helper 边界
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：复核两种 lowering adapter 的共同支撑边界时 · **唯一真源**：本页合同及验收账本
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：复核两种 lowering adapter 的共同支撑边界时 · **唯一真源**：本页合同及验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-255` |
 | 所属 Phase | Phase 4 SSA lowering；治理 P4 首个有界责任 |
 | 语言规范 | 现行 [Guide](../../guide/README.md)，[String](../../guide/13-program-runtime-standard-library.md#string) |
@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0254 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无；责任迁移属于获批实现细节，不新增长期架构决策 |
-| 阻塞项 | 本地实现、门禁与独立最终 review 已验；精确 head 双宿主 CI 尚待 |
+| 阻塞项 | 本轮按用户授权仅本地恢复验收；Linux/远端CI未运行，旧账本保留为历史 |
 | 影响范围 | `lang-codegen::ssa` 私有错误与 literal helper、相关测试和事实文档 |
 | 语言语义变更 | 否 |
 
@@ -118,3 +118,14 @@ decoder SHA-256：`6f1f50e49754ea4937f21f938e2abcfcec2a85f0798a936b0c6e1203b09ce
 独立最终审阅另发现新Architecture页EOF空行；已仅删除该空行，并对实际交付基线运行
 `git diff --check 9ac49f3 HEAD`通过。此前无参数工作区diff检查不替代已提交patch检查。
 此修订及本次验收文字更新不改Rust/工具链输入，复用已通过Rust结果，不因文档提交重复运行。
+
+
+## 2026-10-04 本机恢复最终验收
+
+本轮仅按用户授权在本地main重建和交付，禁止推送/PR/远端更改。
+实际Mac验证见[本机恢复账本](../../development/recovery-local-delivery.md)：core、
+ownership_iteration184、stage75个target/994项、Guide23、教程7正例+2完整JSON负例通过；
+Return只读自查修复5+3定向通过，最终workspace all-targets严格Clippy通过。
+既有LLDB权限ignore1保留；Linux/远端CI未运行，旧云端证据不替代本轮。
+本地验收归档不等于原P0–P5全部退出；P2成本raw丢失、预算接受未授权，缺口不关闭。
+unit-for仍准确拒绝，源码MoveOnly ZST、旧SharedFieldLoan swap误报及其他原非目标保持。

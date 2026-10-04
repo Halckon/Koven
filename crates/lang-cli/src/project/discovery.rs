@@ -132,7 +132,10 @@ fn canonicalize_root(
 fn reject_logical_root_overlap(roots: &[String]) -> Result<(), ProjectLoadError> {
     for (index, left) in roots.iter().enumerate() {
         for right in &roots[index + 1..] {
-            if is_logical_ancestor(left, right) {
+            if left.eq_ignore_ascii_case(right)
+                || is_logical_ancestor(&left.to_ascii_lowercase(), &right.to_ascii_lowercase())
+                || is_logical_ancestor(&right.to_ascii_lowercase(), &left.to_ascii_lowercase())
+            {
                 return Err(ProjectLoadError::OverlappingSourceRoots {
                     first: left.clone(),
                     second: right.clone(),

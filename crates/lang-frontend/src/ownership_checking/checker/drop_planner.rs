@@ -176,7 +176,7 @@ struct DropPlanner<'a, 'checker> {
     conditions: CleanupConditions,
     facts: Vec<DropFact>,
     cleanup: Vec<(DropPoint, IterationCleanupAction)>,
-    iteration_exits: Vec<(StatementId, IterationExitKind, DropPoint)>,
+    iteration_exits: Vec<iteration::IterationExitRecord>,
     loan_ends: Vec<LoanEndFact>,
     loop_boundaries: Vec<usize>,
     scope_depth: usize,
