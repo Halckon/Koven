@@ -113,3 +113,13 @@ PR49 已经最终归档 head CI 通过并合并为 `881253c3f2ddaf4c9833d7ff091f
 修复debug CLI build/run通过，输出 `inner/second/first/after/outer`（各一行）；
 完整源码hash、binary hash与原始输出在 `/private/tmp/0273-tour-gap-replay/results.json`。
 后续将同一源码从planned提升为实际CLI合同，保留0271归档的历史失败记录。
+
+新主干 worktree 的教程接线已先执行红测（planned != executable），随后更新状态/完整输出合同
+及提取器数量，教程+docs Python48项全部通过；完整fmt、尺寸与515页docs通过。
+重新构建当前工作树CLI（Cargo locked/offline，13.47s），真实完整教程23项全部通过、
+1 planned线程未执行，共61条真实子进程，完整stdout/stderr/exit与手写oracle比较；
+证据在 `/private/tmp/0273-main-tutorial-evidence`，运行日志 `/private/tmp/0273-main-tutorial.log`。
+25个源码fence与新main完全相同，旧0271失败源码hash保留；编排mock不计实际CLI验收。
+接线独立审阅指出证据入口混用旧22/新23项，已修正并窄复核关闭。Rust生产与回归文件
+逐字节等于已审阅测试的原修复提交，无新生产改动；原37资源/70SSA与Clippy证据按此内容复用。
+当前准备正式PR；本轮双宿主执行尚未发生，Spec保持active。

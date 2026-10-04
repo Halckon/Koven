@@ -414,8 +414,23 @@
     },
     {
       "id": "gap-scope-branch",
-      "status": "planned",
-      "reason": "SPEC-0271 Mac固定基线实际native build失败：InvalidSsa；不是语言诊断，不计执行通过"
+      "status": "executable",
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "inner\nsecond\nfirst\nafter\nouter\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "inner\nsecond\nfirst\nafter\nouter\n",
+        "stderr": ""
+      },
+      "args": []
     }
   ]
 }

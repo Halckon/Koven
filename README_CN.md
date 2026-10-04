@@ -41,7 +41,7 @@
 
 ## 🔍 语法与特性巡礼
 
-示例源码与完整CLI输出合同统一维护在[当前Koven tour](docs/tutorials/koven-tour.md)。教程包含15个执行正例、4个诊断负例和2个不执行的planned例；parameter-report四组argv共用三文件源码，总计22组执行合同。[覆盖账本](docs/archive/specs/0271-tour-combination-coverage.md)记录当前22项合同的双宿主CI证据及仍保留的分支资源native缺口。
+示例源码与完整CLI输出合同统一维护在[当前Koven tour](docs/tutorials/koven-tour.md)。教程包含16个执行正例、4个诊断负例和1个未执行的线程planned例；parameter-report四组argv共用三文件源码，总计23组执行合同。[覆盖账本](docs/archive/specs/0271-tour-combination-coverage.md)保留原22项的双宿主证据；[SPEC-0273](docs/specs/active/0273-control-body-resource-cleanup.md)记录分支资源修复及新增CLI合同验收。
 
 | 入门内容 | 单一源码示例 |
 |---|---|
