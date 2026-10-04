@@ -181,6 +181,7 @@ pub(super) fn analyze(
     let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
     let empty_construction_descriptors = BTreeMap::new();
+    let field_kinds = traversal::collect_field_mutability(inputs, names)?;
 
     for source in names.names().index().source_units() {
         let input = inputs
@@ -197,6 +198,7 @@ pub(super) fn analyze(
             names,
             typed,
             bindings,
+            &field_kinds,
             call_inputs.arguments,
             call_inputs.receivers,
             closure_inputs.captures,
@@ -343,7 +345,7 @@ struct Checker<'a> {
     references_by_span: BTreeMap<(usize, usize), UnitSymbolId>,
     symbols_by_span: BTreeMap<(usize, usize), UnitSymbolId>,
     variable_kinds: BTreeMap<UnitSymbolId, VariableKind>,
-    field_kinds: BTreeMap<UnitSymbolId, VariableKind>,
+    field_kinds: &'a BTreeMap<UnitSymbolId, VariableKind>,
     contracts_by_call: BTreeMap<UnitExpressionId, Vec<UnitCallArgumentOwnershipContract>>,
     receiver_contracts_by_call: BTreeMap<UnitExpressionId, UnitCallReceiverOwnershipContract>,
     current_receiver: Option<ReceiverContext>,
@@ -389,6 +391,7 @@ impl<'a> Checker<'a> {
         names: &'a ValidatedCompilationUnitNames,
         typed: &'a CompilationUnitTypes,
         bindings: &'a BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
+        field_kinds: &'a BTreeMap<UnitSymbolId, VariableKind>,
         contracts: &[UnitCallArgumentOwnershipContract],
         receiver_contracts: &[UnitCallReceiverOwnershipContract],
         captures: &'a [UnitClosureCaptureDescriptor],
@@ -485,7 +488,7 @@ impl<'a> Checker<'a> {
             references_by_span,
             symbols_by_span,
             variable_kinds: BTreeMap::new(),
-            field_kinds: BTreeMap::new(),
+            field_kinds,
             contracts_by_call,
             receiver_contracts_by_call,
             current_receiver: None,

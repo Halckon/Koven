@@ -259,6 +259,9 @@ subgraph Garchive["已完成（archive，249 份）"]
   S0261["S0261<br/>有限只读 iteration fact validator"]
   S0262["S0262<br/>原治理计划的当前教程覆盖补齐"]
 end
+subgraph Gactive["现行 active"]
+  S0263["S0263<br/>跨文件字段可变性查询"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1197,6 +1200,7 @@ S0224 --> S0225
 S0226 --> S0227
 S0244 --> S0245
 S0244 --> S0246
+S0246 --> S0263
 S0249 --> S0250
 S0249 --> S0252
 S0249 --> S0254
@@ -1464,3 +1468,4 @@ S0254 --> S0255
 | SPEC-0260 | archive | [0260-shared-unit-source-query.md](0260-shared-unit-source-query.md) |
 | SPEC-0261 | archive | [0261-finite-iteration-fact-validation.md](0261-finite-iteration-fact-validation.md) |
 | SPEC-0262 | archive | [0262-current-tutorial-plan-coverage.md](0262-current-tutorial-plan-coverage.md) |
+| SPEC-0263 | active | [0263-unit-field-mutability.md](../../specs/active/0263-unit-field-mutability.md) |

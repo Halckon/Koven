@@ -22,6 +22,11 @@ intrinsic descriptor、精确 place、父 class 类型和新值 Copy / Move / Te
 使用 source-qualified identity。它们不进入 root commit 查询，不以静态 descriptor 单独
 授予正常继续的执行许可。unit 基础及 constant-enabled gate 有独立损坏事实拒绝测试。
 
+unit 字段可变性在一次 ownership 分析内从全部 source 的声明收集，以完整 `UnitSymbolId`
+索引，各 body checker 只读共享；使用文件不再决定字段是否为 var。跨文件 owned local
+字段 replace 有 frontend 身份/拒绝回归和 CLI build/artifact/run 用例，同名旁源及相同局部
+symbol ID 不覆盖权限。该修复不扩展直接字段 Borrow、普通字段赋值或 unit for lowering。
+
 有界目标是 owned local 的普通非泛型 class 一级 `var` 字段；父绑定可为 `val` 或 `var`。
 receiver / 字段投影的 Group 只透传 identity；字段与父绑定可变性分开检查。错误或 blocking
 deferred 清空可执行计划，未正常继续的 operand 不发布 commit。producer 只接受 body-local

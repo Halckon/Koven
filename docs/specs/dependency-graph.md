@@ -9,10 +9,15 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 249 份"))
+subgraph Gactive["现行 active"]
+  S0263["S0263<br/>跨文件字段可变性查询"]
+end
+ARCH --> S0263
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0263 | active | [0263-unit-field-mutability.md](active/0263-unit-field-mutability.md) |
 | 已完成 Spec（249 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

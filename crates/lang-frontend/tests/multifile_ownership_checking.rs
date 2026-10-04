@@ -129,6 +129,8 @@ mod container_places;
 mod control_flow;
 #[path = "multifile_ownership_checking/drop_plans.rs"]
 mod drop_plans;
+#[path = "multifile_ownership_checking/field_mutability.rs"]
+mod field_mutability;
 #[path = "multifile_ownership_checking/lambda_drop.rs"]
 mod lambda_drop;
 #[path = "multifile_ownership_checking/non_null.rs"]
