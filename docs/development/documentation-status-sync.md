@@ -65,3 +65,18 @@ Escapable、mutable/once closure、controlled unsafe以及M2/M3新增API如需�
 本批只验证文档结构/链接、教程源码与清单身份一致性、Guide示例与规范领域页保全、
 Spec inventory及引用CI的固定head关系；不运行教程CLI、Rust、性能或sanitizer。
 旧成功证据只归属其原head，验证结果另记本批交付。
+
+## 本批本地验证与交付
+
+状态同步先提交为`1c30f0e`；随后独立核验并保留
+[一致性记录](evidence/documentation-status-sync-20261004/verification.json)。
+`python3 scripts/check_docs.py`通过511份Markdown结构/链接/inventory检查；
+`git diff --check`与staged whitespace检查通过。
+调用现有教程`load_examples`静态核验14份合同/15个唯一源码fence：11 executable、
+2 diagnostic、1 planned；没有运行CLI或把静态提取称作link/run。
+
+16份Guide页面的全部fenced示例与基线相同；除入口及Guide15导航澄清外，14份领域页
+逐字节相同并保留SHA-256。Archive全路径diff为空，Rust/测试脚本/CI/Cargo/Spec
+inventory未修改；3个引用的最终PR head均是固定main祖先，成功/skip口径单列。
+没有重跑文档检查器单测（检查器未改）、完整编译器回归、教程native、sanitizer或成本实验，
+也没有新远端CI。本地分支待用户后续整合，不自动更新main、推送或发PR。
