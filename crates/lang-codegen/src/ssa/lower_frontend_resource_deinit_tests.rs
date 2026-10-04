@@ -149,8 +149,6 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
     for source in [
         "class Resource { deinit() {} }\nfun inspect(value: Resource?): Unit {}",
         "class Resource<T>(val value: T) { deinit() {} }\nfun run(): Unit { val resource = Resource(1) }",
-        "class Resource { deinit() {} }\nvalue class Wrapped(val resource: Resource)\nfun run(): Unit { val wrapped = Wrapped(Resource()) }",
-        "class Resource { deinit() {} }\nfun inspect(value: Array<Resource>): Unit {}",
         "class Resource { deinit() {} }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource() }; callback() }",
         "class Resource { deinit() {} }\nclass Holder<T>(val value: T)\nfun run(): Unit { val wrapped = Holder(Resource()) }",
     ] {
@@ -177,6 +175,19 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
         };
         assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode, "{source}");
         assert!(failure.span.is_some());
+    }
+}
+
+#[test]
+fn single_resource_deinit_supports_direct_sequence_elements_and_resource_value_fields() {
+    for source in [
+        "class Resource { deinit() {} }\nvalue class Wrapped(val resource: Resource)\nfun run(): Unit { val wrapped = Wrapped(Resource()) }",
+        "class Resource { deinit() {} }\nfun inspect(value: Array<Resource>): Unit {}",
+        "class Resource { deinit() {} }\nfun inspect(value: List<Resource>): Unit {}",
+        "class Resource { deinit() {} }\nfun inspect(value: MutableList<Resource>): Unit {}",
+    ] {
+        let program = lower_resource(source);
+        render_verified_program(&program).expect("direct resource storage verifies");
     }
 }
 

@@ -1,6 +1,9 @@
 //! Canonical source lookup shared by the unit planner and lowerer.
-use lang_frontend::{name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames}, parser::ParsedFile};
 use super::{LoweringError, LoweringErrorKind};
+use lang_frontend::{
+    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+    parser::ParsedFile,
+};
 
 pub(super) fn parsed_by_source_unit<'a>(
     inputs: &'a [SourceUnitInput<'a>],
@@ -24,4 +27,3 @@ pub(super) fn parsed_by_source_unit<'a>(
         })
         .collect()
 }
-

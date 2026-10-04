@@ -16,10 +16,10 @@ use super::{LlvmAdapterError, emit_verified_object, render_verified_program_with
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
-struct TestDirectory(PathBuf);
+pub(super) struct TestDirectory(PathBuf);
 
 impl TestDirectory {
-    fn create() -> Self {
+    pub(super) fn create() -> Self {
         let path = std::env::temp_dir().join(format!(
             "koven-object-test-{}-{}",
             std::process::id(),
@@ -29,7 +29,7 @@ impl TestDirectory {
         Self(path)
     }
 
-    fn join(&self, name: &str) -> PathBuf {
+    pub(super) fn join(&self, name: &str) -> PathBuf {
         self.0.join(name)
     }
 }
@@ -90,7 +90,7 @@ fn abort_entry_program() -> (SourceMap, Program, crate::ssa::model::FunctionId) 
     (sources, program, entry)
 }
 
-fn link(object: &Path, executable: &Path) {
+pub(super) fn link(object: &Path, executable: &Path) {
     let output = Command::new(crate::test_support::clang())
         .arg(object)
         .arg("-o")

@@ -1,6 +1,9 @@
 //! Thread-local object-path fault injection, compiled exclusively into tests.
 
-use std::{cell::RefCell, path::{Path, PathBuf}};
+use std::{
+    cell::RefCell,
+    path::{Path, PathBuf},
+};
 
 thread_local! {
     static FAILURE: RefCell<Option<(PathBuf, usize)>> = const { RefCell::new(None) };

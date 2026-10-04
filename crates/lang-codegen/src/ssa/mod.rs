@@ -133,3 +133,5 @@ mod lowering_entry_contract_tests;
 
 #[cfg(test)]
 mod lowering_dependency_tests;
+
+pub(crate) use lower_frontend::orchestrate::validate_inputs as validate_frontend_inputs;

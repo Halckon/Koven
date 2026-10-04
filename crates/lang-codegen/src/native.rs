@@ -159,6 +159,8 @@ pub fn emit_native_object(
     entry: impl Into<NativeEntry>,
     output: &Path,
 ) -> Result<(), NativeObjectError> {
+    crate::ssa::validate_frontend_inputs(sources, parsed, names, typed, owned)
+        .map_err(map_lowering_error)?;
     let entry = entry.into();
     validate_entry(names, typed, entry)?;
     let (program, function) =

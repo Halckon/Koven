@@ -52,6 +52,7 @@ pub use construction::{
     ConstructionRootDropObligation, ConstructionRootKind,
 };
 pub use error::OwnershipCheckingError;
+mod iteration_validation;
 pub use handoff::{
     OwnedCompilationUnitView, OwnedCompilationUnitViewError, owned_compilation_unit_view,
 };
@@ -65,6 +66,7 @@ pub use iteration::{
     IterationPhiIncomingSource, IterationPhiIncomingValue, IterationPhiPresenceSource,
     IterationPhiRootSource, IterationPhiSelectorWrite,
 };
+pub use iteration_validation::{IterationFactError, validate_iteration_facts};
 pub use model::{
     ClosureCaptureDescriptor, ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource,
     ClosureDescriptor, DropFact, DropPoint, DropTarget, ElementIndexIdentity, LoanEndFact,

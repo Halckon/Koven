@@ -23,6 +23,15 @@ use capture_graph::{PhiCaptureGraph, PhiCaptureNode, cyclic_node, finite_layout_
 #[cfg(test)]
 use phi_incoming::{coexisting_capture_node, phi_selector_writes};
 
+/// 退出记录在规划时保存路径，产物发布时不得重读后续状态。
+#[derive(Clone, Copy, Debug)]
+pub(super) struct IterationExitRecord {
+    owner: StatementId,
+    kind: IterationExitKind,
+    point: DropPoint,
+    condition: CleanupConditionId,
+}
+
 #[derive(Clone, Debug)]
 pub(super) struct IterationFrame {
     statement: StatementId,
@@ -149,7 +158,12 @@ impl DropPlanner<'_, '_> {
         let Some(frame) = state.iterations.last_mut() else {
             return;
         };
-        self.iteration_exits.push((frame.statement, kind, point));
+        self.iteration_exits.push(IterationExitRecord {
+            owner: frame.statement,
+            kind,
+            point,
+            condition: state.path,
+        });
         if !frame.element_active {
             return;
         }
@@ -238,10 +252,17 @@ impl DropPlanner<'_, '_> {
                 .get(&statement.index())
                 .cloned()
                 .unwrap_or_default();
-            for &(owner, kind, point) in &self.iteration_exits {
+            for &IterationExitRecord {
+                owner,
+                kind,
+                point,
+                condition,
+            } in &self.iteration_exits
+            {
                 if owner == statement {
                     let exit = IterationExitPlan {
                         kind,
+                        condition,
                         point,
                         actions: self
                             .cleanup

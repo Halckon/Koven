@@ -978,3 +978,7 @@ impl LoanEndFact {
         self.point
     }
 }
+
+#[cfg(test)]
+#[path = "iteration_validation_tests.rs"]
+mod iteration_validation_tests;

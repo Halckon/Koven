@@ -67,6 +67,7 @@ class DependencyContracts(unittest.TestCase):
         self.assertNotRegex(body, r"\bif:")
         self.assertIn("run: python3 scripts/check_workspace_dependencies.py", body)
         self.assertIn("needs: [changes, rust-size, dependencies, docs, fmt, clippy, test]", workflow)
+        self.assertIn("- 'scripts/rust_test_artifact.rs'", workflow)
 
 
 class CompositionContracts(unittest.TestCase):

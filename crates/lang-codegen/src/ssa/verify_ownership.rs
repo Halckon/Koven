@@ -4,6 +4,8 @@ mod closure;
 mod field_exchange;
 #[cfg(test)]
 mod field_exchange_tests;
+mod provider_lifetime;
+mod reborrow;
 mod root_exchange;
 #[cfg(test)]
 mod root_exchange_tests;
@@ -42,6 +44,7 @@ pub(super) fn verify_ownership(
     function: &Function,
     errors: &mut Vec<VerifyError>,
 ) {
+    provider_lifetime::verify(function, errors);
     let aliases = AliasRoots::compute(function);
     let closure_loans = closure::ClosureLoans::compute(function);
     let reborrows = ReborrowDependencies::compute(function);
@@ -1399,71 +1402,6 @@ fn error(
         kind,
         location,
         origin: Some(origin.clone()),
-    }
-}
-
-impl ReborrowDependencies {
-    fn compute(function: &Function) -> Self {
-        let mut parent_by_child = BTreeMap::new();
-        let mut must_end_children = BTreeSet::new();
-        for instruction in &function.instructions {
-            let (source, must_end) = match instruction.operation {
-                Operation::SharedReborrow { source }
-                | Operation::SharedHeapFieldLoan { base: source, .. } => (source, true),
-                // Capture field views inherit a borrow parameter's function extent, but they still
-                // block an explicit parent end while active.
-                Operation::SharedFieldLoan { base: source, .. } => (source, false),
-                _ => continue,
-            };
-            let [EntityId::Loan(child)] = instruction.results.as_slice() else {
-                continue;
-            };
-            parent_by_child.insert(*child, source);
-            if must_end {
-                must_end_children.insert(*child);
-            }
-        }
-        Self {
-            parent_by_child,
-            must_end_children,
-            flows: LoanFlowAliases::compute(function),
-        }
-    }
-
-    fn is_derived(&self, loan: LoanId, _aliases: &AliasRoots) -> bool {
-        self.must_end_children
-            .iter()
-            .any(|child| self.flows.equivalent(loan, *child))
-    }
-
-    fn active_descendant(
-        &self,
-        parent: LoanId,
-        _aliases: &AliasRoots,
-        state: &BlockState,
-    ) -> Option<LoanId> {
-        for child in self.parent_by_child.keys() {
-            let mut cursor = *child;
-            let mut visited = BTreeSet::new();
-            while visited.insert(cursor) {
-                let Some(next) = self.parent_by_child.get(&cursor).copied() else {
-                    break;
-                };
-                if self.flows.equivalent(parent, next) {
-                    if let Some(active) = state
-                        .loans
-                        .iter()
-                        .copied()
-                        .find(|active| self.flows.equivalent(*active, *child))
-                    {
-                        return Some(active);
-                    }
-                    break;
-                }
-                cursor = next;
-            }
-        }
-        None
     }
 }
 

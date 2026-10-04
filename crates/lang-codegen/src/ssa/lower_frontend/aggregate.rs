@@ -74,6 +74,34 @@ impl ExpressionLowerer<'_> {
             .typed
             .expression_type(receiver_expression)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let borrowed_root =
+            receiver_root.is_some_and(|symbol| self.borrow_bindings.contains_key(symbol));
+        if borrowed_root
+            && matches!(
+                self.typed.types().get(receiver_type),
+                Some(TypeKind::Nominal { .. })
+            )
+        {
+            if self.typed.copyability(projection.ty())
+                != Some(lang_frontend::type_checking::Copyability::Copyable)
+            {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let mut created = Vec::new();
+            let loan = self.clone_field_loan(expression, &mut created)?;
+            let result_type = self.expression_ssa_type(expression, span)?;
+            let (_, results) = self.append(
+                Operation::Read {
+                    source: PlaceAccess::Loan(loan),
+                },
+                vec![EntityType::Value(result_type)],
+                span,
+            )?;
+            for loan in created.into_iter().rev() {
+                self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
+            }
+            return Ok(LoweredValue::Value(value(results[0])));
+        }
         let receiver = self.require_value(receiver_expression)?;
         let result_type = self.expression_ssa_type(expression, span)?;
         match self.typed.types().get(receiver_type) {

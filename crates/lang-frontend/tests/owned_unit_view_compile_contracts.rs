@@ -1,4 +1,6 @@
 //! SPEC-0249: external compilation contracts for the sealed ordinary owned-unit view.
+#[path = "../../../scripts/rust_test_artifact.rs"]
+mod linked_artifact;
 
 use std::{
     ffi::OsString,
@@ -70,31 +72,7 @@ impl Drop for Scratch {
 fn frontend_artifact(deps: &Path) -> PathBuf {
     static ARTIFACT: OnceLock<PathBuf> = OnceLock::new();
     ARTIFACT
-        .get_or_init(|| {
-            // Never guess by modification time if Cargo retains multiple build variants.
-            // An ambiguous dependency directory cannot prove which API is under test.
-            let mut candidates = fs::read_dir(deps)
-                .expect("read integration target dependency directory")
-                .map(|entry| entry.expect("read dependency entry").path())
-                .filter(|path| {
-                    path.file_name()
-                        .and_then(|name| name.to_str())
-                        .is_some_and(|name| {
-                            name.starts_with("liblang_frontend-") && name.ends_with(".rlib")
-                        })
-                })
-                .collect::<Vec<_>>();
-            candidates.sort();
-            assert_eq!(
-                candidates.len(),
-                1,
-                "expected exactly one frontend rlib in {}; candidates: {candidates:?}",
-                deps.display(),
-            );
-            candidates
-                .pop()
-                .expect("exactly one frontend rlib was checked")
-        })
+        .get_or_init(|| linked_artifact::for_current_test(deps, "lang_frontend"))
         .clone()
 }
 

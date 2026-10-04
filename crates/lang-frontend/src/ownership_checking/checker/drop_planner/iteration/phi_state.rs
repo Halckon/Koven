@@ -509,7 +509,8 @@ impl DropPlanner<'_, '_> {
     ) -> bool {
         self.liveness.statement_after[statement.index()].contains(&symbol)
             || (state.position(symbol).is_some()
-                && (self.owner_protected_by_context(symbol, state)
+                && (!self.is_asap_owner(symbol, state)
+                    || self.owner_protected_by_context(symbol, state)
                     || state.replacements.contains(&symbol)
                     || state
                         .values

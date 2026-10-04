@@ -62,6 +62,7 @@ jobs:
               - 'scripts/check_guide_litmus.sh'
               - 'scripts/install_ci_llvm.sh'
               - 'scripts/check_ci_results.py'
+              - 'scripts/rust_test_artifact.rs'
               - 'scripts/tests/test_check_ci_results.py'
               - 'docs/guide/10-ownership-borrowing-drop.md'
               - 'docs/guide/11-copyability-layout-construction.md'

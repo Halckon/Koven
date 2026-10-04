@@ -29,7 +29,10 @@ use lang_frontend::{
     },
 };
 
-use super::{LoweringError, LoweringErrorKind, lowering_support::error as lowering_error, unit_source_query::parsed_by_source_unit};
+use super::{
+    LoweringError, LoweringErrorKind, lowering_support::error as lowering_error,
+    unit_source_query::parsed_by_source_unit,
+};
 pub(crate) use call_routes::{callable_static_self_receiver, resolve_unit_call_instance};
 #[cfg(test)]
 pub(super) use call_routes::{
@@ -523,7 +526,6 @@ pub(super) fn plan_unit_instances_from_facts(
         runtime_type_demands,
     })
 }
-
 
 fn collect_templates(
     names: &ValidatedCompilationUnitNames,

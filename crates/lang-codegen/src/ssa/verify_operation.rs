@@ -1,5 +1,8 @@
 //! Typed SSA operation 的局部类型契约。
 
+mod constant_contract;
+use constant_contract::constant_contract;
+
 use super::{
     model::{
         BinaryOperator, CallableSignature, ClosureCaptureMode, ClosureCaptureOperand,
@@ -789,21 +792,6 @@ fn container_replace_contract(
         && kind.elements_are_mutable()
         && value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
         && value_type(function, value) == Some(element)
-}
-
-fn constant_contract(module: &Module, constant: &ScalarConstant, results: &[EntityType]) -> bool {
-    let Some(result) = single_value_result(results) else {
-        return false;
-    };
-    match (constant, module.type_kind(result)) {
-        (ScalarConstant::Unit, Some(SsaTypeKind::Unit))
-        | (ScalarConstant::Boolean(_), Some(SsaTypeKind::Boolean)) => true,
-        (ScalarConstant::Char(value), Some(SsaTypeKind::Char)) => char::from_u32(*value).is_some(),
-        (ScalarConstant::Integer(value), Some(SsaTypeKind::Integer { bits, signed })) => {
-            integer_fits(*value, *bits, *signed)
-        }
-        _ => false,
-    }
 }
 
 fn binary_contract(

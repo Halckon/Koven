@@ -5,7 +5,8 @@ use lang_frontend::{
     parser::{Expression, ParsedFile},
     source::Span,
     type_checking::{
-        BuiltinType, DeinitDescriptor, NominalKind, ParameterMode, TypeId, TypeKind, TypedFile,
+        BuiltinType, DeinitDescriptor, IntrinsicTypeConstructor, NominalKind, ParameterMode,
+        TypeId, TypeKind, TypedFile,
     },
 };
 
@@ -115,6 +116,20 @@ pub(super) fn validate_type(
         }
         return Ok(());
     }
+    if let Some(TypeKind::Intrinsic {
+        constructor,
+        arguments,
+    }) = typed.types().get(ty)
+        && matches!(
+            constructor,
+            IntrinsicTypeConstructor::Array
+                | IntrinsicTypeConstructor::List
+                | IntrinsicTypeConstructor::MutableList
+        )
+        && let [element] = arguments.as_slice()
+    {
+        return validate_type(typed, *element, span);
+    }
     let Some(TypeKind::Nominal { nominal, arguments }) = typed.types().get(ty) else {
         return Err(error(LoweringErrorKind::UnsupportedNode, span));
     };
@@ -123,12 +138,22 @@ pub(super) fn validate_type(
         .iter()
         .find(|value| value.id() == *nominal)
         .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-    if descriptor.kind() != NominalKind::Class
-        || !arguments.is_empty()
+    if !matches!(
+        descriptor.kind(),
+        NominalKind::Class | NominalKind::ValueClass
+    ) || !arguments.is_empty()
         || !descriptor.type_parameters().is_empty()
         || !descriptor.interfaces().is_empty()
     {
         return Err(error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    if descriptor.kind() == NominalKind::ValueClass {
+        for field in descriptor.fields() {
+            let field_type = typed
+                .symbol_type(*field)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            validate_type(typed, field_type, span)?;
+        }
     }
     Ok(())
 }

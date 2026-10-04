@@ -33,6 +33,8 @@ use crate::ssa::{
 #[path = "unit_test_directory.rs"]
 mod test_directory;
 use test_directory::TestDirectory;
+#[path = "unit_for_atomic_tests.rs"]
+mod for_atomic;
 
 #[path = "unit_non_null_tests.rs"]
 mod non_null_assertion_tests;
@@ -43,55 +45,9 @@ mod constants;
 #[path = "unit_boxed_enum_tests.rs"]
 mod boxed_enum_tests;
 
-struct UnitAnalysis {
-    sources: SourceMap,
-    provider_source: SourceId,
-    provider: ParsedFile,
-    consumer_source: SourceId,
-    consumer: ParsedFile,
-    names: ValidatedCompilationUnitNames,
-    environment: TypeEnvironment,
-    typed: ValidatedCompilationUnitTypes,
-    owned: ValidatedCompilationUnitOwnership,
-}
-
-impl UnitAnalysis {
-    fn inputs(&self) -> [SourceUnitInput<'_>; 2] {
-        [
-            SourceUnitInput::new(
-                "root",
-                "p/provider.ko",
-                self.provider_source,
-                &self.provider,
-            ),
-            SourceUnitInput::new(
-                "root",
-                "q/consumer.ko",
-                self.consumer_source,
-                &self.consumer,
-            ),
-        ]
-    }
-
-    fn declaration(&self, package: &str, name: &str) -> DeclarationId {
-        self.names
-            .names()
-            .index()
-            .declarations()
-            .iter()
-            .find(|declaration| {
-                declaration.name() == name
-                    && self.names.names().index().packages()[declaration.package().index()]
-                        .name()
-                        .segments()
-                        .iter()
-                        .map(String::as_str)
-                        .eq(package.split('.'))
-            })
-            .expect("fixture declaration exists")
-            .id()
-    }
-}
+#[path = "unit_analysis_test_support.rs"]
+mod analysis_support;
+use analysis_support::UnitAnalysis;
 
 #[test]
 fn unit_object_atomically_replaces_links_and_runs_across_packages() {

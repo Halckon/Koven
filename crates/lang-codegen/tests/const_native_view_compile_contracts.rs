@@ -1,4 +1,6 @@
 //! SPEC-0254: actual public native entry points keep basic/const capabilities separate.
+#[path = "../../../scripts/rust_test_artifact.rs"]
+mod linked_artifact;
 use lang_codegen::emit_native_const_owned_unit_object;
 use lang_frontend::ownership_checking::ConstOwnedCompilationUnitView;
 use std::{
@@ -48,26 +50,7 @@ impl Drop for Scratch {
 }
 
 fn artifact(deps: &Path, name: &str) -> PathBuf {
-    // Never guess by modification time if Cargo retains multiple build variants.
-    // An ambiguous dependency directory cannot prove which API is under test.
-    let prefix = format!("lib{name}-");
-    let mut candidates = fs::read_dir(deps)
-        .expect("read integration target dependency directory")
-        .map(|entry| entry.expect("read dependency entry").path())
-        .filter(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with(&prefix) && name.ends_with(".rlib"))
-        })
-        .collect::<Vec<_>>();
-    candidates.sort();
-    assert_eq!(
-        candidates.len(),
-        1,
-        "expected exactly one matching rlib in {}; candidates: {candidates:?}",
-        deps.display(),
-    );
-    candidates.pop().expect("exactly one rlib was checked")
+    linked_artifact::for_current_test(deps, name)
 }
 
 fn compile(source: &str) -> Output {

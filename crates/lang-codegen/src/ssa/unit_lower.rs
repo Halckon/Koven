@@ -1101,7 +1101,6 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
-
 fn symbol_references(
     names: &ValidatedCompilationUnitNames,
     source_unit: SourceUnitId,

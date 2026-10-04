@@ -13,6 +13,8 @@ mod container_tests;
 mod debug;
 #[cfg(test)]
 mod debug_tests;
+#[cfg(test)]
+pub(crate) mod emission_failure;
 mod entities;
 pub(crate) mod entry;
 #[cfg(test)]
@@ -24,8 +26,6 @@ mod layout_tests;
 mod nullable_tests;
 #[cfg(test)]
 mod object_tests;
-#[cfg(test)]
-pub(crate) mod emission_failure;
 mod runtime;
 #[cfg(test)]
 mod runtime_tests;
@@ -33,6 +33,8 @@ mod scalar;
 mod string;
 #[cfg(test)]
 mod string_tests;
+#[cfg(test)]
+mod synthetic_zst_tests;
 mod tagged;
 mod type_map;
 #[cfg(test)]
