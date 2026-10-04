@@ -11,3 +11,9 @@
 - [v0.37 阶段路由](../drafts/v0.37/README.md)：借用式顺序迭代的阶段依赖
 - [演进实施账本](../evolution-status.md)：其余语言演进的当前状态与缺口
 - [完成 Spec Archive](../../archive/specs/README.md)：只按需追溯原验收
+
+- [SPEC-0256](0256-current-tutorial.md)：当前可执行教程与CLI完整输出合同，in-progress
+
+- [SPEC-0257](0257-bounded-integration-composition.md)：有界组合门禁去重与失败传播，in-progress
+
+- [SPEC-0258](0258-direct-workspace-dependencies.md)：五成员四条内部直接声明依赖门禁，in-progress

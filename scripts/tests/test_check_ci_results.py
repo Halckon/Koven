@@ -15,6 +15,7 @@ SPEC.loader.exec_module(CI)
 def needs(docs_changed="false", rust_changed="false", **results):
     jobs = {name: {"result": results.get(name, "skipped")}
             for name in ("docs", "fmt", "clippy", "test")}
+    jobs["dependencies"] = {"result": results.get("dependencies", "success")}
     jobs["rust-size"] = {"result": results.get("rust-size", "success")}
     jobs["changes"] = {"result": results.get("changes", "success"),
                        "outputs": {"docs": docs_changed, "rust": rust_changed}}
@@ -78,34 +79,28 @@ class CheckCiResultsTests(unittest.TestCase):
         workflow = (root / ".github/workflows/ci.yml").read_text()
         self.assertEqual(2, workflow.count("os: [macos-14, ubuntu-24.04]"))
         self.assertEqual(2, workflow.count("fail-fast: false"))
-        self.assertIn("needs: [changes, rust-size, docs, fmt, clippy, test]", workflow)
-        for command in ("cargo test --locked -p lang-codegen", "cargo test --locked -p lang-cli",
-                        "bash scripts/check_stage_integration.sh", "bash scripts/check_guide_litmus.sh"):
-            self.assertIn(command, workflow)
+        self.assertIn("needs: [changes, rust-size, dependencies, docs, fmt, clippy, test]", workflow)
+        self.assertIn("bash scripts/check_integration.sh", workflow)
+        core = (root / "scripts/check_core.sh").read_text()
+        for package in ("lang-codegen", "lang-cli", "lang-lsp", "lang-std"):
+            self.assertIn(f"cargo test --locked -p {package}", core)
 
     def test_ownership_iteration_runs_unfiltered_in_existing_test_matrix(self):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/ci.yml").read_text()
         job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
         self.assertIn("os: [macos-14, ubuntu-24.04]", job)
-        step = job.split("      - name: Run ownership iteration integration\n", 1)[1]
-        step = step.split("      - name:", 1)[0].strip()
-        self.assertEqual(
-            "run: cargo test --locked -p lang-frontend --test ownership_iteration",
-            step,
-            "The complete target must run without a narrower step condition or test filter",
-        )
+        self.assertIn("run: bash scripts/check_integration.sh", job)
+        composition = (root / "scripts/check_integration.sh").read_text()
+        self.assertEqual(1, composition.count(
+            "cargo test --locked -p lang-frontend --test ownership_iteration\n"))
 
     def test_ownership_iteration_does_not_expand_frontend_to_all_integrations(self):
         root = Path(__file__).resolve().parents[2]
-        workflow = (root / ".github/workflows/ci.yml").read_text()
-        commands = re.findall(r"cargo test[^\n]+", workflow)
-        frontend = [command.strip() for command in commands if "-p lang-frontend" in command]
-        self.assertEqual([
-            "cargo test --locked -p lang-frontend --lib",
-            "cargo test --locked -p lang-frontend --test ownership_iteration",
-        ], frontend)
-        self.assertFalse(any("--workspace" in command for command in commands))
+        for path in ("check_core.sh", "check_integration.sh", "check_stage_integration.sh"):
+            commands = (root / "scripts" / path).read_text()
+            self.assertNotIn("--workspace", commands)
+            self.assertNotIn("-p lang-frontend --tests", commands)
 
     def test_owned_unit_view_contracts_run_in_stage_integration(self):
         root = Path(__file__).resolve().parents[2]

@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "examples": [
+    {
+      "id": "hello",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "Hello, Koven!\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "Hello, Koven!\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "strings",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "你好 Koven\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "你好 Koven\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "branch",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "five\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "five\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "function",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "function\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "function\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "constant",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "constant\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "constant\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "iteration",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "two\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "two\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "arguments",
+      "status": "executable",
+      "args": [
+        "alpha",
+        "你好"
+      ],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "alpha\n你好\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "alpha\n你好\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "reject-typed",
+      "status": "diagnostic",
+      "build": {
+        "exit": 2,
+        "stdout": "",
+        "stderr": "{\"code\":\"L0084\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":36,\"byte_start\":30,\"end\":{\"column\":37,\"line\":1},\"source\":\"source.ko\",\"start\":{\"column\":31,\"line\":1}},\"message\":\"expected String, found Int\"}],\"message\":\"expression type does not match the expected type\",\"primary\":{\"byte_end\":40,\"byte_start\":39,\"end\":{\"column\":41,\"line\":1},\"source\":\"source.ko\",\"start\":{\"column\":40,\"line\":1}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n{\"code\":\"L0084\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":60,\"byte_start\":53,\"end\":{\"column\":20,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":13,\"line\":2}},\"message\":\"expected Boolean, found Int\"}],\"message\":\"expression type does not match the expected type\",\"primary\":{\"byte_end\":64,\"byte_start\":63,\"end\":{\"column\":24,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":23,\"line\":2}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
+      }
+    },
+    {
+      "id": "reject-ownership",
+      "status": "diagnostic",
+      "build": {
+        "exit": 2,
+        "stdout": "",
+        "stderr": "{\"code\":\"L0131\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":130,\"byte_start\":122,\"end\":{\"column\":30,\"line\":4},\"source\":\"source.ko\",\"start\":{\"column\":22,\"line\":4}},\"message\":\"value was moved here\"}],\"message\":\"use of moved value\",\"primary\":{\"byte_end\":162,\"byte_start\":154,\"end\":{\"column\":31,\"line\":5},\"source\":\"source.ko\",\"start\":{\"column\":23,\"line\":5}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n{\"code\":\"L0131\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":130,\"byte_start\":122,\"end\":{\"column\":30,\"line\":4},\"source\":\"source.ko\",\"start\":{\"column\":22,\"line\":4}},\"message\":\"value was moved here\"}],\"message\":\"use of moved value\",\"primary\":{\"byte_end\":193,\"byte_start\":185,\"end\":{\"column\":30,\"line\":6},\"source\":\"source.ko\",\"start\":{\"column\":22,\"line\":6}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
+      }
+    },
+    {
+      "id": "planned-thread",
+      "status": "planned",
+      "reason": "线程 native 不在本教程已验收范围"
+    }
+  ]
+}

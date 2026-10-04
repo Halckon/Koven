@@ -53,6 +53,11 @@ jobs:
               - 'rust-toolchain.toml'
               - '.github/workflows/ci.yml'
               - '.github/actions/setup-llvm/**'
+              - 'editors/**'
+              - 'docs/tutorials/**'
+              - 'scripts/check_tutorial.py'
+              - 'scripts/check_core.sh'
+              - 'scripts/check_integration.sh'
               - 'scripts/check_stage_integration.sh'
               - 'scripts/check_guide_litmus.sh'
               - 'scripts/install_ci_llvm.sh'
@@ -93,6 +98,18 @@ jobs:
           # Full history normally has the base; a force-push may need its exact SHA.
           if ! git cat-file -e "$base^{commit}"; then git fetch --no-tags origin "$base"; fi
           python3 scripts/check_rust_sizes.py --base "$base"
+
+  dependencies:
+    name: Direct Workspace Dependency Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.96.0'
+      - name: Verify direct workspace declarations
+        run: python3 scripts/check_workspace_dependencies.py
+
 
   docs:
     name: Docs & Spec Structural Gate
@@ -180,22 +197,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm.sh', '.github/actions/setup-llvm/action.yml') }}
-      - name: Run Core & Targeted Tests
-        run: |
-          cargo test --locked -p lang-frontend --lib
-          cargo test --locked -p lang-codegen
-          cargo test --locked -p lang-cli
-          cargo test --locked -p lang-lsp
-      - name: Run ownership iteration integration
-        run: cargo test --locked -p lang-frontend --test ownership_iteration
-      - name: Run selected frontend stage integration
-        run: bash scripts/check_stage_integration.sh
-      - name: Run Guide litmus with explicit known gaps
-        run: bash scripts/check_guide_litmus.sh
+      - name: Run bounded composition including tutorial
+        run: bash scripts/check_integration.sh
 
   ci-passed:
     name: CI Passed
-    needs: [changes, rust-size, docs, fmt, clippy, test]
+    needs: [changes, rust-size, dependencies, docs, fmt, clippy, test]
     if: always()
     runs-on: ubuntu-latest
     steps:

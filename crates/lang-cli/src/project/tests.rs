@@ -474,6 +474,18 @@ fn roots_must_exist_be_directories_and_not_overlap() {
     ));
 }
 
+#[test]
+fn root_aliases_and_case_folded_overlaps_are_portably_rejected() {
+    for roots in [["SRC", "src"], ["SRC/nested", "src"], ["src/nested", "SRC"]] {
+        let directory = TestDirectory::new("portable-root-alias");
+        let manifest = write_project_manifest(directory.path(), &roots);
+        assert!(matches!(
+            load_project_source_set(&manifest),
+            Err(ProjectLoadError::OverlappingSourceRoots { .. })
+        ));
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn root_symlinks_are_rejected_but_nested_symlinks_are_ignored() {
