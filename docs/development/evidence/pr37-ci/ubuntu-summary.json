@@ -2,8 +2,8 @@
   "run_id": 37185473350,
   "job_id": 111386636439,
   "head_sha": "385bb23e1123c3a4ba00ec9fe5d964ebc95f1493",
-  "raw_sha256": "14c9cae8be850b13eda1e1b82bdcad012f4a90e77cd1da7ab422d37862d19d47",
-  "gzip_sha256": "7de1f1a0f4449d1e494a842a6a8addeef34d52005aeef9e216802784d9574827",
+  "raw_sha256": "c4e9d2cb1f49ce020face046cda9d4c2ef490d7f8e018ebd25bab8c12751b30b",
+  "gzip_sha256": "f678296cdd4bb4a3245921600daf9d6c769201f139d3ccfd928a421a5bade72e",
   "test_result_lines": [
     "Targeted Tests (ubuntu-24.04)\tRun bounded composition including tutorial\t2026-10-04T07:23:07.7134786Z test result: ok. 192 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.35s",
     "Targeted Tests (ubuntu-24.04)\tRun bounded composition including tutorial\t2026-10-04T07:23:54.4327991Z test result: ok. 788 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 22.36s",
@@ -109,5 +109,6 @@
     "Targeted Tests (ubuntu-24.04)\tRun bounded composition including tutorial\t2026-10-04T07:24:53.9043388Z planned: planned-thread (not executed)",
     "Targeted Tests (ubuntu-24.04)\tRun bounded composition including tutorial\t2026-10-04T07:24:53.9043726Z tutorial: 9 executed contracts; 1 planned"
   ],
-  "coverage": "PR37 only; excludes local SPEC0262 additions"
+  "coverage": "PR37 only; excludes local SPEC0262 additions",
+  "publication": "CI user/workspace paths redacted"
 }

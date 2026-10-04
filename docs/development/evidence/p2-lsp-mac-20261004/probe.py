@@ -13,7 +13,7 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parent
-REPO = Path('/Users/ckfei/Workspace/RustProjects/Koven')
+REPO = Path.cwd()
 SOURCES = ROOT / 'sources'
 TARGETS = ROOT / 'targets'
 RAW = ROOT / 'raw'

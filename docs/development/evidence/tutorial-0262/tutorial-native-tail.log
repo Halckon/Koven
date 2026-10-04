@@ -1,11 +1,11 @@
 passed: deinit
 Traceback (most recent call last):
-  File "/Users/ckfei/Workspace/RustProjects/Koven/scripts/check_tutorial.py", line 100, in <module>
+  File "<REPO>/scripts/check_tutorial.py", line 100, in <module>
     check(args.cli.resolve(), args.example)
     ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/ckfei/Workspace/RustProjects/Koven/scripts/check_tutorial.py", line 83, in check
+  File "<REPO>/scripts/check_tutorial.py", line 83, in check
     assert_output(build, row["build"], directory)
     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/ckfei/Workspace/RustProjects/Koven/scripts/check_tutorial.py", line 51, in assert_output
+  File "<REPO>/scripts/check_tutorial.py", line 51, in assert_output
     raise AssertionError(f"{command}: expected {expected!r}, got {actual!r}")
-AssertionError: ['/Users/ckfei/Workspace/RustProjects/Koven/target/debug/kovenc', 'build', '--project', 'koven.project.toml', '--entry', 'app.start', '-o', 'program']: expected {'exit': 0, 'stdout': '', 'stderr': ''}, got {'exit': 1, 'stdout': '', 'stderr': 'error: project build failed: project load failed: project manifest path must end with project.toml: koven.project.toml\n'}
+AssertionError: ['<REPO>/target/debug/kovenc', 'build', '--project', 'koven.project.toml', '--entry', 'app.start', '-o', 'program']: expected {'exit': 0, 'stdout': '', 'stderr': ''}, got {'exit': 1, 'stdout': '', 'stderr': 'error: project build failed: project load failed: project manifest path must end with project.toml: koven.project.toml\n'}

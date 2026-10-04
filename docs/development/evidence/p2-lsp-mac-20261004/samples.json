@@ -248,7 +248,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -501,7 +501,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -754,7 +754,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -1007,7 +1007,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -1016,7 +1016,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -1035,7 +1035,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -1054,7 +1054,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -1073,7 +1073,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -1092,7 +1092,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/calibration-before/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -1355,7 +1355,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -1608,7 +1608,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -1861,7 +1861,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-1/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-1/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -2114,7 +2114,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-1/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-1/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -2367,7 +2367,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-2/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-2/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -2620,7 +2620,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-2/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-2/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -2629,7 +2629,7 @@
     "side": "before",
     "phase": "identity",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--list"
     ],
@@ -2648,7 +2648,7 @@
     "side": "after",
     "phase": "identity",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--list"
     ],
@@ -2911,7 +2911,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -2920,7 +2920,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -3183,7 +3183,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -3192,7 +3192,7 @@
     "side": "after",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -3455,7 +3455,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -3464,7 +3464,7 @@
     "side": "after",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -3727,7 +3727,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -3736,7 +3736,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -3999,7 +3999,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -4008,7 +4008,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -4271,7 +4271,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -4280,7 +4280,7 @@
     "side": "after",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -4543,7 +4543,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -4552,7 +4552,7 @@
     "side": "after",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -4815,7 +4815,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -4824,7 +4824,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -5087,7 +5087,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -5096,7 +5096,7 @@
     "side": "before",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -5359,7 +5359,7 @@
           "bin"
         ],
         "fresh": false,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -5368,7 +5368,7 @@
     "side": "after",
     "phase": "run",
     "argv": [
-      "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
+      "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6",
       "server::tests",
       "--test-threads=1"
     ],
@@ -5631,7 +5631,7 @@
           "bin"
         ],
         "fresh": true,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -5884,7 +5884,7 @@
           "bin"
         ],
         "fresh": true,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -6137,7 +6137,7 @@
           "bin"
         ],
         "fresh": true,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -6390,7 +6390,7 @@
           "bin"
         ],
         "fresh": true,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -6643,7 +6643,7 @@
           "bin"
         ],
         "fresh": true,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-after-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   },
@@ -6896,7 +6896,7 @@
           "bin"
         ],
         "fresh": true,
-        "executable": "/private/tmp/koven-p2-lsp-mac-20261004/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
+        "executable": "<PILOT_ROOT>/targets/cold-before-0/debug/deps/lang_lsp-53f94cbf38c2d9e6"
       }
     ]
   }

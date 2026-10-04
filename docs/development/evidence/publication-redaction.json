@@ -1,0 +1,67 @@
+{
+  "kind": "Publication path redaction, not new measurement",
+  "tokens": [
+    "<REPO>",
+    "<PILOT_ROOT>",
+    "<PILOT_SANDBOX_ATTEMPT>",
+    "<CARGO_HOME>",
+    "<RUSTUP_HOME>",
+    "<USER_HOME>",
+    "<CI_REPO>",
+    "<CI_HOME>"
+  ],
+  "numeric_json_fields_unchanged": [
+    "docs/development/evidence/p2-lsp-mac-20261004/calibration.json",
+    "docs/development/evidence/p2-lsp-mac-20261004/identities.json",
+    "docs/development/evidence/p2-lsp-mac-20261004/outcome.json",
+    "docs/development/evidence/p2-lsp-mac-20261004/protocol.json",
+    "docs/development/evidence/p2-lsp-mac-20261004/raw-sha256.json",
+    "docs/development/evidence/p2-lsp-mac-20261004/samples.json",
+    "docs/development/evidence/p2-lsp-mac-20261004/summary.json",
+    "docs/development/evidence/pr37-and-p2-static-review.json",
+    "docs/development/evidence/pr37-ci/macos-summary.json",
+    "docs/development/evidence/pr37-ci/run.json",
+    "docs/development/evidence/pr37-ci/ubuntu-summary.json",
+    "docs/development/evidence/tutorial-0262/input-sha256.json",
+    "docs/development/evidence/tutorial-0262/tutorial-red.sha256.json",
+    "docs/tutorials/examples.json"
+  ],
+  "archive_member_count": 804,
+  "changes": {
+    "docs/development/evidence/p2-lsp-mac-20261004/probe.py": {
+      "original_executed_sha256": "5f0b4857633a8ce11e9266897367498ad76de6d7c388f765a30d565efffbc377",
+      "published_sha256": "f183899952496871781c62593c09776310e123d1a357ca26585722f6ee90d24b",
+      "change": "repository location derived from invocation cwd; no sampling rerun"
+    },
+    "docs/development/evidence/p2-lsp-mac-20261004/samples.json": {
+      "original_sha256": "ef933d0f4e9b39dc6b10f6cd753e1f676b627389356fcab6ef135d659b28fcdf",
+      "published_sha256": "63be5196ac019fcea3cd448f48ea74de9dfe75fb9c433d18eb337d97a5b4656b"
+    },
+    "docs/development/evidence/pr37-ci/macos-tests.log.gz": {
+      "original_sha256": "134550a026bd398ea8ee7d26a4b0e3807960ec44fc8ee838bcee7360c469e52a",
+      "published_sha256": "9f6b8aadfd62677ebe60822ddd3f07e636daa48c8412a00f66bb077628fe4d1a"
+    },
+    "docs/development/evidence/pr37-ci/ubuntu-tests.log.gz": {
+      "original_sha256": "7de1f1a0f4449d1e494a842a6a8addeef34d52005aeef9e216802784d9574827",
+      "published_sha256": "f678296cdd4bb4a3245921600daf9d6c769201f139d3ccfd928a421a5bade72e"
+    },
+    "docs/development/evidence/tutorial-0262/tutorial-native-tail.log": {
+      "original_sha256": "9ea2960208ad6fdccf2a5fdc81173765b0b66786251a34c2d8546ce0f5109bec",
+      "published_sha256": "e841968b1a22b127b378cf383a417c0d35c7045e8b71be72b50ce1c8f14c48a6"
+    },
+    "docs/development/evidence/tutorial-0262/tutorial-native.log": {
+      "original_sha256": "6b7066b0a99d123c0dedf15795cdb0ad27507c355a336aeaf2f9a55af9387076",
+      "published_sha256": "2e2f0e3aa83ba4309c328841a7cacaf961a6bf4ed7efe0131ab293294991ad92"
+    },
+    "docs/development/evidence/tutorial-0262/tutorial-red.log.gz": {
+      "original_sha256": "a5552b312e19b818625b2a5b247027a3474de7ef5b5c1aba8ea0d53d02d5aad8",
+      "published_sha256": "4cbec30659e1586471355bf58f719201fd400456fcb3a3556918df69328756f0"
+    },
+    "docs/development/evidence/p2-lsp-mac-20261004/raw.tar.gz": {
+      "original_sha256": "0c2ff91c7e9d64cd88c929cd59bf76964a4e501130b0df2550b9e68830c1abc2",
+      "published_sha256": "2dc32f3e5b7c3cec421ef10fba9d075a51c53606e6365bb654428fb0c2ca38ad"
+    }
+  },
+  "credentials": "credential-pattern scan required separately; no credentials knowingly included",
+  "compiler_outputs": "none; only logs, metadata and digests"
+}

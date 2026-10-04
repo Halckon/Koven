@@ -2,8 +2,8 @@
   "run_id": 37185473350,
   "job_id": 111386636454,
   "head_sha": "385bb23e1123c3a4ba00ec9fe5d964ebc95f1493",
-  "raw_sha256": "c63aa4e5d469f6172c190eef5ea2b2b7d7498d52beac4df944f92a4a70717e69",
-  "gzip_sha256": "134550a026bd398ea8ee7d26a4b0e3807960ec44fc8ee838bcee7360c469e52a",
+  "raw_sha256": "6978298809fdcdd85cc299f6e7723f6770bd62be5d529e28a79d7a1edfd7c6af",
+  "gzip_sha256": "9f6b8aadfd62677ebe60822ddd3f07e636daa48c8412a00f66bb077628fe4d1a",
   "test_result_lines": [
     "Targeted Tests (macos-14)\tRun bounded composition including tutorial\t2026-10-04T07:23:53.6994190Z test result: ok. 192 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.05s",
     "Targeted Tests (macos-14)\tRun bounded composition including tutorial\t2026-10-04T07:25:19.7761620Z test result: ok. 787 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 32.22s",
@@ -109,5 +109,6 @@
     "Targeted Tests (macos-14)\tRun bounded composition including tutorial\t2026-10-04T07:26:33.7674950Z planned: planned-thread (not executed)",
     "Targeted Tests (macos-14)\tRun bounded composition including tutorial\t2026-10-04T07:26:33.7675580Z tutorial: 9 executed contracts; 1 planned"
   ],
-  "coverage": "PR37 only; excludes local SPEC0262 additions"
+  "coverage": "PR37 only; excludes local SPEC0262 additions",
+  "publication": "CI user/workspace paths redacted"
 }
