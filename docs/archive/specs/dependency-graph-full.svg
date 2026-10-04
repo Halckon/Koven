@@ -6,7 +6,7 @@
   </defs>
   <rect width="6720" height="6988" fill="#ffffff"/>
   <rect x="40" y="30" width="6616" height="6886" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，253 份）</text>
+  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，254 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 464, 180 496" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -946,6 +946,7 @@
   <path d="M 2556 4044 C 2556 4076, 2028 5426, 2028 5458" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2292 5550 C 2292 5582, 1236 5582, 1236 5614" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 5670 C 1500 5702, 444 5738, 444 5770" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 4752 C 972 4784, 708 4802, 708 4834" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4140 156 C 4140 188, 444 188, 444 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4140 156 C 4140 188, 708 188, 708 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 312 C 708 344, 708 344, 708 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2016,6 +2017,10 @@
   <rect x="1908" y="5614" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="2028" y="5637" text-anchor="middle" font-size="13">SPEC-0265</text>
   <text x="2028" y="5655" text-anchor="middle" font-size="13">unit 顺序迭代前端事实</text>
+  <rect x="588" y="4834" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="4857" text-anchor="middle" font-size="13">SPEC-0266</text>
+  <text x="708" y="4875" text-anchor="middle" font-size="13">Koven native 地</text>
+  <text x="708" y="4893" text-anchor="middle" font-size="13">址与泄漏检测接线</text>
   <rect x="6396" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="6516" y="87" text-anchor="middle" font-size="13">SPEC-0267</text>
   <text x="6516" y="105" text-anchor="middle" font-size="13">Tree-sitter co</text>

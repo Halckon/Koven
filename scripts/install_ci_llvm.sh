@@ -23,6 +23,19 @@ printf '%s\n' 'deb [arch=amd64 signed-by=/usr/share/keyrings/koven-llvm.asc] htt
   | sudo tee /etc/apt/sources.list.d/koven-llvm.list >/dev/null
 sudo apt-get update
 sudo apt-get install --yes --no-install-recommends \
-  "llvm-21-dev=$version" "clang-21=$version" "libclang-cpp21=$version" \
+  "llvm-21-dev=$version" "clang-21=$version" "libclang-cpp21=$version" "libclang-rt-21-dev=$version" \
   build-essential
-[[ "$(/usr/lib/llvm-21/bin/llvm-config --version)" == 21.1.8 ]]
+actual_version="$(/usr/lib/llvm-21/bin/llvm-config --version)"
+[[ "$actual_version" == 21.1.8 ]] || {
+  echo "Expected LLVM 21.1.8, found $actual_version" >&2
+  exit 1
+}
+# Debian ships the legacy lib/linux layout. Clang 21 --print-runtime-dir can
+# instead return a nonexistent per-target directory, before linker fallback.
+resource_dir="$(/usr/lib/llvm-21/bin/clang --print-resource-dir)"
+runtime_dir="$resource_dir/lib/linux"
+for sanitizer in asan lsan; do
+  archive="$runtime_dir/libclang_rt.$sanitizer-x86_64.a"
+  [[ -f "$archive" ]] || { echo "Missing pinned LLVM sanitizer archive: $archive" >&2; exit 1; }
+  echo "Verified sanitizer archive: $archive"
+done

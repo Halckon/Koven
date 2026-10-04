@@ -59,6 +59,15 @@ class CheckCiResultsTests(unittest.TestCase):
                     altered = {**jobs, "editors": {"result": result}}
                     self.assertTrue(CI.check_results(altered, event, "refs/heads/feature/editor"))
 
+    def test_editor_and_rust_changes_require_both_independent_gates(self):
+        jobs = needs(rust_changed="true", editors_changed="true", editors="success",
+                     fmt="success", clippy="success", test="success")
+        self.assertEqual([], CI.check_results(jobs, "pull_request", "refs/pull/1/merge"))
+        for name in ("editors", "test"):
+            with self.subTest(name=name):
+                altered = {**jobs, name: {"result": "skipped"}}
+                self.assertTrue(CI.check_results(altered, "pull_request", "refs/pull/1/merge"))
+
     def test_editor_filter_and_cli_are_connected_to_required_summary(self):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/ci.yml").read_text()
