@@ -70,6 +70,7 @@ Cargo门禁串行使用共享target，必须等待任务间交接，不并发运
 # LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21
 cargo test --locked --offline -p lang-frontend --test multifile_type_checking --test multifile_ownership_checking --test multifile_constant_ownership --test type_iteration --test ownership_iteration --no-fail-fast
 cargo test --locked --offline -p lang-frontend --lib iteration_
+cargo test --locked --offline -p lang-frontend --test guide_litmus
 cargo test --locked --offline -p lang-codegen --lib native::unit_tests::for_atomic::actual_for_rejections_are_atomic_before_reservation_and_llvm -- --exact
 cargo clippy --locked --offline -p lang-frontend --all-targets -- -D warnings
 cargo check --locked --offline --workspace
@@ -98,5 +99,14 @@ fresh review接受父模块必要接线，provider算法与schema已按职责独
 控制点清理、owner义务及已验证的Index/canonicalization修复，后续按词法owner/call pending
 职责拆分，不机械切片。所有新手写文件均低于1000行。
 
-本片未运行frontend全量、远端CI、第二宿主或A5 native for；原unit-for拒绝原子性仍通过，
-不将前端交接表述为native支持。不自行commit/push/PR，交回主任务后按授权完成远端闭环。
+### 首轮远端反馈
+
+[PR43 首轮 CI](https://github.com/Halckon/Koven/actions/runs/37196964995)关联实现提交
+`9bedf67d3b2ce16a9787a48a5046ed9ee88b86db`；两宿主均在 Guide Litmus11 的旧 unit typed
+快照失败：本片已闭合的 LoopSource/ControlJoin/Assignment 仍列为 Deferred。保留精确快照检查，
+将预期更新为仅剩非值 callee `listOf` 的 Deferred(Call)，同步 Guide 一致性账本。
+本地切换工作树后重新编译 frontend，先复现同一失败，再验证完整 `guide_litmus` 23/23 通过，
+0 failed/ignored。首轮失败不算远端通过，最终提交的双宿主 CI 仍待收口。
+
+本片未运行frontend全量或A5 native for；原unit-for拒绝原子性仍通过，
+不将前端交接表述为native支持。PR 按用户授权交付，CI 全绿后再归档合并。
