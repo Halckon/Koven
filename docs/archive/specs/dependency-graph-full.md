@@ -266,6 +266,9 @@ subgraph Garchive["已完成（archive，256 份）"]
   S0268["S0268<br/>unit 顺序迭代 native 与 M1A 程序贯通"]
   S0270["S0270<br/>单文件局部 MoveOnly 绑定交接"]
 end
+subgraph Gactive["现行 active"]
+  S0271["S0271<br/>当前 tour 的有界组合覆盖"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1223,11 +1226,13 @@ S0252 --> S0253
 S0252 --> S0254
 S0253 --> S0254
 S0254 --> S0255
+S0262 --> S0271
 S0263 --> S0264
 S0263 --> S0265
 S0263 --> S0268
 S0264 --> S0268
 S0265 --> S0268
+S0268 --> S0271
 ```
 
 ## 节点链接
@@ -1490,3 +1495,4 @@ S0265 --> S0268
 | SPEC-0267 | archive | [0267-editor-corpus-gate.md](0267-editor-corpus-gate.md) |
 | SPEC-0268 | archive | [0268-unit-iteration-native.md](0268-unit-iteration-native.md) |
 | SPEC-0270 | archive | [0270-local-owner-binding-transfer.md](0270-local-owner-binding-transfer.md) |
+| SPEC-0271 | active | [0271-tour-combination-coverage.md](../../specs/active/0271-tour-combination-coverage.md) |

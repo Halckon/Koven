@@ -41,7 +41,7 @@
 
 ## 🔍 语法与特性巡礼
 
-示例源码与完整CLI输出合同统一维护在[当前Koven tour](docs/tutorials/koven-tour.md)，本页不另复制未验收的源码。教程包含12个执行正例、2个诊断负例和1个不执行的planned例；parameter-report四组argv共用三文件源码，总计17组执行合同。
+示例源码与完整CLI输出合同统一维护在[当前Koven tour](docs/tutorials/koven-tour.md)。教程包含15个执行正例、4个诊断负例和2个不执行的planned例；parameter-report四组argv共用三文件源码，总计22组执行合同。[覆盖账本](docs/specs/active/0271-tour-combination-coverage.md)区分新增5项Mac合同与此前双宿主证据，并记录分支资源的native缺口。
 
 | 入门内容 | 单一源码示例 |
 |---|---|
@@ -49,6 +49,8 @@
 | String.clone与调用自动借用 | [strings](docs/tutorials/koven-tour.md#strings)、[borrowing](docs/tutorials/koven-tour.md#borrowing) |
 | 顺序迭代、root replace/swap、资源deinit | [iteration](docs/tutorials/koven-tour.md#iteration)、[root-replace-swap](docs/tutorials/koven-tour.md#root-replace-swap)、[deinit](docs/tutorials/koven-tour.md#deinit) |
 | 参数与多文件工程 | [arguments](docs/tutorials/koven-tour.md#arguments)、[cross-file](docs/tutorials/koven-tour.md#cross-file)  [parameter-report](docs/tutorials/koven-tour.md#parameter-report) |
+| 数字字面量、资源清理及迭代退出 | [numbers-bitwise](docs/tutorials/koven-tour.md#numbers-bitwise)、[scope-cleanup](docs/tutorials/koven-tour.md#scope-cleanup)、[unit-loop-cleanup](docs/tutorials/koven-tour.md#unit-loop-cleanup) |
+| 可变place与迭代借用诊断 | [reject-immutable-place](docs/tutorials/koven-tour.md#reject-immutable-place)、[reject-iteration-move](docs/tutorials/koven-tour.md#reject-iteration-move) |
 
 函数声明以`own param: T`表达所有权交付，默认或`borrow param: T`表达共享借用，`inout param: T`表达可变借用；调用点的可变place交付使用`&place`，Borrow不写调用marker。类家族、nullable与Result等语义见[Guide](docs/guide/README.md)，具体native表示与未支持组合以[Architecture](docs/architecture/README.md)为准。String操作不能从Kotlin经验外推为length、分词或通用整数格式化。
 

@@ -104,8 +104,11 @@ in/is/as 与 identifier 使用同一整词扫描，避免 input 等名称在运�
 独立 editor job 对 editor/相关门禁与词法调用规则修改运行锁定的 Tree-sitter 0.26.12，
 检查重新生成的产物无漂移并执行完整 corpus 与实际树回归；main/manual 强制运行，
 required summary 拒绝该运行时却跳过的结果。
-当前教程以Markdown fence为源码真源，十一正例、两完整JSON负例与一planned分开；
+当前教程以Markdown fence为源码真源，15正例、4完整JSON负例与2 planned分开，四组argv使执行合同共22项；
 跨文件合同只引用fence ID，沿现行project.toml/entry协议运行，定向选择不改变CI默认完整选集。
+新增5项合同在固定 `4ce0eb8` 基线Mac通过真实build/artifact/run或精确JSON验收；该基线分支内多个resource的
+`InvalidSsa` build失败单独保留为planned，不能用函数作用域正例替代。源码、实际结果与未运行平台
+见 [SPEC-0271](../specs/active/0271-tour-combination-coverage.md)；旧双宿主证据不作为本批Linux验收。
 LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 意外跳过。配置与本地验证不代表远端已运行；实际交付证据见
 [SPEC-0239](../archive/specs/0239-linux-ci-gates.md)，使用规则见[测试与分层验收](../development/testing.md)。

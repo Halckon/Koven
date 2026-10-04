@@ -13,6 +13,47 @@ SPEC.loader.exec_module(TUTORIAL)
 
 
 class TutorialContracts(unittest.TestCase):
+    def test_recorded_native_gap_remains_explicit_and_is_not_executed(self):
+        examples = dict((row['id'], row) for row, _ in TUTORIAL.load_examples())
+        self.assertEqual(examples['gap-scope-branch']['status'], 'planned')
+        self.assertIn('InvalidSsa', examples['gap-scope-branch']['reason'])
+        with mock.patch.object(TUTORIAL, 'assert_output') as execute:
+            TUTORIAL.check(Path('/test-cli'), ['planned-thread', 'gap-scope-branch'])
+        execute.assert_not_called()
+
+    def test_new_combinations_extract_canonical_sources_and_execute_each_contract(self):
+        selected = ['numbers-bitwise', 'scope-cleanup', 'unit-loop-cleanup',
+                    'reject-immutable-place', 'reject-iteration-move']
+        calls = []
+
+        def record(command, expected, directory):
+            files = set(path.relative_to(directory).as_posix() for path in directory.rglob('*.ko'))
+            if '--project' in command or len(files) == 2:
+                self.assertEqual(files, {'src/worker/Work.ko', 'src/app/Main.ko'})
+                self.assertIn('for (item in mutableListOf(', (directory / 'src/worker/Work.ko').read_text())
+                self.assertIn('worker.work(2)', (directory / 'src/app/Main.ko').read_text())
+            else:
+                self.assertEqual(files, {'source.ko'})
+            calls.append((command, expected, directory))
+
+        with mock.patch.object(TUTORIAL, 'assert_output', side_effect=record):
+            TUTORIAL.check(Path('/test-cli'), selected)
+        self.assertEqual(len(calls), 11, 'three positive triples and two JSON diagnostic builds')
+        for index in range(3):
+            build, artifact, run = calls[index * 3:index * 3 + 3]
+            inputs = (['--project', 'project.toml', '--entry', 'app.main']
+                      if index == 2 else ['source.ko'])
+            self.assertEqual(build[0], ['/test-cli', 'build', *inputs, '-o', 'program'])
+            self.assertEqual(artifact[0], [str(artifact[2] / 'program')])
+            self.assertEqual(run[0], ['/test-cli', 'run', *inputs, '--'])
+            self.assertEqual(artifact[1], run[1])
+        self.assertEqual(calls[1][1]['stdout'], 'literals\nbits\n')
+        self.assertEqual(calls[4][1]['stdout'], 'inner\nsecond\nfirst\nafter\nouter\n')
+        for command, expected, _ in calls[9:]:
+            self.assertEqual(command, ['/test-cli', '--message-format=json', 'build',
+                                       'source.ko', '-o', 'program'])
+            self.assertEqual(expected['exit'], 2)
+
     def test_parameter_report_executes_all_four_cases_from_one_source_set(self):
         calls = []
 
