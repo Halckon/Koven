@@ -347,4 +347,3 @@
 - [SPEC-0260](./0260-shared-unit-source-query.md)：本机恢复验收与原非目标见正文
 - [SPEC-0261](./0261-finite-iteration-fact-validation.md)：本机恢复验收与原非目标见正文
 - [SPEC-0262](./0262-current-tutorial-plan-coverage.md)：原治理计划P5四个当前教程与提取合同的本机有界验收
-- [SPEC-0265](./0265-unit-iteration-facts.md)：unit 顺序迭代前端 typed/ownership 与有序清理事实，PR43双宿主验收

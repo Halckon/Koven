@@ -93,6 +93,7 @@ impl CompilationUnitOwnership {
                         !matches!(
                             action,
                             Action::Drop(_)
+                                | Action::DropConditionalReceiver(_)
                                 | Action::EndCallLoan(_)
                                 | Action::EndReceiverLoan(_)
                                 | Action::EndCaptureLoan { .. }
@@ -164,40 +165,44 @@ impl CompilationUnitOwnership {
                     // A loan must end before destruction of the owner it protects,
                     // not merely before the later element/provider boundary.
                     if actions[..position].iter().any(|earlier| {
-                        let Action::Drop(drop) = earlier else {
-                            return false;
+                        let target = match earlier {
+                            Action::Drop(drop) => drop.target(),
+                            Action::DropConditionalReceiver(drop) => {
+                                UnitDropTarget::This(drop.owner())
+                            }
+                            _ => return false,
                         };
                         match action {
                             Action::EndCallLoan(loan) => match loan.target() {
                                 UnitLoanTarget::Place(place) => {
-                                    drop.target() == UnitDropTarget::Named(place.root())
+                                    target == UnitDropTarget::Named(place.root())
                                 }
                                 UnitLoanTarget::Temporary(owner) => {
-                                    drop.target() == UnitDropTarget::Temporary(*owner)
+                                    target == UnitDropTarget::Temporary(*owner)
                                 }
                                 UnitLoanTarget::This(owner) => {
-                                    drop.target() == UnitDropTarget::This(*owner)
+                                    target == UnitDropTarget::This(*owner)
                                 }
                             },
                             Action::EndReceiverLoan(loan) => match loan.target() {
                                 super::UnitReceiverOwnershipTarget::Place(place) => {
-                                    drop.target() == UnitDropTarget::Named(place.root())
+                                    target == UnitDropTarget::Named(place.root())
                                 }
                                 super::UnitReceiverOwnershipTarget::Temporary(owner) => {
-                                    drop.target() == UnitDropTarget::Temporary(*owner)
+                                    target == UnitDropTarget::Temporary(*owner)
                                 }
                                 super::UnitReceiverOwnershipTarget::This(owner) => {
-                                    drop.target() == UnitDropTarget::This(*owner)
+                                    target == UnitDropTarget::This(*owner)
                                 }
                             },
                             Action::EndCaptureLoan {
                                 source: super::UnitClosureCaptureSource::Symbol(symbol),
                                 ..
-                            } => drop.target() == UnitDropTarget::Named(*symbol),
+                            } => target == UnitDropTarget::Named(*symbol),
                             Action::EndCaptureLoan {
                                 source: super::UnitClosureCaptureSource::This,
                                 ..
-                            } => matches!(drop.target(), UnitDropTarget::This(_)),
+                            } => matches!(target, UnitDropTarget::This(_)),
                             _ => false,
                         }
                     }) {
@@ -246,6 +251,28 @@ impl CompilationUnitOwnership {
                                     .any(|binding| binding.symbol() == *symbol)
                                 && !exhausted
                                 && position >= elements[0]
+                            {
+                                return false;
+                            }
+                        }
+                        Action::DropConditionalReceiver(fact) => {
+                            let Some((_, scopes)) = self
+                                .iteration_conditional_scopes
+                                .iter()
+                                .find(|(expected, _)| expected == fact)
+                            else {
+                                return false;
+                            };
+                            let preceding = actions[..position]
+                                .iter()
+                                .filter(|action| matches!(action, Action::Drop(_)))
+                                .count();
+                            if preceding != fact.preceding_drops()
+                                || (scopes.contains(&statement)
+                                    && (exhausted || position >= elements[0]))
+                                || (!scopes.contains(&statement)
+                                    && terminal
+                                    && position <= source[0])
                             {
                                 return false;
                             }
@@ -307,6 +334,19 @@ impl CompilationUnitOwnership {
                     })
                     .collect::<Vec<_>>();
                 if facts != action_drops {
+                    return false;
+                }
+                if actions
+                    .iter()
+                    .filter_map(|action| match action {
+                        Action::DropConditionalReceiver(fact) => Some(fact),
+                        _ => None,
+                    })
+                    .ne(self
+                        .conditional_receiver_drops()
+                        .iter()
+                        .filter(|fact| fact.point() == exit.point()))
+                {
                     return false;
                 }
             }

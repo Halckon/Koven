@@ -550,3 +550,118 @@ fn returning_source_index_drops_only_its_evaluated_backing_owner() {
     );
     assert!(owned.validate().is_ok());
 }
+
+#[test]
+fn conditional_receiver_cleanup_follows_its_formation_scope() {
+    for (body, inside) in [
+        (
+            "for (_ in xs) { consume(if(flag) {return} else {return}) }",
+            true,
+        ),
+        (
+            "consume(if(flag) { for (_ in xs) {return}\n1 } else 1)",
+            false,
+        ),
+    ] {
+        let owned = analyze(
+            &format!(
+                "package p\ninterface Relay {{ own fun consume(n: Int): Unit {{}}\nown fun run(xs: List<Int>, flag: Boolean): Unit {{ {body} }} }}"
+            ),
+            "package q\nfun noop() {}",
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        let plan = &owned.iterations()[0];
+        assert_eq!(
+            plan.exits()
+                .iter()
+                .filter(|exit| matches!(exit.kind(), Exit::Return(_)))
+                .count(),
+            if inside { 2 } else { 1 },
+            "every source return must publish a cleanup plan before checking its ordering"
+        );
+        for exit in plan
+            .exits()
+            .iter()
+            .filter(|exit| matches!(exit.kind(), Exit::Return(_)))
+        {
+            let fact = owned
+                .conditional_receiver_drops()
+                .iter()
+                .find(|fact| fact.point() == exit.point())
+                .unwrap();
+            assert_eq!(
+                fact.preceding_drops(),
+                0,
+                "flat drop ordinal alone cannot distinguish these two orders"
+            );
+            let drop = exit
+                .actions()
+                .iter()
+                .position(|action| *action == Action::DropConditionalReceiver(*fact))
+                .expect(
+                    "the complete iteration sequence must include conditional receiver destruction",
+                );
+            let boundary = exit
+                .actions()
+                .iter()
+                .position(|action| {
+                    *action
+                        == if inside {
+                            Action::EndElement(plan.descriptor().statement())
+                        } else {
+                            Action::EndSource(plan.descriptor().statement())
+                        }
+                })
+                .unwrap();
+            assert_eq!(
+                drop < boundary,
+                inside,
+                "body pending receiver precedes element end; enclosing pending receiver follows source end"
+            );
+        }
+        assert!(owned.validate().is_ok());
+    }
+}
+
+#[test]
+fn conditional_receiver_between_nested_providers_cleans_between_their_exits() {
+    let owned = analyze(
+        "package p\ninterface Relay { own fun consume(n: Int): Unit {}\nown fun run(xs: List<Int>, flag: Boolean): Unit { for (_ in xs) { consume(if(flag) { for (_ in xs) {return}\nreturn } else {return}) } } }",
+        "package q\nfun noop() {}",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let exit = owned
+        .iterations()
+        .iter()
+        .flat_map(|plan| plan.exits())
+        .find(|exit| {
+            matches!(exit.kind(), Exit::Return(_))
+                && exit
+                    .actions()
+                    .iter()
+                    .filter(|action| matches!(action, Action::EndSource(_)))
+                    .count()
+                    == 2
+        })
+        .unwrap();
+    let inner_source_end = exit
+        .actions()
+        .iter()
+        .position(|action| matches!(action, Action::EndSource(_)))
+        .unwrap();
+    let receiver_drop = exit
+        .actions()
+        .iter()
+        .position(|action| matches!(action, Action::DropConditionalReceiver(_)))
+        .unwrap();
+    let outer_element_end = exit
+        .actions()
+        .iter()
+        .rposition(|action| matches!(action, Action::EndElement(_)))
+        .unwrap();
+    assert!(
+        inner_source_end < receiver_drop && receiver_drop < outer_element_end,
+        "a receiver formed between providers must be released after the inner source and before the outer element"
+    );
+    assert!(owned.validate().is_ok());
+}

@@ -198,6 +198,11 @@ impl DropPlanner<'_, '_> {
         let point = PlannerDropPoint::ControlTransfer(expression);
         self.end_iteration_pending_loans(point, state, 0);
         while let Some(frame) = state.iterations.last().cloned() {
+            // Each pending owner belongs to the loop depth where evaluation formed it.
+            // Unwinding an inner provider must not postpone an outer-body receiver past its provider.
+            self.drop_pending_temporaries(point, state, |pending| {
+                pending.loop_depth >= frame.loop_depth
+            });
             self.drop_deeper_than(frame.scope_depth, point, state);
             self.finish_iteration(
                 point,

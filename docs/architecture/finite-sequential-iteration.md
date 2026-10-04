@@ -54,3 +54,9 @@ provider 发布计划，与普通 capability 隔离；两出口均验证模板�
 实现入口为 frontend `compilation_unit/iteration.rs`、`dataflow/iteration.rs`、
 `dataflow/drop_planner/iteration.rs` 与 `iteration_validation.rs`；不改变本页现有 unit native
 拒绝边界，A5 尚未交付。
+
+conditional `StaticSelf` receiver 的析构也以 `DropConditionalReceiver` 进入同点完整序列；
+下游仅在具体MoveOnly实例执行，Copyable跳过，不重复消费同点平面conditional facts。
+原 `preceding_drops` 保留非迭代消费兼容；它只计普通drop，不能定位provider动作之间的位置。
+验证器另核pending receiver形成时的provider集合，确保body内receiver在EndElement之前、
+外围receiver在EndSource之后；嵌套return按每个frame的loop depth清理pending owner。

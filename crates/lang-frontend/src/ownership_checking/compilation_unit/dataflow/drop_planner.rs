@@ -35,6 +35,8 @@ use model::{
 
 #[derive(Default)]
 pub(super) struct Analysis {
+    pub(super) iteration_conditional_scopes:
+        Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     pub(super) iteration_owner_scopes: Vec<(
         UnitStatementId,
         crate::ownership_checking::UnitDropTarget,
@@ -120,6 +122,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         .map(|fact| fact.into_unit(checker.source_unit))
         .collect();
     Ok(Analysis {
+        iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,
         iteration_loan_ends,
         iterations,
@@ -131,6 +134,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
 }
 
 struct DropPlanner<'a, 'checker> {
+    iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     iteration_temporary_scopes: Vec<(
         UnitStatementId,
         crate::ownership_checking::UnitDropTarget,
@@ -160,6 +164,7 @@ struct DropPlanner<'a, 'checker> {
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
         Self {
+            iteration_conditional_scopes: Vec::new(),
             iteration_temporary_scopes: Vec::new(),
             iteration_scope_depths: BTreeMap::new(),
             iteration_actions: Vec::new(),
@@ -1441,6 +1446,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn push_this_fact(&mut self, point: PlannerDropPoint, receiver: OwnedThis) {
+        self.push_this_fact_in_iteration_scopes(point, receiver, &[]);
+    }
+
+    /// Pending receiver保留形成时所在provider集合，独立于退出动作排列。
+    fn push_this_fact_in_iteration_scopes(
+        &mut self,
+        point: PlannerDropPoint,
+        receiver: OwnedThis,
+        scopes: &[UnitStatementId],
+    ) {
         if let Some(receiver_type) = receiver.conditional_type {
             let fact = PlannerConditionalReceiverDropFact {
                 point,
@@ -1455,6 +1470,15 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             };
             if !self.conditional_receiver_facts.contains(&fact) {
                 self.conditional_receiver_facts.push(fact);
+                let public = fact.into_unit(self.checker.source_unit);
+                self.iteration_conditional_scopes
+                    .push((public, scopes.to_vec()));
+                self.iteration_actions.push((
+                    point,
+                    crate::ownership_checking::UnitIterationCleanupAction::DropConditionalReceiver(
+                        public,
+                    ),
+                ));
             }
         } else {
             self.push_fact(PlannerDropFact::new(

@@ -1,10 +1,10 @@
 # SPEC-0265: unit 顺序迭代前端事实
 
-> **性质**：有界变更合同 · **状态**：done · **读取时机**：追溯 M1A A4 交付时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施 M1A A4 conditional receiver 补齐时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | done |
+| 状态 | in-progress |
 | Goal ID | `KOV-P3-265` |
 | 所属 Phase | Phase 2–3；现行语义实现 |
 | 语言规范 | [Guide v0.40 §37](../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
@@ -111,7 +111,7 @@ fresh review接受父模块必要接线，provider算法与schema已按职责独
 本片未运行frontend全量或A5 native for；原unit-for拒绝原子性仍通过，
 不将前端交接表述为native支持。PR 按用户授权交付，CI 全绿后再归档合并。
 
-## 6. 双宿主验收与归档
+## 6. 前轮双宿主验收与归档尝试
 
 [PR43](https://github.com/Halckon/Koven/pull/43) 实现 head
 `4a07caf8c58e6fa4e27f72ec43e606fee91a4312` 的
@@ -122,6 +122,53 @@ fresh review接受父模块必要接线，provider算法与schema已按职责独
 Ubuntu 无 ignored；macOS 仅既有 LLDB 断点测试因 debugserver task-port 权限 ignored，
 本片新增测试没有跳过。独立实现审阅、缺陷修复复审及本地验收已闭环。
 
-本次归档只更新合同状态、索引/inventory、DAG 和进度链接；最终归档 head 仍须通过 PR CI
-才合并，不能用以上实现 head 代替。M1A A4 已交付，A5–A10 与完整三文件 native/CLI
-总验收仍开放；本片不声明 unit native for 已支持。
+该轮归档只更新合同状态、索引/inventory、DAG 和进度链接；归档 head `92872ea` 随后发现
+第7节缺口，不能用以上旧实现 head 的CI代替补齐验证。SPEC-0265恢复active、PR43暂停合并；
+A5–A10 与完整三文件 native/CLI 总验收仍开放，不声明 unit native for 已支持。
+
+## 7. 归档前发现的 conditional receiver 清理缺口
+
+在归档 head `92872ea` 的最小公开API探针中，interface default Value receiver 在for内部与
+外部形成pending call时，return均通过validate且只有EndElement/FinishProvider/EndSource；
+两种conditional receiver drop的preceding_drops均为0，无法表达前者应在element之前、后者
+应在source之后。以上双宿主结果仅证明旧验收范围，不能覆盖该遗漏；PR43暂停合并，恢复active。
+
+本次补齐producer显式conditional receiver action及schema的形成scope义务，保留非迭代
+preceding_drops合同，不要求消费者从AST重推。两种形成位置先红后绿，并对缺项和错序做
+mutation负例；不扩展A5。
+
+公开动作新增 `DropConditionalReceiver(UnitConditionalReceiverDropFact)`，与provider动作同序
+发布；具体MoveOnly实例执行、Copyable跳过，消费者不再重复执行同点平面conditional facts。
+独立形成scope证据要求body内receiver先于EndElement、外围receiver晚于EndSource；普通
+`preceding_drops`仍保留并校验。嵌套return按退出frame自身的loop depth清理pending owner，
+保证位于两层provider之间形成的receiver在两层清理之间释放。
+
+实际红测：两个基本形成位置的完整序列缺少conditional动作（1项失败）；补显式动作后绿。
+嵌套形成位置又揭示统一loop-depth阈值推迟外层body pending owner（1项失败）；改为每层
+frame阈值后绿。新增2项schema mutation覆盖缺项、重复、foreign point、相同普通drop序号下
+交换provider边界及跨两层边界错序；constant入口正例确认同一合同。
+
+本轮定向实跑：multifile ownership 97/97、constant 23/23；私有iteration筛选15/15；
+codegen既有conditional receiver消费4/4（含实际native Copyable/MoveOnly行为），unit-for拒绝
+原子性1/1，全部0 failed/ignored。docs 507、Python门禁单测84、尺寸/diff已通过。
+workspace check（2.30s）、frontend all-targets Clippy -D warnings（7.65s）与fmt check通过；
+独立fresh-context复审已通过，核schema独立位置证据、嵌套pending owner与loan顺序及非迭代兼容；
+复审指出return退出遍历可能空跑，补齐ordinary内2/外1、constant2的显式计数后复审通过，
+两suite的conditional_receiver筛选7项实跑通过（0 failed/ignored；113项filtered）。
+本轮不重复声明旧全量或双宿主覆盖。
+
+增量测试命令沿用第5节统一Cargo环境，并在切换crate前touch对应lib入口确保实际重编译：
+
+```sh
+cargo test --locked --offline -p lang-frontend --test multifile_ownership_checking --test multifile_constant_ownership --no-fail-fast
+cargo test --locked --offline -p lang-frontend --lib iteration_
+cargo test --locked --offline -p lang-codegen --lib conditional_receiver
+cargo test --locked --offline -p lang-codegen --lib native::unit_tests::for_atomic::actual_for_rejections_are_atomic_before_reservation_and_llvm -- --exact
+```
+
+检查codegen/CLI无 `UnitIterationCleanupAction` 穷举消费；workspace编译与既有conditional
+receiver tests覆盖兼容性。A5仍未启用，公开动作并不宣称native for支持。
+
+本轮尺寸增量：`compilation_unit.rs`1144→1147、`dataflow.rs`1225→1232、
+`drop_planner.rs`1570→1594；baseline不变，增加仅为conditional scope证据/动作接线及API说明，
+精确例外随policy更新，独立review已核职责与额度合理。

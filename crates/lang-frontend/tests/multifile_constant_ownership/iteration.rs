@@ -71,3 +71,45 @@ fn grouped_constant_pending_owner_keeps_one_identity_in_iteration_cleanup() {
         },
     );
 }
+
+#[test]
+fn constant_capability_preserves_conditional_receiver_cleanup_position() {
+    with_unit(
+        "package a\nimport b.Labels\ninterface Relay { own fun consume(n: Int): Unit {}\nown fun run(xs: List<Int>, flag: Boolean): Unit { for (_ in xs) { consume(if(flag) {val n = Labels.N\nreturn} else {return}) } } }",
+        "package b\nobject Labels { const val N = 1 }",
+        |sources, inputs, names, te, typed| {
+            let owned =
+                check_compilation_unit_constant_ownership(sources, inputs, names, te, typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+            let plan = &owned.ownership().iterations()[0];
+            assert_eq!(
+                plan.exits()
+                    .iter()
+                    .filter(|exit| matches!(exit.kind(), UnitIterationExitKind::Return(_)))
+                    .count(),
+                2,
+                "both return branches must retain their cleanup plans through constant handoff"
+            );
+            for exit in plan
+                .exits()
+                .iter()
+                .filter(|exit| matches!(exit.kind(), UnitIterationExitKind::Return(_)))
+            {
+                use lang_frontend::ownership_checking::UnitIterationCleanupAction as Action;
+                let drop = exit
+                    .actions()
+                    .iter()
+                    .position(|action| matches!(action, Action::DropConditionalReceiver(_)))
+                    .unwrap();
+                let end = exit
+                    .actions()
+                    .iter()
+                    .position(|action| matches!(action, Action::EndElement(_)))
+                    .unwrap();
+                assert!(drop < end);
+            }
+        },
+    );
+}

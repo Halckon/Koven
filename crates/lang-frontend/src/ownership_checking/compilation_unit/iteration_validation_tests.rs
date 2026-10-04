@@ -232,3 +232,114 @@ fn iteration_schema_rejects_loan_end_after_its_temporary_owner_drop() {
         "ending before element is insufficient after the borrowed owner was already dropped"
     );
 }
+
+#[test]
+fn iteration_schema_rejects_missing_duplicate_and_wrong_scope_conditional_receiver_drop() {
+    for (body, inside) in [
+        (
+            "for (_ in xs) { consume(if(flag) {return} else {return}) }",
+            true,
+        ),
+        (
+            "consume(if(flag) { for (_ in xs) {return}\n1 } else 1)",
+            false,
+        ),
+    ] {
+        let valid = super::constants_tests::analyze(&format!(
+            "package a\ninterface Relay {{ own fun consume(n: Int): Unit {{}}\nown fun run(xs: List<Int>, flag: Boolean): Unit {{ {body} }} }}"
+        ));
+        assert!(valid.clone().validate().is_ok());
+        let point = return_point(&valid);
+        let conditional = valid
+            .conditional_receiver_drops()
+            .iter()
+            .find(|fact| fact.point() == point)
+            .copied()
+            .unwrap();
+        assert_eq!(conditional.preceding_drops(), 0);
+        let mut missing = valid.clone();
+        mutate_point(&mut missing, point, |actions| {
+            actions.retain(|action| !matches!(action, Action::DropConditionalReceiver(_)))
+        });
+        assert!(missing.validate().is_err());
+        let mut duplicate = valid.clone();
+        mutate_point(&mut duplicate, point, |actions| {
+            actions.push(Action::DropConditionalReceiver(conditional))
+        });
+        assert!(duplicate.validate().is_err());
+        let mut wrong_scope = valid.clone();
+        mutate_point(&mut wrong_scope, point, |actions| {
+            let index = actions
+                .iter()
+                .position(|action| matches!(action, Action::DropConditionalReceiver(_)))
+                .unwrap();
+            let action = actions.remove(index);
+            if inside {
+                actions.push(action);
+            } else {
+                actions.insert(0, action);
+            }
+        });
+        assert!(
+            wrong_scope.validate().is_err(),
+            "zero preceding ordinary drops must not hide a provider-boundary inversion"
+        );
+        let foreign = valid
+            .conditional_receiver_drops()
+            .iter()
+            .find(|fact| fact.point() != point)
+            .copied()
+            .unwrap();
+        let mut foreign_point = valid;
+        mutate_point(&mut foreign_point, point, |actions| {
+            let action = actions
+                .iter_mut()
+                .find(|action| matches!(action, Action::DropConditionalReceiver(_)))
+                .unwrap();
+            *action = Action::DropConditionalReceiver(foreign);
+        });
+        assert!(foreign_point.validate().is_err());
+    }
+}
+
+#[test]
+fn iteration_schema_requires_conditional_receiver_between_its_nested_provider_boundaries() {
+    let valid = super::constants_tests::analyze(
+        "package a\ninterface Relay { own fun consume(n: Int): Unit {}\nown fun run(xs: List<Int>, flag: Boolean): Unit { for (_ in xs) { consume(if(flag) { for (_ in xs) {return}\nreturn } else {return}) } } }",
+    );
+    assert!(valid.clone().validate().is_ok());
+    let point = valid
+        .iterations()
+        .iter()
+        .flat_map(|plan| plan.exits())
+        .find(|exit| {
+            matches!(exit.kind(), Exit::Return(_))
+                && exit
+                    .actions()
+                    .iter()
+                    .filter(|action| matches!(action, Action::EndSource(_)))
+                    .count()
+                    == 2
+        })
+        .unwrap()
+        .point();
+    for before_all in [true, false] {
+        let mut invalid = valid.clone();
+        mutate_point(&mut invalid, point, |actions| {
+            let index = actions
+                .iter()
+                .position(|action| matches!(action, Action::DropConditionalReceiver(_)))
+                .unwrap();
+            let conditional = actions.remove(index);
+            if before_all {
+                actions.insert(0, conditional);
+            } else {
+                actions.push(conditional);
+            }
+        });
+        assert!(
+            invalid.validate().is_err(),
+            "neither before the inner source end nor after the outer element end is a valid receiver cleanup slot"
+        );
+    }
+}

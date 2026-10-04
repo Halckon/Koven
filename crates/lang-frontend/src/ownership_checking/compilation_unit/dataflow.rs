@@ -47,6 +47,10 @@ use super::{
 use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
 pub(super) struct Analysis {
+    pub(super) iteration_conditional_scopes: Vec<(
+        super::UnitConditionalReceiverDropFact,
+        Vec<crate::type_checking::UnitStatementId>,
+    )>,
     pub(super) iteration_owner_scopes: Vec<(
         crate::type_checking::UnitStatementId,
         crate::ownership_checking::UnitDropTarget,
@@ -196,6 +200,7 @@ pub(super) fn analyze(
     let mut field_replacements = Vec::new();
     let mut drops = Vec::new();
     let mut iterations = Vec::new();
+    let mut iteration_conditional_scopes = Vec::new();
     let mut iteration_owner_scopes = Vec::new();
     let mut iteration_loan_ends = Vec::new();
     let mut iteration_templates = Vec::new();
@@ -253,6 +258,7 @@ pub(super) fn analyze(
         let drop_analysis = checker.run()?;
         iteration_templates.extend(checker.iterations.into_values());
         iterations.extend(drop_analysis.iterations);
+        iteration_conditional_scopes.extend(drop_analysis.iteration_conditional_scopes);
         iteration_owner_scopes.extend(drop_analysis.iteration_owner_scopes);
         iteration_loan_ends.extend(drop_analysis.iteration_loan_ends);
         iteration_required_exits.extend(drop_analysis.iteration_required_exits);
@@ -284,6 +290,7 @@ pub(super) fn analyze(
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
     Ok(Analysis {
+        iteration_conditional_scopes,
         iteration_owner_scopes,
         iteration_loan_ends,
         iterations,

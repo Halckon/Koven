@@ -115,7 +115,9 @@ impl DropPlanner<'_, '_> {
                     pending.origin,
                 ));
             }
-            PendingOwner::This(receiver) => self.push_this_fact(point, receiver),
+            PendingOwner::This(receiver) => {
+                self.push_this_fact_in_iteration_scopes(point, receiver, &pending.iteration_scopes)
+            }
         }
     }
 

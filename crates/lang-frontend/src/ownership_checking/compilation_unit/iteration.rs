@@ -20,7 +20,7 @@ impl super::CompilationUnitOwnership {
             .find(|plan| plan.descriptor().statement() == statement)
     }
 
-    /// 一个控制点的完整清理序列。存在时消费一次，不能再执行同点普通drops。
+    /// 一个控制点的完整清理序列。消费一次，不再独立执行同点普通或conditional receiver drops。
     #[must_use]
     pub fn iteration_cleanup_at(
         &self,
@@ -78,6 +78,8 @@ pub enum UnitIterationCleanupAction {
     },
     /// 复用同一owner/drop identity，不得再从普通drops重复执行。
     Drop(UnitDropFact),
+    /// 按本序列位置实例化StaticSelf receiver；具体MoveOnly执行析构，Copyable跳过。
+    DropConditionalReceiver(super::UnitConditionalReceiverDropFact),
     /// 结束具名binding及其投影借用。
     EndBinding {
         /// 所属provider。
