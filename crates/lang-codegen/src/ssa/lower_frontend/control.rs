@@ -825,7 +825,13 @@ impl ExpressionLowerer<'_> {
                 return Ok(LoweredValue::Diverged);
             }
         }
-        self.lower_statement(last)
+        let result = self.lower_statement(last)?;
+        if !matches!(result, LoweredValue::Diverged) {
+            self.emit_drops(
+                lang_frontend::ownership_checking::DropPoint::AfterStatement(statement),
+            )?;
+        }
+        Ok(result)
     }
 
     pub(super) fn merge_exits(

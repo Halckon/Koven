@@ -304,11 +304,9 @@ fun main(): Unit { thread(move { println("thread") }).join() }
 
 ## gap-scope-branch
 
-下面的嵌套分支资源例在 SPEC-0271 的固定 Mac 基线实际 build 失败：
-退出码2，stdout为空，stderr为
-`error: native build failed: native object InvalidModel: frontend lowering failed with InvalidSsa`。
-这是 native 实现缺口，不是语言不合法的诊断示例；暂列 planned，CI 不执行，不计通过。
-本批保留失败，不为取得教程通过而修改编译器或 Guide；前述函数作用域正例不能证明此分支组合可运行。
+本例的原始 `InvalidSsa` 失败保存在 SPEC-0271 的历史证据中。
+SPEC-0273 补齐控制体正常出口的资源清理后，同一源码加入实际 CLI 合同；
+输出依次为 `inner`、`second`、`first`、`after`、`outer`，证明分支内逆序清理及外层资源存活。
 
 ```koven gap-scope-branch
 class Resource(val name: String) { deinit() { println(this.name) } }

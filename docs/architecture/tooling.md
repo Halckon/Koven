@@ -104,11 +104,12 @@ in/is/as 与 identifier 使用同一整词扫描，避免 input 等名称在运�
 独立 editor job 对 editor/相关门禁与词法调用规则修改运行锁定的 Tree-sitter 0.26.12，
 检查重新生成的产物无漂移并执行完整 corpus 与实际树回归；main/manual 强制运行，
 required summary 拒绝该运行时却跳过的结果。
-当前教程以Markdown fence为源码真源，15正例、4完整JSON负例与2 planned分开，四组argv使执行合同共22项；
+当前教程以Markdown fence为源码真源，16正例、4完整JSON负例与1 planned分开，四组argv使执行合同共23项；
 跨文件合同只引用fence ID，沿现行project.toml/entry协议运行，定向选择不改变CI默认完整选集。
-新增5项合同在固定 `4ce0eb8` 基线Mac通过真实build/artifact/run或精确JSON验收；该基线分支内多个resource的
-`InvalidSsa` build失败单独保留为planned，不能用函数作用域正例替代。后续PR49实现head的双宿主CI实际执行全部22项合同；源码与原始结果
-见 [SPEC-0271](../archive/specs/0271-tour-combination-coverage.md)；两个planned不计通过。
+PR49双宿主实际运行原22项，证据见 [SPEC-0271](../archive/specs/0271-tour-combination-coverage.md)。
+后继 [SPEC-0273](../archive/specs/0273-control-body-resource-cleanup.md) 补齐控制体正常出口的资源清理，
+原 `gap-scope-branch` 同一源码作为第23项实际合同接线；原始失败证据保留在0271，不改写为当时通过。
+PR50实现head在两宿主实际执行23项合同；线程native仍为planned，不计通过，精确证据见0273。
 LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 意外跳过。配置与本地验证不代表远端已运行；实际交付证据见
 [SPEC-0239](../archive/specs/0239-linux-ci-gates.md)，使用规则见[测试与分层验收](../development/testing.md)。

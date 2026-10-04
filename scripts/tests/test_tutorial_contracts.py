@@ -13,13 +13,29 @@ SPEC.loader.exec_module(TUTORIAL)
 
 
 class TutorialContracts(unittest.TestCase):
-    def test_recorded_native_gap_remains_explicit_and_is_not_executed(self):
-        examples = dict((row['id'], row) for row, _ in TUTORIAL.load_examples())
-        self.assertEqual(examples['gap-scope-branch']['status'], 'planned')
-        self.assertIn('InvalidSsa', examples['gap-scope-branch']['reason'])
-        with mock.patch.object(TUTORIAL, 'assert_output') as execute:
+    def test_fixed_branch_resource_case_executes_full_public_cli_contract(self):
+        examples = {row['id']: row for row, _ in TUTORIAL.load_examples()}
+        self.assertEqual(examples['gap-scope-branch']['status'], 'executable')
+        self.assertEqual(examples['planned-thread']['status'], 'planned')
+        calls = []
+
+        def record(command, expected, directory):
+            source = (directory / 'source.ko').read_text()
+            self.assertIn('if (true) {', source)
+            self.assertIn('val first = Resource("first")', source)
+            self.assertIn('val second = Resource("second")', source)
+            calls.append((command, expected, directory))
+
+        with mock.patch.object(TUTORIAL, 'assert_output', side_effect=record):
             TUTORIAL.check(Path('/test-cli'), ['planned-thread', 'gap-scope-branch'])
-        execute.assert_not_called()
+        self.assertEqual(len(calls), 3, 'the repaired case must build, execute artifact, and run')
+        self.assertEqual(calls[0][0], ['/test-cli', 'build', 'source.ko', '-o', 'program'])
+        self.assertEqual(calls[0][1], {'exit': 0, 'stdout': '', 'stderr': ''})
+        self.assertEqual(calls[1][0], [str(calls[1][2] / 'program')])
+        self.assertEqual(calls[2][0], ['/test-cli', 'run', 'source.ko', '--'])
+        expected = {'exit': 0, 'stdout': 'inner\nsecond\nfirst\nafter\nouter\n', 'stderr': ''}
+        self.assertEqual(calls[1][1], expected)
+        self.assertEqual(calls[2][1], expected)
 
     def test_new_combinations_extract_canonical_sources_and_execute_each_contract(self):
         selected = ['numbers-bitwise', 'scope-cleanup', 'unit-loop-cleanup',

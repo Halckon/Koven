@@ -41,7 +41,7 @@ The current specification is [Guide v0.40](docs/guide/README.md); start with the
 
 ## 🔍 Language Tour
 
-Executable sources and complete CLI output contracts live in the [current Koven tour](docs/tutorials/koven-tour.md). The tutorial contains 15 executable examples, four diagnostic examples, and two planned examples that are not run. Four parameter-report argument sets share three source files, bringing execution contracts to 22. The [coverage ledger](docs/archive/specs/0271-tour-combination-coverage.md) records the current 22-contract dual-host CI evidence and the remaining native branch-resource gap.
+Executable sources and complete CLI output contracts live in the [current Koven tour](docs/tutorials/koven-tour.md). The tutorial contains 16 executable examples, four diagnostic examples, and one planned thread example. Four parameter-report argument sets share three source files, bringing execution contracts to 23. The [coverage ledger](docs/archive/specs/0271-tour-combination-coverage.md) records the original 22-contract dual-host evidence; [SPEC-0273](docs/archive/specs/0273-control-body-resource-cleanup.md) tracks the branch-resource fix and its added CLI contract.
 
 | Topic | Canonical source examples |
 |---|---|
