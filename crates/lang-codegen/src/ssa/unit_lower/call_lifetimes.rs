@@ -2,6 +2,9 @@
 use super::*;
 
 pub(super) struct PendingCallFrame {
+    pub(super) call: UnitExpressionId,
+    pub(super) receiver: bool,
+    pub(super) loan_arguments: Vec<(UnitExpressionId, Vec<usize>)>,
     pub(super) loop_depth: usize,
     pub(super) pending_start: usize,
     pub(super) created_loans: Vec<usize>,
@@ -14,15 +17,28 @@ pub(super) struct PendingCallFrame {
 }
 
 impl UnitExpressionLowerer<'_> {
+    /// Iteration facts authorize the same CFG-safe call prefixes through both unit views.
+    /// Span containment selects the capability slice, never an ownership or cleanup action.
+    pub(super) fn supports_control_prefix(&self, span: Span) -> bool {
+        self.constant_owned.is_some()
+            || self.typed.sequential_iterations().iter().any(|descriptor| {
+                descriptor.statement().source_unit() == self.source_unit
+                    && self
+                        .statement_span(descriptor.statement().statement())
+                        .is_ok_and(|iteration| {
+                            (iteration.start() <= span.start() && span.end() <= iteration.end())
+                                || (span.start() <= iteration.start()
+                                    && iteration.end() <= span.end())
+                        })
+            })
+    }
+
     /// 槽位在 CFG 重绑定后仍稳定；不可保存旧 block 的 LoanId。
     pub(super) fn end_pending_call_loans(
         &mut self,
         minimum_loop_depth: usize,
         span: Span,
     ) -> Result<(), LoweringError> {
-        if self.constant_owned.is_none() {
-            return Ok(());
-        }
         let mut retained = self.pending_operands.len();
         for frame in self.pending_call_frames.iter().rev() {
             if frame.loop_depth < minimum_loop_depth {

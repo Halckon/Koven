@@ -1,5 +1,8 @@
 //! compilation-unit loop 的 owner-aware 回边、jump 与共同退出 lowering。
 
+mod iteration;
+mod iteration_cleanup;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
@@ -26,6 +29,7 @@ struct LoopJump {
 }
 
 pub(super) struct LoopContext {
+    iteration: Option<iteration::IterationContext>,
     header: BlockId,
     carried: Vec<CarriedBinding>,
     loans: Vec<CarriedAccess>,
@@ -47,7 +51,7 @@ impl UnitExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        if self.constant_owned.is_none() && !self.temporaries.is_empty() {
+        if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
@@ -72,7 +76,7 @@ impl UnitExpressionLowerer<'_> {
         self.bindings = self.rebind_loop(&baseline, header, &context, span)?;
         self.closure_bindings = baseline_closures;
         let condition = self.require_expression_value(condition)?;
-        if self.constant_owned.is_none() && !self.temporaries.is_empty() {
+        if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let condition_state = self.loop_state();
@@ -154,7 +158,7 @@ impl UnitExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        if self.constant_owned.is_none() && !self.temporaries.is_empty() {
+        if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let baseline = self.bindings.clone();
@@ -203,12 +207,21 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        self.end_pending_call_loans(self.loops.len(), span)?;
+        if self
+            .owned
+            .iteration_cleanup_at(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                self.source_unit,
+                expression,
+            )))
+            .is_none()
+        {
+            self.end_pending_call_loans(self.loops.len(), span)?;
+        }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
         )))?;
-        self.prepare_jump(span)?;
+        self.prepare_jump(span, true)?;
         let jump = self.current_jump(span)?;
         self.loops
             .last_mut()
@@ -223,12 +236,22 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        self.end_pending_call_loans(self.loops.len(), span)?;
+        if self
+            .owned
+            .iteration_cleanup_at(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                self.source_unit,
+                expression,
+            )))
+            .is_none()
+        {
+            self.end_pending_call_loans(self.loops.len(), span)?;
+        }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
         )))?;
-        self.prepare_jump(span)?;
+        self.advance_iteration(span)?;
+        self.prepare_jump(span, false)?;
         let jump = self.current_jump(span)?;
         self.loops
             .last_mut()
@@ -249,6 +272,7 @@ impl UnitExpressionLowerer<'_> {
         self.separate_loop_pending_copies(&mut carried, span)?;
         let header = self.add_carried_control_block(&carried, &loans, span)?;
         Ok(LoopContext {
+            iteration: None,
             header,
             carried,
             loans,
@@ -263,7 +287,7 @@ impl UnitExpressionLowerer<'_> {
         })
     }
 
-    fn prepare_jump(&mut self, span: Span) -> Result<(), LoweringError> {
+    fn prepare_jump(&mut self, span: Span, breaking: bool) -> Result<(), LoweringError> {
         let entry_symbols = self
             .loops
             .last()
@@ -274,18 +298,22 @@ impl UnitExpressionLowerer<'_> {
             .loops
             .last()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let (temporaries, pending_count) = match (&context.iteration, breaking) {
+            (Some(iteration), true) => (&iteration.outer_temporaries, iteration.start),
+            _ => (&context.entry_temporaries, context.entry_pending_count),
+        };
         if self
             .temporaries
             .keys()
             .copied()
-            .ne(context.entry_temporaries.iter().copied())
-            || self.pending_operands.len() < context.entry_pending_count
+            .ne(temporaries.iter().copied())
+            || self.pending_operands.len() < pending_count
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        // String binary prefixes can leave aliases after their frontend owner drops.
-        // Only slots present before this loop survive its jump.
-        self.pending_operands.truncate(context.entry_pending_count);
+        // Keep exactly the frame preceding this edge: continue retains the provider,
+        // whereas break has already ended its source and dropped its hidden owner.
+        self.pending_operands.truncate(pending_count);
         self.discard_non_entry_bindings(&entry_symbols, span)
     }
 
@@ -328,7 +356,8 @@ impl UnitExpressionLowerer<'_> {
     }
 
     fn record_natural_continue(&mut self, span: Span) -> Result<(), LoweringError> {
-        self.prepare_jump(span)?;
+        self.advance_iteration(span)?;
+        self.prepare_jump(span, false)?;
         let jump = self.current_jump(span)?;
         self.loops
             .last_mut()

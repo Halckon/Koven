@@ -34,8 +34,21 @@ test-only SyntheticZero仅供内部SSA的MoveOnly ZST计数夹具；实际contai
 - verifier：`verify_ownership/provider_lifetime.rs`，沿真实CFG独立检查有限状态。
 - 实际native与ZST测试：`native_sequential_for_tests/owned_source_tests.rs`、`llvm/synthetic_zst_tests.rs`。
 
-unit driver仍拒绝真实for；拒绝原子性由actual-for分析链验证，失败后普通受支持unit可真实发射、链接和运行。
-single driver的真实for成功及拒绝矩阵独立保留，不从ordinary unit成功推断unit-for能力。
+unit 普通与 constant-enabled driver 已消费同轮 source-qualified iteration 事实：
+Array/List/MutableList 的 named owned、Borrow 参数与 temporary source 均可真实 object/link/run。
+长度在 preheader 求一次快照，source 仅求值一次；source/length/cursor/element 经已有 pending
+运输跨 CFG，复用 single provider 的 snapshot、guard、element 与固定步长 primitive，无 provider 分配。
+
+名称、discard 与 nongeneric value-class 借用解构支持 fallthrough、continue、break、return 及
+嵌套 for/while；cleanup 按前端完整动作序列执行一次，call/receiver loan 以 fact 身份映射实际
+pending 槽，conditional receiver 按具体 Copyable/MoveOnly 类型执行。return 的 owner/copy 先交付，
+再清理局部 owner、element、source 与临时源；Abort 不展开，source 中转移不清理尚未 Acquire 的 provider。
+
+field source（包括 Field symbol root）、Inout source 与 captured Borrow closure 的 native 表示
+仍明确 Unsupported。两视图边界负例核 LLVM 调用为零并逐字节保全旧产物；ordinary/constant
+混轮 facts 仍在 lowering 前拒绝。实际 for 的 allocator oracle 逐 pointer 核 class 元素、临时源、
+局部/外围 owner 与 conditional receiver 的唯一释放顺序，Report 直接读取教程原源码另核 String drop。
+测试入口为 `native/unit_for_*tests.rs`；single provider/native 回归单独保留。
 
 ## Compilation-unit 前端事实
 
@@ -52,8 +65,8 @@ Abort 和 source 自身在 Acquire 前的转移不发布该 provider 的清理�
 provider 发布计划，与普通 capability 隔离；两出口均验证模板身份、完整退出及有序动作。
 
 实现入口为 frontend `compilation_unit/iteration.rs`、`dataflow/iteration.rs`、
-`dataflow/drop_planner/iteration.rs` 与 `iteration_validation.rs`；不改变本页现有 unit native
-拒绝边界，A5 尚未交付。
+`dataflow/drop_planner/iteration.rs` 与 `iteration_validation.rs`。unit native 消费入口为
+`ssa/unit_lower/loop_control/iteration.rs` 与 `iteration_cleanup.rs`；保留上节列明的表示边界。
 
 conditional `StaticSelf` receiver 的析构也以 `DropConditionalReceiver` 进入同点完整序列；
 下游仅在具体MoveOnly实例执行，Copyable跳过，不重复消费同点平面conditional facts。

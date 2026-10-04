@@ -33,7 +33,7 @@ Array/List/MutableList provider、唯一 source 表达式、container/element �
 泛型参数，保留 discard 分量位置。该 projection 独立于局部 owned destructuring。
 计划参与 callable trial 快照；错误输入与最终后置约束失败不发布计划。
 unit 同名查询以 `UnitStatementId` 发布跨文件 provider/binding/projection，body 前精确化类型，
-trial 回滚与错误原子性一致；ownership 已消费、native 仍拒绝 for，见[unit 事实](finite-sequential-iteration.md#compilation-unit-前端事实)。
+trial 回滚与错误原子性一致；ownership/native已消费计划，支持边界见[unit事实](finite-sequential-iteration.md#compilation-unit-前端事实)。
 
 ## 单文件常量类型资格
 

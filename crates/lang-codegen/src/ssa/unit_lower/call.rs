@@ -87,7 +87,7 @@ impl UnitExpressionLowerer<'_> {
             .call(call)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let function_value = descriptor.target() == UnitCallTarget::FunctionValue;
-        if self.constant_owned.is_none()
+        if !self.supports_control_prefix(span)
             && arguments.iter().any(|argument| {
                 self.argument_contains_control_transfer(argument.value, function_value)
             })
@@ -206,7 +206,7 @@ impl UnitExpressionLowerer<'_> {
             .get(resolved.key())
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let pending_this = self.constant_owned.is_some()
+        let pending_this = self.supports_control_prefix(span)
             && receiver.is_some_and(|ty| self.typed.copyability(ty) == Copyability::MoveOnly)
             && descriptor.receiver().is_some_and(|receiver| {
                 receiver.mode() == ParameterMode::Value
@@ -214,7 +214,7 @@ impl UnitExpressionLowerer<'_> {
                         || self.owned.conditional_receiver_delivery(call).is_some())
             });
         let pending_receiver = descriptor.receiver().and_then(|descriptor| {
-            if self.constant_owned.is_some()
+            if self.supports_control_prefix(span)
                 && descriptor.mode() == ParameterMode::Value
                 && self.owned.conditional_receiver_delivery(call).is_none()
                 && receiver.is_some_and(|ty| self.typed.copyability(ty) == Copyability::MoveOnly)
@@ -262,6 +262,9 @@ impl UnitExpressionLowerer<'_> {
         if let Some(receiver) = &receiver {
             self.pending_call_frames
                 .push(super::call_lifetimes::PendingCallFrame {
+                    call,
+                    receiver: true,
+                    loan_arguments: Vec::new(),
                     loop_depth: self.loops.len(),
                     pending_start: receiver_start,
                     exclusive_root_owners: Vec::new(),
@@ -449,6 +452,9 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<LoweredCallArguments>, LoweringError> {
         self.pending_call_frames
             .push(super::call_lifetimes::PendingCallFrame {
+                call,
+                receiver: false,
+                loan_arguments: Vec::new(),
                 loop_depth: self.loops.len(),
                 pending_start: self.pending_operands.len(),
                 exclusive_root_owners: Vec::new(),
@@ -491,7 +497,7 @@ impl UnitExpressionLowerer<'_> {
                         LoweredValue::Value(value) => {
                             let argument_id =
                                 UnitExpressionId::new(self.source_unit, argument.value);
-                            if self.constant_owned.is_some()
+                            if self.supports_control_prefix(span)
                                 && self.typed.expression_type(argument_id).is_some_and(|ty| {
                                     self.typed.copyability(ty) == Copyability::MoveOnly
                                 })
@@ -557,6 +563,7 @@ impl UnitExpressionLowerer<'_> {
                         argument.span,
                         span,
                     )?;
+                    let mut argument_slots = Vec::new();
                     for created in created {
                         let pending_index = self.pending_operands.len();
                         // The final loan uses the argument slot appended below; only
@@ -564,6 +571,7 @@ impl UnitExpressionLowerer<'_> {
                         if created != loan {
                             self.pending_operands.push(EntityId::Loan(created));
                         }
+                        argument_slots.push(pending_index);
                         created_loans.push((pending_index, end_span));
                         self.pending_call_frames
                             .last_mut()
@@ -571,6 +579,14 @@ impl UnitExpressionLowerer<'_> {
                             .created_loans
                             .push(pending_index);
                     }
+                    self.pending_call_frames
+                        .last_mut()
+                        .expect("call frame is active")
+                        .loan_arguments
+                        .push((
+                            UnitExpressionId::new(self.source_unit, argument.value),
+                            argument_slots,
+                        ));
                     EntityId::Loan(loan)
                 }
                 ParameterMode::Inout => {
@@ -600,7 +616,7 @@ impl UnitExpressionLowerer<'_> {
             .into_iter()
             .map(|index| self.pending_operands[index])
             .collect::<Vec<_>>();
-        if self.constant_owned.is_some() {
+        if self.supports_control_prefix(span) {
             // 正常提交的 Value 实参由 callee 接管；Borrow owner 留到 CallReturn 清理。
             self.temporaries
                 .retain(|_, value| !arguments.contains(&EntityId::Value(*value)));

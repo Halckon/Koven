@@ -733,7 +733,11 @@ impl UnitExpressionLowerer<'_> {
         Ok(result)
     }
 
-    fn ssa_builtin(&self, builtin: BuiltinType, span: Span) -> Result<SsaTypeId, LoweringError> {
+    pub(super) fn ssa_builtin(
+        &self,
+        builtin: BuiltinType,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
         let ty = self
             .typed
             .types()

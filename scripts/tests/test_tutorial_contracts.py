@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('tutorial', ROOT / 'scripts/check_tutorial.py')
@@ -12,6 +13,32 @@ SPEC.loader.exec_module(TUTORIAL)
 
 
 class TutorialContracts(unittest.TestCase):
+    def test_parameter_report_executes_all_four_cases_from_one_source_set(self):
+        calls = []
+
+        def record(command, expected, directory):
+            sources = set(path.relative_to(directory).as_posix() for path in directory.rglob('*.ko'))
+            self.assertEqual(sources, {'src/app/model.ko', 'src/app/processor.ko', 'src/app/main.ko'})
+            self.assertIn('for (argument in args)', (directory / 'src/app/processor.ko').read_text())
+            calls.append((command, expected, directory))
+
+        with mock.patch.object(TUTORIAL, 'assert_output', side_effect=record):
+            TUTORIAL.check(Path('/test-cli'), ['parameter-report'])
+        cases = [([], 'processed\ndone\n'), (['alpha'], 'alpha\nprocessed\ndone\n'),
+                 (['alpha', '你好', 'tail'], 'alpha\n你好\ntail\nprocessed\ndone\n'),
+                 ([''], '\nprocessed\ndone\n')]
+        self.assertEqual(len(calls), 12, 'each argv case must build, execute artifact, and run')
+        self.assertEqual(len({directory for _, _, directory in calls}), 4)
+        for index, (args, stdout) in enumerate(cases):
+            build, artifact, run = calls[index * 3:index * 3 + 3]
+            inputs = ['--project', 'project.toml', '--entry', 'app.main']
+            self.assertEqual(build[0], ['/test-cli', 'build', *inputs, '-o', 'program'])
+            self.assertEqual(build[1], {'exit': 0, 'stdout': '', 'stderr': ''})
+            self.assertEqual(artifact[0], [str(artifact[2] / 'program'), *args])
+            self.assertEqual(run[0], ['/test-cli', 'run', *inputs, '--', *args])
+            self.assertEqual(artifact[1], {'exit': 0, 'stdout': stdout, 'stderr': ''})
+            self.assertEqual(run[1], artifact[1])
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -31,6 +58,34 @@ class TutorialContracts(unittest.TestCase):
         self.assertEqual({'src/app/Main.ko', 'src/app/Values.ko'}, set(project))
         self.assertIn('fun start()', project['src/app/Main.ko'])
         self.assertIn('fun message()', project['src/app/Values.ko'])
+
+    def test_argv_cases_cannot_silently_omit_or_duplicate_execution(self):
+        row = next(row for row in self.manifest['examples'] if row['id'] == 'parameter-report')
+        valid = row['cases']
+        for cases in ([], {}, [valid[0], valid[0]], [{**valid[0], 'args': 'alpha'}],
+                      [{**valid[0], 'args': [1]}], [{'args': []}]):
+            with self.subTest(cases=cases):
+                row['cases'] = cases
+                self.write()
+                with self.assertRaises(ValueError):
+                    TUTORIAL.load_examples(self.root)
+        row['cases'] = valid
+        row['args'] = []
+        self.write()
+        with self.assertRaises(ValueError):
+            TUTORIAL.load_examples(self.root)
+
+    def test_legacy_single_project_and_diagnostic_keep_their_cli_commands(self):
+        with mock.patch.object(TUTORIAL, 'assert_output') as execute:
+            TUTORIAL.check(Path('/test-cli'), ['hello', 'cross-file', 'reject-typed'])
+        commands = [call.args[0] for call in execute.call_args_list]
+        self.assertEqual(len(commands), 7)
+        self.assertEqual(commands[0], ['/test-cli', 'build', 'source.ko', '-o', 'program'])
+        self.assertEqual(commands[2], ['/test-cli', 'run', 'source.ko', '--'])
+        project = ['--project', 'project.toml', '--entry', 'app.start']
+        self.assertEqual(commands[3], ['/test-cli', 'build', *project, '-o', 'program'])
+        self.assertEqual(commands[5], ['/test-cli', 'run', *project, '--'])
+        self.assertEqual(commands[6], ['/test-cli', '--message-format=json', 'build', 'source.ko', '-o', 'program'])
 
     def test_missing_duplicate_and_unreferenced_sources_are_rejected(self):
         original = self.text

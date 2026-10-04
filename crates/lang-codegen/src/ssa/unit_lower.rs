@@ -838,7 +838,16 @@ impl UnitExpressionLowerer<'_> {
             }
             result = LoweredValue::Value(lowered);
         }
-        self.end_pending_call_loans(0, span)?;
+        if self
+            .owned
+            .iteration_cleanup_at(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
+                self.source_unit,
+                expression,
+            )))
+            .is_none()
+        {
+            self.end_pending_call_loans(0, span)?;
+        }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
@@ -920,7 +929,8 @@ impl UnitExpressionLowerer<'_> {
                 condition, body, ..
             } => self.lower_while(statement, *condition, *body, span),
             Statement::Loop { body, .. } => self.lower_loop(statement, *body, span),
-            Statement::Error | Statement::LocalDestructuring { .. } | Statement::For { .. } => {
+            Statement::For { source, body, .. } => self.lower_for(statement, *source, *body, span),
+            Statement::Error | Statement::LocalDestructuring { .. } => {
                 Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
         }

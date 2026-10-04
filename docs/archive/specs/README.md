@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 254 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 255 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -359,3 +359,7 @@
 ## Linux native 地址与泄漏检测（2026-10-04）
 
 - [SPEC-0266](0266-native-sanitizer-wiring.md)：实际Koven IR的ASan三类故障与LSan泄漏正反/关闭对照、独立counter及双宿主普通测试经PR CI验收；UBSan与其他M4范围未覆盖。
+
+## Unit 顺序迭代与 M1A 程序（2026-10-04）
+
+- [SPEC-0268](0268-unit-iteration-native.md)：消费完整前端事实，三provider/source形态与退出/资源验证、原三文件教程四argv经双宿主PR CI通过；Inout/field/captured Borrow native边界保留。
