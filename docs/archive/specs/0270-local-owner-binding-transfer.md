@@ -1,10 +1,10 @@
 # SPEC-0270: 单文件局部 MoveOnly 绑定交接
 
-> **性质**：修复合同 · **状态**：in-progress · **读取时机**：修复或验收局部 owner 移动后控制流时 · **唯一真源**：本页
+> **性质**：修复合同 · **状态**：done · **读取时机**：修复或验收局部 owner 移动后控制流时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-270` |
 | 所属 Phase | Phase 4；native 验证覆盖 Phase 5 |
 | 语言规范 | [Guide v0.40 所有权](../../guide/10-ownership-borrowing-drop.md) |
@@ -38,7 +38,7 @@ Nullable wrapping 与 group initializer 保留当前语义；不重构 unit lowe
 | R2 | 精确 stdout 与逐指针唯一释放；旧绑定不重复运输，嵌套scope后继续CFG无悬空owner | 两条移动链×true/false精确stdout及构造ID释放序通过；scope后CFG通过；原生成失败2例经新CLI实际build/run匹配原oracle |
 | R3 | Copyable alias 旧/新变量均可读；nullable wrap 和已存在 local 相关回归 | Copyable标量/泛型原值仍可读、纯class nullable包装计数通过；lower_frontend_tests 66 passed |
 | R4 | resource_deinit、field_replace 与相关 SSA/lowering 定向套件；fmt/Clippy/尺寸/docs | resource_deinit_32、lower_frontend_tests66、field_replace26均0 failed/ignored；Clippy/fmt/尺寸/docs511通过，Python docs/尺寸84通过 |
-| R5 | 独立审阅，Architecture 当前事实、Spec证据/归档、最终PR CI通过并合并 | 独立完整审阅无阻塞问题，确认精确5行例外；resource-deinit事实同步；PR/双宿主CI及归档未执行 |
+| R5 | 独立审阅，Architecture 当前事实、Spec证据/归档、最终PR CI通过并合并 | 独立完整审阅无阻塞问题，确认精确5行例外；resource-deinit事实同步；实现head双宿主PR CI通过，据此归档；最终归档head仍须CI通过后合并 |
 
 ## 4. 执行与验证
 
@@ -65,3 +65,18 @@ macOS arm64、Rust1.96.0、LLVM21.1.8，共享目标目录，以下Cargo均带`-
 这些夹具失败不计入InvalidSsa红测。未运行本地全量frontend/codegen或workspace check，
 后续远端required CI单独记录。独立审阅核源码事实、借用/Copyable/替换前交付与计数器oracle，
 未重复执行Cargo；资源nullable、复合泛型和unit lowering不因此取得新支持结论。
+
+## 6. 双宿主实现验收与归档
+
+[PR47 CI37208929731](https://github.com/Halckon/Koven/actions/runs/37208929731)关联实现head
+`c68f8c36ef6e599120b64564326750069fe1e652`，required jobs全部success，无未决；
+唯一job-level skip为editors=false的Tree-sitter corpus，汇总确认合法。
+Linux codegen 825 passed/0 ignored，Mac824 passed/1 ignored；忽略项是既有
+`llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame`的debugserver权限限制。
+新增4条native与`single_resource_deinit_local_move_chain_transports_only_current_owner`
+在两宿主均实际执行且ok。其余required组合、教程及Linux既有检测步骤成功，不能概括frontend全量。
+
+两宿主实际checkout synthetic merge `1c5bd828a20e2aaf6730fb21c8368c5a02b25d44`，
+GitHub commit API核对该merge和实现head的tree均为`d2c692e7462400beb0b591ef573f360dd15ef9cd`。
+按此实现证据归档；本次归档提交仍需独立最终PR CI通过才合并，交付状态见
+[PR47](https://github.com/Halckon/Koven/pull/47)，本页不提前宣称归档head或主干CI已运行。

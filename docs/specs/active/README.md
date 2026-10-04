@@ -2,7 +2,8 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active Spec：[0270 单文件局部 MoveOnly 绑定交接](0270-local-owner-binding-transfer.md)，实施中。
+当前无active Spec；0270单文件局部MoveOnly绑定交接已按双宿主实现证据归档，
+交付见[PR47](https://github.com/Halckon/Koven/pull/47)。
 
 0268已按双宿主实现证据归档，交付记录见[PR46](https://github.com/Halckon/Koven/pull/46)。
 0263/0264/0265 已分别完成 M1A A2–A4 有界验收归档；
