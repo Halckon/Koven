@@ -1,13 +1,16 @@
 # M5 度量与分发：Spec 起草材料
 
-> **性质**：待编号 Spec 起草材料 · **状态**：draft / 等待能力基线和发布范围选定 · **读取时机**：设计成本测量或双宿主 preview 交付时 · **唯一真源**：本页维护候选测量协议与交付验收；不记录未执行的性能或发布结论
+> **性质**：待编号 Spec 起草材料 · **状态**：draft / M5b候选包首片由0272承接 · **读取时机**：设计成本测量或双宿主 preview 交付时 · **唯一真源**：本页维护候选测量协议与交付验收；不记录未执行的性能或发布结论
 
 ## 1. Goal 与阶段
 
 M5a Goal：在固定输入和环境下建立可复现的成本基线，能解释后续实现对成本的影响。
 M5b Goal：让用户在声明支持的新环境安装 preview，运行固定多文件程序并理解能力限制。
 主要涉及 Phase 6 工程交付及现有 native/runtime 边界；不新增语言语义。
-共同启动/调整规则见[计划](post-governance-milestones.md)，用户本轮授权仅为起草。
+共同启动/调整规则见[计划](post-governance-milestones.md)。起草时仅有文档授权；
+后续持续实施授权已由 [0272 候选包合同](../specs/active/0272-preview-candidate-package.md)
+承接双宿主 release tar 与正常安装首片。其验收只在 Spec 维护，M5a、D06 安装负向、
+签名/下载隔离等未选定范围仍为候选，不由该首片关闭。
 
 两部分可拆成独立正式 Spec。preview 前置为 [M1A](multifile-program-spec-draft.md)和
 发布合同选定的 [M4a](memory-safety-validation-spec-draft.md)门槛；

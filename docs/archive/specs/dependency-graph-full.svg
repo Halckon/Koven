@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="6720" height="7006" viewBox="0 0 6720 7006" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="7064" height="7006" viewBox="0 0 7064 7006" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="6720" height="7006" fill="#ffffff"/>
+  <rect width="7064" height="7006" fill="#ffffff"/>
   <rect x="40" y="30" width="6616" height="6904" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，258 份）</text>
+  <rect x="6720" y="5892" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="6860" y="5912" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -971,7 +973,9 @@
   <path d="M 708 432 C 708 464, 972 5756, 972 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 606 C 444 638, 972 5756, 972 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 5688 C 2028 5720, 972 5756, 972 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 828 4889 C 3784 4889, 3784 5954, 6740 5954" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5862 C 972 5894, 708 5894, 708 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1092 5825 C 3916 5825, 3916 5954, 6740 5954" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 450 C 972 482, 708 482, 708 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
@@ -2047,6 +2051,9 @@
   <text x="708" y="5949" text-anchor="middle" font-size="13">SPEC-0271</text>
   <text x="708" y="5967" text-anchor="middle" font-size="13">当前 tour 的有界组合覆</text>
   <text x="708" y="5985" text-anchor="middle" font-size="13">盖</text>
+  <rect x="6740" y="5926" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="6860" y="5949" text-anchor="middle" font-size="13" font-weight="600">SPEC-0272</text>
+  <text x="6860" y="5967" text-anchor="middle" font-size="13">双宿主候选包与正常安装验收</text>
   <rect x="588" y="514" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="708" y="537" text-anchor="middle" font-size="13">SPEC-0273</text>
   <text x="708" y="555" text-anchor="middle" font-size="13">单文件控制体正常退出的资源清</text>

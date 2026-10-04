@@ -2,7 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无 active Spec；0273 已按 PR50 双宿主实现证据归档，最终归档 CI 待完成后合并。
+当前1份 active Spec：
+
+- [SPEC-0272：双宿主候选包与正常安装验收](0272-preview-candidate-package.md)：M5b 有界首片，合同已审阅，包与独立安装验收待实施。
+
+0273 已按 PR50 最终归档双宿主 CI 通过并合并。
 
 0271 已按双宿主最终归档 CI 通过，并经 [PR49](https://github.com/Halckon/Koven/pull/49) 合并。
 0270单文件局部MoveOnly绑定交接已按双宿主实现证据归档，
