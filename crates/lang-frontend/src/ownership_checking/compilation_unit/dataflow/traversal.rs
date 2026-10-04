@@ -11,6 +11,51 @@ use super::{
     UnitCallArgumentOwnershipContract, UnitCallArgumentOwnershipKind, merge_state,
 };
 
+/// Collect declaration-owned permissions once; callers may project fields from any source.
+pub(super) fn collect_field_mutability(
+    inputs: &[super::SourceUnitInput<'_>],
+    names: &super::ValidatedCompilationUnitNames,
+) -> Result<
+    std::collections::BTreeMap<super::UnitSymbolId, super::VariableKind>,
+    OwnershipCheckingError,
+> {
+    let mut fields = std::collections::BTreeMap::new();
+    for source in names.names().source_units() {
+        let parsed = inputs
+            .iter()
+            .find(|input| input.source_id() == source.resolution().source_id())
+            .ok_or(OwnershipCheckingError::InvalidUnitSource {
+                source_unit: source.source_unit().index(),
+            })?
+            .parsed();
+        let symbols: std::collections::BTreeMap<_, _> = source
+            .resolution()
+            .symbols()
+            .iter()
+            .map(|symbol| (super::span_key(symbol.span()), symbol.id()))
+            .collect();
+        // The AST arena includes nested/modified classifiers; each declaration is visited once.
+        for (_, item) in parsed.ast().items().iter() {
+            let Item::Classifier(classifier) = item.payload() else {
+                continue;
+            };
+            if let Some(constructor) = &classifier.primary_constructor {
+                for field in &constructor.fields {
+                    if let super::NameMarker::Present(span) = field.name
+                        && let Some(&symbol) = symbols.get(&super::span_key(span))
+                    {
+                        fields.insert(
+                            super::UnitSymbolId::new(source.source_unit(), symbol),
+                            field.kind,
+                        );
+                    }
+                }
+            }
+        }
+    }
+    Ok(fields)
+}
+
 impl Checker<'_> {
     // Only repeating edges require the owner again; exits keep their ordinary flow checks.
     pub(super) fn check_loop_backedge(
@@ -51,13 +96,6 @@ impl Checker<'_> {
                 }
             }
             Item::Classifier(classifier) => {
-                if let Some(constructor) = classifier.primary_constructor {
-                    for field in constructor.fields {
-                        if let Some(symbol) = self.marker_symbol(field.name).copied() {
-                            self.field_kinds.insert(symbol, field.kind);
-                        }
-                    }
-                }
                 if let Some(body) = classifier.body {
                     for member in body.members {
                         self.collect_mutability(member)?;

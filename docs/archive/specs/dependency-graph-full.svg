@@ -6,7 +6,7 @@
   </defs>
   <rect width="6456" height="6970" fill="#ffffff"/>
   <rect x="40" y="30" width="6352" height="6868" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3216" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，249 份）</text>
+  <text x="3216" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，250 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 464, 180 496" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -945,6 +945,7 @@
   <path d="M 1500 5652 C 1500 5684, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4140 156 C 4140 188, 444 188, 444 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4140 156 C 4140 188, 708 188, 708 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 312 C 708 344, 708 344, 708 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1764 5670 C 1764 5702, 708 5720, 708 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1764 5670 C 1764 5702, 972 6014, 972 6046" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1764 5670 C 1764 5702, 972 6326, 972 6358" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1999,4 +2000,7 @@
   <rect x="6132" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="6252" y="87" text-anchor="middle" font-size="13">SPEC-0262</text>
   <text x="6252" y="105" text-anchor="middle" font-size="13">原治理计划的当前教程覆盖补齐</text>
+  <rect x="588" y="376" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="399" text-anchor="middle" font-size="13">SPEC-0263</text>
+  <text x="708" y="417" text-anchor="middle" font-size="13">跨文件字段可变性查询</text>
 </svg>
