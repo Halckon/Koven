@@ -8,6 +8,11 @@ mod constant;
 mod constants_tests;
 mod construction;
 mod contracts;
+mod iteration;
+mod iteration_validation;
+#[cfg(test)]
+mod iteration_validation_tests;
+pub use iteration::*;
 mod dataflow;
 mod field_replace;
 #[cfg(test)]
@@ -564,6 +569,7 @@ impl UnitConditionalReceiverDropFact {
     }
 
     /// 返回同一 drop point 中必须先消费的无条件 drop fact 数量。
+    /// 若存在iteration cleanup，应按显式动作执行；此数量不能定位provider动作之间的位置。
     #[must_use]
     pub const fn preceding_drops(self) -> usize {
         self.preceding_drops
@@ -661,6 +667,20 @@ struct UnitOwnershipProvenance {
 /// SPEC-0198 的 recovery compilation-unit ownership product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
+    iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
+    iteration_owner_scopes: Vec<(
+        UnitStatementId,
+        crate::ownership_checking::UnitDropTarget,
+        bool,
+    )>,
+    iteration_loan_ends: Vec<(UnitDropPoint, UnitIterationCleanupAction)>,
+    iterations: Vec<UnitIterationOwnershipPlan>,
+    iteration_templates: Vec<UnitIterationOwnershipPlan>,
+    iteration_required_exits: Vec<(
+        crate::type_checking::UnitStatementId,
+        UnitIterationExitKind,
+        UnitDropPoint,
+    )>,
     short_circuits: Option<Vec<constant::UnitShortCircuitPlan>>,
     constant_materializations: Option<Vec<constant::UnitConstantMaterializationPlan>>,
     non_null_assertions: Vec<UnitNonNullAssertionOwnershipPlan>,
@@ -788,6 +808,16 @@ impl CompilationUnitOwnership {
             Vec::new()
         };
         Self {
+            iteration_conditional_scopes: dataflow.iteration_conditional_scopes,
+            iteration_owner_scopes: dataflow.iteration_owner_scopes,
+            iteration_loan_ends: dataflow.iteration_loan_ends,
+            iterations: if successful && dataflow.deferred.is_empty() {
+                dataflow.iterations
+            } else {
+                Vec::new()
+            },
+            iteration_templates: dataflow.iteration_templates,
+            iteration_required_exits: dataflow.iteration_required_exits,
             short_circuits: (successful && dataflow.deferred.is_empty())
                 .then_some(dataflow.short_circuits)
                 .flatten(),
@@ -1071,6 +1101,7 @@ impl CompilationUnitOwnership {
             || self.provenance.requires_constant_capability
             || !self.ownership_primitives_are_valid()
             || !self.field_replacements_are_valid()
+            || !self.iterations_are_valid()
         {
             Err(Box::new(self))
         } else {

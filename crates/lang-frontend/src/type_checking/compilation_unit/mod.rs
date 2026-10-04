@@ -2,11 +2,13 @@
 
 mod bodies;
 mod error;
+mod iteration;
 mod model;
 mod shapes;
 mod signatures;
 
 pub use bodies::*;
 pub use error::CompilationUnitTypeError;
+pub use iteration::*;
 pub use model::*;
 pub use signatures::collect_compilation_unit_signatures;

@@ -616,7 +616,7 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
 }
 
 #[test]
-fn cross_file_loops_publish_jump_and_deferred_binding_facts() {
+fn cross_file_loops_publish_jump_and_concrete_binding_facts() {
     let mut sources = SourceMap::new();
     let (callee_source, callee) = parsed(
         &mut sources,
@@ -629,7 +629,7 @@ fn cross_file_loops_publish_jump_and_deferred_binding_facts() {
         "package p\n\
          fun loops(): Unit {\n\
              while (truth()) { continue }\n\
-             for (item in truth()) {\n\
+             for (item in arrayOf(1)) {\n\
                  val deferred = item\n\
                  break\n\
              }\n\
@@ -677,7 +677,7 @@ fn cross_file_loops_publish_jump_and_deferred_binding_facts() {
             forward
                 .symbol_type(symbol_named(&forward, &forward_names, uses_unit, symbol,))
                 .and_then(|ty| forward.types().get(ty)),
-            Some(UnitTypeKind::Deferred(DeferredReason::LoopSource))
+            Some(UnitTypeKind::Builtin(BuiltinType::Int))
         ));
     }
 }

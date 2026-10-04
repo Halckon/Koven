@@ -56,7 +56,6 @@ pub(super) fn build(
     for (expression, node) in checker.parsed.ast().expressions().iter() {
         if let Expression::Lambda { body, .. } = node.payload()
             && (!reachable_only
-                || !checker.constant_control
                 || checker
                     .visited_lambdas
                     .contains(&checker.unit_expression(expression)))
@@ -216,11 +215,21 @@ impl Builder<'_, '_> {
                 }
             }
             Statement::For { source, body, .. } => {
+                let bindings = self
+                    .checker
+                    .typed
+                    .sequential_iteration(UnitStatementId::new(self.checker.source_unit, id))
+                    .map(|plan| plan.binding().symbols().collect::<Vec<_>>())
+                    .unwrap_or_default();
                 let mut header = live_after.clone();
                 loop {
                     self.loop_stack.push((live_after.clone(), header.clone()));
-                    let body_in = self.statement(body, header.clone())?;
+                    let mut body_in = self.statement(body, header.clone())?;
                     self.loop_stack.pop();
+                    // Each iteration defines these borrowed values; they are not live before Acquire.
+                    for symbol in &bindings {
+                        body_in.remove(symbol);
+                    }
                     let mut next = live_after.clone();
                     next.extend(body_in);
                     if next == header {

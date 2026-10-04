@@ -261,16 +261,12 @@ impl Checker<'_> {
             ),
             Statement::While {
                 condition, body, ..
-            }
-            | Statement::For {
-                source: condition,
-                body,
-                ..
             } => {
                 let errors = self.diagnostics.len();
                 let prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
                 self.check_maybe_loop(prefix, body, errors)
             }
+            Statement::For { source, body, .. } => self.check_iteration(id, source, body, state),
             Statement::Loop { body, .. } => {
                 let errors = self.diagnostics.len();
                 let body_id = body;

@@ -1,17 +1,17 @@
 # M1A 多文件参数报告工具：Spec 起草材料
 
-> **性质**：里程碑起草材料 · **状态**：draft / A2、A3 已正式承接 · **读取时机**：评审 M1A 剩余范围、源码与总验收时 · **唯一真源**：本页维护尚未承接的 M1A 范围；已承接项只见正式 Spec
+> **性质**：里程碑起草材料 · **状态**：draft / A2–A4 已正式承接 · **读取时机**：评审 M1A 剩余范围、源码与总验收时 · **唯一真源**：本页维护尚未承接的 M1A 范围；已承接项只见正式 Spec
 
 ## 1. 状态与 Goal
 
 | 字段 | 草案值 |
 |---|---|
-| 状态 | 剩余范围保持 draft；A2、A3 已按各有界合同完成 |
+| 状态 | 剩余范围保持 draft；A2–A4 已按各有界合同完成 |
 | 关联计划 | [治理完成后的开发里程碑](post-governance-milestones.md)的 M1A |
 | 所属 Phase | Phase 2–4 的事实/执行及 Phase 6 的 project 验收 |
 | 起草依据 | 用户于 2026-10-04 要求文档起草，代码开发等待另一位 agent 完成治理计划 |
 | 规范入口 | [Guide v0.40](../guide/README.md)、[名称与文件](../guide/02-names-files-packages.md)、[所有权](../guide/10-ownership-borrowing-drop.md)、[顺序集合](../guide/12-collections-destructuring.md) |
-| 阻塞项 | A1 已取得 native UnsupportedNode 红测；A3 已承接，unit for 与总验收仍待交付 |
+| 阻塞项 | A1 已取得 native UnsupportedNode 红测；A2–A4 已交付，unit native for 与总验收仍待交付 |
 | 语义变更 | 目标限于现行语义；若复核发现需要新规则，停止对应实施并另行决策 |
 | 文档落点 | 未承接部分留作起草材料；各片定稿后迁入正式 Spec，本页保留总验收与依赖链接 |
 
@@ -151,7 +151,7 @@ kovenc run --project project.toml --entry app.main -- alpha 你好 tail
 | A1 | 源码真实性与首轮红测 | 上述三文件，经 CLI project；各缺口另用最小输入定位 | 记录失败阶段、code/kind、source/Span；不能把首个错误当成其他路径已验证 |
 | A2 | 跨文件字段可变性 | 已由[SPEC-0263](../archive/specs/0263-unit-field-mutability.md)承接 | 正反例、身份、诊断及实际结果只维护在正式 Spec |
 | A3 | 字段直接 Borrow 与父 owner | 由[SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)承接 | 具体范围、callee 读取/父 owner/冲突与实际结果只维护在正式 Spec |
-| A4 | unit 迭代 typed/ownership 事实 | `multifile_type_checking`、`multifile_ownership_checking`，缺少独立目标时再按职责确定 | source 求值一次、binding/projection 身份、loan/provider/清理顺序和最近 callable 边界；包含 Inout/字段 source 的前端正反例 |
+| A4 | unit 迭代 typed/ownership 事实 | [SPEC-0265](../archive/specs/0265-unit-iteration-facts.md)补齐conditional receiver合同中 | source 求值一次、binding/projection 身份、loan/provider/清理顺序和最近 callable 边界；包含 Inout/字段 source 的前端正反例；实际结果只维护在正式 Spec |
 | A5 | unit 迭代 SSA/native | codegen 相应 unit lowering/verifier/native suite | 三种现行容器；owned/Borrow 源、temporary；0/1/多元素；继续、break、continue、return及 Abort；Inout/字段 source 按首轮 Phase 4 边界明确拒绝 |
 | A6 | 精确资源与控制流 | A3/A5 的动态计数用例 | 按 owner/指针核唯一释放与顺序；结束 provider 后才能结束 source loan；Abort 不 unwind；必须检查循环后或 caller 输出 |
 | A7 | 能力/身份 gate 与失败原子性 | ordinary/const native 交接合同和 project CLI | 源与 facts 混轮/混 source 拒绝；失败保留旧产物和目录状态；成功路径确实发射/链接/运行 |
@@ -173,7 +173,7 @@ A5 的拒绝与正例覆盖必须逐项映射当前 Guide；不能用矩阵格�
 2. 完成 G2/G3，将材料迁成正式 draft/approved 合同，核定一项 Goal 的边界及分支名。
    必要拆分由实际阻塞决定，不在本轮预占多个编号；同步索引、inventory及依赖图。
 3. 首先运行 A1 并建立各缺口最小红测，冻结预期和输入；若发现规范冲突先停止该项。
-4. 完成 A2、A3，再按 typed→ownership→SSA/verifier→native 完成 A4–A7；每步先失败后通过。
+4. 完成 A2–A4，再按 typed→ownership→SSA/verifier→native 完成 A4–A7；每步先失败后通过。
 5. 执行 A8，并按真实影响完成 A9/A10；相同输入和合同的成功证据可按工程规则复用。
 6. 独立评审具体实现、最大剩余风险与验收表；修复发现并复审后，按授权提交和交付。
 

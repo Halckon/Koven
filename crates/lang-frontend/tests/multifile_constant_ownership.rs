@@ -1006,3 +1006,6 @@ fn unreachable_lambda_does_not_publish_orphan_constant_cleanup() {
         );
     }
 }
+
+#[path = "multifile_constant_ownership/iteration.rs"]
+mod iteration;

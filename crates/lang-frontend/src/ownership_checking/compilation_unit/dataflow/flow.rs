@@ -2,7 +2,11 @@
 
 use std::collections::BTreeMap;
 
-use crate::{name_resolution::UnitSymbolId, source::Span, type_checking::UnitExpressionId};
+use crate::{
+    name_resolution::UnitSymbolId,
+    source::Span,
+    type_checking::{UnitExpressionId, UnitStatementId},
+};
 
 use super::{AccessKind, LoanKind, UnitOwnershipPlace};
 
@@ -26,6 +30,8 @@ impl ActiveLoan {
 pub(super) enum ActiveLoanOwner {
     Call(UnitExpressionId),
     Closure(UnitExpressionId),
+    IterationSource(UnitStatementId),
+    IterationElement(UnitStatementId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -319,7 +319,7 @@ litmus!(
 );
 litmus!(litmus_09_nullable_frontend, 9, []);
 litmus!(litmus_10_closure_frontend, 10, []);
-// TODO: close the unit for-body typed facts separately from diagnostic/ownership acceptance.
+// SPEC-0265 closes unit for-body types; the callee target remains a non-value fact.
 litmus!(
     litmus_11_iteration_frontend,
     11,
@@ -328,12 +328,7 @@ litmus!(
         ("listOf", "Some(Deferred(Call))"),
         ("sum = sum + i", "Some(Deferred(Assignment))")
     ],
-    [
-        ("listOf", "Some(Deferred(Call))"),
-        ("i", "Some(Deferred(LoopSource))"),
-        ("sum + i", "Some(Deferred(ControlJoin))"),
-        ("sum = sum + i", "Some(Deferred(Assignment))")
-    ]
+    [("listOf", "Some(Deferred(Call))")]
 );
 litmus!(
     litmus_12_const_bitwise_frontend,
