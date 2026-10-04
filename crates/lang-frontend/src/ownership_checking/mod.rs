@@ -36,12 +36,14 @@ pub use compilation_unit::{
     UnitConditionalReceiverDropFact, UnitConstantMaterializationPlan,
     UnitConstructionDeliveryEffect, UnitConstructionOwnershipPlan,
     UnitConstructionRootDropObligation, UnitDelegationOwnershipPlan, UnitDropFact, UnitDropPoint,
-    UnitDropTarget, UnitLoanFact, UnitLoanTarget, UnitNonNullAssertionOwnershipPlan,
-    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
-    UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
-    UnitReceiverOwnershipTarget, UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact,
-    UnitValueDeliveryKind, UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
-    check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
+    UnitDropTarget, UnitIterationCleanupAction, UnitIterationExitKind, UnitIterationExitPlan,
+    UnitIterationOwnershipPlan, UnitIterationSourceAccess, UnitLoanFact, UnitLoanTarget,
+    UnitNonNullAssertionOwnershipPlan, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact,
+    UnitOwnershipPlace, UnitRcOwnershipEffect, UnitReceiverOwnershipFact,
+    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, UnitShortCircuitPlan,
+    UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
+    ValidatedCompilationUnitOwnership, check_compilation_unit_constant_ownership,
+    check_compilation_unit_ownership,
 };
 pub use const_handoff::{ConstOwnedCompilationUnitView, const_owned_compilation_unit_view};
 pub use constant::{

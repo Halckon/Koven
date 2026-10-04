@@ -40,7 +40,7 @@ pub(super) enum PlannerDropPoint {
 }
 
 impl PlannerDropPoint {
-    fn into_unit(self, source_unit: SourceUnitId) -> UnitDropPoint {
+    pub(super) fn into_unit(self, source_unit: SourceUnitId) -> UnitDropPoint {
         let expression = |id| UnitExpressionId::new(source_unit, id);
         let statement = |id| UnitStatementId::new(source_unit, id);
         match self {
@@ -167,6 +167,9 @@ pub(super) struct OwnedThis {
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct ValueState {
+    /// 实际已求值的实参loan与建立时loop深度；未求值后缀不得参与退出清理。
+    pub(super) pending_loans: Vec<(crate::ownership_checking::UnitIterationCleanupAction, usize)>,
+    pub(super) iterations: Vec<super::iteration::IterationFrame>,
     pub(super) pending_temporaries: Vec<super::pending_call::PendingTemporary>,
     pub(super) values: Vec<OwnedValue>,
     /// 已求值调用前缀的借用必须跨越后续实参中的分支与嵌套调用。

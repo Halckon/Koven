@@ -131,6 +131,8 @@ mod control_flow;
 mod drop_plans;
 #[path = "multifile_ownership_checking/field_mutability.rs"]
 mod field_mutability;
+#[path = "multifile_ownership_checking/iteration.rs"]
+mod iteration;
 #[path = "multifile_ownership_checking/lambda_drop.rs"]
 mod lambda_drop;
 #[path = "multifile_ownership_checking/non_null.rs"]

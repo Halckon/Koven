@@ -542,6 +542,7 @@ impl UnitDestructuringDescriptor {
 /// body checker 交给 recovery product 的最小、source-qualified facts。
 #[derive(Clone, Default)]
 pub(crate) struct CompilationUnitTypeParts {
+    pub(crate) iterations: Vec<super::UnitSequentialIterationDescriptor>,
     pub(crate) constant_declaration_count: usize,
     pub(crate) constants: Option<UnitConstantFacts>,
     pub(crate) constant_selections: BTreeMap<UnitExpressionId, UnitSymbolId>,
@@ -577,6 +578,7 @@ struct BodyTypeProvenance {
 /// [`UnitTypeId`] 并且所有源码 identity 都带 [`SourceUnitId`] 限定。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitTypes {
+    iterations: Vec<super::UnitSequentialIterationDescriptor>,
     pub(in crate::type_checking) resource_classifications:
         crate::type_checking::resource::ResourceCache<
             crate::type_checking::resource::UnitResourceClassifier,
@@ -609,6 +611,24 @@ pub struct CompilationUnitTypes {
 }
 
 impl CompilationUnitTypes {
+    /// 返回 source/statement 顺序稳定的完整 borrowed provider 计划。
+    #[must_use]
+    pub fn sequential_iterations(&self) -> &[super::UnitSequentialIterationDescriptor] {
+        &self.iterations
+    }
+
+    /// 按 source-qualified statement identity 查询，不接受裸局部 ID。
+    #[must_use]
+    pub fn sequential_iteration(
+        &self,
+        statement: UnitStatementId,
+    ) -> Option<&super::UnitSequentialIterationDescriptor> {
+        self.iterations
+            .binary_search_by_key(&statement, |plan| plan.statement())
+            .ok()
+            .map(|index| &self.iterations[index])
+    }
+
     pub(crate) fn new(
         signatures: CompilationUnitSignatures,
         parts: CompilationUnitTypeParts,
@@ -620,6 +640,7 @@ impl CompilationUnitTypes {
         };
         Self {
             resource_classifications: crate::type_checking::resource::ResourceCache::new(),
+            iterations: parts.iterations,
             provenance,
             constant_declaration_count: parts.constant_declaration_count,
             constants: parts.constants,

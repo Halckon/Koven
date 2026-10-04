@@ -53,11 +53,11 @@
       "review": "SPEC-0264 独立审阅确认一行挂接；再次增长或增加 driver 职责前重新评审。"
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": {
-      "max_lines": 1188,
-      "reason": "SPEC-0263 将已有字段权限表改为单次 unit 收集后只读借用；父模块仅增加收集、参数与传递三行，完整收集职责位于 traversal。为三行接线拆分无关 checker 职责会扩大本次修复。",
-      "owner": "lang-frontend compilation-unit ownership",
-      "split_plan": "后续独立审阅 Checker 的构造输入与分析产物组织边界；本片不搬迁无关控制流或检查算法。",
-      "review": "SPEC-0263 独立实现评审同时检查此三行增长；再次增长或增加职责前重新评审。"
+      "max_lines": 1225,
+      "reason": "SPEC-0265 只增加迭代分析产物传递、独立loan owner冲突接线；provider算法单列dataflow/iteration。",
+      "owner": "lang-frontend compilation-unit iteration",
+      "split_plan": "后续按Checker输入构造与source单元分析归并边界拆分；本次仅接线provider产物，不搬迁调用/loan检查。",
+      "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs": {
       "max_lines": 1155,
@@ -79,6 +79,41 @@
       "owner": "lang-frontend ownership/drop tests（Halckon）",
       "split_plan": "后续独立评审按形成实例、逐边运输及最终loan/release oracle提取helper，保留单个端到端场景与所有断言。",
       "review": "下次修改本场景、共用回放helper或instance_replay合同前复查；增加职责或超过当前上限必须独立评审。"
+    },
+    "crates/lang-frontend/src/ownership_checking/compilation_unit.rs": {
+      "max_lines": 1144,
+      "reason": "SPEC-0265 只增加迭代计划及验证witness存储、模块注册与validate接线；实现分别位于iteration和iteration_validation。",
+      "owner": "lang-frontend compilation-unit iteration",
+      "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
+      "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
+    },
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/drop_planner.rs": {
+      "max_lines": 1570,
+      "reason": "SPEC-0265 在实际drop、call前缀求值、closure释放和控制转移点接入有序清理；provider frame和schema动作组装独立于父planner。",
+      "owner": "lang-frontend compilation-unit iteration",
+      "split_plan": "后续按词法owner存活与call pending义务拆分父planner；本次provider生命周期已独立在iteration，pending owner沿用pending_call，不搬迁无关表达式分派。",
+      "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
+    },
+    "crates/lang-frontend/src/type_checking/compilation_unit/bodies.rs": {
+      "max_lines": 1358,
+      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。",
+      "owner": "lang-frontend compilation-unit iteration",
+      "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
+      "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
+    },
+    "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": {
+      "max_lines": 1226,
+      "reason": "SPEC-0265 注册独立iteration模块、传入statement identity及错误原子清空；算法未放入父checker。",
+      "owner": "lang-frontend compilation-unit iteration",
+      "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
+      "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
+    },
+    "crates/lang-frontend/tests/multifile_constant_ownership.rs": {
+      "max_lines": 1011,
+      "reason": "SPEC-0265 仅三行注册独立iteration测试子模块以复用既有capability helper。",
+      "owner": "lang-frontend compilation-unit iteration",
+      "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
+      "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
     }
   },
   "generated": {}

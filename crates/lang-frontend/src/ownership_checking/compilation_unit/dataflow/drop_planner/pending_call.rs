@@ -15,6 +15,8 @@ pub(super) struct PendingTemporary {
     transfers_at_call: bool,
     pub(super) loop_depth: usize,
     prior_symbols: Vec<UnitSymbolId>,
+    closure: Option<ExpressionId>,
+    iteration_scopes: Vec<crate::type_checking::UnitStatementId>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -42,7 +44,7 @@ impl DropPlanner<'_, '_> {
                 .expressions()
                 .get(argument)?
                 .span();
-            self.register_pending_temporary(call, argument, origin, true, state);
+            self.register_pending_temporary(call, argument, origin, true, state)?;
         }
         Ok(())
     }
@@ -54,14 +56,17 @@ impl DropPlanner<'_, '_> {
         origin: Span,
         transfers_at_call: bool,
         state: &mut ValueState,
-    ) {
+    ) -> Result<(), OwnershipCheckingError> {
+        let closure = self.closure_origin(expression, state)?;
         self.register_pending_owner(
             control,
             PendingOwner::Temporary(expression),
             origin,
             transfers_at_call,
+            closure,
             state,
         );
+        Ok(())
     }
 
     pub(super) fn register_pending_this(&self, control: ExpressionId, state: &mut ValueState) {
@@ -71,18 +76,45 @@ impl DropPlanner<'_, '_> {
                 PendingOwner::This(receiver),
                 receiver.origin,
                 true,
+                None,
                 state,
             );
         }
     }
 
     fn push_pending_drop(&mut self, point: PlannerDropPoint, pending: PendingTemporary) {
+        if let Some(closure) = pending.closure {
+            for capture in self.checker.captures_of(closure) {
+                if capture.mode() == crate::ownership_checking::ClosureCaptureMode::Shared {
+                    self.iteration_actions.push((
+                        point,
+                        crate::ownership_checking::UnitIterationCleanupAction::EndCaptureLoan {
+                            closure: self.checker.unit_expression(closure),
+                            source: capture.source(),
+                        },
+                    ));
+                }
+            }
+        }
         match pending.target {
-            PendingOwner::Temporary(expression) => self.push_fact(PlannerDropFact::new(
-                point,
-                PlannerDropTarget::Temporary(expression),
-                pending.origin,
-            )),
+            PendingOwner::Temporary(expression) => {
+                let target = crate::ownership_checking::UnitDropTarget::Temporary(
+                    self.checker
+                        .constant_temporary_origin(expression)
+                        .map_or(self.checker.unit_expression(expression), |(owner, _)| owner),
+                );
+                self.iteration_temporary_scopes.extend(
+                    pending
+                        .iteration_scopes
+                        .iter()
+                        .map(|statement| (*statement, target, true)),
+                );
+                self.push_fact(PlannerDropFact::new(
+                    point,
+                    PlannerDropTarget::Temporary(expression),
+                    pending.origin,
+                ));
+            }
             PendingOwner::This(receiver) => self.push_this_fact(point, receiver),
         }
     }
@@ -93,6 +125,7 @@ impl DropPlanner<'_, '_> {
         target: PendingOwner,
         origin: Span,
         transfers_at_call: bool,
+        closure: Option<ExpressionId>,
         state: &mut ValueState,
     ) {
         state.pending_temporaries.push(PendingTemporary {
@@ -102,6 +135,12 @@ impl DropPlanner<'_, '_> {
             transfers_at_call,
             loop_depth: self.loop_boundaries.len(),
             prior_symbols: state.values.iter().map(|value| value.symbol).collect(),
+            closure,
+            iteration_scopes: state
+                .iterations
+                .iter()
+                .map(|frame| frame.statement)
+                .collect(),
         });
     }
 

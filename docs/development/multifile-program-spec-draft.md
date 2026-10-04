@@ -151,7 +151,7 @@ kovenc run --project project.toml --entry app.main -- alpha 你好 tail
 | A1 | 源码真实性与首轮红测 | 上述三文件，经 CLI project；各缺口另用最小输入定位 | 记录失败阶段、code/kind、source/Span；不能把首个错误当成其他路径已验证 |
 | A2 | 跨文件字段可变性 | 已由[SPEC-0263](../archive/specs/0263-unit-field-mutability.md)承接 | 正反例、身份、诊断及实际结果只维护在正式 Spec |
 | A3 | 字段直接 Borrow 与父 owner | 由[SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)承接 | 具体范围、callee 读取/父 owner/冲突与实际结果只维护在正式 Spec |
-| A4 | unit 迭代 typed/ownership 事实 | `multifile_type_checking`、`multifile_ownership_checking`，缺少独立目标时再按职责确定 | source 求值一次、binding/projection 身份、loan/provider/清理顺序和最近 callable 边界；包含 Inout/字段 source 的前端正反例 |
+| A4 | unit 迭代 typed/ownership 事实 | [SPEC-0265](../specs/active/0265-unit-iteration-facts.md)实施中 | source 求值一次、binding/projection 身份、loan/provider/清理顺序和最近 callable 边界；包含 Inout/字段 source 的前端正反例；实际结果只维护在正式 Spec |
 | A5 | unit 迭代 SSA/native | codegen 相应 unit lowering/verifier/native suite | 三种现行容器；owned/Borrow 源、temporary；0/1/多元素；继续、break、continue、return及 Abort；Inout/字段 source 按首轮 Phase 4 边界明确拒绝 |
 | A6 | 精确资源与控制流 | A3/A5 的动态计数用例 | 按 owner/指针核唯一释放与顺序；结束 provider 后才能结束 source loan；Abort 不 unwind；必须检查循环后或 caller 输出 |
 | A7 | 能力/身份 gate 与失败原子性 | ordinary/const native 交接合同和 project CLI | 源与 facts 混轮/混 source 拒绝；失败保留旧产物和目录状态；成功路径确实发射/链接/运行 |

@@ -261,6 +261,9 @@ subgraph Garchive["已完成（archive，251 份）"]
   S0263["S0263<br/>跨文件字段可变性查询"]
   S0264["S0264<br/>Unit owned class 一级字段直接 Borrow"]
 end
+subgraph Gactive["现行 active"]
+  S0265["S0265<br/>unit 顺序迭代前端事实"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1088,6 +1091,7 @@ S0180 --> S0224
 S0181 --> S0191
 S0181 --> S0222
 S0181 --> S0224
+S0182 --> S0265
 S0183 --> S0044
 S0183 --> S0045
 S0183 --> S0184
@@ -1152,6 +1156,7 @@ S0197 --> S0217
 S0197 --> S0218
 S0197 --> S0219
 S0197 --> S0249
+S0197 --> S0265
 S0198 --> S0187
 S0198 --> S0199
 S0198 --> S0214
@@ -1162,6 +1167,7 @@ S0198 --> S0221
 S0198 --> S0226
 S0198 --> S0227
 S0198 --> S0249
+S0198 --> S0265
 S0199 --> S0054
 S0199 --> S0220
 S0199 --> S0221
@@ -1213,6 +1219,7 @@ S0252 --> S0254
 S0253 --> S0254
 S0254 --> S0255
 S0263 --> S0264
+S0263 --> S0265
 ```
 
 ## 节点链接
@@ -1470,3 +1477,4 @@ S0263 --> S0264
 | SPEC-0262 | archive | [0262-current-tutorial-plan-coverage.md](0262-current-tutorial-plan-coverage.md) |
 | SPEC-0263 | archive | [0263-unit-field-mutability.md](0263-unit-field-mutability.md) |
 | SPEC-0264 | archive | [0264-unit-direct-field-borrow.md](0264-unit-direct-field-borrow.md) |
+| SPEC-0265 | active | [0265-unit-iteration-facts.md](../../specs/active/0265-unit-iteration-facts.md) |

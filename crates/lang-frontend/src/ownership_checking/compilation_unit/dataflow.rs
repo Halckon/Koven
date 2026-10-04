@@ -6,6 +6,7 @@ mod container;
 mod control;
 mod drop_planner;
 mod flow;
+mod iteration;
 mod liveness;
 mod non_null_assertion;
 mod ownership_primitive;
@@ -46,6 +47,22 @@ use super::{
 use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
 pub(super) struct Analysis {
+    pub(super) iteration_owner_scopes: Vec<(
+        crate::type_checking::UnitStatementId,
+        crate::ownership_checking::UnitDropTarget,
+        bool,
+    )>,
+    pub(super) iteration_loan_ends: Vec<(
+        crate::ownership_checking::UnitDropPoint,
+        crate::ownership_checking::UnitIterationCleanupAction,
+    )>,
+    pub(super) iterations: Vec<crate::ownership_checking::UnitIterationOwnershipPlan>,
+    pub(super) iteration_templates: Vec<crate::ownership_checking::UnitIterationOwnershipPlan>,
+    pub(super) iteration_required_exits: Vec<(
+        crate::type_checking::UnitStatementId,
+        crate::ownership_checking::UnitIterationExitKind,
+        crate::ownership_checking::UnitDropPoint,
+    )>,
     pub(super) visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
     pub(super) short_circuits: Option<Vec<super::constant::UnitShortCircuitPlan>>,
     pub(super) constant_materializations: Vec<super::constant::UnitConstantMaterializationPlan>,
@@ -178,6 +195,11 @@ pub(super) fn analyze(
     let mut ownership_primitives = Vec::new();
     let mut field_replacements = Vec::new();
     let mut drops = Vec::new();
+    let mut iterations = Vec::new();
+    let mut iteration_owner_scopes = Vec::new();
+    let mut iteration_loan_ends = Vec::new();
+    let mut iteration_templates = Vec::new();
+    let mut iteration_required_exits = Vec::new();
     let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
     let empty_construction_descriptors = BTreeMap::new();
@@ -229,6 +251,11 @@ pub(super) fn analyze(
         )?;
         checker.constant_control = constant_control;
         let drop_analysis = checker.run()?;
+        iteration_templates.extend(checker.iterations.into_values());
+        iterations.extend(drop_analysis.iterations);
+        iteration_owner_scopes.extend(drop_analysis.iteration_owner_scopes);
+        iteration_loan_ends.extend(drop_analysis.iteration_loan_ends);
+        iteration_required_exits.extend(drop_analysis.iteration_required_exits);
         short_circuits.extend(checker.short_circuits.into_values());
         visited_lambdas.extend(checker.visited_lambdas);
         constant_materializations.extend(checker.constant_materializations.into_values());
@@ -257,6 +284,11 @@ pub(super) fn analyze(
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
     Ok(Analysis {
+        iteration_owner_scopes,
+        iteration_loan_ends,
+        iterations,
+        iteration_templates,
+        iteration_required_exits,
         visited_lambdas,
         short_circuits: constant_control.then_some(short_circuits),
         constant_materializations,
@@ -327,6 +359,10 @@ struct ReceiverContext {
 
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
+    iterations: BTreeMap<
+        crate::type_checking::UnitStatementId,
+        crate::ownership_checking::UnitIterationOwnershipPlan,
+    >,
     visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
     constant_control: bool,
     short_circuits: BTreeMap<UnitExpressionId, super::constant::UnitShortCircuitPlan>,
@@ -471,6 +507,7 @@ impl<'a> Checker<'a> {
             }
         }
         Ok(Self {
+            iterations: BTreeMap::new(),
             visited_lambdas: std::collections::BTreeSet::new(),
             constant_control: false,
             short_circuits: BTreeMap::new(),
@@ -839,7 +876,7 @@ impl<'a> Checker<'a> {
         };
         if move_only
             && state.loans.iter().any(|loan| {
-                loan.reserved
+                (loan.reserved || matches!(loan.owner, ActiveLoanOwner::IterationSource(_)))
                     && match &loan.target {
                         ActiveLoanTarget::Place(target) => target.overlaps(place),
                         ActiveLoanTarget::This => {
