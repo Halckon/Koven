@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 EVIDENCE = ROOT / 'docs/development/evidence'
 RECOVERY = '7c7cc254a4e8e36ebfa2d858a334d98806c2091d'
 MERGE = '385bb23e1123c3a4ba00ec9fe5d964ebc95f1493'
-LOCAL = 'edac6c9899232e76f31cb40f4770107933a17099'
+LOCAL = '03395c64217e5bc9b11a6d2d48b49226a0e39440'
 
 
 def git(*args):
@@ -46,7 +46,7 @@ def main():
         'structural_pairs': [], 'block_hash_checks': [], 'production_file_hash_checks': [],
     }
     assert result['trees'][RECOVERY] == result['trees'][MERGE]
-    assert result['merge_base'] == RECOVERY
+    assert result['merge_base'] == MERGE
     assert not result['recovery_to_pr37_paths']
     assert not result['pr37_to_local_compiler_paths']
     pairs = [
@@ -92,8 +92,14 @@ def main():
     result['result'] = dict(block_comparisons=len(result['block_hash_checks']),
                            production_file_comparisons=len(result['production_file_hash_checks']),
                            unreported_failures=0, budget_accepted=False, linux_executed=False)
-    output = EVIDENCE / 'pr37-and-p2-static-review.json'
-    output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+    original = data('pr37-and-p2-static-review')
+    assert result['block_hash_checks'] == original['block_hash_checks']
+    assert result['production_file_hash_checks'] == original['production_file_hash_checks']
+    output = EVIDENCE / 'publication-relationship.json'
+    publication = {key: value for key, value in result.items()
+                   if key not in {'structural_pairs', 'block_hash_checks', 'production_file_hash_checks'}}
+    publication['historical_evidence_sha256'] = sha((EVIDENCE / 'pr37-and-p2-static-review.json').read_text())
+    output.write_text(json.dumps(publication, ensure_ascii=False, indent=2) + '\n')
     print('PR37 tree-identical; ten pairs available; 400 block and nine production-file hashes matched')
 
 
