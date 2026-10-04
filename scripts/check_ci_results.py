@@ -12,16 +12,19 @@ def check_results(needs, event, ref):
     if changes.get("result") != "success":
         return ["changes must succeed before any skipped gate can be accepted"]
     outputs = changes.get("outputs", {})
-    for name in ("docs", "rust", "editors"):
+    for name in ("docs", "rust", "editors", "preview"):
         if outputs.get(name) not in ("true", "false"):
             errors.append(f"changes.{name} is missing or invalid")
     if errors:
         return errors
     force = ref == "refs/heads/main" or event == "workflow_dispatch"
-    rust = outputs["rust"] == "true" or force
+    rust = outputs["rust"] == "true" or outputs["preview"] == "true" or force
     full = rust and (event in ("pull_request", "workflow_dispatch") or ref == "refs/heads/main")
+    preview = (outputs["preview"] == "true" or force) and full
     required = {"rust-size": True, "dependencies": True, "docs": outputs["docs"] == "true" or force, "fmt": rust,
                 "clippy": full, "test": full, "editors": outputs["editors"] == "true" or force}
+    required.update(dict.fromkeys(("preview-macos-produce", "preview-linux-produce",
+                                   "preview-macos-consume", "preview-linux-consume"), preview))
     for name, must_run in required.items():
         expected = "success" if must_run else "skipped"
         actual = needs.get(name, {}).get("result")

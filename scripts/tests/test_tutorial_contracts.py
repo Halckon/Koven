@@ -96,6 +96,23 @@ class TutorialContracts(unittest.TestCase):
             self.assertEqual(artifact[1], {'exit': 0, 'stdout': stdout, 'stderr': ''})
             self.assertEqual(run[1], artifact[1])
 
+    def test_loaded_case_boundary_reuses_commands_and_complete_oracles(self):
+        row, _ = next(item for item in TUTORIAL.load_examples()
+                      if item[0]['id'] == 'parameter-report')
+        directory = Path('/installed 项目/case 3')
+        calls = []
+        TUTORIAL.run_case(Path('/installed 包/bin/kovenc'), row, row['cases'][3],
+                          directory, execute=lambda *args: calls.append(args))
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[0][0], ['/installed 包/bin/kovenc', 'build', '--project',
+                                     'project.toml', '--entry', 'app.main', '-o', 'program'])
+        self.assertEqual(calls[1][0], [str(directory / 'program'), ''])
+        self.assertEqual(calls[2][0][-2:], ['--', ''])
+        self.assertEqual(calls[0][1], row['build'])
+        self.assertEqual(calls[1][1], row['cases'][3]['artifact'])
+        self.assertEqual(calls[2][1], row['cases'][3]['run'])
+        self.assertTrue(all(call[2] == directory for call in calls))
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
