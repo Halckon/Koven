@@ -266,6 +266,7 @@ impl UnitExpressionLowerer<'_> {
                     pending_start: receiver_start,
                     exclusive_root_owners: Vec::new(),
                     field_replace_owner: None,
+                    shared_field_roots: Vec::new(),
                     created_loans: (receiver_start + 1
                         ..receiver_start + 1 + receiver.created_loans.len())
                         .collect(),
@@ -452,6 +453,7 @@ impl UnitExpressionLowerer<'_> {
                 pending_start: self.pending_operands.len(),
                 exclusive_root_owners: Vec::new(),
                 field_replace_owner: None,
+                shared_field_roots: Vec::new(),
                 created_loans: Vec::new(),
             });
         let result = self.lower_call_arguments_in_frame(call, arguments, descriptor, span);
@@ -837,6 +839,11 @@ impl UnitExpressionLowerer<'_> {
             self.lower_borrowed_container_element(argument, loan_target, target, span)?
         {
             return Ok(place);
+        }
+        if let UnitLoanTarget::Place(place) = loan_target
+            && !place.is_root()
+        {
+            return self.lower_owned_field_borrow_place(argument, place, target, span);
         }
         let owner = match loan_target {
             UnitLoanTarget::Place(place) if place.is_root() => self

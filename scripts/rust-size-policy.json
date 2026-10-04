@@ -45,6 +45,13 @@
     "crates/lang-frontend/tests/type_checking.rs": 2251
   },
   "exceptions": {
+    "crates/lang-codegen/src/ssa/unit_lower.rs": {
+      "max_lines": 1253,
+      "reason": "SPEC-0264 为独立字段 Borrow lowering 子模块增加一行 mod 声明；完整事实校验与 place 发射留在 field_borrow.rs。为单行挂接搬迁无关 driver 职责会扩大此行为切片。",
+      "owner": "lang-codegen compilation-unit lowering",
+      "split_plan": "后续独立评审 unit driver 的 callable 编排与 expression lowering 边界；本片不机械拆分既有算法。",
+      "review": "SPEC-0264 独立审阅确认一行挂接；再次增长或增加 driver 职责前重新评审。"
+    },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": {
       "max_lines": 1188,
       "reason": "SPEC-0263 将已有字段权限表改为单次 unit 收集后只读借用；父模块仅增加收集、参数与传递三行，完整收集职责位于 traversal。为三行接线拆分无关 checker 职责会扩大本次修复。",

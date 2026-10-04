@@ -7,6 +7,8 @@ pub(super) struct PendingCallFrame {
     pub(super) created_loans: Vec<usize>,
     /// 同一父 owner 的并行字段 loan 尚无 projection-aware alias 合同。
     pub(super) field_replace_owner: Option<usize>,
+    /// 保留共享字段 loan 的稳定 root，使后续 sibling exclusive loan 明确拒绝。
+    pub(super) shared_field_roots: Vec<UnitSymbolId>,
     /// 独占 root 的 owner 槽位须与 binding 保持同一 CFG identity。
     pub(super) exclusive_root_owners: Vec<usize>,
 }

@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 250 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 252 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -221,6 +221,8 @@
 
 ## Phase 4
 
+- [SPEC-0264](./0264-unit-direct-field-borrow.md)：unit owned local class 一级字段直接 Borrow，PR41首轮双宿主验收
+
 - [SPEC-0227](./0227-unit-constant-native-lowering.md)：跨文件常量 SSA 与 native 交付
 
 - [SPEC-0207](./0207-pointer-non-null-assertion-lowering.md)：pointer-like 非空断言 SSA/LLVM/native lowering
@@ -345,3 +347,7 @@
 - [SPEC-0260](./0260-shared-unit-source-query.md)：本机恢复验收与原非目标见正文
 - [SPEC-0261](./0261-finite-iteration-fact-validation.md)：本机恢复验收与原非目标见正文
 - [SPEC-0262](./0262-current-tutorial-plan-coverage.md)：原治理计划P5四个当前教程与提取合同的本机有界验收
+
+## 编辑器 corpus 与必需 CI（2026-10-04）
+
+- [SPEC-0267](0267-editor-corpus-gate.md)：修复上下文词、词运算符整词边界与命名参数；真实 CLI corpus、独立树合同及双宿主 PR CI 已验收。

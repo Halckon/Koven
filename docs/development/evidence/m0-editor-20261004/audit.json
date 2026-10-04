@@ -1,0 +1,72 @@
+{
+  "compiler_head": "6cdaa2c99f058c159fcf0dd8e0496c2ec1a4efaa",
+  "tool": "tree-sitter 0.26.12",
+  "original_result": {
+    "total": 10,
+    "passed": 5,
+    "failed": 5,
+    "exit": 1
+  },
+  "regenerated_result": {
+    "total": 10,
+    "passed": 5,
+    "failed": 5,
+    "exit": 1
+  },
+  "regenerated_log": "tree-sitter-regenerated.log.gz",
+  "generated_comparison": {
+    "src/parser.c": true,
+    "src/grammar.json": true,
+    "src/node-types.json": true
+  },
+  "failures": [
+    "File header and declarations",
+    "Calls and lambda",
+    "Own remains declaration-only",
+    "Control flow",
+    "Reserved words are not identifiers"
+  ],
+  "scope": "M0 corpus baseline only; no repository change or claimed fix",
+  "textmate": {
+    "command": "node editors/textmate/tests/verify-lexical-contract.mjs",
+    "node": "v26.8.2",
+    "exit": 0,
+    "validated_cases": 80,
+    "scope": "lexical regex contract only"
+  },
+  "documented_on_main": "f0effcdcabf0dddb2b8411829b15325f467a3627",
+  "regenerated_log_uncompressed_sha256": "3c5c81c8deb3ab19db2fa4cb0414e8a1bb4f10941178c1352b07c17b5fd4aa2d",
+  "commands": {
+    "original": "tree-sitter test (cwd: editors/tree-sitter; CLI 0.26.12)",
+    "regenerated": [
+      "copy grammar/package/config/src/test into isolated temporary directory",
+      "tree-sitter generate",
+      "tree-sitter test"
+    ],
+    "textmate": "node editors/textmate/tests/verify-lexical-contract.mjs"
+  },
+  "inputs_sha256": {
+    "editors/textmate/package.json": "6610df03b4c80c36df6657cc26ad5db9aecdb0f5a19086dec3e36761066bbd1e",
+    "editors/textmate/syntaxes/koven.tmLanguage.json": "957ff8b4c5d424bd25cff7fbdc78d35b9996c6249689684f36a80bf6652e9ca9",
+    "editors/textmate/tests/highlight.ko": "8e3a7158583e0c81e9a02f2a24656571551fd7b65c254fa1f845fcaab801ec97",
+    "editors/textmate/tests/lexical-contract.tsv": "7e4ac12c46b8d3bb0134f5123510d98282f1bc1149ef6889eaa28af485c324ae",
+    "editors/textmate/tests/reserved.ko": "9d858024631fad2ed72d0266912bbaebb3b72544fc71e40da405e04ef5ee5fa4",
+    "editors/textmate/tests/scopes.tsv": "ccf164217a6d59f5ef715dcbf9e337edc41ff690550539c9359e01db553dbb11",
+    "editors/textmate/tests/verify-lexical-contract.mjs": "3838eb1317579f580172b22452b55eeae9a30959a73c8057979a61927e24aec1",
+    "editors/tree-sitter/grammar.js": "68968f2aa8db6de958f0343f06394566dfb1233c52ccad39408856373ad6aab1",
+    "editors/tree-sitter/package-lock.json": "e61ee7916b370d67bf1435f3fdba633d11eadb7928fb686caf8cf4c99dd19310",
+    "editors/tree-sitter/package.json": "45ea752a7371c9ed580ab1778db750c69c37f5216ead58d7aa58f3a22ecb6df2",
+    "editors/tree-sitter/src/grammar.json": "506bd1ecda052b3356f61756dbd7261226e74aa75a66019d072cb3bc0f3975b2",
+    "editors/tree-sitter/src/node-types.json": "4eabe78105ab98aaf233ef6640b6b3d747bf0bb3e233b9e141c76eeb9b71fceb",
+    "editors/tree-sitter/src/parser.c": "40829b5124fa1a5be5cd85e536eea74f49a8a1df96b3fb80a87b7cf838ab39b7",
+    "editors/tree-sitter/src/scanner.c": "ac577ba2f7a72702dced6918adefd1853a9281c4bfde2db0b06cadf072127fde",
+    "editors/tree-sitter/src/tree_sitter/alloc.h": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea",
+    "editors/tree-sitter/src/tree_sitter/array.h": "20e6ba85abb9d5b7e2e6dedf675c9424a057a06feee03aa3e2dd48a1cb4bf8a2",
+    "editors/tree-sitter/src/tree_sitter/parser.h": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2",
+    "editors/tree-sitter/test/corpus/koven.txt": "a3221fce3fdd1beb6ecbafad67f6bca9a4bc4067cae5a6008d3cc23b945d8078",
+    "editors/tree-sitter/test/fixtures/recovery.ko": "7bb2d064763934dd3d1ed46494552f41bd999fbe17b1694b68c39cf1133a8c4f",
+    "editors/tree-sitter/test/fixtures/representative.ko": "f3ded5caa3c888d72cd5b482d4ae4642ee628ba28a821b9223aef815b532222f",
+    "editors/tree-sitter/test/fixtures/reserved.ko": "c6bee0b7cce3532a4ed12c9947b1659e35df976e251b14216842dcfb37c57342",
+    "editors/tree-sitter/tree-sitter.json": "95fc831ce8dda23445dc281e8d6d0fa4eaf03e3ae059895f540c82e49df95b6c"
+  }
+}

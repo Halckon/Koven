@@ -28,8 +28,8 @@
 |---|---|---|
 | G0 治理交接/推进决定 | 责任 agent 的记录可对照原退出条件；剩余事项有原计划允许的处理或用户明确决定 | 用户此次明确进入里程碑；P2 成本等仍开放，不能称治理全部完成 |
 | G1 接收确定基线 | 记录交付 SHA、分支/PR、文档状态、实际验证与保留项，确认已进入 main | 已接收 PR38 + PR39 的 `b92593d`；未接收其他工作区未提交改动 |
-| G2 重新核对缺口 | 在实施基线上重查所选里程碑的入口、事实、测试与最小复现 | A2 已定位，原完整程序仍 UnsupportedNode；后续逐片核对 |
-| G3 形成可实施合同 | 分配未占用 Spec ID，确认批准依据；语义/长期架构变化完成 Guide/ADR 前置 | 已建立0263承接 A2；其它草稿仍待定稿 |
+| G2 重新核对缺口 | 在实施基线上重查所选里程碑的入口、事实、测试与最小复现 | A2 已完成，A3 拒绝点与 unit for 事实缺口已核对；原完整程序仍待通过 |
+| G3 形成可实施合同 | 分配未占用 Spec ID，确认批准依据；语义/长期架构变化完成 Guide/ADR 前置 | 0263/0264已交付 A2/A3；其它草稿仍待交付 |
 
 G0 的判断依据为[治理执行账本](engineering-governance-progress.md)及责任 agent 的交付记录。
 本页不另建第二张 P0–P5 完成表，不以 M0 定义替代原计划收尾。
@@ -195,3 +195,37 @@ M0 本次完成基线、Spec 编号及首片入口接收；历史尺寸欠账、
 独立字段样例确认跨文件 var 误报 L0134，故拆出
 [SPEC-0263](../archive/specs/0263-unit-field-mutability.md)先承接 A2。
 选择、结果和未覆盖范围只记该 Spec；M1A 总验收、字段直接 Borrow 和 unit for 继续开放。
+
+后续从 PR40 merge `11acf62` 启动
+[SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)实施 A3。该 merge 的主干
+[CI37193746866](https://github.com/Halckon/Koven/actions/runs/37193746866)10个任务全部成功。
+unit for 调查确认 typed descriptor、provider/source loan 与有序清理事实尚缺；先闭合前端合同，
+再由后端消费，保持 Guide §37.4 的前端与 native 范围区分。并行实施使用独立分支/worktree，
+本地 Cargo 仍串行；M1A 总退出条件保持。
+
+## 13. M0 编辑器覆盖复核（2026-10-04）
+
+在 `6cdaa2c` 对当前 editor 输入进行了独立复核；本记录从主干 `f0effcd` 发布。
+逐文件 SHA256 核对两提交的 editor 输入相同，证据见
+[审计清单](evidence/m0-editor-20261004/audit.json)和
+[重新生成后的原始失败日志](evidence/m0-editor-20261004/tree-sitter-regenerated.log.gz)。
+本次没有修改 grammar、scanner、parser、corpus 或任何预期。
+
+| 检查 | 结果 | 证据边界 |
+|---|---|---|
+| Tree-sitter 0.26.12，editor 目录执行 `tree-sitter test` | exit1；10项中5通过、5失败 | 完整 corpus，不用 Rust fixture 的成功替代 |
+| 隔离副本执行 `tree-sitter generate` 后再 `tree-sitter test` | generate exit0，test exit1，仍5通过/5失败 | 新生成的 parser.c、grammar.json、node-types.json 与仓库逐字节相同；重新生成不能修复这批失败 |
+| Node v26.8.2 执行 `node editors/textmate/tests/verify-lexical-contract.mjs` | exit0；80条通过 | 词法正则合同，不代表真实编辑器完整着色或 Tree-sitter 语法通过 |
+
+五项失败分别为 File header and declarations、Calls and lambda、Own remains declaration-only、
+Control flow、Reserved words are not identifiers。日志中的树差异仍需按 Guide 与实际 parser
+区分 grammar/scanner 缺陷和过时预期；未确认根因，不能批量更新 golden 取得绿灯。
+后继应独立修复并将完整 corpus 接入必需门禁。当前 CI 的 Rust editor fixture 检查继续有用，
+但不执行此 Tree-sitter CLI corpus；本次复核不关闭编辑器交付，也不声明 M0 所有保留项完成。
+
+后继 [SPEC-0267](../archive/specs/0267-editor-corpus-gate.md) 已在隔离分支修复参数模式、
+上下文词与词运算符边界，明确命名参数优先级，逐项审阅两份恢复 golden。
+本地真实 corpus 为 10/10，新增 CLI 树合同为 9/9，frontend editor 交叉合同为 9/9；
+PR #45 实现 head `236625b` 的 run `37198642821` 已通过全部11项检查，
+包括双宿主测试与真实 editor CLI 门禁；Spec 已归档，归档提交仍须最终 CI 后合并。
+历史 M0 红测证据保持不变；该修复不声明完整语言或真实编辑器增量解析验收。

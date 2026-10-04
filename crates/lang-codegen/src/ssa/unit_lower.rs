@@ -13,6 +13,7 @@ mod control;
 mod deinit;
 mod deinit_borrow;
 mod enum_lower;
+mod field_borrow;
 mod field_replace;
 mod handoff;
 mod integer;
