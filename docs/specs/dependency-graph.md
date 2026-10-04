@@ -9,10 +9,15 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 255 份"))
+subgraph Gactive["现行 active"]
+  S0270["S0270<br/>单文件局部 MoveOnly 绑定交接"]
+end
+ARCH --> S0270
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0270 | active | [0270-local-owner-binding-transfer.md](active/0270-local-owner-binding-transfer.md) |
 | 已完成 Spec（255 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

@@ -10,7 +10,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ## 当前入口
 
-- [Active](active/README.md)：当前0份；0263–0268 已归档，M1A实现双宿主验收通过，交付记录见[PR46](https://github.com/Halckon/Koven/pull/46)
+- [Active](active/README.md)：当前1份，0270修复局部owner交接；0263–0268 已归档，M1A实现双宿主验收通过，交付记录见[PR46](https://github.com/Halckon/Koven/pull/46)
 - [演进实施账本](evolution-status.md)：13 项计划的当前实现、最终交付与独立缺口，唯一进度摘要
 - [当前路线图](../development/roadmap.md)：从现状导航到下一批次；不复制第二张演进状态表
 - [治理执行账本](../development/engineering-governance-progress.md)：获批整体架构与工程治理的批次基线与交付

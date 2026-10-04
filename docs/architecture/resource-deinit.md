@@ -57,6 +57,11 @@ LLVM 先声明全部函数，再定义 drop glue。HeapOwner 析构为句柄建�
 projection 和 ownership loan target，派生 loan 按创建逆序结束并参与 pending-call 控制退出；
 单文件只支持当前已验证的直接字段调用借用与 nested Copyable 字段读取。
 
+单文件局部 MoveOnly 初始化根据前端解析后的 copyability 注销来源 binding/temporary，再建立新绑定；
+包括 group 与受支持的纯 class nullable wrapping，后继 CFG 只运输当前 owner。
+资源移动链在条件 return 两分支及词法块退出后继续 CFG 已通过实际输出和逐指针释放顺序验证；
+Copyable 初始化保留原绑定，标量及具体泛型原值后续读取仍有效，不扩大资源 nullable 的 native 范围。
+
 ## 与 owned root 原语组合
 
 `replace` / `swap` 仍只运输完整 owner，不在 commit 中执行 deinit。资源根在提交后继续服从

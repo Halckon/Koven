@@ -265,6 +265,9 @@ subgraph Garchive["已完成（archive，255 份）"]
   S0267["S0267<br/>Tree-sitter corpus 解析与必需 CI 门禁"]
   S0268["S0268<br/>unit 顺序迭代 native 与 M1A 程序贯通"]
 end
+subgraph Gactive["现行 active"]
+  S0270["S0270<br/>单文件局部 MoveOnly 绑定交接"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1208,6 +1211,7 @@ S0226 --> S0227
 S0228 --> S0266
 S0244 --> S0245
 S0244 --> S0246
+S0245 --> S0270
 S0246 --> S0263
 S0249 --> S0250
 S0249 --> S0252
@@ -1487,3 +1491,4 @@ S0265 --> S0268
 | SPEC-0266 | archive | [0266-native-sanitizer-wiring.md](0266-native-sanitizer-wiring.md) |
 | SPEC-0267 | archive | [0267-editor-corpus-gate.md](0267-editor-corpus-gate.md) |
 | SPEC-0268 | archive | [0268-unit-iteration-native.md](0268-unit-iteration-native.md) |
+| SPEC-0270 | active | [0270-local-owner-binding-transfer.md](../../specs/active/0270-local-owner-binding-transfer.md) |

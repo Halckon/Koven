@@ -128,6 +128,13 @@
       "owner": "lang-codegen compilation-unit native tests",
       "split_plan": "后续独立评审按 native receiver、interface 和 owner 测试职责迁出旧巨型测试；本片不改动既有用例。",
       "review": "SPEC-0268 独立评审十行模块接线；超过 2016 行或向本文件添加新测试正文前重新评审。"
+    },
+    "crates/lang-codegen/src/ssa/lower_frontend.rs": {
+      "max_lines": 1480,
+      "reason": "SPEC-0270 在既有 lower_local_variable 交付点根据前端 concrete copyability 注销 MoveOnly 来源 binding，再执行 nullable wrapping；净增5行，不为单点正确性修复机械拆分整份 lowering。",
+      "owner": "lang-codegen single-file lowering",
+      "split_plan": "后续按完整职责提取 local binding/destructuring 与初始化交付，保持明确 ExpressionLowerer 状态和既有回归边界。",
+      "review": "任何超过1480行的增长或新增局部初始化语义前重新审阅；本次5行须经独立owner交付审阅。"
     }
   },
   "generated": {}
