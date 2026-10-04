@@ -247,7 +247,7 @@ M1B与新增标准库API仍需各自语义决定，M4b仅在准备有界生成�
 
 ## 15. M5b 候选包首片启动
 
-[0272](../specs/active/0272-preview-candidate-package.md) 原合同从 PR47 主干起草，
+[0272](../archive/specs/0272-preview-candidate-package.md) 原合同从 PR47 主干起草，
 当前在 PR49/PR50 合并后的最新主干 `80b1c3b` 独立 worktree 继续实施，
 复用 M1A 与选定 M4a 前置，限定双宿主 release tar 和独立 runner 正常安装。
 不启用新语义，不公开 Release/tag；性能、实用文本、安装负向与宿主信任体验仍开放。

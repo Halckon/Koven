@@ -1,0 +1,78 @@
+{
+  "schema": "koven.preview.ci-evidence.v1",
+  "run_id": 37241692806,
+  "url": "https://github.com/Halckon/Koven/actions/runs/37241692806",
+  "event": "pull_request",
+  "source_commit": "31b708acc28b4341163c1b82a5d2ac90bf0c1314",
+  "source_tree": "cc7e2a77ffa10ec3dcea362a2fac477f11348e9f",
+  "jobs_success": 15,
+  "hosts": {
+    "linux": {
+      "artifact_ids": {
+        "candidate": 11317438063,
+        "producer": 11316824129,
+        "consumer": 11318160015
+      },
+      "archive": "koven-preview-31b708acc28b-x86_64-unknown-linux-gnu.tar.gz",
+      "archive_sha256": "df6fa9b5db90804d0115c3dc97107ec5041b5e98b24c77a3987a90cd39814a88",
+      "binary_sha256": "08e659a93a6b79d304d15c6c7bb591eb6db2576e98685a94dc7f53a131a549f3",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "release",
+      "files": 93,
+      "cargo_inputs": 31,
+      "target_normal": 18,
+      "build_only": 13,
+      "host": {
+        "system": "Linux",
+        "arch": "x86_64",
+        "os_version": "24.04",
+        "llvm_version": "21.1.8",
+        "llvm_prefix": "/usr/lib/llvm-21"
+      },
+      "host_details": {
+        "glibc": "glibc 2.39"
+      },
+      "command_count": 12,
+      "project_count": 4,
+      "commands_success": true,
+      "cleanup_removed": true,
+      "sentinel_unchanged": true,
+      "raw_producer_results_sha256": "31858b0ee6781d60b04fb7d81c1f4584bf0215b8dac5f8266a3b4c8957e01254",
+      "raw_consumer_results_sha256": "2fac9b60cf1903c8198f544cee1663a2c9ede17eec19eb3f334e16b471d69ff9"
+    },
+    "macos": {
+      "artifact_ids": {
+        "candidate": 11317038550,
+        "producer": 11317068588,
+        "consumer": 11316874051
+      },
+      "archive": "koven-preview-31b708acc28b-aarch64-apple-darwin.tar.gz",
+      "archive_sha256": "350bdf956bfb624d37b135d42f71feb0ddaffad5898572c6233d8a72349263df",
+      "binary_sha256": "b66f7b22487b5bf3f68a200a11c717158f50d6836047d5168b0ea0e10a89c52b",
+      "target": "aarch64-apple-darwin",
+      "profile": "release",
+      "files": 92,
+      "cargo_inputs": 31,
+      "target_normal": 18,
+      "build_only": 13,
+      "host": {
+        "system": "Darwin",
+        "arch": "arm64",
+        "os_version": "14.8.9",
+        "llvm_version": "21.1.8",
+        "llvm_prefix": "/opt/homebrew/opt/llvm@21"
+      },
+      "host_details": {
+        "minimum_os": "14.0",
+        "sdk": "14.5"
+      },
+      "command_count": 12,
+      "project_count": 4,
+      "commands_success": true,
+      "cleanup_removed": true,
+      "sentinel_unchanged": true,
+      "raw_producer_results_sha256": "822fda0dd600c48a30223bcd4aac54d742787643d43eb04690e737d7a0f301bd",
+      "raw_consumer_results_sha256": "14d734c1ff47bb3fe3f5e4bcc2955294813662d0b29d0f9e8bce0df581fda632"
+    }
+  }
+}

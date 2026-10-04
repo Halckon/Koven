@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，258 份）"]
+subgraph Garchive["已完成（archive，259 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -266,10 +266,8 @@ subgraph Garchive["已完成（archive，258 份）"]
   S0268["S0268<br/>unit 顺序迭代 native 与 M1A 程序贯通"]
   S0270["S0270<br/>单文件局部 MoveOnly 绑定交接"]
   S0271["S0271<br/>当前 tour 的有界组合覆盖"]
-  S0273["S0273<br/>单文件控制体正常退出的资源清理"]
-end
-subgraph Gactive["现行 active"]
   S0272["S0272<br/>双宿主候选包与正常安装验收"]
+  S0273["S0273<br/>单文件控制体正常退出的资源清理"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1502,5 +1500,5 @@ S0270 --> S0273
 | SPEC-0268 | archive | [0268-unit-iteration-native.md](0268-unit-iteration-native.md) |
 | SPEC-0270 | archive | [0270-local-owner-binding-transfer.md](0270-local-owner-binding-transfer.md) |
 | SPEC-0271 | archive | [0271-tour-combination-coverage.md](0271-tour-combination-coverage.md) |
+| SPEC-0272 | archive | [0272-preview-candidate-package.md](0272-preview-candidate-package.md) |
 | SPEC-0273 | archive | [0273-control-body-resource-cleanup.md](0273-control-body-resource-cleanup.md) |
-| SPEC-0272 | active | [0272-preview-candidate-package.md](../../specs/active/0272-preview-candidate-package.md) |

@@ -8,7 +8,7 @@ M5a Goal：在固定输入和环境下建立可复现的成本基线，能解释
 M5b Goal：让用户在声明支持的新环境安装 preview，运行固定多文件程序并理解能力限制。
 主要涉及 Phase 6 工程交付及现有 native/runtime 边界；不新增语言语义。
 共同启动/调整规则见[计划](post-governance-milestones.md)。起草时仅有文档授权；
-后续持续实施授权已由 [0272 候选包合同](../specs/active/0272-preview-candidate-package.md)
+后续持续实施授权已由 [0272 候选包合同](../archive/specs/0272-preview-candidate-package.md)
 承接双宿主 release tar 与正常安装首片。其验收只在 Spec 维护，M5a、D06 安装负向、
 签名/下载隔离等未选定范围仍为候选，不由该首片关闭。
 

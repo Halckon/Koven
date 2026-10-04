@@ -1,10 +1,10 @@
 # SPEC-0272: 双宿主候选包与正常安装验收
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施或验收 M5b 候选包首片时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：实施或验收 M5b 候选包首片时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-272` |
 | 所属 Phase | Phase 6 工程交付；消费现有 native/runtime |
 | 语言规范 | [Guide v0.40](../../guide/README.md)、[运行时](../../guide/13-program-runtime-standard-library.md) |
@@ -88,12 +88,12 @@ CI artifact 是可审阅候选交付，不代称面向所有用户的正式发�
 
 | ID | 必须完成的证据 | 状态 |
 |---|---|---|
-| P1 | 合同与实际入口独立审阅；依赖/许可策略符合真实 release 产物 | 合同/本机Mac release核对通过；Linux待CI |
-| P2 | 两宿主 release tar、源码/tree/lock/toolchain/命令、依赖清单、材料及全部哈希 | 本机Mac候选通过；双宿主CI待验证 |
-| P3 | 两个独立消费 runner 各 12 命令通过，含中文/空格路径、空字符串参数 | 本机包内12命令通过；新runner待验证 |
-| P4 | 精确移除与哨兵保留，成功/失败记录与缺项拒绝测试 | Python协议/本机清理通过；双宿主待验证 |
-| P5 | 原教程行为及四组 oracle 保持，新增 CI 门禁拒绝缺失/取消/错误 skip | 本机23教程合同/政策测试通过；真实CI待验证 |
-| P6 | 全部现有必需 CI、已选 M4a 通过，独立审查、文档/Architecture 与归档 PR 闭环 | 本机门禁/独立审阅通过；远端归档闭环待完成 |
+| P1 | 合同与实际入口独立审阅；依赖/许可策略符合真实 release 产物 | 合同/实际两宿主release材料审查通过；见§9 |
+| P2 | 两宿主 release tar、源码/tree/lock/toolchain/命令、依赖清单、材料及全部哈希 | 两宿主真实候选/材料/加载/hash通过；见§9 |
+| P3 | 两个独立消费 runner 各 12 命令通过，含中文/空格路径、空字符串参数 | 两独立runner各12条真实命令通过；见§9 |
+| P4 | 精确移除与哨兵保留，成功/失败记录与缺项拒绝测试 | 协议负例及双宿主精确清理/哨兵通过；见§9 |
+| P5 | 原教程行为及四组 oracle 保持，新增 CI 门禁拒绝缺失/取消/错误 skip | 原教程23实际合同/1 planned及CI政策/双宿主通过；见§9 |
+| P6 | 全部现有必需 CI、已选 M4a 通过，独立审查、文档/Architecture 与归档 PR 闭环 | 独立审阅与首轮15job通过；本次归档，最终head/合并门禁仍必需 |
 
 先完成许可/加载闭包与包清单，再最小打包/正常消费工具，再 CI 接线。行为改动有失败测试，
 Python 使用现有标准库和 unittest；不为纯文案新增测试。本地 Cargo 只占一个串行窗口。
@@ -156,3 +156,26 @@ PR #51 首次运行 `37217825869`（head `b71ad05545bdadf0c79db20136841827ec19f3
 原因是 setup-python 为自己的动态库向该 job 注入加载器覆盖。两个 Ubuntu preview job
 改用系统 `/usr/bin/python3` 并显式核验3.12；保留包工具的加载环境拒绝规则。
 CI接线回归先失败后通过；真实双宿主重跑与归档闭环仍待验证。
+
+## 9. 双宿主实现验收与归档
+
+2026-10-05 [PR51 实现CI 37241692806](https://github.com/Halckon/Koven/actions/runs/37241692806)
+精确head `31b708acc28b4341163c1b82a5d2ac90bf0c1314`、tree
+`cc7e2a77ffa10ec3dcea362a2fac477f11348e9f`，15个实际job全部success，无pending/意外skip。
+两个生产job真实locked release构建，同源提交与实际host目标匹配；两个独立consumer
+无checkout/Cargo，按同源包内说明准备依赖，在各4个中文/空格项目执行12条完整命令，
+退出/输出字节全部符合oracle。精确移除自有目录且哨兵保持。
+
+原始生产/消费证据artifact ID及JSON摘要哈希、候选SHA、组成/宿主记录见
+[机器核对账本](../../development/evidence/preview-candidate-0272-ci.json)。
+两包各31个实际Cargo输入，18目标normal、13构建专属；Mac92文件、Linux93文件加manifest，
+差别来自宿主许可材料，不是忽略文件。Mac实际14.8.9/SDK14.5，完整已检加载闭包最低14.0；
+Linux实际Ubuntu24.04/glibc2.39；均LLVM21.1.8，保留外部依赖，不外推其它环境兼容性。
+
+原双宿主workspace/Clippy/targeted与Tree-sitter通过，选定Linux M4a实际通过；
+这是普通安装合同，不宣称M4b校准或额外内存安全证明。独立宿主/消费者/生产/CI完整审阅发现
+已修复并窄复核；LinuxPython环境修正另独立审阅，185项Python测试0skip通过。
+
+本片P1–P5实现验收及P6实现/审阅已满足，按仓库流程迁入archive；最终归档提交必须再次通过
+全部必需CI且无未决状态才允许合并。归档不是预先宣称最终head CI/merge/main CI通过。
+公开Release/tag、签名/下载隔离、安装负向、性能、文本程序与完整M5均保持原非目标。

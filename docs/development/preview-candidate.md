@@ -1,9 +1,9 @@
 # Preview 候选包：构建与独立安装验收
 
-> **性质**：工程交付说明 · **状态**：current / SPEC-0272 实施中 · **读取时机**：构建或验收有界 release 候选时 · **唯一真源**：脚本和 CI 定义执行行为；验收状态由 Spec 维护
+> **性质**：工程交付说明 · **状态**：current / SPEC-0272 双宿主实现验收归档 · **读取时机**：构建或验收有界 release 候选时 · **唯一真源**：脚本和 CI 定义执行行为；验收状态由 Spec 维护
 
-合同及未选范围见 [SPEC-0272](../specs/active/0272-preview-candidate-package.md)。
-本页说明工具使用；工具实现、mock 协议测试和本机运行都不能替代双宿主独立 runner 证据。
+合同及未选范围见 [SPEC-0272](../archive/specs/0272-preview-candidate-package.md)。
+本页说明工具使用；双宿主独立 runner 已通过实现验收；工具协议测试仍不能替代真实包执行证据。
 候选通过全部验收后仍是 CI artifact，不创建公开 Release/tag。
 
 ## 1. 生产候选

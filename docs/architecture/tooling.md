@@ -126,8 +126,9 @@ LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 依赖哈希和工具版本；`check_preview_install.py` 先验全部成员及同源 bootstrap，
 复用教程 `run_case` 在独立中文/空格目录执行12条完整 byte 合同，保存宿主失败与清理证据。
 CI 已接线两个生产 job 和两个无 checkout/Cargo 的独立消费 job，按实际 producer artifact ID 传递候选。
-当前实现与 mock 协议测试不表示双宿主候选已通过；实际验收及剩余范围见
-[SPEC-0272](../specs/active/0272-preview-candidate-package.md)，使用方式见[候选包工具](../development/preview-candidate.md)。
+PR51实现head的双宿主真实release生产与独立安装各12条命令已通过，精确移除及哨兵核对成功；
+原始来源/加载/材料/hash与验收及剩余范围见
+[SPEC-0272](../archive/specs/0272-preview-candidate-package.md)，使用方式见[候选包工具](../development/preview-candidate.md)。
 
 ## Native sanitizer 检测设施
 
