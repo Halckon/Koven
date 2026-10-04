@@ -1,0 +1,22 @@
+{
+  "commits": {
+    "before": "34189046319a8b727285d471596647d5de56996e",
+    "after": "1f3991b6bbaeaf0a5f485bdb139b5b7efa07d3da"
+  },
+  "started_utc": "2026-10-04T07:10:11Z",
+  "host": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83\n",
+  "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2\n",
+  "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)\n",
+  "jobs": 2,
+  "incremental": 0,
+  "flags": "identical linker timing wrapper",
+  "limits": {
+    "seconds": 7200,
+    "cache_bytes": 12884901888,
+    "free_bytes": 42949672960
+  },
+  "measurement": "Darwin process RSS bytes; process CPU spans may overlap; rustc nonlink is elapsed minus nested linker including rustc overhead, not exclusive CPU or whole-build wall",
+  "acceptance": "not approved; investigation thresholds only; no P2 closure",
+  "cold": "empty target directory; existing registry cache and uncontrolled OS cache",
+  "cohort": "11 server::tests, one test thread; existing 15 other tests not executed"
+}

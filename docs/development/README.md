@@ -44,3 +44,4 @@
 - [当前路线图](roadmap.md)：从演进单源与治理计划定位下一批次
 
 - [本机重建验收](recovery-local-delivery.md)：授权范围、P0–P5与0182映射及本机证据
+- [本机治理续行](governance-local-continuation.md)：P0–P5剩余条件、LSP原始成本试点与P5教程补齐
