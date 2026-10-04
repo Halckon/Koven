@@ -204,3 +204,115 @@ fun main(): Unit {{ run(true); run(false) }}
     );
     assert_eq!(std::fs::read(&path).unwrap(), b"previous object");
 }
+
+#[test]
+fn resource_deinit_native_local_move_before_return_has_one_current_owner() {
+    use super::boxed_enum_tests::{
+        assert_success, lower_to_llvm, run_counted_allocations_in_order,
+    };
+    for moves in [
+        "val moved = local",
+        "val moved = (local); val moved_again = ((moved))",
+    ] {
+        for stop in [true, false] {
+            let source = format!(
+                r#"{LEAF}
+class Holder(var state: Leaf) {{ deinit() {{ println("holder") }} }}
+fun work(own stop: Boolean): Unit {{
+    val holder = Holder(Leaf("old"))
+    val local = Leaf("local")
+    {moves}
+    if (stop) {{ return }}
+    val old = replace(&holder.state, Leaf("new"))
+    inspect(old)
+    println("helper-done")
+}}
+fun entry(): Unit {{ work({stop}); println("done") }}
+"#
+            );
+            let llvm = lower_to_llvm("resource-local-move.ko", &source);
+            // Allocation identities: old, holder, local, then replacement on fallthrough.
+            // Moving a binding must neither allocate nor leave another owner to release.
+            let (order, stdout): (&[usize], &[u8]) = if stop {
+                (&[2, 0, 1], b"local\nholder\nold\ndone\n")
+            } else {
+                (
+                    &[0, 2, 3, 1],
+                    b"inspect\nhelper-done\nold\nlocal\nholder\nnew\ndone\n",
+                )
+            };
+            assert_success(&run_counted_allocations_in_order(&llvm, order), stdout);
+        }
+    }
+}
+
+#[test]
+fn resource_deinit_native_local_move_scope_does_not_leave_stale_cfg_owner() {
+    use super::boxed_enum_tests::{
+        assert_success, lower_to_llvm, run_counted_allocations_in_order,
+    };
+    let source = format!(
+        r#"{LEAF}
+fun work(own stop: Boolean): Unit {{
+    {{
+        val local = Leaf("local")
+        val moved = (local)
+        println("inside")
+    }}
+    if (stop) {{ println("after scope"); return }}
+    println("fallthrough")
+}}
+fun entry(): Unit {{ work(true); work(false) }}
+"#
+    );
+    let llvm = lower_to_llvm("resource-move-scope.ko", &source);
+    assert_success(
+        &run_counted_allocations_in_order(&llvm, &[0, 1]),
+        b"inside\nlocal\nafter scope\ninside\nlocal\nfallthrough\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_local_copyable_alias_keeps_both_bindings() {
+    let source = r#"
+fun work(own stop: Boolean): Unit {
+    val original = 7
+    val copied = (original)
+    if (stop) { if (original == 7 && copied == 7) { println("both"); return } }
+    if (copied == 7 && original == 7) { println("both") }
+}
+fun <T : Copyable> keep(own original: T): T {
+    val copied = original
+    return original
+}
+fun main(): Unit { work(true); work(false); if (keep(9) == 9) { println("generic") } }
+"#;
+    let output = emit_link_and_run("copyable-local-alias.ko", source, "main");
+    super::boxed_enum_tests::assert_success(&output, b"both\nboth\ngeneric\n");
+}
+
+#[test]
+fn resource_deinit_native_local_move_nullable_wrap_keeps_one_owner() {
+    use super::boxed_enum_tests::{
+        assert_success, lower_to_llvm, run_counted_allocations_in_order,
+    };
+    // Resource nullable storage is deferred; use the supported pure class handle ABI.
+    let source = r#"
+class Node {}
+fun consumeNullable(own node: Node?): Unit {
+    if (node == null) { println("unexpected") } else { println("present") }
+}
+fun work(own stop: Boolean): Unit {
+    val original = Node()
+    val wrapped: Node? = (original)
+    if (stop) { println("return"); return }
+    consumeNullable(wrapped)
+}
+fun entry(): Unit { work(true); work(false) }
+"#;
+    let llvm = lower_to_llvm("local-move-nullable.ko", source);
+    assert_success(
+        &run_counted_allocations_in_order(&llvm, &[0, 1]),
+        b"return\npresent\n",
+    );
+}

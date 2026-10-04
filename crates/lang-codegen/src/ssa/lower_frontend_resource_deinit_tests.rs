@@ -316,3 +316,45 @@ fn single_resource_deinit_rejects_partial_move_at_the_conditional_owner_origin()
     assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode);
     assert_eq!(failure.span, Some(facts[0].value_origin()));
 }
+
+#[test]
+fn single_resource_deinit_local_move_chain_transports_only_current_owner() {
+    use crate::ssa::model::TerminatorKind;
+    let program = lower_resource(
+        r#"
+        class Resource { deinit() {} }
+        fun work(own stop: Boolean): Unit {
+            val original = Resource()
+            val moved = (original)
+            val current = ((moved))
+            if (stop) { return }
+        }
+    "#,
+    );
+    let function = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name == "work")
+        .expect("work function");
+    let branch = function
+        .blocks
+        .iter()
+        .filter_map(|block| block.terminator.as_ref())
+        .find_map(|terminator| match &terminator.kind {
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => Some((when_true, when_false)),
+            _ => None,
+        })
+        .expect("conditional return");
+    for edge in [branch.0, branch.1] {
+        assert_eq!(
+            edge.arguments.len(),
+            1,
+            "only the current resource crosses each edge"
+        );
+    }
+    render_verified_program(&program).expect("moved resource cleanup verifies on both exits");
+}
