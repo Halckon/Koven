@@ -2,6 +2,8 @@
 
 mod native;
 #[cfg(test)]
+mod native_sanitizer_tests;
+#[cfg(test)]
 mod native_tests;
 #[cfg(test)]
 mod test_support;

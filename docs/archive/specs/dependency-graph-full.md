@@ -261,6 +261,9 @@ subgraph Garchive["已完成（archive，251 份）"]
   S0263["S0263<br/>跨文件字段可变性查询"]
   S0264["S0264<br/>Unit owned class 一级字段直接 Borrow"]
 end
+subgraph Gactive["现行 active"]
+  S0266["S0266<br/>Koven native 地址与泄漏检测接线"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1197,6 +1200,7 @@ S0219 --> S0225
 S0222 --> S0223
 S0224 --> S0225
 S0226 --> S0227
+S0228 --> S0266
 S0244 --> S0245
 S0244 --> S0246
 S0246 --> S0263
@@ -1470,3 +1474,4 @@ S0263 --> S0264
 | SPEC-0262 | archive | [0262-current-tutorial-plan-coverage.md](0262-current-tutorial-plan-coverage.md) |
 | SPEC-0263 | archive | [0263-unit-field-mutability.md](0263-unit-field-mutability.md) |
 | SPEC-0264 | archive | [0264-unit-direct-field-borrow.md](0264-unit-direct-field-borrow.md) |
+| SPEC-0266 | active | [0266-native-sanitizer-wiring.md](../../specs/active/0266-native-sanitizer-wiring.md) |

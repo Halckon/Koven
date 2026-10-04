@@ -23,6 +23,9 @@ printf '%s\n' 'deb [arch=amd64 signed-by=/usr/share/keyrings/koven-llvm.asc] htt
   | sudo tee /etc/apt/sources.list.d/koven-llvm.list >/dev/null
 sudo apt-get update
 sudo apt-get install --yes --no-install-recommends \
-  "llvm-21-dev=$version" "clang-21=$version" "libclang-cpp21=$version" \
+  "llvm-21-dev=$version" "clang-21=$version" "libclang-cpp21=$version" "libclang-rt-21-dev=$version" \
   build-essential
 [[ "$(/usr/lib/llvm-21/bin/llvm-config --version)" == 21.1.8 ]]
+runtime_dir="$(/usr/lib/llvm-21/bin/clang --print-runtime-dir)"
+[[ -f "$runtime_dir/libclang_rt.asan-x86_64.a" ]]
+[[ -f "$runtime_dir/libclang_rt.lsan-x86_64.a" ]]

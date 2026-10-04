@@ -141,3 +141,16 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
 直接依赖job无条件运行，required summary拒绝失败/取消/跳过/缺失；仅验证五成员四条直接声明边，
 不推定第三方transitive、patch/config或lock新鲜度。editors与tutorial输入触发Rust矩阵。
 本机结果见[恢复账本](recovery-local-delivery.md)，不能由接线推定实际CI通过。
+
+## M4a native 检测首片
+
+普通 codegen suite 包含 `native_sanitizer_tests::asan_instruments_generated_user_runtime_and_drop`，
+在两个受支持宿主执行真实 Koven 资源计数、LLVM 插桩检查和属性关闭对照；不运行 macOS
+sanitizer executable。定向命令为 `cargo test --locked -p lang-codegen --lib native_sanitizer_tests::asan_instruments_generated_user_runtime_and_drop -- --exact --nocapture`。
+
+Linux x86_64 另运行 `python3 scripts/check_native_sanitizers.py --linux --artifacts /tmp/koven-sanitizers`，
+产物目录必须不存在，`LLVM_SYS_211_PREFIX` 必须指向已安装的 LLVM21.1.8/compiler-rt。
+该入口复用 Cargo 现有 target，使用已缓存依赖的 `--offline` 精确选取一次导出测试；CI 在
+正常组合测试之后运行。错误类别与退出状态共同判定，超时/缺工具/零匹配一律失败；失败
+产物不清理，CI 无论成功失败均上传完整检测目录。地址测试禁用泄漏，LSan 独立执行，
+不得把关闭接线后普通崩溃当成检测成功。合同与未覆盖项见[0266](../specs/active/0266-native-sanitizer-wiring.md)。

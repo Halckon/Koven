@@ -9,10 +9,15 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 251 份"))
+subgraph Gactive["现行 active"]
+  S0266["S0266<br/>Koven native 地址与泄漏检测接线"]
+end
+ARCH --> S0266
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0266 | active | [0266-native-sanitizer-wiring.md](active/0266-native-sanitizer-wiring.md) |
 | 已完成 Spec（251 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

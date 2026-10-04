@@ -102,3 +102,19 @@ Tree-sitter 用于编辑器 concrete syntax；生产编译仍只使用 Rust Lexe
 LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 意外跳过。配置与本地验证不代表远端已运行；实际交付证据见
 [SPEC-0239](../archive/specs/0239-linux-ci-gates.md)，使用规则见[测试与分层验收](../development/testing.md)。
+
+## Native sanitizer 检测设施
+
+`native_sanitizer_tests` 将合法 Koven Cell fixture 经现有 frontend/verified SSA/LLVM 管线
+生成 IR；私有 Inkwell helper 对全部有定义函数添加 ASan 属性，并分别在实际字段读取、
+分配初始化和 Cell drop glue 注入地址错误。对应 Clang 后置 IR 必须在指定函数出现检查；
+去掉属性但保留 ASan flags 的对照必须无该检查。原有 allocator counter 独立验证一个 owner
+恰好释放一次，避免它的全局 live pointer 干扰泄漏检查。
+
+`scripts/check_native_sanitizers.py` 的 Linux x86_64 入口运行 ASan 正反与关闭对照，
+另以 `-fsanitize=leak` 验证正常/删除 free/关闭检测；固定 LLVM21.1.8 和 compiler-rt。
+Linux driver 对导出 Cargo 整体限时，并对 sanitizer 命令逐项限时；超时终止对应子进程组。
+普通 codegen suite 的 counter 调用没有独立期限。源文件、IR、精确命令、版本和结果文件保留到
+CI artifact。该必需步骤属于现有 Linux test job，失败传递到 required summary。
+本机已验证资源计数、三层 IR 检查与属性关闭红测；Linux动态仍待CI，不由接线配置推定通过。
+UBSan 对 Koven IR 未覆盖；不声明栈 lifetime、容器逻辑长度、并发或完整内存安全证明。
