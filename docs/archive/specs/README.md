@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 248 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 249 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -342,3 +342,4 @@
 - [SPEC-0259](./0259-recoverable-llvm-emission.md)：本机恢复验收与原非目标见正文
 - [SPEC-0260](./0260-shared-unit-source-query.md)：本机恢复验收与原非目标见正文
 - [SPEC-0261](./0261-finite-iteration-fact-validation.md)：本机恢复验收与原非目标见正文
+- [SPEC-0262](./0262-current-tutorial-plan-coverage.md)：原治理计划P5四个当前教程与提取合同的本机有界验收

@@ -145,6 +145,91 @@
       }
     },
     {
+      "id": "borrowing",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "borrowed\nborrowed\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "borrowed\nborrowed\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "root-replace-swap",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "root swap\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "root swap\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "deinit",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "body\ndrop\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "body\ndrop\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "cross-file",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "cross file\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "cross file\n",
+        "stderr": ""
+      },
+      "files": {
+        "src/app/Main.ko": "cross-file",
+        "src/app/Values.ko": "cross-file-values"
+      },
+      "entry": "app.start"
+    },
+    {
       "id": "reject-typed",
       "status": "diagnostic",
       "build": {
