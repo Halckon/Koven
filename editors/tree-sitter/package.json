@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "generate": "tree-sitter generate",
-    "test": "tree-sitter test"
+    "test": "tree-sitter test && python3 test/test_contract.py -v"
   },
   "devDependencies": {
     "tree-sitter-cli": "0.26.12"
