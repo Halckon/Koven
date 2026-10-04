@@ -80,3 +80,18 @@ Spec inventory及引用CI的固定head关系；不运行教程CLI、Rust、性�
 inventory未修改；3个引用的最终PR head均是固定main祖先，成功/skip口径单列。
 没有重跑文档检查器单测（检查器未改）、完整编译器回归、教程native、sanitizer或成本实验，
 也没有新远端CI。本地分支待用户后续整合，不自动更新main、推送或发PR。
+
+## 根目录README追加同步
+
+用户随后要求更新根README；本分支同时同步英文`README.md`与中文`README_CN.md`。
+保留项目介绍、架构、CLI、构建和许可证定位；把绝对安全/零成本措辞改为有界设计与实现说明，
+纠正纯内存ASAP和资源词法清理的区别，明确Transferable能力不等于线程API已交付。
+原未受教程合同保护的String.length/整数拼接、general Inout赋值等源码不再复制到README，
+入门示例改为链接当前Markdown单一真源；规范语义与native支持继续分别引用Guide/Architecture。
+新增教程/roadmap/Spec导航，支持范围仍固定于本批main，不接收并行0268。
+
+构建命令补`--locked`，Rust说明对齐固定1.96.0与manifest MSRV；补本地构建产物PATH，
+并区分匹配Clang21的IR测试与系统链接driver。没有执行安装、构建或用户shell命令。
+静态检查78个本地链接/锚点、教程ID、中英文bash块相等、Cargo/bin/工具链配置、
+CLI的source/project/entry/format/global options及prelude hello入口/输出全部通过。
+`python3 scripts/check_docs.py`仍通过511页，`git diff --check`通过；不重跑编译器回归。

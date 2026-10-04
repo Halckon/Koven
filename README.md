@@ -6,9 +6,11 @@
 
 [English](README.md) | [简体中文](README_CN.md)
 
-**Koven** is a modern systems programming language designed to blend the elegance, expressiveness, and readability of Kotlin with the bare-metal performance, deterministic resource management, and fearless safety of Rust.
+**Koven** is a systems language under development, with Kotlin-inspired syntax, explicit ownership, call-site loans, and LLVM native code generation.
 
-Koven operates with **no garbage collector (GC-free)**, eliminates runtime pauses, and compiles directly to native machine code via **LLVM**. By adopting an innovative ownership model based on **call-site loans** and **explicit moves**, Koven achieves complete memory safety without requiring complex lifetime annotations (`'a`, `'b`).
+The runtime uses no tracing garbage collector. Memory and resources follow checked ownership facts: pure-memory values use ASAP drop, while resource values use lexical cleanup. Implementation and native support are bounded; design goals are not claims that every feature or memory-safety property has been verified.
+
+The current specification is [Guide v0.40](docs/guide/README.md); start with the [executable tutorial](docs/tutorials/README.md). This README reflects committed main `adb51d6`: cross-file field mutability, direct field borrowing, and unit iteration frontend facts are delivered; unit native `for` and the complete M1A program remain pending. Performance and cost acceptance is deferred. See the [roadmap](docs/development/roadmap.md) and [architecture](docs/architecture/README.md) for the support boundary.
 
 ---
 
@@ -16,18 +18,18 @@ Koven operates with **no garbage collector (GC-free)**, eliminates runtime pause
 
 - **Kotlin-Inspired Syntax & Expressiveness**
   Clean, readable, expression-oriented syntax with powerful type inference, first-class functions, lambdas, and pattern matching.
-- **Zero-Cost Deterministic Memory Safety (No GC)**
-  No garbage collection pauses or background runtime overhead. Memory is managed deterministically through move semantics, strict single-owner tracking, and call-site borrowing.
+- **Deterministic Ownership Management (No Tracing GC)**
+  Memory follows move semantics, single-owner tracking, and call-site loans. Zero overhead and performance equivalence are not accepted claims.
 - **Fearless Borrowing Without Lifetime Annotations**
-  Call-site loans (`Borrow` and `Inout`) are strictly bounded to the synchronous call stack. Borrows cannot be returned or stored into heap structures, eliminating lifetime parameters entirely while preserving total safety.
-- **ASAP (As-Soon-As-Possible) Drop**
-  Non-copyable resources (`MoveOnly`) are automatically deallocated at the earliest proven inactive boundary, rather than waiting for enclosing block braces to close.
+  Call-site loans (`Borrow` and `Inout`) are strictly bounded to the synchronous call stack. Borrows cannot be returned or stored into heap structures, avoiding user lifetime parameters; implementation validation remains scoped to specific capabilities.
+- **Dual-Track Deterministic Drop**
+  Pure-memory MoveOnly values use ASAP drop at the earliest safe boundary. Types with deinit or recursively held resources use reverse lexical cleanup, without dropping early merely after their last use.
 - **Structurally Derived Capabilities**
-  The compiler automatically derives type capabilities like `Copyable` (bitwise or structural duplication) and `Transferable` (safe cross-thread transfer without data races).
+  The compiler automatically derives type capabilities like `Copyable` (bitwise or structural duplication) and `Transferable` (a structural ownership-transfer capability, not evidence that thread APIs are delivered).
 - **First-Class Null Safety & Flow Typing**
   Non-nullable by default. Explicit nullable types (`T?`), safe navigation (`?.`), Elvis operator (`?:`), and control-flow-aware smart casts.
 - **Algebraic Data Types & Expressive Class Family**
-  Lightweight `value class` for flat, stack-allocated structs; `class` for heap-allocated exclusive reference types; and `enum class` for typed algebraic data types (ADTs) with variant payloads.
+  `value class` for flat value layouts; `class` for heap-allocated exclusive reference types; and `enum class` for typed algebraic data types (ADTs) with variant payloads.
 - **Explicit Error Handling**
   No hidden exception unwinding or `try`/`catch` overhead. Recoverable errors are represented as `Result<T, E>` with ergonomic `?` propagation, while unrecoverable invariant violations trigger an immediate `error(...)` abort.
 - **Native LLVM Compilation**
@@ -39,99 +41,16 @@ Koven operates with **no garbage collector (GC-free)**, eliminates runtime pause
 
 ## 🔍 Language Tour
 
-### 1. Hello World & Functions
+Executable sources and complete CLI output contracts live in the [current Koven tour](docs/tutorials/koven-tour.md), rather than a second set of unverified snippets here. The tutorial contains 11 executable examples, two diagnostic examples, and one planned example that is not run.
 
-```kotlin
-fun main(): Unit {
-    println("Hello, Koven!")
-}
+| Topic | Canonical source examples |
+|---|---|
+| Hello, functions, branches, constants | [hello](docs/tutorials/koven-tour.md#hello), [function](docs/tutorials/koven-tour.md#function), [branch](docs/tutorials/koven-tour.md#branch), [constant](docs/tutorials/koven-tour.md#constant) |
+| String.clone and automatic borrowing | [strings](docs/tutorials/koven-tour.md#strings), [borrowing](docs/tutorials/koven-tour.md#borrowing) |
+| Sequential iteration, root replace/swap, resource deinit | [iteration](docs/tutorials/koven-tour.md#iteration), [root-replace-swap](docs/tutorials/koven-tour.md#root-replace-swap), [deinit](docs/tutorials/koven-tour.md#deinit) |
+| Program arguments and multi-file projects | [arguments](docs/tutorials/koven-tour.md#arguments), [cross-file](docs/tutorials/koven-tour.md#cross-file) |
 
-fun add(a: Int, b: Int): Int = a + b
-```
-
-### 2. Classes, Value Classes & ADTs
-
-Koven provides distinct constructs for different memory and structural requirements:
-
-```kotlin
-// Flat, stack-allocated value type (zero heap overhead, Copyable if fields are Copyable)
-value class Point(val x: Int, val y: Int)
-
-// Heap-allocated entity with exclusive ownership
-class Buffer(val capacity: Int, var size: Int)
-
-// Algebraic Data Type (enum with payloads)
-enum class Shape {
-    Circle(radius: Int),
-    Rectangle(width: Int, height: Int),
-    Point
-}
-
-// Exhaustive pattern matching with smart casts
-fun area(shape: Shape): Int = when (shape) {
-    is Shape.Circle -> 3 * shape.radius * shape.radius
-    is Shape.Rectangle -> shape.width * shape.height
-    is Shape.Point -> 0
-}
-```
-
-### 3. Ownership & Call-Site Loans
-
-In Koven, parameters explicitly declare ownership behavior:
-
-- `own param: T`: Transfers ownership of `T`.
-- `param: T` (or `borrow param: T`): Shared, read-only loan during the synchronous call.
-- `inout param: T`: Exclusive mutable loan passed at the call-site using `&place`.
-
-```kotlin
-class Resource(val id: Int)
-
-fun inspect(item: Resource): Unit {
-    // Read-only access via shared call-site loan
-    println("Inspecting resource")
-}
-
-fun consume(own item: Resource): Unit {
-    // Takes ownership; resource will be dropped ASAP
-}
-
-fun update(inout target: Resource, own replacement: Resource): Unit {
-    // Replaces target place exclusively; old target is dropped
-    target = replacement
-}
-
-fun example(): Unit {
-    val res = Resource(1)
-    inspect(res)          // Shared loan (res remains valid)
-    consume(res)          // Ownership moved (res is no longer available)
-    // inspect(res)       // Compile error: use after move!
-}
-```
-
-### 4. Null Safety & Result Error Handling
-
-```kotlin
-// Null safety with Elvis operator and smart cast
-fun printLength(text: String?): Unit {
-    val len = text?.length ?: 0
-    println("Length is: " + len)
-}
-
-// Result propagation with postfix ?
-enum class MathError { DivisionByZero }
-
-fun divide(numerator: Int, denominator: Int): Result<Int, MathError> {
-    if (denominator == 0) {
-        return Result.Err(MathError.DivisionByZero)
-    }
-    return Result.Ok(numerator / denominator)
-}
-
-fun compute(a: Int, b: Int): Result<Int, MathError> {
-    val quotient = divide(a, b)?   // Propagates Err early if failed
-    return Result.Ok(quotient * 2)
-}
-```
+Declarations use `own param: T` for ownership transfer, default or `borrow param: T` for shared loans, and `inout param: T` for mutable loans. Mutable place arguments use `&place`; shared arguments have no call-site Borrow marker. Class families, nullable values, and Result are specified in the [Guide](docs/guide/README.md), while native representations and unsupported combinations are recorded in [Architecture](docs/architecture/README.md). Kotlin APIs such as String length, tokenization, or general integer formatting cannot be assumed.
 
 ---
 
@@ -235,11 +154,11 @@ kovenc --message-format=json build main.ko -o my_app
 
 ### Prerequisites
 
-- **Rust**: MSRV 1.96.0 or later (Rust 2024 edition).
+- **Rust**: The repository pins Rust 1.96.0 in `rust-toolchain.toml`; the manifest MSRV is also 1.96.0 (Rust 2024 edition).
 - **Supported hosts**: AArch64 macOS (`aarch64-apple-darwin`) or x86_64 Linux with glibc (`x86_64-unknown-linux-gnu`). Compilation targets the host; there is no `--target` or cross-compilation support. Linux musl, Linux AArch64, Intel macOS, and Windows are not supported.
 - **LLVM**: LLVM 21.1.x with matching development headers/libraries, `llvm-config`, and the host backend. The workspace uses Inkwell 0.10.0 with AArch64 and X86 target features. Set `LLVM_SYS_211_PREFIX` to the LLVM installation prefix; its shared libraries must be discoverable at build time and runtime.
 - **System C toolchain**: macOS requires Xcode Command Line Tools and `/usr/bin/clang`; Linux requires `/usr/bin/cc`, glibc development files, and a working system linker. LLVM emits the object directly, then this C driver links it.
-- **Native test tools**: Linux LLVM IR instrumentation tests require matching Clang 21, preferably at `LLVM_SYS_211_PREFIX/bin/clang` (otherwise `clang` on PATH). Linux DWARF tests use matching `llvm-dwarfdump`, also prefix-first with a PATH fallback. macOS tests keep `/usr/bin/clang` and `/usr/bin/lldb`. These test tools are separate from the production link driver.
+- **Native test tools**: Linux LLVM IR instrumentation tests require matching Clang 21, preferably at `LLVM_SYS_211_PREFIX/bin/clang` (otherwise `clang` on PATH). Linux DWARF tests use matching `llvm-dwarfdump`, also prefix-first with a PATH fallback. LLVM IR instrumentation on both hosts needs matching Clang 21; macOS debugging tests use `/usr/bin/lldb`. These tools are separate from the production link driver.
 
 Point to an existing LLVM installation before building. On AArch64 macOS with Homebrew `llvm@21`:
 
@@ -264,17 +183,22 @@ Clone the repository and build the workspace:
 ```bash
 git clone https://github.com/Halckon/koven.git
 cd koven
-cargo build --release
+cargo build --locked --release
 ```
 
 The compiler binary will be generated at `target/release/kovenc`.
+Add this build directory to the current shell PATH to use the `kovenc` commands above; this does not install system-wide:
+
+```bash
+export PATH="$(pwd)/target/release:$PATH"
+```
 
 ### Running the Prelude Smoke Test
 
 Verify your setup by running the standard library hello bootstrap:
 
 ```bash
-cargo run -p lang-cli -- run crates/lang-std/koven/prelude.ko --entry bootstrapHello
+cargo run --locked -p lang-cli -- run crates/lang-std/koven/prelude.ko --entry bootstrapHello
 ```
 
 Output:
@@ -288,6 +212,9 @@ Hello, World!
 
 The repository contains comprehensive documentation organized under [`docs/`](docs/):
 
+- [**Current executable tutorial**](docs/tutorials/README.md): Markdown source authority and real CLI contracts.
+- [**Current roadmap**](docs/development/roadmap.md): Delivered scope, deferred acceptance, and milestone navigation.
+- [**Specs and evolution status**](docs/specs/README.md): Bounded contracts, archive relationships, and capability gaps.
 - [**Language Specification (v0.40)**](docs/guide/README.md): The normative source of truth for Koven syntax, semantics, type rules, and ownership mechanics.
 - [**Compiler Architecture**](docs/architecture/README.md): Detailed snapshots of the compilation pipeline, typed SSA design, and codegen.
 - [**Development & Testing Guide**](docs/development/README.md): Guidelines for testing, layered verification, and code invariants.
