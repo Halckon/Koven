@@ -46,3 +46,15 @@
 - [本机重建验收](recovery-local-delivery.md)：授权范围、P0–P5与0182映射及本机证据
 - [本机治理续行](governance-local-continuation.md)：P0–P5剩余条件、LSP原始成本试点与P5教程补齐
 - [P2 frontend成本续验](p2-frontend-cost-followup.md)：PR38合并、本机72项固定配对、首启分离及构建噪声停止点
+
+## 等待治理交接的后继草案
+
+- [后继开发里程碑](post-governance-milestones.md)：M0–M6 的候选范围、依赖和启动门槛；代码开发等待治理完成
+- [M1A Spec 起草材料](multifile-program-spec-draft.md)：待编号的三文件程序、完整输出预期与验收矩阵，尚未实施
+- [M1B 文本处理](text-processing-spec-draft.md)：argv 词频到文本输入，错误模型与最小 API 决策
+- [M2 借用访问](borrow-access-spec-draft.md)：现行能力、候选方案和接受/拒绝场景
+- [M3A 顺序集合](sequential-collections-spec-draft.md)：应用所需操作、搬迁、借用与清理
+- [M3B Map](map-collections-spec-draft.md)：键/查询/更新合同、语义前置与应用替换
+- [M4 安全验证](memory-safety-validation-spec-draft.md)：检测接线、随机执行与外审材料
+- [M5 度量与分发](measurement-distribution-spec-draft.md)：成本协议、双宿主 preview 与安装验收
+- [M6 线程转移](thread-transfer-spec-draft.md)：v1 Transferable、启动/join/清理与未来共享边界
