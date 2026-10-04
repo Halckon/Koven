@@ -10,16 +10,56 @@ use crate::{
 };
 
 fn fixture() -> (ParsedFile, NameResolution, TypedFile, OwnershipCheckedFile) {
+    fixture_source(
+        "fun source(): Array<Int> = arrayOf(1, 2)\nfun scan(): Int { for (item in source()) { if (item == 1) { return item } }; return 0 }",
+    )
+}
+
+fn fixture_source(text: &str) -> (ParsedFile, NameResolution, TypedFile, OwnershipCheckedFile) {
     let mut sources = SourceMap::default();
-    let source = sources.add_source("validator.ko", "fun source(): Array<Int> = arrayOf(1, 2)\nfun scan(): Int { for (item in source()) { if (item == 1) { return item } }; return 0 }").unwrap();
+    let source = sources.add_source("validator.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
     let (environment, types) = standard_environments();
     let names = resolve_names(&sources, &parsed, &environment).unwrap();
     let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert_eq!(owned.iterations().len(), 1);
     (parsed, names, typed, owned)
+}
+
+#[test]
+fn lambda_return_inside_a_loop_does_not_exit_the_loop() {
+    let (parsed, names, typed, owned) = fixture_source(
+        "fun source(): Array<Int> = arrayOf(1, 2)\nfun scan(): Int { for (item in source()) { val callback: () -> Int = { return 7 }; if (item == 1) { return callback() } }; return 0 }",
+    );
+    assert_eq!(
+        owned.iterations()[0]
+            .exits()
+            .iter()
+            .filter(|exit| matches!(exit.kind(), IterationExitKind::Return(_)))
+            .count(),
+        1
+    );
+    validate_iteration_facts(&parsed, &names, &typed, &owned).unwrap();
+}
+
+#[test]
+fn a_loop_inside_a_lambda_still_requires_its_return_descriptor() {
+    let (parsed, names, typed, mut owned) = fixture_source(
+        "fun source(): Array<Int> = arrayOf(1, 2)\nfun scan(): Int { val callback: () -> Int = { for (item in source()) { return item }; return 0 }; return callback() }",
+    );
+    validate_iteration_facts(&parsed, &names, &typed, &owned).unwrap();
+    owned.iterations[0]
+        .exits
+        .retain(|exit| !matches!(exit.kind, IterationExitKind::Return(_)));
+    assert_eq!(
+        validate_iteration_facts(&parsed, &names, &typed, &owned)
+            .unwrap_err()
+            .reason(),
+        "missing Return descriptor"
+    );
 }
 
 #[test]

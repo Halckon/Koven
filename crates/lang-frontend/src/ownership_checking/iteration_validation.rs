@@ -4,7 +4,7 @@ use super::{
     OwnershipCheckedFile,
 };
 use crate::{
-    name_resolution::{NameResolution, ReferenceTarget},
+    name_resolution::{NameResolution, ReferenceTarget, ScopeKind},
     parser::{Expression, ParsedFile, Statement},
     source::Span,
     type_checking::{ParameterMode, SequentialIterationBinding, TypedFile},
@@ -174,6 +174,12 @@ pub fn validate_iteration_facts(
             if matches!(node.payload(), Expression::Return { .. })
                 && node.span().start() >= body_span.start()
                 && node.span().end() <= body_span.end()
+                && !names.scopes().iter().any(|scope| {
+                    matches!(scope.kind(), ScopeKind::Function | ScopeKind::Lambda)
+                        && scope.span().is_some_and(|boundary| {
+                            contains(boundary, node.span()) && !contains(boundary, span)
+                        })
+                })
                 && !plan
                     .exits()
                     .iter()
@@ -184,4 +190,10 @@ pub fn validate_iteration_facts(
         }
     }
     Ok(())
+}
+
+fn contains(outer: Span, inner: Span) -> bool {
+    outer.source_id() == inner.source_id()
+        && outer.start() <= inner.start()
+        && inner.end() <= outer.end()
 }
