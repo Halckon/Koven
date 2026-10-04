@@ -91,7 +91,12 @@ Tree-sitter 用于编辑器 concrete syntax；生产编译仍只使用 Rust Lexe
 
 ## CI 工程门禁
 
-当前 workflow 定义 macOS 14 / Ubuntu 24.04 双宿主 check、严格 clippy、核心测试与两个
-frontend 定向脚本，单次 fmt；LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
+当前 workflow 定义 macOS 14 / Ubuntu 24.04 双宿主 check、严格 clippy和组合测试，单次fmt。
+组合入口依次执行core（含lang-std）、ownership_iteration、stage、剩余guide_litmus及教程；
+保留独立入口，没有skip开关，frontend integration共77个唯一target，组合共10次Cargo调用。
+外部Rust编译合同通过当前integration executable的Cargo 1.96 fingerprint选择实际依赖rlib；
+同目录旧flags产物可以保留，未知或歧义身份失败，不按时间戳推断。
+`editors/**`与教程修改触发Rust路径；内部直接依赖检查为无条件required job。
+LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 意外跳过。配置与本地验证不代表远端已运行；实际交付证据见
 [SPEC-0239](../archive/specs/0239-linux-ci-gates.md)，使用规则见[测试与分层验收](../development/testing.md)。

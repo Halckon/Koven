@@ -63,7 +63,7 @@ stage还完整选择 `const_owned_compilation_unit_view`、`const_owned_unit_vie
 
 `.github/workflows/ci.yml` 配置 macOS 14 AArch64 / Ubuntu 24.04 x86_64 的 check、严格
 clippy、核心测试、`check_stage_integration.sh` 和 `check_guide_litmus.sh`；fmt 只运行一次。
-同一双宿主 test job 还独立执行 `cargo test --locked -p lang-frontend --test ownership_iteration`，
+同一双宿主 test job 通过 `check_integration.sh` 完整执行 `cargo test --locked -p lang-frontend --test ownership_iteration`，
 不加测试名过滤器或细分路径条件，随现有Rust PR/main/dispatch门禁执行；不是frontend全量。
 Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 安装 LLVM 官方 Noble 21 签名源
 中的固定 21.1.8 包，macOS 保留 `brew install llvm@21`；版本或工具缺失直接失败。
@@ -132,3 +132,12 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
 - 新宿主至少要有目标选择正反例、triple/DataLayout/object machine 一致性、真实 object/link/run、
   runtime 正反例与失败保留输出的证据。宿主条件过滤后的零命中不算该平台通过；只有 Linux
   环境时明确登记 macOS 未运行，不把保留 macOS 代码路径表述为完成回归。
+
+## 本机恢复后的有界组合
+
+`bash scripts/check_integration.sh`依次选择core、ownership_iteration、stage、尚未覆盖的guide_litmus、
+真实CLI教程。独立stage/Guide入口保留，不增加任意skip开关。core包含lang-std源码资产，
+组合为77个唯一frontend integration和10次Cargo调用；接线与失败传播由Python合同测试核验。
+直接依赖job无条件运行，required summary拒绝失败/取消/跳过/缺失；仅验证五成员四条直接声明边，
+不推定第三方transitive、patch/config或lock新鲜度。editors与tutorial输入触发Rust矩阵。
+本机结果见[恢复账本](recovery-local-delivery.md)，不能由接线推定实际CI通过。

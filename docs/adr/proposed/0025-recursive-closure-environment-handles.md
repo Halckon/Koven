@@ -80,7 +80,7 @@ drop 仍需独立协议。当前没有能在 phi、return 和字段存储中验�
 ## 关联
 
 - 相关 Spec：[SPEC-0211](../../archive/specs/0211-sequential-iteration-ownership.md)、
-  [SPEC-0182](../../specs/active/0182-sequential-for-lowering.md)
+  [SPEC-0182](../../archive/specs/0182-sequential-for-lowering.md)
 - 相关 ADR：[ADR-0008](../accepted/0008-internal-value-and-allocation-abi.md)、
   [ADR-0009](../accepted/0009-concrete-closure-internal-abi.md)
 - 取代的 ADR：无（proposed；接受时须明确 ADR-0009 的取代关系）

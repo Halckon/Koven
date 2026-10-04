@@ -40,7 +40,7 @@ fun main(): Unit { if (answer == 42) { println("constant") } }
 ## iteration
 
 ```koven iteration
-fun main(): Unit { for (value in [1, 2, 3]) { if (value == 2) { println("two") } } }
+fun main(): Unit { for (value in arrayOf(1, 2, 3)) { if (value == 2) { println("two") } } }
 ```
 
 ## arguments

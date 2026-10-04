@@ -42,3 +42,5 @@
 - [整体架构与工程治理计划](engineering-governance-plan.md)：已批准目标、迁移顺序与验收，不代表当前实现
 - [执行账本](engineering-governance-progress.md)：治理批次的实际进度、基线与下一门禁
 - [当前路线图](roadmap.md)：从演进单源与治理计划定位下一批次
+
+- [本机重建验收](recovery-local-delivery.md)：授权范围、P0–P5与0182映射及本机证据

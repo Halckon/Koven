@@ -1,12 +1,12 @@
 # SPEC-0182：顺序容器 `for` frontend→SSA→native 集成
 
-> **性质**：实施 Spec · **状态**：approved · **读取时机**：实施或评审对应阶段 Goal 时 · **唯一真源**：本 Spec
+> **性质**：实施 Spec · **状态**：done · **读取时机**：实施或评审对应阶段 Goal 时 · **唯一真源**：本 Spec
 
 ## 1. 元数据
 
 | 字段 | 值 |
 |---|---|
-| 状态 | `approved` |
+| 状态 | `done` |
 | Goal ID | `KOV-P4-182` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | [现行 v0.37 §37](../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
@@ -495,3 +495,40 @@ projection/cleanup 或 MoveOnly ZST 验收。0248 仍 in-progress、双宿主 CI
 本 Spec 仅获得前述 Copyable Unit temporary-source/正常迭代子集证据，仍保持active，
 不关闭一般 owned/Borrow、projection/cleanup 或 MoveOnly ZST 未决验收。归档后文档head
 的CI/review另行核验，不从本次首轮结果推定；原历史与合同保持不变。
+
+### 2026-10-04 Mac 本机重建的六项验收映射
+
+基线为PR36 `201d415d126d86183275d86ff2bc45caae6586a4`。丢失的本地后继对象不可用，
+按用户清单重新实现，不恢复原patch或SHA；以上历史记录不作为本轮通过结果。
+用户授权仅本地main提交，禁止推送、PR和远端更改；最终集中验证，所有Cargo串行。
+
+| §5验收项 | 本机实际证据 |
+|---|---|
+| source once与owned/Borrow/temporary | 三容器×owned/Borrow×0/1/3×四退出72格native，factory/source-once及last-use；既有temporary路径同时保留 |
+| binding、Copy/Borrow与components | Int/String/Cell字段及resource Parts完整、partial、discard组合；Parts72格实际object/link/run与计数 |
+| CFG与cleanup | direct resource36格、Parts72格、非ASAP存活出口guard、独立provider实际edge/参数/tombstone与预算拒绝 |
+| source保护负例 | frontend完整ownership_iteration184项通过，单文件真实for动态resource和非source owner拒绝保持 |
+| native与ZST精确计数 | 内部合成MoveOnly ZST三容器×0/1/3×零/非零stride18格，保留真实drop loop，独立logical计数与storage malloc/free |
+| 原子性与确定性 | single真实for整目录bytes与LLVM调用拒绝矩阵；actual unit-for准确拒绝、普通unit正例证明失败后恢复；fresh frontend/SSA/LLVM链确定性 |
+
+以上目标均在本轮修后的完整codegen library中执行：787 passed、0 failed、1既有LLDB权限ignore、
+0 filtered，554.15秒。该ignore属于调试器断点测试，不能表述为该项通过。
+frontend库190 passed；真实stage75 targets/994 passed、Guide23、教程7+2及最终严格Clippy通过；
+Return边界修复后5+3定向通过，
+最终结果由[本机恢复账本](../../development/recovery-local-delivery.md)登记。
+
+unit driver真实for仍为UnsupportedSource，未扩大其能力；独立unit正例不冒充unit-for成功。
+SyntheticZero仅在内部测试提供，不支持源码MoveOnly ZST，也不声称ZST逆序可观测。
+旧SharedFieldLoan配对swap误报保留；此处provider有限状态引擎不重写一般verifier。
+本机Mac结果不替代Linux/双宿主CI，旧成本raw丢失且本轮没有成本实验。
+
+
+## 2026-10-04 本机恢复最终验收
+
+本轮仅按用户授权在本地main重建和交付，禁止推送/PR/远端更改。
+实际Mac验证见[本机恢复账本](../../development/recovery-local-delivery.md)：core、
+ownership_iteration184、stage75个target/994项、Guide23、教程7正例+2完整JSON负例通过；
+Return只读自查修复5+3定向通过，最终workspace all-targets严格Clippy通过。
+既有LLDB权限ignore1保留；Linux/远端CI未运行，旧云端证据不替代本轮。
+本地验收归档不等于原P0–P5全部退出；P2成本raw丢失、预算接受未授权，缺口不关闭。
+unit-for仍准确拒绝，源码MoveOnly ZST、旧SharedFieldLoan swap误报及其他原非目标保持。

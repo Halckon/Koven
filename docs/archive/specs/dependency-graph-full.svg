@@ -1,14 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="5216" height="6970" viewBox="0 0 5216 6970" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="6192" height="6970" viewBox="0 0 6192 6970" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="5216" height="6970" fill="#ffffff"/>
-  <rect x="40" y="30" width="4768" height="6868" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="2424" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，240 份）</text>
-  <rect x="4872" y="5406" width="280" height="1216" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="5012" y="5426" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <rect width="6192" height="6970" fill="#ffffff"/>
+  <rect x="40" y="30" width="6088" height="6868" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3084" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，248 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 464, 180 496" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -314,7 +312,7 @@
   <path d="M 444 2088 C 444 2120, 1764 3902, 1764 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 2088 C 444 2120, 708 5720, 708 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2538 C 708 2570, 4668 3296, 4668 3328" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 2538 C 708 2570, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 2538 C 708 2570, 1764 5408, 1764 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2538 C 708 2570, 1764 3902, 1764 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 2832 C 444 2864, 180 2864, 180 2896" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 2970 C 180 3002, 180 4940, 180 4972" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -362,14 +360,14 @@
   <path d="M 180 4026 C 180 4058, 180 4352, 180 4384" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 180 4490, 180 4522" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 444 4490, 444 4522" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 300 3980 C 2596 3980, 2596 5486, 4892 5486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 4026 C 180 4058, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 708 4628, 708 4660" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 444 5252, 444 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 708 5096, 708 5128" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 180 4026 C 180 4058, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 1236 5408, 1236 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 4026 C 180 4058, 1764 5408, 1764 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 1500 5252, 1500 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4026 C 180 4058, 972 4628, 972 4660" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4182 C 180 4214, 180 4214, 180 4246" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -381,19 +379,19 @@
   <path d="M 180 4182 C 180 4214, 708 4352, 708 4384" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4182 C 180 4214, 444 5252, 444 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4182 C 180 4214, 708 5096, 708 5128" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 180 4182 C 180 4214, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 4182 C 180 4214, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4182 C 180 4214, 708 5564, 708 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4182 C 180 4214, 1236 5564, 1236 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 180 4182 C 180 4214, 2556 5408, 2556 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 300 4283 C 2596 4283, 2596 5486, 4892 5486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 4182 C 180 4214, 2820 5408, 2820 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 4320 C 180 4352, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4320 C 180 4352, 708 4352, 708 4384" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 180 4320 C 180 4352, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 4320 C 180 4352, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4320 C 180 4352, 1500 5252, 1500 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 180 4320 C 180 4352, 2556 5408, 2556 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 4320 C 180 4352, 2820 5408, 2820 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4302 C 444 4334, 180 4352, 180 4384" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4302 C 444 4334, 708 4352, 708 4384" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4302 C 444 4334, 444 5252, 444 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 444 4302 C 444 4334, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 444 4302 C 444 4334, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4458 C 180 4490, 180 4490, 180 4522" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4458 C 180 4490, 444 4490, 444 4522" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4458 C 180 4490, 180 4628, 180 4660" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -401,9 +399,9 @@
   <path d="M 180 4458 C 180 4490, 972 4940, 972 4972" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4458 C 180 4490, 444 5096, 444 5128" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4458 C 180 4490, 444 5252, 444 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 180 4458 C 180 4490, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 180 4458 C 180 4490, 1236 5408, 1236 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 4458 C 180 4490, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4458 C 180 4490, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 4458 C 180 4490, 1764 5408, 1764 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4458 C 180 4490, 972 4628, 972 4660" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 4596 C 180 4628, 972 4628, 972 4660" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4596 C 444 4628, 180 4628, 180 4660" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -827,35 +825,35 @@
   <path d="M 4404 3558 C 4404 3590, 1236 3764, 1236 3796" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4404 3558 C 4404 3590, 2292 3902, 2292 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 2088 C 2028 2120, 972 2864, 972 2896" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1092 2933 C 2992 2933, 2992 5486, 4892 5486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 2970 C 972 3002, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 2970 C 972 3002, 4668 3452, 4668 3484" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 3732 C 972 3764, 708 3764, 708 3796" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 3732 C 972 3764, 444 5252, 444 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 3732 C 972 3764, 2556 3902, 2556 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 972 3732 C 972 3764, 2028 5408, 2028 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 3732 C 972 3764, 2292 5408, 2292 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 3870 C 708 3902, 444 5252, 444 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 3870 C 708 3902, 2556 3902, 2556 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 3870 C 708 3902, 2028 5408, 2028 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 3870 C 708 3902, 2292 5408, 2292 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3714 C 1236 3746, 180 4940, 180 4972" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3714 C 1236 3746, 444 4940, 444 4972" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3714 C 1236 3746, 444 4784, 444 4816" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3714 C 1236 3746, 972 3764, 972 3796" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 180 4940, 180 4972" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 444 4940, 444 4972" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 564 4862 C 2728 4862, 2728 5486, 4892 5486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 444 4908 C 444 4940, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 972 4940, 972 4972" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 444 5096, 444 5128" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 444 5252, 444 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 708 5252, 708 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 444 4908 C 444 4940, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 1236 5408, 1236 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 444 4908 C 444 4940, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 708 5564, 708 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 4908 C 444 4940, 972 5564, 972 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 4734 C 708 4766, 180 4940, 180 4972" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 4734 C 708 4766, 444 4940, 444 4972" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 4734 C 708 4766, 444 4784, 444 4816" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 4734 C 708 4766, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 4734 C 708 4766, 1764 5408, 1764 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 4440 C 708 4472, 444 4784, 444 4816" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 4440 C 708 4472, 1500 5252, 1500 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 4440 C 708 4472, 1236 5564, 1236 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -866,29 +864,29 @@
   <path d="M 972 3870 C 972 3902, 972 5564, 972 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5064 C 972 5096, 444 5096, 444 5128" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5064 C 972 5096, 708 5252, 708 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 972 5064 C 972 5096, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5064 C 972 5096, 1764 5408, 1764 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 5202 C 444 5234, 180 5564, 180 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 5202 C 444 5234, 972 5252, 972 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 444 5376 C 444 5408, 1764 5408, 1764 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 5376 C 444 5408, 2028 5408, 2028 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 444 5376 C 444 5408, 2292 5408, 2292 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 5376 C 444 5408, 1236 5564, 1236 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 828 5321 C 2860 5321, 2860 5486, 4892 5486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5358 C 708 5390, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5358 C 708 5390, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 5358 C 708 5390, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 5358 C 708 5390, 2292 5408, 2292 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 5358 C 708 5390, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 5358 C 708 5390, 1764 5408, 1764 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 5358 C 708 5390, 2556 5408, 2556 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5358 C 972 5390, 180 5564, 180 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 972 5358 C 972 5390, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 444 5514 C 444 5546, 180 5564, 180 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 828 5174 C 2860 5174, 2860 5486, 4892 5486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5358 C 972 5390, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 5514 C 708 5546, 180 5564, 180 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 5220 C 708 5252, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5220 C 708 5252, 444 5252, 444 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5220 C 708 5252, 708 5252, 708 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5220 C 708 5252, 1236 5252, 1236 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 5220 C 708 5252, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 5220 C 708 5252, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 5220 C 708 5252, 1500 5252, 1500 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1236 5376 C 1236 5408, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 5376 C 1236 5408, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 5376 C 1236 5408, 1236 5408, 1236 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1236 5376 C 1236 5408, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 5376 C 1236 5408, 708 5564, 708 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3852 C 1236 3884, 2556 4058, 2556 4090" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3852 C 1236 3884, 1500 3902, 1500 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -901,7 +899,7 @@
   <path d="M 1236 3852 C 1236 3884, 2292 3902, 2292 3934" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3852 C 1236 3884, 1764 5564, 1764 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 2556 4058, 2556 4090" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1500 3990 C 1500 4022, 708 5408, 708 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1500 3990 C 1500 4022, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 2820 4058, 2820 4090" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 3084 4058, 3084 4090" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 1236 4214, 1236 4246" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -910,29 +908,29 @@
   <path d="M 1500 3990 C 1500 4022, 1500 5564, 1500 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 3990 C 1500 4022, 1764 5564, 1764 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 5532 C 708 5564, 180 5564, 180 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 5532 C 708 5564, 708 5564, 708 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 5532 C 708 5564, 972 5564, 972 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 5532 C 708 5564, 1500 5564, 1500 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 5532 C 708 5564, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 5532 C 708 5564, 1764 5564, 1764 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5532 C 972 5564, 180 5564, 180 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5532 C 972 5564, 708 5564, 708 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5532 C 972 5564, 972 5564, 972 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5532 C 972 5564, 1500 5564, 1500 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5532 C 972 5564, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5532 C 972 5564, 1764 5564, 1764 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 3612 3264 C 3612 3296, 972 3608, 972 3640" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 2694 C 708 2726, 4140 3296, 4140 3328" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 708 2694 C 708 2726, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 4140 3420 C 4140 3452, 972 5408, 972 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 2694 C 708 2726, 1236 5408, 1236 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 4140 3420 C 4140 3452, 1236 5408, 1236 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 2832 C 1500 2864, 4404 3296, 4404 3328" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1500 2832 C 1500 2864, 1236 5408, 1236 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 4404 3402 C 4404 3434, 1236 5408, 1236 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 4668 3384 C 4668 3416, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1500 2832 C 1500 2864, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 4404 3402 C 4404 3434, 1500 5408, 1500 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 4668 3384 C 4668 3416, 1764 5408, 1764 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4668 3384 C 4668 3416, 1500 5564, 1500 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4668 3384 C 4668 3416, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1500 5514 C 1500 5546, 1500 5564, 1500 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1500 5514 C 1500 5546, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1764 5514 C 1764 5546, 1500 5564, 1500 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1764 5514 C 1764 5546, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1764 3990 C 1764 4022, 1500 5564, 1500 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1764 3990 C 1764 4022, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 4788 3530 C 4840 3530, 4840 5486, 4892 5486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 5321 C 3256 5321, 3256 5486, 4892 5486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1500 5358 C 1500 5390, 2556 5408, 2556 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 4668 3576 C 4668 3608, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1500 5358 C 1500 5390, 444 5408, 444 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1500 5358 C 1500 5390, 2820 5408, 2820 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 1794 C 1500 1826, 2820 4058, 2820 4090" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 3084 4164 C 3084 4196, 1236 4214, 1236 4246" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 3084 4164 C 3084 4196, 972 4352, 972 4384" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -940,10 +938,10 @@
   <path d="M 2028 4008 C 2028 4040, 708 5564, 708 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2292 4026 C 2292 4058, 444 5252, 444 5284" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2292 4026 C 2292 4058, 708 5564, 708 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 2292 4026 C 2292 4058, 2028 5408, 2028 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 2292 4026 C 2292 4058, 2292 5408, 2292 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2292 4026 C 2292 4058, 1236 5564, 1236 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 2556 4026 C 2556 4058, 1764 5408, 1764 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 2028 5532 C 2028 5564, 1236 5564, 1236 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 2556 4026 C 2556 4058, 2028 5408, 2028 5440" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 2292 5532 C 2292 5564, 1236 5564, 1236 5596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 5652 C 1500 5684, 444 5720, 444 5752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4140 156 C 4140 188, 444 188, 444 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4140 156 C 4140 188, 708 188, 708 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -958,7 +956,7 @@
   <path d="M 972 6102 C 972 6134, 444 6170, 444 6202" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6102 C 972 6134, 972 6326, 972 6358" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 6258 C 444 6290, 972 6326, 972 6358" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1092 6395 C 2992 6395, 2992 6560, 4892 6560" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 6432 C 972 6464, 1764 6482, 1764 6514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -1672,11 +1670,11 @@
   <text x="708" y="3819" text-anchor="middle" font-size="13">SPEC-0181</text>
   <text x="708" y="3837" text-anchor="middle" font-size="13">instance recei</text>
   <text x="708" y="3855" text-anchor="middle" font-size="13">ver ownership</text>
-  <rect x="4892" y="5440" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="5012" y="5463" text-anchor="middle" font-size="13" font-weight="600">SPEC-0182</text>
-  <text x="5012" y="5481" text-anchor="middle" font-size="13">顺序容器 for front</text>
-  <text x="5012" y="5499" text-anchor="middle" font-size="13">end→SSA→native</text>
-  <text x="5012" y="5517" text-anchor="middle" font-size="13"> 集成</text>
+  <rect x="324" y="5440" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="444" y="5463" text-anchor="middle" font-size="13">SPEC-0182</text>
+  <text x="444" y="5481" text-anchor="middle" font-size="13">顺序容器 for front</text>
+  <text x="444" y="5499" text-anchor="middle" font-size="13">end→SSA→native</text>
+  <text x="444" y="5517" text-anchor="middle" font-size="13"> 集成</text>
   <rect x="1116" y="3640" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="1236" y="3663" text-anchor="middle" font-size="13">SPEC-0183</text>
   <text x="1236" y="3681" text-anchor="middle" font-size="13">构造目标、实例化与 type</text>
@@ -1723,10 +1721,10 @@
   <text x="972" y="5307" text-anchor="middle" font-size="13">SPEC-0193</text>
   <text x="972" y="5325" text-anchor="middle" font-size="13">单文件零参数 convent</text>
   <text x="972" y="5343" text-anchor="middle" font-size="13">ional main</text>
-  <rect x="324" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="444" y="5463" text-anchor="middle" font-size="13">SPEC-0194</text>
-  <text x="444" y="5481" text-anchor="middle" font-size="13">参数化 main 与 arg</text>
-  <text x="444" y="5499" text-anchor="middle" font-size="13">v owner</text>
+  <rect x="588" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="5463" text-anchor="middle" font-size="13">SPEC-0194</text>
+  <text x="708" y="5481" text-anchor="middle" font-size="13">参数化 main 与 arg</text>
+  <text x="708" y="5499" text-anchor="middle" font-size="13">v owner</text>
   <rect x="588" y="5128" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="708" y="5151" text-anchor="middle" font-size="13">SPEC-0195</text>
   <text x="708" y="5169" text-anchor="middle" font-size="13">跨 callable Bor</text>
@@ -1743,11 +1741,11 @@
   <rect x="1380" y="3934" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="1500" y="3957" text-anchor="middle" font-size="13">SPEC-0198</text>
   <text x="1500" y="3975" text-anchor="middle" font-size="13">跨文件所有权检查</text>
-  <rect x="588" y="5440" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="708" y="5463" text-anchor="middle" font-size="13">SPEC-0199</text>
-  <text x="708" y="5481" text-anchor="middle" font-size="13">多文件 compilatio</text>
-  <text x="708" y="5499" text-anchor="middle" font-size="13">n-unit native </text>
-  <text x="708" y="5517" text-anchor="middle" font-size="13">lowering</text>
+  <rect x="852" y="5440" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="972" y="5463" text-anchor="middle" font-size="13">SPEC-0199</text>
+  <text x="972" y="5481" text-anchor="middle" font-size="13">多文件 compilatio</text>
+  <text x="972" y="5499" text-anchor="middle" font-size="13">n-unit native </text>
+  <text x="972" y="5517" text-anchor="middle" font-size="13">lowering</text>
   <rect x="3492" y="3172" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="3612" y="3195" text-anchor="middle" font-size="13">SPEC-0201</text>
   <text x="3612" y="3213" text-anchor="middle" font-size="13">instance recei</text>
@@ -1763,11 +1761,11 @@
   <text x="4140" y="3369" text-anchor="middle" font-size="13">nullable when </text>
   <text x="4140" y="3387" text-anchor="middle" font-size="13">view 与 extract</text>
   <text x="4140" y="3405" text-anchor="middle" font-size="13">ion 所有权</text>
-  <rect x="852" y="5440" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="972" y="5463" text-anchor="middle" font-size="13">SPEC-0204</text>
-  <text x="972" y="5481" text-anchor="middle" font-size="13">pointer-like n</text>
-  <text x="972" y="5499" text-anchor="middle" font-size="13">ullable when l</text>
-  <text x="972" y="5517" text-anchor="middle" font-size="13">owering</text>
+  <rect x="1116" y="5440" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1236" y="5463" text-anchor="middle" font-size="13">SPEC-0204</text>
+  <text x="1236" y="5481" text-anchor="middle" font-size="13">pointer-like n</text>
+  <text x="1236" y="5499" text-anchor="middle" font-size="13">ullable when l</text>
+  <text x="1236" y="5517" text-anchor="middle" font-size="13">owering</text>
   <rect x="1380" y="2758" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="1500" y="2781" text-anchor="middle" font-size="13">SPEC-0205</text>
   <text x="1500" y="2799" text-anchor="middle" font-size="13">非空断言 extractio</text>
@@ -1776,17 +1774,17 @@
   <text x="4404" y="3351" text-anchor="middle" font-size="13">SPEC-0206</text>
   <text x="4404" y="3369" text-anchor="middle" font-size="13">非空断言 Copy/Cons</text>
   <text x="4404" y="3387" text-anchor="middle" font-size="13">ume 所有权</text>
-  <rect x="1116" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="1236" y="5463" text-anchor="middle" font-size="13">SPEC-0207</text>
-  <text x="1236" y="5481" text-anchor="middle" font-size="13">pointer-like 非</text>
-  <text x="1236" y="5499" text-anchor="middle" font-size="13">空断言 lowering</text>
+  <rect x="1380" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1500" y="5463" text-anchor="middle" font-size="13">SPEC-0207</text>
+  <text x="1500" y="5481" text-anchor="middle" font-size="13">pointer-like 非</text>
+  <text x="1500" y="5499" text-anchor="middle" font-size="13">空断言 lowering</text>
   <rect x="4548" y="3328" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="4668" y="3351" text-anchor="middle" font-size="13">SPEC-0208</text>
   <text x="4668" y="3369" text-anchor="middle" font-size="13">常量重新物化与所有权事实</text>
-  <rect x="1380" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="1500" y="5463" text-anchor="middle" font-size="13">SPEC-0209</text>
-  <text x="1500" y="5481" text-anchor="middle" font-size="13">关联常量 SSA/LLVM </text>
-  <text x="1500" y="5499" text-anchor="middle" font-size="13">重新物化</text>
+  <rect x="1644" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1764" y="5463" text-anchor="middle" font-size="13">SPEC-0209</text>
+  <text x="1764" y="5481" text-anchor="middle" font-size="13">关联常量 SSA/LLVM </text>
+  <text x="1764" y="5499" text-anchor="middle" font-size="13">重新物化</text>
   <rect x="1644" y="3934" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="1764" y="3957" text-anchor="middle" font-size="13">SPEC-0210</text>
   <text x="1764" y="3975" text-anchor="middle" font-size="13">跨文件关联常量集成</text>
@@ -1843,16 +1841,16 @@
   <text x="2556" y="3975" text-anchor="middle" font-size="13">StaticSelf Val</text>
   <text x="2556" y="3993" text-anchor="middle" font-size="13">ue receiver 条件</text>
   <text x="2556" y="4011" text-anchor="middle" font-size="13">交付事实</text>
-  <rect x="1644" y="5440" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="1764" y="5463" text-anchor="middle" font-size="13">SPEC-0223</text>
-  <text x="1764" y="5481" text-anchor="middle" font-size="13">StaticSelf Val</text>
-  <text x="1764" y="5499" text-anchor="middle" font-size="13">ue receiver 条件</text>
-  <text x="1764" y="5517" text-anchor="middle" font-size="13">交付 lowering</text>
   <rect x="1908" y="5440" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="2028" y="5463" text-anchor="middle" font-size="13">SPEC-0224</text>
-  <text x="2028" y="5481" text-anchor="middle" font-size="13">dependent inhe</text>
-  <text x="2028" y="5499" text-anchor="middle" font-size="13">rited owner re</text>
-  <text x="2028" y="5517" text-anchor="middle" font-size="13">cipe lowering</text>
+  <text x="2028" y="5463" text-anchor="middle" font-size="13">SPEC-0223</text>
+  <text x="2028" y="5481" text-anchor="middle" font-size="13">StaticSelf Val</text>
+  <text x="2028" y="5499" text-anchor="middle" font-size="13">ue receiver 条件</text>
+  <text x="2028" y="5517" text-anchor="middle" font-size="13">交付 lowering</text>
+  <rect x="2172" y="5440" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="2292" y="5463" text-anchor="middle" font-size="13">SPEC-0224</text>
+  <text x="2292" y="5481" text-anchor="middle" font-size="13">dependent inhe</text>
+  <text x="2292" y="5499" text-anchor="middle" font-size="13">rited owner re</text>
+  <text x="2292" y="5517" text-anchor="middle" font-size="13">cipe lowering</text>
   <rect x="1116" y="5596" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="1236" y="5619" text-anchor="middle" font-size="13">SPEC-0225</text>
   <text x="1236" y="5637" text-anchor="middle" font-size="13">参数增长型 runtime </text>
@@ -1895,10 +1893,10 @@
   <text x="2028" y="87" text-anchor="middle" font-size="13">SPEC-0235</text>
   <text x="2028" y="105" text-anchor="middle" font-size="13">三项批准规则在真实 clon</text>
   <text x="2028" y="123" text-anchor="middle" font-size="13">e-first 基线启用</text>
-  <rect x="2172" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="2292" y="5463" text-anchor="middle" font-size="13">SPEC-0236</text>
-  <text x="2292" y="5481" text-anchor="middle" font-size="13">String.clone 显</text>
-  <text x="2292" y="5499" text-anchor="middle" font-size="13">式深拷贝端到端</text>
+  <rect x="2436" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="2556" y="5463" text-anchor="middle" font-size="13">SPEC-0236</text>
+  <text x="2556" y="5481" text-anchor="middle" font-size="13">String.clone 显</text>
+  <text x="2556" y="5499" text-anchor="middle" font-size="13">式深拷贝端到端</text>
   <rect x="2172" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="2292" y="87" text-anchor="middle" font-size="13">SPEC-0237</text>
   <text x="2292" y="105" text-anchor="middle" font-size="13">八阶段本地整合与交叉契约验证</text>
@@ -1942,10 +1940,10 @@
   <rect x="4284" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="4404" y="87" text-anchor="middle" font-size="13">SPEC-0247</text>
   <text x="4404" y="105" text-anchor="middle" font-size="13">跨文件类型基线与恢复事实闭合</text>
-  <rect x="2436" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="2556" y="5463" text-anchor="middle" font-size="13">SPEC-0248</text>
-  <text x="2556" y="5481" text-anchor="middle" font-size="13">列表式 Unit 容器的零大</text>
-  <text x="2556" y="5499" text-anchor="middle" font-size="13">小存储</text>
+  <rect x="2700" y="5440" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="2820" y="5463" text-anchor="middle" font-size="13">SPEC-0248</text>
+  <text x="2820" y="5481" text-anchor="middle" font-size="13">列表式 Unit 容器的零大</text>
+  <text x="2820" y="5499" text-anchor="middle" font-size="13">小存储</text>
   <rect x="1644" y="5596" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="1764" y="5619" text-anchor="middle" font-size="13">SPEC-0249</text>
   <text x="1764" y="5637" text-anchor="middle" font-size="13">普通 owned-unit </text>
@@ -1968,9 +1966,34 @@
   <text x="972" y="6381" text-anchor="middle" font-size="13">SPEC-0254</text>
   <text x="972" y="6399" text-anchor="middle" font-size="13">const owned-un</text>
   <text x="972" y="6417" text-anchor="middle" font-size="13">it 封闭借用交接</text>
-  <rect x="4892" y="6514" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="5012" y="6537" text-anchor="middle" font-size="13" font-weight="600">SPEC-0255</text>
-  <text x="5012" y="6555" text-anchor="middle" font-size="13">中立 lowering er</text>
-  <text x="5012" y="6573" text-anchor="middle" font-size="13">ror 与 String h</text>
-  <text x="5012" y="6591" text-anchor="middle" font-size="13">elper 边界</text>
+  <rect x="1644" y="6514" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1764" y="6537" text-anchor="middle" font-size="13">SPEC-0255</text>
+  <text x="1764" y="6555" text-anchor="middle" font-size="13">中立 lowering er</text>
+  <text x="1764" y="6573" text-anchor="middle" font-size="13">ror 与 String h</text>
+  <text x="1764" y="6591" text-anchor="middle" font-size="13">elper 边界</text>
+  <rect x="4548" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="4668" y="87" text-anchor="middle" font-size="13">SPEC-0256</text>
+  <text x="4668" y="105" text-anchor="middle" font-size="13">当前可执行教程与CLI完整输</text>
+  <text x="4668" y="123" text-anchor="middle" font-size="13">出合同</text>
+  <rect x="4812" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="4932" y="87" text-anchor="middle" font-size="13">SPEC-0257</text>
+  <text x="4932" y="105" text-anchor="middle" font-size="13">有界组合门禁去重与失败传播</text>
+  <rect x="5076" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="5196" y="87" text-anchor="middle" font-size="13">SPEC-0258</text>
+  <text x="5196" y="105" text-anchor="middle" font-size="13">五成员四条内部直接声明依赖门</text>
+  <text x="5196" y="123" text-anchor="middle" font-size="13">禁</text>
+  <rect x="5340" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="5460" y="87" text-anchor="middle" font-size="13">SPEC-0259</text>
+  <text x="5460" y="105" text-anchor="middle" font-size="13">真实LLVM可恢复发射失败与</text>
+  <text x="5460" y="123" text-anchor="middle" font-size="13">TLS恢复</text>
+  <rect x="5604" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="5724" y="87" text-anchor="middle" font-size="13">SPEC-0260</text>
+  <text x="5724" y="105" text-anchor="middle" font-size="13">unit planner/l</text>
+  <text x="5724" y="123" text-anchor="middle" font-size="13">ower共享借用source</text>
+  <text x="5724" y="141" text-anchor="middle" font-size="13">查询</text>
+  <rect x="5868" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="5988" y="87" text-anchor="middle" font-size="13">SPEC-0261</text>
+  <text x="5988" y="105" text-anchor="middle" font-size="13">有限只读 iteration</text>
+  <text x="5988" y="123" text-anchor="middle" font-size="13"> fact validato</text>
+  <text x="5988" y="141" text-anchor="middle" font-size="13">r</text>
 </svg>

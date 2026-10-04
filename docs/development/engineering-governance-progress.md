@@ -7,15 +7,19 @@
 
 ## 批次状态
 
-| 阶段 | 当前状态 | 本批交付 / 下一门禁 |
+| 阶段 | 当前恢复状态 | 验收与保留边界 |
 |---|---|---|
-| P0 范围与基线 | 文档基线与 LSP 试点身份/窄测已复核；其余 Rust 迁移基线待后继 | 下表锁定 main、CI、工具和 129 targets；P2/P3 前补受影响断言/能力/性能样本 |
-| P1a 文档生命周期 | PR15/17已合并；独立0248亦由PR24完成归档合并 | 当前本地2 active / 240 archive（0182与新增0255；0253归档已随PR35合并，0254归档随本批交付）；PR35主干为2 active / 239 archive，原P1历史1/233保留，0182继续独立补强 |
-| P1b 0182 证据 | 独立确定性与conditional-break片已由PR22/23合并；0182仍active | 0248补Copyable Unit temporary-source子集；其余owned/Borrow、projection/cleanup和MoveOnly ZST未闭合 |
-| P2 测试结构与软上限 | LSP PR16、尺寸护栏PR18、receiver PR19、plan PR25、iteration PR26、ownership integration PR27与multifile type PR28已合并 | 107项与13 helpers逐字保留；runtime layout首片已随PR35合并且双宿主planner48/48通过；multifile ownership 72项/8 helpers及iteration/unit planner两条生产边界已本地验收，待组合里程碑同批PR；其余责任按耦合与验收收益审阅，不按文件计PR |
-| P3a/P3b 交接与编排 | PR29合同片已合并；[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)普通 view 有界完成并归档；PR30已合并；[0250](../archive/specs/0250-unit-name-snapshot.md)名称前缀首片完成并归档，PR31已合并；[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)LSP unit最小消费按PR32首轮双宿主证据有界归档 | PR34完成P3b四宿主纯编排；PR35完成0254 const交接有界合同，两宿主新增25/25与const ownership20/20；真实merge主干双宿主再次通过 |
-| P4 共享内核与双轨 | 0255首个有界责任本地验收与独立review已过 | P3精确主干前置已过；error/String helper中立化与本地完整门禁已验，待精确head双宿主CI，不扩大能力或宣布P4完成 |
-| P5 current 教程 | 未开始 | 从受测 fixture 建新 tour 与示例门禁；不改冻结教程 |
+| P0 范围与基线 | PR36 `201d415`本机只读核验；丢失后继对象不可用 | 按15组清单重建，不恢复原patch/SHA；用户改动保留 |
+| P1a 文档生命周期 | 本地0 active / 248 archive | 0182、0255–0261仅按本机有界验收归档；没有推送/PR/远端CI |
+| P1b 0182 证据 | 六项映射补齐本机证据 | 三容器owned/Borrow、资源/组件/ZST/原子性/确定性；unit-for仍拒绝，源码ZST不支持 |
+| P2 测试结构与成本 | 有界职责拆分与尺寸护栏本机通过 | 751手写Rust、45历史欠账；原成本raw丢失，预算接受未授权，P2不关闭 |
+| P3a/P3b 交接与编排 | 已发布普通/const交接在本机回归通过 | codegen外部2、frontend五组外部31项通过；不宣称原P3全部后继完成 |
+| P4 共享内核与双轨 | 0255、0259/0260和0261有界重建/补验 | 真实LLVM失败、借用query、只读validator和最近callable修复；不宣称全P4完成 |
+| P5 current教程 | 七正例/两JSON负例真实CLI通过 | 一planned不执行；保留旧教程，不改变Guide语义 |
+
+本次代码重建及Mac选定范围验证完成；原P0–P5全部验收尚未完成。
+唯一本机证据、15组落点、提交及未覆盖项见[恢复验收账本](recovery-local-delivery.md)。
+以下历史批次原文与当时状态保留，不能作为本轮Linux/远端或成本原始证据。
 
 ## P0：文档首片的固定基线
 
@@ -34,7 +38,7 @@
 
 ## 0182 的保留边界
 
-[0182](../specs/active/0182-sequential-for-lowering.md) 已有实现与 7 SSA / 8 native 专项执行证据。
+[0182](../archive/specs/0182-sequential-for-lowering.md) 已有实现与 7 SSA / 8 native 专项执行证据。
 其原勾选不能单独证明 empty/single/source-call-once、逐 CFG 清理、ZST/精确资源次数、
 malformed/mixed products 与确定性已具备完整集成 oracle。前端已有事实测试可复用，
 但不替代真实 for→lowering/native 的证据。独立批次先建立逐项映射，再补缺口；当前未证明生产 bug。
@@ -503,7 +507,7 @@ receiver原UnsupportedNode/unit成功差异保留，不强行合并driver。
 既有decoder逐字迁移2089bytes，错误种类/字段及原crate-private re-export路径不变；三个同形
 Some(span)构造由neutral私有helper承接，None span构造与原validation顺序保持。
 依赖真实反向导入编译后判红、恢复绿均成立；完整codegen770+2+4、workspace check、严格Clippy、
-fmt、102项policy、docs与尺寸通过；独立最终review已Approve，远端精确CI仍待。实际结果只记[0255唯一账本](../specs/active/0255-neutral-lowering-support.md)。
+fmt、102项policy、docs与尺寸通过；独立最终review已Approve，远端精确CI仍待。实际结果只记[0255唯一账本](../archive/specs/0255-neutral-lowering-support.md)。
 不声称性能改善、全部P4或整体治理完成；0182、其余P2/P5与整体计划后外部审计继续保留。
 
 

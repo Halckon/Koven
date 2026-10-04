@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 240 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 248 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -329,3 +329,16 @@
 ## 2026-10-03 const owned-unit 封闭借用交接
 
 - [SPEC-0254](0254-const-owned-unit-borrowed-handoff.md)：const独立六借用view、旧native/lower兼容转接与CLI project const消费；最终PR与真实merge主干双宿主25项新增身份、20项const ownership验收通过，本地归档随下一相关实施批次发布
+
+## 本机恢复的有界验收（2026-10-04）
+
+仅本地验收归档，Linux/远端CI未运行，原P2成本证据缺口保留。
+
+- [SPEC-0182](./0182-sequential-for-lowering.md)：本机恢复验收与原非目标见正文
+- [SPEC-0255](./0255-neutral-lowering-support.md)：本机恢复验收与原非目标见正文
+- [SPEC-0256](./0256-current-tutorial.md)：本机恢复验收与原非目标见正文
+- [SPEC-0257](./0257-bounded-integration-composition.md)：本机恢复验收与原非目标见正文
+- [SPEC-0258](./0258-direct-workspace-dependencies.md)：本机恢复验收与原非目标见正文
+- [SPEC-0259](./0259-recoverable-llvm-emission.md)：本机恢复验收与原非目标见正文
+- [SPEC-0260](./0260-shared-unit-source-query.md)：本机恢复验收与原非目标见正文
+- [SPEC-0261](./0261-finite-iteration-fact-validation.md)：本机恢复验收与原非目标见正文

@@ -8,7 +8,7 @@
 - [SPEC-0179](../../../archive/specs/0179-sequential-iteration-typed-plan.md)：typed iteration plan（done）
 - [SPEC-0211](../../../archive/specs/0211-sequential-iteration-ownership.md)：iteration ownership（done）
 - [SPEC-0212](../../../archive/specs/0212-borrowed-sequential-iteration-ssa.md)：SSA provider primitive（done）
-- [SPEC-0182](../../active/0182-sequential-for-lowering.md)：完整 `for` lowering（approved）
+- [SPEC-0182](../../../archive/specs/0182-sequential-for-lowering.md)：完整 `for` lowering（approved）
 
 现行语义见[顺序迭代 §37](../../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider)；
 内部 provider 边界见[ADR-0023](../../../adr/accepted/0023-borrowed-sequential-iteration-provider.md)。

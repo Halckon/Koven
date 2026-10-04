@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，240 份）"]
+subgraph Garchive["已完成（archive，248 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -178,6 +178,7 @@ subgraph Garchive["已完成（archive，240 份）"]
   S0179["S0179<br/>顺序容器借用迭代 typed plan"]
   S0180["S0180<br/>instance receiver typed facts"]
   S0181["S0181<br/>instance receiver ownership"]
+  S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0183["S0183<br/>构造目标、实例化与 typed facts"]
   S0184["S0184<br/>名义构造与所有权 facts 到 SSA/LLVM lowering"]
   S0185["S0185<br/>声明型 type roots 的源码模块接纳边界"]
@@ -249,10 +250,13 @@ subgraph Garchive["已完成（archive，240 份）"]
   S0252["S0252<br/>unit 基础所有权共享推进"]
   S0253["S0253<br/>共享单文件阶段门面"]
   S0254["S0254<br/>const owned-unit 封闭借用交接"]
-end
-subgraph Gactive["现行 active"]
-  S0182["S0182<br/>顺序容器 for frontend→SSA→native 集成"]
   S0255["S0255<br/>中立 lowering error 与 String helper 边界"]
+  S0256["S0256<br/>当前可执行教程与CLI完整输出合同"]
+  S0257["S0257<br/>有界组合门禁去重与失败传播"]
+  S0258["S0258<br/>五成员四条内部直接声明依赖门禁"]
+  S0259["S0259<br/>真实LLVM可恢复发射失败与TLS恢复"]
+  S0260["S0260<br/>unit planner/lower共享借用source查询"]
+  S0261["S0261<br/>有限只读 iteration fact validator"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1379,6 +1383,7 @@ S0254 --> S0255
 | SPEC-0179 | archive | [0179-sequential-iteration-typed-plan.md](0179-sequential-iteration-typed-plan.md) |
 | SPEC-0180 | archive | [0180-instance-receiver-typed-facts.md](0180-instance-receiver-typed-facts.md) |
 | SPEC-0181 | archive | [0181-instance-receiver-ownership.md](0181-instance-receiver-ownership.md) |
+| SPEC-0182 | archive | [0182-sequential-for-lowering.md](0182-sequential-for-lowering.md) |
 | SPEC-0183 | archive | [0183-constructor-typed-facts.md](0183-constructor-typed-facts.md) |
 | SPEC-0184 | archive | [0184-nominal-construction-lowering.md](0184-nominal-construction-lowering.md) |
 | SPEC-0185 | archive | [0185-declarative-type-roots-codegen.md](0185-declarative-type-roots-codegen.md) |
@@ -1450,5 +1455,10 @@ S0254 --> S0255
 | SPEC-0252 | archive | [0252-basic-unit-ownership-driver.md](0252-basic-unit-ownership-driver.md) |
 | SPEC-0253 | archive | [0253-single-file-analysis-facade.md](0253-single-file-analysis-facade.md) |
 | SPEC-0254 | archive | [0254-const-owned-unit-borrowed-handoff.md](0254-const-owned-unit-borrowed-handoff.md) |
-| SPEC-0182 | active | [0182-sequential-for-lowering.md](../../specs/active/0182-sequential-for-lowering.md) |
-| SPEC-0255 | active | [0255-neutral-lowering-support.md](../../specs/active/0255-neutral-lowering-support.md) |
+| SPEC-0255 | archive | [0255-neutral-lowering-support.md](0255-neutral-lowering-support.md) |
+| SPEC-0256 | archive | [0256-current-tutorial.md](0256-current-tutorial.md) |
+| SPEC-0257 | archive | [0257-bounded-integration-composition.md](0257-bounded-integration-composition.md) |
+| SPEC-0258 | archive | [0258-direct-workspace-dependencies.md](0258-direct-workspace-dependencies.md) |
+| SPEC-0259 | archive | [0259-recoverable-llvm-emission.md](0259-recoverable-llvm-emission.md) |
+| SPEC-0260 | archive | [0260-shared-unit-source-query.md](0260-shared-unit-source-query.md) |
+| SPEC-0261 | archive | [0261-finite-iteration-fact-validation.md](0261-finite-iteration-fact-validation.md) |
