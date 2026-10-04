@@ -45,6 +45,7 @@ impl UnitExpressionLowerer<'_> {
             pending_start,
             exclusive_root_owners: Vec::new(),
             field_replace_owner: None,
+            shared_field_roots: Vec::new(),
             created_loans: Vec::new(),
         });
         let result = self.lower_ownership_primitive_in_frame(expression, arguments, call, span);

@@ -74,8 +74,13 @@ generic receiver、value-class receiver、closure/provenance、field swap 和普
 read/clone/嵌套 exchange 在 backend 明确 Unsupported。frontend 继续接受可证明 disjoint
 的 sibling places，这些后端限制不改写 Guide 的合法性。
 
-普通 class 字段 Borrow 实参（如 `println(h.state)`）仍 Unsupported；native 使用再次
-replace 提取新值或读取 Copyable `h.id` 证明父对象继续。普通 field 值直接置于复杂 `&&`
+SPEC-0264 接入 unit owned local 普通非泛型 class 的一级字段 Borrow 实参（如
+`println(h.state)`），val/var 字段均可只读借用，调用结束后可继续 replace var 字段。投影与 loan 的
+source/root/field/type 联合校验，复用 HeapPayloadPlace/FieldPlace 与 BorrowBegin/End，
+不读取或复制字段 owner；父 owner 清理仍消费前端事实。普通与常量专用入口已有 native
+读取、连续调用、精确指针释放和嵌套调用帧结束证据；常量入口另覆盖参数 return/break/continue。
+同父 sibling shared/exclusive 两个求值方向均保持 Unsupported，未扩展 projection-aware alias。
+普通 field 值直接置于复杂 `&&`
 的既有 MissingFact 未扩大；快照在条件前读取到 local 再比较，不声称新增短路支持。
 
 PR #12 的[普通资源 deinit](resource-deinit.md)现已进入 main，当前整合包含该实现。

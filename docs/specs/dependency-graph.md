@@ -9,10 +9,15 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 250 份"))
+subgraph Gactive["现行 active"]
+  S0264["S0264<br/>Unit owned class 一级字段直接 Borrow"]
+end
+ARCH --> S0264
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0264 | active | [0264-unit-direct-field-borrow.md](active/0264-unit-direct-field-borrow.md) |
 | 已完成 Spec（250 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

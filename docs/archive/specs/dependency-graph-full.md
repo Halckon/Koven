@@ -260,6 +260,9 @@ subgraph Garchive["已完成（archive，250 份）"]
   S0262["S0262<br/>原治理计划的当前教程覆盖补齐"]
   S0263["S0263<br/>跨文件字段可变性查询"]
 end
+subgraph Gactive["现行 active"]
+  S0264["S0264<br/>Unit owned class 一级字段直接 Borrow"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1211,6 +1214,7 @@ S0252 --> S0253
 S0252 --> S0254
 S0253 --> S0254
 S0254 --> S0255
+S0263 --> S0264
 ```
 
 ## 节点链接
@@ -1467,3 +1471,4 @@ S0254 --> S0255
 | SPEC-0261 | archive | [0261-finite-iteration-fact-validation.md](0261-finite-iteration-fact-validation.md) |
 | SPEC-0262 | archive | [0262-current-tutorial-plan-coverage.md](0262-current-tutorial-plan-coverage.md) |
 | SPEC-0263 | archive | [0263-unit-field-mutability.md](0263-unit-field-mutability.md) |
+| SPEC-0264 | active | [0264-unit-direct-field-borrow.md](../../specs/active/0264-unit-direct-field-borrow.md) |

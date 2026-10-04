@@ -123,6 +123,8 @@ mod deinit_tests;
 mod unit_root_primitive_tests;
 
 #[cfg(test)]
+mod unit_field_borrow_tests;
+#[cfg(test)]
 mod unit_field_replace_tests;
 
 #[cfg(test)]

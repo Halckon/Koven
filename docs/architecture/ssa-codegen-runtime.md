@@ -149,7 +149,7 @@ implementation 和 delegation route，不重新按名称或 shape 选择。
 
 - 标量、短路、`if`/`when`/loop/control result；
 - top-level、member、generic callable 与 receiver-first direct call；
-- ordinary/value class、enum、Box、字段投影和字段 replacement；
+- ordinary/value class、enum、Box、字段投影、replacement 及[有界字段 Borrow](direct-field-replace.md)；
 - 顺序容器构造、element place/read/replace；
 - closure environment、capture 与 callable thunk；
 - String owner/operation（含 [StringClone](string-clone.md)）、Rc retain/release/payload loan；
