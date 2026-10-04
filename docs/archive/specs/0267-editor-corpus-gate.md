@@ -1,10 +1,10 @@
 # SPEC-0267: Tree-sitter corpus 解析与必需 CI 门禁
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施和验收编辑器修复时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施和验收编辑器修复时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-EDITOR-CORPUS` |
 | 所属 Phase | Phase 1 编辑器语法镜像 |
 | 语言规范 | [现行 Guide](../../guide/README.md)、[词法](../../guide/01-lexical.md)、[调用参数](../../guide/07-calls-lambdas-closures.md) |
@@ -45,7 +45,7 @@ assignment。reserved golden 未反映前置合法 value 声明，保留词首�
 - [x] 生成产物与锁定 CLI 同步；frontend `tree_sitter_grammar` 定向合同通过。
 - [x] CI editor job 路径/事件政策和 required 汇总回归通过。
 - [x] Architecture、测试指南与 Spec 账本一致，文档门禁通过。
-- [ ] 独立复核与 PR 精确 head CI 通过后归档。
+- [x] 独立复核与实现 head 的 PR CI 通过后归档；归档提交须再次通过 PR 门禁方可合并。
 
 ## 6. 技术方案与边界
 
@@ -68,11 +68,11 @@ assignment。reserved golden 未反映前置合法 value 声明，保留词首�
 |---|---|---|
 | 1 | 解析修复、直接回归与必需 CI | `fix(editors): enforce contextual syntax with real corpus CI (SPEC-0267)` |
 
-提交、PR、归档由主协调任务按实际验收完成；本实现阶段不提交。
+实现提交 `236625b4c83ad414808de07c2fd68e735d1ef3e7` 经 PR #45 验收；归档提交单独记录最终门禁。
 
 ## 9. 未决问题
 
-无语义未决项；远端 CI 尚未运行。
+无语义未决项；实现已通过远端 CI，归档提交仍须通过最终 PR 门禁。
 
 ## 10. 验证记录
 
@@ -89,4 +89,5 @@ assignment。reserved golden 未反映前置合法 value 声明，保留词首�
 | `python3 scripts/check_docs.py` / `git diff --check` | 507 页，通过 / 通过 | Spec DAG 由既有脚本生成 |
 | `python3 scripts/check_rust_sizes.py --base HEAD` | 通过，无 Rust 增长 | 45 份旧尺寸欠账保持 |
 | 独立审阅 | 修复 !input/!island 同族边界后复核通过，无剩余阻断发现 | 独立隔离 generate、10 corpus、9 XML 回归；附加 when/相邻注释/边界探针 |
-| 远端 CI | 未执行 | 由后续 PR 提供证据 |
+| 远端 PR CI | [run 37198642821](https://github.com/Halckon/Koven/actions/runs/37198642821)，11/11 jobs success | 关联实现 head `236625b4c83ad414808de07c2fd68e735d1ef3e7`；两宿主 workspace/clippy 与 Targeted Tests 实际执行 |
+| 远端 editor 门禁 | npm ci、generate、生成物 diff、corpus 10/10、CLI 树合同 9/9 全部通过 | 真实 Tree-sitter CLI；不代表完整语言或真实编辑器增量解析验收 |

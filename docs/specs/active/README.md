@@ -2,9 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 active Spec：
-
-- [0267 Tree-sitter corpus 与 CI](0267-editor-corpus-gate.md)：M0 已确认编辑器缺口。
+当前无 active Spec；0267 已完成编辑器 corpus 修复与必需 CI 验收归档。
 
 M1A 0263/0264经 PR40/PR41 双宿主验收归档；
 unit for 与完整应用验收仍开放。

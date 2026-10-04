@@ -61,7 +61,7 @@ EXPECTED_ARCHIVED_SPEC_IDS = frozenset(
         | set(range(213, 228))
         | {211, 212}
         | set(range(228, 265))
-        | {182}
+        | {182, 267}
     )
 )
 EXPECTED_DRAFT_SPEC_IDS = {
@@ -69,7 +69,7 @@ EXPECTED_DRAFT_SPEC_IDS = {
     "v0.37": frozenset(),
     "v0.40": frozenset(),
 }
-EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0267"})
+EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset()
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
     {*(f"{number:04d}" for number in range(1, 25)), "0026", "0027"}
 )
