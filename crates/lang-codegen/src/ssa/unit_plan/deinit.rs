@@ -148,6 +148,24 @@ fn schedule_layout(
     if !contains_resource(typed, ty, &mut BTreeSet::new(), span)? || !visited.insert(ty) {
         return Ok(());
     }
+    // Sequential provider storage owns each element; its existing drop glue must
+    // reach the same hidden bodies as a direct owner or a concrete value field.
+    if let Some(UnitTypeKind::Intrinsic {
+        constructor,
+        arguments,
+    }) = typed.types().get(ty)
+        && matches!(
+            constructor,
+            lang_frontend::type_checking::IntrinsicTypeConstructor::Array
+                | lang_frontend::type_checking::IntrinsicTypeConstructor::List
+                | lang_frontend::type_checking::IntrinsicTypeConstructor::MutableList
+        )
+    {
+        let [element] = arguments.as_slice() else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        return schedule_layout(typed, *element, pending, visited, span);
+    }
     let Some(UnitTypeKind::Nominal {
         declaration,
         arguments,
@@ -160,7 +178,7 @@ fn schedule_layout(
         .declaration(*declaration)
         .and_then(|signature| signature.nominal())
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    if nominal.kind() != NominalKind::Class
+    if !matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass)
         || !arguments.is_empty()
         || !nominal.type_parameters().is_empty()
         || !nominal.interfaces().is_empty()

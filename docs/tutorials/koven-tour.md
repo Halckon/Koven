@@ -110,6 +110,52 @@ package app
 fun message(): String = "cross file"
 ```
 
+## parameter-report
+
+三个文件共同使用上一节的 `project.toml`，entry为 `app.main`：
+`kovenc build --project project.toml --entry app.main -o program`，
+`kovenc run --project project.toml --entry app.main -- alpha 你好 tail`。
+本例四组argv已由SPEC-0268在双宿主通过真实build、artifact与run验收。
+
+`src/app/model.ko`：
+
+```koven parameter-report-model
+package app
+
+class Report(var text: String)
+```
+
+`src/app/processor.ko`：
+
+```koven parameter-report-processor
+package app
+
+fun reportArguments(args: Array<String>): Unit {
+    val report = Report("start")
+    for (argument in args) {
+        val previous = replace(&report.text, argument.clone())
+        println(report.text)
+    }
+    println("processed")
+}
+```
+
+`src/app/main.ko`：
+
+```koven parameter-report
+package app
+
+fun main(args: Array<String>): Unit {
+    reportArguments(args)
+    println("done")
+}
+```
+
+跨文件 `Report` 的字段通过 `replace` 更新，`previous`接收并清理旧owner；
+`println(report.text)`直接借用字段。循环binding借用argv元素，显式clone生成独立字段owner。
+同一源码验证空argv、`alpha`、`alpha 你好 tail`及一个空字符串参数；每组均build、执行产物、run。
+`processed`与`done`保证循环后代码和caller均继续执行。完整输出见 `examples.json`。
+
 ## reject-typed
 
 ```koven reject-typed

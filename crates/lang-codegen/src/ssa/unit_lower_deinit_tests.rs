@@ -171,7 +171,6 @@ fn unit_resource_deinit_rejects_unimplemented_resource_shapes() {
         "class Resource { deinit() {} }\nfun entry(): Unit { val resource: Resource? = Resource() }",
         "interface Marker {}\nclass Resource: Marker { deinit() {} }\nfun entry(): Unit { val resource = Resource() }",
         "class Resource { deinit() {} }\nclass Wrapper<T>(val value: T)\nfun entry(): Unit { val wrapper = Wrapper<Resource>(Resource()) }",
-        "class Resource { deinit() {} }\nvalue class Wrapper(val value: Resource)\nfun entry(): Unit { val wrapper = Wrapper(Resource()) }",
         "class Resource { deinit() { val action = { 1 } } }\nfun entry(): Unit { val resource = Resource() }",
         "class Resource(val value: Int) { deinit() {} }\nfun entry(): Unit { val resource = Resource(7); val action: move () -> Int = move { resource.value } }",
     ] {

@@ -54,7 +54,7 @@ Litmus fixtures；源文档变化会触发重新编译。Guide10/13 API 签名�
 | 2、6、9、10 | 诊断/ownership 检查通过；实际节点没有 Deferred/Error/缺失 typed fact | SSA/native 执行通过 |
 | 1、3、5 | 诊断/ownership 检查通过；single 的赋值表达式仍为 Deferred(Assignment)，unit 对应节点已定型 | single typed 已闭合 |
 | 7、8 | 诊断/ownership 检查通过；Resource/Node 构造目标的非值 expression 是 single Error / unit 无值类型；8 的 single 赋值还为 Deferred(Assignment) | 构造目标占位等于用户源码错误，或全部 typed 产物已闭合 |
-| 11 | 诊断/ownership 检查通过；SPEC-0265 闭合 unit for-body typed facts；两入口 listOf callee 为 Deferred(Call)，single 赋值仍为 Deferred(Assignment) | unit for native 已支持 |
+| 11 | 诊断/ownership 检查通过；SPEC-0265 闭合 unit for-body typed facts；两入口 listOf callee 为 Deferred(Call)，single 赋值仍为 Deferred(Assignment) | 该 Litmus 原始源码已通过 native 验收 |
 | 4 | 原始 `return when` 两入口诊断/ownership 通过；Shape 非值 qualifier 保留 single Error / unit 无值类型 | compilation-unit enum expression condition 或直接 case 调用实参已 native 支持 |
 | 12 | const/ownership 检查通过；BitMasks 非值 namespace 仍为 single Error / unit 无值类型；两 native 入口执行原始规范源码 | 其他 Litmus 或一般 constructor 占位已经闭合 |
 

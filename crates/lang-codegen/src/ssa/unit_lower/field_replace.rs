@@ -336,6 +336,9 @@ impl UnitExpressionLowerer<'_> {
             .last_mut()
             .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, argument.span))?;
         frame.created_loans.push(loan_slot);
+        frame
+            .loan_arguments
+            .push((fact.argument(), vec![loan_slot]));
         frame.field_replace_owner = Some(owner_slot);
         Ok(PendingField {
             symbol: root,

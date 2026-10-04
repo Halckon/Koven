@@ -29,11 +29,23 @@ def load_examples(root=ROOT):
             raise ValueError("example must reference its own source fence")
         if "files" in row and not row.get("entry"):
             raise ValueError("project example requires explicit entry")
+        if "cases" in row:
+            cases = row["cases"]
+            if (row["status"] != "executable" or not isinstance(cases, list) or not cases
+                    or any(key in row for key in ("args", "artifact", "run"))):
+                raise ValueError("argv cases require an executable example with unambiguous outputs")
+            for case in cases:
+                if (not isinstance(case, dict) or set(case) != {"args", "artifact", "run"}
+                        or not isinstance(case["args"], list)
+                        or any(not isinstance(arg, str) for arg in case["args"])):
+                    raise ValueError("argv case requires a string argument list and both outputs")
+            if len({tuple(case["args"]) for case in cases}) != len(cases):
+                raise ValueError("duplicate argv case")
     if (len(sources) != len(blocks) or len(set(ids)) != len(ids)
             or len(set(references)) != len(references) or set(references) != set(sources)):
         raise ValueError("tutorial source/contract identity mismatch or duplicate")
-    if [row["status"] for row in rows].count("executable") != 11:
-        raise ValueError("expected eleven executable contracts")
+    if [row["status"] for row in rows].count("executable") != 12:
+        raise ValueError("expected twelve executable contracts")
     if [row["status"] for row in rows].count("diagnostic") != 2:
         raise ValueError("expected two diagnostic contracts")
     if [row["status"] for row in rows].count("planned") != 1:
@@ -65,31 +77,33 @@ def check(cli, selected=None):
             print(f"planned: {row['id']} (not executed)")
             planned += 1
             continue
-        with tempfile.TemporaryDirectory(prefix="koven-tutorial-") as temporary:
-            directory = Path(temporary)
-            for path, source in sources.items():
-                destination = directory / path
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                destination.write_text(source)
-            inputs = ["source.ko"]
-            if "files" in row:
-                (directory / "project.toml").write_text(
-                    'schema = "koven.project"\nversion = 1\n\n[project]\n'
-                    'name = "tutorial"\nsource-roots = ["src"]\n')
-                inputs = ["--project", "project.toml", "--entry", row["entry"]]
-            build = [str(cli), "build", *inputs, "-o", "program"]
-            if row["status"] == "diagnostic":
-                build.insert(1, "--message-format=json")
-            assert_output(build, row["build"], directory)
-            if row["status"] == "diagnostic":
-                if {p.name for p in directory.iterdir()} != {"source.ko"}:
-                    raise AssertionError("failed tutorial build left artifacts")
-            else:
-                assert_output([str(directory / "program"), *row["args"]], row["artifact"], directory)
-                assert_output([str(cli), "run", *inputs, "--", *row["args"]], row["run"], directory)
-            passed += 1
-            print(f"passed: {row['id']}")
-    print(f"tutorial: {passed} executed contracts; {planned} planned in selection")
+        for case in row.get("cases", [row]):
+            with tempfile.TemporaryDirectory(prefix="koven-tutorial-") as temporary:
+                directory = Path(temporary)
+                for path, source in sources.items():
+                    destination = directory / path
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_text(source)
+                inputs = ["source.ko"]
+                if "files" in row:
+                    (directory / "project.toml").write_text(
+                        'schema = "koven.project"\nversion = 1\n\n[project]\n'
+                        'name = "tutorial"\nsource-roots = ["src"]\n')
+                    inputs = ["--project", "project.toml", "--entry", row["entry"]]
+                build = [str(cli), "build", *inputs, "-o", "program"]
+                if row["status"] == "diagnostic":
+                    build.insert(1, "--message-format=json")
+                assert_output(build, row["build"], directory)
+                if row["status"] == "diagnostic":
+                    if {p.name for p in directory.iterdir()} != {"source.ko"}:
+                        raise AssertionError("failed tutorial build left artifacts")
+                else:
+                    assert_output([str(directory / "program"), *case["args"]], case["artifact"], directory)
+                    assert_output([str(cli), "run", *inputs, "--", *case["args"]], case["run"], directory)
+                passed += 1
+                suffix = f" argv={case['args']!r}" if "cases" in row else ""
+                print(f"passed: {row['id']}{suffix}")
+    print(f"tutorial: {passed} executed cases; {planned} planned in selection")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # 治理完成后的开发里程碑草案
 
-> **性质**：后继开发计划草案 · **状态**：draft / M1A 首片已启动 · **读取时机**：评审后继开发顺序与实施边界时 · **唯一真源**：本页维护候选里程碑；现行语义与实际进度分别见 Guide 和各正式 Spec
+> **性质**：后继开发计划草案 · **状态**：draft / M1A实现已验收 · **读取时机**：评审后继开发顺序与实施边界时 · **唯一真源**：本页维护候选里程碑；现行语义与实际进度分别见 Guide 和各正式 Spec
 
 ## 1. 起草依据与授权边界
 
@@ -28,8 +28,8 @@
 |---|---|---|
 | G0 治理交接/推进决定 | 责任 agent 的记录可对照原退出条件；剩余事项有原计划允许的处理或用户明确决定 | 用户此次明确进入里程碑；P2 成本等仍开放，不能称治理全部完成 |
 | G1 接收确定基线 | 记录交付 SHA、分支/PR、文档状态、实际验证与保留项，确认已进入 main | 已接收 PR38 + PR39 的 `b92593d`；未接收其他工作区未提交改动 |
-| G2 重新核对缺口 | 在实施基线上重查所选里程碑的入口、事实、测试与最小复现 | A2 已完成，A3 拒绝点与 unit for 事实缺口已核对；原完整程序仍待通过 |
-| G3 形成可实施合同 | 分配未占用 Spec ID，确认批准依据；语义/长期架构变化完成 Guide/ADR 前置 | 0263/0264已交付 A2/A3；其它草稿仍待交付 |
+| G2 重新核对缺口 | 在实施基线上重查所选里程碑的入口、事实、测试与最小复现 | A2–A10实现与原三文件程序已通过双宿主；最终交付见[PR46](https://github.com/Halckon/Koven/pull/46) |
+| G3 形成可实施合同 | 分配未占用 Spec ID，确认批准依据；语义/长期架构变化完成 Guide/ADR 前置 | 0263–0265及0268承接M1A，0266/0267独立切片已交付；其它草稿仍待正式合同 |
 
 G0 的判断依据为[治理执行账本](engineering-governance-progress.md)及责任 agent 的交付记录。
 本页不另建第二张 P0–P5 完成表，不以 M0 定义替代原计划收尾。
@@ -91,8 +91,9 @@ M0 完成不意味着剩余历史尺寸欠账、所有语言能力或 P2 原始�
 
 ## 6. M1A 与 M1B：从固定程序到实用程序
 
-M1A 的源码、输出、拒绝路径、阶段边界和验收映射只维护在
-[Spec 起草材料](multifile-program-spec-draft.md)，本页不复制另一份夹具或执行账本。
+M1A 的唯一源码在[教程 parameter-report](../tutorials/koven-tour.md#parameter-report)，
+输出合同由教程 metadata 保存；后端与总验收由[SPEC-0268](../archive/specs/0268-unit-iteration-native.md)维护。
+[起草记录](multifile-program-spec-draft.md)保留原要求与承接映射，本页不复制源码或执行账本。
 实现顺序为跨文件可变性、直接字段 Borrow、unit 迭代事实/清理、SSA/native、CLI project。
 程序通过现行字段 replace 更新值，普通字段赋值 lowering 留作独立后继；迭代 Inout/字段
 source 的前端语义覆盖与首轮 native 拒绝分别验收，遵守 Guide §37.4。
@@ -201,8 +202,9 @@ M0 本次完成基线、Spec 编号及首片入口接收；历史尺寸欠账、
 [CI37193746866](https://github.com/Halckon/Koven/actions/runs/37193746866)10个任务全部成功。
 该调查发现的 unit typed descriptor、provider/source loan 与有序清理事实，现已由
 [SPEC-0265](../archive/specs/0265-unit-iteration-facts.md)补齐 conditional receiver 内外/嵌套清理后通过双宿主 CI，已完成 A4 有界验收归档。
-后继 A5 由后端消费，保持 Guide §37.4 的前端与 native 范围区分；完整三文件程序仍在
-native lowering 返回 UnsupportedNode。并行实施使用独立分支/worktree，本地 Cargo 串行，
+PR43 已合并为 `6377f2b`，后继 [SPEC-0268](../archive/specs/0268-unit-iteration-native.md)
+承接 A5–A10，保持 Guide §37.4 的前端与 native 范围区分；启动时的完整程序基线在
+native lowering 返回 UnsupportedNode，后续实现验收见§14。并行实施使用独立分支/worktree，本地 Cargo 串行，
 切换工作树后须确保实际源码重新编译；M1A 总退出条件保持。
 
 ## 13. M0 编辑器覆盖复核（2026-10-04）
@@ -233,3 +235,12 @@ PR #45 实现 head `236625b` 的 run `37198642821` 已通过全部11项检查，
 `37199186829` 也通过11项检查，并已合并为 `5fbc664`。主干 push run `37199712000`
 同样11项成功，含真实双宿主测试。
 历史 M0 红测证据保持不变；该修复不声明完整语言或真实编辑器增量解析验收。
+
+
+## 14. M1A 与 M4a 首片验收（2026-10-04）
+
+0268实现head `e091408` 的[PR46双宿主CI](https://github.com/Halckon/Koven/actions/runs/37205512961)
+已经通过，原三文件教程四组argv及资源/拒绝/原子性有实际证据，唯一账本见
+[SPEC-0268](../archive/specs/0268-unit-iteration-native.md)。按实现证据归档，归档提交仍须最终CI与合并。
+0266的Linux ASan/LSan首片已由PR44合并为`44cb312`，PR及主干CI成功；其余M4范围保持开放。
+M1B与新增标准库API仍需各自语义决定，M4b仅在准备有界生成候选，不从这些结果推出后续里程碑完成。

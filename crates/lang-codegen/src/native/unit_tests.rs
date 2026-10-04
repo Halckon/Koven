@@ -35,6 +35,16 @@ mod test_directory;
 use test_directory::TestDirectory;
 #[path = "unit_for_atomic_tests.rs"]
 mod for_atomic;
+#[path = "unit_for_boundary_tests.rs"]
+mod iteration_boundaries;
+#[path = "unit_for_conditional_receiver_tests.rs"]
+mod iteration_conditional_receivers;
+#[path = "unit_for_report_resource_tests.rs"]
+mod iteration_report_resources;
+#[path = "unit_for_resource_tests.rs"]
+mod iteration_resources;
+#[path = "unit_for_tests.rs"]
+mod sequential_iteration;
 
 #[path = "unit_non_null_tests.rs"]
 mod non_null_assertion_tests;

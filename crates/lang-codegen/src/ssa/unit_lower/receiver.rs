@@ -418,7 +418,16 @@ impl UnitExpressionLowerer<'_> {
         match self.typed.copyability(concrete) {
             Copyability::Copyable => {}
             Copyability::MoveOnly => {
-                if self.constant_owned.is_none() {
+                if !self.supports_control_prefix(
+                    self.parsed
+                        .ast()
+                        .expressions()
+                        .get(fact.call().expression())
+                        .map_err(|_| {
+                            lowering_error(LoweringErrorKind::MissingFact, fact.receiver_origin())
+                        })?
+                        .span(),
+                ) {
                     self.consumed_receiver = Some(current.into());
                     self.current_receiver = None;
                 }
@@ -611,8 +620,16 @@ impl UnitExpressionLowerer<'_> {
                 if receiver.mode == ParameterMode::Value =>
             {
                 // 专用路径等参数完成后提交；参数退出可消费 Phase 3 的 This drop。
-                if self.constant_owned.is_none()
-                    || !matches!(fact.source(), UnitCallReceiverOrigin::ImplicitThis(_))
+                if !self.supports_control_prefix(
+                    self.parsed
+                        .ast()
+                        .expressions()
+                        .get(fact.call().expression())
+                        .map_err(|_| {
+                            lowering_error(LoweringErrorKind::MissingFact, fact.begin_span())
+                        })?
+                        .span(),
+                ) || !matches!(fact.source(), UnitCallReceiverOrigin::ImplicitThis(_))
                 {
                     self.consumed_receiver = Some(receiver.into());
                     self.current_receiver = None;

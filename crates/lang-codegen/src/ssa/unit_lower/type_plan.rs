@@ -24,6 +24,19 @@ pub(super) fn intern_body_scalar_types(
     typed: &CompilationUnitTypes,
     types: &mut UnitTypeLowering,
 ) -> Result<(), LoweringError> {
+    if typed
+        .sequential_iterations()
+        .iter()
+        .any(|plan| plan.statement().source_unit() == instance.source_unit())
+    {
+        for builtin in [BuiltinType::Int, BuiltinType::Boolean] {
+            let ty = typed
+                .types()
+                .builtin(builtin)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
+            types.intern(module, typed, ty, instance.span())?;
+        }
+    }
     for (&expression, &ty) in typed.expression_types() {
         if expression.source_unit() != instance.source_unit() {
             continue;

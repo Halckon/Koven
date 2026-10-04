@@ -201,6 +201,9 @@ impl UnitExpressionLowerer<'_> {
     }
 
     pub(super) fn emit_drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
+        if let Some(actions) = self.owned.iteration_cleanup_at(point).map(<[_]>::to_vec) {
+            return self.emit_iteration_cleanup(&actions);
+        }
         let conditional = self
             .owned
             .conditional_receiver_drops()
@@ -269,68 +272,74 @@ impl UnitExpressionLowerer<'_> {
                     })?;
             }
             let Some(fact) = facts.get(index) else { break };
-            let owner = match fact.target() {
-                UnitDropTarget::This(owner) => match self.current_receiver.take() {
-                    Some(receiver)
-                        if receiver.owner == owner
-                            && matches!(receiver.entity, crate::ssa::model::EntityId::Value(_)) =>
-                    {
-                        self.consumed_receiver = Some(receiver.into());
-                        let crate::ssa::model::EntityId::Value(value) = receiver.entity else {
-                            unreachable!("receiver entity shape was checked")
-                        };
-                        value
-                    }
-                    Some(_) | None => {
-                        return Err(lowering_error(
-                            LoweringErrorKind::MissingFact,
-                            fact.value_origin(),
-                        ));
-                    }
-                },
-                UnitDropTarget::Named(symbol) => match self.bindings.remove(&symbol) {
-                    Some(LoweredValue::Value(value)) => {
-                        self.closure_bindings.remove(&symbol);
-                        value
-                    }
-                    Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {
-                        return Err(lowering_error(
-                            LoweringErrorKind::MissingFact,
-                            fact.value_origin(),
-                        ));
-                    }
-                },
-                UnitDropTarget::Temporary(expression) => {
-                    let value = self.temporaries.get(&expression).copied().ok_or_else(|| {
-                        lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
-                    })?;
-                    // Drop 与 transfer 一样结束整个 owner，透明 Group alias 不再跨 CFG 携带。
-                    self.take_owned_temporary_origin(expression, value, fact.value_origin())?;
-                    value
-                }
-                UnitDropTarget::Captured { .. } => continue,
-                UnitDropTarget::ReplacedElement(_) | UnitDropTarget::ReplacedField { .. } => {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        fact.value_origin(),
-                    ));
-                }
-            };
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::Drop { owner },
-                    Vec::new(),
-                    Origin::Source(fact.value_origin()),
-                )
-                .map_err(|_| {
-                    lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin())
-                })?;
+            self.emit_drop_fact(*fact)?;
         }
         Ok(())
     }
 
-    fn conditional_receiver_drop_owner(
+    pub(super) fn emit_drop_fact(
+        &mut self,
+        fact: lang_frontend::ownership_checking::UnitDropFact,
+    ) -> Result<(), LoweringError> {
+        let owner = match fact.target() {
+            UnitDropTarget::This(owner) => match self.current_receiver.take() {
+                Some(receiver)
+                    if receiver.owner == owner
+                        && matches!(receiver.entity, crate::ssa::model::EntityId::Value(_)) =>
+                {
+                    self.consumed_receiver = Some(receiver.into());
+                    let crate::ssa::model::EntityId::Value(value) = receiver.entity else {
+                        unreachable!("receiver entity shape was checked")
+                    };
+                    value
+                }
+                Some(_) | None => {
+                    return Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        fact.value_origin(),
+                    ));
+                }
+            },
+            UnitDropTarget::Named(symbol) => match self.bindings.remove(&symbol) {
+                Some(LoweredValue::Value(value)) => {
+                    self.closure_bindings.remove(&symbol);
+                    value
+                }
+                Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {
+                    return Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        fact.value_origin(),
+                    ));
+                }
+            },
+            UnitDropTarget::Temporary(expression) => {
+                let value = self.temporaries.get(&expression).copied().ok_or_else(|| {
+                    lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
+                })?;
+                // Drop 与 transfer 一样结束整个 owner，透明 Group alias 不再跨 CFG 携带。
+                self.take_owned_temporary_origin(expression, value, fact.value_origin())?;
+                value
+            }
+            UnitDropTarget::Captured { .. } => return Ok(()),
+            UnitDropTarget::ReplacedElement(_) | UnitDropTarget::ReplacedField { .. } => {
+                return Err(lowering_error(
+                    LoweringErrorKind::UnsupportedNode,
+                    fact.value_origin(),
+                ));
+            }
+        };
+        self.function
+            .append_instruction(
+                self.block,
+                Operation::Drop { owner },
+                Vec::new(),
+                Origin::Source(fact.value_origin()),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin()))?;
+        Ok(())
+    }
+
+    pub(super) fn conditional_receiver_drop_owner(
         &self,
         fact: lang_frontend::ownership_checking::UnitConditionalReceiverDropFact,
     ) -> Result<Option<ValueId>, LoweringError> {

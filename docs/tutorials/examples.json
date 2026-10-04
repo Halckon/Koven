@@ -251,6 +251,83 @@
       "id": "planned-thread",
       "status": "planned",
       "reason": "线程 native 不在本教程已验收范围"
+    },
+    {
+      "id": "parameter-report",
+      "status": "executable",
+      "files": {
+        "src/app/model.ko": "parameter-report-model",
+        "src/app/processor.ko": "parameter-report-processor",
+        "src/app/main.ko": "parameter-report"
+      },
+      "entry": "app.main",
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "cases": [
+        {
+          "args": [],
+          "artifact": {
+            "exit": 0,
+            "stdout": "processed\ndone\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "processed\ndone\n",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            "alpha"
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "alpha\nprocessed\ndone\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "alpha\nprocessed\ndone\n",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            "alpha",
+            "你好",
+            "tail"
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "alpha\n你好\ntail\nprocessed\ndone\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "alpha\n你好\ntail\nprocessed\ndone\n",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            ""
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "\nprocessed\ndone\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "\nprocessed\ndone\n",
+            "stderr": ""
+          }
+        }
+      ]
     }
   ]
 }
