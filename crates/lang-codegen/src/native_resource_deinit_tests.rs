@@ -316,3 +316,57 @@ fun entry(): Unit { work(true); work(false) }
         b"return\npresent\n",
     );
 }
+
+#[test]
+fn resource_deinit_native_nested_control_scopes_drop_only_their_owners() {
+    use super::boxed_enum_tests::{assert_success, lower_to_llvm, run_counted_allocations};
+    // Exercise every condition pair: branch-local cleanup must preserve the outer guard.
+    for (name, body, allocations, expected) in [
+        (
+            "two-inner",
+            r#"if (outer) {
+                if (inner) { val a = Leaf("a"); val b = Leaf("b"); println("inner") }
+                println("outer")
+            }
+            println("done")"#,
+            6,
+            "done\nroot\ndone\nroot\nouter\ndone\nroot\ninner\nb\na\nouter\ndone\nroot\n",
+        ),
+        (
+            "one-per-scope",
+            r#"if (outer) {
+                val a = Leaf("a")
+                if (inner) { val b = Leaf("b"); println("inner") }
+                println("outer")
+            }
+            println("done")"#,
+            7,
+            "done\nroot\ndone\nroot\nouter\na\ndone\nroot\ninner\nb\nouter\na\ndone\nroot\n",
+        ),
+        (
+            "explicit-return",
+            r#"if (outer) {
+                if (inner) { val a = Leaf("a"); val b = Leaf("b"); println("inner"); return }
+                println("outer")
+            }
+            println("done")"#,
+            6,
+            "done\nroot\ndone\nroot\nouter\ndone\nroot\ninner\nb\na\nroot\n",
+        ),
+    ] {
+        let source = format!(
+            r#"{LEAF}
+fun work(own outer: Boolean, own inner: Boolean): Unit {{
+    val root = Leaf("root")
+    {body}
+}}
+fun entry(): Unit {{ work(false, false); work(false, true); work(true, false); work(true, true) }}
+"#
+        );
+        let llvm = lower_to_llvm(&format!("nested-resource-{name}.ko"), &source);
+        assert_success(
+            &run_counted_allocations(&llvm, allocations),
+            expected.as_bytes(),
+        );
+    }
+}

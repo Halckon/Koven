@@ -267,6 +267,9 @@ subgraph Garchive["已完成（archive，257 份）"]
   S0270["S0270<br/>单文件局部 MoveOnly 绑定交接"]
   S0271["S0271<br/>当前 tour 的有界组合覆盖"]
 end
+subgraph Gactive["现行 active"]
+  S0273["S0273<br/>单文件控制体正常退出的资源清理"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1211,6 +1214,7 @@ S0228 --> S0266
 S0244 --> S0245
 S0244 --> S0246
 S0245 --> S0270
+S0245 --> S0273
 S0246 --> S0263
 S0249 --> S0250
 S0249 --> S0252
@@ -1231,6 +1235,7 @@ S0263 --> S0268
 S0264 --> S0268
 S0265 --> S0268
 S0268 --> S0271
+S0270 --> S0273
 ```
 
 ## 节点链接
@@ -1494,3 +1499,4 @@ S0268 --> S0271
 | SPEC-0268 | archive | [0268-unit-iteration-native.md](0268-unit-iteration-native.md) |
 | SPEC-0270 | archive | [0270-local-owner-binding-transfer.md](0270-local-owner-binding-transfer.md) |
 | SPEC-0271 | archive | [0271-tour-combination-coverage.md](0271-tour-combination-coverage.md) |
+| SPEC-0273 | active | [0273-control-body-resource-cleanup.md](../../specs/active/0273-control-body-resource-cleanup.md) |

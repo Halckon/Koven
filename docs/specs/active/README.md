@@ -2,7 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无 active Spec；0271 已按 PR49 双宿主实现证据归档，最终归档 CI 待完成后合并。
+当前 1 份 active Spec：
+
+- [0273 控制体资源清理](0273-control-body-resource-cleanup.md)：嵌套 if 正常出口的 InvalidSsa 修复，实施中。
+
+0271 已按双宿主最终归档 CI 通过，并经 [PR49](https://github.com/Halckon/Koven/pull/49) 合并。
 0270单文件局部MoveOnly绑定交接已按双宿主实现证据归档，
 交付见[PR47](https://github.com/Halckon/Koven/pull/47)。
 

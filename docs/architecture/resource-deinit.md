@@ -62,6 +62,11 @@ projection 和 ownership loan target，派生 loan 按创建逆序结束并参�
 资源移动链在条件 return 两分支及词法块退出后继续 CFG 已通过实际输出和逐指针释放顺序验证；
 Copyable 初始化保留原绑定，标量及具体泛型原值后续读取仍有效，不扩大资源 nullable 的 native 范围。
 
+单文件控制体正常退出先保存尾值，再消费前端 `AfterStatement(ControlBody)` 清理事实；
+与 unit lowering 保持相同顺序。尾值 owner 交付后仍有效，Diverged 路径只用既有控制转移清理。
+嵌套 if 的两资源同层、每层一资源与显式 return，已由四组动态 Boolean 条件的 native 输出和
+逐指针释放计数验证；SSA 另覆盖两类 when 与 MoveOnly 尾值保留，不扩大条件 owner 合流范围。
+
 ## 与 owned root 原语组合
 
 `replace` / `swap` 仍只运输完整 owner，不在 commit 中执行 deinit。资源根在提交后继续服从

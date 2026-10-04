@@ -358,3 +358,125 @@ fn single_resource_deinit_local_move_chain_transports_only_current_owner() {
     }
     render_verified_program(&program).expect("moved resource cleanup verifies on both exits");
 }
+
+#[test]
+fn single_resource_deinit_control_body_nested_scope_consumes_published_drops() {
+    use lang_frontend::ownership_checking::{DropPoint, DropTarget};
+    let source = r#"
+        class Resource { deinit() {} }
+        fun work(outer: Boolean, inner: Boolean): Unit {
+            if (outer) {
+                if (inner) {
+                    val first = Resource()
+                    val second = Resource()
+                    println("inner")
+                }
+                println("outer")
+            }
+            println("done")
+        }
+    "#;
+    let analysis = analyze(source);
+    let resource_drops = analysis
+        .owned
+        .drops()
+        .iter()
+        .filter_map(|fact| {
+            let DropTarget::Named(symbol) = fact.target() else {
+                return None;
+            };
+            let name = analysis
+                .names
+                .symbols()
+                .iter()
+                .find(|entry| entry.id() == symbol)?
+                .name();
+            matches!(name, "first" | "second").then_some((name, fact.point()))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(resource_drops.len(), 2);
+    assert_eq!(resource_drops[0].0, "second");
+    assert_eq!(resource_drops[1].0, "first");
+    assert_eq!(resource_drops[0].1, resource_drops[1].1);
+    assert!(matches!(resource_drops[0].1, DropPoint::AfterStatement(_)));
+    let program = lower_resource(source);
+    render_verified_program(&program).expect("nested normal scope exits consume frontend drops");
+}
+
+#[test]
+fn single_resource_deinit_control_body_tail_owner_survives_other_local_cleanup() {
+    let program = lower_resource(
+        r#"
+        class Resource { deinit() {} }
+        fun choose(own flag: Boolean): Resource {
+            val result = if (flag) {
+                val spare = Resource()
+                val chosen = Resource()
+                chosen
+            } else { Resource() }
+            return result
+        }
+    "#,
+    );
+    let function = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name == "choose")
+        .unwrap();
+    assert_eq!(
+        function
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        1,
+        "only the spare is dropped; the branch tail is delivered to the caller"
+    );
+    render_verified_program(&program).expect("MoveOnly tail delivery precedes scope cleanup");
+}
+
+#[test]
+fn single_resource_deinit_control_body_when_scopes_consume_local_resources() {
+    for control in [
+        "when { flag -> { val first = Resource(); val second = Resource(); println(\"branch\") }; else -> {} }",
+        "when (flag) { true -> { val first = Resource(); val second = Resource(); println(\"branch\") }; false -> {} }",
+    ] {
+        let program = lower_resource(&format!(
+            "class Resource {{ deinit() {{}} }}\nfun work(flag: Boolean): Unit {{ {control}; println(\"done\") }}"
+        ));
+        render_verified_program(&program).expect("when body consumes its scope cleanup facts");
+    }
+}
+
+#[test]
+fn single_resource_deinit_control_body_return_uses_only_transfer_cleanup() {
+    let program = lower_resource(
+        r#"
+        class Resource { deinit() {} }
+        fun work(outer: Boolean, inner: Boolean): Unit {
+            if (outer) {
+                if (inner) {
+                    val first = Resource()
+                    val second = Resource()
+                    return
+                }
+            }
+        }
+    "#,
+    );
+    let function = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name == "work")
+        .unwrap();
+    assert_eq!(
+        function
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+            .count(),
+        2,
+        "return consumes both resources without replaying normal scope cleanup"
+    );
+    render_verified_program(&program).expect("diverging branches retain their transfer cleanup");
+}
