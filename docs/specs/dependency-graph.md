@@ -8,16 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 256 份"))
-subgraph Gactive["现行 active"]
-  S0271["S0271<br/>当前 tour 的有界组合覆盖"]
-end
-ARCH --> S0271
+ARCH(("已完成<br/>archive 257 份"))
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0271 | active | [0271-tour-combination-coverage.md](active/0271-tour-combination-coverage.md) |
-| 已完成 Spec（256 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（257 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

@@ -1,14 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="7064" height="7006" viewBox="0 0 7064 7006" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="6720" height="7006" viewBox="0 0 6720 7006" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="7064" height="7006" fill="#ffffff"/>
+  <rect width="6720" height="7006" fill="#ffffff"/>
   <rect x="40" y="30" width="6616" height="6904" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，256 份）</text>
-  <rect x="6720" y="5892" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="6860" y="5912" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，257 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -966,13 +964,13 @@
   <path d="M 972 6138 C 972 6170, 972 6362, 972 6394" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 6294 C 444 6326, 972 6362, 972 6394" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6468 C 972 6500, 1764 6518, 1764 6550" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 6372 92 C 6556 92, 6556 5963, 6740 5963" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 6252 120 C 6252 152, 708 5894, 708 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 444 482, 444 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 2028 5600, 2028 5632" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 972 5756, 972 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 606 C 444 638, 972 5756, 972 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 5688 C 2028 5720, 972 5756, 972 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1092 5825 C 3916 5825, 3916 5963, 6740 5963" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5862 C 972 5894, 708 5894, 708 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2043,8 +2041,8 @@
   <text x="972" y="399" text-anchor="middle" font-size="13">SPEC-0270</text>
   <text x="972" y="417" text-anchor="middle" font-size="13">单文件局部 MoveOnly</text>
   <text x="972" y="435" text-anchor="middle" font-size="13"> 绑定交接</text>
-  <rect x="6740" y="5926" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="6860" y="5949" text-anchor="middle" font-size="13" font-weight="600">SPEC-0271</text>
-  <text x="6860" y="5967" text-anchor="middle" font-size="13">当前 tour 的有界组合覆</text>
-  <text x="6860" y="5985" text-anchor="middle" font-size="13">盖</text>
+  <rect x="588" y="5926" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="5949" text-anchor="middle" font-size="13">SPEC-0271</text>
+  <text x="708" y="5967" text-anchor="middle" font-size="13">当前 tour 的有界组合覆</text>
+  <text x="708" y="5985" text-anchor="middle" font-size="13">盖</text>
 </svg>

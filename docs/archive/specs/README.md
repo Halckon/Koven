@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 256 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 257 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -367,3 +367,7 @@
 ## 单文件局部 MoveOnly 绑定交接（2026-10-04）
 
 - [SPEC-0270](0270-local-owner-binding-transfer.md)：移动后注销旧SSA绑定，条件返回/group/nullable及Copyable对照经双宿主PR CI验收；生成设施0269独立推进。
+
+## 当前教程的有界组合覆盖（2026-10-04）
+
+- [SPEC-0271](0271-tour-combination-coverage.md)：五项组合/诊断新增合同及完整22项教程已通过PR49双宿主CI；两个planned与原始失败证据保留。

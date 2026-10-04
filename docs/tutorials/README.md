@@ -7,7 +7,7 @@
 跨文件合同按路径引用本页 fence ID，自动生成现行 project manifest；源码不在 JSON 重复。
 定向验收可重复传入 `--example ID`；CI 默认选择15个正例和4个负例；parameter-report的四组argv共用一份三文件源码，
 每组分别执行build、artifact和run，总计22组执行合同。原17项由0262/0268有双宿主证据；
-新增5项的本机范围与实际输出见 [SPEC-0271](../specs/active/0271-tour-combination-coverage.md)。本批没有运行远端CI或Linux。
+新增5项及当前完整选集的双宿主实际证据见 [SPEC-0271](../archive/specs/0271-tour-combination-coverage.md)；PR49实现head已通过双宿主CI。
 两个planned不计通过：线程native未验收；`gap-scope-branch`保留实际 `InvalidSsa` 失败。
 编排mock测试本身不作为实际CLI证据。
 历史教程保留在 archive，不代表当前实现。planned 示例不计入通过。

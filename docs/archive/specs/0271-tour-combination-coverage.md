@@ -1,10 +1,10 @@
 # SPEC-0271: 当前 tour 的有界组合覆盖
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：补强或验收当前教程时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：补强或验收当前教程时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-0271` |
 | 所属 Phase | Phase 6 教程与工程验收 |
 | 语言规范 | 已启用 [Guide v0.40](../../guide/README.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0262、SPEC-0268（均 done） |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 无语义前置；已获主干同步 PR 授权，双宿主 CI 待执行 |
+| 阻塞项 | 实现验收已通过；最终归档 head CI 待完成后合并 |
 | 影响范围 | `docs/tutorials`、教程 Python 合同、当前导航与事实摘要 |
 | 语言语义变更 | 否 |
 
@@ -120,3 +120,19 @@ Spec索引冲突取两批状态的并集，依赖图从合并后的inventory重�
 教程22项合同通过，2 planned明确未执行（日志 `/private/tmp/main-sync-tutorial.log`）。
 使用先前从main299469b构建的release CLI；同步差异不包含Rust生产或Cargo manifest/lock，
 故生产源码相同，不把该复用描述为在新同步分支重新构建。仍待双宿主远端CI。
+
+## 10. 双宿主实现验收与归档
+
+同步 PR [#49](https://github.com/Halckon/Koven/pull/49) 实现 head
+`8bfc3d5320178d9498828ed39d19b0ca9bfbbb5e` 的
+[PR CI 37211733384](https://github.com/Halckon/Koven/actions/runs/37211733384) 已 completed success。
+Ubuntu24.04 和 macOS14 均实际执行22项教程合同，五个新增例逐项passed；2 planned明确未执行。
+全部必需job通过；Tree-sitter按本轮editors=false路径规则跳过。Codegen Linux825 passed/0 ignored，
+Mac824 passed/1 ignored，唯一既有忽略为LLDB debugserver task-port权限用例。
+本轮真实双宿主证据补齐第6–8节当时未运行项，历史记录、噪声、源码和失败证据保持不变。
+
+独立完整审阅检查当前Guide差异仅导航/历史澄清、教程默认完整选集和现有CI触发规则，
+六组源码hash及11条新增Mac命令与oracle一致；两份历史raw包共508成员及归档hash匹配。
+有界文本检查未发现需排除的凭据内容；原工作区未提交文件未纳入同步PR。
+按该实现证据完成0271有界Goal并归档，最终归档head仍须独立CI成功后才合并。
+分支资源planned缺口属于独立0273修复，不以本Spec归档声明其已修复；线程与其它未覆盖范围保留。

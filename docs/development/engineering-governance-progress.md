@@ -22,7 +22,7 @@
 文档创建基线为main `adb51d6`，合入时接收main `a83749f`的0268/PR46交付；
 [本批核对](documentation-status-sync.md)记录Guide/旧Spec状态、实际CI及未接收的并行内容。
 0271按用户授权合入本地main，接收 `ed61d7d` 的0270/PR47归档，为1 active/256 archive；
-新增有界教程及固定 `4ce0eb8` 基线的native失败证据见[验收账本](../specs/active/0271-tour-combination-coverage.md)。
+新增有界教程及固定 `4ce0eb8` 基线的native失败证据见[验收账本](../archive/specs/0271-tour-combination-coverage.md)。
 原有有界工程实施与功能门禁已有交付；用户决定跳过噪声检查，
 P2性能/成本验收延期，保留原始样本和未接受预算，不标全部治理验收通过。
 
