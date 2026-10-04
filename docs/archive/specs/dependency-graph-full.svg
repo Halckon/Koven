@@ -1,14 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="6800" height="6988" viewBox="0 0 6800 6988" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="7064" height="6988" viewBox="0 0 7064 6988" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="6800" height="6988" fill="#ffffff"/>
-  <rect x="40" y="30" width="6352" height="6886" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3216" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，251 份）</text>
-  <rect x="6456" y="5580" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="6596" y="5600" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <rect width="7064" height="6988" fill="#ffffff"/>
+  <rect x="40" y="30" width="6616" height="6886" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，252 份）</text>
+  <rect x="6720" y="5580" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="6860" y="5600" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 464, 180 496" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -836,7 +836,7 @@
   <path d="M 708 3888 C 708 3920, 444 5270, 444 5302" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 3888 C 708 3920, 2556 3920, 2556 3952" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 3888 C 708 3920, 2292 5426, 2292 5458" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 564 5504 C 3520 5504, 3520 5642, 6476 5642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 564 5504 C 3652 5504, 3652 5642, 6740 5642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3732 C 1236 3764, 180 4958, 180 4990" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3732 C 1236 3764, 444 4958, 444 4990" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3732 C 1236 3764, 444 4802, 444 4834" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -901,7 +901,7 @@
   <path d="M 1236 3870 C 1236 3902, 2028 3920, 2028 3952" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3870 C 1236 3902, 2292 3920, 2292 3952" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 3870 C 1236 3902, 1764 5582, 1764 5614" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1356 3842 C 3916 3842, 3916 5642, 6476 5642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1356 3842 C 4048 3842, 4048 5642, 6740 5642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 4008 C 1500 4040, 2556 4076, 2556 4108" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 4008 C 1500 4040, 972 5426, 972 5458" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 4008 C 1500 4040, 2820 4076, 2820 4108" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -912,7 +912,7 @@
   <path d="M 1500 4008 C 1500 4040, 1500 5582, 1500 5614" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 4008 C 1500 4040, 444 5738, 444 5770" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 4008 C 1500 4040, 1764 5582, 1764 5614" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 3980 C 4048 3980, 4048 5642, 6476 5642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 3980 C 4180 3980, 4180 5642, 6740 5642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5550 C 972 5582, 180 5582, 180 5614" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5550 C 972 5582, 708 5582, 708 5614" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5550 C 972 5582, 972 5582, 972 5614" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -964,7 +964,7 @@
   <path d="M 444 6276 C 444 6308, 972 6344, 972 6376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6450 C 972 6482, 1764 6500, 1764 6532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 444 464, 444 496" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 828 404 C 3652 404, 3652 5642, 6476 5642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 828 404 C 3784 404, 3784 5642, 6740 5642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2015,7 +2015,12 @@
   <text x="444" y="537" text-anchor="middle" font-size="13">Unit owned cla</text>
   <text x="444" y="555" text-anchor="middle" font-size="13">ss 一级字段直接 Borr</text>
   <text x="444" y="573" text-anchor="middle" font-size="13">ow</text>
-  <rect x="6476" y="5614" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="6596" y="5637" text-anchor="middle" font-size="13" font-weight="600">SPEC-0265</text>
-  <text x="6596" y="5655" text-anchor="middle" font-size="13">unit 顺序迭代前端事实</text>
+  <rect x="6740" y="5614" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="6860" y="5637" text-anchor="middle" font-size="13" font-weight="600">SPEC-0265</text>
+  <text x="6860" y="5655" text-anchor="middle" font-size="13">unit 顺序迭代前端事实</text>
+  <rect x="6396" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="6516" y="87" text-anchor="middle" font-size="13">SPEC-0267</text>
+  <text x="6516" y="105" text-anchor="middle" font-size="13">Tree-sitter co</text>
+  <text x="6516" y="123" text-anchor="middle" font-size="13">rpus 解析与必需 CI </text>
+  <text x="6516" y="141" text-anchor="middle" font-size="13">门禁</text>
 </svg>

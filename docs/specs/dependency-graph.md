@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 251 份"))
+ARCH(("已完成<br/>archive 252 份"))
 subgraph Gactive["现行 active"]
   S0265["S0265<br/>unit 顺序迭代前端事实"]
 end
@@ -20,4 +20,4 @@ ARCH --> S0265
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0265 | active | [0265-unit-iteration-facts.md](active/0265-unit-iteration-facts.md) |
-| 已完成 Spec（251 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（252 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

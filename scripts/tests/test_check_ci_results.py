@@ -12,13 +12,13 @@ CI = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CI)
 
 
-def needs(docs_changed="false", rust_changed="false", **results):
+def needs(docs_changed="false", rust_changed="false", editors_changed="false", **results):
     jobs = {name: {"result": results.get(name, "skipped")}
-            for name in ("docs", "fmt", "clippy", "test")}
+            for name in ("docs", "editors", "fmt", "clippy", "test")}
     jobs["dependencies"] = {"result": results.get("dependencies", "success")}
     jobs["rust-size"] = {"result": results.get("rust-size", "success")}
     jobs["changes"] = {"result": results.get("changes", "success"),
-                       "outputs": {"docs": docs_changed, "rust": rust_changed}}
+                       "outputs": {"docs": docs_changed, "rust": rust_changed, "editors": editors_changed}}
     return jobs
 
 
@@ -46,9 +46,32 @@ class CheckCiResultsTests(unittest.TestCase):
 
     def test_main_and_manual_dispatch_require_all_gates(self):
         for event, ref in (("push", "refs/heads/main"), ("workflow_dispatch", "refs/heads/fix/test")):
-            jobs = needs("false", "false", **dict.fromkeys(("docs", "fmt", "clippy", "test"), "success"))
+            jobs = needs("false", "false", **dict.fromkeys(("docs", "editors", "fmt", "clippy", "test"), "success"))
             self.assertEqual([], CI.check_results(jobs, event, ref))
             self.assertTrue(CI.check_results(needs(), event, ref))
+
+    def test_editor_change_requires_actual_job_on_push_and_pr(self):
+        for event in ("push", "pull_request"):
+            jobs = needs(editors_changed="true", editors="success")
+            self.assertEqual([], CI.check_results(jobs, event, "refs/heads/feature/editor"))
+            for result in ("skipped", "failure", "cancelled", None):
+                with self.subTest(event=event, result=result):
+                    altered = {**jobs, "editors": {"result": result}}
+                    self.assertTrue(CI.check_results(altered, event, "refs/heads/feature/editor"))
+
+    def test_editor_filter_and_cli_are_connected_to_required_summary(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        filters = workflow.split("            editors:\n", 1)[1].split("            frontend:\n", 1)[0]
+        self.assertIn("- 'editors/**'", filters)
+        job = workflow.split("  editors:\n", 1)[1].split("  fmt:\n", 1)[0]
+        self.assertIn("needs.changes.outputs.editors == 'true'", job)
+        self.assertIn("npm ci --prefix editors/tree-sitter", job)
+        self.assertIn("git diff --exit-code -- editors/tree-sitter/src", job)
+        self.assertIn("npm test --prefix editors/tree-sitter", job)
+        package = (root / "editors/tree-sitter/package.json").read_text()
+        self.assertIn('"tree-sitter-cli": "0.26.12"', package)
+        self.assertIn("tree-sitter test && python3 test/test_contract.py -v", package)
 
     def test_feature_push_preserves_existing_cost_policy(self):
         jobs = needs("false", "true", fmt="success")
@@ -79,7 +102,7 @@ class CheckCiResultsTests(unittest.TestCase):
         workflow = (root / ".github/workflows/ci.yml").read_text()
         self.assertEqual(2, workflow.count("os: [macos-14, ubuntu-24.04]"))
         self.assertEqual(2, workflow.count("fail-fast: false"))
-        self.assertIn("needs: [changes, rust-size, dependencies, docs, fmt, clippy, test]", workflow)
+        self.assertIn("needs: [changes, rust-size, dependencies, docs, editors, fmt, clippy, test]", workflow)
         self.assertIn("bash scripts/check_integration.sh", workflow)
         core = (root / "scripts/check_core.sh").read_text()
         for package in ("lang-codegen", "lang-cli", "lang-lsp", "lang-std"):

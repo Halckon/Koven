@@ -12,7 +12,7 @@ def check_results(needs, event, ref):
     if changes.get("result") != "success":
         return ["changes must succeed before any skipped gate can be accepted"]
     outputs = changes.get("outputs", {})
-    for name in ("docs", "rust"):
+    for name in ("docs", "rust", "editors"):
         if outputs.get(name) not in ("true", "false"):
             errors.append(f"changes.{name} is missing or invalid")
     if errors:
@@ -21,7 +21,7 @@ def check_results(needs, event, ref):
     rust = outputs["rust"] == "true" or force
     full = rust and (event in ("pull_request", "workflow_dispatch") or ref == "refs/heads/main")
     required = {"rust-size": True, "dependencies": True, "docs": outputs["docs"] == "true" or force, "fmt": rust,
-                "clippy": full, "test": full}
+                "clippy": full, "test": full, "editors": outputs["editors"] == "true" or force}
     for name, must_run in required.items():
         expected = "success" if must_run else "skipped"
         actual = needs.get(name, {}).get("result")
