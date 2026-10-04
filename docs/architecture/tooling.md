@@ -84,7 +84,11 @@ scope。Node verifier 执行 grammar regex，frontend integration test 用同一
 
 `editors/tree-sitter/grammar.js` 是手写 grammar 入口；`src/grammar.json`、`node-types.json` 和
 `parser.c` 是锁定 CLI 生成并提交的产物。`src/scanner.c` 集中拒绝硬关键字、未来保留字和解构 `_`。
-Tree-sitter 用于编辑器 concrete syntax；生产编译仍只使用 Rust Lexer/Parser。
+scanner 通过明确的 external token 与语境 lookahead 识别参数模式、loop、move、to/by；
+in/is/as 与 identifier 使用同一整词扫描，避免 input 等名称在运算符位置被拆开；
+!in/!is 同时检查字符邻接和整词边界。
+命名参数前缀优先于未分组赋值。真实 CLI corpus 与 Python XML 树回归覆盖这些节点、
+词区间和非法输入恢复；Tree-sitter 用于编辑器 concrete syntax，生产编译仍只使用 Rust Lexer/Parser。
 对应覆盖位于 Tree-sitter 的 Node/corpus tests 与 frontend 的 `tree_sitter_grammar` integration suite。
 
 上述测试的命令与范围选择统一见[开发测试指南](../development/testing.md)。
@@ -97,6 +101,9 @@ Tree-sitter 用于编辑器 concrete syntax；生产编译仍只使用 Rust Lexe
 外部Rust编译合同通过当前integration executable的Cargo 1.96 fingerprint选择实际依赖rlib；
 同目录旧flags产物可以保留，未知或歧义身份失败，不按时间戳推断。
 `editors/**`与教程修改触发Rust路径；内部直接依赖检查为无条件required job。
+独立 editor job 对 editor/相关门禁与词法调用规则修改运行锁定的 Tree-sitter 0.26.12，
+检查重新生成的产物无漂移并执行完整 corpus 与实际树回归；main/manual 强制运行，
+required summary 拒绝该运行时却跳过的结果。
 当前教程以Markdown fence为源码真源，十一正例、两完整JSON负例与一planned分开；
 跨文件合同只引用fence ID，沿现行project.toml/entry协议运行，定向选择不改变CI默认完整选集。
 LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job

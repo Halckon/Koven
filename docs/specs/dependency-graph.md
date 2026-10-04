@@ -9,10 +9,14 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 251 份"))
+subgraph Gactive["现行 active"]
+  S0267["S0267<br/>Tree-sitter corpus 解析与必需 CI 门禁"]
+end
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0267 | active | [0267-editor-corpus-gate.md](active/0267-editor-corpus-gate.md) |
 | 已完成 Spec（251 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

@@ -2,7 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无 active Spec。M1A 0263/0264经 PR40/PR41 双宿主验收归档；
+当前 active Spec：
+
+- [0267 Tree-sitter corpus 与 CI](0267-editor-corpus-gate.md)：M0 已确认编辑器缺口。
+
+M1A 0263/0264经 PR40/PR41 双宿主验收归档；
 unit for 与完整应用验收仍开放。
 0182、0255–0261按用户授权的本机恢复验收完成本地归档，
 实际结果与未覆盖范围见[本机恢复账本](../../development/recovery-local-delivery.md)。

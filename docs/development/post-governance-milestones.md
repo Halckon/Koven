@@ -222,3 +222,8 @@ Control flow、Reserved words are not identifiers。日志中的树差异仍需�
 区分 grammar/scanner 缺陷和过时预期；未确认根因，不能批量更新 golden 取得绿灯。
 后继应独立修复并将完整 corpus 接入必需门禁。当前 CI 的 Rust editor fixture 检查继续有用，
 但不执行此 Tree-sitter CLI corpus；本次复核不关闭编辑器交付，也不声明 M0 所有保留项完成。
+
+后继 [SPEC-0267](../specs/active/0267-editor-corpus-gate.md) 已在隔离分支修复参数模式、
+上下文词与词运算符边界，明确命名参数优先级，逐项审阅两份恢复 golden。
+本地真实 corpus 为 10/10，新增 CLI 树合同为 9/9，frontend editor 交叉合同为 9/9；
+独立 editor CI job 已接线，远端精确 head 验收仍待 PR；历史 M0 红测证据保持不变。

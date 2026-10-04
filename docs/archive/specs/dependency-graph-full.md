@@ -261,6 +261,9 @@ subgraph Garchive["已完成（archive，251 份）"]
   S0263["S0263<br/>跨文件字段可变性查询"]
   S0264["S0264<br/>Unit owned class 一级字段直接 Borrow"]
 end
+subgraph Gactive["现行 active"]
+  S0267["S0267<br/>Tree-sitter corpus 解析与必需 CI 门禁"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1470,3 +1473,4 @@ S0263 --> S0264
 | SPEC-0262 | archive | [0262-current-tutorial-plan-coverage.md](0262-current-tutorial-plan-coverage.md) |
 | SPEC-0263 | archive | [0263-unit-field-mutability.md](0263-unit-field-mutability.md) |
 | SPEC-0264 | archive | [0264-unit-direct-field-borrow.md](0264-unit-direct-field-borrow.md) |
+| SPEC-0267 | active | [0267-editor-corpus-gate.md](../../specs/active/0267-editor-corpus-gate.md) |
