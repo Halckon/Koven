@@ -88,3 +88,48 @@ Clippy、原功能全量或旧教程；四新增例分段合计通过，不宣�
 结构成本的可接受噪声与退化预算有明确接受记录，受影响双宿主与required门禁实际运行，
 生命周期/架构快照同步且无未解释缺项。当前不能给出完整完成日期，平台和预算尚未具备。
 不得靠豁免、历史Linux数字、补写raw或机械拆完45文件宣布完成；外部审计继续后置。
+
+## PR37 关系与后续只读补验
+
+以上平台判断是`edac6c9`交付时的快照。随后只读核验发现现成CI结果，不改写先前未运行事实。
+`origin/main`的PR37 merge `385bb23e1123c3a4ba00ec9fe5d964ebc95f1493`与恢复
+`7c7cc254a4e8e36ebfa2d858a334d98806c2091d`完整tree都是
+`eeee35fd9e9ec0b75245902a0b40ce24afe693b7`；全路径diff为空。
+PR37第二父提交就是恢复head；本地`7ad9ed6`、`edac6c9`从同一恢复head衍生。
+在该固定审阅head，图上是远端独有一个merge、本地独有两个后继；内容没有远端新增修改，
+因此没有对应的内容合并冲突。没有执行merge/rebase/reset/fetch，后续提交仍只在本地main。
+不把同tree等价说成SHA相同，也不据此推断未来推送可以fast-forward。
+
+[可复现静态脚本](evidence/pr37-and-p2-static-review.py)与
+[逐项结果](evidence/pr37-and-p2-static-review.json)冻结十组完整before/after SHA与tree；
+每对Cargo/lock/toolchain输入diff为空。multifile type的120块、ownership的80块，
+用实际保留的合并历史提交逐块核对旧fidelity记录，前后共400个SHA-256匹配；
+另有iteration/planner九个完整生产文件hash匹配原记录。
+这是历史迁移的静态差分证据，不是新行为测试或九组成本结果；缺失本地SHA没有被重新生成。
+
+只读`gh run list/view`确认[PR37精确CI 37185473350](https://github.com/Halckon/Koven/actions/runs/37185473350)
+为completed/success，10个jobs成功，Ubuntu24.04与macOS14的check/Clippy、
+bounded composition与required汇总步骤实际success，不是配置存在或合法skip。
+[原始job元数据](evidence/pr37-ci/run.json)、
+[Ubuntu摘要与raw hash](evidence/pr37-ci/ubuntu-summary.json)、
+[macOS摘要与raw hash](evidence/pr37-ci/macos-summary.json)及同目录压缩日志保留。
+Ubuntu库frontend192、codegen788零ignore；macOS frontend192、codegen787通过及既有LLDB ignore1。
+两侧组合均实际执行旧教程七正例/两负例，planned不执行。
+
+固定本地审阅head的全部`crates/`与PR37无diff，恢复编译器及其相同测试可对应这份双宿主证据；
+本地SPEC0262的四例、提取器与当前文档/脚本没有进入PR37，不能宣称新head CI或这些新例Linux通过。
+本次只读取已经完成的run，不新触发CI，不推送，不改造Linux环境，不重跑未变功能。
+
+| 下一项 | 可立即做的原范围工作 | 需要决策/条件 |
+|---|---|---|
+| PR37/本地关系 | 本轮完整tree、父链和影响文件已核对 | 无内容冲突待修；不自动整合提交图 |
+| P2历史差分来源 | 本轮十对映射、400块与九文件hash已补验 | 其余九组成本没有授权，不自动测；LSP正式噪声/退化预算仍待接受 |
+| P3/P4配对 | 0255八项双入口、source/input置换、receiver差异及八项guard已有真实库覆盖 | 未发现未覆盖的明确同语义切片；不为凑进度统一不同driver或重复旧测试 |
+| P5新例与提取器 | Mac四例与六项合同已完成；本批文档补平台范围 | 新例Linux实际运行尚缺；不能用PR37旧九例代替 |
+| 原计划收尾 | 保留准确账本与已有双宿主证据 | 当前本地脚本的exact-head required验收与成本接受均未闭合 |
+
+建议下一步优先让当前本地教程/脚本在现有双宿主CI验证，避免为四例新装Linux工具链。
+这需要另行允许发布本地提交；当前禁止远端写入，因此不执行。替代方案是提供已有且已授权的
+Rust1.96/LLVM21 Linux执行环境。成本建议保持P2开放，先明确一个后继配对的范围、资源上限
+及噪声/退化接受规则；不将调查线自动当豁免，不默认启动九组实验。
+这些条件之外，目前没有定位到必须补写的原范围功能或轻量配对缺口。

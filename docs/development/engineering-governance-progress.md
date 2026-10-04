@@ -28,6 +28,12 @@ SPEC0262补自动借用、root replace/swap、concrete deinit、跨文件四个�
 逐项剩余条件与平台限制见[本轮唯一验收](governance-local-continuation.md)，
 其他九组高成本实验、Linux/远端CI及外部审计没有启动；历史恢复快照不倒填。
 
+随后只读补验PR37：merge与恢复head完全同tree，本地后继无crate改动；现成精确CI
+37185473350的10个jobs与双宿主组合实际成功，恢复编译器可对应其平台证据。
+本地0262新四例/提取器未进入该run，Linux及新exact-head required验收仍缺。
+十组迁移固定SHA、400块与九生产文件hash静态补验通过；无新成本或功能回归。
+来源、执行边界与必须决策的下一步见同一[续行账本](governance-local-continuation.md#pr37-关系与后续只读补验)。
+
 ## P0：文档首片的固定基线
 
 | 项目 | 已核验事实 / 限制 |
