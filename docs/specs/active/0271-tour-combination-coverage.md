@@ -28,11 +28,15 @@ worktree `/tmp/koven-tour-spec0271`，分支 `feature/spec-0271`。
 | 维度 | 已有覆盖 | 本批新增的有限代表 | 边界 |
 |---|---|---|---|
 | 数字与控制流 | 十进制常量、算术、if | radix/分隔符、位操作与移位屏蔽 | 固定 Int；不覆盖全部宽度和溢出 |
-| 资源生命周期 | 单个 resource 的作用域析构 | 内层资源逆序及外层继续执行 | 不把纯内存 ASAP 等同资源清理 |
+| 资源生命周期 | 单个 resource 的作用域析构 | callee资源逆序及caller继续执行 | 分支内多资源的native失败保留；不推定纯内存ASAP |
 | unit/native 组合 | 跨文件函数、argv、字段 replace | 临时容器的 Borrow 迭代、局部 resource、continue/break/return 和 caller | 只选择具体 MutableList provider；不推定任意容器 |
 | mutable place 诊断 | root replace/swap 正例 | 对不可变 root 的 replace 精确诊断 | 单文件负例；不推定所有 place |
 | 迭代借用诊断 | 重复消费的 L0131 | provider 活跃借用时移动 owner 的精确诊断 | 区别于普通 use-after-move |
 
+新增正例 `numbers-bitwise`、`scope-cleanup`、`unit-loop-cleanup`；
+负例 `reject-immutable-place`、`reject-iteration-move`。实际发现的 `gap-scope-branch`
+单独列为 planned，保留失败源码，不能计作成功。当前21个定义、25个源码fence，
+15 executable / 4 diagnostic / 2 planned，共22项执行合同。
 每项新增源码只写入 tour Markdown；JSON 只保存输出合同及 fence/path 映射。
 现有四组 parameter-report argv 保留。不机械复制它们，也不把本批覆盖称为穷尽。
 
@@ -44,11 +48,11 @@ worktree `/tmp/koven-tour-spec0271`，分支 `feature/spec-0271`。
 
 ## 4. 验收标准
 
-- [ ] 新正例逐个实际 build、执行 artifact、CLI run；完整 exit/stdout/stderr 相同。
-- [ ] 新负例实际 JSON build，核对完整诊断码、Span、顺序和无产物。
-- [ ] 提取器数量合同调整有定向 Python 红绿证据，既有编排合同仍通过。
-- [ ] 当前入口、覆盖矩阵、Architecture 事实与验收记录一致；docs/diff 门禁通过。
-- [ ] 明确本机 Mac 验收、未执行 Linux/远端 CI 和仍未覆盖范围。
+- [x] 新正例逐个实际 build、执行 artifact、CLI run；完整 exit/stdout/stderr 相同。
+- [x] 新负例实际 JSON build，核对完整诊断码、Span、顺序和无产物。
+- [x] 提取器数量合同调整有定向 Python 红绿证据，既有编排合同仍通过。
+- [x] 当前入口、覆盖矩阵、Architecture 事实与验收记录一致；docs/diff 门禁通过。
+- [x] 明确本机 Mac 验收、未执行 Linux/远端 CI 和仍未覆盖范围。
 
 ## 5. 实施与提交计划
 
@@ -68,11 +72,18 @@ worktree `/tmp/koven-tour-spec0271`，分支 `feature/spec-0271`。
 | 验收项 | 实际结果 | 未运行项或说明 |
 |---|---|---|
 | `python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`git diff --check` | passed；513 Markdown，依赖图1 live/255 archive | 初始范围提交的结构验收；不证明语义或 native 行为 |
-| 本机固定基线 CLI build | 运行中 | 离线、LLVM21；不采用来源未确认的其它 worktree binary |
-| 新例真实 build/artifact/run、诊断 | 未运行 | 源码与合同落实后执行 |
-| Python 提取/编排合同红绿 | 未运行 | 调整 helper 前记录失败 |
+| `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo build --locked --offline -p lang-cli -j 2` | passed，33.37s；Rust/Cargo1.96.0、LLVM21.1.8、Mac AArch64 | 独立target；Rust生产源码与基线相同；CLI SHA256 `131f089b91f7f791c3cce311c1ea3685d5d4642d687993ef3603a6df5b138e79` |
+| `check_tutorial.check(cli, ['numbers-bitwise', 'scope-cleanup', 'unit-loop-cleanup', 'reject-immutable-place', 'reject-iteration-move'])` | passed：3正例build/artifact/run及2负例JSON build，共5项/11次真实子进程 | 临时capture函数实际执行subprocess并保存完整exit/stdout/stderr；[原始输出及源码hash](../../development/evidence/spec-0271-mac-20261004/cli-contracts.json)，非mock；同一选择可由5个`--example`重现 |
+| `python3 -m unittest scripts.tests.test_tutorial_contracts.TutorialContracts.test_new_combinations_extract_canonical_sources_and_execute_each_contract` | red：1项实际失败，`ValueError: expected twelve executable contracts` | 新源码/JSON/测试已写，旧helper数量合同尚未改；不是CLI运行结果 |
+| `python3 -m unittest scripts.tests.test_tutorial_contracts`（数量合同改后） | green：10项passed | 随后新增planned边界测试，最终结果见下；mock打印的passed不计真实验收 |
+| `gap-scope-branch` 单独build探测 | 实际失败：exit2、stdout空、`InvalidModel: frontend lowering failed with InvalidSsa`；仅source.ko留下 | 已在最终CLI证据中再现；列planned，保留缺口，不改编译器/Guide |
+| `python3 -m unittest scripts.tests.test_tutorial_contracts scripts.tests.test_check_docs` | passed：48项，11教程合同+37文档检查器合同 | 不将mock输出当实际CLI结果 |
+| 最终 `python3 scripts/check_docs.py`、`git diff --check` | passed：513 Markdown；无空白错误 | 仅结构/链接/依赖图，不证明语言或native全部能力 |
 | Linux、远端 CI、P2、Rust 全量 | 未运行 | 独立本机教程范围；未授权远端动作 |
 
 ## 7. 未决问题
 
-无语义未决；执行结果及平台边界以本 Spec 后续实际记录为准。
+分支内多个resource的native lowering为已知实现缺口；函数作用域正例不能作为该组合的通过证据。
+本批不修复此缺口。源码保留在tour的 `gap-scope-branch`，输出保留在上述证据文件。
+原17项本批未重复执行；只引用此前0262/0268的双宿主交付历史，不能当作本轮验证。
+Linux及远端CI尚未运行；Spec保持active，待用户决定后续交付。

@@ -41,7 +41,7 @@ The current specification is [Guide v0.40](docs/guide/README.md); start with the
 
 ## 🔍 Language Tour
 
-Executable sources and complete CLI output contracts live in the [current Koven tour](docs/tutorials/koven-tour.md), rather than a second set of unverified snippets here. The tutorial contains 12 executable examples, two diagnostic examples, and one planned example that is not run. Four parameter-report argument sets share three source files, bringing execution contracts to 17.
+Executable sources and complete CLI output contracts live in the [current Koven tour](docs/tutorials/koven-tour.md). The tutorial contains 15 executable examples, four diagnostic examples, and two planned examples that are not run. Four parameter-report argument sets share three source files, bringing execution contracts to 22. The [coverage ledger](docs/specs/active/0271-tour-combination-coverage.md) distinguishes the five new Mac contracts from earlier dual-host evidence and records a native branch-resource gap.
 
 | Topic | Canonical source examples |
 |---|---|
@@ -49,6 +49,8 @@ Executable sources and complete CLI output contracts live in the [current Koven 
 | String.clone and automatic borrowing | [strings](docs/tutorials/koven-tour.md#strings), [borrowing](docs/tutorials/koven-tour.md#borrowing) |
 | Sequential iteration, root replace/swap, resource deinit | [iteration](docs/tutorials/koven-tour.md#iteration), [root-replace-swap](docs/tutorials/koven-tour.md#root-replace-swap), [deinit](docs/tutorials/koven-tour.md#deinit) |
 | Program arguments and multi-file projects | [arguments](docs/tutorials/koven-tour.md#arguments), [cross-file](docs/tutorials/koven-tour.md#cross-file)  [parameter-report](docs/tutorials/koven-tour.md#parameter-report) |
+| Numeric literals, cleanup, and iteration exits | [numbers-bitwise](docs/tutorials/koven-tour.md#numbers-bitwise), [scope-cleanup](docs/tutorials/koven-tour.md#scope-cleanup), [unit-loop-cleanup](docs/tutorials/koven-tour.md#unit-loop-cleanup) |
+| Mutable place and iteration loan diagnostics | [reject-immutable-place](docs/tutorials/koven-tour.md#reject-immutable-place), [reject-iteration-move](docs/tutorials/koven-tour.md#reject-iteration-move) |
 
 Declarations use `own param: T` for ownership transfer, default or `borrow param: T` for shared loans, and `inout param: T` for mutable loans. Mutable place arguments use `&place`; shared arguments have no call-site Borrow marker. Class families, nullable values, and Result are specified in the [Guide](docs/guide/README.md), while native representations and unsupported combinations are recorded in [Architecture](docs/architecture/README.md). Kotlin APIs such as String length, tokenization, or general integer formatting cannot be assumed.
 

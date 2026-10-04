@@ -6,7 +6,7 @@
 
 1. 语言规则与强制 Phase 以 [Guide v0.40](../guide/README.md) 为准
 2. 原 13 项语言演进的已实现、延期、未启用与 native 边界，以[演进实施账本](../specs/evolution-status.md)为唯一摘要
-3. [Active Specs](../specs/active/README.md)给出当前有界合同；本次基线无 active Spec，归档不表示全部语言能力完成
+3. [Active Specs](../specs/active/README.md)给出当前有界合同；0271补强tour组合及诊断边界，归档不表示全部语言能力完成
 4. [整体架构与工程治理计划](engineering-governance-plan.md)保留获批 P0–P5 范围；实际交付及延期见[治理执行账本](engineering-governance-progress.md)
 5. [后继里程碑](post-governance-milestones.md)维护 M0–M6 候选顺序；正式实施及完成以各 Spec 为准
 
@@ -20,6 +20,8 @@ P2性能、噪声与预算接受依用户决定延期，暂停检查；历史尺
 
 P5当前教程与提取门禁随PR38交付，PR46再增加parameter-report：12正例、2诊断负例，
 四组argv共用该三文件源码，共17组执行合同；两宿主实际通过，1 planned不执行。
+独立 [0271](../specs/active/0271-tour-combination-coverage.md) 增加5项Mac合同及一个保留失败的planned：
+当前15正例、4负例、2 planned，共22执行合同；本批Linux/远端CI未运行，不将旧证据扩大到新增例。
 旧编辑器corpus五失败已由0267/PR45修复，真实CLI门禁已进入required汇总。
 
 当前功能主线为[M1A多文件程序](multifile-program-spec-draft.md)：0263字段可变性、0264直接
