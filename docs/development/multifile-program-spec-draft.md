@@ -1,25 +1,25 @@
 # M1A 多文件参数报告工具：Spec 起草材料
 
-> **性质**：里程碑起草与承接记录 · **状态**：范围已正式承接，实施未全部完成 · **读取时机**：追溯 M1A 原始要求与承接映射时 · **唯一真源**：本页只保留起草记录；源码与验收分别见教程与正式 Spec
+> **性质**：里程碑起草与承接记录 · **状态**：正式实现已通过双宿主验收 · **读取时机**：追溯 M1A 原始要求与承接映射时 · **唯一真源**：本页只保留起草记录；源码与验收分别见教程与正式 Spec
 
 ## 1. 状态与 Goal
 
 | 字段 | 草案值 |
 |---|---|
-| 状态 | A2–A4 已按各有界合同完成；A5–A10 由 SPEC-0268 实施 |
+| 状态 | A2–A4 已按各有界合同完成；A5–A10 已由 SPEC-0268 双宿主验收 |
 | 关联计划 | [治理完成后的开发里程碑](post-governance-milestones.md)的 M1A |
 | 所属 Phase | Phase 2–4 的事实/执行及 Phase 6 的 project 验收 |
 | 起草依据 | 用户于 2026-10-04 要求文档起草，代码开发等待另一位 agent 完成治理计划 |
 | 规范入口 | [Guide v0.40](../guide/README.md)、[名称与文件](../guide/02-names-files-packages.md)、[所有权](../guide/10-ownership-borrowing-drop.md)、[顺序集合](../guide/12-collections-destructuring.md) |
-| 阻塞项 | A1 已取得 native UnsupportedNode 红测；A2–A4 已交付，unit native for 与总验收仍待交付 |
+| 阻塞项 | A1 已取得 native UnsupportedNode 红测；A2–A10 实现已交付，最终PR交付按0268账本及PR记录核对 |
 | 语义变更 | 目标限于现行语义；若复核发现需要新规则，停止对应实施并另行决策 |
 | 文档落点 | 源码在教程，实施验收在正式 Spec；本页保留原始总退出要求与承接记录 |
 
 Goal：一个三文件参数报告工具通过真实 CLI project 入口编译并运行，直接消费跨文件 class
 可变字段、字段 Borrow 实参及 unit 顺序迭代，输出与清理符合现行规范。
-A5–A10 已由 [SPEC-0268](../specs/active/0268-unit-iteration-native.md) 正式承接，
+A5–A10 已由 [SPEC-0268](../archive/specs/0268-unit-iteration-native.md) 正式承接，
 唯一候选源码已迁入教程，本页保留总验收路径与用户可观察输出。
-本草案不包含生产实现或已通过声明。链接的教程源码是完整 M1A 验收输入，首轮实际结果见下文。
+本页不复制正式Spec的验收账本。链接的教程源码是完整 M1A 验收输入，首轮实际结果见下文。
 
 2026-10-04 用户要求合并草稿后进入里程碑。现已从 `b92593d` 启动
 [SPEC-0263](../archive/specs/0263-unit-field-mutability.md)承接 A2；该项合同与结果仅在正式 Spec
@@ -96,7 +96,7 @@ kovenc run --project project.toml --entry app.main -- alpha 你好 tail
 
 下表保留原 A1–A10 要求与起草时的候选接入点，不再维护第二份实施账本。
 A2–A4 的实际结果分别见 SPEC-0263/0264/0265；A5–A10 统一由
-[SPEC-0268 单一验收账本](../specs/active/0268-unit-iteration-native.md#5-单一验收账本)维护，映射如下：
+[SPEC-0268 单一验收账本](../archive/specs/0268-unit-iteration-native.md#5-单一验收账本)维护，映射如下：
 
 | 原要求 | 正式验收项 |
 |---|---|

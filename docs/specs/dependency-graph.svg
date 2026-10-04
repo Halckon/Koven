@@ -1,20 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="728" height="346" viewBox="0 0 728 346" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="384" height="208" viewBox="0 0 384 208" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="728" height="346" fill="#ffffff"/>
+  <rect width="384" height="208" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，254 份）</text>
-  <rect x="384" y="150" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="524" y="170" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
-  <path d="M 300 92 C 352 92, 352 221, 404 221" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <rect x="404" y="184" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="524" y="207" text-anchor="middle" font-size="13" font-weight="600">SPEC-0268</text>
-  <text x="524" y="225" text-anchor="middle" font-size="13">unit 顺序迭代 nati</text>
-  <text x="524" y="243" text-anchor="middle" font-size="13">ve 与 M1A 程序贯通</text>
+  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，255 份）</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
-  <text x="180" y="105" text-anchor="middle" font-size="13">archive，254 份</text>
+  <text x="180" y="105" text-anchor="middle" font-size="13">archive，255 份</text>
 </svg>

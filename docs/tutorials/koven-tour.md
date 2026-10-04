@@ -115,7 +115,7 @@ fun message(): String = "cross file"
 三个文件共同使用上一节的 `project.toml`，entry为 `app.main`：
 `kovenc build --project project.toml --entry app.main -o program`，
 `kovenc run --project project.toml --entry app.main -- alpha 你好 tail`。
-SPEC-0268正在验证本例；在该Spec验收前不将新增合同视为已支持声明。
+本例四组argv已由SPEC-0268在双宿主通过真实build、artifact与run验收。
 
 `src/app/model.ko`：
 

@@ -1,10 +1,10 @@
 # SPEC-0268: unit 顺序迭代 native 与 M1A 程序贯通
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施 unit for 后端及 M1A 总验收时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施 unit for 后端及 M1A 总验收时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-268` |
 | 所属 Phase | Phase 4 SSA/native；Phase 6 CLI project 验收 |
 | 语言规范 | [Guide v0.40](../../guide/README.md)、[顺序容器 §37](../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider)、[程序入口](../../guide/13-program-runtime-standard-library.md) |
@@ -26,10 +26,10 @@ Name/Discard/concrete value-class borrowed 解构，正常/continue/break/return
 Inout/field source 保持 §37.4 的 native 延后边界；前端先成功，后端明确拒绝且无产物污染。
 所有身份、清理顺序及能力选择均消费已验证事实，不从 AST 重推所有权。
 
-## 2. 当前证据与实施调整
+## 2. 启动基线与实施调整
 
 前置0265已发布source-qualified descriptor、完整iteration cleanup动作和同轮schema，
-包括conditional receiver在provider内外与嵌套形成位置的独立顺序义务；unit lowering仍将for拒绝。
+包括conditional receiver在provider内外与嵌套形成位置的独立顺序义务；unit lowering当时仍将for拒绝。
 真实M1A源码经已重编译frontend进入CLI，build返回native UnsupportedSource/UnsupportedNode，
 没有产物。该红测只证明当前首个后端缺口，不替代后续程序或资源验收。
 
@@ -48,7 +48,7 @@ source access表示权限而非形状；Field symbol即使是无projection root�
   不在共同exit重复清理。temporary到EndSource后释放；外部Borrow能力属于caller；Abort不unwind。
 - 保持ordinary/constant能力与输入同轮身份；缺必需descriptor/状态必须明确失败，不能静默忽略动作。
 - 保留source、Span与结构化失败；不能用放松verifier、忽略native负例或改写验收源码取得成功。
-- 三文件源码只有一个长期真源：已从起草材料迁入现有教程提取机制；四组argv已在开发快照实际通过，最终实现与双宿主验收仍待执行。
+- 三文件源码只有一个长期真源：已从起草材料迁入现有教程提取机制；四组argv由同一源码验收，当前结果只记下方账本。
   四组argv共享同一源码，复用既有project发现/入口/link/run；不增加生产CLI配置。
 
 ## 4. 非目标
@@ -68,9 +68,9 @@ source access表示权限而非形状；Field symbol即使是无projection root�
 | N3 | normal/continue/break/return/Abort、nested for/while、源求值提前分歧、pending调用与conditional receiver清理位置 | 最终基底128项包含72组退出、conditional三位置24组、嵌套for/while、源动态return/Abort和pending调用 |
 | N4 | owner/指针唯一释放与顺序，source/element/field owner分开核，旧字段previous不遗漏；Abort无unwind | 最终基底128项包含资源/field replace/借用复用及原Report两入口×四argv逐pointer/drop顺序oracle；Abort单独核无unwind |
 | N5 | ordinary/constant、同轮/混轮/foreign source、Inout/field精确拒绝、失败保留旧artifact及目录状态 | 最终基底field/Inout/captured Borrow、ordinary身份/来源及constant混轮负例通过，均拒绝LLVM/产物污染，旧原子性子进程含reservation及成功恢复 |
-| P1 | 原三文件程序四组argv各执行build、artifact、run，完整UTF-8 stdout/空stderr/exit0 | 最终本机CLI完整教程17个执行案例通过，含四argv逐组build/artifact/run；planned-thread未执行，两宿主PR待验 |
+| P1 | 原三文件程序四组argv各执行build、artifact、run，完整UTF-8 stdout/空stderr/exit0 | 最终本机CLI完整教程17个执行案例通过，含四argv逐组build/artifact/run；planned-thread未执行，两宿主PR run37205512961实际通过 |
 | R1 | single sequential for及直接受影响unit borrow/closure/control-flow/constant消费者不回归 | unit lowering138、unit native128、single sequential/provider67、sanitizer2、boxed4通过；精确选择与未运行项见§8 |
-| E1 | fmt、受影响all-targets严格Clippy、workspace all-targets、docs/尺寸、独立review与双宿主PR最终门禁 | 本机fmt/Clippy/workspace、Python132/docs510/尺寸及独立审阅通过；精确head双宿主PR CI待执行 |
+| E1 | fmt、受影响all-targets严格Clippy、workspace all-targets、docs/尺寸、独立review与双宿主PR最终门禁 | 本机fmt/Clippy/workspace、Python132/docs510/尺寸及独立审阅通过；实现head e091408的双宿主PR CI通过；归档提交仍须最终门禁后合并 |
 
 P1源码只见[教程 parameter-report](../../tutorials/koven-tour.md#parameter-report)，
 完整输出合同只由教程metadata执行；不可绕过的原程序路径可从起草记录第2–4节追溯。
@@ -169,3 +169,25 @@ planned-thread仍为候选，明确未执行。CLI SHA256为
 `9c20ae9b4311fd3678d3b1f8215d3e1d4135ee04e369697cc58f3185af3f91e2`，
 本机证据标明是基底44cb312上的未提交开发树，不能冒充clean PR head的执行证据。
 至此本机N1–N5/P1/R1/E1的所选检查及独立审阅完成；精确head双宿主CI仍是归档和M1A总退出前置。
+
+
+## 9. 双宿主实现验收与归档（2026-10-04）
+
+[PR46 CI37205512961](https://github.com/Halckon/Koven/actions/runs/37205512961)是pull_request事件，
+关联实现head `e0914089206556957e0b42c46db09c3ed04f8636`；不是同SHA的feature push。
+10个job成功，Tree-sitter因editors路径未变按政策skip，CI Passed必需/合法跳过检查成功，无未决job。
+实际编译merge SHA `51e5b189e72bdaf260995e1521b6fa136a259bf7` 与head经API核对，tree均为
+`a5d42b83f18933a55f276835876e77390860e988`；两个提交SHA不同。
+
+Linux codegen lib 820 passed/0 failed/0 ignored；macOS 819 passed/0 failed/1 ignored，
+唯一ignored是既有 `llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame`
+缺少debugserver task-port权限；不计为实际执行通过。两宿主新增22个unit_for_用例均实际ok。
+两宿主Targeted Tests的真实CLI步骤各有parameter-report四argv通过，教程17个执行案例通过，
+planned-thread明确未执行；文档政策测试中的mock日志不替代这些真实执行。
+
+Linux必需sanitizer步骤继续实际通过三target/三off IR检查及8组ASan、4组LSan对照，
+[artifact11303919299](https://github.com/Halckon/Koven/actions/runs/37205512961/artifacts/11303919299)
+已上传；macOS的Linux专属两步骤按平台skip，不据此宣称macOS动态sanitizer已验收。
+
+N1–N5/P1/R1/E1的实现验证与双宿主要求已闭合，按此证据归档；归档提交仍须通过最终PR CI后合并。
+Guide v0.40不变，Inout/field/captured Borrow native、未选Litmus原始程序、线程和M1B–M6未因此完成。
