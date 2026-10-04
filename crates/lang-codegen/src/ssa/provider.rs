@@ -320,20 +320,44 @@ pub(crate) fn finish_element_and_advance_in_block(
         Vec::new(),
         origin.clone(),
     )?;
+    advance_in_block(
+        function,
+        block,
+        element.header,
+        element.source,
+        element.cursor,
+        element.step,
+        int_type,
+        origin,
+    )
+}
+
+/// Advance only after the caller consumed its complete ordered element cleanup.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn advance_in_block(
+    function: &mut Function,
+    block: BlockId,
+    header: BlockId,
+    source: LoanId,
+    cursor: ValueId,
+    step: ValueId,
+    int_type: SsaTypeId,
+    origin: &Origin,
+) -> Result<ProviderNext, ModelError> {
     let value = append_value(
         function,
         block,
         Operation::Binary {
             operator: BinaryOperator::Add,
-            left: element.cursor,
-            right: element.step,
+            left: cursor,
+            right: step,
         },
         int_type,
         origin,
     )?;
     Ok(ProviderNext {
-        header: element.header,
-        source: element.source,
+        header,
+        source,
         value,
     })
 }

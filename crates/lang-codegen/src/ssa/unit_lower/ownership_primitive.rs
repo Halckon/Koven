@@ -41,6 +41,9 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         let pending_start = self.pending_operands.len();
         self.pending_call_frames.push(PendingCallFrame {
+            call: UnitExpressionId::new(self.source_unit, expression),
+            receiver: false,
+            loan_arguments: Vec::new(),
             loop_depth: self.loops.len(),
             pending_start,
             exclusive_root_owners: Vec::new(),
@@ -327,6 +330,9 @@ impl UnitExpressionLowerer<'_> {
             .last_mut()
             .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, argument.span))?;
         frame.created_loans.push(loan_slot);
+        frame
+            .loan_arguments
+            .push((fact.argument(), vec![loan_slot]));
         frame.exclusive_root_owners.push(owner_slot);
         Ok(PendingRoot {
             symbol,

@@ -74,8 +74,11 @@ Abort；不会在 exchange commit 中调用旧值 deinit。整合后 core/stage/
 测试以真实 object/link/run 的 stdout 验证变量、body、字段与动作相对顺序，使用 allocator 插桩逐
 pointer 核对 owner 唯一释放；插桩只存在于测试，不成为运行时 ABI。
 
-尚不支持 resource-bearing generic、nullable、Box/Rc/顺序容器、value/enum wrapper、interface
-继承及 closure 路径的 native 交付，均显式拒绝。类型分类广于此 native 范围。single 仍保留普通
+unit 另支持 Array/List/MutableList 与非泛型 value-class 递归持有普通资源 class，planner
+沿这些 reachable storage layouts 注册隐藏 deinit；真实 for 的 nested return 与逐 pointer 析构
+顺序已有 native 证据。single 顺序容器资源元素范围见[顺序迭代](finite-sequential-iteration.md)。
+resource-bearing generic、nullable、Box/Rc、enum wrapper、interface 继承及 closure 路径仍未
+交付通用 native 能力，均保留显式拒绝。类型分类广于此 native 范围。single 仍保留普通
 instance member 调用和 nested field chain 作为 Borrow 实参的原有限制，不因 deinit 顺带扩展。
 
 证据入口：frontend `resource_deinit_type_facts`、`ownership_resource_deinit`；codegen

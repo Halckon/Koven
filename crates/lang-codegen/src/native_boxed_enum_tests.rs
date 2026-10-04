@@ -175,7 +175,13 @@ pub(crate) fn assert_success(run: &Output, stdout: &[u8]) {
 /// Reuse the native owner tests' LLVM-only allocator substitution: libc I/O is not counted.
 pub(crate) fn run_counted_allocations(llvm: &str, expected: usize) -> Output {
     let directory = TestDirectory::create();
-    run_counted_in(llvm, expected, &directory.0, false)
+    run_counted_in(llvm, expected, &directory.0, false, None)
+}
+
+/// Assert each release against independently specified allocation identities.
+pub(crate) fn run_counted_allocations_in_order(llvm: &str, order: &[usize]) -> Output {
+    let directory = TestDirectory::create();
+    run_counted_in(llvm, order.len(), &directory.0, false, Some(order))
 }
 
 /// The caller owns this directory and decides when retained evidence is removed.
@@ -184,7 +190,7 @@ pub(crate) fn run_counted_allocations_with_artifacts(
     expected: usize,
     directory: &std::path::Path,
 ) -> Output {
-    run_counted_in(llvm, expected, directory, true)
+    run_counted_in(llvm, expected, directory, true, None)
 }
 
 fn run_counted_in(
@@ -192,6 +198,7 @@ fn run_counted_in(
     expected: usize,
     directory: &std::path::Path,
     retain: bool,
+    order: Option<&[usize]>,
 ) -> Output {
     assert!(llvm.contains("@malloc("), "fixture must actually allocate");
     assert!(
@@ -205,9 +212,23 @@ fn run_counted_in(
     let counter = directory.join("counter.c");
     let executable = directory.join("boxed-enum-counts");
     fs::write(&ir, instrumented).expect("write allocator-instrumented LLVM");
+    let order_values = order
+        .map(|order| {
+            order
+                .iter()
+                .map(usize::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_else(|| "0".to_owned());
+    let prefix = format!(
+        "#define CHECK_ORDER {}\nstatic const int release_order[] = {{{order_values}}};\n",
+        u8::from(order.is_some())
+    );
     fs::write(
         &counter,
-        r#"
+        prefix
+            + r#"
 #include <stdlib.h>
 #include <assert.h>
 static void *live[EXPECTED_ALLOCATIONS];
@@ -224,6 +245,7 @@ void counted_free(void *pointer) {
     for (int i = 0; i < allocations; ++i) {
         if (live[i] == pointer) {
             live[i] = 0;
+            if (CHECK_ORDER) assert(i == release_order[releases]);
             ++releases;
             free(pointer);
             return;

@@ -4,7 +4,7 @@ use crate::{NativeObjectErrorKind, emit_native_unit_object, native::NEXT_UNIT_OB
 use lang_frontend::{name_resolution::SourceUnitInput, source::SourceMap};
 use std::{collections::BTreeMap, fs, process::Command, sync::atomic::Ordering};
 
-fn bytes(path: &std::path::Path) -> BTreeMap<String, Vec<u8>> {
+pub(super) fn bytes(path: &std::path::Path) -> BTreeMap<String, Vec<u8>> {
     fs::read_dir(path)
         .unwrap()
         .map(|entry| {
@@ -90,25 +90,29 @@ fn actual_for_rejections_are_atomic_before_reservation_and_llvm() {
             assert_eq!(bytes(&directory.0), before);
             drop(guard);
         }
-        // Unit lowering retains its existing for capability boundary. The actual for
-        // product rejects before reservation; recovery uses a supported unit below.
+        // A frontend-valid field source stays outside the native capability. Failure
+        // must precede reservation/LLVM and preserve both target and sibling bytes.
+        let deferred = analyze_sources(
+            "package p\nclass Holder(val values: Array<Int>) { fun visit(): Unit { for (item in this.values) { println(\"visit\") } } }",
+            "package q\nimport p.Holder\nfun entry(): Unit { Holder(arrayOf(1)).visit() }",
+        );
         let before = bytes(&directory.0);
         let reservations = NEXT_UNIT_OBJECT_TEMPORARY.load(Ordering::Relaxed);
         let guard = crate::llvm::emission_failure::Guard::new(directory.join("keep/object.o"));
         let error = emit_native_unit_object(
-            &analysis.sources,
-            &inputs,
-            &analysis.names,
-            &analysis.environment,
-            &analysis.typed,
-            &analysis.owned,
-            entry,
+            &deferred.sources,
+            &deferred.inputs(),
+            &deferred.names,
+            &deferred.environment,
+            &deferred.typed,
+            &deferred.owned,
+            deferred.declaration("q", "entry"),
             &output,
         )
         .unwrap_err();
         assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
-        let for_span = analysis
-            .consumer
+        let for_span = deferred
+            .provider
             .ast()
             .statements()
             .iter()
@@ -126,10 +130,8 @@ fn actual_for_rejections_are_atomic_before_reservation_and_llvm() {
         );
         assert_eq!(bytes(&directory.0), before);
         drop(guard);
-        let positive = analyze_sources(
-            "package p\nfun marker(): Unit {}",
-            "package q\nfun entry(): Unit { println(\"ready\") }",
-        );
+        // Recovery now uses the exact legal for analysis that was previously rejected.
+        let positive = &analysis;
         emit_native_unit_object(
             &positive.sources,
             &positive.inputs(),
@@ -151,7 +153,40 @@ fn actual_for_rejections_are_atomic_before_reservation_and_llvm() {
         assert!(link.status.success(), "{link:?}");
         let run = Command::new(executable).output().unwrap();
         assert_eq!(run.status.code(), Some(0));
-        assert_eq!(run.stdout, b"ready\n");
+        assert_eq!(run.stdout, b"visit\nvisit\n");
         assert!(run.stderr.is_empty());
     }
+}
+
+#[test]
+fn actual_unit_for_executes_source_once_and_keeps_borrowed_elements() {
+    let analysis = analyze_sources(
+        "package p\nfun source(): Array<String> { println(\"source\"); return arrayOf(\"first\", \"second\") }",
+        "package q\nfun entry(): Unit { for (item in p.source()) { println(item) }; println(\"after\") }",
+    );
+    let directory = TestDirectory::create();
+    let output = directory.join("iteration.o");
+    emit_native_unit_object(
+        &analysis.sources,
+        &analysis.inputs(),
+        &analysis.names,
+        &analysis.environment,
+        &analysis.typed,
+        &analysis.owned,
+        analysis.declaration("q", "entry"),
+        &output,
+    )
+    .expect("legal unit for lowers");
+    let executable = directory.join("iteration");
+    let link = Command::new(crate::test_support::clang())
+        .arg(&output)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .unwrap();
+    assert!(link.status.success(), "{link:?}");
+    let run = Command::new(executable).output().unwrap();
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(run.stdout, b"source\nfirst\nsecond\nafter\n");
+    assert!(run.stderr.is_empty());
 }

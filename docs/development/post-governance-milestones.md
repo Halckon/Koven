@@ -91,8 +91,9 @@ M0 完成不意味着剩余历史尺寸欠账、所有语言能力或 P2 原始�
 
 ## 6. M1A 与 M1B：从固定程序到实用程序
 
-M1A 的源码、输出、拒绝路径、阶段边界和验收映射只维护在
-[Spec 起草材料](multifile-program-spec-draft.md)，本页不复制另一份夹具或执行账本。
+M1A 的唯一源码在[教程 parameter-report](../tutorials/koven-tour.md#parameter-report)，
+输出合同由教程 metadata 保存；后端与总验收由[SPEC-0268](../specs/active/0268-unit-iteration-native.md)维护。
+[起草记录](multifile-program-spec-draft.md)保留原要求与承接映射，本页不复制源码或执行账本。
 实现顺序为跨文件可变性、直接字段 Borrow、unit 迭代事实/清理、SSA/native、CLI project。
 程序通过现行字段 replace 更新值，普通字段赋值 lowering 留作独立后继；迭代 Inout/字段
 source 的前端语义覆盖与首轮 native 拒绝分别验收，遵守 Guide §37.4。
@@ -201,7 +202,8 @@ M0 本次完成基线、Spec 编号及首片入口接收；历史尺寸欠账、
 [CI37193746866](https://github.com/Halckon/Koven/actions/runs/37193746866)10个任务全部成功。
 该调查发现的 unit typed descriptor、provider/source loan 与有序清理事实，现已由
 [SPEC-0265](../archive/specs/0265-unit-iteration-facts.md)补齐 conditional receiver 内外/嵌套清理后通过双宿主 CI，已完成 A4 有界验收归档。
-后继 A5 由后端消费，保持 Guide §37.4 的前端与 native 范围区分；完整三文件程序仍在
+PR43 已合并为 `6377f2b`，后继 [SPEC-0268](../specs/active/0268-unit-iteration-native.md)
+承接 A5–A10，保持 Guide §37.4 的前端与 native 范围区分；完整三文件程序基线仍在
 native lowering 返回 UnsupportedNode。并行实施使用独立分支/worktree，本地 Cargo 串行，
 切换工作树后须确保实际源码重新编译；M1A 总退出条件保持。
 

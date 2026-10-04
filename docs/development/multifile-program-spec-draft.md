@@ -1,23 +1,25 @@
 # M1A 多文件参数报告工具：Spec 起草材料
 
-> **性质**：里程碑起草材料 · **状态**：draft / A2–A4 已正式承接 · **读取时机**：评审 M1A 剩余范围、源码与总验收时 · **唯一真源**：本页维护尚未承接的 M1A 范围；已承接项只见正式 Spec
+> **性质**：里程碑起草与承接记录 · **状态**：范围已正式承接，实施未全部完成 · **读取时机**：追溯 M1A 原始要求与承接映射时 · **唯一真源**：本页只保留起草记录；源码与验收分别见教程与正式 Spec
 
 ## 1. 状态与 Goal
 
 | 字段 | 草案值 |
 |---|---|
-| 状态 | 剩余范围保持 draft；A2–A4 已按各有界合同完成 |
+| 状态 | A2–A4 已按各有界合同完成；A5–A10 由 SPEC-0268 实施 |
 | 关联计划 | [治理完成后的开发里程碑](post-governance-milestones.md)的 M1A |
 | 所属 Phase | Phase 2–4 的事实/执行及 Phase 6 的 project 验收 |
 | 起草依据 | 用户于 2026-10-04 要求文档起草，代码开发等待另一位 agent 完成治理计划 |
 | 规范入口 | [Guide v0.40](../guide/README.md)、[名称与文件](../guide/02-names-files-packages.md)、[所有权](../guide/10-ownership-borrowing-drop.md)、[顺序集合](../guide/12-collections-destructuring.md) |
 | 阻塞项 | A1 已取得 native UnsupportedNode 红测；A2–A4 已交付，unit native for 与总验收仍待交付 |
 | 语义变更 | 目标限于现行语义；若复核发现需要新规则，停止对应实施并另行决策 |
-| 文档落点 | 未承接部分留作起草材料；各片定稿后迁入正式 Spec，本页保留总验收与依赖链接 |
+| 文档落点 | 源码在教程，实施验收在正式 Spec；本页保留原始总退出要求与承接记录 |
 
 Goal：一个三文件参数报告工具通过真实 CLI project 入口编译并运行，直接消费跨文件 class
 可变字段、字段 Borrow 实参及 unit 顺序迭代，输出与清理符合现行规范。
-本草案不包含生产实现或已通过声明。下列源码是完整 M1A 验收输入，首轮实际结果见下文。
+A5–A10 已由 [SPEC-0268](../specs/active/0268-unit-iteration-native.md) 正式承接，
+唯一候选源码已迁入教程，本页保留总验收路径与用户可观察输出。
+本草案不包含生产实现或已通过声明。链接的教程源码是完整 M1A 验收输入，首轮实际结果见下文。
 
 2026-10-04 用户要求合并草稿后进入里程碑。现已从 `b92593d` 启动
 [SPEC-0263](../archive/specs/0263-unit-field-mutability.md)承接 A2；该项合同与结果仅在正式 Spec
@@ -27,60 +29,9 @@ Goal：一个三文件参数报告工具通过真实 CLI project 入口编译并
 
 ## 2. 候选源码与项目形态
 
-文件内容只保存在本节。正式实施时由现有教程/fixture 机制提取，或迁移为唯一 fixture，
-不能在文档和测试中长期手工维护两份源码。优先接入治理交接后的现有多文件教程能力。
-
-```text
-project.toml
-src/app/model.ko
-src/app/processor.ko
-src/app/main.ko
-```
-
-`project.toml`：
-
-```toml
-schema = "koven.project"
-version = 1
-
-[project]
-name = "argument-report"
-source-roots = ["src"]
-```
-
-`src/app/model.ko`：
-
-```kotlin
-package app
-
-class Report(var text: String)
-```
-
-`src/app/processor.ko`：
-
-```kotlin
-package app
-
-fun reportArguments(args: Array<String>): Unit {
-    val report = Report("start")
-    for (argument in args) {
-        val previous = replace(&report.text, argument.clone())
-        println(report.text)
-    }
-    println("processed")
-}
-```
-
-`src/app/main.ko`：
-
-```kotlin
-package app
-
-fun main(args: Array<String>): Unit {
-    reportArguments(args)
-    println("done")
-}
-```
+源码已唯一迁入[当前教程 parameter-report](../tutorials/koven-tour.md#parameter-report)，
+三个文件路径与Koven源码保持原样，project manifest沿用教程现有形态；metadata中只存输出合同。
+本页不再复制源代码，SPEC-0268通过真实CLI执行该同一教程输入。
 
 `argument.clone()` 显式从 Borrow 参数取得一个可存入字段的独立 owner，属于程序需要的操作。
 字段更新复用现行 `replace`；`previous` 接收旧 owner，并按未再使用的局部值规则清理。
@@ -141,17 +92,27 @@ kovenc run --project project.toml --entry app.main -- alpha 你好 tail
 - 改写已归档的 0182 目标、把原单文件验收直接算作 unit 验收。
 - 运行 P2 成本实验、全部 frontend 测试或发布 release。
 
-## 6. 单一验收矩阵
+## 6. 原验收矩阵与正式承接
 
-下列 ID 同时作为实施步骤的验证引用；除 A1 首轮红测及 A2 正式承接外，其余尚未执行。已有 suite 为候选接入点，
-最终过滤器和缺失测试的名称在代码实施前确定，不把计划中的名字写成已经存在的 target。
+下表保留原 A1–A10 要求与起草时的候选接入点，不再维护第二份实施账本。
+A2–A4 的实际结果分别见 SPEC-0263/0264/0265；A5–A10 统一由
+[SPEC-0268 单一验收账本](../specs/active/0268-unit-iteration-native.md#5-单一验收账本)维护，映射如下：
+
+| 原要求 | 正式验收项 |
+|---|---|
+| A5 SSA/native | N1、N2、N3 |
+| A6 资源与控制流 | N4 |
+| A7 能力、身份、失败原子性 | N5 |
+| A8 三文件公开行为 | P1 |
+| A9 既有能力回归 | R1 |
+| A10 工程与交付 | E1 |
 
 | ID | 要证明的合同 | 候选测试位置 / 执行入口 | 验收要求 |
 |---|---|---|---|
 | A1 | 源码真实性与首轮红测 | 上述三文件，经 CLI project；各缺口另用最小输入定位 | 记录失败阶段、code/kind、source/Span；不能把首个错误当成其他路径已验证 |
 | A2 | 跨文件字段可变性 | 已由[SPEC-0263](../archive/specs/0263-unit-field-mutability.md)承接 | 正反例、身份、诊断及实际结果只维护在正式 Spec |
 | A3 | 字段直接 Borrow 与父 owner | 由[SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)承接 | 具体范围、callee 读取/父 owner/冲突与实际结果只维护在正式 Spec |
-| A4 | unit 迭代 typed/ownership 事实 | [SPEC-0265](../archive/specs/0265-unit-iteration-facts.md)补齐conditional receiver合同中 | source 求值一次、binding/projection 身份、loan/provider/清理顺序和最近 callable 边界；包含 Inout/字段 source 的前端正反例；实际结果只维护在正式 Spec |
+| A4 | unit 迭代 typed/ownership 事实 | [SPEC-0265](../archive/specs/0265-unit-iteration-facts.md)已完成有界验收 | source 求值一次、binding/projection 身份、loan/provider/清理顺序和最近 callable 边界；包含 Inout/字段 source 的前端正反例；实际结果只维护在正式 Spec |
 | A5 | unit 迭代 SSA/native | codegen 相应 unit lowering/verifier/native suite | 三种现行容器；owned/Borrow 源、temporary；0/1/多元素；继续、break、continue、return及 Abort；Inout/字段 source 按首轮 Phase 4 边界明确拒绝 |
 | A6 | 精确资源与控制流 | A3/A5 的动态计数用例 | 按 owner/指针核唯一释放与顺序；结束 provider 后才能结束 source loan；Abort 不 unwind；必须检查循环后或 caller 输出 |
 | A7 | 能力/身份 gate 与失败原子性 | ordinary/const native 交接合同和 project CLI | 源与 facts 混轮/混 source 拒绝；失败保留旧产物和目录状态；成功路径确实发射/链接/运行 |
@@ -167,7 +128,9 @@ A4 对 Inout/字段 source 的语义覆盖不授予 A5 native 支持；此区别
 A5 的拒绝与正例覆盖必须逐项映射当前 Guide；不能用矩阵格数代替实际命中。
 若完整现行合同需分为多个 Spec，保留 M1A 的总退出条件，独立关闭已验收切片并明确剩余。
 
-## 7. 实施顺序与后继迁移
+## 7. 起草时的实施顺序（历史）
+
+以下步骤保留起草时的先后关系；当前执行顺序、未完成项及真实结果以正式 Spec 为准。
 
 1. 等待计划 G0/G1，接收确定 main；重新核对本稿各缺口、教程机制与并行 Spec 编号。
 2. 完成 G2/G3，将材料迁成正式 draft/approved 合同，核定一项 Goal 的边界及分支名。
@@ -177,8 +140,8 @@ A5 的拒绝与正例覆盖必须逐项映射当前 Guide；不能用矩阵格�
 5. 执行 A8，并按真实影响完成 A9/A10；相同输入和合同的成功证据可按工程规则复用。
 6. 独立评审具体实现、最大剩余风险与验收表；修复发现并复审后，按授权提交和交付。
 
-本起草分支只写 Markdown；不会把本节候选源码写入生产目录或现行可执行教程。
-正式迁移时删除本起草材料并同批更新计划/索引链接，避免形成永久平行合同。
+起草分支当时只写 Markdown；SPEC-0268 启动后，源码已迁入教程，实施账本已正式承接。
+本页仅保留原要求与历史交接记录，不再作为当前源码、执行步骤或验收状态的维护入口。
 
 ## 8. 首批起草时的待交接项与验证记录
 
