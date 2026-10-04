@@ -1,23 +1,28 @@
 # M1A 多文件参数报告工具：Spec 起草材料
 
-> **性质**：待编号 Spec 起草材料 · **状态**：draft / 等待治理交接 · **读取时机**：评审首个后继程序的范围、源码与验收时 · **唯一真源**：本页维护 M1A 候选合同；启用后迁入正式 Spec
+> **性质**：里程碑起草材料 · **状态**：draft / A2 已由0263承接 · **读取时机**：评审 M1A 剩余范围、源码与总验收时 · **唯一真源**：本页维护尚未承接的 M1A 范围；A2 只见正式 Spec
 
 ## 1. 状态与 Goal
 
 | 字段 | 草案值 |
 |---|---|
-| 状态 | draft；尚未注册正式 Spec ID |
+| 状态 | 剩余范围保持 draft；A2 已由 SPEC-0263 承接 |
 | 关联计划 | [治理完成后的开发里程碑](post-governance-milestones.md)的 M1A |
 | 所属 Phase | Phase 2–4 的事实/执行及 Phase 6 的 project 验收 |
 | 起草依据 | 用户于 2026-10-04 要求文档起草，代码开发等待另一位 agent 完成治理计划 |
 | 规范入口 | [Guide v0.40](../guide/README.md)、[名称与文件](../guide/02-names-files-packages.md)、[所有权](../guide/10-ownership-borrowing-drop.md)、[顺序集合](../guide/12-collections-destructuring.md) |
-| 阻塞项 | 计划 G0–G3 未完成；真实红测、最终实现入口和正式编号待交接后核定 |
+| 阻塞项 | A1 已取得 native UnsupportedNode 红测；A3–A10 剩余切片的实现入口与编号仍待核定 |
 | 语义变更 | 目标限于现行语义；若复核发现需要新规则，停止对应实施并另行决策 |
-| 文档落点 | 当前留作起草材料；编号确定后迁入 `docs/specs/drafts/`，避免与并行治理分支冲突 |
+| 文档落点 | 未承接部分留作起草材料；各片定稿后迁入正式 Spec，本页保留总验收与依赖链接 |
 
 Goal：一个三文件参数报告工具通过真实 CLI project 入口编译并运行，直接消费跨文件 class
 可变字段、字段 Borrow 实参及 unit 顺序迭代，输出与清理符合现行规范。
-本草案不包含生产实现、可执行测试文件或已通过声明。下列源码是待实测的候选验收输入。
+本草案不包含生产实现或已通过声明。下列源码是完整 M1A 验收输入，首轮实际结果见下文。
+
+2026-10-04 用户要求合并草稿后进入里程碑。现已从 `b92593d` 启动
+[SPEC-0263](../archive/specs/0263-unit-field-mutability.md)承接 A2；该项合同与结果仅在正式 Spec
+维护。以下起草表格和首批记录保留其时间边界；A1 已实测为 native UnsupportedNode，
+其余完整应用验收尚未通过，不能用 A2 首片替代。
 
 ## 2. 候选源码与项目形态
 
@@ -137,13 +142,13 @@ kovenc run --project project.toml --entry app.main -- alpha 你好 tail
 
 ## 6. 单一验收矩阵
 
-下列 ID 同时作为实施步骤的验证引用；全部尚未执行。已有 suite 为候选接入点，
+下列 ID 同时作为实施步骤的验证引用；除 A1 首轮红测及 A2 正式承接外，其余尚未执行。已有 suite 为候选接入点，
 最终过滤器和缺失测试的名称在代码实施前确定，不把计划中的名字写成已经存在的 target。
 
 | ID | 要证明的合同 | 候选测试位置 / 执行入口 | 验收要求 |
 |---|---|---|---|
 | A1 | 源码真实性与首轮红测 | 上述三文件，经 CLI project；各缺口另用最小输入定位 | 记录失败阶段、code/kind、source/Span；不能把首个错误当成其他路径已验证 |
-| A2 | 跨文件字段可变性 | `multifile_ownership_checking`、`ownership_field_replace`及直接受影响的 typed suite | var 正例、val/共享权限负例；同名旁源、同局部 ID、输入置换保持身份与诊断 |
+| A2 | 跨文件字段可变性 | 已由[SPEC-0263](../archive/specs/0263-unit-field-mutability.md)承接 | 正反例、身份、诊断及实际结果只维护在正式 Spec |
 | A3 | 字段直接 Borrow 与父 owner | unit Borrow/native 现有测试及所需相邻字段用例 | callee 实际读取；父对象不早 drop；结束后可继续合法使用；借用冲突仍拒绝 |
 | A4 | unit 迭代 typed/ownership 事实 | `multifile_type_checking`、`multifile_ownership_checking`，缺少独立目标时再按职责确定 | source 求值一次、binding/projection 身份、loan/provider/清理顺序和最近 callable 边界；包含 Inout/字段 source 的前端正反例 |
 | A5 | unit 迭代 SSA/native | codegen 相应 unit lowering/verifier/native suite | 三种现行容器；owned/Borrow 源、temporary；0/1/多元素；继续、break、continue、return及 Abort；Inout/字段 source 按首轮 Phase 4 边界明确拒绝 |
@@ -174,7 +179,9 @@ A5 的拒绝与正例覆盖必须逐项映射当前 Guide；不能用矩阵格�
 本起草分支只写 Markdown；不会把本节候选源码写入生产目录或现行可执行教程。
 正式迁移时删除本起草材料并同批更新计划/索引链接，避免形成永久平行合同。
 
-## 8. 待交接确认项与验证记录
+## 8. 首批起草时的待交接项与验证记录
+
+以下为 PR39 发布前的历史快照；最新 A1/A2 结果及承接状态以上文与正式 Spec 为准。
 
 - 治理交付 SHA、完成记录和允许保留的事项尚未取得。
 - 编号、正式分支、具体测试过滤器及新增事实 API 待确定。

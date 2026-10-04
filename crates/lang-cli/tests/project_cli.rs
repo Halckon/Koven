@@ -11,6 +11,55 @@ use std::{
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn project_cross_file_var_field_replace_preserves_old_and_new_values() {
+    for binding in ["val", "var"] {
+        let project = TestProject::create("cross-file-field-replace");
+        let manifest = project.manifest(&["src"]);
+        project.write(
+            "src/app/Model.ko",
+            "package app\nclass Holder(var text: String)",
+        );
+        project.write(
+            "src/other/Model.ko",
+            "package other\nclass Holder(val text: String)",
+        );
+        project.write(
+            "src/app/Main.ko",
+            &format!(
+                "package app\nfun main(): Unit {{\n{binding} holder = Holder(\"旧\" + \"值\")\nprintln(replace(&holder.text, \"新\" + \"值\"))\nprintln(replace(&holder.text, \"last\"))\nprintln(\"done\")\n}}"
+            ),
+        );
+        let executable = project.join("field-program");
+        let built = run([
+            OsStr::new("build"),
+            OsStr::new("--project"),
+            manifest.as_os_str(),
+            OsStr::new("--entry"),
+            OsStr::new("app.main"),
+            OsStr::new("-o"),
+            executable.as_os_str(),
+        ]);
+        assert_eq!(built.status.code(), Some(0), "{built:?}");
+        assert!(built.stdout.is_empty(), "{built:?}");
+        assert!(built.stderr.is_empty(), "{built:?}");
+        let launched = Command::new(&executable).output().unwrap();
+        let executed = run([
+            OsStr::new("run"),
+            OsStr::new("--project"),
+            manifest.as_os_str(),
+            OsStr::new("--entry"),
+            OsStr::new("app.main"),
+        ]);
+        for output in [launched, executed] {
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, "旧值\n新值\ndone\n".as_bytes());
+            assert!(output.stderr.is_empty(), "{output:?}");
+        }
+        assert_no_build_temporaries(project.path());
+    }
+}
+
+#[test]
 fn project_constants_build_run_and_preserve_outputs_on_invalid_constants() {
     let project = TestProject::create("constants");
     let manifest = project.manifest(&["src"]);

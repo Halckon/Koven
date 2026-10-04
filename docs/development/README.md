@@ -47,10 +47,10 @@
 - [本机治理续行](governance-local-continuation.md)：P0–P5剩余条件、LSP原始成本试点与P5教程补齐
 - [P2 frontend成本续验](p2-frontend-cost-followup.md)：PR38合并、本机72项固定配对、首启分离及构建噪声停止点
 
-## 等待治理交接的后继草案
+## 后继里程碑与起草材料
 
-- [后继开发里程碑](post-governance-milestones.md)：M0–M6 的候选范围、依赖和启动门槛；代码开发等待治理完成
-- [M1A Spec 起草材料](multifile-program-spec-draft.md)：待编号的三文件程序、完整输出预期与验收矩阵，尚未实施
+- [后继开发里程碑](post-governance-milestones.md)：M0–M6 的候选范围、依赖和启动门槛；已按用户授权启动 M1A 首片
+- [M1A 起草材料](multifile-program-spec-draft.md)：三文件完整程序与剩余验收；A2 由 SPEC-0263 承接
 - [M1B 文本处理](text-processing-spec-draft.md)：argv 词频到文本输入，错误模型与最小 API 决策
 - [M2 借用访问](borrow-access-spec-draft.md)：现行能力、候选方案和接受/拒绝场景
 - [M3A 顺序集合](sequential-collections-spec-draft.md)：应用所需操作、搬迁、借用与清理

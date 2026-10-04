@@ -45,6 +45,13 @@
     "crates/lang-frontend/tests/type_checking.rs": 2251
   },
   "exceptions": {
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": {
+      "max_lines": 1188,
+      "reason": "SPEC-0263 将已有字段权限表改为单次 unit 收集后只读借用；父模块仅增加收集、参数与传递三行，完整收集职责位于 traversal。为三行接线拆分无关 checker 职责会扩大本次修复。",
+      "owner": "lang-frontend compilation-unit ownership",
+      "split_plan": "后续独立审阅 Checker 的构造输入与分析产物组织边界；本片不搬迁无关控制流或检查算法。",
+      "review": "SPEC-0263 独立实现评审同时检查此三行增长；再次增长或增加职责前重新评审。"
+    },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs": {
       "max_lines": 1155,
       "reason": "单个条件叶phi场景以同一形成快照与presence状态完成fallthrough/continue/break回放；完整1159行原helper及6行调用case不可在纯搬迁中切断断言或重构状态。",

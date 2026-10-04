@@ -22,6 +22,11 @@ intrinsic descriptor、精确 place、父 class 类型和新值 Copy / Move / Te
 使用 source-qualified identity。它们不进入 root commit 查询，不以静态 descriptor 单独
 授予正常继续的执行许可。unit 基础及 constant-enabled gate 有独立损坏事实拒绝测试。
 
+unit 字段可变性在一次 ownership 分析内从全部 source 的声明收集，以完整 `UnitSymbolId`
+索引，各 body checker 只读共享；使用文件不再决定字段是否为 var。跨文件 owned local
+字段 replace 有 frontend 身份/拒绝回归和 CLI build/artifact/run 用例，同名旁源及相同局部
+symbol ID 不覆盖权限。该修复不扩展直接字段 Borrow、普通字段赋值或 unit for lowering。
+
 有界目标是 owned local 的普通非泛型 class 一级 `var` 字段；父绑定可为 `val` 或 `var`。
 receiver / 字段投影的 Group 只透传 identity；字段与父绑定可变性分开检查。错误或 blocking
 deferred 清空可执行计划，未正常继续的 operand 不发布 commit。producer 只接受 body-local
@@ -59,8 +64,9 @@ single 六项 native 与 unit 直接测试已运行 object/link/run，覆盖一�
 字段后交换，不证明 constructor 中 `Node → Node?` 隐式包装已闭合。single Unit 字段构造
 仍缺事实，unit `Rc<Int>?` 名义字段 layout 仍 Unsupported，不宣称任意源码 storage 已支持。
 
-receiver 的 class 声明仍需与使用处同 source；unit 跨文件 class `var` 字段可变性路径实测
-L0134，属于保留的前端缺口。跨文件 `make()` 产生 replacement 已有验证，两者不能混同。
+SPEC-0263 已修复 unit 跨文件 class `var` 字段可变性误报 L0134，声明与使用可位于不同
+source，仍保持本页其它 receiver/表示限制。跨文件 `make()` 产生 replacement 是既有能力，
+与本次跨文件字段声明查询分别验收。
 
 nested fields、`this` / 隐式字段、non-owning 或参数 receiver、temporary receiver、index、
 generic receiver、value-class receiver、closure/provenance、field swap 和普通 Inout ABI
