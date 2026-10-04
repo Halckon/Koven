@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0262、SPEC-0268（均 done） |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 无语义前置；远端交付未获授权 |
+| 阻塞项 | 无语义前置；已获主干同步 PR 授权，双宿主 CI 待执行 |
 | 影响范围 | `docs/tutorials`、教程 Python 合同、当前导航与事实摘要 |
 | 语言语义变更 | 否 |
 
@@ -104,3 +104,19 @@ Spec索引冲突取两批状态的并集，依赖图从合并后的inventory重�
 | 提取与来源hash、与原分支字节比较 | passed：21定义/25 fence、15 executable/4 diagnostic/2 planned、22合同；tour源码、JSON、runner/tests与实际native证据均与原分支相同，已捕获源码hash匹配 |
 | 新main native、Rust全回归、Linux、远端CI | 未运行；无代码/源码/输出合同冲突，不重复未受影响的回归；没有远端授权 |
 | 原工作区及0272并行worktree的未提交文件 | passed：分别6/6及10/10项SHA256相同；未stash/reset/清理或stage用户文件 |
+
+## 9. 主干同步 PR 授权
+
+2026-10-04 用户要求将本地 main 领先远端的提交通过 PR 推送、合并，然后在最新 main 建立
+后续 worktree。该要求更新此前仅本地交付限制；历史验收及当时授权范围保持原文。
+同步分支 `codex/main-sync-20261004` 从本地 main `815b143` 的已提交快照建立，
+其相对远端 `299469b` 为23个独有提交、远端0个独有提交。原工作区未提交文件不纳入。
+本批先验收准确 head 的双宿主 CI，再补齐本 Spec 归档及最终 head CI，不用主干本地合入代替。
+嵌套 if 已知实现缺口由独立 SPEC-0273 修复分支承接；本同步 PR 不修改编译器或将 planned
+案例改成通过。正常教程例与诊断合同仍须实际验证，历史失败证据原样保留。
+
+同步快照本机复核：`python3 scripts/check_docs.py` 514页通过；Python scripts/tests 全部134项
+通过、无跳过（日志 `/private/tmp/main-sync-python-tests.log`）；真实 release CLI 执行当前全部
+教程22项合同通过，2 planned明确未执行（日志 `/private/tmp/main-sync-tutorial.log`）。
+使用先前从main299469b构建的release CLI；同步差异不包含Rust生产或Cargo manifest/lock，
+故生产源码相同，不把该复用描述为在新同步分支重新构建。仍待双宿主远端CI。
