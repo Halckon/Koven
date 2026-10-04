@@ -627,16 +627,21 @@ impl ExpressionLowerer<'_> {
         if self.source_slice(name_span)? == "_" {
             return Ok(LoweredValue::Unit);
         }
-        // The initializer's owner is now tracked by the local binding, including
-        // grouped aliases of the same temporary value.
-        if let LoweredValue::Value(owner) = lowered {
-            self.temporaries.retain(|_, temporary| *temporary != owner);
-        }
         let symbol = self.declaration_symbol(name_span, SymbolKind::Variable)?;
         let declared = self
             .typed
             .symbol_type(symbol)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        // The new local owns a MoveOnly initializer, including grouped aliases.
+        // Retire the source before nullable wrapping can replace its SSA identity.
+        if let LoweredValue::Value(owner) = lowered {
+            let concrete = self.resolve_type(declared, span)?;
+            if self.typed.copyability(concrete) == Some(Copyability::MoveOnly) {
+                self.forget_delivered_owners(&[owner]);
+            } else {
+                self.temporaries.retain(|_, temporary| *temporary != owner);
+            }
+        }
         if let Some(TypeKind::Nullable(inner)) = self.typed.types().get(declared)
             && self.typed.expression_type(initializer) == Some(*inner)
         {
