@@ -114,7 +114,7 @@ fn recursive_boxed_enum_drop_frees_all_descendants_once() {
     }
 }
 
-fn lower_to_llvm(name: &str, source: &str) -> String {
+pub(crate) fn lower_to_llvm(name: &str, source: &str) -> String {
     let analysis = analyze(name, source);
     assert!(
         analysis.parsed.diagnostics().is_empty(),
@@ -174,6 +174,25 @@ pub(crate) fn assert_success(run: &Output, stdout: &[u8]) {
 
 /// Reuse the native owner tests' LLVM-only allocator substitution: libc I/O is not counted.
 pub(crate) fn run_counted_allocations(llvm: &str, expected: usize) -> Output {
+    let directory = TestDirectory::create();
+    run_counted_in(llvm, expected, &directory.0, false)
+}
+
+/// The caller owns this directory and decides when retained evidence is removed.
+pub(crate) fn run_counted_allocations_with_artifacts(
+    llvm: &str,
+    expected: usize,
+    directory: &std::path::Path,
+) -> Output {
+    run_counted_in(llvm, expected, directory, true)
+}
+
+fn run_counted_in(
+    llvm: &str,
+    expected: usize,
+    directory: &std::path::Path,
+    retain: bool,
+) -> Output {
     assert!(llvm.contains("@malloc("), "fixture must actually allocate");
     assert!(
         llvm.contains("@free("),
@@ -182,7 +201,6 @@ pub(crate) fn run_counted_allocations(llvm: &str, expected: usize) -> Output {
     let instrumented = llvm
         .replace("@malloc(", "@counted_malloc(")
         .replace("@free(", "@counted_free(");
-    let directory = TestDirectory::create();
     let ir = directory.join("boxed-enum-counts.ll");
     let counter = directory.join("counter.c");
     let executable = directory.join("boxed-enum-counts");
@@ -222,16 +240,73 @@ __attribute__((destructor)) static void verify_counts(void) {
 "#,
     )
     .expect("write allocator identity counter");
-    let linked = Command::new(crate::test_support::ir_clang())
-        .arg(&ir)
-        .arg(&counter)
-        .arg(format!("-DEXPECTED_ALLOCATIONS={expected}"))
-        .arg("-o")
-        .arg(&executable)
-        .output()
-        .expect("clang must build the counted boxed enum program");
+    let evidence = retain.then_some(directory);
+    if retain {
+        let version = counted_output(
+            Command::new(crate::test_support::ir_clang()).arg("--version"),
+            evidence,
+            "version",
+        );
+        assert!(version.status.success(), "{version:?}");
+    }
+    let linked = counted_output(
+        Command::new(crate::test_support::ir_clang())
+            .arg(&ir)
+            .arg(&counter)
+            .arg(format!("-DEXPECTED_ALLOCATIONS={expected}"))
+            .arg("-o")
+            .arg(&executable),
+        evidence,
+        "compile",
+    );
     assert!(linked.status.success(), "{linked:?}");
-    Command::new(&executable)
-        .output()
-        .expect("counted boxed enum program must launch")
+    counted_output(&mut Command::new(&executable), evidence, "run")
+}
+
+/// Keep exact binary argv as well as readable commands; UTF-8 quoting must not
+/// change paths. Normal counter callers retain their existing temporary lifetime.
+fn counted_output(command: &mut Command, evidence: Option<&std::path::Path>, name: &str) -> Output {
+    if let Some(directory) = evidence {
+        let mut argv = Vec::new();
+        for argument in std::iter::once(command.get_program()).chain(command.get_args()) {
+            argv.extend_from_slice(argument.as_encoded_bytes());
+            argv.push(0);
+        }
+        fs::write(directory.join(format!("{name}.argv.nul")), argv).unwrap();
+        fs::write(
+            directory.join(format!("{name}.command.txt")),
+            format!("{command:?}\n"),
+        )
+        .unwrap();
+        fs::write(
+            directory.join(format!("{name}.cwd")),
+            std::env::current_dir()
+                .unwrap()
+                .as_os_str()
+                .as_encoded_bytes(),
+        )
+        .unwrap();
+    }
+    let result = command.output();
+    if let Some(directory) = evidence {
+        match &result {
+            Ok(output) => {
+                fs::write(directory.join(format!("{name}.stdout")), &output.stdout).unwrap();
+                fs::write(directory.join(format!("{name}.stderr")), &output.stderr).unwrap();
+                fs::write(
+                    directory.join(format!("{name}.status")),
+                    format!("{:?}\n", output.status),
+                )
+                .unwrap();
+            }
+            Err(error) => {
+                fs::write(
+                    directory.join(format!("{name}.status")),
+                    format!("spawn failed: {error}\n"),
+                )
+                .unwrap();
+            }
+        }
+    }
+    result.expect("counter child must launch; retained callers preserve its evidence")
 }
