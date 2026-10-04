@@ -64,6 +64,10 @@ pub(crate) fn emit_verified_object(
         &triple,
         &target_machine,
     )?;
+    #[cfg(test)]
+    let object_path = crate::llvm::emission_failure::object_path(path);
+    #[cfg(test)]
+    let path = object_path.as_path();
     target_machine
         .write_to_file(&llvm_module, FileType::Object, path)
         .map_err(|error| LlvmAdapterError::Object(error.to_string()))

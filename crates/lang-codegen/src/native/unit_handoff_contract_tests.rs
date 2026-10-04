@@ -759,3 +759,42 @@ fn identity_rejection_never_reserves_sibling_output() {
     let stdout = String::from_utf8(output.stdout).expect("libtest stdout");
     assert!(stdout.contains("1 passed; 0 failed; 0 ignored"), "{stdout}");
 }
+
+#[test]
+fn llvm_emission_failure_is_atomic_and_tls_recovers() {
+    let analysis = fixture();
+    let inputs = analysis.inputs();
+    let handoff = Handoff::new(&analysis, &inputs);
+    let entry = entries(&analysis)[0];
+    for pathway in PATHWAYS {
+        for present in [false, true] {
+            let directory = TestDirectory::create();
+            let blocker = directory.join("regular-file");
+            fs::write(&blocker, b"blocker bytes").unwrap();
+            let object = directory.join("program.o");
+            if present { fs::write(&object, b"old object bytes").unwrap(); }
+            let before = directory_entries(&directory.0);
+            let guard = crate::llvm::emission_failure::Guard::new(blocker.join("object.o"));
+            let error = handoff.emit(pathway, entry, &object).expect_err("real LLVM ENOTDIR");
+            assert_eq!(guard.calls(), 1, "lowering and LLVM verification reached emission");
+            assert_eq!(error.kind(), NativeObjectErrorKind::Backend);
+            assert!(error.to_string().contains("Not a directory"), "{error}");
+            assert_eq!(fs::read(&blocker).unwrap(), b"blocker bytes");
+            if present { assert_eq!(fs::read(&object).unwrap(), b"old object bytes"); }
+            else { assert!(!object.exists()); }
+            assert_eq!(directory_entries(&directory.0), before);
+            assert_no_sibling_temporary(&directory.0);
+            // Assert cleanup while both the injection guard and directory still live.
+            drop(guard);
+            handoff.emit(pathway, entry, &object).expect("TLS restored: real object");
+            crate::test_support::assert_native_object(&fs::read(&object).unwrap());
+            let executable = directory.join("program");
+            let linked = Command::new(crate::test_support::clang()).arg(&object).arg("-o").arg(&executable).output().unwrap();
+            assert!(linked.status.success(), "{linked:?}");
+            let run = Command::new(executable).output().unwrap();
+            assert_eq!(run.status.code(), Some(0));
+            assert_eq!(run.stdout, "handoff-界\n".as_bytes());
+            assert!(run.stderr.is_empty());
+        }
+    }
+}

@@ -19,6 +19,9 @@ pub(crate) fn render_program(program: &model::Program) -> String {
 mod types;
 pub(crate) mod unit_lower;
 pub(crate) mod unit_plan;
+mod unit_source_query;
+#[cfg(test)]
+mod unit_source_query_tests;
 pub(crate) mod verify;
 mod verify_operation;
 mod verify_ownership;

@@ -17,3 +17,7 @@
 - [SPEC-0257](0257-bounded-integration-composition.md)：有界组合门禁去重与失败传播，in-progress
 
 - [SPEC-0258](0258-direct-workspace-dependencies.md)：五成员四条内部直接声明依赖门禁，in-progress
+
+- [SPEC-0259](0259-recoverable-llvm-emission.md)：真实LLVM可恢复发射失败与TLS恢复，in-progress
+
+- [SPEC-0260](0260-shared-unit-source-query.md)：unit planner/lower共享借用source查询，in-progress

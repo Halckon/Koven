@@ -24,6 +24,8 @@ mod layout_tests;
 mod nullable_tests;
 #[cfg(test)]
 mod object_tests;
+#[cfg(test)]
+pub(crate) mod emission_failure;
 mod runtime;
 #[cfg(test)]
 mod runtime_tests;

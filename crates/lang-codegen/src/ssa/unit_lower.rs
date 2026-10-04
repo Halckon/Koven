@@ -145,8 +145,9 @@ fn lower_unit_from_facts(
     constant_owned: Option<&ConstEnabledOwnedUnit>,
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
+    let parsed_by_source = super::unit_source_query::parsed_by_source_unit(inputs, names)?;
     let instance_plan = plan_unit_instances_from_facts(
-        inputs,
+        &parsed_by_source,
         names,
         typed,
         owned,
@@ -154,7 +155,6 @@ fn lower_unit_from_facts(
         MAX_UNIT_GENERIC_INSTANCES,
     )?;
     let (instances, runtime_type_demands) = instance_plan.into_parts();
-    let parsed_by_source = parsed_by_source_unit(inputs, names)?;
     let mut program = Program::default();
     let module_id = program.add_module("main");
     let module = program
@@ -1101,28 +1101,6 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
-fn parsed_by_source_unit<'a>(
-    inputs: &'a [SourceUnitInput<'a>],
-    names: &ValidatedCompilationUnitNames,
-) -> Result<Vec<&'a lang_frontend::parser::ParsedFile>, LoweringError> {
-    names
-        .names()
-        .index()
-        .source_units()
-        .iter()
-        .map(|source_unit| {
-            inputs
-                .iter()
-                .copied()
-                .find(|input| input.source_id() == source_unit.source_id())
-                .map(SourceUnitInput::parsed)
-                .ok_or(LoweringError {
-                    kind: LoweringErrorKind::MismatchedSource,
-                    span: None,
-                })
-        })
-        .collect()
-}
 
 fn symbol_references(
     names: &ValidatedCompilationUnitNames,
