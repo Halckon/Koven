@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，255 份）"]
+subgraph Garchive["已完成（archive，256 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -264,6 +264,7 @@ subgraph Garchive["已完成（archive，255 份）"]
   S0266["S0266<br/>Koven native 地址与泄漏检测接线"]
   S0267["S0267<br/>Tree-sitter corpus 解析与必需 CI 门禁"]
   S0268["S0268<br/>unit 顺序迭代 native 与 M1A 程序贯通"]
+  S0270["S0270<br/>单文件局部 MoveOnly 绑定交接"]
 end
 subgraph Gactive["现行 active"]
   S0269["S0269<br/>有界资源程序生成与独立安全核验"]
@@ -1211,6 +1212,7 @@ S0226 --> S0227
 S0228 --> S0266
 S0244 --> S0245
 S0244 --> S0246
+S0245 --> S0270
 S0246 --> S0263
 S0249 --> S0250
 S0249 --> S0252
@@ -1491,4 +1493,5 @@ S0266 --> S0269
 | SPEC-0266 | archive | [0266-native-sanitizer-wiring.md](0266-native-sanitizer-wiring.md) |
 | SPEC-0267 | archive | [0267-editor-corpus-gate.md](0267-editor-corpus-gate.md) |
 | SPEC-0268 | archive | [0268-unit-iteration-native.md](0268-unit-iteration-native.md) |
+| SPEC-0270 | archive | [0270-local-owner-binding-transfer.md](0270-local-owner-binding-transfer.md) |
 | SPEC-0269 | active | [0269-generated-resource-programs.md](../../specs/active/0269-generated-resource-programs.md) |

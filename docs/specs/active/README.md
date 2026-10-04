@@ -4,8 +4,9 @@
 
 当前 1 份 active Spec：
 
-- [0269 有界资源程序生成与独立安全核验](0269-generated-resource-programs.md)：M4b 首片，实施中；验收尚未执行。
+- [0269 有界资源程序生成与独立安全核验](0269-generated-resource-programs.md)：M4b 首片，实施中；已完成部分本地验证，完整验收尚未完成。
 
+0270 局部 MoveOnly 绑定交接已归档并通过 [PR47](https://github.com/Halckon/Koven/pull/47) 合并。
 0268已按双宿主实现证据归档并经[PR46](https://github.com/Halckon/Koven/pull/46)合并。
 0263/0264/0265 已分别完成 M1A A2–A4 有界验收归档；
 0266 检测接线与0267编辑器修复已分别通过PR44/PR45合并。0268补齐unit native for与完整应用实现验收。

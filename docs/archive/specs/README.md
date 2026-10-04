@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 255 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 256 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -363,3 +363,7 @@
 ## Unit 顺序迭代与 M1A 程序（2026-10-04）
 
 - [SPEC-0268](0268-unit-iteration-native.md)：消费完整前端事实，三provider/source形态与退出/资源验证、原三文件教程四argv经双宿主PR CI通过；Inout/field/captured Borrow native边界保留。
+
+## 单文件局部 MoveOnly 绑定交接（2026-10-04）
+
+- [SPEC-0270](0270-local-owner-binding-transfer.md)：移动后注销旧SSA绑定，条件返回/group/nullable及Copyable对照经双宿主PR CI验收；生成设施0269独立推进。
