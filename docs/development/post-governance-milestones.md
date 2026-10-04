@@ -199,9 +199,11 @@ M0 本次完成基线、Spec 编号及首片入口接收；历史尺寸欠账、
 后续从 PR40 merge `11acf62` 启动
 [SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)实施 A3。该 merge 的主干
 [CI37193746866](https://github.com/Halckon/Koven/actions/runs/37193746866)10个任务全部成功。
-unit for 调查确认 typed descriptor、provider/source loan 与有序清理事实尚缺；先闭合前端合同，
-再由后端消费，保持 Guide §37.4 的前端与 native 范围区分。并行实施使用独立分支/worktree，
-本地 Cargo 仍串行；M1A 总退出条件保持。
+该调查发现的 unit typed descriptor、provider/source loan 与有序清理事实，现已由
+[SPEC-0265](../archive/specs/0265-unit-iteration-facts.md)完成前端 A4 双宿主验收。
+后继 A5 由后端消费，保持 Guide §37.4 的前端与 native 范围区分；完整三文件程序仍在
+native lowering 返回 UnsupportedNode。并行实施使用独立分支/worktree，本地 Cargo 串行，
+切换工作树后须确保实际源码重新编译；M1A 总退出条件保持。
 
 ## 13. M0 编辑器覆盖复核（2026-10-04）
 

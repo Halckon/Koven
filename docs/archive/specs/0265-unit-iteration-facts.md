@@ -1,10 +1,10 @@
 # SPEC-0265: unit 顺序迭代前端事实
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施或验收 M1A A4 时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：追溯 M1A A4 交付时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P3-265` |
 | 所属 Phase | Phase 2–3；现行语义实现 |
 | 语言规范 | [Guide v0.40 §37](../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
@@ -106,7 +106,22 @@ fresh review接受父模块必要接线，provider算法与schema已按职责独
 快照失败：本片已闭合的 LoopSource/ControlJoin/Assignment 仍列为 Deferred。保留精确快照检查，
 将预期更新为仅剩非值 callee `listOf` 的 Deferred(Call)，同步 Guide 一致性账本。
 本地切换工作树后重新编译 frontend，先复现同一失败，再验证完整 `guide_litmus` 23/23 通过，
-0 failed/ignored。首轮失败不算远端通过，最终提交的双宿主 CI 仍待收口。
+0 failed/ignored。首轮失败不算远端通过，修复后实现提交的验收见下节；归档提交仍需最终 CI 收口。
 
 本片未运行frontend全量或A5 native for；原unit-for拒绝原子性仍通过，
 不将前端交接表述为native支持。PR 按用户授权交付，CI 全绿后再归档合并。
+
+## 6. 双宿主验收与归档
+
+[PR43](https://github.com/Halckon/Koven/pull/43) 实现 head
+`4a07caf8c58e6fa4e27f72ec43e606fee91a4312` 的
+[CI37197790941](https://github.com/Halckon/Koven/actions/runs/37197790941) completed/success，
+10/10 job 成功，包含 Ubuntu/macOS workspace check、Clippy 与 Targeted Tests。
+两份原始日志逐名核实新增 typed 7 项、ownership 18 项、constant 2 项、schema mutation 7 项
+全部实际执行并通过；Guide Litmus11 也通过，所在套件23/23、0失败/忽略/筛除。
+Ubuntu 无 ignored；macOS 仅既有 LLDB 断点测试因 debugserver task-port 权限 ignored，
+本片新增测试没有跳过。独立实现审阅、缺陷修复复审及本地验收已闭环。
+
+本次归档只更新合同状态、索引/inventory、DAG 和进度链接；最终归档 head 仍须通过 PR CI
+才合并，不能用以上实现 head 代替。M1A A4 已交付，A5–A10 与完整三文件 native/CLI
+总验收仍开放；本片不声明 unit native for 已支持。
