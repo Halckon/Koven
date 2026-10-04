@@ -1,0 +1,30 @@
+{
+  "kind": "static Git/blob evidence, no behavioral or performance execution",
+  "recovery": "7c7cc254a4e8e36ebfa2d858a334d98806c2091d",
+  "pr37": "385bb23e1123c3a4ba00ec9fe5d964ebc95f1493",
+  "local_reviewed_head": "03395c64217e5bc9b11a6d2d48b49226a0e39440",
+  "trees": {
+    "7c7cc254a4e8e36ebfa2d858a334d98806c2091d": "eeee35fd9e9ec0b75245902a0b40ce24afe693b7",
+    "385bb23e1123c3a4ba00ec9fe5d964ebc95f1493": "eeee35fd9e9ec0b75245902a0b40ce24afe693b7",
+    "03395c64217e5bc9b11a6d2d48b49226a0e39440": "fbcb6821091e2117c2097f8a99fcf1d29ca63c87"
+  },
+  "pr37_parents": [
+    "201d415d126d86183275d86ff2bc45caae6586a4",
+    "7c7cc254a4e8e36ebfa2d858a334d98806c2091d"
+  ],
+  "merge_base": "385bb23e1123c3a4ba00ec9fe5d964ebc95f1493",
+  "left_right_commits": [
+    "0",
+    "1"
+  ],
+  "recovery_to_pr37_paths": [],
+  "pr37_to_local_compiler_paths": [],
+  "result": {
+    "block_comparisons": 400,
+    "production_file_comparisons": 9,
+    "unreported_failures": 0,
+    "budget_accepted": false,
+    "linux_executed": false
+  },
+  "historical_evidence_sha256": "04d32df84c9b08ce678c96d3817e2c1676dd643244060e9ca7933359ec087cfa"
+}

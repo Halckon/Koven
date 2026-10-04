@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，248 份）"]
+subgraph Garchive["已完成（archive，249 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -257,6 +257,7 @@ subgraph Garchive["已完成（archive，248 份）"]
   S0259["S0259<br/>真实LLVM可恢复发射失败与TLS恢复"]
   S0260["S0260<br/>unit planner/lower共享借用source查询"]
   S0261["S0261<br/>有限只读 iteration fact validator"]
+  S0262["S0262<br/>原治理计划的当前教程覆盖补齐"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1462,3 +1463,4 @@ S0254 --> S0255
 | SPEC-0259 | archive | [0259-recoverable-llvm-emission.md](0259-recoverable-llvm-emission.md) |
 | SPEC-0260 | archive | [0260-shared-unit-source-query.md](0260-shared-unit-source-query.md) |
 | SPEC-0261 | archive | [0261-finite-iteration-fact-validation.md](0261-finite-iteration-fact-validation.md) |
+| SPEC-0262 | archive | [0262-current-tutorial-plan-coverage.md](0262-current-tutorial-plan-coverage.md) |

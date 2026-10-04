@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="6192" height="6970" viewBox="0 0 6192 6970" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="6456" height="6970" viewBox="0 0 6456 6970" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="6192" height="6970" fill="#ffffff"/>
-  <rect x="40" y="30" width="6088" height="6868" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3084" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，248 份）</text>
+  <rect width="6456" height="6970" fill="#ffffff"/>
+  <rect x="40" y="30" width="6352" height="6868" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3216" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，249 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 464, 180 496" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1996,4 +1996,7 @@
   <text x="5988" y="105" text-anchor="middle" font-size="13">有限只读 iteration</text>
   <text x="5988" y="123" text-anchor="middle" font-size="13"> fact validato</text>
   <text x="5988" y="141" text-anchor="middle" font-size="13">r</text>
+  <rect x="6132" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="6252" y="87" text-anchor="middle" font-size="13">SPEC-0262</text>
+  <text x="6252" y="105" text-anchor="middle" font-size="13">原治理计划的当前教程覆盖补齐</text>
 </svg>
