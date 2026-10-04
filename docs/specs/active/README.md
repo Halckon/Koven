@@ -2,9 +2,8 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 active：[SPEC-0265](0265-unit-iteration-facts.md)，补齐 conditional receiver 有序清理合同。
-M1A 0263/0264 经 PR40/PR41 归档，0267 编辑器修复经 PR45 归档合并；
-0265 旧范围双宿主已验收，新补齐的条件清理合同待 PR43 新 CI；unit native for 与完整应用仍开放。
+当前无 active Spec。0263/0264/0265 已分别完成 M1A A2–A4 有界验收归档；
+0267 编辑器修复已通过 PR45 合并。unit native for 与完整应用验收仍开放。
 0182、0255–0261按用户授权的本机恢复验收完成本地归档，
 实际结果与未覆盖范围见[本机恢复账本](../../development/recovery-local-delivery.md)。
 后继[0262教程补齐](../../archive/specs/0262-current-tutorial-plan-coverage.md)也已按Mac有界验收本地归档。

@@ -1,10 +1,10 @@
 # SPEC-0265: unit 顺序迭代前端事实
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施 M1A A4 conditional receiver 补齐时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：追溯 M1A A4 前端验收时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P3-265` |
 | 所属 Phase | Phase 2–3；现行语义实现 |
 | 语言规范 | [Guide v0.40 §37](../../guide/12-collections-destructuring.md#37-借用式顺序容器迭代-provider) |
@@ -16,7 +16,7 @@
 
 ## 1. Goal 与范围
 
-初始以 `11acf62` 为主干基线，最终整合至 `8408d70`，承接[M1A](../../development/multifile-program-spec-draft.md) A4：
+初始以 `11acf62` 为主干基线，补齐清理合同后整合至 `5fbc664`，承接[M1A](../../development/multifile-program-spec-draft.md) A4：
 unit `for` 发布同轮、source-qualified typed provider/binding/projection与ownership退出计划。
 Array/List/MutableList均支持Name、Discard及concrete value-class borrowed解构；
 owned、Borrow、Inout、field、temporary source均由前端按现行规则检查。
@@ -172,3 +172,15 @@ receiver tests覆盖兼容性。A5仍未启用，公开动作并不宣称native 
 本轮尺寸增量：`compilation_unit.rs`1144→1147、`dataflow.rs`1225→1232、
 `drop_planner.rs`1570→1594；baseline不变，增加仅为conditional scope证据/动作接线及API说明，
 精确例外随policy更新，独立review已核职责与额度合理。
+
+## 8. 补齐后的双宿主验收与最终归档
+
+修复提交 `fb979ef` 经独立复审，将编辑器主干整合后的 head
+`d0b4727c323e2ddb67aebaea1f7e7ee67796fc64` 已由
+[PR CI37199801266](https://github.com/Halckon/Koven/actions/runs/37199801266)实际验收：
+11个job均已终态，其中10个success，Tree-sitter job因`editors=false`按路径政策skipped；
+CI Passed 已明确认可该豁免，两宿主workspace/clippy及Targeted Tests均成功。
+原始日志逐名核对第7节新增ordinary两项、constant一项与schema mutation两项，均实际ok；
+macOS仅既有LLDB debugserver task-port权限测试ignored，Ubuntu无ignored。
+整合后的docs508、docs单测37与CI政策20通过；本片前端合同据此重新归档。
+归档提交仍须新的最终PR门禁，无未决项后才合并；A5–A10和完整M1A退出条件保持开放。
