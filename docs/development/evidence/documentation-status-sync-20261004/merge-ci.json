@@ -1,0 +1,94 @@
+{
+  "pre_merge_main": "a83749f8bd1567cdd40a2d92e2b7ee22947773f1",
+  "merged_documentation_head": "291f24b87c60786a19758971ee32207a207dfb26",
+  "scope": "read-only final PR46 CI; no new CI triggered",
+  "run": {
+    "run": 37206347562,
+    "head": "fb4b849529ebdcec4e7063723a3a85a5c81e7fbb",
+    "conclusion": "success",
+    "url": "https://github.com/Halckon/Koven/actions/runs/37206347562",
+    "jobs": [
+      {
+        "name": "Direct Workspace Dependency Guard",
+        "conclusion": "success",
+        "steps": []
+      },
+      {
+        "name": "Detect Changed Files",
+        "conclusion": "success",
+        "steps": []
+      },
+      {
+        "name": "Rust Physical Line Guard",
+        "conclusion": "success",
+        "steps": []
+      },
+      {
+        "name": "Rust Code Formatting",
+        "conclusion": "success",
+        "steps": []
+      },
+      {
+        "name": "Docs & Spec Structural Gate",
+        "conclusion": "success",
+        "steps": []
+      },
+      {
+        "name": "Tree-sitter CLI Corpus",
+        "conclusion": "skipped",
+        "steps": []
+      },
+      {
+        "name": "Workspace Check & Clippy (macos-14)",
+        "conclusion": "success",
+        "steps": []
+      },
+      {
+        "name": "Workspace Check & Clippy (ubuntu-24.04)",
+        "conclusion": "success",
+        "steps": []
+      },
+      {
+        "name": "Targeted Tests (macos-14)",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Run bounded composition including tutorial",
+            "conclusion": "success"
+          },
+          {
+            "name": "Linux native sanitizer contracts",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Preserve Linux sanitizer evidence",
+            "conclusion": "skipped"
+          }
+        ]
+      },
+      {
+        "name": "Targeted Tests (ubuntu-24.04)",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Run bounded composition including tutorial",
+            "conclusion": "success"
+          },
+          {
+            "name": "Linux native sanitizer contracts",
+            "conclusion": "success"
+          },
+          {
+            "name": "Preserve Linux sanitizer evidence",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "name": "CI Passed",
+        "conclusion": "success",
+        "steps": []
+      }
+    ]
+  }
+}

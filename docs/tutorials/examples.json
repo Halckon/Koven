@@ -328,6 +328,94 @@
           }
         }
       ]
+    },
+    {
+      "id": "numbers-bitwise",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "literals\nbits\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "literals\nbits\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "scope-cleanup",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "inner\nsecond\nfirst\nafter\nouter\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "inner\nsecond\nfirst\nafter\nouter\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "unit-loop-cleanup",
+      "status": "executable",
+      "args": [],
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "artifact": {
+        "exit": 0,
+        "stdout": "continue\nvisit\nlocal\nvisit\nlocal\nsecond\nfirst\nafter\nouter\nbreak\nvisit\nlocal\nsecond\nfirst\nafter\nouter\nreturn\nvisit\nlocal\nsecond\nfirst\nouter\ncaller\n",
+        "stderr": ""
+      },
+      "run": {
+        "exit": 0,
+        "stdout": "continue\nvisit\nlocal\nvisit\nlocal\nsecond\nfirst\nafter\nouter\nbreak\nvisit\nlocal\nsecond\nfirst\nafter\nouter\nreturn\nvisit\nlocal\nsecond\nfirst\nouter\ncaller\n",
+        "stderr": ""
+      },
+      "files": {
+        "src/worker/Work.ko": "unit-loop-cleanup-worker",
+        "src/app/Main.ko": "unit-loop-cleanup"
+      },
+      "entry": "app.main"
+    },
+    {
+      "id": "reject-immutable-place",
+      "status": "diagnostic",
+      "build": {
+        "exit": 2,
+        "stdout": "",
+        "stderr": "{\"code\":\"L0134\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":33,\"byte_start\":27,\"end\":{\"column\":15,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":9,\"line\":2}},\"message\":\"immutable binding declared here\"}],\"message\":\"inout argument is not a mutable place\",\"primary\":{\"byte_end\":66,\"byte_start\":65,\"end\":{\"column\":29,\"line\":3},\"source\":\"source.ko\",\"start\":{\"column\":28,\"line\":3}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
+      }
+    },
+    {
+      "id": "reject-iteration-move",
+      "status": "diagnostic",
+      "build": {
+        "exit": 2,
+        "stdout": "",
+        "stderr": "{\"code\":\"L0135\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":131,\"byte_start\":126,\"end\":{\"column\":23,\"line\":5},\"source\":\"source.ko\",\"start\":{\"column\":18,\"line\":5}},\"message\":\"conflicting loan starts here\"}],\"message\":\"access conflicts with the active iteration source loan\",\"primary\":{\"byte_end\":156,\"byte_start\":151,\"end\":{\"column\":22,\"line\":6},\"source\":\"source.ko\",\"start\":{\"column\":17,\"line\":6}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
+      }
+    },
+    {
+      "id": "gap-scope-branch",
+      "status": "planned",
+      "reason": "SPEC-0271 Mac固定基线实际native build失败：InvalidSsa；不是语言诊断，不计执行通过"
     }
   ]
 }

@@ -1,0 +1,1034 @@
+{
+  "status": "sampling complete; cost acceptance blocked by formal build noise",
+  "formal_rows": {
+    "all": 59,
+    "calibration": 13,
+    "noncalibration": 46
+  },
+  "phases": {
+    "cold": {
+      "sample_count_per_side": 3,
+      "metrics": {
+        "seconds": {
+          "before": {
+            "values": [
+              9.668541124789044,
+              10.476905582938343,
+              10.484701249981299
+            ],
+            "median": 10.476905582938343,
+            "mad": 0.007795667042955756,
+            "range": 0.8161601251922548
+          },
+          "after": {
+            "values": [
+              9.121277207974344,
+              9.858958208933473,
+              17.24078854196705
+            ],
+            "median": 9.858958208933473,
+            "mad": 0.7376810009591281,
+            "range": 8.119511333992705
+          },
+          "paired_after_minus_before": {
+            "values": [
+              -0.5472639168146998,
+              -0.6179473740048707,
+              6.75608729198575
+            ],
+            "median": -0.5472639168146998,
+            "mad": 0.07068345719017088,
+            "range": 7.374034665990621
+          }
+        },
+        "maximum_reported_process_rss_bytes": {
+          "before": {
+            "values": [
+              2053275648,
+              2099724288,
+              2103394304
+            ],
+            "median": 2099724288,
+            "mad": 3670016,
+            "range": 50118656
+          },
+          "after": {
+            "values": [
+              2116321280,
+              2100903936,
+              2064695296
+            ],
+            "median": 2100903936,
+            "mad": 15417344,
+            "range": 51625984
+          },
+          "paired_after_minus_before": {
+            "values": [
+              63045632,
+              1179648,
+              -38699008
+            ],
+            "median": 1179648,
+            "mad": 39878656,
+            "range": 101744640
+          }
+        },
+        "rustc_nonlink_seconds_sum": {
+          "before": {
+            "values": [
+              9.269671623999999,
+              10.073765292000001,
+              10.064736707
+            ],
+            "median": 10.064736707,
+            "mad": 0.009028585000001144,
+            "range": 0.8040936680000019
+          },
+          "after": {
+            "values": [
+              8.748572583,
+              9.462974417,
+              16.370773084
+            ],
+            "median": 9.462974417,
+            "mad": 0.7144018340000002,
+            "range": 7.622200501
+          },
+          "paired_after_minus_before": {
+            "values": [
+              -0.5210990409999994,
+              -0.6107908750000011,
+              6.306036377
+            ],
+            "median": -0.5210990409999994,
+            "mad": 0.08969183400000169,
+            "range": 6.916827252000001
+          }
+        },
+        "linker_seconds_sum": {
+          "before": {
+            "values": [
+              0.107669042,
+              0.135517625,
+              0.142341792
+            ],
+            "median": 0.135517625,
+            "mad": 0.006824166999999992,
+            "range": 0.03467274999999999
+          },
+          "after": {
+            "values": [
+              0.094404834,
+              0.118357125,
+              0.455259
+            ],
+            "median": 0.118357125,
+            "mad": 0.023952290999999987,
+            "range": 0.36085416600000003
+          },
+          "paired_after_minus_before": {
+            "values": [
+              -0.013264208,
+              -0.01716050000000001,
+              0.312917208
+            ],
+            "median": -0.013264208,
+            "mad": 0.0038962920000000095,
+            "range": 0.330077708
+          }
+        }
+      },
+      "wall_investigation": {
+        "threshold_seconds": 2.0953811165876686,
+        "median_triggered": false,
+        "individual_pair_trigger_indices": [
+          2
+        ]
+      },
+      "rss_investigation": {
+        "threshold_bytes": 209972428.8,
+        "median_triggered": false
+      },
+      "wall_noise": {
+        "before": {
+          "evaluable": true,
+          "within_registered_spread": true
+        },
+        "after": {
+          "evaluable": true,
+          "within_registered_spread": false
+        }
+      }
+    },
+    "warm": {
+      "sample_count_per_side": 5,
+      "metrics": {
+        "seconds": {
+          "before": {
+            "values": [
+              1.2710019580554217,
+              0.775867709191516,
+              0.7362566669471562,
+              0.7469862499274313,
+              0.7879663750063628
+            ],
+            "median": 0.775867709191516,
+            "mad": 0.028881459264084697,
+            "range": 0.5347452911082655
+          },
+          "after": {
+            "values": [
+              1.2181706249248236,
+              0.9440235409419984,
+              0.8656159171368927,
+              0.8463202498387545,
+              0.7809372500050813
+            ],
+            "median": 0.8656159171368927,
+            "mad": 0.07840762380510569,
+            "range": 0.43723337491974235
+          },
+          "paired_after_minus_before": {
+            "values": [
+              -0.05283133313059807,
+              0.16815583175048232,
+              0.12935925018973649,
+              0.09933399991132319,
+              -0.0070291250012815
+            ],
+            "median": 0.09933399991132319,
+            "mad": 0.06882183183915913,
+            "range": 0.2209871648810804
+          }
+        },
+        "maximum_reported_process_rss_bytes": {
+          "before": {
+            "values": [
+              249626624,
+              254771200,
+              249249792,
+              249987072,
+              253296640
+            ],
+            "median": 249987072,
+            "mad": 737280,
+            "range": 5521408
+          },
+          "after": {
+            "values": [
+              232816640,
+              235175936,
+              234127360,
+              232357888,
+              236879872
+            ],
+            "median": 234127360,
+            "mad": 1310720,
+            "range": 4521984
+          },
+          "paired_after_minus_before": {
+            "values": [
+              -16809984,
+              -19595264,
+              -15122432,
+              -17629184,
+              -16416768
+            ],
+            "median": -16809984,
+            "mad": 819200,
+            "range": 4472832
+          }
+        },
+        "rustc_nonlink_seconds_sum": {
+          "before": {
+            "values": [
+              0.803560792,
+              0.575449209,
+              0.566204208,
+              0.547891876,
+              0.573402542
+            ],
+            "median": 0.573402542,
+            "mad": 0.007198333999999917,
+            "range": 0.25566891599999997
+          },
+          "after": {
+            "values": [
+              0.787666334,
+              0.651456292,
+              0.6462867489999999,
+              0.610736666,
+              0.572986459
+            ],
+            "median": 0.6462867489999999,
+            "mad": 0.035550082999999955,
+            "range": 0.21467987499999996
+          },
+          "paired_after_minus_before": {
+            "values": [
+              -0.015894458,
+              0.07600708300000003,
+              0.0800825409999999,
+              0.06284478999999998,
+              -0.000416082999999956
+            ],
+            "median": 0.06284478999999998,
+            "mad": 0.017237750999999912,
+            "range": 0.0959769989999999
+          }
+        },
+        "linker_seconds_sum": {
+          "before": {
+            "values": [
+              0.249244125,
+              0.111165916,
+              0.091127125,
+              0.100030708,
+              0.105282708
+            ],
+            "median": 0.105282708,
+            "mad": 0.005883208000000001,
+            "range": 0.158117
+          },
+          "after": {
+            "values": [
+              0.273780625,
+              0.155131125,
+              0.111206459,
+              0.091692792,
+              0.12108375
+            ],
+            "median": 0.12108375,
+            "mad": 0.02939095800000001,
+            "range": 0.182087833
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0.02453649999999999,
+              0.043965209000000005,
+              0.02007933399999999,
+              -0.008337916,
+              0.015801042
+            ],
+            "median": 0.02007933399999999,
+            "mad": 0.0044571659999999985,
+            "range": 0.052303125000000006
+          }
+        }
+      },
+      "wall_investigation": {
+        "threshold_seconds": 1,
+        "median_triggered": false,
+        "individual_pair_trigger_indices": []
+      },
+      "rss_investigation": {
+        "threshold_bytes": 67108864,
+        "median_triggered": false
+      },
+      "wall_noise": {
+        "before": {
+          "evaluable": true,
+          "within_registered_spread": false
+        },
+        "after": {
+          "evaluable": true,
+          "within_registered_spread": false
+        }
+      }
+    },
+    "run": {
+      "sample_count_per_side": 5,
+      "metrics": {
+        "seconds": {
+          "before": {
+            "values": [
+              0.14519904111512005,
+              0.1453739998396486,
+              0.1424249999690801,
+              0.14599191606976092,
+              0.14418345782905817
+            ],
+            "median": 0.14519904111512005,
+            "mad": 0.0007928749546408653,
+            "range": 0.003566916100680828
+          },
+          "after": {
+            "values": [
+              0.13532550004310906,
+              0.14508054195903242,
+              0.14698479208163917,
+              0.1496358341537416,
+              0.1483123330399394
+            ],
+            "median": 0.14698479208163917,
+            "mad": 0.0019042501226067543,
+            "range": 0.014310334110632539
+          },
+          "paired_after_minus_before": {
+            "values": [
+              -0.009873541072010994,
+              -0.00029345788061618805,
+              0.00455979211255908,
+              0.0036439180839806795,
+              0.004128875210881233
+            ],
+            "median": 0.0036439180839806795,
+            "mad": 0.0009158740285784006,
+            "range": 0.014433333184570074
+          }
+        },
+        "maximum_reported_process_rss_bytes": {
+          "before": {
+            "values": [
+              10698752,
+              10698752,
+              10338304,
+              10698752,
+              10272768
+            ],
+            "median": 10698752,
+            "mad": 0,
+            "range": 425984
+          },
+          "after": {
+            "values": [
+              10731520,
+              10551296,
+              10698752,
+              10682368,
+              10747904
+            ],
+            "median": 10698752,
+            "mad": 32768,
+            "range": 196608
+          },
+          "paired_after_minus_before": {
+            "values": [
+              32768,
+              -147456,
+              360448,
+              -16384,
+              475136
+            ],
+            "median": 32768,
+            "mad": 180224,
+            "range": 622592
+          }
+        },
+        "rustc_nonlink_seconds_sum": {
+          "before": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "after": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          }
+        },
+        "linker_seconds_sum": {
+          "before": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "after": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          }
+        }
+      },
+      "wall_investigation": {
+        "threshold_seconds": 0.04355971233453602,
+        "median_triggered": false,
+        "individual_pair_trigger_indices": []
+      },
+      "rss_investigation": {
+        "threshold_bytes": 67108864,
+        "median_triggered": false
+      },
+      "wall_noise": {
+        "before": {
+          "evaluable": true,
+          "within_registered_spread": true
+        },
+        "after": {
+          "evaluable": true,
+          "within_registered_spread": true
+        }
+      }
+    },
+    "noop": {
+      "sample_count_per_side": 3,
+      "metrics": {
+        "seconds": {
+          "before": {
+            "values": [
+              0.047531332820653915,
+              0.046579458052292466,
+              0.046932708006352186
+            ],
+            "median": 0.046932708006352186,
+            "mad": 0.00035324995405972004,
+            "range": 0.0009518747683614492
+          },
+          "after": {
+            "values": [
+              0.04766841698437929,
+              0.0470336249563843,
+              0.04090649983845651
+            ],
+            "median": 0.0470336249563843,
+            "mad": 0.0006347920279949903,
+            "range": 0.00676191714592278
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0.00013708416372537613,
+              0.000454166904091835,
+              -0.006026208167895675
+            ],
+            "median": 0.00013708416372537613,
+            "mad": 0.0003170827403664589,
+            "range": 0.00648037507198751
+          }
+        },
+        "maximum_reported_process_rss_bytes": {
+          "before": {
+            "values": [
+              37486592,
+              37208064,
+              37175296
+            ],
+            "median": 37208064,
+            "mad": 32768,
+            "range": 311296
+          },
+          "after": {
+            "values": [
+              37502976,
+              37470208,
+              37306368
+            ],
+            "median": 37470208,
+            "mad": 32768,
+            "range": 196608
+          },
+          "paired_after_minus_before": {
+            "values": [
+              16384,
+              262144,
+              131072
+            ],
+            "median": 131072,
+            "mad": 114688,
+            "range": 245760
+          }
+        },
+        "rustc_nonlink_seconds_sum": {
+          "before": {
+            "values": [
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "after": {
+            "values": [
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          }
+        },
+        "linker_seconds_sum": {
+          "before": {
+            "values": [
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "after": {
+            "values": [
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          }
+        }
+      },
+      "wall_investigation": {
+        "threshold_seconds": 1,
+        "median_triggered": false,
+        "individual_pair_trigger_indices": []
+      },
+      "rss_investigation": {
+        "threshold_bytes": 67108864,
+        "median_triggered": false
+      },
+      "wall_noise": {
+        "before": {
+          "evaluable": true,
+          "within_registered_spread": true
+        },
+        "after": {
+          "evaluable": true,
+          "within_registered_spread": true
+        }
+      }
+    },
+    "first-launch-after-build": {
+      "sample_count_per_side": 5,
+      "metrics": {
+        "seconds": {
+          "before": {
+            "values": [
+              1.056749583221972,
+              1.0023122080601752,
+              1.0801028748974204,
+              1.0260393749922514,
+              1.0031915421131998
+            ],
+            "median": 1.0260393749922514,
+            "mad": 0.023727166932076216,
+            "range": 0.07779066683724523
+          },
+          "after": {
+            "values": [
+              1.1009390000253916,
+              1.005731999874115,
+              0.9932917081750929,
+              0.9959705418441445,
+              0.9874193749856204
+            ],
+            "median": 0.9959705418441445,
+            "mad": 0.008551166858524084,
+            "range": 0.1135196250397712
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0.04418941680341959,
+              0.00341979181393981,
+              -0.08681116672232747,
+              -0.030068833148106933,
+              -0.01577216712757945
+            ],
+            "median": -0.01577216712757945,
+            "mad": 0.01919195894151926,
+            "range": 0.13100058352574706
+          }
+        },
+        "maximum_reported_process_rss_bytes": {
+          "before": {
+            "values": [
+              10305536,
+              10715136,
+              10731520,
+              10223616,
+              10223616
+            ],
+            "median": 10305536,
+            "mad": 81920,
+            "range": 507904
+          },
+          "after": {
+            "values": [
+              10846208,
+              10469376,
+              10715136,
+              10452992,
+              10715136
+            ],
+            "median": 10715136,
+            "mad": 131072,
+            "range": 393216
+          },
+          "paired_after_minus_before": {
+            "values": [
+              540672,
+              -245760,
+              -16384,
+              229376,
+              491520
+            ],
+            "median": 229376,
+            "mad": 262144,
+            "range": 786432
+          }
+        },
+        "rustc_nonlink_seconds_sum": {
+          "before": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "after": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          }
+        },
+        "linker_seconds_sum": {
+          "before": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "after": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          }
+        }
+      },
+      "wall_investigation": {
+        "threshold_seconds": 0.3078118124976754,
+        "median_triggered": false,
+        "individual_pair_trigger_indices": []
+      },
+      "rss_investigation": {
+        "threshold_bytes": 67108864,
+        "median_triggered": false
+      },
+      "wall_noise": {
+        "before": {
+          "evaluable": true,
+          "within_registered_spread": true
+        },
+        "after": {
+          "evaluable": true,
+          "within_registered_spread": true
+        }
+      }
+    },
+    "first-launch-cold": {
+      "sample_count_per_side": 1,
+      "metrics": {
+        "seconds": {
+          "before": {
+            "values": [
+              1.5710769998840988
+            ],
+            "median": 1.5710769998840988,
+            "mad": 0.0,
+            "range": 0.0
+          },
+          "after": {
+            "values": [
+              1.7293200411368161
+            ],
+            "median": 1.7293200411368161,
+            "mad": 0.0,
+            "range": 0.0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0.15824304125271738
+            ],
+            "median": 0.15824304125271738,
+            "mad": 0.0,
+            "range": 0.0
+          }
+        },
+        "maximum_reported_process_rss_bytes": {
+          "before": {
+            "values": [
+              10731520
+            ],
+            "median": 10731520,
+            "mad": 0,
+            "range": 0
+          },
+          "after": {
+            "values": [
+              10862592
+            ],
+            "median": 10862592,
+            "mad": 0,
+            "range": 0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              131072
+            ],
+            "median": 131072,
+            "mad": 0,
+            "range": 0
+          }
+        },
+        "rustc_nonlink_seconds_sum": {
+          "before": {
+            "values": [
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "after": {
+            "values": [
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          }
+        },
+        "linker_seconds_sum": {
+          "before": {
+            "values": [
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "after": {
+            "values": [
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          },
+          "paired_after_minus_before": {
+            "values": [
+              0
+            ],
+            "median": 0,
+            "mad": 0,
+            "range": 0
+          }
+        }
+      },
+      "wall_investigation": {
+        "threshold_seconds": 0.4713230999652296,
+        "median_triggered": false,
+        "individual_pair_trigger_indices": []
+      },
+      "rss_investigation": {
+        "threshold_bytes": 67108864,
+        "median_triggered": false
+      },
+      "wall_noise": {
+        "before": {
+          "evaluable": false,
+          "within_registered_spread": false
+        },
+        "after": {
+          "evaluable": false,
+          "within_registered_spread": false
+        }
+      }
+    }
+  },
+  "acceptance": "open; investigation thresholds are not an accepted budget",
+  "noise_rule": "MAD <= max(20ms,15% median), range <= max(40ms,30% median); registered before after sampling",
+  "rss_unit": "bytes; maximum reported process, not aggregate process-tree peak",
+  "first_launch": "cold first launch separate from first launch after each warm rebuild; no samples discarded",
+  "stopped_attempts": [
+    {
+      "attempt": 1,
+      "outcome": {
+        "status": "stopped",
+        "reason": "baseline calibration too noisy; no after samples",
+        "elapsed_seconds": 18.198946666903794
+      },
+      "calibration": {
+        "noise": {
+          "warm": {
+            "median_seconds": 0.7722188329789788,
+            "range_seconds": 0.05437091691419482,
+            "mad_seconds": 0.0006972090341150761
+          },
+          "run": {
+            "median_seconds": 0.12936483300291002,
+            "range_seconds": 1.6070288750343025,
+            "mad_seconds": 0.0009086660575121641
+          }
+        },
+        "thresholds_registered_before_after_sampling": {
+          "build": "max(20%, 1 second)",
+          "rss": "max(10%, 64 MiB)",
+          "run": "max(30%, 20 ms)"
+        },
+        "interpretation": "investigation triggers, not accepted SLO or budget waiver"
+      }
+    },
+    {
+      "attempt": 2,
+      "outcome": {
+        "status": "stopped",
+        "reason": "baseline calibration too noisy; no after samples",
+        "elapsed_seconds": 18.79241458303295
+      },
+      "calibration": {
+        "noise": {
+          "warm": {
+            "median_seconds": 0.665131791960448,
+            "range_seconds": 0.06097012502141297,
+            "mad_seconds": 0.010702874977141619
+          },
+          "run": {
+            "median_seconds": 0.1316872499883175,
+            "range_seconds": 1.0168354578781873,
+            "mad_seconds": 7.166690193116665e-05
+          }
+        },
+        "thresholds_registered_before_after_sampling": {
+          "build": "max(20%, 1 second)",
+          "rss": "max(10%, 64 MiB)",
+          "run": "max(30%, 20 ms)"
+        },
+        "interpretation": "investigation triggers, not accepted SLO or budget waiver"
+      }
+    }
+  ]
+}

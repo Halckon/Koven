@@ -44,12 +44,12 @@ def load_examples(root=ROOT):
     if (len(sources) != len(blocks) or len(set(ids)) != len(ids)
             or len(set(references)) != len(references) or set(references) != set(sources)):
         raise ValueError("tutorial source/contract identity mismatch or duplicate")
-    if [row["status"] for row in rows].count("executable") != 12:
-        raise ValueError("expected twelve executable contracts")
-    if [row["status"] for row in rows].count("diagnostic") != 2:
-        raise ValueError("expected two diagnostic contracts")
-    if [row["status"] for row in rows].count("planned") != 1:
-        raise ValueError("expected one explicit planned example")
+    if [row["status"] for row in rows].count("executable") != 15:
+        raise ValueError("expected fifteen executable contracts")
+    if [row["status"] for row in rows].count("diagnostic") != 4:
+        raise ValueError("expected four diagnostic contracts")
+    if [row["status"] for row in rows].count("planned") != 2:
+        raise ValueError("expected two explicit planned examples")
     if any(row["status"] not in {"executable", "diagnostic", "planned"} for row in rows):
         raise ValueError("unknown tutorial status")
     return [(row, {path: sources[source_id] for path, source_id in

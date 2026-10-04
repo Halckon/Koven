@@ -6,28 +6,37 @@
 
 1. 语言规则与强制 Phase 以 [Guide v0.40](../guide/README.md) 为准
 2. 原 13 项语言演进的已实现、延期、未启用与 native 边界，以[演进实施账本](../specs/evolution-status.md)为唯一摘要
-3. [Active Specs](../specs/active/README.md)给出当前有界合同；0182 的集成验收继续独立推进；0236诊断Span补强经双宿主验收后归档
-4. [整体架构与工程治理计划](engineering-governance-plan.md)给出获批 P0–P5 顺序、允许依赖与回退边界
-5. [治理执行账本](engineering-governance-progress.md)记录每批真实进度与下一门禁；没有实施/验收的目标不称当前能力
+3. [Active Specs](../specs/active/README.md)给出当前有界合同；0271补强tour组合及诊断边界，归档不表示全部语言能力完成
+4. [整体架构与工程治理计划](engineering-governance-plan.md)保留获批 P0–P5 范围；实际交付及延期见[治理执行账本](engineering-governance-progress.md)
+5. [后继里程碑](post-governance-milestones.md)维护 M0–M6 候选顺序；正式实施及完成以各 Spec 为准
 
-P1a 文档闭环与 P2 LSP 私有测试首片已分别由 PR15/16 合并；0236 Span 精确证据由 PR17
-补齐并归档，0182继续active；[0249普通交接](../archive/specs/0249-owned-unit-borrowed-handoff.md)已按有界合同与PR30首轮双宿主证据归档。[尺寸护栏](rust-size-policy.md)已由PR18合并；P2继续
-已合并的[receiver拆分](codegen-receiver-test-migration.md)与[plan七域拆分](codegen-plan-test-migration.md)之后，
-推进[iteration私有测试18域拆分](drop-iteration-test-migration.md)；
-其余领域、真正冷缓存和分离link性能验收仍待后继，
-P3a 普通 unit 交接本片已完成；0250已共享CLI project名称前缀，
-[0251](../archive/specs/0251-lsp-unit-name-snapshot.md)已完成有界LSP unit消费；0252已共享unit基础ownership推进，
-[0253](../archive/specs/0253-single-file-analysis-facade.md)的bootstrap/legacy单文件门面经最终双宿主验收，
-P3b四宿主纯编排有界完成；[0254](../archive/specs/0254-const-owned-unit-borrowed-handoff.md)
-const owned交接与[P2 runtime layout首片](unit-runtime-layout-migration.md)已随PR35合并，
-PR与真实merge主干双宿主有界验收通过，0254本地归档随下一相关实施批次发布。
-P4 仅在语义/recovery parity 成立时逐域收敛。
-P5 新教程依赖稳定受测示例，可独立于 P4 推进。这里不维护另一张功能状态表。
+文档分支创建基线为main `adb51d6`；合入时已接收main `a83749f`的PR46交付（2026-10-04）。
+[本批核对记录](documentation-status-sync.md)固定依据、旧 Spec 处理与未接收的并行工作。
+
+0182 已按有界集成证据归档；P2 的测试/生产责任迁移与尺寸护栏、普通/const封闭交接、
+P3b四宿主纯编排、P4已证实相同的中立helper/查询均已有交付。
+P2性能、噪声与预算接受依用户决定延期，暂停检查；历史尺寸欠账和全量single/unit合并
+不作为必须追加的结项任务。工程交付不等于原治理计划全部性能验收通过。
+
+P5当前教程与提取门禁随PR38交付，PR46再增加parameter-report：12正例、2诊断负例，
+四组argv共用该三文件源码，共17组执行合同；两宿主实际通过，1 planned不执行。
+独立 [0271](../archive/specs/0271-tour-combination-coverage.md) 增加5项Mac合同及一个保留失败的planned：
+当前15正例、4负例、2 planned，共22执行合同；本批Linux/远端CI未运行，不将旧证据扩大到新增例。
+0271本地合入接收 `ed61d7d` 的0270/PR47双宿主归档；当前1 active/256 archive。
+旧编辑器corpus五失败已由0267/PR45修复，真实CLI门禁已进入required汇总。
+
+当前功能主线为[M1A多文件程序](multifile-program-spec-draft.md)：0263字段可变性、0264直接
+字段Borrow、0265unit迭代前端事实完成A2–A4，0268/PR46已完成A5–A10及完整程序
+双宿主有界验收。Inout/field/captured Borrow源native边界不扩大；未合入main的后继
+工作不计交付，不在本轮文档合并推进功能。
+0266/PR44已交付Linux ASan/LSan有界接线；macOS动态检测、Koven IR UBSan及M4其余范围
+不据此关闭。其后按程序需求选择M1B/M3A等，不重复启动已经完成的仓库审计。
+用户说明审计已由其他工作完成；本次未取得完整审计交付正文，不独立认证其全部整改。
 
 ## 当前入口与历史界限
 
 当前实现与支持边界见 [Architecture](../architecture/README.md)，使用/构建从仓库
-[中文 README](../../README_CN.md)开始。新的 current tour 与示例门禁属于 P5，尚未交付。
+[中文 README](../../README_CN.md)开始。已交付的[当前教程](../tutorials/README.md)以Markdown为源码真源，示例状态与CLI合同由门禁核验。
 
 旧 `06-roadmap.md` 保留在 v0.34 历史 Guide，旧 tour 保留 v0.28 内容；通过
 [Archive](../archive/README.md)追溯，不作当前开发或复制运行的默认入口。

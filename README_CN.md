@@ -6,9 +6,11 @@
 
 [English](README.md) | [简体中文](README_CN.md)
 
-**Koven** 是一门现代系统编程语言，旨在融合 **Kotlin** 的优雅、高表现力与清晰语法，以及 **Rust** 的极致原生性能、确定性资源管理与无畏安全性。
+**Koven** 是一门开发中的系统编程语言，采用 Kotlin 风格语法、显式所有权与调用期借用，通过 LLVM 生成本机代码。
 
-Koven 运行于**无垃圾回收（GC-free）**的确定性运行时环境，消除一切垃圾回收暂停与后台开销，并通过 **LLVM** 后端直接编译生成原生机器码。借助基于**调用期借用（Call-site Loans）**与**显式移动（Move）**的创新所有权模型，Koven 在无需编写复杂生命周期参数（`'a`, `'b`）的前提下，达成了完备的静态内存安全。
+运行时不使用追踪式垃圾回收。内存与资源按已验证的所有权事实确定性清理：纯内存类型使用 ASAP，资源类型采用词法作用域清理。当前实现和原生支持是有界的，不将语言设计目标视为全部功能或内存安全已完成验证。
+
+当前规范为 [Guide v0.40](docs/guide/README.md)，可执行入门示例见[当前教程](docs/tutorials/README.md)。本README合入时已接收main `a83749f`的PR46交付：跨文件字段可变性、直接字段Borrow、unit顺序迭代native及完整M1A参数报告程序已通过有界双宿主验收；Inout/字段/captured Borrow源的native迭代仍保持拒绝边界。性能/成本验收延期，当前不作比较性能承诺；详细范围见[路线图](docs/development/roadmap.md)和[架构快照](docs/architecture/README.md)。
 
 ---
 
@@ -16,18 +18,18 @@ Koven 运行于**无垃圾回收（GC-free）**的确定性运行时环境，消
 
 - **Kotlin 风格的优雅语法与表现力**
   清晰、现代、以表达式为导向的语法，具备强大的局部类型推断、一等函数、闭包与模式匹配能力。
-- **零成本的确定性内存安全（无 GC）**
-  没有垃圾回收停顿或隐藏的运行时负荷。内存完全通过单所有者跟踪、移动语义以及调用期借用进行确定性管理。
+- **确定性所有权管理（无追踪式 GC）**
+  通过单所有者跟踪、移动与调用期借用管理内存；没有经过验收的零开销或性能等价承诺。
 - **免生命周期标注的无畏借用**
-  调用期借用（`Borrow` 与 `Inout`）严格受限于同步调用栈。借用绝不脱离栈帧返回，也无法存储进长生命周期的堆结构中，从而在彻底消除生命周期标注心智负担的同时保障绝对安全。
-- **ASAP（尽快）确定性析构**
-  非复制资源（`MoveOnly`）会在代码控制流中被证明不再活跃（inactive）的最早静态边界自动释放，无需苦等外层闭合花括号结束。
+  调用期借用（`Borrow` 与 `Inout`）严格受限于同步调用栈。借用绝不脱离栈帧返回，也无法存储进长生命周期的堆结构中，现有模型无需用户生命周期参数；实现验证仍按具体能力与测试范围推进。
+- **双轨确定性析构**
+  纯内存MoveOnly值在最早安全边界ASAP释放；有deinit或递归持有资源的类型按词法作用域逆序清理，不能因最后使用提前析构。
 - **编译器结构化推导的类型能力**
-  由编译器自动递归推导类型能力：`Copyable`（按值位拷贝或结构浅拷贝）与 `Transferable`（可安全跨线程转移所有权，杜绝跨线程数据竞争）。
+  由编译器自动递归推导类型能力：`Copyable`（按值位拷贝或结构浅拷贝）与 `Transferable`（所有权转移的结构能力；不代表线程API已交付）。
 - **一等公民的空安全与 Flow Typing**
   默认不可为空。通过 `T?` 明确表示可空，配合安全调用运算符（`?.`）、Elvis 运算符（`?:`）以及基于控制流分析的自动智能类型转换（Smart Casts）。
 - **代数数据类型与完备的类型家族**
-  提供用于无堆开销扁平值布局的 `value class`；用于独占引用堆分配对象的普通 `class`；以及带关联负载的代数数据类型（ADT）`enum class`。
+  提供用于扁平值布局的 `value class`；用于独占引用堆分配对象的普通 `class`；以及带关联负载的代数数据类型（ADT）`enum class`。
 - **显式无异常错误处理**
   没有隐式的异常栈展开与 `try`/`catch` 运行时包袱。可预期失败通过 `Result<T, E>` 搭配后缀 `?` 运算符优雅传播；不可恢复的不变量破坏直接触发 `error(...)` abort。
 - **LLVM 原生编译**
@@ -39,100 +41,18 @@ Koven 运行于**无垃圾回收（GC-free）**的确定性运行时环境，消
 
 ## 🔍 语法与特性巡礼
 
-### 1. 基础函数与表达式
+示例源码与完整CLI输出合同统一维护在[当前Koven tour](docs/tutorials/koven-tour.md)。教程包含15个执行正例、4个诊断负例和2个不执行的planned例；parameter-report四组argv共用三文件源码，总计22组执行合同。[覆盖账本](docs/archive/specs/0271-tour-combination-coverage.md)记录当前22项合同的双宿主CI证据及仍保留的分支资源native缺口。
 
-```kotlin
-fun main(): Unit {
-    println("Hello, Koven!")
-}
+| 入门内容 | 单一源码示例 |
+|---|---|
+| Hello、函数、分支、常量 | [hello](docs/tutorials/koven-tour.md#hello)、[function](docs/tutorials/koven-tour.md#function)、[branch](docs/tutorials/koven-tour.md#branch)、[constant](docs/tutorials/koven-tour.md#constant) |
+| String.clone与调用自动借用 | [strings](docs/tutorials/koven-tour.md#strings)、[borrowing](docs/tutorials/koven-tour.md#borrowing) |
+| 顺序迭代、root replace/swap、资源deinit | [iteration](docs/tutorials/koven-tour.md#iteration)、[root-replace-swap](docs/tutorials/koven-tour.md#root-replace-swap)、[deinit](docs/tutorials/koven-tour.md#deinit) |
+| 参数与多文件工程 | [arguments](docs/tutorials/koven-tour.md#arguments)、[cross-file](docs/tutorials/koven-tour.md#cross-file)  [parameter-report](docs/tutorials/koven-tour.md#parameter-report) |
+| 数字字面量、资源清理及迭代退出 | [numbers-bitwise](docs/tutorials/koven-tour.md#numbers-bitwise)、[scope-cleanup](docs/tutorials/koven-tour.md#scope-cleanup)、[unit-loop-cleanup](docs/tutorials/koven-tour.md#unit-loop-cleanup) |
+| 可变place与迭代借用诊断 | [reject-immutable-place](docs/tutorials/koven-tour.md#reject-immutable-place)、[reject-iteration-move](docs/tutorials/koven-tour.md#reject-iteration-move) |
 
-// 表达式单行函数与类型推断
-fun add(a: Int, b: Int): Int = a + b
-```
-
-### 2. 类家族、值对象与代数数据类型 (ADT)
-
-Koven 根据内存布局和所有权需求提供了细分明确的结构：
-
-```kotlin
-// 扁平展开的栈分配值类型（无堆分配开销，字段全部 Copyable 时自动满足 Copyable）
-value class Point(val x: Int, val y: Int)
-
-// 堆上分配的实体对象，具备排他性所有权
-class Buffer(val capacity: Int, var size: Int)
-
-// 代数数据类型（带关联数据的 enum class）
-enum class Shape {
-    Circle(radius: Int),
-    Rectangle(width: Int, height: Int),
-    Point
-}
-
-// 穷尽性 when 模式匹配与智能转换（Smart Casts）
-fun area(shape: Shape): Int = when (shape) {
-    is Shape.Circle -> 3 * shape.radius * shape.radius
-    is Shape.Rectangle -> shape.width * shape.height
-    is Shape.Point -> 0
-}
-```
-
-### 3. 所有权、移动与调用期借用
-
-在 Koven 中，函数参数在声明端明确其所有权契约：
-
-- `own param: T`：转移所有权（Move）。
-- `param: T`（或显式 `borrow param: T`）：调用期只读共享借用（Shared Loan），调用方保持所有权。
-- `inout param: T`：调用期独占可变借用（Exclusive Loan），在调用点通过 `&place` 显式传入。
-
-```kotlin
-class Resource(val id: Int)
-
-fun inspect(item: Resource): Unit {
-    // 通过调用期共享借用只读访问
-    println("Inspecting resource")
-}
-
-fun consume(own item: Resource): Unit {
-    // 接管所有权；离开活跃期后由 ASAP 析构自动释放
-}
-
-fun update(inout target: Resource, own replacement: Resource): Unit {
-    // 独占替换目标位置，旧值被安全析构
-    target = replacement
-}
-
-fun example(): Unit {
-    val res = Resource(1)
-    inspect(res)          // 共享借用（res 在调用后依然有效）
-    consume(res)          // 所有权转移（res 在此后不可再用）
-    // inspect(res)       // 编译报错：使用已被移动的值！
-}
-```
-
-### 4. 空安全与基于 Result 的显式错误处理
-
-```kotlin
-// 空安全、安全调用与 Elvis 兜底
-fun printLength(text: String?): Unit {
-    val len = text?.length ?: 0
-    println("Length is: " + len)
-}
-
-// Result 显式错误与后缀 ? 运算符传播
-enum class MathError { DivisionByZero }
-
-fun divide(numerator: Int, denominator: Int): Result<Int, MathError> {
-    if (denominator == 0) {
-        return Result.Err(MathError.DivisionByZero)
-    }
-    return Result.Ok(numerator / denominator)
-}
-
-fun compute(a: Int, b: Int): Result<Int, MathError> {
-    val quotient = divide(a, b)?   // 若失败则立即向外传播 Err
-    return Result.Ok(quotient * 2)
-}
-```
+函数声明以`own param: T`表达所有权交付，默认或`borrow param: T`表达共享借用，`inout param: T`表达可变借用；调用点的可变place交付使用`&place`，Borrow不写调用marker。类家族、nullable与Result等语义见[Guide](docs/guide/README.md)，具体native表示与未支持组合以[Architecture](docs/architecture/README.md)为准。String操作不能从Kotlin经验外推为length、分词或通用整数格式化。
 
 ---
 
@@ -236,11 +156,11 @@ kovenc --message-format=json build main.ko -o my_app
 
 ### 环境准备
 
-- **Rust 工具链**：MSRV 1.96.0 或更高版本（Rust 2024 edition）。
+- **Rust 工具链**：仓库`rust-toolchain.toml`固定1.96.0，manifest的MSRV也为1.96.0（Rust 2024 edition）。
 - **受支持宿主**：AArch64 macOS（`aarch64-apple-darwin`）或 x86_64 Linux + glibc（`x86_64-unknown-linux-gnu`）。编译目标始终是当前宿主，不提供 `--target` 或交叉编译；不支持 Linux musl、Linux AArch64、Intel macOS 或 Windows。
 - **LLVM**：LLVM 21.1.x 及匹配的开发头文件、库、`llvm-config` 和宿主 backend。workspace 使用 Inkwell 0.10.0，启用 AArch64 与 X86 target feature。将 `LLVM_SYS_211_PREFIX` 设置为 LLVM 安装前缀，并确保构建及运行环境可加载其动态库。
 - **系统 C 工具链**：macOS 需要 Xcode Command Line Tools 与 `/usr/bin/clang`；Linux 需要 `/usr/bin/cc`、glibc 开发文件和可用的系统 linker。LLVM 直接生成 object，再由该 C driver 链接。
-- **Native 测试工具**：Linux LLVM IR 插桩测试需要匹配的 Clang 21，优先使用 `LLVM_SYS_211_PREFIX/bin/clang`，否则使用 PATH 中的 `clang`。Linux DWARF 测试使用匹配的 `llvm-dwarfdump`，同样优先 prefix、缺失时回退到 PATH。macOS 测试保留 `/usr/bin/clang` 与 `/usr/bin/lldb`。这些测试工具与生产链接 driver 分开。
+- **Native 测试工具**：Linux LLVM IR 插桩测试需要匹配的 Clang 21，优先使用 `LLVM_SYS_211_PREFIX/bin/clang`，否则使用 PATH 中的 `clang`。Linux DWARF 测试使用匹配的 `llvm-dwarfdump`，同样优先 prefix、缺失时回退到 PATH。LLVM IR插桩在两个宿主均需要匹配Clang 21；macOS调试测试保留`/usr/bin/lldb`。这些测试工具与生产链接driver分开。
 
 构建前指向已有 LLVM 安装并核对版本。AArch64 macOS 已安装 Homebrew `llvm@21` 时：
 
@@ -265,17 +185,22 @@ export LLVM_SYS_211_PREFIX=/usr/lib/llvm-21
 ```bash
 git clone https://github.com/Halckon/koven.git
 cd koven
-cargo build --release
+cargo build --locked --release
 ```
 
 编译生成的目标程序位于 `target/release/kovenc`。
+把本次构建目录加入当前shell的PATH后，可使用上面的`kovenc`命令（不会安装到系统目录）：
+
+```bash
+export PATH="$(pwd)/target/release:$PATH"
+```
 
 ### 运行标准库 Smoke 测试
 
 通过标准库的 hello bootstrap 验证编译管线：
 
 ```bash
-cargo run -p lang-cli -- run crates/lang-std/koven/prelude.ko --entry bootstrapHello
+cargo run --locked -p lang-cli -- run crates/lang-std/koven/prelude.ko --entry bootstrapHello
 ```
 
 输出：
@@ -289,6 +214,9 @@ Hello, World!
 
 仓库内包含组织在 [`docs/`](docs/) 下的完整文档体系：
 
+- [**当前可执行教程**](docs/tutorials/README.md)：从Markdown单一源码运行真实CLI合同。
+- [**当前路线图**](docs/development/roadmap.md)：当前交付、延期与后继里程碑入口。
+- [**Spec与演进账本**](docs/specs/README.md)：有界合同、归档关系与能力缺口。
 - [**语言规范 (v0.40)**](docs/guide/README.md)：Koven 语法、语义、类型规则与所有权机制的权威真源。
 - [**编译器架构快照**](docs/architecture/README.md)：编译流水线、Typed SSA 与代码生成的当前事实说明。
 - [**开发与测试指南**](docs/development/README.md)：分层验证、测试门禁与代码不变式规范。
