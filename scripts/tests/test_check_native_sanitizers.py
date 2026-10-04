@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("sanitizers", ROOT / "scripts/check_native_sanitizers.py")
@@ -72,6 +73,29 @@ class NativeSanitizerGateTests(unittest.TestCase):
                 GATE.run([sys.executable, "-c", parent], directory, "tree", timeout=0.2)
             time.sleep(0.6)
             self.assertFalse(marker.exists(), "a timed-out probe must not leave executable descendants")
+
+    def test_pinned_debian_runtime_uses_resource_linux_layout(self):
+        # Clang 21 reports a per-target runtime dir even when Debian only ships
+        # the older lib/linux archives that its linker falls back to.
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            resource = directory / "lib/clang/21"
+            libraries = resource / "lib/linux"
+            libraries.mkdir(parents=True)
+            archives = [libraries / f"libclang_rt.{name}-x86_64.a" for name in ("asan", "lsan")]
+            for archive in archives:
+                archive.touch()
+
+            def query(command, *_args):
+                reported = {"--print-resource-dir": resource,
+                            "--print-runtime-dir": resource / "lib/x86_64-pc-linux-gnu"}
+                return subprocess.CompletedProcess(command, 0, f"{reported[command[1]]}\n".encode(), b"")
+
+            with mock.patch.object(GATE, "checked", side_effect=query):
+                self.assertEqual(GATE.linux_runtime_archives(directory, "clang"), archives)
+                archives[1].unlink()
+                with self.assertRaisesRegex(AssertionError, "libclang_rt.lsan-x86_64.a"):
+                    GATE.linux_runtime_archives(directory, "clang")
 
     def test_linux_step_is_required_and_installs_pinned_runtime(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()

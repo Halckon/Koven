@@ -46,9 +46,9 @@ Abort 不展开、Rc 环允许未释放的语义保留；本片只选择正常�
 | W1 | 实际 Koven fixture 正常分析/lower，三个目标定义函数各有访存检查；关闭属性无检查 | Mac LLVM21.1.8：最终两项2 passed/796 filtered；导出1 passed/797 filtered及外部三target/三off IR检查通过，均0 ignored；counter 1分配/1释放；属性换成nounwind有效红测失败，恢复后通过 |
 | W2 | Linux ASan 三类故意错误非零退出且类别准确；clean 输出和资源计数准确；关闭组不误报检测成功 | Mac普通clean与资源计数已通过；Linux ASan动态待CI |
 | W3 | Linux LSan 正常无环无报告、故意泄漏有报告且非零、关闭检测无报告 | 待 CI |
-| W4 | LLVM21.1.8/compiler-rt 固定安装与运行；缺工具、超时、零测试匹配、普通失败不可算检测成功 | 脚本负向测试7/7（含缺工具、真实超时与进程树终止、零匹配、错误类别/普通失败）；原CI政策18/18；Linux安装/执行待CI |
-| W5 | 限时与完整失败产物、Python 负向门禁、docs/inventory/尺寸/fmt/定向 Clippy、独立评审 | Python全部121 passed，最终脚本7复跑通过；docs507、尺寸、改动Rust文件fmt、codegen all-targets严格Clippy通过；独立评审P2 counter失败材料缺口已修复并复审通过 |
-| W6 | PR关联head与实际编译SHA/tree核对、Linux动态CI、双宿主普通测试、同步 Architecture 后按 PR 闭环归档 | 待 CI；本轮不自行提交或远端写入 |
+| W4 | LLVM21.1.8/compiler-rt 固定安装与运行；缺工具、超时、零测试匹配、普通失败不可算检测成功 | 脚本测试8/8（含缺工具、真实超时与进程树终止、零匹配、错误类别/普通失败、Debian runtime布局）；原CI政策18/18；首轮Linux安装后路径检查失败，修复待CI重跑 |
+| W5 | 限时与完整失败产物、Python 负向门禁、docs/inventory/尺寸/fmt/定向 Clippy、独立评审 | Python全部122 passed，脚本8复跑通过；docs507、尺寸、改动Rust文件fmt、codegen all-targets严格Clippy通过；独立评审P2 counter失败材料缺口已修复并复审通过；安装路径修复已通过独立窄复审 |
+| W6 | PR关联head与实际编译SHA/tree核对、Linux动态CI、双宿主普通测试、同步 Architecture 后按 PR 闭环归档 | PR #44 首轮run37197238891失败，Linux安装路径修复后待重跑；动态检测及双宿主测试尚无通过证据 |
 
 ## 4. 实施顺序
 
@@ -78,3 +78,17 @@ free，而不按函数编号或所有free数量猜测。随后有效红测只移
 `cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`通过；新增Rust文件低于1000行，
 未增加尺寸例外，现存45个超限文件只报告旧欠账。独立评审还明确本地普通counter无独立期限，
 Linux driver则对Cargo整体限时900秒，对后续检测命令逐项限时；文案已按实现收窄。
+
+PR #44 首轮 CI（run `37197238891`，关联 head `080b660`）在 Ubuntu LLVM 安装后的
+runtime 路径检查退出1；日志确认固定版本 `libclang-rt-21-dev` 已成功安装，但双宿主测试
+因前置失败未运行。官方 apt 包索引与下载包 SHA256 一致：
+`d6f84c34953b0404ec9648ba7364004a82454f79cc447f67894b9a27317ef6ce`，其 ASan/LSan
+静态库实际位于 resource `lib/linux` 下。LLVM21.1.8 的
+[Driver 查询](https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Driver/Driver.cpp#L2340)
+返回可能不存在的 per-target runtime 路径，而
+[链接器查找](https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Driver/ToolChain.cpp#L710)
+会回退到旧布局；本地同版本 Clang 对解包目录的 Linux target `-###` 也确认这一差异。
+安装和验收现在统一用 `--print-resource-dir` 加固定 Debian `lib/linux` 布局，并明确输出缺失
+archive 路径。模拟该目录差异的回归先红后绿；8项脚本测试、全部122项Python测试、
+`bash -n` 与diff检查通过。这些是路径修复和本地命令计划证据，不能替代 W2/W3 的 Linux
+动态运行；独立窄复审已通过，当前仍待 PR CI 重跑。

@@ -130,6 +130,18 @@ def check_ir(directory, clang):
     print("Koven IR: three actual target functions instrumented; three attribute-off controls verified")
 
 
+def linux_runtime_archives(directory, clang):
+    # The pinned Debian package uses the legacy layout; --print-runtime-dir
+    # can report a nonexistent per-target directory in Clang 21.
+    resource = checked([clang, "--print-resource-dir"], directory, "resource-directory")
+    runtime_dir = Path(resource.stdout.decode().strip()) / "lib/linux"
+    archives = [runtime_dir / f"libclang_rt.{name}-x86_64.a" for name in ("asan", "lsan")]
+    for path in archives:
+        if not path.is_file():
+            raise AssertionError(f"pinned LLVM sanitizer archive is missing: {path}")
+    return archives
+
+
 def check_linux(directory):
     if platform.system() != "Linux" or platform.machine() != "x86_64":
         raise RuntimeError("required dynamic acceptance needs Linux x86_64; other hosts must not pass by skipping")
@@ -146,9 +158,7 @@ def check_linux(directory):
         raise AssertionError("Linux sanitizer contract requires pinned Clang 21.1.8")
     checked([prefix / "bin/llvm-symbolizer", "--version"], directory, "symbolizer-version")
     checked(["dpkg-query", "--show", "llvm-21-dev", "clang-21", "libclang-rt-21-dev"], directory, "packages")
-    runtime = checked([clang, "--print-runtime-dir"], directory, "runtime-directory")
-    runtime_dir = Path(runtime.stdout.decode().strip())
-    archives = [runtime_dir / f"libclang_rt.{name}-x86_64.a" for name in ("asan", "lsan")]
+    archives = linux_runtime_archives(directory, clang)
     (directory / "runtime-sha256.json").write_text(json.dumps(
         {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in archives}, indent=2) + "\n")
     checked(["git", "rev-parse", "HEAD"], directory, "compiler-sha")
