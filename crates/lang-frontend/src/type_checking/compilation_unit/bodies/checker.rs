@@ -37,6 +37,7 @@ mod destructuring;
 mod expression_facts;
 mod flow;
 mod integer;
+mod iteration;
 mod lambda;
 mod literals;
 mod members;
@@ -280,7 +281,9 @@ impl<'a> BodyChecker<'a> {
         {
             self.parts.ownership_primitives.clear();
             self.parts.integer_operations.clear();
+            self.parts.iterations.clear();
         }
+        self.parts.iterations.sort_by_key(|plan| plan.statement());
         self.parts
             .ownership_primitives
             .sort_by_key(|fact| fact.expression());
@@ -559,6 +562,7 @@ impl<'a> BodyChecker<'a> {
                 ..
             } => self.check_for_statement(
                 source,
+                statement,
                 &binding,
                 iteration_source,
                 body,

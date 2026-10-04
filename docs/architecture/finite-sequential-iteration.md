@@ -36,3 +36,27 @@ test-only SyntheticZero仅供内部SSA的MoveOnly ZST计数夹具；实际contai
 
 unit driver仍拒绝真实for；拒绝原子性由actual-for分析链验证，失败后普通受支持unit可真实发射、链接和运行。
 single driver的真实for成功及拒绝矩阵独立保留，不从ordinary unit成功推断unit-for能力。
+
+## Compilation-unit 前端事实
+
+`UnitSequentialIterationDescriptor` 与 `UnitIterationOwnershipPlan` 通过 source-qualified statement
+交接；Array/List/MutableList 的 owned、Borrow、Inout、field、temporary source 均建立 Shared
+source/element loan。具名与解构 binding 只借用元素；临时源及临时字段接收者保活到 EndSource。
+`source_access` 描述能力而非源形状：`this.field` 的 place root 是 Field symbol 且 projection
+列表可为空，消费者必须读取已验证的 symbol/projection 身份，不能把它误认作 named Borrow 参数。
+
+`iteration_cleanup_at(point)` 发布同点完整清理序列，嵌套 return 各 plan 引用等值动作，消费者
+执行一次且不再重复执行平面 drops。实际已求值 call 前缀先 EndCallLoan，局部 closure 先结束
+Shared capture，然后清理 element、provider/source 与临时 owner；最近 loop/callable 限定退出。
+Abort 和 source 自身在 Acquire 前的转移不发布该 provider 的清理。常量入口仅为实际可达
+provider 发布计划，与普通 capability 隔离；两出口均验证模板身份、完整退出及有序动作。
+
+实现入口为 frontend `compilation_unit/iteration.rs`、`dataflow/iteration.rs`、
+`dataflow/drop_planner/iteration.rs` 与 `iteration_validation.rs`；不改变本页现有 unit native
+拒绝边界，A5 尚未交付。
+
+conditional `StaticSelf` receiver 的析构也以 `DropConditionalReceiver` 进入同点完整序列；
+下游仅在具体MoveOnly实例执行，Copyable跳过，不重复消费同点平面conditional facts。
+原 `preceding_drops` 保留非迭代消费兼容；它只计普通drop，不能定位provider动作之间的位置。
+验证器另核pending receiver形成时的provider集合，确保body内receiver在EndElement之前、
+外围receiver在EndSource之后；嵌套return按每个frame的loop depth清理pending owner。

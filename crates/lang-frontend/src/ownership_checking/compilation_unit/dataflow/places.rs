@@ -230,6 +230,16 @@ impl Checker<'_> {
         {
             return Ok(Some(owner));
         }
+        if let Some(projection) = self
+            .typed
+            .aggregate_projection(self.unit_expression(expression))
+            && let crate::type_checking::UnitAggregateProjectionReceiver::Expression(receiver) =
+                projection.receiver()
+        {
+            return Ok(self
+                .temporary_expression_origin(receiver.expression())?
+                .or(self.temporary_projection_owner(receiver.expression())?));
+        }
         self.temporary_element_owner(expression)
     }
 

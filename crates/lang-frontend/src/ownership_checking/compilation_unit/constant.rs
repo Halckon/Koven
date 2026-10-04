@@ -70,6 +70,7 @@ impl CompilationUnitConstantOwnership {
             && self.0.short_circuits.is_some()
             && self.0.ownership_primitives_are_valid()
             && self.0.field_replacements_are_valid()
+            && self.0.iterations_are_valid()
         {
             Ok(ConstEnabledOwnedUnit(self))
         } else {
@@ -337,5 +338,29 @@ mod primitive_tests {
         assert_eq!(owned.ownership_primitives().len(), 1);
         assert_eq!(owned.loans().len(), 1);
         assert!(CompilationUnitConstantOwnership(owned).validate().is_ok());
+    }
+}
+
+#[cfg(test)]
+mod iteration_tests {
+    use super::CompilationUnitConstantOwnership;
+
+    #[test]
+    fn constant_capability_rejects_missing_iteration_facts() {
+        let valid = super::super::constants_tests::analyze(
+            "package a\nconst val N = 1\nfun run() { for (_ in listOf(N)) {} }",
+        );
+        assert!(
+            CompilationUnitConstantOwnership(valid.clone())
+                .validate()
+                .is_ok()
+        );
+        let mut incomplete = valid;
+        incomplete.iterations.clear();
+        assert!(
+            CompilationUnitConstantOwnership(incomplete)
+                .validate()
+                .is_err()
+        );
     }
 }

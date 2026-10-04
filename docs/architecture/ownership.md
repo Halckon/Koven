@@ -56,7 +56,7 @@ expression 查询；`UnitShortCircuitRhs` 与 RHS 分支编号保留执行决定
 后续 `owned_compilation_unit_view` 核完整链并发布封闭六借用，保留合法 clone 及同 typed 重查；只读 facts、生命周期与 const 隔离见[普通交接](pipeline-and-workspace.md#普通-owned-unit-交接)。
 
 ## Place、binding 与 loan
-
+unit 前端已消费 typed provider 并验证完整清理顺序，native 仍拒绝；见[unit 事实](finite-sequential-iteration.md#compilation-unit-前端事实)。
 单文件 `for` checker 已消费 typed iteration descriptor，source 与 element 使用独立于 call 的
 loan owner；显式 `this.field` 与裸字段共用字段 owner，source loan 覆盖两种写法；字段写入与 Inout 交付受当前 receiver mode 限制，lambda 内隐式 member call 也记录 `this` capture 并按共享能力检查；unit 的 If/When 返回分支尾值和 Elvis 直接交付操作数检查 borrowed closure 逃逸；binding/component 登记为 non-owning，Copyable 字段 Value delivery 按 Read 处理；回边和退出边检查仍持有本轮 binding capture 的 closure，形成时保存被捕获的旧 closure 来源，非法存活报 L0137 且不发布清理计划。
 drop planner 的 iteration 生命周期与[有限图、phi state、入边职责](../development/ownership-planning-milestone.md#frontend-iteration)已分离；通过 iteration frame、shared capture 和具名 pending callee 保持 owner，并保存

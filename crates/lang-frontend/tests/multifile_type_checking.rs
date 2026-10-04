@@ -148,6 +148,8 @@ mod initializers;
 mod intrinsic_box_rc;
 #[path = "multifile_type_checking/intrinsic_containers.rs"]
 mod intrinsic_containers;
+#[path = "multifile_type_checking/iteration.rs"]
+mod iteration;
 #[path = "multifile_type_checking/lambdas.rs"]
 mod lambdas;
 #[path = "multifile_type_checking/members.rs"]

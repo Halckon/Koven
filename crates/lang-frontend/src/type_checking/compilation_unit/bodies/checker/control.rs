@@ -2,9 +2,9 @@ use crate::{
     ast::{ExpressionId, StatementId},
     diagnostic::codes,
     name_resolution::SourceUnitId,
-    parser::{ForBinding, Statement},
+    parser::Statement,
     source::Span,
-    type_checking::{BuiltinType, DeferredReason, TypeCheckingError, UnitTypeId, UnitTypeKind},
+    type_checking::{BuiltinType, TypeCheckingError, UnitTypeId, UnitTypeKind},
 };
 
 use super::flow::{extend_facts, intersect_facts};
@@ -21,30 +21,6 @@ impl BodyChecker<'_> {
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let boolean = self.builtin(BuiltinType::Boolean);
         self.check_expression(source, condition, Some(boolean), None, return_type)?;
-        self.check_loop_body(source, body, return_type, return_span)?;
-        Ok(self.unit_statement())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_for_statement(
-        &mut self,
-        source: SourceUnitId,
-        binding: &ForBinding,
-        iteration_source: ExpressionId,
-        body: StatementId,
-        return_type: UnitTypeId,
-        return_span: Option<Span>,
-    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        self.check_expression(source, iteration_source, None, None, return_type)?;
-        let deferred = self.deferred_type(DeferredReason::LoopSource);
-        match binding {
-            ForBinding::Name(marker) => self.set_marker_symbol(source, *marker, deferred),
-            ForBinding::Destructuring { names, .. } => {
-                for &marker in names {
-                    self.set_marker_symbol(source, marker, deferred);
-                }
-            }
-        }
         self.check_loop_body(source, body, return_type, return_span)?;
         Ok(self.unit_statement())
     }
@@ -148,7 +124,7 @@ impl BodyChecker<'_> {
         })
     }
 
-    fn check_loop_body(
+    pub(super) fn check_loop_body(
         &mut self,
         source: SourceUnitId,
         body: StatementId,
