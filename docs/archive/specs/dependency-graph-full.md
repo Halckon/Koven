@@ -269,6 +269,9 @@ subgraph Garchive["已完成（archive，259 份）"]
   S0272["S0272<br/>双宿主候选包与正常安装验收"]
   S0273["S0273<br/>单文件控制体正常退出的资源清理"]
 end
+subgraph Gactive["现行 active"]
+  S0274["S0274<br/>现行语义下的多文件 argv 词频程序"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1236,6 +1239,7 @@ S0265 --> S0268
 S0266 --> S0272
 S0268 --> S0271
 S0268 --> S0272
+S0268 --> S0274
 S0270 --> S0273
 ```
 
@@ -1502,3 +1506,4 @@ S0270 --> S0273
 | SPEC-0271 | archive | [0271-tour-combination-coverage.md](0271-tour-combination-coverage.md) |
 | SPEC-0272 | archive | [0272-preview-candidate-package.md](0272-preview-candidate-package.md) |
 | SPEC-0273 | archive | [0273-control-body-resource-cleanup.md](0273-control-body-resource-cleanup.md) |
+| SPEC-0274 | active | [0274-argv-word-frequency.md](../../specs/active/0274-argv-word-frequency.md) |

@@ -9,10 +9,15 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 259 份"))
+subgraph Gactive["现行 active"]
+  S0274["S0274<br/>现行语义下的多文件 argv 词频程序"]
+end
+ARCH --> S0274
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0274 | active | [0274-argv-word-frequency.md](active/0274-argv-word-frequency.md) |
 | 已完成 Spec（259 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
