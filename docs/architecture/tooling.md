@@ -120,8 +120,12 @@ LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 
 `scripts/check_native_sanitizers.py` 的 Linux x86_64 入口运行 ASan 正反与关闭对照，
 另以 `-fsanitize=leak` 验证正常/删除 free/关闭检测；固定 LLVM21.1.8 和 compiler-rt。
+LSan两组通过测试专用C入口和Linux linker `--wrap=main` 在worker执行原Koven main，
+精确匹配fixture无参数main ABI，join后返回原退出码，让包含Cell指针的线程栈先退出根集合；原LLVM不改，
+默认stack/register/TLS扫描保留。线程创建/join失败直接成为普通执行错误，不触发退出时泄漏检测。
 Linux driver 对导出 Cargo 整体限时，并对 sanitizer 命令逐项限时；超时终止对应子进程组。
 普通 codegen suite 的 counter 调用没有独立期限。源文件、IR、精确命令、版本和结果文件保留到
 CI artifact。该必需步骤属于现有 Linux test job，失败传递到 required summary。
-本机已验证资源计数、三层 IR 检查与属性关闭红测；Linux动态仍待CI，不由接线配置推定通过。
+本机已验证资源计数、三层 IR 检查与属性关闭红测；既有Linux CI已通过ASan组，
+LSan曾因残留主线程栈指针视为可达而漏报，新的worker入口仍待Linux CI动态验收。
 UBSan 对 Koven IR 未覆盖；不声明栈 lifetime、容器逻辑长度、并发或完整内存安全证明。

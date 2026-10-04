@@ -156,6 +156,10 @@ sanitizer executable。定向命令为 `cargo test --locked -p lang-codegen --li
 
 Linux x86_64 另运行 `python3 scripts/check_native_sanitizers.py --linux --artifacts /tmp/koven-sanitizers`，
 产物目录必须不存在，`LLVM_SYS_211_PREFIX` 必须指向已安装的 LLVM21.1.8/compiler-rt。
+LSan的clean/leak及检测开关都使用同一C worker入口，join完成后再进行默认根扫描；
+保留原Koven LLVM与无参数main退出码，线程基础设施失败不能计作泄漏报告。
+`python3 -m unittest scripts.tests.test_check_native_sanitizers`同时通过系统C编译器验证该入口
+的调用次数、退出码、join和失败分流；这些本机C测试不替代Linux实际Koven LSan验收。
 该入口复用 Cargo 现有 target，使用已缓存依赖的 `--offline` 精确选取一次导出测试；CI 在
 正常组合测试之后运行。错误类别与退出状态共同判定，超时/缺工具/零匹配一律失败；失败
 产物不清理，CI 无论成功失败均上传完整检测目录。地址测试禁用泄漏，LSan 独立执行，

@@ -142,6 +142,13 @@ def linux_runtime_archives(directory, clang):
     return archives
 
 
+def assert_lsan_entry(text):
+    # This adapter calls the current fixture's exact no-argument LLVM C entry.
+    signatures = re.findall(r"^define (.+) @main\((.*?)\).*", text, re.M)
+    if signatures != [("i32", "")]:
+        raise AssertionError("LSan fixture adapter requires exactly define i32 @main()")
+
+
 def check_linux(directory):
     if platform.system() != "Linux" or platform.machine() != "x86_64":
         raise RuntimeError("required dynamic acceptance needs Linux x86_64; other hosts must not pass by skipping")
@@ -194,10 +201,16 @@ def check_linux(directory):
                 # It must never be counted as a sanitizer detection.
                 assert_disabled(result)
             summary.append(f"ASan {name}/{mode}: expected classification verified")
+    # Both LSan controls retire the Koven stack before the default root scan.
+    # Keep the actual LLVM unchanged and retain the exact C adapter as evidence.
+    lsan_entry = directory / "lsan-entry.c"
+    lsan_entry.write_bytes((ROOT / "scripts/native_lsan_entry.c").read_bytes())
     for name in ("clean", "leak"):
         executable = directory / f"{name}-lsan"
+        assert_lsan_entry((fixture_dir / f"{name}.raw.ll").read_text())
         checked([clang, "-O0", "-g", "-fno-omit-frame-pointer", "-fsanitize=leak",
-                 fixture_dir / f"{name}.raw.ll", "-o", executable], directory, f"build-{name}-lsan")
+                 "-pthread", "-Wl,--wrap=main", fixture_dir / f"{name}.raw.ll", lsan_entry,
+                 "-o", executable], directory, f"build-{name}-lsan")
         for enabled in (True, False):
             options = f"detect_leaks={int(enabled)}:exitcode=87:external_symbolizer_path={symbolizer}"
             result = run([executable], directory, f"run-{name}-lsan-{int(enabled)}", timeout=10,

@@ -64,6 +64,7 @@ jobs:
               - 'scripts/install_ci_llvm.sh'
               - 'scripts/check_ci_results.py'
               - 'scripts/check_native_sanitizers.py'
+              - 'scripts/native_lsan_entry.c'
               - 'scripts/tests/test_check_native_sanitizers.py'
               - 'scripts/rust_test_artifact.rs'
               - 'scripts/tests/test_check_ci_results.py'

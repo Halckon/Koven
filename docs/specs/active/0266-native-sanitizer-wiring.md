@@ -45,10 +45,10 @@ Abort 不展开、Rc 环允许未释放的语义保留；本片只选择正常�
 |---|---|---|
 | W1 | 实际 Koven fixture 正常分析/lower，三个目标定义函数各有访存检查；关闭属性无检查 | Mac LLVM21.1.8：最终两项2 passed/796 filtered；导出1 passed/797 filtered及外部三target/三off IR检查通过，均0 ignored；counter 1分配/1释放；属性换成nounwind有效红测失败，恢复后通过 |
 | W2 | Linux ASan 三类故意错误非零退出且类别准确；clean 输出和资源计数准确；关闭组不误报检测成功 | Mac普通clean与资源计数已通过；CI run37198053946的Linux ASan三种错误、clean及关闭组均通过 |
-| W3 | Linux LSan 正常无环无报告、故意泄漏有报告且非零、关闭检测无报告 | CI run37198053946的clean开/关组通过，故意泄漏启用组exit0无报告；故意泄漏关闭组未运行，待诊断 |
-| W4 | LLVM21.1.8/compiler-rt 固定安装与运行；缺工具、超时、零测试匹配、普通失败不可算检测成功 | 脚本测试9/9（含缺工具、真实超时与进程树终止、零匹配、错误类别/普通失败、Debian runtime布局、诊断不替换原失败）；原CI政策18/18；Linux固定安装在run37198053946通过 |
-| W5 | 限时与完整失败产物、Python 负向门禁、docs/inventory/尺寸/fmt/定向 Clippy、独立评审 | Python全部123 passed，最新脚本9通过；docs507、尺寸、改动Rust文件fmt、codegen all-targets严格Clippy通过；独立评审P2 counter失败材料缺口已修复并复审通过；安装路径修复已通过独立窄复审 |
-| W6 | PR关联head与实际编译SHA/tree核对、Linux动态CI、双宿主普通测试、同步 Architecture 后按 PR 闭环归档 | PR #44 run37198053946编译merge tree与关联head tree一致；安装与双宿主sanitizer模块2测试通过，额外Linux步骤在LSan故意泄漏漏报处失败；待诊断CI |
+| W3 | Linux LSan 正常无环无报告、故意泄漏有报告且非零、关闭检测无报告 | CI run37198053946的clean开/关组通过，故意泄漏启用组exit0无报告；故意泄漏关闭组未运行；后续已证明栈根，worker修复待原生CI |
+| W4 | LLVM21.1.8/compiler-rt 固定安装与运行；缺工具、超时、零测试匹配、普通失败不可算检测成功 | 脚本测试12/12（含缺工具、真实超时与进程树终止、零匹配、错误类别/普通失败、Debian runtime布局、诊断不替换原失败、C worker入口）；原CI政策18/18；Linux固定安装在run37198053946通过 |
+| W5 | 限时与完整失败产物、Python 负向门禁、docs/inventory/尺寸/fmt/定向 Clippy、独立评审 | 合并前Python123/脚本9/docs507通过；当前Python129、脚本12、docs508通过；尺寸、改动Rust文件fmt、codegen all-targets严格Clippy通过；独立评审P2 counter失败材料缺口已修复并复审通过；安装路径修复已通过独立窄复审 |
+| W6 | PR关联head与实际编译SHA/tree核对、Linux动态CI、双宿主普通测试、同步 Architecture 后按 PR 闭环归档 | PR #44 run37198053946编译merge tree与关联head tree一致；安装与双宿主sanitizer模块2测试通过，额外Linux步骤在LSan故意泄漏漏报处失败；后续诊断已证明栈根，新worker入口待CI |
 
 ## 4. 实施顺序
 
@@ -114,3 +114,29 @@ LSan扫描日志证实。当前仅为原始漏报追加一次10秒内诊断运�
 
 诊断补丁独立窄审确认生产异常路径保留原失败，指出原回归 mock 存在盲点；
 修订后主协调者独立以内存 mutation 复核，四种子场景均杀死替代结果错误，真实脚本9项通过。
+
+诊断 CI run `37199384909`（关联 head `56527d1`，实际编译 SHA
+`10bd0cf8d44735262378841e16092074f56c6947`）的
+[artifact 11301664626](https://github.com/Halckon/Koven/actions/runs/37199384909/artifacts/11301664626)
+中，`diagnose-leak-lsan.stderr`第27–29行明确记录主线程STACK范围内的槽位指向
+size4分配，随后扫描该HEAP；原始运行与诊断均exit0。至此已证明保守栈根导致漏报，
+不再只是反汇编猜测。官方同版本
+[LSan线程回归](https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/compiler-rt/test/lsan/TestCases/create_thread_leak.cpp)
+已使用pthread创建/join后的泄漏检查；仓库无可复用的线程入口adapter，既有生产LLVM main
+wrapper和allocator counter不承担此生命周期控制。
+
+本轮整合 `origin/main 5fbc664`，保留0267归档、editor job及双方required集合，
+重生成Spec DAG。仅LSan测试链接增加小C adapter与`--wrap=main`：原Koven IR不改，
+clean/leak及各自检测开关均在worker调用原main，精确匹配当前无参数main ABI并保留退出码；join后才返回。
+线程创建/join失败以普通exit90结束，避免基础设施错误被退出时LSan报告掩盖；无全局抑制或
+root扫描关闭，也不声明Koven并发语义覆盖。C入口源一同保存在失败artifact。
+接线回归先因缺少worker链接与CI路径过滤而红，接入后通过；将adapter临时改成原线程直接
+调用main的mutant被四种子场景全部拒绝，恢复后C入口正反测试通过。后续原生Linux CI仍需
+证明实际4字节分配报告、clean输出、关闭对照与原counter，不能以本机C oracle代替。
+
+最终无参数入口版的本机验证：`python3 -m unittest discover -s scripts/tests` 129 passed，
+其中sanitizer脚本12项含真实C编译/运行与main ABI负向检查；`python3 scripts/check_docs.py`
+通过508页，DAG重新生成及diff检查通过。此前123项/507页是合并前记录，本轮未运行Cargo；
+继承的0267编辑器实现来自已合并主干，未声称本轮重跑其独立Rust/Tree-sitter验收。
+worker入口独立复审已通过，核ABI、join同步、失败分流、同入口对照与CI接线；
+复审独立运行sanitizer和CI政策33项通过。下一轮PR原生动态CI仍待验。

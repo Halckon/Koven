@@ -114,6 +114,8 @@ class NativeSanitizerGateTests(unittest.TestCase):
                     if name == "export-koven":
                         (output / "fixtures").mkdir()
                         (output / "fixtures/expected.stdout").write_bytes(b"read\ndrop\n")
+                        for fixture in ("clean", "leak"):
+                            (output / f"fixtures/{fixture}.raw.ll").write_text("define i32 @main() {\n ret i32 0\n}\n")
                     return subprocess.CompletedProcess([], 0, stdout, b"")
 
                 def detect(result, name, category):
@@ -136,7 +138,7 @@ class NativeSanitizerGateTests(unittest.TestCase):
 
                 with mock.patch.multiple(GATE.platform, system=lambda: "Linux", machine=lambda: "x86_64"), \
                         mock.patch.dict(os.environ, LLVM_SYS_211_PREFIX=temporary), \
-                        mock.patch.object(GATE, "checked", side_effect=checked), \
+                        mock.patch.object(GATE, "checked", side_effect=checked) as builds, \
                         mock.patch.object(GATE, "linux_runtime_archives", return_value=[]), \
                         mock.patch.object(GATE, "fixtures", return_value={name: ("target", "load") for name in GATE.CASES}), \
                         mock.patch.object(GATE, "check_ir"), mock.patch.object(GATE, "assert_export_ran"), \
@@ -156,6 +158,25 @@ class NativeSanitizerGateTests(unittest.TestCase):
                     self.assertNotIn("use_stacks", options)
                     self.assertNotIn("use_registers", options)
                     self.assertFalse((directory / "acceptance.txt").exists())
+                    for fixture in ("clean", "leak"):
+                        build = [call.args[0] for call in builds.call_args_list
+                                 if call.args[2] == f"build-{fixture}-lsan"]
+                        self.assertEqual(len(build), 1)
+                        self.assertIn("-pthread", build[0])
+                        self.assertIn("-Wl,--wrap=main", build[0])
+                        self.assertIn(directory / "lsan-entry.c", build[0])
+                    self.assertEqual((directory / "lsan-entry.c").read_bytes(),
+                                     (ROOT / "scripts/native_lsan_entry.c").read_bytes())
+
+    def test_lsan_adapter_rejects_a_changed_main_abi(self):
+        entry = "define i32 @main() {\n ret i32 0\n}\n"
+        GATE.assert_lsan_entry(entry)
+        for wrong in (entry.replace("@main()", "@main(i32 %argc, ptr %argv)"),
+                      entry.replace("define i32", "define void"), entry.replace("@main", "@other"),
+                      entry + entry):
+            with self.subTest(wrong=wrong):
+                with self.assertRaises(AssertionError):
+                    GATE.assert_lsan_entry(wrong)
 
     def test_linux_step_is_required_and_installs_pinned_runtime(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
@@ -167,8 +188,92 @@ class NativeSanitizerGateTests(unittest.TestCase):
         self.assertIn("python3 scripts/check_native_sanitizers.py --linux", step)
         self.assertIn('"libclang-rt-21-dev=$version"', (ROOT / "scripts/install_ci_llvm.sh").read_text())
         filters = workflow.split("            rust:\n", 1)[1].split("            frontend:\n", 1)[0]
-        for name in ("scripts/check_native_sanitizers.py", "scripts/tests/test_check_native_sanitizers.py"):
+        for name in ("scripts/check_native_sanitizers.py", "scripts/native_lsan_entry.c",
+                     "scripts/tests/test_check_native_sanitizers.py"):
             self.assertIn(f"- '{name}'", filters)
+
+
+class LsanEntryAdapterTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temporary = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temporary.cleanup)
+        directory = Path(cls.temporary.name)
+        oracle = directory / "oracle.c"
+        oracle.write_text(r"""
+#include <errno.h>
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+static int mode, joined;
+static atomic_int calls;
+static pthread_t parent;
+extern int __wrap_main(void);
+
+int __real_main(void) {
+    atomic_fetch_add(&calls, 1);
+    if (write(1, "real entry\n", 11) != 11) return 36;
+    if (pthread_equal(pthread_self(), parent)) return 31;
+    return mode == 3 ? 32 : 0;
+}
+int probe_create(pthread_t *thread, const pthread_attr_t *attributes,
+                 void *(*start)(void *), void *argument) {
+    if (mode == 1) {
+        if (atomic_load(&calls) != 0) _Exit(37);
+        return EAGAIN;
+    }
+    return pthread_create(thread, attributes, start, argument);
+}
+int probe_join(pthread_t thread, void **result) {
+    if (mode == 2) return EINVAL;
+    int status = pthread_join(thread, result);
+    joined = status == 0;
+    return status;
+}
+int main(int argc, char **argv) {
+    if (argc != 2) return 34;
+    mode = atoi(argv[1]);
+    parent = pthread_self();
+    int status = __wrap_main();
+    if (!joined || atomic_load(&calls) != 1) return 33;
+    return status;
+}
+""")
+        obj = directory / "entry.o"
+        cls.executable = directory / "entry-test"
+        for command in (["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
+                         "-Dpthread_create=probe_create", "-Dpthread_join=probe_join", "-c",
+                         ROOT / "scripts/native_lsan_entry.c", "-o", obj],
+                        ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
+                         oracle, obj, "-o", cls.executable]):
+            result = subprocess.run(command, capture_output=True, timeout=30)
+            if result.returncode:
+                raise AssertionError(f"adapter test build failed: {result.stderr.decode()}")
+
+    def test_real_entry_runs_once_in_worker_with_original_status(self):
+        for mode, status in ((0, 0), (3, 32)):
+            with self.subTest(status=status):
+                result = subprocess.run([self.executable, str(mode)], capture_output=True, timeout=10)
+                self.assertEqual(result.returncode, status)
+                self.assertEqual(result.stdout, b"real entry\n")
+                self.assertEqual(result.stderr, b"")
+                if status:
+                    with self.assertRaises(AssertionError):
+                        GATE.assert_detected(result, "LeakSanitizer", "detected memory leaks")
+
+    def test_thread_failures_cannot_count_as_leak_detection(self):
+        for mode, operation in ((1, "pthread_create"), (2, "pthread_join")):
+            with self.subTest(operation=operation):
+                result = subprocess.run([self.executable, str(mode)], capture_output=True, timeout=10)
+                self.assertEqual(result.returncode, 90)
+                self.assertIn(f"LSan fixture {operation} failed:".encode(), result.stderr)
+                if mode == 1:
+                    self.assertEqual(result.stdout, b"", "entry cannot run when thread creation fails")
+                with self.assertRaises(AssertionError):
+                    GATE.assert_detected(result, "LeakSanitizer", "detected memory leaks")
 
 
 if __name__ == "__main__":
