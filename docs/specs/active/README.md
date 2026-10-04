@@ -2,7 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无active Spec；0268已按双宿主实现证据归档，交付记录见[PR46](https://github.com/Halckon/Koven/pull/46)。
+当前 1 份 active Spec：
+
+- [0269 有界资源程序生成与独立安全核验](0269-generated-resource-programs.md)：M4b 首片，实施中；验收尚未执行。
+
+0268已按双宿主实现证据归档并经[PR46](https://github.com/Halckon/Koven/pull/46)合并。
 0263/0264/0265 已分别完成 M1A A2–A4 有界验收归档；
 0266 检测接线与0267编辑器修复已分别通过PR44/PR45合并。0268补齐unit native for与完整应用实现验收。
 0182、0255–0261按用户授权的本机恢复验收完成本地归档，

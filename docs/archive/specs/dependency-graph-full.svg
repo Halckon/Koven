@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="6720" height="6988" viewBox="0 0 6720 6988" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="7064" height="6988" viewBox="0 0 7064 6988" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="6720" height="6988" fill="#ffffff"/>
+  <rect width="7064" height="6988" fill="#ffffff"/>
   <rect x="40" y="30" width="6616" height="6886" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，255 份）</text>
+  <rect x="6720" y="4956" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="6860" y="4976" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 464, 180 496" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -968,6 +970,7 @@
   <path d="M 708 432 C 708 464, 972 5738, 972 5770" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 588 C 444 620, 972 5738, 972 5770" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 5670 C 2028 5702, 972 5738, 972 5770" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 828 4871 C 3784 4871, 3784 5027, 6740 5027" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2034,4 +2037,8 @@
   <text x="972" y="5793" text-anchor="middle" font-size="13">SPEC-0268</text>
   <text x="972" y="5811" text-anchor="middle" font-size="13">unit 顺序迭代 nati</text>
   <text x="972" y="5829" text-anchor="middle" font-size="13">ve 与 M1A 程序贯通</text>
+  <rect x="6740" y="4990" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="6860" y="5013" text-anchor="middle" font-size="13" font-weight="600">SPEC-0269</text>
+  <text x="6860" y="5031" text-anchor="middle" font-size="13">有界资源程序生成与独立安全核</text>
+  <text x="6860" y="5049" text-anchor="middle" font-size="13">验</text>
 </svg>
