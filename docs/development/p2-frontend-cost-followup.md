@@ -99,3 +99,49 @@ Linux成本、其余八组成本和用户明确接受预算仍未运行/闭合�
 448个发布text payload的私密路径/常见凭据模式扫描通过，该有界扫描不是通用秘密检测。
 `python3 scripts/check_docs.py`通过497页结构检查，`git diff --check`通过。
 本批只提交证据与文档，不重跑未变Rust门禁；本轮未推送、创建PR或执行新远端CI。
+
+## 用户负载说明后的同条件重测
+
+用户随后说明“现在没有跑其他了，继续”，授权同一配对按冻结方法重测；这是用户对负载
+背景的陈述，不代表采样器证明系统完全空闲。原三次尝试与全部59条样本保持不变。
+启动时累计6.185GiB、剩余约63.31GiB；不清理旧target，不复用非空target冒充冷构建。
+新临时目录仅为同一固定方法所需空缓存，串行执行，采样顺序、首启/热执行划分、
+样本数、阈值、编译参数与前次第三轮完全相同；只补负载metadata及累计缓存清单。
+
+实际25.22秒，完成13条**before校准**后按原噪声线主动停止；没有after、正式配对或
+身份对照样本，也没有继续下一迁移。本次所有实际执行均72 passed/0 failed/0 ignored，
+不将校准通过的功能结果当作成本接受。增量校准median0.6602s、MAD0.0403s、
+range0.0850s，均在原线内；热运行median0.1269s、MAD0.0031s，但range0.0536s
+超过`max(40ms,30% median)`=0.0400s，因此停止，未放宽阈值或自动再次重试。
+
+| 热运行校准 | 采样器墙时(s) | Darwin time real(s，原始精度) | harness finished(s) |
+|---|---:|---:|---:|
+| 0 | 0.1238 | 0.09 | 0.10 |
+| 1 | 0.1307 | 0.10 | 0.10 |
+| 2 | 0.1253 | 0.10 | 0.10 |
+| 3 | 0.1269 | 0.11 | 0.11 |
+| 4 | 0.1774 | 0.16 | 0.16 |
+
+最后一次额外耗时同时出现在子进程time与harness中，不能仅归因于采样器等待检测。
+该次time还记录0.12s user/0.02s sys，前几次约0.08–0.09s user/0.01s sys；
+这些只提供下一步诊断线索，不证明负载来源或代码退化，也不证明观察器没有开销。
+建议下次实验先单独评估固定before可执行文件的计时稳定性，并比较采样器墙时、
+Darwin time及harness三个时钟，记录环境/负载背景；必要时把逐用例耗时定位作为独立
+诊断安排。若考虑更长cohort、样本数或计时口径，应先明确方法变更，不能倒改本次线。
+在稳定校准或明确新的测量合同前暂停扩展配对，保持成本预算未接受。
+
+本次新增约0.328GiB，结束累计6.513GiB、剩余约62.91GiB，仍未触两小时/累计12GiB/
+剩余40GiB硬线。未安装工具、改安全设置、推送、新建PR或重跑整个功能回归。
+[本次方法](evidence/p2-multifile-ownership-retest-mac-20261004/protocol.json)、
+[采样脚本](evidence/p2-multifile-ownership-retest-mac-20261004/probe.py)、
+[校准](evidence/p2-multifile-ownership-retest-mac-20261004/calibration.json)、
+[13条样本](evidence/p2-multifile-ownership-retest-mac-20261004/samples.json)、
+[停止原因](evidence/p2-multifile-ownership-retest-mac-20261004/outcome.json)、
+[三时钟与统计](evidence/p2-multifile-ownership-retest-mac-20261004/summary.json)和
+[全部70个raw成员](evidence/p2-multifile-ownership-retest-mac-20261004/raw.tar.gz)独立保存。
+17份JSON数值/布尔字段脱敏前后相等，70个归档成员摘要全部通过；
+[脱敏与归档摘要](evidence/p2-multifile-ownership-retest-mac-20261004/redaction.json)、
+[原始摘要](evidence/p2-multifile-ownership-retest-mac-20261004/original-sha256.json)和
+[发布摘要](evidence/p2-multifile-ownership-retest-mac-20261004/raw-sha256.json)保留，不覆盖前批。
+79个发布text payload的私密路径/常见凭据模式扫描通过；文档结构497页与whitespace
+检查通过。没有新增产品行为、Spec或Rust实现修改。

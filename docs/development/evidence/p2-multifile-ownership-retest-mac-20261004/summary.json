@@ -1,0 +1,147 @@
+{
+  "status": "stopped at baseline calibration; no after or formal samples; budget acceptance pending",
+  "formal_rows": {
+    "all": 13,
+    "calibration": 13,
+    "noncalibration": 0
+  },
+  "phases": {},
+  "acceptance": "open; investigation thresholds are not an accepted budget",
+  "noise_rule": "MAD <= max(20ms,15% median), range <= max(40ms,30% median); registered before after sampling",
+  "rss_unit": "bytes; maximum reported process, not aggregate process-tree peak",
+  "first_launch": "cold first launch separate from first launch after each warm rebuild; no samples discarded",
+  "stopped_attempts": [],
+  "outcome": {
+    "status": "stopped",
+    "reason": "baseline calibration too noisy; no after samples",
+    "elapsed_seconds": 25.21850458299741
+  },
+  "load_context": "User reports no other workloads running; system idle not independently proven",
+  "baseline_calibration": {
+    "calibration-warm": {
+      "seconds": {
+        "values": [
+          0.7005877499468625,
+          0.6155456670094281,
+          0.6602452080696821
+        ],
+        "median": 0.6602452080696821,
+        "mad": 0.04034254187718034,
+        "range": 0.08504208293743432
+      },
+      "maximum_reported_process_rss_bytes": {
+        "values": [
+          254918656,
+          248905728,
+          249413632
+        ],
+        "median": 249413632,
+        "mad": 507904,
+        "range": 6012928
+      },
+      "rustc_nonlink_seconds_sum": {
+        "values": [
+          0.46250391700000004,
+          0.46598308299999996,
+          0.47964129099999997
+        ],
+        "median": 0.46598308299999996,
+        "mad": 0.0034791659999999225,
+        "range": 0.017137373999999927
+      },
+      "linker_seconds_sum": {
+        "values": [
+          0.100076583,
+          0.077210583,
+          0.081340375
+        ],
+        "median": 0.081340375,
+        "mad": 0.004129792000000007,
+        "range": 0.022865999999999997
+      }
+    },
+    "run": {
+      "seconds": {
+        "values": [
+          0.1238194580655545,
+          0.13067112490534782,
+          0.12532575009390712,
+          0.12688187486492097,
+          0.17740258388221264
+        ],
+        "median": 0.12688187486492097,
+        "mad": 0.003062416799366474,
+        "range": 0.05358312581665814
+      },
+      "maximum_reported_process_rss_bytes": {
+        "values": [
+          10240000,
+          10420224,
+          10158080,
+          10174464,
+          10207232
+        ],
+        "median": 10207232,
+        "mad": 32768,
+        "range": 262144
+      },
+      "rustc_nonlink_seconds_sum": {
+        "values": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "median": 0,
+        "mad": 0,
+        "range": 0
+      },
+      "linker_seconds_sum": {
+        "values": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "median": 0,
+        "mad": 0,
+        "range": 0
+      }
+    }
+  },
+  "direct_timer_and_harness": [
+    {
+      "name": "calibration-run-0",
+      "observer_seconds": 0.1238194580655545,
+      "darwin_time_first_line": "0.09 real         0.08 user         0.01 sys",
+      "harness_result": "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s"
+    },
+    {
+      "name": "calibration-run-1",
+      "observer_seconds": 0.13067112490534782,
+      "darwin_time_first_line": "0.10 real         0.08 user         0.01 sys",
+      "harness_result": "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s"
+    },
+    {
+      "name": "calibration-run-2",
+      "observer_seconds": 0.12532575009390712,
+      "darwin_time_first_line": "0.10 real         0.08 user         0.01 sys",
+      "harness_result": "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s"
+    },
+    {
+      "name": "calibration-run-3",
+      "observer_seconds": 0.12688187486492097,
+      "darwin_time_first_line": "0.11 real         0.09 user         0.01 sys",
+      "harness_result": "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s"
+    },
+    {
+      "name": "calibration-run-4",
+      "observer_seconds": 0.17740258388221264,
+      "darwin_time_first_line": "0.16 real         0.12 user         0.02 sys",
+      "harness_result": "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s"
+    }
+  ],
+  "cumulative_cache_bytes": 6993612800
+}
