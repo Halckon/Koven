@@ -654,7 +654,8 @@ impl Checker<'_> {
                 1 => true,
                 _ => false,
             };
-            let structure_matches = move_only == move_span.is_some()
+            // The expected move constraint restricts captures; ordinary Function accepts either literal.
+            let structure_matches = (!move_only || move_span.is_some())
                 && if arrow_span.is_none() {
                     implicit_arity_matches
                 } else {

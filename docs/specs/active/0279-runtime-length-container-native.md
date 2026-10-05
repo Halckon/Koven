@@ -117,7 +117,7 @@ constructor CallReturn 只结束参数 loan。临时 owned environment 按 captu
 
 | Gate | 必需证据 | 当前状态 |
 |---|---|---|
-| E1 | 两前端合法 expected move literal 的失败测试；capture/loan/drop facts；两 source runtime lowering 成功目标的真实红测 | 待 |
+| E1 | 两前端合法 expected move literal 的失败测试；capture/loan/drop facts；两 source runtime lowering 成功目标的真实红测 | 前端已通过；两 source runtime lowering 红测保留，成功目标待实现 |
 | E2 | Array/List × single/unit × pointer/shared/owned 12 格源码 SSA/LLVM/native；0/1/3、named/temporary | 待 |
 | E3 | size 第一 Borrow 在后续 operand/nested call 内保持，initializer Inout size 冲突 L0135；size→拒负→initializer expression→allocation→callback；overflow/allocation fail 保留 expression 副作用且无 callback；零长度及升序一次，LLVM preheader 固定 storage | 待 |
 | E4 | 命名 callback 重用、capture source 冲突与最终 source 复用、temporary ASAP、逆索引 Resource drop；逐指针 allocation/free | 待 |
@@ -156,3 +156,15 @@ Guide03 正文后登记语言前置冲突；此前“无语义阻塞”的判断
 结构门禁 545 页及 37 项 checker 测试实际通过，原始输出见
 [v0.41 验证收据](../../development/evidence/runtime-constructor-0279/v041/receipt.json)。
 规范改动单独提交后继续 E1 实现，不据此关闭 source/native 或 E8。
+
+前端切片：两 checker gate 已对齐已启用 v0.41，expected canonical 与 AST Owned/Move capture
+保持分离；named identity、strong move、mode/arity、L0137/L0138/L0131 的反例全部通过。
+unit 临时 owned closure 的新 intent test 实际暴露 Captured drop 遗漏；最小修复复用 named
+路径的逆序 capture facts，正常 CallReturn 与 ControlTransfer 都在 Temporary 前释放 Owned+Move，
+Copy 不清理、Abort 不展开。两 String/Copy Int 与 iteration ordered/flat 一致性补测实际通过。
+独立复核了生产 gate、ownership facts、root 修复及 Shared 顺序；额外测试复核后才提交。
+六个完整相关 suite 合计 482 passed、0 failed、0 ignored、0 filtered；
+源码起始 SHA、实际失败/夹具失败、最终 raw 和未关闭范围见
+[前端验收收据](../../development/evidence/runtime-constructor-0279/frontend/receipt.json)。
+`expression.rs` 旧欠账1206→1207，仅 gate 注释增加1行，精确例外登记并独立审阅。
+源码生成、helper、LLVM/native、E8 仍在实施，不以本次前端验收关闭它们。

@@ -509,6 +509,82 @@ fn abandoned_temporary_closure_ends_capture_before_element() {
 }
 
 #[test]
+fn abandoned_temporary_move_closure_drops_owned_slots_before_element() {
+    let owned = analyze(
+        "package p\nfun use(f: () -> Unit, count: Int) {}",
+        "package q\nfun run(xs: List<Int>, flag: Boolean) { for (item in xs) {\n\
+         val first = \"first\"\nval second = \"second\"\n\
+         p.use(move { println(first); println(second) }, if(flag) {return} else 1)\n} }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let captures = owned.captures();
+    assert_eq!(captures.len(), 2);
+    assert!(
+        captures
+            .iter()
+            .all(|capture| capture.mode() == ClosureCaptureMode::Owned
+                && capture.effect() == ClosureCaptureEffect::Move)
+    );
+    let closure = captures[0].lambda();
+    assert_eq!(captures[1].lambda(), closure);
+    let exit = owned.iterations()[0]
+        .exits()
+        .iter()
+        .find(|exit| matches!(exit.kind(), Exit::Return(_)))
+        .expect("return abandons already evaluated callback");
+    let expected = [
+        UnitDropTarget::Captured {
+            closure,
+            source: captures[1].source(),
+        },
+        UnitDropTarget::Captured {
+            closure,
+            source: captures[0].source(),
+        },
+        UnitDropTarget::Temporary(closure),
+    ];
+    let drops = exit
+        .actions()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, action)| {
+            let Action::Drop(fact) = action else {
+                return None;
+            };
+            expected.contains(&fact.target()).then_some((index, *fact))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        drops
+            .iter()
+            .map(|(_, fact)| fact.target())
+            .collect::<Vec<_>>(),
+        expected,
+        "iteration cleanup releases both owned captures before the temporary environment"
+    );
+    let end_call = exit
+        .actions()
+        .iter()
+        .position(|action| matches!(action, Action::EndCallLoan(_)))
+        .expect("pending callback borrow ends first");
+    let end_element = exit
+        .actions()
+        .iter()
+        .position(|action| matches!(action, Action::EndElement(_)))
+        .expect("iteration element ends after callback cleanup");
+    assert!(end_call < drops[0].0 && drops[2].0 < end_element);
+    for (_, fact) in &drops {
+        assert_eq!(fact.point(), exit.point());
+        assert_eq!(
+            owned.drops().iter().filter(|flat| *flat == fact).count(),
+            1,
+            "ordered action reuses the same flat drop identity exactly once"
+        );
+    }
+    assert!(owned.validate().is_ok());
+}
+
+#[test]
 fn unreachable_lambda_does_not_require_an_unacquired_iteration_provider() {
     let owned = analyze(
         "package p\nfun noop() {}",

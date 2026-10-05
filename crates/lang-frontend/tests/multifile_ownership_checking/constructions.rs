@@ -1,6 +1,42 @@
 use super::*;
 
 #[test]
+fn runtime_generator_size_borrow_precedes_cross_file_initializer_nested_inout() {
+    for container in ["Array", "List"] {
+        let mut sources = SourceMap::new();
+        let (provider_source, provider) = parsed(
+            &mut sources,
+            "p/provider.ko",
+            "package p\nfun initializer(inout size: Int): (Int) -> Int {\n\
+             size = 2\nreturn ({ index -> index })\n}",
+        );
+        let text = format!(
+            "package q\nfun invalid(): Unit {{ var size = 1\n\
+             val items = {container}<Int>(size, p.initializer(&size))\n}}"
+        );
+        let (consumer_source, consumer) = parsed(&mut sources, "q/consumer.ko", &text);
+        let inputs = [
+            SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+            SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+        ];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &type_environment);
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+                .expect("conflicting construction returns an ownership recovery product");
+        assert_eq!(owned.diagnostics().len(), 1);
+        assert_eq!(owned.diagnostics()[0].code().to_string(), "L0135");
+        assert_eq!(
+            sources
+                .slice(owned.diagnostics()[0].primary_span())
+                .expect("cross-file conflicting operand span"),
+            "&"
+        );
+    }
+}
+
+#[test]
 fn source_constructions_publish_ordered_deliveries_root_kinds_and_stable_identity() {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(

@@ -7,7 +7,7 @@ use lang_frontend::{
     name_resolution::{NameEnvironment, NameResolution, SymbolId, resolve_names},
     ownership_checking::{
         ClosureCaptureEffect, ClosureCaptureMode, ClosureCaptureSource, DropPoint, DropTarget,
-        OwnershipCheckedFile, Transferability, check_ownership,
+        LoanKind, LoanTarget, OwnershipCheckedFile, Transferability, check_ownership,
     },
     parser::{Expression, ParsedFile},
     source::SourceMap,
@@ -693,5 +693,135 @@ fn checked_in_phase3_closure_fixtures_execute_pass_and_fail_cases() {
                 + "\n";
             assert_eq!(actual, expected, "{path:?}");
         }
+    }
+}
+
+#[test]
+fn ordinary_expected_move_literals_preserve_owned_capture_and_asap_drop() {
+    let text = "fun apply(callback: (Int) -> Boolean): Unit {}\n\
+                fun make(own returnedLabel: String): (Int) -> Boolean = move { returnedIndex -> returnedLabel == \"return\" && returnedIndex == 0 }\n\
+                fun use(own localLabel: String, own argumentLabel: String): Unit {\n\
+                    val contextual: (Int) -> Boolean = move { localIndex -> localLabel == \"local\" && localIndex == 0 }\n\
+                    apply(contextual)\n\
+                    apply(move { argumentIndex -> argumentLabel == \"argument\" && argumentIndex == 0 })\n\
+                }";
+    let (sources, parsed, names, typed, owned) = checked(text);
+    let lambdas = lambdas(&parsed);
+    assert_eq!(lambdas.len(), 3);
+    assert_eq!(
+        owned.loans().len(),
+        2,
+        "only synchronous callback arguments form loans; owned capture does not borrow its source"
+    );
+    for (lambda, name) in
+        lambdas
+            .iter()
+            .copied()
+            .zip(["returnedLabel", "localLabel", "argumentLabel"])
+    {
+        let source = symbol(&names, name);
+        let captures = owned.captures_of(lambda).collect::<Vec<_>>();
+        assert_eq!(captures.len(), 1);
+        assert_eq!(captures[0].source(), ClosureCaptureSource::Symbol(source));
+        assert_eq!(captures[0].mode(), ClosureCaptureMode::Owned);
+        assert_eq!(captures[0].effect(), ClosureCaptureEffect::Move);
+        assert_eq!(
+            typed.types().get(captures[0].ty()),
+            Some(&lang_frontend::type_checking::TypeKind::Builtin(
+                BuiltinType::String
+            ))
+        );
+        assert_eq!(
+            typed.copyability(captures[0].ty()),
+            Some(lang_frontend::type_checking::Copyability::MoveOnly)
+        );
+        assert!(
+            !owned
+                .drops()
+                .iter()
+                .any(|drop| drop.target() == DropTarget::Named(source)),
+            "moving a String capture removes its source binding's drop obligation"
+        );
+        let capture_drops = owned
+            .drops()
+            .iter()
+            .filter(|drop| {
+                matches!(drop.target(),
+            DropTarget::Captured { closure, source: ClosureCaptureSource::Symbol(captured), .. }
+                if closure == lambda && captured == source)
+            })
+            .collect::<Vec<_>>();
+        if name == "returnedLabel" {
+            assert!(
+                capture_drops.is_empty(),
+                "returned closure transfers its environment to the caller"
+            );
+        } else {
+            assert_eq!(
+                capture_drops.len(),
+                1,
+                "each captured String drops once with its closure"
+            );
+            let DropPoint::CallReturn(call) = capture_drops[0].point() else {
+                panic!("initializer closure must drop at its final synchronous call return");
+            };
+            let call_text = sources
+                .slice(parsed.ast().expressions().get(call).expect("call").span())
+                .expect("call text");
+            let expected_call = if name == "localLabel" {
+                "apply(contextual)"
+            } else {
+                "apply(move { argumentIndex -> argumentLabel == \"argument\" && argumentIndex == 0 })"
+            };
+            assert_eq!(
+                call_text, expected_call,
+                "capture cleanup belongs to its own final use"
+            );
+            let loan = owned
+                .loans()
+                .iter()
+                .find(|loan| loan.call() == call)
+                .expect("callback borrow");
+            assert_eq!(loan.kind(), LoanKind::Shared);
+            if name == "localLabel" {
+                assert!(
+                    matches!(loan.target(), LoanTarget::Place(place) if place.root() == symbol(&names, "contextual"))
+                );
+            } else {
+                assert_eq!(loan.target(), &LoanTarget::Temporary(lambda));
+            }
+            assert_eq!(
+                owned.loans_ending_at(call).count(),
+                1,
+                "callback loan ends before ASAP environment cleanup"
+            );
+        }
+    }
+}
+
+#[test]
+fn ordinary_expected_lambda_keeps_capture_escape_and_ownership_errors() {
+    for (text, expected) in [
+        (
+            "fun invalid(label: String): (Int) -> Boolean = { index -> label == \"shared\" && index == 0 }",
+            "L0137",
+        ),
+        (
+            "fun invalid(label: String): (Int) -> Boolean = move { index -> label == \"borrowed\" && index == 0 }",
+            "L0138",
+        ),
+        (
+            "fun invalid(own label: String): Unit { val f: (Int) -> Boolean = move { index -> label == \"owned\" && index == 0 }\nval after = label == \"after\" }",
+            "L0131",
+        ),
+    ] {
+        let (_, _, _, _, owned) = analyzed(text);
+        assert_eq!(codes(&owned), [expected], "{text}");
+        assert!(
+            owned.captures().is_empty(),
+            "ownership errors suppress executable capture facts"
+        );
+        assert!(owned.loans().is_empty());
+        assert!(owned.drops().is_empty());
     }
 }

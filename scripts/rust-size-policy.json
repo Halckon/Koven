@@ -158,11 +158,11 @@
       "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1666行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/checker/expression.rs": {
-      "max_lines": 1206,
-      "reason": "仅2行size descriptor登记调用，登记算法已在container子模块。",
+      "max_lines": 1207,
+      "reason": "仅2行size descriptor登记调用，登记算法已在container子模块。 SPEC-0279：在既有 lambda expected gate 增加1行说明，匹配条件按已启用v0.41对齐；算法及trial边界未扩展。",
       "owner": "lang-frontend single type checker",
       "split_plan": "后续按表达式类型分派整体拆分入口，保持trial rollback边界。",
-      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1206行或增加职责前重新审阅。"
+      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1206行或增加职责前重新审阅。 SPEC-0279独立复核 gate、canonical身份、mode/arity/strong move/named负例；新精确上限1207，超出或新增职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/model.rs": {
       "max_lines": 1507,
