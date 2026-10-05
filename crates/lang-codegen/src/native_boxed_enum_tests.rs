@@ -200,6 +200,50 @@ fn run_counted_in(
     retain: bool,
     order: Option<&[usize]>,
 ) -> Output {
+    let ir = directory.join("boxed-enum-counts.ll");
+    let counter = directory.join("counter.c");
+    let executable = directory.join("boxed-enum-counts");
+    write_counted_allocations(llvm, expected, order, &ir, &counter);
+    let evidence = retain.then_some(directory);
+    if retain {
+        let version = counted_output(
+            Command::new(crate::test_support::ir_clang()).arg("--version"),
+            evidence,
+            "version",
+        );
+        assert!(version.status.success(), "{version:?}");
+    }
+    let linked = counted_output(
+        Command::new(crate::test_support::ir_clang())
+            .arg(&ir)
+            .arg(&counter)
+            .arg(format!("-DEXPECTED_ALLOCATIONS={expected}"))
+            .arg("-o")
+            .arg(&executable),
+        evidence,
+        "compile",
+    );
+    assert!(linked.status.success(), "{linked:?}");
+    counted_output(&mut Command::new(&executable), evidence, "run")
+}
+
+/// Export the same identity counter for a caller that owns bounded child execution.
+pub(crate) fn write_counted_allocations(
+    llvm: &str,
+    expected: usize,
+    order: Option<&[usize]>,
+    ir: &std::path::Path,
+    counter: &std::path::Path,
+) {
+    if let Some(order) = order {
+        let mut identities = order.to_vec();
+        identities.sort_unstable();
+        assert_eq!(
+            identities,
+            (0..expected).collect::<Vec<_>>(),
+            "expected release order must name every allocation exactly once"
+        );
+    }
     assert!(llvm.contains("@malloc("), "fixture must actually allocate");
     assert!(
         llvm.contains("@free("),
@@ -208,10 +252,7 @@ fn run_counted_in(
     let instrumented = llvm
         .replace("@malloc(", "@counted_malloc(")
         .replace("@free(", "@counted_free(");
-    let ir = directory.join("boxed-enum-counts.ll");
-    let counter = directory.join("counter.c");
-    let executable = directory.join("boxed-enum-counts");
-    fs::write(&ir, instrumented).expect("write allocator-instrumented LLVM");
+    fs::write(ir, instrumented).expect("write allocator-instrumented LLVM");
     let order_values = order
         .map(|order| {
             order
@@ -222,11 +263,12 @@ fn run_counted_in(
         })
         .unwrap_or_else(|| "0".to_owned());
     let prefix = format!(
-        "#define CHECK_ORDER {}\nstatic const int release_order[] = {{{order_values}}};\n",
+        "#ifndef EXPECTED_ALLOCATIONS\n#define EXPECTED_ALLOCATIONS {expected}\n#endif\n\
+         #define CHECK_ORDER {}\nstatic const int release_order[] = {{{order_values}}};\n",
         u8::from(order.is_some())
     );
     fs::write(
-        &counter,
+        counter,
         prefix
             + r#"
 #include <stdlib.h>
@@ -262,27 +304,6 @@ __attribute__((destructor)) static void verify_counts(void) {
 "#,
     )
     .expect("write allocator identity counter");
-    let evidence = retain.then_some(directory);
-    if retain {
-        let version = counted_output(
-            Command::new(crate::test_support::ir_clang()).arg("--version"),
-            evidence,
-            "version",
-        );
-        assert!(version.status.success(), "{version:?}");
-    }
-    let linked = counted_output(
-        Command::new(crate::test_support::ir_clang())
-            .arg(&ir)
-            .arg(&counter)
-            .arg(format!("-DEXPECTED_ALLOCATIONS={expected}"))
-            .arg("-o")
-            .arg(&executable),
-        evidence,
-        "compile",
-    );
-    assert!(linked.status.success(), "{linked:?}");
-    counted_output(&mut Command::new(&executable), evidence, "run")
 }
 
 /// Keep exact binary argv as well as readable commands; UTF-8 quoting must not

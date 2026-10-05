@@ -15,6 +15,75 @@ SPEC.loader.exec_module(GATE)
 
 
 class NativeSanitizerGateTests(unittest.TestCase):
+    def test_output_written_after_last_sample_is_still_budgeted(self):
+        import sys
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            go = directory / "go"
+            command = [sys.executable, "-c", f"import os,time; from pathlib import Path; "
+                       f"p=Path({str(go)!r});\nwhile not p.exists(): time.sleep(.001)\n"
+                       "os.write(1,b'x'*4096); os._exit(0)"]
+            def finish_during_last_sample(_group):
+                go.touch()
+                deadline = time.monotonic() + 2
+                while (directory / "late.stdout").stat().st_size < 4096:
+                    if time.monotonic() > deadline:
+                        self.fail("controlled child did not produce final output")
+                    time.sleep(.005)
+                time.sleep(.05)
+                return 0, 0
+            with mock.patch.object(GATE, "process_group_usage", side_effect=finish_during_last_sample):
+                with self.assertRaises(GATE.ResourceLimit):
+                    GATE.run(command, directory, "late", timeout=3,
+                             limits={"output_bytes": 1024, "rss_bytes": 1024*1024})
+
+    def test_generated_output_budget_kills_group_and_marks_truncation(self):
+        import sys
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            marker = directory / "escaped"
+            child = f"import time; from pathlib import Path; time.sleep(.4); Path({str(marker)!r}).touch()"
+            parent = (f"import subprocess,sys,time; subprocess.Popen([sys.executable,'-c',{child!r}]); "
+                      "sys.stdout.write('x'*100000); sys.stdout.flush(); time.sleep(30)")
+            with self.assertRaises(GATE.ResourceLimit):
+                GATE.run([sys.executable, "-c", parent], directory, "limited", timeout=2,
+                         limits={"output_bytes": 1024, "artifact_bytes": 1000000})
+            import json
+            result = json.loads((directory / "limited.result.json").read_text())
+            self.assertEqual(result["classification"], "resource_limit")
+            self.assertTrue(result["truncated"])
+            self.assertLessEqual((directory / "limited.stdout").stat().st_size, 1024)
+            time.sleep(.5)
+            self.assertFalse(marker.exists())
+
+    def test_generated_artifact_limit_and_missing_proc_are_not_success(self):
+        import sys
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            command = [sys.executable, "-c", "import time; time.sleep(30)"]
+            (directory / "large.ll").write_bytes(b"x" * 4096)
+            with self.assertRaises(GATE.ResourceLimit):
+                GATE.run(command, directory, "artifact", timeout=2,
+                         limits={"output_bytes": 1024, "artifact_bytes": 2048})
+            with mock.patch.object(GATE, "process_group_usage", side_effect=OSError("proc unavailable")):
+                with self.assertRaisesRegex(OSError, "proc unavailable"):
+                    GATE.run(command, directory, "proc", timeout=2,
+                             limits={"rss_bytes": 1024, "processes": 16})
+
+    def test_generated_linux_group_budgets_observe_actual_children(self):
+        import sys
+        if GATE.platform.system() != "Linux":
+            self.skipTest("actual /proc group accounting is Linux-only; exercised in Linux CI")
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            command = [sys.executable, "-c", "import subprocess,sys,time; "
+                       "subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); time.sleep(30)"]
+            with self.assertRaises(GATE.ResourceLimit):
+                GATE.run(command, directory, "pids", timeout=2, limits={"processes": 1})
+            with self.assertRaises(GATE.ResourceLimit):
+                GATE.run([sys.executable, "-c", "import time; x=bytearray(32*1024*1024); time.sleep(30)"],
+                         directory, "rss", timeout=2, limits={"rss_bytes": 16*1024*1024})
+
     def test_detector_requires_failure_and_its_exact_category(self):
         report = b"ERROR: AddressSanitizer: heap-buffer-overflow"
         good = subprocess.CompletedProcess([], 86, b"", report)

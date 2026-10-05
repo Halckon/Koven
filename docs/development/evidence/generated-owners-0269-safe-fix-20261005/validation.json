@@ -1,0 +1,44 @@
+{
+  "schema": "koven.spec0269.safe-fix-validation.v1",
+  "base_head": "176d7b23b3fc0ad0072f3a7dcd3399a195461e00",
+  "base_status": "clean",
+  "scope": "Only ordinary report validation, exit policy and evidence file IO. All process, checker mutation and rendering in G4 tests mocked. No real calibration, mutation, sanitizer, fault injection or failure reduction run.",
+  "command": "python3 -m unittest scripts.tests.test_generated_owner_acceptance scripts.tests.test_checker_evidence scripts.tests.test_check_generated_owner_checker scripts.tests.test_check_generated_owners",
+  "result": {
+    "passed": 21,
+    "failed": 0,
+    "skipped": 0
+  },
+  "source_sha256": {
+    "scripts/check_generated_owner_checker.py": "905e32a71974cf7bf761adc6f4ef555104244b5866537d87da928fd05f353b9c",
+    "scripts/check_generated_owners.py": "748818c58911bbc015f031b057d715fe9dfebf5c12f37fde60d47a3aa96fd84a",
+    "scripts/generated_owner_calibration.py": "5c013a73f53e5035bf4f83c58d4b009ed1fc45fd80de34fe857c34c9ddfa1c13",
+    "scripts/tests/test_generated_owner_acceptance.py": "3819a45f896ac42bfd236914ed5aa6a0d62a8188e7cc58f9163ab8d538005c83",
+    "scripts/tests/test_checker_evidence.py": "e5c062e572797bd4dc68f64ffe0af5475a65e8b5cc62556dbe5909ad96e2ede3",
+    "scripts/tests/test_check_generated_owner_checker.py": "d5c015b28a14d3dd418b989bd2ebf8f480a15d7c5f342991f9fac846e83d882f",
+    "scripts/tests/test_check_generated_owners.py": "f51f6e67762c502abe86891f8bae21840be00cd420ebf3bea2a6158881676f92"
+  },
+  "logs": {
+    "spec0269-safe-red.log.gz": {
+      "uncompressed_sha256": "855f0fa3d50ea181cc2c68ddd3a80ea5358d10f84454613db2685ed83af7a8c6",
+      "compressed_sha256": "1703fd131554e281120ae4d6c5e6b57acaf5749744cbc0c729027d810171c384"
+    },
+    "spec0269-safe-schema-red.log.gz": {
+      "uncompressed_sha256": "5d89c6a20da92e790f839100d75f63867d95d4b9543894feaf33051f2d83f05b",
+      "compressed_sha256": "59b3a4fd438eea3c02382729501b7662a206abcc2fc7a9e3ad8c7ac888ebd848"
+    },
+    "spec0269-safe-standalone-red.log.gz": {
+      "uncompressed_sha256": "d01328b80bed16761e8ba3c0481abc3d41a2cb55b76fe20ca254cccd9ca1e87a",
+      "compressed_sha256": "20d6430cf9a91ed705fa39b137f15c784dc4c843a683584dd91867966a1efce0"
+    },
+    "spec0269-safe-final-green.log.gz": {
+      "uncompressed_sha256": "0d2f29bfbfd8a8898390486bb1f007c5c2bf9fa78f415009aeebff5a2f96c11a",
+      "compressed_sha256": "3c6f5174f9f4c11bd5febf336f56fbdbdce6396f4c7f5639b91835aa7f7cb44c"
+    }
+  },
+  "remaining": [
+    "G4 new real red/green persisted artifacts not executed",
+    "G5 real-failure reduction not validated; driver exits 1",
+    "New exact-head CI, final archive/merge/main not executed"
+  ]
+}
