@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 from unittest import mock
 
@@ -13,6 +14,13 @@ SPEC.loader.exec_module(TUTORIAL)
 
 
 class TutorialContracts(unittest.TestCase):
+    def test_output_contract_preserves_carriage_returns_as_bytes(self):
+        command = [sys.executable, '-c',
+                   "import sys; sys.stdout.buffer.write(b'a\\rb\\n')"]
+        TUTORIAL.assert_output(command, {'exit': 0, 'stdout': 'a\rb\n', 'stderr': ''}, ROOT)
+        with self.assertRaises(AssertionError):
+            TUTORIAL.assert_output(command, {'exit': 0, 'stdout': 'a\nb\n', 'stderr': ''}, ROOT)
+
     def test_fixed_branch_resource_case_executes_full_public_cli_contract(self):
         examples = {row['id']: row for row, _ in TUTORIAL.load_examples()}
         self.assertEqual(examples['gap-scope-branch']['status'], 'executable')

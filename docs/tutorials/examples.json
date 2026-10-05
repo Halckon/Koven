@@ -431,6 +431,161 @@
         "stderr": ""
       },
       "args": []
+    },
+    {
+      "id": "argv-word-frequency",
+      "status": "executable",
+      "files": {
+        "src/app/main.ko": "argv-word-frequency",
+        "src/app/statistics.ko": "argv-word-frequency-statistics",
+        "src/app/decimal.ko": "argv-word-frequency-decimal"
+      },
+      "entry": "app.main",
+      "build": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "cases": [
+        {
+          "args": [],
+          "artifact": {
+            "exit": 0,
+            "stdout": "",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            "alpha"
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "alpha\t1\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "alpha\t1\n",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            "beta",
+            "alpha",
+            "beta",
+            "gamma",
+            "alpha",
+            "beta"
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "beta\t3\nalpha\t2\ngamma\t1\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "beta\t3\nalpha\t2\ngamma\t1\n",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            "你好",
+            "界",
+            "你好"
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "你好\t2\n界\t1\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "你好\t2\n界\t1\n",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            "",
+            "",
+            "alpha",
+            ""
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "\t3\nalpha\t1\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "\t3\nalpha\t1\n",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            "a\tb",
+            "a\nb",
+            "a\rb",
+            "a\tb"
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "a\tb\t2\na\nb\t1\na\rb\t1\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "a\tb\t2\na\nb\t1\na\rb\t1\n",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            "a b",
+            "\"quoted\"",
+            "slash\\word",
+            "a b"
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "a b\t2\n\"quoted\"\t1\nslash\\word\t1\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "a b\t2\n\"quoted\"\t1\nslash\\word\t1\n",
+            "stderr": ""
+          }
+        },
+        {
+          "args": [
+            "é",
+            "é",
+            "é",
+            "ALPHA",
+            "alpha"
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "é\t2\né\t1\nALPHA\t1\nalpha\t1\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "é\t2\né\t1\nALPHA\t1\nalpha\t1\n",
+            "stderr": ""
+          }
+        }
+      ]
     }
   ]
 }

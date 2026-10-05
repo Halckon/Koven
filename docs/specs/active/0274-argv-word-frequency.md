@@ -21,7 +21,7 @@
 起草基线是PR50 main `80b1c3ba5ae3dbce9e6bae7000c0a235e2d2f24d`，原合同提交`f28bf09`保留。
 2026-10-05 PR51最终归档CI全部通过后合入main `7262232c5ec2b98e6ecdea6256fe41e985dd67aa`；
 本片在该最新main新建worktree，分支`feature/spec-0274-current`接收合同与在途实现。
-M1A 已验收，PR51未改Rust生产语义；M5b候选包不是本片启动前置，主干CI保持独立核验。
+M1A 已验收，PR51未改Rust生产语义；M5b候选包不是本片启动前置，精确main push CI 37243777369已15/15成功，两候选消费者各12命令通过。
 
 本片承接 [M1B 起草材料](../../development/text-processing-spec-draft.md) 的 a，
 只修复程序实际触发的既有语义交接；文本输入 b、新公共标准库 API 仍待各自前置。
@@ -87,13 +87,13 @@ group、跨文件具名callee、参数与临时operand的求值/清理身份保�
 
 ## 5. 验收矩阵
 
-| ID | 必需验收 | 初始状态 |
+| ID | 必需验收 | 当前状态 |
 |---|---|---|
-| W1 | size descriptor身份/Span、输入排列确定性；读取分类与owner/loan/drop；负例精确诊断 | 待红测/实现 |
-| W2 | 三容器×空/非空、Value/Borrow/local/group/temp SSA/native，求值一次与资源精确清理 | 待红测/实现 |
-| W3 | unit String三种binary、Borrow/owned混合、临时/CFG、独立结果与源继续可用；malformed事实拒绝 | 待红测/实现 |
-| W4 | 三文件应用双宿主build/artifact/run；空、独词、交错重复、中文、空词、TAB/LF/CR、空格/引号/反斜杠等字节oracle | 待实现 |
-| W5 | 独立参考计数，0/1/9/10/99/100/Int.MAX_VALUE decimal及负值Abort；非法UTF-8在实际project artifact及CLI run中于entry前拒绝，记录各自退出/完整bytes；索引/计数上界说明；正常资源与M1A回归 | 待实现 |
+| W1 | size descriptor身份/Span、输入排列确定性；读取分类与owner/loan/drop；负例精确诊断 | 本机已红转绿；见§8 |
+| W2 | 三容器×空/非空、Value/Borrow/local/group/temp SSA/native，求值一次与资源精确清理 | 本机已红转绿；见§8 |
+| W3 | unit String三种binary、Borrow/owned混合、临时/CFG、独立结果与源继续可用；malformed事实拒绝 | 本机已红转绿；见§8 |
+| W4 | 三文件应用双宿主build/artifact/run；空、独词、交错重复、中文、空词、TAB/LF/CR、空格/引号/反斜杠等字节oracle | 本机通过；双宿主待CI |
+| W5 | 独立参考计数，0/1/9/10/99/100/Int.MAX_VALUE decimal及负值Abort；非法UTF-8在实际project artifact及CLI run中于entry前拒绝，记录各自退出/完整bytes；索引/计数上界说明；正常资源与M1A回归 | 本机通过；双宿主待CI |
 | W6 | 直接frontend/codegen/CLI消费者、原双宿主必需CI及既选M4a；独立完整审阅、Architecture/Spec归档及最终head PR闭环 | 待执行 |
 
 W4必须记录argv/cwd/编译器身份、build/产物/run每项退出与stdout/stderr字节；无命中和skip不算通过。
@@ -103,7 +103,7 @@ W4必须记录argv/cwd/编译器身份、build/产物/run每项退出与stdout/s
 ## 6. 非目标
 
 stdin/文件IO、String字符访问/转义/新整数API、Map/MutableList增长、runtime-length
-initializer、Int subject when、性能比较、公开Release/tag及M4b故障校准不在本片。
+initializer、内含类型参数的容器native实例替换、Int subject when、性能比较、公开Release/tag及M4b故障校准不在本片。
 这些合法语言缺口保持独立后继；应用不用某操作不等于它已实现或不再需要。
 
 ## 7. 实施与提交
@@ -120,5 +120,37 @@ initializer、Int subject when、性能比较、公开Release/tag及M4b故障校
 
 ## 8. 当前记录
 
-只有基线缺口预检与合同起草；生产实现和W1–W6尚未执行。预检不是正式验收。
+2026-10-05 本机验收 checkpoint（尚未完成远端CI/归档/合并）：
+
+- W1：size定向14项通过；扩大到`type_containers`、`ownership_containers`、
+  `multifile_type_checking`、`multifile_ownership_checking`、`string_clone`共258项通过、0 ignored。
+  assignment RHS红测确认CallReturn(size)提前析构旧owner；unit replacement栈保护后同例通过，
+  return分支也核对ControlTransfer清理。独立frontend全审未发现剩余逻辑缺陷；
+  随后新增break/continue（loop-local与inner-loop）及outer pending Borrow三组6场景；
+  unit size filter共8函数通过、97 filtered，独立复核这些精确drop/loan断言。
+- W2：7项SSA/native通过、0 ignored、836 filtered；三容器空/非空、Value/Borrow/group/temp、
+  当前loan经CFG重绑定、读取后再用/移动owner与receiver一次求值。
+  三个资源temporary合计9次allocation/free，逐指针与逆序deinit核对；
+  assignment RHS native精确`rhs/old/after/finish/new`输出防提前释放旧owner。
+- W3：原4项UnsupportedNode红测后最小current Borrow binding消费修复；
+  6项SSA/native通过，含两种比较的RHS CFG与等长NUL后字节差异；相关String合同77项通过。
+- W4/W5：教程8组实际build/artifact/run及decimal、负值Abort、非法UTF-8完整37命令通过。
+  普通应用与entry marker wrapper均在非法argv调用前拒绝；本机negative产物为SIGABRT，
+  CLI run为非零退出，stdout空，未把stderr或unwind写作承诺。
+  `scripts/check_word_frequency.py`保存argv/base64、cwd、compiler SHA256、源码SHA256及完整输出bytes；
+  双宿主test job新增必需step与always evidence上传，配置存在不计作实际通过。
+  timeout/spawn修复后的新harness本机37命令再次全部通过。
+- 原tutorial文本模式会把CR换为LF；独立实际子进程红测后改为无newline转换的UTF-8 decode。
+  失败命令包括timeout/spawn也保存账本；独立审阅指出的漏记问题已修复并注入复核。
+- 已有尺寸欠账不提高baseline；本次8处增长使用精确有限exception，主体测试放在独立小模块。
+  独立审阅核对实际行数与职责；完整Python191项通过、0 skip，fmt/docs518/size门禁通过；
+  frontend/codegen/CLI严格clippy均通过，包括新增最后3frontend tests；
+  codegen container相关55项通过、0 ignored、788 filtered；CLI native/project两套共21项通过、0 ignored；
+  当前tour完整31项实际合同通过、1 planned不计通过。workspace all-targets check通过；W6仍待远端双宿主CI、验收归档与最终head合并闭环。
+
+两项隔离定位失败保持未覆盖边界：容器owner在短路`||`不同路径最后使用的合流MissingFact；
+以及`Array<T>`等内含类型参数的native实例替换在既有resolve_concrete_type入口UnsupportedNode。
+本片长度矩阵用独立if和具体Int容器核对，不把这两项称作已修复。泛型size的frontend类型事实已验证。
+字段/嵌套投影及单文件native size仍不由unit范围证明。
+
 M1B-b、M2/M3新增语义和完整M5保留原草稿前置，本片不关闭它们。

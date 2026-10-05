@@ -44,8 +44,8 @@ def load_examples(root=ROOT):
     if (len(sources) != len(blocks) or len(set(ids)) != len(ids)
             or len(set(references)) != len(references) or set(references) != set(sources)):
         raise ValueError("tutorial source/contract identity mismatch or duplicate")
-    if [row["status"] for row in rows].count("executable") != 16:
-        raise ValueError("expected sixteen executable contracts")
+    if [row["status"] for row in rows].count("executable") != 17:
+        raise ValueError("expected seventeen executable contracts")
     if [row["status"] for row in rows].count("diagnostic") != 4:
         raise ValueError("expected four diagnostic contracts")
     if [row["status"] for row in rows].count("planned") != 1:
@@ -57,8 +57,10 @@ def load_examples(root=ROOT):
 
 
 def assert_output(command, expected, cwd):
-    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
-    actual = dict(exit=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    result = subprocess.run(command, cwd=cwd, capture_output=True)
+    # Decode without universal-newline translation: words may contain literal CR bytes.
+    actual = dict(exit=result.returncode, stdout=result.stdout.decode('utf-8'),
+                  stderr=result.stderr.decode('utf-8'))
     if actual != expected:
         raise AssertionError(f"{command}: expected {expected!r}, got {actual!r}")
 
