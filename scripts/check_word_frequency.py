@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 
 from check_tutorial import load_examples, run_case
@@ -46,7 +47,8 @@ def check(cli, evidence):
             argv=[os.fsdecode(arg) for arg in command],
             argv_base64=[base64.b64encode(os.fsencode(arg)).decode('ascii') for arg in command],
             cwd=str(directory), exit=None, stdout_base64='', stderr_base64='',
-            oracle=('abort-before-output' if abort else expected), success=False,
+            oracle=(dict(kind='abort-before-output', exit=expected['exit']) if abort else expected),
+            success=False,
             timed_out=False, process_error=None)
         ledger['commands'].append(record)
         try:
@@ -60,7 +62,7 @@ def check(cli, evidence):
             record['process_error'] = str(error)
             raise
         outputs = {key: getattr(result, key) for key in ('stdout', 'stderr')}
-        success = (result.returncode != 0 and result.stdout == b'' if abort else
+        success = (result.returncode == expected['exit'] and result.stdout == b'' if abort else
                    result.returncode == expected['exit'] and
                    all(outputs[key] == expected[key].encode('utf-8') for key in outputs))
         record.update(exit=result.returncode,
@@ -86,7 +88,8 @@ def check(cli, evidence):
         for index, case in enumerate(row['cases']):
             oracle = frequency_bytes(case['args'])
             for kind in ('artifact', 'run'):
-                assert case[kind] == dict(exit=0, stdout=oracle.decode('utf-8'), stderr='')
+                if case[kind] != dict(exit=0, stdout=oracle.decode('utf-8'), stderr=''):
+                    raise AssertionError('tutorial output differs from the independent reference')
             directory = project(f'正常 项目 {index}', sources)
             run_case(cli, row, case, directory, execute=execute)
 
@@ -103,8 +106,8 @@ def check(cli, evidence):
         execute([str(directory / 'decimal')], decimal, directory)
         execute([str(cli), 'run', *inputs, 'probe.main', '--'], decimal, directory)
         execute([str(cli), 'build', *inputs, 'probe.negative', '-o', 'negative'], blank, directory)
-        execute([str(directory / 'negative')], None, directory, abort=True)
-        execute([str(cli), 'run', *inputs, 'probe.negative', '--'], None, directory, abort=True)
+        execute([str(directory / 'negative')], dict(exit=-signal.SIGABRT), directory, abort=True)
+        execute([str(cli), 'run', *inputs, 'probe.negative', '--'], dict(exit=1), directory, abort=True)
 
         # Native argv cannot contain NUL. Invalid UTF-8 must be refused before either entry.
         if os.name != 'posix':
@@ -120,7 +123,8 @@ def check(cli, evidence):
         execute([str(cli), 'run', *inputs, 'probe.entry', '--', 'alpha'], entered, directory)
         execute([os.fsencode(directory / 'entry'), invalid], refused, directory)
         execute([str(cli), 'run', *inputs, 'probe.entry', '--', invalid], refused, directory)
-        assert sha256(cli) == ledger['compiler']['sha256'], 'compiler changed during acceptance'
+        if sha256(cli) != ledger['compiler']['sha256']:
+            raise AssertionError('compiler changed during acceptance')
         ledger['success'] = True
     finally:
         (evidence / 'results.json').write_text(json.dumps(ledger, ensure_ascii=True, indent=2) + '\n')

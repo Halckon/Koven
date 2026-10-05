@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -61,6 +62,26 @@ class WordFrequencyContracts(unittest.TestCase):
             self.assertTrue((Path(command['cwd']) / 'project.toml').is_file())
             for argument, encoded in zip(command['argv'], command['argv_base64']):
                 self.assertEqual(base64.b64decode(encoded), argument.encode())
+
+    def test_negative_decimal_cannot_pass_with_a_different_crash_signal(self):
+        row, sources = self.fixture()
+        row['cases'] = [row['cases'][0]]
+        blank = subprocess.CompletedProcess([], 0, b'', b'')
+        boundaries = subprocess.CompletedProcess([], 0, b'0\n1\n9\n10\n99\n100\n2147483647\n', b'')
+        wrong_crash = subprocess.CompletedProcess([], -signal.SIGSEGV, b'', b'')
+        results = [blank, blank, blank, blank, boundaries, boundaries, blank, wrong_crash,
+                   FileNotFoundError('must stop before the next command')]
+        with tempfile.TemporaryDirectory() as temporary:
+            evidence = Path(temporary) / 'evidence'
+            with mock.patch.object(WORD, 'load_examples', return_value=[(row, sources)]), \
+                    mock.patch.object(WORD.subprocess, 'run', side_effect=results) as execute:
+                with self.assertRaises(AssertionError):
+                    WORD.check(Path(sys.executable), evidence)
+                self.assertEqual(execute.call_count, 8)
+            ledger = json.loads((evidence / 'results.json').read_text())
+            self.assertFalse(ledger['success'])
+            self.assertFalse(ledger['commands'][-1]['success'])
+            self.assertEqual(ledger['commands'][-1]['exit'], -signal.SIGSEGV)
 
     def test_dual_host_acceptance_and_evidence_upload_cannot_be_skipped(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()

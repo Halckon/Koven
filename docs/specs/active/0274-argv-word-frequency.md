@@ -135,15 +135,15 @@ initializer、内含类型参数的容器native实例替换、Int subject when�
 - W3：原4项UnsupportedNode红测后最小current Borrow binding消费修复；
   6项SSA/native通过，含两种比较的RHS CFG与等长NUL后字节差异；相关String合同77项通过。
 - W4/W5：教程8组实际build/artifact/run及decimal、负值Abort、非法UTF-8完整37命令通过。
-  普通应用与entry marker wrapper均在非法argv调用前拒绝；本机negative产物为SIGABRT，
-  CLI run为非零退出，stdout空，未把stderr或unwind写作承诺。
+  普通应用与entry marker wrapper均在非法argv调用前拒绝；负值oracle严格要求产物SIGABRT，不能把其他崩溃算作Abort；本机negative产物为SIGABRT，
+  CLI run为exit 1，stdout空，未把stderr或unwind写作承诺。
   `scripts/check_word_frequency.py`保存argv/base64、cwd、compiler SHA256、源码SHA256及完整输出bytes；
   双宿主test job新增必需step与always evidence上传，配置存在不计作实际通过。
   timeout/spawn修复后的新harness本机37命令再次全部通过。
 - 原tutorial文本模式会把CR换为LF；独立实际子进程红测后改为无newline转换的UTF-8 decode。
   失败命令包括timeout/spawn也保存账本；独立审阅指出的漏记问题已修复并注入复核。
 - 已有尺寸欠账不提高baseline；本次8处增长使用精确有限exception，主体测试放在独立小模块。
-  独立审阅核对实际行数与职责；完整Python191项通过、0 skip，fmt/docs518/size门禁通过；
+  独立审阅核对实际行数与职责；完整Python192项通过、0 skip，fmt/docs518/size门禁通过；
   frontend/codegen/CLI严格clippy均通过，包括新增最后3frontend tests；
   codegen container相关55项通过、0 ignored、788 filtered；CLI native/project两套共21项通过、0 ignored；
   当前tour完整31项实际合同通过、1 planned不计通过。workspace all-targets check通过；W6仍待远端双宿主CI、验收归档与最终head合并闭环。
