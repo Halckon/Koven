@@ -281,8 +281,8 @@ def calibration_verdict(report, *, linux):
             reject()
         for row, kind in [(address, "asan_error"), (leak, "lsan_error")]:
             fingerprint = row.get("fingerprint" if kind == "asan_error" else "lsan_fingerprint")
-            if (not isinstance(fingerprint, list) or len(fingerprint) != 3
-                    or fingerprint[:2] != ["native", kind]
+            if (not isinstance(fingerprint, (list, tuple)) or len(fingerprint) != 3
+                    or tuple(fingerprint[:2]) != ("native", kind)
                     or not isinstance(fingerprint[2], str) or not fingerprint[2]):
                 reject()
         return "pass", []

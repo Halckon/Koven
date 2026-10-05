@@ -64,7 +64,7 @@ def run_reduction(executor, root_dir):
 
     reductions_dir = root_dir / "reduction"
     reductions_dir.mkdir(parents=True, exist_ok=True)
-    executor.deadline = time.monotonic() + 180
+    executor.deadline = time.monotonic() + 120
 
     attempt_log = []
 
@@ -121,17 +121,53 @@ def run_reduction(executor, root_dir):
         replay,
         lambda item: len(model.render(item)["source"].encode()),
         max_candidates=32,
-        seconds=180,
+        seconds=120,
         deadline=executor.deadline,
     )
 
+    # Governance disclosure & comprehensive audit trail
+    reduced["nature"] = "fault_injected_runtime_reduction_verification"
+    reduced["nature_disclosure"] = "受控运行期资源故障注入的单调有界同因缩减能力验证（非现存编译器缺陷）"
+    reduced["fault_target"] = {
+        "fault_kind": "missing_deinit",
+        "semantic_resource": "Holder",
+        "witness_event": "drop:holder",
+        "injection_location": "drop glue call to Holder.__deinit erased in LLVM IR"
+    }
+    reduced["causal_contrast"] = {
+        "original_clean": "pass",
+        "original_fault": initial_failure.record(),
+        "minimal_clean": "pass" if reduced.get("status") == "reproduced" else "unverified",
+        "minimal_fault": reduced.get("original_failure")
+    }
+    minimal_cand = reduced.get("minimal") or original_case
+    reduced["source_delta"] = {
+        "original_ops": len(original_case["operations"]),
+        "minimal_ops": len(minimal_cand["operations"]),
+        "original_bytes": len(model.render(original_case)["source"].encode()),
+        "minimal_bytes": len(model.render(minimal_cand)["source"].encode()),
+        "original_source": model.render(original_case)["source"],
+        "minimal_source": model.render(minimal_cand)["source"]
+    }
+    reduced["is_1_minimal"] = False
+    reduced["one_step_exhaustion"] = []
+    reduced["detailed_attempts"] = attempt_log
+
     if reduced["status"] != "reproduced":
+        reduced["failure_reason"] = f"reduction-status-not-reproduced: {reduced['status']}"
+        write_json(root_dir / "reduction.json", reduced)
         raise Failure("reduction", "tool_or_harness_failure", "reduction-status-not-reproduced", reduced["status"])
     if reduced["confirmation_count"] != 3:
+        reduced["failure_reason"] = f"reduction-confirmation-count-not-three: {reduced['confirmation_count']}"
+        write_json(root_dir / "reduction.json", reduced)
         raise Failure("reduction", "tool_or_harness_failure", "reduction-confirmation-count-not-three", str(reduced["confirmation_count"]))
     if model.complexity(reduced["minimal"]) >= model.complexity(original_case):
+        reduced["failure_reason"] = "minimal-not-strictly-smaller"
+        write_json(root_dir / "reduction.json", reduced)
         raise Failure("reduction", "tool_or_harness_failure", "minimal-not-strictly-smaller")
     if len(reduced["minimal"]["operations"]) >= len(original_case["operations"]):
+        reduced["failure_reason"] = "minimal-ops-not-strictly-smaller"
+        write_json(root_dir / "reduction.json", reduced)
         raise Failure("reduction", "tool_or_harness_failure", "minimal-ops-not-strictly-smaller")
 
     # Step C: 1-minimal verification (Delta Debugging 1-minimal property)
@@ -150,7 +186,19 @@ def run_reduction(executor, root_dir):
             executor.case(test_dir)
             outcome = "fault_not_observed"
         except Failure as f:
-            if f.fingerprint == expected_fingerprint and f.stable_witness:
+            if f.kind in ("tool_or_harness_failure", "timeout", "resource_limit") or f.stage in ("setup", "harness", "tool", "export"):
+                outcome = f"tool_failure:{f.stage}/{f.kind}/{f.witness}"
+                one_step_exhaustion.append(dict(
+                    candidate_ops=len(step_cand["operations"]),
+                    outcome=outcome,
+                    error=f.record()
+                ))
+                reduced["is_1_minimal"] = False
+                reduced["one_step_exhaustion"] = one_step_exhaustion
+                reduced["failure_reason"] = f"1-minimal-tool-failure: {f.witness}"
+                write_json(root_dir / "reduction.json", reduced)
+                raise Failure("reduction", "tool_or_harness_failure", "1-minimal-tool-failure", repr(f))
+            elif f.fingerprint == expected_fingerprint and f.stable_witness:
                 outcome = "unexpectedly_reducible"
             else:
                 outcome = f"diverged_fingerprint:{f.fingerprint}"
@@ -159,35 +207,14 @@ def run_reduction(executor, root_dir):
             outcome=outcome
         ))
         if outcome == "unexpectedly_reducible":
+            reduced["is_1_minimal"] = False
+            reduced["one_step_exhaustion"] = one_step_exhaustion
+            reduced["failure_reason"] = "minimal-was-not-1-minimal"
+            write_json(root_dir / "reduction.json", reduced)
             raise Failure("reduction", "tool_or_harness_failure", "minimal-was-not-1-minimal")
 
-    # Governance disclosure & comprehensive audit trail
-    reduced["nature"] = "fault_injected_runtime_reduction_verification"
-    reduced["nature_disclosure"] = "受控运行期资源故障注入的单调有界同因缩减能力验证（非现存编译器缺陷）"
-    reduced["fault_target"] = {
-        "fault_kind": "missing_deinit",
-        "semantic_resource": "Holder",
-        "witness_event": "drop:holder",
-        "injection_location": "drop glue call to Holder.__deinit erased in LLVM IR"
-    }
-    reduced["causal_contrast"] = {
-        "original_clean": "pass",
-        "original_fault": initial_failure.record(),
-        "minimal_clean": "pass",
-        "minimal_fault": reduced["original_failure"]
-    }
-    reduced["source_delta"] = {
-        "original_ops": len(original_case["operations"]),
-        "minimal_ops": len(reduced["minimal"]["operations"]),
-        "original_bytes": len(model.render(original_case)["source"].encode()),
-        "minimal_bytes": len(model.render(reduced["minimal"])["source"].encode()),
-        "original_source": model.render(original_case)["source"],
-        "minimal_source": model.render(reduced["minimal"])["source"]
-    }
     reduced["is_1_minimal"] = True
     reduced["one_step_exhaustion"] = one_step_exhaustion
-    reduced["detailed_attempts"] = attempt_log
-
     write_json(root_dir / "reduction.json", reduced)
     return reduced
 

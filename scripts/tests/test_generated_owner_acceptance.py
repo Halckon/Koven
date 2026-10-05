@@ -34,6 +34,12 @@ class AcceptancePolicyTests(unittest.TestCase):
         self.assertEqual('partial', status)
         self.assertEqual(calibration(False)['skipped_reasons'], reasons)
 
+    def test_linux_accepts_tuple_fingerprints_from_live_producer(self):
+        calib_tuple = calibration(True)
+        calib_tuple['records'][2]['fingerprint'] = ('native', 'asan_error', 'stack-buffer-overflow:inspect')
+        calib_tuple['records'][3]['lsan_fingerprint'] = ('native', 'lsan_error', 'detected memory leaks:malloc')
+        self.assertEqual(('pass', []), gate.calibration_verdict(calib_tuple, linux=True))
+
     def test_linux_never_accepts_partial_skipped_missing_or_malformed(self):
         variants = [None, [], {}, dict(status='pass'), calibration(False)]
         for status in ['partial', 'skipped', 'failure', None, True]:

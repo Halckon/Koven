@@ -317,11 +317,15 @@ fn export_case(directory: &Path) {
             let context = Context::create();
             let buffer = MemoryBuffer::create_from_memory_range_copy(llvm.as_bytes(), "fault-case");
             let module = context.create_module_from_ir(buffer).unwrap();
-            inject_missing_holder_deinit_fault(&module);
+            let (drop_fn, deinit_fn) = inject_missing_holder_deinit_fault(&module);
             module
                 .verify()
                 .expect("fault missing_deinit module verifies");
             llvm = module.print_to_string().to_string();
+            let record = format!(
+                "{{\n  \"fault_kind\": \"missing_deinit\",\n  \"target_class\": \"Holder\",\n  \"drop_glue_fn\": \"{drop_fn}\",\n  \"deinit_fn\": \"{deinit_fn}\",\n  \"witness\": \"drop:holder\"\n}}\n"
+            );
+            fs::write(directory.join("injected-fault.json"), record).unwrap();
         } else {
             panic!("unsupported fault: {fault}");
         }
@@ -675,8 +679,42 @@ fn inject_missing_deinit_fault(module: &Module<'_>) -> String {
 }
 
 #[allow(clippy::collapsible_if)]
-fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> String {
-    let mut target = None;
+fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> (String, String) {
+    // 1. Identify the unique Holder global constant containing "drop:holder"
+    let mut holder_globals = Vec::new();
+    for global in module.get_globals() {
+        let str_repr = global.to_string();
+        if str_repr.contains("drop:holder") {
+            holder_globals.push(global.get_name().to_str().unwrap().to_owned());
+        }
+    }
+    assert_eq!(
+        holder_globals.len(),
+        1,
+        "Holder deinit fault requires exactly one global constant containing 'drop:holder', found {}",
+        holder_globals.len()
+    );
+    let holder_global_name = &holder_globals[0];
+
+    // 2. Identify the unique __deinit function referencing this Holder constant
+    let mut holder_deinit_fns = Vec::new();
+    for function in module.get_functions() {
+        let fn_name = function.get_name().to_str().unwrap_or("");
+        if fn_name.contains("__deinit") && function.to_string().contains(holder_global_name) {
+            holder_deinit_fns.push(function);
+        }
+    }
+    assert_eq!(
+        holder_deinit_fns.len(),
+        1,
+        "Holder deinit fault requires exactly one __deinit function referencing Holder constant, found {}",
+        holder_deinit_fns.len()
+    );
+    let holder_deinit = holder_deinit_fns[0];
+    let holder_deinit_name = holder_deinit.get_name().to_str().unwrap().to_owned();
+
+    // 3. Identify and erase the unique call to Holder.__deinit in drop glue
+    let mut matching_calls = Vec::new();
     for function in module.get_functions() {
         let fn_name = function.get_name().to_str().unwrap_or("");
         if fn_name.starts_with("koven.drop.") {
@@ -684,29 +722,27 @@ fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> String {
                 for instruction in block.get_instructions() {
                     if let Ok(call) = CallSiteValue::try_from(instruction) {
                         if let Some(called) = call.get_called_fn_value() {
-                            let cname = called.get_name().to_str().unwrap_or("");
-                            if cname.contains("__deinit") && called.to_string().contains("11") {
-                                target = Some((
-                                    called.get_name().to_str().unwrap().to_owned(),
+                            if called == holder_deinit {
+                                matching_calls.push((
+                                    function.get_name().to_str().unwrap().to_owned(),
                                     instruction,
                                 ));
-                                break;
                             }
                         }
                     }
                 }
-                if target.is_some() {
-                    break;
-                }
             }
         }
-        if target.is_some() {
-            break;
-        }
     }
-    let (name, call_inst) = target.expect("must find Holder __deinit call in koven.drop");
+    assert_eq!(
+        matching_calls.len(),
+        1,
+        "Holder deinit fault requires exactly one call to Holder.__deinit in drop glue, found {}",
+        matching_calls.len()
+    );
+    let (holder_drop_fn, call_inst) = matching_calls.remove(0);
     call_inst.erase_from_basic_block();
-    name
+    (holder_drop_fn, holder_deinit_name)
 }
 
 #[allow(clippy::collapsible_if)]

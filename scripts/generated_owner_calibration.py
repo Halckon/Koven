@@ -110,7 +110,7 @@ def verify(executor, directory):
                     raise Failure("calibration", "diagnostic_mismatch", "address-sanitizer-target-mismatch",
                                   asan_run.stderr.decode(errors="replace"))
                 calibration_records.append(dict(name=mutant_id, category=category, detected_by="asan",
-                                                fingerprint=failure.fingerprint, status="rejected_as_expected"))
+                                                fingerprint=list(failure.fingerprint), status="rejected_as_expected"))
             else:
                 calibration_records.append(dict(name=mutant_id, category=category, detector_off_verified=True,
                                                 asan_skipped="macos-counter-only", status="skipped",
@@ -136,7 +136,7 @@ def verify(executor, directory):
                     lsan_failure = checks.sanitizer_failure(lsan_run.stderr, "LeakSanitizer")
                     record["lsan_status"] = "rejected_as_expected"
                     if lsan_failure:
-                        record["lsan_fingerprint"] = lsan_failure.fingerprint
+                        record["lsan_fingerprint"] = list(lsan_failure.fingerprint)
                 else:
                     raise Failure("calibration", "unexpected_acceptance", "leak-fault-not-caught-by-lsan")
             else:
