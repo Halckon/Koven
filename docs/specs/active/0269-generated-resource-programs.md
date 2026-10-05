@@ -369,3 +369,8 @@ G4保存 `red/` 与 `green/` 各自的case、build/export命令、cwd、预算�
    - **macOS (macos-14)**：
      - 显式平台限制保持（`skipped_reasons: ["address:macos-asan-unsupported", "leak:macos-counter-only"]`），`acceptance.status: partial`，`requirements_met: false`，G4/G5 完整通过并保全制品。
 
+7. **P2：单步穷举前预先落盘与候选准备/执行 OSError 留证闭环（commit `c3bdb7b`）**：
+   - 根因：候选准备与封存未纳入异常保护，且执行部分只捕获 `Failure`。若缩减已完成，但随后单步检查遇到缺失诊断文件、`FileNotFoundError` 或其他 I/O 异常，可能在保存 `reduction.json` 前退出，丢失最佳候选与缩减轨迹。
+   - 修复：在进入 Step C 单步检查前先行落盘 `reduction.json`；将候选准备、输入封存与执行统合纳入 `(OSError, ValueError, KeyError)` 捕获范围，记录 `tool_io_failure` 审计信息并落盘保全后再抛出 `Failure`；补充“缺失产物但报告目录可写”以及“准备阶段磁盘读取异常”双项回归测试。
+   - 验证：PR CI Run `37304960751` 双宿主 22 项 checks 再次全绿通过。
+
