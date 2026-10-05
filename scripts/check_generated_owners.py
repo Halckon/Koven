@@ -12,11 +12,12 @@ import sys
 import time
 
 if __package__:
-    from . import generated_owners as model, generated_owner_checks as checks, check_native_sanitizers as native
+    from . import generated_owners as model, generated_owner_checks as checks, check_native_sanitizers as native, generated_owner_calibration as calibration
 else:
     import generated_owners as model
     import generated_owner_checks as checks
     import check_native_sanitizers as native
+    import generated_owner_calibration as calibration
 
 Failure = checks.Failure
 ROOT = Path(__file__).resolve().parents[1]
@@ -301,10 +302,11 @@ def main(argv=None):
             write_json(directory / "verdict.json", dict(status="pass"))
             print(f"generated owner {case['id']}: passed", flush=True)
         assert_complete(expected_ids, rows)
-        # First implementation checkpoint deliberately cannot claim fault calibration.
         if not args.replay:
-            raise Failure("calibration", "tool_or_harness_failure", "calibration-not-yet-implemented")
-        write_json(root / "acceptance.json", dict(status="pass", cases=rows, replay=True))
+            calibration_dir = root / "calibration"
+            calibration_dir.mkdir(parents=True, exist_ok=True)
+            calibration.verify(executor, calibration_dir)
+        write_json(root / "acceptance.json", dict(status="pass", cases=rows, replay=bool(args.replay)))
         return 0
     except (Failure, OSError, ValueError, AssertionError) as error:
         record = error.record() if isinstance(error, Failure) else dict(

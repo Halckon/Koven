@@ -6,7 +6,12 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use inkwell::{context::Context, memory_buffer::MemoryBuffer};
+use inkwell::{
+    context::Context,
+    memory_buffer::MemoryBuffer,
+    module::Module,
+    values::{CallSiteValue, InstructionOpcode},
+};
 use lang_frontend::{
     analysis::{SingleFileAnalysisError, SingleFileStage, analyze_single_file},
     diagnostic::DiagnosticDetail,
@@ -25,6 +30,10 @@ fun entry(): Unit {
     println("done")
 }
 "#;
+
+#[allow(dead_code)]
+pub const EXPORT_CALIBRATION_TEST: &str =
+    "native_generated_owner_tests::export_generated_owner_calibration";
 
 #[test]
 fn export_generated_owner_case() {
@@ -56,6 +65,40 @@ fn export_generated_owner_case() {
         );
         assert!(!directory.0.join("mutants.tsv").exists());
         assert!(!directory.0.join("case").exists(), "export never executes");
+    }
+}
+
+#[test]
+fn export_generated_owner_calibration() {
+    if let Some(path) = std::env::var_os("KOVEN_GENERATED_OWNER_CALIBRATION") {
+        assert!(!path.is_empty(), "calibration path must not be empty");
+        export_calibration(Path::new(&path));
+    } else {
+        let directory = CaseDirectory::new();
+        export_calibration(&directory.0);
+        assert!(directory.0.join("mutants.tsv").is_file());
+        let mutants = fs::read_to_string(directory.0.join("mutants.tsv")).unwrap();
+        assert_eq!(mutants.lines().count(), 4, "{mutants}");
+        for name in [
+            "v1/clean.raw.ll",
+            "v1/clean.asan.ll",
+            "v1/clean.counter.ll",
+            "v1/counter.c",
+            "v1/fault-address.raw.ll",
+            "v1/fault-address.asan.ll",
+            "v1/fault-leak.raw.ll",
+            "v1/fault-leak.counter.ll",
+            "v1/fault-missing_deinit.raw.ll",
+            "v1/fault-missing_deinit.counter.ll",
+            "v2/clean.raw.ll",
+            "v2/clean.asan.ll",
+            "v2/clean.counter.ll",
+            "v2/counter.c",
+            "v2/fault-premature_holder_free.raw.ll",
+            "v2/fault-premature_holder_free.counter.ll",
+        ] {
+            assert!(directory.0.join(name).is_file(), "missing {name}");
+        }
     }
 }
 
@@ -287,6 +330,379 @@ fn export_case(directory: &Path) {
         &directory.join("case.counter.ll"),
         &directory.join("counter.c"),
     );
+}
+
+const DEFAULT_CALIBRATION_V1: &str = "\
+// 资源程序：UTF-8 span witness\n\
+class Leaf(val name: String) { deinit() { println(this.name) } }\n\
+fun inspect(item: Leaf): Unit { println(\"borrow\"); println(item.name) }\n\
+fun consume(own item: Leaf): Unit { println(\"consume\") }\n\
+fun entry(): Unit {\n\
+    val source = Leaf(\"drop:leaf_b7af\")\n\
+    val extra0 = Leaf(\"drop:extra0_b7af\")\n\
+    val moved0 = source\n\
+    val moved1 = moved0\n\
+    inspect(moved1)\n\
+    consume(moved1)\n\
+    println(\"done\")\n\
+}\n";
+
+const DEFAULT_CALIBRATION_V2: &str = "\
+// 资源程序：UTF-8 span witness\n\
+class Leaf(val name: String) { deinit() { println(this.name) } }\n\
+fun inspect(item: Leaf): Unit { println(\"borrow\"); println(item.name) }\n\
+fun consume(own item: Leaf): Unit { println(\"consume\") }\n\
+class Holder(var state: Leaf) { deinit() { println(\"drop:holder\") } }\n\
+fun work(own stop: Boolean): Unit {\n\
+    val holder = Holder(Leaf(\"drop:old_b7af\"))\n\
+    val local = Leaf(\"drop:local_b7af\")\n\
+    if (stop) { return }\n\
+    val old = replace(&holder.state, Leaf(\"drop:new_b7af\"))\n\
+    inspect(old)\n\
+    println(\"helper-done\")\n\
+}\n\
+fun entry(): Unit { work(false); println(\"done\") }\n";
+
+fn export_calibration(directory: &Path) {
+    let v1_dir = directory.join("v1");
+    let v2_dir = directory.join("v2");
+    fs::create_dir_all(&v1_dir).unwrap();
+    fs::create_dir_all(&v2_dir).unwrap();
+
+    let v1_source = if v1_dir.join("case.ko").is_file() {
+        fs::read_to_string(v1_dir.join("case.ko")).unwrap()
+    } else {
+        fs::write(v1_dir.join("case.ko"), DEFAULT_CALIBRATION_V1).unwrap();
+        DEFAULT_CALIBRATION_V1.to_owned()
+    };
+    let v2_source = if v2_dir.join("case.ko").is_file() {
+        fs::read_to_string(v2_dir.join("case.ko")).unwrap()
+    } else {
+        fs::write(v2_dir.join("case.ko"), DEFAULT_CALIBRATION_V2).unwrap();
+        DEFAULT_CALIBRATION_V2.to_owned()
+    };
+
+    let v1_llvm = lower_to_llvm("v1.ko", &v1_source);
+    let v2_llvm = lower_to_llvm("v2.ko", &v2_source);
+
+    fs::write(v1_dir.join("clean.raw.ll"), &v1_llvm).unwrap();
+    fs::write(v2_dir.join("clean.raw.ll"), &v2_llvm).unwrap();
+    fs::write(v1_dir.join("clean.allocations.txt"), "2\n").unwrap();
+    fs::write(v2_dir.join("clean.allocations.txt"), "4\n").unwrap();
+    fs::write(v2_dir.join("clean.order.txt"), "0,2,3,1\n").unwrap();
+    fs::write(
+        v1_dir.join("clean.stdout"),
+        "borrow\ndrop:leaf_b7af\nconsume\ndrop:leaf_b7af\ndone\ndrop:extra0_b7af\n",
+    )
+    .unwrap();
+    fs::write(
+        v2_dir.join("clean.stdout"),
+        "borrow\ndrop:old_b7af\nhelper-done\ndrop:old_b7af\ndrop:local_b7af\ndrop:holder\ndrop:new_b7af\ndone\n",
+    )
+    .unwrap();
+
+    // Clean ASan & Counter for V1
+    {
+        let context = Context::create();
+        let buffer = MemoryBuffer::create_from_memory_range_copy(v1_llvm.as_bytes(), "v1-clean");
+        let module = context.create_module_from_ir(buffer).unwrap();
+        crate::native_sanitizer_tests::mark_address_sanitizer(&context, &module);
+        module.verify().expect("V1 clean ASan verifies");
+        fs::write(
+            v1_dir.join("clean.asan.ll"),
+            module.print_to_string().to_bytes(),
+        )
+        .unwrap();
+        write_counted_allocations(
+            &v1_llvm,
+            2,
+            None,
+            &v1_dir.join("clean.counter.ll"),
+            &v1_dir.join("counter.c"),
+        );
+    }
+
+    // Clean ASan & Counter for V2
+    {
+        let context = Context::create();
+        let buffer = MemoryBuffer::create_from_memory_range_copy(v2_llvm.as_bytes(), "v2-clean");
+        let module = context.create_module_from_ir(buffer).unwrap();
+        crate::native_sanitizer_tests::mark_address_sanitizer(&context, &module);
+        module.verify().expect("V2 clean ASan verifies");
+        fs::write(
+            v2_dir.join("clean.asan.ll"),
+            module.print_to_string().to_bytes(),
+        )
+        .unwrap();
+        write_counted_allocations(
+            &v2_llvm,
+            4,
+            Some(&[0, 2, 3, 1]),
+            &v2_dir.join("clean.counter.ll"),
+            &v2_dir.join("counter.c"),
+        );
+    }
+
+    let mut mutants = Vec::new();
+
+    // Mutant 1: Address fault in V1 inspect (load past Leaf struct)
+    {
+        let context = Context::create();
+        let buffer =
+            MemoryBuffer::create_from_memory_range_copy(v1_llvm.as_bytes(), "fault-address");
+        let module = context.create_module_from_ir(buffer).unwrap();
+        let target_fn = inject_address_fault(&context, &module);
+        module.verify().expect("address fault verifies");
+        let mutated = module.print_to_string().to_string();
+        fs::write(v1_dir.join("fault-address.raw.ll"), &mutated).unwrap();
+        crate::native_sanitizer_tests::mark_address_sanitizer(&context, &module);
+        module.verify().expect("address fault ASan verifies");
+        fs::write(
+            v1_dir.join("fault-address.asan.ll"),
+            module.print_to_string().to_bytes(),
+        )
+        .unwrap();
+        mutants.push(format!(
+            "address\taddress\tv1\t{target_fn}\tasan\theap-buffer-overflow:{target_fn}"
+        ));
+    }
+
+    // Mutant 2: Leak fault in V1 drop (erase @free)
+    {
+        let context = Context::create();
+        let buffer = MemoryBuffer::create_from_memory_range_copy(v1_llvm.as_bytes(), "fault-leak");
+        let module = context.create_module_from_ir(buffer).unwrap();
+        let target_fn = inject_leak_fault(&module);
+        module.verify().expect("leak fault verifies");
+        let mutated = module.print_to_string().to_string();
+        fs::write(v1_dir.join("fault-leak.raw.ll"), &mutated).unwrap();
+        write_counted_allocations(
+            &mutated,
+            2,
+            None,
+            &v1_dir.join("fault-leak.counter.ll"),
+            &v1_dir.join("fault-leak.counter.c"),
+        );
+        mutants.push(format!(
+            "leak\tleak\tv1\t{target_fn}\tcounter\tpointer-ledger"
+        ));
+    }
+
+    // Mutant 3: Missing deinit output in V1 Leaf.__deinit (erase write)
+    {
+        let context = Context::create();
+        let buffer =
+            MemoryBuffer::create_from_memory_range_copy(v1_llvm.as_bytes(), "fault-missing_deinit");
+        let module = context.create_module_from_ir(buffer).unwrap();
+        let target_fn = inject_missing_deinit_fault(&module);
+        module.verify().expect("missing_deinit fault verifies");
+        let mutated = module.print_to_string().to_string();
+        fs::write(v1_dir.join("fault-missing_deinit.raw.ll"), &mutated).unwrap();
+        write_counted_allocations(
+            &mutated,
+            2,
+            None,
+            &v1_dir.join("fault-missing_deinit.counter.ll"),
+            &v1_dir.join("fault-missing_deinit.counter.c"),
+        );
+        mutants.push(format!(
+            "missing_deinit\tmissing_deinit\tv1\t{target_fn}\toutput\tdrop:leaf_b7af"
+        ));
+    }
+
+    // Mutant 4: Premature Holder free in V2 drop (free Holder before field is dropped)
+    {
+        let context = Context::create();
+        let buffer = MemoryBuffer::create_from_memory_range_copy(
+            v2_llvm.as_bytes(),
+            "fault-premature_holder_free",
+        );
+        let module = context.create_module_from_ir(buffer).unwrap();
+        let target_fn = inject_premature_holder_free(&context, &module);
+        module
+            .verify()
+            .expect("premature_holder_free fault verifies");
+        let mutated = module.print_to_string().to_string();
+        fs::write(v2_dir.join("fault-premature_holder_free.raw.ll"), &mutated).unwrap();
+        write_counted_allocations(
+            &mutated,
+            4,
+            Some(&[0, 2, 3, 1]),
+            &v2_dir.join("fault-premature_holder_free.counter.ll"),
+            &v2_dir.join("fault-premature_holder_free.counter.c"),
+        );
+        mutants.push(format!(
+            "premature_holder_free\tpremature_holder_free\tv2\t{target_fn}\tcounter\tpointer-ledger"
+        ));
+    }
+
+    fs::write(directory.join("mutants.tsv"), mutants.join("\n") + "\n").unwrap();
+}
+
+#[allow(clippy::collapsible_if)]
+fn inject_address_fault<'ctx>(context: &'ctx Context, module: &Module<'ctx>) -> String {
+    let function = module
+        .get_functions()
+        .find(|f| f.get_name().to_str().unwrap_or("").contains("inspect"))
+        .expect("must find inspect function in module");
+    let name = function.get_name().to_str().unwrap().to_owned();
+    let mut target = None;
+    for block in function.get_basic_blocks() {
+        for instruction in block.get_instructions() {
+            if instruction.get_opcode() == InstructionOpcode::Load
+                && instruction.get_type().is_struct_type()
+            {
+                if let Some(op) = instruction.get_operand(0) {
+                    if let Some(val) = op.value() {
+                        if val.is_pointer_value() {
+                            target = Some((instruction, val.into_pointer_value()));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if target.is_some() {
+            break;
+        }
+    }
+    let (load, pointer) = target.expect("must find Leaf field load in inspect");
+    let builder = context.create_builder();
+    builder.position_before(&load);
+    // SAFETY: i8 plus offset 32 creates an out-of-bounds pointer past the 24-byte Leaf allocation.
+    let past_end = unsafe {
+        builder.build_gep(
+            context.i8_type(),
+            pointer,
+            &[context.i64_type().const_int(32, false)],
+            "fault.past.end",
+        )
+    }
+    .unwrap();
+    assert!(load.set_operand(0, past_end));
+    load.set_volatile(true).unwrap();
+    name
+}
+
+#[allow(clippy::collapsible_if)]
+fn inject_leak_fault(module: &Module<'_>) -> String {
+    let mut target = None;
+    for function in module.get_functions() {
+        let fn_name = function.get_name().to_str().unwrap_or("");
+        if fn_name.starts_with("koven.drop.") {
+            if let Some(param) = function.get_first_param() {
+                if param.is_pointer_value() {
+                    for block in function.get_basic_blocks() {
+                        for instruction in block.get_instructions() {
+                            if let Ok(call) = CallSiteValue::try_from(instruction) {
+                                if let Some(called) = call.get_called_fn_value() {
+                                    if called.get_name().to_str().unwrap_or("") == "free"
+                                        && instruction.get_operand(0).and_then(|op| op.value())
+                                            == Some(param)
+                                    {
+                                        target = Some((function, instruction));
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if target.is_some() {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if target.is_some() {
+            break;
+        }
+    }
+    let (function, free_call) = target.expect("must find owner free call in koven.drop");
+    let name = function.get_name().to_str().unwrap().to_owned();
+    free_call.erase_from_basic_block();
+    name
+}
+
+#[allow(clippy::collapsible_if)]
+fn inject_missing_deinit_fault(module: &Module<'_>) -> String {
+    let mut target = None;
+    for function in module.get_functions() {
+        let fn_name = function.get_name().to_str().unwrap_or("");
+        if fn_name.starts_with("koven.drop.") {
+            for block in function.get_basic_blocks() {
+                for instruction in block.get_instructions() {
+                    if let Ok(call) = CallSiteValue::try_from(instruction) {
+                        if let Some(called) = call.get_called_fn_value() {
+                            let cname = called.get_name().to_str().unwrap_or("");
+                            if cname.contains("__deinit") {
+                                target = Some((
+                                    called.get_name().to_str().unwrap().to_owned(),
+                                    instruction,
+                                ));
+                                break;
+                            }
+                        }
+                    }
+                }
+                if target.is_some() {
+                    break;
+                }
+            }
+        }
+        if target.is_some() {
+            break;
+        }
+    }
+    let (name, call_inst) = target.expect("must find __deinit call in koven.drop");
+    call_inst.erase_from_basic_block();
+    name
+}
+
+#[allow(clippy::collapsible_if)]
+fn inject_premature_holder_free<'ctx>(context: &'ctx Context, module: &Module<'ctx>) -> String {
+    let mut target = None;
+    for function in module.get_functions() {
+        let fn_name = function.get_name().to_str().unwrap_or("");
+        if fn_name.starts_with("koven.drop.") {
+            let mut free_call = None;
+            let mut field_drop = None;
+            for block in function.get_basic_blocks() {
+                for instruction in block.get_instructions() {
+                    if let Ok(call) = CallSiteValue::try_from(instruction) {
+                        if let Some(called) = call.get_called_fn_value() {
+                            let cname = called.get_name().to_str().unwrap_or("");
+                            if cname == "free" {
+                                free_call = Some(instruction);
+                            } else if cname.contains(".drop.t15") {
+                                field_drop = Some(instruction);
+                            }
+                        }
+                    }
+                }
+            }
+            if let (Some(free_inst), Some(drop_inst)) = (free_call, field_drop) {
+                target = Some((function, free_inst, drop_inst));
+                break;
+            }
+        }
+    }
+    let (function, free_inst, drop_inst) =
+        target.expect("must find Holder drop function with field drop and free");
+    let name = function.get_name().to_str().unwrap().to_owned();
+    let ptr_operand = free_inst
+        .get_operand(0)
+        .unwrap()
+        .value()
+        .unwrap()
+        .into_pointer_value();
+    let builder = context.create_builder();
+    builder.position_before(&drop_inst);
+    let free_fn = module.get_function("free").expect("free declared");
+    builder
+        .build_call(free_fn, &[ptr_operand.into()], "premature.free")
+        .unwrap();
+    free_inst.erase_from_basic_block();
+    name
 }
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
