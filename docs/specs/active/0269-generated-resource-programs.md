@@ -108,13 +108,13 @@ Mac 不声称 Linux RSS/pids 防护；仍有域/数量/时间/日志/产物预�
 
 | ID | 完成标准 | 当前证据 |
 |---|---|---|
-| G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | Python模型18项通过；独立审阅未发现具体模型错误；实际8个非法case诊断和byte span通过 |
-| G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | Mac首轮6有效通过、2有效InvalidSsa；合入已合并0270后8有效及8非法全部通过，固定V2次序通过；本轮Linux补充正常批次8有效+8非法全部通过，固定V2次序通过 |
-| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | Linux 8个clean ASan通过；Mac平台完成对照组验证，因缺少ASan/LSan支持显式标记跳过（partial）；本地完成4项真实LLVM IR故障校准；远端双宿主CI（Run 37276328529）在Linux容器完成完整真实ASan/LSan故障检出闭环（栈越界由ASan精准检出，内存泄漏由LSan精准检出，漏deinit与提前释放分别由输出比对与counter order精确拒绝），全量校准状态为pass，成功保全双宿主原始证据 |
-| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 精确诊断普通负测已验证；完成真实ownership checker独立临时worktree隔离红绿变异闭环：针对 `ensure_place_available` 变异，红测严密核验执行退出码与文件存在性后杀死（0诊断），源码恢复确认diff为空，绿测重新编译运行精确恢复L0131诊断 |
-| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 真实失败同因缩小验收完成：针对真实生成案例I1在无预期报错下的真实编译器所有权报错（unexpected_frontend_rejection: L0131），通过语法结构单调缩小由8 ops成功缩减至6 ops，保持相同语义失败指纹并经3次独立重放确认，输出reduction.json |
-| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 主驱动整合验证：非replay模式完整串联16个固定生成案例、G3故障校准、G4 Checker变异红绿闭环与G5真实失败同因缩小；远端双宿主CI（Run 37276328529，commit 8e4b97c）全绿通过，双宿主均生成并上传完整制品包（Linux acceptance=pass，macOS acceptance=partial）；拒绝零命中/缺项，各阶段日志与耗时预算留证完整 |
-| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 本轮全部260项Python测试通过（1项macOS预期跳过）；codegen Clippy/fmt全绿；check_docs (524 files)通过；Rust尺寸门禁通过；PR #48双宿主CI门禁全绿（22项checks全部通过）；完成最终闭环事实记录与留证 |
+| G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | 本轮精确head PR CI及模型/renderer golden、诊断适配负测已有证据；Python CI为260项、OK无skip。只读核验见§14。 |
+| G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | 本轮两宿主各8有效+8非法齐全；实际输出/计数/完整诊断匹配，固定V2物理次序报告通过；跨宿主源码相同。历史红测与0270修复记录保留，最新证据见§14。 |
+| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | 本轮Linux8有效clean ASan/LSan及四类真实IR故障校准有原始证据，calibration=pass；M4a步骤成功。macOS地址/泄漏动态检测明确跳过，acceptance=partial。此前云LSan宿主失败属于历史，不能代称当前缺证据；见§14。 |
+| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 隔离worktree变异红→恢复→重编译→绿报告通过，原源码hash匹配；红阶段输出被绿色覆盖，实际命令/退出/stdout/stderr与真实patch未保全。原始红绿留证仍未闭合，见§14。 |
+| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 真实编译重放8→6操作、3次确认与预算/分类负测已有证据；但I1已知非法案例被写入空诊断预期，正确L0131因此成为unexpected_frontend_rejection。该oracle不匹配缩减不证明实际编译器/资源故障同因缩减；保持未完成，见§14。 |
+| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 当前真实Linuxacceptance=pass、Macpartial，CI两宿主实际执行并上传；但Linux LSan runtime-unavailable可汇总partial且入口返回0，required CI未另验JSON。必需检测缺失仍可放行，严格失败判定未完成，见§14。 |
+| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 9807eaf精确head pull_request CI37277758845已completed success，15/15job通过，Python260项OK；质量与消费者步骤成功。G4–G6仍有剩项；保持active，最终归档head、merge及actual main交付未完成，见§14。 |
 
 按 G1 → 导出/执行 G2 → 检测 G3/G4 → 重放缩小 G5/G6 → G7 推进。
 Cargo 共用一个串行窗口；先失败测试再实现。Rust 只选新 exporter、被提取 helper 原调用方、
@@ -244,3 +244,29 @@ CI接线使生成脚本变化触发Rust门禁、现有双宿主执行完整drive
    - 依赖分析、Rust 尺寸（790 文件/45 例外）、文档结构（524 文件）、代码格式（`cargo fmt`）、静态分析（`cargo clippy` 零告警）、Python 单元测试（260 项通过，1 项预期 Linux-only 跳过）全绿闭环。
 
 
+
+## 14. 精确 head 只读验收复核与保留项（2026-10-05）
+
+本次审阅对象为 `9807eaf66eed6291867c9ec88e0e56bb1fe0942e`，本地与PR48一致且clean。
+[PR CI37277758845](https://github.com/Halckon/Koven/actions/runs/37277758845)已完成，15/15 job成功，
+两宿主生成程序步骤实际执行。制品的合成merge `eb496314a06a15a581892e658952f678370140c4`
+父提交为main `54b3667`与上述head；tree均为 `9b7a894b3a6b06433410fa82d9e1998faa7d8607`。
+不能把合成merge SHA误记为分支head，也不以另一次push跳过任务的绿灯代替本次验收。
+
+[审阅账本与原始压缩材料](../../development/evidence/generated-owners-0269-review-20261005/review.json)
+保存API身份、artifact ID/归档与报告hash、日志、两宿主各157项输入hash核对结果及原验收矩阵快照。
+Linux artifact `11331331717` 的acceptance SHA256为
+`bee5923aa3fe51d1894d6c3139e077f9abd98b237eb5d3aef3bbff571e877cbd`（pass）；
+macOS artifact `11331421343` 为
+`01e223e395424a34fe43b0bbcedb0a448c89c9b038d35befd9076b101b7a670d`（partial）。
+两宿主各8有效+8非法、源码bytes一致；有效输出/退出/stderr、非法完整诊断与已存oracle匹配，
+Linux正常案例clean ASan/LSan及故障ASan/LSan原始报告已静态核验，原M4a步骤成功。
+
+§9–13保持对应提交的历史记录；当前判断以本节及§8矩阵为准，不将其历史完成表述外推。
+G4隔离执行报告存在，但红阶段原始输出/命令/status及实际patch未保全；G5通过把已知非法
+I1诊断预期改为空触发正确L0131，证明诊断重放缩减而非实际编译器或资源故障缩减；G6把Linux
+LSan runtime-unavailable降为partial后入口仍exit0，CI未另验JSON，必需检测缺失可被放行。
+因此G4–G6尚未闭合，G7归档最终head CI、merge/actual main也未完成，Spec保持in-progress。
+
+本次仅下载现有CI材料并做静态JSON/hash/日志/代码审阅；没有构建、测试、校准、故障注入、
+真实缩减或触发CI，不解除此前受阻操作边界，也没有修改实现、工作流或远端。
