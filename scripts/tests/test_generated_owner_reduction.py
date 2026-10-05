@@ -142,6 +142,90 @@ class GeneratedOwnerReductionTests(unittest.TestCase):
             self.assertFalse(saved["is_1_minimal"])
             self.assertEqual("minimal-was-not-1-minimal", saved["failure_reason"])
 
+    def test_missing_artifact_during_1_minimal_check_preserves_reduction_json(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executor = mock.Mock()
+            executor.deadline = 999999.0
+
+            def case_mock(directory):
+                # Simulate a missing artifact (e.g. FileNotFoundError when checking 1minimal-test)
+                if "1minimal-test" in str(directory):
+                    raise FileNotFoundError("diagnostics.tsv missing")
+                if (directory / "fault.txt").is_file():
+                    raise checks.Failure("native", "native_output_mismatch", "drop:holder", stable_witness=True)
+                return None
+
+            executor.case.side_effect = case_mock
+
+            original_case = next(c for c in reducer.model.cases() if c["id"] == "v2-3-83")
+            cand = next(reducer.model.shrink_candidates(original_case))
+            mock_reduced = {
+                "original": original_case,
+                "original_failure": {"stage": "native", "kind": "native_output_mismatch", "witness": "drop:holder"},
+                "minimal": cand,
+                "status": "reproduced",
+                "attempts": [{"candidate": cand, "accepted": True}],
+                "confirmation_count": 3,
+                "elapsed_seconds": 5.0,
+            }
+            with mock.patch.object(checks, "minimize", return_value=mock_reduced):
+                with self.assertRaises(checks.Failure) as cm:
+                    reducer.run_reduction(executor, root)
+                self.assertIn("1-minimal-io-failure", str(cm.exception))
+
+            reduction_file = root / "reduction.json"
+            self.assertTrue(reduction_file.is_file())
+            saved = reducer.json.loads(reduction_file.read_text())
+            self.assertEqual("reproduced", saved["status"])
+            self.assertEqual(cand, saved["minimal"])
+            self.assertFalse(saved["is_1_minimal"])
+            self.assertIn("1-minimal-io-failure", saved["failure_reason"])
+            self.assertTrue(any("tool_io_failure" in entry["outcome"] for entry in saved["one_step_exhaustion"]))
+
+    def test_preparation_io_failure_during_1_minimal_check_preserves_reduction_json(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executor = mock.Mock()
+            executor.deadline = 999999.0
+
+            def case_mock(directory):
+                if (directory / "fault.txt").is_file():
+                    raise checks.Failure("native", "native_output_mismatch", "drop:holder", stable_witness=True)
+                return None
+
+            executor.case.side_effect = case_mock
+
+            original_case = next(c for c in reducer.model.cases() if c["id"] == "v2-3-83")
+            cand = next(reducer.model.shrink_candidates(original_case))
+            mock_reduced = {
+                "original": original_case,
+                "original_failure": {"stage": "native", "kind": "native_output_mismatch", "witness": "drop:holder"},
+                "minimal": cand,
+                "status": "reproduced",
+                "attempts": [{"candidate": cand, "accepted": True}],
+                "confirmation_count": 3,
+                "elapsed_seconds": 5.0,
+            }
+            real_prepare = reducer.gate.prepare_case
+            def mock_prepare(case, directory):
+                if "1minimal-test" in str(directory):
+                    raise OSError("disk read error")
+                return real_prepare(case, directory)
+
+            with mock.patch.object(checks, "minimize", return_value=mock_reduced), \
+                 mock.patch.object(reducer.gate, "prepare_case", side_effect=mock_prepare):
+                with self.assertRaises(checks.Failure) as cm:
+                    reducer.run_reduction(executor, root)
+                self.assertIn("1-minimal-io-failure", str(cm.exception))
+
+            reduction_file = root / "reduction.json"
+            self.assertTrue(reduction_file.is_file())
+            saved = reducer.json.loads(reduction_file.read_text())
+            self.assertEqual("reproduced", saved["status"])
+            self.assertFalse(saved["is_1_minimal"])
+            self.assertIn("1-minimal-io-failure", saved["failure_reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

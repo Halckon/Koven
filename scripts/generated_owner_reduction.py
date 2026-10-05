@@ -172,17 +172,20 @@ def run_reduction(executor, root_dir):
 
     # Step C: 1-minimal verification (Delta Debugging 1-minimal property)
     # Proves all single-step reductions from minimal cannot further reduce while reproducing the fault
+    # Pre-save established reduction report before entering single-step exhaustive verification
+    write_json(root_dir / "reduction.json", reduced)
+
     one_step_exhaustion = []
     for step_cand in model.shrink_candidates(reduced["minimal"]):
         if model.complexity(step_cand) >= model.complexity(reduced["minimal"]):
             continue
         test_dir = reductions_dir / f"1minimal-test-{len(one_step_exhaustion):02d}"
-        gate.prepare_case(step_cand, test_dir)
-        (test_dir / "fault.txt").write_text("missing_deinit\n")
-        checks.seal_inputs(test_dir, ["case.ko", "case.json", "expected-diagnostics.json",
-                                     "oracle.json", "expected.stdout", "expected-allocations.txt",
-                                     "fault.txt"])
         try:
+            gate.prepare_case(step_cand, test_dir)
+            (test_dir / "fault.txt").write_text("missing_deinit\n")
+            checks.seal_inputs(test_dir, ["case.ko", "case.json", "expected-diagnostics.json",
+                                         "oracle.json", "expected.stdout", "expected-allocations.txt",
+                                         "fault.txt"])
             executor.case(test_dir)
             outcome = "fault_not_observed"
         except Failure as f:
@@ -202,6 +205,19 @@ def run_reduction(executor, root_dir):
                 outcome = "unexpectedly_reducible"
             else:
                 outcome = f"diverged_fingerprint:{f.fingerprint}"
+        except (OSError, ValueError, KeyError) as err:
+            outcome = f"tool_io_failure:{type(err).__name__}"
+            one_step_exhaustion.append(dict(
+                candidate_ops=len(step_cand["operations"]),
+                outcome=outcome,
+                error=dict(stage="reduction_1minimal", kind="tool_io_failure", witness=type(err).__name__, detail=str(err))
+            ))
+            reduced["is_1_minimal"] = False
+            reduced["one_step_exhaustion"] = one_step_exhaustion
+            reduced["failure_reason"] = f"1-minimal-io-failure: {type(err).__name__}: {err}"
+            write_json(root_dir / "reduction.json", reduced)
+            raise Failure("reduction", "tool_or_harness_failure", "1-minimal-io-failure", f"{type(err).__name__}: {err}") from err
+
         one_step_exhaustion.append(dict(
             candidate_ops=len(step_cand["operations"]),
             outcome=outcome
@@ -233,6 +249,11 @@ def main(argv=None):
               f"to {len(reduced['minimal']['operations'])} operations with 3 confirmations", flush=True)
         return 0
     except Failure as failure:
+        write_json(root / "reduction-failure.json", failure.record())
+        print(f"real reduction failed: {failure}", file=sys.stderr)
+        return 1
+    except Exception as error:
+        failure = Failure("reduction", "tool_or_harness_failure", type(error).__name__, str(error))
         write_json(root / "reduction-failure.json", failure.record())
         print(f"real reduction failed: {failure}", file=sys.stderr)
         return 1
