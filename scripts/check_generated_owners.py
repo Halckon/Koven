@@ -12,12 +12,14 @@ import sys
 import time
 
 if __package__:
-    from . import generated_owners as model, generated_owner_checks as checks, check_native_sanitizers as native, generated_owner_calibration as calibration
+    from . import generated_owners as model, generated_owner_checks as checks, check_native_sanitizers as native, generated_owner_calibration as calibration, check_generated_owner_checker as checker_mutation, generated_owner_reduction as reduction
 else:
     import generated_owners as model
     import generated_owner_checks as checks
     import check_native_sanitizers as native
     import generated_owner_calibration as calibration
+    import check_generated_owner_checker as checker_mutation
+    import generated_owner_reduction as reduction
 
 Failure = checks.Failure
 ROOT = Path(__file__).resolve().parents[1]
@@ -302,11 +304,47 @@ def main(argv=None):
             write_json(directory / "verdict.json", dict(status="pass"))
             print(f"generated owner {case['id']}: passed", flush=True)
         assert_complete(expected_ids, rows)
+        calib_report = None
+        checker_report = None
+        reduction_report = None
+        acceptance_status = "pass"
+        partial_reasons = []
+
         if not args.replay:
             calibration_dir = root / "calibration"
             calibration_dir.mkdir(parents=True, exist_ok=True)
-            calibration.verify(executor, calibration_dir)
-        write_json(root / "acceptance.json", dict(status="pass", cases=rows, replay=bool(args.replay)))
+            calib_report = calibration.verify(executor, calibration_dir)
+            if calib_report.get("status") == "partial":
+                acceptance_status = "partial"
+                partial_reasons.extend(calib_report.get("skipped_reasons", []))
+
+            checker_dir = root / "checker-mutation"
+            checker_dir.mkdir(parents=True, exist_ok=True)
+            checker_report = checker_mutation.verify_checker_mutant(ROOT, checker_dir)
+            if checker_report.get("status") != "pass":
+                acceptance_status = "partial"
+                partial_reasons.append(f"checker-mutation:{checker_report.get('status')}")
+
+            reduction_dir = root / "reduction"
+            reduction_dir.mkdir(parents=True, exist_ok=True)
+            reduction_report = reduction.run_reduction(executor, reduction_dir)
+            if reduction_report.get("status") != "reproduced":
+                acceptance_status = "partial"
+                partial_reasons.append(f"reduction:{reduction_report.get('status')}")
+
+        acceptance_record = dict(
+            status=acceptance_status,
+            cases=rows,
+            replay=bool(args.replay),
+        )
+        if not args.replay:
+            acceptance_record["calibration"] = calib_report
+            acceptance_record["checker_mutation"] = checker_report
+            acceptance_record["reduction"] = reduction_report
+            if partial_reasons:
+                acceptance_record["partial_reasons"] = partial_reasons
+
+        write_json(root / "acceptance.json", acceptance_record)
         return 0
     except (Failure, OSError, ValueError, AssertionError) as error:
         record = error.record() if isinstance(error, Failure) else dict(

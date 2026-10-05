@@ -69,6 +69,45 @@ class GeneratedOwnerCalibrationTests(unittest.TestCase):
                 calib.verify(executor, root)
             self.assertEqual("unexpected_acceptance", caught.exception.kind)
 
+    def test_verify_records_partial_when_detectors_skipped_on_macos(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            mutants_tsv = root / "mutants.tsv"
+            mutants_tsv.write_text(
+                "address\taddress\tv1\tf1.inspect\tasan\theap-buffer-overflow\n"
+                "leak\tleak\tv1\tkoven.drop.t12\tcounter\tpointer-ledger\n"
+                "missing_deinit\tmissing_deinit\tv1\tf0.__deinit.t19\toutput\tdrop:leaf_b7af\n"
+                "premature_holder_free\tpremature_holder_free\tv2\tkoven.drop.t14\tcounter\tpointer-ledger\n"
+            )
+            v1_dir = root / "v1"
+            v2_dir = root / "v2"
+            v1_dir.mkdir()
+            v2_dir.mkdir()
+            (v1_dir / "clean.stdout").write_bytes(b"borrow\ndrop:leaf_b7af\nconsume\ndone\n")
+            (v2_dir / "clean.stdout").write_bytes(b"borrow\ndrop:old_b7af\ndone\n")
+
+            executor = mock.Mock()
+            executor.linux = False
+            executor.binary = Path("/bin/true")
+            executor.run.return_value = subprocess.CompletedProcess(
+                [], 0, f"test {calib.EXPORT_CALIBRATION_TEST} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored;".encode(), b""
+            )
+
+            clean_proc = subprocess.CompletedProcess([], 0, (v1_dir / "clean.stdout").read_bytes(), b"")
+            executor.build_run.side_effect = [
+                clean_proc,  # clean v1
+                clean_proc,  # clean v2
+                subprocess.CompletedProcess([], 0, b"", b""),  # address detector-off
+                subprocess.CompletedProcess([], -6, b"", b"counter.c: counted_free: releases == EXPECTED_ALLOCATIONS"),  # leak caught by counter
+                subprocess.CompletedProcess([], 0, b"borrow\nconsume\ndone\n", b""),  # missing deinit
+                subprocess.CompletedProcess([], -6, b"", b"counter.c: release_order: id == release_order"),  # premature free caught
+            ]
+
+            report = calib.verify(executor, root)
+            self.assertEqual("partial", report["status"])
+            self.assertTrue(any("macos-counter-only" in s for s in report["skipped_reasons"]))
+
 
 if __name__ == "__main__":
     unittest.main()
+

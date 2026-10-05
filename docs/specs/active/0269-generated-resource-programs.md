@@ -110,11 +110,11 @@ Mac 不声称 Linux RSS/pids 防护；仍有域/数量/时间/日志/产物预�
 |---|---|---|
 | G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | Python模型18项通过；独立审阅未发现具体模型错误；实际8个非法case诊断和byte span通过 |
 | G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | Mac首轮6有效通过、2有效InvalidSsa；合入已合并0270后8有效及8非法全部通过，固定V2次序通过；本轮Linux补充正常批次8有效+8非法全部通过，固定V2次序通过 |
-| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | Linux 8个clean ASan通过；本地完成4项真实LLVM IR故障校准（越界、漏free、漏deinit、提前释放Holder）：clean-v1/clean-v2通过，启用检测器精确拒绝，关闭检测器对照组不误报 |
-| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 精确诊断普通负测已验证；完成真实ownership checker红绿变异闭环：对 `ensure_place_available` 注入变异，红测杀死（0诊断），源码恢复确认diff为空，绿测重新编译运行精确恢复L0131诊断 |
-| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 原始有效case重放、预算/分类单测已执行；真实失败同因缩小验收完成：针对真实生成案例故障注入，在真实编译器环境成功由8 ops缩小至6 ops并经3次独立重放确认，输出reduction.json |
-| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 移除 `calibration-not-yet-implemented` 哨兵并接入校准；实测16生成案例全通过+校准通过，输出acceptance.json (pass)，重放模式验证通过 |
-| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 本轮全部256项Python测试通过；codegen Clippy/fmt全绿；check_docs (520 files)通过；Rust尺寸门禁通过；完成本地开发阶段闭环 |
+| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | Linux 8个clean ASan通过；Mac平台完成对照组验证，因缺少ASan/LSan支持显式标记跳过（partial）；本地完成4项真实LLVM IR故障校准（越界、漏free、漏deinit、提前释放Holder）：clean-v1/clean-v2通过，漏free/漏deinit/提前释放精确拒绝，地址故障对照组验证通过；Linux远端完整ASan/LSan成功证据仍待CI覆盖闭环 |
+| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 精确诊断普通负测已验证；完成真实ownership checker独立临时worktree隔离红绿变异闭环：针对 `ensure_place_available` 变异，红测严密核验执行退出码与文件存在性后杀死（0诊断），源码恢复确认diff为空，绿测重新编译运行精确恢复L0131诊断 |
+| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 真实失败同因缩小验收完成：针对真实生成案例I1在无预期报错下的真实编译器所有权报错（unexpected_frontend_rejection: L0131），通过语法结构单调缩小由8 ops成功缩减至6 ops，保持相同语义失败指纹并经3次独立重放确认，输出reduction.json |
+| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 主驱动整合验证：非replay模式完整串联16个固定生成案例、G3故障校准、G4 Checker变异红绿闭环与G5真实失败同因缩小；由于macOS宿主跳过ASan/LSan检测，驱动判定如实汇总为 `acceptance=partial`（非虚假pass），保全完整证据待双宿主CI闭环 |
+| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 本轮全部258项Python测试通过；codegen Clippy/fmt全绿；check_docs (520 files)通过；Rust尺寸门禁通过；保持未归档，等待远端双宿主CI闭环后合并 |
 
 按 G1 → 导出/执行 G2 → 检测 G3/G4 → 重放缩小 G5/G6 → G7 推进。
 Cargo 共用一个串行窗口；先失败测试再实现。Rust 只选新 exporter、被提取 helper 原调用方、
@@ -198,27 +198,27 @@ CI接线使生成脚本变化触发Rust门禁、现有双宿主执行完整drive
 
 ## 12. 本地受阻校准与同因缩小闭环实施（2026-10-05）
 
-在 worktree `koven-spec0269`（分支 `feature/spec-0269`）对先前受阻的 G3 故障校准、G4 checker 变异、G5 真实同因缩小及 G6 驱动接入进行完整闭环实施与验证：
+在 worktree `koven-spec0269`（分支 `feature/spec-0269`）针对受阻校准、判定严密性与真实同因缩小进行完整修复与验证：
 
-1. **G3 真实 LLVM IR 故障校准**：
+1. **G3 真实 LLVM IR 故障校准与通过/跳过事实分离**：
    - 在 `crates/lang-codegen/src/native_generated_owner_tests.rs` 增加 `export_generated_owner_calibration` 入口，通过 Inkwell LLVM IR 注入 4 类真实故障（`inject_address_fault`、`inject_leak_fault`、`inject_missing_deinit_fault`、`inject_premature_holder_free`），生成 `mutants.tsv` 与变异 IR 产物。
-   - 实现 `scripts/generated_owner_calibration.py` 及单测，实测端到端验证：clean-v1 / clean-v2 正例通过；address fault 在关闭检测器时对照组不误报，启用检测器时精确检出；leak fault 检出计数器残留；missing_deinit fault 检出缺少 stdout 析构行；premature_holder_free 检出 Holder 在字段前提前释放。
+   - 更新 `scripts/generated_owner_calibration.py` 及单测：clean-v1 / clean-v2 正例通过；漏 free、漏 deinit 与提前释放 Holder 在逐指针计数与 stdout drop 比对下精确拒绝；address fault 在 macOS 上验证 detector-off 对照不误报，因缺少 ASan 显式标记为 `status=skipped`，汇总状态严格为 `partial`，不虚假汇总为 `pass`。Linux 路径另接入 LSan 并保留宿主 ptrace runtime 记录。
 
-2. **G4 真实 Checker 变异红绿闭环**：
-   - 实现 `scripts/check_generated_owner_checker.py` 及单测；定位 I1 案例在 `crates/lang-frontend/src/ownership_checking/checker.rs` 中的实际报错点 `ensure_place_available`，注入变异屏蔽报错。
-   - 实际执行红绿闭环：红测重新编译并运行，确认 0 诊断输出杀死变异；恢复源码后核对 `git diff` 为空，绿测重新编译运行精确恢复 L0131 诊断。
+2. **G4 真实 Checker 变异红绿闭环（临时 worktree 隔离与退出码严密核验）**：
+   - 更新 `scripts/check_generated_owner_checker.py`：改用 `git worktree add` 独立临时目录进行变异与构建，主工作区绝对无修改；
+   - 红测阶段严密核验 `cargo test` 与测试执行退出码，强制要求 `stages.tsv`（含 ownership 阶段）与 `diagnostics.tsv` 必须存在且生成；在确认 0 诊断成功杀死变异后，于临时副本执行源码复原并验证 `git diff` 为空，绿测重新编译运行精确恢复 L0131 诊断。
 
-3. **G5 端到端真实同因缩小验收**：
-   - 实现 `scripts/generated_owner_reduction.py` 及单测；在真实编译器/执行器环境下执行基于 AST/语法结构的单调缩小（删除语句、替换占位）。
-   - 实测端到端同因缩小：8 个 operations 成功缩小至 6 个 operations，且保持相同的失败原因；完成 3 次独立重放确认，写出 `reduction.json` 留证。
+3. **G5 真实编译器所有权报错同因缩小**：
+   - 更新 `scripts/generated_owner_reduction.py`：废弃人工修改预期诊断代码的方式，采用真实编译器所有权报错（将含 move-after-use 的真实 I1 案例按无预期诊断编译，真实触发 `unexpected_frontend_rejection: L0131`）；
+   - 基于语法结构单调缩减（移除多余变量定义、缩短 move 链），将 8 operations 真实缩减至 6 operations，保持相同语义失败指纹并经 3 次独立重放确认，写出 `reduction.json`。
 
-4. **G6 主驱动哨兵移除与全量跑通**：
-   - 修改 `scripts/check_generated_owners.py`，移除 `calibration-not-yet-implemented` 拒绝哨兵，接入 `calibration.verify`。
-   - 端到端实际执行：16 个固定案例（8 有效 + 8 非法）全部 pass，故障校准 pass，输出 `acceptance.json` (status: pass)；同时验证 `--replay` 模式正常通过。
+4. **G6 主驱动串联核验与如实汇总状态**：
+   - 更新 `scripts/check_generated_owners.py`：总入口完整串联 16 案例、G3 故障校准、G4 Checker 变异与 G5 真实同因缩小；在 macOS 上如实汇总为 `acceptance=partial`（`partial_reasons: ["macos-counter-only"]`），不虚假记为 `pass`；支持 `--replay` 单案例重放。
 
 5. **质量门禁与事实证明**：
-   - 运行 256 项 Python 测试全量通过（1 项预期 Linux-only 跳过）。
+   - 运行 258 项 Python 测试全量通过（1 项预期 Linux-only 跳过）。
    - `cargo fmt --all -- --check` 通过；`cargo clippy -p lang-codegen --all-targets -- -D warnings` 零告警通过。
    - `python3 scripts/check_rust_sizes.py --base main` 通过，修改文件行数在 1000 行软上限内。
    - `python3 scripts/check_docs.py` 520 个文档结构门禁全部通过。
+   - 本地 HEAD 保持规范未归档状态，等待远端 PR #48 更新并由双宿主 CI 覆盖最终验收。
 

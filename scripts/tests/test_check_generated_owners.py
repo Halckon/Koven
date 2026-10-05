@@ -99,6 +99,34 @@ class GeneratedDriverTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 gate.copy_replay(directory, replay)
 
+    def test_acceptance_aggregates_g3_g4_g5_and_records_partial_when_detectors_skipped(self):
+        import contextlib
+        import io
+        import json
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "artifacts"
+            executor = mock.Mock()
+            executor.case.return_value = None  # all cases pass
+            calib_rep = dict(status="partial", skipped_reasons=["v1:macos-counter-only"])
+            checker_rep = dict(status="pass", mutant_killed=True)
+            reduct_rep = dict(status="reproduced", confirmation_count=3)
+
+            with mock.patch.object(gate, "Execution", return_value=executor), \
+                    mock.patch.object(gate.calibration, "verify", return_value=calib_rep), \
+                    mock.patch.object(gate.checker_mutation, "verify_checker_mutant", return_value=checker_rep), \
+                    mock.patch.object(gate.reduction, "run_reduction", return_value=reduct_rep), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                status = gate.main(["--artifacts", str(root)])
+            self.assertEqual(status, 0)
+            acceptance = json.loads((root / "acceptance.json").read_text())
+            self.assertEqual("partial", acceptance["status"])
+            self.assertEqual(calib_rep, acceptance["calibration"])
+            self.assertEqual(checker_rep, acceptance["checker_mutation"])
+            self.assertEqual(reduct_rep, acceptance["reduction"])
+            self.assertIn("v1:macos-counter-only", acceptance["partial_reasons"])
+
+
 class GeneratedToolchainTests(unittest.TestCase):
     def test_sanitizer_runtime_failure_is_not_a_memory_finding_or_program_crash(self):
         import subprocess

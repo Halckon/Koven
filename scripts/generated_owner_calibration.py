@@ -113,7 +113,8 @@ def verify(executor, directory):
                                                 fingerprint=failure.fingerprint, status="rejected_as_expected"))
             else:
                 calibration_records.append(dict(name=mutant_id, category=category, detector_off_verified=True,
-                                                asan_skipped="macos-counter-only", status="control_verified"))
+                                                asan_skipped="macos-counter-only", status="skipped",
+                                                reason="macos-asan-unsupported"))
 
         elif category == "leak":
             leak_ll = case_dir / "fault-leak.counter.ll"
@@ -123,8 +124,24 @@ def verify(executor, directory):
             if not any(mark in leak_run.stderr for mark in (b"counter.c", b"counted_free", b"verify_counts", b"releases == EXPECTED_ALLOCATIONS")):
                 raise Failure("calibration", "resource_counter_failure", "leak-not-caught-by-pointer-ledger",
                               leak_run.stderr.decode(errors="replace"))
-            calibration_records.append(dict(name=mutant_id, category=category, detected_by="counter",
-                                            status="rejected_as_expected", exit=leak_run.returncode))
+            record = dict(name=mutant_id, category=category, detected_by="counter",
+                          status="rejected_as_expected", exit=leak_run.returncode)
+            if executor.linux:
+                leak_raw_ll = case_dir / "fault-leak.raw.ll"
+                lsan_run = executor.build_run(case_dir, "fault-leak-lsan", leak_raw_ll, detector="lsan")
+                if b"LeakSanitizer has encountered a fatal error" in lsan_run.stderr:
+                    record["lsan_status"] = "runtime-unavailable"
+                    record["lsan_detail"] = lsan_run.stderr.decode(errors="replace")
+                elif lsan_run.returncode != 0 and b"LeakSanitizer" in lsan_run.stderr:
+                    lsan_failure = checks.sanitizer_failure(lsan_run.stderr, "LeakSanitizer")
+                    record["lsan_status"] = "rejected_as_expected"
+                    if lsan_failure:
+                        record["lsan_fingerprint"] = lsan_failure.fingerprint
+                else:
+                    raise Failure("calibration", "unexpected_acceptance", "leak-fault-not-caught-by-lsan")
+            else:
+                record["lsan_skipped"] = "macos-counter-only"
+            calibration_records.append(record)
 
         elif category == "missing_deinit":
             deinit_ll = case_dir / "fault-missing_deinit.counter.ll"
@@ -149,7 +166,19 @@ def verify(executor, directory):
             calibration_records.append(dict(name=mutant_id, category=category, detected_by="counter_order",
                                             status="rejected_as_expected", exit=holder_run.returncode))
 
-    report = dict(status="pass", records=calibration_records)
+    skipped_reasons = []
+    for rec in calibration_records:
+        if rec.get("status") == "skipped":
+            skipped_reasons.append(f"{rec['name']}:{rec.get('reason') or rec.get('asan_skipped')}")
+        if rec.get("lsan_skipped"):
+            skipped_reasons.append(f"{rec['name']}:{rec['lsan_skipped']}")
+        elif rec.get("lsan_status") == "runtime-unavailable":
+            skipped_reasons.append(f"{rec['name']}:lsan-runtime-unavailable")
+
+    status = "partial" if skipped_reasons else "pass"
+    report = dict(status=status, records=calibration_records)
+    if skipped_reasons:
+        report["skipped_reasons"] = skipped_reasons
     write_json(directory / "calibration.json", report)
     return report
 
@@ -169,7 +198,10 @@ def main(argv=None):
     executor.setup()
     try:
         report = verify(executor, root)
-        print("generated owner calibration: all 4 fault categories verified", flush=True)
+        if report["status"] == "pass":
+            print("generated owner calibration: all fault categories verified", flush=True)
+        else:
+            print(f"generated owner calibration: partial ({', '.join(report.get('skipped_reasons', []))})", flush=True)
         return 0
     except Failure as failure:
         write_json(root / "calibration-failure.json", failure.record())

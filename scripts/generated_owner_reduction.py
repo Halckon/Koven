@@ -30,25 +30,25 @@ def run_reduction(executor, root_dir):
     root_dir.mkdir(parents=True, exist_ok=True)
     # Select an I1 case with redundant extra locals and move chains
     original_case = copy.deepcopy(next(c for c in model.cases() if c["shape"] == "I1"))
-    expected_mismatch_code = "L0133"
 
     initial_dir = root_dir / "original"
     gate.prepare_case(original_case, initial_dir)
-    # Inject an expectation mismatch: expect L0133 while compiler reports L0131
-    rendered = model.render(original_case)
-    mismatched = [dict(code=expected_mismatch_code, primary=[0, 0], labels=[])]
-    write_json(initial_dir / "expected-diagnostics.json", mismatched)
+    # Under real compiler execution, an I1 case contains an illegal use-after-move.
+    # When evaluated as an expected-valid program (expected diagnostics = []),
+    # the frontend ownership checker rejects it with unexpected_frontend_rejection: L0131.
+    expected = []
+    write_json(initial_dir / "expected-diagnostics.json", expected)
     checks.seal_inputs(initial_dir, ["case.ko", "case.json", "expected-diagnostics.json",
                                      "oracle.json", "expected.stdout", "expected-allocations.txt"])
 
     initial_failure = None
     try:
         executor.export(initial_dir)
-        checks.check_diagnostics(initial_dir, mismatched)
+        checks.check_diagnostics(initial_dir, expected)
     except Failure as caught:
         initial_failure = caught
 
-    expected_fingerprint = ("frontend", "diagnostic_mismatch", f"{expected_mismatch_code}:code")
+    expected_fingerprint = ("frontend", "unexpected_frontend_rejection", "L0131")
     if initial_failure is None or initial_failure.fingerprint != expected_fingerprint:
         raise Failure("reduction", "tool_or_harness_failure", "initial-failure-not-established", repr(initial_failure))
 
@@ -61,12 +61,12 @@ def run_reduction(executor, root_dir):
     def replay(candidate, attempt):
         attempt_path = reductions_dir / f"attempt-{attempt:02d}"
         gate.prepare_case(candidate, attempt_path)
-        write_json(attempt_path / "expected-diagnostics.json", mismatched)
+        write_json(attempt_path / "expected-diagnostics.json", expected)
         checks.seal_inputs(attempt_path, ["case.ko", "case.json", "expected-diagnostics.json",
                                           "oracle.json", "expected.stdout", "expected-allocations.txt"])
         try:
             executor.export(attempt_path)
-            checks.check_diagnostics(attempt_path, mismatched)
+            checks.check_diagnostics(attempt_path, expected)
         except Failure as observed:
             write_json(attempt_path / "verdict.json", observed.record())
             return observed
