@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
     source::Span,
-    type_checking::{CompilationUnitTypes, UnitTypeId, UnitTypeKind},
+    type_checking::{CompilationUnitTypes, IntrinsicTypeConstructor, UnitTypeId, UnitTypeKind},
 };
 
 use super::lowering_error;
@@ -98,6 +98,32 @@ pub(crate) fn resolve_concrete_type(
                 .find(&UnitTypeKind::Nominal {
                     declaration: *declaration,
                     arguments,
+                })
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+        }
+        Some(
+            kind @ UnitTypeKind::Intrinsic {
+                constructor,
+                arguments,
+            },
+        ) if matches!(
+            constructor,
+            IntrinsicTypeConstructor::Array
+                | IntrinsicTypeConstructor::List
+                | IntrinsicTypeConstructor::MutableList
+        ) && contains_type_parameter(typed, kind) =>
+        {
+            // Only replace a direct element argument; frontend owns canonical type publication.
+            let [argument] = arguments.as_slice() else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            let argument =
+                resolve_direct_type_argument(typed, *argument, substitutions, static_self, span)?;
+            typed
+                .types()
+                .find(&UnitTypeKind::Intrinsic {
+                    constructor: *constructor,
+                    arguments: vec![argument],
                 })
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
         }

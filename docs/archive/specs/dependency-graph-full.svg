@@ -6,7 +6,7 @@
   </defs>
   <rect width="6720" height="7006" fill="#ffffff"/>
   <rect x="40" y="30" width="6616" height="6904" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，260 份）</text>
+  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，261 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -976,6 +976,7 @@
   <path d="M 972 5862 C 972 5894, 972 5894, 972 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 5862 C 972 5894, 1236 5894, 1236 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 450 C 972 482, 708 482, 708 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1236 6000 C 1236 6032, 1236 6050, 1236 6082" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2061,4 +2062,8 @@
   <text x="1236" y="5949" text-anchor="middle" font-size="13">SPEC-0274</text>
   <text x="1236" y="5967" text-anchor="middle" font-size="13">现行语义下的多文件 argv</text>
   <text x="1236" y="5985" text-anchor="middle" font-size="13"> 词频程序</text>
+  <rect x="1116" y="6082" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1236" y="6105" text-anchor="middle" font-size="13">SPEC-0275</text>
+  <text x="1236" y="6123" text-anchor="middle" font-size="13">Unit 泛型函数直接容器签</text>
+  <text x="1236" y="6141" text-anchor="middle" font-size="13">名的具体类型替换</text>
 </svg>

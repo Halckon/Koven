@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，260 份）"]
+subgraph Garchive["已完成（archive，261 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -269,6 +269,7 @@ subgraph Garchive["已完成（archive，260 份）"]
   S0272["S0272<br/>双宿主候选包与正常安装验收"]
   S0273["S0273<br/>单文件控制体正常退出的资源清理"]
   S0274["S0274<br/>现行语义下的多文件 argv 词频程序"]
+  S0275["S0275<br/>Unit 泛型函数直接容器签名的具体类型替换"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1239,6 +1240,7 @@ S0268 --> S0271
 S0268 --> S0272
 S0268 --> S0274
 S0270 --> S0273
+S0274 --> S0275
 ```
 
 ## 节点链接
@@ -1505,3 +1507,4 @@ S0270 --> S0273
 | SPEC-0272 | archive | [0272-preview-candidate-package.md](0272-preview-candidate-package.md) |
 | SPEC-0273 | archive | [0273-control-body-resource-cleanup.md](0273-control-body-resource-cleanup.md) |
 | SPEC-0274 | archive | [0274-argv-word-frequency.md](0274-argv-word-frequency.md) |
+| SPEC-0275 | archive | [0275-unit-generic-container-signatures.md](0275-unit-generic-container-signatures.md) |

@@ -42,6 +42,8 @@ mod tests;
 #[cfg(test)]
 mod type_tests;
 #[cfg(test)]
+mod unit_generic_container_tests;
+#[cfg(test)]
 mod unit_llvm_tests;
 #[cfg(test)]
 mod unit_lower_aggregate_tests;

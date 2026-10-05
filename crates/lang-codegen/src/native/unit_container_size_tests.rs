@@ -1,6 +1,9 @@
 //! SPEC-0274: native source length and temporary resource cleanup.
 use super::*;
 
+#[path = "unit_generic_container_tests.rs"]
+mod generic_containers;
+
 #[test]
 fn unit_container_size_native_covers_empty_nonempty_and_reuses_owners() {
     let analysis = analyze_sources(
