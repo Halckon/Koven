@@ -111,10 +111,10 @@ Mac 不声称 Linux RSS/pids 防护；仍有域/数量/时间/日志/产物预�
 | G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | 本轮精确head PR CI及模型/renderer golden、诊断适配负测已有证据；Python CI为260项、OK无skip。只读核验见§14。 |
 | G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | 本轮两宿主各8有效+8非法齐全；实际输出/计数/完整诊断匹配，固定V2物理次序报告通过；跨宿主源码相同。历史红测与0270修复记录保留，最新证据见§14。 |
 | G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | 本轮Linux8有效clean ASan/LSan及四类真实IR故障校准有原始证据，calibration=pass；M4a步骤成功。macOS地址/泄漏动态检测明确跳过，acceptance=partial。此前云LSan宿主失败属于历史，不能代称当前缺证据；见§14。 |
-| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 隔离worktree变异红→恢复→重编译→绿报告通过，原源码hash匹配；红阶段输出被绿色覆盖，实际命令/退出/stdout/stderr与真实patch未保全。原始红绿留证仍未闭合，见§14。 |
-| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 真实编译重放8→6操作、3次确认与预算/分类负测已有证据；但I1已知非法案例被写入空诊断预期，正确L0131因此成为unexpected_frontend_rejection。该oracle不匹配缩减不证明实际编译器/资源故障同因缩减；保持未完成，见§14。 |
-| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 当前真实Linuxacceptance=pass、Macpartial，CI两宿主实际执行并上传；但Linux LSan runtime-unavailable可汇总partial且入口返回0，required CI未另验JSON。必需检测缺失仍可放行，严格失败判定未完成，见§14。 |
-| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 9807eaf精确head pull_request CI37277758845已completed success，15/15job通过，Python260项OK；质量与消费者步骤成功。G4–G6仍有剩项；保持active，最终归档head、merge及actual main交付未完成，见§14。 |
+| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 本轮原始CI隔离红绿报告存在，但原红阶段输出缺失；现已本地修复记录机制：red/green独立目录、命令/完整bytes/退出/timeout、实际unified patch及原始/恢复源码hash，精确单次export命中与完整诊断核验。纯模拟红绿/失败留证测试通过；未运行新真实checker变异，实际留证验收仍待，见§15。 |
+| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 历史8→6/3次I1诊断重放为错误oracle缩减，不作为真实故障验收；本地主驱动不再调用该入口，明确写not_validated、requirements_met=false并exit1。未运行或重写真实故障缩减，保持未完成，见§14–15。 |
+| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 本地普通报告/退出码已修：Linux要求完整六项校准记录及实际ASan/LSan指纹，不接受partial/skipped/runtime-unavailable/缺项/畸形；Mac只接受两项指定平台限制；主驱动及校准独立入口均执行该判定。纯模拟负测通过；新真实批次/精确head CI未运行，G5未验证使完整入口exit1，见§15。 |
+| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 9807eaf精确head PR CI37277758845历史15/15job成功；本轮21项普通Python定向测试及文档/静态检查见§15，不能代称新实现CI或真实校准。保持active，G4真实留证/G5及最终归档head、merge/actual main均未完成。 |
 
 按 G1 → 导出/执行 G2 → 检测 G3/G4 → 重放缩小 G5/G6 → G7 推进。
 Cargo 共用一个串行窗口；先失败测试再实现。Rust 只选新 exporter、被提取 helper 原调用方、
@@ -270,3 +270,28 @@ LSan runtime-unavailable降为partial后入口仍exit0，CI未另验JSON，必�
 
 本次仅下载现有CI材料并做静态JSON/hash/日志/代码审阅；没有构建、测试、校准、故障注入、
 真实缩减或触发CI，不解除此前受阻操作边界，也没有修改实现、工作流或远端。
+
+## 15. 普通判定与留证机制修复（2026-10-05，本地）
+
+从文档审阅提交 `176d7b2`、clean工作树开始，仅修G4普通证据IO及G6报告聚合/退出码。
+Linux校准记录必须完整且包含ASan/LSan检出指纹；runtime-unavailable、partial、跳过、缺项、
+重复或畸形记录返回结构化失败，独立校准入口复用相同规则。Mac仅允许地址和泄漏检测的
+两项已明示平台限制，不将其partial写成全部通过。CI命令无需修改，非零退出会使必需job失败。
+
+G4保存 `red/` 与 `green/` 各自的case、build/export命令、cwd、预算、stdout/stderr bytes、
+退出码/timeout/耗时、exporter hash，绿色不覆盖红色。保存真实unified patch和变异前后源码
+及hash、恢复源码hash与git diff命令/输出/退出，检查真实exact单次测试命中及完整阶段/诊断。
+证据文件通过临时文件replace发布；纯模拟测试覆盖非零退出、零命中、timeout、spawn异常
+与发布失败保留旧文件。以上是记录代码已修，不是新真实checker变异已经通过。
+
+旧G5脚本保持原样；完整主驱动不再调用其空预期I1缩减，也不另行执行真实故障缩减。
+生成/校准/留证阶段结束后仍明确保存 `reduction.status=not_validated`、
+`acceptance.status=partial`、`requirements_met=false`并exit1，不能用平台允许partial来
+掩盖G5缺口。单案例replay不充当完整验收。此前受阻动作边界继续有效。
+
+[本地普通修复账本](../../development/evidence/generated-owners-0269-safe-fix-20261005/validation.json)
+保存基线、被测文件指纹、纯模拟红/绿日志及验证范围。定向命令为
+`python3 -m unittest scripts.tests.test_generated_owner_acceptance scripts.tests.test_checker_evidence scripts.tests.test_check_generated_owner_checker scripts.tests.test_check_generated_owners`，
+21项通过，无skip。旧“partial且G5未验证仍exit0”单测由新平台边界/完整入口失败测试替代。
+本次未执行Cargo、真实checker变异、校准、sanitizer、故障注入、真实故障缩减或远端CI；
+没有push/合PR/归档，Spec保持in-progress，真实执行及最终交付仍待后续授权环境证据。

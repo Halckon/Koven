@@ -239,6 +239,63 @@ class Execution:
             self.accept_native(self.build_run(directory, "lsan", directory / "case.raw.ll", detector="lsan"), stdout, "lsan")
 
 
+
+def calibration_verdict(report, *, linux):
+    """Only the explicit macOS detector limits may yield an accepted partial G3."""
+    def reject():
+        raise Failure("acceptance", "tool_or_harness_failure", "mandatory-calibration-incomplete")
+
+    if type(linux) is not bool or not isinstance(report, dict):
+        reject()
+    records = report.get("records")
+    names = ["clean-v1", "clean-v2", "address", "leak", "missing_deinit", "premature_holder_free"]
+    if (not isinstance(records, list) or len(records) != len(names)
+            or any(not isinstance(row, dict) for row in records)):
+        reject()
+    if any(not isinstance(row.get("name"), str) for row in records):
+        reject()
+    if sorted(row["name"] for row in records) != sorted(names):
+        reject()
+    rows = {row["name"]: row for row in records}
+    for name in names[:2]:
+        row = rows[name]
+        if row.get("status") != "pass" or type(row.get("exit")) is not int or row["exit"] != 0:
+            reject()
+    for name, detector in [("leak", "counter"), ("missing_deinit", "output_diff"),
+                           ("premature_holder_free", "counter_order")]:
+        row = rows[name]
+        if row.get("category") != name or row.get("status") != "rejected_as_expected" or row.get("detected_by") != detector:
+            reject()
+        if detector != "output_diff" and (type(row.get("exit")) is not int or row["exit"] == 0):
+            reject()
+        if detector == "output_diff" and (not isinstance(row.get("witness"), str) or not row["witness"].startswith("drop:leaf")):
+            reject()
+    address, leak = rows["address"], rows["leak"]
+    if address.get("category") != "address":
+        reject()
+    if linux:
+        if (report.get("status") != "pass" or report.get("skipped_reasons", []) != []
+                or address.get("status") != "rejected_as_expected" or address.get("detected_by") != "asan"
+                or leak.get("lsan_status") != "rejected_as_expected"
+                or any(row.get("asan_skipped") or row.get("lsan_skipped") for row in records)):
+            reject()
+        for row, kind in [(address, "asan_error"), (leak, "lsan_error")]:
+            fingerprint = row.get("fingerprint" if kind == "asan_error" else "lsan_fingerprint")
+            if (not isinstance(fingerprint, list) or len(fingerprint) != 3
+                    or fingerprint[:2] != ["native", kind]
+                    or not isinstance(fingerprint[2], str) or not fingerprint[2]):
+                reject()
+        return "pass", []
+    reasons = ["address:macos-asan-unsupported", "leak:macos-counter-only"]
+    if (report.get("status") != "partial" or report.get("skipped_reasons") != reasons
+            or address.get("status") != "skipped" or address.get("reason") != "macos-asan-unsupported"
+            or address.get("asan_skipped") != "macos-counter-only" or address.get("detector_off_verified") is not True
+            or leak.get("lsan_skipped") != "macos-counter-only" or "lsan_status" in leak
+            or any(row.get("asan_skipped") or row.get("lsan_skipped") for row in records if row not in [address, leak])):
+        reject()
+    return "partial", reasons
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifacts", required=True, type=Path)
@@ -314,23 +371,22 @@ def main(argv=None):
             calibration_dir = root / "calibration"
             calibration_dir.mkdir(parents=True, exist_ok=True)
             calib_report = calibration.verify(executor, calibration_dir)
-            if calib_report.get("status") == "partial":
-                acceptance_status = "partial"
-                partial_reasons.extend(calib_report.get("skipped_reasons", []))
+            acceptance_status, partial_reasons = calibration_verdict(calib_report, linux=executor.linux)
 
             checker_dir = root / "checker-mutation"
             checker_dir.mkdir(parents=True, exist_ok=True)
             checker_report = checker_mutation.verify_checker_mutant(ROOT, checker_dir)
-            if checker_report.get("status") != "pass":
-                acceptance_status = "partial"
-                partial_reasons.append(f"checker-mutation:{checker_report.get('status')}")
+            if not isinstance(checker_report, dict) or checker_report.get("status") != "pass":
+                raise Failure("acceptance", "tool_or_harness_failure", "checker-mutation-incomplete")
 
             reduction_dir = root / "reduction"
             reduction_dir.mkdir(parents=True, exist_ok=True)
-            reduction_report = reduction.run_reduction(executor, reduction_dir)
-            if reduction_report.get("status") != "reproduced":
-                acceptance_status = "partial"
-                partial_reasons.append(f"reduction:{reduction_report.get('status')}")
+            # The existing I1 empty-oracle replay is not real-failure G5 acceptance.
+            # Do not execute the restricted real reduction through this entrypoint.
+            reduction_report = dict(status="not_validated", reason="real-failure-reduction-not-validated")
+            write_json(reduction_dir / "acceptance-status.json", reduction_report)
+            acceptance_status = "partial"
+            partial_reasons.append("G5:real-failure-reduction-not-validated")
 
         acceptance_record = dict(
             status=acceptance_status,
@@ -341,10 +397,13 @@ def main(argv=None):
             acceptance_record["calibration"] = calib_report
             acceptance_record["checker_mutation"] = checker_report
             acceptance_record["reduction"] = reduction_report
+            acceptance_record["requirements_met"] = False
             if partial_reasons:
                 acceptance_record["partial_reasons"] = partial_reasons
 
         write_json(root / "acceptance.json", acceptance_record)
+        if not args.replay:
+            raise Failure("acceptance", "tool_or_harness_failure", "G5:real-failure-reduction-not-validated")
         return 0
     except (Failure, OSError, ValueError, AssertionError) as error:
         record = error.record() if isinstance(error, Failure) else dict(

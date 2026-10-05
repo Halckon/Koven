@@ -5,6 +5,7 @@ Disables one L0131 reporting point in crates/lang-frontend on I1 path, verifies
 red test, restores source, checks diff/hash clean, and verifies green test.
 """
 import argparse
+import difflib
 import hashlib
 import json
 import os
@@ -13,6 +14,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 if __package__:
     from . import generated_owners as model, generated_owner_checks as checks
@@ -32,8 +34,56 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def write_bytes(path, content):
+    """Publish one complete evidence file; a failed write leaves the old file intact."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".evidence-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as output:
+            output.write(content)
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
 def write_json(path, value):
-    path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
+    write_bytes(path, (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode())
+
+
+def recorded_run(directory, name, argv, *, cwd, timeout, env=None):
+    command = dict(argv=[str(item) for item in argv], cwd=str(cwd), timeout_seconds=timeout)
+    if env is not None:
+        command["env"] = {"KOVEN_GENERATED_OWNER_CASE": env["KOVEN_GENERATED_OWNER_CASE"]}
+    write_json(directory / f"{name}.command.json", command)
+    started = time.monotonic()
+    result = dict(exit=None, timed_out=False)
+    stdout = stderr = b""
+    try:
+        completed = subprocess.run(argv, cwd=cwd, capture_output=True, timeout=timeout,
+                                   **({"env": env} if env is not None else {}))
+        result["exit"] = completed.returncode
+        stdout, stderr = completed.stdout, completed.stderr
+        return completed
+    except Exception as error:
+        result["error"] = dict(type=type(error).__name__, detail=str(error))
+        if isinstance(error, subprocess.TimeoutExpired):
+            result["timed_out"] = True
+            stdout, stderr = error.stdout or b"", error.stderr or b""
+            raise Failure("checker-mutation", "timeout", f"{name}-timeout") from error
+        if isinstance(error, OSError):
+            raise Failure("checker-mutation", "tool_or_harness_failure", f"{name}-spawn-error", str(error)) from error
+        raise
+    finally:
+        result["elapsed_seconds"] = time.monotonic() - started
+        write_bytes(directory / f"{name}.stdout", stdout)
+        write_bytes(directory / f"{name}.stderr", stderr)
+        write_json(directory / f"{name}.result.json", result)
+
+
+def assert_frontend_hit(text):
+    if (len(re.findall(rf"^test {re.escape(FRONTEND_EXPORT_TEST)} \.\.\. ok$", text, re.M)) != 1
+            or len(re.findall(r"test result: ok\. 1 passed; 0 failed; 0 ignored;", text)) != 1):
+        raise Failure("checker-mutation", "tool_or_harness_failure", "exact-test-hit")
 
 
 def mutate_checker(source):
@@ -68,118 +118,82 @@ def verify_checker_mutant(root_dir, artifacts_dir):
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     temp_worktree = Path(tempfile.mkdtemp(prefix="koven-checker-worktree-"))
     try:
-        # Create detached worktree from HEAD to ensure the main workspace is untouched
-        add_res = subprocess.run(["git", "worktree", "add", str(temp_worktree), "HEAD", "--detach"],
-                                 cwd=root_dir, capture_output=True)
+        add_res = recorded_run(artifacts_dir, "worktree-add",
+                               ["git", "worktree", "add", str(temp_worktree), "HEAD", "--detach"],
+                               cwd=root_dir, timeout=30)
         if add_res.returncode != 0:
-            raise Failure("checker-mutation", "tool_or_harness_failure", "git-worktree-add-failed",
-                          add_res.stderr.decode(errors="replace"))
-
+            raise Failure("checker-mutation", "tool_or_harness_failure", "git-worktree-add-failed")
         target_path = temp_worktree / CHECKER_FILE
-        if not target_path.is_file():
-            raise Failure("checker-mutation", "tool_or_harness_failure", "missing-checker-file")
-
-        original_content = target_path.read_text(encoding="utf-8")
-        original_sha = sha256(original_content)
-        mutated_content = mutate_checker(original_content)
-        patch_diff = f"--- {CHECKER_FILE}\n+++ {CHECKER_FILE} (mutated)\n@@ disable L0131 @@\n- self.diagnostics.push(diagnostic);\n+ // MUTANT_CHECKER_DISABLED: self.diagnostics.push(diagnostic);\n"
-        patch_sha = sha256(patch_diff)
-
+        original = target_path.read_bytes()
+        write_bytes(artifacts_dir / "original-source.rs", original)
+        mutated = mutate_checker(original.decode("utf-8")).encode("utf-8")
+        patch = "".join(difflib.unified_diff(original.decode().splitlines(keepends=True),
+                                          mutated.decode().splitlines(keepends=True),
+                                          fromfile=CHECKER_FILE, tofile=CHECKER_FILE)).encode()
+        write_bytes(artifacts_dir / "mutated-source.rs", mutated)
+        write_bytes(artifacts_dir / "mutant.patch", patch)
         i1_case = next(c for c in model.cases() if c["shape"] == "I1")
         rendered = model.render(i1_case)
+        evidence = dict(target_file=CHECKER_FILE, original_sha256=sha256(original),
+                        mutated_sha256=sha256(mutated), patch_sha256=sha256(patch),
+                        i1_case_id=i1_case["id"], isolated_worktree=str(temp_worktree), phases={})
+        build_argv = ["cargo", "test", "--manifest-path", str(temp_worktree / "Cargo.toml"),
+                      "-p", "lang-codegen", "--lib", "--no-run", "--message-format=json"]
 
-        case_tmp = artifacts_dir / "i1-case"
-        case_tmp.mkdir(parents=True, exist_ok=True)
-        (case_tmp / "case.ko").write_text(rendered["source"], encoding="utf-8")
-        write_json(case_tmp / "expected-diagnostics.json", rendered["expected_diagnostics"])
-
-        evidence = dict(
-            target_file=CHECKER_FILE,
-            original_sha256=original_sha,
-            patch_sha256=patch_sha,
-            i1_case_id=i1_case["id"],
-            isolated_worktree=str(temp_worktree),
-        )
-
-        try:
-            # Phase 1: Apply mutant in isolated worktree
-            target_path.write_text(mutated_content, encoding="utf-8")
-            build_red = subprocess.run(
-                ["cargo", "test", "--manifest-path", str(temp_worktree / "Cargo.toml"), "-p", "lang-codegen", "--lib",
-                 "--no-run", "--message-format=json"],
-                cwd=temp_worktree, capture_output=True, timeout=900,
-            )
-            if build_red.returncode != 0:
-                raise Failure("checker-mutation", "tool_or_harness_failure", "mutant-cargo-build-failed",
-                              build_red.stderr.decode(errors="replace"))
-            test_bin = extract_test_binary(build_red.stdout.decode())
-            if test_bin is None or not test_bin.is_file():
+        def phase(name, expected):
+            directory = artifacts_dir / name
+            directory.mkdir(exist_ok=False)
+            case_dir = directory / "case"
+            case_dir.mkdir()
+            write_bytes(case_dir / "case.ko", rendered["source"].encode())
+            write_json(case_dir / "expected-diagnostics.json", expected)
+            build = recorded_run(directory, "build", build_argv, cwd=temp_worktree, timeout=900)
+            if build.returncode != 0:
+                raise Failure("checker-mutation", "tool_or_harness_failure", f"{name}-cargo-build-failed")
+            binary = extract_test_binary(build.stdout.decode())
+            if binary is None or not binary.is_file():
                 raise Failure("checker-mutation", "tool_or_harness_failure", "missing-test-binary")
+            write_json(directory / "exporter.json", dict(path=str(binary), sha256=sha256(binary.read_bytes())))
+            env = {**os.environ, "KOVEN_GENERATED_OWNER_CASE": str(case_dir)}
+            execution = recorded_run(directory, "export", [str(binary), FRONTEND_EXPORT_TEST, "--exact", "--nocapture"],
+                                     cwd=temp_worktree, env=env, timeout=30)
+            if execution.returncode != 0:
+                raise Failure("checker-mutation", "tool_or_harness_failure", f"{name}-test-execution-failed")
+            assert_frontend_hit(execution.stdout.decode(errors="replace"))
+            checks.check_diagnostics(case_dir, expected)
+            evidence["phases"][name] = dict(directory=name, build_exit=build.returncode,
+                                           export_exit=execution.returncode, exporter_sha256=sha256(binary.read_bytes()))
 
-            # Clean prior export outputs
-            for name in ("stages.tsv", "diagnostics.tsv"):
-                if (case_tmp / name).exists():
-                    (case_tmp / name).unlink()
-
-            res_red = run_frontend_case(test_bin, case_tmp, cwd=temp_worktree)
-            if res_red.returncode != 0:
-                raise Failure("checker-mutation", "tool_or_harness_failure", "red-test-execution-failed",
-                              res_red.stderr.decode(errors="replace"))
-
-            stages_tsv = case_tmp / "stages.tsv"
-            diag_tsv = case_tmp / "diagnostics.tsv"
-            if not stages_tsv.is_file():
-                raise Failure("checker-mutation", "tool_or_harness_failure", "missing-stages-file")
-            if not diag_tsv.is_file():
-                raise Failure("checker-mutation", "tool_or_harness_failure", "missing-diagnostics-file")
-
-            stages = [line.split("\t") for line in stages_tsv.read_text().splitlines()]
-            if not any(len(s) >= 2 and s[0] == "ownership" for s in stages):
-                raise Failure("checker-mutation", "tool_or_harness_failure", "ownership-stage-not-recorded")
-
-            diags = diag_tsv.read_text().splitlines()
-            # In red phase, L0131 must NOT be reported
-            has_l0131 = any("L0131" in line for line in diags)
-            if has_l0131:
-                raise Failure("checker-mutation", "unexpected_acceptance", "mutant-not-killed-still-reported-L0131")
+        red_error = None
+        try:
+            target_path.write_bytes(mutated)
+            phase("red", [])
             evidence["mutant_killed"] = True
-            evidence["red_diagnostics_count"] = len(diags)
-
+            evidence["red_diagnostics_count"] = 0
+        except Exception as error:
+            red_error = error
+            raise
         finally:
-            # Phase 2: Restore source in isolated worktree
-            target_path.write_text(original_content, encoding="utf-8")
-            diff_proc = subprocess.run(["git", "diff", "--", str(target_path)], cwd=temp_worktree, capture_output=True)
-            if diff_proc.stdout.strip():
-                raise Failure("checker-mutation", "tool_or_harness_failure", "dirty-git-diff-after-restore")
-            evidence["restored_clean"] = True
-
-        # Phase 3: Green verification in isolated worktree
-        build_green = subprocess.run(
-            ["cargo", "test", "--manifest-path", str(temp_worktree / "Cargo.toml"), "-p", "lang-codegen", "--lib",
-             "--no-run", "--message-format=json"],
-            cwd=temp_worktree, capture_output=True, timeout=900,
-        )
-        if build_green.returncode != 0:
-            raise Failure("checker-mutation", "tool_or_harness_failure", "green-cargo-build-failed")
-        green_bin = extract_test_binary(build_green.stdout.decode())
-        if green_bin is None or not green_bin.is_file():
-            raise Failure("checker-mutation", "tool_or_harness_failure", "missing-green-test-binary")
-
-        for name in ("stages.tsv", "diagnostics.tsv"):
-            if (case_tmp / name).exists():
-                (case_tmp / name).unlink()
-
-        res_green = run_frontend_case(green_bin, case_tmp, cwd=temp_worktree)
-        if res_green.returncode != 0:
-            raise Failure("checker-mutation", "tool_or_harness_failure", "green-test-execution-failed",
-                          res_green.stderr.decode(errors="replace"))
-        if not (case_tmp / "diagnostics.tsv").is_file():
-            raise Failure("checker-mutation", "tool_or_harness_failure", "missing-green-diagnostics-file")
-
-        checks.check_diagnostics(case_tmp, rendered["expected_diagnostics"])
+            try:
+                target_path.write_bytes(original)
+                restored = target_path.read_bytes()
+                write_bytes(artifacts_dir / "restored-source.rs", restored)
+                evidence["restored_sha256"] = sha256(restored)
+                diff = recorded_run(artifacts_dir, "restore-diff", ["git", "diff", "--", str(target_path)],
+                                    cwd=temp_worktree, timeout=30)
+                if diff.returncode != 0 or diff.stdout.strip() or restored != original:
+                    raise Failure("checker-mutation", "tool_or_harness_failure", "source-restore-not-clean")
+                evidence["restored_clean"] = True
+            except Exception as restore_error:
+                write_json(artifacts_dir / "restore-failure.json",
+                           dict(type=type(restore_error).__name__, detail=str(restore_error)))
+                if red_error is None:
+                    raise
+            finally:
+                write_json(artifacts_dir / "checker-progress.json", evidence)
+        phase("green", rendered["expected_diagnostics"])
         evidence["green_verified"] = True
         evidence["status"] = "pass"
-
         write_json(artifacts_dir / "checker-calibration.json", evidence)
         return evidence
     finally:

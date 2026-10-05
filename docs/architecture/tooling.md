@@ -163,6 +163,9 @@ archive核验不依赖系统安装数据库，包来源查询结果单列记录�
 
 进程预算、原始输入/环境/哈希、首个失败与缩小记录分离；缩小和重放共享绝对deadline，
 最后一次重放越界、I/O失败及候选原因变化不能误报成功。LSan runtime fatal单独归工具失败。
-现有双宿主Targeted Tests已静态接线完整batch与always证据上传；driver保留未完成校准的
-拒绝哨兵，不会把普通生成通过升级为完整验收。当前云端正常批次和阻断边界见
-[0269验收账本](../specs/active/0269-generated-resource-programs.md#11-云端普通验收续作2026-10-05)。
+现有双宿主Targeted Tests接线batch与always证据上传，9807eaf对应PR CI已有实际双宿主证据。
+本地后继报告判定要求Linux完整校准，Mac仅允许指定两项检测限制；checker红/绿case、命令、
+输出、退出、真实patch及恢复hash分别保存，未重新取得真实运行证据。主驱动不执行旧错误oracle
+缩减；G5真实故障缩减未验证时写partial/requirements_met=false并exit1，不得据CI历史绿灯
+宣布后继完成。当前事实与本地普通验证范围见
+[0269验收账本](../specs/active/0269-generated-resource-programs.md#15-普通判定与留证机制修复2026-10-05本地)。

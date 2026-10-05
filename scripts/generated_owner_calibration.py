@@ -198,7 +198,8 @@ def main(argv=None):
     executor.setup()
     try:
         report = verify(executor, root)
-        if report["status"] == "pass":
+        status, _ = gate.calibration_verdict(report, linux=executor.linux)
+        if status == "pass":
             print("generated owner calibration: all fault categories verified", flush=True)
         else:
             print(f"generated owner calibration: partial ({', '.join(report.get('skipped_reasons', []))})", flush=True)
