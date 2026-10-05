@@ -1,0 +1,232 @@
+{
+  "compiler_source_baseline": "4ce0eb80f4ce91a6a6a7c73426d64872293a18e5",
+  "cli_sha256": "131f089b91f7f791c3cce311c1ea3685d5d4642d687993ef3603a6df5b138e79",
+  "host": "aarch64-apple-darwin",
+  "rustc": "1.96.0",
+  "cargo": "1.96.0",
+  "llvm": "21.1.8",
+  "selected": [
+    "numbers-bitwise",
+    "scope-cleanup",
+    "unit-loop-cleanup",
+    "reject-immutable-place",
+    "reject-iteration-move"
+  ],
+  "source_sha256": {
+    "numbers-bitwise": {
+      "source.ko": "dc9f4ec3ae8ba2bac7b3a3a0f05884b1664b07fee2e8b78dd0ead4445ef9eb1c"
+    },
+    "scope-cleanup": {
+      "source.ko": "c8f60ce72dbe7841e847d8319d06aeeb17df584d8edd5edafbd6e22813aa965a"
+    },
+    "unit-loop-cleanup": {
+      "src/worker/Work.ko": "da04bf1f85cccc10280c59d0a0e2edfd1cf78cd36534eaeff751496b904e3e4e",
+      "src/app/Main.ko": "bf6eefc10ed84fe4c4f2c1fb2d969d4b0823b991f68687e221b6e2f8ae9d08d4"
+    },
+    "reject-immutable-place": {
+      "source.ko": "3ef4760e7a0f6a62c096408bc1a2247752c2e35098745068b3b2f18d684baf5d"
+    },
+    "reject-iteration-move": {
+      "source.ko": "8ecdf6f9dccabf4530842409fe07c70c7b664cd93e148feecfb0c801a7b3a2d5"
+    },
+    "gap-scope-branch": {
+      "source.ko": "36e128299d5a3f65ce9e0905c6e0034da8e76486edc8d3a4db1f9dc914fa39bb"
+    }
+  },
+  "commands": [
+    {
+      "command": [
+        "kovenc",
+        "build",
+        "source.ko",
+        "-o",
+        "program"
+      ],
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "matches_contract": true,
+      "example_id": "numbers-bitwise"
+    },
+    {
+      "command": [
+        "./program"
+      ],
+      "actual": {
+        "exit": 0,
+        "stdout": "literals\nbits\n",
+        "stderr": ""
+      },
+      "matches_contract": true,
+      "example_id": "numbers-bitwise"
+    },
+    {
+      "command": [
+        "kovenc",
+        "run",
+        "source.ko",
+        "--"
+      ],
+      "actual": {
+        "exit": 0,
+        "stdout": "literals\nbits\n",
+        "stderr": ""
+      },
+      "matches_contract": true,
+      "example_id": "numbers-bitwise"
+    },
+    {
+      "command": [
+        "kovenc",
+        "build",
+        "source.ko",
+        "-o",
+        "program"
+      ],
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "matches_contract": true,
+      "example_id": "scope-cleanup"
+    },
+    {
+      "command": [
+        "./program"
+      ],
+      "actual": {
+        "exit": 0,
+        "stdout": "inner\nsecond\nfirst\nafter\nouter\n",
+        "stderr": ""
+      },
+      "matches_contract": true,
+      "example_id": "scope-cleanup"
+    },
+    {
+      "command": [
+        "kovenc",
+        "run",
+        "source.ko",
+        "--"
+      ],
+      "actual": {
+        "exit": 0,
+        "stdout": "inner\nsecond\nfirst\nafter\nouter\n",
+        "stderr": ""
+      },
+      "matches_contract": true,
+      "example_id": "scope-cleanup"
+    },
+    {
+      "command": [
+        "kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "matches_contract": true,
+      "example_id": "unit-loop-cleanup"
+    },
+    {
+      "command": [
+        "./program"
+      ],
+      "actual": {
+        "exit": 0,
+        "stdout": "continue\nvisit\nlocal\nvisit\nlocal\nsecond\nfirst\nafter\nouter\nbreak\nvisit\nlocal\nsecond\nfirst\nafter\nouter\nreturn\nvisit\nlocal\nsecond\nfirst\nouter\ncaller\n",
+        "stderr": ""
+      },
+      "matches_contract": true,
+      "example_id": "unit-loop-cleanup"
+    },
+    {
+      "command": [
+        "kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--"
+      ],
+      "actual": {
+        "exit": 0,
+        "stdout": "continue\nvisit\nlocal\nvisit\nlocal\nsecond\nfirst\nafter\nouter\nbreak\nvisit\nlocal\nsecond\nfirst\nafter\nouter\nreturn\nvisit\nlocal\nsecond\nfirst\nouter\ncaller\n",
+        "stderr": ""
+      },
+      "matches_contract": true,
+      "example_id": "unit-loop-cleanup"
+    },
+    {
+      "command": [
+        "kovenc",
+        "--message-format=json",
+        "build",
+        "source.ko",
+        "-o",
+        "program"
+      ],
+      "actual": {
+        "exit": 2,
+        "stdout": "",
+        "stderr": "{\"code\":\"L0134\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":33,\"byte_start\":27,\"end\":{\"column\":15,\"line\":2},\"source\":\"source.ko\",\"start\":{\"column\":9,\"line\":2}},\"message\":\"immutable binding declared here\"}],\"message\":\"inout argument is not a mutable place\",\"primary\":{\"byte_end\":66,\"byte_start\":65,\"end\":{\"column\":29,\"line\":3},\"source\":\"source.ko\",\"start\":{\"column\":28,\"line\":3}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
+      },
+      "matches_contract": true,
+      "example_id": "reject-immutable-place"
+    },
+    {
+      "command": [
+        "kovenc",
+        "--message-format=json",
+        "build",
+        "source.ko",
+        "-o",
+        "program"
+      ],
+      "actual": {
+        "exit": 2,
+        "stdout": "",
+        "stderr": "{\"code\":\"L0135\",\"details\":[{\"kind\":\"label\",\"location\":{\"byte_end\":131,\"byte_start\":126,\"end\":{\"column\":23,\"line\":5},\"source\":\"source.ko\",\"start\":{\"column\":18,\"line\":5}},\"message\":\"conflicting loan starts here\"}],\"message\":\"access conflicts with the active iteration source loan\",\"primary\":{\"byte_end\":156,\"byte_start\":151,\"end\":{\"column\":22,\"line\":6},\"source\":\"source.ko\",\"start\":{\"column\":17,\"line\":6}},\"schema\":\"koven.diagnostic\",\"severity\":\"error\",\"version\":1}\n"
+      },
+      "matches_contract": true,
+      "example_id": "reject-iteration-move"
+    }
+  ],
+  "gap_probe": {
+    "id": "gap-scope-branch",
+    "command": [
+      "kovenc",
+      "build",
+      "source.ko",
+      "-o",
+      "program"
+    ],
+    "actual": {
+      "exit": 2,
+      "stdout": "",
+      "stderr": "error: native build failed: native object InvalidModel: frontend lowering failed with InvalidSsa\n"
+    },
+    "remaining_files": [
+      "source.ko"
+    ]
+  },
+  "not_run": [
+    "Linux",
+    "remote CI",
+    "existing 17 tutorial cases",
+    "compiler Rust tests",
+    "P2"
+  ]
+}

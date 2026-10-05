@@ -1,0 +1,5 @@
+{
+  "status": "stopped",
+  "reason": "baseline calibration too noisy; no after samples",
+  "elapsed_seconds": 25.21850458299741
+}

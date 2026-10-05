@@ -1,0 +1,25 @@
+{
+  "commits": {
+    "before": "f28359f6600fc663b837d8491988ec07c804059a",
+    "after": "422786e4ee64de13fc49d1fac93907f67fcd98c6"
+  },
+  "started_utc": "2026-10-04T08:49:40Z",
+  "host": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83\n",
+  "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2\n",
+  "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)\n",
+  "jobs": 2,
+  "incremental": 0,
+  "flags": "identical linker timing wrapper",
+  "limits": {
+    "seconds": 7200,
+    "cache_bytes": 12884901888,
+    "free_bytes": 42949672960
+  },
+  "measurement": "Darwin process RSS bytes; process CPU spans may overlap; rustc nonlink is elapsed minus nested linker including rustc overhead, not exclusive CPU or whole-build wall",
+  "acceptance": "not approved; investigation thresholds only; no P2 closure",
+  "cold": "empty target directory; existing registry cache and uncontrolled OS cache",
+  "cohort": "72 affected integration tests, one test thread; no other tests executed; repetitions solely for cost sampling",
+  "noise_rule": "calibration MAD <= max(20ms,15% median) and range <= max(40ms,30% median); formal trigger requires investigation, never budget waiver",
+  "cumulative_cache": "LSP + both stopped ownership calibrations + this trial <= 12 GiB",
+  "first_launch": "separately retained first execution after EVERY rebuild before hot-run samples; initial cold launch and per-warm-build launches separated; no original observations deleted"
+}

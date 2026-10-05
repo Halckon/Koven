@@ -104,11 +104,31 @@ in/is/as 与 identifier 使用同一整词扫描，避免 input 等名称在运�
 独立 editor job 对 editor/相关门禁与词法调用规则修改运行锁定的 Tree-sitter 0.26.12，
 检查重新生成的产物无漂移并执行完整 corpus 与实际树回归；main/manual 强制运行，
 required summary 拒绝该运行时却跳过的结果。
-当前教程以Markdown fence为源码真源，十一正例、两完整JSON负例与一planned分开；
+当前教程以Markdown fence为源码真源，16正例、4完整JSON负例与1 planned分开，四组argv使执行合同共23项；
 跨文件合同只引用fence ID，沿现行project.toml/entry协议运行，定向选择不改变CI默认完整选集。
+PR49双宿主实际运行原22项，证据见 [SPEC-0271](../archive/specs/0271-tour-combination-coverage.md)。
+后继 [SPEC-0273](../archive/specs/0273-control-body-resource-cleanup.md) 补齐控制体正常出口的资源清理，
+原 `gap-scope-branch` 同一源码作为第23项实际合同接线；原始失败证据保留在0271，不改写为当时通过。
+PR50实现head在两宿主实际执行23项合同；线程native仍为planned，不计通过，精确证据见0273。
 LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 意外跳过。配置与本地验证不代表远端已运行；实际交付证据见
 [SPEC-0239](../archive/specs/0239-linux-ci-gates.md)，使用规则见[测试与分层验收](../development/testing.md)。
+
+## Preview 候选交付工具
+
+`package_preview.py` 以干净 Git 提交为输入，真实构建选定 Rust 1.96.0 的宿主 release CLI，
+交叉核对 Cargo artifact 与精确 CLI normal tree，收集项目、目标及构建组件的实际材料。
+受控 remap 将构建路径映射为稳定前缀，原始命令/环境证据仅存输出目录；二进制私有前缀扫描失败即拒绝。
+包携带教程三文件参数报告及原四组 oracle、外部依赖安装工具、许可材料、manifest 和校验和。
+生产成功前复用消费端的合同及完整归档预检，不改变语言语义或 LLVM 链接策略。
+
+`preview_host.py` 核对 macOS 实际 dyld 加载与声明闭包、Linux ELF 解析、canonical 路径、
+依赖哈希和工具版本；`check_preview_install.py` 先验全部成员及同源 bootstrap，
+复用教程 `run_case` 在独立中文/空格目录执行12条完整 byte 合同，保存宿主失败与清理证据。
+CI 已接线两个生产 job 和两个无 checkout/Cargo 的独立消费 job，按实际 producer artifact ID 传递候选。
+PR51实现head的双宿主真实release生产与独立安装各12条命令已通过，精确移除及哨兵核对成功；
+原始来源/加载/材料/hash与验收及剩余范围见
+[SPEC-0272](../archive/specs/0272-preview-candidate-package.md)，使用方式见[候选包工具](../development/preview-candidate.md)。
 
 ## Native sanitizer 检测设施
 

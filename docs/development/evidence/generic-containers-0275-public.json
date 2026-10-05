@@ -1,0 +1,182 @@
+{
+  "schema": "koven.spec0275-public.v1",
+  "success": true,
+  "source_head": "3f5ab47f77fb86399779c2262f2cbca6671e875e",
+  "production_sha256": "bda38612a410c47556d74c28521f11ec08406056e9c26ab642c2cce8fef66929",
+  "compiler": {
+    "path": "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+    "sha256": "08893482f05ce091f2cc832aad18fd361d4aa0d059afbafcd332f976a746ecc7"
+  },
+  "projects": [
+    {
+      "path": "/private/tmp/spec0275-public/Array",
+      "sources": {
+        "project.toml": "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"generic-container\"\nsource-roots = [\"src\"]\n",
+        "src/p/library.ko": "package p\nfun <T> sizeOf(items: Array<T>): Int = ((items)).size\nfun <T> pass(own items: Array<T>): Array<T> = items\n",
+        "src/q/main.ko": "package q\nfun entry(): Unit {\n    val empty: Array<Int> = arrayOf()\n    val ints = arrayOf(1, 2)\n    val strings = arrayOf(\"one\", \"two\")\n    if (p.sizeOf<Int>(empty) != 0) { error(\"empty\") }\n    if (p.sizeOf(ints) != 2) { error(\"Int\") }\n    if (p.sizeOf<String>(strings) != 2) { error(\"String\") }\n    if (p.sizeOf(strings) != 2) { error(\"repeat Borrow\") }\n    if (strings.size != 2) { error(\"reuse\") }\n    val movedInts = p.pass<Int>(ints)\n    val movedStrings = p.pass(strings)\n    if (movedInts.size != 2) { error(\"Int own return\") }\n    if (p.sizeOf(movedStrings) != 2) { error(\"String own return\") }\n    println(\"ok\")\n}\n"
+      },
+      "files": {
+        "project.toml": "665574beea7b1a7de582d445852f7f49b46351c84ae340a738cfffa250be750c",
+        "src/p/library.ko": "70f830d7935afb97eb69efa822d6026e7baadf933e83bbef9f5d417065268937",
+        "src/q/main.ko": "44bf401b8b2f7b78b887a372417372cdf9e41efc5cf723a2da847e5ae28c16ef"
+      }
+    },
+    {
+      "path": "/private/tmp/spec0275-public/List",
+      "sources": {
+        "project.toml": "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"generic-container\"\nsource-roots = [\"src\"]\n",
+        "src/p/library.ko": "package p\nfun <T> sizeOf(items: List<T>): Int = ((items)).size\nfun <T> pass(own items: List<T>): List<T> = items\n",
+        "src/q/main.ko": "package q\nfun entry(): Unit {\n    val empty: List<Int> = listOf()\n    val ints = listOf(1, 2)\n    val strings = listOf(\"one\", \"two\")\n    if (p.sizeOf<Int>(empty) != 0) { error(\"empty\") }\n    if (p.sizeOf(ints) != 2) { error(\"Int\") }\n    if (p.sizeOf<String>(strings) != 2) { error(\"String\") }\n    if (p.sizeOf(strings) != 2) { error(\"repeat Borrow\") }\n    if (strings.size != 2) { error(\"reuse\") }\n    val movedInts = p.pass<Int>(ints)\n    val movedStrings = p.pass(strings)\n    if (movedInts.size != 2) { error(\"Int own return\") }\n    if (p.sizeOf(movedStrings) != 2) { error(\"String own return\") }\n    println(\"ok\")\n}\n"
+      },
+      "files": {
+        "project.toml": "665574beea7b1a7de582d445852f7f49b46351c84ae340a738cfffa250be750c",
+        "src/p/library.ko": "ef67c4f15eccb4d6239fcad68ea3df18ffd9c760a5b6a03e6929fdc01314cf0b",
+        "src/q/main.ko": "2eb1f2f885a00965e2c38f4bffc12cfe246ab1867d0327ace73e7275515c1d18"
+      }
+    },
+    {
+      "path": "/private/tmp/spec0275-public/MutableList",
+      "sources": {
+        "project.toml": "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"generic-container\"\nsource-roots = [\"src\"]\n",
+        "src/p/library.ko": "package p\nfun <T> sizeOf(items: MutableList<T>): Int = ((items)).size\nfun <T> pass(own items: MutableList<T>): MutableList<T> = items\n",
+        "src/q/main.ko": "package q\nfun entry(): Unit {\n    val empty: MutableList<Int> = mutableListOf()\n    val ints = mutableListOf(1, 2)\n    val strings = mutableListOf(\"one\", \"two\")\n    if (p.sizeOf<Int>(empty) != 0) { error(\"empty\") }\n    if (p.sizeOf(ints) != 2) { error(\"Int\") }\n    if (p.sizeOf<String>(strings) != 2) { error(\"String\") }\n    if (p.sizeOf(strings) != 2) { error(\"repeat Borrow\") }\n    if (strings.size != 2) { error(\"reuse\") }\n    val movedInts = p.pass<Int>(ints)\n    val movedStrings = p.pass(strings)\n    if (movedInts.size != 2) { error(\"Int own return\") }\n    if (p.sizeOf(movedStrings) != 2) { error(\"String own return\") }\n    println(\"ok\")\n}\n"
+      },
+      "files": {
+        "project.toml": "665574beea7b1a7de582d445852f7f49b46351c84ae340a738cfffa250be750c",
+        "src/p/library.ko": "b832d43992ce9222fe8e66564bedc015b75f6042b1222a609513f83458d8c8b6",
+        "src/q/main.ko": "e7846e0c6994ce561de72112217cd2aac8528def2db9669502505fe7b6697e99"
+      }
+    }
+  ],
+  "commands": [
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "q.entry",
+        "-o",
+        "program"
+      ],
+      "cwd": "/private/tmp/spec0275-public/Array",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "expected_stdout_base64": ""
+    },
+    {
+      "argv": [
+        "/private/tmp/spec0275-public/Array/program"
+      ],
+      "cwd": "/private/tmp/spec0275-public/Array",
+      "exit": 0,
+      "stdout_base64": "b2sK",
+      "stderr_base64": "",
+      "expected_stdout_base64": "b2sK"
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "q.entry",
+        "--"
+      ],
+      "cwd": "/private/tmp/spec0275-public/Array",
+      "exit": 0,
+      "stdout_base64": "b2sK",
+      "stderr_base64": "",
+      "expected_stdout_base64": "b2sK"
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "q.entry",
+        "-o",
+        "program"
+      ],
+      "cwd": "/private/tmp/spec0275-public/List",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "expected_stdout_base64": ""
+    },
+    {
+      "argv": [
+        "/private/tmp/spec0275-public/List/program"
+      ],
+      "cwd": "/private/tmp/spec0275-public/List",
+      "exit": 0,
+      "stdout_base64": "b2sK",
+      "stderr_base64": "",
+      "expected_stdout_base64": "b2sK"
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "q.entry",
+        "--"
+      ],
+      "cwd": "/private/tmp/spec0275-public/List",
+      "exit": 0,
+      "stdout_base64": "b2sK",
+      "stderr_base64": "",
+      "expected_stdout_base64": "b2sK"
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "q.entry",
+        "-o",
+        "program"
+      ],
+      "cwd": "/private/tmp/spec0275-public/MutableList",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "expected_stdout_base64": ""
+    },
+    {
+      "argv": [
+        "/private/tmp/spec0275-public/MutableList/program"
+      ],
+      "cwd": "/private/tmp/spec0275-public/MutableList",
+      "exit": 0,
+      "stdout_base64": "b2sK",
+      "stderr_base64": "",
+      "expected_stdout_base64": "b2sK"
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "q.entry",
+        "--"
+      ],
+      "cwd": "/private/tmp/spec0275-public/MutableList",
+      "exit": 0,
+      "stdout_base64": "b2sK",
+      "stderr_base64": "",
+      "expected_stdout_base64": "b2sK"
+    }
+  ]
+}

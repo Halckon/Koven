@@ -96,8 +96,9 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 
 本版本在真实 v0.39（已含 String.clone、Parser 澄清及 Compiler Contracts 分离）的本地
 整合基线上启用以下三项已批准规则。完整前版已归档，来源与机械变换见
-[迁移账本](../archive/migrations/v0.40-enablement.md)。本地启用不表示 main 已合并、PR CI
-已通过或以下新规则的编译阶段已经验收。
+[迁移账本](../archive/migrations/v0.40-enablement.md)。规范启用本身不构成main合并、PR CI
+或编译阶段验收的证明；当前实现和已有交付分别见[Guide覆盖账本](../architecture/guide-conformance.md)
+与[演进实施账本](../specs/evolution-status.md)，不以迁移时快照推断今日完成状态。
 
 | 受影响位置 | 迁移与权威入口 |
 |---|---|

@@ -143,7 +143,7 @@ fn lowers_cross_file_container_element_read_borrow_and_replacement_deterministic
 }
 
 #[test]
-fn field_backed_elements_and_container_size_remain_atomic_boundaries() {
+fn field_backed_elements_and_temporary_compound_remain_atomic_boundaries() {
     for (path, source) in [
         (
             "test/field.ko",
@@ -152,11 +152,6 @@ fn field_backed_elements_and_container_size_remain_atomic_boundaries() {
              class Holder(val items: List<Resource>)\n\
              fun inspect(item: Resource): Int = 1\n\
              fun entry(own holder: Holder): Int = inspect(holder.items[0])",
-        ),
-        (
-            "test/size.ko",
-            "package test\n\
-             fun entry(own items: List<Int>): Int = items.size",
         ),
         (
             "test/temporary-compound.ko",

@@ -365,6 +365,13 @@ impl Checker<'_> {
                 ExpressionUse::Read,
             );
         }
+        if let Some(descriptor) = self.typed.container_size(self.unit_expression(id)) {
+            return self.check_shared_receiver_read(
+                descriptor.expression(),
+                descriptor.receiver(),
+                state,
+            );
+        }
         if let Some(descriptor) = self.typed.string_operation(self.unit_expression(id)) {
             return self.check_string_operation(descriptor, state);
         }

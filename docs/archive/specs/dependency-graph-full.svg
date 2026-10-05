@@ -6,7 +6,7 @@
   </defs>
   <rect width="7064" height="7006" fill="#ffffff"/>
   <rect x="40" y="30" width="6616" height="6904" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，256 份）</text>
+  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，261 份）</text>
   <rect x="6720" y="4974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="6860" y="4994" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -953,6 +953,7 @@
   <path d="M 4140 156 C 4140 188, 444 188, 444 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 4140 156 C 4140 188, 708 188, 708 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 294 C 444 326, 972 344, 972 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 444 294 C 444 326, 708 482, 708 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 312 C 708 344, 708 344, 708 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1764 5706 C 1764 5738, 708 5756, 708 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1764 5706 C 1764 5738, 972 6050, 972 6082" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -966,12 +967,19 @@
   <path d="M 972 6138 C 972 6170, 972 6362, 972 6394" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 6294 C 444 6326, 972 6362, 972 6394" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6468 C 972 6500, 1764 6518, 1764 6550" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 6252 120 C 6252 152, 708 5894, 708 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 444 482, 444 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 2028 5600, 2028 5632" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 972 5756, 972 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 606 C 444 638, 972 5756, 972 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 5688 C 2028 5720, 972 5756, 972 5788" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 828 4889 C 3784 4889, 3784 5045, 6740 5045" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 4926 C 708 4958, 972 5894, 972 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5862 C 972 5894, 708 5894, 708 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5862 C 972 5894, 972 5894, 972 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 5862 C 972 5894, 1236 5894, 1236 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 972 450 C 972 482, 708 482, 708 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1236 6000 C 1236 6032, 1236 6050, 1236 6082" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2046,4 +2054,23 @@
   <text x="972" y="399" text-anchor="middle" font-size="13">SPEC-0270</text>
   <text x="972" y="417" text-anchor="middle" font-size="13">单文件局部 MoveOnly</text>
   <text x="972" y="435" text-anchor="middle" font-size="13"> 绑定交接</text>
+  <rect x="588" y="5926" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="5949" text-anchor="middle" font-size="13">SPEC-0271</text>
+  <text x="708" y="5967" text-anchor="middle" font-size="13">当前 tour 的有界组合覆</text>
+  <text x="708" y="5985" text-anchor="middle" font-size="13">盖</text>
+  <rect x="852" y="5926" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="972" y="5949" text-anchor="middle" font-size="13">SPEC-0272</text>
+  <text x="972" y="5967" text-anchor="middle" font-size="13">双宿主候选包与正常安装验收</text>
+  <rect x="588" y="514" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="537" text-anchor="middle" font-size="13">SPEC-0273</text>
+  <text x="708" y="555" text-anchor="middle" font-size="13">单文件控制体正常退出的资源清</text>
+  <text x="708" y="573" text-anchor="middle" font-size="13">理</text>
+  <rect x="1116" y="5926" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1236" y="5949" text-anchor="middle" font-size="13">SPEC-0274</text>
+  <text x="1236" y="5967" text-anchor="middle" font-size="13">现行语义下的多文件 argv</text>
+  <text x="1236" y="5985" text-anchor="middle" font-size="13"> 词频程序</text>
+  <rect x="1116" y="6082" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1236" y="6105" text-anchor="middle" font-size="13">SPEC-0275</text>
+  <text x="1236" y="6123" text-anchor="middle" font-size="13">Unit 泛型函数直接容器签</text>
+  <text x="1236" y="6141" text-anchor="middle" font-size="13">名的具体类型替换</text>
 </svg>

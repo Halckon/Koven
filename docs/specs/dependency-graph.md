@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 256 份"))
+ARCH(("已完成<br/>archive 261 份"))
 subgraph Gactive["现行 active"]
   S0269["S0269<br/>有界资源程序生成与独立安全核验"]
 end
@@ -20,4 +20,4 @@ ARCH --> S0269
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0269 | active | [0269-generated-resource-programs.md](active/0269-generated-resource-programs.md) |
-| 已完成 Spec（256 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（261 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

@@ -44,10 +44,10 @@ def load_examples(root=ROOT):
     if (len(sources) != len(blocks) or len(set(ids)) != len(ids)
             or len(set(references)) != len(references) or set(references) != set(sources)):
         raise ValueError("tutorial source/contract identity mismatch or duplicate")
-    if [row["status"] for row in rows].count("executable") != 12:
-        raise ValueError("expected twelve executable contracts")
-    if [row["status"] for row in rows].count("diagnostic") != 2:
-        raise ValueError("expected two diagnostic contracts")
+    if [row["status"] for row in rows].count("executable") != 17:
+        raise ValueError("expected seventeen executable contracts")
+    if [row["status"] for row in rows].count("diagnostic") != 4:
+        raise ValueError("expected four diagnostic contracts")
     if [row["status"] for row in rows].count("planned") != 1:
         raise ValueError("expected one explicit planned example")
     if any(row["status"] not in {"executable", "diagnostic", "planned"} for row in rows):
@@ -57,10 +57,29 @@ def load_examples(root=ROOT):
 
 
 def assert_output(command, expected, cwd):
-    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
-    actual = dict(exit=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    result = subprocess.run(command, cwd=cwd, capture_output=True)
+    # Decode without universal-newline translation: words may contain literal CR bytes.
+    actual = dict(exit=result.returncode, stdout=result.stdout.decode('utf-8'),
+                  stderr=result.stderr.decode('utf-8'))
     if actual != expected:
         raise AssertionError(f"{command}: expected {expected!r}, got {actual!r}")
+
+
+def run_case(cli, row, case, directory, execute=None):
+    """Execute a loaded case in its own prepared project using full CLI oracles."""
+    execute = assert_output if execute is None else execute
+    inputs = (["--project", "project.toml", "--entry", row["entry"]]
+              if "files" in row else ["source.ko"])
+    build = [str(cli), "build", *inputs, "-o", "program"]
+    if row["status"] == "diagnostic":
+        build.insert(1, "--message-format=json")
+    execute(build, row["build"], directory)
+    if row["status"] == "diagnostic":
+        if {p.name for p in directory.iterdir()} != {"source.ko"}:
+            raise AssertionError("failed tutorial build left artifacts")
+    else:
+        execute([str(directory / "program"), *case["args"]], case["artifact"], directory)
+        execute([str(cli), "run", *inputs, "--", *case["args"]], case["run"], directory)
 
 
 def check(cli, selected=None):
@@ -84,22 +103,11 @@ def check(cli, selected=None):
                     destination = directory / path
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     destination.write_text(source)
-                inputs = ["source.ko"]
                 if "files" in row:
                     (directory / "project.toml").write_text(
                         'schema = "koven.project"\nversion = 1\n\n[project]\n'
                         'name = "tutorial"\nsource-roots = ["src"]\n')
-                    inputs = ["--project", "project.toml", "--entry", row["entry"]]
-                build = [str(cli), "build", *inputs, "-o", "program"]
-                if row["status"] == "diagnostic":
-                    build.insert(1, "--message-format=json")
-                assert_output(build, row["build"], directory)
-                if row["status"] == "diagnostic":
-                    if {p.name for p in directory.iterdir()} != {"source.ko"}:
-                        raise AssertionError("failed tutorial build left artifacts")
-                else:
-                    assert_output([str(directory / "program"), *case["args"]], case["artifact"], directory)
-                    assert_output([str(cli), "run", *inputs, "--", *case["args"]], case["run"], directory)
+                run_case(cli, row, case, directory)
                 passed += 1
                 suffix = f" argv={case['args']!r}" if "cases" in row else ""
                 print(f"passed: {row['id']}{suffix}")

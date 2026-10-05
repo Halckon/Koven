@@ -1,0 +1,20 @@
+{
+  "noise": {
+    "warm": {
+      "median_seconds": 0.6602452080696821,
+      "range_seconds": 0.08504208293743432,
+      "mad_seconds": 0.04034254187718034
+    },
+    "run": {
+      "median_seconds": 0.12688187486492097,
+      "range_seconds": 0.05358312581665814,
+      "mad_seconds": 0.003062416799366474
+    }
+  },
+  "thresholds_registered_before_after_sampling": {
+    "build": "max(20%, 1 second)",
+    "rss": "max(10%, 64 MiB)",
+    "run": "max(30%, 20 ms)"
+  },
+  "interpretation": "investigation triggers, not accepted SLO or budget waiver"
+}

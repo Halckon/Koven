@@ -35,6 +35,7 @@ jobs:
       editors: ${{ steps.filter.outputs.editors }}
       frontend: ${{ steps.filter.outputs.frontend }}
       codegen: ${{ steps.filter.outputs.codegen }}
+      preview: ${{ steps.filter.outputs.preview }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -45,7 +46,7 @@ jobs:
               - 'docs/**'
               - 'scripts/**'
               - '*.md'
-              - 'LICENSE'
+              - 'LICENSE*'
               - '.github/workflows/ci.yml'
               - '.github/actions/setup-llvm/**'
             rust:
@@ -57,6 +58,8 @@ jobs:
               - 'editors/**'
               - 'docs/tutorials/**'
               - 'scripts/check_tutorial.py'
+              - 'scripts/check_word_frequency.py'
+              - 'scripts/tests/test_word_frequency_contracts.py'
               - 'scripts/check_core.sh'
               - 'scripts/check_integration.sh'
               - 'scripts/check_stage_integration.sh'
@@ -79,6 +82,25 @@ jobs:
               - 'scripts/tests/test_check_ci_results.py'
               - 'docs/guide/01-lexical.md'
               - 'docs/guide/07-calls-lambdas-closures.md'
+            preview:
+              - 'crates/**'
+              - 'Cargo.*'
+              - 'rust-toolchain.toml'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/setup-llvm/**'
+              - 'docs/tutorials/**'
+              - 'scripts/check_tutorial.py'
+              - 'scripts/package_preview.py'
+              - 'scripts/preview_host.py'
+              - 'scripts/check_preview_install.py'
+              - 'scripts/install_preview_dependencies.sh'
+              - 'scripts/install_ci_llvm.sh'
+              - 'scripts/tests/test_preview_*.py'
+              - 'scripts/tests/test_tutorial_contracts.py'
+              - 'scripts/check_ci_results.py'
+              - 'scripts/tests/test_check_ci_results.py'
+              - 'LICENSE*'
+              - 'docs/development/preview-candidate.md'
             frontend:
               - 'crates/lang-frontend/**'
               - 'crates/lang-std/**'
@@ -164,7 +186,7 @@ jobs:
   fmt:
     name: Rust Code Formatting
     needs: changes
-    if: needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -180,7 +202,7 @@ jobs:
     needs: [changes, docs, fmt]
     if: |
       always() &&
-      (needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
+      (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       (needs.docs.result == 'success' || needs.docs.result == 'skipped') &&
       (needs.fmt.result == 'success' || needs.fmt.result == 'skipped')
@@ -211,7 +233,7 @@ jobs:
     needs: [changes, clippy]
     if: |
       always() &&
-      (needs.changes.outputs.rust == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
+      (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       needs.clippy.result == 'success'
     strategy:
@@ -232,6 +254,15 @@ jobs:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm.sh', '.github/actions/setup-llvm/action.yml') }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
+      - name: Word frequency byte and boundary contracts
+        run: python3 scripts/check_word_frequency.py --evidence "$RUNNER_TEMP/koven-word-frequency"
+      - name: Preserve word frequency evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: word-frequency-${{ runner.os }}-${{ github.sha }}
+          path: ${{ runner.temp }}/koven-word-frequency
+          if-no-files-found: error
       - name: Linux native sanitizer contracts
         if: runner.os == 'Linux'
         timeout-minutes: 20
@@ -244,9 +275,169 @@ jobs:
           path: ${{ runner.temp }}/koven-sanitizers
           if-no-files-found: error
 
+  preview-macos-produce:
+    name: Preview Producer (macos-14)
+    needs: [changes, test]
+    if: |
+      always() && needs.test.result == 'success' &&
+      (needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    runs-on: macos-14
+    timeout-minutes: 30
+    outputs:
+      artifact-id: ${{ steps.candidate.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: ./.github/actions/setup-llvm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.96.0'
+      - name: Install matching standard library copyright materials
+        run: rustup component add rust-docs
+      - name: Build source-traceable release candidate
+        run: python3 scripts/package_preview.py --output "$RUNNER_TEMP/preview-producer"
+      - name: Upload this run's candidate and bootstrap
+        id: candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-macos-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/preview-producer/*.tar.gz
+            ${{ runner.temp }}/preview-producer/*.sha256
+            ${{ runner.temp }}/preview-producer/check_preview_install.py
+          if-no-files-found: error
+      - name: Preserve producer evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-macos-producer-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/preview-producer/evidence
+            ${{ runner.temp }}/preview-producer/producer-results.json
+          if-no-files-found: error
+
+  preview-macos-consume:
+    name: Preview Independent Consumer (macos-14)
+    needs: preview-macos-produce
+    if: always() && needs.preview-macos-produce.result == 'success'
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Require the matching producer artifact ID
+        shell: bash
+        env:
+          PREVIEW_ARTIFACT_ID: ${{ needs.preview-macos-produce.outputs.artifact-id }}
+        run: '[[ "$PREVIEW_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]'
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.preview-macos-produce.outputs.artifact-id }}
+          path: ${{ runner.temp }}/preview-download
+      - name: Install and run only the matching package
+        shell: bash
+        run: |
+          python3 "$RUNNER_TEMP/preview-download/check_preview_install.py" \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 \
+            --evidence "$RUNNER_TEMP/preview-consumer-evidence" \
+            --work-parent "$RUNNER_TEMP" --prepare-dependencies
+      - name: Preserve installation and command evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-macos-consumer-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/preview-consumer-evidence
+          if-no-files-found: error
+
+  preview-linux-produce:
+    name: Preview Producer (ubuntu-24.04)
+    needs: [changes, test]
+    if: |
+      always() && needs.test.result == 'success' &&
+      (needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      artifact-id: ${{ steps.candidate.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      # setup-python injects LD_LIBRARY_PATH on Linux; inspect the ordinary loader.
+      - name: Verify Ubuntu system Python
+        run: /usr/bin/python3 -c 'import sys; assert sys.version_info[:2] == (3, 12)'
+      - uses: ./.github/actions/setup-llvm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.96.0'
+      - name: Install matching standard library copyright materials
+        run: rustup component add rust-docs
+      - name: Build source-traceable release candidate
+        run: /usr/bin/python3 scripts/package_preview.py --output "$RUNNER_TEMP/preview-producer"
+      - name: Upload this run's candidate and bootstrap
+        id: candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-linux-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/preview-producer/*.tar.gz
+            ${{ runner.temp }}/preview-producer/*.sha256
+            ${{ runner.temp }}/preview-producer/check_preview_install.py
+          if-no-files-found: error
+      - name: Preserve producer evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-linux-producer-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/preview-producer/evidence
+            ${{ runner.temp }}/preview-producer/producer-results.json
+          if-no-files-found: error
+
+  preview-linux-consume:
+    name: Preview Independent Consumer (ubuntu-24.04)
+    needs: preview-linux-produce
+    if: always() && needs.preview-linux-produce.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # setup-python injects LD_LIBRARY_PATH on Linux; inspect the ordinary loader.
+      - name: Verify Ubuntu system Python
+        run: /usr/bin/python3 -c 'import sys; assert sys.version_info[:2] == (3, 12)'
+      - name: Require the matching producer artifact ID
+        shell: bash
+        env:
+          PREVIEW_ARTIFACT_ID: ${{ needs.preview-linux-produce.outputs.artifact-id }}
+        run: '[[ "$PREVIEW_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]'
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.preview-linux-produce.outputs.artifact-id }}
+          path: ${{ runner.temp }}/preview-download
+      - name: Install and run only the matching package
+        shell: bash
+        run: |
+          /usr/bin/python3 "$RUNNER_TEMP/preview-download/check_preview_install.py" \
+            --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
+            --sha256 "$RUNNER_TEMP/preview-download/"*.sha256 \
+            --evidence "$RUNNER_TEMP/preview-consumer-evidence" \
+            --work-parent "$RUNNER_TEMP" --prepare-dependencies
+      - name: Preserve installation and command evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-linux-consumer-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/preview-consumer-evidence
+          if-no-files-found: error
+
   ci-passed:
     name: CI Passed
-    needs: [changes, rust-size, dependencies, docs, editors, fmt, clippy, test]
+    needs: [changes, rust-size, dependencies, docs, editors, fmt, clippy, test, preview-macos-produce, preview-linux-produce, preview-macos-consume, preview-linux-consume]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,52 @@
+{
+  "baseline": "adb51d67fd989bc4116ef4b17704f85c275dd3f4",
+  "verified_sync_commit": "1c30f0e86bbb79b6fc8d104862d88248858c70b7",
+  "scope": "documentation consistency only; no Rust or CLI execution",
+  "modified_paths": [
+    "docs/architecture/guide-conformance.md",
+    "docs/development/README.md",
+    "docs/development/documentation-status-sync.md",
+    "docs/development/engineering-governance-progress.md",
+    "docs/development/evidence/documentation-status-sync-20261004/ci.json",
+    "docs/development/roadmap.md",
+    "docs/guide/15-conformance-and-staging.md",
+    "docs/guide/README.md",
+    "docs/specs/README.md",
+    "docs/specs/active/README.md",
+    "docs/specs/drafts/v0.37/README.md",
+    "docs/specs/evolution-status.md"
+  ],
+  "guide_current": "v0.40",
+  "guide_fences_unchanged": true,
+  "unchanged_guide_domain_hashes": {
+    "01-lexical.md": "4a5ef0e2769d94af12a23a1364510a8b38908073a3ac3ff357eb38a881e7707b",
+    "02-names-files-packages.md": "b1126e0115bf9f0f9e0cc8213131f6ce4c6b9dfa9bd11fa479524968dce37437",
+    "03-types-generics.md": "1ebb35b09b9904b1bb4bbc65d13061c23926c88aba85719b643b4ecb3ca2cdb2",
+    "04-expressions-operators.md": "4b77c3ececd7e8a2aee9b437685ba37bf611e075337e4560485dfa5973c2efcb",
+    "05-declarations-callables.md": "07b1f9d4f2854b9270ad542e522aa94a7c36923aa72be73d1de8a115769218d7",
+    "06-blocks-control-flow.md": "830b32b85052eeddc55f7e5f99e66a2e5dad11cef9b7b0c0626e5d14feffffcb",
+    "07-calls-lambdas-closures.md": "a422ea62cf47ffc5ce11ef22310a8a61c5db51fc618f9070e98347db03ccf7ba",
+    "08-class-family-members.md": "0aefd4b82007c93dbf3a4d66623b095e8c6996361040b22ecae9e58fb8655396",
+    "09-nullability-errors.md": "b7888864ff0e080bb8ec4da68b60e8ac81f3b93961fb0e465e1ae897043b7d1c",
+    "10-ownership-borrowing-drop.md": "d37d8557a69524b59c586a4966ba664fd5e45b943324f81b8ffbef9d706dc302",
+    "11-copyability-layout-construction.md": "773fc9dd2e4c2f176dd709df5e7787e16fb84073d97e88664131aa02295b2c1d",
+    "12-collections-destructuring.md": "d9f45688f5b5d4f32de19791a711ebe84a3238c7178299371e904c4b92ec61a2",
+    "13-program-runtime-standard-library.md": "c3569ee0160f881f2f73631e3202a85fd1da5960f120b7e3bff4b091242d8601",
+    "14-syntax-index.md": "712d64f24024b5f7d1ddb37c90001b0651d60ada46900f89bc24d6c6a6c81057"
+  },
+  "archive_diff_empty": true,
+  "compiler_ci_scripts_diff_empty": true,
+  "tutorial": {
+    "contracts": 14,
+    "source_fences": 15,
+    "executable": 11,
+    "diagnostic": 2,
+    "planned": 1,
+    "cli_executed": false
+  },
+  "numbered_specs": {
+    "active": 0,
+    "archive": 254
+  },
+  "referenced_final_ci_heads_in_baseline": true
+}

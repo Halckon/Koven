@@ -10,6 +10,18 @@
 整合 PR CI 后的独立核查与更正见 [SPEC-0238](../archive/specs/0238-guide-litmus-gate.md)及
 [当前更正账本](../architecture/guide-conformance.md)；不重写已冻结的真实 v0.39。
 
+## 后继固定基线状态（2026-10-04）
+
+本页原十三项表保留其`3418904`基线与未扩展范围；文档创建基线`adb51d6`，合入时接收main `a83749f`。
+0182已补强有界集成证据并归档；0262当前教程具备PR38双宿主结果。
+0263–0265闭合跨文件字段可变性、直接字段Borrow及unit迭代前端事实；
+0268/PR46已补齐有界unit for native与完整M1A双宿主验收；Inout/field/captured Borrow
+源native继续明确拒绝，不能扩成全部迭代/所有原十三项native完成。
+0267/PR45已修复五个历史editor corpus失败并接入真实CLI required门禁；
+0266/PR44有界Linux ASan/LSan通过，UBSan、macOS动态检测与完整安全证明不在其结果内。
+逐项精确head、旧Spec快照处理与并行工作边界见[本批核对](../development/documentation-status-sync.md)。
+P2成本继续延期，Str/toString继续延期；其他尚未闭合的Box、lambda、借用和unsafe合同不自动启用。
+
 ## 八阶段已整合范围
 
 | 切片 | 已有成果 | 明确保留边界 |
@@ -31,7 +43,7 @@
 | 项 | 状态 | 已有证据与未闭合边界 |
 |---|---|---|
 | 1. 块换行与分号 | 主要续行切片已落地 | SPEC-0234 覆盖完整左式后 call/prefix 分隔、未完成操作数/delimiter 续行；同行缺分隔诊断与独立 lambda 实施仍未闭环；上游 PR #6 已将 lambda 换行/分号尾表达式写入规范 |
-| 2. 上下文关键字 | TypeRef/trial 切片已落地 | SPEC-0231 覆盖 move 普通类型名和 nested 模式；SPEC-0242 已移除调用 Borrow marker，直接 parser 31 项通过；与 0240 的最终整合 head `99e63d5` 双宿主 CI 已通过，PR #9 已合并；编辑器完整 corpus 的历史缺口仍保留 |
+| 2. 上下文关键字 | TypeRef/trial 切片已落地 | SPEC-0231 覆盖 move 普通类型名和 nested 模式；SPEC-0242 已移除调用 Borrow marker，直接 parser 31 项通过；与 0240 的最终整合 head `99e63d5` 双宿主 CI 已通过，PR #9 已合并；编辑器完整corpus旧缺口已由SPEC-0267闭合，历史红测仍保留 |
 | 3. 数值与具名位运算 | 数值与位运算有界验收完成并进入 main | SPEC-0229 闭合字面量；[SPEC-0240](../archive/specs/0240-integer-bitwise-execution.md) 接入六操作 const/SSA/native 与 inv 稳定身份。移位按自身位宽屏蔽且保持两 operand 同型；inv 仍不在 const call 白名单，既有投影边界不扩大 |
 | 4. Box enum | 受限 native 已落地 | SPEC-0230 覆盖具体非泛型递归构造/运输/析构计数；Box.value/unbox 已由上游 PR #6 写成后继 staged 合同，尚无对应实现证据；generic、nullable/Rc 递归包装及前向 case 查找不在已支持范围 |
 | 5. replace/swap | owned root 与有界一级字段完成最终整合验收并进入 main | SPEC-0232 提供 typed 身份；SPEC-0244 已归档进入 main。SPEC-0246 在原 main `8eb2cd3` 上完成直接字段验收与归档，global/captured 与 paired target 身份已闭合；[PR #13](https://github.com/Halckon/Koven/pull/13) 最终 head `c5507a5` 已与 `e6e1100` 资源能力整合，8 项资源字段 native 交叉用例及双宿主 CI 通过，并合入 `efc52b6`。先前归档 head 因冲突未触发 PR CI 是历史事件，不作为最终验收；nested/index/field swap/Inout ABI 不扩大 |
@@ -99,11 +111,13 @@ SPEC-0242 重建后的 `parser_call_argument` 已实际 31 passed / 0 failed，�
 同一完整 suite 当前实际 107 passed / 0 failed，无 ignored，已纳入 stage/双平台 CI 脚本。
 PR #14 的实现 head `d333e414` 与 main `3418904` 的双宿主 CI 均通过；归档分支未赶上合并的文档尾项已在本分支补齐。精确验收见该 Spec，不代表 frontend 全量通过。
 
-完整编辑器 corpus 的五项历史失败仍为 `File header and declarations`、`Calls and lambda`、
+完整编辑器corpus在旧基线记录的五项历史失败为 `File header and declarations`、`Calls and lambda`、
 `Own remains declaration-only`、`Control flow`、`Reserved words are not identifiers`；
 具体证据与两个新增 corpus 的边界见
 [SPEC-0242](../archive/specs/0242-automatic-borrow-call-migration.md#编辑器精确边界)。
-SPEC-0246 不修复这些独立失败，也不把旧结果算作本次重跑。
+SPEC-0246 当时不修复这些独立失败，也不把旧结果算作本次重跑。
+后继SPEC-0267已实际corpus10/10、CLI树合同9/9及frontend交叉9/9通过；PR45最终CI
+37199186829的11项成功，旧五失败不再是当前待修；详见该Spec，不能推定全语言编辑器支持。
 
 不得通过降低断言、放宽门禁或把定向通过称作 frontend 全量通过来隐藏上述差异。
 

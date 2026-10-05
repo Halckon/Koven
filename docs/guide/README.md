@@ -9,6 +9,10 @@
 已分离的内部表示、算法与资源合同见 [Compiler Contracts](../compiler-specs/README.md)；
 本 Guide 继续作为 Language Reference，语言语义、诊断与强制 Phase 权威不变。
 
+实现查询请从[当前教程](../tutorials/README.md)、[Guide覆盖账本](../architecture/guide-conformance.md)
+与[实施路线图](../development/roadmap.md)进入；它们不改变本Guide的规范承诺。
+Spec归档或后继里程碑推进，只证明各自验收范围，不能视为所有规范功能已实现。
+
 规则正文优先于示例。章节可以独立读取；遇到相邻概念时沿链接进入对应领域，不要顺序加载整套规范。
 
 ## 按任务读取

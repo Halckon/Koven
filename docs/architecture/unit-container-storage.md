@@ -67,3 +67,32 @@ Ubuntu 完整 codegen 730 passed，macOS 729 passed + 1 既有 LLDB 权限 ignor
 Borrow Unit 跨函数读取、一般 Unit call operand / Value ABI、Unit-field value class 构造、
 CompilationUnit `for`、Inout/field source 与 MoveOnly ZST 完整析构仍不由此证明。
 这些合法源码能力缺口不等于语言禁止；Copyable Unit 不替代 MoveOnly ZST drop 验收。
+
+## Source size与unit String读取
+
+普通compilation-unit `.size` 经frontend source-qualified descriptor和同步SharedLoan生成
+`ContainerLength`，复用当前Borrow参数loan，只结束本次新建loan，再执行CallReturn清理。
+具名/Value/Borrow/group/temporary沿用同一header；unit Borrow String `==`/`!=`/`+`消费
+current binding，RHS CFG后使用重绑定loan，不隐式clone/消费源。前端replacement保护旧root
+至完整RHS完成；提前return仍按ControlTransfer清理。0274双宿主各37条公共命令及15项CI已通过；完整字节证据见[验收身份](../development/evidence/word-frequency-0274/ci.json)。
+`||`不同路径容器last-use合流以及一般投影仍有既有拒绝边界。
+
+## Unit 泛型函数直接容器签名
+
+普通unit函数的直接`Array<T>`、`List<T>`、`MutableList<T>`参数和返回通过
+`unit_plan/concrete_types.rs::resolve_concrete_type`消费frontend已发布的canonical identity。
+resolver只替换直接元素实参，再用`find`查找具体容器；不intern，不递归展开模板。
+Borrow size继续读取current SharedLoan，own参数/返回沿用原容器表示和唯一清理。
+
+定向SSA/native覆盖三容器的Int/String空与非空、显式/推断实参、重复Borrow后源复用与own返回；
+另覆盖CFG后的loan重绑定、跨文件同名T隔离、重复实例去重和输入顺序确定性。
+真实资源元素在Borrow期间存活，own返回后逆序deinit；计数harness逐指针核对分配与释放，
+禁止隐式String clone或shared retain。typed arena在lowering前后不增长。
+
+直接T可以取已具体化的List<Int>，三种外层容器已有真实长度与完整清理证据。
+即使frontend已发布List<List<Int>>，模板List<List<T>>仍按精确参数Span拒绝为UnsupportedNode。
+generic body单独构造listOf(x)且未发布List<Int>的情况仍按构造Span拒绝为MissingFact；
+native沿用UnsupportedNode→UnsupportedSource、MissingFact→InvalidModel映射。
+两类拒绝各覆盖新/旧object目标，实际native API保全全部目录文件名、bytes与邻居文件，
+不残留sibling temporary。这些实现缺口不改变Guide允许的泛型语义；后续body需求发布独立排期。
+双宿主实现CI验证全部13项新增测试与公共消费者；最终归档/main门禁仍待。完整证据见[SPEC-0275](../archive/specs/0275-unit-generic-container-signatures.md)。

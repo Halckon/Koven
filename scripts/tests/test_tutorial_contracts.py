@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 from unittest import mock
 
@@ -13,6 +14,70 @@ SPEC.loader.exec_module(TUTORIAL)
 
 
 class TutorialContracts(unittest.TestCase):
+    def test_output_contract_preserves_carriage_returns_as_bytes(self):
+        command = [sys.executable, '-c',
+                   "import sys; sys.stdout.buffer.write(b'a\\rb\\n')"]
+        TUTORIAL.assert_output(command, {'exit': 0, 'stdout': 'a\rb\n', 'stderr': ''}, ROOT)
+        with self.assertRaises(AssertionError):
+            TUTORIAL.assert_output(command, {'exit': 0, 'stdout': 'a\nb\n', 'stderr': ''}, ROOT)
+
+    def test_fixed_branch_resource_case_executes_full_public_cli_contract(self):
+        examples = {row['id']: row for row, _ in TUTORIAL.load_examples()}
+        self.assertEqual(examples['gap-scope-branch']['status'], 'executable')
+        self.assertEqual(examples['planned-thread']['status'], 'planned')
+        calls = []
+
+        def record(command, expected, directory):
+            source = (directory / 'source.ko').read_text()
+            self.assertIn('if (true) {', source)
+            self.assertIn('val first = Resource("first")', source)
+            self.assertIn('val second = Resource("second")', source)
+            calls.append((command, expected, directory))
+
+        with mock.patch.object(TUTORIAL, 'assert_output', side_effect=record):
+            TUTORIAL.check(Path('/test-cli'), ['planned-thread', 'gap-scope-branch'])
+        self.assertEqual(len(calls), 3, 'the repaired case must build, execute artifact, and run')
+        self.assertEqual(calls[0][0], ['/test-cli', 'build', 'source.ko', '-o', 'program'])
+        self.assertEqual(calls[0][1], {'exit': 0, 'stdout': '', 'stderr': ''})
+        self.assertEqual(calls[1][0], [str(calls[1][2] / 'program')])
+        self.assertEqual(calls[2][0], ['/test-cli', 'run', 'source.ko', '--'])
+        expected = {'exit': 0, 'stdout': 'inner\nsecond\nfirst\nafter\nouter\n', 'stderr': ''}
+        self.assertEqual(calls[1][1], expected)
+        self.assertEqual(calls[2][1], expected)
+
+    def test_new_combinations_extract_canonical_sources_and_execute_each_contract(self):
+        selected = ['numbers-bitwise', 'scope-cleanup', 'unit-loop-cleanup',
+                    'reject-immutable-place', 'reject-iteration-move']
+        calls = []
+
+        def record(command, expected, directory):
+            files = set(path.relative_to(directory).as_posix() for path in directory.rglob('*.ko'))
+            if '--project' in command or len(files) == 2:
+                self.assertEqual(files, {'src/worker/Work.ko', 'src/app/Main.ko'})
+                self.assertIn('for (item in mutableListOf(', (directory / 'src/worker/Work.ko').read_text())
+                self.assertIn('worker.work(2)', (directory / 'src/app/Main.ko').read_text())
+            else:
+                self.assertEqual(files, {'source.ko'})
+            calls.append((command, expected, directory))
+
+        with mock.patch.object(TUTORIAL, 'assert_output', side_effect=record):
+            TUTORIAL.check(Path('/test-cli'), selected)
+        self.assertEqual(len(calls), 11, 'three positive triples and two JSON diagnostic builds')
+        for index in range(3):
+            build, artifact, run = calls[index * 3:index * 3 + 3]
+            inputs = (['--project', 'project.toml', '--entry', 'app.main']
+                      if index == 2 else ['source.ko'])
+            self.assertEqual(build[0], ['/test-cli', 'build', *inputs, '-o', 'program'])
+            self.assertEqual(artifact[0], [str(artifact[2] / 'program')])
+            self.assertEqual(run[0], ['/test-cli', 'run', *inputs, '--'])
+            self.assertEqual(artifact[1], run[1])
+        self.assertEqual(calls[1][1]['stdout'], 'literals\nbits\n')
+        self.assertEqual(calls[4][1]['stdout'], 'inner\nsecond\nfirst\nafter\nouter\n')
+        for command, expected, _ in calls[9:]:
+            self.assertEqual(command, ['/test-cli', '--message-format=json', 'build',
+                                       'source.ko', '-o', 'program'])
+            self.assertEqual(expected['exit'], 2)
+
     def test_parameter_report_executes_all_four_cases_from_one_source_set(self):
         calls = []
 
@@ -38,6 +103,23 @@ class TutorialContracts(unittest.TestCase):
             self.assertEqual(run[0], ['/test-cli', 'run', *inputs, '--', *args])
             self.assertEqual(artifact[1], {'exit': 0, 'stdout': stdout, 'stderr': ''})
             self.assertEqual(run[1], artifact[1])
+
+    def test_loaded_case_boundary_reuses_commands_and_complete_oracles(self):
+        row, _ = next(item for item in TUTORIAL.load_examples()
+                      if item[0]['id'] == 'parameter-report')
+        directory = Path('/installed 项目/case 3')
+        calls = []
+        TUTORIAL.run_case(Path('/installed 包/bin/kovenc'), row, row['cases'][3],
+                          directory, execute=lambda *args: calls.append(args))
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[0][0], ['/installed 包/bin/kovenc', 'build', '--project',
+                                     'project.toml', '--entry', 'app.main', '-o', 'program'])
+        self.assertEqual(calls[1][0], [str(directory / 'program'), ''])
+        self.assertEqual(calls[2][0][-2:], ['--', ''])
+        self.assertEqual(calls[0][1], row['build'])
+        self.assertEqual(calls[1][1], row['cases'][3]['artifact'])
+        self.assertEqual(calls[2][1], row['cases'][3]['run'])
+        self.assertTrue(all(call[2] == directory for call in calls))
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()

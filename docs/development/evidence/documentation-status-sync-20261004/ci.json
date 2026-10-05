@@ -1,0 +1,259 @@
+{
+  "baseline": "adb51d67fd989bc4116ef4b17704f85c275dd3f4",
+  "scope": "read-only GitHub metadata; historical exact-head CI, not this docs branch CI",
+  "runs": [
+    {
+      "run": 37200366612,
+      "head": "ab1fff85ef84c2c9f97358ba003030f3078fa208",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37200366612",
+      "jobs": [
+        {
+          "name": "Detect Changed Files",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Direct Workspace Dependency Guard",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Rust Physical Line Guard",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Docs & Spec Structural Gate",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Rust Code Formatting",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Tree-sitter CLI Corpus",
+          "conclusion": "skipped",
+          "steps": []
+        },
+        {
+          "name": "Workspace Check & Clippy (ubuntu-24.04)",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Workspace Check & Clippy (macos-14)",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Targeted Tests (macos-14)",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Run bounded composition including tutorial",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Targeted Tests (ubuntu-24.04)",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Run bounded composition including tutorial",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "CI Passed",
+          "conclusion": "success",
+          "steps": []
+        }
+      ]
+    },
+    {
+      "run": 37203501976,
+      "head": "d376c642b5ded2c996ceced1b7709be17f852e4e",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37203501976",
+      "jobs": [
+        {
+          "name": "Direct Workspace Dependency Guard",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Detect Changed Files",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Rust Physical Line Guard",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Tree-sitter CLI Corpus",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Install locked Tree-sitter CLI",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check generated parser and actual corpus",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Rust Code Formatting",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Docs & Spec Structural Gate",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Workspace Check & Clippy (macos-14)",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Workspace Check & Clippy (ubuntu-24.04)",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Targeted Tests (ubuntu-24.04)",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Run bounded composition including tutorial",
+              "conclusion": "success"
+            },
+            {
+              "name": "Linux native sanitizer contracts",
+              "conclusion": "success"
+            },
+            {
+              "name": "Preserve Linux sanitizer evidence",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Targeted Tests (macos-14)",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Run bounded composition including tutorial",
+              "conclusion": "success"
+            },
+            {
+              "name": "Linux native sanitizer contracts",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Preserve Linux sanitizer evidence",
+              "conclusion": "skipped"
+            }
+          ]
+        },
+        {
+          "name": "CI Passed",
+          "conclusion": "success",
+          "steps": []
+        }
+      ]
+    },
+    {
+      "run": 37199186829,
+      "head": "304fe25784d72510527c5e68a69a1ef9ef8e5b7d",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37199186829",
+      "jobs": [
+        {
+          "name": "Rust Physical Line Guard",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Detect Changed Files",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Direct Workspace Dependency Guard",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Tree-sitter CLI Corpus",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Install locked Tree-sitter CLI",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check generated parser and actual corpus",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Rust Code Formatting",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Docs & Spec Structural Gate",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Workspace Check & Clippy (ubuntu-24.04)",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Workspace Check & Clippy (macos-14)",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "name": "Targeted Tests (ubuntu-24.04)",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Run bounded composition including tutorial",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "Targeted Tests (macos-14)",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Run bounded composition including tutorial",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "CI Passed",
+          "conclusion": "success",
+          "steps": []
+        }
+      ]
+    }
+  ]
+}

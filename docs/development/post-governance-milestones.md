@@ -244,3 +244,24 @@ PR #45 实现 head `236625b` 的 run `37198642821` 已通过全部11项检查，
 [SPEC-0268](../archive/specs/0268-unit-iteration-native.md)。按实现证据归档，归档提交仍须最终CI与合并。
 0266的Linux ASan/LSan首片已由PR44合并为`44cb312`，PR及主干CI成功；其余M4范围保持开放。
 M1B与新增标准库API仍需各自语义决定，M4b仅在准备有界生成候选，不从这些结果推出后续里程碑完成。
+
+## 15. M5b 候选包首片启动
+
+[0272](../archive/specs/0272-preview-candidate-package.md) 原合同从 PR47 主干起草，
+当前在 PR49/PR50 合并后的最新主干 `80b1c3b` 独立 worktree 继续实施，
+复用 M1A 与选定 M4a 前置，限定双宿主 release tar 和独立 runner 正常安装。
+不启用新语义，不公开 Release/tag；性能、实用文本、安装负向与宿主信任体验仍开放。
+具体合同和实际验收只由该 Spec 维护。
+
+
+## 16. M1B-a 现行语义参数词频首片验收（2026-10-05）
+
+[SPEC-0274](../archive/specs/0274-argv-word-frequency.md)在最新PR51 main `7262232`
+新worktree完成size/同步读取交接与unit Borrow String binary，三文件词频程序不新增语言/API。
+[PR52实现head CI](https://github.com/Halckon/Koven/actions/runs/37246195048)已15项全部成功，
+每宿主37条实际build/artifact/run及decimal/非法UTF-8命令的完整字节账本已独立复核并保存。
+本次按实现验收归档；最终归档head与merge/main CI继续是交付门禁，不预先记作通过。
+
+M1B-b文本输入与新String API、性能、M3新增API、M4b真实故障校准及完整M5/M6保持各自前置。
+下一M3A候选可先补现行语义中直接容器泛型签名的native替换；待本次合并后，从最新main
+独立分支起合同并红测。body-only新canonical类型发布、递归模板与短路owner合流不自动扩入。

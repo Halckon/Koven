@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "members": 70,
+  "json_numeric_invariants_checked": 17,
+  "scope": "this user-authorized retest, text raw logs and measurement inputs; no source snapshots, binaries or caches",
+  "tokens": [
+    "<LSP_PILOT_ROOT>",
+    "<REPO>",
+    "<USER_HOME>",
+    "<RUSTUP_HOME>",
+    "<CARGO_HOME>",
+    "<ATTEMPT_1_ROOT>",
+    "<ATTEMPT_2_ROOT>",
+    "<ATTEMPT_3_ROOT>"
+  ],
+  "original_hashes": "original-sha256.json",
+  "published_hashes": "raw-sha256.json",
+  "archive_sha256": "4f84db3a101e7617784ca682e4674573baac7129f43c45584974dbae1f70d894"
+}
