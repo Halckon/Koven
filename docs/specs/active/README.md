@@ -2,9 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无active Spec。0274已按[PR52](https://github.com/Halckon/Koven/pull/52)首轮精确head双宿主实现证据归档；最终归档head CI与合并仍须通过。
+- [SPEC-0275：unit泛型直接容器签名](0275-unit-generic-container-signatures.md)：基于PR52最新main的M3A C07首片；已批准，正式验收待执行。
 
-0272已由[PR51](https://github.com/Halckon/Koven/pull/51)合并，0274在其最新main上继续实施；主干CI以远端实际结果为准。
+0274已按[PR52](https://github.com/Halckon/Koven/pull/52)双宿主实现证据归档；最终归档head cdb9cba的CI37247799491已15/15成功，并合并为c5c4a8d。
+
+0272已由[PR51](https://github.com/Halckon/Koven/pull/51)合并；0275从PR52最新main独立分支启动。main push CI37248672159仍待实际结果，production实施前确认。
 
 0273 已按 PR50 最终归档双宿主 CI 通过并合并。
 

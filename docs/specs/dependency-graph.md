@@ -9,10 +9,15 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 260 份"))
+subgraph Gactive["现行 active"]
+  S0275["S0275<br/>Unit 泛型函数直接容器签名的具体类型替换"]
+end
+ARCH --> S0275
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0275 | active | [0275-unit-generic-container-signatures.md](active/0275-unit-generic-container-signatures.md) |
 | 已完成 Spec（260 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
