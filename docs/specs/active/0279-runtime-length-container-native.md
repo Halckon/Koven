@@ -122,7 +122,7 @@ constructor CallReturn 只结束参数 loan。临时 owned environment 按 captu
 | E3 | size 第一 Borrow 在后续 operand/nested call 内保持，initializer Inout size 冲突 L0135；size→拒负→initializer expression→allocation→callback；overflow/allocation fail 保留 expression 副作用且无 callback；零长度及升序一次，LLVM preheader 固定 storage | 待 |
 | E4 | 命名 callback 重用、capture source 冲突与最终 source 复用、temporary ASAP、逆索引 Resource drop；逐指针 allocation/free | 待 |
 | E5 | single 同文件与 unit 跨文件 generic/helper 各三种环境、显式/合法推断 T、body-only demands、同签名布局隔离、重复去重、正逆 inputs、arena 不增长及预算边界 | 待 |
-| E6 | malformed SSA callback/loan/type/mode 正反例；0278 既有控制、旧 static generator 与 Unit/ZST ABI 回归 | 待 |
+| E6 | malformed SSA callback/loan/type/mode 正反例；0278 既有控制、旧 static generator 与 Unit/ZST ABI 回归 | raw SSA/LLVM 切片已验收；源码/native 仍待 |
 | E7 | 两公共 CLI 入口实际 build/run；原 object 失败保全、无 temporary 残留、required CI 实际选择新测试 | 待 |
 | E8 | 独立 fresh-context 全审、Architecture/验收账本、归档 inventory、精确 final PR 与 actual main CI | 待 |
 
@@ -168,3 +168,15 @@ Copy 不清理、Abort 不展开。两 String/Copy Int 与 iteration ordered/fla
 [前端验收收据](../../development/evidence/runtime-constructor-0279/frontend/receipt.json)。
 `expression.rs` 旧欠账1206→1207，仅 gate 注释增加1行，精确例外登记并独立审阅。
 源码生成、helper、LLVM/native、E8 仍在实施，不以本次前端验收关闭它们。
+
+SSA/LLVM 工程切片：新增 synchronous borrowed generator，prepared callable/index storage
+在 preheader；Unit void 仍调用。root review 实际发现根内容覆盖后旧捕获依赖失真，补精确覆盖、
+顺序覆盖、Take、CFG 同时重绑定与投影正反例；有限 current-content proof 复用 0278 worklist。
+ConcreteClosure RootReplace/RootSwap 的 OperationContract 拒绝是旧边界，不算新行为红测。
+独立审阅又发现非法 type graph 可使新证明越界 panic，root 真实复现并在 module type/deinit
+门禁后才进入 ownership/content，修后25项新测试通过；旧相关消费者实际通过并补门禁回归。
+尺寸例外锁定 model1349、verify_operation1169、verify_ownership1681、adapter1607、runtime1188，
+新增证明与测试单职责模块均小于1000行。完整 raw、夹具修正、各次选择数量与独立复审见
+[borrowed generator 收据](../../development/evidence/runtime-constructor-0279/borrowed-generator/receipt.json)。
+这是 E6 的工程子集；两 source/helper/factory 成功目标仍实际 UnsupportedNode，
+E2/E3/E4/E5/E7/E8 尚未关闭，不据此归档本 Spec。

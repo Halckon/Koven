@@ -1035,7 +1035,8 @@ impl RuntimeRequirements {
                         requirements.needs_abort = true;
                     }
                     Operation::ContainerConstruct { container, .. }
-                    | Operation::ContainerGenerate { container, .. } => {
+                    | Operation::ContainerGenerate { container, .. }
+                    | Operation::ContainerGenerateBorrowed { container, .. } => {
                         requirements.needs_allocation = true;
                         requirements.needs_abort = true;
                         requirements.container_allocations.insert(container);

@@ -1,5 +1,6 @@
 //! Typed SSA operation 的局部类型契约。
 
+mod borrowed_generate;
 mod constant_contract;
 use constant_contract::constant_contract;
 
@@ -234,6 +235,18 @@ pub(super) fn verify_operation(
             length,
             initializer,
         } => container_generate_contract(
+            module,
+            function,
+            *container,
+            *length,
+            *initializer,
+            &results,
+        ),
+        Operation::ContainerGenerateBorrowed {
+            container,
+            length,
+            initializer,
+        } => borrowed_generate::contract(
             module,
             function,
             *container,

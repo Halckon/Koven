@@ -32,6 +32,8 @@ mod aggregate_operation_tests;
 #[cfg(test)]
 mod borrowed_container_lowering_tests;
 #[cfg(test)]
+pub(crate) mod borrowed_generate_tests;
+#[cfg(test)]
 mod closure_operation_tests;
 #[cfg(test)]
 mod container_lowering_tests;

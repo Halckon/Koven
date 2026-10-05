@@ -1,5 +1,6 @@
 //! verified typed SSA 到 LLVM IR 的 first-class value 适配器。
 
+mod borrowed_generate;
 mod callable;
 mod constant;
 mod integer;
@@ -812,6 +813,18 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     &value_name(*result),
                 )?;
                 self.values.insert(*result, value.into());
+            }
+            Operation::ContainerGenerateBorrowed {
+                container,
+                length,
+                initializer,
+            } => {
+                self.lower_container_generate_borrowed(
+                    *container,
+                    *length,
+                    *initializer,
+                    &results,
+                )?;
             }
             Operation::ContainerLength { owner } => {
                 let [result] = results.as_slice() else {

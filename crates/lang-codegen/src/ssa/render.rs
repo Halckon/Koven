@@ -622,6 +622,18 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write_entity_id(output, EntityId::Value(*length))?;
             write!(output, ", @f{}", initializer.index())
         }
+        Operation::ContainerGenerateBorrowed {
+            container,
+            length,
+            initializer,
+        } => {
+            output.write_str("container.generate_borrowed ")?;
+            write_type_id(output, *container)?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*length))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Loan(*initializer))
+        }
         Operation::ContainerLength { owner } => {
             output.write_str("container.length ")?;
             write_entity_id(output, *owner)

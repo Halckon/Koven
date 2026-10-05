@@ -64,6 +64,26 @@ pub(super) fn invoke<'ctx>(
     arguments: &[BasicValueEnum<'ctx>],
     name: &str,
 ) -> Result<Option<BasicValueEnum<'ctx>>, LlvmAdapterError> {
+    let prepared = prepare(builder, module, types, callable_type, callable, name)?;
+    invoke_prepared(builder, &prepared, arguments, name)
+}
+
+/// Physical call preparation is independent of logical invocation, so loops can reuse storage.
+pub(super) struct PreparedCallable<'ctx> {
+    function: PointerValue<'ctx>,
+    environment: Option<PointerValue<'ctx>>,
+    function_type: inkwell::types::FunctionType<'ctx>,
+    returns_void: bool,
+}
+
+pub(super) fn prepare<'ctx>(
+    builder: &Builder<'ctx>,
+    module: &Module,
+    types: &TypeMap<'ctx>,
+    callable_type: SsaTypeId,
+    callable: BasicValueEnum<'ctx>,
+    name: &str,
+) -> Result<PreparedCallable<'ctx>, LlvmAdapterError> {
     let signature = module.callable_signature(callable_type).ok_or_else(|| {
         LlvmAdapterError::InvalidSsa("indirect call operand has no callable signature".to_owned())
     })?;
@@ -91,17 +111,33 @@ pub(super) fn invoke<'ctx>(
         }
     };
     let function_type = types.callable_function_type(signature, environment.is_some())?;
+    Ok(PreparedCallable {
+        function,
+        environment,
+        function_type,
+        returns_void: signature.returns.is_empty(),
+    })
+}
+
+pub(super) fn invoke_prepared<'ctx>(
+    builder: &Builder<'ctx>,
+    prepared: &PreparedCallable<'ctx>,
+    arguments: &[BasicValueEnum<'ctx>],
+    name: &str,
+) -> Result<Option<BasicValueEnum<'ctx>>, LlvmAdapterError> {
+    let PreparedCallable {
+        function,
+        environment,
+        function_type,
+        returns_void,
+    } = prepared;
     let mut operands = environment
         .map(BasicMetadataValueEnum::from)
         .into_iter()
         .collect::<Vec<_>>();
     operands.extend(arguments.iter().copied().map(BasicMetadataValueEnum::from));
-    let call_name = if signature.returns.is_empty() {
-        ""
-    } else {
-        name
-    };
-    let call = builder.build_indirect_call(function_type, function, &operands, call_name)?;
+    let call_name = if *returns_void { "" } else { name };
+    let call = builder.build_indirect_call(*function_type, *function, &operands, call_name)?;
     Ok(match call.try_as_basic_value() {
         ValueKind::Basic(value) => Some(value),
         ValueKind::Instruction(_) => None,

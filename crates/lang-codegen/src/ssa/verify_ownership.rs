@@ -46,7 +46,7 @@ pub(super) fn verify_ownership(
 ) {
     provider_lifetime::verify(function, errors);
     let aliases = AliasRoots::compute(function);
-    let closure_loans = closure::ClosureLoans::compute(function);
+    let closure_loans = closure::ClosureLoans::compute(module, function);
     let reborrows = ReborrowDependencies::compute(function);
     for block in &function.blocks {
         let mut state = entry_state(module, function, block.id, &closure_loans);
@@ -693,6 +693,29 @@ fn apply_operation(
         }
         Operation::ContainerGenerate { length, .. } => {
             require_value(module, function, *length, state, location, origin, errors);
+        }
+        Operation::ContainerGenerateBorrowed {
+            length,
+            initializer,
+            ..
+        } => {
+            require_value(
+                module,
+                function,
+                *length,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            );
+            closure::apply_borrowed_generate(
+                *initializer,
+                closure_loans,
+                state,
+                location,
+                origin,
+                errors,
+            );
         }
         Operation::ContainerLength { owner } => match owner {
             EntityId::Value(value) => {

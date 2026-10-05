@@ -170,6 +170,41 @@
       "owner": "lang-frontend single type model",
       "split_plan": "后续完整迁移typed产物查询接口，保持type identity与trial合同。",
       "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1507行或增加职责前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/model.rs": {
+      "max_lines": 1349,
+      "reason": "SPEC-0279 新增 borrowed generator operation 的数据与 operand 登记；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。",
+      "owner": "lang-codegen SSA/LLVM",
+      "split_plan": "后续完整 operation/entity 模型按合同自然边界独立拆分，保持旧 static/closure 消费者合同。",
+      "review": "SPEC-0279 独立完整审阅已核有界接线；超过 1349 物理行或增加职责前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/verify_operation.rs": {
+      "max_lines": 1169,
+      "reason": "SPEC-0279 新 operation 的 verifier 分发，算法已位于独立 borrowed_generate 子模块；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。",
+      "owner": "lang-codegen SSA/LLVM",
+      "split_plan": "后续按 operation 家族整体迁移分发，保持旧 static/closure 消费者合同。",
+      "review": "SPEC-0279 独立完整审阅已核有界接线；超过 1169 物理行或增加职责前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/verify_ownership.rs": {
+      "max_lines": 1681,
+      "reason": "SPEC-0279 新 operation ownership 分发以及传递 module 到捕获证明入口；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。",
+      "owner": "lang-codegen SSA/LLVM",
+      "split_plan": "后续按指令家族与 ownership 状态转移整体迁移，保持旧 static/closure 消费者合同。",
+      "review": "SPEC-0279 独立完整审阅已核有界接线；超过 1681 物理行或增加职责前重新审阅。"
+    },
+    "crates/lang-codegen/src/llvm/adapter.rs": {
+      "max_lines": 1607,
+      "reason": "SPEC-0279 borrowed generator adapter 分发，准备/调用算法已分离；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。",
+      "owner": "lang-codegen SSA/LLVM",
+      "split_plan": "后续按 LLVM 指令家族整体迁移 adapter，保持旧 static/closure 消费者合同。",
+      "review": "SPEC-0279 独立完整审阅已核有界接线；超过 1607 物理行或增加职责前重新审阅。"
+    },
+    "crates/lang-codegen/src/llvm/runtime.rs": {
+      "max_lines": 1188,
+      "reason": "SPEC-0279 新 generator 的 runtime drop 登记入口；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。",
+      "owner": "lang-codegen SSA/LLVM",
+      "split_plan": "后续按 runtime allocation/drop 职责拆分，保持旧 static/closure 消费者合同。",
+      "review": "SPEC-0279 独立完整审阅已核有界接线；超过 1188 物理行或增加职责前重新审阅。"
     }
   },
   "generated": {}

@@ -5,7 +5,9 @@ use super::model::{
     ModuleId, Origin, Program, SsaTypeId, SsaTypeKind, TerminatorKind,
 };
 
+pub(in crate::ssa) mod closure_content;
 mod closure_escape;
+mod content_flow;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum VerifyLocation {
@@ -174,11 +176,12 @@ fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
         if errors.len() == before {
             verify_cfg_types(module, function, errors);
             verify_dominance(function, errors);
-            if errors.len() == before {
+            // Ownership content proofs require a validated module type/deinit graph.
+            if errors.len() == before
+                && let Some(types) = &capture_types
+            {
                 super::verify_ownership::verify_ownership(module, function, errors);
-                if errors.len() == before
-                    && let Some(types) = &capture_types
-                {
+                if errors.len() == before {
                     closure_escape::verify(function, types, errors);
                 }
             }

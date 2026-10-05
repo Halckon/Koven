@@ -4,6 +4,8 @@ mod adapter;
 mod aggregate;
 #[cfg(test)]
 mod aggregate_tests;
+#[cfg(test)]
+mod borrowed_generate_tests;
 mod closure;
 #[cfg(test)]
 mod closure_tests;

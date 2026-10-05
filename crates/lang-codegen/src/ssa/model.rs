@@ -493,6 +493,12 @@ pub(crate) enum Operation {
         length: ValueId,
         initializer: FunctionId,
     },
+    /// Synchronously read a shared callable loan without transferring its owner.
+    ContainerGenerateBorrowed {
+        container: SsaTypeId,
+        length: ValueId,
+        initializer: LoanId,
+    },
     ContainerLength {
         owner: EntityId,
     },
@@ -654,6 +660,13 @@ impl Operation {
                 elements.iter().copied().map(EntityId::Value).collect()
             }
             Self::ContainerGenerate { length, .. } => vec![EntityId::Value(*length)],
+            Self::ContainerGenerateBorrowed {
+                length,
+                initializer,
+                ..
+            } => {
+                vec![EntityId::Value(*length), EntityId::Loan(*initializer)]
+            }
             Self::ContainerLength { owner } => vec![*owner],
             Self::ContainerElementPlace { owner, index } => {
                 vec![*owner, EntityId::Value(*index)]
