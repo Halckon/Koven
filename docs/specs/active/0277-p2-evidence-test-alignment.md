@@ -13,7 +13,7 @@
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
 | 阻塞项 | 无实施前置；成本接受与新分支CI仍开放 |
-| 影响范围 | 两个frontend测试、压缩证据、current开发入口与事实 |
+| 影响范围 | 两个frontend测试及其CI有界组合选择/失败传播合同、压缩证据、current开发入口与事实 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal 与固定身份
@@ -127,3 +127,18 @@ fmt及受影响严格Clippy、docs521页/37checker tests、尺寸护栏均实际
 
 最新main接入后的直接复验、精确PR head CI、归档、最终head CI及merge/main仍待后续实际执行；
 不得将本机5项或旧云1704项作为这些新提交的验收。新的原始证据补齐后须独立窄复审。
+
+接入准备另确认两个修复目标未在原77项CI组合中选择。按当前PR交付授权，本片最小追加
+这两个完整target，使双宿主实际执行两矩阵；组合为79个唯一integration，Cargo调用仍10次。
+选择一次、无filter及两目标失败传播由既有Python接线harness验证，不新增全量前端门禁。
+首次接线合同红测3项、5个failure（缺两个target/缺失败传播/77≠79），生产选择尚未修改时
+完成。接线后的完整Python政策验收、双宿主实际五项命中仍须真实记录，不提前记通过。
+
+实际接线绿测：`python3 -m unittest scripts.tests.test_check_ci_results scripts.tests.test_recovery_gates`
+初次33passed/0failed/skip；`bash -n scripts/check_stage_integration.sh`通过。红绿原始输出、exit、
+选择数和被测working diff指纹见[CI选择验收](../../development/evidence/p2-linux-20261005/ci-selection.json)。
+Python接线harness不冒充双宿主Rust运行，实际五项命中仍待PR CI。
+
+独立接线审阅发现仅排除` -- `不能阻止Cargo的裸`TESTNAME`过滤。新增反例先得到
+1项/1failure；随后以现有有界argv合同拒绝位置filter及libtest分隔符，完整政策复验
+34passed/0failed/skip。初次33项、反例红测和最终34项绿测分别保留，不改写历史计数。

@@ -44,6 +44,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test parser_entry_trivia_invariance_matrix --test parser_entry_prefix_truncation_matrix \
   --test parser_entry_suffix_truncation_matrix --test parser_entry_lexical_poison_insertion_matrix \
   --test parser_long_block_comment_line_breaks --test parser_long_line_comment_boundaries \
+  --test parser_long_invalid_number_boundaries --test parser_token_inventory \
   --test parser_stress_matrix --test parser_standalone_poison_stress_matrix \
   --test parser_owner_stress_matrix
 

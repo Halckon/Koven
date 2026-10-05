@@ -137,7 +137,7 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
 
 `bash scripts/check_integration.sh`依次选择core、ownership_iteration、stage、尚未覆盖的guide_litmus、
 真实CLI教程。独立stage/Guide入口保留，不增加任意skip开关。core包含lang-std源码资产，
-组合为77个唯一frontend integration和10次Cargo调用；接线与失败传播由Python合同测试核验。
+组合为79个唯一frontend integration和10次Cargo调用；接线与失败传播由Python合同测试核验。
 直接依赖job无条件运行，required summary拒绝失败/取消/跳过/缺失；仅验证五成员四条直接声明边，
 不推定第三方transitive、patch/config或lock新鲜度。editors与tutorial输入触发Rust矩阵。
 编辑器语法变化另需 `npm ci --prefix editors/tree-sitter` 后执行
