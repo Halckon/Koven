@@ -6,6 +6,31 @@ from scripts import check_generated_owners as gate
 
 
 class GeneratedDriverTests(unittest.TestCase):
+    def test_evidence_write_errors_cannot_replace_the_first_case_failure(self):
+        import contextlib
+        import io
+        import json
+        from unittest import mock
+        failure = gate.Failure("frontend", "diagnostic_mismatch", "L0131:primary")
+        real_write = gate.write_json
+        for failed_file in ("verdict.json", "minimization.json"):
+            with self.subTest(failed_file=failed_file), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "artifacts"
+                executor = mock.Mock()
+                executor.case.side_effect = failure
+                def write(path, value):
+                    if path.name == failed_file:
+                        raise OSError("controlled evidence write unavailable")
+                    real_write(path, value)
+                with mock.patch.object(gate, "Execution", return_value=executor), \
+                        mock.patch.object(gate, "write_json", side_effect=write), \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(1, gate.main(["--artifacts", str(root)]))
+                report = json.loads((root / "failure.json").read_text())
+                self.assertEqual(failure.record(), report["first_failure"])
+                self.assertEqual(failure.kind, report["cases"][0]["kind"])
+                self.assertEqual("OSError", report["evidence_failure"]["witness"])
+
     def test_replay_io_error_preserves_first_failure(self):
         import contextlib
         import io
@@ -73,6 +98,48 @@ class GeneratedDriverTests(unittest.TestCase):
                 self.assertEqual((directory / name).read_bytes(), (replay / name).read_bytes())
             with self.assertRaises(FileExistsError):
                 gate.copy_replay(directory, replay)
+
+class GeneratedToolchainTests(unittest.TestCase):
+    def test_sanitizer_runtime_failure_is_not_a_memory_finding_or_program_crash(self):
+        import subprocess
+        execution = object.__new__(gate.Execution)
+        stderr = (b"==66==LeakSanitizer has encountered a fatal error.\n"
+                  b"==66==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)\n")
+        result = subprocess.CompletedProcess([], 87, b"done\n", stderr)
+        with self.assertRaises(gate.Failure) as observed:
+            execution.accept_native(result, b"done\n", "lsan")
+        self.assertEqual(observed.exception.kind, "tool_or_harness_failure")
+        self.assertEqual(observed.exception.witness, "lsan-runtime-unavailable")
+        self.assertFalse(observed.exception.stable_witness)
+        self.assertIn("does not work under ptrace", observed.exception.detail)
+
+    def test_linux_requires_exact_pin_and_mac_uses_supported_release_family(self):
+        gate.check_toolchain_version('21.1.8', 'Debian clang version 21.1.8', linux=True)
+        gate.check_toolchain_version('21.1.9', 'Homebrew clang version 21.1.9', linux=False)
+        for llvm, clang, linux in [('21.1.9', 'clang version 21.1.9', True),
+                                   ('21.1.8', 'clang version 21.1.7', True),
+                                   ('21.2.0', 'clang version 21.2.0', False),
+                                   ('21.1.8', 'clang version 22.0.0', False)]:
+            with self.subTest(llvm=llvm, clang=clang, linux=linux):
+                with self.assertRaises(gate.Failure):
+                    gate.check_toolchain_version(llvm, clang, linux=linux)
+
+    def test_prefix_package_provenance_never_claims_missing_dpkg_packages(self):
+        import json
+        import subprocess
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.dict('os.environ', {'LLVM_SYS_211_PREFIX': str(root / 'prefix')}):
+                execution = gate.Execution(root, root / 'exporter')
+            execution.run = mock.Mock(return_value=subprocess.CompletedProcess(
+                [], 1, b'', b'no packages found matching llvm-21-dev'))
+            execution.record_packages()
+            record = json.loads((root / 'package-provenance.json').read_text())
+            self.assertEqual(record['status'], 'package-manager-metadata-unavailable')
+            self.assertFalse(record['system_packages_verified'])
+            self.assertEqual(record['prefix'], str(root / 'prefix'))
+            self.assertEqual(execution.run.call_args.kwargs, {})
 
 
 if __name__ == "__main__":

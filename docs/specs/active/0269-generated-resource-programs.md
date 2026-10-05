@@ -109,12 +109,12 @@ Mac 不声称 Linux RSS/pids 防护；仍有域/数量/时间/日志/产物预�
 | ID | 完成标准 | 当前证据 |
 |---|---|---|
 | G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | Python模型18项通过；独立审阅未发现具体模型错误；实际8个非法case诊断和byte span通过 |
-| G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | Mac首轮6有效通过、2有效InvalidSsa；合入已合并0270后8有效及8非法全部通过，固定V2次序通过；Linux未运行 |
-| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | 未执行 |
-| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 未执行 |
-| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 原始有效case重放、预算/分类单测已执行；同因缩小与Linux实测未完成 |
-| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 未执行 |
-| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 未执行 |
+| G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | Mac首轮6有效通过、2有效InvalidSsa；合入已合并0270后8有效及8非法全部通过，固定V2次序通过；本轮Linux补充正常批次8有效+8非法全部通过，固定V2次序通过（完整批次仍受G3/G4约束） |
+| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | Linux 8个clean ASan通过；clean LSan宿主runtime fatal，不能记泄漏或通过；故障校准按用户要求跳过，未完成 |
+| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 精确诊断普通负测及独立frontend-only入口已验证；真实checker专项按用户要求跳过，未完成 |
+| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 原始有效case重放、预算/分类单测已执行；本轮修复绝对deadline及异常首错留证并补回归；真实同因缩小仍未完成 |
+| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 新增双宿主必需step、always原始证据上传与7项接线测试；未触发远端CI，完整批次保留显式失败，双宿主成本未闭合 |
+| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 普通变更独立审阅及两项窄复审通过；本轮exporter4项、resource37项、boxed相关13项通过，codegen Clippy/fmt通过；不归档、不合并 |
 
 按 G1 → 导出/执行 G2 → 检测 G3/G4 → 重放缩小 G5/G6 → G7 推进。
 Cargo 共用一个串行窗口；先失败测试再实现。Rust 只选新 exporter、被提取 helper 原调用方、
@@ -169,3 +169,29 @@ Python 四模块再验 46 项：45 passed、1 Linux-only skipped；未运行生�
 795 filtered、0 ignored；codegen all-targets Clippy、fmt、尺寸门禁和512页docs通过。
 这些是普通设施提交检查点，G3/G4与完整生成验收保持未完成；后续 draft PR 的现有CI
 仅验证已接线的门禁，不能代称完整生成批次或故障校准已执行。
+
+
+## 11. 云端普通验收续作（2026-10-05）
+
+以 PR48 远端 head `e90e4c2afeaf36b69e5c8ffca01130b5cc1da1e8` 为起点，合入
+`main 2be64066a2011bb07a31bd68f9ac7441ab5a4baf`，集成提交
+`56e1ce67d7e3c41a07e6ebaad93b5cfcdea99871`。六处冲突仅涉及索引与生成依赖图；
+同时保留0269 active与main新增0271–0275归档事实。没有混入另一分支的frontend测试预期修复。
+
+Debian13 x86_64云端使用Rust1.96.0及workspace-local官方LLVM21.1.8；没有修改系统安全设置。
+LLVM prefix不要求安装到系统包数据库：实际工具版本、runtime archives存在性及哈希仍为必需项，
+包查询失败单独记录为来源元数据缺失，不能伪称系统安装验证。macOS版本匹配现有CI的21.1.*合同。
+
+正常补充批次实际完成8有效/8非法；有效case输出、逐指针计数、固定V2次序及clean ASan通过。
+完整driver首次在clean LSan停止：stderr为 `LeakSanitizer has encountered a fatal error`，
+附带不支持ptrace的runtime提示；这是宿主工具失败而非已检测泄漏，已新增分类回归保留原始stderr。
+没有关闭检测来通过验收，补充批次明确为partial，不能替代完整driver。
+
+本轮缩小验收相关操作被平台风险检查阻断；用户随后明确要求跳过相关工作。
+真实故障校准、checker专项及完整真实失败缩小没有执行或关闭，未完成草稿不进入提交。
+普通逻辑回归另修复deadline末次重放越界误报、双deadline偏移，以及callback/报告落盘异常
+覆盖首错或丢失已接受候选的问题。frontend-only测试入口仅观察真实诊断，不代称checker校准。
+
+CI接线使生成脚本变化触发Rust门禁、现有双宿主执行完整driver并always上传原始目录；
+静态/受控shell接线测试通过，不是新head远端CI证据。现有 `calibration-not-yet-implemented`
+拒绝哨兵保留，因此该draft checkpoint仍不可直接合并。G3/G4、完整G5及G6/G7远端闭环继续开放。

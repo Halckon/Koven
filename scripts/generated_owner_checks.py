@@ -112,9 +112,10 @@ def verify_inputs(directory):
     return hashes
 
 
-def minimize(original, failure, candidates, replay, measure, max_candidates=32, seconds=120):
+def minimize(original, failure, candidates, replay, measure, max_candidates=32, seconds=120, *, deadline=None):
     """Keep the first failure and only accept strictly smaller, same-cause inputs."""
     started = time.monotonic()
+    deadline = min(started + seconds, deadline) if deadline is not None else started + seconds
     attempts, current = [], original
     number = 0
     if not failure.stable_witness:
@@ -122,39 +123,66 @@ def minimize(original, failure, candidates, replay, measure, max_candidates=32, 
                     status="minimization_incomplete", attempts=[], confirmation_count=0,
                     reason="no independently identified semantic witness", elapsed_seconds=0)
 
+    def expired():
+        return time.monotonic() >= deadline
+
     def confirmed(case):
         nonlocal number
         for _ in range(3):
-            if time.monotonic() - started >= seconds:
+            if expired():
                 return "minimization_incomplete"
             result = replay(case, number)
             number += 1
+            # A replay may consume the remaining execution budget, including
+            # the third and final confirmation. Never turn that into success
+            # or mistake the resulting timeout for a changed semantic cause.
+            if expired():
+                return "minimization_incomplete"
             if result is None or not result.stable_witness or result.fingerprint != failure.fingerprint:
                 return "flaky"
         return "reproduced"
 
-    status = confirmed(original)
-    if status == "reproduced":
-        while True:
-            smaller = False
-            for candidate in candidates(current):
-                if measure(candidate) >= measure(current):
-                    continue
-                if len(attempts) >= max_candidates or time.monotonic() - started >= seconds:
-                    status = "minimization_incomplete"
-                    break
-                result = replay(candidate, number)
-                number += 1
-                accepted = result is not None and result.stable_witness and result.fingerprint == failure.fingerprint
-                attempts.append(dict(candidate=candidate, accepted=accepted,
-                                     failure=None if result is None else result.record()))
-                if accepted:
-                    current, smaller = candidate, True
-                    break
-            if status != "reproduced" or not smaller:
-                break
+    reduction_error = None
+    try:
+        status = confirmed(original)
         if status == "reproduced":
-            status = confirmed(current)
-    return dict(original=original, original_failure=failure.record(), minimal=current,
-                status=status, attempts=attempts, confirmation_count=3 if status == "reproduced" else 0,
-                elapsed_seconds=time.monotonic() - started)
+            while True:
+                smaller = False
+                for candidate in candidates(current):
+                    if expired():
+                        status = "minimization_incomplete"
+                        break
+                    if measure(candidate) >= measure(current):
+                        continue
+                    if len(attempts) >= max_candidates or expired():
+                        status = "minimization_incomplete"
+                        break
+                    result = replay(candidate, number)
+                    number += 1
+                    exhausted = expired()
+                    accepted = (not exhausted and result is not None and result.stable_witness
+                                and result.fingerprint == failure.fingerprint)
+                    attempts.append(dict(candidate=candidate, accepted=accepted,
+                                         failure=None if result is None else result.record()))
+                    if exhausted:
+                        status = "minimization_incomplete"
+                        break
+                    if accepted:
+                        current, smaller = candidate, True
+                        break
+                if status != "reproduced" or not smaller:
+                    break
+            if status == "reproduced":
+                status = confirmed(current)
+    except Exception as error:
+        # Reduction is secondary evidence. Preserve both the original failure
+        # and every completed reduction if any callback or artifact write fails.
+        status = "minimization_incomplete"
+        reduction_error = dict(stage="minimization", kind="tool_or_harness_failure",
+                               witness=type(error).__name__, detail=str(error))
+    report = dict(original=original, original_failure=failure.record(), minimal=current,
+                  status=status, attempts=attempts, confirmation_count=3 if status == "reproduced" else 0,
+                  elapsed_seconds=time.monotonic() - started)
+    if reduction_error is not None:
+        report["reduction_error"] = reduction_error
+    return report

@@ -59,6 +59,73 @@ fn export_generated_owner_case() {
     }
 }
 
+/// Observe only real frontend stages, including an accepted input with no backend inputs.
+#[test]
+fn export_generated_owner_frontend_case() {
+    if let Some(path) = std::env::var_os("KOVEN_GENERATED_OWNER_CASE") {
+        assert!(!path.is_empty(), "generated case path must not be empty");
+        let _ = export_frontend(Path::new(&path));
+    } else {
+        let directory = CaseDirectory::new();
+        fs::write(directory.0.join("case.ko"), MINIMAL).unwrap();
+        assert!(export_frontend(&directory.0).is_some());
+        assert_eq!(
+            fs::read_to_string(directory.0.join("stages.tsv")).unwrap(),
+            "parse\t0\nnames\t0\ntypes\t0\nownership\t0\n"
+        );
+        assert!(
+            fs::read(directory.0.join("diagnostics.tsv"))
+                .unwrap()
+                .is_empty()
+        );
+        assert_frontend_only(&directory.0);
+    }
+}
+
+#[test]
+fn generated_owner_frontend_export_records_borrow_rejections() {
+    let prefix = "class Leaf(val name: String) { deinit() {} }\n\
+        fun inspect(item: Leaf): Unit { println(item.name) }\n\
+        fun consume(own item: Leaf): Unit {}\n";
+    for (source, code) in [
+        (
+            format!(
+                "{prefix}fun entry(): Unit {{ val source = Leaf(\"枝\"); \
+                 val moved = source; inspect(source); inspect(moved) }}"
+            ),
+            "L0131",
+        ),
+        (
+            format!(
+                "{prefix}fun invalid(item: Leaf): Unit {{ consume(item) }}\n\
+                 fun entry(): Unit {{}}"
+            ),
+            "L0133",
+        ),
+    ] {
+        let directory = CaseDirectory::new();
+        fs::write(directory.0.join("case.ko"), source).unwrap();
+        assert!(export_frontend(&directory.0).is_none());
+        assert_eq!(
+            fs::read_to_string(directory.0.join("stages.tsv")).unwrap(),
+            "parse\t0\nnames\t0\ntypes\t0\nownership\t1\n"
+        );
+        let diagnostics = fs::read_to_string(directory.0.join("diagnostics.tsv")).unwrap();
+        assert_eq!(diagnostics.lines().count(), 1, "{diagnostics}");
+        assert!(diagnostics.starts_with(&format!("ownership\t{code}\t")));
+        assert_frontend_only(&directory.0);
+    }
+}
+
+fn assert_frontend_only(directory: &Path) {
+    let mut names = fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, ["case.ko", "diagnostics.tsv", "stages.tsv"]);
+}
+
 /// A rejected input records the first failed phase, never LLVM or a native file.
 #[test]
 fn generated_owner_export_records_rejection_without_executing() {
@@ -111,7 +178,7 @@ fn generated_owner_export_records_rejection_without_executing() {
 }
 
 /// Invalid source is a frontend observation, never an expected exporter panic.
-fn export_case(directory: &Path) {
+fn export_frontend(directory: &Path) -> Option<String> {
     assert!(directory.is_dir(), "generated case directory must exist");
     for name in ["stages.tsv", "diagnostics.tsv", "case.raw.ll", "counter.c"] {
         assert!(
@@ -121,23 +188,6 @@ fn export_case(directory: &Path) {
     }
     let source = fs::read_to_string(directory.join("case.ko")).expect("read generated case.ko");
     assert!(source.len() <= 8192, "generated source exceeds 8 KiB");
-    let expected: usize = fs::read_to_string(directory.join("expected-allocations.txt"))
-        .expect("read expected allocation count")
-        .trim()
-        .parse()
-        .expect("expected allocation count must be an integer");
-    let order = if directory.join("expected-order.txt").exists() {
-        Some(
-            fs::read_to_string(directory.join("expected-order.txt"))
-                .expect("read expected release order")
-                .trim()
-                .split(',')
-                .map(|value| value.trim().parse::<usize>().expect("allocation identity"))
-                .collect::<Vec<_>>(),
-        )
-    } else {
-        None
-    };
     let mut sources = SourceMap::new();
     let id = sources.add_source("case.ko", &source).unwrap();
     let (names, types) = standard_environments();
@@ -185,10 +235,33 @@ fn export_case(directory: &Path) {
     fs::write(directory.join("stages.tsv"), stages).unwrap();
     fs::write(directory.join("diagnostics.tsv"), diagnostics).unwrap();
     match analysis {
-        Ok(_) => {}
-        Err(SingleFileAnalysisError::Host(())) => return,
+        Ok(_) => Some(source),
+        Err(SingleFileAnalysisError::Host(())) => None,
         Err(error) => panic!("internal frontend failure, not an invalid-source verdict: {error:?}"),
     }
+}
+
+fn export_case(directory: &Path) {
+    let Some(source) = export_frontend(directory) else {
+        return;
+    };
+    let expected: usize = fs::read_to_string(directory.join("expected-allocations.txt"))
+        .expect("read expected allocation count")
+        .trim()
+        .parse()
+        .expect("expected allocation count must be an integer");
+    let order = if directory.join("expected-order.txt").exists() {
+        Some(
+            fs::read_to_string(directory.join("expected-order.txt"))
+                .expect("read expected release order")
+                .trim()
+                .split(',')
+                .map(|value| value.trim().parse::<usize>().expect("allocation identity"))
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        None
+    };
     assert!(
         (1..=9).contains(&expected),
         "generated valid fixture must allocate between one and nine owners"

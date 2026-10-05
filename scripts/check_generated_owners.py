@@ -27,6 +27,13 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
 
 
+def check_toolchain_version(llvm, clang, *, linux):
+    supported = llvm == "21.1.8" if linux else re.fullmatch(r"21\.1\.[0-9]+", llvm) is not None
+    clang_match = re.search(r"clang version ([0-9]+\.[0-9]+\.[0-9]+)(?:\s|$)", clang)
+    if not supported or clang_match is None or clang_match[1] != llvm:
+        raise Failure("setup", "tool_or_harness_failure", "llvm-version")
+
+
 def test_binary(text):
     matches = set()
     for line in text.splitlines():
@@ -119,6 +126,17 @@ class Execution:
             raise Failure(name, "tool_or_harness_failure", "command-exit", result.stderr.decode(errors="replace"))
         return result
 
+    def record_packages(self):
+        # A workspace-local LLVM prefix need not be installed in the system's
+        # package database. Exact executable versions and required runtime
+        # archive presence/hashes remain mandatory for either packaging mode.
+        result = self.run(["dpkg-query", "--show", "llvm-21-dev", "clang-21", "libclang-rt-21-dev"],
+                          self.root, "runtime-packages")
+        write_json(self.root / "package-provenance.json", dict(
+            prefix=str(self.prefix), system_packages_verified=result.returncode == 0,
+            status="package-manager-recorded" if result.returncode == 0 else "package-manager-metadata-unavailable",
+            package_query_exit=result.returncode))
+
     def setup(self):
         versions = {}
         for name, command in {
@@ -129,8 +147,7 @@ class Execution:
         }.items():
             result = self.run(command, self.root, name, must_succeed=True)
             versions[name] = result.stdout.decode().strip()
-        if versions["llvm"] != "21.1.8" or "clang version 21.1.8" not in versions["clang"]:
-            raise Failure("setup", "tool_or_harness_failure", "llvm-version")
+        check_toolchain_version(versions["llvm"], versions["clang"], linux=self.linux)
         if os.environ.get("CI") == "true" and versions["compiler-status"]:
             raise Failure("setup", "tool_or_harness_failure", "dirty-ci-checkout")
         diff = self.run(["git", "diff", "HEAD", "--binary"], self.root, "compiler-diff", must_succeed=True)
@@ -143,8 +160,7 @@ class Execution:
         if self.linux:
             archives = native.linux_runtime_archives(self.root, self.clang)
             write_json(self.root / "runtime-sha256.json", {str(path): checks.sha256(path) for path in archives})
-            self.run(["dpkg-query", "--show", "llvm-21-dev", "clang-21", "libclang-rt-21-dev"],
-                     self.root, "runtime-packages", must_succeed=True)
+            self.record_packages()
             self.run([self.prefix / "bin/llvm-symbolizer", "--version"], self.root, "symbolizer", must_succeed=True)
         if self.binary is None:
             built = self.run(["cargo", "test", "--locked", "--offline", "-p", "lang-codegen", "--lib", "--no-run",
@@ -187,6 +203,10 @@ class Execution:
 
     def accept_native(self, result, expected, mode):
         if result.returncode:
+            for detector, runtime in (("AddressSanitizer", "asan"), ("LeakSanitizer", "lsan")):
+                if f"{detector} has encountered a fatal error".encode() in result.stderr:
+                    raise Failure("native", "tool_or_harness_failure", f"{runtime}-runtime-unavailable",
+                                  result.stderr.decode(errors="replace"), stable_witness=False)
             for detector in ("AddressSanitizer", "LeakSanitizer"):
                 failure = checks.sanitizer_failure(result.stderr, detector)
                 if failure is not None:
@@ -225,6 +245,7 @@ def main(argv=None):
     root = args.artifacts.resolve()
     root.mkdir(parents=True, exist_ok=False)
     rows = []
+    first_failure = None
     try:
         executor = Execution(root, args.exporter)
         executor.setup()
@@ -246,8 +267,9 @@ def main(argv=None):
             try:
                 executor.case(directory)
             except Failure as failure:
-                write_json(directory / "verdict.json", failure.record())
-                rows.append(dict(id=case["id"], status="failure", **failure.record()))
+                first_failure = failure.record()
+                rows.append(dict(id=case["id"], status="failure", **first_failure))
+                write_json(directory / "verdict.json", first_failure)
                 # Reduction gets a separate bounded window, preserving the first verdict.
                 executor.deadline = time.monotonic() + 120
                 reductions = root / "reduction"
@@ -264,7 +286,8 @@ def main(argv=None):
                 try:
                     reductions.mkdir()
                     reduced = checks.minimize(case, failure, model.shrink_candidates, replay,
-                                              lambda item: len(model.render(item)["source"].encode()))
+                                              lambda item: len(model.render(item)["source"].encode()),
+                                              deadline=executor.deadline)
                 except (OSError, ValueError, AssertionError) as error:
                     # A failed reduction cannot replace the already observed case failure.
                     reduced = dict(original=case, original_failure=failure.record(), minimal=case,
@@ -286,7 +309,10 @@ def main(argv=None):
     except (Failure, OSError, ValueError, AssertionError) as error:
         record = error.record() if isinstance(error, Failure) else dict(
             stage="harness", kind="tool_or_harness_failure", witness=type(error).__name__, detail=str(error))
-        write_json(root / "failure.json", dict(first_failure=record, cases=rows))
+        report = dict(first_failure=first_failure or record, cases=rows)
+        if first_failure is not None and record != first_failure:
+            report["evidence_failure"] = record
+        write_json(root / "failure.json", report)
         print(f"generated owner verification failed: {error}; artifacts: {root}", file=sys.stderr)
         return 1
 

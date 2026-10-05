@@ -150,3 +150,19 @@ CI artifact。该必需步骤属于现有 Linux test job，失败传递到 requi
 LSan曾因残留主线程栈指针视为可达而漏报；worker入口已验证故意泄漏报告4字节/1对象，
 正常与关闭检测对照无报告。macOS仅有普通IR/counter测试证据，动态ASan/LSan未验收。
 UBSan 对 Koven IR 未覆盖；不声明栈 lifetime、容器逻辑长度、并发或完整内存安全证明。
+
+
+## 有界资源生成检查点
+
+`scripts/generated_owners.py` 以固定seed、结构化操作生成8有效/8非法程序，独立owner模型
+计算输出与计数，renderer记录UTF-8诊断occurrence。`native_generated_owner_tests`只导出真实
+frontend/SSA/LLVM与计数产物；独立frontend-only入口不读取分配预期，也不进入LLVM。
+`check_generated_owners.py`逐case精确调用测试二进制，校验stdout/计数/诊断及Linux动态检测。
+Linux要求LLVM21.1.8；macOS沿用支持的21.1.*。workspace-local prefix的实际版本及runtime
+archive核验不依赖系统安装数据库，包来源查询结果单列记录。
+
+进程预算、原始输入/环境/哈希、首个失败与缩小记录分离；缩小和重放共享绝对deadline，
+最后一次重放越界、I/O失败及候选原因变化不能误报成功。LSan runtime fatal单独归工具失败。
+现有双宿主Targeted Tests已静态接线完整batch与always证据上传；driver保留未完成校准的
+拒绝哨兵，不会把普通生成通过升级为完整验收。当前云端正常批次和阻断边界见
+[0269验收账本](../specs/active/0269-generated-resource-programs.md#11-云端普通验收续作2026-10-05)。
