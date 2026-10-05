@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前1份active：[SPEC-0278](0278-borrowed-closure-escape-verification.md)封闭 shared closure 的 owned escape 校验。
+当前0份active。0278按[PR56](https://github.com/Halckon/Koven/pull/56)双宿主实现验收归档；最终归档head/merge/main仍待，见[交付账本](../../development/evidence/closure-escape-0278/delivery.json)。
 
 0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终归档head及actual main已闭环，见[交付账本](../../development/evidence/p2-linux-0277-delivery.json)。
 

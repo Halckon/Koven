@@ -1,10 +1,10 @@
 # SPEC-0278: borrowed closure 的 owned escape 交付校验
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实现或验收 borrowed closure SSA 逃逸防线时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实现或验收 borrowed closure SSA 逃逸防线时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0278` |
 | 所属 Phase | Phase 4 typed SSA verifier |
 | 语言规范 | 已启用 [Guide07](../../guide/07-calls-lambdas-closures.md)、[Guide10](../../guide/10-ownership-borrowing-drop.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0277 已 done，PR55 final/main 15/15 与实际产物闭环 |
 | 前置 ADR | [ADR-0009](../../adr/accepted/0009-concrete-closure-internal-abi.md)、[ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) accepted |
 | 关联 ADR | 无新增长期表示或 ABI 决定 |
-| 阻塞项 | 无语义阻塞；实现与两次独立审发现修复已通过定向检查，完整消费者已通过，远端交付验收待 |
+| 阻塞项 | 无实现阻塞；实现与双宿主完整消费者已验收，最终归档head/merge/main仍待交付 |
 | 影响范围 | lang-codegen SSA verifier、直接 malformed SSA 与既有消费者测试、Architecture |
 | 语言语义变更 | 否 |
 
@@ -125,3 +125,18 @@ concrete identity 和 resource 清理。共享 SSA 修复不替代该完整终�
 
 无新语言语义问题。若真实 fixture 已被既有防线拒绝，应记录实际错误并重新定位最小缺口，
 不得修改负例 oracle 或创建无必要的重复 guard。局部嵌套 capture 依赖后继必须先有失败测试。
+
+## 8. 精确实现 head 双宿主验收与归档（2026-10-05）
+
+实现 head `f08feb5af4ce934289f1660780aefb9a64d332bb` 的[PR56](https://github.com/Halckon/Koven/pull/56)
+[CI37314044755](https://github.com/Halckon/Koven/actions/runs/37314044755)已完成：14个必需job实际success，
+Tree-sitter因本片未改编辑器/CI政策而合法skipped，不能计作通过。全部15个job无未决状态。
+两宿主各45个新增测试逐全名实际ok；Linux完整codegen922 passed/0 failed/0 ignored/0 filtered，
+macOS921 passed/0 failed/1既有LLDB ignored/0 filtered。其它完整消费者及既有远端资源校准均实际执行，
+两Preview producer/independent consumer也实际成功；本地未运行真实故障校准。
+
+[交付账本](../../development/evidence/closure-escape-0278/delivery.json)保全完整run/job身份、原始双宿主
+日志和独立逐名核验、source commit/tree及不同的synthetic PR checkout commit/tree/parents。
+E1–E5实现验收与E6实现head双宿主已完成，迁移done/archive并同步inventory/DAG；历史红绿记录
+原样保留。E6最终归档head、merge与actual main仍待实际交付，不提前记通过，后续进入live账本。
+完整M3A源码constructor和嵌套capture LoanId生命周期范围继续开放。
