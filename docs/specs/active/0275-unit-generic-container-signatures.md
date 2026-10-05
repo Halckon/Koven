@@ -1,10 +1,10 @@
 # SPEC-0275: Unit 泛型函数直接容器签名的具体类型替换
 
-> **性质**：有界变更合同 · **状态**：approved · **读取时机**：实施 M3A 的既有泛型容器签名支持时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施 M3A 的既有泛型容器签名支持时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | approved |
+| 状态 | in-progress |
 | Goal ID | `KOV-P4-275` |
 | 所属 Phase | Phase 4，消费 Phase 2/3 已有类型与所有权事实 |
 | 语言规范 | [Guide v0.40](../../guide/README.md)、[类型与泛型](../../guide/03-types-generics.md)、[集合](../../guide/12-collections-destructuring.md) |
@@ -61,11 +61,11 @@ fun <T> pass(own items: Array<T>): Array<T> = items
 
 | ID | 场景与定义完成 | 当前状态 |
 |---|---|---|
-| G1 | 三容器×Int/String；空/非空、显式/推断、Borrow重复读取后再用、own返回；SSA参数/返回/ContainerLength active Loan的具体身份一致 | 正式红测待运行 |
-| G2 | 三容器×资源元素；Borrow不提前drop，pass后每元素唯一逆序清理；正常allocation/free逐指针和次数匹配，无clone/retain | 待运行 |
-| G3 | 双文件同名T的来源隔离、重复实例去重、输入顺序确定性；backend前后typed arena不增长；所有canonical来自真实调用/签名 | 待运行 |
-| G4 | 下述三联边界及缺substitution诊断；精确kind/实际source Span、arena不增、产物写出前拒绝；已有CLI原子性消费者证明旧产物保全 | 待运行 |
-| G5 | 最近unit plan/recipe/cycle/error-order、unit容器和直接native；CLI/M1A/词频消费者；独立全审、Architecture、双宿主必需CI、归档最终head与合并/main闭环 | 待运行 |
+| G1 | 三容器×Int/String；空/非空、显式/推断、Borrow重复读取后再用、own返回；SSA参数/返回/ContainerLength active Loan的具体身份一致 | 本地通过；4项SSA及6个native Int/String夹具，CFG核对current loan；三项目9条公共build/artifact/run命令通过 |
+| G2 | 三容器×资源元素；Borrow不提前drop，pass后每元素唯一逆序清理；正常allocation/free逐指针和次数匹配，无clone/retain | 本地通过；三资源夹具完整逆序stdout及各3次allocation/free逐指针相等；所有新native正例禁止StringClone/SharedRetain |
+| G3 | 双文件同名T的来源隔离、重复实例去重、输入顺序确定性；backend前后typed arena不增长；所有canonical来自真实调用/签名 | 本地通过；5项plan边界测试和SSA canonical身份检查；无unused seed |
+| G4 | 下述三联边界及缺substitution诊断；精确kind/实际source Span、arena不增、产物写出前拒绝；已有CLI原子性消费者证明旧产物保全 | 本地通过；三nested具体T native夹具；两拒绝×新/旧目标共4次native emit，文件名与全部bytes不变，无sibling temporary |
+| G5 | 最近unit plan/recipe/cycle/error-order、unit容器和直接native；CLI/M1A/词频消费者；独立全审、Architecture、双宿主必需CI、归档最终head与合并/main闭环 | 本地unit plan 53、container 68、CLI 9+12、M1A 4 cases/12命令、词频37命令通过；严格clippy/fmt/尺寸/docs通过；独立production/native全审通过，最终文档复审与双宿主PR/归档/main CI尚待 |
 
 G4是必需三联，不能仅让正例变绿：
 
@@ -114,3 +114,37 @@ last-use合流、M4b真实故障校准、公开Release与性能不在本片。
 - 初次夹具包路径错误L0146/L0080与error缺参数L0121分别纠正并另存原记录，不能当backend红测。
 - 独立准备审阅发现G4缺canonical负例原为可选，已升必需三联；Span沿用真实传入来源，
   两项修正窄复核通过。尚未运行正式Rust/双宿主G1–G5，main CI待实际结果。
+
+
+2026-10-05 基线门禁续记：main CI37248672159已15/15终态成功，root独立读取两宿主各37条
+词频完整bytes及候选各12命令/HEAD-tree-status三checkpoint/cleanup-sentinel通过；
+[0274最终PR与merge/main闭环证据](../../development/evidence/word-frequency-0274-delivery.json)
+保留精确run/head/tree/artifact与原账本哈希，原archive初次验收历史未重写。生产实施前置已满足。
+native定向3函数实际命中，0passed/3failed/0ignored/843filtered；均在真实泛型参数Span
+返回NativeObjectError UnsupportedSource、detail UnsupportedNode，日志为本机临时0275-native-red.log。
+该记录是正式失败证据，G1/G2/G4不因此记通过。
+
+定向全filter初次实际12项：1passed/11failed/0ignored/843filtered；recursive template在已有
+canonical的条件下明确拒绝，其余UnsupportedNode及MissingFact精确分类对照确认缺口。
+仅新增三个单参数容器含T的resolver分支，继续复用resolve_direct_type_argument/find。
+修复后结果待记录，尚不记G1–G5完成。
+
+## 9. 本地实现验收续记（2026-10-05）
+
+最小resolver修复后首次定向为11passed/1failed：CFG测试错误地禁止println独立String
+temporary清理。仅收窄测试到容器loan/owner身份，current非entry block parameter要求保留；
+单项重跑1/1通过，production没有因该夹具调整。container filter实际命中全部13项新增函数。
+独立全审发现G4缺native目标保全证据，补4次真实emit后1/1通过；窄复审确认该P2已关闭。
+
+实际命令使用`--locked`、LLVM21.1.8和共享target，本地Cargo串行：
+`cargo test -p lang-codegen --lib unit_plan_tests`为53/53；同crate `--lib container`为68/68；
+`cargo test -p lang-cli --test native_cli --test project_cli`为9/9及12/12，全部0failed/0ignored。
+`cargo build -p lang-cli`重建后，三项目9条公共命令完整输出及源码/编译器SHA保留
+[public账本](../../development/evidence/generic-containers-0275-public.json)。
+`check_tutorial.py --example parameter-report`执行4组argv、12命令；
+`check_word_frequency.py`执行37命令，正常完整bytes、预期Abort及非法UTF-8出口均按原oracle通过。
+临时原始日志/词频账本位于`/private/tmp/0275-*.log`和`/private/tmp/spec0275-word-frequency/results.json`，
+长期双宿主交付证据待精确PR head实际CI，不将临时路径当永久存档。
+`cargo clippy -p lang-codegen --all-targets -- -D warnings`、`cargo fmt --all -- --check`、
+`check_rust_sizes.py --base c5c4a8d`及`check_docs.py`（519 Markdown）通过；尺寸baseline未增加，
+旧45项超限欠账仅报告，新测试模块均小于1000行。未运行本地全量frontend、真实故障校准或性能测量。

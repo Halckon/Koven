@@ -134,6 +134,7 @@ fn plan<'a>(
 mod delegation_routes;
 mod entry_identity;
 mod error_order;
+mod generic_containers;
 mod instances;
 mod layout_demand;
 mod owner_recipes;
