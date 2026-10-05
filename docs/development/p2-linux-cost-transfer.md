@@ -62,3 +62,12 @@ v2的20项Python回归在Mac实际通过，fmt/受影响严格Clippy/尺寸门�
 修复与验收提交 `550d540e27e1a174c7a5ba6917b383a186b136fa` 对应云修复
 `2aa75b0c86e9fe5cf4e2fc7600c657f7cc8c54c6` 的相同测试字节/delta；
 Mac包含后继0275及本批Spec/证据，不宣称恢复云commit SHA或整树相同。
+
+## 后续交付复核（2026-10-05）
+
+用户已授权在合适时合并本地0277；原三个提交保留，接入最新main和PR验收见正式Spec§9。
+独立审阅确认两测试与发布材料正确，但初次Mac v2及部分门禁只有receipt声明、缺原始输出。
+本次在`f18e039`重新复核并保全[实际Mac门禁账本](evidence/p2-linux-20261005/integration-preflight.json)，
+覆盖两测试5项、v2回归20项、5266payload验证、fmt/对应Clippy/尺寸/docs521页与37checker tests。
+工具身份、命令、exit和原始字节hash均关联，不把云端日志冒充Mac，也不重建初次0.009s记录。
+此补证不重跑十组成本采样，不接受预算；最新main/PR/最终归档/merge/main仍待真实交付。

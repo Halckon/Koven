@@ -57,5 +57,13 @@
   "mac_docs_check": {
     "markdown_files": 521,
     "passed": true
+  },
+  "integration_preflight": {
+    "path": "integration-preflight.json",
+    "sha256": "61fda82f15000246119bee5aa841be3d2a1707672b1665c939b2e645d36e5878",
+    "source_commit": "f18e0391a85ed60e75d48da5f56dc4103d96884c",
+    "historical_missing_mac_raw_not_recovered": true,
+    "cost_sampling": false,
+    "remote_ci": "pending"
   }
 }

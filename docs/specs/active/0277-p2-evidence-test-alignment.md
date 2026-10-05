@@ -30,7 +30,7 @@
 - 修复长hex被误认为非法radix的测试预期：保留不支持octal的负例，增加hex/bin非法尾部；旧exponent/suffix负例及四入口、诊断Span、Error/真实operator/rhs/sentinel不删。
 - 重分类六个上下文词并补软词库存：保留旧120片段，增加到127；仍保留L0001–L0008及四入口产物合同。新增长hex/bin表达式正例不证明后续类型/数值溢出接受。
 - 接收完整脱敏压缩包，保留旧raw、旧失败、冻结probe/summary、v2脚本与20个回归；不将5269小文件直接铺入Git。
-- 只在Mac跑两目标红绿、格式、对应严格Clippy、文档/尺寸及v2 Python回归；不重跑全编译器或十组P2采样，不新增依赖、不改生产/Guide/配置，不合main、不推送/PR。
+- 只在Mac跑两目标红绿、格式、对应严格Clippy、文档/尺寸及v2 Python回归；不重跑全编译器或十组P2采样，不新增依赖、不改生产/Guide/配置。原接收阶段未授权push/PR/merge；本次后续交付授权见§9。
 
 ## 3. Linux口径与接受边界
 
@@ -106,3 +106,24 @@ v2修复冻结汇总漏报两类首启，仅重算14组/attempt、917条记录�
 [机器接收/映射记录](../../development/evidence/p2-linux-20261005/receipt.json)与本表一致。
 最终账本提交独立保存本表及实际验证。所有本地提交作者halckon `<halckon0@hotmail.com>`。
 本机可复核材料与有界修复已交付；未合main、未push/PR；成本接受及新分支CI未执行，状态保持in-progress。
+
+## 9. 后续交付授权与原始门禁补证（2026-10-05）
+
+用户要求在合适时合并本地`feature/spec-0277`，授权接入最新main、推送、PR验收和合并，
+取代§2原接收阶段不推送/不合并的工作边界；原三个提交及§6–8历史记录保留。
+先完成PR54的最终head CI、merge与actual main闭环，再接入0277，保留0276新事实与inventory。
+本片验收不依赖用户接受整体P2预算，成本接受继续开放，不将证据交付当作成本豁免。
+
+独立完整审阅确认两测试符合Guide01，旧120片段与四入口负例/恢复合同保留，云/Mac测试bytes、
+压缩包路径/5266payload摘要/917索引raw及云全量计数一致。审阅同时指出：初次Mac的v2、fmt、
+Clippy、尺寸和docs仅有receipt声明，分支内未保存其原始门禁输出；云日志不补作Mac原始记录。
+
+本次在精确`f18e0391a85ed60e75d48da5f56dc4103d96884c`重新验证，并保存
+[交付前Mac复核账本](../../development/evidence/p2-linux-20261005/integration-preflight.json)：
+两测试5passed/0failed/ignored/filtered、v2回归20passed/0failed/skip、transfer verifier5266payload、
+fmt及受影响严格Clippy、docs521页/37checker tests、尺寸护栏均实际通过。原始输出无损gzip，
+各项保存argv/cwd/exit/工具身份、压缩及原始SHA；Rust测试使用独立target、默认profile。
+这批是新复核，不重建首次Mac的0.009s运行，未重采样或执行M4b实际故障校准。
+
+最新main接入后的直接复验、精确PR head CI、归档、最终head CI及merge/main仍待后续实际执行；
+不得将本机5项或旧云1704项作为这些新提交的验收。新的原始证据补齐后须独立窄复审。
