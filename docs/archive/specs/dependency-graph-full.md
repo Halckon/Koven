@@ -273,6 +273,9 @@ subgraph Garchive["已完成（archive，263 份）"]
   S0276["S0276<br/>Unit 普通泛型函数体的具体类型归一化"]
   S0277["S0277<br/>Linux P2 证据接收与词法测试预期对齐"]
 end
+subgraph Gactive["现行 active"]
+  S0278["S0278<br/>borrowed closure 的 owned escape 交付校验"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1244,6 +1247,7 @@ S0268 --> S0274
 S0270 --> S0273
 S0274 --> S0275
 S0275 --> S0276
+S0277 --> S0278
 ```
 
 ## 节点链接
@@ -1513,3 +1517,4 @@ S0275 --> S0276
 | SPEC-0275 | archive | [0275-unit-generic-container-signatures.md](0275-unit-generic-container-signatures.md) |
 | SPEC-0276 | archive | [0276-unit-generic-body-type-normalization.md](0276-unit-generic-body-type-normalization.md) |
 | SPEC-0277 | archive | [0277-p2-evidence-test-alignment.md](0277-p2-evidence-test-alignment.md) |
+| SPEC-0278 | active | [0278-borrowed-closure-escape-verification.md](../../specs/active/0278-borrowed-closure-escape-verification.md) |
