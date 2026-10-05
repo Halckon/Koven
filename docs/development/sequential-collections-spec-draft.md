@@ -79,6 +79,6 @@ Map、借用返回、getOrNull、可逃逸迭代器、通用 clone、隐式容�
 
 ## 7. C07 既有泛型容器签名首片
 
-[SPEC-0275](../specs/active/0275-unit-generic-container-signatures.md)从PR52合并后的最新main
+[SPEC-0275](../archive/specs/0275-unit-generic-container-signatures.md)从PR52合并后的最新main
 承接直接Array<T>/List<T>/MutableList<T>签名的native具体替换，现行Guide已封闭语义。
 新增API及其余C01–C08仍按原前置；body-only发布与递归模板没有自动启用。具体范围和验收只记Spec。

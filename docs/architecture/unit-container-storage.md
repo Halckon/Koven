@@ -95,4 +95,4 @@ generic body单独构造listOf(x)且未发布List<Int>的情况仍按构造Span�
 native沿用UnsupportedNode→UnsupportedSource、MissingFact→InvalidModel映射。
 两类拒绝各覆盖新/旧object目标，实际native API保全全部目录文件名、bytes与邻居文件，
 不残留sibling temporary。这些实现缺口不改变Guide允许的泛型语义；后续body需求发布独立排期。
-本地定向证据及尚待完成的交付门禁见[SPEC-0275](../specs/active/0275-unit-generic-container-signatures.md)。
+双宿主实现CI验证全部13项新增测试与公共消费者；最终归档/main门禁仍待。完整证据见[SPEC-0275](../archive/specs/0275-unit-generic-container-signatures.md)。

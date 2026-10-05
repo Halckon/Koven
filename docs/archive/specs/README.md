@@ -382,3 +382,5 @@
 ## 多文件 argv 词频与既有读取交接（2026-10-05）
 
 - [SPEC-0274](0274-argv-word-frequency.md)：source-qualified size/SharedLoan、unit Borrow String与三文件普通应用；双宿主每37命令及15项CI成功，原始字节账本保留；M1B-b、泛型container native替换等后继保持开放。
+
+- [SPEC-0275](0275-unit-generic-container-signatures.md)：直接泛型容器签名消费frontend canonical；两宿主13项新增测试及公共消费者通过；递归模板/body-only需求发布保持后继，最终归档/main交付待。

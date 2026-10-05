@@ -1,10 +1,10 @@
 # SPEC-0275: Unit 泛型函数直接容器签名的具体类型替换
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施 M3A 的既有泛型容器签名支持时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：实施 M3A 的既有泛型容器签名支持时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-275` |
 | 所属 Phase | Phase 4，消费 Phase 2/3 已有类型与所有权事实 |
 | 语言规范 | [Guide v0.40](../../guide/README.md)、[类型与泛型](../../guide/03-types-generics.md)、[集合](../../guide/12-collections-destructuring.md) |
@@ -65,7 +65,7 @@ fun <T> pass(own items: Array<T>): Array<T> = items
 | G2 | 三容器×资源元素；Borrow不提前drop，pass后每元素唯一逆序清理；正常allocation/free逐指针和次数匹配，无clone/retain | 本地通过；三资源夹具完整逆序stdout及各3次allocation/free逐指针相等；所有新native正例禁止StringClone/SharedRetain |
 | G3 | 双文件同名T的来源隔离、重复实例去重、输入顺序确定性；backend前后typed arena不增长；所有canonical来自真实调用/签名 | 本地通过；5项plan边界测试和SSA canonical身份检查；无unused seed |
 | G4 | 下述三联边界及缺substitution诊断；精确kind/实际source Span、arena不增、产物写出前拒绝；已有CLI原子性消费者证明旧产物保全 | 本地通过；三nested具体T native夹具；两拒绝×新/旧目标共4次native emit，文件名与全部bytes不变，无sibling temporary |
-| G5 | 最近unit plan/recipe/cycle/error-order、unit容器和直接native；CLI/M1A/词频消费者；独立全审、Architecture、双宿主必需CI、归档最终head与合并/main闭环 | 本地unit plan 53、container 68、CLI 9+12、M1A 4 cases/12命令、词频37命令通过；严格clippy/fmt/尺寸/docs通过；独立production/native全审通过，最终文档复审与双宿主PR/归档/main CI尚待 |
+| G5 | 最近unit plan/recipe/cycle/error-order、unit容器和直接native；CLI/M1A/词频消费者；独立全审、Architecture、双宿主必需CI、归档最终head与合并/main闭环 | 本地unit plan 53、container 68、CLI 9+12、M1A 4 cases/12命令、词频37命令通过；严格clippy/fmt/尺寸/docs通过；独立production/native全审通过，最终文档复审通过；实现head PR CI必需14job成功、编辑器合法skip；最终归档/main交付门禁待 |
 
 G4是必需三联，不能仅让正例变绿：
 
@@ -148,3 +148,26 @@ temporary清理。仅收窄测试到容器loan/owner身份，current非entry blo
 `cargo clippy -p lang-codegen --all-targets -- -D warnings`、`cargo fmt --all -- --check`、
 `check_rust_sizes.py --base c5c4a8d`及`check_docs.py`（519 Markdown）通过；尺寸baseline未增加，
 旧45项超限欠账仅报告，新测试模块均小于1000行。未运行本地全量frontend、真实故障校准或性能测量。
+
+## 10. 精确实现 head 双宿主 CI 与归档门禁（2026-10-05）
+
+实现head `19ff893cd756ef8aa8d20439094d9cb9e6413eef`、tree
+`bb8c0d19a19db17f4637e4d49cff153f32e47130` 的
+[PR53 CI37251289329](https://github.com/Halckon/Koven/actions/runs/37251289329)已终态success。
+15job中14项实际success，Tree-sitter CLI Corpus因editors=false合法skipped；
+CI Passed实际验证changes与必需门禁，不能把该skip记为编辑器执行通过。
+Linux完整codegen856passed/0failed/0ignored，macOS855passed/0failed/1ignored；
+唯一ignored为既有LLDB runner权限项。两宿主均逐名核对13项新增generic-container函数全部ok，
+不以总通过数替代新测试命中。两宿主各4个codegen doctests及所选下游均0failed。
+
+root独立读取原始word-frequency与preview artifact：每宿主37条词频完整argv/bytes/exit
+按独立参考验证，9个项目源码SHA来自真实教程；每宿主preview独立消费者12条命令完整bytes、
+4项目、cleanup与sentinel通过；producer三个HEAD/tree/status checkpoint与manifest相同且clean。
+默认测试checkout的synthetic commit/tree/parents及producer实际source head分别记录，
+不得把synthetic commit写成源码head。永久[CI身份与原始词频账本](../../development/evidence/generic-containers-0275/ci.json)
+保留全部job ID、artifact ID、SHA和13项命中；G1–G4代码验收与G5实现head门禁已满足。
+
+按AGENTS分支交付规则迁移done至archive，以首轮精确head验收归档；PR仍OPEN，
+G5剩余交付门禁是最终归档head双宿主CI、确认无未决状态后merge、实际merge/main CI。
+尚未发生的结果保持待验证，合并后闭环证据在后继启动记录中补充，不回写本次历史。
+后继body canonical发布、递归模板、M1B-b、真实故障校准、性能与全部M3A仍未完成。

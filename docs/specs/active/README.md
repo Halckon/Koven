@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-- [SPEC-0275：unit泛型直接容器签名](0275-unit-generic-container-signatures.md)：基于PR52最新main的M3A C07首片；本地G1–G4及共享/公共消费者通过，双宿主PR与归档闭环待完成。
+当前无active Spec。0275按[PR53](https://github.com/Halckon/Koven/pull/53)实现head CI37251289329必需14job成功及编辑器合法skip归档；最终归档head CI、merge/main交付门禁待。
 
 0274已按[PR52](https://github.com/Halckon/Koven/pull/52)双宿主实现证据归档；最终归档head cdb9cba的CI37247799491已15/15成功，并合并为c5c4a8d。
 
