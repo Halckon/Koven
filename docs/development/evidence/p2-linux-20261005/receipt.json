@@ -1,0 +1,22 @@
+{
+  "library_file_id": "libfile_4aae907454348191b3d156d5fc2c01d9",
+  "library_version": 0,
+  "archive": "koven-p2-transfer.tar.gz",
+  "archive_sha256": "bf712bb7c7f47176e5422dabbebe556f31c04af39d39a12c5f244309811f3eb6",
+  "archive_bytes": 5648921,
+  "root_directory": "koven-p2-linux-20261005",
+  "published_payload_files": 5266,
+  "archive_files_including_manifests": 5269,
+  "safe_paths_verified": true,
+  "published_hashes_verified": true,
+  "cloud_base": "c5c4a8df271858b23898e0bcf4b55d823c760bb9",
+  "cloud_fix_commit": "2aa75b0c86e9fe5cf4e2fc7600c657f7cc8c54c6",
+  "mac_base": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+  "mac_branch": "feature/spec-0277",
+  "spec": "0277",
+  "source_files_unchanged_since_cloud_base": true,
+  "patch_applies_cleanly": true,
+  "new_branch_ci": "not-run",
+  "cost_acceptance": "not-decided",
+  "sampling_rerun_on_mac": false
+}
