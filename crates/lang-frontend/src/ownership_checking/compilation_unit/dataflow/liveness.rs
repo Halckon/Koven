@@ -275,20 +275,23 @@ impl Builder<'_, '_> {
                 live_after,
             );
         }
-        if let Some(operation) = self
+        if let Some(receiver) = self
             .checker
             .typed
             .string_operation(self.checker.unit_expression(id))
+            .map(|operation| operation.receiver())
+            .or_else(|| {
+                self.checker
+                    .typed
+                    .container_size(self.checker.unit_expression(id))
+                    .map(|size| size.receiver())
+            })
         {
             let mut receiver_live = live_after;
-            if let Some(place) = self.checker.loan_place(operation.receiver().expression())? {
+            if let Some(place) = self.checker.loan_place(receiver.expression())? {
                 receiver_live.insert(place.root());
             }
-            return self.expression(
-                operation.receiver().expression(),
-                ExpressionUse::Read,
-                receiver_live,
-            );
+            return self.expression(receiver.expression(), ExpressionUse::Read, receiver_live);
         }
         if let Some(operation) = self
             .checker

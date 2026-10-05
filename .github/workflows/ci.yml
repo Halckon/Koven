@@ -58,6 +58,8 @@ jobs:
               - 'editors/**'
               - 'docs/tutorials/**'
               - 'scripts/check_tutorial.py'
+              - 'scripts/check_word_frequency.py'
+              - 'scripts/tests/test_word_frequency_contracts.py'
               - 'scripts/check_core.sh'
               - 'scripts/check_integration.sh'
               - 'scripts/check_stage_integration.sh'
@@ -252,6 +254,15 @@ jobs:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm.sh', '.github/actions/setup-llvm/action.yml') }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
+      - name: Word frequency byte and boundary contracts
+        run: python3 scripts/check_word_frequency.py --evidence "$RUNNER_TEMP/koven-word-frequency"
+      - name: Preserve word frequency evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: word-frequency-${{ runner.os }}-${{ github.sha }}
+          path: ${{ runner.temp }}/koven-word-frequency
+          if-no-files-found: error
       - name: Linux native sanitizer contracts
         if: runner.os == 'Linux'
         timeout-minutes: 20

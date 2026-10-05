@@ -143,3 +143,6 @@ mod pending_lifetime;
 mod provenance_contracts;
 #[path = "multifile_ownership_checking/receivers.rs"]
 mod receivers;
+
+#[path = "multifile_ownership_checking/container_size.rs"]
+mod container_size;

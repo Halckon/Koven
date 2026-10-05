@@ -8,7 +8,7 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, CompilationUnitTypeError, DeferredReason, TypeCheckingError,
-        UnitElementPlaceDescriptor, UnitExpressionId, UnitTypeId,
+        UnitContainerSizeDescriptor, UnitElementPlaceDescriptor, UnitExpressionId, UnitTypeId,
     },
 };
 
@@ -148,18 +148,37 @@ impl BodyChecker<'_> {
 
     pub(super) fn container_member_type(
         &mut self,
+        expression: UnitExpressionId,
+        receiver_expression: UnitExpressionId,
         receiver: UnitTypeId,
         name_span: Span,
     ) -> Result<Option<UnitTypeId>, CompilationUnitTypeError> {
-        if self.container_parts(receiver).is_none() {
+        let Some((container, element)) = self.container_parts(receiver) else {
             return Ok(None);
-        }
+        };
         let name = self
             .sources
             .slice(name_span)
             .map_err(TypeCheckingError::from)?;
         if name == "size" {
-            return Ok(Some(self.builtin(BuiltinType::Int)));
+            let result = self.builtin(BuiltinType::Int);
+            self.parts
+                .container_sizes
+                .push(UnitContainerSizeDescriptor::new(
+                    expression,
+                    receiver_expression,
+                    container,
+                    receiver,
+                    element,
+                    result,
+                    self.file(expression.source_unit())
+                        .ast()
+                        .expressions()
+                        .get(expression.expression())
+                        .map_err(TypeCheckingError::from)?
+                        .span(),
+                ));
+            return Ok(Some(result));
         }
         if matches!(name, "get" | "set") {
             self.emit(

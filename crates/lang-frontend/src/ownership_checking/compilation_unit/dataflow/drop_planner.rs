@@ -506,17 +506,24 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 state,
             );
         }
-        if let Some(operation) = self
+        if let Some(receiver_id) = self
             .checker
             .typed
             .string_operation(self.checker.unit_expression(id))
+            .map(|operation| operation.receiver())
+            .or_else(|| {
+                self.checker
+                    .typed
+                    .container_size(self.checker.unit_expression(id))
+                    .map(|size| size.receiver())
+            })
         {
-            let receiver = operation.receiver().expression();
+            let receiver = receiver_id.expression();
             if !self.expression(receiver, DropExpressionUse::Place, state)? {
                 return Ok(false);
             }
             for loan in self.checker.loans.iter().filter(|loan| {
-                loan.call() == operation.expression() && loan.argument() == operation.receiver()
+                loan.call() == self.checker.unit_expression(id) && loan.argument() == receiver_id
             }) {
                 match loan.target() {
                     crate::ownership_checking::UnitLoanTarget::Place(place) => {
@@ -860,7 +867,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     }
                     return Ok(true);
                 }
-                if !self.expression(value, DropExpressionUse::Consume, state)? {
+                let root = self
+                    .checker
+                    .place(target)?
+                    .filter(|place| place.is_root())
+                    .map(|place| place.root());
+                if let Some(root) = root {
+                    state.replacements.push(root);
+                }
+                let continues = self.expression(value, DropExpressionUse::Consume, state)?;
+                if root.is_some() {
+                    state.replacements.pop();
+                }
+                if !continues {
                     return Ok(false);
                 }
                 let assignment = UnitExpressionId::new(self.checker.source_unit, id);
@@ -1357,6 +1376,32 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 || self.has_live_shared_capture(state, symbol))
         {
             return;
+        }
+        if state.replacements.contains(&symbol) {
+            // 与单文件 planner 一致：RHS 放弃时清理，内层 loop 跳转保留外层旧值。
+            let leaving = match point {
+                PlannerDropPoint::ControlTransfer(expression) => self
+                    .checker
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(expression)
+                    .is_ok_and(|node| {
+                        matches!(node.payload(), Expression::Return { .. })
+                            || (matches!(
+                                node.payload(),
+                                Expression::Break { .. } | Expression::Continue { .. }
+                            ) && self.loop_boundaries.last().is_some_and(|depth| {
+                                state
+                                    .position(symbol)
+                                    .is_some_and(|index| state.values[index].scope_depth > *depth)
+                            }))
+                    }),
+                _ => false,
+            };
+            if !leaving {
+                return;
+            }
         }
         let closure = state.closures.remove(&symbol);
         if let Some(value) = state.remove_value(symbol) {

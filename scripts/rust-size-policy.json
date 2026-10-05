@@ -46,11 +46,11 @@
   },
   "exceptions": {
     "crates/lang-codegen/src/ssa/unit_lower.rs": {
-      "max_lines": 1263,
-      "reason": "SPEC-0268 仅挂接 Statement::For，并让 return 在已有 iteration cleanup 时保留完整有序动作；provider CFG 与 cleanup 算法位于独立 loop_control/iteration 模块。搬迁既有 driver 会扩大本行为切片。",
-      "owner": "lang-codegen compilation-unit lowering",
-      "split_plan": "后续独立评审 unit driver 的 callable 编排与 expression lowering 边界；本片不机械拆分既有算法。",
-      "review": "SPEC-0268 独立评审本次十行接线增长；超过 1263 行或扩展 driver 职责前重新评审。"
+      "max_lines": 1266,
+      "reason": "SPEC-0268 仅挂接 Statement::For，并让 return 在已有 iteration cleanup 时保留完整有序动作；provider CFG 与 cleanup 算法位于独立 loop_control/iteration 模块。搬迁既有 driver 会扩大本行为切片。 SPEC-0274本轮：仅3行descriptor驱动的size分发，具体算法位于现有container子模块；移动整个lower入口不属于此次合同。",
+      "owner": "lang-codegen unit lowering",
+      "split_plan": "后续按intrinsic分发职责整体迁移入口，不机械切片lower状态机。",
+      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1266行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": {
       "max_lines": 1232,
@@ -88,18 +88,18 @@
       "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/drop_planner.rs": {
-      "max_lines": 1594,
-      "reason": "SPEC-0265 在实际drop、call前缀求值、closure释放和控制转移点接入有序清理；provider frame和schema动作组装独立于父planner。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。",
-      "owner": "lang-frontend compilation-unit iteration",
-      "split_plan": "后续按词法owner存活与call pending义务拆分父planner；本次provider生命周期已独立在iteration，pending owner沿用pending_call，不搬迁无关表达式分派。",
-      "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
+      "max_lines": 1639,
+      "reason": "SPEC-0265 在实际drop、call前缀求值、closure释放和控制转移点接入有序清理；provider frame和schema动作组装独立于父planner。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0274本轮：增加size同步读取及RHS旧owner保护，必须与既有assignment及drop_named状态协作；独立模型字段已在model子模块。",
+      "owner": "lang-frontend unit drop planner",
+      "split_plan": "后续抽取完整assignment/replacement职责，保留return与loop scope cleanup合同。",
+      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1639行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies.rs": {
-      "max_lines": 1358,
-      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。",
-      "owner": "lang-frontend compilation-unit iteration",
-      "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
-      "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
+      "max_lines": 1361,
+      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。",
+      "owner": "lang-frontend unit types",
+      "split_plan": "后续按公开产物/调用描述职责拆分公开模型，保持跨crate接口。",
+      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1361行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": {
       "max_lines": 1226,
@@ -123,11 +123,11 @@
       "review": "SPEC-0268 独立评审签名可见性与四行格式增长；超过 1055 行或增加控制流职责前重新评审。"
     },
     "crates/lang-codegen/src/native/unit_tests.rs": {
-      "max_lines": 2016,
-      "reason": "SPEC-0268 仅增加五个独立 unit-for 测试模块的路径与 mod 声明，共十行；所有新用例和 oracle 均位于独立短文件。",
-      "owner": "lang-codegen compilation-unit native tests",
-      "split_plan": "后续独立评审按 native receiver、interface 和 owner 测试职责迁出旧巨型测试；本片不改动既有用例。",
-      "review": "SPEC-0268 独立评审十行模块接线；超过 2016 行或向本文件添加新测试正文前重新评审。"
+      "max_lines": 2022,
+      "reason": "SPEC-0268 仅增加五个独立 unit-for 测试模块的路径与 mod 声明，共十行；所有新用例和 oracle 均位于独立短文件。 SPEC-0274本轮：仅增加两个独立测试模块的注册（6行）；测试主体已位于各自小文件，本入口不新增测试实现。",
+      "owner": "lang-codegen native tests",
+      "split_plan": "后续native测试入口整体迁移时按领域拆注册，保持fixture与断言边界。",
+      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过2022行或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/lower_frontend.rs": {
       "max_lines": 1480,
@@ -142,6 +142,34 @@
       "owner": "lang-codegen single-file control lowering",
       "split_plan": "后续控制流专项按分支求值、合流运输与循环自然边界拆分；本次只补齐既有词法清理调用，保留历史baseline。",
       "review": "SPEC-0273 完整独立审阅核对六行增长、尾值交付与 Diverged 路径；超过1449行或扩张职责前重新审阅。"
+    },
+    "crates/lang-frontend/src/ownership_checking/checker.rs": {
+      "max_lines": 1378,
+      "reason": "仅7行size descriptor路由，读取实现复用既有string子模块；不在checker添加第二份算法。",
+      "owner": "lang-frontend single ownership",
+      "split_plan": "后续单文件checker路由按领域迁移，保持状态与事实交接一致。",
+      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1378行或增加职责前重新审阅。"
+    },
+    "crates/lang-frontend/src/ownership_checking/checker/drop_planner.rs": {
+      "max_lines": 1666,
+      "reason": "仅同步header读取的CallReturn清理分支；共享receiver与assignment保护复用现有planner，不新增规划器。",
+      "owner": "lang-frontend single drop planner",
+      "split_plan": "后续按表达式清理职责整体抽取，保持drop顺序与replacement栈。",
+      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1666行或增加职责前重新审阅。"
+    },
+    "crates/lang-frontend/src/type_checking/checker/expression.rs": {
+      "max_lines": 1206,
+      "reason": "仅2行size descriptor登记调用，登记算法已在container子模块。",
+      "owner": "lang-frontend single type checker",
+      "split_plan": "后续按表达式类型分派整体拆分入口，保持trial rollback边界。",
+      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1206行或增加职责前重新审阅。"
+    },
+    "crates/lang-frontend/src/type_checking/model.rs": {
+      "max_lines": 1507,
+      "reason": "仅3行公开descriptor查询入口，具体descriptor实现已在container子模块。",
+      "owner": "lang-frontend single type model",
+      "split_plan": "后续完整迁移typed产物查询接口，保持type identity与trial合同。",
+      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1507行或增加职责前重新审阅。"
     }
   },
   "generated": {}

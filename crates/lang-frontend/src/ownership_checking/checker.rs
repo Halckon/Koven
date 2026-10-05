@@ -651,6 +651,13 @@ impl<'a> Checker<'a> {
         if let Some(descriptor) = self.typed.integer_operation(id) {
             return self.check_expression(descriptor.receiver(), state, ExpressionUse::Read);
         }
+        if let Some(descriptor) = self.typed.container_size(id) {
+            return self.check_shared_receiver_read(
+                descriptor.expression(),
+                descriptor.receiver(),
+                state,
+            );
+        }
         if let Some(descriptor) = self.typed.string_operation(id) {
             return self.check_string_operation(descriptor, state);
         }

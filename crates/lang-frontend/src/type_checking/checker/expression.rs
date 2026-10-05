@@ -522,7 +522,9 @@ impl Checker<'_> {
                 falls_through: receiver.falls_through,
             });
         }
-        if let Some(ty) = self.container_member_type(receiver.ty, name, name_span)? {
+        if let Some(ty) =
+            self.container_member_type(expression, receiver_id, receiver.ty, name, name_span)?
+        {
             return Ok(ExprCheck {
                 ty,
                 falls_through: receiver.falls_through,

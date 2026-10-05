@@ -565,15 +565,26 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         if let Some(operation) = self.checker.typed.integer_operation(id) {
             return self.expression(operation.receiver(), ExpressionUse::Read, state);
         }
-        if let Some(operation) = self.checker.typed.string_operation(id) {
+        if let Some(receiver) = self
+            .checker
+            .typed
+            .string_operation(id)
+            .map(|operation| operation.receiver())
+            .or_else(|| {
+                self.checker
+                    .typed
+                    .container_size(id)
+                    .map(|size| size.receiver())
+            })
+        {
             state.pending_calls.push(pending_call::PendingCall::new(
                 id,
                 self.loop_boundaries.len(),
             ));
-            if !self.expression(operation.receiver(), ExpressionUse::Place, state)? {
+            if !self.expression(receiver, ExpressionUse::Place, state)? {
                 return Ok(false);
             }
-            self.register_pending_argument(id, operation.receiver(), ParameterMode::Borrow, state)?;
+            self.register_pending_argument(id, receiver, ParameterMode::Borrow, state)?;
             let roots = self.end_pending_calls(LoanEndPoint::CallReturn(id), state, |frame| {
                 frame.call == id
             });

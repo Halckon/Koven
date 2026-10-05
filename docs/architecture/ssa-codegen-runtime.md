@@ -16,7 +16,7 @@ function、block、entity、type 和 operation；控制流通过 block parameter
 
 未经验证的 SSA 不进入 LLVM adapter。renderer 只用于确定性调试和测试，不是稳定序列化协议。整数位级执行见[专页](integer-operations.md)。
 
-顺序容器的 `ContainerLength` 接受 Value 或 active shared Loan；verifier 拒绝 exclusive、失效和错误 target 的 loan。
+顺序容器的 `ContainerLength` 接受 Value 或 active shared Loan；verifier 拒绝 exclusive、失效和错误 target 的 loan。source `.size`与unit String读取见[接入边界](unit-container-storage.md#source-size与unit-string读取)。
 结果是 signed i32 Koven `Int`，LLVM header 用 target `size_t`；借用读取按创建不变量转为 i32。list-form 与 runtime-length 创建共用目标位宽的 logical length 上限。
 runtime-length 在 `Int` 域拒绝负数再转换；argv 从非负 i32 建立相同边界；目标 `size_t` 高位不再作有符号负数检查。
 元素 place/replace 的索引只接受 signed i32 `Int`；LLVM 先在逻辑 Int 域拒绝负数和 `index >= length`。

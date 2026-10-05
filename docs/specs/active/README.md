@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无active Spec；0272按PR51双宿主真实生产/独立消费实现验收归档，最终归档head CI及合并仍为交付门禁。
+当前无active Spec。0274已按[PR52](https://github.com/Halckon/Koven/pull/52)首轮精确head双宿主实现证据归档；最终归档head CI与合并仍须通过。
+
+0272已由[PR51](https://github.com/Halckon/Koven/pull/51)合并，0274在其最新main上继续实施；主干CI以远端实际结果为准。
 
 0273 已按 PR50 最终归档双宿主 CI 通过并合并。
 

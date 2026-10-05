@@ -295,3 +295,61 @@ fn generic_callable_infers_from_nested_intrinsic_container_type() {
         Some(TypeKind::Builtin(BuiltinType::Int))
     ));
 }
+
+#[test]
+fn container_size_publishes_receiver_identity_type_and_span() {
+    let (sources, parsed, _, typed) = checked(
+        "fun sizes(array: Array<Int>, list: List<Int>, mutable: MutableList<Int>): Unit {\n\
+             val a = array.size\n\
+             val b = (list).size\n\
+             val c = mutable.size\n\
+             val d = listOf(1).size\n\
+         }",
+    );
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_sizes().len(), 4);
+    for descriptor in typed.container_sizes() {
+        assert_eq!(
+            typed.container_size(descriptor.expression()),
+            Some(*descriptor)
+        );
+        assert_eq!(
+            typed.expression_type(descriptor.receiver()),
+            Some(descriptor.container_type())
+        );
+        assert_eq!(
+            typed.expression_type(descriptor.expression()),
+            Some(descriptor.result_type())
+        );
+        assert_eq!(
+            typed.types().get(descriptor.result_type()),
+            Some(&TypeKind::Builtin(BuiltinType::Int))
+        );
+        assert_eq!(
+            typed.expression_category(descriptor.expression()),
+            Some(ExpressionCategory::Temporary)
+        );
+        assert_eq!(
+            parsed
+                .ast()
+                .expressions()
+                .get(descriptor.expression())
+                .unwrap()
+                .span(),
+            descriptor.span()
+        );
+        assert!(sources.slice(descriptor.span()).unwrap().ends_with(".size"));
+    }
+    assert_eq!(
+        typed.container_sizes()[0].container(),
+        SequentialContainerKind::Array
+    );
+    assert_eq!(
+        typed.container_sizes()[1].container(),
+        SequentialContainerKind::List
+    );
+    assert_eq!(
+        typed.container_sizes()[2].container(),
+        SequentialContainerKind::MutableList
+    );
+}

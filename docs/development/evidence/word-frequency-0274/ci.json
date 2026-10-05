@@ -1,0 +1,188 @@
+{
+  "schema": "koven.word-frequency-ci-evidence.v1",
+  "run_id": 37246195048,
+  "url": "https://github.com/Halckon/Koven/actions/runs/37246195048",
+  "event": "pull_request",
+  "source_commit": "315169073700077bcd97f60d88af93a2bf7e7996",
+  "source_tree": "049acd9ed9a4806149b713d334d0ba11819489ba",
+  "test_checkout_commit": "62459600da9e2cba6f39dea087ab62e2ca62ecfa",
+  "test_checkout_tree": "049acd9ed9a4806149b713d334d0ba11819489ba",
+  "test_checkout_parents": [
+    "7262232c5ec2b98e6ecdea6256fe41e985dd67aa",
+    "315169073700077bcd97f60d88af93a2bf7e7996"
+  ],
+  "jobs_success": 15,
+  "hosts": {
+    "linux": {
+      "artifact_id": 11319137703,
+      "raw_results": "linux-results.json",
+      "raw_sha256": "9507d54711234d0b9807968783084984f0591297a3af6d42c79edeb04180f83c",
+      "compiler_sha256": "e1633f303dc0ed15fb34d17cbdde7a24bcec62dd48a7427120c1918d61e085f4",
+      "project_count": 9,
+      "command_count": 37,
+      "commands_success": true,
+      "independent_full_byte_oracle_verified": true,
+      "negative_artifact_exit": -6,
+      "negative_cli_exit": 1,
+      "invalid_utf8_commands": 4,
+      "preview": {
+        "artifact_ids": {
+          "candidate": 11319821105,
+          "producer": 11319322818,
+          "consumer": 11319542484
+        },
+        "target": "x86_64-unknown-linux-gnu",
+        "profile": "release",
+        "archive": "koven-preview-315169073700-x86_64-unknown-linux-gnu.tar.gz",
+        "archive_sha256": "990c618b2d98e76ae611c26d25060230827cf70df5a4b6838deab96cb328dd0e",
+        "binary_sha256": "8faba2f88a80dcd99252ebcfd796b4ebb991cc8bfef73e45831c6bfe589a7509",
+        "command_count": 12,
+        "project_count": 4,
+        "commands_success": true,
+        "cleanup_removed": true,
+        "sentinel_unchanged": true,
+        "raw_producer_results_sha256": "17d822262f018efb902c5648854817a899adbb24de34e4d78e4af64e08eca036",
+        "raw_consumer_results_sha256": "b1b10d52a2a3c976d2d21234306aa9cc631b76021fad03eaaffb2f0625e09658"
+      }
+    },
+    "macos": {
+      "artifact_id": 11318993790,
+      "raw_results": "macos-results.json",
+      "raw_sha256": "a974b9ef89835efc2cda245e8384819087bd8a7a9ba9ce40cf1e3979ca1574ae",
+      "compiler_sha256": "ef41778e20e26bd08d0861ff5582f3d1757c29baaa8262147ab37c3369309cdf",
+      "project_count": 9,
+      "command_count": 37,
+      "commands_success": true,
+      "independent_full_byte_oracle_verified": true,
+      "negative_artifact_exit": -6,
+      "negative_cli_exit": 1,
+      "invalid_utf8_commands": 4,
+      "preview": {
+        "artifact_ids": {
+          "candidate": 11319831089,
+          "producer": 11319577260,
+          "consumer": 11319263397
+        },
+        "target": "aarch64-apple-darwin",
+        "profile": "release",
+        "archive": "koven-preview-315169073700-aarch64-apple-darwin.tar.gz",
+        "archive_sha256": "61fbc6157588c219a9275f816a19d79d019df9125156c5d92dc7b040ee78049e",
+        "binary_sha256": "dce2ac54fc17852a0107feece771b5ce4366aa8f3ce1e4dcd4ec75040dd143cb",
+        "command_count": 12,
+        "project_count": 4,
+        "commands_success": true,
+        "cleanup_removed": true,
+        "sentinel_unchanged": true,
+        "raw_producer_results_sha256": "94d45639640165d207024814fc59e28c929335d0c9a87be21286ba9119153b58",
+        "raw_consumer_results_sha256": "3b4b5365fc9972a09006dcc164254a79c25bd74ad66a13adf4dc408ca5ef5018"
+      }
+    }
+  },
+  "jobs": [
+    {
+      "databaseId": 111565518037,
+      "name": "Detect Changed Files",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565518037"
+    },
+    {
+      "databaseId": 111565518182,
+      "name": "Direct Workspace Dependency Guard",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565518182"
+    },
+    {
+      "databaseId": 111565518297,
+      "name": "Rust Physical Line Guard",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565518297"
+    },
+    {
+      "databaseId": 111565542821,
+      "name": "Rust Code Formatting",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565542821"
+    },
+    {
+      "databaseId": 111565542902,
+      "name": "Tree-sitter CLI Corpus",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565542902"
+    },
+    {
+      "databaseId": 111565542933,
+      "name": "Docs & Spec Structural Gate",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565542933"
+    },
+    {
+      "databaseId": 111565610791,
+      "name": "Workspace Check & Clippy (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565610791"
+    },
+    {
+      "databaseId": 111565610802,
+      "name": "Workspace Check & Clippy (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565610802"
+    },
+    {
+      "databaseId": 111565882905,
+      "name": "Targeted Tests (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565882905"
+    },
+    {
+      "databaseId": 111565882936,
+      "name": "Targeted Tests (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111565882936"
+    },
+    {
+      "databaseId": 111566944264,
+      "name": "Preview Producer (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111566944264"
+    },
+    {
+      "databaseId": 111566944294,
+      "name": "Preview Producer (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111566944294"
+    },
+    {
+      "databaseId": 111567308585,
+      "name": "Preview Independent Consumer (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111567308585"
+    },
+    {
+      "databaseId": 111567499973,
+      "name": "Preview Independent Consumer (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111567499973"
+    },
+    {
+      "databaseId": 111567672849,
+      "name": "CI Passed",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37246195048/job/111567672849"
+    }
+  ]
+}

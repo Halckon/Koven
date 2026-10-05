@@ -160,3 +160,6 @@ mod nullable_flow;
 mod runtime_layout;
 #[path = "multifile_type_checking/source_construction.rs"]
 mod source_construction;
+
+#[path = "multifile_type_checking/container_size.rs"]
+mod container_size;

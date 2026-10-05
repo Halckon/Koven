@@ -48,11 +48,15 @@ mod unit_lower_aggregate_tests;
 #[cfg(test)]
 mod unit_lower_assignment_tests;
 #[cfg(test)]
+mod unit_lower_borrow_string_tests;
+#[cfg(test)]
 mod unit_lower_borrow_tests;
 #[cfg(test)]
 mod unit_lower_closure_tests;
 #[cfg(test)]
 mod unit_lower_container_element_tests;
+#[cfg(test)]
+mod unit_lower_container_size_tests;
 #[cfg(test)]
 mod unit_lower_container_tests;
 #[cfg(test)]

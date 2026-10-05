@@ -320,3 +320,83 @@ fun main(): Unit {
     println("after")
 }
 ```
+
+## argv-word-frequency
+
+三个文件沿用 `source-roots = ["src"]` 的 project，entry 为 `app.main`。
+每个参数是一个完整词；按首次出现次序原样输出词、TAB、计数、LF。
+空参数也是词；词内的控制字符原样保留，输出不是可逆的行格式。
+
+`src/app/decimal.ko`：
+
+```koven argv-word-frequency-decimal
+package app
+
+fun decimal(value: Int): String {
+    if (value < 0) { error("negative count") }
+    val digit = when {
+        value % 10 == 0 -> "0"
+        value % 10 == 1 -> "1"
+        value % 10 == 2 -> "2"
+        value % 10 == 3 -> "3"
+        value % 10 == 4 -> "4"
+        value % 10 == 5 -> "5"
+        value % 10 == 6 -> "6"
+        value % 10 == 7 -> "7"
+        value % 10 == 8 -> "8"
+        else -> "9"
+    }
+    val prefix = if (value >= 10) { decimal(value / 10) } else { "" }
+    return prefix + digit
+}
+```
+
+`src/app/statistics.ko`：
+
+```koven argv-word-frequency-statistics
+package app
+
+fun sameWord(left: String, right: String): Boolean = left == right
+
+fun appearedBefore(args: Array<String>, word: String, limit: Int): Boolean {
+    var index = 0
+    while (index < limit) {
+        if (sameWord(args[index], word)) { return true }
+        index += 1
+    }
+    return false
+}
+
+fun countWord(args: Array<String>, word: String): Int {
+    var count = 0
+    for (argument in args) {
+        if (argument == word) { count += 1 }
+    }
+    return count
+}
+
+fun printWord(word: String, count: Int): Unit {
+    println(word + "\t" + decimal(count))
+}
+```
+
+`src/app/main.ko`：
+
+```koven argv-word-frequency
+package app
+
+fun main(args: Array<String>): Unit {
+    var index = 0
+    while (index < args.size) {
+        if (!appearedBefore(args, args[index], index)) {
+            val count = countWord(args, args[index])
+            printWord(args[index], count)
+        }
+        index += 1
+    }
+}
+```
+
+统计只借用 argv，重扫需要 O(n²) 比较。`index` 递增到 `args.size` 为止，
+`count` 不超过 `args.size`；两者保持在非负 Int 域。decimal 最多递归十层，
+支持 0 到 Int.MAX_VALUE；负值在正常输出之前 abort。该应用没有新增集合或格式化 API。
