@@ -110,11 +110,11 @@ Mac 不声称 Linux RSS/pids 防护；仍有域/数量/时间/日志/产物预�
 |---|---|---|
 | G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | 本轮精确head PR CI及模型/renderer golden、诊断适配负测已有证据；Python CI为260项、OK无skip。只读核验见§14。 |
 | G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | 本轮两宿主各8有效+8非法齐全；实际输出/计数/完整诊断匹配，固定V2物理次序报告通过；跨宿主源码相同。历史红测与0270修复记录保留，最新证据见§14。 |
-| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | 本轮Linux8有效clean ASan/LSan及四类真实IR故障校准有原始证据，calibration=pass；M4a步骤成功。macOS地址/泄漏动态检测明确跳过，acceptance=partial。此前云LSan宿主失败属于历史，不能代称当前缺证据；见§14。 |
-| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 本轮原始CI隔离红绿报告存在，但原红阶段输出缺失；现已本地修复记录机制：red/green独立目录、命令/完整bytes/退出/timeout、实际unified patch及原始/恢复源码hash，精确单次export命中与完整诊断核验。纯模拟红绿/失败留证测试通过；未运行新真实checker变异，实际留证验收仍待，见§15。 |
-| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 废除空预期伪缩减，实施真实运行期资源故障注入缩减验证：固定作用于 `Holder` 对象的析构遗漏（`missing_deinit`），原始案例及每个候选均经 clean 正常基线对照；真实执行保持同因稳定见证 `("native", "native_output_mismatch", "drop:holder")`，从 9 操作单调缩减至 5 操作（551 字节），完成 1-minimal 穷举证明与 3 次独立确认复现，记录完整因果对照与审计账本；见§16。 |
-| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 主驱动完整串联 16 案例、G3 故障校准、G4 隔离 Checker 变异与 G5 真实运行期资源故障同因缩减；在 macOS 上由于 ASan/LSan 平台限制如实汇总为 `acceptance=partial`（`requirements_met=false`，显式记录两项限制原因），在 Linux 上全检通过汇总为 `acceptance=pass`（`requirements_met=true`）；单测及真实端到端通过；见§16。 |
-| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 本地全量回归（270 项 Python 单测、876 项 Rust 单测、尺寸、文档、clippy、fmt、真实端到端）已闭环；保持 active，等待推送到远端 PR #48 触发双宿主 CI 完成最终归档合并。 |
+| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | 远端双宿主 CI (Run 37297014171) 完整检出 ASan 栈溢出与 LSan 内存泄漏，漏 deinit 与提前释放精确拒绝，`calibration.status: pass`，全量原始报告已保全。macOS 平台限制显式标记跳过（`acceptance=partial`）。见§14与§17。 |
+| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | Checker mutant 隔离 worktree 红绿闭环在远端 Linux 容器与 macOS 宿主真实执行验证：红测 0 诊断，源码还原 diff 为空，绿测恢复 L0131 诊断，红绿两阶段命令、源码/patch hash、导出器 hash、执行日志全量保全。见§15与§17。 |
+| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 运行期资源故障单调缩减验证完成：固定作用于 `Holder` 语义身份（经 `drop:holder` 常量唯一定位与 `injected-fault.json` 留存），经 clean 正常基线对照；同因稳定见证 `("native", "native_output_mismatch", "drop:holder")`，从 9 ops 缩减至 5 ops（551 字节），120 秒预算内完成 1-minimal 穷举证明（工具故障 fail-closed 保护）与 3 次独立确认复现，未完成/异常时先行落盘保全审计报告。见§16与§17。 |
+| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 主驱动端到端在远端双宿主 CI (Run 37297014171) 完整执行：Linux 环境全项通过生成 `acceptance.json` (status=pass, requirements_met=true)；macOS 环境如实记录两项平台限制并生成 `acceptance.json` (status=partial, requirements_met=false)；无未决或跳过伪 pass。见§16与§17。 |
+| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 审阅遗留 1 个 P1 与 4 个 P2 全数修复；274 项 Python 单测通过；876 项 Rust 单测通过；Rust 尺寸门禁、check_docs (524 文件)、fmt、clippy 零告警通过；PR #48 远端 22 项 checks 全绿闭环。见§17。 |
 
 按 G1 → 导出/执行 G2 → 检测 G3/G4 → 重放缩小 G5/G6 → G7 推进。
 Cargo 共用一个串行窗口；先失败测试再实现。Rust 只选新 exporter、被提取 helper 原调用方、
@@ -333,4 +333,39 @@ G4保存 `red/` 与 `green/` 各自的case、build/export命令、cwd、预算�
    - `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo clippy -p lang-codegen --all-targets -- -D warnings` 零告警通过。
    - `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 cargo test -p lang-codegen --lib` 全量 876 项 Rust 单元测试通过（860.65s）。
    - `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21 python3 scripts/check_generated_owners.py --artifacts <path>` 端到端执行通过。
+
+## 17. 最终审阅意见收口与全链路双宿主 CI 证据闭环（2026-10-05）
+
+针对提交 `2abf047` 的审阅意见（1 个 P1、4 个 P2 问题），在 commit `7ab9706` 进行了完备收口与双宿主验证：
+
+1. **P1：Linux 校准活体 tuple 指纹误拒修复**：
+   - 根因：`Failure.fingerprint` 是 Python property 返回的 `tuple`，在内存传递给 `calibration_verdict` 时 `isinstance(fingerprint, list)` 恒为假，且切片对比 `('native', 'asan_error') != ['native', 'asan_error']` 触发误拒，导致 Linux G4/G5 未能执行。
+   - 修复：在 `scripts/check_generated_owners.py:284` 放宽为 `isinstance(fingerprint, (list, tuple))`，切片使用 `tuple(fingerprint[:2]) != ("native", kind)`；并在 `scripts/generated_owner_calibration.py` 记录指纹时规范化为 `list(...)`。
+   - 验证：补充活体 tuple 指纹单测 `test_linux_accepts_tuple_fingerprints_from_live_producer`；远端 Linux 容器 CI 实测 `calibration.status: pass`，解除阻塞。
+
+2. **P2：故障注入语义身份严格绑定与唯一定位**：
+   - 根因：原 `crates/lang-codegen/src/native_generated_owner_tests.rs` 仅按包含字符串 `"11"` 查找首个匹配，缺少语义身份和唯一性校验。
+   - 修复：重写 `inject_missing_holder_deinit_fault`，严格绑定至包含常量 `"drop:holder"` 的全局变量，断言唯一定位（全局变量数量严格为 1、引用它的 `__deinit` 函数数量严格为 1、drop glue 中的调用严格为 1），在擦除前若有多重或零匹配直接断言失败；导出时落盘 `injected-fault.json` 记录完整故障身份。
+
+3. **P2：1-minimal 穷举核验 fail-closed 保护**：
+   - 根因：原缩减器在 1-minimal 穷举测试中将非预期 failure 误归为指纹不同，导致超时或工具故障可能被当作不可继续缩减的证据。
+   - 修复：在 `scripts/generated_owner_reduction.py` 中对 `f.kind in ("tool_or_harness_failure", "timeout", "resource_limit")` 或 `f.stage in ("setup", "harness", "tool", "export")` 显式设置 `is_1_minimal=False`，记录 `error` 审计信息并抛出 `Failure` 异常，绝不误标 `is_1_minimal=True`。
+
+4. **P2：缩减未完成时的审计报告预先落盘**：
+   - 根因：原缩减器在 incomplete 或 flaky 时直接抛出异常，未能保存已有的缩减候选与轨迹。
+   - 修复：在 `run_reduction` 中预先组装完整审计信息（包含当前最佳 `minimal`、`attempts`、`detailed_attempts`、失败原因等），在任何验证失败或非零退出抛出异常前均调用 `write_json(root_dir / "reduction.json", reduced)` 确保落盘，实现审计保全。
+
+5. **P2：时间预算合同严格对齐 120 秒**：
+   - 将 `scripts/generated_owner_reduction.py` 的 `executor.deadline` 与 `checks.minimize(..., seconds=120)` 均从 180 秒对齐为 120 秒，严格符合 SPEC-0269 §6 合同。
+
+6. **远端 GitHub Actions 双宿主 CI 全绿闭环（Run ID: 37297014171）**：
+   - PR #48 触发 22 项 checks 全部通过（`0 failing, 22 successful, 0 pending`）。
+   - **Linux (ubuntu-24.04)**：
+     - 生成案例：16 个案例全绿；
+     - G3 校准：ASan（栈溢出 `stack-buffer-overflow:inspect`）与 LSan（内存泄漏 `detected memory leaks:malloc`）精确检出，`missing_deinit` 与 `premature_holder_free` 精确拒绝，`calibration.status: pass`；
+     - G4 Checker 变异：临时 worktree 隔离红绿闭环通过（红测 0 诊断，源码还原 diff 为空，绿测恢复 L0131）；
+     - G5 缩减：针对 `Holder` 语义缺失故障从 9 操作单调缩减至 5 操作（717 字节至 551 字节），因果对照成立，1-minimal 穷举证明通过，3 次独立确认复现；
+     - 最终判定：`acceptance.status: pass`，`requirements_met: true`，成功保全全套 Linux 制品。
+   - **macOS (macos-14)**：
+     - 显式平台限制保持（`skipped_reasons: ["address:macos-asan-unsupported", "leak:macos-counter-only"]`），`acceptance.status: partial`，`requirements_met: false`，G4/G5 完整通过并保全制品。
 
