@@ -26,5 +26,36 @@
   "test_delta_sha256": "595c64a2b22df45fcdce7799139bed02d85f644c2091cd21af0cc070f1514d07",
   "cloud_test_bytes_identical": true,
   "old_inventory_fragments_retained": true,
-  "mac_test_fix_commit": "pending local implementation commit; recorded in follow-up delivery ledger"
+  "mac_test_fix_commit": "550d540e27e1a174c7a5ba6917b383a186b136fa",
+  "mac_evidence_commit": "9c08a666c97336b260a6382d0f6e3594e69e54e8",
+  "mac_focused_red": {
+    "passed": 2,
+    "failed": 2,
+    "exit": 101
+  },
+  "mac_focused_green": {
+    "passed": 5,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "exit": 0
+  },
+  "mac_summary_v2_regression": {
+    "passed": 20,
+    "failed": 0,
+    "skipped": 0
+  },
+  "mac_clippy": "passed; two changed integration targets, -D warnings",
+  "mac_fmt": "passed; workspace check without writes",
+  "mac_size_guard": {
+    "base": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+    "handwritten_files": 781,
+    "historical_over_limit": 45,
+    "new_exceptions": 0,
+    "passed": true
+  },
+  "mac_docs_check": {
+    "markdown_files": 521,
+    "passed": true
+  }
 }

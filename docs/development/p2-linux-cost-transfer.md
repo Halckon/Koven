@@ -57,3 +57,8 @@ C observer child RSS各自独立；compile/link归属和最大报告RSS不是exc
 v2的20项Python回归在Mac实际通过，fmt/受影响严格Clippy/尺寸门禁亦通过；
 尺寸报告781手写Rust、45旧超限，两变更文件579/396行，未扩大既有policy。
 未执行Mac全量frontend、native/其他crate全回归或P2重采样；新分支CI未运行。
+
+本地材料提交 `9c08a666c97336b260a6382d0f6e3594e69e54e8`；
+修复与验收提交 `550d540e27e1a174c7a5ba6917b383a186b136fa` 对应云修复
+`2aa75b0c86e9fe5cf4e2fc7600c657f7cc8c54c6` 的相同测试字节/delta；
+Mac包含后继0275及本批Spec/证据，不宣称恢复云commit SHA或整树相同。
