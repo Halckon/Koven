@@ -14,7 +14,7 @@ P2成本继续延期，后续候选能力不因M1A交付自动关闭。原[恢�
 
 ## 当前入口
 
-- [Active](active/README.md)：当前1份0276（approved、未实施）；0275按[PR53](https://github.com/Halckon/Koven/pull/53)归档并合并，最终归档CI及main CI已闭环，见[交付证据](../development/evidence/generic-containers-0275-delivery.json)；0274按[PR52](https://github.com/Halckon/Koven/pull/52)双宿主实现验收归档；0272按[PR51](https://github.com/Halckon/Koven/pull/51)双宿主实现验收归档；0273已按[PR50](https://github.com/Halckon/Koven/pull/50)双宿主实现证据归档；0271已按[PR49](https://github.com/Halckon/Koven/pull/49)双宿主实现证据归档；0270双宿主归档见[PR47](https://github.com/Halckon/Koven/pull/47)；0263–0268及M1A双宿主交付见[PR46](https://github.com/Halckon/Koven/pull/46)
+- [Active](active/README.md)：当前1份0276（in-progress、首轮frontend红测已复现）；0275按[PR53](https://github.com/Halckon/Koven/pull/53)归档并合并，最终归档CI及main CI已闭环，见[交付证据](../development/evidence/generic-containers-0275-delivery.json)；0274按[PR52](https://github.com/Halckon/Koven/pull/52)双宿主实现验收归档；0272按[PR51](https://github.com/Halckon/Koven/pull/51)双宿主实现验收归档；0273已按[PR50](https://github.com/Halckon/Koven/pull/50)双宿主实现证据归档；0271已按[PR49](https://github.com/Halckon/Koven/pull/49)双宿主实现证据归档；0270双宿主归档见[PR47](https://github.com/Halckon/Koven/pull/47)；0263–0268及M1A双宿主交付见[PR46](https://github.com/Halckon/Koven/pull/46)
 - [演进实施账本](evolution-status.md)：13 项计划的当前实现、最终交付与独立缺口，唯一进度摘要
 - [当前路线图](../development/roadmap.md)：从现状导航到下一批次；不复制第二张演进状态表
 - [治理执行账本](../development/engineering-governance-progress.md)：获批整体架构与工程治理的批次基线与交付

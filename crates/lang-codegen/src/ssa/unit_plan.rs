@@ -48,8 +48,7 @@ use recipe_validation::recipe_root_facts_for_instance;
 use runtime_layout::classify_runtime_type_demands;
 pub(crate) use runtime_layout::resolve_nominal_runtime_field_types;
 
-/// 防止 unit-wide 泛型实例图被合法但病态的源码无界扩张。
-pub(super) const MAX_UNIT_GENERIC_INSTANCES: usize = 1024;
+pub(super) use lang_frontend::type_checking::MAX_UNIT_GENERIC_INSTANCES;
 
 /// 一个 unit-wide 具体函数实例的规范 identity。
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

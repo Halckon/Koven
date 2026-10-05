@@ -131,6 +131,7 @@ fn plan<'a>(
     .expect("unit instance plan")
 }
 
+mod body_type_budget;
 mod delegation_routes;
 mod entry_identity;
 mod error_order;

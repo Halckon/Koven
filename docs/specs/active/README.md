@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前1份active Spec：[0276普通泛型body类型归一化](0276-unit-generic-body-type-normalization.md)，工程准备审阅已通过、状态approved；G1–G7未执行。
+当前1份active Spec：[0276普通泛型body类型归一化](0276-unit-generic-body-type-normalization.md)，工程准备审阅已通过、状态in-progress；frontend首轮5项1pass4fail，G1–G7未完成。
 
 0275已由[PR53](https://github.com/Halckon/Koven/pull/53)合并为2be6406；最终归档CI37252410423必需14job成功、编辑器合法skip，main CI37253329605实际15/15成功。双宿主新增测试命中、完整词频/preview原始证据与source身份见[交付闭环账本](../../development/evidence/generic-containers-0275-delivery.json)。
 

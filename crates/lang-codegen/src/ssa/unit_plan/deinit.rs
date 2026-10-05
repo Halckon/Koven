@@ -148,6 +148,18 @@ fn schedule_layout(
     if !contains_resource(typed, ty, &mut BTreeSet::new(), span)? || !visited.insert(ty) {
         return Ok(());
     }
+    // Existing nullable class handles own the same inner resource conditionally.
+    // Keep inline nullable and unsupported Rc/Box resource recipes under their old rejection.
+    if let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(ty)
+        && let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(*inner)
+        && typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .is_some_and(|nominal| nominal.kind() == NominalKind::Class)
+    {
+        return schedule_layout(typed, *inner, pending, visited, span);
+    }
     // Sequential provider storage owns each element; its existing drop glue must
     // reach the same hidden bodies as a direct owner or a concrete value field.
     if let Some(UnitTypeKind::Intrinsic {
