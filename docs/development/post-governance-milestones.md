@@ -325,3 +325,21 @@ G5 固定 Holder 缺失 deinit 的受控运行期故障，正常对照通过，7
 
 本片仅关闭选定生成域与检测/缩减设施；M4 其他范围、M4c、完整内存安全证明、性能成本接受
 及其它里程碑继续按各自前置推进。此次收尾仅改文档与冻结 inventory，没有新增实现或语言语义。
+
+
+## 21. M3A 共享 SSA 安全前置交付（2026-10-05）
+
+SPEC0278 的 45 项新增逃逸与当前内容证明测试已在双宿主实际执行。
+[PR56](https://github.com/Halckon/Koven/pull/56) 最终 head `d982bea3` 的
+CI37316378722 为 14 项必需成功及 Tree-sitter 合法跳过；合并为
+`6575e9069506fbdddcbf7e8cd5e873de91eea5b7` 后，
+[actual main CI37319712345](https://github.com/Halckon/Koven/actions/runs/37319712345)
+实际 15/15 成功，无 job 跳过。两轮 Linux 完整 codegen 922 passed，macOS 921 passed
+及一项既有 LLDB 权限 ignore，均无失败、无过滤；双宿主 preview 消费者成功。
+源码、PR synthetic checkout 与 actual main 身份及原始日志见
+[交付账本](evidence/closure-escape-0278/delivery.json)，不改写归档验收正文。
+
+原本地 main 已安全快进，原六份未提交文件内容与 index 保全；后继
+`feature/spec-0279` 独立 worktree 基于上述 actual main。完整运行时长度源码构造
+及嵌套 capture LoanId 生命周期仍未关闭。用户允许主干既有远端 CI；
+本地不运行真实故障校准，不启动 daybreak 或 P2 重采样。

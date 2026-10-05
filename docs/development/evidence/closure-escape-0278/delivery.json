@@ -311,12 +311,618 @@
     }
   ],
   "final_head": {
-    "status": "pending"
+    "schema": "koven.spec0278-ci.v1",
+    "stage": "final",
+    "run_id": 37316378722,
+    "url": "https://github.com/Halckon/Koven/actions/runs/37316378722",
+    "source_commit": "d982bea3a73d884ad9132bbfe6ac95607151ae7d",
+    "source_tree": "9e9abb3b5b266a01d150159ecf3bc5831860f62d",
+    "event": "pull_request",
+    "jobs": [
+      {
+        "id": 111788588648,
+        "name": "Rust Physical Line Guard",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111788588648"
+      },
+      {
+        "id": 111788589113,
+        "name": "Detect Changed Files",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111788589113"
+      },
+      {
+        "id": 111788589274,
+        "name": "Direct Workspace Dependency Guard",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111788589274"
+      },
+      {
+        "id": 111788676642,
+        "name": "Rust Code Formatting",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111788676642"
+      },
+      {
+        "id": 111788676822,
+        "name": "Docs & Spec Structural Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111788676822"
+      },
+      {
+        "id": 111788679879,
+        "name": "Tree-sitter CLI Corpus",
+        "status": "completed",
+        "conclusion": "skipped",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111788679879"
+      },
+      {
+        "id": 111788842916,
+        "name": "Workspace Check & Clippy (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111788842916"
+      },
+      {
+        "id": 111788843291,
+        "name": "Workspace Check & Clippy (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111788843291"
+      },
+      {
+        "id": 111789721694,
+        "name": "Targeted Tests (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111789721694"
+      },
+      {
+        "id": 111789721749,
+        "name": "Targeted Tests (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111789721749"
+      },
+      {
+        "id": 111792561678,
+        "name": "Preview Producer (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111792561678"
+      },
+      {
+        "id": 111792561742,
+        "name": "Preview Producer (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111792561742"
+      },
+      {
+        "id": 111793369958,
+        "name": "Preview Independent Consumer (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111793369958"
+      },
+      {
+        "id": 111793783382,
+        "name": "Preview Independent Consumer (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111793783382"
+      },
+      {
+        "id": 111794189124,
+        "name": "CI Passed",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37316378722/job/111794189124"
+      }
+    ],
+    "hosts": {
+      "linux": {
+        "job_id": 111789721694,
+        "checkout_commit": "45d3c79e53c9493bc5fd97634c17238fcc0bf1e6",
+        "checkout_tree": "9e9abb3b5b266a01d150159ecf3bc5831860f62d",
+        "checkout_parents": [
+          "55739cbd065ba0d8259069b31e53c19fe9f92572",
+          "d982bea3a73d884ad9132bbfe6ac95607151ae7d"
+        ],
+        "new_tests_passed": [
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_empty_list_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_inactive_tagged_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_nullable_null_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_entry_container_return_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_entry_value_call_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_factory_return_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_allows_function_pointer_signature_mentions",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_allows_root_place_local_mutate_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_aggregate_construct",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_construct",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_element_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_element_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_direct_value_receiver",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_allocate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_exchange",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_indirect_value_argument",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_owned_capture_outer_return",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_shared_allocate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_tagged_construct",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_allows_inline_field_after_cfg_root_clear",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_allows_inline_field_after_whole_root_clear",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_inline_field_after_cfg_root_taint",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_inline_field_after_whole_root_taint",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_mismatched_cfg_root_field_pairing",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_old_shared_payload_after_handle_clear",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_allows_clean_writes_and_current_clean_exchange_results",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_current_content_swapped_into_second_root",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_current_old_value_after_replace",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_unknown_written_then_taken",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_known_empty_payload_after_cfg_transport",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_known_empty_payload_return",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_root_cleared_before_borrow",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_rejects_root_tainted_before_borrow",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_rejects_unknown_entry_payload_return",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_deep_storage_uses_iteration_and_visits_each_edge_once",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_does_not_treat_signatures_or_reference_targets_as_owned_storage",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_owner_cycles_reach_a_fixed_point_and_clean_cycles_stay_clean",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_shared_dag_counts_storage_edges_instead_of_expanding_paths"
+        ],
+        "complete_codegen_result": {
+          "passed": 922,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        "ignored_tests": [],
+        "raw_log": {
+          "path": "linux-targeted.log",
+          "raw_sha256": "bb937ac871c26cb821fb00c43902f17e94ab0aeb9a0c2ab97502db680a9ef16b"
+        }
+      },
+      "macos": {
+        "job_id": 111789721749,
+        "checkout_commit": "45d3c79e53c9493bc5fd97634c17238fcc0bf1e6",
+        "checkout_tree": "9e9abb3b5b266a01d150159ecf3bc5831860f62d",
+        "checkout_parents": [
+          "55739cbd065ba0d8259069b31e53c19fe9f92572",
+          "d982bea3a73d884ad9132bbfe6ac95607151ae7d"
+        ],
+        "new_tests_passed": [
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_empty_list_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_inactive_tagged_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_nullable_null_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_entry_container_return_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_entry_value_call_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_factory_return_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_allows_function_pointer_signature_mentions",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_allows_root_place_local_mutate_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_aggregate_construct",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_construct",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_element_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_element_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_direct_value_receiver",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_allocate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_exchange",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_indirect_value_argument",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_owned_capture_outer_return",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_shared_allocate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_tagged_construct",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_allows_inline_field_after_cfg_root_clear",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_allows_inline_field_after_whole_root_clear",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_inline_field_after_cfg_root_taint",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_inline_field_after_whole_root_taint",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_mismatched_cfg_root_field_pairing",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_old_shared_payload_after_handle_clear",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_allows_clean_writes_and_current_clean_exchange_results",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_current_content_swapped_into_second_root",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_current_old_value_after_replace",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_unknown_written_then_taken",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_known_empty_payload_after_cfg_transport",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_known_empty_payload_return",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_root_cleared_before_borrow",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_rejects_root_tainted_before_borrow",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_rejects_unknown_entry_payload_return",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_deep_storage_uses_iteration_and_visits_each_edge_once",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_does_not_treat_signatures_or_reference_targets_as_owned_storage",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_owner_cycles_reach_a_fixed_point_and_clean_cycles_stay_clean",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_shared_dag_counts_storage_edges_instead_of_expanding_paths"
+        ],
+        "complete_codegen_result": {
+          "passed": 921,
+          "failed": 0,
+          "ignored": 1,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        "ignored_tests": [
+          "llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame"
+        ],
+        "raw_log": {
+          "path": "macos-targeted.log",
+          "raw_sha256": "487a018f5bee2ceea78ee4b90a507ed9e533f79e845d7344b4b734e3e085090f"
+        }
+      }
+    },
+    "legitimate_skips": [
+      "Tree-sitter CLI Corpus"
+    ],
+    "pull_request": {
+      "number": 56,
+      "url": "https://github.com/Halckon/Koven/pull/56",
+      "head": "d982bea3a73d884ad9132bbfe6ac95607151ae7d",
+      "base": "55739cbd065ba0d8259069b31e53c19fe9f92572",
+      "synthetic_merge": "45d3c79e53c9493bc5fd97634c17238fcc0bf1e6"
+    },
+    "notes": [
+      "Source commit and synthetic PR checkout are recorded separately.",
+      "Full raw targeted logs retained; all 45 new tests actually ran on both hosts.",
+      "No local native fault calibration; existing main remote CI explicitly authorized.",
+      "Full M3A runtime-length source constructors and LoanId lifecycle remain open."
+    ]
   },
   "merge": {
-    "status": "pending"
+    "status": "merged",
+    "pull_request": 56,
+    "url": "https://github.com/Halckon/Koven/pull/56",
+    "commit": "6575e9069506fbdddcbf7e8cd5e873de91eea5b7",
+    "merged_at": "2026-10-05T13:48:50Z",
+    "preserved_source_commit": "d982bea3a73d884ad9132bbfe6ac95607151ae7d"
   },
   "actual_main": {
-    "status": "pending"
-  }
+    "schema": "koven.spec0278-ci.v1",
+    "stage": "main",
+    "run_id": 37319712345,
+    "url": "https://github.com/Halckon/Koven/actions/runs/37319712345",
+    "source_commit": "6575e9069506fbdddcbf7e8cd5e873de91eea5b7",
+    "source_tree": "9e9abb3b5b266a01d150159ecf3bc5831860f62d",
+    "event": "push",
+    "jobs": [
+      {
+        "id": 111795362573,
+        "name": "Direct Workspace Dependency Guard",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111795362573"
+      },
+      {
+        "id": 111795362917,
+        "name": "Detect Changed Files",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111795362917"
+      },
+      {
+        "id": 111795363295,
+        "name": "Rust Physical Line Guard",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111795363295"
+      },
+      {
+        "id": 111795434225,
+        "name": "Docs & Spec Structural Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111795434225"
+      },
+      {
+        "id": 111795434426,
+        "name": "Rust Code Formatting",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111795434426"
+      },
+      {
+        "id": 111795434433,
+        "name": "Tree-sitter CLI Corpus",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111795434433"
+      },
+      {
+        "id": 111795592287,
+        "name": "Workspace Check & Clippy (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111795592287"
+      },
+      {
+        "id": 111795592496,
+        "name": "Workspace Check & Clippy (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111795592496"
+      },
+      {
+        "id": 111796362734,
+        "name": "Targeted Tests (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111796362734"
+      },
+      {
+        "id": 111796362873,
+        "name": "Targeted Tests (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111796362873"
+      },
+      {
+        "id": 111799827546,
+        "name": "Preview Producer (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111799827546"
+      },
+      {
+        "id": 111799827653,
+        "name": "Preview Producer (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111799827653"
+      },
+      {
+        "id": 111800609668,
+        "name": "Preview Independent Consumer (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111800609668"
+      },
+      {
+        "id": 111801084510,
+        "name": "Preview Independent Consumer (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111801084510"
+      },
+      {
+        "id": 111801468497,
+        "name": "CI Passed",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37319712345/job/111801468497"
+      }
+    ],
+    "hosts": {
+      "linux": {
+        "job_id": 111796362734,
+        "checkout_commit": "6575e9069506fbdddcbf7e8cd5e873de91eea5b7",
+        "checkout_tree": "9e9abb3b5b266a01d150159ecf3bc5831860f62d",
+        "checkout_parents": [
+          "55739cbd065ba0d8259069b31e53c19fe9f92572",
+          "d982bea3a73d884ad9132bbfe6ac95607151ae7d"
+        ],
+        "new_tests_passed": [
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_empty_list_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_inactive_tagged_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_nullable_null_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_entry_container_return_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_entry_value_call_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_factory_return_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_allows_function_pointer_signature_mentions",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_allows_root_place_local_mutate_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_aggregate_construct",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_construct",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_element_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_element_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_direct_value_receiver",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_allocate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_exchange",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_indirect_value_argument",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_owned_capture_outer_return",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_shared_allocate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_tagged_construct",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_allows_inline_field_after_cfg_root_clear",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_allows_inline_field_after_whole_root_clear",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_inline_field_after_cfg_root_taint",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_inline_field_after_whole_root_taint",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_mismatched_cfg_root_field_pairing",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_old_shared_payload_after_handle_clear",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_allows_clean_writes_and_current_clean_exchange_results",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_current_content_swapped_into_second_root",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_current_old_value_after_replace",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_unknown_written_then_taken",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_known_empty_payload_after_cfg_transport",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_known_empty_payload_return",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_root_cleared_before_borrow",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_rejects_root_tainted_before_borrow",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_rejects_unknown_entry_payload_return",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_deep_storage_uses_iteration_and_visits_each_edge_once",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_does_not_treat_signatures_or_reference_targets_as_owned_storage",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_owner_cycles_reach_a_fixed_point_and_clean_cycles_stay_clean",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_shared_dag_counts_storage_edges_instead_of_expanding_paths"
+        ],
+        "complete_codegen_result": {
+          "passed": 922,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        "ignored_tests": [],
+        "raw_log": {
+          "path": "linux-targeted.log",
+          "raw_sha256": "cd609405391510e39a986866f6ca10d75c5a62b1e87609e367a9fff8da3827bd"
+        }
+      },
+      "macos": {
+        "job_id": 111796362873,
+        "checkout_commit": "6575e9069506fbdddcbf7e8cd5e873de91eea5b7",
+        "checkout_tree": "9e9abb3b5b266a01d150159ecf3bc5831860f62d",
+        "checkout_parents": [
+          "55739cbd065ba0d8259069b31e53c19fe9f92572",
+          "d982bea3a73d884ad9132bbfe6ac95607151ae7d"
+        ],
+        "new_tests_passed": [
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_empty_list_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_inactive_tagged_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_allows_nullable_null_and_its_owned_wrappers_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_entry_container_return_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_entry_value_call_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::borrowed_closure_escape_rejects_factory_return_at_delivery_origin",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_allows_function_pointer_signature_mentions",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_allows_root_place_local_mutate_and_cfg",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_aggregate_construct",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_construct",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_element_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_element_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_container_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_direct_value_receiver",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_allocate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_exchange",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_heap_field_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_indirect_value_argument",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_mutate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_mutate_cfg_alias",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_inline_field_replace",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_owned_capture_outer_return",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_shared_allocate",
+          "ssa::closure_operation_tests::escape_tests::delivery_tests::borrowed_closure_escape_rejects_tagged_construct",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_allows_inline_field_after_cfg_root_clear",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_allows_inline_field_after_whole_root_clear",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_inline_field_after_cfg_root_taint",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_inline_field_after_whole_root_taint",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_mismatched_cfg_root_field_pairing",
+          "ssa::closure_operation_tests::escape_tests::projected_content_tests::borrowed_closure_projected_content_rejects_old_shared_payload_after_handle_clear",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_allows_clean_writes_and_current_clean_exchange_results",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_current_content_swapped_into_second_root",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_current_old_value_after_replace",
+          "ssa::closure_operation_tests::escape_tests::root_content_tests::borrowed_closure_root_rejects_unknown_written_then_taken",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_known_empty_payload_after_cfg_transport",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_known_empty_payload_return",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_allows_root_cleared_before_borrow",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_rejects_root_tainted_before_borrow",
+          "ssa::closure_operation_tests::escape_tests::shared_retain_tests::borrowed_closure_shared_retain_loan_rejects_unknown_entry_payload_return",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_deep_storage_uses_iteration_and_visits_each_edge_once",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_does_not_treat_signatures_or_reference_targets_as_owned_storage",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_owner_cycles_reach_a_fixed_point_and_clean_cycles_stay_clean",
+          "ssa::verify::closure_escape::types::graph_tests::capture_type_graph_shared_dag_counts_storage_edges_instead_of_expanding_paths"
+        ],
+        "complete_codegen_result": {
+          "passed": 921,
+          "failed": 0,
+          "ignored": 1,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        "ignored_tests": [
+          "llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame"
+        ],
+        "raw_log": {
+          "path": "macos-targeted.log",
+          "raw_sha256": "80301cd12641091b443cfaf8ff344302386070dc86d533f4a238b2497164f7b4"
+        }
+      }
+    },
+    "legitimate_skips": [],
+    "notes": [
+      "Source commit and synthetic PR checkout are recorded separately.",
+      "Full raw targeted logs retained; all 45 new tests actually ran on both hosts.",
+      "No local native fault calibration; existing main remote CI explicitly authorized.",
+      "Full M3A runtime-length source constructors and LoanId lifecycle remain open."
+    ]
+  },
+  "retained_final": [
+    {
+      "path": "docs/development/evidence/closure-escape-0278/pr-final-jobs.json.gz",
+      "raw_sha256": "506791e6c67d76eeb092550dd2db0ae6b791c7a076b6dec34740146fae998682"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/pr-final-linux-checkout.json.gz",
+      "raw_sha256": "f0bb52b8bb26b1c4c02d83f9d9ee1e6957698f0a5d0e613f346f63b542bc96fc"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/pr-final-linux-targeted.log.gz",
+      "raw_sha256": "bb937ac871c26cb821fb00c43902f17e94ab0aeb9a0c2ab97502db680a9ef16b"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/pr-final-macos-checkout.json.gz",
+      "raw_sha256": "f0bb52b8bb26b1c4c02d83f9d9ee1e6957698f0a5d0e613f346f63b542bc96fc"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/pr-final-macos-targeted.log.gz",
+      "raw_sha256": "487a018f5bee2ceea78ee4b90a507ed9e533f79e845d7344b4b734e3e085090f"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/pr-final-proof.json.gz",
+      "raw_sha256": "40379c6bb2cd790c8a7d7c614744f0757fa4cb84ebf7c3d73f520a9fda7e30d8"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/pr-final-pull-request.json.gz",
+      "raw_sha256": "559bfb63357c954c8e06345f803486d149dc540a0342f926629ebb1161b66df9"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/pr-final-run.json.gz",
+      "raw_sha256": "b8434638c7cf536197eba66e3c7eef8e152d2bb7dbe88b337ab84f871467b247"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/pr-final-source-commit.json.gz",
+      "raw_sha256": "5cef24d0e67c571e0faae1c4295fb297b5f71f5474e0dfaea3307e0cca31347f"
+    }
+  ],
+  "retained_main": [
+    {
+      "path": "docs/development/evidence/closure-escape-0278/main-jobs.json.gz",
+      "raw_sha256": "d0d9dc5e813f4317fe5f721b264f96f57f795ca915c42c58679ef44bbe46fed2"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/main-linux-checkout.json.gz",
+      "raw_sha256": "d1b1db6a430655c3930bcfeea196e9b70b55493e1373707daa0c0bd47a646a40"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/main-linux-targeted.log.gz",
+      "raw_sha256": "cd609405391510e39a986866f6ca10d75c5a62b1e87609e367a9fff8da3827bd"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/main-macos-checkout.json.gz",
+      "raw_sha256": "d1b1db6a430655c3930bcfeea196e9b70b55493e1373707daa0c0bd47a646a40"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/main-macos-targeted.log.gz",
+      "raw_sha256": "80301cd12641091b443cfaf8ff344302386070dc86d533f4a238b2497164f7b4"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/main-proof.json.gz",
+      "raw_sha256": "b1d29c64eb667bdee433e9083cb88e1de2793694a33ada1ea39b48aff7b96530"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/main-run.json.gz",
+      "raw_sha256": "47f039f5b82371b3fae0230181ade3cf0da62b05e7a1daf483d0e234fdec1858"
+    },
+    {
+      "path": "docs/development/evidence/closure-escape-0278/main-source-commit.json.gz",
+      "raw_sha256": "d1b1db6a430655c3930bcfeea196e9b70b55493e1373707daa0c0bd47a646a40"
+    }
+  ]
 }
