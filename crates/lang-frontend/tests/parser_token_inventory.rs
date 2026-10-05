@@ -29,7 +29,6 @@ const KEYWORDS: &[&str] = &[
     "package",
     "typealias",
     "val",
-    "value",
     "var",
     "vararg",
     "break",
@@ -39,14 +38,9 @@ const KEYWORDS: &[&str] = &[
     "if",
     "in",
     "is",
-    "loop",
     "return",
     "when",
     "while",
-    "borrow",
-    "inout",
-    "move",
-    "own",
     "unsafe",
     "internal",
     "private",
@@ -72,8 +66,14 @@ const SYMBOLS: &[&str] = &[
     "-=", "*=", "/=", "%=", "=", "as?", "!in", "!is",
 ];
 
-const ATOMS: &[&str] = &[
-    "name", "_", "to", "infix", "0", "1L", "1u", "1uL", "1.0", "1f", "'x'", "\"text\"", "\"${x}\"",
+// Guide 01 的上下文/软关键字在 Lexer 中仍是 Identifier，库存不可把它们漏掉。
+const IDENTIFIERS: &[&str] = &[
+    "name", "_", "value", "loop", "own", "borrow", "inout", "move", "to", "by", "infix", "and",
+    "or", "xor", "shl", "shr", "ushr",
+];
+
+const LITERALS: &[&str] = &[
+    "0", "1L", "1u", "1uL", "1.0", "1f", "'x'", "\"text\"", "\"${x}\"",
 ];
 
 const TRIVIA: &[&str] = &[" ", "\n", "// comment\n", "/* comment */"];
@@ -85,7 +85,8 @@ fn inventory() -> Vec<&'static str> {
         .iter()
         .chain(RESERVED_WORDS)
         .chain(SYMBOLS)
-        .chain(ATOMS)
+        .chain(IDENTIFIERS)
+        .chain(LITERALS)
         .chain(TRIVIA)
         .chain(INVALID)
         .copied()
@@ -108,18 +109,19 @@ fn first_non_eof_kind(lexed: &LexedFile) -> LexemeKind {
 
 #[test]
 fn inventory_is_unique_and_covers_every_public_lexical_family() {
-    assert_eq!(KEYWORDS.len(), 42);
+    assert_eq!(KEYWORDS.len(), 36);
     assert_eq!(RESERVED_WORDS.len(), 11);
     assert_eq!(SYMBOLS.len(), 43);
-    assert_eq!(ATOMS.len(), 13);
+    assert_eq!(IDENTIFIERS.len(), 17);
+    assert_eq!(LITERALS.len(), 9);
     assert_eq!(TRIVIA.len(), 4);
     assert_eq!(INVALID.len(), 7);
 
     let inventory = inventory();
-    assert_eq!(inventory.len(), 120);
+    assert_eq!(inventory.len(), 127);
     assert_eq!(
         inventory.iter().copied().collect::<BTreeSet<_>>().len(),
-        120
+        127
     );
 
     let mut lexed_cases = 0;
@@ -129,6 +131,20 @@ fn inventory_is_unique_and_covers_every_public_lexical_family() {
             first_non_eof_kind(&lexed),
             LexemeKind::Token(TokenKind::Keyword(_))
         ));
+        lexed_cases += 1;
+    }
+    for text in IDENTIFIERS {
+        let lexed = lex_case(text);
+        assert_eq!(
+            first_non_eof_kind(&lexed),
+            LexemeKind::Token(TokenKind::Identifier),
+            "identifier fragment {text:?}"
+        );
+        assert_eq!(lexed.lexemes().len(), 2, "identifier and EOF: {text:?}");
+        assert!(
+            lexed.diagnostics().is_empty(),
+            "identifier fragment {text:?}"
+        );
         lexed_cases += 1;
     }
     for text in RESERVED_WORDS {
@@ -169,7 +185,7 @@ fn inventory_is_unique_and_covers_every_public_lexical_family() {
         );
         lexed_cases += 1;
     }
-    assert_eq!(lexed_cases, 220);
+    assert_eq!(lexed_cases, 238);
     assert_eq!(
         diagnostic_codes,
         (1..=8).map(|code| format!("L{code:04}")).collect()
@@ -376,5 +392,5 @@ fn every_lexical_fragment_preserves_output_invariants_in_every_public_parser_ent
         }
     }
 
-    assert_eq!(executed, 120 * 4);
+    assert_eq!(executed, 127 * 4);
 }

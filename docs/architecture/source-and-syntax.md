@@ -22,6 +22,12 @@ Lexer 负责现行关键字与保留字、标识符、数字后缀、`Char`、�
 trivia 和固定符号最长匹配。它只分类拼写，不解析数值范围，也不决定语法位置、类型或所有权。
 字符串插值通过显式模式栈扫描；非法输入必须前进并形成结构化诊断，不能在用户输入路径 panic。
 
+`parser_long_invalid_number_boundaries` 按现行radix规则保留6类长非法数字×4公共入口的
+完整诊断/恢复矩阵，并有4种长hex/bin表达式正例；词法/解析接受不代表后续数值范围合法。
+`parser_token_inventory` 把上下文/软词列为Identifier，保留旧120片段并扩到127个唯一片段，
+四入口重复解析、诊断族与产物保真仍在同一target。对应修复及Mac/Linux证据边界见
+[SPEC-0277](../archive/specs/0277-p2-evidence-test-alignment.md)；未改变生产规则。
+
 实现入口是 `crates/lang-frontend/src/lexer/`；对应覆盖位于 `lexer`、`lexer_boundary_matrix` 和
 `lexer_stress_matrix` integration suites。
 

@@ -82,3 +82,7 @@ Map、借用返回、getOrNull、可逃逸迭代器、通用 clone、隐式容�
 [SPEC-0275](../archive/specs/0275-unit-generic-container-signatures.md)从PR52合并后的最新main
 承接直接Array<T>/List<T>/MutableList<T>签名的native具体替换，现行Guide已封闭语义。
 新增API及其余C01–C08仍按原前置；body-only发布与递归模板没有自动启用。具体范围和验收只记Spec。
+
+后继[SPEC-0276](../archive/specs/0276-unit-generic-body-type-normalization.md)承接普通顶层函数
+body-only具体需求发布及其既有native消费者适配，保持原recursive-template边界。
+该片已按双宿主实现CI验收归档，最终head及actual main交付门禁已闭环，见[交付账本](evidence/generic-body-0276-delivery.json)；两片不代表整个M3A操作集已完成。

@@ -1,0 +1,1262 @@
+{
+  "schema": "koven.word-frequency-evidence.v1",
+  "success": true,
+  "compiler": {
+    "path": "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+    "sha256": "5e69db888780e21938673410a00dd84ca6eebd6b2afec7adae5a9ba2c8d09272"
+  },
+  "projects": [
+    {
+      "path": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 0",
+      "files": {
+        "project.toml": "3274646b4b12d17738fccd972b0e64632bd85922a226fe9b89eb1c8eb53ae568",
+        "src/app/decimal.ko": "3aa1a164945f39a73ddf36953914011270fcb2ec9a78a413f57e44ec7b263687",
+        "src/app/main.ko": "ea77916899901b6b05fc02bc51ee3385df87150821c5ec575aaf09b2cb9e8b62",
+        "src/app/statistics.ko": "2b1660b40cce2a9e84e4efe493bd34428a9a4968217c3abc9ac98ab4b38b7af9"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 1",
+      "files": {
+        "project.toml": "3274646b4b12d17738fccd972b0e64632bd85922a226fe9b89eb1c8eb53ae568",
+        "src/app/decimal.ko": "3aa1a164945f39a73ddf36953914011270fcb2ec9a78a413f57e44ec7b263687",
+        "src/app/main.ko": "ea77916899901b6b05fc02bc51ee3385df87150821c5ec575aaf09b2cb9e8b62",
+        "src/app/statistics.ko": "2b1660b40cce2a9e84e4efe493bd34428a9a4968217c3abc9ac98ab4b38b7af9"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 2",
+      "files": {
+        "project.toml": "3274646b4b12d17738fccd972b0e64632bd85922a226fe9b89eb1c8eb53ae568",
+        "src/app/decimal.ko": "3aa1a164945f39a73ddf36953914011270fcb2ec9a78a413f57e44ec7b263687",
+        "src/app/main.ko": "ea77916899901b6b05fc02bc51ee3385df87150821c5ec575aaf09b2cb9e8b62",
+        "src/app/statistics.ko": "2b1660b40cce2a9e84e4efe493bd34428a9a4968217c3abc9ac98ab4b38b7af9"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 3",
+      "files": {
+        "project.toml": "3274646b4b12d17738fccd972b0e64632bd85922a226fe9b89eb1c8eb53ae568",
+        "src/app/decimal.ko": "3aa1a164945f39a73ddf36953914011270fcb2ec9a78a413f57e44ec7b263687",
+        "src/app/main.ko": "ea77916899901b6b05fc02bc51ee3385df87150821c5ec575aaf09b2cb9e8b62",
+        "src/app/statistics.ko": "2b1660b40cce2a9e84e4efe493bd34428a9a4968217c3abc9ac98ab4b38b7af9"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 4",
+      "files": {
+        "project.toml": "3274646b4b12d17738fccd972b0e64632bd85922a226fe9b89eb1c8eb53ae568",
+        "src/app/decimal.ko": "3aa1a164945f39a73ddf36953914011270fcb2ec9a78a413f57e44ec7b263687",
+        "src/app/main.ko": "ea77916899901b6b05fc02bc51ee3385df87150821c5ec575aaf09b2cb9e8b62",
+        "src/app/statistics.ko": "2b1660b40cce2a9e84e4efe493bd34428a9a4968217c3abc9ac98ab4b38b7af9"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 5",
+      "files": {
+        "project.toml": "3274646b4b12d17738fccd972b0e64632bd85922a226fe9b89eb1c8eb53ae568",
+        "src/app/decimal.ko": "3aa1a164945f39a73ddf36953914011270fcb2ec9a78a413f57e44ec7b263687",
+        "src/app/main.ko": "ea77916899901b6b05fc02bc51ee3385df87150821c5ec575aaf09b2cb9e8b62",
+        "src/app/statistics.ko": "2b1660b40cce2a9e84e4efe493bd34428a9a4968217c3abc9ac98ab4b38b7af9"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 6",
+      "files": {
+        "project.toml": "3274646b4b12d17738fccd972b0e64632bd85922a226fe9b89eb1c8eb53ae568",
+        "src/app/decimal.ko": "3aa1a164945f39a73ddf36953914011270fcb2ec9a78a413f57e44ec7b263687",
+        "src/app/main.ko": "ea77916899901b6b05fc02bc51ee3385df87150821c5ec575aaf09b2cb9e8b62",
+        "src/app/statistics.ko": "2b1660b40cce2a9e84e4efe493bd34428a9a4968217c3abc9ac98ab4b38b7af9"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 7",
+      "files": {
+        "project.toml": "3274646b4b12d17738fccd972b0e64632bd85922a226fe9b89eb1c8eb53ae568",
+        "src/app/decimal.ko": "3aa1a164945f39a73ddf36953914011270fcb2ec9a78a413f57e44ec7b263687",
+        "src/app/main.ko": "ea77916899901b6b05fc02bc51ee3385df87150821c5ec575aaf09b2cb9e8b62",
+        "src/app/statistics.ko": "2b1660b40cce2a9e84e4efe493bd34428a9a4968217c3abc9ac98ab4b38b7af9"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "files": {
+        "project.toml": "3274646b4b12d17738fccd972b0e64632bd85922a226fe9b89eb1c8eb53ae568",
+        "src/app/decimal.ko": "3aa1a164945f39a73ddf36953914011270fcb2ec9a78a413f57e44ec7b263687",
+        "src/app/main.ko": "ea77916899901b6b05fc02bc51ee3385df87150821c5ec575aaf09b2cb9e8b62",
+        "src/app/statistics.ko": "2b1660b40cce2a9e84e4efe493bd34428a9a4968217c3abc9ac98ab4b38b7af9",
+        "src/probe/main.ko": "e3772386bd52ef63a373cce8d6e6c527177a86e1aa1b06918f7c4258db1a97c4"
+      }
+    }
+  ],
+  "commands": [
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LW8=",
+        "cHJvZ3JhbQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 0",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 0/program"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv5q2j5bi4IOmhueebriAwL3Byb2dyYW0="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 0",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LS0="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 0",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LW8=",
+        "cHJvZ3JhbQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 1",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 1/program",
+        "alpha"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv5q2j5bi4IOmhueebriAxL3Byb2dyYW0=",
+        "YWxwaGE="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 1",
+      "exit": 0,
+      "stdout_base64": "YWxwaGEJMQo=",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "alpha\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "alpha"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LS0=",
+        "YWxwaGE="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 1",
+      "exit": 0,
+      "stdout_base64": "YWxwaGEJMQo=",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "alpha\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LW8=",
+        "cHJvZ3JhbQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 2",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 2/program",
+        "beta",
+        "alpha",
+        "beta",
+        "gamma",
+        "alpha",
+        "beta"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv5q2j5bi4IOmhueebriAyL3Byb2dyYW0=",
+        "YmV0YQ==",
+        "YWxwaGE=",
+        "YmV0YQ==",
+        "Z2FtbWE=",
+        "YWxwaGE=",
+        "YmV0YQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 2",
+      "exit": 0,
+      "stdout_base64": "YmV0YQkzCmFscGhhCTIKZ2FtbWEJMQo=",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "beta\t3\nalpha\t2\ngamma\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "beta",
+        "alpha",
+        "beta",
+        "gamma",
+        "alpha",
+        "beta"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LS0=",
+        "YmV0YQ==",
+        "YWxwaGE=",
+        "YmV0YQ==",
+        "Z2FtbWE=",
+        "YWxwaGE=",
+        "YmV0YQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 2",
+      "exit": 0,
+      "stdout_base64": "YmV0YQkzCmFscGhhCTIKZ2FtbWEJMQo=",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "beta\t3\nalpha\t2\ngamma\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LW8=",
+        "cHJvZ3JhbQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 3",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 3/program",
+        "\u4f60\u597d",
+        "\u754c",
+        "\u4f60\u597d"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv5q2j5bi4IOmhueebriAzL3Byb2dyYW0=",
+        "5L2g5aW9",
+        "55WM",
+        "5L2g5aW9"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 3",
+      "exit": 0,
+      "stdout_base64": "5L2g5aW9CTIK55WMCTEK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "\u4f60\u597d\t2\n\u754c\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "\u4f60\u597d",
+        "\u754c",
+        "\u4f60\u597d"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LS0=",
+        "5L2g5aW9",
+        "55WM",
+        "5L2g5aW9"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 3",
+      "exit": 0,
+      "stdout_base64": "5L2g5aW9CTIK55WMCTEK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "\u4f60\u597d\t2\n\u754c\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LW8=",
+        "cHJvZ3JhbQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 4",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 4/program",
+        "",
+        "",
+        "alpha",
+        ""
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv5q2j5bi4IOmhueebriA0L3Byb2dyYW0=",
+        "",
+        "",
+        "YWxwaGE=",
+        ""
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 4",
+      "exit": 0,
+      "stdout_base64": "CTMKYWxwaGEJMQo=",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "\t3\nalpha\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "",
+        "",
+        "alpha",
+        ""
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LS0=",
+        "",
+        "",
+        "YWxwaGE=",
+        ""
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 4",
+      "exit": 0,
+      "stdout_base64": "CTMKYWxwaGEJMQo=",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "\t3\nalpha\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LW8=",
+        "cHJvZ3JhbQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 5",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 5/program",
+        "a\tb",
+        "a\nb",
+        "a\rb",
+        "a\tb"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv5q2j5bi4IOmhueebriA1L3Byb2dyYW0=",
+        "YQli",
+        "YQpi",
+        "YQ1i",
+        "YQli"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 5",
+      "exit": 0,
+      "stdout_base64": "YQliCTIKYQpiCTEKYQ1iCTEK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "a\tb\t2\na\nb\t1\na\rb\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "a\tb",
+        "a\nb",
+        "a\rb",
+        "a\tb"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LS0=",
+        "YQli",
+        "YQpi",
+        "YQ1i",
+        "YQli"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 5",
+      "exit": 0,
+      "stdout_base64": "YQliCTIKYQpiCTEKYQ1iCTEK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "a\tb\t2\na\nb\t1\na\rb\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LW8=",
+        "cHJvZ3JhbQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 6",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 6/program",
+        "a b",
+        "\"quoted\"",
+        "slash\\word",
+        "a b"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv5q2j5bi4IOmhueebriA2L3Byb2dyYW0=",
+        "YSBi",
+        "InF1b3RlZCI=",
+        "c2xhc2hcd29yZA==",
+        "YSBi"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 6",
+      "exit": 0,
+      "stdout_base64": "YSBiCTIKInF1b3RlZCIJMQpzbGFzaFx3b3JkCTEK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "a b\t2\n\"quoted\"\t1\nslash\\word\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "a b",
+        "\"quoted\"",
+        "slash\\word",
+        "a b"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LS0=",
+        "YSBi",
+        "InF1b3RlZCI=",
+        "c2xhc2hcd29yZA==",
+        "YSBi"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 6",
+      "exit": 0,
+      "stdout_base64": "YSBiCTIKInF1b3RlZCIJMQpzbGFzaFx3b3JkCTEK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "a b\t2\n\"quoted\"\t1\nslash\\word\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LW8=",
+        "cHJvZ3JhbQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 7",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 7/program",
+        "\u00e9",
+        "e\u0301",
+        "\u00e9",
+        "ALPHA",
+        "alpha"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv5q2j5bi4IOmhueebriA3L3Byb2dyYW0=",
+        "w6k=",
+        "ZcyB",
+        "w6k=",
+        "QUxQSEE=",
+        "YWxwaGE="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 7",
+      "exit": 0,
+      "stdout_base64": "w6kJMgplzIEJMQpBTFBIQQkxCmFscGhhCTEK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "\u00e9\t2\ne\u0301\t1\nALPHA\t1\nalpha\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "\u00e9",
+        "e\u0301",
+        "\u00e9",
+        "ALPHA",
+        "alpha"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LS0=",
+        "w6k=",
+        "ZcyB",
+        "w6k=",
+        "QUxQSEE=",
+        "YWxwaGE="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 7",
+      "exit": 0,
+      "stdout_base64": "w6kJMgplzIEJMQpBTFBIQQkxCmFscGhhCTEK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "\u00e9\t2\ne\u0301\t1\nALPHA\t1\nalpha\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "probe.main",
+        "-o",
+        "decimal"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "cHJvYmUubWFpbg==",
+        "LW8=",
+        "ZGVjaW1hbA=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee/decimal"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv6L6555WMIOmhueebri9kZWNpbWFs"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 0,
+      "stdout_base64": "MAoxCjkKMTAKOTkKMTAwCjIxNDc0ODM2NDcK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "0\n1\n9\n10\n99\n100\n2147483647\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "probe.main",
+        "--"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "cHJvYmUubWFpbg==",
+        "LS0="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 0,
+      "stdout_base64": "MAoxCjkKMTAKOTkKMTAwCjIxNDc0ODM2NDcK",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "0\n1\n9\n10\n99\n100\n2147483647\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "probe.negative",
+        "-o",
+        "negative"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "cHJvYmUubmVnYXRpdmU=",
+        "LW8=",
+        "bmVnYXRpdmU="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee/negative"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv6L6555WMIOmhueebri9uZWdhdGl2ZQ=="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": -6,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "kind": "abort-before-output",
+        "exit": -6
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "probe.negative",
+        "--"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "cHJvYmUubmVnYXRpdmU=",
+        "LS0="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 1,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "kind": "abort-before-output",
+        "exit": 1
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 0/program",
+        "word\udcfftail"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv5q2j5bi4IOmhueebriAwL3Byb2dyYW0=",
+        "d29yZP90YWls"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 0",
+      "exit": 1,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "word\udcfftail"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "YXBwLm1haW4=",
+        "LS0=",
+        "d29yZP90YWls"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u6b63\u5e38 \u9879\u76ee 0",
+      "exit": 1,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "probe.entry",
+        "-o",
+        "entry"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "YnVpbGQ=",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "cHJvYmUuZW50cnk=",
+        "LW8=",
+        "ZW50cnk="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 0,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee/entry",
+        "alpha"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv6L6555WMIOmhueebri9lbnRyeQ==",
+        "YWxwaGE="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 0,
+      "stdout_base64": "ZW50ZXJlZAphbHBoYQkxCg==",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "entered\nalpha\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "probe.entry",
+        "--",
+        "alpha"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "cHJvYmUuZW50cnk=",
+        "LS0=",
+        "YWxwaGE="
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 0,
+      "stdout_base64": "ZW50ZXJlZAphbHBoYQkxCg==",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 0,
+        "stdout": "entered\nalpha\t1\n",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee/entry",
+        "word\udcfftail"
+      ],
+      "argv_base64": [
+        "L3ByaXZhdGUvdG1wLzAyNzYtd29yZC1mcmVxdWVuY3kv6L6555WMIOmhueebri9lbnRyeQ==",
+        "d29yZP90YWls"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 1,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "probe.entry",
+        "--",
+        "word\udcfftail"
+      ],
+      "argv_base64": [
+        "L1VzZXJzL2NrZmVpLy5jb2RleC93b3JrdHJlZXMvN2U3Yy9Lb3Zlbi90YXJnZXQvZGVidWcva292ZW5j",
+        "cnVu",
+        "LS1wcm9qZWN0",
+        "cHJvamVjdC50b21s",
+        "LS1lbnRyeQ==",
+        "cHJvYmUuZW50cnk=",
+        "LS0=",
+        "d29yZP90YWls"
+      ],
+      "cwd": "/private/tmp/0276-word-frequency/\u8fb9\u754c \u9879\u76ee",
+      "exit": 1,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "oracle": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true,
+      "timed_out": false,
+      "process_error": null
+    }
+  ]
+}

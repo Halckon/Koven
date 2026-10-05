@@ -1,0 +1,97 @@
+{
+  "schema": "koven.spec0277-ci-selection.v1",
+  "base_source_commit": "953b4f13146d0bff677daef56816bbab58f8a2c9",
+  "red_stage_file_sha256": "c0ae4495269ddaae6e9228af3a497556f61ebda3c322d7103fb5c5c43d8845df",
+  "red": {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "scripts.tests.test_check_ci_results.CheckCiResultsTests.test_lexical_alignment_targets_are_selected_once_without_filters",
+      "scripts.tests.test_recovery_gates.CompositionContracts"
+    ],
+    "exit": 1,
+    "tests": 3,
+    "failures": 5,
+    "log": {
+      "path": "ci-selection/red.log.gz",
+      "sha256": "11ae0d41c20a2126afd2360feab497269799b9bbadb685574f17cf7beb3f2053",
+      "raw_sha256": "bab07749c6e552a3b2ea3f77478fdac6718b4f88ab71f5fb43397b073e7b9a89",
+      "encoding": "gzip"
+    }
+  },
+  "selected_frontend_integrations": 79,
+  "cargo_invocations": 10,
+  "scope": "two complete repaired parser targets; shell selection and failure propagation verified with existing fake-tool harness",
+  "notes": [
+    "Source fingerprints describe the working diff tested before the wiring commit; base_source_commit does not claim the diff was already committed.",
+    "These Python checks prove selection and failure propagation; real dual-host five-test execution remains a PR CI requirement.",
+    "No full frontend, cost resampling or M4b actual fault calibration executed.",
+    "Independent review exposed a bare Cargo TESTNAME filter not rejected by the delimiter-only check. The counterexample failed before bounded argv validation; the final 34-test green includes this regression. Initial 33-test evidence is retained separately."
+  ],
+  "initial_green": {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "scripts.tests.test_check_ci_results",
+      "scripts.tests.test_recovery_gates"
+    ],
+    "exit": 0,
+    "tests": 33,
+    "failures": 0,
+    "skipped": 0,
+    "log": {
+      "path": "ci-selection/green.log.gz",
+      "sha256": "d47cfb3ec4b802f87c05bd87fe8dd1eb29b3cf8c0b5b0a7ae6935580af8469e3",
+      "raw_sha256": "2ff4f2398d40cc6b2ab4b4de3741c3b27af394c4faf9c7738544dbce421fd239",
+      "encoding": "gzip"
+    }
+  },
+  "initial_green_files_sha256": {
+    "scripts/tests/test_check_ci_results.py": "151d2318770f0e09121654a474889e72b853af2381e7eee72b063a2e274009c9",
+    "scripts/tests/test_recovery_gates.py": "fe74c4a7ad19a11a9ba73f62f939403e71edfa5f6f41f5a0ab1561b9804d7990",
+    "scripts/check_stage_integration.sh": "ce5d52c7d88a3a6a0e85d6383fd16da2124d22a2cb5d9028ea9228eda0c852c8"
+  },
+  "filter_guard_red": {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "scripts.tests.test_check_ci_results.CheckCiResultsTests.test_lexical_alignment_guard_rejects_cargo_positional_and_libtest_filters"
+    ],
+    "exit": 1,
+    "tests": 1,
+    "failures": 1,
+    "log": {
+      "path": "ci-selection/filter-red.log.gz",
+      "sha256": "8ac10821d76703cf47d7fbe18b9a07cf3e82f1de9be467cda1eaf06753f63214",
+      "raw_sha256": "1a74370ac218f9427f558463751cbba3a71b8165d4faf264b04a95a54cd3f4f1",
+      "encoding": "gzip"
+    }
+  },
+  "green": {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "scripts.tests.test_check_ci_results",
+      "scripts.tests.test_recovery_gates"
+    ],
+    "exit": 0,
+    "tests": 34,
+    "failures": 0,
+    "skipped": 0,
+    "log": {
+      "path": "ci-selection/filter-green.log.gz",
+      "sha256": "0c9eca183c42f622dd9f1e472a5fde485194a0164415ec2453587a27687925da",
+      "raw_sha256": "6bcd9a46a63ef994d6ab2e529989fbf2aeee5afeba54c0ddcf8bcaa1cf5710b0",
+      "encoding": "gzip"
+    }
+  },
+  "tested_green_files_sha256": {
+    "scripts/tests/test_check_ci_results.py": "12e68854ab1cedab6569cd5076aab35056fe812926c0383cb0a84a7219390383",
+    "scripts/tests/test_recovery_gates.py": "fe74c4a7ad19a11a9ba73f62f939403e71edfa5f6f41f5a0ab1561b9804d7990",
+    "scripts/check_stage_integration.sh": "ce5d52c7d88a3a6a0e85d6383fd16da2124d22a2cb5d9028ea9228eda0c852c8"
+  }
+}

@@ -4,9 +4,12 @@
 
 当前 1 份 active Spec：
 
-- [0269 有界资源程序生成与独立安全核验](0269-generated-resource-programs.md)：M4b 首片，实施中；已完成部分本地验证，完整验收尚未完成。
+- [0269 有界资源程序生成与独立安全核验](0269-generated-resource-programs.md)：M4b 首片，实施中；已完成本地验证与驱动串联，待远端双宿主CI闭环。
 
-0275按[PR53](https://github.com/Halckon/Koven/pull/53)实现head CI37251289329必需14job成功及编辑器合法skip归档；最终归档head CI、merge/main交付门禁待。
+0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终head/merge/main仍待，见[实现CI账本](../../development/evidence/p2-linux-20261005/pr-initial-ci.json)。
+0276已按[PR54](https://github.com/Halckon/Koven/pull/54)归档并合并为18b89e5；最终head必需14job成功、编辑器合法skip，actual main实际15/15成功，见[交付闭环账本](../../development/evidence/generic-body-0276-delivery.json)。
+
+0275已由[PR53](https://github.com/Halckon/Koven/pull/53)合并为2be6406；最终归档CI37252410423必需14job成功、编辑器合法skip，main CI37253329605实际15/15成功。双宿主新增测试命中、完整词频/preview原始证据与source身份见[交付闭环账本](../../development/evidence/generic-containers-0275-delivery.json)。
 
 0274已按[PR52](https://github.com/Halckon/Koven/pull/52)双宿主实现证据归档；最终归档head cdb9cba的CI37247799491已15/15成功，并合并为c5c4a8d。
 

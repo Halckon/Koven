@@ -3,7 +3,10 @@
 use lang_frontend::{
     ast::{ExpressionId, ItemId},
     diagnostic::Diagnostic,
-    parser::{BinaryOperator, Expression, ExpressionAst, Item, Statement, StringPart},
+    parser::{
+        BinaryOperator, Expression, ExpressionAst, IntegerLiteralKind, Item, LiteralKind,
+        Statement, StringPart,
+    },
     source::{SourceId, SourceMap, Span},
 };
 
@@ -129,8 +132,16 @@ fn number_cases() -> Vec<NumberCase> {
             format!("1uL{}", "A".repeat(LONG_RUN)),
         ),
         number_case(
-            "unsupported radix prefix tail",
-            format!("0x{}", "A".repeat(LONG_RUN)),
+            "unsupported octal radix prefix tail",
+            format!("0o{}", "7".repeat(LONG_RUN)),
+        ),
+        number_case(
+            "hexadecimal digits then invalid identifier tail",
+            format!("0x{}G", "A".repeat(LONG_RUN)),
+        ),
+        number_case(
+            "binary digits then invalid digit tail",
+            format!("0b{}2", "1".repeat(LONG_RUN)),
         ),
     ]
 }
@@ -413,7 +424,7 @@ fn assert_after_declaration(
 #[test]
 fn every_public_entry_preserves_each_long_invalid_number_before_a_real_operator() {
     let cases = number_cases();
-    assert_eq!(cases.len(), 4);
+    assert_eq!(cases.len(), 6);
     let mut source_count = 0;
 
     for case in &cases {
@@ -500,5 +511,69 @@ fn every_public_entry_preserves_each_long_invalid_number_before_a_real_operator(
         source_count += 1;
     }
 
-    assert_eq!(source_count, 16);
+    assert_eq!(source_count, 24);
+}
+
+#[test]
+fn long_supported_radix_numbers_remain_literals_before_a_real_operator() {
+    // Guide 01 接受 hex/bin；数值溢出由后续阶段判断，不是 Lexer/Parser 错误。
+    for (prefix, digit) in [("0x", "A"), ("0X", "A"), ("0b", "1"), ("0B", "1")] {
+        let literal = format!("{prefix}{}", digit.repeat(LONG_RUN));
+        let text = format!("{literal} + {RHS}");
+        let context = format!("long supported {prefix} literal");
+        let (sources, source_id) = add_source(text.clone());
+        let parsed = parse_expression_twice(&sources, source_id, &context);
+        assert!(parsed.diagnostics().is_empty(), "{context}");
+
+        let binary = parsed
+            .ast()
+            .expressions()
+            .get(parsed.root())
+            .expect("supported radix expression root must resolve");
+        assert_span(binary.span(), 0, text.len(), &context);
+        let Expression::Binary {
+            left,
+            operator,
+            operator_span,
+            right,
+        } = binary.payload()
+        else {
+            panic!("expected integer + rhs binary for {context}")
+        };
+        assert_eq!(*operator, BinaryOperator::Add, "{context}");
+        assert_span(
+            *operator_span,
+            literal.len() + 1,
+            literal.len() + 2,
+            &context,
+        );
+        assert_slice(&sources, *operator_span, "+", &context);
+
+        let number = parsed
+            .ast()
+            .expressions()
+            .get(*left)
+            .expect("supported radix literal must resolve");
+        assert_eq!(
+            number.payload(),
+            &Expression::Literal(LiteralKind::Integer(IntegerLiteralKind::Unsuffixed)),
+            "{context}"
+        );
+        assert_span(number.span(), 0, literal.len(), &context);
+        assert_slice(&sources, number.span(), &literal, &context);
+        assert_name(
+            &sources,
+            parsed.ast(),
+            *right,
+            parsed
+                .ast()
+                .expressions()
+                .get(*right)
+                .expect("rhs of supported radix literal must resolve")
+                .span(),
+            literal.len() + 3,
+            RHS,
+            &context,
+        );
+    }
 }

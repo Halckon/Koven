@@ -163,3 +163,9 @@ mod source_construction;
 
 #[path = "multifile_type_checking/container_size.rs"]
 mod container_size;
+
+#[path = "multifile_type_checking/generic_body_types.rs"]
+mod generic_body_types;
+
+#[path = "multifile_type_checking/generic_body_isolation.rs"]
+mod generic_body_isolation;
