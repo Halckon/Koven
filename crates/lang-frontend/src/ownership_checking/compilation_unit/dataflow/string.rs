@@ -9,7 +9,16 @@ impl Checker<'_> {
         descriptor: UnitStringOperationDescriptor,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
-        let receiver = descriptor.receiver();
+        self.check_shared_receiver_read(descriptor.expression(), descriptor.receiver(), state)
+    }
+
+    /// 发布同步读取的短 shared loan，复用 receiver 的既有 owner 身份。
+    pub(super) fn check_shared_receiver_read(
+        &mut self,
+        expression: crate::type_checking::UnitExpressionId,
+        receiver: crate::type_checking::UnitExpressionId,
+        state: State,
+    ) -> Result<Flows, OwnershipCheckingError> {
         if receiver.source_unit() != self.source_unit {
             return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
                 source_unit: self.source_unit.index(),
@@ -53,7 +62,7 @@ impl Checker<'_> {
             });
         };
         self.loans.push(UnitLoanFact::new(
-            descriptor.expression(),
+            expression,
             receiver,
             target,
             LoanKind::Shared,
@@ -61,7 +70,7 @@ impl Checker<'_> {
             self.parsed
                 .ast()
                 .expressions()
-                .get(descriptor.expression().expression())?
+                .get(expression.expression())?
                 .span(),
             None,
         ));

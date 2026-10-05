@@ -211,3 +211,97 @@ impl TypedFile {
             .copied()
     }
 }
+
+/// Phase 2 已识别的顺序容器同步 header 长度读取。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ContainerSizeDescriptor {
+    expression: ExpressionId,
+    receiver: ExpressionId,
+    container: SequentialContainerKind,
+    container_type: TypeId,
+    element_type: TypeId,
+    result_type: TypeId,
+    span: crate::source::Span,
+}
+
+impl ContainerSizeDescriptor {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) const fn new(
+        expression: ExpressionId,
+        receiver: ExpressionId,
+        container: SequentialContainerKind,
+        container_type: TypeId,
+        element_type: TypeId,
+        result_type: TypeId,
+        span: crate::source::Span,
+    ) -> Self {
+        Self {
+            expression,
+            receiver,
+            container,
+            container_type,
+            element_type,
+            result_type,
+            span,
+        }
+    }
+
+    /// 返回拥有该读取的 member expression identity。
+    #[must_use]
+    pub const fn expression(self) -> ExpressionId {
+        self.expression
+    }
+
+    /// 返回只求值一次的 receiver expression identity。
+    #[must_use]
+    pub const fn receiver(self) -> ExpressionId {
+        self.receiver
+    }
+
+    /// 返回 receiver 的封闭容器种类。
+    #[must_use]
+    pub const fn container(self) -> SequentialContainerKind {
+        self.container
+    }
+
+    /// 返回完整容器类型。
+    #[must_use]
+    pub const fn container_type(self) -> TypeId {
+        self.container_type
+    }
+
+    /// 返回保持不擦除的元素类型。
+    #[must_use]
+    pub const fn element_type(self) -> TypeId {
+        self.element_type
+    }
+
+    /// 返回独立的 Int 结果类型。
+    #[must_use]
+    pub const fn result_type(self) -> TypeId {
+        self.result_type
+    }
+
+    /// 返回完整读取表达式的源码范围。
+    #[must_use]
+    pub const fn span(self) -> crate::source::Span {
+        self.span
+    }
+}
+
+impl TypedFile {
+    /// 返回源码稳定顺序的容器长度读取事实。
+    #[must_use]
+    pub fn container_sizes(&self) -> &[ContainerSizeDescriptor] {
+        &self.container_sizes
+    }
+
+    /// 查询成功识别的容器长度读取，不以成员拼写猜测身份。
+    #[must_use]
+    pub fn container_size(&self, expression: ExpressionId) -> Option<ContainerSizeDescriptor> {
+        self.container_sizes
+            .iter()
+            .copied()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
+}

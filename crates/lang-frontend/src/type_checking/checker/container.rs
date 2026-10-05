@@ -486,15 +486,27 @@ impl Checker<'_> {
 
     pub(super) fn container_member_type(
         &mut self,
+        expression: ExpressionId,
+        receiver_expression: ExpressionId,
         receiver: TypeId,
         name: &str,
         name_span: Span,
     ) -> Result<Option<TypeId>, TypeCheckingError> {
-        if self.container_parts(receiver).is_none() {
+        let Some((container, element)) = self.container_parts(receiver) else {
             return Ok(None);
-        }
+        };
         if name == "size" {
-            return Ok(Some(self.builtin(BuiltinType::Int)));
+            let result = self.builtin(BuiltinType::Int);
+            self.container_sizes.push(ContainerSizeDescriptor::new(
+                expression,
+                receiver_expression,
+                container,
+                receiver,
+                element,
+                result,
+                self.ast().expressions().get(expression)?.span(),
+            ));
+            return Ok(Some(result));
         }
         if matches!(name, "get" | "set") {
             self.emit(

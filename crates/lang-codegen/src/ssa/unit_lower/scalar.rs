@@ -221,14 +221,15 @@ impl UnitExpressionLowerer<'_> {
                     .references
                     .get(&super::span_key(node.span()))
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-                match self.bindings.get(symbol).copied() {
-                    Some(LoweredValue::Value(value)) => {
-                        Ok(Some(crate::ssa::model::EntityId::Value(value)))
-                    }
-                    Some(LoweredValue::Unit | LoweredValue::Diverged) | None => Err(
-                        lowering_error(LoweringErrorKind::UnsupportedNode, node.span()),
-                    ),
+                if let Some(LoweredValue::Value(value)) = self.bindings.get(symbol).copied() {
+                    return Ok(Some(EntityId::Value(value)));
                 }
+                // Borrow 参数复用当前 active loan，CFG 已按 binding 重绑定其身份。
+                self.borrow_bindings
+                    .get(symbol)
+                    .copied()
+                    .map(|loan| Some(EntityId::Loan(loan)))
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, node.span()))
             }
             _ => self.lower_string_temporary_view(expression, span),
         }

@@ -563,6 +563,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) string_operations: Vec<UnitStringOperationDescriptor>,
     pub(crate) integer_operations: Vec<UnitIntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
+    pub(crate) container_sizes: Vec<UnitContainerSizeDescriptor>,
     pub(crate) element_places: Vec<UnitElementPlaceDescriptor>,
     pub(crate) nullable: UnitNullableFacts,
 }
@@ -604,6 +605,7 @@ pub struct CompilationUnitTypes {
     string_operations: Vec<UnitStringOperationDescriptor>,
     integer_operations: Vec<UnitIntegerOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
+    container_sizes: Vec<UnitContainerSizeDescriptor>,
     element_places: Vec<UnitElementPlaceDescriptor>,
     nullable: UnitNullableFacts,
     body_diagnostics: Vec<Diagnostic>,
@@ -662,6 +664,7 @@ impl CompilationUnitTypes {
             string_operations: parts.string_operations,
             integer_operations: parts.integer_operations,
             container_constructions: parts.container_constructions,
+            container_sizes: parts.container_sizes,
             element_places: parts.element_places,
             nullable: parts.nullable,
             body_diagnostics,

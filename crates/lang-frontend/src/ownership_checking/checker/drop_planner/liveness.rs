@@ -216,12 +216,23 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
         if let Some(operation) = self.checker.typed.integer_operation(id) {
             return self.expression(operation.receiver(), ExpressionUse::Read, live_after);
         }
-        if let Some(operation) = self.checker.typed.string_operation(id) {
+        if let Some(receiver) = self
+            .checker
+            .typed
+            .string_operation(id)
+            .map(|operation| operation.receiver())
+            .or_else(|| {
+                self.checker
+                    .typed
+                    .container_size(id)
+                    .map(|size| size.receiver())
+            })
+        {
             let mut receiver_live = live_after;
-            if let Some(place) = self.checker.shared_receiver_place(operation.receiver())? {
+            if let Some(place) = self.checker.shared_receiver_place(receiver)? {
                 receiver_live.insert(place.root());
             }
-            return self.expression(operation.receiver(), ExpressionUse::Read, receiver_live);
+            return self.expression(receiver, ExpressionUse::Read, receiver_live);
         }
         if let Some(operation) = self.checker.typed.rc_operation(id) {
             if let Some(place) = self.checker.place(operation.receiver())? {

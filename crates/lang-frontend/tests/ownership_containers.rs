@@ -477,3 +477,119 @@ fn post_index_field_projection_stays_deferred_without_an_early_drop_plan() {
     );
     assert!(owned.drops().is_empty());
 }
+
+#[test]
+fn container_size_is_a_synchronous_read_that_preserves_the_owner() {
+    let (_, _, owned) = checked(
+        "fun take(own value: List<Int>): Unit {}\n\
+         fun sizes(own value: List<Int>, borrowed: Array<Int>, mutable: MutableList<Int>): Unit {\n\
+             val first = value.size\n\
+             val second = (value).size\n\
+             val arraySize = borrowed.size\n\
+             val mutableSize = mutable.size\n\
+             val moved = take(value)\n\
+         }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    assert_eq!(owned.loans().len(), 4);
+    assert!(
+        owned
+            .loans()
+            .iter()
+            .all(|loan| loan.kind() == LoanKind::Shared)
+    );
+}
+
+#[test]
+fn temporary_container_size_cleans_up_at_the_read() {
+    let (_, _, owned) =
+        checked("class Resource {}\nfun sizes(): Unit { val temporary = listOf(Resource()).size }");
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    let temporary = owned
+        .loans()
+        .iter()
+        .find_map(|loan| match loan.target() {
+            LoanTarget::Temporary(owner) => Some((loan.call(), *owner)),
+            _ => None,
+        })
+        .expect("temporary header read has a synchronous loan");
+    let drops = owned
+        .drops()
+        .iter()
+        .filter(|drop| drop.target() == DropTarget::Temporary(temporary.1))
+        .collect::<Vec<_>>();
+    assert_eq!(drops.len(), 1);
+    assert_eq!(drops[0].point(), DropPoint::CallReturn(temporary.0));
+}
+
+#[test]
+fn moved_container_size_reports_the_owner_move() {
+    let (sources, _, owned) = checked(
+        "fun take(own value: List<Int>): Unit {}\n\
+         fun sizes(own value: List<Int>): Unit {\n\
+             val moved = take(value)\n\
+             val invalid = value.size\n\
+         }",
+    );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+    assert_eq!(
+        sources
+            .slice(owned.diagnostics()[0].primary_span())
+            .unwrap(),
+        "value"
+    );
+    assert!(owned.loans().is_empty());
+    assert!(owned.drops().is_empty());
+}
+
+#[test]
+fn container_size_in_assignment_rhs_keeps_old_owner_until_rhs_completes() {
+    let (sources, parsed, owned) =
+        checked("fun replace(): Unit { var values = listOf(1); values = listOf(values.size) }");
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    let loan = owned
+        .loans()
+        .iter()
+        .find(|loan| {
+            sources
+                .slice(parsed.ast().expressions().get(loan.call()).unwrap().span())
+                .unwrap()
+                == "values.size"
+        })
+        .expect("size read loan");
+    let LoanTarget::Place(place) = loan.target() else {
+        panic!("named receiver")
+    };
+    let rhs = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .find_map(|(id, node)| {
+            (sources.slice(node.span()).unwrap() == "listOf(values.size)").then_some(id)
+        })
+        .expect("complete replacement RHS");
+    let old_drops = owned
+        .drops()
+        .iter()
+        .filter(|drop| {
+            drop.target() == DropTarget::Named(place.root())
+                && sources.slice(drop.value_origin()).unwrap() == "values"
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(old_drops.len(), 1, "old owner must be dropped exactly once");
+    assert_eq!(
+        old_drops[0].point(),
+        DropPoint::AfterExpression(rhs),
+        "the replacement container must be complete before destroying the old owner"
+    );
+    assert!(
+        !owned.drops().iter().any(|drop| {
+            drop.target() == DropTarget::Named(place.root())
+                && drop.point() == DropPoint::CallReturn(loan.call())
+        }),
+        "a synchronous header read must not commit replacement cleanup"
+    );
+}

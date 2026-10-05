@@ -172,6 +172,8 @@ pub(super) struct ValueState {
     pub(super) iterations: Vec<super::iteration::IterationFrame>,
     pub(super) pending_temporaries: Vec<super::pending_call::PendingTemporary>,
     pub(super) values: Vec<OwnedValue>,
+    /// 普通赋值的旧 owner 必须保留到完整 RHS 求值结束。
+    pub(super) replacements: Vec<UnitSymbolId>,
     /// 已求值调用前缀的借用必须跨越后续实参中的分支与嵌套调用。
     pub(super) pending_borrows: Vec<(ExpressionId, UnitSymbolId)>,
     pub(super) closures: BTreeMap<UnitSymbolId, ExpressionId>,

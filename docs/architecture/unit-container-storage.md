@@ -67,3 +67,12 @@ Ubuntu 完整 codegen 730 passed，macOS 729 passed + 1 既有 LLDB 权限 ignor
 Borrow Unit 跨函数读取、一般 Unit call operand / Value ABI、Unit-field value class 构造、
 CompilationUnit `for`、Inout/field source 与 MoveOnly ZST 完整析构仍不由此证明。
 这些合法源码能力缺口不等于语言禁止；Copyable Unit 不替代 MoveOnly ZST drop 验收。
+
+## Source size与unit String读取
+
+普通compilation-unit `.size` 经frontend source-qualified descriptor和同步SharedLoan生成
+`ContainerLength`，复用当前Borrow参数loan，只结束本次新建loan，再执行CallReturn清理。
+具名/Value/Borrow/group/temporary沿用同一header；unit Borrow String `==`/`!=`/`+`消费
+current binding，RHS CFG后使用重绑定loan，不隐式clone/消费源。前端replacement保护旧root
+至完整RHS完成；提前return仍按ControlTransfer清理。当前0274本机证据不替代双宿主CI。
+`||`不同路径容器last-use合流、内含类型参数的container native实例替换以及一般投影仍有既有拒绝边界。
