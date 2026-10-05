@@ -15,6 +15,8 @@
 | Runtime / ABI | [0008 value/allocation](accepted/0008-internal-value-and-allocation-abi.md)、[0009 closure](accepted/0009-concrete-closure-internal-abi.md)、[0015 Rc](accepted/0015-shared-owner-runtime-abi.md)、[0016 Borrow](accepted/0016-interprocedural-borrow-abi.md)、[0017 nullable](accepted/0017-nullable-handle-ssa-abi.md)、[0018 String](accepted/0018-string-owner-runtime-abi.md)、[0027 String clone](accepted/0027-explicit-string-clone-abi.md)、[0019 argv](accepted/0019-parameterized-process-entry-bridge.md)、[0023 iteration provider](accepted/0023-borrowed-sequential-iteration-provider.md)、[0024 growing recipe](accepted/0024-reject-parameter-growing-runtime-recipes.md) |
 | 标准库 | [0012 bootstrap](accepted/0012-standard-library-bootstrap.md) |
 
+[0028 前端泛型body类型归一化](accepted/0028-frontend-generic-body-type-normalization.md)已按站立授权及独立准备审阅接受；实施/验收由0276维护。
+
 ## Proposed
 
 [0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为
