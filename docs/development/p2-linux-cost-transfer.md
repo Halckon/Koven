@@ -71,3 +71,7 @@ Mac包含后继0275及本批Spec/证据，不宣称恢复云commit SHA或整树�
 覆盖两测试5项、v2回归20项、5266payload验证、fmt/对应Clippy/尺寸/docs521页与37checker tests。
 工具身份、命令、exit和原始字节hash均关联，不把云端日志冒充Mac，也不重建初次0.009s记录。
 此补证不重跑十组成本采样，不接受预算；最新main/PR/最终归档/merge/main仍待真实交付。
+
+最新main `18b89e5`在实际15/15 CI及独立产物核验后合入0277，原三提交保留。
+[接入复验](evidence/p2-linux-20261005/main-integration.json)记录精确merge源码的Mac两目标5项、
+严格Clippy/fmt及政策/文档/尺寸等九门禁实际成功；新PR head双宿主与最终交付仍待。

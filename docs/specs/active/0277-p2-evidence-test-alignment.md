@@ -142,3 +142,18 @@ Python接线harness不冒充双宿主Rust运行，实际五项命中仍待PR CI�
 独立接线审阅发现仅排除` -- `不能阻止Cargo的裸`TESTNAME`过滤。新增反例先得到
 1项/1failure；随后以现有有界argv合同拒绝位置filter及libtest分隔符，完整政策复验
 34passed/0failed/skip。初次33项、反例红测和最终34项绿测分别保留，不改写历史计数。
+
+
+## 10. 最新主干接入复验（2026-10-05）
+
+0276实际main CI37262203567及独立产物核验完成后，以merge提交
+`ba8c1a60765244a1db03b4ae93ab75c2626c6b2f`接入`18b89e5`，原三个提交仍为祖先。
+六处冲突仅为索引/DAG，索引保留incoming最新事实及0277 active，图由脚本生成；
+独立窄审确认262份archive/ADR0028完整、两测试与CI接线字节不变，生产代码未增改。
+
+精确接入提交的[Mac复验账本](../../development/evidence/p2-linux-20261005/main-integration.json)
+保存九项顺序运行的argv/cwd/exit与无损raw/hash。实际两目标2+3passed，0failed/ignored/filtered；
+对应严格Clippy、fmt、CI政策34项、docs checker37项、docs523页、尺寸及shell/diff检查均exit0。
+Rust沿独立target/default profile，清除`CARGO_PROFILE_*`；未进行成本采样或M4b实际校准。
+这是新接入提交的本机验收，旧f18复核及云材料保持原身份；精确PR head双宿主CI、归档后
+最终CI和merge/main仍待，不以此九项代替。
