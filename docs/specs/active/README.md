@@ -5,6 +5,11 @@
 当前1份active：[SPEC-0278](0278-borrowed-closure-escape-verification.md)封闭 shared closure 的 owned escape 校验。
 
 0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终归档head及actual main已闭环，见[交付账本](../../development/evidence/p2-linux-0277-delivery.json)。
+
+0269 的 M4b 有界资源程序首片已验收归档；实现审阅与双宿主原始证据见
+[交付证据](../../development/evidence/generated-owners-0269-delivery.json)，
+最终归档 head、merge 与 main CI 交付记录见 [PR48](https://github.com/Halckon/Koven/pull/48)。
+
 0276已按[PR54](https://github.com/Halckon/Koven/pull/54)归档并合并为18b89e5；最终head必需14job成功、编辑器合法skip，actual main实际15/15成功，见[交付闭环账本](../../development/evidence/generic-body-0276-delivery.json)。
 
 0275已由[PR53](https://github.com/Halckon/Koven/pull/53)合并为2be6406；最终归档CI37252410423必需14job成功、编辑器合法skip，main CI37253329605实际15/15成功。双宿主新增测试命中、完整词频/preview原始证据与source身份见[交付闭环账本](../../development/evidence/generic-containers-0275-delivery.json)。

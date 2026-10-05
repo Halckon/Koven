@@ -1,0 +1,215 @@
+{
+  "schema": "koven.spec0269.readonly-review.v1",
+  "reviewed_at": "2026-10-05T07:51:14Z",
+  "source_head": "9807eaf66eed6291867c9ec88e0e56bb1fe0942e",
+  "source_status": "clean",
+  "base": "54b36675481c15da8a1f31d9d3185e4b49c83096",
+  "source_tree": "9b7a894b3a6b06433410fa82d9e1998faa7d8607",
+  "ci_merge_sha": "eb496314a06a15a581892e658952f678370140c4",
+  "ci_merge_tree": "9b7a894b3a6b06433410fa82d9e1998faa7d8607",
+  "ci_merge_parents": [
+    "54b36675481c15da8a1f31d9d3185e4b49c83096",
+    "9807eaf66eed6291867c9ec88e0e56bb1fe0942e"
+  ],
+  "pr": "https://github.com/Halckon/Koven/pull/48",
+  "pr_status": {
+    "state": "open",
+    "draft": true,
+    "mergeable": true,
+    "mergeable_state": "clean"
+  },
+  "ci": {
+    "run_id": 37277758845,
+    "event": "pull_request",
+    "url": "https://github.com/Halckon/Koven/actions/runs/37277758845",
+    "status": "completed",
+    "conclusion": "success",
+    "job_count": 15,
+    "successful_jobs": 15,
+    "generated_steps": "success on both hosts"
+  },
+  "scope": "Existing artifacts and logs inspected statically; no build, test, calibration, fault injection or reduction executed by this review.",
+  "hosts": {
+    "linux": {
+      "artifact_id": 11331331717,
+      "artifact_url": "https://github.com/Halckon/Koven/actions/runs/37277758845/artifacts/11331331717",
+      "archive_sha256": "03f324ab35a4516e42f18fb9d0ff913ba70cdd0843d4844ed2e742cf0b81f938",
+      "acceptance_sha256": "bee5923aa3fe51d1894d6c3139e077f9abd98b237eb5d3aef3bbff571e877cbd",
+      "acceptance_status": "pass",
+      "partial_reasons": [],
+      "case_count": 16,
+      "shapes": {
+        "V1": 4,
+        "V2": 4,
+        "I1": 4,
+        "I2": 4
+      },
+      "verified_input_hashes": 157,
+      "static_checks": [
+        "All diagnostics equal saved full expected records",
+        "Valid counter output/exit/stderr match oracle",
+        "Linux valid clean ASan/LSan output/exit/stderr match oracle",
+        "Both hosts case source bytes equal"
+      ],
+      "preserved_files": {
+        "linux-acceptance.json.gz": {
+          "source_path": "acceptance.json",
+          "uncompressed_sha256": "bee5923aa3fe51d1894d6c3139e077f9abd98b237eb5d3aef3bbff571e877cbd",
+          "compressed_sha256": "d9c447664cba6f198135621bddfb4510e3510b558f88555125b6a9d4379f5a98"
+        },
+        "linux-environment.json.gz": {
+          "source_path": "environment.json",
+          "uncompressed_sha256": "2fda071d4edbc002b07ebf94a84e4c95fd830cf040201f05bcdebcb852749ef9",
+          "compressed_sha256": "1fdd89f1f500b31098b0415ce3b0ec6f11fa82c8b4cdebe682603b58828106eb"
+        },
+        "linux-calibration__calibration.json.gz": {
+          "source_path": "calibration/calibration.json",
+          "uncompressed_sha256": "97490e026f3075b3327bd9355498d898d20e393a79b64f23f75bd5f035404cee",
+          "compressed_sha256": "0825246282d58827be8bbbf859900ac3b0566ac3047f22d50406292a2d013385"
+        },
+        "linux-checker-mutation__checker-calibration.json.gz": {
+          "source_path": "checker-mutation/checker-calibration.json",
+          "uncompressed_sha256": "67e50720bcf9f7e485d762e64e7eedf383d89db1d4b08196ac7c225ea1bc434e",
+          "compressed_sha256": "bcc2959482e385ccd41a29f08eca1116aac0c6c60715c90522da718b67f47e93"
+        },
+        "linux-reduction__reduction.json.gz": {
+          "source_path": "reduction/reduction.json",
+          "uncompressed_sha256": "69801374fba67746bcda6713da9f9c51de7a6cd50e74f050ebeb1a1b6d7ce1c2",
+          "compressed_sha256": "c77b5df32a9d75457732fdf206f7b0af8b87544953582090e12755c902277380"
+        },
+        "linux-reduction__original__expected-diagnostics.json.gz": {
+          "source_path": "reduction/original/expected-diagnostics.json",
+          "uncompressed_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "compressed_sha256": "abc129be8d26e8d4afe9ce45f9d5a73c8ed9aa62810ca24ee789fe4581dc4a80"
+        },
+        "linux-reduction__original__diagnostics.tsv.gz": {
+          "source_path": "reduction/original/diagnostics.tsv",
+          "uncompressed_sha256": "2e09a8e052ded72ee1d36d1a51c5e102caac024e6ef10e9461a1ef62c00937d1",
+          "compressed_sha256": "a80445597547fbc9dfd178509fbed0edb76376a3282dcfd7209999cc7abe724e"
+        },
+        "linux-calibration__v1__run-fault-address-asan.stderr.gz": {
+          "source_path": "calibration/v1/run-fault-address-asan.stderr",
+          "uncompressed_sha256": "1470520e46d374630c2f8b62668722cff43135ded9c6a5be4bfcb56c92937123",
+          "compressed_sha256": "9bc860b4b73bce792db7e98dc66e96c80f4433e5277a14371f7e78e88d42479a"
+        },
+        "linux-calibration__v1__run-fault-leak-lsan.stderr.gz": {
+          "source_path": "calibration/v1/run-fault-leak-lsan.stderr",
+          "uncompressed_sha256": "977b6313400af06c7bfb2fb23e0f5d5129d684bcd7745ff586f40b52348be5fd",
+          "compressed_sha256": "6e9b1ff180651488243023cddfec433dac63d0c6329123149f97b0e38cd2603a"
+        },
+        "linux-calibration__v1__run-fault-leak-counter.stderr.gz": {
+          "source_path": "calibration/v1/run-fault-leak-counter.stderr",
+          "uncompressed_sha256": "cfe62ec615778da16a413aa1a2ac083f6041ab2f9dd5ba67befd836bee5de71e",
+          "compressed_sha256": "95a25339d6e2f90b2c9cef09c6fdc0ef1f53d59deecfebf4b5e593effeae957e"
+        },
+        "linux-calibration__v2__run-fault-premature-counter.stderr.gz": {
+          "source_path": "calibration/v2/run-fault-premature-counter.stderr",
+          "uncompressed_sha256": "7dcac3f3f1033cf3a2a6b95a5684adf179560d830608716d969f8cf23f065c8f",
+          "compressed_sha256": "244c0385ef53fff8b842a4753689d931af39b388ea92da555510318900a5dc79"
+        }
+      }
+    },
+    "macos": {
+      "artifact_id": 11331421343,
+      "artifact_url": "https://github.com/Halckon/Koven/actions/runs/37277758845/artifacts/11331421343",
+      "archive_sha256": "7944daee5775bf85335fbfb38d6ba7dd918d2a6cde7fcf874945436f64efdd23",
+      "acceptance_sha256": "01e223e395424a34fe43b0bbcedb0a448c89c9b038d35befd9076b101b7a670d",
+      "acceptance_status": "partial",
+      "partial_reasons": [
+        "address:macos-asan-unsupported",
+        "leak:macos-counter-only"
+      ],
+      "case_count": 16,
+      "shapes": {
+        "V1": 4,
+        "V2": 4,
+        "I1": 4,
+        "I2": 4
+      },
+      "verified_input_hashes": 157,
+      "static_checks": [
+        "All diagnostics equal saved full expected records",
+        "Valid counter output/exit/stderr match oracle",
+        "Dynamic sanitizers explicitly skipped",
+        "Both hosts case source bytes equal"
+      ],
+      "preserved_files": {
+        "macos-acceptance.json.gz": {
+          "source_path": "acceptance.json",
+          "uncompressed_sha256": "01e223e395424a34fe43b0bbcedb0a448c89c9b038d35befd9076b101b7a670d",
+          "compressed_sha256": "fbf9e4a13a261e6e690bc37c29eb61d55da5fa48bf1a4982e9d01bab75c3fe0e"
+        },
+        "macos-environment.json.gz": {
+          "source_path": "environment.json",
+          "uncompressed_sha256": "25740b25a9917754f86d1a339b0569ad73a5ddcabc12ee1d7ac263a516abb836",
+          "compressed_sha256": "f6e751885e6cc128350b4277047c08890c3f2897a126ed40351ecaba35324037"
+        },
+        "macos-calibration__calibration.json.gz": {
+          "source_path": "calibration/calibration.json",
+          "uncompressed_sha256": "36d211a58d9c53400e7812972a05b9e82e2a8e0db22452795d32d2e7fe87d733",
+          "compressed_sha256": "d400c13d075d707eb2d12199455e5a4ff8d9a4a92201b61ce403063e79c8a49e"
+        },
+        "macos-checker-mutation__checker-calibration.json.gz": {
+          "source_path": "checker-mutation/checker-calibration.json",
+          "uncompressed_sha256": "bdea4e9166c14112b718fa2bc0bf9150e5042ff645a7ef0ed5eb4459d2bca5e4",
+          "compressed_sha256": "0aacd1877f6ff108cd42b17803290983f18baed70cc0dcd4575d1d989f9766e5"
+        },
+        "macos-reduction__reduction.json.gz": {
+          "source_path": "reduction/reduction.json",
+          "uncompressed_sha256": "d8282ac06291558b70b85ffcb74c68b0629558ec876dc5d5b7677ca3459b09b2",
+          "compressed_sha256": "fd320335625e729d421a08a82708afd575ec02879a3f6aa4152aa692ec2eccdd"
+        },
+        "macos-reduction__original__expected-diagnostics.json.gz": {
+          "source_path": "reduction/original/expected-diagnostics.json",
+          "uncompressed_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "compressed_sha256": "abc129be8d26e8d4afe9ce45f9d5a73c8ed9aa62810ca24ee789fe4581dc4a80"
+        },
+        "macos-reduction__original__diagnostics.tsv.gz": {
+          "source_path": "reduction/original/diagnostics.tsv",
+          "uncompressed_sha256": "2e09a8e052ded72ee1d36d1a51c5e102caac024e6ef10e9461a1ef62c00937d1",
+          "compressed_sha256": "a80445597547fbc9dfd178509fbed0edb76376a3282dcfd7209999cc7abe724e"
+        }
+      }
+    }
+  },
+  "previous_matrix_at_reviewed_head": "| ID | 完成标准 | 当前证据 |\n|---|---|---|\n| G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | Python模型18项通过；独立审阅未发现具体模型错误；实际8个非法case诊断和byte span通过 |\n| G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | Mac首轮6有效通过、2有效InvalidSsa；合入已合并0270后8有效及8非法全部通过，固定V2次序通过；本轮Linux补充正常批次8有效+8非法全部通过，固定V2次序通过 |\n| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | Linux 8个clean ASan通过；Mac平台完成对照组验证，因缺少ASan/LSan支持显式标记跳过（partial）；本地完成4项真实LLVM IR故障校准；远端双宿主CI（Run 37276328529）在Linux容器完成完整真实ASan/LSan故障检出闭环（栈越界由ASan精准检出，内存泄漏由LSan精准检出，漏deinit与提前释放分别由输出比对与counter order精确拒绝），全量校准状态为pass，成功保全双宿主原始证据 |\n| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 精确诊断普通负测已验证；完成真实ownership checker独立临时worktree隔离红绿变异闭环：针对 `ensure_place_available` 变异，红测严密核验执行退出码与文件存在性后杀死（0诊断），源码恢复确认diff为空，绿测重新编译运行精确恢复L0131诊断 |\n| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 真实失败同因缩小验收完成：针对真实生成案例I1在无预期报错下的真实编译器所有权报错（unexpected_frontend_rejection: L0131），通过语法结构单调缩小由8 ops成功缩减至6 ops，保持相同语义失败指纹并经3次独立重放确认，输出reduction.json |\n| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 主驱动整合验证：非replay模式完整串联16个固定生成案例、G3故障校准、G4 Checker变异红绿闭环与G5真实失败同因缩小；远端双宿主CI（Run 37276328529，commit 8e4b97c）全绿通过，双宿主均生成并上传完整制品包（Linux acceptance=pass，macOS acceptance=partial）；拒绝零命中/缺项，各阶段日志与耗时预算留证完整 |\n| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 本轮全部260项Python测试通过（1项macOS预期跳过）；codegen Clippy/fmt全绿；check_docs (524 files)通过；Rust尺寸门禁通过；PR #48双宿主CI门禁全绿（22项checks全部通过）；完成最终闭环事实记录与留证 |",
+  "findings": [
+    {
+      "gate": "G4",
+      "status": "partial_evidence",
+      "source": "scripts/check_generated_owner_checker.py:107-183",
+      "finding": "Isolated red/restore/green path and summary present; red outputs are overwritten before green; commands/results/stdout/stderr and actual mutant patch are not persisted. Five files remain in checker-mutation artifact; summary alone is not independently replayable red evidence."
+    },
+    {
+      "gate": "G5",
+      "status": "blocked",
+      "source": "scripts/generated_owner_reduction.py:36-51",
+      "finding": "Known-invalid I1 case expected diagnostics overwritten to []; actual correct L0131 classified unexpected_frontend_rejection. Real 8-to-6 reduction and three confirmations prove diagnostic replay, not actual compiler/resource fault reduction."
+    },
+    {
+      "gate": "G6",
+      "status": "blocked",
+      "source": "scripts/generated_owner_calibration.py:131-178; scripts/check_generated_owners.py:317-348; .github/workflows/ci.yml:279-281",
+      "finding": "Linux calibration LSan runtime unavailable becomes partial; driver returns 0 after partial and required CI does not inspect JSON. Current real Linux run passes, but mandatory missing-detector path is not fail-closed."
+    },
+    {
+      "gate": "G7",
+      "status": "delivery_pending",
+      "finding": "Implementation pull-request CI verified. Spec remains active; final archive head CI, merge and actual main delivery not completed."
+    }
+  ],
+  "logs": {
+    "linux-job.log.gz": {
+      "uncompressed_sha256": "df9a2c51f368f8773851f3abbc93e50e411c1de7ad262736f7676eacef2da879",
+      "compressed_sha256": "301d712b30503fcb4a65a06aaf65203c0b5eaef2ed6018ee23f23db2a51cea41"
+    },
+    "macos-job.log.gz": {
+      "uncompressed_sha256": "6a5d0f9fb37c7e997f6d62e72f0d0b1725f6dafe375c2895a5a4e44763d8d261",
+      "compressed_sha256": "5256f3e8a760321c2f9aabab862543cad2c098cd490d1d9deb490018da5eceea"
+    },
+    "docs-job.log.gz": {
+      "uncompressed_sha256": "c7ffc5dddab4269a1aa2ed5041ed7ad584ccfdbdbffd42f03d8aff0cd3eb0104",
+      "compressed_sha256": "82a84385a89f33f884741ebb9103123630ef735ff049f1abff77a53a2dda5032"
+    }
+  }
+}

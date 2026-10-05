@@ -10,13 +10,77 @@ import platform
 import re
 import signal
 import subprocess
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT_TEST = "native_sanitizer_tests::asan_instruments_generated_user_runtime_and_drop"
 CASES = {"clean", "user", "runtime", "drop", "leak"}
 
 
-def run(command, directory, name, *, timeout=30, env=None):
+class ResourceLimit(RuntimeError):
+    """A measured budget violation, never evidence of a Koven memory error."""
+
+
+def process_group_usage(group):
+    """Linux sampled resident pages and process count; not a kernel hard cap."""
+    proc = Path("/proc")
+    if not (proc / "self/stat").is_file():
+        raise OSError("required Linux /proc accounting is unavailable")
+    pages = count = 0
+    for path in proc.glob("[0-9]*/stat"):
+        try:
+            # comm can contain spaces and parentheses; fields after its final )
+            # begin at state (#3), pgrp is #5 and resident pages are #24.
+            fields = path.read_text().rsplit(")", 1)[1].split()
+        except FileNotFoundError:
+            continue  # A process exiting between enumeration and read is normal.
+        if int(fields[2]) == group:
+            count += 1
+            pages += int(fields[21])
+    return pages * os.sysconf("SC_PAGE_SIZE"), count
+
+
+def check_limits(directory, name, limits, observed, group=None):
+    for suffix in ("stdout", "stderr"):
+        size = (directory / f"{name}.{suffix}").stat().st_size
+        observed[f"peak_{suffix}_bytes"] = max(observed.get(f"peak_{suffix}_bytes", 0), size)
+        if size > limits.get("output_bytes", float("inf")):
+            raise ResourceLimit(f"{suffix} exceeds byte budget")
+    if "artifact_bytes" in limits:
+        size = 0
+        for path in Path(limits.get("artifact_root", directory)).rglob("*"):
+            try:
+                if path.is_file() and not path.is_symlink():
+                    size += path.stat().st_size
+            except FileNotFoundError:
+                continue
+        observed["peak_artifact_bytes"] = max(observed.get("peak_artifact_bytes", 0), size)
+        if size > limits["artifact_bytes"]:
+            raise ResourceLimit("artifact directory exceeds byte budget")
+    if group is not None and ("rss_bytes" in limits or "processes" in limits):
+        rss, count = process_group_usage(group)
+        observed["peak_rss_bytes"] = max(observed.get("peak_rss_bytes", 0), rss)
+        observed["peak_processes"] = max(observed.get("peak_processes", 0), count)
+        if rss > limits.get("rss_bytes", float("inf")) or count > limits.get("processes", float("inf")):
+            raise ResourceLimit("sampled process group RSS/process count exceeds budget")
+
+
+def wait_with_limits(process, command, directory, name, timeout, limits, observed):
+    started = time.monotonic()
+    while True:
+        check_limits(directory, name, limits, observed, process.pid)
+        if process.poll() is not None:
+            return process.returncode
+        remaining = timeout - (time.monotonic() - started)
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(command, timeout)
+        try:
+            process.wait(timeout=min(.05, remaining))
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def run(command, directory, name, *, timeout=30, env=None, limits=None):
     """File-backed output avoids pipe limits; every attempt records its exact command."""
     command = [str(argument) for argument in command]
     directory.mkdir(parents=True, exist_ok=True)
@@ -25,7 +89,9 @@ def run(command, directory, name, *, timeout=30, env=None):
         environment.pop(variable, None)
     environment.update(env or {})
     (directory / f"{name}.command.json").write_text(json.dumps(
-        dict(argv=command, cwd=str(ROOT), timeout_seconds=timeout, env=env or {}), indent=2) + "\n")
+        dict(argv=command, cwd=str(ROOT), timeout_seconds=timeout, env=env or {}, limits=limits), indent=2) + "\n")
+    observed = {}
+    started = time.monotonic()
     with (directory / f"{name}.stdout").open("wb") as stdout, (directory / f"{name}.stderr").open("wb") as stderr:
         try:
             # Export Cargo owns its Rust test and plain counter compiler. The
@@ -34,20 +100,38 @@ def run(command, directory, name, *, timeout=30, env=None):
             with subprocess.Popen(command, cwd=ROOT, stdout=stdout, stderr=stderr,
                                   env=environment, start_new_session=True) as process:
                 try:
-                    code = process.wait(timeout=timeout)
-                except subprocess.TimeoutExpired:
-                    try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                    process.wait()
-                    raise
+                    code = (process.wait(timeout=timeout) if limits is None else
+                            wait_with_limits(process, command, directory, name, timeout, limits, observed))
+                finally:
+                    # Also retire background descendants of a completed parent.
+                    # Every command owns a fresh session, so no caller is killed.
+                    if limits is not None or process.poll() is None:
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        process.wait()
+            if limits is not None:
+                # The group is now stopped: bytes written after the final poll
+                # must not bypass the same budget enforced while it was live.
+                check_limits(directory, name, limits, observed)
             result = subprocess.CompletedProcess(command, code)
-        except (subprocess.TimeoutExpired, OSError) as error:
+        except (subprocess.TimeoutExpired, OSError, ResourceLimit) as error:
+            truncated = False
+            if limits and "output_bytes" in limits:
+                for stream in (stdout, stderr):
+                    if os.fstat(stream.fileno()).st_size > limits["output_bytes"]:
+                        stream.truncate(limits["output_bytes"])
+                        truncated = True
             (directory / f"{name}.result.json").write_text(json.dumps(
-                dict(error=str(error), timed_out=isinstance(error, subprocess.TimeoutExpired)), indent=2) + "\n")
+                dict(error=str(error), timed_out=isinstance(error, subprocess.TimeoutExpired),
+                     classification=("resource_limit" if isinstance(error, ResourceLimit) else
+                                     "timeout" if isinstance(error, subprocess.TimeoutExpired) else "tool_or_harness_failure"),
+                     truncated=truncated, elapsed_seconds=time.monotonic()-started, **observed), indent=2) + "\n")
             raise
-    (directory / f"{name}.result.json").write_text(json.dumps(dict(exit=result.returncode, timed_out=False)) + "\n")
+    (directory / f"{name}.result.json").write_text(json.dumps(dict(
+        exit=result.returncode, signal=-result.returncode if result.returncode < 0 else None,
+        timed_out=False, elapsed_seconds=time.monotonic()-started, **observed)) + "\n")
     result.stdout = (directory / f"{name}.stdout").read_bytes()
     result.stderr = (directory / f"{name}.stderr").read_bytes()
     return result

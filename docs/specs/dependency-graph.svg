@@ -6,7 +6,7 @@
   </defs>
   <rect width="728" height="364" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，263 份）</text>
+  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，264 份）</text>
   <rect x="384" y="150" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="524" y="170" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 300 92 C 352 92, 352 230, 404 230" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -17,5 +17,5 @@
   <text x="524" y="261" text-anchor="middle" font-size="13">ape 交付校验</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
-  <text x="180" y="105" text-anchor="middle" font-size="13">archive，263 份</text>
+  <text x="180" y="105" text-anchor="middle" font-size="13">archive，264 份</text>
 </svg>

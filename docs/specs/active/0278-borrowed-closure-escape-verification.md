@@ -116,6 +116,11 @@ concrete identity 和 resource 清理。共享 SSA 修复不替代该完整终�
 | 独立合同准备审阅 | 发现静态类型可能误拒绝空/null/inactive variant，及遗漏 projected Mutate；已纳入值证明、对应正反例，对应正反例运行与独立复审已完成，见上述记录 |
 | 前置 PR55 | final CI37265259330 与 main CI37266255625 15/15；实际产物独立核验，原成本材料冻结 |
 
+整合最新 main `55739cbd065ba0d8259069b31e53c19fe9f92572`（PR48）后，SSA生产文件与上述实现一致；
+41个逃逸及4个类型图测试、fmt、严格Clippy、799文件尺寸门禁、37个docs checker测试、526页文档检查实际通过。
+[整合账本](../../development/evidence/closure-escape-0278/main-integration.json)保全原始记录；完整消费者的915+1仅对应整合前输入，整合后完整双宿主消费者待远端CI。
+用户明确允许主干已有远端CI，本地不运行真实故障校准；不扩大本Spec实现范围。
+
 ## 7. 未决问题
 
 无新语言语义问题。若真实 fixture 已被既有防线拒绝，应记录实际错误并重新定位最小缺口，

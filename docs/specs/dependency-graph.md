@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 263 份"))
+ARCH(("已完成<br/>archive 264 份"))
 subgraph Gactive["现行 active"]
   S0278["S0278<br/>borrowed closure 的 owned escape 交付校验"]
 end
@@ -20,4 +20,4 @@ ARCH --> S0278
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0278 | active | [0278-borrowed-closure-escape-verification.md](active/0278-borrowed-closure-escape-verification.md) |
-| 已完成 Spec（263 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（264 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

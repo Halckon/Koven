@@ -69,6 +69,8 @@ jobs:
               - 'scripts/check_native_sanitizers.py'
               - 'scripts/native_lsan_entry.c'
               - 'scripts/tests/test_check_native_sanitizers.py'
+              - 'scripts/*generated_owner*.py'
+              - 'scripts/tests/test_*generated_owner*.py'
               - 'scripts/rust_test_artifact.rs'
               - 'scripts/tests/test_check_ci_results.py'
               - 'docs/guide/10-ownership-borrowing-drop.md'
@@ -273,6 +275,16 @@ jobs:
         with:
           name: native-sanitizers-${{ runner.os }}-${{ github.sha }}
           path: ${{ runner.temp }}/koven-sanitizers
+          if-no-files-found: error
+      - name: Generated resource program contracts
+        timeout-minutes: 25
+        run: python3 scripts/check_generated_owners.py --artifacts "$RUNNER_TEMP/koven-generated-owners"
+      - name: Preserve generated resource evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-owners-${{ runner.os }}-${{ github.sha }}
+          path: ${{ runner.temp }}/koven-generated-owners
           if-no-files-found: error
 
   preview-macos-produce:

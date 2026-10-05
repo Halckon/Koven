@@ -150,3 +150,30 @@ CI artifact。该必需步骤属于现有 Linux test job，失败传递到 requi
 LSan曾因残留主线程栈指针视为可达而漏报；worker入口已验证故意泄漏报告4字节/1对象，
 正常与关闭检测对照无报告。macOS仅有普通IR/counter测试证据，动态ASan/LSan未验收。
 UBSan 对 Koven IR 未覆盖；不声明栈 lifetime、容器逻辑长度、并发或完整内存安全证明。
+
+
+## 有界资源生成检查点
+
+`scripts/generated_owners.py` 以固定seed、结构化操作生成8有效/8非法程序，独立owner模型
+计算输出与计数，renderer记录UTF-8诊断occurrence。`native_generated_owner_tests`只导出真实
+frontend/SSA/LLVM与计数产物；独立frontend-only入口不读取分配预期，也不进入LLVM。
+`check_generated_owners.py`逐case精确调用测试二进制，校验stdout/计数/诊断及Linux动态检测。
+Linux要求LLVM21.1.8；macOS沿用支持的21.1.*。workspace-local prefix的实际版本及runtime
+archive核验不依赖系统安装数据库，包来源查询结果单列记录。
+
+进程预算、原始输入/环境/哈希、首个失败与缩小记录分离；缩小和重放共享绝对deadline，
+最后一次重放越界、I/O失败及候选原因变化不能误报成功。LSan runtime fatal单独归工具失败。
+现有双宿主 Targeted Tests 串联固定 16 案例、G3 校准、G4 checker 红绿恢复与 G5 缩减，always 上传证据。
+实现 head `2fcd6c54` 的 PR CI 37306570508 实际 15 个 job 全部成功；两宿主 G4/G5 完整通过。
+Linux 必须完整检出 ASan/LSan，校准与 acceptance 为 pass；Mac 在当前项目工具链/runtime 切片中
+仅允许 `address:macos-asan-unsupported` / `leak:macos-counter-only`，如实记录 partial 与 requirements_met=false。
+这是当前宿主分工，不泛化为 macOS ASan 的普遍限制；G4/G5 缺失或工具故障仍失败。
+
+G4 保存真实 checker patch、红绿各自 command/stdout/stderr/result 以及源码恢复 hash/diff。
+G5 对固定 Holder 析构见证 `drop:holder` 注入缺失 deinit 的真实 LLVM 故障，逐候选先验证同输入
+clean 正常，再验证 fault 同因失败；目标不唯一或消失直接失败。最新两宿主各 13 对实际产物
+复核仅删除目标调用，9→5 操作、717→551 字节，三次确认；局部最小只相对于当前有界结构变换集。
+预算为 32 候选/120 秒；incomplete、flaky、工具/I/O 故障保留最佳候选与报告，不误报最小。
+该设施验证受控资源故障的缩减能力，不代表发现生产编译器缺陷；G3/G4 不能替代 G5。
+当前实现身份、原始报告、制品 hash 与验证局限见
+[有界资源生成交付证据](../development/evidence/generated-owners-0269-delivery.json)。
