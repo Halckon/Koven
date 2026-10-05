@@ -1,10 +1,10 @@
 # SPEC-0269: 有界资源程序生成与独立安全核验
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施或验收 M4b 首片时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：实施或验收 M4b 首片时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-269` |
 | 所属 Phase | Phase 6 验证；消费现有 Phase 2–5 产物 |
 | 语言规范 | [Guide v0.40](../../guide/README.md)、[所有权](../../guide/10-ownership-borrowing-drop.md)、[析构](../../guide/08-class-family-members.md#deinit-成员语法与资源析构契约) |
@@ -108,13 +108,13 @@ Mac 不声称 Linux RSS/pids 防护；仍有域/数量/时间/日志/产物预�
 
 | ID | 完成标准 | 当前证据 |
 |---|---|---|
-| G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | 本轮精确head PR CI及模型/renderer golden、诊断适配负测已有证据；Python CI为260项、OK无skip。只读核验见§14。 |
-| G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | 本轮两宿主各8有效+8非法齐全；实际输出/计数/完整诊断匹配，固定V2物理次序报告通过；跨宿主源码相同。历史红测与0270修复记录保留，最新证据见§14。 |
-| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | 远端双宿主 CI (Run 37297014171) 完整检出 ASan 栈溢出与 LSan 内存泄漏，漏 deinit 与提前释放精确拒绝，`calibration.status: pass`，全量原始报告已保全。macOS 平台限制显式标记跳过（`acceptance=partial`）。见§14与§17。 |
-| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | Checker mutant 隔离 worktree 红绿闭环在远端 Linux 容器与 macOS 宿主真实执行验证：红测 0 诊断，源码还原 diff 为空，绿测恢复 L0131 诊断，红绿两阶段命令、源码/patch hash、导出器 hash、执行日志全量保全。见§15与§17。 |
-| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 运行期资源故障单调缩减验证完成：固定作用于 `Holder` 语义身份（经 `drop:holder` 常量唯一定位与 `injected-fault.json` 留存），经 clean 正常基线对照；同因稳定见证 `("native", "native_output_mismatch", "drop:holder")`，从 9 ops 缩减至 5 ops（551 字节），120 秒预算内完成 1-minimal 穷举证明（工具故障 fail-closed 保护）与 3 次独立确认复现，未完成/异常时先行落盘保全审计报告。见§16与§17。 |
-| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 主驱动端到端在远端双宿主 CI (Run 37297014171) 完整执行：Linux 环境全项通过生成 `acceptance.json` (status=pass, requirements_met=true)；macOS 环境如实记录两项平台限制并生成 `acceptance.json` (status=partial, requirements_met=false)；无未决或跳过伪 pass。见§16与§17。 |
-| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 审阅遗留 1 个 P1 与 4 个 P2 全数修复；274 项 Python 单测通过；876 项 Rust 单测通过；Rust 尺寸门禁、check_docs (524 文件)、fmt、clippy 零告警通过；PR #48 远端 22 项 checks 全绿闭环。见§17。 |
+| G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | 实现 head `2fcd6c54` 的 CI 37306570508：276 项 Python 测试通过，包括 golden、诊断适配负例及新增 I/O 留证回归。历史审阅见 §14–17；最终身份见 §18。 |
+| G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | 最新双宿主各 16 案例齐全且 pass，输入哈希各 266 项复核相符；stdout、counter、诊断与固定 V2 物理次序已有原始制品。见 §18。 |
+| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | 最新 Linux calibration=pass，实际 ASan `stack-buffer-overflow:inspect` 与 LSan `detected memory leaks:malloc` 检出，漏 deinit/提前释放拒绝；Mac 按约定 partial，两项限定原因精确留存。既有 M4a 定向 CI 继续执行。见 §18。 |
+| G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 最新两宿主 checker 校准均 pass；红测诊断为空，绿测 L0131 primary 433:439 / label 350:356，真实 patch、源码和恢复 hash 相符，restore diff 为空；build/export 的 command/stdout/stderr/result 分开保存。见 §18。 |
+| G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 受控 Holder 缺失 deinit 故障验证完成；两宿主各 13 对 clean/fault 源码及预期相同，实际 LLVM 仅删除同一 Holder deinit 调用（另有 ModuleID 路径差异）。9→5 操作、717→551 字节，严格下降，原始与最小正常对照通过、同因 `drop:holder` 复现，三次确认；当前有界变换集内 1-minimal，非全局最小或生产编译器 Bug。120 秒预算、异常保全和 fail-closed 回归通过。见 §18。 |
+| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 最新 Linux acceptance=pass / requirements_met=true；Mac acceptance=partial / requirements_met=false，仅有约定的两项检测限制，G4/G5 均完整。G5 耗时 Linux 8.429s、Mac 6.269s；全部命令预算/阶段结果与双宿主环境保全。见 §18。 |
+| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | `2fcd6c54` 只读源码及制品审阅未发现剩余阻断缺陷，精确 head CI 15 个实际 job 全部成功。状态、路径、索引、inventory 与 Architecture 同批收尾；最终归档 head、合并及 main CI 收据由 PR48 维护，验收历史不改写。见 §18。 |
 
 按 G1 → 导出/执行 G2 → 检测 G3/G4 → 重放缩小 G5/G6 → G7 推进。
 Cargo 共用一个串行窗口；先失败测试再实现。Rust 只选新 exporter、被提取 helper 原调用方、
@@ -374,3 +374,43 @@ G4保存 `red/` 与 `green/` 各自的case、build/export命令、cwd、预算�
    - 修复：在进入 Step C 单步检查前先行落盘 `reduction.json`；将候选准备、输入封存与执行统合纳入 `(OSError, ValueError, KeyError)` 捕获范围，记录 `tool_io_failure` 审计信息并落盘保全后再抛出 `Failure`；补充“缺失产物但报告目录可写”以及“准备阶段磁盘读取异常”双项回归测试。
    - 验证：PR CI Run `37304960751` 双宿主 22 项 checks 再次全绿通过。
 
+
+## 18. 最终实现审阅与归档验收（2026-10-05）
+
+实现审阅覆盖 [`2fcd6c54f7072ce6a6a26e08b9f3bd18af4f2abb`](https://github.com/Halckon/Koven/commit/2fcd6c54f7072ce6a6a26e08b9f3bd18af4f2abb)。
+[PR CI 37306570508](https://github.com/Halckon/Koven/actions/runs/37306570508) 已终态 success，
+15 个实际 job 均成功。实际 CI checkout 是合成 merge `fd478855b328d8f2d7a8205fba76880a783c75ab`，
+父提交为 main `54b36675481c15da8a1f31d9d3185e4b49c83096` 和上述实现 head；
+其 tree 与 head 均为 `f0e1010e3c380751bc58f0990401745f2c9590ea`。
+不能将之后重新生成的 PR merge SHA 当作本次运行的 checkout 身份。
+
+原始制品：
+[Linux / 11344670003](https://github.com/Halckon/Koven/actions/runs/37306570508/artifacts/11344670003)、
+[macOS / 11344171875](https://github.com/Halckon/Koven/actions/runs/37306570508/artifacts/11344171875)。
+ZIP SHA256 分别为 `894675262e93fc6c1549e3b5d57d7c53ea018d1dd16b5f221deeb7b3b79ba0f3`、
+`61b5a55278a9fc4a6af83f7e8f2a4bb9eda8a8bb2f413fc9263997c159895b6d`。
+报告、checker 原始命令/输出/退出/patch/源码、全部输入 hash、13 对真实 LLVM 因果对照的复核摘要
+保存在[交付证据](../../development/evidence/generated-owners-0269-delivery.json)，选定原始文本以 gzip 保全。
+G4 exporter 二进制未在 ZIP 中，运行时记录的二进制 hash 不能在此次审阅中独立重算。
+
+G5 固定语义身份是 Holder 的唯一 `drop:holder` 析构见证，不改投其他资源。
+接受链源码字节为 717→675→633→605→565→558→551；最终剩余 holder/replace/inspect/return_if/marker
+是当前有效域的必需操作，资源名 a/b 已不可再缩短，故单步穷举候选为空。
+这支持当前变换集内局部最小，不支持任意语法下全局最小。受控 planted fault 验证缩减设施，
+没有将它表述为发现生产编译器缺陷，也没有用 G3/G4 替代 G5 的逐候选真实复验。
+
+Mac 的当前项目工具链/runtime 切片按约定记录
+`skipped_reasons=["address:macos-asan-unsupported", "leak:macos-counter-only"]`，
+`acceptance.status=partial`、`requirements_met=false`；完整 ASan/LSan 验收在 Linux。
+该 partial 是已接受的宿主分工，不泛化为所有 macOS ASan 都不可用。
+
+本轮仅做只读实现/制品审阅和文档状态收尾，未在本机重跑故障注入、变异、校准或缩减，
+未执行制品中的代码。§9–17 保留各次历史结论与当时限制，不代表最新状态。
+SPEC0269 仅关闭 M4b 有界首片，不关闭 M4 全范围或完整内存安全证明。
+最终归档提交的必需 CI、实际 merge SHA 和 main push CI 由
+[PR48 交付记录](https://github.com/Halckon/Koven/pull/48)维护；只在必需 CI 成功且 head/base 复核后合并。
+
+归档提交前的普通检查：`python3 scripts/check_docs.py`（524 Markdown，含迁移账本、链接与依赖图 freshness）通过；
+`python3 -m unittest discover -s scripts/tests -p 'test_check_docs.py'`（37 测试）通过；
+`git diff --check` 通过。生成依赖图由 `python3 scripts/gen_spec_dag.py` 重建（0 live / 264 archive）。
+本机没有另跑 Rust 或生成设施专项；最终正常 PR/main CI 是交付门槛。

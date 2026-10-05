@@ -163,9 +163,17 @@ archive核验不依赖系统安装数据库，包来源查询结果单列记录�
 
 进程预算、原始输入/环境/哈希、首个失败与缩小记录分离；缩小和重放共享绝对deadline，
 最后一次重放越界、I/O失败及候选原因变化不能误报成功。LSan runtime fatal单独归工具失败。
-现有双宿主Targeted Tests接线batch与always证据上传，9807eaf对应PR CI已有实际双宿主证据。
-本地后继报告判定要求Linux完整校准，Mac仅允许指定两项检测限制；checker红/绿case、命令、
-输出、退出、真实patch及恢复hash分别保存，未重新取得真实运行证据。主驱动不执行旧错误oracle
-缩减；G5真实故障缩减未验证时写partial/requirements_met=false并exit1，不得据CI历史绿灯
-宣布后继完成。当前事实与本地普通验证范围见
-[0269验收账本](../specs/active/0269-generated-resource-programs.md#15-普通判定与留证机制修复2026-10-05本地)。
+现有双宿主 Targeted Tests 串联固定 16 案例、G3 校准、G4 checker 红绿恢复与 G5 缩减，always 上传证据。
+实现 head `2fcd6c54` 的 PR CI 37306570508 实际 15 个 job 全部成功；两宿主 G4/G5 完整通过。
+Linux 必须完整检出 ASan/LSan，校准与 acceptance 为 pass；Mac 在当前项目工具链/runtime 切片中
+仅允许 `address:macos-asan-unsupported` / `leak:macos-counter-only`，如实记录 partial 与 requirements_met=false。
+这是当前宿主分工，不泛化为 macOS ASan 的普遍限制；G4/G5 缺失或工具故障仍失败。
+
+G4 保存真实 checker patch、红绿各自 command/stdout/stderr/result 以及源码恢复 hash/diff。
+G5 对固定 Holder 析构见证 `drop:holder` 注入缺失 deinit 的真实 LLVM 故障，逐候选先验证同输入
+clean 正常，再验证 fault 同因失败；目标不唯一或消失直接失败。最新两宿主各 13 对实际产物
+复核仅删除目标调用，9→5 操作、717→551 字节，三次确认；局部最小只相对于当前有界结构变换集。
+预算为 32 候选/120 秒；incomplete、flaky、工具/I/O 故障保留最佳候选与报告，不误报最小。
+该设施验证受控资源故障的缩减能力，不代表发现生产编译器缺陷；G3/G4 不能替代 G5。
+当前实现身份、原始报告、制品 hash 与验证局限见
+[有界资源生成交付证据](../development/evidence/generated-owners-0269-delivery.json)。
