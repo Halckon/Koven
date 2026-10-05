@@ -85,4 +85,4 @@ Map、借用返回、getOrNull、可逃逸迭代器、通用 clone、隐式容�
 
 后继[SPEC-0276](../archive/specs/0276-unit-generic-body-type-normalization.md)承接普通顶层函数
 body-only具体需求发布及其既有native消费者适配，保持原recursive-template边界。
-该片已按双宿主实现CI验收归档，最终归档/main交付门禁仍待；两片不代表整个M3A操作集已完成。
+该片已按双宿主实现CI验收归档，最终head及actual main交付门禁已闭环，见[交付账本](evidence/generic-body-0276-delivery.json)；两片不代表整个M3A操作集已完成。
