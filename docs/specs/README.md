@@ -22,7 +22,7 @@ P2成本继续延期，后续候选能力不因M1A交付自动关闭。原[恢�
 
 ## 版本与历史导航
 
-- [v0.40](drafts/v0.40/README.md)：现行 Guide 启用及三项规则的实施入口
+- [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；现行 v0.41 的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
 - [完成 Spec Archive](../archive/specs/README.md)：265 份 `done`/`superseded`，只在追溯时读取

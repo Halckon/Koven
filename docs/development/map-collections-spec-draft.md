@@ -18,7 +18,7 @@ Goal：选定并交付一个所有权合同完整的键值集合切片，用于�
 [现行集合规范](../guide/12-collections-destructuring.md)不授权 Map；
 [Map proposal](../proposals/map-ownership.md)只是历史候选。
 候选仍有调用处 `borrow` marker 的示例，并把非 Copyable 查询连接到未定义的 getRef/借用返回；
-重基时必须逐项核对现行 v0.40，不能直接搬入实现或把它当作已批准签名。
+重基时必须逐项核对现行 v0.41，不能直接搬入实现或把它当作已批准签名。
 
 | 决策 ID | 必须封闭的内容 | 防止的隐含扩张 |
 |---|---|---|

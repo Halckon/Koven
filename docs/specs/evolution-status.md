@@ -3,7 +3,7 @@
 > **性质**：变更进度索引 · **状态**：current · **读取时机**：继续演进计划或核对交付范围时 · **唯一真源**：对应 Guide、Spec 与代码测试
 
 本页对照 2026-10-01 的 13 项计划记录截至 main `34189046319a8b727285d471596647d5de56996e` 的实现与交付事实；语言规则以唯一 current
-[Guide v0.40](../guide/README.md) 为准，不以 AST、类型名或文档启用代替端到端证据。
+[Guide v0.41](../guide/README.md) 为准，不以 AST、类型名或文档启用代替端到端证据。
 起点为 main `d3e64a4`；七阶段合并提交 `ed0727f` 形成真实 v0.39，随后整合 SPEC-0235。
 八个切片及整合合同保留各自验收账本。PR #7 已于 2026-10-01 合并，后继切片基于真实 main `e22e11b`；此前文档闭环逐项补最终证据后归档 0228–0235、0237–0242 与 0247；本批0236诊断Span新增断言双宿主通过后归档，0182当时保留active；本机恢复的有界归档与未覆盖项见[恢复验收](../development/recovery-local-delivery.md)。
 后到的 main `3be83b5`（已合并 PR #6）另作[最小协调](../archive/migrations/v0.40-upstream-pr6-reconciliation.md)，

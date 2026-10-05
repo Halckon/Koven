@@ -7,14 +7,14 @@
 | 状态 | in-progress |
 | Goal ID | `KOV-P4-0279` |
 | 所属 Phase | Phase 2/3 既有合同对齐；Phase 4 SSA/LLVM/native |
-| 语言规范 | 已启用 Guide v0.40；[集合](../../guide/12-collections-destructuring.md)、[closure](../../guide/07-calls-lambdas-closures.md) |
-| 批准依据 | 用户持续实施里程碑、满足前置并行及根据实现调整草稿的站立授权；只落实已有语义 |
+| 语言规范 | 已启用 Guide v0.41；[集合](../../guide/12-collections-destructuring.md)、[closure](../../guide/07-calls-lambdas-closures.md) |
+| 批准依据 | 用户持续实施里程碑、满足前置并行及根据实现调整草稿的站立授权；除用户明确启用的 expected move 澄清外，只落实已有语义 |
 | 前置 Spec | SPEC-0275、SPEC-0276、SPEC-0278 已 done；0278 final/merge/actual main CI 已闭环 |
 | 前置 ADR | [ADR-0008](../../adr/accepted/0008-internal-value-and-allocation-abi.md)、[ADR-0009](../../adr/accepted/0009-concrete-closure-internal-abi.md)、[ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) accepted |
 | 关联 ADR | 不新增 erased callable、heap environment 或容器 ABI |
-| 阻塞项 | 无语言启用阻塞；工程身份/API 复核完成前不修改对应 planner/bridge |
+| 阻塞项 | expected move 冲突经用户明确启用 v0.41 已解决；具体 helper API 复核中，复核前不修改对应 planner/bridge |
 | 影响范围 | lang-frontend lambda expected 合同；lang-codegen callable planning、source lowering、SSA、LLVM 与 native；验收及 Architecture |
-| 语言语义变更 | 否 |
+| 语言语义变更 | 用户明确启用 v0.41 的 expected move literal 澄清；其余工程范围不新增语义 |
 
 ## 1. Goal 与基线
 
@@ -50,12 +50,13 @@ unit planner 当前拒绝 lambda 内 resource demand，必须消费实际 concre
 
 ## 3. 冻结的实现合同
 
-### 3.1 expected lambda 与类型身份
+### 3.1 expected lambda 与类型身份（v0.41 已启用）
 
-普通 `(Int) -> T` expected 上下文允许 `move { ... }` literal，沿用该 expected Function
+用户明确接受候选并启用 v0.41；前版冲突与候选保全在
+[迁移账本](../../archive/migrations/v0.41-enablement.md)。当前规则已写入 Guide03 正文，
+不再以 Guide07 例子覆盖前版正文。允许普通 `(Int) -> T` expected 上下文接收 `move { ... }` literal，沿用该 expected Function
 canonical identity；capture 仍由语法及 frontend ownership facts 发布为 Owned。
-依据 Guide07 的普通 Fn 返回类型接收 move literal 既有示例，不能按 `move_only == move_span`
-机械误拒。含 `move` 的 Function 静态身份继续按 Guide03 区分；不放宽已经定型的 named
+前版实际 L0084 保留为历史基线；在已启用 v0.41 下，相同候选成功测试成为实现红测。含 `move` 的 Function 静态身份继续按 Guide03 区分；不放宽已经定型的 named
 `move Fn` 到普通 Fn 的 assignability，也不推导 lambda body 中的泛型 T。
 必测有效参数模式、Owned/Move capture 与 ASAP drop；反例保留 arity、参数 mode、普通
 borrowed closure 到强约束 expected、named Function 身份不匹配及 L0137/L0138。
@@ -142,3 +143,16 @@ negative factory 使用分组 return lambda，避免 parser 夹具错误。正�
 
 尺寸旧欠账：`lower_frontend.rs` 1480、`unit_lower.rs` 1266、`verify_ownership.rs` 1658 物理行。
 本片新增领域逻辑放单职责子模块；超线增长例外必须显式审阅，不机械压行或切片。
+
+2026-10-05 补充：四项 expected move 候选测试实际因 L0084 失败，生产未改。重新核对
+Guide03 正文后登记语言前置冲突；此前“无语义阻塞”的判断不足，§3.1 暂停等待决定。
+两项 runtime source 测试已实际失败，每项保全 Array/List × pointer/shared 四个 UnsupportedNode，
+其 parsed/name/type/ownership 前置均成功；剩余成功目标仍未实现。
+
+2026-10-05：用户明确采用候选并启用 v0.41，语言前置已解决；规范迁移正在独立复核，
+生产 checker 仍未修改。此前冲突登记保留为当时记录。
+
+规范迁移独立完整复核通过：16 页完整快照、32 SHA、机械链接及唯一语义变化符合用户决定；
+结构门禁 545 页及 37 项 checker 测试实际通过，原始输出见
+[v0.41 验证收据](../../development/evidence/runtime-constructor-0279/v041/receipt.json)。
+规范改动单独提交后继续 E1 实现，不据此关闭 source/native 或 E8。

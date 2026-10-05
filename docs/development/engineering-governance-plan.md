@@ -108,7 +108,7 @@ Lexer 的 LexedFile 字段封闭，Parser 有函数门面和私有 engine；unit
 
 | 位置 | 唯一职责 | 本次建议 |
 |---|---|---|
-| docs/guide/ | 现行 v0.40 语言语义与强制 Phase | 保持规范权威，不从代码反推新规则 |
+| docs/guide/ | 现行 v0.41 语言语义与强制 Phase | 保持规范权威，不从代码反推新规则 |
 | docs/compiler-specs/ | 内部表示、算法、资源与层间合同 | 分阶段加入获批工程合同，current 不表示已实现 |
 | docs/architecture/ | 已实现事实与支持矩阵 | 随实现更新；目标设计不冒充现状 |
 | docs/specs/ 与 docs/adr/ | 有界交付验收与长期决策 | 关闭完成 Spec；accepted ADR 继续保留 |

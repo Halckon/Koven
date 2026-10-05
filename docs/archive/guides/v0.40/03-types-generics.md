@@ -1,8 +1,8 @@
-# Koven v0.41：类型与泛型
+# Koven v0.40：类型与泛型
 
-> **性质**：规范性语言规范 · **状态**：current（v0.41） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
 
-本页是现行 Koven v0.41 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 基础类型与类型种类
 
@@ -100,14 +100,9 @@ body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`
   integer-literal constraint在此默认，`null`、带参数但无 expected function type 的 lambda，
   或真正缺少约束的表达式使用 L0083。若 initializer 自身因后续阶段能力而 deferred，则 local
   也 deferred，不提前发 L0083。
-- lambda 是独立 callable。存在 expected function type 时，先精确匹配参数数量与有序参数
-  mode。expected Function 带 `move` 约束时，literal 必须使用 `move`；普通 Function expected
-  上下文允许普通或 `move` literal。literal 的静态类型沿用 expected Function 的 canonical
-  identity；shared / owned capture 仍由 literal 语法与 ownership facts 决定。结构不匹配使用
-  L0084，再以对应参数类型检查 body；参数类型不从 body 反推。无 expected type 的无参数
-  lambda 可以从 body 已知尾值推导 `() -> R`，其中 `move` literal 保留含 `move` 的 Function
-  身份；带参数 lambda 没有 expected function type 时使用 L0083。已定型的 named Function
-  值继续按既有类型身份与 assignability 匹配，不增加 `move Fn` 与普通 Fn 的隐式转换。
+- lambda 是独立 callable。存在 expected function type 时，参数数量和 `move` / mode 结构先
+  做精确匹配，不匹配使用 L0084，再以对应参数类型检查 body；参数类型不从 body 反推。无参数 lambda 可以从
+  body 已知尾值推导 `() -> R`；带参数 lambda 没有 expected function type 时使用 L0083。
   普通 block 固定为 `Unit`，`LambdaBody` / `ControlBody` 才读取尾 expression；以声明或 jump
   结束、或空 body 的尾值为 `Unit`。
 - 这不是 Kotlin 的完整局部双向约束求解：Kotlin 可把使用位置、overload candidate 和 lambda
