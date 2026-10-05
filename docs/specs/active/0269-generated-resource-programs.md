@@ -110,11 +110,11 @@ Mac 不声称 Linux RSS/pids 防护；仍有域/数量/时间/日志/产物预�
 |---|---|---|
 | G1 | 独立模型/renderer 手写 golden、有效/非法域、固定选择和非 ASCII byte span | Python模型18项通过；独立审阅未发现具体模型错误；实际8个非法case诊断和byte span通过 |
 | G2 | 8 有效+8 非法真实编译核验；双宿主输出/计数、固定 V2 释放次序 | Mac首轮6有效通过、2有效InvalidSsa；合入已合并0270后8有效及8非法全部通过，固定V2次序通过；本轮Linux补充正常批次8有效+8非法全部通过，固定V2次序通过 |
-| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | Linux 8个clean ASan通过；Mac平台完成对照组验证，因缺少ASan/LSan支持显式标记跳过（partial）；本地完成4项真实LLVM IR故障校准（越界、漏free、漏deinit、提前释放Holder）：clean-v1/clean-v2通过，漏free/漏deinit/提前释放精确拒绝，地址故障对照组验证通过；Linux远端完整ASan/LSan成功证据仍待CI覆盖闭环 |
+| G3 | Linux 生成案例 clean ASan/LSan、真实 IR 四种故障、关闭对照；M4a 保持 | Linux 8个clean ASan通过；Mac平台完成对照组验证，因缺少ASan/LSan支持显式标记跳过（partial）；本地完成4项真实LLVM IR故障校准；远端双宿主CI（Run 37276328529）在Linux容器完成完整真实ASan/LSan故障检出闭环（栈越界由ASan精准检出，内存泄漏由LSan精准检出，漏deinit与提前释放分别由输出比对与counter order精确拒绝），全量校准状态为pass，成功保全双宿主原始证据 |
 | G4 | 诊断适配负例与真实 checker mutant 红→恢复→重编译→绿 | 精确诊断普通负测已验证；完成真实ownership checker独立临时worktree隔离红绿变异闭环：针对 `ensure_place_available` 变异，红测严密核验执行退出码与文件存在性后杀死（0诊断），源码恢复确认diff为空，绿测重新编译运行精确恢复L0131诊断 |
 | G5 | 输入稳定、原始源码重放、同因缩小、三次重放、预算/分类负测 | 真实失败同因缩小验收完成：针对真实生成案例I1在无预期报错下的真实编译器所有权报错（unexpected_frontend_rejection: L0131），通过语法结构单调缩小由8 ops成功缩减至6 ops，保持相同语义失败指纹并经3次独立重放确认，输出reduction.json |
-| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 主驱动整合验证：非replay模式完整串联16个固定生成案例、G3故障校准、G4 Checker变异红绿闭环与G5真实失败同因缩小；由于macOS宿主跳过ASan/LSan检测，驱动判定如实汇总为 `acceptance=partial`（非虚假pass），保全完整证据待双宿主CI闭环 |
-| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 本轮全部258项Python测试通过；codegen Clippy/fmt全绿；check_docs (520 files)通过；Rust尺寸门禁通过；保持未归档，等待远端双宿主CI闭环后合并 |
+| G6 | CI 拒绝零命中/缺项/工具/必需跳过，保全证据并记录双宿主成本 | 主驱动整合验证：非replay模式完整串联16个固定生成案例、G3故障校准、G4 Checker变异红绿闭环与G5真实失败同因缩小；远端双宿主CI（Run 37276328529，commit 8e4b97c）全绿通过，双宿主均生成并上传完整制品包（Linux acceptance=pass，macOS acceptance=partial）；拒绝零命中/缺项，各阶段日志与耗时预算留证完整 |
+| G7 | 独立审阅、受影响回归、fmt/Clippy/尺寸/docs、Architecture 与归档 PR 闭环 | 本轮全部260项Python测试通过（1项macOS预期跳过）；codegen Clippy/fmt全绿；check_docs (524 files)通过；Rust尺寸门禁通过；PR #48双宿主CI门禁全绿（22项checks全部通过）；完成最终闭环事实记录与留证 |
 
 按 G1 → 导出/执行 G2 → 检测 G3/G4 → 重放缩小 G5/G6 → G7 推进。
 Cargo 共用一个串行窗口；先失败测试再实现。Rust 只选新 exporter、被提取 helper 原调用方、
@@ -216,9 +216,31 @@ CI接线使生成脚本变化触发Rust门禁、现有双宿主执行完整drive
    - 更新 `scripts/check_generated_owners.py`：总入口完整串联 16 案例、G3 故障校准、G4 Checker 变异与 G5 真实同因缩小；在 macOS 上如实汇总为 `acceptance=partial`（`partial_reasons: ["macos-counter-only"]`），不虚假记为 `pass`；支持 `--replay` 单案例重放。
 
 5. **质量门禁与事实证明**：
-   - 运行 258 项 Python 测试全量通过（1 项预期 Linux-only 跳过）。
+   - 运行 260 项 Python 测试全量通过（1 项预期 Linux-only 跳过）。
    - `cargo fmt --all -- --check` 通过；`cargo clippy -p lang-codegen --all-targets -- -D warnings` 零告警通过。
    - `python3 scripts/check_rust_sizes.py --base main` 通过，修改文件行数在 1000 行软上限内。
-   - `python3 scripts/check_docs.py` 520 个文档结构门禁全部通过。
+   - `python3 scripts/check_docs.py` 524 个文档结构门禁全部通过。
    - 本地 HEAD 保持规范未归档状态，等待远端 PR #48 更新并由双宿主 CI 覆盖最终验收。
+
+## 13. 远端双宿主 CI 闭环与完整证据核验（2026-10-05）
+
+通过向 GitHub 远端推送分支 `feature/spec-0269`（commit `8e4b97c`）更新 PR #48，成功触发远端 GitHub Actions 双宿主全套门禁（Run ID: `37276328529`）。全套 22 项 checks 完整通过（`0 failing, 22 successful, 6 skipped, 0 pending`）：
+
+1. **Linux (ubuntu-24.04) 真实 ASan/LSan 检出与完整证据**：
+   - 制品名：`generated-owners-Linux-c5f9285a697991baa3973925752f34ded6947487`（`acceptance.json` SHA256: `e0971d80ec592b09fd36f8f4df9c97c7cc733916850b09ebbdf6c71f92c00b31`）。
+   - **ASan 栈溢出故障检出**：`run-fault-address-asan.stderr` 完整记录 `==73637==ERROR: AddressSanitizer: stack-buffer-overflow on address ... READ of size 24 at ... in f1.inspect`，检出指纹 `["native", "asan_error", "stack-buffer-overflow:inspect"]`，状态 `rejected_as_expected`。
+   - **LSan 内存泄漏故障检出**：`run-fault-leak-lsan.stderr` 完整记录 `==73662==ERROR: LeakSanitizer: detected memory leaks`，`Direct leak of 24 byte(s) in 1 object(s) allocated from malloc`，检出指纹 `["native", "lsan_error", "detected memory leaks:malloc"]`，状态 `rejected_as_expected`。
+   - **析构丢失与提前释放**：`missing_deinit` 经输出比对确认缺少 `drop:leaf_b7af` 被拒绝；`premature_holder_free` 触发 `Assertion 'i == release_order[releases]' failed` 异常退出被拒绝。
+   - **判定总览**：Linux 容器环境校准通过（`calibration.status: pass`），16 个生成案例通过，Checker 变异红绿闭环通过，真实 I1 案例成功单调缩减至 6 操作并 3 次重放确认，最终报告 `acceptance.status: pass`。
+
+2. **macOS (macos-14) 平台跳过事实与如实汇总**：
+   - 制品名：`generated-owners-macOS-c5f9285a697991baa3973925752f34ded6947487`（`acceptance.json` SHA256: `de5af394f8fa6f4fc56fed74961df0153ef2007c6a461f740c518883cc0351ac`）。
+   - 因 macOS 环境缺少 ASan 动态支持，严格标记 `address.status: skipped`（`reason: macos-asan-unsupported`）与 `leak.lsan_skipped: macos-counter-only`；
+   - 校准汇总为 `calibration.status: partial`，整体报告为 `acceptance.status: partial`，不以伪 pass 冒充证据。
+
+3. **CI 门禁与制品保全全景**：
+   - `Targeted Tests (ubuntu-24.04)` 耗时 5m18s，上传制品：`generated-owners-Linux-*`、`native-sanitizers-Linux-*`、`word-frequency-Linux-*`。
+   - `Targeted Tests (macos-14)` 耗时 6m5s，上传制品：`generated-owners-macOS-*`、`word-frequency-macOS-*`。
+   - 依赖分析、Rust 尺寸（790 文件/45 例外）、文档结构（524 文件）、代码格式（`cargo fmt`）、静态分析（`cargo clippy` 零告警）、Python 单元测试（260 项通过，1 项预期 Linux-only 跳过）全绿闭环。
+
 
