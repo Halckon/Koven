@@ -11,7 +11,7 @@ Goal：一个多文件词频工具能够在两个受支持宿主处理固定输�
 
 前置为[M1A](multifile-program-spec-draft.md)、实际需要的[M3A](sequential-collections-spec-draft.md)
 能力和新增文本/错误 API 的语义决定。M2、Map、Str、通用格式化均不是首版的当然前置。
-用户允许实施时根据实际情况调整本稿；[SPEC-0274](../specs/active/0274-argv-word-frequency.md)承接仅argv的首片。
+用户允许实施时根据实际情况调整本稿；[SPEC-0274](../archive/specs/0274-argv-word-frequency.md)承接仅argv的首片。
 普通应用decimal与重扫argv保持现行语义；本页不复制其合同/验收。文本输入b及新增API仍待各自前置。
 
 ## 2. 两个可独立验收的交付候选

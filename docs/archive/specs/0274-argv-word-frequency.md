@@ -1,10 +1,10 @@
 # SPEC-0274: 现行语义下的多文件 argv 词频程序
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施或验收 M1B-a 参数词频首片时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：实施或验收 M1B-a 参数词频首片时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-274` |
 | 所属 Phase | Phase 2/3 的现有事实交接、Phase 4 native、Phase 6 程序验收 |
 | 语言规范 | [Guide v0.40](../../guide/README.md)、[集合](../../guide/12-collections-destructuring.md)、[String/entry](../../guide/13-program-runtime-standard-library.md) |
@@ -92,9 +92,9 @@ group、跨文件具名callee、参数与临时operand的求值/清理身份保�
 | W1 | size descriptor身份/Span、输入排列确定性；读取分类与owner/loan/drop；负例精确诊断 | 本机已红转绿；见§8 |
 | W2 | 三容器×空/非空、Value/Borrow/local/group/temp SSA/native，求值一次与资源精确清理 | 本机已红转绿；见§8 |
 | W3 | unit String三种binary、Borrow/owned混合、临时/CFG、独立结果与源继续可用；malformed事实拒绝 | 本机已红转绿；见§8 |
-| W4 | 三文件应用双宿主build/artifact/run；空、独词、交错重复、中文、空词、TAB/LF/CR、空格/引号/反斜杠等字节oracle | 本机通过；双宿主待CI |
-| W5 | 独立参考计数，0/1/9/10/99/100/Int.MAX_VALUE decimal及负值Abort；非法UTF-8在实际project artifact及CLI run中于entry前拒绝，记录各自退出/完整bytes；索引/计数上界说明；正常资源与M1A回归 | 本机通过；双宿主待CI |
-| W6 | 直接frontend/codegen/CLI消费者、原双宿主必需CI及既选M4a；独立完整审阅、Architecture/Spec归档及最终head PR闭环 | 待执行 |
+| W4 | 三文件应用双宿主build/artifact/run；空、独词、交错重复、中文、空词、TAB/LF/CR、空格/引号/反斜杠等字节oracle | 双宿主真实CI通过；见§9 |
+| W5 | 独立参考计数，0/1/9/10/99/100/Int.MAX_VALUE decimal及负值Abort；非法UTF-8在实际project artifact及CLI run中于entry前拒绝，记录各自退出/完整bytes；索引/计数上界说明；正常资源与M1A回归 | 双宿主真实CI通过；见§9 |
+| W6 | 直接frontend/codegen/CLI消费者、原双宿主必需CI及既选M4a；独立完整审阅、Architecture/Spec归档及最终head PR闭环 | 实现/审阅及首轮15项CI通过；归档最终head及合并门禁仍必需 |
 
 W4必须记录argv/cwd/编译器身份、build/产物/run每项退出与stdout/stderr字节；无命中和skip不算通过。
 真实argv上限不可能构造Int.MAX_VALUE个参数；W5用应用decimal的独立边界调用及计数不超size的
@@ -154,3 +154,30 @@ initializer、内含类型参数的容器native实例替换、Int subject when�
 字段/嵌套投影及单文件native size仍不由unit范围证明。
 
 M1B-b、M2/M3新增语义和完整M5保留原草稿前置，本片不关闭它们。
+
+## 9. 双宿主实际验收与归档（2026-10-05）
+
+实现提交 `315169073700077bcd97f60d88af93a2bf7e7996` 的
+[PR52 CI 37246195048](https://github.com/Halckon/Koven/actions/runs/37246195048)
+已终态成功，15项全部success，没有以pending、skip或旧提交的取消代替验收。
+两个Targeted Tests实际执行原有bounded composition、31组tutorial合同及新增词频step；
+Linux选定ASan/LSan与双宿主Check/Clippy、两候选producer/独立consumer也成功。
+
+长期证据保存在[CI身份与账本哈希](../../development/evidence/word-frequency-0274/ci.json)、
+[Linux完整命令记录](../../development/evidence/word-frequency-0274/linux-results.json)及
+[macOS完整命令记录](../../development/evidence/word-frequency-0274/macos-results.json)。
+测试checkout为合成merge `62459600da9e2cba6f39dea087ab62e2ca62ecfa`，parents是main
+`7262232`与实现`3151690`；其tree `049acd9ed9a4806149b713d334d0ba11819489ba`
+与实现tree完全相同。artifact名称中的合成SHA不能误写成实现head。
+
+每宿主9项目、37实际命令、全部success、无timeout/spawn错误。独立复核从教程唯一fence
+取得三个源码与manifest哈希，并验证边界probe完整源码哈希及精确文件集合；另外按独立
+首次顺序计数与decimal参考逐条核对argv原始bytes/cwd/exit/stdout/stderr，未依赖账本success标记。
+两个宿主negative产物均为SIGABRT（-6），CLI均exit1且stdout空；正常与非法UTF-8四命令
+均核对完整输出bytes；无效参数在entry marker前拒绝。两个Abort的stderr保留原始bytes，
+继续不作为稳定文本或unwind承诺。源/编译器SHA、artifact ID及原JSON SHA在证据中可追溯。
+
+W1–W5及W6实现/独立完整审阅已满足，本次迁入archive；最终归档head仍必须通过全部必需CI，
+无未决状态后才允许合并。此记录不提前宣称归档head、merge或main push CI成功。
+原§8本机checkpoint与隔离失败保持历史证据；短路owner合流、内含T容器native实例替换、
+一般投影和single-file size等后继边界没有因本次CI成功而关闭。

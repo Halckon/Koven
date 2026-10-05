@@ -74,5 +74,5 @@ CompilationUnit `for`、Inout/field source 与 MoveOnly ZST 完整析构仍不�
 `ContainerLength`，复用当前Borrow参数loan，只结束本次新建loan，再执行CallReturn清理。
 具名/Value/Borrow/group/temporary沿用同一header；unit Borrow String `==`/`!=`/`+`消费
 current binding，RHS CFG后使用重绑定loan，不隐式clone/消费源。前端replacement保护旧root
-至完整RHS完成；提前return仍按ControlTransfer清理。当前0274本机证据不替代双宿主CI。
+至完整RHS完成；提前return仍按ControlTransfer清理。0274双宿主各37条公共命令及15项CI已通过；完整字节证据见[验收身份](../development/evidence/word-frequency-0274/ci.json)。
 `||`不同路径容器last-use合流、内含类型参数的container native实例替换以及一般投影仍有既有拒绝边界。

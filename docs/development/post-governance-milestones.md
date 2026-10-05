@@ -252,3 +252,16 @@ M1B与新增标准库API仍需各自语义决定，M4b仅在准备有界生成�
 复用 M1A 与选定 M4a 前置，限定双宿主 release tar 和独立 runner 正常安装。
 不启用新语义，不公开 Release/tag；性能、实用文本、安装负向与宿主信任体验仍开放。
 具体合同和实际验收只由该 Spec 维护。
+
+
+## 16. M1B-a 现行语义参数词频首片验收（2026-10-05）
+
+[SPEC-0274](../archive/specs/0274-argv-word-frequency.md)在最新PR51 main `7262232`
+新worktree完成size/同步读取交接与unit Borrow String binary，三文件词频程序不新增语言/API。
+[PR52实现head CI](https://github.com/Halckon/Koven/actions/runs/37246195048)已15项全部成功，
+每宿主37条实际build/artifact/run及decimal/非法UTF-8命令的完整字节账本已独立复核并保存。
+本次按实现验收归档；最终归档head与merge/main CI继续是交付门禁，不预先记作通过。
+
+M1B-b文本输入与新String API、性能、M3新增API、M4b真实故障校准及完整M5/M6保持各自前置。
+下一M3A候选可先补现行语义中直接容器泛型签名的native替换；待本次合并后，从最新main
+独立分支起合同并红测。body-only新canonical类型发布、递归模板与短路owner合流不自动扩入。

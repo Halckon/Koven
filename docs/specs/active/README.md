@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-- [SPEC-0274：多文件 argv 词频](0274-argv-word-frequency.md)：现行v0.40的size/Borrow String交接及应用首片，实施验收待执行。
+当前无active Spec。0274已按[PR52](https://github.com/Halckon/Koven/pull/52)首轮精确head双宿主实现证据归档；最终归档head CI与合并仍须通过。
 
 0272已由[PR51](https://github.com/Halckon/Koven/pull/51)合并，0274在其最新main上继续实施；主干CI以远端实际结果为准。
 
