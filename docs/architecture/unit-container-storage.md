@@ -91,8 +91,25 @@ Borrow size继续读取current SharedLoan，own参数/返回沿用原容器表�
 
 直接T可以取已具体化的List<Int>，三种外层容器已有真实长度与完整清理证据。
 即使frontend已发布List<List<Int>>，模板List<List<T>>仍按精确参数Span拒绝为UnsupportedNode。
-generic body单独构造listOf(x)且未发布List<Int>的情况仍按构造Span拒绝为MissingFact；
 native沿用UnsupportedNode→UnsupportedSource、MissingFact→InvalidModel映射。
-两类拒绝各覆盖新/旧object目标，实际native API保全全部目录文件名、bytes与邻居文件，
-不残留sibling temporary。这些实现缺口不改变Guide允许的泛型语义；后续body需求发布独立排期。
-双宿主实现CI验证全部13项新增测试与公共消费者；最终归档/main门禁仍待。完整证据见[SPEC-0275](../archive/specs/0275-unit-generic-container-signatures.md)。
+recursive-template拒绝覆盖新/旧object目标，保全目录全部文件名、bytes与邻居文件，
+不残留sibling temporary；上述实现边界不改变Guide允许的泛型语义。
+0275实现及最终归档双宿主CI、actual main门禁已闭环；完整证据见
+[0275交付账本](../development/evidence/generic-containers-0275-delivery.json)。
+
+## 普通泛型body的具体需求
+
+frontend在全部body/trial完成且无类型错误后按真实闭合source call物化body-only canonical类型，
+先于field layout；原template facts、canonical ID与sealed分析身份保留。未调用symbolic模板不猜Int。
+每种子按现有1024实例上限保留前缀与有限frontier，entry选择/拒绝仍归Phase4。
+闭合查询、结构替换和field concreteness以completed memo/迭代栈读取共享DAG；flow-refined
+enum case实参闭合性与runtime field支持分别缓存。backend
+保持只读find。静态顶层callee由已提交descriptor识别，不将其模板Function<T>当runtime
+函数值登记；call结果/实参、generic function value仍走原检查。已有nullable class handle
+沿inner规划hidden deinit，null/非空仍使用现有conditional drop，不扩inline nullable ABI。
+
+SPEC0276本地新native7项通过，实际18个成功fixture执行object/link/run及逐指针计数；
+覆盖三容器Int/String/Resource、三层relay、多body构造、deinit闭合helper和Nullable<Resource>。
+Nullable<Int>已发布canonical但维持原null表达式的InvalidModel/MissingFact及输出保全。
+原body-only MissingFact测试已迁移到真实成功；recursive-template/缺substitution保护保留。
+预算、消费者与双宿主最终交付见[实现验收](../archive/specs/0276-unit-generic-body-type-normalization.md)。

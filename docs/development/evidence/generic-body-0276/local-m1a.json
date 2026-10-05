@@ -1,0 +1,407 @@
+{
+  "schema": "koven.spec0276-m1a-local.v1",
+  "success": true,
+  "compiler_sha256": "5e69db888780e21938673410a00dd84ca6eebd6b2afec7adae5a9ba2c8d09272",
+  "projects": [
+    {
+      "path": "/private/tmp/0276-m1a-public/项目 中文 空格 0",
+      "files": {
+        "project.toml": "abda3ed08af6cda3182bca1f09ac1cd2f472812365ff9c4b89f829fe4b08e415",
+        "src/app/main.ko": "7d9fd935808d67bd08a57902da40bb863c59f450e76f7da430d238b6e94ee43e",
+        "src/app/model.ko": "1699af5f702b154fbde36833f0980c68a4dc065647f80b5b3150f14b62ef8fd3",
+        "src/app/processor.ko": "03d40d446123f4e9899f3613a0330dbe9f7c4aafd0a33edc5bb28fb4bdd9afec"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-m1a-public/项目 中文 空格 1",
+      "files": {
+        "project.toml": "abda3ed08af6cda3182bca1f09ac1cd2f472812365ff9c4b89f829fe4b08e415",
+        "src/app/main.ko": "7d9fd935808d67bd08a57902da40bb863c59f450e76f7da430d238b6e94ee43e",
+        "src/app/model.ko": "1699af5f702b154fbde36833f0980c68a4dc065647f80b5b3150f14b62ef8fd3",
+        "src/app/processor.ko": "03d40d446123f4e9899f3613a0330dbe9f7c4aafd0a33edc5bb28fb4bdd9afec"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-m1a-public/项目 中文 空格 2",
+      "files": {
+        "project.toml": "abda3ed08af6cda3182bca1f09ac1cd2f472812365ff9c4b89f829fe4b08e415",
+        "src/app/main.ko": "7d9fd935808d67bd08a57902da40bb863c59f450e76f7da430d238b6e94ee43e",
+        "src/app/model.ko": "1699af5f702b154fbde36833f0980c68a4dc065647f80b5b3150f14b62ef8fd3",
+        "src/app/processor.ko": "03d40d446123f4e9899f3613a0330dbe9f7c4aafd0a33edc5bb28fb4bdd9afec"
+      }
+    },
+    {
+      "path": "/private/tmp/0276-m1a-public/项目 中文 空格 3",
+      "files": {
+        "project.toml": "abda3ed08af6cda3182bca1f09ac1cd2f472812365ff9c4b89f829fe4b08e415",
+        "src/app/main.ko": "7d9fd935808d67bd08a57902da40bb863c59f450e76f7da430d238b6e94ee43e",
+        "src/app/model.ko": "1699af5f702b154fbde36833f0980c68a4dc065647f80b5b3150f14b62ef8fd3",
+        "src/app/processor.ko": "03d40d446123f4e9899f3613a0330dbe9f7c4aafd0a33edc5bb28fb4bdd9afec"
+      }
+    }
+  ],
+  "commands": [
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 0",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.9455516668967903,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-m1a-public/项目 中文 空格 0/program"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 0",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.8006035001017153,
+      "stdout_base64": "cHJvY2Vzc2VkCmRvbmUK",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "processed\ndone\n",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 0",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.7643843330442905,
+      "stdout_base64": "cHJvY2Vzc2VkCmRvbmUK",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "processed\ndone\n",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 1",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.05972033389844,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-m1a-public/项目 中文 空格 1/program",
+        "alpha"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 1",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.7033097080420703,
+      "stdout_base64": "YWxwaGEKcHJvY2Vzc2VkCmRvbmUK",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "alpha\nprocessed\ndone\n",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "alpha"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 1",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.2957473329734057,
+      "stdout_base64": "YWxwaGEKcHJvY2Vzc2VkCmRvbmUK",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "alpha\nprocessed\ndone\n",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 2",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.06668599997647107,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-m1a-public/项目 中文 空格 2/program",
+        "alpha",
+        "你好",
+        "tail"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 2",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.7582299588248134,
+      "stdout_base64": "YWxwaGEK5L2g5aW9CnRhaWwKcHJvY2Vzc2VkCmRvbmUK",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "alpha\n你好\ntail\nprocessed\ndone\n",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        "alpha",
+        "你好",
+        "tail"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 2",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.2965677920728922,
+      "stdout_base64": "YWxwaGEK5L2g5aW9CnRhaWwKcHJvY2Vzc2VkCmRvbmUK",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "alpha\n你好\ntail\nprocessed\ndone\n",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "build",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "-o",
+        "program"
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 3",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.06558466702699661,
+      "stdout_base64": "",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/private/tmp/0276-m1a-public/项目 中文 空格 3/program",
+        ""
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 3",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.6529798328410834,
+      "stdout_base64": "CnByb2Nlc3NlZApkb25lCg==",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "\nprocessed\ndone\n",
+        "stderr": ""
+      },
+      "success": true
+    },
+    {
+      "argv": [
+        "/Users/ckfei/.codex/worktrees/7e7c/Koven/target/debug/kovenc",
+        "run",
+        "--project",
+        "project.toml",
+        "--entry",
+        "app.main",
+        "--",
+        ""
+      ],
+      "cwd": "/private/tmp/0276-m1a-public/项目 中文 空格 3",
+      "env": {
+        "PATH": "/Users/ckfei/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/ckfei/.codex/tmp/arg0/codex-arg0S7XKFl:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ckfei/.local/bin:/Users/ckfei/.bun/bin:/opt/apache-maven-3.9.12/bin:/opt/homebrew/Cellar/openjdk@17/17.0.20/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ckfei/.cargo/bin:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin:.:/Users/ckfei/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS:/Users/feick/Library/Application Support/JetBrains/Toolbox/scripts:/Users/ckfei/.orbstack/bin",
+        "LLVM_SYS_211_PREFIX": "/opt/homebrew/opt/llvm@21",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "TMPDIR": "/var/folders/b5/7zt_mrfn0vq7bklmbzjyfqbw0000gn/T/"
+      },
+      "timeout_seconds": 120,
+      "exit": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.2917696658987552,
+      "stdout_base64": "CnByb2Nlc3NlZApkb25lCg==",
+      "stderr_base64": "",
+      "expected": {
+        "exit": 0,
+        "stdout": "\nprocessed\ndone\n",
+        "stderr": ""
+      },
+      "success": true
+    }
+  ]
+}

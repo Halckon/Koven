@@ -1,12 +1,16 @@
 //! Reachable compilation-unit body 使用的 scalar storage type 预规划。
 
+use std::collections::BTreeSet;
+
 use lang_frontend::{
     parser::{
         AssignmentOperator, BinaryOperator, Expression, LiteralKind, ParsedFile, PrefixOperator,
         WhenCondition,
     },
     source::Span,
-    type_checking::{BuiltinType, CompilationUnitTypes, UnitExpressionId, UnitTypeId},
+    type_checking::{
+        BuiltinType, CompilationUnitTypes, UnitCallTarget, UnitExpressionId, UnitTypeId,
+    },
 };
 
 use super::{
@@ -24,6 +28,7 @@ pub(super) fn intern_body_scalar_types(
     typed: &CompilationUnitTypes,
     types: &mut UnitTypeLowering,
 ) -> Result<(), LoweringError> {
+    let static_callees = static_call_callees(parsed, instance, typed)?;
     if typed
         .sequential_iterations()
         .iter()
@@ -48,6 +53,9 @@ pub(super) fn intern_body_scalar_types(
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?
             .span();
         if !span_contains(instance.span(), span) {
+            continue;
+        }
+        if static_callees.contains(&expression) {
             continue;
         }
         let concrete = resolve_concrete_type(
@@ -95,6 +103,69 @@ pub(super) fn intern_body_scalar_types(
         }
     }
     Ok(())
+}
+
+/// Direct declaration calls lower their selected instance, never the callee's template Function value.
+fn static_call_callees(
+    parsed: &ParsedFile,
+    instance: &UnitPlannedInstance,
+    typed: &CompilationUnitTypes,
+) -> Result<BTreeSet<UnitExpressionId>, LoweringError> {
+    let mut callees = BTreeSet::new();
+    for call in typed.calls() {
+        let expression = call.expression();
+        if expression.source_unit() != instance.source_unit() {
+            continue;
+        }
+        let UnitCallTarget::Declaration(target) = call.target() else {
+            continue;
+        };
+        if typed
+            .signatures()
+            .declaration(target)
+            .and_then(|signature| signature.callable())
+            .is_none()
+        {
+            continue;
+        }
+        let node = parsed
+            .ast()
+            .expressions()
+            .get(expression.expression())
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
+        if !span_contains(instance.span(), node.span()) {
+            continue;
+        }
+        let Expression::Call { callee, .. } = node.payload() else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+        };
+        mark_static_callee_chain(parsed, expression, *callee, &mut callees)?;
+    }
+    Ok(callees)
+}
+
+/// Parentheses preserve the descriptor-selected static role; arguments and receivers keep their types.
+fn mark_static_callee_chain(
+    parsed: &ParsedFile,
+    call: UnitExpressionId,
+    mut callee: lang_frontend::ast::ExpressionId,
+    callees: &mut BTreeSet<UnitExpressionId>,
+) -> Result<(), LoweringError> {
+    loop {
+        let node = parsed
+            .ast()
+            .expressions()
+            .get(callee)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        callees.insert(UnitExpressionId::new(call.source_unit(), callee));
+        let Expression::Group { expression } = node.payload() else {
+            return Ok(());
+        };
+        callee = *expression;
+    }
 }
 
 fn requires_enum_discriminant(
@@ -204,7 +275,9 @@ fn span_contains(owner: Span, child: Span) -> bool {
 #[cfg(test)]
 mod tests {
     use lang_frontend::{
-        name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
+        name_resolution::{SourceUnitInput, index_compilation_unit},
+        source::SourceMap,
+        type_checking::{UnitCallableTarget, UnitTypeKind, standard_environments},
     };
 
     use super::*;
@@ -263,5 +336,125 @@ mod tests {
 
         assert_eq!(module.types, vec![SsaTypeKind::StringOwner]);
         assert_eq!(types.type_ids().len(), 1);
+    }
+
+    #[test]
+    fn static_declaration_callees_do_not_grant_generic_function_value_storage() {
+        let mut sources = SourceMap::new();
+        let (provider_source, provider) = parsed(
+            &mut sources,
+            "p/provider.ko",
+            "package p\n\
+             fun <T> inner(own input: T): Unit {}\n\
+             fun <T> relay(own input: T): Unit { inner(input) }\n\
+             fun <T> functionValue(own input: T): Unit {\n\
+                 val action: (borrow T) -> Unit = { value -> }\n\
+                 action(input)\n\
+             }",
+        );
+        let (consumer_source, consumer) = parsed(
+            &mut sources,
+            "q/consumer.ko",
+            "package q\nfun entry(): Unit { p.relay(\"generic\"); p.functionValue(1) }",
+        );
+        let inputs = [
+            SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+            SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+        ];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let instances = plan_unit_instances(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "q", "entry"),
+        )
+        .expect("both source-selected generic instances are planned");
+        for (name, direct) in [("relay", true), ("functionValue", false)] {
+            let target = UnitCallableTarget::Declaration(declaration(&names, "p", name));
+            let instance = instances
+                .iter()
+                .find(|instance| instance.key().target() == target)
+                .unwrap();
+            let excluded = static_call_callees(&provider, instance, typed.types()).unwrap();
+            assert_eq!(excluded.len(), usize::from(direct));
+            if direct {
+                let callee = *excluded.first().unwrap();
+                assert!(matches!(
+                    typed
+                        .types()
+                        .expression_type(callee)
+                        .and_then(|ty| typed.types().types().get(ty)),
+                    Some(UnitTypeKind::Function { .. })
+                ));
+                let error = resolve_concrete_type(
+                    typed.types(),
+                    typed.types().expression_type(callee).unwrap(),
+                    instance.substitutions(),
+                    None,
+                    instance.span(),
+                )
+                .expect_err("the callee retains its own template T, rather than the caller's T");
+                assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+            } else {
+                assert!(typed.types().calls().iter().any(|call| {
+                    call.target() == UnitCallTarget::FunctionValue
+                        && call.expression().source_unit() == instance.source_unit()
+                }));
+            }
+            let mut program = Program::default();
+            let module_id = program.add_module("callee-role-test");
+            let module = program.module_mut(module_id).unwrap();
+            let mut types = UnitTypeLowering::new();
+            let result =
+                intern_body_scalar_types(module, &provider, instance, typed.types(), &mut types);
+            if direct {
+                result.expect("direct calls do not materialize their template callee as a value");
+                assert_eq!(module.types, vec![SsaTypeKind::StringOwner]);
+            } else {
+                assert_eq!(
+                    result
+                        .expect_err("generic function values keep the existing ABI boundary")
+                        .kind,
+                    LoweringErrorKind::UnsupportedNode
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn static_callee_chain_marks_groups_but_keeps_call_arguments() {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(
+            &mut sources,
+            "groups.ko",
+            "fun target(value: Int): Unit {}\nfun entry(): Unit { ((target))(1) }",
+        );
+        let (call_id, call) = file
+            .ast()
+            .expressions()
+            .iter()
+            .find(|(_, node)| matches!(node.payload(), Expression::Call { .. }))
+            .unwrap();
+        let Expression::Call {
+            callee, arguments, ..
+        } = call.payload()
+        else {
+            unreachable!();
+        };
+        let inputs = [SourceUnitInput::new("root", "groups.ko", source, &file)];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let source_unit = index.source_units()[0].id();
+        let call_id = UnitExpressionId::new(source_unit, call_id);
+        let mut excluded = BTreeSet::new();
+        // This private AST-chain test starts after the descriptor's static-role gate.
+        mark_static_callee_chain(&file, call_id, *callee, &mut excluded).unwrap();
+        assert_eq!(excluded.len(), 3, "two groups and the selected name");
+        assert!(!excluded.contains(&call_id));
+        assert!(!excluded.contains(&UnitExpressionId::new(source_unit, arguments[0].value)));
     }
 }

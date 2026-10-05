@@ -10,8 +10,8 @@ use crate::{
     source::Span,
     type_checking::{
         BuiltinType, CompilationUnitTypeError, Copyability, DeferredReason, DestructuringMode,
-        NominalKind, UnitDestructuringComponent, UnitDestructuringDescriptor,
-        UnitFunctionParameterType, UnitStatementId, UnitTypeId, UnitTypeKind,
+        NominalKind, UnitDestructuringComponent, UnitDestructuringDescriptor, UnitStatementId,
+        UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -149,61 +149,11 @@ impl BodyChecker<'_> {
         ty: UnitTypeId,
         substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
-        let kind = self
-            .signatures
-            .types()
-            .get(ty)
-            .cloned()
-            .unwrap_or(UnitTypeKind::Error);
-        let substituted = match kind {
-            UnitTypeKind::TypeParameter(symbol) => {
-                return Ok(substitutions.get(&symbol).copied().unwrap_or(ty));
-            }
-            UnitTypeKind::Nullable(inner) => {
-                UnitTypeKind::Nullable(self.substitute_type(inner, substitutions)?)
-            }
-            UnitTypeKind::Function {
-                move_only,
-                parameters,
-                return_type,
-            } => UnitTypeKind::Function {
-                move_only,
-                parameters: parameters
-                    .into_iter()
-                    .map(|parameter| {
-                        Ok(UnitFunctionParameterType::new(
-                            parameter.mode(),
-                            self.substitute_type(parameter.ty(), substitutions)?,
-                        ))
-                    })
-                    .collect::<Result<Vec<_>, CompilationUnitTypeError>>()?,
-                return_type: self.substitute_type(return_type, substitutions)?,
-            },
-            UnitTypeKind::Nominal {
-                declaration,
-                arguments,
-            } => UnitTypeKind::Nominal {
-                declaration,
-                arguments: arguments
-                    .into_iter()
-                    .map(|argument| self.substitute_type(argument, substitutions))
-                    .collect::<Result<Vec<_>, _>>()?,
-            },
-            UnitTypeKind::Intrinsic {
-                constructor,
-                arguments,
-            } => UnitTypeKind::Intrinsic {
-                constructor,
-                arguments: arguments
-                    .into_iter()
-                    .map(|argument| self.substitute_type(argument, substitutions))
-                    .collect::<Result<Vec<_>, _>>()?,
-            },
-            UnitTypeKind::StaticSelf(interface) => {
-                UnitTypeKind::StaticSelf(self.substitute_type(interface, substitutions)?)
-            }
-            other => return Ok(self.signatures.types_mut().intern(other)),
-        };
-        Ok(self.signatures.types_mut().intern(substituted))
+        super::type_graph::substitute(
+            self.signatures.types_mut(),
+            ty,
+            substitutions,
+            &mut BTreeMap::new(),
+        )
     }
 }

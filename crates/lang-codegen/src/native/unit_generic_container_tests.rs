@@ -9,6 +9,12 @@ const CONTAINERS: [(&str, &str); 3] = [
     ("MutableList", "mutableListOf"),
 ];
 
+#[path = "unit_generic_body_tests.rs"]
+mod generic_bodies;
+
+#[path = "unit_generic_body_budget_tests.rs"]
+mod generic_body_budgets;
+
 #[test]
 fn unit_generic_container_native_scalar_and_string_lengths_preserve_owners() {
     for (container, constructor) in CONTAINERS {
@@ -141,123 +147,85 @@ fn unit_generic_container_native_rejections_preserve_outputs_and_canonical_arena
             })
             .collect::<std::collections::BTreeMap<_, _>>()
     };
-    for body_only in [false, true] {
-        let (provider, consumer, kind, detail, span_text) = if body_only {
-            (
-                "package p\nfun <T> probe(own x: T): Int {\n\
-                     val xs = listOf(x)\n\
-                     return xs.size\n\
-                 }",
-                "package q\nfun entry(): Unit { val size = p.probe(1) }",
-                NativeObjectErrorKind::InvalidModel,
-                "MissingFact",
-                "listOf(x)",
-            )
-        } else {
-            (
-                "package p\nfun <T> nestedSize(items: List<List<T>>): Int = items.size",
-                "package q\nfun entry(): Unit {\n\
-                     val values = listOf(listOf(1))\n\
-                     val size = p.nestedSize<Int>(values)\n\
-                 }",
-                NativeObjectErrorKind::UnsupportedSource,
-                "UnsupportedNode",
-                "items: List<List<T>>",
-            )
-        };
-        let analysis = analyze_sources(provider, consumer);
-        let arena = analysis.typed.types().types();
-        let int = arena.builtin(BuiltinType::Int).unwrap();
-        let list_int = UnitTypeKind::Intrinsic {
-            constructor: IntrinsicTypeConstructor::List,
-            arguments: vec![int],
-        };
-        let span = if body_only {
-            assert_eq!(arena.find(&list_int), None, "no unused canonical seed");
-            let [construction] = analysis.typed.types().container_constructions() else {
-                panic!("only the generic body constructs a list")
-            };
-            analysis
-                .provider
-                .ast()
-                .expressions()
-                .get(construction.expression().expression())
-                .unwrap()
-                .span()
-        } else {
-            let inner = arena
-                .find(&list_int)
-                .expect("real call publishes List<Int>");
-            assert!(
-                arena
-                    .find(&UnitTypeKind::Intrinsic {
-                        constructor: IntrinsicTypeConstructor::List,
-                        arguments: vec![inner],
-                    })
-                    .is_some(),
-                "recursive rejection must not depend on an absent canonical"
-            );
-            analysis
-                .typed
-                .types()
-                .signatures()
-                .declaration(analysis.declaration("p", "nestedSize"))
-                .and_then(|signature| signature.callable())
-                .unwrap()
-                .parameters()[0]
-                .span()
-        };
-        assert_eq!(span.source_id(), analysis.provider_source);
-        assert_eq!(
-            &analysis.sources.source_text(span.source_id()).unwrap()[span.start()..span.end()],
-            span_text
-        );
-        let arena_len = arena.len();
-        for existing_target in [false, true] {
-            let directory = TestDirectory::create();
-            let object = directory.join("rejected.o");
-            fs::write(directory.join("neighbor.bin"), b"neighbor\0unchanged").unwrap();
-            if existing_target {
-                fs::write(&object, b"old-object\0bytes").unwrap();
-            }
-            let before = snapshot(&directory.0);
-            let error = emit_native_unit_object(
-                &analysis.sources,
-                &analysis.inputs(),
-                &analysis.names,
-                &analysis.environment,
-                &analysis.typed,
-                &analysis.owned,
-                analysis.declaration("q", "entry"),
-                &object,
-            )
-            .expect_err("unsupported generic boundary rejects before object publication");
-            assert_eq!(error.kind(), kind);
-            assert_eq!(error.span(), Some(span));
-            assert_eq!(
-                error.to_string(),
-                format!("native object {kind:?}: frontend lowering failed with {detail}")
-            );
-            assert_eq!(
-                arena.len(),
-                arena_len,
-                "backend cannot extend the typed arena"
-            );
-            if body_only {
-                assert_eq!(
-                    arena.find(&list_int),
-                    None,
-                    "rejection cannot seed List<Int>"
-                );
-            }
-            assert_eq!(
-                snapshot(&directory.0),
-                before,
-                "all names and bytes survive"
-            );
-            assert_eq!(object.exists(), existing_target);
-            assert_no_sibling_temporary(&directory.0);
+    let provider = "package p\nfun <T> nestedSize(items: List<List<T>>): Int = items.size";
+    let consumer = "package q\nfun entry(): Unit {\n\
+         val values = listOf(listOf(1))\n\
+         val size = p.nestedSize<Int>(values)\n\
+     }";
+    let kind = NativeObjectErrorKind::UnsupportedSource;
+    let detail = "UnsupportedNode";
+    let span_text = "items: List<List<T>>";
+    let analysis = analyze_sources(provider, consumer);
+    let arena = analysis.typed.types().types();
+    let int = arena.builtin(BuiltinType::Int).unwrap();
+    let list_int = UnitTypeKind::Intrinsic {
+        constructor: IntrinsicTypeConstructor::List,
+        arguments: vec![int],
+    };
+    let inner = arena
+        .find(&list_int)
+        .expect("real call publishes List<Int>");
+    assert!(
+        arena
+            .find(&UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::List,
+                arguments: vec![inner],
+            })
+            .is_some(),
+        "recursive rejection must not depend on an absent canonical"
+    );
+    let span = analysis
+        .typed
+        .types()
+        .signatures()
+        .declaration(analysis.declaration("p", "nestedSize"))
+        .and_then(|signature| signature.callable())
+        .unwrap()
+        .parameters()[0]
+        .span();
+    assert_eq!(span.source_id(), analysis.provider_source);
+    assert_eq!(
+        &analysis.sources.source_text(span.source_id()).unwrap()[span.start()..span.end()],
+        span_text
+    );
+    let arena_len = arena.len();
+    for existing_target in [false, true] {
+        let directory = TestDirectory::create();
+        let object = directory.join("rejected.o");
+        fs::write(directory.join("neighbor.bin"), b"neighbor\0unchanged").unwrap();
+        if existing_target {
+            fs::write(&object, b"old-object\0bytes").unwrap();
         }
+        let before = snapshot(&directory.0);
+        let error = emit_native_unit_object(
+            &analysis.sources,
+            &analysis.inputs(),
+            &analysis.names,
+            &analysis.environment,
+            &analysis.typed,
+            &analysis.owned,
+            analysis.declaration("q", "entry"),
+            &object,
+        )
+        .expect_err("unsupported generic boundary rejects before object publication");
+        assert_eq!(error.kind(), kind);
+        assert_eq!(error.span(), Some(span));
+        assert_eq!(
+            error.to_string(),
+            format!("native object {kind:?}: frontend lowering failed with {detail}")
+        );
+        assert_eq!(
+            arena.len(),
+            arena_len,
+            "backend cannot extend the typed arena"
+        );
+        assert_eq!(
+            snapshot(&directory.0),
+            before,
+            "all names and bytes survive"
+        );
+        assert_eq!(object.exists(), existing_target);
+        assert_no_sibling_temporary(&directory.0);
     }
 }
 

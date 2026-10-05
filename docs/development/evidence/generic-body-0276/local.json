@@ -1,0 +1,456 @@
+{
+  "schema": "koven.generic-body-local-evidence.v1",
+  "base_commit": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+  "contract_commit": "c0e5cbfda248ba6ec427dc3ddc67011262f88421",
+  "status": "local-gates-passed-awaiting-pr-ci",
+  "host": "aarch64-apple-darwin",
+  "rustc": "1.96.0",
+  "llvm_sys": "21.1.8",
+  "clang": "21.1.8",
+  "reviewed_rust_files": {
+    "crates/lang-codegen/src/native/unit_generic_body_budget_tests.rs": "b70ecec03045080ec173561e846a77a054ce1f698b83b98639538df48e88455f",
+    "crates/lang-codegen/src/native/unit_generic_body_tests.rs": "8c9e1ebc9191ccac53f3cf1014dccbed8f765465c113dbacfeef22d5fddc57ae",
+    "crates/lang-codegen/src/native/unit_generic_container_tests.rs": "bf19f241322cee5f6665915f215270c2b0d0029dd5f3f607895453d0171c5399",
+    "crates/lang-codegen/src/ssa/unit_lower/type_plan.rs": "ea9c458c279fb415ae804dfe4a1db76c4b033ab2a02d18de0029e506e103a5bb",
+    "crates/lang-codegen/src/ssa/unit_lower_deinit_tests.rs": "708ae0d7a75b951bdacb64e5778c181d7aee1bdbc6e6127956fcca848422a563",
+    "crates/lang-codegen/src/ssa/unit_plan.rs": "441c480dfa1a67126aa42f6f3c9dd85dab763ee33b4889165167c4319ddc20ec",
+    "crates/lang-codegen/src/ssa/unit_plan/deinit.rs": "9f08eec36885b7ae1ef0252d821f69c5834af768fe209b5bf9af28584ee191be",
+    "crates/lang-codegen/src/ssa/unit_plan_tests.rs": "58d1c7a176028949c1b74a576efff706c78311393ebac465192f7aab96d779c3",
+    "crates/lang-codegen/src/ssa/unit_plan_tests/body_type_budget.rs": "15a524885f62ec4dbc0ed4c8ad38aa41a86d671d6c87507380baf034af0721eb",
+    "crates/lang-codegen/src/ssa/unit_plan_tests/generic_containers.rs": "f3786d8bf9fbc49038ddd9fd65aa4d125672c1c4557bce8da6e81da94bf9d5d0",
+    "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": "ee56db41fb65cc6eee31ac73ede60bfe0a61cba78d0d620b2a8c1f53225dae91",
+    "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/destructuring.rs": "7416b020f53ad68040ae2eb18d8643297c2349b8ac6a1392ff1a3e8d73dd5a95",
+    "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/generic_body_tests.rs": "838108080c49d6ba1a07fb4a7f4faf28b0a5be475dd14984a5b343d885250e41",
+    "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/generic_body_types.rs": "c2623c455483fdbcc8fe2d23f514242803e7168b953376db1d53ca4498e7d619",
+    "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/type_graph.rs": "40c03135d5aaa7f4abe96343b74c07fcbf65e5738860e008ca72b1dce09d9b17",
+    "crates/lang-frontend/src/type_checking/compilation_unit/mod.rs": "5647bf7b5faaada2c80764fb191c5eec8e494ec951a7b525bf0e0a360264f0a4",
+    "crates/lang-frontend/tests/multifile_type_checking.rs": "faef9006fc142ae7a75f192b97e7ee740b1ecdc1c147d9dbb35ebec6672370e1",
+    "crates/lang-frontend/tests/multifile_type_checking/generic_body_isolation.rs": "9bb317776aa954c93c1fee866bf5eee187ed25c9d626feeeeaecb57c515bee12",
+    "crates/lang-frontend/tests/multifile_type_checking/generic_body_types.rs": "20dfa202a922373b2adea77846589b0d9fada49bd9d29bb7b40a69683004e445"
+  },
+  "test_runs": [
+    {
+      "path": "local/frontend-body-red-reviewed.log.gz",
+      "sha256": "6e0281bddf87c6fe1d7066e51bb79b8d57196d5260e282d3ef1db16f68593fd5",
+      "phase": "before-implementation",
+      "command": "cargo test --locked -p lang-frontend --test multifile_type_checking generic_body_types -- --nocapture",
+      "summaries": [
+        {
+          "passed": 1,
+          "failed": 4,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 118,
+          "seconds": 0.02
+        }
+      ],
+      "raw_sha256": "6749b81d33e585ad9b157cc9b04fc491557f9f16fab88d8f82b8131357d72eb4",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/native-body-red-frozen.log.gz",
+      "sha256": "25f76bb0996fefcc149b0657778a34ecae2cfc1f11980fae7689c37fd85181ea",
+      "phase": "before-implementation",
+      "command": "cargo test --locked -p lang-codegen --lib unit_generic_body_native -- --nocapture",
+      "summaries": [
+        {
+          "passed": 1,
+          "failed": 6,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 856,
+          "seconds": 0.01
+        }
+      ],
+      "raw_sha256": "24d2043d7c7d68b54d4f3b16e8ac803b567ab886a3224d9f83e7b10e261b36a1",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/frontend-isolation-enum-compiled.log.gz",
+      "sha256": "9d412908af9db131276a31757848b197ac2b42453f1f960cb53ff83d098516ae",
+      "phase": "enum-closedness-regression-before-fix",
+      "command": "cargo test --locked -p lang-frontend --test multifile_type_checking generic_body_ -- --nocapture",
+      "summaries": [
+        {
+          "passed": 13,
+          "failed": 1,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 116,
+          "seconds": 0.02
+        }
+      ],
+      "raw_sha256": "1cdb6bf8ae853e698e496fc9fb21d81da34890f26d46a1407a809ebc438916c6",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/native-body-first-green.log.gz",
+      "sha256": "c4b416391a99eeb3c8fee4ffe0de66b685bb100832ebda129be30313146d7afe",
+      "phase": "first-implementation-before-consumer-adaptation",
+      "command": "cargo test --locked -p lang-codegen --lib unit_generic_body_native -- --nocapture",
+      "summaries": [
+        {
+          "passed": 4,
+          "failed": 3,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 856,
+          "seconds": 11.88
+        }
+      ],
+      "raw_sha256": "5de9551468cea8730973487feb8b4cffa092a7ba2877848af3916b79cbbb1fa0",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/frontend-budget-dag-first.log.gz",
+      "sha256": "ea9cd3e779ab0e996f3e0096b7dde1fbd49f3df555e738da6d9c799590059357",
+      "phase": "after-implementation",
+      "command": "cargo test --locked -p lang-frontend --lib --test multifile_type_checking generic_body_ -- --nocapture",
+      "summaries": [
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 202,
+          "seconds": 0.06
+        },
+        {
+          "passed": 14,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 116,
+          "seconds": 0.02
+        }
+      ],
+      "raw_sha256": "f3ffb3754fb3a1cec615782bede2b1d3e3b422ee9676800d500f539b117dcc5d",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/frontend-multifile-green.log.gz",
+      "sha256": "1fe4a554556ad28bc7442a314c6bbef48a01d53314842871eb0347ced619dd45",
+      "phase": "after-implementation",
+      "command": "cargo test --locked -p lang-frontend --test multifile_type_checking",
+      "summaries": [
+        {
+          "passed": 130,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 0.03
+        }
+      ],
+      "raw_sha256": "5cc46752fc4d907204551604068df81c72e0b5d372e145dfbfbc3d7fc9d11966",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/frontend-consumers.log.gz",
+      "sha256": "09d465c97477cc896168bc6bc58e7c3ce3b179dfa7e101c3afffb433afc7dc50",
+      "phase": "after-implementation",
+      "command": "cargo test --locked -p lang-frontend --test multifile_ownership_checking --test multifile_type_signatures --test multifile_type_signature_determinism --test multifile_type_member_graph --test multifile_type_capability_graph --test owned_compilation_unit_view --test owned_unit_view_compile_contracts --no-fail-fast",
+      "summaries": [
+        {
+          "passed": 105,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 0.06
+        },
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 0.01
+        },
+        {
+          "passed": 7,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 0.01
+        },
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 0.0
+        },
+        {
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 0.01
+        },
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 0.01
+        },
+        {
+          "passed": 7,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 1.5
+        }
+      ],
+      "raw_sha256": "15db628b0cd676e7c43782e3d5ba23982a22c6a49a99d868e5a99526899a872f",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/codegen-body-budget-all.log.gz",
+      "sha256": "7e64b343cd3c3f53b954ad6b71f6a422e5bffe242d629eb2bb282e645609d77d",
+      "phase": "after-implementation",
+      "command": "cargo test --locked -p lang-codegen --lib unit_generic_body_ -- --nocapture",
+      "summaries": [
+        {
+          "passed": 11,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 859,
+          "seconds": 36.21
+        }
+      ],
+      "raw_sha256": "c98ba9014b2d7f190ad90732c8d3cc9c5cbf34415ece839e17203200ab3e0a4f",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/codegen-callee-role.log.gz",
+      "sha256": "135ee318223d99b33fbc782987a4f6aec0a6c7613d7c341149405ba960489913",
+      "phase": "after-implementation",
+      "command": "cargo test --locked -p lang-codegen --lib unit_lower::type_plan -- --nocapture",
+      "summaries": [
+        {
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 863,
+          "seconds": 0.02
+        }
+      ],
+      "raw_sha256": "ed4bbd9aeedbd3fafc126aa3ce9604d7bf82a3258668b94c6e6e714b9cea789e",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/codegen-plan-regressions.log.gz",
+      "sha256": "13d7e20a30294d6c79ab57dc54b9529c00865088c47940447822771a9b6f6aed",
+      "phase": "after-implementation-before-budget-tests-registration",
+      "command": "cargo test --locked -p lang-codegen --lib ssa::unit_plan_tests -- --nocapture",
+      "summaries": [
+        {
+          "passed": 53,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 813,
+          "seconds": 0.02
+        }
+      ],
+      "raw_sha256": "3cd340cad779061e8f45cf5c70399df65777f2d3fb512536d5435fb0692658e6",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/codegen-deinit-regressions-green.log.gz",
+      "sha256": "84fa0396712eba0dd9557c9496fa0bbefdae0972ac653a354688a57ca22fd1f3",
+      "phase": "after-implementation",
+      "command": "cargo test --locked -p lang-codegen --lib unit_resource_deinit -- --nocapture",
+      "summaries": [
+        {
+          "passed": 13,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 858,
+          "seconds": 14.89
+        }
+      ],
+      "raw_sha256": "4fafc364509420973b9d5405e1fd8e6eab275f38679c77386f81f3e35b5be33f",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/codegen-full.log.gz",
+      "sha256": "0be6dce972ed92fcd54fdf5c6c309543b7801ed76116cbb0f4f4c4bf3049880e",
+      "phase": "final-reviewed-rust-snapshot",
+      "command": "cargo test --locked -p lang-codegen",
+      "summaries": [
+        {
+          "passed": 870,
+          "failed": 0,
+          "ignored": 1,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 826.08
+        },
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 1.15
+        },
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 0.16
+        }
+      ],
+      "raw_sha256": "2f3a9f2923d73cd044248bd1212aa84153a1fcf0f939e31757dfd35e4f71752c",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/cli-tests.log.gz",
+      "sha256": "76cce0a7dd35830866bcd68e66de2d19d7367e89b4826a787a687fdb25aeb9e4",
+      "phase": "final-reviewed-rust-snapshot",
+      "command": "cargo test --locked -p lang-cli",
+      "summaries": [
+        {
+          "passed": 48,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 5.74
+        },
+        {
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 1.49
+        },
+        {
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 13.85
+        },
+        {
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 14.49
+        },
+        {
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 26.09
+        },
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0,
+          "seconds": 6.32
+        }
+      ],
+      "raw_sha256": "390435dfda7d77d0f7c429e329405f274786f62ac9c0acdc07c60c4d3545793e",
+      "encoding": "gzip"
+    }
+  ],
+  "notes": [
+    "historical red logs represent the tested checkpoint, not the final source snapshot",
+    "complete codegen keeps one pre-existing macOS LLDB permission ignore",
+    "M4b real fault calibration was not executed",
+    "source commits and PR/final-main CI remain pending; preview is verified by exact-head CI",
+    "log files use lossless gzip; raw_sha256 verifies decompressed original bytes including trailing newlines"
+  ],
+  "gates": [
+    {
+      "path": "local/clippy.log.gz",
+      "sha256": "b4b2d9c14afbf42d9d4bea33843e6bc2354bfb3832cfa582d151651e969629af",
+      "command": "cargo clippy --locked -p lang-frontend -p lang-codegen --all-targets -- -D warnings",
+      "exit": 0,
+      "raw_sha256": "76bb09d3077a958b65e8cb867ed858379383e2320e7bbdc76c12b42b555c01ef",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/workspace-check.log.gz",
+      "sha256": "e9966f1cc9b99ae510a400c470e95de86b45fad9d6df092a03437ff1efe7cbd4",
+      "command": "cargo check --locked --workspace --all-targets",
+      "exit": 0,
+      "raw_sha256": "387fa13bc1765e906a6693a1f235f2cb0fc1ac9686f5e11660962f9041379657",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/cli-build.log.gz",
+      "sha256": "d41d9e184bc92b458850b6c579594b81c4badd499e25b8c4e789a47db6a74d38",
+      "command": "cargo build --locked -p lang-cli --bin kovenc",
+      "exit": 0,
+      "raw_sha256": "5604fc8f0c276397a55db4bd7008236712075c0ad37d3b3a0f1fe362b1b85a36",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/fmt.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "command": "cargo fmt --all -- --check",
+      "exit": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/docs-tests.log.gz",
+      "sha256": "fadf9d1122fdd0da11aedae6c8df26639b9cd9042276fd16cc53c46bb196df3e",
+      "command": "python3 -m unittest scripts.tests.test_check_docs",
+      "exit": 0,
+      "raw_sha256": "be61b0a62389c5955b0a8d605b4f44841392bb04a744d4d7ef801442012277ab",
+      "encoding": "gzip"
+    },
+    {
+      "path": "local/rust-sizes.log.gz",
+      "sha256": "8bda434bbc244755dbb98491a034ad790dbcf051b9a09f8b0607adb98450fa46",
+      "command": "python3 scripts/check_rust_sizes.py --base 2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+      "exit": 0,
+      "raw_sha256": "02dc24d91f1cae4d12ba45d3d0c1eae29ba89d20babf82119ad829c2320ce429",
+      "encoding": "gzip"
+    }
+  ],
+  "public_consumers": [
+    {
+      "name": "m1a",
+      "path": "local-m1a.json",
+      "sha256": "7499900dd03acf3f2e67a7f0e26c919b7e5140ed114abe472de4dace956e3649",
+      "commands": 12,
+      "projects": 4,
+      "compiler_sha256": "5e69db888780e21938673410a00dd84ca6eebd6b2afec7adae5a9ba2c8d09272",
+      "independent_source_and_bytes_verified": true
+    },
+    {
+      "name": "word-frequency",
+      "path": "local-word-frequency.json",
+      "sha256": "ac87fecbc140037cf70050240ddfca11d0838e227967b8483703d1a18ca2c2e9",
+      "commands": 37,
+      "projects": 9,
+      "compiler_sha256": "5e69db888780e21938673410a00dd84ca6eebd6b2afec7adae5a9ba2c8d09272",
+      "independent_source_and_bytes_verified": true
+    }
+  ]
+}

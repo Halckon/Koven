@@ -1,0 +1,1168 @@
+{
+  "schema": "koven.generic-body-ci.v1",
+  "stage": "initial",
+  "run_id": 37260189209,
+  "url": "https://github.com/Halckon/Koven/actions/runs/37260189209",
+  "event": "pull_request",
+  "source_commit": "e980f3b4c184ca9b68e6c264170431a34807edd8",
+  "source_tree": "55604664989790e9ae6750862d82b86b8b2b2424",
+  "jobs": [
+    {
+      "name": "Rust Physical Line Guard",
+      "databaseId": 111605587130,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111605587130"
+    },
+    {
+      "name": "Detect Changed Files",
+      "databaseId": 111605587240,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111605587240"
+    },
+    {
+      "name": "Direct Workspace Dependency Guard",
+      "databaseId": 111605587284,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111605587284"
+    },
+    {
+      "name": "Docs & Spec Structural Gate",
+      "databaseId": 111605616125,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111605616125"
+    },
+    {
+      "name": "Rust Code Formatting",
+      "databaseId": 111605616128,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111605616128"
+    },
+    {
+      "name": "Tree-sitter CLI Corpus",
+      "databaseId": 111605617682,
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111605617682"
+    },
+    {
+      "name": "Workspace Check & Clippy (ubuntu-24.04)",
+      "databaseId": 111605686394,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111605686394"
+    },
+    {
+      "name": "Workspace Check & Clippy (macos-14)",
+      "databaseId": 111605686401,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111605686401"
+    },
+    {
+      "name": "Targeted Tests (ubuntu-24.04)",
+      "databaseId": 111606006452,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111606006452"
+    },
+    {
+      "name": "Targeted Tests (macos-14)",
+      "databaseId": 111606006529,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111606006529"
+    },
+    {
+      "name": "Preview Producer (ubuntu-24.04)",
+      "databaseId": 111606903910,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111606903910"
+    },
+    {
+      "name": "Preview Producer (macos-14)",
+      "databaseId": 111606904002,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111606904002"
+    },
+    {
+      "name": "Preview Independent Consumer (ubuntu-24.04)",
+      "databaseId": 111607277075,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111607277075"
+    },
+    {
+      "name": "Preview Independent Consumer (macos-14)",
+      "databaseId": 111607390125,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111607390125"
+    },
+    {
+      "name": "CI Passed",
+      "databaseId": 111607507881,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/37260189209/job/111607507881"
+    }
+  ],
+  "legitimate_skips": [
+    "Tree-sitter CLI Corpus"
+  ],
+  "hosts": {
+    "linux": {
+      "word_frequency": {
+        "artifact_id": 11324890378,
+        "commands": 37,
+        "projects": 9,
+        "compiler_sha256": "ecd24bcc6e9c57e4ddf4f99140f11d91d5402e21c4f09a179e58317b30414f40",
+        "raw_sha256": "20b066552fc6e781d7ea9103705ce19e6bed073f8aa052d7a1254f4fbaaf6c1b",
+        "independent_bytes_verified": true
+      },
+      "preview": {
+        "producer_artifact_id": 11324421149,
+        "consumer_artifact_id": 11324219327,
+        "source_commit": "e980f3b4c184ca9b68e6c264170431a34807edd8",
+        "source_tree": "55604664989790e9ae6750862d82b86b8b2b2424",
+        "archive": "koven-preview-e980f3b4c184-x86_64-unknown-linux-gnu.tar.gz",
+        "archive_sha256": "13e884d0dc5d16e9f8a2e0e95478fb0bdf3a393325ec5910f4e31ff09bb8757b",
+        "binary_sha256": "9cb9a32d081ac4614be5e00cf21ceb4328e7699d9a5317233e262051bf3de101",
+        "candidate": {
+          "artifact_id": 11324336452,
+          "archive_sha256": "13e884d0dc5d16e9f8a2e0e95478fb0bdf3a393325ec5910f4e31ff09bb8757b",
+          "checksum_sha256": "7d59cfe892010836b2419276b5c417be9a440a3a8b5ec7a8c86d895fbcb49656",
+          "bootstrap_sha256": "78187c085ea0c51fcfd9834295733ce788e3f062d8f6e1f57888e0b90c15c6a0",
+          "all_declared_bytes_verified": true,
+          "contract": {
+            "build": {
+              "exit": 0,
+              "stderr": "",
+              "stdout": ""
+            },
+            "cases": [
+              {
+                "args": [],
+                "artifact": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "processed\ndone\n"
+                },
+                "run": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "processed\ndone\n"
+                }
+              },
+              {
+                "args": [
+                  "alpha"
+                ],
+                "artifact": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "alpha\nprocessed\ndone\n"
+                },
+                "run": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "alpha\nprocessed\ndone\n"
+                }
+              },
+              {
+                "args": [
+                  "alpha",
+                  "你好",
+                  "tail"
+                ],
+                "artifact": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "alpha\n你好\ntail\nprocessed\ndone\n"
+                },
+                "run": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "alpha\n你好\ntail\nprocessed\ndone\n"
+                }
+              },
+              {
+                "args": [
+                  ""
+                ],
+                "artifact": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "\nprocessed\ndone\n"
+                },
+                "run": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "\nprocessed\ndone\n"
+                }
+              }
+            ],
+            "entry": "app.main",
+            "files": {
+              "src/app/main.ko": "parameter-report",
+              "src/app/model.ko": "parameter-report-model",
+              "src/app/processor.ko": "parameter-report-processor"
+            },
+            "id": "parameter-report",
+            "status": "executable"
+          }
+        },
+        "commands": 12,
+        "projects": 4,
+        "cleanup_removed": true,
+        "sentinel_unchanged": true,
+        "independent_bytes_verified": true,
+        "raw_producer_sha256": "bf0ff8ede2db3c81d9072c63bfc91412bcf000e8d09638106f3e169631e9c9c4",
+        "raw_consumer_sha256": "504636b21ca2d090e145e5380c56a928c439d3b204e95b374e314646a4402e2e",
+        "raw_checkpoint_hashes": {
+          "head-before.json": "94226fc9262fec955f3b922071c87a3268a60a588de7307817b889aec48ce3a4",
+          "head-before.stdout": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9",
+          "head-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "tree-before.json": "da0135891b5eb0dffeb7bd6aa99baa6888361adfb208630ecca34911aa8a32e5",
+          "tree-before.stdout": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401",
+          "tree-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-before.json": "7ac5f94d0b0c8b7c5199e2f1371aa86d3bd3792f3dc2c5c8564be1db32430780",
+          "status-before.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "head-after-build.json": "3be215ac877bff0eb4f09093cf514304cd5e6bbf3538797b905676804dd4e8ea",
+          "head-after-build.stdout": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9",
+          "head-after-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "tree-after-build.json": "2b64e583b77105c2c5b1ef34a798aaeb58feb5ce0dff3b190e626ae358854b18",
+          "tree-after-build.stdout": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401",
+          "tree-after-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-after-build.json": "000a1aab954957987b7e710f27684636495e5f77eb5c10f61fc59ee820f80815",
+          "status-after-build.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-after-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "head-after-assembly.json": "011dbd09878face2b020e3d9831762899ae928bddd589126294d645121672820",
+          "head-after-assembly.stdout": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9",
+          "head-after-assembly.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "tree-after-assembly.json": "280f06056e7ef52751ea92990c0c61c6254b7133b2abc71a0b691e674955f901",
+          "tree-after-assembly.stdout": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401",
+          "tree-after-assembly.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-after-assembly.json": "e5fe8d4e4f7da9a206deac2487fc0aa00c4a61fbedb185a689de457a415296bb",
+          "status-after-assembly.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-after-assembly.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "project_manifest_and_contract_verified": true
+      },
+      "test_checkout_commit": "8912c6ed462b3d2315ed6feb207e9b482434faa2",
+      "test_checkout_tree": "55604664989790e9ae6750862d82b86b8b2b2424",
+      "test_checkout_parents": [
+        "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+        "e980f3b4c184ca9b68e6c264170431a34807edd8"
+      ],
+      "new_codegen_tests_passed": [
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_deinit_only_closed_helper_seed",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_multiple_container_demands",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_nongeneric_nullable_int_control",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_nullable_int_keeps_control_rejection",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_nullable_resource_and_empty_container",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_resource_relay_drops_once_in_reverse",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_scalar_and_string_relay_lengths",
+        "native::unit_tests::container_size_tests::generic_containers::generic_body_budgets::unit_generic_body_native_production_limit_rejects_growth_preserving_outputs",
+        "native::unit_tests::container_size_tests::generic_containers::generic_body_budgets::unit_generic_body_native_unselected_growth_seeds_preserve_normal_entry",
+        "ssa::unit_lower::deinit_tests::unit_resource_deinit_nullable_class_reaches_hidden_body_and_keeps_conditional_owner",
+        "ssa::unit_lower::deinit_tests::unit_resource_deinit_nullable_unsupported_wrappers_keep_null_rejection_span",
+        "ssa::unit_lower::type_plan::tests::static_callee_chain_marks_groups_but_keeps_call_arguments",
+        "ssa::unit_lower::type_plan::tests::static_declaration_callees_do_not_grant_generic_function_value_storage",
+        "ssa::unit_plan_tests::body_type_budget::unit_generic_body_budget_later_sibling_recipe_precedes_zero_one_two_limit",
+        "ssa::unit_plan_tests::body_type_budget::unit_generic_body_budget_zero_one_two_keep_pure_limit_template_spans"
+      ],
+      "new_frontend_tests_passed": [
+        "generic_body_isolation::unit_generic_body_failed_and_ambiguous_trials_leak_no_seed",
+        "generic_body_isolation::unit_generic_body_lambda_error_and_final_expected_type_skip_cache",
+        "generic_body_isolation::unit_generic_body_selected_lambda_trial_seeds_only_committed_actuals",
+        "generic_body_isolation::unit_generic_body_source_identity_reverse_inputs_and_repeated_calls",
+        "generic_body_isolation::unit_generic_body_uncalled_generic_closed_call_is_a_real_seed",
+        "generic_body_isolation::unit_generic_body_uncalled_symbolic_helpers_do_not_guess_int",
+        "generic_body_types::unit_generic_body_array_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_closed_enum_refinement_is_an_actual_seed",
+        "generic_body_types::unit_generic_body_list_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_mutable_list_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_transitive_calls_publish_nullable_and_container_types",
+        "generic_body_types::unit_generic_body_without_concrete_call_does_not_choose_int",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_closed_refinement_does_not_expand_runtime_field_support",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_deep_shared_dag_visits_unique_nodes_and_preserves_ids",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_substitution_memos_are_scoped_to_actual_environments",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_zero_one_two_budgets_keep_prefix_and_only_one_frontier"
+      ],
+      "codegen_unit": {
+        "passed": 871,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "codegen_ignored_test": null,
+      "raw_targeted_log_sha256": "07039d09d78804e60b978ff17a8ae329dd24022a874606b1fa6698f36798283b",
+      "frontend_private_tests_passed": [
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_closed_refinement_does_not_expand_runtime_field_support",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_deep_shared_dag_visits_unique_nodes_and_preserves_ids",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_substitution_memos_are_scoped_to_actual_environments",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_zero_one_two_budgets_keep_prefix_and_only_one_frontier"
+      ],
+      "frontend_integration_tests_passed": [
+        "generic_body_isolation::unit_generic_body_failed_and_ambiguous_trials_leak_no_seed",
+        "generic_body_isolation::unit_generic_body_lambda_error_and_final_expected_type_skip_cache",
+        "generic_body_isolation::unit_generic_body_selected_lambda_trial_seeds_only_committed_actuals",
+        "generic_body_isolation::unit_generic_body_source_identity_reverse_inputs_and_repeated_calls",
+        "generic_body_isolation::unit_generic_body_uncalled_generic_closed_call_is_a_real_seed",
+        "generic_body_isolation::unit_generic_body_uncalled_symbolic_helpers_do_not_guess_int",
+        "generic_body_types::unit_generic_body_array_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_closed_enum_refinement_is_an_actual_seed",
+        "generic_body_types::unit_generic_body_list_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_mutable_list_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_transitive_calls_publish_nullable_and_container_types",
+        "generic_body_types::unit_generic_body_without_concrete_call_does_not_choose_int"
+      ]
+    },
+    "macos": {
+      "word_frequency": {
+        "artifact_id": 11324910103,
+        "commands": 37,
+        "projects": 9,
+        "compiler_sha256": "acc84dac414bab359c6e6bf4ed87a9447dbc804f6abb57627119c264326a0bfb",
+        "raw_sha256": "4da577f2cedfbb2bc63f24d3b6c4bca47468ab310a9faacd5ca1b9a3e33903d7",
+        "independent_bytes_verified": true
+      },
+      "preview": {
+        "producer_artifact_id": 11324336488,
+        "consumer_artifact_id": 11324356403,
+        "source_commit": "e980f3b4c184ca9b68e6c264170431a34807edd8",
+        "source_tree": "55604664989790e9ae6750862d82b86b8b2b2424",
+        "archive": "koven-preview-e980f3b4c184-aarch64-apple-darwin.tar.gz",
+        "archive_sha256": "56707b9191e4eb087f3de70ce02b5a0152fa92ee8f692f330a7ebc46778876a5",
+        "binary_sha256": "e40cda10b0aa7d4a991da963ce55e149139306c893a42874ebbb65b852b5ee48",
+        "candidate": {
+          "artifact_id": 11324815358,
+          "archive_sha256": "56707b9191e4eb087f3de70ce02b5a0152fa92ee8f692f330a7ebc46778876a5",
+          "checksum_sha256": "0de9253ef0cd42d2b27b92b8459aa04cf8538c7b4ba2540a976d8531bde5b5a1",
+          "bootstrap_sha256": "78187c085ea0c51fcfd9834295733ce788e3f062d8f6e1f57888e0b90c15c6a0",
+          "all_declared_bytes_verified": true,
+          "contract": {
+            "build": {
+              "exit": 0,
+              "stderr": "",
+              "stdout": ""
+            },
+            "cases": [
+              {
+                "args": [],
+                "artifact": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "processed\ndone\n"
+                },
+                "run": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "processed\ndone\n"
+                }
+              },
+              {
+                "args": [
+                  "alpha"
+                ],
+                "artifact": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "alpha\nprocessed\ndone\n"
+                },
+                "run": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "alpha\nprocessed\ndone\n"
+                }
+              },
+              {
+                "args": [
+                  "alpha",
+                  "你好",
+                  "tail"
+                ],
+                "artifact": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "alpha\n你好\ntail\nprocessed\ndone\n"
+                },
+                "run": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "alpha\n你好\ntail\nprocessed\ndone\n"
+                }
+              },
+              {
+                "args": [
+                  ""
+                ],
+                "artifact": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "\nprocessed\ndone\n"
+                },
+                "run": {
+                  "exit": 0,
+                  "stderr": "",
+                  "stdout": "\nprocessed\ndone\n"
+                }
+              }
+            ],
+            "entry": "app.main",
+            "files": {
+              "src/app/main.ko": "parameter-report",
+              "src/app/model.ko": "parameter-report-model",
+              "src/app/processor.ko": "parameter-report-processor"
+            },
+            "id": "parameter-report",
+            "status": "executable"
+          }
+        },
+        "commands": 12,
+        "projects": 4,
+        "cleanup_removed": true,
+        "sentinel_unchanged": true,
+        "independent_bytes_verified": true,
+        "raw_producer_sha256": "7fd9ac90797c325bbfe649565567cb99a0aa8eb393c21b29438588750635d142",
+        "raw_consumer_sha256": "262a2dc64405c6d3fd63dd8de0cf77631e2068a744cf4ebf8d8d2e475f9698df",
+        "raw_checkpoint_hashes": {
+          "head-before.json": "9b969e32c00c807a8dcd3490d4ce88f4feacee3f32d82bed77090fca3431a34a",
+          "head-before.stdout": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9",
+          "head-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "tree-before.json": "cc9ad70cd7bf78c2eb81aaa9f52cea600fcf7259af24bb40d106df43eb6ad216",
+          "tree-before.stdout": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401",
+          "tree-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-before.json": "bcede37ba6fc5e81f62a5b23c1c0e267d343c6c73c241121bb183ffe519421be",
+          "status-before.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "head-after-build.json": "ef878ec99059bb06f48647ba84e2d3d714c8629234b205976bb89d1100674380",
+          "head-after-build.stdout": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9",
+          "head-after-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "tree-after-build.json": "e51bbdc4be02668b1e27507d9a9ea240844e2e7307340ab2a7eb97b16cf1179a",
+          "tree-after-build.stdout": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401",
+          "tree-after-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-after-build.json": "c5a2ed845ce40b98d457929d5a44724b1a5c2f762c04d0b44e31f5d6e07fa048",
+          "status-after-build.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-after-build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "head-after-assembly.json": "b9661e7e02df24b2558a5306d435c608cf6a6ac27865dc7eaaa696a0c8bd8b08",
+          "head-after-assembly.stdout": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9",
+          "head-after-assembly.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "tree-after-assembly.json": "1bef49d81064218cb1dec97755b1233834c9d5402e68317941e311257a242906",
+          "tree-after-assembly.stdout": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401",
+          "tree-after-assembly.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-after-assembly.json": "cfde360361cf9b32be27df7254bdc2d0c0ed33a8af9b49398357532393e8814f",
+          "status-after-assembly.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "status-after-assembly.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "project_manifest_and_contract_verified": true
+      },
+      "test_checkout_commit": "8912c6ed462b3d2315ed6feb207e9b482434faa2",
+      "test_checkout_tree": "55604664989790e9ae6750862d82b86b8b2b2424",
+      "test_checkout_parents": [
+        "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+        "e980f3b4c184ca9b68e6c264170431a34807edd8"
+      ],
+      "new_codegen_tests_passed": [
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_deinit_only_closed_helper_seed",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_multiple_container_demands",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_nongeneric_nullable_int_control",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_nullable_int_keeps_control_rejection",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_nullable_resource_and_empty_container",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_resource_relay_drops_once_in_reverse",
+        "native::unit_tests::container_size_tests::generic_containers::generic_bodies::unit_generic_body_native_scalar_and_string_relay_lengths",
+        "native::unit_tests::container_size_tests::generic_containers::generic_body_budgets::unit_generic_body_native_production_limit_rejects_growth_preserving_outputs",
+        "native::unit_tests::container_size_tests::generic_containers::generic_body_budgets::unit_generic_body_native_unselected_growth_seeds_preserve_normal_entry",
+        "ssa::unit_lower::deinit_tests::unit_resource_deinit_nullable_class_reaches_hidden_body_and_keeps_conditional_owner",
+        "ssa::unit_lower::deinit_tests::unit_resource_deinit_nullable_unsupported_wrappers_keep_null_rejection_span",
+        "ssa::unit_lower::type_plan::tests::static_callee_chain_marks_groups_but_keeps_call_arguments",
+        "ssa::unit_lower::type_plan::tests::static_declaration_callees_do_not_grant_generic_function_value_storage",
+        "ssa::unit_plan_tests::body_type_budget::unit_generic_body_budget_later_sibling_recipe_precedes_zero_one_two_limit",
+        "ssa::unit_plan_tests::body_type_budget::unit_generic_body_budget_zero_one_two_keep_pure_limit_template_spans"
+      ],
+      "new_frontend_tests_passed": [
+        "generic_body_isolation::unit_generic_body_failed_and_ambiguous_trials_leak_no_seed",
+        "generic_body_isolation::unit_generic_body_lambda_error_and_final_expected_type_skip_cache",
+        "generic_body_isolation::unit_generic_body_selected_lambda_trial_seeds_only_committed_actuals",
+        "generic_body_isolation::unit_generic_body_source_identity_reverse_inputs_and_repeated_calls",
+        "generic_body_isolation::unit_generic_body_uncalled_generic_closed_call_is_a_real_seed",
+        "generic_body_isolation::unit_generic_body_uncalled_symbolic_helpers_do_not_guess_int",
+        "generic_body_types::unit_generic_body_array_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_closed_enum_refinement_is_an_actual_seed",
+        "generic_body_types::unit_generic_body_list_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_mutable_list_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_transitive_calls_publish_nullable_and_container_types",
+        "generic_body_types::unit_generic_body_without_concrete_call_does_not_choose_int",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_closed_refinement_does_not_expand_runtime_field_support",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_deep_shared_dag_visits_unique_nodes_and_preserves_ids",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_substitution_memos_are_scoped_to_actual_environments",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_zero_one_two_budgets_keep_prefix_and_only_one_frontier"
+      ],
+      "codegen_unit": {
+        "passed": 870,
+        "failed": 0,
+        "ignored": 1,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "codegen_ignored_test": "llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame",
+      "raw_targeted_log_sha256": "68a9b19ac532d4f45423ee1a2d2a0b0ff17f25b0af72aa9c3222ab72edc5a690",
+      "frontend_private_tests_passed": [
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_closed_refinement_does_not_expand_runtime_field_support",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_deep_shared_dag_visits_unique_nodes_and_preserves_ids",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_substitution_memos_are_scoped_to_actual_environments",
+        "type_checking::compilation_unit::bodies::checker::generic_body_types::tests::unit_generic_body_zero_one_two_budgets_keep_prefix_and_only_one_frontier"
+      ],
+      "frontend_integration_tests_passed": [
+        "generic_body_isolation::unit_generic_body_failed_and_ambiguous_trials_leak_no_seed",
+        "generic_body_isolation::unit_generic_body_lambda_error_and_final_expected_type_skip_cache",
+        "generic_body_isolation::unit_generic_body_selected_lambda_trial_seeds_only_committed_actuals",
+        "generic_body_isolation::unit_generic_body_source_identity_reverse_inputs_and_repeated_calls",
+        "generic_body_isolation::unit_generic_body_uncalled_generic_closed_call_is_a_real_seed",
+        "generic_body_isolation::unit_generic_body_uncalled_symbolic_helpers_do_not_guess_int",
+        "generic_body_types::unit_generic_body_array_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_closed_enum_refinement_is_an_actual_seed",
+        "generic_body_types::unit_generic_body_list_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_mutable_list_types_come_from_actual_calls",
+        "generic_body_types::unit_generic_body_transitive_calls_publish_nullable_and_container_types",
+        "generic_body_types::unit_generic_body_without_concrete_call_does_not_choose_int"
+      ]
+    }
+  },
+  "retained_raw": {
+    "linux-targeted.log": {
+      "path": "initial/linux-targeted.log.gz",
+      "encoding": "gzip",
+      "sha256": "24ee279ba5ac272a0d6b78f2df3fb85dcbcd6d5ddc44946557f8ecd3deb82313",
+      "raw_sha256": "07039d09d78804e60b978ff17a8ae329dd24022a874606b1fa6698f36798283b"
+    },
+    "linux-word-results.json": {
+      "path": "initial/linux-word-results.json.gz",
+      "encoding": "gzip",
+      "sha256": "bfa8ea2561058d4fe784653b79866f935c6913044ffe067fe88782f872b7732d",
+      "raw_sha256": "20b066552fc6e781d7ea9103705ce19e6bed073f8aa052d7a1254f4fbaaf6c1b"
+    },
+    "linux-producer-results.json": {
+      "path": "initial/linux-producer-results.json.gz",
+      "encoding": "gzip",
+      "sha256": "ef0c0dc7558fd64e40dcd8429d41f199a8bdabef2a0bf5568526398a610936fb",
+      "raw_sha256": "bf0ff8ede2db3c81d9072c63bfc91412bcf000e8d09638106f3e169631e9c9c4"
+    },
+    "linux-consumer-results.json": {
+      "path": "initial/linux-consumer-results.json.gz",
+      "encoding": "gzip",
+      "sha256": "e4d996e9da9aa47a98783ebd5e14aeb03df4e3a9b8ebc6ed0d4ec7b6773b85f1",
+      "raw_sha256": "504636b21ca2d090e145e5380c56a928c439d3b204e95b374e314646a4402e2e"
+    },
+    "linux-producer-evidence/binary-private-paths-after-assembly.json": {
+      "path": "initial/linux-producer-evidence/binary-private-paths-after-assembly.json.gz",
+      "encoding": "gzip",
+      "sha256": "3db87ad3769e63224998d2a5048c281860f1d0949a2b97085c576bf53367f195",
+      "raw_sha256": "f69f3e577efe84fe824871978a5a38baff225b6ce05c9445149a8b94ad3f819c"
+    },
+    "linux-producer-evidence/binary-private-paths-after-build.json": {
+      "path": "initial/linux-producer-evidence/binary-private-paths-after-build.json.gz",
+      "encoding": "gzip",
+      "sha256": "160d060a5166b6282009d63cd2f68854dd5029d6abac877f1d32b1061d0b410a",
+      "raw_sha256": "30c16d1ce5652d2126d5595320b751a556c135e90f73d9cb091a6c66c63d325b"
+    },
+    "linux-producer-evidence/build.json": {
+      "path": "initial/linux-producer-evidence/build.json.gz",
+      "encoding": "gzip",
+      "sha256": "15daed3c28bccd471f65d908d6531c8c319a5d6360d5e2267e433b42d0979466",
+      "raw_sha256": "b6f021d9ea82be622aabec3d506371ee60184abcb386aeb0c7aaa02f117a251f"
+    },
+    "linux-producer-evidence/build.stderr": {
+      "path": "initial/linux-producer-evidence/build.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "7faa406128f6e6bfc05f2688b27fc9fcb0829c7de5b96a399e2ca9628c5304b6",
+      "raw_sha256": "8ab1a430dfa5aaa777d781e28c394c2ff3588a6de663828d4e35a95b2192de4b"
+    },
+    "linux-producer-evidence/build.stdout": {
+      "path": "initial/linux-producer-evidence/build.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "aa9e2247707f395196ae0bdce90320019d320421e2a12c9776b22796683eee7f",
+      "raw_sha256": "6b6ca96cee4d11f32587b2e7d9398370e3be76d22554b386ed14215cce53c3b3"
+    },
+    "linux-producer-evidence/cargo.json": {
+      "path": "initial/linux-producer-evidence/cargo.json.gz",
+      "encoding": "gzip",
+      "sha256": "3ac25535ee63b194daa541f44f0504751dc41c04a8135a48c48a2d782279d669",
+      "raw_sha256": "eb2c71eb76d48fe6b0bfa0a844340703d5fa7014856123b06e6d003164c160f3"
+    },
+    "linux-producer-evidence/cargo.stderr": {
+      "path": "initial/linux-producer-evidence/cargo.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/cargo.stdout": {
+      "path": "initial/linux-producer-evidence/cargo.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "8f3c78afeac89d8cc38390e78f45c8fcbce1992aef0512fde74e4d045a5186a9",
+      "raw_sha256": "b6ef6807dd96d18b833474ad68e7a23a29e562a29c67afa71a59fb9a73df0068"
+    },
+    "linux-producer-evidence/head-after-assembly.json": {
+      "path": "initial/linux-producer-evidence/head-after-assembly.json.gz",
+      "encoding": "gzip",
+      "sha256": "f2f8fba02824181b819479351b737ddcc05478af62bbdf7c517693731095a6de",
+      "raw_sha256": "011dbd09878face2b020e3d9831762899ae928bddd589126294d645121672820"
+    },
+    "linux-producer-evidence/head-after-assembly.stderr": {
+      "path": "initial/linux-producer-evidence/head-after-assembly.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/head-after-assembly.stdout": {
+      "path": "initial/linux-producer-evidence/head-after-assembly.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "29ee740d24b08bee61ff6f8dc525f7e9ffa37ccc8b56583f44fcac0a088d1ac5",
+      "raw_sha256": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9"
+    },
+    "linux-producer-evidence/head-after-build.json": {
+      "path": "initial/linux-producer-evidence/head-after-build.json.gz",
+      "encoding": "gzip",
+      "sha256": "55b053e046a581010e6a8e0366bf08d4b9199da3d23336fca9dda6433b8c102c",
+      "raw_sha256": "3be215ac877bff0eb4f09093cf514304cd5e6bbf3538797b905676804dd4e8ea"
+    },
+    "linux-producer-evidence/head-after-build.stderr": {
+      "path": "initial/linux-producer-evidence/head-after-build.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/head-after-build.stdout": {
+      "path": "initial/linux-producer-evidence/head-after-build.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "29ee740d24b08bee61ff6f8dc525f7e9ffa37ccc8b56583f44fcac0a088d1ac5",
+      "raw_sha256": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9"
+    },
+    "linux-producer-evidence/head-before.json": {
+      "path": "initial/linux-producer-evidence/head-before.json.gz",
+      "encoding": "gzip",
+      "sha256": "fef974ba35d2c681d4c7f2970d25e847856f54430b959348f57005d633c97b29",
+      "raw_sha256": "94226fc9262fec955f3b922071c87a3268a60a588de7307817b889aec48ce3a4"
+    },
+    "linux-producer-evidence/head-before.stderr": {
+      "path": "initial/linux-producer-evidence/head-before.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/head-before.stdout": {
+      "path": "initial/linux-producer-evidence/head-before.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "29ee740d24b08bee61ff6f8dc525f7e9ffa37ccc8b56583f44fcac0a088d1ac5",
+      "raw_sha256": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9"
+    },
+    "linux-producer-evidence/host-inspection.json": {
+      "path": "initial/linux-producer-evidence/host-inspection.json.gz",
+      "encoding": "gzip",
+      "sha256": "1ddbc13fe2623c350c5c9e8ceae37a230224a52a1338899e5fd632bb6eed9383",
+      "raw_sha256": "62e07a185523a01a00b359dc633a5a7bba7b34345529478478daeb35b8dc9c32"
+    },
+    "linux-producer-evidence/normal-tree.json": {
+      "path": "initial/linux-producer-evidence/normal-tree.json.gz",
+      "encoding": "gzip",
+      "sha256": "aa71cd2c1f53a5591978799ccccb9811b25c18acd05b08ac14ee00c90c919fc3",
+      "raw_sha256": "d28671e8414e21b19ce901cdb08cf04f2044a456128a8ddac8a5f5895759185f"
+    },
+    "linux-producer-evidence/normal-tree.stderr": {
+      "path": "initial/linux-producer-evidence/normal-tree.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/normal-tree.stdout": {
+      "path": "initial/linux-producer-evidence/normal-tree.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "6b2ce8d417b8b00080b4f1ae6cff7ef04925ac64e7508233b74a38ad5d801271",
+      "raw_sha256": "f97921ce6a04c04cf0d4d435b32d61b26f61ca477155ad059e5ec7c1f3af9c14"
+    },
+    "linux-producer-evidence/rust-sysroot.json": {
+      "path": "initial/linux-producer-evidence/rust-sysroot.json.gz",
+      "encoding": "gzip",
+      "sha256": "0656cdc607448016b96e1fa032fcd1d937486261f16f4a8afb9db11aff31d502",
+      "raw_sha256": "29307cbe79ee04d870a5f3680fb24a74694446bd6a27568ef3bac8200d75313e"
+    },
+    "linux-producer-evidence/rust-sysroot.stderr": {
+      "path": "initial/linux-producer-evidence/rust-sysroot.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/rust-sysroot.stdout": {
+      "path": "initial/linux-producer-evidence/rust-sysroot.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "79fb67a69921173d7043f1496b8135c0c9b6c4ab14710147d33ca896c9e380a0",
+      "raw_sha256": "3eff2bff00c801efc28f70ba135843b822a7af0a7d5cad4870b61af8f1e35feb"
+    },
+    "linux-producer-evidence/rustc-selection.json": {
+      "path": "initial/linux-producer-evidence/rustc-selection.json.gz",
+      "encoding": "gzip",
+      "sha256": "81e4287de07b8bf37109cb2836c30360fc69aa570f81091d6036241ddb9b9e2e",
+      "raw_sha256": "783caba2f546339f2bcc0c32a89534f4c6d091167061eb818de67e1b4be45a8c"
+    },
+    "linux-producer-evidence/rustc-selection.stderr": {
+      "path": "initial/linux-producer-evidence/rustc-selection.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/rustc-selection.stdout": {
+      "path": "initial/linux-producer-evidence/rustc-selection.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "bad988794a3a7cd5b428ce8f52737e3c7c8dc10d3902d6961217cb841ddbfce0",
+      "raw_sha256": "23c8a085c5ab6720b31e33bf711aca33ceddbfc87303a7bec4758308ee912e50"
+    },
+    "linux-producer-evidence/rustc.json": {
+      "path": "initial/linux-producer-evidence/rustc.json.gz",
+      "encoding": "gzip",
+      "sha256": "e5d9104a6bc95320d599907334fbce979558d65e64308d3845d4e3575ca09aaa",
+      "raw_sha256": "a81ac5e901b67237b99feb07e95bb8af9675ed18e71e875592b8104790af441e"
+    },
+    "linux-producer-evidence/rustc.stderr": {
+      "path": "initial/linux-producer-evidence/rustc.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/rustc.stdout": {
+      "path": "initial/linux-producer-evidence/rustc.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "e36a53ac54854950df1c6ce2a8167c3ff8182cb454c575fcef2eb618eddca082",
+      "raw_sha256": "f64c55ed9f210d80a9b248206104a47175faf5ec94a093e4ad132549209089fc"
+    },
+    "linux-producer-evidence/status-after-assembly.json": {
+      "path": "initial/linux-producer-evidence/status-after-assembly.json.gz",
+      "encoding": "gzip",
+      "sha256": "b142c6bd514873b28a7a88fb5291f33db3d9297db9f100774c6791502d64698d",
+      "raw_sha256": "e5fe8d4e4f7da9a206deac2487fc0aa00c4a61fbedb185a689de457a415296bb"
+    },
+    "linux-producer-evidence/status-after-assembly.stderr": {
+      "path": "initial/linux-producer-evidence/status-after-assembly.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/status-after-assembly.stdout": {
+      "path": "initial/linux-producer-evidence/status-after-assembly.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/status-after-build.json": {
+      "path": "initial/linux-producer-evidence/status-after-build.json.gz",
+      "encoding": "gzip",
+      "sha256": "752e9a54df1be9aaebb744aa7a428eb9553986c8a4686e3a9d2681e03f66fd10",
+      "raw_sha256": "000a1aab954957987b7e710f27684636495e5f77eb5c10f61fc59ee820f80815"
+    },
+    "linux-producer-evidence/status-after-build.stderr": {
+      "path": "initial/linux-producer-evidence/status-after-build.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/status-after-build.stdout": {
+      "path": "initial/linux-producer-evidence/status-after-build.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/status-before.json": {
+      "path": "initial/linux-producer-evidence/status-before.json.gz",
+      "encoding": "gzip",
+      "sha256": "fba16816199025990925ff73d5a726aaa148d55af55c885d4204f3a099241b36",
+      "raw_sha256": "7ac5f94d0b0c8b7c5199e2f1371aa86d3bd3792f3dc2c5c8564be1db32430780"
+    },
+    "linux-producer-evidence/status-before.stderr": {
+      "path": "initial/linux-producer-evidence/status-before.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/status-before.stdout": {
+      "path": "initial/linux-producer-evidence/status-before.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/tree-after-assembly.json": {
+      "path": "initial/linux-producer-evidence/tree-after-assembly.json.gz",
+      "encoding": "gzip",
+      "sha256": "0f2b1624274d19ef0969ce00d5ad827b16e5997bb3eba4ce2d04f10878b24cee",
+      "raw_sha256": "280f06056e7ef52751ea92990c0c61c6254b7133b2abc71a0b691e674955f901"
+    },
+    "linux-producer-evidence/tree-after-assembly.stderr": {
+      "path": "initial/linux-producer-evidence/tree-after-assembly.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/tree-after-assembly.stdout": {
+      "path": "initial/linux-producer-evidence/tree-after-assembly.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "cbf93a4b6c64fedfd9a8c4682a8b31edc567dd35a9ac6ffe6e1380aacab8ea8b",
+      "raw_sha256": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401"
+    },
+    "linux-producer-evidence/tree-after-build.json": {
+      "path": "initial/linux-producer-evidence/tree-after-build.json.gz",
+      "encoding": "gzip",
+      "sha256": "19229e2b57662f15aacc090d28d0251043f4759b7a16a2940e1195f5ffdf6bf4",
+      "raw_sha256": "2b64e583b77105c2c5b1ef34a798aaeb58feb5ce0dff3b190e626ae358854b18"
+    },
+    "linux-producer-evidence/tree-after-build.stderr": {
+      "path": "initial/linux-producer-evidence/tree-after-build.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/tree-after-build.stdout": {
+      "path": "initial/linux-producer-evidence/tree-after-build.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "cbf93a4b6c64fedfd9a8c4682a8b31edc567dd35a9ac6ffe6e1380aacab8ea8b",
+      "raw_sha256": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401"
+    },
+    "linux-producer-evidence/tree-before.json": {
+      "path": "initial/linux-producer-evidence/tree-before.json.gz",
+      "encoding": "gzip",
+      "sha256": "765c144a70f36d7a1d090ddded5b7cc358d3c9e3a5ca6fada35c2fb8d1457b94",
+      "raw_sha256": "da0135891b5eb0dffeb7bd6aa99baa6888361adfb208630ecca34911aa8a32e5"
+    },
+    "linux-producer-evidence/tree-before.stderr": {
+      "path": "initial/linux-producer-evidence/tree-before.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linux-producer-evidence/tree-before.stdout": {
+      "path": "initial/linux-producer-evidence/tree-before.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "cbf93a4b6c64fedfd9a8c4682a8b31edc567dd35a9ac6ffe6e1380aacab8ea8b",
+      "raw_sha256": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401"
+    },
+    "macos-targeted.log": {
+      "path": "initial/macos-targeted.log.gz",
+      "encoding": "gzip",
+      "sha256": "005d45fa242cbc512137ee853b80050f33ac3fa74f0f0eca9fa906ca0b1a696a",
+      "raw_sha256": "68a9b19ac532d4f45423ee1a2d2a0b0ff17f25b0af72aa9c3222ab72edc5a690"
+    },
+    "macos-word-results.json": {
+      "path": "initial/macos-word-results.json.gz",
+      "encoding": "gzip",
+      "sha256": "54b1b127da31983a8973078570b0ad44d181d159ab190c08305c7bc155c2279f",
+      "raw_sha256": "4da577f2cedfbb2bc63f24d3b6c4bca47468ab310a9faacd5ca1b9a3e33903d7"
+    },
+    "macos-producer-results.json": {
+      "path": "initial/macos-producer-results.json.gz",
+      "encoding": "gzip",
+      "sha256": "6fcfbf6c679c46b9af6ad375bebd7d73562051c0f2232cecbbad7c687a62998e",
+      "raw_sha256": "7fd9ac90797c325bbfe649565567cb99a0aa8eb393c21b29438588750635d142"
+    },
+    "macos-consumer-results.json": {
+      "path": "initial/macos-consumer-results.json.gz",
+      "encoding": "gzip",
+      "sha256": "27a80fa3641c31f76ddf4d5d89cba81b15a4f7a615267a213441df6c26f36a1e",
+      "raw_sha256": "262a2dc64405c6d3fd63dd8de0cf77631e2068a744cf4ebf8d8d2e475f9698df"
+    },
+    "macos-producer-evidence/binary-private-paths-after-assembly.json": {
+      "path": "initial/macos-producer-evidence/binary-private-paths-after-assembly.json.gz",
+      "encoding": "gzip",
+      "sha256": "8aad65cc8c1a9ac6b70b567d5ea18a8ca87c64395d298397b288c7ad9cfdbd8e",
+      "raw_sha256": "2f62496d300ea9d33927202dd8ce3174a04db9fefcf4baac2c3bcc1fe3eb93e3"
+    },
+    "macos-producer-evidence/binary-private-paths-after-build.json": {
+      "path": "initial/macos-producer-evidence/binary-private-paths-after-build.json.gz",
+      "encoding": "gzip",
+      "sha256": "3cdd7436affb2000b7aacb3ea8db82f8be36737af0a5e595aecd686a2b7b8d59",
+      "raw_sha256": "564914143e6838fa5edf7ff5f47d5e7d5284666b70edf02b95560719dfdce524"
+    },
+    "macos-producer-evidence/build.json": {
+      "path": "initial/macos-producer-evidence/build.json.gz",
+      "encoding": "gzip",
+      "sha256": "8508b4144a81781592e506173c7681106064b2821077d5c773dacd60c28d5fca",
+      "raw_sha256": "0cebad0e019c5f384cd6942c3b34968aae79ab04ba1d860c5075e131fddbbe8f"
+    },
+    "macos-producer-evidence/build.stderr": {
+      "path": "initial/macos-producer-evidence/build.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "210cc7a89bb65c259bcfc62578e93a86f44e2d6853e7b94bace8da2e177b1329",
+      "raw_sha256": "6870dbb1b4f99f974706821a4f04686e5d9cdcd5b875966ffd77c1d7546d38d0"
+    },
+    "macos-producer-evidence/build.stdout": {
+      "path": "initial/macos-producer-evidence/build.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "52e8ac01104a47b4565c50dab3b15c0e3d31296af5980b1f15d2b56d4ae44da6",
+      "raw_sha256": "4b6b7c4fb884e19e91e177d398d6924231e79375bb4c0df271b72a6b53f4a1c2"
+    },
+    "macos-producer-evidence/cargo.json": {
+      "path": "initial/macos-producer-evidence/cargo.json.gz",
+      "encoding": "gzip",
+      "sha256": "5bad4971482e1a8af8503f3e84103c1c8bf85efb1ab45376b19d6b802f72b5e5",
+      "raw_sha256": "d35d51bf97be4384c5d0532fb2afd0da6b771d7670005b4b00d05b17c6d86d65"
+    },
+    "macos-producer-evidence/cargo.stderr": {
+      "path": "initial/macos-producer-evidence/cargo.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/cargo.stdout": {
+      "path": "initial/macos-producer-evidence/cargo.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "8f3c78afeac89d8cc38390e78f45c8fcbce1992aef0512fde74e4d045a5186a9",
+      "raw_sha256": "b6ef6807dd96d18b833474ad68e7a23a29e562a29c67afa71a59fb9a73df0068"
+    },
+    "macos-producer-evidence/head-after-assembly.json": {
+      "path": "initial/macos-producer-evidence/head-after-assembly.json.gz",
+      "encoding": "gzip",
+      "sha256": "cdeaebc3d07b995cd5d3f8f1bec4480b41efe275f6c7b265f454937119072511",
+      "raw_sha256": "b9661e7e02df24b2558a5306d435c608cf6a6ac27865dc7eaaa696a0c8bd8b08"
+    },
+    "macos-producer-evidence/head-after-assembly.stderr": {
+      "path": "initial/macos-producer-evidence/head-after-assembly.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/head-after-assembly.stdout": {
+      "path": "initial/macos-producer-evidence/head-after-assembly.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "29ee740d24b08bee61ff6f8dc525f7e9ffa37ccc8b56583f44fcac0a088d1ac5",
+      "raw_sha256": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9"
+    },
+    "macos-producer-evidence/head-after-build.json": {
+      "path": "initial/macos-producer-evidence/head-after-build.json.gz",
+      "encoding": "gzip",
+      "sha256": "8d2e0d8d6c4c713db00f0b2f7b25a0351ff7e6d8a3df3fa9b8128effc133bf1a",
+      "raw_sha256": "ef878ec99059bb06f48647ba84e2d3d714c8629234b205976bb89d1100674380"
+    },
+    "macos-producer-evidence/head-after-build.stderr": {
+      "path": "initial/macos-producer-evidence/head-after-build.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/head-after-build.stdout": {
+      "path": "initial/macos-producer-evidence/head-after-build.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "29ee740d24b08bee61ff6f8dc525f7e9ffa37ccc8b56583f44fcac0a088d1ac5",
+      "raw_sha256": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9"
+    },
+    "macos-producer-evidence/head-before.json": {
+      "path": "initial/macos-producer-evidence/head-before.json.gz",
+      "encoding": "gzip",
+      "sha256": "b943af08e0a5ba0a62d106a33cb62e9334aced8d2f2d9603f48d6dc8337d969a",
+      "raw_sha256": "9b969e32c00c807a8dcd3490d4ce88f4feacee3f32d82bed77090fca3431a34a"
+    },
+    "macos-producer-evidence/head-before.stderr": {
+      "path": "initial/macos-producer-evidence/head-before.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/head-before.stdout": {
+      "path": "initial/macos-producer-evidence/head-before.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "29ee740d24b08bee61ff6f8dc525f7e9ffa37ccc8b56583f44fcac0a088d1ac5",
+      "raw_sha256": "9a965aac05afa1012b2a0e210cc2543974c8660ed2c80860635b97db6565b7b9"
+    },
+    "macos-producer-evidence/host-inspection.json": {
+      "path": "initial/macos-producer-evidence/host-inspection.json.gz",
+      "encoding": "gzip",
+      "sha256": "44bcdd2cd4969bdd82e67d6e4b1c66ac7534d78303e0ef4207728d0dd3651421",
+      "raw_sha256": "7b29260500c00656a4c8c9cf7191d1161e74b4ae8b8644950e14c123227b0b11"
+    },
+    "macos-producer-evidence/normal-tree.json": {
+      "path": "initial/macos-producer-evidence/normal-tree.json.gz",
+      "encoding": "gzip",
+      "sha256": "00db484551828f3d92ad27abaff60f06e620c6ab8cdded6a31946cdc5db5bcd4",
+      "raw_sha256": "40aaa9f7115607fd53b2f81c80dd64aa021061055bc13b00a4126eb89cea48bd"
+    },
+    "macos-producer-evidence/normal-tree.stderr": {
+      "path": "initial/macos-producer-evidence/normal-tree.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/normal-tree.stdout": {
+      "path": "initial/macos-producer-evidence/normal-tree.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "0d95102d388e2f2e6e298821ead2c539c18d7062da460cc60bc0b363aa1f1024",
+      "raw_sha256": "12add1b98d02703c98f9e2f2f9919f8bd3202994cc0cc3272633046f3d5652d2"
+    },
+    "macos-producer-evidence/rust-sysroot.json": {
+      "path": "initial/macos-producer-evidence/rust-sysroot.json.gz",
+      "encoding": "gzip",
+      "sha256": "d5b5d2be138454e1ed50c8e0f3119441004c9a315372efb7ea177a981f28e58d",
+      "raw_sha256": "ae48f507b9b8d3616f0d327d20911b4fb21ea4a9aa20d5e7ba526b17201eb47b"
+    },
+    "macos-producer-evidence/rust-sysroot.stderr": {
+      "path": "initial/macos-producer-evidence/rust-sysroot.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/rust-sysroot.stdout": {
+      "path": "initial/macos-producer-evidence/rust-sysroot.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "7460f32fc6d4cec8fa13338b4f822a185ffcbb3b8a967918ccd0ba3f28b97bf3",
+      "raw_sha256": "d062f817a902f9f845fee46229f3c5bc6cadc12ffb7bdef2865160bbc954a710"
+    },
+    "macos-producer-evidence/rustc-selection.json": {
+      "path": "initial/macos-producer-evidence/rustc-selection.json.gz",
+      "encoding": "gzip",
+      "sha256": "5ff123be701a5408c4c0e0594cb111796e1164ffbdf2bf69797b798af5ed732f",
+      "raw_sha256": "a0800f65ae37c0f6e21811e1000cecfd77a53bdb768db50d334d567b19bc6aaf"
+    },
+    "macos-producer-evidence/rustc-selection.stderr": {
+      "path": "initial/macos-producer-evidence/rustc-selection.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/rustc-selection.stdout": {
+      "path": "initial/macos-producer-evidence/rustc-selection.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "96aff36bb0de3bd44090fbe344bfb7f2629858cfe0c1311c076ec11f78e4ceb9",
+      "raw_sha256": "3e7ab76e97e33805e481931484ba718fd8b01bf1edd2ab968bf1f1252342333b"
+    },
+    "macos-producer-evidence/rustc.json": {
+      "path": "initial/macos-producer-evidence/rustc.json.gz",
+      "encoding": "gzip",
+      "sha256": "95f35e196b0efdbfbdb98849d321504fb3fb1c2738105d624e71b5d78dbec2ba",
+      "raw_sha256": "1f6aa9e5d20fc63b06d61602c8f20f4a7da08d9633e1544a82b1573e1d8fd66e"
+    },
+    "macos-producer-evidence/rustc.stderr": {
+      "path": "initial/macos-producer-evidence/rustc.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/rustc.stdout": {
+      "path": "initial/macos-producer-evidence/rustc.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "adca623a2d1a8ca231cd08bded6a86d02d1f52de28925b4533459206f9188515",
+      "raw_sha256": "aea7c77c2b0d24444d07240e4d785e4ba73b6c9e786748af2ddc22bbf4c104bf"
+    },
+    "macos-producer-evidence/status-after-assembly.json": {
+      "path": "initial/macos-producer-evidence/status-after-assembly.json.gz",
+      "encoding": "gzip",
+      "sha256": "9bdf45b324d40d7715dc047511e7901d37f42e9c7f74c5befd4294409731a6de",
+      "raw_sha256": "cfde360361cf9b32be27df7254bdc2d0c0ed33a8af9b49398357532393e8814f"
+    },
+    "macos-producer-evidence/status-after-assembly.stderr": {
+      "path": "initial/macos-producer-evidence/status-after-assembly.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/status-after-assembly.stdout": {
+      "path": "initial/macos-producer-evidence/status-after-assembly.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/status-after-build.json": {
+      "path": "initial/macos-producer-evidence/status-after-build.json.gz",
+      "encoding": "gzip",
+      "sha256": "405bdb5d663eea50b77b58a995278ef4b97c1f53604327022e6dda799ecdc936",
+      "raw_sha256": "c5a2ed845ce40b98d457929d5a44724b1a5c2f762c04d0b44e31f5d6e07fa048"
+    },
+    "macos-producer-evidence/status-after-build.stderr": {
+      "path": "initial/macos-producer-evidence/status-after-build.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/status-after-build.stdout": {
+      "path": "initial/macos-producer-evidence/status-after-build.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/status-before.json": {
+      "path": "initial/macos-producer-evidence/status-before.json.gz",
+      "encoding": "gzip",
+      "sha256": "dafefe03d2546e420cb00b71798fd6f16b337c7722df30632f1ada286ad0b602",
+      "raw_sha256": "bcede37ba6fc5e81f62a5b23c1c0e267d343c6c73c241121bb183ffe519421be"
+    },
+    "macos-producer-evidence/status-before.stderr": {
+      "path": "initial/macos-producer-evidence/status-before.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/status-before.stdout": {
+      "path": "initial/macos-producer-evidence/status-before.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/tree-after-assembly.json": {
+      "path": "initial/macos-producer-evidence/tree-after-assembly.json.gz",
+      "encoding": "gzip",
+      "sha256": "dfc9af674493153b52b03180da3c2043529beb18de52c4e4623f0bf0a046f39c",
+      "raw_sha256": "1bef49d81064218cb1dec97755b1233834c9d5402e68317941e311257a242906"
+    },
+    "macos-producer-evidence/tree-after-assembly.stderr": {
+      "path": "initial/macos-producer-evidence/tree-after-assembly.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/tree-after-assembly.stdout": {
+      "path": "initial/macos-producer-evidence/tree-after-assembly.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "cbf93a4b6c64fedfd9a8c4682a8b31edc567dd35a9ac6ffe6e1380aacab8ea8b",
+      "raw_sha256": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401"
+    },
+    "macos-producer-evidence/tree-after-build.json": {
+      "path": "initial/macos-producer-evidence/tree-after-build.json.gz",
+      "encoding": "gzip",
+      "sha256": "11f3d4cfd7958451e84622688594d8126e4c02a32b0fa353808f31d908fc93bb",
+      "raw_sha256": "e51bbdc4be02668b1e27507d9a9ea240844e2e7307340ab2a7eb97b16cf1179a"
+    },
+    "macos-producer-evidence/tree-after-build.stderr": {
+      "path": "initial/macos-producer-evidence/tree-after-build.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/tree-after-build.stdout": {
+      "path": "initial/macos-producer-evidence/tree-after-build.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "cbf93a4b6c64fedfd9a8c4682a8b31edc567dd35a9ac6ffe6e1380aacab8ea8b",
+      "raw_sha256": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401"
+    },
+    "macos-producer-evidence/tree-before.json": {
+      "path": "initial/macos-producer-evidence/tree-before.json.gz",
+      "encoding": "gzip",
+      "sha256": "699e1b2ef770e545228f79dbd4083f01bd6495ead89b7bf555a5199a1244b76e",
+      "raw_sha256": "cc9ad70cd7bf78c2eb81aaa9f52cea600fcf7259af24bb40d106df43eb6ad216"
+    },
+    "macos-producer-evidence/tree-before.stderr": {
+      "path": "initial/macos-producer-evidence/tree-before.stderr.gz",
+      "encoding": "gzip",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "macos-producer-evidence/tree-before.stdout": {
+      "path": "initial/macos-producer-evidence/tree-before.stdout.gz",
+      "encoding": "gzip",
+      "sha256": "cbf93a4b6c64fedfd9a8c4682a8b31edc567dd35a9ac6ffe6e1380aacab8ea8b",
+      "raw_sha256": "f0b5c747b675198fa3b0f3bfcf09ae89cf7b8540d9523a5ea1d9ca31ce495401"
+    }
+  },
+  "delivery_status": "implementation-accepted-awaiting-final-head-ci-merge-main"
+}

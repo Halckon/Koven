@@ -265,3 +265,21 @@ M1B与新增标准库API仍需各自语义决定，M4b仅在准备有界生成�
 M1B-b文本输入与新String API、性能、M3新增API、M4b真实故障校准及完整M5/M6保持各自前置。
 下一M3A候选可先补现行语义中直接容器泛型签名的native替换；待本次合并后，从最新main
 独立分支起合同并红测。body-only新canonical类型发布、递归模板与短路owner合流不自动扩入。
+
+
+## 17. M3A 直接泛型容器签名交付与后继准备（2026-10-05）
+
+0275已由[PR53](https://github.com/Halckon/Koven/pull/53)合并为
+`2be64066a2011bb07a31bd68f9ac7441ab5a4baf`。最终归档head `49faf59` 的
+[CI37252410423](https://github.com/Halckon/Koven/actions/runs/37252410423)必需14job成功，
+编辑器因无对应变更合法skip；实际main
+[CI37253329605](https://github.com/Halckon/Koven/actions/runs/37253329605)15/15成功，含编辑器执行。
+两轮双宿主各13新增测试逐名ok、各37条词频与12条preview命令完整bytes已独立核验。
+精确head/tree、raw hashes、job/artifact身份与既有macOS LLDB ignore见
+[交付闭环账本](evidence/generic-containers-0275-delivery.json)，原archive验收历史未重写。
+
+最新main的独立分支`feature/spec-0276`按[0276正式合同](../archive/specs/0276-unit-generic-body-type-normalization.md)补普通顶层泛型函数body-only具体类型需求，
+避免依赖签名或未使用声明补种canonical。有限类型归一化与现有
+Phase4实例预算/recipe错误优先级的兼容性准备审阅已通过，ADR0028已accepted；
+G1–G6与G7实现验收已通过本地门禁及PR54双宿主CI；最终归档head和actual main闭环待，证据见正式Spec。
+M1B-b、新API、泛型owner/member扩张、真实故障校准、性能及完整M5/M6仍按原前置推进。
