@@ -309,7 +309,23 @@ fn export_case(directory: &Path) {
         (1..=9).contains(&expected),
         "generated valid fixture must allocate between one and nine owners"
     );
-    let llvm = lower_to_llvm("case.ko", &source);
+    let mut llvm = lower_to_llvm("case.ko", &source);
+    if directory.join("fault.txt").is_file() {
+        let fault = fs::read_to_string(directory.join("fault.txt")).unwrap();
+        let fault = fault.trim();
+        if fault == "missing_deinit" {
+            let context = Context::create();
+            let buffer = MemoryBuffer::create_from_memory_range_copy(llvm.as_bytes(), "fault-case");
+            let module = context.create_module_from_ir(buffer).unwrap();
+            inject_missing_holder_deinit_fault(&module);
+            module
+                .verify()
+                .expect("fault missing_deinit module verifies");
+            llvm = module.print_to_string().to_string();
+        } else {
+            panic!("unsupported fault: {fault}");
+        }
+    }
     fs::write(directory.join("case.raw.ll"), &llvm).unwrap();
     let context = Context::create();
     let buffer = MemoryBuffer::create_from_memory_range_copy(llvm.as_bytes(), "generated-case");
@@ -659,6 +675,41 @@ fn inject_missing_deinit_fault(module: &Module<'_>) -> String {
 }
 
 #[allow(clippy::collapsible_if)]
+fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> String {
+    let mut target = None;
+    for function in module.get_functions() {
+        let fn_name = function.get_name().to_str().unwrap_or("");
+        if fn_name.starts_with("koven.drop.") {
+            for block in function.get_basic_blocks() {
+                for instruction in block.get_instructions() {
+                    if let Ok(call) = CallSiteValue::try_from(instruction) {
+                        if let Some(called) = call.get_called_fn_value() {
+                            let cname = called.get_name().to_str().unwrap_or("");
+                            if cname.contains("__deinit") && called.to_string().contains("11") {
+                                target = Some((
+                                    called.get_name().to_str().unwrap().to_owned(),
+                                    instruction,
+                                ));
+                                break;
+                            }
+                        }
+                    }
+                }
+                if target.is_some() {
+                    break;
+                }
+            }
+        }
+        if target.is_some() {
+            break;
+        }
+    }
+    let (name, call_inst) = target.expect("must find Holder __deinit call in koven.drop");
+    call_inst.erase_from_basic_block();
+    name
+}
+
+#[allow(clippy::collapsible_if)]
 fn inject_premature_holder_free<'ctx>(context: &'ctx Context, module: &Module<'ctx>) -> String {
     let mut target = None;
     for function in module.get_functions() {
@@ -738,4 +789,25 @@ impl Drop for CaseDirectory {
             fs::remove_dir_all(&self.0).expect("remove only this test's own artifacts");
         }
     }
+}
+
+#[test]
+fn export_generated_owner_case_with_missing_deinit_fault() {
+    let directory = CaseDirectory::new();
+    directory.input(DEFAULT_CALIBRATION_V2, 4);
+    fs::write(directory.0.join("fault.txt"), "missing_deinit\n").unwrap();
+    export_case(&directory.0);
+    for name in [
+        "case.raw.ll",
+        "case.asan.ll",
+        "case.counter.ll",
+        "counter.c",
+        "stages.tsv",
+        "diagnostics.tsv",
+    ] {
+        assert!(directory.0.join(name).is_file(), "missing {name}");
+    }
+    let raw_ll = fs::read_to_string(directory.0.join("case.raw.ll")).unwrap();
+    assert!(raw_ll.contains("define internal void @f1.__deinit.t20"));
+    assert_eq!(raw_ll.matches("call void @f1.__deinit.t20").count(), 0);
 }

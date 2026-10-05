@@ -16,12 +16,13 @@ class GeneratedOwnerReductionTests(unittest.TestCase):
             executor = mock.Mock()
             executor.deadline = 999999.0
 
-            # Mock export to produce a stages.tsv and diagnostics.tsv reporting L0131
-            def export(d):
-                (d / "stages.tsv").write_text("parse\t0\nnames\t0\ntypes\t0\nownership\t1\n")
-                (d / "diagnostics.tsv").write_text("ownership\tL0131\t10\t15\t5:9\n")
+            # Mock case execution: clean succeeds, fault raises missing_deinit
+            def case_mock(directory):
+                if (directory / "fault.txt").is_file():
+                    raise checks.Failure("native", "native_output_mismatch", "drop:holder", stable_witness=True)
+                return None
 
-            executor.export.side_effect = export
+            executor.case.side_effect = case_mock
             result = reducer.run_reduction(executor, root)
 
             self.assertEqual("reproduced", result["status"])

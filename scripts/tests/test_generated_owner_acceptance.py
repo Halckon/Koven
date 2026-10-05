@@ -61,7 +61,7 @@ class AcceptancePolicyTests(unittest.TestCase):
             with self.subTest(report=value), self.assertRaises(gate.Failure):
                 gate.calibration_verdict(value, linux=False)
 
-    def test_driver_reports_unvalidated_g5_fails_and_never_runs_reducer(self):
+    def test_driver_runs_reduction_and_aggregates_acceptance(self):
         for linux in [True, False]:
             with self.subTest(linux=linux), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp) / 'out'
@@ -75,13 +75,33 @@ class AcceptancePolicyTests(unittest.TestCase):
                      mock.patch.object(gate.checker_mutation, 'verify_checker_mutant', return_value=dict(status='pass')), \
                      mock.patch.object(gate.reduction, 'run_reduction', return_value=dict(status='reproduced', confirmation_count=3)) as reducer, \
                      contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    self.assertEqual(1, gate.main(['--artifacts', str(root)]))
-                reducer.assert_not_called()
+                    self.assertEqual(0, gate.main(['--artifacts', str(root)]))
+                reducer.assert_called_once()
                 report = json.loads((root / 'acceptance.json').read_text())
-                self.assertEqual('partial', report['status'])
-                self.assertFalse(report['requirements_met'])
-                self.assertEqual('not_validated', report['reduction']['status'])
-                self.assertIn('G5:real-failure-reduction-not-validated', report['partial_reasons'])
+                if linux:
+                    self.assertEqual('pass', report['status'])
+                    self.assertTrue(report['requirements_met'])
+                    self.assertNotIn('partial_reasons', report)
+                else:
+                    self.assertEqual('partial', report['status'])
+                    self.assertFalse(report['requirements_met'])
+                    self.assertEqual(calibration(False)['skipped_reasons'], report['partial_reasons'])
+                self.assertEqual('reproduced', report['reduction']['status'])
+
+    def test_driver_fails_when_reduction_incomplete(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / 'out'
+            executor = mock.Mock(linux=True)
+            def prepare(case, folder):
+                folder.mkdir(); (folder / 'case.json').write_text(json.dumps(case))
+            with mock.patch.object(gate, 'Execution', return_value=executor), \
+                 mock.patch.object(gate.model, 'cases', return_value=[dict(id='fixture')]), \
+                 mock.patch.object(gate, 'prepare_case', side_effect=prepare), \
+                 mock.patch.object(gate.calibration, 'verify', return_value=calibration(True)), \
+                 mock.patch.object(gate.checker_mutation, 'verify_checker_mutant', return_value=dict(status='pass')), \
+                 mock.patch.object(gate.reduction, 'run_reduction', return_value=dict(status='minimization_incomplete', confirmation_count=0)), \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(1, gate.main(['--artifacts', str(root)]))
 
     def test_linux_detector_gap_stops_before_checker(self):
         with tempfile.TemporaryDirectory() as temp:

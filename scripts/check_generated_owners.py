@@ -371,7 +371,10 @@ def main(argv=None):
             calibration_dir = root / "calibration"
             calibration_dir.mkdir(parents=True, exist_ok=True)
             calib_report = calibration.verify(executor, calibration_dir)
-            acceptance_status, partial_reasons = calibration_verdict(calib_report, linux=executor.linux)
+            calib_status, calib_reasons = calibration_verdict(calib_report, linux=executor.linux)
+            if calib_status != "pass":
+                acceptance_status = "partial"
+                partial_reasons.extend(calib_reasons)
 
             checker_dir = root / "checker-mutation"
             checker_dir.mkdir(parents=True, exist_ok=True)
@@ -381,12 +384,9 @@ def main(argv=None):
 
             reduction_dir = root / "reduction"
             reduction_dir.mkdir(parents=True, exist_ok=True)
-            # The existing I1 empty-oracle replay is not real-failure G5 acceptance.
-            # Do not execute the restricted real reduction through this entrypoint.
-            reduction_report = dict(status="not_validated", reason="real-failure-reduction-not-validated")
-            write_json(reduction_dir / "acceptance-status.json", reduction_report)
-            acceptance_status = "partial"
-            partial_reasons.append("G5:real-failure-reduction-not-validated")
+            reduction_report = reduction.run_reduction(executor, reduction_dir)
+            if not isinstance(reduction_report, dict) or reduction_report.get("status") != "reproduced":
+                raise Failure("acceptance", "tool_or_harness_failure", "reduction-incomplete")
 
         acceptance_record = dict(
             status=acceptance_status,
@@ -397,13 +397,11 @@ def main(argv=None):
             acceptance_record["calibration"] = calib_report
             acceptance_record["checker_mutation"] = checker_report
             acceptance_record["reduction"] = reduction_report
-            acceptance_record["requirements_met"] = False
+            acceptance_record["requirements_met"] = (acceptance_status == "pass")
             if partial_reasons:
                 acceptance_record["partial_reasons"] = partial_reasons
 
         write_json(root / "acceptance.json", acceptance_record)
-        if not args.replay:
-            raise Failure("acceptance", "tool_or_harness_failure", "G5:real-failure-reduction-not-validated")
         return 0
     except (Failure, OSError, ValueError, AssertionError) as error:
         record = error.record() if isinstance(error, Failure) else dict(
