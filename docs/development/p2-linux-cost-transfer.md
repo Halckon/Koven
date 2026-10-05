@@ -44,7 +44,7 @@ C observer child RSS各自独立；compile/link归属和最大报告RSS不是exc
 旧Mac的超噪声停止不被本包覆盖；旧云raw缺失不被补造。
 
 云base `c5c4a8df` 的CI37248672159和云修复 `2aa75b0c` 的1704全量通过各属其精确输入；
-不当作最新Mac、0277新分支CI或后继0275成本证据。新分支CI尚未运行；
+不当作最新Mac、0277新分支CI或后继0275成本证据。原接收时新分支CI尚未运行；
 用户成本接受仍开放，证据已交付不会自动构成豁免。
 
 ## Mac 定向接收验收
@@ -56,7 +56,7 @@ C observer child RSS各自独立；compile/link归属和最大报告RSS不是exc
 和[green命令/口径](evidence/p2-linux-20261005/mac-green.json)独立保存，不混用云结果。
 v2的20项Python回归在Mac实际通过，fmt/受影响严格Clippy/尺寸门禁亦通过；
 尺寸报告781手写Rust、45旧超限，两变更文件579/396行，未扩大既有policy。
-未执行Mac全量frontend、native/其他crate全回归或P2重采样；新分支CI未运行。
+原接收阶段未执行Mac全量frontend、native/其他crate全回归或P2重采样；当时新分支CI未运行。
 
 本地材料提交 `9c08a666c97336b260a6382d0f6e3594e69e54e8`；
 修复与验收提交 `550d540e27e1a174c7a5ba6917b383a186b136fa` 对应云修复
@@ -78,4 +78,16 @@ Mac包含后继0275及本批Spec/证据，不宣称恢复云commit SHA或整树�
 
 0277精确实现head08e266b的PR55 CI37263936116实际15/15通过，两个修复binary在两宿主
 各完整2+3、无忽略/过滤，四项接线政策逐名ok；原始验收见[PR实现账本](evidence/p2-linux-20261005/pr-initial-ci.json)。
-实现已归档，最终归档head CI及merge/main尚待；整体P2预算不在本片关闭。
+实现验收当时已归档、最终归档head与merge/main待；其后真实交付闭环如下。整体P2预算不在本片关闭。
+
+## PR55 与实际 main 交付闭环（2026-10-05）
+
+PR55于05:05:38Z合并为`54b36675481c15da8a1f31d9d3185e4b49c83096`，保留原三个本地提交。
+最终归档head `e66ad0d68fc662e1fedf895e8912ae44b06e9a59`的
+[CI37265259330](https://github.com/Halckon/Koven/actions/runs/37265259330)及实际main
+[CI37266255625](https://github.com/Halckon/Koven/actions/runs/37266255625)均15/15实际success，无skip。
+两轮双宿主各两个修复binary完整2+3测试、无ignored/filtered，四项接线政策逐名ok；
+各37条词频和12条preview命令、实际下载candidate所有manifest bytes及producer精确head/tree/clean
+输出已独立核验，见[完整交付账本](evidence/p2-linux-0277-delivery.json)及每轮105份原始字节压缩记录。
+继承0276的31项回归单独记录，macOS既有LLDB ignore仍未执行，不作为通过。
+原Spec与成本包保持冻结；未重采样、未接受预算，12噪声和首启单对调查及旧Mac限制仍开放。

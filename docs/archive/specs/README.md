@@ -387,4 +387,4 @@
 
 - [SPEC-0276](0276-unit-generic-body-type-normalization.md)：普通泛型body具体类型发布、有限预算/DAG及native消费者适配经双宿主实现CI验收；最终归档/main闭环待。
 
-- [SPEC-0277](0277-p2-evidence-test-alignment.md)：完整Linux P2证据接收、现行词法测试对齐及79项CI组合，经双宿主实际实现CI验收；最终head/merge/main待，整体P2成本预算未接受。
+- [SPEC-0277](0277-p2-evidence-test-alignment.md)：完整Linux P2证据接收、现行词法测试对齐及79项CI组合，经双宿主实际实现CI验收；最终head及actual main已闭环，见[交付账本](../../development/evidence/p2-linux-0277-delivery.json)，整体P2成本预算未接受。
