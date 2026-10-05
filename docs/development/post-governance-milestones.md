@@ -281,5 +281,18 @@ M1B-b文本输入与新String API、性能、M3新增API、M4b真实故障校准
 最新main的独立分支`feature/spec-0276`按[0276正式合同](../archive/specs/0276-unit-generic-body-type-normalization.md)补普通顶层泛型函数body-only具体类型需求，
 避免依赖签名或未使用声明补种canonical。有限类型归一化与现有
 Phase4实例预算/recipe错误优先级的兼容性准备审阅已通过，ADR0028已accepted；
-G1–G6与G7实现验收已通过本地门禁及PR54双宿主CI；最终归档head和actual main闭环待，证据见正式Spec。
+G1–G6与G7实现验收已通过本地门禁及PR54双宿主CI；最终归档head和actual main已闭环，见[交付账本](evidence/generic-body-0276-delivery.json)。
 M1B-b、新API、泛型owner/member扩张、真实故障校准、性能及完整M5/M6仍按原前置推进。
+
+
+## 18. 0276闭环与本地0277接入（2026-10-05）
+
+PR54于04:08:15Z合并为`18b89e5ebce171f50680ba96fbc5a2e27025b6c9`。最终归档
+[CI37261439931](https://github.com/Halckon/Koven/actions/runs/37261439931)必需14job成功、编辑器合法skip；
+实际main [CI37262203567](https://github.com/Halckon/Koven/actions/runs/37262203567)15/15成功。
+两轮实际候选包全部manifest bytes、37条词频和12条preview命令、双宿主新增测试及producer
+精确head/tree/clean输出均已独立核验，完整raw及hash见上述live交付账本；冻结archive未改写。
+
+按用户本地分支接入要求，0277保留三个原提交并合入此main；实际接入复验与新head PR CI
+见[0277合同](../archive/specs/0277-p2-evidence-test-alignment.md)。P2成本预算仍未接受，不作为本片交付完成条件。
+后继运行时长度构造尚需正式Spec/共享表示ADR及失败测试；0277编号已占用，不复用。

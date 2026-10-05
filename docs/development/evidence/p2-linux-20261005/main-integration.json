@@ -1,0 +1,207 @@
+{
+  "source_commit": "ba8c1a60765244a1db03b4ae93ab75c2626c6b2f",
+  "source_tree": "bf6d6468ec26e86e5bc322a3eb025a0161321b89",
+  "records": [
+    {
+      "name": "changed-tests",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j",
+        "2",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "parser_long_invalid_number_boundaries",
+        "--test",
+        "parser_token_inventory",
+        "--no-fail-fast"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "elapsed_seconds": 13.87098537501879,
+      "log": {
+        "path": "main-integration/changed-tests.log.gz",
+        "encoding": "gzip",
+        "sha256": "5feb96bbfed3da8f71d8bcd4e3a45c0b00cf926d2a0f59a56661976db13e02de",
+        "raw_sha256": "7467e11657ce2a602a0d9d88bba401a580cbc31b7ada3e1bbd1253655be838d2"
+      }
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-j",
+        "2",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "parser_long_invalid_number_boundaries",
+        "--test",
+        "parser_token_inventory",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "elapsed_seconds": 2.382096624933183,
+      "log": {
+        "path": "main-integration/clippy.log.gz",
+        "encoding": "gzip",
+        "sha256": "62055ba5d0290fa1506aa9e43152e3234bd49c100136bdc1910881e4d8d8fe79",
+        "raw_sha256": "2600ad1386df6276c5d02811f2532cb4b374edbc76883d2a87425ca812526801"
+      }
+    },
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "elapsed_seconds": 1.8576033329591155,
+      "log": {
+        "path": "main-integration/fmt.log.gz",
+        "encoding": "gzip",
+        "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "ci-policy",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "scripts.tests.test_check_ci_results",
+        "scripts.tests.test_recovery_gates"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "elapsed_seconds": 9.636710041901097,
+      "log": {
+        "path": "main-integration/ci-policy.log.gz",
+        "encoding": "gzip",
+        "sha256": "1650c460774ea53bda15dbec64ebf3e527d84f2554588221323c523c4c92636b",
+        "raw_sha256": "c34fe1601d74a946a3e9ba394e4f8223193bf1de4dad902a65169579f5f9592d"
+      }
+    },
+    {
+      "name": "docs-tests",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "scripts.tests.test_check_docs"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "elapsed_seconds": 0.0892473328858614,
+      "log": {
+        "path": "main-integration/docs-tests.log.gz",
+        "encoding": "gzip",
+        "sha256": "f7f418b8c6d86f511e4c031b6fe78f8c1de0261de31b0325f8ddd89d0112a07d",
+        "raw_sha256": "27b74799ef4ec4ff07c31e56cdc0ec55c9b57cea28747de896593115e39d3adf"
+      }
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "python3",
+        "scripts/check_docs.py"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "elapsed_seconds": 0.7824837500229478,
+      "log": {
+        "path": "main-integration/docs.log.gz",
+        "encoding": "gzip",
+        "sha256": "e3c8d0f31e3f522e1a20707489d1629d62cc41404cfc5ce81e2bf613aa2d27bc",
+        "raw_sha256": "faade8ec9ad9f2e61ac379b13ef83cdae76f0a967eceb84fc7221d3c48d52c89"
+      }
+    },
+    {
+      "name": "rust-sizes",
+      "argv": [
+        "python3",
+        "scripts/check_rust_sizes.py",
+        "--base",
+        "18b89e5ebce171f50680ba96fbc5a2e27025b6c9"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "elapsed_seconds": 10.038505333010107,
+      "log": {
+        "path": "main-integration/rust-sizes.log.gz",
+        "encoding": "gzip",
+        "sha256": "216dcb9cd6eba36601c65d5b881f550150be03bb201d83d7c1ed718cb855a94d",
+        "raw_sha256": "23586b1044e19cb86db612c32fbd8874a560d4b16e2d32edeb654e5b66cd2c41"
+      }
+    },
+    {
+      "name": "shell-syntax",
+      "argv": [
+        "bash",
+        "-n",
+        "scripts/check_stage_integration.sh"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "elapsed_seconds": 0.0026024170219898224,
+      "log": {
+        "path": "main-integration/shell-syntax.log.gz",
+        "encoding": "gzip",
+        "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "diff-check",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "elapsed_seconds": 0.013036958174780011,
+      "log": {
+        "path": "main-integration/diff-check.log.gz",
+        "encoding": "gzip",
+        "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "target_dir": "/private/tmp/koven-spec0277-review-target",
+  "profile": "default; CARGO_PROFILE_* cleared",
+  "python_bytecode_disabled": true,
+  "schema": "koven.spec0277-main-integration.v1",
+  "integrated_main": "18b89e5ebce171f50680ba96fbc5a2e27025b6c9",
+  "preserved_original_commits": [
+    "9c08a666c97336b260a6382d0f6e3594e69e54e8",
+    "550d540e27e1a174c7a5ba6917b383a186b136fa",
+    "f18e0391a85ed60e75d48da5f56dc4103d96884c"
+  ],
+  "test_file_sha256": {
+    "crates/lang-frontend/tests/parser_long_invalid_number_boundaries.rs": "c6860815bffd37f91dc22519fc53509640d810fb9eeab634fd3ae605a6b16073",
+    "crates/lang-frontend/tests/parser_token_inventory.rs": "123091e6dadaa3f6ed748aa5bf29b170696a0efe4c7766e3995989e4df9c553b"
+  },
+  "cost_sampling": false,
+  "cost_budget_acceptance": "not-decided",
+  "notes": [
+    "These nine checks ran serially against the stated merge commit, before receipt/document changes.",
+    "The real dual-host PR head CI, archive final-head CI, merge and actual main closure remain pending.",
+    "Unchanged incoming main production was covered by its exact main CI; this local run targets the repaired tests and affected contracts."
+  ]
+}

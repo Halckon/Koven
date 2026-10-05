@@ -2,6 +2,7 @@
 
 import importlib.util
 import re
+import shlex
 import unittest
 from pathlib import Path
 
@@ -37,7 +38,40 @@ def stage_target_occurrences(stage, target):
             for _ in re.findall(pattern, line)]
 
 
+def stage_command_is_unfiltered(command):
+    """Accept the bounded stage argv only; Cargo positional filters also filter tests."""
+    tokens = shlex.split(command)
+    if tokens[:3] != ["run", "cargo", "test"]:
+        return False
+    cursor = 3
+    while cursor < len(tokens):
+        if tokens[cursor] in ("--locked", "--no-fail-fast"):
+            cursor += 1
+        elif (tokens[cursor] in ("-p", "--test") and cursor + 1 < len(tokens)
+              and not tokens[cursor + 1].startswith("-")):
+            cursor += 2
+        else:
+            return False
+    return True
+
+
 class CheckCiResultsTests(unittest.TestCase):
+    def test_lexical_alignment_targets_are_selected_once_without_filters(self):
+        # The repaired parser matrices must execute on both CI hosts.
+        root = Path(__file__).resolve().parents[2]
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        for target in ("parser_long_invalid_number_boundaries", "parser_token_inventory"):
+            with self.subTest(target=target):
+                selected = stage_target_occurrences(stage, target)
+                self.assertEqual(1, len(selected))
+                self.assertTrue(stage_command_is_unfiltered(selected[0]), "contract targets must not be filtered")
+
+    def test_lexical_alignment_guard_rejects_cargo_positional_and_libtest_filters(self):
+        command = "run cargo test --locked -p lang-frontend --no-fail-fast --test parser_token_inventory"
+        for suffix in (" inventory_is_unique_and_covers_every_public_lexical_family", " -- inventory_is_unique"):
+            with self.subTest(suffix=suffix):
+                self.assertFalse(stage_command_is_unfiltered(command + suffix))
+
     def test_docs_only_pr_can_skip_rust(self):
         self.assertEqual([], CI.check_results(
             needs("true", "false", docs="success"), "pull_request", "refs/pull/1/merge"))

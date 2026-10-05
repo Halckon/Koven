@@ -1,0 +1,52 @@
+Command: cargo test --locked --offline -j 2 -p lang-frontend --test parser_long_invalid_number_boundaries --test parser_token_inventory --no-fail-fast
+Exit: 101
+   Compiling lang-frontend v0.1.0 ([MAC_SPEC_WORKTREE]/crates/lang-frontend)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.03s
+     Running tests/parser_long_invalid_number_boundaries.rs (target/debug/deps/parser_long_invalid_number_boundaries-5b3bcbc1c6ad4edc)
+
+running 1 test
+test every_public_entry_preserves_each_long_invalid_number_before_a_real_operator ... FAILED
+
+failures:
+
+---- every_public_entry_preserves_each_long_invalid_number_before_a_real_operator stdout ----
+
+thread 'every_public_entry_preserves_each_long_invalid_number_before_a_real_operator' (56791271) panicked at crates/lang-frontend/tests/parser_long_invalid_number_boundaries.rs:167:5:
+assertion `left == right` failed: unexpected diagnostics for unsupported radix prefix tail expression: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_public_entry_preserves_each_long_invalid_number_before_a_real_operator
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p lang-frontend --test parser_long_invalid_number_boundaries`
+     Running tests/parser_token_inventory.rs (target/debug/deps/parser_token_inventory-55e313ff9720736a)
+
+running 3 tests
+test standalone_declaration_recovers_a_complete_string_as_one_user_error_region ... ok
+test inventory_is_unique_and_covers_every_public_lexical_family ... FAILED
+test every_lexical_fragment_preserves_output_invariants_in_every_public_parser_entry ... ok
+
+failures:
+
+---- inventory_is_unique_and_covers_every_public_lexical_family stdout ----
+
+thread 'inventory_is_unique_and_covers_every_public_lexical_family' (56791312) panicked at crates/lang-frontend/tests/parser_token_inventory.rs:128:9:
+assertion failed: matches!(first_non_eof_kind(&lexed), LexemeKind::Token(TokenKind::Keyword(_)))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    inventory_is_unique_and_covers_every_public_lexical_family
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `-p lang-frontend --test parser_token_inventory`
+error: 2 targets failed:
+    `-p lang-frontend --test parser_long_invalid_number_boundaries`
+    `-p lang-frontend --test parser_token_inventory`
+

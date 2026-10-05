@@ -91,12 +91,12 @@ class CompositionContracts(unittest.TestCase):
         cargo = [line for line in calls if line.startswith("cargo ")]
         targets = [target for line in cargo for target in re.findall(r"--test ([a-z0-9_]+)", line)]
         self.assertEqual(len(targets), len(set(targets)))
-        self.assertEqual(77, len(targets))
+        self.assertEqual(79, len(targets))
         self.assertEqual(10, len(cargo))
         self.assertTrue(calls[-1].endswith("scripts/check_tutorial.py"))
 
     def test_each_phase_propagates_failure_and_stops_following_phases(self):
-        for fail in ("--lib", "lang-codegen", "ownership_iteration", "numeric_literals", "parser_class_family", "parser_prefix_truncation_matrix", "guide_litmus", "check_tutorial"):
+        for fail in ("--lib", "lang-codegen", "ownership_iteration", "numeric_literals", "parser_class_family", "parser_prefix_truncation_matrix", "parser_long_invalid_number_boundaries", "parser_token_inventory", "guide_litmus", "check_tutorial"):
             with self.subTest(fail=fail):
                 status, calls = self.invoke(fail)
                 self.assertEqual(37, status)

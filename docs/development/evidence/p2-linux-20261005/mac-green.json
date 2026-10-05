@@ -1,0 +1,23 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-j",
+    "2",
+    "-p",
+    "lang-frontend",
+    "--test",
+    "parser_long_invalid_number_boundaries",
+    "--test",
+    "parser_token_inventory",
+    "--no-fail-fast"
+  ],
+  "exit": 0,
+  "seconds": 4.206925791921094,
+  "profile": "default unoptimized + debuginfo; CARGO_PROFILE_* cleared for process",
+  "host": "aarch64-apple-darwin",
+  "base": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+  "scope": "two changed integration targets only"
+}

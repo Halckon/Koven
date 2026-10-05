@@ -1,0 +1,232 @@
+{
+  "schema": "koven.spec0277-integration-preflight.v1",
+  "source_commit": "f18e0391a85ed60e75d48da5f56dc4103d96884c",
+  "source_tree": "3ea78828995052f45631ef6f2b69b47f484aa536",
+  "host": "aarch64-apple-darwin",
+  "date": "2026-10-05",
+  "test_file_sha256": {
+    "crates/lang-frontend/tests/parser_long_invalid_number_boundaries.rs": "c6860815bffd37f91dc22519fc53509640d810fb9eeab634fd3ae605a6b16073",
+    "crates/lang-frontend/tests/parser_token_inventory.rs": "123091e6dadaa3f6ed748aa5bf29b170696a0efe4c7766e3995989e4df9c553b"
+  },
+  "tools": {
+    "rustc": {
+      "argv": [
+        "rustc",
+        "-vV"
+      ],
+      "exit": 0,
+      "stdout": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2\n",
+      "stderr": ""
+    },
+    "cargo": {
+      "argv": [
+        "cargo",
+        "-V"
+      ],
+      "exit": 0,
+      "stdout": "cargo 1.96.0 (30a34c682 2026-05-25)\n",
+      "stderr": ""
+    },
+    "python": {
+      "argv": [
+        "python3",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "Python 3.14.7\n",
+      "stderr": ""
+    }
+  },
+  "records": [
+    {
+      "name": "changed-tests",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j",
+        "2",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "parser_long_invalid_number_boundaries",
+        "--test",
+        "parser_token_inventory",
+        "--no-fail-fast"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "scope": "two changed integration targets; 5 passed/0 ignored/0 filtered",
+      "stream": "combined stdout and stderr",
+      "log": {
+        "path": "integration-preflight/changed-tests.log.gz",
+        "encoding": "gzip",
+        "sha256": "fd403e13567689e70500875251f19c98030056f8a70dcabf6501dfc5b2d11aee",
+        "raw_sha256": "b1709a912dd4dc15fa87a453ea5313b9929765478d8de6635414c10a3a11ea25"
+      }
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-j",
+        "2",
+        "-p",
+        "lang-frontend",
+        "--test",
+        "parser_long_invalid_number_boundaries",
+        "--test",
+        "parser_token_inventory",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "scope": "two changed integration targets; separate target directory",
+      "stream": "combined stdout and stderr",
+      "log": {
+        "path": "integration-preflight/clippy.log.gz",
+        "encoding": "gzip",
+        "sha256": "ca9a5a4c06c2a3e5873f1415d2622453486f6ad86499536efafc219314660e5a",
+        "raw_sha256": "e0b163c71353ff42cd6a48c1333b8ffaa128f082dbaf81c5a5665e7cc47c6ee1"
+      }
+    },
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "scope": "workspace read-only format check",
+      "stream": "combined stdout and stderr",
+      "log": {
+        "path": "integration-preflight/fmt.log.gz",
+        "encoding": "gzip",
+        "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "transfer-verifier",
+      "argv": [
+        "python3",
+        "/private/tmp/koven-pr0277-review-4wh8_i_h/koven-p2-linux-20261005/verify_transfer.py",
+        "/private/tmp/koven-pr0277-review-4wh8_i_h/koven-p2-linux-20261005"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "scope": "5266 payload hashes; no archived sample executed",
+      "stream": "combined stdout and stderr",
+      "log": {
+        "path": "integration-preflight/transfer-verifier.log.gz",
+        "encoding": "gzip",
+        "sha256": "e70153a665934ae915265a5bfb593716d6802f724ea255eaeea3787117604961",
+        "raw_sha256": "cfa9543b52bd1ff374c834948c20b554829577cd26d39c21cd533cb406d7d442"
+      }
+    },
+    {
+      "name": "summary-v2-tests",
+      "argv": [
+        "python3",
+        "/private/tmp/koven-pr0277-review-4wh8_i_h/koven-p2-linux-20261005/test_summarize_v2.py"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "scope": "20 regressions; not cost sampling",
+      "stream": "combined stdout and stderr",
+      "log": {
+        "path": "integration-preflight/summary-v2-tests.log.gz",
+        "encoding": "gzip",
+        "sha256": "ea0a152dfd189f03694d68d204f54a8b51bd4eaff55bce031ce71f9e51a97927",
+        "raw_sha256": "934fbd5a312f62ca0550421568333d771ce80ff82d638fad82fd908dd5549f55"
+      }
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "python3",
+        "scripts/check_docs.py"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "stdout": {
+        "path": "integration-preflight/docs.stdout.gz",
+        "encoding": "gzip",
+        "sha256": "82d944f045444e2cdc922794612b829c1368a0093e32e6e4572e94a92e9e5d79",
+        "raw_sha256": "9d73bc3d2432a947143184a0a9925311b0e119eb8151160010c3995c3c87e33c"
+      },
+      "stderr": {
+        "path": "integration-preflight/docs.stderr.gz",
+        "encoding": "gzip",
+        "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "docs-tests",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "scripts.tests.test_check_docs"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "stdout": {
+        "path": "integration-preflight/docs-tests.stdout.gz",
+        "encoding": "gzip",
+        "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "integration-preflight/docs-tests.stderr.gz",
+        "encoding": "gzip",
+        "sha256": "7be40e2fd8fa7f07d2e6d780b3f7a31fa6ef4e8a6f4a718649a1033e92ae3209",
+        "raw_sha256": "15e9e0737206f20e2d413b4066c3cb4fc506ddc669ff7bd7652e48e0f68b8a5f"
+      }
+    },
+    {
+      "name": "rust-sizes",
+      "argv": [
+        "python3",
+        "scripts/check_rust_sizes.py",
+        "--base",
+        "2be64066a2011bb07a31bd68f9ac7441ab5a4baf"
+      ],
+      "cwd": "/private/tmp/koven-spec0277",
+      "exit": 0,
+      "stdout": {
+        "path": "integration-preflight/rust-sizes.stdout.gz",
+        "encoding": "gzip",
+        "sha256": "b389a32742a584006c3a8eea311f543096d5e2923b525c0d13598d5532b68f20",
+        "raw_sha256": "acfc478a7aeb0bbd2e47e537e90edac9e412af73bc5e6658bedd45b03c272c0e"
+      },
+      "stderr": {
+        "path": "integration-preflight/rust-sizes.stderr.gz",
+        "encoding": "gzip",
+        "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "target_dir": "/private/tmp/koven-spec0277-review-target",
+  "test_profile": "default unoptimized + debuginfo; CARGO_PROFILE_* cleared for test process",
+  "python_bytecode_disabled": true,
+  "cost_sampling": false,
+  "cost_budget_acceptance": "not-decided",
+  "notes": [
+    "This is fresh revalidation at the stated commit; it does not recreate the earlier 0.009s Mac run.",
+    "Historical receipt statements are preserved; the prior missing Mac gate raw output is not claimed recovered.",
+    "Latest main integration, exact PR head CI, archival and merge/main closure remain pending."
+  ]
+}
