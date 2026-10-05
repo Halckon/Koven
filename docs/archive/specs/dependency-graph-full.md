@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，261 份）"]
+subgraph Garchive["已完成（archive，262 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -270,8 +270,6 @@ subgraph Garchive["已完成（archive，261 份）"]
   S0273["S0273<br/>单文件控制体正常退出的资源清理"]
   S0274["S0274<br/>现行语义下的多文件 argv 词频程序"]
   S0275["S0275<br/>Unit 泛型函数直接容器签名的具体类型替换"]
-end
-subgraph Gactive["现行 active"]
   S0276["S0276<br/>Unit 普通泛型函数体的具体类型归一化"]
 end
 S0001 --> S0002
@@ -1512,4 +1510,4 @@ S0275 --> S0276
 | SPEC-0273 | archive | [0273-control-body-resource-cleanup.md](0273-control-body-resource-cleanup.md) |
 | SPEC-0274 | archive | [0274-argv-word-frequency.md](0274-argv-word-frequency.md) |
 | SPEC-0275 | archive | [0275-unit-generic-container-signatures.md](0275-unit-generic-container-signatures.md) |
-| SPEC-0276 | active | [0276-unit-generic-body-type-normalization.md](../../specs/active/0276-unit-generic-body-type-normalization.md) |
+| SPEC-0276 | archive | [0276-unit-generic-body-type-normalization.md](0276-unit-generic-body-type-normalization.md) |

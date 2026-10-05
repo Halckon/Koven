@@ -1,10 +1,10 @@
 # SPEC-0276: Unit 普通泛型函数体的具体类型归一化
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：补齐普通顶层泛型 body 的具体类型身份时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：补齐普通顶层泛型 body 的具体类型身份时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-276` |
 | 所属 Phase | Phase 2 发布具体类型身份；Phase 3 保持所有权事实；Phase 4 消费并执行 |
 | 语言规范 | [Guide v0.40](../../guide/README.md)、[泛型](../../guide/03-types-generics.md)、[集合](../../guide/12-collections-destructuring.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0275 |
 | 前置 ADR | ADR-0020 |
 | 关联 ADR | [ADR-0028](../../adr/accepted/0028-frontend-generic-body-type-normalization.md)（accepted） |
-| 阻塞项 | 无；G1–G7仍需fail-first及实际验收 |
+| 阻塞项 | 实现验收已通过；最终归档head CI、merge/main交付仍待 |
 | 影响范围 | unit body checker 私有类型归一化、共享实例上限、ordinary static callee storage角色、已有nullable handle的deinit可达性、直接 frontend/SSA/native 验收 |
 | 语言语义变更 | 否 |
 
@@ -92,7 +92,7 @@ nongeneric，第一次pop尚未planned的specialized超限key才转有限frontie
 | G4 | body局部Nullable<T>归一化；Nullable<Resource>真实native，Nullable<Int>仅核canonical并保持既有inline representation拒绝；无具体调用不产生List<Int> | 本地三容器Nullable<Resource>真实native通过；generic Int canonical齐全且保持原拒绝/目标保全 |
 | G5 | frontend私有小seam0/1/2核prefix/frontier与specialized计数；codegen沿原planner seam独立核pure limit及later sibling非法recipe完整kind/Span；production1024真实增长源码仅编译拒绝/目标保全，未选增长源码正常entry完成；共享DAG按unique节点访问数和深链验证 | 本地私有frontend/独立planner0/1/2与4096 DAG通过；production1024拒绝/两dest保全、无seed及未选闭合growth seed正常entry均通过；测试独立完整复审通过，零新增finding |
 | G6 | no-match/ambiguous/lambda trial/最终expected-type错误不启动cache；恢复事实与既有诊断保持，不以错误unit arena总长不变替代隔离 | 本地6项isolation通过；multifile_type_checking整体130/130通过、0ignored |
-| G7 | 后继支持不扩大0275 recursive-template/owner-recipe边界；相关frontend、unit plan/recipe/error-order/container/native及CLI/M1A/词频直接消费者通过；独立全审、Architecture、双宿主CI、最终归档CI、merge/main闭环 | 全部本地门禁及独立完整复审通过；CLI85/M1A12公共命令/词频37公共命令实际通过；双宿主与最终归档/merge/main在途 |
+| G7 | 后继支持不扩大0275 recursive-template/owner-recipe边界；相关frontend、unit plan/recipe/error-order/container/native及CLI/M1A/词频直接消费者通过；独立全审、Architecture、双宿主CI、最终归档CI、merge/main闭环 | 全部本地门禁及独立完整复审通过；CLI85/M1A12公共命令/词频37公共命令实际通过；双宿主实现CI通过；最终归档head/merge/main闭环待 |
 
 G1–G4必须使用真实body-only构造，源码中不得放入未使用的concrete容器声明补种。
 先建立fail-first证据，再修改生产代码；只测find(List<Int>)不替代SSA/object/link/run。
@@ -239,3 +239,21 @@ CLI全套85/85通过，无failed/ignored/filtered，随后显式重建kovenc。�
 从原始JSON独立读取完整exit/stdout/stderr及源码hash，词频还核byte argv与独立参考序列。
 两个消费者记录相同实际compiler SHA且运行前后不变，49条命令与其源码合同均实际通过。
 原始记录保存在本地账本关联JSON；preview与远端精确head在PR CI交付，不将其提前记通过。
+
+
+## 13. 精确实现 head 双宿主验收与归档（2026-10-05）
+
+实现提交 `e980f3b4c184ca9b68e6c264170431a34807edd8`（tree `55604664989790e9ae6750862d82b86b8b2b2424`）经
+[PR54](https://github.com/Halckon/Koven/pull/54) 的 [CI37260189209](https://github.com/Halckon/Koven/actions/runs/37260189209)
+必需14项job实际终态成功，编辑器因无对应路径变更合法skip。双宿主各15项新增codegen、
+4项私有frontend及12项integration逐名ok；Linux codegen871/0ignored，macOS870/1既有
+LLDB权限ignore。完整frontlib206和multifile130实际通过，未将过滤/忽略计为成功。
+
+双宿主各37条词频命令/9项目与12条独立preview命令/4项目完整bytes/source hash已独立核验。
+producer精确source head/tree、前后clean状态、release manifest与consumer一致，临时安装
+移除成功、sentinel不变；普通测试synthetic merge tree与此源码tree一致且含实现head父节点。
+job/artifact身份、raw log与JSON无损归档及SHA见[实现CI账本](../../development/evidence/generic-body-0276/initial-ci.json)。
+
+G1–G6和G7实现验收完成，本次按交付流程迁移done/archive并同步inventory/DAG。
+最终归档head全部必需CI、merge和actual main CI仍为交付前置，未提前记通过；后续实际
+闭环保存在live交付账本，冻结本页历史。M4b真实故障校准未执行。

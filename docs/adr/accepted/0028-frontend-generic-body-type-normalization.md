@@ -58,7 +58,7 @@ nongeneric。frontier保证现recipe collector所用concrete第一跳，后续�
 
 ## 关联
 
-- 相关 Spec：[SPEC-0276](../../specs/active/0276-unit-generic-body-type-normalization.md)
+- 相关 Spec：[SPEC-0276](../../archive/specs/0276-unit-generic-body-type-normalization.md)
 - 相关 ADR：[0020 compilation unit](../accepted/0020-multifile-compilation-unit.md)、[0024 growing recipe](../accepted/0024-reject-parameter-growing-runtime-recipes.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无

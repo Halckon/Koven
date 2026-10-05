@@ -112,4 +112,4 @@ SPEC0276本地新native7项通过，实际18个成功fixture执行object/link/ru
 覆盖三容器Int/String/Resource、三层relay、多body构造、deinit闭合helper和Nullable<Resource>。
 Nullable<Int>已发布canonical但维持原null表达式的InvalidModel/MissingFact及输出保全。
 原body-only MissingFact测试已迁移到真实成功；recursive-template/缺substitution保护保留。
-预算、消费者与双宿主最终交付见[在途验收](../specs/active/0276-unit-generic-body-type-normalization.md)。
+预算、消费者与双宿主最终交付见[实现验收](../archive/specs/0276-unit-generic-body-type-normalization.md)。

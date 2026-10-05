@@ -278,8 +278,8 @@ M1B-b文本输入与新String API、性能、M3新增API、M4b真实故障校准
 精确head/tree、raw hashes、job/artifact身份与既有macOS LLDB ignore见
 [交付闭环账本](evidence/generic-containers-0275-delivery.json)，原archive验收历史未重写。
 
-最新main的独立分支`feature/spec-0276`按[0276正式合同](../specs/active/0276-unit-generic-body-type-normalization.md)补普通顶层泛型函数body-only具体类型需求，
+最新main的独立分支`feature/spec-0276`按[0276正式合同](../archive/specs/0276-unit-generic-body-type-normalization.md)补普通顶层泛型函数body-only具体类型需求，
 避免依赖签名或未使用声明补种canonical。有限类型归一化与现有
 Phase4实例预算/recipe错误优先级的兼容性准备审阅已通过，ADR0028已accepted；
-G1–G7尚未运行，不表示该能力已实现。
+G1–G6与G7实现验收已通过本地门禁及PR54双宿主CI；最终归档head和actual main闭环待，证据见正式Spec。
 M1B-b、新API、泛型owner/member扩张、真实故障校准、性能及完整M5/M6仍按原前置推进。

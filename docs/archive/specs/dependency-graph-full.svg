@@ -1,14 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="7064" height="7006" viewBox="0 0 7064 7006" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="6720" height="7006" viewBox="0 0 6720 7006" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="7064" height="7006" fill="#ffffff"/>
+  <rect width="6720" height="7006" fill="#ffffff"/>
   <rect x="40" y="30" width="6616" height="6904" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，261 份）</text>
-  <rect x="6720" y="6204" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="6860" y="6224" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <text x="3348" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，262 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -979,7 +977,7 @@
   <path d="M 972 5862 C 972 5894, 1236 5894, 1236 5926" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 450 C 972 482, 708 482, 708 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 6000 C 1236 6032, 1236 6050, 1236 6082" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1356 6119 C 4048 6119, 4048 6275, 6740 6275" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1236 6156 C 1236 6188, 708 6206, 708 6238" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2069,8 +2067,8 @@
   <text x="1236" y="6105" text-anchor="middle" font-size="13">SPEC-0275</text>
   <text x="1236" y="6123" text-anchor="middle" font-size="13">Unit 泛型函数直接容器签</text>
   <text x="1236" y="6141" text-anchor="middle" font-size="13">名的具体类型替换</text>
-  <rect x="6740" y="6238" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="6860" y="6261" text-anchor="middle" font-size="13" font-weight="600">SPEC-0276</text>
-  <text x="6860" y="6279" text-anchor="middle" font-size="13">Unit 普通泛型函数体的具</text>
-  <text x="6860" y="6297" text-anchor="middle" font-size="13">体类型归一化</text>
+  <rect x="588" y="6238" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="6261" text-anchor="middle" font-size="13">SPEC-0276</text>
+  <text x="708" y="6279" text-anchor="middle" font-size="13">Unit 普通泛型函数体的具</text>
+  <text x="708" y="6297" text-anchor="middle" font-size="13">体类型归一化</text>
 </svg>

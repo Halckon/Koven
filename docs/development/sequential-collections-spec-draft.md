@@ -83,6 +83,6 @@ Map、借用返回、getOrNull、可逃逸迭代器、通用 clone、隐式容�
 承接直接Array<T>/List<T>/MutableList<T>签名的native具体替换，现行Guide已封闭语义。
 新增API及其余C01–C08仍按原前置；body-only发布与递归模板没有自动启用。具体范围和验收只记Spec。
 
-后继[SPEC-0276](../specs/active/0276-unit-generic-body-type-normalization.md)承接普通顶层函数
+后继[SPEC-0276](../archive/specs/0276-unit-generic-body-type-normalization.md)承接普通顶层函数
 body-only具体需求发布及其既有native消费者适配，保持原recursive-template边界。
-该片仍in-progress，交付门禁见正式Spec；两片不代表整个M3A操作集已完成。
+该片已按双宿主实现CI验收归档，最终归档/main交付门禁仍待；两片不代表整个M3A操作集已完成。
