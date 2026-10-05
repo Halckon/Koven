@@ -316,7 +316,7 @@ fn unit_generic_container_recursive_template_stays_unsupported_with_canonical_pr
 }
 
 #[test]
-fn unit_generic_container_body_only_missing_canonical_keeps_actual_expression_span() {
+fn unit_generic_container_body_only_uses_frontend_canonical_without_extending_arena() {
     let mut sources = SourceMap::new();
     let (p_source, p) = parsed(
         &mut sources,
@@ -338,11 +338,15 @@ fn unit_generic_container_body_only_missing_canonical_keeps_actual_expression_sp
     let (name_environment, environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
     let int = typed.types().types().builtin(BuiltinType::Int).unwrap();
-    let missing = UnitTypeKind::Intrinsic {
+    let expected = UnitTypeKind::Intrinsic {
         constructor: IntrinsicTypeConstructor::List,
         arguments: vec![int],
     };
-    assert_eq!(typed.types().types().find(&missing), None, "no unused seed");
+    let concrete = typed
+        .types()
+        .types()
+        .find(&expected)
+        .expect("the actual call publishes List<Int>");
     let [construction] = typed.types().container_constructions() else {
         panic!("only the generic body constructs a list")
     };
@@ -357,17 +361,16 @@ fn unit_generic_container_body_only_missing_canonical_keeps_actual_expression_sp
     let signature = callable(&typed, declaration(&names, "probe"));
     let substitutions = BTreeMap::from([(signature.type_parameters()[0], int)]);
     let arena_len = typed.types().types().len();
-    let error = resolve_concrete_type(
+    let resolved = resolve_concrete_type(
         typed.types(),
         construction.container_type(),
         &substitutions,
         None,
         span,
     )
-    .expect_err("backend cannot publish the body-only concrete list identity");
+    .expect("backend only finds the body-only concrete list identity");
     assert_eq!(typed.types().types().len(), arena_len);
-    assert_eq!(error.kind, LoweringErrorKind::MissingFact);
-    assert_eq!(error.span, Some(span));
+    assert_eq!(resolved, concrete);
     let lowered = unit_lower::lower_scalar_unit_with_entry(
         &sources,
         &inputs,
@@ -378,12 +381,10 @@ fn unit_generic_container_body_only_missing_canonical_keeps_actual_expression_sp
         declaration(&names, "entry"),
     );
     assert_eq!(typed.types().types().len(), arena_len);
-    let error = lowered
-        .err()
-        .expect("no program can be emitted for an unpublished identity");
-    assert_eq!(error.kind, LoweringErrorKind::MissingFact);
-    assert_eq!(error.span, Some(span));
-    assert_eq!(typed.types().types().find(&missing), None);
+    let (program, _) = lowered.expect("body-only construction lowers with the published identity");
+    crate::llvm::render_verified_program(&program)
+        .expect("the body-only owner and size verify through LLVM");
+    assert_eq!(typed.types().types().find(&expected), Some(concrete));
 }
 
 #[test]

@@ -154,7 +154,7 @@ environment 会在遍历前返回内部错误。
 5. 无类型诊断且无阻塞 deferred fact 时产生 validated typed unit。
 callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不按名称重新选择 target。名义类型、
 泛型、interface/default/override、静态委托、`Copyable`/`Transferable`、String、Box/Rc 和顺序容器共享
-canonical type identity。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分。
+canonical type identity。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
 
 单文件与 unit checker 共享语义模型，但 unit facts 使用 source-qualified ID，不能拿单文件 ID 拼接成
 多文件结果。

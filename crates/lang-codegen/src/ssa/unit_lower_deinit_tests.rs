@@ -165,10 +165,112 @@ fn unit_resource_deinit_reachability_reaches_a_fixed_point() {
 }
 
 #[test]
+fn unit_resource_deinit_nullable_class_reaches_hidden_body_and_keeps_conditional_owner() {
+    let mut sources = SourceMap::new();
+    let (source, parsed) = parsed(
+        &mut sources,
+        "p/main.ko",
+        "package p\n\
+         fun observe(value: Int): Unit {}\n\
+         class Resource { deinit() { observe(1) } }\n\
+         fun entry(): Unit { val absent: Resource? = null; val present: Resource? = Resource() }",
+    );
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+    let (name_environment, environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
+    let arena = typed.types().types().len();
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &environment,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .expect("nullable class resource uses the existing conditional inner drop ABI");
+    assert_eq!(typed.types().types().len(), arena);
+    let module = &program.modules[0];
+    assert_eq!(
+        module.functions.len(),
+        3,
+        "entry, hidden deinit, deinit-only helper"
+    );
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| function.name.contains("p.entry"))
+        .unwrap();
+    for has in [
+        entry
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.operation, Operation::NullableNull { .. })),
+        entry
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.operation, Operation::NullableWrap { .. })),
+    ] {
+        assert!(
+            has,
+            "both null and wrapped owners retain distinct nullable operations"
+        );
+    }
+    crate::llvm::render_verified_program(&program)
+        .expect("conditional nullable deinit verifies through LLVM");
+}
+
+#[test]
+fn unit_resource_deinit_nullable_unsupported_wrappers_keep_null_rejection_span() {
+    for wrapper in ["Payload", "Rc<Payload>", "Box<Payload>"] {
+        let mut sources = SourceMap::new();
+        let (source, parsed) = parsed(
+            &mut sources,
+            "p/main.ko",
+            &format!(
+                "package p\n\
+                 class Resource {{ deinit() {{}} }}\n\
+                 value class Payload(val resource: Resource)\n\
+                 fun entry(): Unit {{ val absent: {wrapper}? = null }}"
+            ),
+        );
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
+        let (name_environment, environment) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
+        let null_span = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find(|(_, node)| sources.slice(node.span()) == Ok("null"))
+            .unwrap()
+            .1
+            .span();
+        let arena = typed.types().types().len();
+        let error = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &environment,
+            &typed,
+            &owned,
+            declaration(&names, "p", "entry"),
+        )
+        .err()
+        .expect("only existing nullable Class handles gain hidden-deinit reachability");
+        assert_eq!(
+            error.kind,
+            crate::ssa::LoweringErrorKind::UnsupportedNode,
+            "{wrapper}"
+        );
+        assert_eq!(error.span, Some(null_span), "{wrapper}");
+        assert_eq!(typed.types().types().len(), arena);
+    }
+}
+
+#[test]
 fn unit_resource_deinit_rejects_unimplemented_resource_shapes() {
     for text in [
         "class Resource<T>(val value: T) { deinit() {} }\nfun entry(): Unit { val resource = Resource<Int>(7) }",
-        "class Resource { deinit() {} }\nfun entry(): Unit { val resource: Resource? = Resource() }",
         "interface Marker {}\nclass Resource: Marker { deinit() {} }\nfun entry(): Unit { val resource = Resource() }",
         "class Resource { deinit() {} }\nclass Wrapper<T>(val value: T)\nfun entry(): Unit { val wrapper = Wrapper<Resource>(Resource()) }",
         "class Resource { deinit() { val action = { 1 } } }\nfun entry(): Unit { val resource = Resource() }",

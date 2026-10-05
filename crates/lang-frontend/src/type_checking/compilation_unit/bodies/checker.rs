@@ -36,6 +36,7 @@ pub(super) mod copyability;
 mod destructuring;
 mod expression_facts;
 mod flow;
+mod generic_body_types;
 mod integer;
 mod iteration;
 mod lambda;
@@ -49,6 +50,7 @@ mod rc;
 mod string;
 mod top_level;
 mod trial;
+mod type_graph;
 mod type_refs;
 mod when;
 
@@ -190,7 +192,14 @@ impl<'a> BodyChecker<'a> {
         })
     }
 
-    fn run(mut self) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
+    fn run(self) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
+        self.run_with_generic_limit(crate::type_checking::MAX_UNIT_GENERIC_INSTANCES)
+    }
+
+    fn run_with_generic_limit(
+        mut self,
+        generic_limit: usize,
+    ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
         self.parts.constant_declaration_count = self
             .names
             .names()
@@ -260,6 +269,7 @@ impl<'a> BodyChecker<'a> {
                 ));
             }
         }
+        self.materialize_generic_body_types_with_limit(generic_limit)?;
         self.materialize_runtime_field_layouts()?;
         self.parts.constants = self.build_constant_facts();
         let source_units = self.names.names().index().source_units();
@@ -311,6 +321,7 @@ impl<'a> BodyChecker<'a> {
         }
         // 冻结候选 owner 集合，避免 Grow<T> -> Grow<List<T>> 一类合法 heap 递归无限扩张。
         let owner_count = self.signatures.types().len();
+        let mut concrete = type_graph::ConcreteTypes::default();
         let mut index = 0;
         'owners: while index < owner_count {
             let owner_type = UnitTypeId::new(index);
@@ -336,8 +347,7 @@ impl<'a> BodyChecker<'a> {
             }
             let mut owner_is_concrete = true;
             for argument in &arguments {
-                owner_is_concrete &=
-                    self.type_is_concrete_runtime_recipe(*argument, &mut BTreeSet::new())?;
+                owner_is_concrete &= concrete.is_concrete(self.signatures.types(), *argument)?;
             }
             if !owner_is_concrete {
                 continue;
@@ -351,7 +361,7 @@ impl<'a> BodyChecker<'a> {
             let mut fields = Vec::with_capacity(nominal.fields().len());
             for field in nominal.fields() {
                 let concrete_type = self.substitute_type(field.ty(), &substitutions)?;
-                if !self.type_is_concrete_runtime_recipe(concrete_type, &mut BTreeSet::new())? {
+                if !concrete.is_concrete(self.signatures.types(), concrete_type)? {
                     // A valid name can still have an unbound/recovery field type. Omit the
                     // entire owner recipe rather than publishing a prefix or an internal error.
                     continue 'owners;
@@ -373,55 +383,6 @@ impl<'a> BodyChecker<'a> {
                 ));
         }
         Ok(())
-    }
-
-    fn type_is_concrete_runtime_recipe(
-        &self,
-        ty: UnitTypeId,
-        visiting: &mut BTreeSet<UnitTypeId>,
-    ) -> Result<bool, CompilationUnitTypeError> {
-        if !visiting.insert(ty) {
-            return Ok(true);
-        }
-        let kind = self
-            .signatures
-            .types()
-            .get(ty)
-            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-        let is_concrete = match kind {
-            UnitTypeKind::Builtin(_) => true,
-            UnitTypeKind::Nullable(inner) => {
-                self.type_is_concrete_runtime_recipe(*inner, visiting)?
-            }
-            UnitTypeKind::Function {
-                parameters,
-                return_type,
-                ..
-            } => {
-                let mut is_concrete = true;
-                for parameter in parameters {
-                    is_concrete &=
-                        self.type_is_concrete_runtime_recipe(parameter.ty(), visiting)?;
-                }
-                is_concrete && self.type_is_concrete_runtime_recipe(*return_type, visiting)?
-            }
-            UnitTypeKind::Nominal { arguments, .. } | UnitTypeKind::Intrinsic { arguments, .. } => {
-                let mut is_concrete = true;
-                for argument in arguments {
-                    is_concrete &= self.type_is_concrete_runtime_recipe(*argument, visiting)?;
-                }
-                is_concrete
-            }
-            UnitTypeKind::TypeParameter(_)
-            | UnitTypeKind::StaticSelf(_)
-            | UnitTypeKind::EnumCase { .. }
-            | UnitTypeKind::Capability(_)
-            | UnitTypeKind::IntegerLiteral(_)
-            | UnitTypeKind::Deferred(_)
-            | UnitTypeKind::Error => false,
-        };
-        visiting.remove(&ty);
-        Ok(is_concrete)
     }
 
     fn check_function(

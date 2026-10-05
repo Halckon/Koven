@@ -1,0 +1,476 @@
+{
+  "schema": "koven.generic-container-delivery.v1",
+  "spec": "SPEC-0275",
+  "pr": "https://github.com/Halckon/Koven/pull/53",
+  "final_source_head": "49faf59aacc819ccfeb9f46203f0bcb3d22d4a12",
+  "merge_commit": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+  "merged_at": "2026-10-05T01:55:27Z",
+  "frozen_archive_sha256": "abd73306b6bbdc937a3d9e5920b938a6dad2615e536d75a6d94d8bd6fa6b0191",
+  "initial_ci_record_sha256": "0b5c227f8c96bffdb8b4148cc7f855975382b012737841d0e223c0234ca4f3e6",
+  "closure_runs": [
+    {
+      "schema": "koven.generic-container-ci.v1",
+      "stage": "final",
+      "run_id": 37252410423,
+      "url": "https://github.com/Halckon/Koven/actions/runs/37252410423",
+      "event": "pull_request",
+      "source_commit": "49faf59aacc819ccfeb9f46203f0bcb3d22d4a12",
+      "source_tree": "081029725278390989afa558312118bcb074b875",
+      "jobs": [
+        {
+          "name": "Rust Physical Line Guard",
+          "databaseId": 111582572813,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111582572813"
+        },
+        {
+          "name": "Direct Workspace Dependency Guard",
+          "databaseId": 111582572993,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111582572993"
+        },
+        {
+          "name": "Detect Changed Files",
+          "databaseId": 111582573069,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111582573069"
+        },
+        {
+          "name": "Rust Code Formatting",
+          "databaseId": 111582707579,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111582707579"
+        },
+        {
+          "name": "Docs & Spec Structural Gate",
+          "databaseId": 111582707583,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111582707583"
+        },
+        {
+          "name": "Tree-sitter CLI Corpus",
+          "databaseId": 111582708494,
+          "status": "completed",
+          "conclusion": "skipped",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111582708494"
+        },
+        {
+          "name": "Workspace Check & Clippy (ubuntu-24.04)",
+          "databaseId": 111582780744,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111582780744"
+        },
+        {
+          "name": "Workspace Check & Clippy (macos-14)",
+          "databaseId": 111582780746,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111582780746"
+        },
+        {
+          "name": "Targeted Tests (ubuntu-24.04)",
+          "databaseId": 111583068795,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111583068795"
+        },
+        {
+          "name": "Targeted Tests (macos-14)",
+          "databaseId": 111583068831,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111583068831"
+        },
+        {
+          "name": "Preview Producer (macos-14)",
+          "databaseId": 111583853138,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111583853138"
+        },
+        {
+          "name": "Preview Producer (ubuntu-24.04)",
+          "databaseId": 111583853160,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111583853160"
+        },
+        {
+          "name": "Preview Independent Consumer (ubuntu-24.04)",
+          "databaseId": 111584243054,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111584243054"
+        },
+        {
+          "name": "Preview Independent Consumer (macos-14)",
+          "databaseId": 111584278879,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111584278879"
+        },
+        {
+          "name": "CI Passed",
+          "databaseId": 111584395862,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37252410423/job/111584395862"
+        }
+      ],
+      "legitimate_skips": [
+        "Tree-sitter CLI Corpus"
+      ],
+      "hosts": {
+        "linux": {
+          "word_frequency": {
+            "artifact_id": 11321596108,
+            "commands": 37,
+            "projects": 9,
+            "compiler_sha256": "3407c7f48db153e010fce4333d790f3b25975289478543e216dcd455fe847c85",
+            "raw_sha256": "bdaa8ce5545d54d4ae72ab1de3fd89dd86615bc377cf08c87eda21b1eb33bd8a",
+            "independent_bytes_verified": true,
+            "retained_identical_raw": "generic-containers-0275/linux-word-results.json"
+          },
+          "preview": {
+            "producer_artifact_id": 11321612112,
+            "consumer_artifact_id": 11321367707,
+            "source_commit": "49faf59aacc819ccfeb9f46203f0bcb3d22d4a12",
+            "source_tree": "081029725278390989afa558312118bcb074b875",
+            "archive": "koven-preview-49faf59aacc8-x86_64-unknown-linux-gnu.tar.gz",
+            "archive_sha256": "d853c4ac280ef6b23abb689833bfa1749d61e715323587ad0746aaa96490bd28",
+            "binary_sha256": "050969d6550097b4276fb17a84b45a1a965585e3e717babe0a945709ddb12a91",
+            "commands": 12,
+            "projects": 4,
+            "cleanup_removed": true,
+            "sentinel_unchanged": true,
+            "independent_bytes_verified": true,
+            "raw_producer_sha256": "6427d338a1141daccb4d9edf4aa2931bb051e881f9ed4714f47727672739883c",
+            "raw_consumer_sha256": "1c770caa259a4b97e590522b11788b26bb426f95c0d1f88edf93e54a45f98b67"
+          },
+          "test_checkout_commit": "6accff35cf5511b23ef2804f35b67b01c5285405",
+          "test_checkout_tree": "081029725278390989afa558312118bcb074b875",
+          "test_checkout_parents": [
+            "c5c4a8df271858b23898e0bcf4b55d823c760bb9",
+            "49faf59aacc819ccfeb9f46203f0bcb3d22d4a12"
+          ],
+          "new_tests_passed": [
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_direct_argument_accepts_concrete_nested_list",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_rejections_preserve_outputs_and_canonical_arena",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_resource_borrow_and_pass_drop_once_in_reverse",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_scalar_and_string_lengths_preserve_owners",
+            "ssa::unit_generic_container_tests::unit_generic_container_array_signatures_preserve_concrete_ownership",
+            "ssa::unit_generic_container_tests::unit_generic_container_borrow_size_uses_current_loan_after_cfg",
+            "ssa::unit_generic_container_tests::unit_generic_container_list_signatures_preserve_concrete_ownership",
+            "ssa::unit_generic_container_tests::unit_generic_container_mutable_list_signatures_preserve_concrete_ownership",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_body_only_missing_canonical_keeps_actual_expression_span",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_direct_parameter_accepts_existing_concrete_nested_argument",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_instances_keep_source_parameters_and_deduplicate",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_missing_substitution_keeps_actual_parameter_span",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_recursive_template_stays_unsupported_with_canonical_present"
+          ],
+          "codegen_unit": {
+            "passed": 856,
+            "failed": 0,
+            "ignored": 0,
+            "filtered_out": 0
+          },
+          "codegen_ignored_test": null,
+          "raw_targeted_log_sha256": "bdfcc66a193706d2429e16bd4437fd7bea0f0e3166f76d412ab833581242a335"
+        },
+        "macos": {
+          "word_frequency": {
+            "artifact_id": 11321192909,
+            "commands": 37,
+            "projects": 9,
+            "compiler_sha256": "5b215a98647aaf21138bc43778f5ea87a41111d92b17d22ed0d3f07464e31f7d",
+            "raw_sha256": "e4f3f744483a31696ea97ea955b1f24786a8dedee704279132a96220f9cb6832",
+            "independent_bytes_verified": true,
+            "retained_identical_raw": "generic-containers-0275/macos-word-results.json"
+          },
+          "preview": {
+            "producer_artifact_id": 11321985842,
+            "consumer_artifact_id": 11321726932,
+            "source_commit": "49faf59aacc819ccfeb9f46203f0bcb3d22d4a12",
+            "source_tree": "081029725278390989afa558312118bcb074b875",
+            "archive": "koven-preview-49faf59aacc8-aarch64-apple-darwin.tar.gz",
+            "archive_sha256": "2eb09413e9ea922efc88cfbe5addc9fde1e7848b80bd57ccfa92f614a57470af",
+            "binary_sha256": "233011d0467cc22eb0e8b26b0f1fc49247f5451714e096345e7e4c4bdba2d667",
+            "commands": 12,
+            "projects": 4,
+            "cleanup_removed": true,
+            "sentinel_unchanged": true,
+            "independent_bytes_verified": true,
+            "raw_producer_sha256": "fdabe223a92db13e5c06007aa902dbe3efb5fc884e86193d906759e49d181e6c",
+            "raw_consumer_sha256": "1732d37c00a809886eeaf7f627dd204fe49edd3daae606c6e173abcd89d80d33"
+          },
+          "test_checkout_commit": "6accff35cf5511b23ef2804f35b67b01c5285405",
+          "test_checkout_tree": "081029725278390989afa558312118bcb074b875",
+          "test_checkout_parents": [
+            "c5c4a8df271858b23898e0bcf4b55d823c760bb9",
+            "49faf59aacc819ccfeb9f46203f0bcb3d22d4a12"
+          ],
+          "new_tests_passed": [
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_direct_argument_accepts_concrete_nested_list",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_rejections_preserve_outputs_and_canonical_arena",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_resource_borrow_and_pass_drop_once_in_reverse",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_scalar_and_string_lengths_preserve_owners",
+            "ssa::unit_generic_container_tests::unit_generic_container_array_signatures_preserve_concrete_ownership",
+            "ssa::unit_generic_container_tests::unit_generic_container_borrow_size_uses_current_loan_after_cfg",
+            "ssa::unit_generic_container_tests::unit_generic_container_list_signatures_preserve_concrete_ownership",
+            "ssa::unit_generic_container_tests::unit_generic_container_mutable_list_signatures_preserve_concrete_ownership",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_body_only_missing_canonical_keeps_actual_expression_span",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_direct_parameter_accepts_existing_concrete_nested_argument",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_instances_keep_source_parameters_and_deduplicate",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_missing_substitution_keeps_actual_parameter_span",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_recursive_template_stays_unsupported_with_canonical_present"
+          ],
+          "codegen_unit": {
+            "passed": 855,
+            "failed": 0,
+            "ignored": 1,
+            "filtered_out": 0
+          },
+          "codegen_ignored_test": "llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame",
+          "raw_targeted_log_sha256": "64250a6abdf45683f892adfca6a19de87b6525162d03d5a07c23dffbf4377ddc"
+        }
+      }
+    },
+    {
+      "schema": "koven.generic-container-ci.v1",
+      "stage": "main",
+      "run_id": 37253329605,
+      "url": "https://github.com/Halckon/Koven/actions/runs/37253329605",
+      "event": "push",
+      "source_commit": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+      "source_tree": "081029725278390989afa558312118bcb074b875",
+      "jobs": [
+        {
+          "name": "Rust Physical Line Guard",
+          "databaseId": 111585241473,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585241473"
+        },
+        {
+          "name": "Detect Changed Files",
+          "databaseId": 111585241491,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585241491"
+        },
+        {
+          "name": "Direct Workspace Dependency Guard",
+          "databaseId": 111585241492,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585241492"
+        },
+        {
+          "name": "Docs & Spec Structural Gate",
+          "databaseId": 111585276312,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585276312"
+        },
+        {
+          "name": "Tree-sitter CLI Corpus",
+          "databaseId": 111585276355,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585276355"
+        },
+        {
+          "name": "Rust Code Formatting",
+          "databaseId": 111585276356,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585276356"
+        },
+        {
+          "name": "Workspace Check & Clippy (macos-14)",
+          "databaseId": 111585345074,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585345074"
+        },
+        {
+          "name": "Workspace Check & Clippy (ubuntu-24.04)",
+          "databaseId": 111585345135,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585345135"
+        },
+        {
+          "name": "Targeted Tests (ubuntu-24.04)",
+          "databaseId": 111585666739,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585666739"
+        },
+        {
+          "name": "Targeted Tests (macos-14)",
+          "databaseId": 111585666774,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111585666774"
+        },
+        {
+          "name": "Preview Producer (macos-14)",
+          "databaseId": 111586497167,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111586497167"
+        },
+        {
+          "name": "Preview Producer (ubuntu-24.04)",
+          "databaseId": 111586497247,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111586497247"
+        },
+        {
+          "name": "Preview Independent Consumer (macos-14)",
+          "databaseId": 111586827974,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111586827974"
+        },
+        {
+          "name": "Preview Independent Consumer (ubuntu-24.04)",
+          "databaseId": 111586852003,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111586852003"
+        },
+        {
+          "name": "CI Passed",
+          "databaseId": 111586943708,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/Halckon/Koven/actions/runs/37253329605/job/111586943708"
+        }
+      ],
+      "legitimate_skips": [],
+      "hosts": {
+        "linux": {
+          "word_frequency": {
+            "artifact_id": 11321189514,
+            "commands": 37,
+            "projects": 9,
+            "compiler_sha256": "3407c7f48db153e010fce4333d790f3b25975289478543e216dcd455fe847c85",
+            "raw_sha256": "bdaa8ce5545d54d4ae72ab1de3fd89dd86615bc377cf08c87eda21b1eb33bd8a",
+            "independent_bytes_verified": true,
+            "retained_identical_raw": "generic-containers-0275/linux-word-results.json"
+          },
+          "preview": {
+            "producer_artifact_id": 11321967000,
+            "consumer_artifact_id": 11322320521,
+            "source_commit": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+            "source_tree": "081029725278390989afa558312118bcb074b875",
+            "archive": "koven-preview-2be64066a201-x86_64-unknown-linux-gnu.tar.gz",
+            "archive_sha256": "3622719f9ff684303b3d770329d0792c42f8e4313089b2d0a54fb261a7ddf88b",
+            "binary_sha256": "050969d6550097b4276fb17a84b45a1a965585e3e717babe0a945709ddb12a91",
+            "commands": 12,
+            "projects": 4,
+            "cleanup_removed": true,
+            "sentinel_unchanged": true,
+            "independent_bytes_verified": true,
+            "raw_producer_sha256": "3ab8f23aa67772d8bc254cf0ed67a6f8fe0b29c13da5ecd72c177733636e9cf6",
+            "raw_consumer_sha256": "541706f563a7a52c53ae992ab79eb4e40741e19cdb09bee00bca2851c14571a5"
+          },
+          "test_checkout_commit": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+          "test_checkout_tree": "081029725278390989afa558312118bcb074b875",
+          "test_checkout_parents": [
+            "c5c4a8df271858b23898e0bcf4b55d823c760bb9",
+            "49faf59aacc819ccfeb9f46203f0bcb3d22d4a12"
+          ],
+          "new_tests_passed": [
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_direct_argument_accepts_concrete_nested_list",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_rejections_preserve_outputs_and_canonical_arena",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_resource_borrow_and_pass_drop_once_in_reverse",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_scalar_and_string_lengths_preserve_owners",
+            "ssa::unit_generic_container_tests::unit_generic_container_array_signatures_preserve_concrete_ownership",
+            "ssa::unit_generic_container_tests::unit_generic_container_borrow_size_uses_current_loan_after_cfg",
+            "ssa::unit_generic_container_tests::unit_generic_container_list_signatures_preserve_concrete_ownership",
+            "ssa::unit_generic_container_tests::unit_generic_container_mutable_list_signatures_preserve_concrete_ownership",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_body_only_missing_canonical_keeps_actual_expression_span",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_direct_parameter_accepts_existing_concrete_nested_argument",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_instances_keep_source_parameters_and_deduplicate",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_missing_substitution_keeps_actual_parameter_span",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_recursive_template_stays_unsupported_with_canonical_present"
+          ],
+          "codegen_unit": {
+            "passed": 856,
+            "failed": 0,
+            "ignored": 0,
+            "filtered_out": 0
+          },
+          "codegen_ignored_test": null,
+          "raw_targeted_log_sha256": "5de6ba0ddd204598071b8d683d75266f4b103fc5cc99b3b549bfb109af548547"
+        },
+        "macos": {
+          "word_frequency": {
+            "artifact_id": 11322047578,
+            "commands": 37,
+            "projects": 9,
+            "compiler_sha256": "5b215a98647aaf21138bc43778f5ea87a41111d92b17d22ed0d3f07464e31f7d",
+            "raw_sha256": "e4f3f744483a31696ea97ea955b1f24786a8dedee704279132a96220f9cb6832",
+            "independent_bytes_verified": true,
+            "retained_identical_raw": "generic-containers-0275/macos-word-results.json"
+          },
+          "preview": {
+            "producer_artifact_id": 11321317873,
+            "consumer_artifact_id": 11322217229,
+            "source_commit": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+            "source_tree": "081029725278390989afa558312118bcb074b875",
+            "archive": "koven-preview-2be64066a201-aarch64-apple-darwin.tar.gz",
+            "archive_sha256": "12ab40668dfc8a8ce9e1e82707131eda7c309c60798dc91a9939fbcadc6bc71d",
+            "binary_sha256": "233011d0467cc22eb0e8b26b0f1fc49247f5451714e096345e7e4c4bdba2d667",
+            "commands": 12,
+            "projects": 4,
+            "cleanup_removed": true,
+            "sentinel_unchanged": true,
+            "independent_bytes_verified": true,
+            "raw_producer_sha256": "c37839984423fdce4af0d78293d7f2a15dd4d9cb00fa2e3112578cd03b74a013",
+            "raw_consumer_sha256": "ec10ee398720aa112d7f24ce71ead80607c105d47755fc9fff7ca6f9790dfde8"
+          },
+          "test_checkout_commit": "2be64066a2011bb07a31bd68f9ac7441ab5a4baf",
+          "test_checkout_tree": "081029725278390989afa558312118bcb074b875",
+          "test_checkout_parents": [
+            "c5c4a8df271858b23898e0bcf4b55d823c760bb9",
+            "49faf59aacc819ccfeb9f46203f0bcb3d22d4a12"
+          ],
+          "new_tests_passed": [
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_direct_argument_accepts_concrete_nested_list",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_rejections_preserve_outputs_and_canonical_arena",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_resource_borrow_and_pass_drop_once_in_reverse",
+            "native::unit_tests::container_size_tests::generic_containers::unit_generic_container_native_scalar_and_string_lengths_preserve_owners",
+            "ssa::unit_generic_container_tests::unit_generic_container_array_signatures_preserve_concrete_ownership",
+            "ssa::unit_generic_container_tests::unit_generic_container_borrow_size_uses_current_loan_after_cfg",
+            "ssa::unit_generic_container_tests::unit_generic_container_list_signatures_preserve_concrete_ownership",
+            "ssa::unit_generic_container_tests::unit_generic_container_mutable_list_signatures_preserve_concrete_ownership",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_body_only_missing_canonical_keeps_actual_expression_span",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_direct_parameter_accepts_existing_concrete_nested_argument",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_instances_keep_source_parameters_and_deduplicate",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_missing_substitution_keeps_actual_parameter_span",
+            "ssa::unit_plan_tests::generic_containers::unit_generic_container_recursive_template_stays_unsupported_with_canonical_present"
+          ],
+          "codegen_unit": {
+            "passed": 855,
+            "failed": 0,
+            "ignored": 1,
+            "filtered_out": 0
+          },
+          "codegen_ignored_test": "llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame",
+          "raw_targeted_log_sha256": "53ed637826d39c083a63ebf49c40979864f3c12c0b22bfdb3000d294a24ebd68"
+        }
+      }
+    }
+  ]
+}

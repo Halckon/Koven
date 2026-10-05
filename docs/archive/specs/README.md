@@ -384,3 +384,5 @@
 - [SPEC-0274](0274-argv-word-frequency.md)：source-qualified size/SharedLoan、unit Borrow String与三文件普通应用；双宿主每37命令及15项CI成功，原始字节账本保留；M1B-b、泛型container native替换等后继保持开放。
 
 - [SPEC-0275](0275-unit-generic-container-signatures.md)：直接泛型容器签名消费frontend canonical；两宿主13项新增测试及公共消费者通过；递归模板/body-only需求发布保持后继，最终归档/main交付待。
+
+- [SPEC-0276](0276-unit-generic-body-type-normalization.md)：普通泛型body具体类型发布、有限预算/DAG及native消费者适配经双宿主实现CI验收；最终归档/main闭环待。
