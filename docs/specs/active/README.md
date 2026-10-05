@@ -2,7 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前0份active。0278按[PR56](https://github.com/Halckon/Koven/pull/56)双宿主实现验收归档；最终归档head、merge及actual main CI已闭环，见[交付账本](../../development/evidence/closure-escape-0278/delivery.json)。
+当前1份active。
+
+- [SPEC-0279](0279-runtime-length-container-native.md)：Array/List 运行时长度两源码入口、三种 callable 环境、泛型/helper 身份与 native 资源闭环；in-progress，尚未验收。
+
+0278按[PR56](https://github.com/Halckon/Koven/pull/56)双宿主实现验收归档；最终归档head、merge及actual main CI已闭环，见[交付账本](../../development/evidence/closure-escape-0278/delivery.json)。
 
 0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终归档head及actual main已闭环，见[交付账本](../../development/evidence/p2-linux-0277-delivery.json)。
 
