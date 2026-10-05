@@ -6,7 +6,7 @@
   </defs>
   <rect width="6984" height="7006" fill="#ffffff"/>
   <rect x="40" y="30" width="6880" height="6904" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3480" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，264 份）</text>
+  <text x="3480" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，265 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -979,6 +979,7 @@
   <path d="M 972 450 C 972 482, 708 482, 708 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 6000 C 1236 6032, 1236 6050, 1236 6082" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 6156 C 1236 6188, 708 6206, 708 6238" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 6780 138 C 6780 170, 972 188, 972 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2080,4 +2081,9 @@
   <text x="6780" y="87" text-anchor="middle" font-size="13">SPEC-0277</text>
   <text x="6780" y="105" text-anchor="middle" font-size="13">Linux P2 证据接收与</text>
   <text x="6780" y="123" text-anchor="middle" font-size="13">词法测试预期对齐</text>
+  <rect x="852" y="220" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="972" y="243" text-anchor="middle" font-size="13">SPEC-0278</text>
+  <text x="972" y="261" text-anchor="middle" font-size="13">borrowed closu</text>
+  <text x="972" y="279" text-anchor="middle" font-size="13">re 的 owned esc</text>
+  <text x="972" y="297" text-anchor="middle" font-size="13">ape 交付校验</text>
 </svg>

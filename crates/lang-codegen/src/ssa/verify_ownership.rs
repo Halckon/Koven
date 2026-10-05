@@ -6,7 +6,7 @@ mod field_exchange;
 mod field_exchange_tests;
 mod provider_lifetime;
 mod reborrow;
-mod root_exchange;
+pub(super) mod root_exchange;
 #[cfg(test)]
 mod root_exchange_tests;
 
@@ -25,7 +25,7 @@ struct BlockState {
     loans: BTreeSet<LoanId>,
 }
 
-struct AliasRoots {
+pub(super) struct AliasRoots {
     roots: BTreeMap<EntityId, BTreeSet<EntityId>>,
 }
 
@@ -1494,7 +1494,7 @@ impl LoanFlowAliases {
 }
 
 impl AliasRoots {
-    fn compute(function: &Function) -> Self {
+    pub(super) fn compute(function: &Function) -> Self {
         let mut roots = all_entities(function)
             .into_iter()
             .map(|entity| (entity, BTreeSet::new()))
@@ -1596,7 +1596,7 @@ impl AliasRoots {
         Self { roots }
     }
 
-    fn overlap(&self, left: EntityId, right: EntityId) -> bool {
+    pub(super) fn overlap(&self, left: EntityId, right: EntityId) -> bool {
         let left = self.roots.get(&left).expect("left alias roots must exist");
         let right = self
             .roots
@@ -1618,7 +1618,7 @@ fn union_from(
     target.len() != before
 }
 
-fn all_entities(function: &Function) -> Vec<EntityId> {
+pub(super) fn all_entities(function: &Function) -> Vec<EntityId> {
     let values = (0..function.values.len()).map(|index| {
         EntityId::Value(ValueId {
             function: function.id,
@@ -1640,7 +1640,7 @@ fn all_entities(function: &Function) -> Vec<EntityId> {
     values.chain(places).chain(loans).collect()
 }
 
-fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
+pub(super) fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
     match terminator {
         TerminatorKind::Branch(edge) => vec![edge],
         TerminatorKind::Conditional {

@@ -12,7 +12,7 @@ function、block、entity、type 和 operation；控制流通过 block parameter
 
 - 结构/类型验证：ID、block、dominance、operand/result、edge 和 terminator 契约；
 - operation 验证：构造、投影、container、nullable、String、Rc、closure、receiver 等专用约束；
-- ownership 验证：Value 消费唯一性、loan 生命周期、派生 loan、drop 与 control-flow 合并。
+- ownership 验证：Value 消费唯一性、loan 生命周期、派生 loan、drop、control-flow 合并及[borrowed closure owned escape](borrowed-closure-escape.md)。
 
 未经验证的 SSA 不进入 LLVM adapter。renderer 只用于确定性调试和测试，不是稳定序列化协议。整数位级执行见[专页](integer-operations.md)。
 

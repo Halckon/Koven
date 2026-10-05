@@ -2,13 +2,14 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active Spec。
+当前0份active。0278按[PR56](https://github.com/Halckon/Koven/pull/56)双宿主实现验收归档；最终归档head/merge/main仍待，见[交付账本](../../development/evidence/closure-escape-0278/delivery.json)。
+
+0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终归档head及actual main已闭环，见[交付账本](../../development/evidence/p2-linux-0277-delivery.json)。
 
 0269 的 M4b 有界资源程序首片已验收归档；实现审阅与双宿主原始证据见
 [交付证据](../../development/evidence/generated-owners-0269-delivery.json)，
 最终归档 head、merge 与 main CI 交付记录见 [PR48](https://github.com/Halckon/Koven/pull/48)。
 
-0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终head/merge/main仍待，见[实现CI账本](../../development/evidence/p2-linux-20261005/pr-initial-ci.json)。
 0276已按[PR54](https://github.com/Halckon/Koven/pull/54)归档并合并为18b89e5；最终head必需14job成功、编辑器合法skip，actual main实际15/15成功，见[交付闭环账本](../../development/evidence/generic-body-0276-delivery.json)。
 
 0275已由[PR53](https://github.com/Halckon/Koven/pull/53)合并为2be6406；最终归档CI37252410423必需14job成功、编辑器合法skip，main CI37253329605实际15/15成功。双宿主新增测试命中、完整词频/preview原始证据与source身份见[交付闭环账本](../../development/evidence/generic-containers-0275-delivery.json)。
