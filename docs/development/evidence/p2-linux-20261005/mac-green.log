@@ -1,0 +1,19 @@
+   Compiling lang-frontend v0.1.0 ([MAC_SPEC_WORKTREE]/crates/lang-frontend)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.83s
+     Running tests/parser_long_invalid_number_boundaries.rs (target/debug/deps/parser_long_invalid_number_boundaries-5b3bcbc1c6ad4edc)
+
+running 2 tests
+test long_supported_radix_numbers_remain_literals_before_a_real_operator ... ok
+test every_public_entry_preserves_each_long_invalid_number_before_a_real_operator ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/parser_token_inventory.rs (target/debug/deps/parser_token_inventory-55e313ff9720736a)
+
+running 3 tests
+test standalone_declaration_recovers_a_complete_string_as_one_user_error_region ... ok
+test inventory_is_unique_and_covers_every_public_lexical_family ... ok
+test every_lexical_fragment_preserves_output_invariants_in_every_public_parser_entry ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+

@@ -22,7 +22,7 @@
 云成本/失败基线为 `c5c4a8df271858b23898e0bcf4b55d823c760bb9`，云修复提交为
 `2aa75b0c86e9fe5cf4e2fc7600c657f7cc8c54c6`。Mac基线为创建时最新main
 `2be64066a2011bb07a31bd68f9ac7441ab5a4baf`；worktree `/tmp/koven-spec0277`，分支 `feature/spec-0277`。
-已核后继0275仅改变codegen及其文档，两测试自云基线未变；补丁适用，不回退0275。
+已核后继0275改变codegen、交付元数据及文档，frontend目录无变化，两测试自云基线未变；补丁适用，不回退0275。
 另一会话0276及主工作区未提交文件不纳入本批。各SHA是不同提交，不宣称保留云提交身份或整树相同。
 
 ## 2. 有界范围与非目标
@@ -51,9 +51,9 @@ v2修复冻结汇总漏报两类首启，仅重算14组/attempt、917条记录�
 
 - [x] Library官方物化到Mac，核大小/SHA、安全路径和5266发布文件；完整压缩包可独立解包复核。
 - [x] 核最新main差异、补丁适用性，并在最新Mac基线上实际复现两失败。
-- [ ] 两测试修复有Mac定向green，产物字节等于云修复manifest；旧负例覆盖保留。
+- [x] 两测试修复有Mac定向green，测试源字节等于云修复manifest；旧负例覆盖保留。
 - [x] 汇总v2及20回归已接收，在Mac实际20 passed；不重采样。
-- [ ] fmt、受影响严格Clippy、docs/尺寸门禁、diff实际通过，Architecture与验收同步。
+- [x] fmt、受影响严格Clippy、docs/尺寸门禁、diff实际通过，Architecture与验收同步。
 - [ ] 本地分阶段提交及云/Mac SHA映射明确；新分支CI未运行、成本接受仍待用户决定。
 
 ## 5. 提交与材料
@@ -75,9 +75,18 @@ v2修复冻结汇总漏报两类首启，仅重算14组/attempt、917条记录�
 | `git apply --check <云format-patch>` | passed；两文件在Mac/cloud基线间逐字节无变化 |
 | `cargo test --locked --offline -j 2 -p lang-frontend --test parser_long_invalid_number_boundaries --test parser_token_inventory --no-fail-fast`（修改前） | red：2 passed/2 failed，exit101，0 ignored/measured/filtered；默认unoptimized+debuginfo；编译13.03s |
 | `PYTHONDONTWRITEBYTECODE=1 python3 <归档解包根>/test_summarize_v2.py` | Mac passed：20项，0 failed/skip；0.009s；不写pycache、不重采样 |
-| 同选择green、fmt/Clippy、docs/尺寸 | 待执行 |
+| 同两目标选择green（默认profile，进程内清除`CARGO_PROFILE_*`） | Mac passed：5 passed/0 failed/ignored/measured/filtered，exit0，编译0.83s；[实际日志](../../development/evidence/p2-linux-20261005/mac-green.log)、[命令与口径](../../development/evidence/p2-linux-20261005/mac-green.json) |
+| `cargo fmt --all -- --check` | passed，exit0；未运行格式化写入 |
+| `cargo clippy --locked --offline -j 2 -p lang-frontend --test parser_long_invalid_number_boundaries --test parser_token_inventory -- -D warnings` | passed，exit0，4.37s；只选择受影响两个测试目标 |
+| `python3 scripts/check_rust_sizes.py --base 2be64066a2011bb07a31bd68f9ac7441ab5a4baf` | passed：781手写Rust/45历史超限/0生成登记；两文件504→579、380→396，未新增/修改例外或baseline |
+| `python3 -m unittest scripts.tests.test_check_docs` | passed：37项；仅inventory变动，不扩展checker算法 |
+| 文件、delta与覆盖独立比对 | 两文件SHA256与云manifest相同；测试diff SHA256 `595c64a2b22df45fcdce7799139bed02d85f644c2091cd21af0cc070f1514d07`与云相同；旧120库存片段全保留，新127；非法数字矩阵16→24，新增4种合法radix表达式 |
 | 初始 `python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py`、`git diff --check` | passed：521 Markdown、1 live/261 archive、无空白错误；初始材料提交前 |
+| 修复后 `python3 scripts/check_docs.py`、`git diff --check` | passed：521 Markdown、无空白错误；新分支文档/结构验收，不是远端CI |
 | 新分支CI、Mac全量、P2重采样 | 未运行；仅影响两测试，用户授权证据接收，避免重复未变范围 |
+
+没有改变公共接口、生产源码、Guide、依赖或Rust尺寸policy；因此没有追加workspace/native或未变的全部frontend回归。
+云全量1704覆盖131 integration+lib+doc是云修复SHA的结果；Mac本次5项是最新基线的独立红绿证据。
 
 ## 7. 剩余事项
 

@@ -46,3 +46,14 @@ C observer child RSS各自独立；compile/link归属和最大报告RSS不是exc
 云base `c5c4a8df` 的CI37248672159和云修复 `2aa75b0c` 的1704全量通过各属其精确输入；
 不当作最新Mac、0277新分支CI或后继0275成本证据。新分支CI尚未运行；
 用户成本接受仍开放，证据已交付不会自动构成豁免。
+
+## Mac 定向接收验收
+
+最新main在两测试上仍含旧预期；修改前2 passed/2 failed，修改后默认debug两目标5 passed/0 failed，
+没有ignored/filtered。两测试源字节与云修复manifest完全相同，测试diff摘要也相同；
+旧120库存片段全部保留，新127，长非法数字矩阵16→24并增加4种合法radix表达式对照。
+[Mac red日志](evidence/p2-linux-20261005/mac-red.log)、[green日志](evidence/p2-linux-20261005/mac-green.log)
+和[green命令/口径](evidence/p2-linux-20261005/mac-green.json)独立保存，不混用云结果。
+v2的20项Python回归在Mac实际通过，fmt/受影响严格Clippy/尺寸门禁亦通过；
+尺寸报告781手写Rust、45旧超限，两变更文件579/396行，未扩大既有policy。
+未执行Mac全量frontend、native/其他crate全回归或P2重采样；新分支CI未运行。

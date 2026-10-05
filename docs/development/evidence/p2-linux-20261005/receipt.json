@@ -18,5 +18,13 @@
   "patch_applies_cleanly": true,
   "new_branch_ci": "not-run",
   "cost_acceptance": "not-decided",
-  "sampling_rerun_on_mac": false
+  "sampling_rerun_on_mac": false,
+  "test_file_sha256": {
+    "crates/lang-frontend/tests/parser_long_invalid_number_boundaries.rs": "c6860815bffd37f91dc22519fc53509640d810fb9eeab634fd3ae605a6b16073",
+    "crates/lang-frontend/tests/parser_token_inventory.rs": "123091e6dadaa3f6ed748aa5bf29b170696a0efe4c7766e3995989e4df9c553b"
+  },
+  "test_delta_sha256": "595c64a2b22df45fcdce7799139bed02d85f644c2091cd21af0cc070f1514d07",
+  "cloud_test_bytes_identical": true,
+  "old_inventory_fragments_retained": true,
+  "mac_test_fix_commit": "pending local implementation commit; recorded in follow-up delivery ledger"
 }
