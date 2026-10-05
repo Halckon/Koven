@@ -5,7 +5,7 @@
 2026-10-05按用户授权，将云端材料通过Library支持的流程物化到Mac
 `/tmp/koven-p2-transfer-20261005/koven-p2-transfer.tar.gz`，核大小/SHA并安全解包。
 新worktree `/tmp/koven-spec0277`，分支 `feature/spec-0277`，基线main `2be64066`；
-范围、红绿、定向验收及剩余决定见 [SPEC-0277](../specs/active/0277-p2-evidence-test-alignment.md)。
+范围、红绿、定向验收及剩余决定见 [SPEC-0277](../archive/specs/0277-p2-evidence-test-alignment.md)。
 
 ## 完整材料与复核
 
@@ -75,3 +75,7 @@ Mac包含后继0275及本批Spec/证据，不宣称恢复云commit SHA或整树�
 最新main `18b89e5`在实际15/15 CI及独立产物核验后合入0277，原三提交保留。
 [接入复验](evidence/p2-linux-20261005/main-integration.json)记录精确merge源码的Mac两目标5项、
 严格Clippy/fmt及政策/文档/尺寸等九门禁实际成功；新PR head双宿主与最终交付仍待。
+
+0277精确实现head08e266b的PR55 CI37263936116实际15/15通过，两个修复binary在两宿主
+各完整2+3、无忽略/过滤，四项接线政策逐名ok；原始验收见[PR实现账本](evidence/p2-linux-20261005/pr-initial-ci.json)。
+实现已归档，最终归档head CI及merge/main尚待；整体P2预算不在本片关闭。

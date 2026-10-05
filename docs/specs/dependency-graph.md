@@ -8,15 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 262 份"))
-subgraph Gactive["现行 active"]
-  S0277["S0277<br/>Linux P2 证据接收与词法测试预期对齐"]
-end
+ARCH(("已完成<br/>archive 263 份"))
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0277 | active | [0277-p2-evidence-test-alignment.md](active/0277-p2-evidence-test-alignment.md) |
-| 已完成 Spec（262 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（263 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

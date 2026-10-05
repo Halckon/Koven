@@ -1,10 +1,10 @@
 # SPEC-0277: Linux P2 证据接收与词法测试预期对齐
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：接收、验证本批成本证据及测试修复时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：接收、验证本批成本证据及测试修复时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0277` |
 | 所属 Phase | Phase 1 测试合同；工程治理 P2 证据交付 |
 | 语言规范 | 已启用 [Guide v0.40 词法](../../guide/01-lexical.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | 无；接续已获批P2治理与既有迁移 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 无实施前置；成本接受与新分支CI仍开放 |
+| 阻塞项 | 实现验收通过；最终head/merge/main交付仍待；整体P2成本预算独立开放 |
 | 影响范围 | 两个frontend测试及其CI有界组合选择/失败传播合同、压缩证据、current开发入口与事实 |
 | 语言语义变更 | 否 |
 
@@ -157,3 +157,21 @@ Python接线harness不冒充双宿主Rust运行，实际五项命中仍待PR CI�
 Rust沿独立target/default profile，清除`CARGO_PROFILE_*`；未进行成本采样或M4b实际校准。
 这是新接入提交的本机验收，旧f18复核及云材料保持原身份；精确PR head双宿主CI、归档后
 最终CI和merge/main仍待，不以此九项代替。
+
+
+## 11. 精确实现head双宿主验收与归档（2026-10-05）
+
+实现head `08e266b22136245829fbcfa24bda811a96195267` 经[PR55](https://github.com/Halckon/Koven/pull/55)
+[CI37263936116](https://github.com/Halckon/Koven/actions/runs/37263936116)实际15/15 job成功，
+包括因CI政策变更触发的编辑器门禁，无跳过或未决job。两宿主各完整两个修复binary
+2+3逐名passed，0failed/ignored/measured/filtered；四项选择/过滤/失败传播Python政策也逐全名ok。
+
+继承0276回归15codegen+4private frontend+12integration继续逐全名通过；这是前置能力回归，
+不冒充本片新增生产代码。Linux codegen871/0ignore、macOS870/1既有LLDB权限ignore保留。
+各宿主实际候选全部manifest bytes、37词频/12preview完整命令输出、sourcehead/tree/clean
+checkpoints已独立核验，raw/hash及job/artifact身份见[精确PR验收](../../development/evidence/p2-linux-20261005/pr-initial-ci.json)。
+
+证据、词法测试对齐与CI覆盖的实现验收完成，迁移done/archive并同步inventory/DAG；
+冻结§6–10的原始接收和后续复核历史。最终归档head CI及merge/main仍待实际交付，后续
+记录进入live账本，不提前记通过。整体P2预算接受、12噪声与首启单对调查保持开放；
+未重采样或执行M4b真实故障校准。

@@ -294,5 +294,5 @@ PR54于04:08:15Z合并为`18b89e5ebce171f50680ba96fbc5a2e27025b6c9`。最终归�
 精确head/tree/clean输出均已独立核验，完整raw及hash见上述live交付账本；冻结archive未改写。
 
 按用户本地分支接入要求，0277保留三个原提交并合入此main；实际接入复验与新head PR CI
-见[0277合同](../specs/active/0277-p2-evidence-test-alignment.md)。P2成本预算仍未接受，不作为本片交付完成条件。
+见[0277合同](../archive/specs/0277-p2-evidence-test-alignment.md)。P2成本预算仍未接受，不作为本片交付完成条件。
 后继运行时长度构造尚需正式Spec/共享表示ADR及失败测试；0277编号已占用，不复用。
