@@ -1,5 +1,7 @@
 use lang_frontend::source::SourceMap;
 
+mod escape_tests;
+
 use super::{
     model::{
         BlockId, ClosureCaptureMode, ClosureCaptureOperand, ClosureCaptureType, Edge, EntityId,

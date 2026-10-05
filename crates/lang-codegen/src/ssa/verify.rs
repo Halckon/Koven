@@ -5,6 +5,8 @@ use super::model::{
     ModuleId, Origin, Program, SsaTypeId, SsaTypeKind, TerminatorKind,
 };
 
+mod closure_escape;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum VerifyLocation {
     Module(ModuleId),
@@ -152,8 +154,11 @@ pub(crate) fn verify_program(program: &Program) -> Result<(), VerifyErrors> {
 }
 
 fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
+    let module_before = errors.len();
     super::verify_types::verify_types(module, errors);
     super::deinit::verify_deinits(module, errors);
+    let capture_types =
+        (errors.len() == module_before).then(|| closure_escape::TypeCaptures::compute(module));
 
     for (function_index, function) in module.functions.iter().enumerate() {
         if function.id.module() != module.id || function.id.index() != function_index {
@@ -171,6 +176,11 @@ fn verify_module(module: &Module, errors: &mut Vec<VerifyError>) {
             verify_dominance(function, errors);
             if errors.len() == before {
                 super::verify_ownership::verify_ownership(module, function, errors);
+                if errors.len() == before
+                    && let Some(types) = &capture_types
+                {
+                    closure_escape::verify(function, types, errors);
+                }
             }
         }
     }

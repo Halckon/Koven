@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0277 已 done，PR55 final/main 15/15 与实际产物闭环 |
 | 前置 ADR | [ADR-0009](../../adr/accepted/0009-concrete-closure-internal-abi.md)、[ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) accepted |
 | 关联 ADR | 无新增长期表示或 ABI 决定 |
-| 阻塞项 | 无语义阻塞；三个 fixture 已真实红测，实现及完整验收待 |
+| 阻塞项 | 无语义阻塞；实现与两次独立审发现修复已通过定向检查，完整消费者已通过，远端交付验收待 |
 | 影响范围 | lang-codegen SSA verifier、直接 malformed SSA 与既有消费者测试、Architecture |
 | 语言语义变更 | 否 |
 
@@ -25,7 +25,9 @@
 工作树 `feature/spec-0278` 从实际 main `54b36675481c15da8a1f31d9d3185e4b49c83096` 创建；
 前置交付见[0277账本](../../development/evidence/p2-linux-0277-delivery.json)。
 代码审阅显示 ClosureLoans 当前仅记录本函数直接 Shared capture 与 CFG 运输，
-Return 在消费 closure 后隐式释放 entry loan；该推断已由三个合法 fixture 的实际接受性确认和正式拒绝测试失败证明，见§6；生产修复未实施。
+Return 在消费 closure 后隐式释放 entry loan；该缺口已由合法 fixture 的实际接受性确认和正式拒绝测试失败证明。
+独立 guard 已接入，Loan retain 与预创建inline投影误拒经独立审发现并真实修复，41个逃逸正反例实际通过；
+类型分类已通过4个类型图测试，完整消费者已通过；远端交付验收待，见§6。
 
 ## 2. 范围与可复用接口
 
@@ -47,6 +49,8 @@ Return 在消费 closure 后隐式释放 entry loan；该推断已由三个合�
   未知 may-contain 值因缺少无捕获证明而在 raw SSA owned delivery 被保守拒绝；不新增 Source
   L0137 规则，也不证明未知值实际持有 capture。后续 source lowering 须保留合法值所需证明。
   RootPlace Mutate、RootReplace/Swap 必须更新值证明，不能沿用写入前的空/null 快照。
+  已知无捕获的 shared owner 经合法 Loan retain 仍须保留证明；Place/Loan 与其 CFG 运输
+  使用当前内容事实，不能把未知 entry loan 一律视作无捕获。
 - 类型分类有确定性缓存和有限图遍历，支持共享 DAG 与合法 owner 递归，避免按每个消费点
   重复递归或用 Rust 调用栈展开深链；不新增依赖、frontend facts 或资源预算。
 - 外层 closure 只在真正 escaping 消费点递归检查；局部 Owned capture formation 不一律拒绝。
@@ -95,8 +99,21 @@ concrete identity 和 resource 清理。共享 SSA 修复不替代该完整终�
 | E1 与 E2 entry 绕过红测 | `cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_escape_rejects_`：0 passed/3 failed/0 ignored/872 filtered，exit101；三次 expect_err 都收到 Ok，不是类型/所有权错误 |
 | 原始证据 | [红测账本](../../development/evidence/closure-escape-0278/red.json)保全源码指纹、原日志/临时 fixture；初次命令无效 libtest 参数失败独立保留，不作为行为红测 |
 | 文档合同与 inventory | `check_docs.py` 524页通过；checker 37测试通过，diff通过；新增值证明要求再同步后须复核 |
-| E1 green、E2完整/E3–E6 | 未执行；尚无生产 guard，无完成或归档声明 |
-| 独立合同准备审阅 | 发现静态类型可能误拒绝空/null/inactive variant，及遗漏 projected Mutate；已纳入值证明、对应正反例，实际运行与复审待 |
+| E3 原 verifier 正控 | `cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_escape_allows_`：3 passed/0 failed/0 ignored/874 filtered，十二个合法 empty/null/inactive variant 及实际包装/CFG fixture 通过，exit0；[原始账本](../../development/evidence/closure-escape-0278/known-clean-baseline.json)与测试bytes独立保全 |
+| E2 与 root 原行为确认 | `cargo test --locked --offline -j 2 -p lang-codegen --lib old_verifier_accepts`：2 passed/0 failed/0 ignored/901 filtered，18个 delivery 与10个 root 内容 fixture 全部通过，exit0；此前两次夹具类型失败独立保留，不计作行为红测 |
+| E1/E2 与 root 完整红测 | `cargo test --locked --offline -j 2 -p lang-codegen --lib closure_operation_tests::escape_tests`：8 passed/24 failed/0 ignored/871 filtered，exit101；24个正式负例均为 expect_err 收到 Ok，正控及临时确认通过；[原始账本](../../development/evidence/closure-escape-0278/matrix-red.json)保全四次实际命令和准确 pre-hook 源码bytes |
+| E1/E2/E3修复后 | 相同正式 `closure_operation_tests::escape_tests` 选择：30 passed/0 failed/0 ignored/875 filtered，exit0；两个临时原行为确认测试在证据保全后移除，24个正式负例与6个正控保留 |
+| E4 类型图 | `cargo test --locked --offline -j 2 -p lang-codegen --lib capture_type_graph_`：4 passed/0 failed/0 ignored/901 filtered，exit0；2000层深链、256层共享DAG、dirty/clean合法owner递归及signature/reference leaf，实际节点/边计数固定 |
+| E5 初始完整消费者 | 初始 `cargo test --locked --offline -j 2 -p lang-codegen --lib` 因独立审发现需要修改共享proof而主动SIGINT中止，Cargo exit101，不能记作完整通过；[初始实现账本](../../development/evidence/closure-escape-0278/initial-hook.json)保全实际日志与实现bytes，修复后须完整重跑 |
+| 独立生产完整审阅 | 检查实际接线、类型图终止/leaf、CFG重绑定与合并、当前root内容、精确配对强更新、projected Mutate；发现 SharedRetain(Loan) 丢失 known-clean 内容证明，已真实复现并进入修复，修复及独立复审已完成，见后续记录 |
+| Loan retain 回归红测 | `cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_shared_retain_loan_`：1 passed/2 failed/0 ignored/905 filtered，exit101；direct/CFG已知空payload正控仅被新guard误拒，证明旧结构/类型/ownership均通过，unknown entry Loan负控精确诊断通过；[原始账本](../../development/evidence/closure-escape-0278/loan-retain-red.json)独立保全 |
+| Loan retain 修复与完整正反例 | 相同正式 `closure_operation_tests::escape_tests` 选择：35 passed/0 failed/0 ignored/875 filtered，exit0；原30项与新增Loan retain direct/CFG/unknown及root写后current clean/tainted五项全部通过 |
+| E5 格式/严格Clippy检查点 | `cargo fmt --all -- --check` 在两处新增格式差异修正后通过；`cargo clippy --locked --offline -j 2 -p lang-codegen --all-targets -- -D warnings` exit0；[Loan修复账本](../../development/evidence/closure-escape-0278/loan-repaired.json)保全实际35-test green、失败/修正fmt、严格Clippy及实现bytes |
+| 独立修复复审与第二红测 | 原Loan retain缺口闭合；`cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_projected_content_`：2 passed/1 failed/0 ignored/910 filtered，exit101；完整root清空后预先创建的inline FieldPlace被唯一新增escape诊断误拒，逆向taint和保留旧shared allocation负控精确通过；[原始账本](../../development/evidence/closure-escape-0278/projected-content-red.json)保全实际日志/fixture，已按真实inline路径修复并复审，禁止只凭alias overlap清空旧payload地址 |
+| 第二修复与最终定向green | 相同正式 `closure_operation_tests::escape_tests` 选择：41 passed/0 failed/0 ignored/875 filtered，exit0；包含六个inline direct/CFG清空和taint、保留旧allocation、alias集合相等但逐边owner/field配对相反的正反例 |
+| E5 最终静态/工程门禁 | 最终fmt与lang-codegen all-target严格Clippy exit0；尺寸门禁798个手写Rust文件、45项旧欠账报告、零新超限/未审增长，ownership仍1658行。独立完整复审核对全部生产改动及精确路径所有递归，两个finding闭合，无新增实质finding；不替代额外loop/nullable组合运行或深CFG成本测量 |
+| E5–E6 后继 | 修复后完整 `cargo test --locked --offline -j 2 -p lang-codegen --lib` exit0，915 passed/0 failed/1原有LLDB ignored/0 filtered；45个新测试全部通过，[最终本地账本](../../development/evidence/closure-escape-0278/final-local.json)保全源码指纹与原日志；PR精确head双宿主、归档后final head、merge与actual main CI及原始证据闭环待，无完成或归档声明 |
+| 独立合同准备审阅 | 发现静态类型可能误拒绝空/null/inactive variant，及遗漏 projected Mutate；已纳入值证明、对应正反例，对应正反例运行与独立复审已完成，见上述记录 |
 | 前置 PR55 | final CI37265259330 与 main CI37266255625 15/15；实际产物独立核验，原成本材料冻结 |
 
 ## 7. 未决问题

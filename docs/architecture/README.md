@@ -50,6 +50,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | loan、move、capture、drop facts | [所有权](ownership.md) |
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
+| borrowed closure owned 交付与 known-clean 值证明 | [Closure 逃逸检查](borrowed-closure-escape.md) |
 | 整数具名位运算与 inv 的 const / typed / native 链路 | [整数位运算](integer-operations.md) |
 | String clone 的 intrinsic / loan / 独立 owner 全链路 | [String clone](string-clone.md) |
 | Guide 示例当前覆盖与 PR #6 审计更正 | [Guide 验证与更正](guide-conformance.md) |
