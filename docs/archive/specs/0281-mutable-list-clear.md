@@ -1,10 +1,10 @@
 # SPEC-0281: MutableList 逆序元素清理与缓冲区复用 (`MutableList.clear`)
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或评审 MutableList 清空操作时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或评审 MutableList 清空操作时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0281` |
 | 所属 Phase | Phase 2 预声明成员识别；Phase 3 独占借用；Phase 4 SSA、逆序元素清理与 native 运行 |
 | 语言规范 | 现行 [Guide v0.41](../../guide/README.md)；[集合与解构](../../guide/12-collections-destructuring.md) |
@@ -63,17 +63,17 @@ Guide §08:
 
 ## 5. 验收标准
 
-- [ ] G1: `MutableList<Int>.clear` 从非空列表清空后 `size == 0`，再次追加元素索引访问正确。
-- [ ] G2: `MutableList<Resource>.clear` 与 `MutableList<String>.clear`：包含 `deinit` 的资源类型清空时按逆序准确析构，清空后作用域退出无二次释放与内存泄漏。
-- [ ] G3: 活跃元素借用期间调用 `.clear` 产生编译期 L0135 诊断。
-- [ ] G4: 针对 `Array` / `List` 调用 `.clear` 产生无效成员编译期诊断。
-- [ ] G5: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
+- [x] G1: `MutableList<Int>.clear` 从非空列表清空后 `size == 0`，再次追加元素索引访问正确。
+- [x] G2: `MutableList<Resource>.clear` 与 `MutableList<String>.clear`：包含 `deinit` 的资源类型清空时按逆序准确析构，清空后作用域退出无二次释放与内存泄漏。
+- [x] G3: 活跃元素借用期间调用 `.clear` 产生编译期 L0135 诊断。
+- [x] G4: 针对 `Array` / `List` 调用 `.clear` 产生无效成员编译期诊断。
+- [x] G5: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
 
 ## 6. 验证记录
 
 | 验收项 | 目标与过滤器 | 结果 | 证据 |
 |:---|:---|:---|:---|
-| 类型与成员检查 | `cargo test -p lang-frontend --test type_containers` | 待执行 | |
-| 所有权借用冲突 | `cargo test -p lang-frontend --test ownership_containers` | 待执行 | |
-| SSA 容器操作与 Verifier | `cargo test -p lang-codegen mutable_list_clear` | 待执行 | |
-| 双宿主 Native 执行与析构 | `cargo test -p lang-codegen unit_container_clear` | 待执行 | |
+| 类型与成员检查 | `cargo test -p lang-frontend --test type_containers` | PASS | 15 passed，覆盖 `container_clear_rejects_array_and_list`、`container_clear_rejects_arguments` 等负例及类型推导 |
+| 所有权借用冲突 | `cargo test -p lang-frontend --test ownership_containers` | PASS | 22 passed，覆盖活跃借用冲突拦截（L0135）及 move 后使用（L0131） |
+| SSA 容器操作与 Verifier | `cargo test -p lang-codegen mutable_list_clear` | PASS | 2 passed，覆盖单文件与多文件编译单元 SSA lower 到 `ContainerClear` 并通过 verifier 校验 |
+| 双宿主 Native 执行与析构 | `cargo test -p lang-codegen unit_container_clear` | PASS | 4 passed，验证空列表清空、基础类型清空再追加、MoveOnly 逆序析构及多周期缓冲区复用零二次分配 |

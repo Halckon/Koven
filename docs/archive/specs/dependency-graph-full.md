@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，267 份）"]
+subgraph Garchive["已完成（archive，268 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -276,8 +276,6 @@ subgraph Garchive["已完成（archive，267 份）"]
   S0278["S0278<br/>borrowed closure 的 owned escape 交付校验"]
   S0279["S0279<br/>Array/List 运行时长度源码构造到 native"]
   S0280["S0280<br/>MutableList 顺序追加与动态扩容 (MutableList.add)"]
-end
-subgraph Gactive["现行 active"]
   S0281["S0281<br/>MutableList 逆序元素清理与缓冲区复用 (MutableList.clear)"]
 end
 S0001 --> S0002
@@ -1534,4 +1532,4 @@ S0280 --> S0281
 | SPEC-0278 | archive | [0278-borrowed-closure-escape-verification.md](0278-borrowed-closure-escape-verification.md) |
 | SPEC-0279 | archive | [0279-runtime-length-container-native.md](0279-runtime-length-container-native.md) |
 | SPEC-0280 | archive | [0280-mutable-list-add.md](0280-mutable-list-add.md) |
-| SPEC-0281 | active | [0281-mutable-list-clear.md](../../specs/active/0281-mutable-list-clear.md) |
+| SPEC-0281 | archive | [0281-mutable-list-clear.md](0281-mutable-list-clear.md) |

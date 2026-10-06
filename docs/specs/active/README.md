@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [SPEC-0281](0281-mutable-list-clear.md)：MutableList 逆序元素清理与缓冲区复用 (`MutableList.clear`)
+0281（`MutableList.clear` 逆序元素清理与缓冲区复用）已按双宿主实现验收归档至 `docs/archive/specs/0281-mutable-list-clear.md`；交付 PR 待发起。
 
 0280（`MutableList.add` 顺序追加与动态扩容）已按双宿主实现验收归档至 `docs/archive/specs/0280-mutable-list-add.md` 并通过 PR #59 合入 main。
 
