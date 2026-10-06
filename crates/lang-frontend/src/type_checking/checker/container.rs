@@ -44,7 +44,13 @@ impl Checker<'_> {
         };
         let callee_node = self.ast().expressions().get(callee)?;
         if !matches!(callee_node.payload(), Expression::Name) {
-            return Ok(None);
+            return self.check_container_append_call(
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+            );
         }
         let callee_span = callee_node.span();
         let intrinsic_callable = match self.reference(callee_span, Namespace::Value).cloned() {

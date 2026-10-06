@@ -58,7 +58,15 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
         let Some(target) = self.container_target(source, callee)? else {
-            return Ok(None);
+            return self.check_container_append_call(
+                source,
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+                return_type,
+            );
         };
         let call = ContainerCall {
             source,

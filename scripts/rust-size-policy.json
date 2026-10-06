@@ -95,11 +95,11 @@
       "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1639行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies.rs": {
-      "max_lines": 1361,
-      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。",
+      "max_lines": 1364,
+      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。 SPEC-0280本轮：仅3行新增container_appends产物字段与构造传递，descriptor定义与方法已在container子模块。",
       "owner": "lang-frontend unit types",
       "split_plan": "后续按公开产物/调用描述职责拆分公开模型，保持跨crate接口。",
-      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1361行或增加职责前重新审阅。"
+      "review": "SPEC-0280独立完整审阅核对此次有界增长与既有职责；超过1364行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": {
       "max_lines": 1226,
@@ -165,11 +165,11 @@
       "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1206行或增加职责前重新审阅。 SPEC-0279独立复核 gate、canonical身份、mode/arity/strong move/named负例；新精确上限1207，超出或新增职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/model.rs": {
-      "max_lines": 1513,
-      "reason": "保留SPEC-0274的descriptor查询入口；SPEC-0279仅增加6行复用canonical核心的只读find，未加入新的类型生产逻辑。",
+      "max_lines": 1517,
+      "reason": "保留SPEC-0274的descriptor查询入口；SPEC-0279仅增加6行复用canonical核心的只读find，未加入新的类型生产逻辑。 SPEC-0280本轮：仅4行新增container_appends字段与构造传递，不增加类型检查算法。",
       "owner": "lang-frontend single type model",
       "split_plan": "后续完整迁移typed产物查询接口，保持type identity与trial合同。",
-      "review": "SPEC-0279独立完整审阅核对只读find与1513行精确增长；超过1513行或增加职责前重新审阅。"
+      "review": "SPEC-0280独立完整审阅核对container_appends与1517行精确增长；超过1517行或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/model.rs": {
       "max_lines": 1355,

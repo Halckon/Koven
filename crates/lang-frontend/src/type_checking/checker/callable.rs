@@ -100,15 +100,6 @@ impl Checker<'_> {
         )? {
             return Ok(result);
         }
-        if let Some(result) = self.check_container_append_call(
-            expression,
-            call_span,
-            callee,
-            &type_arguments,
-            &arguments,
-        )? {
-            return Ok(result);
-        }
         let explicit_types = type_arguments
             .iter()
             .map(|&type_argument| self.resolve_type_ref(type_argument))
