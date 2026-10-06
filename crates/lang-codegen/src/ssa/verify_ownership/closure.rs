@@ -14,8 +14,8 @@ use crate::ssa::{
 
 pub(super) struct ClosureLoans {
     by_owner: BTreeMap<ValueId, BTreeSet<LoanId>>,
-    generator_contents: BTreeMap<
-        crate::ssa::model::InstructionId,
+    borrowed_contents: BTreeMap<
+        (crate::ssa::model::InstructionId, LoanId),
         crate::ssa::verify::closure_content::CallableContent,
     >,
 }
@@ -80,7 +80,7 @@ impl ClosureLoans {
         }
         Self {
             by_owner,
-            generator_contents: crate::ssa::verify::closure_content::generator_contents(
+            borrowed_contents: crate::ssa::verify::closure_content::borrowed_callable_contents(
                 module, function,
             ),
         }
@@ -158,6 +158,7 @@ pub(super) fn apply_invoke(
     callable: ValueId,
     arguments: &[EntityId],
     aliases: &AliasRoots,
+    closure_loans: &ClosureLoans,
     state: &mut BlockState,
     location: VerifyLocation,
     origin: &Origin,
@@ -195,12 +196,27 @@ pub(super) fn apply_invoke(
                     errors,
                 );
             }
-            EntityId::Loan(loan) if !state.loans.contains(loan) => errors.push(error(
-                VerifyErrorKind::LoanInactive { loan: *loan },
-                location.clone(),
-                origin,
-            )),
-            EntityId::Loan(_) => {}
+            EntityId::Loan(loan) => {
+                if !state.loans.contains(loan) {
+                    errors.push(error(
+                        VerifyErrorKind::LoanInactive { loan: *loan },
+                        location.clone(),
+                        origin,
+                    ));
+                }
+                let VerifyLocation::Instruction(instruction) = location else {
+                    unreachable!("callable invocation is an instruction");
+                };
+                check_borrowed_contents(
+                    *loan,
+                    closure_loans,
+                    state,
+                    instruction,
+                    origin,
+                    errors,
+                    "helper Borrow requires proved current callable capture contents",
+                );
+            }
             EntityId::Place(place) => {
                 super::require_place(*place, state, location.clone(), origin, errors);
             }
@@ -228,12 +244,36 @@ pub(super) fn apply_borrowed_generate(
     let VerifyLocation::Instruction(instruction) = location else {
         unreachable!("borrowed generation is an instruction");
     };
-    let content = &closure_loans.generator_contents[&instruction];
+    check_borrowed_contents(
+        initializer,
+        closure_loans,
+        state,
+        instruction,
+        origin,
+        errors,
+        "borrowed generation requires proved current callable capture contents",
+    );
+}
+
+/// Direct-call callable Borrow operands establish the contract trusted by the callee entry.
+pub(super) fn check_borrowed_contents(
+    initializer: LoanId,
+    closure_loans: &ClosureLoans,
+    state: &BlockState,
+    instruction: crate::ssa::model::InstructionId,
+    origin: &Origin,
+    errors: &mut Vec<VerifyError>,
+    reason: &'static str,
+) {
+    let Some(content) = closure_loans
+        .borrowed_contents
+        .get(&(instruction, initializer))
+    else {
+        return;
+    };
     if !content.known {
         errors.push(error(
-            VerifyErrorKind::OperationContract {
-                reason: "borrowed generation requires proved current callable capture contents",
-            },
+            VerifyErrorKind::OperationContract { reason },
             VerifyLocation::Instruction(instruction),
             origin,
         ));

@@ -186,11 +186,11 @@
       "review": "SPEC-0279共享引用切片独立非作者复核严格类型/loan lineage/内容证明/LLVM，并锁定1181行；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/verify_ownership.rs": {
-      "max_lines": 1682,
-      "reason": "SPEC-0279 新 operation ownership 分发以及传递 module 到捕获证明入口；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow复用活loan与alias路由，净增1行。",
+      "max_lines": 1703,
+      "reason": "SPEC-0279 新 operation ownership 分发以及传递 module 到捕获证明入口；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow复用活loan与alias路由，净增1行。 最终独立复审发现 helper Borrow 信任链缺口；DirectCall 内容检查与 CallableInvoke 参数接线/格式展开有界增加21行，算法留在既有领域子模块。",
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续按指令家族与 ownership 状态转移整体迁移，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0279共享引用切片独立非作者复核严格类型/loan lineage/内容证明/LLVM，并锁定1682行；超过该值或增加职责前重新审阅。"
+      "review": "SPEC-0279共享引用切片独立非作者复核严格类型/loan lineage/内容证明/LLVM，并锁定1682行。 最终 frontend/SSA fresh-context 非作者复审确认两种同步调用边界均建立逐 Loan 当前 capture 内容合同，明确认可21行必要接线增长，最终精确锁1703行；baseline未改，超过该值或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/llvm/adapter.rs": {
       "max_lines": 1623,

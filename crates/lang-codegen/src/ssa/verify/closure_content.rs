@@ -1,4 +1,4 @@
-//! Current callable contents for borrowed generation; no general loan-lifecycle inference.
+//! Current callable contents at synchronous Borrow reads and source call boundaries.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -12,7 +12,7 @@ use super::{
 use crate::ssa::{
     model::{
         ClosureCaptureOperand, Definition, EntityId, EntityType, Function, Instruction,
-        InstructionId, LoanId, Module, Operation, PlaceAccess, TerminatorKind,
+        InstructionId, LoanId, Module, Operation, PlaceAccess, SsaTypeKind, TerminatorKind,
     },
     verify_ownership::{AliasRoots, all_entities, root_exchange},
 };
@@ -47,17 +47,16 @@ struct Proof<'a> {
     affected: BTreeMap<EntityId, Vec<(usize, bool)>>,
 }
 
-/// Only generator reads are exposed; other ownership operations keep their existing contract.
-pub(in crate::ssa) fn generator_contents(
+/// A helper's entry Borrow relies on the caller proving the same current capture contents.
+pub(in crate::ssa) fn borrowed_callable_contents(
     module: &Module,
     function: &Function,
-) -> BTreeMap<InstructionId, CallableContent> {
-    if !function.instructions.iter().any(|instruction| {
-        matches!(
-            instruction.operation,
-            Operation::ContainerGenerateBorrowed { .. }
-        )
-    }) {
+) -> BTreeMap<(InstructionId, LoanId), CallableContent> {
+    if !function
+        .instructions
+        .iter()
+        .any(|instruction| !callable_reads(module, function, instruction).is_empty())
+    {
         return BTreeMap::new();
     }
     let proof = Proof::new(module, function);
@@ -122,10 +121,9 @@ pub(in crate::ssa) fn generator_contents(
         let mut state = entries[block.id.index()].clone();
         for id in &block.instructions {
             let instruction = function.instruction(*id).expect("verified instruction");
-            if let Operation::ContainerGenerateBorrowed { initializer, .. } = instruction.operation
-            {
+            for initializer in callable_reads(module, function, instruction) {
                 reads.insert(
-                    instruction.id,
+                    (instruction.id, initializer),
                     state[content_index(function, EntityId::Loan(initializer))].clone(),
                 );
             }
@@ -133,6 +131,41 @@ pub(in crate::ssa) fn generator_contents(
         }
     }
     reads
+}
+
+/// Ordinary non-callable Borrow operands retain their existing ownership contract.
+fn callable_reads(module: &Module, function: &Function, instruction: &Instruction) -> Vec<LoanId> {
+    let (receiver, arguments) = match &instruction.operation {
+        Operation::ContainerGenerateBorrowed { initializer, .. } => return vec![*initializer],
+        Operation::DirectCall {
+            receiver,
+            arguments,
+            ..
+        } => (receiver.as_ref(), arguments.as_slice()),
+        Operation::CallableInvoke { arguments, .. } => (None, arguments.as_slice()),
+        _ => return Vec::new(),
+    };
+    receiver
+        .into_iter()
+        .chain(arguments)
+        .filter_map(|entity| {
+            let EntityId::Loan(loan) = entity else {
+                return None;
+            };
+            matches!(
+                module.types.get(
+                    function
+                        .entity(*entity)
+                        .expect("verified entity")
+                        .ty
+                        .semantic_type()
+                        .index()
+                ),
+                Some(SsaTypeKind::FunctionPointer { .. } | SsaTypeKind::ConcreteClosure { .. })
+            )
+            .then_some(*loan)
+        })
+        .collect()
 }
 
 impl<'a> Proof<'a> {

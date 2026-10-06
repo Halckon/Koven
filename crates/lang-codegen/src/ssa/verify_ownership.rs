@@ -376,6 +376,18 @@ fn apply_operation(
                         );
                     }
                     EntityId::Loan(loan) => {
+                        let VerifyLocation::Instruction(instruction) = location else {
+                            unreachable!("direct call is an instruction");
+                        };
+                        closure::check_borrowed_contents(
+                            *loan,
+                            closure_loans,
+                            state,
+                            instruction,
+                            origin,
+                            errors,
+                            "helper Borrow requires proved current callable capture contents",
+                        );
                         if !state.loans.contains(loan) {
                             errors.push(error(
                                 VerifyErrorKind::LoanInactive { loan: *loan },
@@ -413,7 +425,16 @@ fn apply_operation(
             arguments,
         } => {
             closure::apply_invoke(
-                module, function, *callable, arguments, aliases, state, location, origin, errors,
+                module,
+                function,
+                *callable,
+                arguments,
+                aliases,
+                closure_loans,
+                state,
+                location,
+                origin,
+                errors,
             );
         }
         Operation::AggregateConstruct { fields, .. } => {

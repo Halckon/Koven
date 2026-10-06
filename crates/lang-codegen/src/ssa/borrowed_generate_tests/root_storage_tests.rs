@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "root_storage_tests/helper_calls.rs"]
+mod helper_calls;
+
 #[test]
 fn borrowed_generation_checks_current_root_capture_after_replacement() {
     let (valid, _) = replacement(false);
