@@ -1084,7 +1084,7 @@ impl RuntimeRequirements {
                             })?;
                         requirements.collect_drop_type(module, element)?;
                     }
-                    Operation::ContainerRemoveAt { .. } => {
+                    Operation::ContainerRemoveAt { .. } | Operation::ContainerRemoveLast { .. } => {
                         requirements.needs_abort = true;
                     }
                     Operation::ContainerReplace { owner, .. } => {

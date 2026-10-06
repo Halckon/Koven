@@ -6,6 +6,8 @@ mod container_append_tests;
 mod container_clear_tests;
 #[path = "unit_container_remove_at_tests.rs"]
 mod container_remove_at_tests;
+#[path = "unit_container_remove_last_tests.rs"]
+mod container_remove_last_tests;
 #[path = "unit_container_size_tests.rs"]
 mod container_size_tests;
 #[path = "unit_handoff_contract_tests.rs"]

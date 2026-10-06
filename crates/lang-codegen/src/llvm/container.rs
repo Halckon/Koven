@@ -650,3 +650,74 @@ pub(super) fn remove_at<'ctx>(
 
     Ok((removed_element, with_capacity))
 }
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn remove_last<'ctx>(
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    module: &Module,
+    types: &TypeMap<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    container: SsaTypeId,
+    owner: StructValue<'ctx>,
+    name: &str,
+) -> Result<(BasicValueEnum<'ctx>, StructValue<'ctx>), LlvmAdapterError> {
+    let layout = types.container_layout(container)?;
+    let (_, _element) = module
+        .sequential_container(container)
+        .ok_or_else(|| LlvmAdapterError::InvalidSsa("removeLast owner 不是顺序容器".to_owned()))?;
+    let buffer = builder
+        .build_extract_value(owner, 0, &format!("{name}.buffer"))?
+        .into_pointer_value();
+    let length = builder
+        .build_extract_value(owner, 1, &format!("{name}.length"))?
+        .into_int_value();
+    let capacity = builder
+        .build_extract_value(owner, 2, &format!("{name}.capacity"))?
+        .into_int_value();
+
+    let size_type = runtime.size_type();
+    let zero = size_type.const_zero();
+    let is_empty = builder.build_int_compare(
+        inkwell::IntPredicate::EQ,
+        length,
+        zero,
+        &format!("{name}.is_empty"),
+    )?;
+    runtime.abort_if(builder, function, is_empty, name)?;
+
+    let one = size_type.const_int(1, false);
+    let last_index = builder.build_int_sub(length, one, &format!("{name}.last_index"))?;
+
+    let removed_element: BasicValueEnum<'ctx> = if layout.stride == 0 {
+        layout.element.const_zero()
+    } else {
+        let slot = unsafe {
+            builder.build_gep(
+                layout.element,
+                buffer,
+                &[last_index],
+                &format!("{name}.remove_slot"),
+            )?
+        };
+        builder.build_load(layout.element, slot, &format!("{name}.removed_element"))?
+    };
+
+    let header_type = layout.header;
+    let with_buffer = builder
+        .build_insert_value(
+            header_type.const_zero(),
+            buffer,
+            0,
+            &format!("{name}.with_buffer"),
+        )?
+        .into_struct_value();
+    let with_length = builder
+        .build_insert_value(with_buffer, last_index, 1, &format!("{name}.with_length"))?
+        .into_struct_value();
+    let with_capacity = builder
+        .build_insert_value(with_length, capacity, 2, &format!("{name}.with_capacity"))?
+        .into_struct_value();
+
+    Ok((removed_element, with_capacity))
+}

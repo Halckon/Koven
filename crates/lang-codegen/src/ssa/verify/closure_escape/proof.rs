@@ -49,7 +49,8 @@ impl<'a> ValueProof<'a> {
                 | Operation::ContainerReplace { owner, .. }
                 | Operation::ContainerAppend { owner, .. }
                 | Operation::ContainerClear { owner, .. }
-                | Operation::ContainerRemoveAt { owner, .. } => EntityId::Value(owner),
+                | Operation::ContainerRemoveAt { owner, .. }
+                | Operation::ContainerRemoveLast { owner, .. } => EntityId::Value(owner),
                 _ => continue,
             };
             affected.entry(access).or_insert_with(|| {

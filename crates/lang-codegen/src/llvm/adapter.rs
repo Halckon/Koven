@@ -970,6 +970,28 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 self.values.insert(*removed_result, removed_element);
                 self.values.insert(*new_owner_result, new_owner.into());
             }
+            Operation::ContainerRemoveLast { owner } => {
+                let [removed_result, new_owner_result] = results.as_slice() else {
+                    return Err(invalid_result_count(
+                        "container removeLast",
+                        2,
+                        results.len(),
+                    ));
+                };
+                let container_type = value_type(self.function, *owner)?;
+                let (removed_element, new_owner) = container::remove_last(
+                    &self.builder,
+                    self.llvm_function,
+                    self.module,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    container_type,
+                    self.struct_value(*owner)?,
+                    &format!("remove_last.i{}", instruction.id.index()),
+                )?;
+                self.values.insert(*removed_result, removed_element);
+                self.values.insert(*new_owner_result, new_owner.into());
+            }
             Operation::ContainerReplace {
                 owner,
                 index,
