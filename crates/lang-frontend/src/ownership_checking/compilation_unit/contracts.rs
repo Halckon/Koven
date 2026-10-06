@@ -88,6 +88,30 @@ pub(super) fn collect_call_receiver_contracts(
             None,
         ));
     }
+    for clear in typed.container_clears() {
+        let call_id = clear.expression();
+        let parsed = parsed_for_call(inputs, names, call_id)?;
+        let call_node = parsed.ast().expressions().get(call_id.expression())?;
+        let receiver_expr = clear.receiver();
+        let receiver_span = parsed
+            .ast()
+            .expressions()
+            .get(receiver_expr.expression())?
+            .span();
+        contracts.push(UnitCallReceiverOwnershipContract::new(
+            call_id,
+            UnitCallTarget::FunctionValue,
+            UnitCallReceiverOrigin::Expression(receiver_expr),
+            clear.container_type(),
+            typed
+                .expression_category(receiver_expr)
+                .unwrap_or(ExpressionCategory::Place),
+            ownership_kind(ParameterMode::Inout),
+            receiver_span,
+            call_node.span(),
+            None,
+        ));
+    }
     contracts.sort_by_key(|contract| {
         (
             contract.call().source_unit().index(),
@@ -194,6 +218,12 @@ pub(super) fn collect_call_argument_contracts(
             parameter_span: None,
             loan_begin_span: element_span,
         });
+    }
+    for clear in typed.container_clears() {
+        let call_id = clear.expression();
+        if !seen_calls.insert(call_id) {
+            return Err(invalid_unit_call(call_id));
+        }
     }
     contracts.sort_by_key(|contract| {
         (

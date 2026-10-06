@@ -144,11 +144,11 @@
       "review": "SPEC-0279 independent full review核对实际增长、领域子模块与现有行为边界；超过1507行或扩张职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/checker.rs": {
-      "max_lines": 1413,
-      "reason": "仅7行size descriptor路由，读取实现复用既有string子模块；不在checker添加第二份算法。 SPEC-0279 仅接入只读callable来源状态、实际entry参数seed与最终打包；图、来源分析及return统计在单职责子模块。",
+      "max_lines": 1415,
+      "reason": "仅7行size descriptor路由，读取实现复用既有string子模块；不在checker添加第二份算法。 SPEC-0279 仅接入只读callable来源状态、实际entry参数seed与最终打包；图、来源分析及return统计在单职责子模块。 SPEC-0281 仅增加 2 行诊断防护，避免 receiver 检查与 contract 检查重复报错。",
       "owner": "lang-frontend single ownership",
       "split_plan": "后续单文件checker路由按领域迁移，保持状态与事实交接一致。",
-      "review": "SPEC-0279 独立完整审阅核本次有界接线；超过1413行或扩展职责前重新审阅。"
+      "review": "SPEC-0281 独立完整审阅核对诊断门禁与 1415 行精确增长；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner.rs": {
       "max_lines": 1666,
