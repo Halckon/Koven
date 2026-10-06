@@ -1,14 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="7328" height="7198" viewBox="0 0 7328 7198" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="6984" height="7198" viewBox="0 0 6984 7198" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="7328" height="7198" fill="#ffffff"/>
-  <rect x="40" y="30" width="6880" height="6940" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3480" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，269 份）</text>
-  <rect x="6984" y="6984" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="7124" y="7004" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <rect width="6984" height="7198" fill="#ffffff"/>
+  <rect x="40" y="30" width="6880" height="7096" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3480" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，270 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -991,10 +989,10 @@
   <path d="M 1236 6468 C 1236 6500, 2028 6518, 2028 6550" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 6642 C 2028 6674, 708 6674, 708 6706" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 6642 C 2028 6674, 708 6830, 708 6862" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 2148 6596 C 4576 6596, 4576 7064, 7004 7064" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 2028 6642 C 2028 6674, 180 6986, 180 7018" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 6798 C 708 6830, 708 6830, 708 6862" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 828 6752 C 3916 6752, 3916 7064, 7004 7064" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 828 6908 C 3916 6908, 3916 7064, 7004 7064" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 6798 C 708 6830, 180 6986, 180 7018" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 6954 C 708 6986, 180 6986, 180 7018" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2120,9 +2118,9 @@
   <text x="708" y="6903" text-anchor="middle" font-size="13">MutableList 索引</text>
   <text x="708" y="6921" text-anchor="middle" font-size="13">元素移出与剩余元素前移压缩 </text>
   <text x="708" y="6939" text-anchor="middle" font-size="13">(MutableList.…</text>
-  <rect x="7004" y="7018" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7124" y="7041" text-anchor="middle" font-size="13" font-weight="600">SPEC-0283</text>
-  <text x="7124" y="7059" text-anchor="middle" font-size="13">MutableList 尾部</text>
-  <text x="7124" y="7077" text-anchor="middle" font-size="13">元素快速移出 (Mutabl</text>
-  <text x="7124" y="7095" text-anchor="middle" font-size="13">eList.removeL…</text>
+  <rect x="60" y="7018" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="180" y="7041" text-anchor="middle" font-size="13">SPEC-0283</text>
+  <text x="180" y="7059" text-anchor="middle" font-size="13">MutableList 尾部</text>
+  <text x="180" y="7077" text-anchor="middle" font-size="13">元素快速移出 (Mutabl</text>
+  <text x="180" y="7095" text-anchor="middle" font-size="13">eList.removeL…</text>
 </svg>

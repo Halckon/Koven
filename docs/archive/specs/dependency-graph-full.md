@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，269 份）"]
+subgraph Garchive["已完成（archive，270 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -278,8 +278,6 @@ subgraph Garchive["已完成（archive，269 份）"]
   S0280["S0280<br/>MutableList 顺序追加与动态扩容 (MutableList.add)"]
   S0281["S0281<br/>MutableList 逆序元素清理与缓冲区复用 (MutableList.clear)"]
   S0282["S0282<br/>MutableList 索引元素移出与剩余元素前移压缩 (MutableList.removeAt)"]
-end
-subgraph Gactive["现行 active"]
   S0283["S0283<br/>MutableList 尾部元素快速移出 (MutableList.removeLast)"]
 end
 S0001 --> S0002
@@ -1543,4 +1541,4 @@ S0282 --> S0283
 | SPEC-0280 | archive | [0280-mutable-list-add.md](0280-mutable-list-add.md) |
 | SPEC-0281 | archive | [0281-mutable-list-clear.md](0281-mutable-list-clear.md) |
 | SPEC-0282 | archive | [0282-mutable-list-remove-at.md](0282-mutable-list-remove-at.md) |
-| SPEC-0283 | active | [0283-mutable-list-remove-last.md](../../specs/active/0283-mutable-list-remove-last.md) |
+| SPEC-0283 | archive | [0283-mutable-list-remove-last.md](0283-mutable-list-remove-last.md) |
