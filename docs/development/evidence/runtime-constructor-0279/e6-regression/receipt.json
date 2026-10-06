@@ -1,0 +1,346 @@
+{
+  "scope": "SPEC-0279 E6 ordinary compiler behavior and native regression refresh",
+  "clean_source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+  "rust_source_inputs_identical_across_all_eight_runs": true,
+  "total_passed": 82,
+  "failed": 0,
+  "ignored": 0,
+  "runs": [
+    {
+      "name": "e6-old-static-ssa",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "ssa::container_operation_tests::generated_container_requires_int_to_element_initializer_contract",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.3817319581285119,
+      "test_result": {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1031
+      }
+    },
+    {
+      "name": "e6-old-static-llvm",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "llvm::container_tests::runtime_length_generation_calls_initializer_in_an_explicit_loop",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.23285600007511675,
+      "test_result": {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1031
+      }
+    },
+    {
+      "name": "e6-zst-sentinel-llvm",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "llvm::container_tests::zst_container_uses_aligned_sentinel_without_allocation_or_addressing",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.22011916618794203,
+      "test_result": {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1031
+      }
+    },
+    {
+      "name": "e6-zst-logical-drop-llvm",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "llvm::container_tests::move_only_zst_drop_preserves_logical_count_without_address_or_free",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.22362887510098517,
+      "test_result": {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1031
+      }
+    },
+    {
+      "name": "e6-old-owned-closure-native",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "native_tests::move_closure_drops_or_invokes_its_owned_string_capture_once",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 2.258181249955669,
+      "test_result": {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1031
+      }
+    },
+    {
+      "name": "e6-borrowed-generator-regression",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.2203202499076724,
+      "test_result": {
+        "outcome": "ok",
+        "passed": 32,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1000
+      }
+    },
+    {
+      "name": "e6-closure-escape-regression",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "ssa::closure_operation_tests::escape_tests",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.22027258411981165,
+      "test_result": {
+        "outcome": "ok",
+        "passed": 41,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 991
+      }
+    },
+    {
+      "name": "e6-closure-type-graph-regression",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "ssa::verify::closure_escape::types::graph_tests",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.22356504201889038,
+      "test_result": {
+        "outcome": "ok",
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1028
+      }
+    }
+  ],
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-old-static-ssa.json.gz",
+      "raw_sha256": "3b9543740bd69435dac63f203eabf81b1dc0401aa32321998c7694ff6e2bd316"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-old-static-ssa.log.gz",
+      "raw_sha256": "6b71abe492b43d74316e997c60f5c04eeb331f4435e9b047f6bbd86282794d1f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-old-static-llvm.json.gz",
+      "raw_sha256": "f44e4ffcb0e9892cd50efc884d85648a2a27e2fe3f97a79e02cca2ab29780ea1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-old-static-llvm.log.gz",
+      "raw_sha256": "ec77f0a551f9172f89e54ebbcd57e512c8a866ec3456a0fbb59bc66ef55b441e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-zst-sentinel-llvm.json.gz",
+      "raw_sha256": "a3707ce6304e44304893e42f5060100ce14ff4067bf6a562f3bf7f0fa83f01b9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-zst-sentinel-llvm.log.gz",
+      "raw_sha256": "079682659f0c469a2e33d7e64153eb460496471f1dbb4d22d5de90275cf7f92b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-zst-logical-drop-llvm.json.gz",
+      "raw_sha256": "a0c96311865557cfdeb5bb51d261b19e203565564cd0272695fe8b0aa72a6635"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-zst-logical-drop-llvm.log.gz",
+      "raw_sha256": "64ed74bdd55bcbf76a933f8bfe26212379e4618821b6c6f16432a7d62211c58d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-old-owned-closure-native.json.gz",
+      "raw_sha256": "588c8b366a1ac45638dd055bd2db3c01925ab5e316e2cb5e1c4125de8228b409"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-old-owned-closure-native.log.gz",
+      "raw_sha256": "f19cc9c9bf53314abc4c35bb3bd99ba9c18593cd8482bd477c352739c24c9bcc"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-borrowed-generator-regression.json.gz",
+      "raw_sha256": "27c4e7152f8a63526380786c294c320c8d5e635e2ebe41159f5e2bde71287f8a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-borrowed-generator-regression.log.gz",
+      "raw_sha256": "bb3d66b79a9a142df56cecb9a101e0bb1e444c950b010012f4138fe2cfc4d910"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-closure-escape-regression.json.gz",
+      "raw_sha256": "d3ed32b6ec63920560076d5c08e348b0219743d550cdb129ac5b3497df07b3d3"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-closure-escape-regression.log.gz",
+      "raw_sha256": "20bc39e2c7c6619f32deb41dac3738b5b850770848d708b70759fe5c2e2be1b7"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-closure-type-graph-regression.json.gz",
+      "raw_sha256": "9259b9bf12525847f424b085f43d55b4ad7c67611e47e039f1d44a01975248f3"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/e6-regression/e6-closure-type-graph-regression.log.gz",
+      "raw_sha256": "be98d40c38bd156d446bbe72ba5cca040711276c68da952f02af2d87118da4fc"
+    }
+  ],
+  "reused_existing_control_and_unit_native": [
+    {
+      "name": "source-abi-single-demand-corrected-complete-regression",
+      "actual_source_head": "1aef99b17a51757e20c41e5f3b6ac28c615daf19",
+      "committed_input_checkpoint": "03c0ba9c4c9dcd37cf12e566cc1bc5acf0ca50e9",
+      "only_rust_input_differences": [
+        "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs",
+        "crates/lang-codegen/src/native_runtime_constructor_tests.rs",
+        "crates/lang-codegen/src/native_runtime_constructor_tests/storable_helpers.rs"
+      ],
+      "raw_log": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-demand-corrected-complete-regression.log.gz",
+      "raw_sha256": "fc7b735649982244156fb80fedeec570cfe7c9c6affdfb1e0185a8786c2322bc"
+    },
+    {
+      "name": "source-abi-unit-intent-corrected-complete-regression",
+      "actual_source_head": "1aef99b17a51757e20c41e5f3b6ac28c615daf19",
+      "committed_input_checkpoint": "03c0ba9c4c9dcd37cf12e566cc1bc5acf0ca50e9",
+      "only_rust_input_differences": [
+        "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs",
+        "crates/lang-codegen/src/native_runtime_constructor_tests.rs",
+        "crates/lang-codegen/src/native_runtime_constructor_tests/storable_helpers.rs"
+      ],
+      "raw_log": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-intent-corrected-complete-regression.log.gz",
+      "raw_sha256": "64bb1d9a36ca4cab8bbce2557110570ec4c856f05593bdec79f52e875567b534"
+    },
+    {
+      "name": "source-abi-current-native-complete-regression",
+      "actual_source_head": "1aef99b17a51757e20c41e5f3b6ac28c615daf19",
+      "committed_input_checkpoint": "03c0ba9c4c9dcd37cf12e566cc1bc5acf0ca50e9",
+      "only_rust_input_differences": [
+        "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs",
+        "crates/lang-codegen/src/native_runtime_constructor_tests.rs",
+        "crates/lang-codegen/src/native_runtime_constructor_tests/storable_helpers.rs"
+      ],
+      "raw_log": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-native-complete-regression.log.gz",
+      "raw_sha256": "90e970c5b4ff27dec2a0bfb77a650b389232eabac5d3c389098665b06cddc1a4"
+    }
+  ],
+  "selection": "Five exact one-test selectors plus borrowed generator, closure escape and type graph modules",
+  "limits": [
+    "ZST tests inspect verified SSA/LLVM; no new source MoveOnly ZST surface or native accounting claim",
+    "Owned String closure native uses ordinary object/link/run stdout oracle",
+    "Existing source/native records keep actual worktree source_head plus Rust SHA, not relabeled clean HEAD"
+  ],
+  "not_run": [
+    "local safety verification",
+    "fault injection/calibration",
+    "ASan/LSan calibration",
+    "allocation/free accounting",
+    "daybreak",
+    "P2 budget recalibration"
+  ],
+  "remaining": [
+    "fresh final review",
+    "exact final PR and actual merged main cross-host CI",
+    "Spec archival delivery"
+  ]
+}

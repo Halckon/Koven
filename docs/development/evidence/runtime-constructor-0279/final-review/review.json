@@ -1,0 +1,48 @@
+{
+  "reviewer": "/root/review_0279_single_names_and_native_intent",
+  "mode": "independent read-only evidence and completion-scope review; no Cargo",
+  "changed_rust_sha256": {
+    "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs": "5cf84ba1de69d5c9d3691a0597227a134b0c7ec3a62ce97c409f3d745ee67947",
+    "crates/lang-codegen/src/native_runtime_constructor_tests/evaluation.rs": "fc2b59cbe1dcc81379efd34ab1aaea34af4c0e8f1aa84c3c8c553b462ae72d6b",
+    "crates/lang-codegen/src/ssa/borrowed_generate_tests/root_storage_tests.rs": "1a57b71c9c7e969460ffeb118ee0e1ce72baf9c3d10e1dce301d485521270bc2",
+    "crates/lang-codegen/src/ssa/lower_frontend/container.rs": "6d89b1e9a71796dc9db292c06f19954c7229630ba4b97fbec85c2f4e699bd12e",
+    "crates/lang-codegen/src/ssa/lower_frontend/container/runtime.rs": "536749166ad53198218a4edb5bd95061304dabfeef5a85f91ec62c396a8f8068",
+    "crates/lang-codegen/src/ssa/lower_frontend/source_closure/tests.rs": "019e94736b3e3753e0f0637a784193404636a79e57fd475ea79f8c3980d89e3e",
+    "crates/lang-codegen/src/ssa/unit_lower/closure/layout.rs": "e71fa4b79900d03b491bf33ffb439f9a19b30c99b67fd7d521ff1fdafd8222f8",
+    "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_helpers.rs": "f27d2483e51f8c6070136be825e2d02a5d483155be1863ee7dc0608dc5ad20f8",
+    "crates/lang-codegen/src/ssa/unit_plan/callable_instances.rs": "6ed5e1e066eacdc6d1ad68e456a46479fea737b0bc9188ec7af4e384203c6123",
+    "crates/lang-codegen/src/ssa/verify/closure_content.rs": "1d3498f509a9dc952e3624d0ea896731b466326f8fed3b8d9fe4079c7c27d7e3",
+    "crates/lang-codegen/src/ssa/verify_ownership.rs": "eb024ad64bf515fdde083bec66830d6195799974e4b65088e50ba2903a38721b",
+    "crates/lang-codegen/src/ssa/verify_ownership/closure.rs": "92928490f8e7b30b3f4c2dc70ac7726ffc0c45a05b0894dcac7c528825a43159",
+    "crates/lang-codegen/src/ssa/borrowed_generate_tests/root_storage_tests/helper_calls.rs": "1beb42a914f2574f50f40de88d159b322e184fcd0e6a24b5627662331be5f279"
+  },
+  "final_gate_count": 19,
+  "raw_artifact_count": 66,
+  "checked": [
+    "13 current Rust SHA and all 19 final gate input maps",
+    "66 decompressed raw SHA; actual argv/exit/log results",
+    "four compile errors, four genuine behavior reds and one partial implementation failure classified",
+    "12 native tests execute 512 programs; public CLI six combinations per entry",
+    "five final-input E6 exact tests each pass; historical a65 not relabeled",
+    "verify_ownership actual/max1703 with unchanged baseline1658",
+    "Architecture and Spec verification limits"
+  ],
+  "finding": {
+    "issue": "Spec implied all six unreachable initializer cases executed and failed in original red; raw exits after first Array/pointer",
+    "correction": "Spec records the first-scene original red and all six corrected green cases separately",
+    "rechecked": true
+  },
+  "unresolved_actionable_findings": [],
+  "remaining": [
+    "exact final PR and actual main cross-host CI",
+    "Spec archival delivery"
+  ],
+  "not_run": [
+    "local safety verification",
+    "fault injection/calibration",
+    "ASan/LSan calibration",
+    "allocation/free accounting",
+    "daybreak",
+    "P2 budget recalibration"
+  ]
+}

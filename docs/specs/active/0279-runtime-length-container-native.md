@@ -123,9 +123,9 @@ constructor CallReturn 只结束参数 loan。临时 owned environment 按 captu
 | E3 | size 第一 Borrow 在后续 operand/nested call 内保持，initializer Inout size 冲突 L0135；size→拒负→initializer expression→allocation→callback；overflow/allocation fail 保留 expression 副作用且无 callback；零长度及升序一次，LLVM preheader 固定 storage | 普通源码/SSA/LLVM与两入口各6native求值trace通过；故障/校准及allocation观测按用户范围仅登记未执行 |
 | E4 | 命名 callback 重用、capture source 冲突与最终 source 复用、temporary ASAP、逆索引 Resource drop；逐指针 allocation/free | 源码生命周期/公共CLI重用与各6Resource native trace通过；逐指针allocation/free未执行 |
 | E5 | single 同文件与 unit 跨文件 generic/helper 各三种环境、显式/合法推断 T、body-only demands、同签名布局隔离、重复去重、正逆 inputs、arena 不增长及预算边界 | planner/源码完整回归与两入口各48基础helper及48嵌套/名义元素helper native通过；不外推全部可存储T |
-| E6 | malformed SSA callback/loan/type/mode 正反例；0278 既有控制、旧 static generator 与 Unit/ZST ABI 回归 | raw SSA/LLVM 切片已验收；源码/native 仍待 |
+| E6 | malformed SSA callback/loan/type/mode 正反例；0278 既有控制、旧 static generator 与 Unit/ZST ABI 回归 | clean a65 checkpoint 八门禁82项回归通过；最终两helper边界修复后借用34、closure47与两source/planner共享消费者复核通过，ZST仅SSA/LLVM证据 |
 | E7 | 两公共 CLI 入口实际 build/run；原 object 失败保全、无 temporary 残留、required CI 实际选择新测试 | 本地两入口各6公共build/run与最新生产复核通过；required CI实际选择待闭环 |
-| E8 | 独立 fresh-context 全审、Architecture/验收账本、归档 inventory、精确 final PR 与 actual main CI | 待 |
+| E8 | 独立 fresh-context 全审、Architecture/验收账本、归档 inventory、精确 final PR 与 actual main CI | 两项真实finding修复后非作者复审通过；本地最终门禁/证据、归档及远端交付继续闭环 |
 
 顺序：合同及 E1 红测→frontend literal 合同→SSA/LLVM borrowed bridge→两 source 桥→
 helper identity 与 canonical body demands→资源/public native 矩阵→全审及必要共享消费者→远端交付。
@@ -335,3 +335,36 @@ Array/List、pointer/Shared/Owned 与显式/推断 T。两个测试实际全部�
 独立非作者复审无阻断finding；codegen all-targets严格clippy、格式和精确尺寸检查通过。
 原 source ABI 收据保持冻结，新证据见[E5元素扩展收据](../../development/evidence/runtime-constructor-0279/storable-helpers/receipt.json)。
 E6普通回归核对与E7/E8远端交付仍待；用户排除的本地检查继续仅登记未执行。
+
+
+2026-10-06 E6 与最终审阅检查点：clean `a65f85f` 上八项 ordinary regression 共82测试通过，
+涵盖旧 static generator、Unit/ZST SSA/LLVM、普通 owned String closure native、borrowed
+生成及0278 closure/type graph；[E6收据](../../development/evidence/runtime-constructor-0279/e6-regression/receipt.json)
+保留精确当时head与原始输出，不升级为后续修复的最终生产证据。
+
+fresh frontend/SSA 与 source ABI 全审分别发现两项实际问题。helper callee entry Borrow
+信任调用者，但 DirectCall/CallableInvoke 未检查 root 覆盖后的当前 capture dependency；
+两个合法 malformed SSA 反例均在修复前意外通过。复用当前 contents/CFG 重绑定证明，
+按 instruction/loan 校验两个调用边界后均拒绝已失效 capture；对应正控还通过 LLVM。
+另一个问题是 size/initializer `Nothing` 和 return 后不可达 initializer 仍被索取完整布局。
+两入口共8个有效 prefix 用例与unit不可达 initializer 测试出现真实行为失败后，按已发布
+loan/origin 事实延迟 storage demand 与冻结布局；修复后全部6个不可达组合通过。
+原不可达红测在首个 Array/pointer 场景失败即退出，不宣称六个都执行并失败；
+不猜测不可达 helper、Resource 或静态 storage。
+
+首次 fixture 编译错误、部分实现仍失败及真实行为红测分别保全，名称中的 green/red
+不决定分类。最终 Single103、Unit162、planner72、closure47、borrowed34均0failed/0ignored；
+最新完整 ordinary native 的12个Rust入口实际执行512个程序（两入口各256），全部通过。
+其中新增各4个 `Nothing` 语言级 Abort 用例只核 SIGABRT/空stdout，结合SSA无generation
+证明求值前缀，不把它们当成故障注入或allocation/free证明。
+`verify_ownership.rs` 1682→1703 的21行必要接线增长已独立审阅；baseline1658未提高，
+算法仍留在单职责子模块。最终严格clippy、workspace check与CLI重建已通过，公共路径、
+格式及最终文档证据继续闭环。用户排除的本地安全/注入/校准与allocation观测仍未运行。
+
+最终公共两个CLI targets、workspace格式也通过；各入口6组真实build/artifact/CLI run。
+所有最终门禁已核对同一13改动Rust的SHA，所有raw解压SHA一致，
+详见[最终审阅收据](../../development/evidence/runtime-constructor-0279/final-review/receipt.json)。
+E6历史八门禁与16raw经独立核对；CI静态链确认双宿主PR/main→integration→core完整
+选择codegen/CLI，注册的12个native和两个公共CLI child无ignore。但配置可选择仍不是
+远端实际通过，归档及精确final PR/actual main尚待。因最终共享verifier有变化，旧static、
+ZST与owned closure五个exact用例已对最终输入补复核并全部通过，不复用历史head冒称新门禁。

@@ -31,10 +31,20 @@ Int 快照并在显式 Abort CFG 拒负；之后求 initializer 一次、建立�
 `ContainerGenerateBorrowed`。正常 CallReturn 结束参数 loan，并按 frontend facts 清理 temporary
 initializer/capture；命名 callback 保留供后续调用，Abort 不展开清理。
 
+typed `Nothing` 操作数沿真实求值路径立即终止：size 终止时不建立参数 loan、不求
+initializer；initializer 终止时保留此前 size 求值/loan 与拒负路径，不生成容器。
+single 在两操作数正常完成后才索取 runtime storage；unit 只冻结实际 constructor
+LoanFact 见证的 initializer，lambda layout 只取 Phase 3 发布的自身 Lambda origin。
+
 generator 的 LLVM callable 与 index storage 在 preheader 准备，循环按逻辑索引调用；
 Unit void 仍每个索引一次。Shared capture follow 及其父环境 loan 通过 CFG carrier 同步
 重绑定；普通 when 的未匹配分支单独保存和恢复 capture map，不能复用兄弟分支的 LoanId。
 SSA closure Drop 已释放的 capture dependency 不再重复 BorrowEnd。
+
+DirectCall 与 CallableInvoke 的 FunctionPointer/ConcreteClosure Borrow 参数也在调用点
+核验当前 capture contents，建立 callee entry Borrow 所信任的合同；借用 root 被覆盖后，
+新 capture dependency 已失效的 helper 调用返回 LoanInactive。按 instruction/loan 分别
+保存内容证明，继续复用 CFG loan 重绑定；普通非 callable Borrow 合同不变。
 
 unit 普通 Borrow Resource 参数与 closure capture 读取 Copyable 字段时使用 active parent
 heap loan。String 等 MoveOnly 字段借用必须有单字段 LoanFact，核对 typed projection、root、
@@ -55,9 +65,15 @@ helper 另各48个普通 native 用例覆盖 `Array<Int>`、`List<Int>`、Int �
 外层长度与回调次数。证据见[元素扩展收据](../development/evidence/runtime-constructor-0279/storable-helpers/receipt.json)，
 不外推所有可存储 T，也不把无析构日志解释为零 Drop 或 allocation/free。
 
+两入口另各四个语言级 Abort native 用例覆盖 Array/List 的 size/initializer `Nothing`：
+实际进程以 SIGABRT 结束，stdout 为空；源码 SSA/LLVM 同时核对参数 loan 前缀及无 generation。
+空 stdout 不证明零分配或零 Drop。
+
 普通 unit 入口的 while 与未提交 temporary call operand 仍受既有 control-prefix 门禁；
 只读迭代/常量 view 的既有能力不外推为任意 CFG 支持。Source/native 原始失败、夹具/缓存
 错误与通过结果见[分层收据](../development/evidence/runtime-constructor-0279/source-abi/receipt.json)。
 single 静态容器预登记仍沿 typed descriptor，缺少通用已求值容器事实；不可达静态
 unsupported element storage 的边界未在本片扩展（原1aef99b已同样预登记静态 descriptor）。
+unit 不可达 Resource/deinit 需求、一般不可达 generic helper 和静态 unsupported storage
+仍受既有事实/能力边界约束；本片不宣称通用不可达代码或全部 `Nothing` call 支持。
 本地安全验证、故障注入/校准以及逐指针 allocation/free 在本轮未执行。
