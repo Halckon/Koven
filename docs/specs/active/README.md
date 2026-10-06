@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前0份active。
+当前 1 份 active。
+
+- [SPEC-0280](0280-mutable-list-add.md)：MutableList 顺序追加与动态扩容 (`MutableList.add`)
 
 0279按[PR57](https://github.com/Halckon/Koven/pull/57)双宿主实现验收与用户限定范围归档；最终归档head/merge/main待交付，见[账本](../../development/evidence/runtime-constructor-0279/delivery.json)。
 
