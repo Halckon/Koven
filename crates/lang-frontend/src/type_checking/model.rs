@@ -12,9 +12,10 @@ use crate::{
 
 use super::{
     AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
-    ContainerConstructionDescriptor, ContainerSizeDescriptor, ElementPlaceDescriptor,
-    ExpressionCategory, FunctionParameterType, IntrinsicCallable, OwnershipPrimitiveDescriptor,
-    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, StringOperationDescriptor,
+    ContainerAppendDescriptor, ContainerConstructionDescriptor, ContainerSizeDescriptor,
+    ElementPlaceDescriptor, ExpressionCategory, FunctionParameterType, IntrinsicCallable,
+    OwnershipPrimitiveDescriptor, ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor,
+    StringOperationDescriptor,
     canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
 };
 
@@ -1103,6 +1104,7 @@ pub struct TypedFile {
     integer_operations: Vec<IntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
+    pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -1135,6 +1137,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) integer_operations: Vec<IntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
+    pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
 }
 
@@ -1184,6 +1187,7 @@ impl TypedFile {
             integer_operations: parts.integer_operations,
             container_constructions: parts.container_constructions,
             container_sizes: parts.container_sizes,
+            container_appends: parts.container_appends,
             element_places: parts.element_places,
             diagnostics,
         }

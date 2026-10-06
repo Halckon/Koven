@@ -353,3 +353,15 @@ fn container_size_publishes_receiver_identity_type_and_span() {
         SequentialContainerKind::MutableList
     );
 }
+
+#[test]
+fn mutable_list_add_member_is_typed() {
+    let text = "fun append(own list: MutableList<Int>): Unit { list.add(42) }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert!(
+        typed.container_appends().len() == 1,
+        "must publish a container append descriptor"
+    );
+}
+

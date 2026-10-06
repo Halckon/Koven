@@ -6,10 +6,10 @@ use crate::{
     name_resolution::ExternalSymbolId,
     type_checking::{
         AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
-        ContainerConstructionDescriptor, ContainerSizeDescriptor, DestructuringDescriptor,
-        ElementPlaceDescriptor, ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor,
-        OwnershipPrimitiveDescriptor, ParameterMode, RcOperationDescriptor,
-        StringOperationDescriptor, TypeId, TypeTable,
+        ContainerAppendDescriptor, ContainerConstructionDescriptor, ContainerSizeDescriptor,
+        DestructuringDescriptor, ElementPlaceDescriptor, ExpressionCategory, NonNullUseDescriptor,
+        NullComparisonDescriptor, OwnershipPrimitiveDescriptor, ParameterMode,
+        RcOperationDescriptor, StringOperationDescriptor, TypeId, TypeTable,
     },
 };
 
@@ -46,6 +46,7 @@ pub(super) struct TrialState {
     integer_operations: Vec<IntegerOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     container_sizes: Vec<ContainerSizeDescriptor>,
+    container_appends: Vec<ContainerAppendDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -78,6 +79,7 @@ impl Checker<'_> {
             integer_operations: self.integer_operations.clone(),
             container_constructions: self.container_constructions.clone(),
             container_sizes: self.container_sizes.clone(),
+            container_appends: self.container_appends.clone(),
             element_places: self.element_places.clone(),
             diagnostics: self.diagnostics.clone(),
         }
@@ -109,6 +111,7 @@ impl Checker<'_> {
         self.integer_operations = state.integer_operations;
         self.container_constructions = state.container_constructions;
         self.container_sizes = state.container_sizes;
+        self.container_appends = state.container_appends;
         self.element_places = state.element_places;
         self.diagnostics = state.diagnostics;
     }
