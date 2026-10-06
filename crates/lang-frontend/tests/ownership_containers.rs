@@ -747,4 +747,3 @@ fn mutable_list_remove_at_rejects_use_after_move() {
     );
     assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
-

@@ -11,7 +11,8 @@ use crate::{
         SequentialContainerKind, TypeCheckingError, UnitContainerAppendDescriptor,
         UnitContainerClearDescriptor, UnitContainerRemoveAtDescriptor, UnitContainerSizeDescriptor,
         UnitElementPlaceDescriptor, UnitExpressionId, UnitFunctionParameterType, UnitTypeId,
-        UnitTypeKind, argument_mapping::{MappedParameter, map_arguments},
+        UnitTypeKind,
+        argument_mapping::{MappedParameter, map_arguments},
     },
 };
 
@@ -703,7 +704,10 @@ impl BodyChecker<'_> {
         }
         let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
             move_only: false,
-            parameters: vec![UnitFunctionParameterType::new(ParameterMode::Value, int_type)],
+            parameters: vec![UnitFunctionParameterType::new(
+                ParameterMode::Value,
+                int_type,
+            )],
             return_type: element_type,
         });
         self.record_expression(source, callee, function);

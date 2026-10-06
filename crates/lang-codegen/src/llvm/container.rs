@@ -588,8 +588,7 @@ pub(super) fn remove_at<'ctx>(
 
     let one = size_type.const_int(1, false);
     if layout.stride > 0 {
-        let next_index =
-            builder.build_int_add(size_index, one, &format!("{name}.next_index"))?;
+        let next_index = builder.build_int_add(size_index, one, &format!("{name}.next_index"))?;
         let has_elements_to_shift = builder.build_int_compare(
             inkwell::IntPredicate::ULT,
             next_index,

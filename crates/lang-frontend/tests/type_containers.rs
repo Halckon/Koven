@@ -479,4 +479,3 @@ fn container_remove_at_rejects_mismatched_index_and_arity() {
     let (_sources, _parsed, _names, typed) = checked(text);
     assert_eq!(codes(typed.diagnostics()), ["L0121", "L0121", "L0084"]);
 }
-

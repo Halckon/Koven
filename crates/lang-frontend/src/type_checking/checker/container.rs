@@ -3,9 +3,7 @@ use crate::{
     name_resolution::{Namespace, ReferenceTarget},
     parser::{AssignmentOperator, CallArgument, Expression, LiteralKind, ParameterModeMarker},
     source::Span,
-    type_checking::{
-        ContainerConstructionKind, ContainerRemoveAtDescriptor, IntrinsicCallable,
-    },
+    type_checking::{ContainerConstructionKind, ContainerRemoveAtDescriptor, IntrinsicCallable},
 };
 
 use super::*;
@@ -941,15 +939,16 @@ impl Checker<'_> {
         });
         self.set_expression(callee, function);
         self.set_expression_category(callee, ExpressionCategory::Temporary);
-        self.container_remove_ats.push(ContainerRemoveAtDescriptor::new(
-            expression,
-            receiver,
-            index_arg.value,
-            receiver_result.ty,
-            element_type,
-            element_type,
-            call_span,
-        ));
+        self.container_remove_ats
+            .push(ContainerRemoveAtDescriptor::new(
+                expression,
+                receiver,
+                index_arg.value,
+                receiver_result.ty,
+                element_type,
+                element_type,
+                call_span,
+            ));
         Ok(Some(ExprCheck {
             ty: element_type,
             falls_through: receiver_result.falls_through && index_result.falls_through,
