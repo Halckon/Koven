@@ -677,8 +677,14 @@ impl Operation {
             }
             Self::ContainerLength { owner } => vec![*owner],
             Self::ContainerElementPlace { owner, index } => vec![*owner, EntityId::Value(*index)],
-            Self::ContainerAppend { owner, element } => vec![EntityId::Value(*owner), EntityId::Value(*element)],
-            Self::ContainerReplace { owner, index, value } => vec![
+            Self::ContainerAppend { owner, element } => {
+                vec![EntityId::Value(*owner), EntityId::Value(*element)]
+            }
+            Self::ContainerReplace {
+                owner,
+                index,
+                value,
+            } => vec![
                 EntityId::Value(*owner),
                 EntityId::Value(*index),
                 EntityId::Value(*value),

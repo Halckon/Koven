@@ -226,15 +226,34 @@ pub(super) fn verify_operation(
         Operation::NullableTake { owner, proof } => {
             nullable_take_contract(module, function, *owner, *proof, &results)
         }
-        Operation::ContainerConstruct { container, elements } => {
-            container_construct_contract(module, function, *container, elements, &results)
-        }
-        Operation::ContainerGenerate { container, length, initializer } => {
-            container_generate_contract(module, function, *container, *length, *initializer, &results)
-        }
-        Operation::ContainerGenerateBorrowed { container, length, initializer } => {
-            borrowed_generate::contract(module, function, *container, *length, *initializer, &results)
-        }
+        Operation::ContainerConstruct {
+            container,
+            elements,
+        } => container_construct_contract(module, function, *container, elements, &results),
+        Operation::ContainerGenerate {
+            container,
+            length,
+            initializer,
+        } => container_generate_contract(
+            module,
+            function,
+            *container,
+            *length,
+            *initializer,
+            &results,
+        ),
+        Operation::ContainerGenerateBorrowed {
+            container,
+            length,
+            initializer,
+        } => borrowed_generate::contract(
+            module,
+            function,
+            *container,
+            *length,
+            *initializer,
+            &results,
+        ),
         Operation::ContainerLength { owner } => {
             container_length_contract(module, function, *owner, &results)
         }
@@ -244,9 +263,11 @@ pub(super) fn verify_operation(
         Operation::ContainerAppend { owner, element } => {
             container_append_contract(module, function, *owner, *element, &results)
         }
-        Operation::ContainerReplace { owner, index, value } => {
-            container_replace_contract(module, function, *owner, *index, *value, &results)
-        }
+        Operation::ContainerReplace {
+            owner,
+            index,
+            value,
+        } => container_replace_contract(module, function, *owner, *index, *value, &results),
         Operation::FieldPlace { base, field } => {
             field_place_contract(module, function, *base, *field, &results)
         }

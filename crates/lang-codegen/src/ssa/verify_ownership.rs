@@ -810,8 +810,15 @@ fn apply_operation(
             }
         }
         Operation::ContainerAppend { owner, element } => {
-            if require_value(module, function, *owner, state, location.clone(), origin, errors)
-                && has_any_value_loan(*owner, aliases, state)
+            if require_value(
+                module,
+                function,
+                *owner,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            ) && has_any_value_loan(*owner, aliases, state)
             {
                 errors.push(error(
                     VerifyErrorKind::OwnerLoanConflict { value: *owner },
@@ -820,17 +827,40 @@ fn apply_operation(
                 ));
             }
             consume_value(
-                module, function, *owner, aliases, state, &BTreeSet::new(), &BTreeSet::new(),
-                location.clone(), origin, errors,
+                module,
+                function,
+                *owner,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location.clone(),
+                origin,
+                errors,
             );
             consume_value(
-                module, function, *element, aliases, state, &BTreeSet::new(), &BTreeSet::new(),
-                location, origin, errors,
+                module,
+                function,
+                *element,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
             );
         }
         Operation::ContainerReplace { owner, value, .. } => {
-            if require_value(module, function, *owner, state, location.clone(), origin, errors)
-                && has_any_value_loan(*owner, aliases, state)
+            if require_value(
+                module,
+                function,
+                *owner,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            ) && has_any_value_loan(*owner, aliases, state)
             {
                 errors.push(error(
                     VerifyErrorKind::OwnerLoanConflict { value: *owner },
@@ -839,8 +869,16 @@ fn apply_operation(
                 ));
             }
             consume_value(
-                module, function, *value, aliases, state, &BTreeSet::new(), &BTreeSet::new(),
-                location, origin, errors,
+                module,
+                function,
+                *value,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
             );
         }
         Operation::FieldPlace { base, .. } => {
@@ -1668,20 +1706,40 @@ fn union_from(
 }
 
 pub(super) fn all_entities(function: &Function) -> Vec<EntityId> {
-    let values = (0..function.values.len())
-        .map(|index| EntityId::Value(ValueId { function: function.id, index }));
-    let places = (0..function.places.len())
-        .map(|index| EntityId::Place(PlaceId { function: function.id, index }));
-    let loans = (0..function.loans.len())
-        .map(|index| EntityId::Loan(LoanId { function: function.id, index }));
+    let values = (0..function.values.len()).map(|index| {
+        EntityId::Value(ValueId {
+            function: function.id,
+            index,
+        })
+    });
+    let places = (0..function.places.len()).map(|index| {
+        EntityId::Place(PlaceId {
+            function: function.id,
+            index,
+        })
+    });
+    let loans = (0..function.loans.len()).map(|index| {
+        EntityId::Loan(LoanId {
+            function: function.id,
+            index,
+        })
+    });
     values.chain(places).chain(loans).collect()
 }
 
 pub(super) fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
     match terminator {
         TerminatorKind::Branch(edge) => vec![edge],
-        TerminatorKind::Conditional { when_true, when_false, .. } => vec![when_true, when_false],
-        TerminatorKind::NullableBranch { when_null, when_non_null, .. } => vec![when_null, when_non_null],
+        TerminatorKind::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => vec![when_true, when_false],
+        TerminatorKind::NullableBranch {
+            when_null,
+            when_non_null,
+            ..
+        } => vec![when_null, when_non_null],
         TerminatorKind::Return { .. } | TerminatorKind::Abort => Vec::new(),
     }
 }

@@ -114,10 +114,13 @@ impl ExpressionLowerer<'_> {
         &mut self,
         expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
-        let descriptor = self.typed.container_append(expression).ok_or(LoweringError {
-            kind: LoweringErrorKind::MissingFact,
-            span: None,
-        })?;
+        let descriptor = self
+            .typed
+            .container_append(expression)
+            .ok_or(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
         let span = descriptor.span();
         let (owner, symbol) = self.container_owner_for_append(descriptor.receiver())?;
         let element = self.require_value(descriptor.element())?;
@@ -131,9 +134,9 @@ impl ExpressionLowerer<'_> {
         if let Some(symbol) = symbol {
             self.bindings.insert(symbol, LoweredValue::Value(new_owner));
         }
-        self.emit_drops(lang_frontend::ownership_checking::DropPoint::AfterExpression(
-            descriptor.element(),
-        ))?;
+        self.emit_drops(
+            lang_frontend::ownership_checking::DropPoint::AfterExpression(descriptor.element()),
+        )?;
         self.emit_drops(lang_frontend::ownership_checking::DropPoint::CallReturn(
             expression,
         ))?;

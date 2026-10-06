@@ -123,4 +123,3 @@ fn run(analysis: &UnitAnalysis, expected: &[u8]) {
     assert_eq!(output.stdout, expected);
     assert!(output.stderr.is_empty());
 }
-

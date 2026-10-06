@@ -265,7 +265,12 @@ pub(super) fn append<'ctx>(
         &format!("{name}.double_cap"),
     )?;
     let new_capacity = builder
-        .build_select(is_zero_cap, four, double_cap, &format!("{name}.new_capacity"))?
+        .build_select(
+            is_zero_cap,
+            four,
+            double_cap,
+            &format!("{name}.new_capacity"),
+        )?
         .into_int_value();
 
     let new_buffer = runtime.allocate_buffer(
@@ -333,16 +338,10 @@ pub(super) fn append<'ctx>(
         context.ptr_type(inkwell::AddressSpace::default()),
         &format!("{name}.active_buffer"),
     )?;
-    active_buffer_phi.add_incoming(&[
-        (&new_buffer, grow_final_block),
-        (&buffer, no_grow_block),
-    ]);
+    active_buffer_phi.add_incoming(&[(&new_buffer, grow_final_block), (&buffer, no_grow_block)]);
     let active_buffer = active_buffer_phi.as_basic_value().into_pointer_value();
 
-    let active_capacity_phi = builder.build_phi(
-        size_type,
-        &format!("{name}.active_capacity"),
-    )?;
+    let active_capacity_phi = builder.build_phi(size_type, &format!("{name}.active_capacity"))?;
     active_capacity_phi.add_incoming(&[
         (&new_capacity, grow_final_block),
         (&old_capacity, no_grow_block),

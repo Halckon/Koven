@@ -317,4 +317,3 @@ fn mutable_list_add_publishes_inout_loan_and_value_delivery() {
         ["L0131"]
     );
 }
-

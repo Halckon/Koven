@@ -297,4 +297,3 @@ fn mutable_list_add_single_file_lowers_to_container_append() {
     assert_eq!(appends, 2);
     crate::llvm::render_verified_program(&program).expect("program lowers to LLVM without error");
 }
-

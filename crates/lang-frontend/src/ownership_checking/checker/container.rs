@@ -164,4 +164,3 @@ pub(super) fn populate_container_call_contracts(
             .or_insert_with(|| vec![crate::type_checking::ParameterMode::Value]);
     }
 }
-

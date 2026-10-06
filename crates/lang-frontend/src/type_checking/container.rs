@@ -397,4 +397,3 @@ impl ContainerAppendDescriptor {
         self.span
     }
 }
-

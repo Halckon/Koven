@@ -45,9 +45,8 @@ use super::ExpressionUse;
 use super::{
     AggregateProjectionDescriptor, AggregateProjectionKind, AggregateProjectionReceiver,
     BuiltinType, CallDescriptor, CallReceiverDescriptor, CallReceiverOrigin, CallableDescriptor,
-    CallableReceiverDescriptor, Capability, ConstructionDescriptor,
-    ContainerAppendDescriptor, ContainerConstructionDescriptor, ContainerSizeDescriptor,
-    Copyability, DeferredReason,
+    CallableReceiverDescriptor, Capability, ConstructionDescriptor, ContainerAppendDescriptor,
+    ContainerConstructionDescriptor, ContainerSizeDescriptor, Copyability, DeferredReason,
     DelegationForwarderDescriptor, DelegationPlan, DestructuringDescriptor, ElementPlaceDescriptor,
     EnumCaseDescriptor, EnvironmentFunction, EnvironmentType, ExpressionCategory,
     ExternalTypeBinding, FunctionParameterType, IntrinsicTypeConstructor, NominalDescriptor,

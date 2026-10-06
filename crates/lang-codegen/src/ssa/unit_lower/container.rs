@@ -44,7 +44,9 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<LoweredValue>, LoweringError> {
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
         if self.typed.container_construction(unit_expression).is_some() {
-            return self.lower_container_construction(expression, span).map(Some);
+            return self
+                .lower_container_construction(expression, span)
+                .map(Some);
         }
         if self.typed.container_size(unit_expression).is_some() {
             return self.lower_container_size(expression, span).map(Some);
@@ -74,7 +76,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let (owner, root) = self.container_owner_operand(descriptor.receiver().expression(), None, span)?;
+        let (owner, root) =
+            self.container_owner_operand(descriptor.receiver().expression(), None, span)?;
         let owner_val = match owner {
             EntityId::Value(v) => v,
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
@@ -111,7 +114,8 @@ impl UnitExpressionLowerer<'_> {
             let [EntityId::Value(new_owner)] = result_id.1.as_slice() else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };
-            self.bindings.insert(root_symbol, LoweredValue::Value(*new_owner));
+            self.bindings
+                .insert(root_symbol, LoweredValue::Value(*new_owner));
         }
         self.emit_drops(UnitDropPoint::AfterExpression(descriptor.element()))?;
         self.emit_drops(UnitDropPoint::CallReturn(id))?;

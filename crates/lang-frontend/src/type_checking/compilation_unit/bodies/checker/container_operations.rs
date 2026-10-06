@@ -426,7 +426,10 @@ impl BodyChecker<'_> {
         let unit_type = self.builtin(BuiltinType::Unit);
         let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
             move_only: false,
-            parameters: vec![UnitFunctionParameterType::new(ParameterMode::Value, element_type)],
+            parameters: vec![UnitFunctionParameterType::new(
+                ParameterMode::Value,
+                element_type,
+            )],
             return_type: unit_type,
         });
         self.record_expression(source, callee, function);
@@ -451,4 +454,3 @@ impl BodyChecker<'_> {
         }))
     }
 }
-

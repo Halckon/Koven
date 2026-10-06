@@ -1052,23 +1052,39 @@ impl RuntimeRequirements {
                         requirements.needs_allocation = true;
                         requirements.needs_free = true;
                         requirements.needs_abort = true;
-                        let container = match function.entity(EntityId::Value(owner)).map(|data| data.ty) {
-                            Some(EntityType::Value(ty)) => ty,
-                            _ => return Err(LlvmAdapterError::InvalidSsa("append owner 缺少 value type".to_owned())),
-                        };
+                        let container =
+                            match function.entity(EntityId::Value(owner)).map(|data| data.ty) {
+                                Some(EntityType::Value(ty)) => ty,
+                                _ => {
+                                    return Err(LlvmAdapterError::InvalidSsa(
+                                        "append owner 缺少 value type".to_owned(),
+                                    ));
+                                }
+                            };
                         requirements.container_allocations.insert(container);
-                        let (_, element) = module.sequential_container(container)
-                            .ok_or_else(|| LlvmAdapterError::InvalidSsa("append owner 不是顺序容器".to_owned()))?;
+                        let (_, element) =
+                            module.sequential_container(container).ok_or_else(|| {
+                                LlvmAdapterError::InvalidSsa("append owner 不是顺序容器".to_owned())
+                            })?;
                         requirements.collect_drop_type(module, element)?;
                     }
                     Operation::ContainerReplace { owner, .. } => {
                         requirements.needs_abort = true;
-                        let container = match function.entity(EntityId::Value(owner)).map(|data| data.ty) {
-                            Some(EntityType::Value(ty)) => ty,
-                            _ => return Err(LlvmAdapterError::InvalidSsa("replace owner 缺少 value type".to_owned())),
-                        };
-                        let (_, element) = module.sequential_container(container)
-                            .ok_or_else(|| LlvmAdapterError::InvalidSsa("replace owner 不是顺序容器".to_owned()))?;
+                        let container =
+                            match function.entity(EntityId::Value(owner)).map(|data| data.ty) {
+                                Some(EntityType::Value(ty)) => ty,
+                                _ => {
+                                    return Err(LlvmAdapterError::InvalidSsa(
+                                        "replace owner 缺少 value type".to_owned(),
+                                    ));
+                                }
+                            };
+                        let (_, element) =
+                            module.sequential_container(container).ok_or_else(|| {
+                                LlvmAdapterError::InvalidSsa(
+                                    "replace owner 不是顺序容器".to_owned(),
+                                )
+                            })?;
                         requirements.collect_drop_type(module, element)?;
                     }
                     Operation::Drop { owner } => {
@@ -1167,8 +1183,12 @@ impl RuntimeRequirements {
                 ));
             }
             Some(
-                SsaTypeKind::Unit | SsaTypeKind::Boolean | SsaTypeKind::Char | SsaTypeKind::Integer { .. },
-            ) | None => {
+                SsaTypeKind::Unit
+                | SsaTypeKind::Boolean
+                | SsaTypeKind::Char
+                | SsaTypeKind::Integer { .. },
+            )
+            | None => {
                 return Err(LlvmAdapterError::InvalidSsa(
                     "Copyable 或未知类型进入 drop glue 收集".to_owned(),
                 ));
@@ -1181,6 +1201,9 @@ impl RuntimeRequirements {
 fn add_noreturn_attribute(context: &Context, function: FunctionValue<'_>) {
     let kind = Attribute::get_named_enum_kind_id("noreturn");
     if kind != 0 {
-        function.add_attribute(AttributeLoc::Function, context.create_enum_attribute(kind, 0));
+        function.add_attribute(
+            AttributeLoc::Function,
+            context.create_enum_attribute(kind, 0),
+        );
     }
 }

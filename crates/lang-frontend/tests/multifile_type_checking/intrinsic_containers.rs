@@ -470,4 +470,3 @@ fn mutable_list_add_member_is_typed_in_compilation_unit() {
     );
     assert!(typed.validate().is_ok());
 }
-

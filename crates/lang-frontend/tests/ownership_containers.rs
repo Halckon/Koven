@@ -664,5 +664,3 @@ fn mutable_list_add_transfers_move_only_elements() {
         ["L0131"]
     );
 }
-
-
