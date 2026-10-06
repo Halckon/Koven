@@ -13,9 +13,9 @@ use crate::{
 use super::{
     AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
     ContainerAppendDescriptor, ContainerClearDescriptor, ContainerConstructionDescriptor,
-    ContainerSizeDescriptor, ElementPlaceDescriptor, ExpressionCategory, FunctionParameterType,
-    IntrinsicCallable, OwnershipPrimitiveDescriptor, ParameterBindingDescriptor, ParameterMode,
-    RcOperationDescriptor, StringOperationDescriptor,
+    ContainerRemoveAtDescriptor, ContainerSizeDescriptor, ElementPlaceDescriptor,
+    ExpressionCategory, FunctionParameterType, IntrinsicCallable, OwnershipPrimitiveDescriptor,
+    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, StringOperationDescriptor,
     canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
 };
 
@@ -1106,6 +1106,7 @@ pub struct TypedFile {
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
     pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<ContainerClearDescriptor>,
+    pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -1140,6 +1141,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
     pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<ContainerClearDescriptor>,
+    pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
 }
 
@@ -1191,6 +1193,7 @@ impl TypedFile {
             container_sizes: parts.container_sizes,
             container_appends: parts.container_appends,
             container_clears: parts.container_clears,
+            container_remove_ats: parts.container_remove_ats,
             element_places: parts.element_places,
             diagnostics,
         }

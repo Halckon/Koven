@@ -430,3 +430,53 @@ fn container_clear_rejects_arguments() {
     let (_sources, _parsed, _names, typed) = checked(text);
     assert_eq!(codes(typed.diagnostics()), ["L0121"]);
 }
+
+#[test]
+fn mutable_list_remove_at_member_is_typed() {
+    let text = "fun pop(own list: MutableList<Int>): Int { return list.removeAt(0) }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_remove_ats().len(), 1);
+    let remove_at = typed.container_remove_ats()[0];
+    assert_eq!(
+        typed.types().get(remove_at.result_type()),
+        Some(&lang_frontend::type_checking::TypeKind::Builtin(
+            lang_frontend::type_checking::BuiltinType::Int
+        ))
+    );
+    assert_eq!(
+        typed.container_remove_at(remove_at.expression()),
+        Some(remove_at)
+    );
+}
+
+#[test]
+fn container_remove_at_rejects_array_and_list() {
+    let text = "fun bad(array: Array<Int>, list: List<Int>): Unit {\n\
+                    array.removeAt(0)\n\
+                    list.removeAt(0)\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+}
+
+#[test]
+fn container_remove_at_rejects_property_access() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    val f = list.removeAt\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+}
+
+#[test]
+fn container_remove_at_rejects_mismatched_index_and_arity() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    list.removeAt()\n\
+                    list.removeAt(0, 1)\n\
+                    list.removeAt(\"zero\")\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0121", "L0121", "L0084"]);
+}
+
