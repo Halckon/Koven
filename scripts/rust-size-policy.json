@@ -123,11 +123,11 @@
       "review": "SPEC-0279 independent full review核对实际增长、领域子模块与现有行为边界；超过1079行或扩张职责前重新审阅。"
     },
     "crates/lang-codegen/src/native/unit_tests.rs": {
-      "max_lines": 2026,
-      "reason": "SPEC-0268 仅增加五个独立 unit-for 测试模块的路径与 mod 声明，共十行；所有新用例和 oracle 均位于独立短文件。 SPEC-0274本轮：仅增加两个独立测试模块的注册（6行）；测试主体已位于各自小文件，本入口不新增测试实现。 SPEC-0282本轮：仅增加独立 unit_container_remove_at_tests 测试模块注册（2行），具体测试位于独立短文件。 SPEC-0283本轮：仅增加独立 unit_container_remove_last_tests 测试模块注册（2行），具体测试位于独立短文件。",
+      "max_lines": 2028,
+      "reason": "SPEC-0268 仅增加五个独立 unit-for 测试模块的路径与 mod 声明，共十行；所有新用例和 oracle 均位于独立短文件。 SPEC-0274本轮：仅增加两个独立测试模块的注册（6行）；测试主体已位于各自小文件，本入口不新增测试实现。 SPEC-0282本轮：仅增加独立 unit_container_remove_at_tests 测试模块注册（2行），具体测试位于独立短文件。 SPEC-0283本轮：仅增加独立 unit_container_remove_last_tests 测试模块注册（2行），具体测试位于独立短文件。 SPEC-0284本轮：仅增加独立 unit_container_remove_first_tests 测试模块注册（2行），具体测试位于独立短文件。",
       "owner": "lang-codegen native tests",
       "split_plan": "后续native测试入口整体迁移时按领域拆注册，保持fixture与断言边界。",
-      "review": "SPEC-0283独立完整审阅核对此次有界增长与既有职责；超过2026行或增加职责前重新审阅。"
+      "review": "SPEC-0284独立完整审阅核对此次有界增长与既有职责；超过2028行或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/lower_frontend.rs": {
       "max_lines": 1505,
@@ -179,11 +179,11 @@
       "review": "SPEC-0284独立完整审阅核对container_remove_firsts与1532行精确增长；超过1532行或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/model.rs": {
-      "max_lines": 1375,
-      "reason": "SPEC-0279 新增 borrowed generator operation 的数据与 operand 登记；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow的variant与operand登记仅6行增长。 SPEC-0280 ContainerAppend operation 模型与 operand 登记净增 5 行。 SPEC-0281 ContainerClear operation 模型与 operand 登记净增 4 行。 SPEC-0282 ContainerRemoveAt operation 模型与 operand 登记净增 7 行。 SPEC-0283 ContainerRemoveLast operation 模型与 operand 登记净增 4 行。",
+      "max_lines": 1380,
+      "reason": "SPEC-0279 新增 borrowed generator operation 的数据与 operand 登记；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow的variant与operand登记仅6行增长。 SPEC-0280 ContainerAppend operation 模型与 operand 登记净增 5 行。 SPEC-0281 ContainerClear operation 模型与 operand 登记净增 4 行。 SPEC-0282 ContainerRemoveAt operation 模型与 operand 登记净增 7 行。 SPEC-0283 ContainerRemoveLast operation 模型与 operand 登记净增 4 行。 SPEC-0284 ContainerRemoveFirst operation 模型与 operand 登记净增 4 行。",
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续完整 operation/entity 模型按合同自然边界独立拆分，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0283 独立完整审阅核对 ContainerRemoveLast 操作模型接线并锁定 1375 行；超过该值或增加职责前重新审阅。"
+      "review": "SPEC-0284 独立完整审阅核对 ContainerRemoveFirst 操作模型接线并锁定 1380 行；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/verify_operation.rs": {
       "max_lines": 1265,
@@ -200,18 +200,18 @@
       "review": "SPEC-0283 独立完整审阅核对 ContainerRemoveLast 所有权转移，锁定 1850 行；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/llvm/adapter.rs": {
-      "max_lines": 1705,
-      "reason": "SPEC-0279 borrowed generator adapter 分发，准备/调用算法已分离；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow仅增加loan-result路由与slot pointer load，16行增长。 SPEC-0280 ContainerAppend LLVM adapter 分发接线净增 18 行，具体扩容由独立 container 模块承载。 SPEC-0281 ContainerClear LLVM adapter 分发接线净增 18 行，具体清空与元素逆序 drop 由独立 container 模块承载。 SPEC-0282 ContainerRemoveAt LLVM adapter 分发接线净增 20 行，具体元素移出与内存搬迁由独立 container 模块承载。 SPEC-0283 ContainerRemoveLast LLVM adapter 分发接线净增 22 行，具体尾部元素移出由独立 container 模块承载。",
+      "max_lines": 1726,
+      "reason": "SPEC-0279 borrowed generator adapter 分发，准备/调用算法已分离；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow仅增加loan-result路由与slot pointer load，16行增长。 SPEC-0280 ContainerAppend LLVM adapter 分发接线净增 18 行，具体扩容由独立 container 模块承载。 SPEC-0281 ContainerClear LLVM adapter 分发接线净增 18 行，具体清空与元素逆序 drop 由独立 container 模块承载。 SPEC-0282 ContainerRemoveAt LLVM adapter 分发接线净增 20 行，具体元素移出与内存搬迁由独立 container 模块承载。 SPEC-0283 ContainerRemoveLast LLVM adapter 分发接线净增 22 行，具体尾部元素移出由独立 container 模块承载。 SPEC-0284 ContainerRemoveFirst LLVM adapter 分发接线净增 23 行，具体头部元素移出与内存前移由独立 container 模块承载。",
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续按 LLVM 指令家族整体迁移 adapter，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0283 独立完整审阅核对 ContainerRemoveLast adapter 接线并锁定 1705 行；超过该值或增加职责前重新审阅。"
+      "review": "SPEC-0284 独立完整审阅核对 ContainerRemoveFirst adapter 接线并锁定 1726 行；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/llvm/runtime.rs": {
-      "max_lines": 1228,
-      "reason": "SPEC-0279 新 generator 的 runtime drop 登记入口；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0280 暴露 free 运行时函数并在 collect_requirements 中登记 ContainerAppend 内存与 drop 依赖，净增 21 行。 SPEC-0281 在 collect_requirements 中登记 ContainerClear 元素 drop 依赖，净增 16 行。 SPEC-0282 在 collect_requirements 中登记 ContainerRemoveAt 的 abort 依赖，净增 3 行。",
+      "max_lines": 1230,
+      "reason": "SPEC-0279 新 generator 的 runtime drop 登记入口；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0280 暴露 free 运行时函数并在 collect_requirements 中登记 ContainerAppend 内存与 drop 依赖，净增 21 行。 SPEC-0281 在 collect_requirements 中登记 ContainerClear 元素 drop 依赖，净增 16 行。 SPEC-0282 在 collect_requirements 中登记 ContainerRemoveAt 的 abort 依赖，净增 3 行。 SPEC-0284 在 collect_requirements 中登记 ContainerRemoveFirst 的 abort 依赖，净增 2 行。",
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续按 runtime allocation/drop 职责拆分，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0282 独立完整审阅核对 ContainerRemoveAt runtime 依赖接线并锁定 1228 行；超过该值或增加职责前重新审阅。"
+      "review": "SPEC-0284 独立完整审阅核对 ContainerRemoveFirst runtime 依赖接线并锁定 1230 行；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/model.rs": {
       "max_lines": 1406,

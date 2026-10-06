@@ -269,8 +269,8 @@ pub(super) fn verify_operation(
         Operation::ContainerRemoveAt { owner, index } => {
             container_remove_at_contract(module, function, *owner, *index, &results)
         }
-        Operation::ContainerRemoveLast { owner } => {
-            container_remove_last_contract(module, function, *owner, &results)
+        Operation::ContainerRemoveFirst { owner } | Operation::ContainerRemoveLast { owner } => {
+            container_remove_endpoint_contract(module, function, *owner, &results)
         }
         Operation::ContainerReplace {
             owner,
@@ -864,7 +864,7 @@ fn container_remove_at_contract(
         && results == [EntityType::Value(elem_ty), EntityType::Value(owner_type)]
 }
 
-fn container_remove_last_contract(
+fn container_remove_endpoint_contract(
     module: &Module,
     function: &Function,
     owner: ValueId,

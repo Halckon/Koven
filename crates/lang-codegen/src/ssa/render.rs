@@ -660,6 +660,10 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*index))
         }
+        Operation::ContainerRemoveFirst { owner } => {
+            output.write_str("container.remove_first ")?;
+            write_entity_id(output, EntityId::Value(*owner))
+        }
         Operation::ContainerRemoveLast { owner } => {
             output.write_str("container.remove_last ")?;
             write_entity_id(output, EntityId::Value(*owner))

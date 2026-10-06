@@ -11,7 +11,7 @@ use lang_frontend::{
     type_checking::{
         BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory,
         IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind,
-        UnitElementPlaceDescriptor, UnitExpressionId, UnitTypeKind,
+        UnitElementPlaceDescriptor, UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -63,6 +63,11 @@ impl UnitExpressionLowerer<'_> {
         if self.typed.container_remove_at(unit_expression).is_some() {
             return self.lower_container_remove_at(expression, span).map(Some);
         }
+        if self.typed.container_remove_first(unit_expression).is_some() {
+            return self
+                .lower_container_remove_first(expression, span)
+                .map(Some);
+        }
         if self.typed.container_remove_last(unit_expression).is_some() {
             return self.lower_container_remove_last(expression, span).map(Some);
         }
@@ -96,18 +101,7 @@ impl UnitExpressionLowerer<'_> {
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
         self.consume_container_delivery(id, descriptor.element().expression(), element, span)?;
-        let concrete = resolve_concrete_type(
-            self.typed,
-            descriptor.container_type(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        let container_type = self
-            .type_ids
-            .get(&concrete)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let container_type = self.resolve_ssa_type(descriptor.container_type(), span)?;
         let result_id = self
             .function
             .append_instruction(
@@ -152,18 +146,7 @@ impl UnitExpressionLowerer<'_> {
             EntityId::Value(v) => v,
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
-        let concrete = resolve_concrete_type(
-            self.typed,
-            descriptor.container_type(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        let container_type = self
-            .type_ids
-            .get(&concrete)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let container_type = self.resolve_ssa_type(descriptor.container_type(), span)?;
         let result_id = self
             .function
             .append_instruction(
@@ -210,30 +193,8 @@ impl UnitExpressionLowerer<'_> {
             LoweredValue::Value(idx) => idx,
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
-        let concrete_elem = resolve_concrete_type(
-            self.typed,
-            descriptor.element_type(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        let element_type = self
-            .type_ids
-            .get(&concrete_elem)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let concrete_container = resolve_concrete_type(
-            self.typed,
-            descriptor.container_type(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        let container_type = self
-            .type_ids
-            .get(&concrete_container)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let element_type = self.resolve_ssa_type(descriptor.element_type(), span)?;
+        let container_type = self.resolve_ssa_type(descriptor.container_type(), span)?;
         let result_id = self
             .function
             .append_instruction(
@@ -262,58 +223,33 @@ impl UnitExpressionLowerer<'_> {
         Ok(LoweredValue::Value(*removed_val))
     }
 
-    pub(super) fn lower_container_remove_last(
+    fn lower_container_endpoint_removal(
         &mut self,
-        expression: ExpressionId,
+        id: UnitExpressionId,
+        receiver: UnitExpressionId,
+        element_type: UnitTypeId,
+        container_type: UnitTypeId,
         span: Span,
+        make_op: impl FnOnce(ValueId) -> Operation,
     ) -> Result<LoweredValue, LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let descriptor = self
-            .typed
-            .container_remove_last(id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if descriptor.expression() != id || descriptor.receiver().source_unit() != self.source_unit
-        {
+        if receiver.source_unit() != self.source_unit {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let (owner, root) =
-            self.container_owner_operand(descriptor.receiver().expression(), None, span)?;
+        let (owner, root) = self.container_owner_operand(receiver.expression(), None, span)?;
         let owner_val = match owner {
             EntityId::Value(v) => v,
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
-        let concrete_elem = resolve_concrete_type(
-            self.typed,
-            descriptor.element_type(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        let element_type = self
-            .type_ids
-            .get(&concrete_elem)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let concrete_container = resolve_concrete_type(
-            self.typed,
-            descriptor.container_type(),
-            self.substitutions,
-            self.static_self,
-            span,
-        )?;
-        let container_type = self
-            .type_ids
-            .get(&concrete_container)
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let ssa_element_type = self.resolve_ssa_type(element_type, span)?;
+        let ssa_container_type = self.resolve_ssa_type(container_type, span)?;
         let result_id = self
             .function
             .append_instruction(
                 self.block,
-                Operation::ContainerRemoveLast { owner: owner_val },
+                make_op(owner_val),
                 vec![
-                    EntityType::Value(element_type),
-                    EntityType::Value(container_type),
+                    EntityType::Value(ssa_element_type),
+                    EntityType::Value(ssa_container_type),
                 ],
                 Origin::Source(span),
             )
@@ -328,6 +264,52 @@ impl UnitExpressionLowerer<'_> {
         }
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
         Ok(LoweredValue::Value(*removed_val))
+    }
+
+    pub(super) fn lower_container_remove_first(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let id = UnitExpressionId::new(self.source_unit, expression);
+        let descriptor = self
+            .typed
+            .container_remove_first(id)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.expression() != id {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        self.lower_container_endpoint_removal(
+            id,
+            descriptor.receiver(),
+            descriptor.element_type(),
+            descriptor.container_type(),
+            span,
+            |owner| Operation::ContainerRemoveFirst { owner },
+        )
+    }
+
+    pub(super) fn lower_container_remove_last(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let id = UnitExpressionId::new(self.source_unit, expression);
+        let descriptor = self
+            .typed
+            .container_remove_last(id)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.expression() != id {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        self.lower_container_endpoint_removal(
+            id,
+            descriptor.receiver(),
+            descriptor.element_type(),
+            descriptor.container_type(),
+            span,
+            |owner| Operation::ContainerRemoveLast { owner },
+        )
     }
 
     /// Read the header through the frontend's synchronous receiver loan.
@@ -643,6 +625,24 @@ impl UnitExpressionLowerer<'_> {
             index,
             element,
         })
+    }
+
+    fn resolve_ssa_type(
+        &self,
+        type_id: UnitTypeId,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        let concrete = resolve_concrete_type(
+            self.typed,
+            type_id,
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        self.type_ids
+            .get(&concrete)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
     fn container_owner_operand(

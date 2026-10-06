@@ -721,3 +721,103 @@ pub(super) fn remove_last<'ctx>(
 
     Ok((removed_element, with_capacity))
 }
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn remove_first<'ctx>(
+    llvm: &LlvmModule<'ctx>,
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    module: &Module,
+    types: &TypeMap<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    container: SsaTypeId,
+    owner: StructValue<'ctx>,
+    name: &str,
+) -> Result<(BasicValueEnum<'ctx>, StructValue<'ctx>), LlvmAdapterError> {
+    let layout = types.container_layout(container)?;
+    let (_, _element) = module
+        .sequential_container(container)
+        .ok_or_else(|| LlvmAdapterError::InvalidSsa("removeFirst owner 不是顺序容器".to_owned()))?;
+    let buffer = builder
+        .build_extract_value(owner, 0, &format!("{name}.buffer"))?
+        .into_pointer_value();
+    let length = builder
+        .build_extract_value(owner, 1, &format!("{name}.length"))?
+        .into_int_value();
+    let capacity = builder
+        .build_extract_value(owner, 2, &format!("{name}.capacity"))?
+        .into_int_value();
+
+    let size_type = runtime.size_type();
+    let zero = size_type.const_zero();
+    let is_empty = builder.build_int_compare(
+        inkwell::IntPredicate::EQ,
+        length,
+        zero,
+        &format!("{name}.is_empty"),
+    )?;
+    runtime.abort_if(builder, function, is_empty, name)?;
+
+    let removed_element: BasicValueEnum<'ctx> = if layout.stride == 0 {
+        layout.element.const_zero()
+    } else {
+        let slot = unsafe {
+            builder.build_gep(
+                layout.element,
+                buffer,
+                &[zero],
+                &format!("{name}.remove_slot"),
+            )?
+        };
+        builder.build_load(layout.element, slot, &format!("{name}.removed_element"))?
+    };
+
+    let one = size_type.const_int(1, false);
+    if layout.stride > 0 {
+        let has_elements_to_shift = builder.build_int_compare(
+            inkwell::IntPredicate::ULT,
+            one,
+            length,
+            &format!("{name}.has_shift"),
+        )?;
+        let context = llvm.get_context();
+        let shift_block = context.append_basic_block(function, &format!("{name}.shift"));
+        let after_shift_block =
+            context.append_basic_block(function, &format!("{name}.after_shift"));
+        builder.build_conditional_branch(has_elements_to_shift, shift_block, after_shift_block)?;
+
+        builder.position_at_end(shift_block);
+        let shift_count = builder.build_int_sub(length, one, &format!("{name}.shift_count"))?;
+        let shift_bytes = builder.build_int_mul(
+            shift_count,
+            size_type.const_int(layout.stride, false),
+            &format!("{name}.shift_bytes"),
+        )?;
+        let src_ptr = unsafe {
+            builder.build_gep(layout.element, buffer, &[one], &format!("{name}.src_slot"))?
+        };
+        builder.build_memmove(buffer, 1, src_ptr, 1, shift_bytes)?;
+        builder.build_unconditional_branch(after_shift_block)?;
+
+        builder.position_at_end(after_shift_block);
+    }
+
+    let new_length = builder.build_int_sub(length, one, &format!("{name}.new_length"))?;
+    let header_type = layout.header;
+    let with_buffer = builder
+        .build_insert_value(
+            header_type.const_zero(),
+            buffer,
+            0,
+            &format!("{name}.with_buffer"),
+        )?
+        .into_struct_value();
+    let with_length = builder
+        .build_insert_value(with_buffer, new_length, 1, &format!("{name}.with_length"))?
+        .into_struct_value();
+    let with_capacity = builder
+        .build_insert_value(with_length, capacity, 2, &format!("{name}.with_capacity"))?
+        .into_struct_value();
+
+    Ok((removed_element, with_capacity))
+}
