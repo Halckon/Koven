@@ -9,9 +9,9 @@ use crate::{
     type_checking::{
         BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory, ParameterMode,
         SequentialContainerKind, TypeCheckingError, UnitContainerAppendDescriptor,
-        UnitContainerClearDescriptor, UnitContainerRemoveAtDescriptor, UnitContainerSizeDescriptor,
-        UnitElementPlaceDescriptor, UnitExpressionId, UnitFunctionParameterType, UnitTypeId,
-        UnitTypeKind,
+        UnitContainerClearDescriptor, UnitContainerRemoveAtDescriptor,
+        UnitContainerRemoveLastDescriptor, UnitContainerSizeDescriptor, UnitElementPlaceDescriptor,
+        UnitExpressionId, UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, map_arguments},
     },
 };
@@ -235,6 +235,22 @@ impl BodyChecker<'_> {
                 self.emit(
                     codes::INVALID_CONTAINER_MEMBER,
                     "sequential container does not support 'removeAt'",
+                    name_span,
+                )?;
+            }
+            return Ok(Some(self.error_type()));
+        }
+        if name == "removeLast" {
+            if container == SequentialContainerKind::MutableList {
+                self.emit(
+                    codes::INVALID_CONTAINER_MEMBER,
+                    "MutableList.removeLast must be called as a method",
+                    name_span,
+                )?;
+            } else {
+                self.emit(
+                    codes::INVALID_CONTAINER_MEMBER,
+                    "sequential container does not support 'removeLast'",
                     name_span,
                 )?;
             }
@@ -729,6 +745,110 @@ impl BodyChecker<'_> {
         Ok(Some(ExpressionCheck {
             ty: element_type,
             falls_through: receiver_result.falls_through && index_result.falls_through,
+        }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_container_remove_last_call(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let Expression::Member {
+            receiver,
+            name_span,
+            safe,
+            ..
+        } = self
+            .file(source)
+            .ast()
+            .expressions()
+            .get(callee)
+            .map_err(TypeCheckingError::from)?
+            .payload()
+            .clone()
+        else {
+            return Ok(None);
+        };
+        if safe
+            || self
+                .sources
+                .slice(name_span)
+                .map_err(TypeCheckingError::from)?
+                != "removeLast"
+        {
+            return Ok(None);
+        }
+        let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
+        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
+            return Ok(None);
+        };
+        if container != SequentialContainerKind::MutableList {
+            self.emit(
+                codes::INVALID_CONTAINER_MEMBER,
+                "sequential container does not support 'removeLast'",
+                name_span,
+            )?;
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        if !type_arguments.is_empty() {
+            self.emit(
+                codes::TYPE_ARGUMENT_ARITY,
+                "MutableList.removeLast accepts no type arguments",
+                name_span,
+            )?;
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        let parameters: [MappedParameter<UnitTypeId>; 0] = [];
+        match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
+            Ok(false)
+        })? {
+            Ok(_) => {}
+            Err(error) => {
+                self.emit_mapping_error(error)?;
+                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                return Ok(Some(ExpressionCheck {
+                    ty: self.error_type(),
+                    falls_through: receiver_result.falls_through,
+                }));
+            }
+        }
+        let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
+            move_only: false,
+            parameters: Vec::new(),
+            return_type: element_type,
+        });
+        self.record_expression(source, callee, function);
+        self.parts.expression_categories.insert(
+            UnitExpressionId::new(source, callee),
+            ExpressionCategory::Temporary,
+        );
+        self.parts
+            .container_remove_lasts
+            .push(UnitContainerRemoveLastDescriptor::new(
+                UnitExpressionId::new(source, expression),
+                UnitExpressionId::new(source, receiver),
+                receiver_result.ty,
+                element_type,
+                element_type,
+                call_span,
+            ));
+        Ok(Some(ExpressionCheck {
+            ty: element_type,
+            falls_through: receiver_result.falls_through,
         }))
     }
 }

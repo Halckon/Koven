@@ -7,10 +7,10 @@ use crate::{
     type_checking::{
         AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
         ContainerAppendDescriptor, ContainerClearDescriptor, ContainerConstructionDescriptor,
-        ContainerRemoveAtDescriptor, ContainerSizeDescriptor, DestructuringDescriptor,
-        ElementPlaceDescriptor, ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor,
-        OwnershipPrimitiveDescriptor, ParameterMode, RcOperationDescriptor,
-        StringOperationDescriptor, TypeId, TypeTable,
+        ContainerRemoveAtDescriptor, ContainerRemoveLastDescriptor, ContainerSizeDescriptor,
+        DestructuringDescriptor, ElementPlaceDescriptor, ExpressionCategory, NonNullUseDescriptor,
+        NullComparisonDescriptor, OwnershipPrimitiveDescriptor, ParameterMode,
+        RcOperationDescriptor, StringOperationDescriptor, TypeId, TypeTable,
     },
 };
 
@@ -50,6 +50,7 @@ pub(super) struct TrialState {
     container_appends: Vec<ContainerAppendDescriptor>,
     container_clears: Vec<ContainerClearDescriptor>,
     container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
+    container_remove_lasts: Vec<ContainerRemoveLastDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -85,6 +86,7 @@ impl Checker<'_> {
             container_appends: self.container_appends.clone(),
             container_clears: self.container_clears.clone(),
             container_remove_ats: self.container_remove_ats.clone(),
+            container_remove_lasts: self.container_remove_lasts.clone(),
             element_places: self.element_places.clone(),
             diagnostics: self.diagnostics.clone(),
         }
@@ -119,6 +121,7 @@ impl Checker<'_> {
         self.container_appends = state.container_appends;
         self.container_clears = state.container_clears;
         self.container_remove_ats = state.container_remove_ats;
+        self.container_remove_lasts = state.container_remove_lasts;
         self.element_places = state.element_places;
         self.diagnostics = state.diagnostics;
     }

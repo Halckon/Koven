@@ -567,6 +567,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) container_appends: Vec<UnitContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<UnitContainerClearDescriptor>,
     pub(crate) container_remove_ats: Vec<UnitContainerRemoveAtDescriptor>,
+    pub(crate) container_remove_lasts: Vec<UnitContainerRemoveLastDescriptor>,
     pub(crate) element_places: Vec<UnitElementPlaceDescriptor>,
     pub(crate) nullable: UnitNullableFacts,
 }
@@ -612,6 +613,7 @@ pub struct CompilationUnitTypes {
     container_appends: Vec<UnitContainerAppendDescriptor>,
     container_clears: Vec<UnitContainerClearDescriptor>,
     container_remove_ats: Vec<UnitContainerRemoveAtDescriptor>,
+    container_remove_lasts: Vec<UnitContainerRemoveLastDescriptor>,
     element_places: Vec<UnitElementPlaceDescriptor>,
     nullable: UnitNullableFacts,
     body_diagnostics: Vec<Diagnostic>,
@@ -674,6 +676,7 @@ impl CompilationUnitTypes {
             container_appends: parts.container_appends,
             container_clears: parts.container_clears,
             container_remove_ats: parts.container_remove_ats,
+            container_remove_lasts: parts.container_remove_lasts,
             element_places: parts.element_places,
             nullable: parts.nullable,
             body_diagnostics,

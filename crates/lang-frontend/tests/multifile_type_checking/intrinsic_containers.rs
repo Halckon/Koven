@@ -604,3 +604,59 @@ fn mutable_list_remove_at_rejects_unsupported_and_invalid_in_compilation_unit() 
     assert_eq!(typed.diagnostics()[1].code().to_string(), "L0121");
     assert_eq!(typed.diagnostics()[2].code().to_string(), "L0084");
 }
+
+#[test]
+fn mutable_list_remove_last_member_is_typed_in_compilation_unit() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-remove-last.ko",
+        "fun pop_tail(own list: MutableList<Int>): Int { return list.removeLast() }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-remove-last.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("MutableList.removeLast is valid");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_remove_lasts().len(), 1);
+    let remove_last = typed.container_remove_lasts()[0];
+    assert_eq!(
+        typed.types().get(remove_last.result_type()),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+    );
+    assert_eq!(
+        typed.container_remove_last(remove_last.expression()),
+        Some(remove_last)
+    );
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn mutable_list_remove_last_rejects_unsupported_and_invalid_in_compilation_unit() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-remove-last-invalid.ko",
+        "fun bad_array(items: Array<Int>): Unit { items.removeLast() }\n\
+         fun bad_args(own list: MutableList<Int>): Unit { list.removeLast(0) }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-remove-last-invalid.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("type check completes with diagnostics");
+    assert_eq!(typed.diagnostics().len(), 2);
+    assert_eq!(typed.diagnostics()[0].code().to_string(), "L0130");
+    assert_eq!(typed.diagnostics()[1].code().to_string(), "L0121");
+}
