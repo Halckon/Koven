@@ -396,3 +396,37 @@ fn container_add_rejects_mismatched_element_type() {
     let (_sources, _parsed, _names, typed) = checked(text);
     assert_eq!(codes(typed.diagnostics()), ["L0084"]);
 }
+
+#[test]
+fn mutable_list_clear_member_is_typed() {
+    let text = "fun clearList(own list: MutableList<Int>): Unit { list.clear() }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_clears().len(), 1);
+    let clear = typed.container_clears()[0];
+    assert_eq!(
+        typed.types().get(clear.result_type()),
+        Some(&lang_frontend::type_checking::TypeKind::Builtin(
+            lang_frontend::type_checking::BuiltinType::Unit
+        ))
+    );
+}
+
+#[test]
+fn container_clear_rejects_array_and_list() {
+    let text = "fun bad(array: Array<Int>, list: List<Int>): Unit {\n\
+                    array.clear()\n\
+                    list.clear()\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+}
+
+#[test]
+fn container_clear_rejects_arguments() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    list.clear(1)\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0121"]);
+}
