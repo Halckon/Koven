@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "pending_lifetime/temporary_capture.rs"]
+mod temporary_capture;
+
 #[test]
 fn unit_pending_borrow_owner_survives_branches_and_nested_calls() {
     for operand in [

@@ -751,3 +751,201 @@ fn compiler_bound_cross_thread_delivery_uses_unit_closure_transferability() {
     assert!(ownership.captures().is_empty());
     assert!(ownership.value_deliveries().is_empty());
 }
+
+#[test]
+fn ordinary_expected_move_literals_preserve_owned_capture_and_asap_drop() {
+    let mut sources = SourceMap::new();
+    let (api_source, api) = parsed(
+        &mut sources,
+        "api.ko",
+        "package p\nfun apply(callback: (Int) -> Boolean): Unit {}",
+    );
+    let (source, file) = parsed(
+        &mut sources,
+        "use.ko",
+        "package p\n\
+         fun make(own returnedLabel: String): (Int) -> Boolean = move { returnedIndex -> returnedLabel == \"return\" && returnedIndex == 0 }\n\
+         fun use(own localLabel: String, own argumentLabel: String): Unit {\n\
+             val contextual: (Int) -> Boolean = move { localIndex -> localLabel == \"local\" && localIndex == 0 }\n\
+             apply(contextual)\n\
+             apply(move { argumentIndex -> argumentLabel == \"argument\" && argumentIndex == 0 })\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/api.ko", api_source, &api),
+        SourceUnitInput::new("root", "p/use.ko", source, &file),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("unit ownership");
+    assert!(
+        ownership.diagnostics().is_empty(),
+        "{:?}",
+        ownership.diagnostics()
+    );
+    assert_eq!(
+        ownership.loans().len(),
+        2,
+        "only callback arguments form shared loans; move capture owns its source"
+    );
+    let unit = source_unit(&names, source);
+    let mut lambdas = file
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| {
+            matches!(
+                node.payload(),
+                lang_frontend::parser::Expression::Lambda { .. }
+            )
+            .then_some((node.span().start(), UnitExpressionId::new(unit, id)))
+        })
+        .collect::<Vec<_>>();
+    lambdas.sort_by_key(|(start, _)| *start);
+    assert_eq!(lambdas.len(), 3);
+    for ((_, lambda), name) in
+        lambdas
+            .into_iter()
+            .zip(["returnedLabel", "localLabel", "argumentLabel"])
+    {
+        let source = symbol_named(&ownership, &names, unit, name);
+        let captures = ownership.captures_of(lambda).collect::<Vec<_>>();
+        assert_eq!(captures.len(), 1);
+        assert_eq!(
+            captures[0].source(),
+            UnitClosureCaptureSource::Symbol(source)
+        );
+        assert_eq!(captures[0].mode(), ClosureCaptureMode::Owned);
+        assert_eq!(captures[0].effect(), ClosureCaptureEffect::Move);
+        assert_eq!(
+            typed.types().types().get(captures[0].ty()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        );
+        assert_eq!(
+            typed.types().copyability(captures[0].ty()),
+            Copyability::MoveOnly
+        );
+        assert!(
+            !ownership
+                .drops()
+                .iter()
+                .any(|drop| drop.target() == UnitDropTarget::Named(source))
+        );
+        let capture_drops = ownership
+            .drops()
+            .iter()
+            .filter(|drop| {
+                matches!(drop.target(),
+            UnitDropTarget::Captured { closure, source: UnitClosureCaptureSource::Symbol(captured) }
+                if closure == lambda && captured == source)
+            })
+            .collect::<Vec<_>>();
+        if name == "returnedLabel" {
+            assert!(
+                capture_drops.is_empty(),
+                "returned environment transfers to the caller"
+            );
+        } else {
+            assert_eq!(
+                capture_drops.len(),
+                1,
+                "owned capture drops once with its closure"
+            );
+            let UnitDropPoint::CallReturn(call) = capture_drops[0].point() else {
+                panic!("closure must drop after its final synchronous call");
+            };
+            let call_text = sources
+                .slice(
+                    file.ast()
+                        .expressions()
+                        .get(call.expression())
+                        .expect("call")
+                        .span(),
+                )
+                .expect("call text");
+            let expected_call = if name == "localLabel" {
+                "apply(contextual)"
+            } else {
+                "apply(move { argumentIndex -> argumentLabel == \"argument\" && argumentIndex == 0 })"
+            };
+            assert_eq!(
+                call_text, expected_call,
+                "capture cleanup belongs to its own final use"
+            );
+            let loan = ownership
+                .loans()
+                .iter()
+                .find(|loan| loan.call() == call)
+                .expect("callback borrow");
+            assert_eq!(loan.kind(), LoanKind::Shared);
+            if name == "localLabel" {
+                let contextual = names.names().source_units()[unit.index()]
+                    .resolution()
+                    .symbols()
+                    .iter()
+                    .find(|symbol| symbol.name() == "contextual")
+                    .expect("local closure symbol")
+                    .id();
+                assert!(matches!(loan.target(), UnitLoanTarget::Place(place)
+                    if place.root().source_unit() == unit && place.root().symbol() == contextual));
+            } else {
+                assert_eq!(loan.target(), &UnitLoanTarget::Temporary(lambda));
+            }
+            assert_eq!(
+                loan.end_span(),
+                file.ast()
+                    .expressions()
+                    .get(call.expression())
+                    .expect("call")
+                    .span()
+            );
+        }
+    }
+    ownership
+        .validate()
+        .expect("owned capture and ASAP plans validate");
+}
+
+#[test]
+fn ordinary_expected_lambda_keeps_capture_escape_and_ownership_errors() {
+    for (text, expected) in [
+        (
+            "fun invalid(label: String): (Int) -> Boolean = { index -> label == \"shared\" && index == 0 }",
+            "L0137",
+        ),
+        (
+            "fun invalid(label: String): (Int) -> Boolean = move { index -> label == \"borrowed\" && index == 0 }",
+            "L0138",
+        ),
+        (
+            "fun invalid(own label: String): Unit { val f: (Int) -> Boolean = move { index -> label == \"owned\" && index == 0 }\nval after = label == \"after\" }",
+            "L0131",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "capture-boundaries.ko", text);
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "capture-boundaries.ko",
+            source,
+            &file,
+        )];
+        let (name_environment, type_environment) = standard_environments();
+        let names = validated_names(&sources, &inputs, &name_environment);
+        let typed = validated_types(&sources, &inputs, &names, &type_environment);
+        let ownership =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+                .expect("recovery ownership");
+        assert_eq!(diagnostic_codes(&ownership), [expected], "{text}");
+        assert!(ownership.captures().is_empty());
+        assert!(ownership.loans().is_empty());
+        assert!(
+            ownership.drops().is_empty(),
+            "ownership errors suppress executable drop plans"
+        );
+        assert!(ownership.validate().is_err());
+    }
+}

@@ -1041,6 +1041,12 @@ impl TypeTable {
         self.canonical.get(id)
     }
 
+    /// 查询本次 typed 产物中已规范化的类型，不创建或修改类型身份。
+    #[must_use]
+    pub fn find(&self, kind: &TypeKind) -> Option<TypeId> {
+        self.canonical.find(kind)
+    }
+
     /// 查询本次 typed 产物中的内建类型身份。
     #[must_use]
     pub fn builtin(&self, builtin: BuiltinType) -> Option<TypeId> {

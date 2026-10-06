@@ -101,3 +101,8 @@ commit 不提前执行 deinit，正常与控制退出按实际 owner 唯一清�
 实际批次数不累加为一次执行；13 项字段 integration 与 3 项内部 gate 覆盖最终身份边界。
 首轮两宿主均执行 core、61-target stage 与 201 项 Guide；macOS 仅保留既有 LLDB 权限 ignore。
 新 main 整合重跑的 stage 为 63 targets / 810，Guide 201；上述最终 head 的双宿主结果已实际通过；有界证据不代表 frontend 全量通过。
+
+SPEC-0279 的实际完整CI推动修正了旧Borrow参数字段拒绝断言：普通非泛型class
+Borrow参数的一级String字段现在通过SharedHeapFieldLoan只读交付；两视图均核child结束、
+parent保留且无whole-owner Read，并以普通LLVM链接执行输出核验。nested/generic/value-class、
+own参数与pending replacement的原六项负控保留；不据此开放通用借用返回或全部字段形态。

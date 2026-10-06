@@ -335,6 +335,9 @@ impl UnitExpressionLowerer<'_> {
         let Some(receiver) = explicit_receiver else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
+        if let Some(value) = self.read_borrowed_heap_field(receiver, field, result_type, span)? {
+            return Ok(value);
+        }
         let receiver_value = self.require_expression_value(receiver.expression())?;
         // 当前 SSA alias 合同仍按 parent owner 冲突；同父 sibling 读取不假装已封闭。
         if self.pending_call_frames.iter().any(|frame| {

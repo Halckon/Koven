@@ -91,7 +91,7 @@ class DocsCheckerTests(unittest.TestCase):
         self.assertTrue(any("状态 draft 与目录不一致" in error for error in checker.errors), checker.errors)
 
     def test_multiple_current_guide_markers_are_rejected(self) -> None:
-        marker = "<!-- current-guide: v0.40 -->\n"
+        marker = "<!-- current-guide: v0.41 -->\n"
         self.write("docs/guide/README.md", "# Guide\n" + marker)
         self.write("docs/proposals/accidental.md", "# Proposal\n" + marker)
         checker = DocsChecker(self.root)
@@ -102,12 +102,12 @@ class DocsCheckerTests(unittest.TestCase):
         )
 
     def test_different_current_versions_cannot_coexist(self) -> None:
-        self.write("docs/guide/README.md", "# Guide\n<!-- current-guide: v0.40 -->\n")
-        self.write("docs/proposals/other.md", "# Candidate\n<!-- current-guide: v0.41 -->\n")
+        self.write("docs/guide/README.md", "# Guide\n<!-- current-guide: v0.41 -->\n")
+        self.write("docs/proposals/other.md", "# Candidate\n<!-- current-guide: v0.42 -->\n")
         checker = DocsChecker(self.root)
         checker.check_current_guide()
         self.assertTrue(any("实际为 2" in error for error in checker.errors), checker.errors)
-        self.assertTrue(any("实际为 v0.41" in error for error in checker.errors), checker.errors)
+        self.assertTrue(any("实际为 v0.42" in error for error in checker.errors), checker.errors)
 
     def test_old_current_version_is_rejected_but_archive_is_ignored(self) -> None:
         page = self.write("docs/guide/README.md", "# Guide\n<!-- current-guide: v0.38 -->\n")
@@ -116,19 +116,19 @@ class DocsCheckerTests(unittest.TestCase):
         checker.check_current_guide()
         self.assertTrue(any("实际为 v0.38" in error for error in checker.errors), checker.errors)
         self.assertFalse(any("实际为 2" in error for error in checker.errors), checker.errors)
-        page.write_text("# Guide\n<!-- current-guide: v0.40 -->\n", encoding="utf-8")
+        page.write_text("# Guide\n<!-- current-guide: v0.41 -->\n", encoding="utf-8")
         checker = DocsChecker(self.root)
         checker.check_current_guide()
         self.assertFalse(any("current guide marker" in error for error in checker.errors), checker.errors)
 
     def test_current_marker_must_be_in_guide_index(self) -> None:
-        self.write("docs/proposals/other.md", "<!-- current-guide: v0.40 -->\n")
+        self.write("docs/proposals/other.md", "<!-- current-guide: v0.41 -->\n")
         checker = DocsChecker(self.root)
         checker.check_current_guide()
         self.assertTrue(any("必须位于 docs/guide/README.md" in error for error in checker.errors), checker.errors)
 
     def test_guide_page_must_use_current_version_metadata(self) -> None:
-        self.write("docs/guide/README.md", "# Guide\n<!-- current-guide: v0.40 -->\n> **状态**：current（v0.40）\n")
+        self.write("docs/guide/README.md", "# Guide\n<!-- current-guide: v0.41 -->\n> **状态**：current（v0.41）\n")
         self.write("docs/guide/01-lexical.md", "# Lexical\n> **状态**：current（v0.38）\n")
         checker = DocsChecker(self.root)
         checker.check_current_guide()

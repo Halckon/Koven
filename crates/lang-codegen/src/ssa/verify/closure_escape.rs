@@ -1,6 +1,6 @@
 //! Reject unproved borrowed environments only at owned escape delivery boundaries.
 
-mod proof;
+pub(in crate::ssa::verify) mod proof;
 mod types;
 
 pub(super) use types::TypeCaptures;

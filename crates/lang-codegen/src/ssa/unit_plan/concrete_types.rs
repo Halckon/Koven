@@ -5,7 +5,10 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
     source::Span,
-    type_checking::{CompilationUnitTypes, IntrinsicTypeConstructor, UnitTypeId, UnitTypeKind},
+    type_checking::{
+        CompilationUnitTypes, IntrinsicTypeConstructor, UnitFunctionParameterType, UnitTypeId,
+        UnitTypeKind,
+    },
 };
 
 use super::lowering_error;
@@ -75,6 +78,35 @@ pub(crate) fn resolve_concrete_type(
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span)),
         Some(UnitTypeKind::StaticSelf(_)) => {
             static_self.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+        }
+        Some(UnitTypeKind::Function {
+            move_only,
+            parameters,
+            return_type,
+        }) => {
+            let parameters = parameters
+                .iter()
+                .map(|parameter| {
+                    let ty = resolve_concrete_type(
+                        typed,
+                        parameter.ty(),
+                        substitutions,
+                        static_self,
+                        span,
+                    )?;
+                    Ok(UnitFunctionParameterType::new(parameter.mode(), ty))
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            let return_type =
+                resolve_concrete_type(typed, *return_type, substitutions, static_self, span)?;
+            typed
+                .types()
+                .find(&UnitTypeKind::Function {
+                    move_only: *move_only,
+                    parameters,
+                    return_type,
+                })
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
         }
         Some(UnitTypeKind::Nullable(inner)) => {
             let inner = resolve_concrete_type(typed, *inner, substitutions, static_self, span)?;

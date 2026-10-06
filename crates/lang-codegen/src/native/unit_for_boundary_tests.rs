@@ -1,4 +1,4 @@
-//! Frontend success does not grant native capability for Inout, field or captured Borrow sources.
+//! Deferred Inout/field providers and the supported natural captured-Borrow iteration path.
 use super::*;
 use lang_frontend::ownership_checking::check_compilation_unit_constant_ownership;
 
@@ -103,77 +103,33 @@ fn unit_for_deferred_sources_reject_both_native_views_without_artifact_changes()
 }
 
 #[test]
-fn unit_for_captured_borrow_closure_retains_explicit_native_boundary() {
-    let analysis = analyze_sources(
-        "package p\nfun visit(): Unit { for (item in listOf(\"item\")) { val action: () -> Unit = { println(item) }; action() } }",
-        "package q\nfun entry(): Unit { p.visit() }",
-    );
-    assert!(
-        analysis
-            .owned
-            .ownership()
-            .captures()
-            .iter()
-            .any(|capture| capture.effect()
-                == lang_frontend::ownership_checking::ClosureCaptureEffect::Borrow),
-        "the frontend publishes a borrowed capture even though native representation is deferred"
-    );
-    let inputs = analysis.inputs();
-    let directory = TestDirectory::create();
-    let output = directory.join("output.o");
-    fs::write(&output, b"previous artifact").unwrap();
-    fs::write(directory.join("keep"), b"sibling").unwrap();
-    let before = super::for_atomic::bytes(&directory.0);
-    for constants in [false, true] {
-        let guard = crate::llvm::emission_failure::Guard::new(directory.join("keep/object.o"));
-        let error = if constants {
-            let typed = check_compilation_unit_types(
-                &analysis.sources,
-                &inputs,
-                &analysis.names,
-                &analysis.environment,
-            )
-            .unwrap()
-            .validate_constants()
-            .unwrap();
-            let owned = check_compilation_unit_constant_ownership(
-                &analysis.sources,
-                &inputs,
-                &analysis.names,
-                &analysis.environment,
-                &typed,
-            )
-            .unwrap()
-            .validate()
-            .unwrap();
-            crate::emit_native_constant_unit_object(
-                &analysis.sources,
-                &inputs,
-                &analysis.names,
-                &analysis.environment,
-                &typed,
-                &owned,
-                analysis.declaration("q", "entry"),
-                &output,
-            )
-            .unwrap_err()
-        } else {
-            emit_native_unit_object(
-                &analysis.sources,
-                &inputs,
-                &analysis.names,
-                &analysis.environment,
-                &analysis.typed,
-                &analysis.owned,
-                analysis.declaration("q", "entry"),
-                &output,
-            )
-            .unwrap_err()
-        };
-        assert_eq!(error.kind(), NativeObjectErrorKind::UnsupportedSource);
-        assert!(error.span().is_some());
-        assert_eq!(guard.calls(), 0);
-        assert_eq!(super::for_atomic::bytes(&directory.0), before);
+fn unit_for_captured_borrow_closure_executes_and_releases_each_iteration() {
+    for (elements, expected) in [
+        ("", ""),
+        ("\"item\"", "item\n"),
+        ("\"one\", \"二\", \"three\"", "one\n二\nthree\n"),
+    ] {
+        let provider = format!(
+            "package p\nfun visit(): Unit {{ for (item in listOf<String>({elements})) {{ val action: () -> Unit = {{ println(item) }}; action() }} }}"
+        );
+        let consumer = "package q\nfun entry(): Unit { p.visit() }";
+        let analysis = analyze_sources(&provider, consumer);
+        assert!(
+            analysis
+                .owned
+                .ownership()
+                .captures()
+                .iter()
+                .any(|capture| capture.effect()
+                    == lang_frontend::ownership_checking::ClosureCaptureEffect::Borrow)
+        );
+        for constants in [false, true] {
+            let (output, _) =
+                super::resource_exchange_tests::run_unit(&provider, consumer, constants);
+            assert!(output.status.success(), "{output:?}");
+            assert_eq!(output.stdout, expected.as_bytes());
+            assert!(output.stderr.is_empty(), "{output:?}");
+        }
     }
 }
 

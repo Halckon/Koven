@@ -1,5 +1,8 @@
 //! 已完成 typed container descriptor 到顺序容器 SSA 的窄化 lowering。
 
+mod access;
+mod runtime;
+
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::NameResolution,
@@ -140,12 +143,16 @@ impl ExpressionLowerer<'_> {
         if self.typed.expression_type(expression) != Some(descriptor.container_type()) {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        self.validate_container_identity(
-            descriptor.container(),
-            descriptor.element_type(),
-            descriptor.container_type(),
-            span,
-        )?;
+        // Runtime storage is demanded only after both operands complete; a Nothing prefix
+        // can legitimately have no pre-interned container layout.
+        if descriptor.kind() != ContainerConstructionKind::RuntimeLength {
+            self.validate_container_identity(
+                descriptor.container(),
+                descriptor.element_type(),
+                descriptor.container_type(),
+                span,
+            )?;
+        }
 
         let elements = match descriptor.kind() {
             ContainerConstructionKind::ListForm => {
@@ -221,10 +228,8 @@ impl ExpressionLowerer<'_> {
                 }
                 Vec::new()
             }
-            // Runtime-length construction depends on the still-unimplemented callable initializer
-            // bridge and remains outside this source-construction slice.
             ContainerConstructionKind::RuntimeLength => {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                return self.lower_runtime_container(expression, arguments, span);
             }
         };
         let container = self.expression_ssa_type(expression, span)?;

@@ -15,7 +15,7 @@
 copyability、destructuring 和 flow facts。错误输入保留 recovery 事实；后端不能消费未验证产物。
 
 对应覆盖位于 `name_resolution`、`type_checking`、`type_callable` 和 `type_copyability` integration
-suites。
+suites；lambda expected 与 capture 保全见 [move literal 前端事实](expected-move-literals.md)。
 
 ## 数值字面量解码
 

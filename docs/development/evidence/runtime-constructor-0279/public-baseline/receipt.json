@@ -1,0 +1,567 @@
+{
+  "schema": "koven.spec0279-public-baseline.v1",
+  "artifact_id": 11348042055,
+  "run_id": 37314044755,
+  "compiler_source_commit": "f08feb5af4ce934289f1660780aefb9a64d332bb",
+  "fresh_worktree_main": "6575e9069506fbdddcbf7e8cd5e873de91eea5b7",
+  "attempts": {
+    "initial": 14,
+    "corrected": 14,
+    "shared_oracle_corrected": 2
+  },
+  "programs_executed": 0,
+  "purpose": "Actual public build baseline; failed original fixtures do not count as intended behavior failures. Corrected shared oracle is 9.",
+  "scope": "No Cargo, native program execution or local fault calibration. No source/main identity rewrite. Not a typed/ownership acceptance or end-state native success.",
+  "retained": [
+    {
+      "original_relative_path": "corrected-generic_helper-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-generic_helper-single/case.ko.gz",
+      "raw_sha256": "7fc2b5d45e62480e8b6d14548841c5fc365f5f9ed04efbfc79a499bb74ece3e9"
+    },
+    {
+      "original_relative_path": "corrected-generic_helper-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-generic_helper-single/stderr.gz",
+      "raw_sha256": "c3083f61d4c176905c81fb2a6228c3fa68be2e50f6a87e5a70ba5d59483ffe3c"
+    },
+    {
+      "original_relative_path": "corrected-generic_helper-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-generic_helper-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-generic_helper-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-generic_helper-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "corrected-generic_helper-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-generic_helper-unit/src/app/main.ko.gz",
+      "raw_sha256": "4f94ec9f70fed11d1dbf5742e86633a666e57ae7d5861bbf9a8b39c75e436adf"
+    },
+    {
+      "original_relative_path": "corrected-generic_helper-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-generic_helper-unit/stderr.gz",
+      "raw_sha256": "e956c4a3e4929b7494b337971ae996f6afaa845f1f032be69f62dfad3a90ad1d"
+    },
+    {
+      "original_relative_path": "corrected-generic_helper-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-generic_helper-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-negative_order-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-negative_order-single/case.ko.gz",
+      "raw_sha256": "ce671287a894f695c19d7dad01cb3eb117ee626001a6758c2cbdfbc7c3dd8d31"
+    },
+    {
+      "original_relative_path": "corrected-negative_order-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-negative_order-single/stderr.gz",
+      "raw_sha256": "c3083f61d4c176905c81fb2a6228c3fa68be2e50f6a87e5a70ba5d59483ffe3c"
+    },
+    {
+      "original_relative_path": "corrected-negative_order-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-negative_order-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-negative_order-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-negative_order-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "corrected-negative_order-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-negative_order-unit/src/app/main.ko.gz",
+      "raw_sha256": "28b5bfe92f1be5f7403860c0dfe4e0f35b99353e42919e470d06cefc9057ba66"
+    },
+    {
+      "original_relative_path": "corrected-negative_order-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-negative_order-unit/stderr.gz",
+      "raw_sha256": "e956c4a3e4929b7494b337971ae996f6afaa845f1f032be69f62dfad3a90ad1d"
+    },
+    {
+      "original_relative_path": "corrected-negative_order-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-negative_order-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-owned_context-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_context-single/case.ko.gz",
+      "raw_sha256": "19b636c2bc25169dde78ee242061efd86ef14c628b84110791abe55d13975f25"
+    },
+    {
+      "original_relative_path": "corrected-owned_context-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_context-single/stderr.gz",
+      "raw_sha256": "a0830454ec00f1a88950caa21d2724bd2c3ce90846fa99006b89f488f6f7ae1f"
+    },
+    {
+      "original_relative_path": "corrected-owned_context-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_context-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-owned_context-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_context-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "corrected-owned_context-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_context-unit/src/app/main.ko.gz",
+      "raw_sha256": "609aa5300c9dc5972abc6ed0dec834aa5a5b12dbbc90f722698f7efb3921d8e9"
+    },
+    {
+      "original_relative_path": "corrected-owned_context-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_context-unit/stderr.gz",
+      "raw_sha256": "8b4ed1e53f0af60aa9bf0f2e30e920eb3a808d01272a7796ccab57d72c799981"
+    },
+    {
+      "original_relative_path": "corrected-owned_context-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_context-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-owned_explicit_type-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_explicit_type-single/case.ko.gz",
+      "raw_sha256": "4ddcae118cb1040952dd8a86756d0c5d5cffe26dad7d195a3150039c27c4dd83"
+    },
+    {
+      "original_relative_path": "corrected-owned_explicit_type-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_explicit_type-single/stderr.gz",
+      "raw_sha256": "2aef3dfd171f7d7b10692e844c7620554bdb3aed94eaa67cc780b9a87551f554"
+    },
+    {
+      "original_relative_path": "corrected-owned_explicit_type-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_explicit_type-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-owned_explicit_type-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_explicit_type-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "corrected-owned_explicit_type-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_explicit_type-unit/src/app/main.ko.gz",
+      "raw_sha256": "b768c19bcb400f16075d075dd16a82f45c3a5a2e1f1d94485aa4393aba311367"
+    },
+    {
+      "original_relative_path": "corrected-owned_explicit_type-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_explicit_type-unit/stderr.gz",
+      "raw_sha256": "6ba81e2dc522bba9e6341a2f194234cb85c09b4454e259fb5bfc130e686921ab"
+    },
+    {
+      "original_relative_path": "corrected-owned_explicit_type-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-owned_explicit_type-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-pointer-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-pointer-single/case.ko.gz",
+      "raw_sha256": "181afdf3817275bc3ffbb4563b23c457115ee4de536b46911aaf4f8f12928178"
+    },
+    {
+      "original_relative_path": "corrected-pointer-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-pointer-single/stderr.gz",
+      "raw_sha256": "c3083f61d4c176905c81fb2a6228c3fa68be2e50f6a87e5a70ba5d59483ffe3c"
+    },
+    {
+      "original_relative_path": "corrected-pointer-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-pointer-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-pointer-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-pointer-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "corrected-pointer-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-pointer-unit/src/app/main.ko.gz",
+      "raw_sha256": "902309873d0e13ab113133ab268a3ed89a29129ab158e91192fd16ebc6c03921"
+    },
+    {
+      "original_relative_path": "corrected-pointer-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-pointer-unit/stderr.gz",
+      "raw_sha256": "e956c4a3e4929b7494b337971ae996f6afaa845f1f032be69f62dfad3a90ad1d"
+    },
+    {
+      "original_relative_path": "corrected-pointer-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-pointer-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-resource-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-resource-single/case.ko.gz",
+      "raw_sha256": "e46fa02097cdff247acc7930f3e9b6d52e847b57e4dd028c7a4eb0477d23b6a6"
+    },
+    {
+      "original_relative_path": "corrected-resource-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-resource-single/stderr.gz",
+      "raw_sha256": "c3083f61d4c176905c81fb2a6228c3fa68be2e50f6a87e5a70ba5d59483ffe3c"
+    },
+    {
+      "original_relative_path": "corrected-resource-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-resource-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-resource-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-resource-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "corrected-resource-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-resource-unit/src/app/main.ko.gz",
+      "raw_sha256": "7aa28c971efeea7fc0eea930876ffcd9933d95a0fb98720334155ff9552cbdda"
+    },
+    {
+      "original_relative_path": "corrected-resource-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-resource-unit/stderr.gz",
+      "raw_sha256": "e956c4a3e4929b7494b337971ae996f6afaa845f1f032be69f62dfad3a90ad1d"
+    },
+    {
+      "original_relative_path": "corrected-resource-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-resource-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-shared-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-shared-single/case.ko.gz",
+      "raw_sha256": "2b39df4374e768412bb9ee65da8086f058a238e223aea1844d77b94884a32a61"
+    },
+    {
+      "original_relative_path": "corrected-shared-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-shared-single/stderr.gz",
+      "raw_sha256": "c3083f61d4c176905c81fb2a6228c3fa68be2e50f6a87e5a70ba5d59483ffe3c"
+    },
+    {
+      "original_relative_path": "corrected-shared-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-shared-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "corrected-shared-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-shared-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "corrected-shared-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-shared-unit/src/app/main.ko.gz",
+      "raw_sha256": "1852491af418592f83c03702339201d23364cc21dc3c8ae800a283164e3251db"
+    },
+    {
+      "original_relative_path": "corrected-shared-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-shared-unit/stderr.gz",
+      "raw_sha256": "e956c4a3e4929b7494b337971ae996f6afaa845f1f032be69f62dfad3a90ad1d"
+    },
+    {
+      "original_relative_path": "corrected-shared-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/corrected-shared-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "generic_helper-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/generic_helper-single/case.ko.gz",
+      "raw_sha256": "c6213553e6f7a272ac6cc9eabf192daf857fc1feca7d4cfc2d2d8ad86bf97524"
+    },
+    {
+      "original_relative_path": "generic_helper-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/generic_helper-single/stderr.gz",
+      "raw_sha256": "44a79243b4735cd64cf6be2757891a44fb452f077cc587d1c95393ee2e887221"
+    },
+    {
+      "original_relative_path": "generic_helper-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/generic_helper-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "generic_helper-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/generic_helper-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "generic_helper-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/generic_helper-unit/src/app/main.ko.gz",
+      "raw_sha256": "e83b16a8f0eeb00c87d2e92e2207f349fd3358a355df3bb50cc8bc6a029327d0"
+    },
+    {
+      "original_relative_path": "generic_helper-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/generic_helper-unit/stderr.gz",
+      "raw_sha256": "c4ebf3e02659831a7b0dd10b12b73ba2dd06fde45bf672f5de51a9f1aff2a92a"
+    },
+    {
+      "original_relative_path": "generic_helper-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/generic_helper-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "negative_order-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/negative_order-single/case.ko.gz",
+      "raw_sha256": "df22168cc27d984371e3ff195e958a85ffef1a016f2e9e51d43f3e6cc62882f4"
+    },
+    {
+      "original_relative_path": "negative_order-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/negative_order-single/stderr.gz",
+      "raw_sha256": "b002eb3225214dba7360b2c255e485102f91a135a2a69c0c04dcab0146b5e603"
+    },
+    {
+      "original_relative_path": "negative_order-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/negative_order-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "negative_order-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/negative_order-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "negative_order-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/negative_order-unit/src/app/main.ko.gz",
+      "raw_sha256": "86f8f49d5cba2f35d115c07e759bb5065f37fafdcda56ce066c86773bb4937cf"
+    },
+    {
+      "original_relative_path": "negative_order-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/negative_order-unit/stderr.gz",
+      "raw_sha256": "8150ebc276667440738aa3061117e5fcbf80202a028deb5946793220cbd7d19d"
+    },
+    {
+      "original_relative_path": "negative_order-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/negative_order-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "oracle-corrected-shared-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/oracle-corrected-shared-single/case.ko.gz",
+      "raw_sha256": "9f79b51cbd04d41038ee17f99f8426146b6d9f27b3de5348d6e354e0ef7c5ace"
+    },
+    {
+      "original_relative_path": "oracle-corrected-shared-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/oracle-corrected-shared-single/stderr.gz",
+      "raw_sha256": "c3083f61d4c176905c81fb2a6228c3fa68be2e50f6a87e5a70ba5d59483ffe3c"
+    },
+    {
+      "original_relative_path": "oracle-corrected-shared-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/oracle-corrected-shared-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "oracle-corrected-shared-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/oracle-corrected-shared-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "oracle-corrected-shared-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/oracle-corrected-shared-unit/src/app/main.ko.gz",
+      "raw_sha256": "221503a4a8a2008cc6419e2dbc42f882ea7dd8da0ffb271490d868d24e590cfa"
+    },
+    {
+      "original_relative_path": "oracle-corrected-shared-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/oracle-corrected-shared-unit/stderr.gz",
+      "raw_sha256": "e956c4a3e4929b7494b337971ae996f6afaa845f1f032be69f62dfad3a90ad1d"
+    },
+    {
+      "original_relative_path": "oracle-corrected-shared-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/oracle-corrected-shared-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "owned_context-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_context-single/case.ko.gz",
+      "raw_sha256": "19b636c2bc25169dde78ee242061efd86ef14c628b84110791abe55d13975f25"
+    },
+    {
+      "original_relative_path": "owned_context-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_context-single/stderr.gz",
+      "raw_sha256": "e57aa2b165e5096587fb87e7fc25ae2ea5d7b51e8b478dc8b0a56855f588927b"
+    },
+    {
+      "original_relative_path": "owned_context-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_context-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "owned_context-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_context-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "owned_context-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_context-unit/src/app/main.ko.gz",
+      "raw_sha256": "609aa5300c9dc5972abc6ed0dec834aa5a5b12dbbc90f722698f7efb3921d8e9"
+    },
+    {
+      "original_relative_path": "owned_context-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_context-unit/stderr.gz",
+      "raw_sha256": "8b4ed1e53f0af60aa9bf0f2e30e920eb3a808d01272a7796ccab57d72c799981"
+    },
+    {
+      "original_relative_path": "owned_context-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_context-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "owned_explicit_type-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_explicit_type-single/case.ko.gz",
+      "raw_sha256": "4ddcae118cb1040952dd8a86756d0c5d5cffe26dad7d195a3150039c27c4dd83"
+    },
+    {
+      "original_relative_path": "owned_explicit_type-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_explicit_type-single/stderr.gz",
+      "raw_sha256": "cad4f81981b5a4203be5a092cc18801a84c984b12490ed69faf62a39d3668576"
+    },
+    {
+      "original_relative_path": "owned_explicit_type-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_explicit_type-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "owned_explicit_type-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_explicit_type-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "owned_explicit_type-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_explicit_type-unit/src/app/main.ko.gz",
+      "raw_sha256": "b768c19bcb400f16075d075dd16a82f45c3a5a2e1f1d94485aa4393aba311367"
+    },
+    {
+      "original_relative_path": "owned_explicit_type-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_explicit_type-unit/stderr.gz",
+      "raw_sha256": "6ba81e2dc522bba9e6341a2f194234cb85c09b4454e259fb5bfc130e686921ab"
+    },
+    {
+      "original_relative_path": "owned_explicit_type-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/owned_explicit_type-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "pointer-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/pointer-single/case.ko.gz",
+      "raw_sha256": "d0f8387e3ecefc4027e20bd31e5dcb404c62efc9d48fdb5159d9ea71676eca28"
+    },
+    {
+      "original_relative_path": "pointer-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/pointer-single/stderr.gz",
+      "raw_sha256": "82dc0c7cfc583a5da4f54b39158379baad3f775ce332a50c0d4aa30f1a306c3f"
+    },
+    {
+      "original_relative_path": "pointer-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/pointer-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "pointer-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/pointer-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "pointer-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/pointer-unit/src/app/main.ko.gz",
+      "raw_sha256": "ce870a1843a81c6ef6318b7295dff3fa7cbdbc35fbb629356a66b9eb2b2595d2"
+    },
+    {
+      "original_relative_path": "pointer-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/pointer-unit/stderr.gz",
+      "raw_sha256": "8595e5fc8932cdcf398c083c92379aabfd4449dfea92ce1ba52b51345c013475"
+    },
+    {
+      "original_relative_path": "pointer-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/pointer-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "resource-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/resource-single/case.ko.gz",
+      "raw_sha256": "e46fa02097cdff247acc7930f3e9b6d52e847b57e4dd028c7a4eb0477d23b6a6"
+    },
+    {
+      "original_relative_path": "resource-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/resource-single/stderr.gz",
+      "raw_sha256": "c3083f61d4c176905c81fb2a6228c3fa68be2e50f6a87e5a70ba5d59483ffe3c"
+    },
+    {
+      "original_relative_path": "resource-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/resource-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "resource-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/resource-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "resource-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/resource-unit/src/app/main.ko.gz",
+      "raw_sha256": "7aa28c971efeea7fc0eea930876ffcd9933d95a0fb98720334155ff9552cbdda"
+    },
+    {
+      "original_relative_path": "resource-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/resource-unit/stderr.gz",
+      "raw_sha256": "e956c4a3e4929b7494b337971ae996f6afaa845f1f032be69f62dfad3a90ad1d"
+    },
+    {
+      "original_relative_path": "resource-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/resource-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "shared-oracle-corrected.json",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/shared-oracle-corrected.json.gz",
+      "raw_sha256": "dbdb9c05d0fb38025fff36427fb1841d217e7a99f7f4ed41a35e49d94611d154"
+    },
+    {
+      "original_relative_path": "shared-single/case.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/shared-single/case.ko.gz",
+      "raw_sha256": "aa66b831f0d2b3f937c2a2416ecdb2ab42937d1b5d64508ff259a431c8ed70e0"
+    },
+    {
+      "original_relative_path": "shared-single/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/shared-single/stderr.gz",
+      "raw_sha256": "e4a6c56728385504bc808ccbcbeaef7d00738ee6a511769aa568e67d2c71a60c"
+    },
+    {
+      "original_relative_path": "shared-single/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/shared-single/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "shared-unit/project.toml",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/shared-unit/project.toml.gz",
+      "raw_sha256": "fe9c0aa8edbe85c2fdc426a16563808450769dfa1a08e55fb5198bb64fc378bd"
+    },
+    {
+      "original_relative_path": "shared-unit/src/app/main.ko",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/shared-unit/src/app/main.ko.gz",
+      "raw_sha256": "02f85d0e56b9fe8f2da4c55644112493cb0aef02ddc81fa80445886844186f1b"
+    },
+    {
+      "original_relative_path": "shared-unit/stderr",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/shared-unit/stderr.gz",
+      "raw_sha256": "8b0bf19ea1d0453c25948a120dbcaa1b698b030373eac47c9757427158f9801c"
+    },
+    {
+      "original_relative_path": "shared-unit/stdout",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/shared-unit/stdout.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_relative_path": "source-baseline-corrected.json",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/source-baseline-corrected.json.gz",
+      "raw_sha256": "0fb7982df64bb0aaaaf4a4c7a5108b90cd40f6c7512d43f065daaf04714bc64f"
+    },
+    {
+      "original_relative_path": "source-baseline-summary.json",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/source-baseline-summary.json.gz",
+      "raw_sha256": "e59f025645ce4808dc9083e98612610e5568d648714e5432414cdb5e070df558"
+    },
+    {
+      "original_relative_path": "source-baseline.json",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/source-baseline.json.gz",
+      "raw_sha256": "b76a2eda0794a737d4268d90dfe365a43986c7620278d22ba5f742b61fa8be60"
+    },
+    {
+      "original_relative_path": "verified.json",
+      "path": "docs/development/evidence/runtime-constructor-0279/public-baseline/verified.json.gz",
+      "raw_sha256": "b8bd0a743154e5634cd8fed3082cc5442fb43d49a1c5867a20426c3bcb2dd7a4"
+    }
+  ]
+}

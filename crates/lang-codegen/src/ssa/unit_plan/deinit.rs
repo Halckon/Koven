@@ -38,6 +38,7 @@ pub(super) fn template(
     }))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn plan_instance_deinits(
     typed: &CompilationUnitTypes,
     names: &ValidatedCompilationUnitNames,
@@ -45,6 +46,7 @@ pub(super) fn plan_instance_deinits(
     template: &UnitFunctionTemplate,
     key: &UnitFunctionInstanceKey,
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+    resource_lambdas: &BTreeSet<UnitExpressionId>,
     pending: &mut BTreeSet<UnitFunctionInstanceKey>,
 ) -> Result<(), LoweringError> {
     let mut roots = Vec::new();
@@ -103,16 +105,19 @@ pub(super) fn plan_instance_deinits(
         .ast()
         .expressions()
         .iter()
-        .filter_map(|(_, node)| {
+        .filter_map(|(expression, node)| {
             (matches!(node.payload(), Expression::Lambda { .. })
                 && span_contains(template.span, node.span()))
-            .then_some(node.span())
+            .then_some((
+                UnitExpressionId::new(template.source_unit, expression),
+                node.span(),
+            ))
         })
         .collect::<Vec<_>>();
     if template.deinit && !lambda_spans.is_empty() {
         return Err(lowering_error(
             LoweringErrorKind::UnsupportedNode,
-            lambda_spans[0],
+            lambda_spans[0].1,
         ));
     }
     let mut visited = BTreeSet::new();
@@ -127,10 +132,9 @@ pub(super) fn plan_instance_deinits(
         if !contains_resource(typed, concrete, &mut BTreeSet::new(), span)? {
             continue;
         }
-        if lambda_spans
-            .iter()
-            .any(|&lambda| span_contains(lambda, span))
-        {
+        if lambda_spans.iter().any(|&(lambda, lambda_span)| {
+            span_contains(lambda_span, span) && !resource_lambdas.contains(&lambda)
+        }) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         schedule_layout(typed, concrete, pending, &mut visited, span)?;

@@ -136,6 +136,7 @@ impl Checker<'_> {
         }
 
         let mut body_state = State::default();
+        self.seed_lambda_parameters(lambda, &mut body_state)?;
         for capture in captures {
             match capture.source() {
                 UnitClosureCaptureSource::This if capture.mode() == ClosureCaptureMode::Shared => {

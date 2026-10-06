@@ -27,6 +27,8 @@ use crate::ssa::{
     },
 };
 
+mod runtime;
+
 struct ElementOperands {
     owner: EntityId,
     root: Option<lang_frontend::name_resolution::UnitSymbolId>,
@@ -497,7 +499,7 @@ impl UnitExpressionLowerer<'_> {
         };
         self.validate_container_construction(&descriptor, arguments, span)?;
         if descriptor.kind() == ContainerConstructionKind::RuntimeLength {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            return self.lower_runtime_container(expression, arguments, span);
         }
 
         let pending_start = self.pending_operands.len();

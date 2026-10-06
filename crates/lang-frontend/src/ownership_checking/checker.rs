@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+mod callable_provenance;
 mod closure;
 mod construction;
 mod container;
@@ -38,6 +39,7 @@ use loan::ActiveLoan;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
+    origins: super::callable_provenance::graph::OriginState<SymbolId, super::CallableOrigin>,
     replacements: Vec<SymbolId>,
     nullable_views: BTreeMap<SymbolId, nullable_when::Proof>,
     moved: BTreeMap<SymbolId, Span>,
@@ -99,6 +101,7 @@ pub(super) fn check(
 }
 
 struct Checker<'a> {
+    callable_sources: callable_provenance::Collection,
     iterations: BTreeMap<usize, super::IterationOwnershipPlan>,
     loop_has_exit: BTreeMap<usize, bool>,
     constant_materializations: BTreeMap<usize, super::ConstantMaterializationPlan>,
@@ -212,6 +215,7 @@ impl<'a> Checker<'a> {
             construction: construction::Analysis::new(parsed, typed)?,
             rc_effects: Vec::new(),
             cross_thread_by_expression,
+            callable_sources: Default::default(),
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
             current_receiver_mode: None,
@@ -292,6 +296,8 @@ impl<'a> Checker<'a> {
         } = drop_plan;
         self.deferred.extend(deferred);
         self.finish_nullable_drops(&drops)?;
+        let callable_provenance = self
+            .finish_callable_sources(diagnostics.is_empty() && self.typed.diagnostics().is_empty());
         let constant_materializations = if diagnostics.is_empty()
             && self.deferred.is_empty()
             && self.typed.constants().is_some()
@@ -335,6 +341,7 @@ impl<'a> Checker<'a> {
             self.typed.analysis_owner().clone(),
             diagnostics,
             OwnershipCheckedParts {
+                callable_provenance,
                 cleanup_steps,
                 cleanup_conditions,
                 iterations,
@@ -423,6 +430,9 @@ impl<'a> Checker<'a> {
                 let mut function_state = State::default();
                 for parameter in parameters {
                     self.mark_available(parameter.name, &mut function_state);
+                    if let Some(symbol) = self.marker_symbol(parameter.name) {
+                        self.seed_callable_parameter(symbol, &mut function_state);
+                    }
                 }
                 let receiver_mode = self.marker_symbol(name).and_then(|symbol| {
                     self.typed
@@ -433,7 +443,9 @@ impl<'a> Checker<'a> {
                         .map(|receiver| receiver.mode())
                 });
                 let previous = std::mem::replace(&mut self.current_receiver_mode, receiver_mode);
+                let previous_return = self.enter_callable(self.marker_symbol(name));
                 let result = self.check_function(form, function_state);
+                self.leave_callable(previous_return);
                 self.current_receiver_mode = previous;
                 result?;
             }
@@ -471,6 +483,9 @@ impl<'a> Checker<'a> {
         if let Some(next) = flows.next.as_mut() {
             let closures = self.closure_origins(initializer, next)?;
             self.mark_available(name, next);
+            if let Some(symbol) = self.marker_symbol(name) {
+                self.bind_callable_symbol(symbol, next);
+            }
             if let Some(source) = moved_closure {
                 next.closures.remove(&source);
             }
@@ -545,8 +560,12 @@ impl<'a> Checker<'a> {
                 condition, body, ..
             } => {
                 let errors = self.diagnostics.len();
+                let mut state = state;
+                state.origins.attach(&self.callable_sources.arena);
+                let headers = state.origins.begin_loop();
                 let condition = self.check_expression(condition, state, ExpressionUse::Read)?;
-                let mut flows = self.check_maybe_loop(condition, body, errors)?;
+                let mut flows =
+                    self.check_maybe_loop_with_headers(condition, body, errors, &headers)?;
                 self.release_dead_loop_closures(id, &mut flows);
                 Ok(flows)
             }
@@ -558,7 +577,13 @@ impl<'a> Checker<'a> {
             Statement::Loop { body, .. } => {
                 let errors = self.diagnostics.len();
                 let body_id = body;
+                let mut state = state;
+                state.origins.attach(&self.callable_sources.arena);
+                let headers = state.origins.begin_loop();
                 let body = self.check_statement(body, state)?;
+                for state in [&body.next, &body.continues].into_iter().flatten() {
+                    state.origins.backedge(&headers);
+                }
                 if self.diagnostics.len() == errors {
                     self.check_loop_backedge(body_id, &body)?;
                 }
@@ -592,11 +617,12 @@ impl<'a> Checker<'a> {
         Ok(flows)
     }
 
-    fn check_maybe_loop(
+    fn check_maybe_loop_with_headers(
         &mut self,
         mut prefix: Flows,
         body: StatementId,
         errors: usize,
+        headers: &[(SymbolId, super::callable_provenance::graph::NodeId)],
     ) -> Result<Flows, OwnershipCheckingError> {
         let Some(base) = prefix.next.take() else {
             return Ok(prefix);
@@ -606,6 +632,12 @@ impl<'a> Checker<'a> {
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body_id, &body)?;
         }
+        let origins = base.origins.loop_exit(
+            headers,
+            body.next.as_ref().map(|state| &state.origins),
+            body.continues.as_ref().map(|state| &state.origins),
+            body.breaks.as_ref().map(|state| &state.origins),
+        );
         let mut next = base;
         for state in [body.next, body.breaks, body.continues]
             .into_iter()
@@ -613,11 +645,12 @@ impl<'a> Checker<'a> {
         {
             merge_state(&mut next, state);
         }
+        next.origins = origins;
         prefix.next = Some(next);
         Ok(prefix)
     }
 
-    fn check_expression(
+    fn check_expression_inner(
         &mut self,
         id: ExpressionId,
         state: State,
@@ -819,7 +852,7 @@ impl<'a> Checker<'a> {
                     !place.is_root()
                         || self.typed.parameter_mode(place.root()) == Some(ParameterMode::Inout)
                 }) {
-                    self.check_return_expression(value, state, ExpressionUse::Consume)?
+                    self.check_escaping_expression(value, state, ExpressionUse::Consume)?
                 } else {
                     self.check_expression(value, state, ExpressionUse::Consume)?
                 };
@@ -1123,6 +1156,7 @@ impl<'a> Checker<'a> {
                 if !origins.is_empty() {
                     state.closures.insert(place.root(), origins);
                 }
+                self.bind_callable_symbol(place.root(), state);
                 state.moved.remove(&place.root());
                 if !self.expression_live_after[assignment.index()].contains(&place.root()) {
                     self.release_closure(place.root(), state);
@@ -1325,6 +1359,7 @@ fn merge_optional_state(target: &mut Option<State>, source: Option<State>) {
 }
 
 fn merge_state(target: &mut State, source: State) {
+    target.origins.merge(&source.origins);
     target
         .nullable_views
         .retain(|symbol, proof| source.nullable_views.get(symbol) == Some(proof));

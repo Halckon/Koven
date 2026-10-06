@@ -4,7 +4,7 @@
 
 ## 当前路线与下一批次
 
-1. 语言规则与强制 Phase 以 [Guide v0.40](../guide/README.md) 为准
+1. 语言规则与强制 Phase 以 [Guide v0.41](../guide/README.md) 为准
 2. 原 13 项语言演进的已实现、延期、未启用与 native 边界，以[演进实施账本](../specs/evolution-status.md)为唯一摘要
 3. [Active Specs](../specs/active/README.md)给出当前有界合同；0271补强tour组合及诊断边界，归档不表示全部语言能力完成
 4. [整体架构与工程治理计划](engineering-governance-plan.md)保留获批 P0–P5 范围；实际交付及延期见[治理执行账本](engineering-governance-progress.md)

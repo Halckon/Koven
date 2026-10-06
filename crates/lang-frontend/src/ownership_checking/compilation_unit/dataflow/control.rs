@@ -127,7 +127,8 @@ impl Checker<'_> {
         }
     }
 
-    pub(super) fn check_return_expression(
+    /// Check escaping values without classifying ordinary control tails as factory returns.
+    pub(super) fn check_escaping_expression(
         &mut self,
         expression: ExpressionId,
         state: State,
@@ -142,7 +143,7 @@ impl Checker<'_> {
             .clone()
         {
             Expression::Group { expression } => {
-                self.check_return_expression(expression, state, usage)
+                self.check_escaping_expression(expression, state, usage)
             }
             Expression::If {
                 condition,
@@ -188,7 +189,7 @@ impl Checker<'_> {
             Statement::ControlBody { elements } => elements,
             Statement::Expression { expression } => {
                 return if escaping {
-                    self.check_return_expression(expression, state, usage)
+                    self.check_escaping_expression(expression, state, usage)
                 } else {
                     self.check_expression(expression, state, usage)
                 };
@@ -206,7 +207,7 @@ impl Checker<'_> {
         let tail_flows = match tail_payload {
             Statement::Expression { expression } => {
                 if escaping {
-                    self.check_return_expression(expression, next, usage)?
+                    self.check_escaping_expression(expression, next, usage)?
                 } else {
                     self.check_expression(expression, next, usage)?
                 }

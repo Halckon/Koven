@@ -1,0 +1,186 @@
+{
+  "scope": "SPEC-0279 E5 existing storable nested/nominal helper element native tests only",
+  "source_base": "03c0ba9c4c9dcd37cf12e566cc1bc5acf0ca50e9",
+  "production_changed": false,
+  "changed_rust_sha256": {
+    "crates/lang-codegen/src/native_runtime_constructor_tests.rs": "f4feb3bc17eabe08984f1ce800a3a9f648343ac7c38773c8a8ba4382c403def8",
+    "crates/lang-codegen/src/native_runtime_constructor_tests/storable_helpers.rs": "5e2ad1ac8fd7c216378e8ad574f07961387594ec3e907f12ef6511d75e8b1d62",
+    "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs": "0bd77e73478cd9540ec75f08af55f74e0e68858c191f19d39d5f763790586edb"
+  },
+  "guide": "explicitly enabled v0.41",
+  "native_cases": {
+    "single": 48,
+    "unit": 48,
+    "total": 96,
+    "elements": [
+      "Array<Int>",
+      "List<Int>",
+      "Wrapped value class with Int field",
+      "Holder<Int> ordinary generic class"
+    ],
+    "containers": [
+      "Array",
+      "List"
+    ],
+    "environments": [
+      "pointer",
+      "Shared",
+      "Owned"
+    ],
+    "helper_type_arguments": [
+      "explicit",
+      "inferred"
+    ],
+    "length": 3,
+    "initializer": "named"
+  },
+  "classification": "Initial gate passes on committed production; no new production bug or red claimed",
+  "oracle": [
+    "Three callback logs",
+    "Outer size 3",
+    "Nested size 1 where applicable",
+    "Actual last element 2 for pointer and 9 for captured environments",
+    "Successful native exit, empty stderr and no unexpected stdout"
+  ],
+  "results": [
+    {
+      "name": "e5-storable-helper-elements-initial",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "storable_helper_elements",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture",
+        "--test-threads=2"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 74.96414608298801,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1030
+        }
+      ]
+    },
+    {
+      "name": "e5-storable-helper-strict-clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "-p",
+        "lang-codegen",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 3.0867439159192145,
+      "test_results": []
+    },
+    {
+      "name": "e5-storable-helper-format",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 1.840868666069582,
+      "test_results": []
+    },
+    {
+      "name": "e5-storable-helper-size-policy",
+      "argv": [
+        "python3",
+        "scripts/check_rust_sizes.py",
+        "--base",
+        "6575e9069506fbdddcbf7e8cd5e873de91eea5b7"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 8.36652124999091,
+      "test_results": []
+    },
+    {
+      "name": "e5-storable-helper-docs",
+      "argv": [
+        "python3",
+        "scripts/check_docs.py"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.8530177080538124,
+      "test_results": []
+    }
+  ],
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-elements-initial.json.gz",
+      "raw_sha256": "727480b691a0dec772752366e20e3823f03fb4b66a2562cd0fa560732c5f6e64"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-elements-initial.log.gz",
+      "raw_sha256": "e418779f57fcacacea10436aba94ab910f421ddb1d3e4ed70b07bc6a48402174"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-strict-clippy.json.gz",
+      "raw_sha256": "c9607f62e4753a9bd60be84ab1b46b1f33fcbe53a2a02b55303c670eee481c38"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-strict-clippy.log.gz",
+      "raw_sha256": "f88c0786287bc91f6178591a6c0b455fd18b9e7d38a31981641346e8e4ce9605"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-format.json.gz",
+      "raw_sha256": "be7115a4bbeb40aad7c0db71c77e6a4a1f60155ab9e2b66509964ee12b6ffc78"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-format.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-size-policy.json.gz",
+      "raw_sha256": "3d2b0c5a3082aa6c8658a53021421a243615f55670a96486dfa445b74d326f1c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-size-policy.log.gz",
+      "raw_sha256": "a1d496b20d36e0b4299240a72f904d29ae6d1883c5a8628f60ad7a7aea595a7c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-docs.json.gz",
+      "raw_sha256": "77e090a0b17d1accf4e31ec9441b2d472adb3cf61d11df56ab06a753995addb5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/storable-helpers/e5-storable-helper-docs.log.gz",
+      "raw_sha256": "29cc437f6be15c1ab7b24b4bfc93c1571985dbc5b2ab5cc51eeabfdbb89aaa95"
+    }
+  ],
+  "review": "docs/development/evidence/runtime-constructor-0279/storable-helpers/review.json",
+  "immutable_preceding_slice": "docs/development/evidence/runtime-constructor-0279/source-abi/receipt.json",
+  "not_run": [
+    "local safety verification",
+    "fault injection/calibration",
+    "ASan/LSan calibration",
+    "allocation/free accounting",
+    "daybreak",
+    "P2 budget recalibration"
+  ],
+  "remaining": [
+    "E6 ordinary regression refresh",
+    "final PR/main cross-host CI and archival delivery"
+  ]
+}

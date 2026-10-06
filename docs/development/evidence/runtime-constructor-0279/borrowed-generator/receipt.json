@@ -1,0 +1,1088 @@
+{
+  "scope": "SPEC-0279 raw SSA/LLVM borrowed generation only; source/helper/native delivery remains in progress",
+  "implementation_parent": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+  "host": "AArch64 macOS; LLVM 21 /opt/homebrew/opt/llvm@21",
+  "verification": "Each raw runner record retains exact all-Rust start SHA, command, target, exit and source status. Pending source success-goal tests were compiled but filtered in positive slices; they are not claimed accepted.",
+  "final_new_tests": "borrowed-precommit-final-tests: 25 passed / 0 failed / 0 ignored; 928 filtered",
+  "old_consumers": "Seven bounded suites before the malformed-type gate: 97 passed total; after gate: closure47/typegraph4/module-types7/deinit5, all passed with no ignore. Repeated counts are not summed as unique coverage.",
+  "review": {
+    "reviewer": "independent prepare_m3a_runtime_constructor; did not author SSA/LLVM",
+    "checked": "operation/model/render/types/operands/ownership; simultaneous capture transport, current root contents, worklist equivalence, LLVM preheader/index/Unit; raw and current codegen SHA",
+    "finding": "P1 malformed unreferenced container element type causes TypeCaptures indexing panic",
+    "resolution": "True red borrowed-invalid-type-red then module type/deinit validation guards ownership/content/escape; independent re-review accepted 25-test final green",
+    "size_exceptions": "Precise old-file ceilings: model1349, verify_operation1169, verify_ownership1681, adapter1607, runtime1188; no baseline increase.",
+    "followup": "After accepted proof review, root only folded test if per clippy and reordered two test module declarations per rustfmt. Final 25-test suite rerun; no production behavior changed."
+  },
+  "classifications": {
+    "borrowed-generation-red": "True raw SSA signature rejection before new operation: four pointer/Unit/preheader LLVM success goals fail structured operation contracts; not source lowering red",
+    "borrowed-generation-first-green": "7 pass / 2 fixture-oracle failures: appending after terminated block and asserting constant-folded icmp; corrected subsequent 14-test suite passes",
+    "borrowed-generation-current-content-green": "Compile fixture failure in future source helper tuple handling; not production proof behavior red",
+    "borrowed-root-content-review": "Compile test API fixture error; not behavior red",
+    "borrowed-root-content-review-corrected": "True root content red: positive verifies, ended replacement capture wrongly accepted",
+    "borrowed-root-content-matrix-red": "Four genuine current-content red tests; combined take/replace/swap test stops at true Take failure and does not prove later exchanges supported",
+    "borrowed-root-content-expanded-red": "Four genuine current-content fails plus four unsupported ConcreteClosure exchange positive fixtures; the latter are not behavior red",
+    "borrowed-root-content-bounded-red": "2 unchanged unsupported-exchange controls pass; 4 genuine current content fails",
+    "borrowed-post-gate-deinit-consumers": "0 tests selected; no coverage claimed; corrected selector executes5",
+    "borrowed-generation-current-content-corrected-green": "23 selected /1 omitted projection test; full module24 then final25 execute all",
+    "borrowed-codegen-clippy": "One collapsible_if in added test; folded by root, corrected strict clippy passed",
+    "borrowed-format-final": "New codegen test module declaration order differs from rustfmt; root corrected only two declaration positions",
+    "borrowed-format-corrected-final": "Codegen order fixed; check observed concurrently drafted frontend API test before author formatting; pending frontend, no accepted formatter claim here"
+  },
+  "open_boundaries": [
+    "source constructor/helper/factory success goals",
+    "direct Shared capture body operation",
+    "resource/native/end-to-end allocation correctness",
+    "general BorrowEnd/Drop/DirectCall nested LoanId lifetime",
+    "ConcreteClosure RootReplace/RootSwap remain rejected",
+    "final PR and actual main CI"
+  ],
+  "local_fault_calibration": "not executed",
+  "runs": [
+    {
+      "name": "borrowed-generation-all-current-content",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.24889608402736485,
+      "results": [
+        "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 928 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-generation-corrected-green",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "634fcce6f09d633b9a8ed835d98f5b39e69e7f9b",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 9.153178709093481,
+      "results": [
+        "test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 924 filtered out; finished in 0.02s"
+      ]
+    },
+    {
+      "name": "borrowed-generation-current-content-corrected-green",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generation",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 11.648419957840815,
+      "results": [
+        "test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 929 filtered out; finished in 0.02s"
+      ]
+    },
+    {
+      "name": "borrowed-generation-current-content-green",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generation",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 101,
+      "expected_exit": 0,
+      "elapsed_seconds": 2.1917563329916447,
+      "results": []
+    },
+    {
+      "name": "borrowed-generation-first-green",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "5efa0484eaff47314ccaee724f6e5d108aa9c56b",
+      "exit": 101,
+      "expected_exit": 0,
+      "elapsed_seconds": 6.981105958111584,
+      "results": [
+        "test result: FAILED. 7 passed; 2 failed; 0 ignored; 0 measured; 924 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "borrowed-generation-red",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "5efa0484eaff47314ccaee724f6e5d108aa9c56b",
+      "exit": 101,
+      "expected_exit": 101,
+      "elapsed_seconds": 13.356077374890447,
+      "results": [
+        "test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 924 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "borrowed-invalid-type-green",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 4.16983349993825,
+      "results": [
+        "test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 928 filtered out; finished in 0.02s"
+      ]
+    },
+    {
+      "name": "borrowed-invalid-type-red",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generation_invalid_unused_type",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 101,
+      "expected_exit": 101,
+      "elapsed_seconds": 7.451507999794558,
+      "results": [
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 952 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-old-closure-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "closure_operation_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.23388912505470216,
+      "results": [
+        "test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 905 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-old-escape-type-graph",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "verify::closure_escape::types::graph_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.23557766596786678,
+      "results": [
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 948 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-old-invoke-llvm-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "llvm::closure_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.23424933291971684,
+      "results": [
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 949 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-old-root-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "root_exchange_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.23969470895826817,
+      "results": [
+        "test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 934 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "borrowed-old-static-llvm-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "llvm::container_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.2362929170485586,
+      "results": [
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 942 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-old-static-ssa-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "container_operation_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.2883426658809185,
+      "results": [
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 942 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-old-zst-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "zst",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 36.30385316698812,
+      "results": [
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 947 filtered out; finished in 36.03s"
+      ]
+    },
+    {
+      "name": "borrowed-post-gate-closure-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "closure_operation_tests",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.4985587908886373,
+      "results": [
+        "test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 906 filtered out; finished in 0.05s"
+      ]
+    },
+    {
+      "name": "borrowed-post-gate-deinit-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "deinit::tests",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.23181300004944205,
+      "results": [
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 953 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-post-gate-deinit-corrected-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "ssa::deinit_tests",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.24175516702234745,
+      "results": [
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 948 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "borrowed-post-gate-escape-type-graph",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "closure_escape::types",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.236318833893165,
+      "results": [
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 949 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-post-gate-type-consumers",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "ssa::type_tests",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.23780362494289875,
+      "results": [
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 946 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "borrowed-root-content-bounded-red",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "root_storage_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 101,
+      "expected_exit": 101,
+      "elapsed_seconds": 6.507657042006031,
+      "results": [
+        "test result: FAILED. 2 passed; 4 failed; 0 ignored; 0 measured; 938 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "borrowed-root-content-expanded-red",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "root_storage_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "634fcce6f09d633b9a8ed835d98f5b39e69e7f9b",
+      "exit": 101,
+      "expected_exit": 101,
+      "elapsed_seconds": 5.542937957914546,
+      "results": [
+        "test result: FAILED. 0 passed; 8 failed; 0 ignored; 0 measured; 938 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "borrowed-root-content-matrix-red",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "root_storage_tests",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "634fcce6f09d633b9a8ed835d98f5b39e69e7f9b",
+      "exit": 101,
+      "expected_exit": 101,
+      "elapsed_seconds": 11.621432750020176,
+      "results": [
+        "test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 938 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "borrowed-root-content-review-corrected",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generation_checks_current_root_capture_after_replacement",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "634fcce6f09d633b9a8ed835d98f5b39e69e7f9b",
+      "exit": 101,
+      "expected_exit": 101,
+      "elapsed_seconds": 7.894606792135164,
+      "results": [
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 938 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "borrowed-root-content-review",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-j2",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generation_checks_current_root_capture_after_replacement",
+        "--",
+        "--nocapture"
+      ],
+      "source_head": "634fcce6f09d633b9a8ed835d98f5b39e69e7f9b",
+      "exit": 101,
+      "expected_exit": 101,
+      "elapsed_seconds": 1.9961827921215445,
+      "results": []
+    },
+    {
+      "name": "borrowed-size-final",
+      "argv": [
+        "python3",
+        "scripts/check_rust_sizes.py",
+        "--base",
+        "6575e9069506fbdddcbf7e8cd5e873de91eea5b7"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 9.122786541003734,
+      "results": []
+    },
+    {
+      "name": "borrowed-docs-final",
+      "argv": [
+        "python3",
+        "scripts/check_docs.py"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.9102286251727492,
+      "results": []
+    },
+    {
+      "name": "borrowed-policy-tests",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/tests",
+        "-p",
+        "test_check_rust_sizes.py",
+        "-v"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 15.9353829161264,
+      "results": [
+        "Ran 47 tests",
+        "OK"
+      ]
+    },
+    {
+      "name": "borrowed-codegen-clippy-corrected",
+      "argv": [
+        "cargo",
+        "clippy",
+        "-p",
+        "lang-codegen",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 5.207393457880244,
+      "results": []
+    },
+    {
+      "name": "borrowed-codegen-clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "-p",
+        "lang-codegen",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 101,
+      "expected_exit": 0,
+      "elapsed_seconds": 10.062941457843408,
+      "results": []
+    },
+    {
+      "name": "borrowed-format-corrected-final",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 1,
+      "expected_exit": 0,
+      "elapsed_seconds": 1.7909596669487655,
+      "results": []
+    },
+    {
+      "name": "borrowed-format-final",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 1,
+      "expected_exit": 0,
+      "elapsed_seconds": 1.915337499929592,
+      "results": []
+    },
+    {
+      "name": "borrowed-post-clippy-final-tests",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 4.90858754189685,
+      "results": [
+        "test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 928 filtered out; finished in 0.02s"
+      ]
+    },
+    {
+      "name": "borrowed-precommit-final-tests",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 3.9349593750666827,
+      "results": [
+        "test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 928 filtered out; finished in 0.02s"
+      ]
+    },
+    {
+      "name": "borrowed-format-isolated-final",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "/private/tmp/spec0279-borrowed-review-snapshot/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 1.954484999878332,
+      "results": []
+    },
+    {
+      "name": "borrowed-whole-format-frozen-final",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "source_head": "e6920af02daae8eead21fff79a06fc6fd9c4bd58",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 1.822762415977195,
+      "results": []
+    }
+  ],
+  "raw": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-all-current-content.json.gz",
+      "raw_sha256": "5c2222d758c382c53aa43a5b9601bdf440e3bd4547c13d94dd1bd0471e22043a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-all-current-content.log.gz",
+      "raw_sha256": "78783680138c506dcaddef986db188b377aeed73ac1559682b0b37da09f36f9d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-corrected-green.json.gz",
+      "raw_sha256": "dcc857abd623fb9565a5658048817b56e9484459e44f4ba5c4548aeaacc4a33a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-corrected-green.log.gz",
+      "raw_sha256": "ec3014665ea5a854081f201fed0e0f562291aacdcebfb2c822e8509bd7af4bbf"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-current-content-corrected-green.json.gz",
+      "raw_sha256": "b4fc2c161e6070076a3b8b4b2de6915f2c4e6a852b75b03548b086e5f16c3e76"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-current-content-corrected-green.log.gz",
+      "raw_sha256": "0c735530b5581d2d6edd2aa8bf735f608577da15460c89f0c0a1b08764a525ab"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-current-content-green.json.gz",
+      "raw_sha256": "c0790e71b7077962c13e7c43597e1b0ab3477b97948d94f6f915d976fdc4d967"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-current-content-green.log.gz",
+      "raw_sha256": "36de2eac28ef172b23a81b951bba7857292d885ff6688e56837f3537221b2636"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-first-green.json.gz",
+      "raw_sha256": "5331383841adf04cde7fedaf787aa8a9b9607869879de20bb15dbf66dbbc19cb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-first-green.log.gz",
+      "raw_sha256": "abdb096699808650ebb9b643bdfad6374737d81dfdd129311030c28804e8122f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-red.json.gz",
+      "raw_sha256": "35bccc657e0df3fc8ff2a8c17587704d5c4c010381271bec3ac29e9825797204"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-generation-red.log.gz",
+      "raw_sha256": "f12114c84dde814277d92c61465a40427d3f574b648a3add5f30000c3bbb78d5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-invalid-type-green.json.gz",
+      "raw_sha256": "1fe975f561f23b6640375c70ff0ace0a86557b18cbc5020bc983af9c49c21d53"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-invalid-type-green.log.gz",
+      "raw_sha256": "f7c76590a8a774cc7fca6e1aeba92b28c6a1d3aee90b752c81dcc42f63651134"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-invalid-type-red.json.gz",
+      "raw_sha256": "377efaaa5630a582a3e22912bd8348d68021e49d2ed89d1915b2ae34bca5e284"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-invalid-type-red.log.gz",
+      "raw_sha256": "7815b9aa33d83905121c801974def4f0cf570453edbd07f1ee8861ba61a4170d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-closure-consumers.json.gz",
+      "raw_sha256": "aea4dce3ecbc7ed84eec6dd032e2252e904ff5c7e290edc0c280a7bedbce8667"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-closure-consumers.log.gz",
+      "raw_sha256": "b0b8741729a4098ad2065d0a4bc1e4f13bc255f7c30e5089785a3f97e5e13031"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-escape-type-graph.json.gz",
+      "raw_sha256": "f05c920457785c60a0ff2c6a69838f52ae3e9be26b1a43a80179dd6797473b71"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-escape-type-graph.log.gz",
+      "raw_sha256": "678d03cafc07e1dda78e81b7e5023a00e12aff16bc1e57c46a3f88351bc7360f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-invoke-llvm-consumers.json.gz",
+      "raw_sha256": "1c6a66e406a4681fb88b5387cb0c62a384c0f768e33cd932dab238af840ef729"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-invoke-llvm-consumers.log.gz",
+      "raw_sha256": "a6b179a9356b9c1873cddf04ced5f6af0ee632dbe459520ecf9cbe986c831bec"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-root-consumers.json.gz",
+      "raw_sha256": "f8a8828084eba88acdba4215931ff36953ae99000b8b29fc21a5fba3d0c786b2"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-root-consumers.log.gz",
+      "raw_sha256": "beb1c5b5da7f667047383c7513ed21f5b6e732d034168409a035611d308e3b86"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-static-llvm-consumers.json.gz",
+      "raw_sha256": "8d662e19b4d220832bcd48008dd68938440c315085bf2ea3c202b9808d7dcc49"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-static-llvm-consumers.log.gz",
+      "raw_sha256": "39cfcc3899b3b5b7998247e0d4c367b9c97d00e43c90881496b3143c79d035ba"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-static-ssa-consumers.json.gz",
+      "raw_sha256": "80417b8f4fc6b71f1ebb97f2d79766fef59833cd52ce0d6eeb29014907cf2d9d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-static-ssa-consumers.log.gz",
+      "raw_sha256": "44a1b9f408b72205664890829bf4828d20cc4426a70bb4c954e51d9c673b2ba9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-zst-consumers.json.gz",
+      "raw_sha256": "654e8d9f70b634dd11dd337b998097485f24ad070209150c9be66bff2ef7d6af"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-old-zst-consumers.log.gz",
+      "raw_sha256": "a4e9f930cb4b4fb24dcc3b5b125def3a26f1005f5848815e4d8f3e4ec3e98687"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-closure-consumers.json.gz",
+      "raw_sha256": "bac3a3e53373a814eead98f322c4d8ef1aeb1334fd13984ffddff69a20adb6ca"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-closure-consumers.log.gz",
+      "raw_sha256": "3bd56f795343340586c1986279dbea817ee4099df71b9b5c43a9562f6b7f2634"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-deinit-consumers.json.gz",
+      "raw_sha256": "5450f190051ccb5078af687a19322c3483a4af38d7f1178263eafac41b41ad5d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-deinit-consumers.log.gz",
+      "raw_sha256": "fa7f3ef3c327a7c2a67946d1b8d069f631e929fecc3d4918f360c6ac160daf68"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-deinit-corrected-consumers.json.gz",
+      "raw_sha256": "9a2f2c6f2ee2b144c1e978fc2122916fc360b547f54d9ff1999d2e0d7555370f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-deinit-corrected-consumers.log.gz",
+      "raw_sha256": "4dd2f5a0fbc5bdd8e3c078e502fb901cb353535c4104c0e84fc330768932a9c7"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-escape-type-graph.json.gz",
+      "raw_sha256": "f2290a9fd0af74e9695065cd0fc4495b473dee5851dcf5bf6a7603625f2f767d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-escape-type-graph.log.gz",
+      "raw_sha256": "b71a004f1baf5d9831554331ab28100bded2b9f31487ae2e7e4f1617710d58fa"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-type-consumers.json.gz",
+      "raw_sha256": "f606eca6642fb241258596945058dcb9d1d5c00c16d3507dc0f7b830471fecec"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-gate-type-consumers.log.gz",
+      "raw_sha256": "856a2e097dd76d8f3e5f0c4ff4dce30d876fac462a0f2eba61f6f77d555f6794"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-bounded-red.json.gz",
+      "raw_sha256": "e6cc678951497b505005a3e1ad6d88e7f4c8defe156546a4bf2de798eba820a1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-bounded-red.log.gz",
+      "raw_sha256": "ece413078d96e845f56374fe41a2a6673b0a18c884f32ff18e0211fb4e475fed"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-expanded-red.json.gz",
+      "raw_sha256": "a6466a8429a58a5fb75acbc195d082ca011f225aa704f65074966a8d0c38a27c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-expanded-red.log.gz",
+      "raw_sha256": "f3d85c08d4d1b65064bcb73c539c72511f11878bcd216073101c2952f5e30a8c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-matrix-red.json.gz",
+      "raw_sha256": "446a2aedb16f343c5a3a43a911bfb74564b29436faaa21019b92a25d549378de"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-matrix-red.log.gz",
+      "raw_sha256": "d76ee3d1a93dbcd9d4e855bef0552f894ee359cf92ff7048b02f0759f422e02b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-review-corrected.json.gz",
+      "raw_sha256": "7e4caece27021216b3b2a133c5dc2171c3e7e6c98931b88c68d3e4e5f18f97cd"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-review-corrected.log.gz",
+      "raw_sha256": "d40ff3df60359c2839ecd03eaad2c19b7340f53afbb143aa2864112fb6dd3087"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-review.json.gz",
+      "raw_sha256": "7015eef22d313ae4ab0b60c571d00e7e39b46406cb0524677a833ba89961de15"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-root-content-review.log.gz",
+      "raw_sha256": "7b8188eaccdb72ffd8565f682186fe60bd064a0d1415d7f46735abd87558ec0a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-size-final.json.gz",
+      "raw_sha256": "361398deaa8c4d0a1b0b00f3e17b1b65340f600e87a9980e6e1fc5573bcc4cfb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-size-final.log.gz",
+      "raw_sha256": "19159dee32ac036457fd36a396bff941a6f239c8ab98c2a1f35f9f28710e0719"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-docs-final.json.gz",
+      "raw_sha256": "56142deefadc6c58b50ccba3435244166caba079978790f4c5ca84970cf19a51"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-docs-final.log.gz",
+      "raw_sha256": "2bf1460e15a6514757109f144fcf09edd28d90c98d371eabf12b023344362e67"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-policy-tests.json.gz",
+      "raw_sha256": "6395a605d50ac064564ef48d0e060fc0d75e47142740ccf4b08ec18229900a82"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-policy-tests.log.gz",
+      "raw_sha256": "0d539b00a176f4c9c9d9190bb22dea773c782d63a1e3f3a029832180b1a548d6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-codegen-clippy-corrected.json.gz",
+      "raw_sha256": "ed6d763c1ad5572b94afed4fc1a6514a05aed13d3e8bbbfcb2729f9f94c2827e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-codegen-clippy-corrected.log.gz",
+      "raw_sha256": "2090811cbd240242ab3e3ef7072ce507e7a0506c5c69f204c8dbad41105dc910"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-codegen-clippy.json.gz",
+      "raw_sha256": "cd9fb6dd0e981e50da14a683d3247d87a5c4aec97be73204a60f4025ca8e739d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-codegen-clippy.log.gz",
+      "raw_sha256": "fabd691cabf6ada16295272f557546f6062a01f71df7c609593605e739b82c99"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-format-corrected-final.json.gz",
+      "raw_sha256": "7d821e401c0ead7e57f569a69ecae6e10faaa15ee5a45f4487d5e9a3a3f90ebb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-format-corrected-final.log.gz",
+      "raw_sha256": "59ab38080779ed538c356b458adc5c55d42bfc60cafec90404c1a27d13f395c3"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-format-final.json.gz",
+      "raw_sha256": "6973f50cf7dd68e2a90403f6bb7e04211a87c18885204f8728cfe79cf97a19e6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-format-final.log.gz",
+      "raw_sha256": "dbdbc3486ea61cd40db37ec02b59fb8813b0aafbb60a8a51fec0efd9d1807659"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-clippy-final-tests.json.gz",
+      "raw_sha256": "d0c525851292d9c7adba091524a0cc42dc5a83d4f489a1d326f3f0987e123706"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-post-clippy-final-tests.log.gz",
+      "raw_sha256": "8675ac58b9513209328d96312d72af6bc8ca90f93f03241df6af0626df426bda"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-precommit-final-tests.json.gz",
+      "raw_sha256": "809e7e16a2295e8cc00ecd317f8c4d236193e3cd5ba78fbca4ff0c7601775f5e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-precommit-final-tests.log.gz",
+      "raw_sha256": "e65221d225804327c142aeb456c9d21f18b601ed18f2907d38549b44ed243cc5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-format-isolated-final.json.gz",
+      "raw_sha256": "31c2cc69df9cccb902093cb91267e60ccced955e5e1ad02863471655b5c1ad39"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-format-isolated-final.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-isolated-snapshot.json.gz",
+      "raw_sha256": "2d7d1dee46d42d9ee62c337f84d91456ac6989ce6b317f71e4a254ba0183dc75"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-whole-format-frozen-final.json.gz",
+      "raw_sha256": "8b403d812aa6fb45cee17fd9c6dff3c329a9d291aca3d03011d6cf93658a2e8e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/borrowed-generator/borrowed-whole-format-frozen-final.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "format_gate": "Full working-tree cargo fmt --all --check passed after pending frontend test writer froze, in addition to isolated curated accepted snapshot full fmt. Earlier formatting failures retained."
+}

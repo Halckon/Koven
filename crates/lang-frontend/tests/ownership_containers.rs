@@ -170,6 +170,30 @@ fn runtime_length_construction_reuses_its_two_borrow_contracts() {
 }
 
 #[test]
+fn runtime_generator_size_borrow_precedes_initializer_nested_inout() {
+    for container in ["Array", "List"] {
+        let text = format!(
+            "fun initializer(inout size: Int): (Int) -> Int {{\n\
+             size = 2\nreturn ({{ index -> index }})\n}}\n\
+             fun invalid(): Unit {{ var size = 1\n\
+             val items = {container}<Int>(size, initializer(&size))\n}}"
+        );
+        let (sources, _, owned) = checked(&text);
+        assert_eq!(
+            codes(owned.diagnostics()),
+            ["L0135"],
+            "the first constructor Borrow must protect size while the second operand is evaluated"
+        );
+        assert_eq!(
+            sources
+                .slice(owned.diagnostics()[0].primary_span())
+                .expect("conflicting operand span"),
+            "&"
+        );
+    }
+}
+
+#[test]
 fn element_owned_read_copies_copyable_and_rejects_move_only() {
     let passing = "fun takeInt(own item: Int): Unit {}\n\
                    fun copy(own list: List<Int>): Unit {\n\

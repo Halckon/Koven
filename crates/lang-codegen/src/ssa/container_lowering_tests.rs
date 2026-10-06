@@ -8,7 +8,7 @@ use lang_frontend::{
 };
 
 use super::{
-    lower_frontend::{LoweringErrorKind, orchestrate::lower_scalar_file},
+    lower_frontend::orchestrate::lower_scalar_file,
     model::{Operation, SequentialContainerKind, SsaTypeKind},
     render::render_program,
 };
@@ -21,6 +21,50 @@ struct Analysis {
     types: TypeEnvironment,
     typed: TypedFile,
     owned: OwnershipCheckedFile,
+}
+
+#[path = "container_lowering_tests/runtime_helpers.rs"]
+mod runtime_helpers;
+
+#[path = "container_lowering_tests/runtime_matrix.rs"]
+mod runtime_matrix;
+
+#[path = "container_lowering_tests/runtime_matrix_support.rs"]
+pub(super) mod runtime_matrix_support;
+
+#[test]
+fn runtime_generator_single_source_accepts_pointer_and_shared_initializers() {
+    let mut failures = Vec::new();
+    for container in ["Array", "List"] {
+        for (environment, initializer) in [
+            ("pointer", "{ index -> index }"),
+            ("shared", "{ index -> index + scale }"),
+        ] {
+            let text = format!(
+                "fun entry(): Int {{ val scale = 7\n\
+                 val items = {container}<Int>(3, {initializer})\n\
+                 return items[2] }}"
+            );
+            let analysis = analyze(&text);
+            assert!(analysis.parsed.diagnostics().is_empty());
+            assert!(analysis.names.diagnostics().is_empty());
+            assert!(analysis.typed.diagnostics().is_empty());
+            assert!(analysis.owned.diagnostics().is_empty());
+            if let Err(error) = lower_scalar_file(
+                &analysis.sources,
+                &analysis.parsed,
+                &analysis.names,
+                &analysis.typed,
+                &analysis.owned,
+            ) {
+                failures.push(format!("{container}/{environment}: {error:?}"));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "existing synchronous Borrow constructors must reach verified source SSA: {failures:?}"
+    );
 }
 
 fn analyze(text: &str) -> Analysis {
@@ -174,23 +218,52 @@ fn moves_a_string_value_into_a_returned_list_without_a_second_owner_drop() {
 }
 
 #[test]
-fn runtime_length_container_construction_fails_before_emitting_partial_ssa() {
+fn runtime_length_container_helper_borrows_selected_pointer_initializer() {
     let analysis = analyze(
         "fun generate(size: Int, initializer: (Int) -> String): Array<String> = \
-         Array<String>(size, initializer)",
+         Array<String>(size, initializer)\n\
+         fun entry(): Unit { val items = generate(2, { index -> \"value\" })\n\
+         println(items[1]) }",
     );
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
     assert!(analysis.typed.diagnostics().is_empty());
     assert!(analysis.owned.diagnostics().is_empty());
-    let error = match lower_scalar_file(
+    let program = lower_scalar_file(
         &analysis.sources,
         &analysis.parsed,
         &analysis.names,
         &analysis.typed,
         &analysis.owned,
-    ) {
-        Ok(_) => panic!("runtime initializer callable bridge remains outside this slice"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
+    )
+    .expect("runtime construction borrows the incoming pointer without consuming it");
+    let function = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| function.name.contains("generate"))
+        .expect("selected helper body is emitted");
+    let initializer = function
+        .block(function.entry_block().unwrap())
+        .unwrap()
+        .parameters[1];
+    let generations = function
+        .instructions
+        .iter()
+        .filter_map(|instruction| {
+            if let Operation::ContainerGenerateBorrowed { initializer, .. } = instruction.operation
+            {
+                Some(super::model::EntityId::Loan(initializer))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(generations, [initializer]);
+    assert!(
+        function
+            .instructions
+            .iter()
+            .all(|instruction| !matches!(instruction.operation, Operation::Drop { .. }))
+    );
+    crate::llvm::render_verified_program(&program).expect("incoming pointer ABI verifies in LLVM");
 }

@@ -325,3 +325,35 @@ G5 固定 Holder 缺失 deinit 的受控运行期故障，正常对照通过，7
 
 本片仅关闭选定生成域与检测/缩减设施；M4 其他范围、M4c、完整内存安全证明、性能成本接受
 及其它里程碑继续按各自前置推进。此次收尾仅改文档与冻结 inventory，没有新增实现或语言语义。
+
+
+## 21. M3A 共享 SSA 安全前置交付（2026-10-05）
+
+SPEC0278 的 45 项新增逃逸与当前内容证明测试已在双宿主实际执行。
+[PR56](https://github.com/Halckon/Koven/pull/56) 最终 head `d982bea3` 的
+CI37316378722 为 14 项必需成功及 Tree-sitter 合法跳过；合并为
+`6575e9069506fbdddcbf7e8cd5e873de91eea5b7` 后，
+[actual main CI37319712345](https://github.com/Halckon/Koven/actions/runs/37319712345)
+实际 15/15 成功，无 job 跳过。两轮 Linux 完整 codegen 922 passed，macOS 921 passed
+及一项既有 LLDB 权限 ignore，均无失败、无过滤；双宿主 preview 消费者成功。
+源码、PR synthetic checkout 与 actual main 身份及原始日志见
+[交付账本](evidence/closure-escape-0278/delivery.json)，不改写归档验收正文。
+
+原本地 main 已安全快进，原六份未提交文件内容与 index 保全；后继
+`feature/spec-0279` 独立 worktree 基于上述 actual main。完整运行时长度源码构造
+及嵌套 capture LoanId 生命周期仍未关闭。用户允许主干既有远端 CI；
+本地不运行真实故障校准，不启动 daybreak 或 P2 重采样。
+
+
+## 22. M3A运行时长度构造实现验收（2026-10-06）
+
+SPEC0279从actual main `6575e906`实施两入口Array/List运行时长度构造、具体callable/helper
+ABI与普通native路径；用户明确启用Guide v0.41 expected move literal澄清。
+[PR57](https://github.com/Halckon/Koven/pull/57)实现head `a7faceaea97f5130a94689d65e0d97a497c653f6` 的[CI37455222241](https://github.com/Halckon/Koven/actions/runs/37455222241)
+15/15实际成功；新增测试逐项命中与source/synthetic身份见[交付账本](evidence/runtime-constructor-0279/delivery.json)。
+本片按用户排除本地安全/资源注入/校准与定向allocation/free观测的范围归档（旧对象路径Guard误运行例外见消费者收据），不代表这些验证通过。
+最终归档head、merge与actual main双宿主CI仍待交付，不能预先启动依赖其交付的新分支实施。
+
+完整M3A操作集、M1B-b文本/API、一般嵌套LoanId生命周期、性能预算与M4/M6其它范围继续
+按各自前置。后继先根据actual main重新核对现行语义的程序缺口；新的标准库API、文本输入、
+返回借用或长期架构须满足Guide/ADR前置，不因本片交付自动启用。

@@ -144,6 +144,7 @@ impl UnitExpressionLowerer<'_> {
             bindings: false_bindings,
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: condition_closures,
+            capture_loans: self.capture_loans.clone(),
             pending_operands: self.pending_operands.clone(),
             temporaries: self.temporaries.clone(),
         });
@@ -193,6 +194,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings.clear();
             self.borrow_bindings.clear();
             self.closure_bindings.clear();
+            self.capture_loans.clear();
             self.temporaries.clear();
             self.pending_operands.clear();
             return Ok(LoweredValue::Diverged);
@@ -216,6 +218,8 @@ impl UnitExpressionLowerer<'_> {
             .is_none()
         {
             self.end_pending_call_loans(self.loops.len(), span)?;
+        } else {
+            self.end_pending_abi_call_slots(self.loops.len(), span)?;
         }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
@@ -245,6 +249,8 @@ impl UnitExpressionLowerer<'_> {
             .is_none()
         {
             self.end_pending_call_loans(self.loops.len(), span)?;
+        } else {
+            self.end_pending_abi_call_slots(self.loops.len(), span)?;
         }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
@@ -336,6 +342,7 @@ impl UnitExpressionLowerer<'_> {
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
+            capture_loans: self.capture_loans.clone(),
             pending_operands: self.pending_operands.clone(),
             temporaries: self.temporaries.clone(),
         }

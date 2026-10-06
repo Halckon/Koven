@@ -50,6 +50,7 @@ impl UnitExpressionLowerer<'_> {
             field_replace_owner: None,
             shared_field_roots: Vec::new(),
             created_loans: Vec::new(),
+            abi_slots: Vec::new(),
         });
         let result = self.lower_ownership_primitive_in_frame(expression, arguments, call, span);
         self.pending_call_frames.pop();

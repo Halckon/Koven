@@ -1,0 +1,34 @@
+{
+  "schema": "koven.v041-docs.v1",
+  "authority": "User explicitly selected expected move literal clarification and enabled v0.41",
+  "docs_markdown_checked": 545,
+  "doc_gate_tests_passed": 37,
+  "independent_review": "16 snapshot pages / 32 SHA / mechanical relative links / candidate semantic delta / strong and named identity boundaries checked by separate author",
+  "implementation": "Frontend production not yet accepted; source constructors and native still pending",
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/v041/v041-docs-gate.json.gz",
+      "raw_sha256": "e5d8254e74ef53012b7fbf6f0700acaf4ffe0b8fddbb64a51f9cd63a9b4db1af"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/v041/v041-docs-gate.log.gz",
+      "raw_sha256": "6d4e24ef8a05b771ebd7df98e7ac422af053aab18f923c8d77afdaf0c9b3ace5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/v041/v041-docs-tests.json.gz",
+      "raw_sha256": "913ec54aebd54ea48668a911e3ab14abac3f7e23ade930c8d8359934b849e085"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/v041/v041-docs-tests.log.gz",
+      "raw_sha256": "3c7d3f0402c7cb9578d6361effd0ef29f168016d1dcbd6e43d0dac42cbc67397"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/v041/v041-diff-check.json.gz",
+      "raw_sha256": "922cf67f64f8806184160857f307fb6c93ff904320cea4467bba97992b56100e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/v041/v041-diff-check.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

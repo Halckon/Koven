@@ -84,8 +84,25 @@ impl DropPlanner<'_, '_> {
 
     fn push_pending_drop(&mut self, point: PlannerDropPoint, pending: PendingTemporary) {
         if let Some(closure) = pending.closure {
-            for capture in self.checker.captures_of(closure) {
-                if capture.mode() == crate::ownership_checking::ClosureCaptureMode::Shared {
+            for capture in self
+                .checker
+                .captures_of(closure)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+            {
+                if capture.mode() == crate::ownership_checking::ClosureCaptureMode::Owned
+                    && capture.effect() == crate::ownership_checking::ClosureCaptureEffect::Move
+                {
+                    self.push_fact(PlannerDropFact::new(
+                        point,
+                        PlannerDropTarget::Captured {
+                            closure,
+                            source: capture.source(),
+                        },
+                        capture.reference_span(),
+                    ));
+                } else if capture.mode() == crate::ownership_checking::ClosureCaptureMode::Shared {
                     self.iteration_actions.push((
                         point,
                         crate::ownership_checking::UnitIterationCleanupAction::EndCaptureLoan {

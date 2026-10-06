@@ -13,7 +13,7 @@
 此次属于Phase 6工程文档维护，无语言/编译器行为变化，无新Spec或生命周期迁移。
 只本地提交，不推送、创建PR、合并主干或争用Cargo target。
 
-权威路径为`docs/guide/README.md`，唯一current版本仍是v0.40。
+权威路径为`docs/guide/README.md`，唯一current版本现为v0.41（2026-10-05用户明确启用 expected move literal 澄清；本页其它实现基线仍按原核对记录）。
 Guide的语言承诺、强制Phase与示例不随实现状态降低；本批只增加实现状态导航，
 并澄清“规范启用不构成实现验收证明”的原意。Guide7/11的lambda/Box合同不变，
 Str/toString仍延期，clone-first不重开；没有启用新版本或候选语义。

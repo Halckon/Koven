@@ -493,6 +493,12 @@ pub(crate) enum Operation {
         length: ValueId,
         initializer: FunctionId,
     },
+    /// Synchronously read a shared callable loan without transferring its owner.
+    ContainerGenerateBorrowed {
+        container: SsaTypeId,
+        length: ValueId,
+        initializer: LoanId,
+    },
     ContainerLength {
         owner: EntityId,
     },
@@ -521,6 +527,10 @@ pub(crate) enum Operation {
     },
     /// Narrow an active shared/exclusive loan to a call-scoped shared loan.
     SharedReborrow {
+        source: LoanId,
+    },
+    /// Follow a shared reference slot to a shared target view within its parent loan's extent.
+    SharedReferenceFollow {
         source: LoanId,
     },
     Copy {
@@ -654,6 +664,13 @@ impl Operation {
                 elements.iter().copied().map(EntityId::Value).collect()
             }
             Self::ContainerGenerate { length, .. } => vec![EntityId::Value(*length)],
+            Self::ContainerGenerateBorrowed {
+                length,
+                initializer,
+                ..
+            } => {
+                vec![EntityId::Value(*length), EntityId::Loan(*initializer)]
+            }
             Self::ContainerLength { owner } => vec![*owner],
             Self::ContainerElementPlace { owner, index } => {
                 vec![*owner, EntityId::Value(*index)]
@@ -671,7 +688,9 @@ impl Operation {
             Self::SharedFieldLoan { base, .. } | Self::SharedHeapFieldLoan { base, .. } => {
                 vec![EntityId::Loan(*base)]
             }
-            Self::SharedReborrow { source } => vec![EntityId::Loan(*source)],
+            Self::SharedReborrow { source } | Self::SharedReferenceFollow { source } => {
+                vec![EntityId::Loan(*source)]
+            }
             Self::BooleanNot { operand } | Self::IntegerNot { operand } => {
                 vec![EntityId::Value(*operand)]
             }

@@ -20,3 +20,6 @@
 - [v0.38 完整规范快照](v0.38/README.md)：String.clone 启用前的 main 规范。
 
 - [v0.39 完整规范快照](v0.39/README.md)：七阶段合并后的真实 16 页前版，含 String.clone、Parser 澄清与 Compiler Contracts 指向；仅机械重算链接。
+
+- [v0.40 完整规范快照](v0.40/README.md)：v0.41 启用前 16 页完整快照，仅机械重算链接。
+- [v0.41 启用前候选](v0.41-candidate.md)：expected move literal 冲突与用户审阅文本。

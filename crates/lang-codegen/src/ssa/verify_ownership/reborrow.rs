@@ -10,7 +10,8 @@ impl ReborrowDependencies {
                 | Operation::SharedHeapFieldLoan { base: source, .. } => (source, true),
                 // Capture field views inherit a borrow parameter's function extent, but they still
                 // block an explicit parent end while active.
-                Operation::SharedFieldLoan { base: source, .. } => (source, false),
+                Operation::SharedFieldLoan { base: source, .. }
+                | Operation::SharedReferenceFollow { source } => (source, false),
                 Operation::BorrowBegin { place, .. } => {
                     let Some(entity) = function.entity(EntityId::Place(place)) else {
                         continue;

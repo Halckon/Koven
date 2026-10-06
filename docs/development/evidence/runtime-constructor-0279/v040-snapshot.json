@@ -1,0 +1,118 @@
+{
+  "schema": "koven.v041-snapshot.v1",
+  "source_main": "6575e9069506fbdddcbf7e8cd5e873de91eea5b7",
+  "pages": [
+    {
+      "source": "docs/guide/01-lexical.md",
+      "snapshot": "docs/archive/guides/v0.40/01-lexical.md",
+      "source_sha256": "4a5ef0e2769d94af12a23a1364510a8b38908073a3ac3ff357eb38a881e7707b",
+      "snapshot_sha256": "4a5ef0e2769d94af12a23a1364510a8b38908073a3ac3ff357eb38a881e7707b",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/02-names-files-packages.md",
+      "snapshot": "docs/archive/guides/v0.40/02-names-files-packages.md",
+      "source_sha256": "b1126e0115bf9f0f9e0cc8213131f6ce4c6b9dfa9bd11fa479524968dce37437",
+      "snapshot_sha256": "b1126e0115bf9f0f9e0cc8213131f6ce4c6b9dfa9bd11fa479524968dce37437",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/03-types-generics.md",
+      "snapshot": "docs/archive/guides/v0.40/03-types-generics.md",
+      "source_sha256": "1ebb35b09b9904b1bb4bbc65d13061c23926c88aba85719b643b4ecb3ca2cdb2",
+      "snapshot_sha256": "1ebb35b09b9904b1bb4bbc65d13061c23926c88aba85719b643b4ecb3ca2cdb2",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/04-expressions-operators.md",
+      "snapshot": "docs/archive/guides/v0.40/04-expressions-operators.md",
+      "source_sha256": "4b77c3ececd7e8a2aee9b437685ba37bf611e075337e4560485dfa5973c2efcb",
+      "snapshot_sha256": "4b77c3ececd7e8a2aee9b437685ba37bf611e075337e4560485dfa5973c2efcb",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/05-declarations-callables.md",
+      "snapshot": "docs/archive/guides/v0.40/05-declarations-callables.md",
+      "source_sha256": "07b1f9d4f2854b9270ad542e522aa94a7c36923aa72be73d1de8a115769218d7",
+      "snapshot_sha256": "d02538c5cc2c77360b31c25e238a4229dd853bdfb89d937e15671efdd94c6cc4",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/06-blocks-control-flow.md",
+      "snapshot": "docs/archive/guides/v0.40/06-blocks-control-flow.md",
+      "source_sha256": "830b32b85052eeddc55f7e5f99e66a2e5dad11cef9b7b0c0626e5d14feffffcb",
+      "snapshot_sha256": "0c72a7b97428f9503776cdc4311e30d953d54f6108e5d0a9337f389f2eb8e5ce",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/07-calls-lambdas-closures.md",
+      "snapshot": "docs/archive/guides/v0.40/07-calls-lambdas-closures.md",
+      "source_sha256": "a422ea62cf47ffc5ce11ef22310a8a61c5db51fc618f9070e98347db03ccf7ba",
+      "snapshot_sha256": "0f86dde540c96d5c9399050434525a06ead153af34acecdd78f69b05f4fd5228",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/08-class-family-members.md",
+      "snapshot": "docs/archive/guides/v0.40/08-class-family-members.md",
+      "source_sha256": "0aefd4b82007c93dbf3a4d66623b095e8c6996361040b22ecae9e58fb8655396",
+      "snapshot_sha256": "3c13633937f19691c78c1b6cb0ce95f37cfd78d057020795dd07f6d485c9bb83",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/09-nullability-errors.md",
+      "snapshot": "docs/archive/guides/v0.40/09-nullability-errors.md",
+      "source_sha256": "b7888864ff0e080bb8ec4da68b60e8ac81f3b93961fb0e465e1ae897043b7d1c",
+      "snapshot_sha256": "b7888864ff0e080bb8ec4da68b60e8ac81f3b93961fb0e465e1ae897043b7d1c",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/10-ownership-borrowing-drop.md",
+      "snapshot": "docs/archive/guides/v0.40/10-ownership-borrowing-drop.md",
+      "source_sha256": "d37d8557a69524b59c586a4966ba664fd5e45b943324f81b8ffbef9d706dc302",
+      "snapshot_sha256": "d37d8557a69524b59c586a4966ba664fd5e45b943324f81b8ffbef9d706dc302",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/11-copyability-layout-construction.md",
+      "snapshot": "docs/archive/guides/v0.40/11-copyability-layout-construction.md",
+      "source_sha256": "773fc9dd2e4c2f176dd709df5e7787e16fb84073d97e88664131aa02295b2c1d",
+      "snapshot_sha256": "773fc9dd2e4c2f176dd709df5e7787e16fb84073d97e88664131aa02295b2c1d",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/12-collections-destructuring.md",
+      "snapshot": "docs/archive/guides/v0.40/12-collections-destructuring.md",
+      "source_sha256": "d9f45688f5b5d4f32de19791a711ebe84a3238c7178299371e904c4b92ec61a2",
+      "snapshot_sha256": "9a04dab573a2f213fb08136015598d4d381e5d6a423d36da228681f3d2241034",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/13-program-runtime-standard-library.md",
+      "snapshot": "docs/archive/guides/v0.40/13-program-runtime-standard-library.md",
+      "source_sha256": "c3569ee0160f881f2f73631e3202a85fd1da5960f120b7e3bff4b091242d8601",
+      "snapshot_sha256": "b8dbf44b8f7ee072e83bd8a99fa5a64fc7b723052288e7f8a9c3a772127466c3",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/14-syntax-index.md",
+      "snapshot": "docs/archive/guides/v0.40/14-syntax-index.md",
+      "source_sha256": "712d64f24024b5f7d1ddb37c90001b0651d60ada46900f89bc24d6c6a6c81057",
+      "snapshot_sha256": "712d64f24024b5f7d1ddb37c90001b0651d60ada46900f89bc24d6c6a6c81057",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/15-conformance-and-staging.md",
+      "snapshot": "docs/archive/guides/v0.40/15-conformance-and-staging.md",
+      "source_sha256": "243b5565f5dad6612a6041b2cf15ceea86d7046a1a3abaa0eb50dff903e07420",
+      "snapshot_sha256": "077a0565c3d6cea79216c1af4c3dbec52f4df1aaafbd3f867be613647d8b99de",
+      "transform": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/README.md",
+      "snapshot": "docs/archive/guides/v0.40/README.md",
+      "source_sha256": "390aaeea7c595087485eb6bb49d1aea65e0528e354b0cff4b2de938cfac78504",
+      "snapshot_sha256": "e20bc880277e24af588641570c40e7079e1b84b7b712625f469afeda107dfe6f",
+      "transform": "relative Markdown links only"
+    }
+  ]
+}

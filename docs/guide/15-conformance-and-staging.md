@@ -1,8 +1,8 @@
-# Koven v0.40：一致性、Phase 与实施边界
+# Koven v0.41：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.40） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.41） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.40 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.41 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -87,7 +87,7 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 | 5 | 以 Koven 源码实现的最小标准库 | 标准库源码和 native 行为通过 |
 | 6 | project、CLI、LSP、formatter 与编辑器 grammar | 工具有独立可重复验收 |
 
-跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.40。
+跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.41。
 
 具体测试选择与并行方式见 [测试与分层验收](../development/testing.md)；上表规定阶段产物，
 不要求每个实施切片重复执行全量测试。
@@ -388,3 +388,11 @@ fun main(): Unit {
     println("Mask initialized")
 }
 ```
+
+
+## v0.41 澄清与未完成边界
+
+本版本完整继承 v0.40，仅按用户明确决定澄清 expected move literal 合同；规则真源为
+[类型与泛型](03-types-generics.md#expected-typelocal-与-lambda)，不新增 named Function 转换。
+[迁移账本](../archive/migrations/v0.41-enablement.md)保全启用记录与旧版快照。
+前端接受性、capture/loan/drop 与 SSA/LLVM/native 仍需分别验收；规范启用不是实现完成。

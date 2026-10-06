@@ -25,6 +25,7 @@ pub(super) struct BranchExit {
     pub(super) bindings: BTreeMap<SymbolId, LoweredValue>,
     pub(super) temporaries: BTreeMap<usize, ValueId>,
     pub(super) loans: BTreeMap<(usize, usize), Option<super::LoanId>>,
+    pub(super) capture_loans: BTreeMap<(usize, usize), super::LoanId>,
     pub(super) views: BTreeMap<SymbolId, super::LoanId>,
     pub(super) borrow_bindings: BTreeMap<SymbolId, super::LoanId>,
     pub(super) for_sources: BTreeMap<usize, super::LoanId>,
@@ -37,6 +38,7 @@ enum MergeSlot {
     Binding(SymbolId),
     Temporary(usize),
     PendingLoan((usize, usize)),
+    CaptureLoan((usize, usize)),
     NonNullView(SymbolId),
     BorrowBinding(SymbolId),
     ForSource(usize),
@@ -55,6 +57,7 @@ pub(super) struct LinearBindingSlot {
     pub(super) source: EntityId,
     pub(super) temporaries: Vec<usize>,
     pub(super) loans: Vec<(usize, usize)>,
+    pub(super) captures: Vec<(usize, usize)>,
     pub(super) views: Vec<SymbolId>,
     pub(super) borrow_symbols: Vec<SymbolId>,
     pub(super) for_sources: Vec<usize>,
@@ -69,6 +72,7 @@ impl LinearBindingSlot {
             source,
             temporaries: Vec::new(),
             loans: Vec::new(),
+            captures: Vec::new(),
             views: Vec::new(),
             borrow_symbols: Vec::new(),
             for_sources: Vec::new(),
@@ -107,6 +111,7 @@ impl ExpressionLowerer<'_> {
             bindings: self.bindings.clone(),
             temporaries: self.temporaries.clone(),
             loans: self.pending_call_loans.clone(),
+            capture_loans: self.capture_loans.clone(),
             views: self.non_null_bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             for_sources: self
@@ -482,12 +487,14 @@ impl ExpressionLowerer<'_> {
         let mut unmatched_temporaries = self.temporaries.clone();
         let mut unmatched_loans = self.pending_call_loans.clone();
         let mut unmatched_views = self.non_null_bindings.clone();
+        let mut unmatched_captures = self.capture_loans.clone();
         let mut exits = Vec::new();
         let mut has_else = false;
         for (entry_index, entry) in entries.iter().enumerate() {
             self.temporaries.clone_from(&unmatched_temporaries);
             self.pending_call_loans.clone_from(&unmatched_loans);
             self.non_null_bindings.clone_from(&unmatched_views);
+            self.capture_loans.clone_from(&unmatched_captures);
             if entry.else_span.is_some() {
                 has_else = true;
                 if let Some(exit) =
@@ -538,6 +545,7 @@ impl ExpressionLowerer<'_> {
                 unmatched_temporaries = self.temporaries.clone();
                 unmatched_loans = self.pending_call_loans.clone();
                 unmatched_views = self.non_null_bindings.clone();
+                unmatched_captures = self.capture_loans.clone();
             }
 
             self.merge_exits(matches, &entry_baseline, entry.span)?;
@@ -567,6 +575,7 @@ impl ExpressionLowerer<'_> {
                     bindings: unmatched_bindings,
                     temporaries: unmatched_temporaries,
                     loans: unmatched_loans,
+                    capture_loans: unmatched_captures,
                     views: unmatched_views,
                     borrow_bindings: self.borrow_bindings.clone(),
                     for_sources: self
@@ -848,6 +857,7 @@ impl ExpressionLowerer<'_> {
             self.bindings = first.bindings.clone();
             self.temporaries = first.temporaries.clone();
             self.pending_call_loans = first.loans.clone();
+            self.capture_loans = first.capture_loans.clone();
             self.non_null_bindings = first.views.clone();
             self.borrow_bindings = first.borrow_bindings.clone();
             for context in &mut self.loops {
@@ -915,6 +925,22 @@ impl ExpressionLowerer<'_> {
             }
         }
 
+        let mut capture_loans = first.capture_loans.clone();
+        capture_loans.retain(|key, _| {
+            exits
+                .iter()
+                .all(|exit| exit.capture_loans.contains_key(key))
+        });
+        for (&key, &loan) in &capture_loans {
+            parameter_types.push(
+                self.function
+                    .entity(EntityId::Loan(loan))
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty,
+            );
+            slots.push(MergeSlot::CaptureLoan(key));
+        }
+
         let mut views = first.views.clone();
         views.retain(|key, _| exits.iter().all(|exit| exit.views.contains_key(key)));
         for (&symbol, &loan) in &views {
@@ -978,6 +1004,7 @@ impl ExpressionLowerer<'_> {
                 .iter()
                 .map(|exit| match slot {
                     MergeSlot::Result => lowered_entity(exit.result, span),
+                    MergeSlot::CaptureLoan(key) => Ok(EntityId::Loan(exit.capture_loans[key])),
                     MergeSlot::NonNullView(symbol) => Ok(EntityId::Loan(exit.views[symbol])),
                     MergeSlot::Temporary(key) => Ok(EntityId::Value(exit.temporaries[key])),
                     MergeSlot::PendingLoan(key) => exit.loans[key]
@@ -1051,6 +1078,13 @@ impl ExpressionLowerer<'_> {
                 loans.insert(key, Some(loan));
                 continue;
             }
+            if let MergeSlot::CaptureLoan(key) = slot {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                capture_loans.insert(key, loan);
+                continue;
+            }
             if let MergeSlot::NonNullView(symbol) = slot {
                 let EntityId::Loan(loan) = parameter else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -1088,6 +1122,7 @@ impl ExpressionLowerer<'_> {
                     }
                 }
                 MergeSlot::PendingLoan(_)
+                | MergeSlot::CaptureLoan(_)
                 | MergeSlot::NonNullView(_)
                 | MergeSlot::BorrowBinding(_)
                 | MergeSlot::ForSource(_)
@@ -1103,6 +1138,7 @@ impl ExpressionLowerer<'_> {
         self.bindings = bindings;
         self.temporaries = temporaries;
         self.pending_call_loans = loans;
+        self.capture_loans = capture_loans;
         self.non_null_bindings = views;
         self.borrow_bindings
             .retain(|_, loan| entry_loans.contains(loan));
@@ -1211,6 +1247,21 @@ impl ExpressionLowerer<'_> {
                     .ty;
                 let mut slot = LinearBindingSlot::new(None, source, ty);
                 slot.loans.push(key);
+                carried.push(slot);
+            }
+        }
+        for (&key, &loan) in &self.capture_loans {
+            let source = EntityId::Loan(loan);
+            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
+                slot.captures.push(key);
+            } else {
+                let ty = self
+                    .function
+                    .entity(source)
+                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                    .ty;
+                let mut slot = LinearBindingSlot::new(None, source, ty);
+                slot.captures.push(key);
                 carried.push(slot);
             }
         }
@@ -1325,6 +1376,7 @@ impl ExpressionLowerer<'_> {
         }
         // Restore the complete entry state before lowering each sibling branch.
         self.temporaries.clear();
+        self.capture_loans.clear();
         self.non_null_bindings.clear();
         let entry_loans = self.entry_loans();
         self.borrow_bindings
@@ -1341,6 +1393,12 @@ impl ExpressionLowerer<'_> {
             }
             for key in &slot.temporaries {
                 self.temporaries.insert(*key, value(parameter));
+            }
+            for key in &slot.captures {
+                let EntityId::Loan(loan) = parameter else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                self.capture_loans.insert(*key, loan);
             }
             for symbol in &slot.views {
                 let EntityId::Loan(loan) = parameter else {

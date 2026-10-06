@@ -44,8 +44,10 @@ Array/List/MutableList 的 named owned、Borrow 参数与 temporary source 均�
 pending 槽，conditional receiver 按具体 Copyable/MoveOnly 类型执行。return 的 owner/copy 先交付，
 再清理局部 owner、element、source 与临时源；Abort 不展开，source 中转移不清理尚未 Acquire 的 provider。
 
-field source（包括 Field symbol root）、Inout source 与 captured Borrow closure 的 native 表示
-仍明确 Unsupported。两视图边界负例核 LLVM 调用为零并逐字节保全旧产物；ordinary/constant
+field source（包括 Field symbol root）与 Inout source 的 native 表示仍明确 Unsupported。
+自然循环内 captured Borrow closure 的0/1/3元素在普通/常量两视图已通过正常object/link/run；
+显式 EndCaptureLoan 退出不因此取得一般支持，不以stdout证明分配/析构数量。
+其余两视图边界负例核 LLVM 调用为零并逐字节保全旧产物；ordinary/constant
 混轮 facts 仍在 lowering 前拒绝。实际 for 的 allocator oracle 逐 pointer 核 class 元素、临时源、
 局部/外围 owner 与 conditional receiver 的唯一释放顺序，Report 直接读取教程原源码另核 String drop。
 测试入口为 `native/unit_for_*tests.rs`；single provider/native 回归单独保留。

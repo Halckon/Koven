@@ -1,6 +1,6 @@
 # String Copyable 候选取舍
 
-> **性质**：非规范候选设计 · **状态**：未启用 · **读取时机**：仅在评审 String 值语义、Copyable 扩展或字符串复制能力时 · **唯一真源**：现行语义仍以 [v0.40 guide](../guide/README.md) 为准
+> **性质**：非规范候选设计 · **状态**：未启用 · **读取时机**：仅在评审 String 值语义、Copyable 扩展或字符串复制能力时 · **唯一真源**：现行语义仍以 [v0.41 guide](../guide/README.md) 为准
 
 本文只整理“是否让 String 满足 Copyable”的候选取舍，仍未启用，也不授权改变 Copyable。
 其中建议的显式 String.clone() 已单独由用户批准进入

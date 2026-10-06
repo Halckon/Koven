@@ -75,6 +75,7 @@ impl ExpressionLowerer<'_> {
                 }
             };
             self.append(Operation::Drop { owner }, Vec::new(), fact.value_origin())?;
+            self.release_owner_capture_loans(owner, fact.value_origin())?;
         }
         Ok(())
     }

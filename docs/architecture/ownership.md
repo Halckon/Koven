@@ -153,7 +153,7 @@ unit 调用的 Borrow temporary 与尚未提交的 MoveOnly Value 实参也保�
 所在循环的 break/continue 先清理后建 local，再逆序清理前缀 owner，最后清理旧 local。
 内层循环跳转保留外层调用 owner，Abort 不展开清理；return operand 自身不继续时也不生成
 return cleanup。专用 unit native 已消费新增 pending Value operand，按这些事实清理
-未提交 owner；实际 SSA/LLVM 与 native 计数证据见常量交付验收。
+未提交 owner；实际 SSA/LLVM 与 native 计数证据见常量交付验收。临时 capture 收尾见 [move literal 前端事实](expected-move-literals.md)。
 
 ## 实现与测试位置
 

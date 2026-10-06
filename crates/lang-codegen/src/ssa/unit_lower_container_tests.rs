@@ -10,6 +10,55 @@ use super::{
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 
+#[path = "unit_lower_container_tests/runtime_helpers.rs"]
+mod runtime_helpers;
+
+#[path = "unit_lower_container_tests/runtime_matrix.rs"]
+mod runtime_matrix;
+
+#[test]
+fn runtime_generator_unit_source_accepts_pointer_and_shared_initializers() {
+    let mut failures = Vec::new();
+    for container in ["Array", "List"] {
+        for (environment, initializer) in [
+            ("pointer", "{ index -> index }"),
+            ("shared", "{ index -> index + scale }"),
+        ] {
+            let mut sources = SourceMap::new();
+            let text = format!(
+                "package test\nfun entry(): Int {{ val scale = 7\n\
+                 val items = {container}<Int>(3, {initializer})\n\
+                 return items[2] }}"
+            );
+            let (source, parsed) = parsed(&mut sources, "test/runtime.ko", &text);
+            let inputs = [SourceUnitInput::new(
+                "root",
+                "test/runtime.ko",
+                source,
+                &parsed,
+            )];
+            let (name_environment, type_environment) = standard_environments();
+            let (names, typed, owned) =
+                analyze(&sources, &inputs, &name_environment, &type_environment);
+            if let Err(error) = lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                declaration(&names, "test", "entry"),
+            ) {
+                failures.push(format!("{container}/{environment}: {error:?}"));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "existing synchronous Borrow constructors must reach verified source SSA: {failures:?}"
+    );
+}
+
 #[test]
 fn lowers_cross_file_container_construction_and_owner_transfer_deterministically() {
     let mut sources = SourceMap::new();

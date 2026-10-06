@@ -2,8 +2,10 @@
 
 mod aggregate;
 mod assignment;
+mod borrow;
 mod call;
 mod call_lifetimes;
+mod callable_abi;
 mod cfg;
 mod closure;
 pub(crate) mod constant;
@@ -155,7 +157,7 @@ fn lower_unit_from_facts(
         entry,
         MAX_UNIT_GENERIC_INSTANCES,
     )?;
-    let (instances, runtime_type_demands) = instance_plan.into_parts();
+    let (instances, runtime_type_demands, source_plan) = instance_plan.into_parts();
     let mut program = Program::default();
     let module_id = program.add_module("main");
     let module = program
@@ -164,8 +166,25 @@ fn lower_unit_from_facts(
     let mut types = type_lower::UnitTypeLowering::new();
     let mut function_ids = BTreeMap::new();
     let mut plans = Vec::new();
+    let callable_layouts = closure::layout::declare(
+        module,
+        &parsed_by_source,
+        &instances,
+        names,
+        typed,
+        owned,
+        &mut types,
+    )?;
+    let callable_abi = callable_abi::CallableAbi::declare(
+        module,
+        &instances,
+        &source_plan,
+        &callable_layouts,
+        typed,
+        &mut types,
+    )?;
 
-    for instance in instances {
+    for (source_ordinal, instance) in instances.into_iter().enumerate() {
         if instance.key().deinit_owner().is_some() {
             let plan = deinit::declare(
                 module,
@@ -266,7 +285,7 @@ fn lower_unit_from_facts(
         if let Some(receiver) = receiver {
             parameter_types.push(receiver.entity_type);
         }
-        for parameter in callable.parameters() {
+        for (slot, parameter) in callable.parameters().iter().enumerate() {
             let symbol = parameter
                 .symbol()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, parameter.span()))?;
@@ -285,7 +304,14 @@ fn lower_unit_from_facts(
                     parameter.span(),
                 ));
             }
-            let ty = types.intern(module, typed, concrete, parameter.span())?;
+            let ty = if matches!(
+                typed.types().get(concrete),
+                Some(UnitTypeKind::Function { .. })
+            ) {
+                callable_abi.parameter_type(&source_plan, instance.key(), slot, parameter.span())?
+            } else {
+                types.intern(module, typed, concrete, parameter.span())?
+            };
             parameter_symbols.push(symbol);
             parameter_types.push(match parameter.mode() {
                 ParameterMode::Value => EntityType::Value(ty),
@@ -311,9 +337,19 @@ fn lower_unit_from_facts(
         let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()
         } else {
-            vec![types.intern(module, typed, return_type, instance.span())?]
+            vec![if matches!(
+                typed.types().get(return_type),
+                Some(UnitTypeKind::Function { .. })
+            ) {
+                callable_abi.return_type(&source_plan, instance.source_token(), instance.span())?
+            } else {
+                types.intern(module, typed, return_type, instance.span())?
+            }]
         };
-        let name = instance_function_name(names, &instance);
+        let mut name = instance_function_name(names, &instance);
+        if !instance.key().callable_arguments().is_empty() {
+            name.push_str(&format!(".callable{source_ordinal}"));
+        }
         let origin = Origin::Source(instance.span());
         let id = match receiver {
             Some(receiver) => {
@@ -349,15 +385,7 @@ fn lower_unit_from_facts(
             &mut types,
         )?;
     }
-    let callable_plans = closure::declare(
-        module,
-        &parsed_by_source,
-        &plans,
-        names,
-        typed,
-        owned,
-        &mut types,
-    )?;
+    let callable_plans = closure::declare(module, &plans, callable_layouts)?;
     for (ty, demand) in runtime_type_demands {
         let materialized = types.type_ids().contains_key(&ty);
         match demand {
@@ -469,6 +497,9 @@ fn lower_unit_from_facts(
             owned,
             constant_owned,
             function_ids: &function_ids,
+            source_plan: &source_plan,
+            callable_abi: &callable_abi,
+            source_token: plan.instance.source_token(),
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
             enum_payloads: types.enum_payloads(),
@@ -485,6 +516,8 @@ fn lower_unit_from_facts(
             consumed_receiver: None,
             closure_bindings: BTreeMap::new(),
             closure_binding_context: false,
+            capture_loans: BTreeMap::new(),
+            thunk_expression: None,
             callable_plans: &callable_plans,
             closure_scope: plan.id,
             temporaries: BTreeMap::new(),
@@ -564,6 +597,9 @@ fn lower_unit_from_facts(
             owned,
             constant_owned,
             function_ids: &function_ids,
+            source_plan: &source_plan,
+            callable_abi: &callable_abi,
+            source_token: plan.source_token,
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
             enum_payloads: types.enum_payloads(),
@@ -580,6 +616,8 @@ fn lower_unit_from_facts(
             consumed_receiver: None,
             closure_bindings: BTreeMap::new(),
             closure_binding_context: false,
+            capture_loans: BTreeMap::new(),
+            thunk_expression: None,
             callable_plans: &callable_plans,
             closure_scope: plan.scope,
             temporaries: BTreeMap::new(),
@@ -607,6 +645,9 @@ struct UnitExpressionLowerer<'a> {
     owned: &'a CompilationUnitOwnership,
     constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
+    source_plan: &'a super::unit_plan::UnitCallablePlan,
+    callable_abi: &'a callable_abi::CallableAbi,
+    source_token: super::lowering_support::callable_instances::SourceToken,
     type_ids: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     enum_payloads: &'a BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
@@ -623,6 +664,8 @@ struct UnitExpressionLowerer<'a> {
     consumed_receiver: Option<ConsumedReceiver>,
     closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     closure_binding_context: bool,
+    capture_loans: BTreeMap<(UnitExpressionId, usize), LoanId>,
+    thunk_expression: Option<UnitExpressionId>,
     callable_plans: &'a BTreeMap<closure::CallablePlanKey, closure::CallablePlan>,
     closure_scope: FunctionId,
     temporaries: BTreeMap<UnitExpressionId, ValueId>,
@@ -850,11 +893,14 @@ impl UnitExpressionLowerer<'_> {
             .is_none()
         {
             self.end_pending_call_loans(0, span)?;
+        } else {
+            self.end_pending_abi_call_slots(0, span)?;
         }
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
         )))?;
+        self.end_thunk_capture_views(span)?;
         let values = self.return_values(result, span)?;
         self.function
             .set_terminator(
@@ -1049,6 +1095,19 @@ impl UnitExpressionLowerer<'_> {
             .expression_type(UnitExpressionId::new(self.source_unit, expression))
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let ty = resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span)?;
+        if matches!(
+            self.typed.types().get(ty),
+            Some(UnitTypeKind::Function { .. })
+        ) {
+            return self.callable_abi.expression_type(
+                self.source_plan,
+                self.typed,
+                self.owned,
+                self.source_token,
+                UnitExpressionId::new(self.source_unit, expression),
+                span,
+            );
+        }
         self.type_ids
             .get(&ty)
             .copied()

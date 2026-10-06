@@ -1,8 +1,9 @@
 //! Program-point content proofs. These facts never replace capture-loan lifetime checks.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::BTreeMap;
 
 use super::TypeCaptures;
+use crate::ssa::verify::content_flow;
 use crate::ssa::{
     model::{
         ClosureCaptureOperand, EntityId, Function, Instruction, Operation, PlaceAccess, PlaceId,
@@ -102,51 +103,22 @@ impl<'a> ValueProof<'a> {
     /// OR joins preserve proofs only when every incoming execution is known clean.
     pub(super) fn block_entries(&self) -> Vec<State> {
         let function = self.function;
-        let mut reachable = vec![false; function.blocks.len()];
-        let mut pending = VecDeque::from([0]);
-        reachable[0] = true;
-        while let Some(index) = pending.pop_front() {
-            for edge in edges(
-                &function.blocks[index]
-                    .terminator
-                    .as_ref()
-                    .expect("verified terminator")
-                    .kind,
-            ) {
-                if !reachable[edge.target.index()] {
-                    reachable[edge.target.index()] = true;
-                    pending.push_back(edge.target.index());
+        content_flow::block_entries(
+            function,
+            &self.defaults,
+            |block, state| {
+                for id in &block.instructions {
+                    self.apply(
+                        function.instruction(*id).expect("verified instruction"),
+                        state,
+                    );
                 }
-            }
-        }
-        let mut entries = vec![None; function.blocks.len()];
-        let mut queued = vec![false; function.blocks.len()];
-        for index in 0..function.blocks.len() {
-            // Unreachable components have no caller proof, including closed CFG cycles.
-            if index == 0 || !reachable[index] {
-                entries[index] = Some(self.defaults.clone());
-                queued[index] = true;
-                pending.push_back(index);
-            }
-        }
-        while let Some(index) = pending.pop_front() {
-            queued[index] = false;
-            let mut state = entries[index]
-                .as_ref()
-                .expect("queued entry exists")
-                .clone();
-            let block = &function.blocks[index];
-            for id in &block.instructions {
-                self.apply(
-                    function.instruction(*id).expect("verified instruction"),
-                    &mut state,
+                self.apply_terminator(
+                    &block.terminator.as_ref().expect("verified terminator").kind,
+                    state,
                 );
-            }
-            self.apply_terminator(
-                &block.terminator.as_ref().expect("verified terminator").kind,
-                &mut state,
-            );
-            for edge in edges(&block.terminator.as_ref().expect("verified terminator").kind) {
+            },
+            |edge, state| {
                 let target = function.block(edge.target).expect("verified target");
                 let rebound = edge
                     .arguments
@@ -163,32 +135,19 @@ impl<'a> ValueProof<'a> {
                 for (parameter, may_capture) in rebound {
                     incoming[parameter] = may_capture;
                 }
-                let changed = match &mut entries[edge.target.index()] {
-                    None => {
-                        entries[edge.target.index()] = Some(incoming);
-                        true
+                incoming
+            },
+            |previous, incoming| {
+                let mut changed = false;
+                for (previous, incoming) in previous.iter_mut().zip(incoming) {
+                    if incoming && !*previous {
+                        *previous = true;
+                        changed = true;
                     }
-                    Some(previous) => {
-                        let mut changed = false;
-                        for (previous, incoming) in previous.iter_mut().zip(incoming) {
-                            if incoming && !*previous {
-                                *previous = true;
-                                changed = true;
-                            }
-                        }
-                        changed
-                    }
-                };
-                if changed && !queued[edge.target.index()] {
-                    queued[edge.target.index()] = true;
-                    pending.push_back(edge.target.index());
                 }
-            }
-        }
-        entries
-            .into_iter()
-            .map(|entry| entry.expect("all components were seeded"))
-            .collect()
+                changed
+            },
+        )
     }
 
     pub(super) fn apply(&self, instruction: &Instruction, state: &mut State) {
@@ -236,6 +195,8 @@ impl<'a> ValueProof<'a> {
             | Operation::SharedHeapFieldLoan { base: source, .. } => {
                 Some(state[content_index(self.function, EntityId::Loan(*source))])
             }
+            // A reference slot does not prove its target's owned contents. Use the target default.
+            Operation::SharedReferenceFollow { .. } => None,
             Operation::Read { source } => Some(
                 state[content_index(
                     self.function,
@@ -321,7 +282,7 @@ impl<'a> ValueProof<'a> {
     }
 }
 
-fn content_index(function: &Function, entity: EntityId) -> usize {
+pub(in crate::ssa::verify) fn content_index(function: &Function, entity: EntityId) -> usize {
     match entity {
         EntityId::Value(value) => value.index(),
         EntityId::Place(place) => function.values.len() + place.index(),
@@ -330,7 +291,10 @@ fn content_index(function: &Function, entity: EntityId) -> usize {
 }
 
 /// A mixed root/projected CFG join is a possible storage write, never a proven local root.
-fn projected_places(function: &Function, aliases: &AliasRoots) -> Vec<bool> {
+pub(in crate::ssa::verify) fn projected_places(
+    function: &Function,
+    aliases: &AliasRoots,
+) -> Vec<bool> {
     let mut projected = vec![false; function.places.len()];
     let mut incoming = vec![false; function.places.len()];
     for block in &function.blocks {

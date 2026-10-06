@@ -336,6 +336,7 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(fact.value_origin()),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin()))?;
+        self.release_owner_capture_loans(owner, fact.value_origin())?;
         Ok(())
     }
 
@@ -503,6 +504,7 @@ impl UnitExpressionLowerer<'_> {
                     Origin::Source(fact.value_origin()),
                 )
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            self.release_owner_capture_loans(owner, span)?;
         }
         Ok(())
     }

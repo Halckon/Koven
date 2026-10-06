@@ -14,10 +14,14 @@ use crate::ssa::{
 
 pub(super) struct ClosureLoans {
     by_owner: BTreeMap<ValueId, BTreeSet<LoanId>>,
+    borrowed_contents: BTreeMap<
+        (crate::ssa::model::InstructionId, LoanId),
+        crate::ssa::verify::closure_content::CallableContent,
+    >,
 }
 
 impl ClosureLoans {
-    pub(super) fn compute(function: &Function) -> Self {
+    pub(super) fn compute(module: &Module, function: &Function) -> Self {
         let mut by_owner = BTreeMap::<ValueId, BTreeSet<LoanId>>::new();
         for instruction in &function.instructions {
             let Operation::ClosureConstruct { captures, .. } = &instruction.operation else {
@@ -74,7 +78,12 @@ impl ClosureLoans {
                 break;
             }
         }
-        Self { by_owner }
+        Self {
+            by_owner,
+            borrowed_contents: crate::ssa::verify::closure_content::borrowed_callable_contents(
+                module, function,
+            ),
+        }
     }
 
     pub(super) fn activate_entry(&self, owner: ValueId, state: &mut BlockState) {
@@ -149,6 +158,7 @@ pub(super) fn apply_invoke(
     callable: ValueId,
     arguments: &[EntityId],
     aliases: &AliasRoots,
+    closure_loans: &ClosureLoans,
     state: &mut BlockState,
     location: VerifyLocation,
     origin: &Origin,
@@ -186,15 +196,95 @@ pub(super) fn apply_invoke(
                     errors,
                 );
             }
-            EntityId::Loan(loan) if !state.loans.contains(loan) => errors.push(error(
-                VerifyErrorKind::LoanInactive { loan: *loan },
-                location.clone(),
-                origin,
-            )),
-            EntityId::Loan(_) => {}
+            EntityId::Loan(loan) => {
+                if !state.loans.contains(loan) {
+                    errors.push(error(
+                        VerifyErrorKind::LoanInactive { loan: *loan },
+                        location.clone(),
+                        origin,
+                    ));
+                }
+                let VerifyLocation::Instruction(instruction) = location else {
+                    unreachable!("callable invocation is an instruction");
+                };
+                check_borrowed_contents(
+                    *loan,
+                    closure_loans,
+                    state,
+                    instruction,
+                    origin,
+                    errors,
+                    "helper Borrow requires proved current callable capture contents",
+                );
+            }
             EntityId::Place(place) => {
                 super::require_place(*place, state, location.clone(), origin, errors);
             }
+        }
+    }
+}
+
+/// Borrowed generation reads the callable storage and retains every capture dependency.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn apply_borrowed_generate(
+    initializer: LoanId,
+    closure_loans: &ClosureLoans,
+    state: &BlockState,
+    location: VerifyLocation,
+    origin: &Origin,
+    errors: &mut Vec<VerifyError>,
+) {
+    if !state.loans.contains(&initializer) {
+        errors.push(error(
+            VerifyErrorKind::LoanInactive { loan: initializer },
+            location.clone(),
+            origin,
+        ));
+    }
+    let VerifyLocation::Instruction(instruction) = location else {
+        unreachable!("borrowed generation is an instruction");
+    };
+    check_borrowed_contents(
+        initializer,
+        closure_loans,
+        state,
+        instruction,
+        origin,
+        errors,
+        "borrowed generation requires proved current callable capture contents",
+    );
+}
+
+/// Direct-call callable Borrow operands establish the contract trusted by the callee entry.
+pub(super) fn check_borrowed_contents(
+    initializer: LoanId,
+    closure_loans: &ClosureLoans,
+    state: &BlockState,
+    instruction: crate::ssa::model::InstructionId,
+    origin: &Origin,
+    errors: &mut Vec<VerifyError>,
+    reason: &'static str,
+) {
+    let Some(content) = closure_loans
+        .borrowed_contents
+        .get(&(instruction, initializer))
+    else {
+        return;
+    };
+    if !content.known {
+        errors.push(error(
+            VerifyErrorKind::OperationContract { reason },
+            VerifyLocation::Instruction(instruction),
+            origin,
+        ));
+    }
+    for dependency in &content.loans {
+        if !state.loans.contains(dependency) {
+            errors.push(error(
+                VerifyErrorKind::LoanInactive { loan: *dependency },
+                VerifyLocation::Instruction(instruction),
+                origin,
+            ));
         }
     }
 }

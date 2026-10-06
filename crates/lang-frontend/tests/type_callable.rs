@@ -443,7 +443,7 @@ fn implicit_and_explicit_borrow_function_types_share_one_identity() {
 #[test]
 fn structurally_invalid_expected_lambda_does_not_publish_a_mode() {
     let text = "fun inspect(borrow input: Int): Unit {}\n\
-                val wrongMove: (borrow Int) -> Unit = move { item -> inspect(item) }\n\
+                val wrongMove: move (borrow Int) -> Unit = { item -> inspect(item) }\n\
                 val wrongArity: (borrow Int) -> Unit = { -> }";
     let (sources, parsed) = parsed(text);
     let (names, types) = environments();
@@ -940,3 +940,6 @@ fn generic_source_calls_instantiate_while_reference_and_safe_calls_remain_deferr
         assert!(typed.call(*call).is_none());
     }
 }
+
+#[path = "type_callable/expected_move_literals.rs"]
+mod expected_move_literals;

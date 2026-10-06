@@ -119,7 +119,7 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
         "package p\n\
          fun takes(callback: (borrow Int) -> Int): Unit\n\
          fun invalid(): Unit {\n\
-             val wrongMove: (Int) -> Int = move { item -> item }\n\
+             val wrongMove: move (Int) -> Int = { item -> item }\n\
              val wrongArity: (Int) -> Int = { -> 1 }\n\
              val uninferred = { unknown -> unknown }\n\
              loop {\n\
@@ -174,5 +174,137 @@ fn unit_lambda_diagnostics_stop_jumps_and_returns_at_callable_boundary() {
             ))
     );
     assert_eq!(typed.calls().len(), 1);
+    assert!(typed.validate().is_err());
+}
+
+#[test]
+fn ordinary_expected_move_literals_keep_canonical_type_and_borrow_parameters() {
+    let mut sources = SourceMap::new();
+    let (api_source, api) = parsed(
+        &mut sources,
+        "api.ko",
+        "package p\nfun apply(callback: (Int) -> Boolean): Unit {}",
+    );
+    let (source, file) = parsed(
+        &mut sources,
+        "use.ko",
+        "package p\n\
+         fun make(own returnedLabel: String): (Int) -> Boolean = move { returnedIndex -> returnedLabel == \"return\" && returnedIndex == 0 }\n\
+         fun use(own localLabel: String, own argumentLabel: String): Unit {\n\
+             val contextual: (Int) -> Boolean = move { localIndex -> localLabel == \"local\" && localIndex == 0 }\n\
+             apply(move { argumentIndex -> argumentLabel == \"argument\" && argumentIndex == 0 })\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/api.ko", api_source, &api),
+        SourceUnitInput::new("root", "p/use.ko", source, &file),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("unit types");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let unit = source_unit(&names, source);
+    let expected = typed
+        .symbol_type(symbol_named(&typed, &names, unit, "contextual"))
+        .expect("ordinary expected type");
+    assert!(
+        matches!(typed.types().get(expected), Some(UnitTypeKind::Function {
+        move_only: false, parameters, return_type,
+    }) if parameters.len() == 1 && parameters[0].mode() == ParameterMode::Borrow
+        && typed.types().get(parameters[0].ty()) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        && typed.types().get(*return_type) == Some(&UnitTypeKind::Builtin(BuiltinType::Boolean)))
+    );
+    let lambdas = file
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| matches!(node.payload(), Expression::Lambda { .. }).then_some(id))
+        .collect::<Vec<_>>();
+    assert_eq!(lambdas.len(), 3);
+    for lambda in lambdas {
+        assert_eq!(
+            typed.expression_type(UnitExpressionId::new(unit, lambda)),
+            Some(expected),
+            "local, argument and return literals share the canonical expected Function"
+        );
+    }
+    for name in ["returnedIndex", "localIndex", "argumentIndex"] {
+        let symbol = symbol_named(&typed, &names, unit, name);
+        assert_eq!(
+            typed.body_parameter_mode(symbol),
+            Some(ParameterMode::Borrow)
+        );
+        assert_eq!(
+            typed
+                .symbol_type(symbol)
+                .and_then(|ty| typed.types().get(ty)),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+    }
+    typed.validate().expect("complete contextual lambda types");
+}
+
+#[test]
+fn contextual_move_literal_acceptance_preserves_named_identity_mode_and_arity_errors() {
+    let mut sources = SourceMap::new();
+    let (api_source, api) = parsed(
+        &mut sources,
+        "api.ko",
+        "package p\nfun take(callback: (Int) -> Int): Unit {}\nfun strong(callback: move (Int) -> Int): Unit {}",
+    );
+    let (source, file) = parsed(
+        &mut sources,
+        "use.ko",
+        "package p\n\
+         fun use(named: move (Int) -> Int, ordinary: (Int) -> Int): Unit {\n\
+             val rejected: (Int) -> Int = named\n\
+             take(named)\n\
+             val wrongMode: (own Int) -> Int = ordinary\n\
+             strong({ shared -> shared })\n\
+             val wrongArity: (Int) -> Int = move { first, second -> first }\n\
+             val inferred = move { 1 }\n\
+             val wrongInferred: () -> Int = inferred\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/api.ko", api_source, &api),
+        SourceUnitInput::new("root", "p/use.ko", source, &file),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("unit types");
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0084"; 6]
+    );
+    assert_eq!(
+        typed
+            .body_diagnostics()
+            .iter()
+            .map(|diagnostic| sources.slice(diagnostic.primary_span()).expect("primary"))
+            .collect::<Vec<_>>(),
+        ["named", "named", "ordinary", "->", "->", "inferred"]
+    );
+    let unit = source_unit(&names, source);
+    for name in ["shared", "first", "second"] {
+        let symbol = symbol_named(&typed, &names, unit, name);
+        assert_eq!(
+            typed.body_parameter_mode(symbol),
+            None,
+            "structurally rejected lambda must not publish an adopted parameter mode"
+        );
+    }
+    assert!(
+        matches!(typed.symbol_type(symbol_named(&typed, &names, unit, "inferred")).and_then(|ty| typed.types().get(ty)),
+        Some(UnitTypeKind::Function { move_only: true, parameters, return_type }) if parameters.is_empty()
+            && typed.types().get(*return_type) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))),
+        "uncontextualized move literal keeps its move Function identity"
+    );
     assert!(typed.validate().is_err());
 }

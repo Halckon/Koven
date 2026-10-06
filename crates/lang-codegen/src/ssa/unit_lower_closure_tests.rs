@@ -14,6 +14,8 @@ use super::{
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 
+mod shared_capture;
+
 #[test]
 fn lowers_no_capture_lambdas_as_deterministic_function_pointers() {
     let mut sources = SourceMap::new();
@@ -741,16 +743,6 @@ fn restores_owned_closure_provenance_across_control_flow() {
 #[test]
 fn unsupported_closure_surfaces_remain_atomic_boundaries() {
     for (path, source) in [
-        (
-            "test/borrowed.ko",
-            "package test\n\
-             fun inspect(message: String): Unit {}\n\
-             fun entry(): Unit {\n\
-                 val message = \"borrowed\"\n\
-                 val action: () -> Unit = { -> val read = inspect(message) }\n\
-                 val invoked = action()\n\
-             }",
-        ),
         (
             "test/temporary.ko",
             "package test\n\

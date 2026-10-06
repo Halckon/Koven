@@ -169,12 +169,11 @@ __attribute__((destructor)) static void unexpected_return(void) { _Exit(42); }
 }
 
 #[test]
-fn unit_field_borrow_keeps_nested_generic_inline_and_parameter_boundaries() {
+fn unit_field_borrow_keeps_nested_generic_inline_and_owned_parameter_boundaries() {
     for source in [
         "class Inner(val text: String)\nclass Outer(val inner: Inner)\nfun entry(): Unit {\nval outer = Outer(Inner(\"text\"))\nprintln(outer.inner.text)\n}",
         "class Holder<T>(val text: T)\nfun entry(): Unit {\nval holder = Holder(\"text\")\nprintln(holder.text)\n}",
         "value class Holder(val text: String)\nfun entry(): Unit {\nval holder = Holder(\"text\")\nprintln(holder.text)\n}",
-        "class Holder(val text: String)\nfun inspect(holder: Holder): Unit { println(holder.text) }\nfun entry(): Unit { inspect(Holder(\"text\")) }",
         "class Holder(val text: String)\nfun inspect(own holder: Holder): Unit { println(holder.text) }\nfun entry(): Unit { inspect(Holder(\"text\")) }",
         "class Holder(var first: String, val second: String)\nfun inspect(text: String): String { println(text)\nreturn \"next\" }\nfun entry(): Unit {\nval holder = Holder(\"first\", \"second\")\nval old = replace(&holder.first, inspect(holder.second))\n}",
         "class Holder(val first: String, var second: String)\nfun inspect(text: String, own other: String): Unit { println(text)\nprintln(other) }\nfun entry(): Unit {\nval holder = Holder(\"first\", \"second\")\ninspect(holder.first, replace(&holder.second, \"next\"))\n}",
@@ -325,5 +324,67 @@ __attribute__((destructor)) static void verify(void) {
 "#,
             b"oldfield\noldfield\nnewfield\nafter\n",
         );
+    }
+}
+
+#[test]
+fn unit_field_borrow_parameter_projects_child_without_consuming_parent() {
+    let source = "class Holder(val text: String)\nfun inspect(holder: Holder): Unit { println(holder.text) }\nfun entry(): Unit { inspect(Holder(\"text\")) }";
+    for constants in [false, true] {
+        let (program, entry) =
+            lower(source, constants).expect("Borrow parameter field is supported");
+        let inspect = program.modules[0]
+            .functions
+            .iter()
+            .find(|function| function.name.contains("inspect"))
+            .unwrap();
+        let parent = inspect
+            .block(inspect.entry_block().unwrap())
+            .unwrap()
+            .parameters[0];
+        let projections = inspect
+            .instructions
+            .iter()
+            .filter_map(|instruction| {
+                if let Operation::SharedHeapFieldLoan { base, field } = instruction.operation {
+                    Some((
+                        super::model::EntityId::Loan(base),
+                        field,
+                        instruction.results[0],
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        let [(base, field, child)] = projections.as_slice() else {
+            panic!("one field child loan")
+        };
+        assert_eq!((*base, *field), (parent, 0));
+        assert!(
+            inspect
+                .instructions
+                .iter()
+                .any(|instruction| matches!(instruction.operation,
+            Operation::BorrowEnd { loan } if super::model::EntityId::Loan(loan) == *child))
+        );
+        assert!(
+            inspect
+                .instructions
+                .iter()
+                .all(|instruction| !matches!(instruction.operation,
+            Operation::BorrowEnd { loan } if super::model::EntityId::Loan(loan) == parent))
+        );
+        assert!(
+            inspect
+                .instructions
+                .iter()
+                .all(|instruction| !matches!(instruction.operation,
+            Operation::Read { source: super::model::PlaceAccess::Loan(loan) }
+                if super::model::EntityId::Loan(loan) == parent))
+        );
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
+            .expect("field loan LLVM");
+        link_and_run(&llvm, "", b"text\n");
     }
 }

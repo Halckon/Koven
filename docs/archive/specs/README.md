@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 265 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 266 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -393,4 +393,6 @@
 
 - [SPEC-0277](0277-p2-evidence-test-alignment.md)：完整Linux P2证据接收、现行词法测试对齐及79项CI组合，经双宿主实际实现CI验收；最终head及actual main已闭环，见[交付账本](../../development/evidence/p2-linux-0277-delivery.json)，整体P2成本预算未接受。
 
-- [SPEC-0278](0278-borrowed-closure-escape-verification.md)：typed SSA owned escape校验及当前内容证明，经PR56双宿主45项新增测试和完整消费者验收；最终归档head/merge/main仍待，见[交付账本](../../development/evidence/closure-escape-0278/delivery.json)。完整M3A及嵌套LoanId生命周期未关闭。
+- [SPEC-0278](0278-borrowed-closure-escape-verification.md)：typed SSA owned escape校验及当前内容证明，经PR56双宿主45项新增测试和完整消费者验收；最终归档head、merge及actual main CI已闭环，见[交付账本](../../development/evidence/closure-escape-0278/delivery.json)。完整M3A及嵌套LoanId生命周期未关闭。
+
+- [SPEC-0279](0279-runtime-length-container-native.md)：运行时长度Array/List完整两源码入口、具体callable/helper与普通native路径；按PR57双宿主实现验收及用户限定范围归档，定向注入/计数未执行；最终归档head/merge/main见[交付账本](../../development/evidence/runtime-constructor-0279/delivery.json)。

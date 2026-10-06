@@ -1,0 +1,24 @@
+{
+  "reviewer": "/root/review_0279_single_names_and_native_intent",
+  "author": "/root/review_0279_unit_field_routes",
+  "source_head": "03c0ba9c4c9dcd37cf12e566cc1bc5acf0ca50e9",
+  "changed_rust_sha256": {
+    "crates/lang-codegen/src/native_runtime_constructor_tests.rs": "f4feb3bc17eabe08984f1ce800a3a9f648343ac7c38773c8a8ba4382c403def8",
+    "crates/lang-codegen/src/native_runtime_constructor_tests/storable_helpers.rs": "5e2ad1ac8fd7c216378e8ad574f07961387594ec3e907f12ef6511d75e8b1d62",
+    "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs": "0bd77e73478cd9540ec75f08af55f74e0e68858c191f19d39d5f763790586edb"
+  },
+  "mode": "independent read-only review; no Cargo",
+  "finding_count": 0,
+  "checked": [
+    "48 cases per entry with real nested and nominal T",
+    "pointer versus Shared versus explicit move lambda intent under Guide v0.41",
+    "real package p generic provider imported by package q consumer",
+    "Borrow verifier checks nested size and actual last element value",
+    "frontend diagnostics/validation, object emission, native link and real process retained",
+    "natural single-responsibility test child and no production change"
+  ],
+  "limits": [
+    "No leaf deinit stdout is not zero SSA Drop or allocation/free proof",
+    "Last element oracle does not prove all element contents/order or instance deduplication"
+  ]
+}

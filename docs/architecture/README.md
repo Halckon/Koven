@@ -51,6 +51,11 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
 | borrowed closure owned 交付与 known-clean 值证明 | [Closure 逃逸检查](borrowed-closure-escape.md) |
+| 同步 Borrow 容器生成与 callable 当前捕获证明 | [Borrowed generator](borrowed-container-generation.md) |
+| lambda expected 类型与临时 owned capture 清理 | [move literal 前端事实](expected-move-literals.md) |
+| 泛型 helper 的 Function canonical 只读替换 | [Callable 类型替换](canonical-callable-specialization.md) |
+| callable 当前来源与正常 pointer factory 返回 | [Callable 来源事实](callable-provenance.md) |
+| helper 具体实例身份、冻结 call 路由与源码 ABI | [Callable 实例与冻结路由](callable-instance-plans.md)、[源码 ABI](callable-source-abi.md) |
 | 整数具名位运算与 inv 的 const / typed / native 链路 | [整数位运算](integer-operations.md) |
 | String clone 的 intrinsic / loan / 独立 owner 全链路 | [String clone](string-clone.md) |
 | Guide 示例当前覆盖与 PR #6 审计更正 | [Guide 验证与更正](guide-conformance.md) |

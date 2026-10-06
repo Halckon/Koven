@@ -1,3 +1,6 @@
+#[path = "native_runtime_constructor_tests.rs"]
+pub(crate) mod runtime_constructor_tests;
+
 #[path = "native_field_replace_tests.rs"]
 mod field_replace_tests;
 
@@ -419,7 +422,10 @@ fn frontend_diagnostics_and_unsupported_source_do_not_write_objects() {
     assert_eq!(error.kind(), NativeObjectErrorKind::FrontendDiagnostics);
     assert!(!diagnostic_output.exists());
 
-    let unsupported = analyze("unsupported.ko", "fun closure(): Unit { val f = { -> } }");
+    let unsupported = analyze(
+        "unsupported.ko",
+        "fun closure(): Unit { val callback: ()->Unit = { val nested: ()->Unit = {}\nnested() }\ncallback() }",
+    );
     assert!(unsupported.parsed.diagnostics().is_empty());
     assert!(unsupported.names.diagnostics().is_empty());
     assert!(unsupported.typed.diagnostics().is_empty());

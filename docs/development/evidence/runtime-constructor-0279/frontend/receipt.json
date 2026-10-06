@@ -1,0 +1,192 @@
+{
+  "schema": "koven.spec0279.frontend.v1",
+  "source_head_at_final_run": "634fcce6f09d633b9a8ed835d98f5b39e69e7f9b",
+  "source_content": "exact start SHA in retained runner JSON; frontend bytes still match final run",
+  "phase": "Phase 2/3 only",
+  "final_suites": [
+    "multifile_ownership_checking",
+    "multifile_type_checking",
+    "ownership_closures",
+    "ownership_containers",
+    "ownership_iteration",
+    "type_callable"
+  ],
+  "passed": 482,
+  "failed": 0,
+  "ignored": 0,
+  "filtered": 0,
+  "evidence_classification": {
+    "frontend-literal-red": "four real L0084 failures before gate changes",
+    "frontend-literal-first-green": "three passed; one unit-test fixture incorrectly queried a local through parameter-only bindings",
+    "frontend-literal-corrected-suites": "277 passed; one real missing Owned+Move Captured drop at temporary CallReturn",
+    "frontend-literal-owned-drop-green": "compile failure: opaque capture iterator is not DoubleEndedIterator",
+    "frontend-literal-owned-drop-corrected-green": "278 passed across four full suites",
+    "frontend-pending-owned-captures": "compile fixture module path failure",
+    "frontend-pending-owned-captures-corrected": "two passed; reverse two String + Copy Int, normal/transfer/Abort",
+    "frontend-pending-owned-iteration": "compile fixture accessor failure; public name is lambda()",
+    "frontend-pending-owned-iteration-corrected": "one passed; ordered cleanup / flat facts identity",
+    "frontend-literal-final-consumers": "482 passed after scoped rustfmt across six full suites",
+    "size-borrow-contract-final": "two passed; existing size Borrow crosses operand and nested call without new production changes",
+    "size-borrow-contract": "two fixture failures L0122: Inout argument omitted required &",
+    "size-borrow-contract-corrected": "two fixture oracle failures: L0135 primary is & rather than size",
+    "frontend-docs-gate": "failed architecture 200-line cap after adding facts to two full pages; fact page extracted and indexed without deleting prior facts",
+    "frontend-docs-gate-corrected": "546 Markdown files checked successfully",
+    "frontend-diff-check": "actual complete worktree whitespace check passed",
+    "frontend-size-isolated": "actual guard passed on HEAD plus 46 reviewed frontend/docs/policy paths; incomplete codegen is outside this isolated gate",
+    "frontend-script-gates": "all scripts/tests unittest cases actually passed; includes Rust physical size policy and documentation governance tests"
+  },
+  "review": "Independent non-implementer checked all frontend diff, 492 current frontend Rust SHA equal final runner SHA, twoString/Copy/CallReturn/ControlTransfer/Abort/iteration intents, exact 1207 size exception, Architecture/Spec scope and all 26 retained raw hashes; two missing size-borrow fixture classifications added after finding",
+  "not_closed": [
+    "source runtime constructor bridge",
+    "helper concrete ABI and provenance",
+    "SSA/LLVM final acceptance",
+    "native/resource counts",
+    "PR/final/main CI"
+  ],
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-corrected-suites.json.gz",
+      "raw_sha256": "f5c0c474c3dfcc9ffbb2e23772b2e3a923dd73c2219bf0f74cbae01d512f4a71"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-corrected-suites.log.gz",
+      "raw_sha256": "68d8a7bd4228bcd9f65e3e42eaa9d5e760d1afd6c268365bbc0e6255de730839"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-final-consumers.json.gz",
+      "raw_sha256": "3dc8612494c634ea7a1b2974041b2b5c673dc3b225d87b64eacd9442caab38cf"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-final-consumers.log.gz",
+      "raw_sha256": "e718298b66fb1352cbf17fcef7baad8769ecf411ba252a751b707648802007ee"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-first-green.json.gz",
+      "raw_sha256": "2336a87f45a0b5b9f02f932dd3152575ea41fd8dbdd64fd51f9ef87032a14973"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-first-green.log.gz",
+      "raw_sha256": "e92a91db11f644a8f749547416619b92e8d24e88598a97e8768524b9e214edcd"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-owned-drop-corrected-green.json.gz",
+      "raw_sha256": "e503a0d750fa7e5183e81cae44f7046e5aca90569b1501eb5240eca53adc0571"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-owned-drop-corrected-green.log.gz",
+      "raw_sha256": "cf4bf9e2101610923fab577dd80ba7de656790e19076eac25aa15eda37709908"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-owned-drop-green.json.gz",
+      "raw_sha256": "e58f1806c530c151f525a28a0287d719b101fc8985724fa852c7dee760dd0f61"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-owned-drop-green.log.gz",
+      "raw_sha256": "767b8ba93774c2286a47a844385abbd2009de3e0a7eb98e31ced676ddae4e88d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-red.json.gz",
+      "raw_sha256": "ad604ced97eb60392461d4d9717b8277e5a3b9589c17f5b4632d63a1eaf09ea4"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-literal-red.log.gz",
+      "raw_sha256": "3807e5ff38e1f32bd79084953dd8197715667f7aab2ca5fad9546d67461934bb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-pending-owned-captures-corrected.json.gz",
+      "raw_sha256": "95be67d80f60f97706a32d04431adec178d8235b339da9469a8b6ac066359bef"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-pending-owned-captures-corrected.log.gz",
+      "raw_sha256": "bc91d968feada7aabe663518971b44439c831277039acd833d925a35d8995a5e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-pending-owned-captures.json.gz",
+      "raw_sha256": "bc753704cfb8c956c23e587cbbb1735111c0232def431d3b58cfdc96b5876ce9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-pending-owned-captures.log.gz",
+      "raw_sha256": "5c231151016175196bc3e42abeced129359773d3d7d0a4688b46d54e7e7c7d1f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-pending-owned-iteration-corrected.json.gz",
+      "raw_sha256": "6f4316f1ef3003055ec2dcca64ca46b1d8700ee88a7f06346a73d095ddb46dc6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-pending-owned-iteration-corrected.log.gz",
+      "raw_sha256": "8ab43ddef014ebf2f13c7cb985fc9bbbc51147f9097cfe564d2894cb61492e93"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-pending-owned-iteration.json.gz",
+      "raw_sha256": "b8d6580266ab8e8c84b1f61408e1b45396cf29120c617dc31a1712578894e97b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-pending-owned-iteration.log.gz",
+      "raw_sha256": "e579cc8cf224043c74f986b96569ccd07d95806139d2e1a60fd6b668ce78d27f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/size-borrow-contract-corrected.json.gz",
+      "raw_sha256": "4f58f2fc091aef461a404ef4eca968b8234675a224d0b18432c412c02518ae30"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/size-borrow-contract-corrected.log.gz",
+      "raw_sha256": "ce1d9b11fbabb57822abcb6bda18320e665c872fa9049cc489671cf00bd72a45"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/size-borrow-contract-final.json.gz",
+      "raw_sha256": "b8dc5cf8a425ccb1a5bb8050b0c7d5bbdff9c4f7de86a7d2211c470ee32c8b81"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/size-borrow-contract-final.log.gz",
+      "raw_sha256": "9d6841e4de62aebb53561c32c88c621e4d900d186574ea79d083eef31f92aed5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/size-borrow-contract.json.gz",
+      "raw_sha256": "904238dd325478cc7fee8165b8cba1b24dad09ec6956da27fabc2e3b9d6643cd"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/size-borrow-contract.log.gz",
+      "raw_sha256": "9a727089a9427c23a60e478165bc2ee932ca42e96a2813c647c1d080d5ec9733"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-docs-gate.json.gz",
+      "raw_sha256": "915b78c4e7fe74caac364955fed400656e6a04469aace53b00dba7574ca0347f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-docs-gate.log.gz",
+      "raw_sha256": "c6954c11fd701b6328102fb1f811dfff1f36619b10a21d4c91b2c72f4a8fc97a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-docs-gate-corrected.json.gz",
+      "raw_sha256": "1fefb99faa08a99d43b388819106803fdafae41c12f2d0b422d9db3d38858450"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-docs-gate-corrected.log.gz",
+      "raw_sha256": "1706b21c04244f9d7f56f9d635ca46ec0f543c4d6f0364845b9db6d12b2bb254"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-diff-check.json.gz",
+      "raw_sha256": "99d2e5b6f47698b982d7e71a04373941532e6ec843fcc75fe120ffbadf69b999"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-diff-check.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-size-isolated.json.gz",
+      "raw_sha256": "25a8b464f37e0989ffa2808d7f18fc9d976cb907b13aa4c9105142daf97cf3c4"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-size-isolated.log.gz",
+      "raw_sha256": "15e7b8b535451ab5ece25be12e7e144ac05873367b0aac58e788dd9f46175aa9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-script-gates.json.gz",
+      "raw_sha256": "bebc060bc33f0647c80c8b0ae2226e80d68ece610249fdc8c7e6a9092e5569a6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/frontend/frontend-script-gates.log.gz",
+      "raw_sha256": "246124e2195b3d78395682e973ab38456842cb819f6fb9dc363e5828bb554719"
+    }
+  ]
+}

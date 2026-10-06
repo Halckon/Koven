@@ -35,6 +35,11 @@ struct PendingBoxDefinition {
 }
 
 impl NominalTypeMapper {
+    /// Naming may reference only canonical identities already accepted as concrete storage.
+    pub(super) fn contains_type(&self, ty: TypeId) -> bool {
+        self.type_ids.contains_key(&ty)
+    }
+
     pub(super) fn new(typed: &TypedFile) -> Result<Self, LoweringError> {
         let mut construction_fields = BTreeMap::new();
         let mut enum_construction_fields = BTreeMap::new();

@@ -33,7 +33,7 @@ MARKDOWN_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 HTML_TAG_RE = re.compile(
     r"</?[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][^>]*)?\s*/?>"
 )
-CURRENT_GUIDE_VERSION = "v0.40"
+CURRENT_GUIDE_VERSION = "v0.41"
 CURRENT_GUIDE_RE = re.compile(r"<!--\s*current-guide:\s*(v[\d.]+)\s*-->")
 CURRENT_COMPILER_CONTRACTS_RE = re.compile(r"<!--\s*current-compiler-contracts\s*-->")
 SCOPED_AGENT_DIRS = (
@@ -61,7 +61,7 @@ EXPECTED_ARCHIVED_SPEC_IDS = frozenset(
         | set(range(213, 228))
         | {211, 212}
         | set(range(228, 270))
-        | {182, 270, 271, 272, 273, 274, 275, 276, 277, 278}
+        | {182, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279}
     )
 )
 EXPECTED_DRAFT_SPEC_IDS = {

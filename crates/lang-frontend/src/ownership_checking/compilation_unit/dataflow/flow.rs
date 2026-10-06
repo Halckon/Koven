@@ -42,6 +42,10 @@ pub(super) enum ActiveLoanTarget {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct State {
+    pub(super) origins: crate::ownership_checking::callable_provenance::graph::OriginState<
+        UnitSymbolId,
+        crate::ownership_checking::UnitCallableOrigin,
+    >,
     pub(super) moved: BTreeMap<UnitSymbolId, Span>,
     pub(super) this_moved: Option<Span>,
     pub(super) loans: Vec<ActiveLoan>,
@@ -84,6 +88,7 @@ pub(super) fn merge_optional_state(target: &mut Option<State>, source: Option<St
 }
 
 pub(super) fn merge_state(target: &mut State, source: State) {
+    target.origins.merge(&source.origins);
     // A loan live on any reachable incoming edge must still constrain later access.
     // In particular, a branch-selected closure may retain a shared loan until activation.
     for loan in source.loans {

@@ -69,7 +69,7 @@ impl Checker<'_> {
             Statement::ControlBody { elements } | Statement::LambdaBody { elements } => elements,
             Statement::Expression { expression } => {
                 return if escaping {
-                    self.check_return_expression(expression, state, usage)
+                    self.check_escaping_expression(expression, state, usage)
                 } else {
                     self.check_expression(expression, state, usage)
                 };
@@ -86,7 +86,7 @@ impl Checker<'_> {
         let tail = match self.parsed.ast().statements().get(tail)?.payload().clone() {
             Statement::Expression { expression } => {
                 if escaping {
-                    self.check_return_expression(expression, next, usage)?
+                    self.check_escaping_expression(expression, next, usage)?
                 } else {
                     self.check_expression(expression, next, usage)?
                 }
@@ -104,13 +104,13 @@ impl Checker<'_> {
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
         if let Some(next) = flows.next.take() {
-            flows.merge(self.check_return_expression(id, next, usage)?);
+            flows.merge(self.check_escaping_expression(id, next, usage)?);
         }
         Ok(flows)
     }
 
-    /// 在实际交付分支的状态中检查逃逸；普通局部值交付不跨 callable 边界。
-    pub(super) fn check_return_expression(
+    /// 在交付分支检查逃逸；普通实参或存储交付不计为当前函数的 return。
+    pub(super) fn check_escaping_expression(
         &mut self,
         id: ExpressionId,
         state: State,
@@ -118,7 +118,7 @@ impl Checker<'_> {
     ) -> Result<Flows, OwnershipCheckingError> {
         match self.parsed.ast().expressions().get(id)?.payload().clone() {
             Expression::Group { expression } => {
-                self.check_return_expression(expression, state, usage)
+                self.check_escaping_expression(expression, state, usage)
             }
             Expression::If {
                 condition,

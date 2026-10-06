@@ -92,7 +92,11 @@ struct ExpressionLowerer<'a> {
     source_text: &'a str,
     references: &'a BTreeMap<(usize, usize), SymbolId>,
     function_ids: &'a BTreeMap<FunctionInstanceKey, FunctionId>,
-    source_closures: &'a BTreeMap<usize, source_closure::ClosurePlan>,
+    source_closures: &'a source_closure::CallableLayouts,
+    instance_plan: &'a instances::FunctionInstancePlan,
+    source_token: Option<super::lowering_support::callable_instances::SourceToken>,
+    thunk_expression: Option<ExpressionId>,
+    capture_loans: BTreeMap<(usize, usize), LoanId>,
     type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     enum_payloads: &'a BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>,
@@ -146,6 +150,12 @@ impl ExpressionLowerer<'_> {
         }
         if let Some(value) = self.lower_nullable_extraction(expression)? {
             return Ok(LoweredValue::Value(value));
+        }
+        if self.typed.container_size(expression).is_some() {
+            return self.lower_container_size(expression);
+        }
+        if self.typed.element_place(expression).is_some() {
+            return self.lower_container_index(expression);
         }
         if self.typed.container_construction(expression).is_some() {
             return self.lower_container_construction(expression);
@@ -1033,6 +1043,7 @@ impl ExpressionLowerer<'_> {
         } else {
             self.emit_control_transfer_cleanup(return_expression)?;
         }
+        self.end_thunk_capture_views(span)?;
         let values = return_values(self.typed, self.return_type, result, span)?;
         self.function
             .set_terminator(
@@ -1120,13 +1131,24 @@ impl ExpressionLowerer<'_> {
         let CallableTarget::Source(symbol) = descriptor.target() else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
-        let type_arguments = descriptor
-            .instance()
-            .type_arguments()
-            .iter()
-            .map(|ty| self.resolve_type(*ty, span))
-            .collect::<Result<Vec<_>, _>>()?;
-        let instance = FunctionInstanceKey::new(symbol, type_arguments);
+        if descriptor.receiver().is_some() {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let instance = if let Some(source) = self.source_token {
+            self.instance_plan
+                .call_site(source, expression)
+                .cloned()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+        } else {
+            // Destructor roots retain the planner's existing non-callback source recipe.
+            let type_arguments = descriptor
+                .instance()
+                .type_arguments()
+                .iter()
+                .map(|ty| self.resolve_type(*ty, span))
+                .collect::<Result<Vec<_>, _>>()?;
+            FunctionInstanceKey::new(symbol, type_arguments)
+        };
         let callee = *self
             .function_ids
             .get(&instance)
@@ -1398,6 +1420,9 @@ impl ExpressionLowerer<'_> {
             .expression_type(expression)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let ty = self.resolve_type(ty, span)?;
+        if matches!(self.typed.types().get(ty), Some(TypeKind::Function { .. })) {
+            return self.source_closures.expression_type(self, expression, span);
+        }
         self.type_ids
             .get(&ty)
             .copied()

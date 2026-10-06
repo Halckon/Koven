@@ -1,15 +1,22 @@
 //! 从 SPEC-0177 callable key 建立确定的具体泛型实例图。
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{cmp::Ordering, collections::BTreeMap};
 
 use lang_frontend::{
+    ast::ExpressionId,
     name_resolution::SymbolId,
+    ownership_checking::OwnershipCheckedFile,
     parser::ParsedFile,
     source::Span,
-    type_checking::{CallableTarget, TypeId, TypeKind, TypedFile},
+    type_checking::{FunctionParameterType, IntrinsicTypeConstructor, TypeId, TypeKind, TypedFile},
 };
 
 use super::{LoweringError, LoweringErrorKind, error};
+use crate::ssa::lowering_support::callable_instances::{
+    CallableArena, CallableKey, CallableToken, SourceIdentity, SourceToken,
+};
+
+mod callable_planner;
 
 /// 防止合法但病态的源码让单次标量 lowering 无界扩张。
 pub(super) const MAX_GENERIC_INSTANCES: usize = 1024;
@@ -18,6 +25,7 @@ pub(super) const MAX_GENERIC_INSTANCES: usize = 1024;
 pub(super) struct FunctionInstanceKey {
     symbol: SymbolId,
     type_arguments: Vec<TypeId>,
+    callable_arguments: Vec<(usize, CallableToken)>,
 }
 
 impl FunctionInstanceKey {
@@ -25,6 +33,7 @@ impl FunctionInstanceKey {
         Self {
             symbol,
             type_arguments,
+            callable_arguments: Vec::new(),
         }
     }
 
@@ -35,6 +44,42 @@ impl FunctionInstanceKey {
     pub(super) fn type_arguments(&self) -> &[TypeId] {
         &self.type_arguments
     }
+
+    pub(super) fn callable_arguments(&self) -> &[(usize, CallableToken)] {
+        &self.callable_arguments
+    }
+
+    fn is_specialized(&self) -> bool {
+        !self.type_arguments.is_empty() || !self.callable_arguments.is_empty()
+    }
+}
+
+impl SourceIdentity for FunctionInstanceKey {
+    fn callable_arguments(&self) -> &[(usize, CallableToken)] {
+        self.callable_arguments()
+    }
+}
+
+/// AST IDs compare by index within this planner's already validated single-file chain.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct OrderedExpressionId(ExpressionId);
+
+impl OrderedExpressionId {
+    pub(super) const fn expression(self) -> ExpressionId {
+        self.0
+    }
+}
+
+impl Ord for OrderedExpressionId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.index().cmp(&other.0.index())
+    }
+}
+
+impl PartialOrd for OrderedExpressionId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 pub(super) struct FunctionTemplate {
@@ -44,158 +89,60 @@ pub(super) struct FunctionTemplate {
 }
 
 pub(super) struct PlannedInstance {
+    pub(super) source: SourceToken,
     pub(super) key: FunctionInstanceKey,
     pub(super) template_index: usize,
     pub(super) substitutions: BTreeMap<SymbolId, TypeId>,
 }
 
+/// Frozen source routes retain complete callback slots independently of unfinished closure ABI.
+#[derive(Default)]
+pub(super) struct FunctionInstancePlan {
+    instances: Vec<PlannedInstance>,
+    arena: CallableArena<FunctionInstanceKey, OrderedExpressionId>,
+    routes: BTreeMap<(SourceToken, OrderedExpressionId), FunctionInstanceKey>,
+    pointer_returns: BTreeMap<SourceToken, Option<CallableToken>>,
+}
+
+impl FunctionInstancePlan {
+    pub(super) fn instances(&self) -> &[PlannedInstance] {
+        &self.instances
+    }
+
+    pub(super) fn source(&self, source: SourceToken) -> Option<&FunctionInstanceKey> {
+        self.arena.source(source)
+    }
+
+    pub(super) fn callable(
+        &self,
+        callable: CallableToken,
+    ) -> Option<&CallableKey<OrderedExpressionId>> {
+        self.arena.callable(callable)
+    }
+
+    pub(super) fn call_site(
+        &self,
+        caller: SourceToken,
+        expression: ExpressionId,
+    ) -> Option<&FunctionInstanceKey> {
+        self.routes.get(&(caller, OrderedExpressionId(expression)))
+    }
+
+    pub(super) fn pointer_return(&self, source: SourceToken) -> Option<CallableToken> {
+        self.pointer_returns.get(&source).copied().flatten()
+    }
+}
+
+/// The private caller must validate Names -> Typed -> Owned analysis identity first.
+/// Orchestrate's validate_inputs is authoritative; matching source IDs alone is not a witness.
 pub(super) fn plan_instances(
     parsed: &ParsedFile,
     typed: &TypedFile,
+    owned: &OwnershipCheckedFile,
     templates: &[FunctionTemplate],
     deinit_spans: &[Span],
-) -> Result<Vec<PlannedInstance>, LoweringError> {
-    if let Some(window) = templates.windows(2).find(|window| {
-        window[0].span.source_id() != window[1].span.source_id()
-            || window[0].span.start() > window[1].span.start()
-    }) {
-        return Err(error(LoweringErrorKind::MissingFact, window[1].span));
-    }
-    let template_by_symbol = templates
-        .iter()
-        .enumerate()
-        .map(|(index, template)| (template.symbol, index))
-        .collect::<BTreeMap<_, _>>();
-    let mut pending = templates
-        .iter()
-        .filter(|template| template.type_parameters.is_empty())
-        .map(|template| FunctionInstanceKey::new(template.symbol, Vec::new()))
-        .collect::<BTreeSet<_>>();
-    // Destructor bodies are implicit call roots; their generic callees must be planned too.
-    for call in typed.calls() {
-        let span = parsed
-            .ast()
-            .expressions()
-            .get(call.expression())
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?
-            .span();
-        if !deinit_spans.iter().any(|owner| span_contains(*owner, span)) {
-            continue;
-        }
-        let CallableTarget::Source(target) = call.target() else {
-            continue;
-        };
-        let Some(&index) = template_by_symbol.get(&target) else {
-            continue;
-        };
-        let arguments = call
-            .instance()
-            .type_arguments()
-            .iter()
-            .map(|ty| resolve_concrete_type(typed, *ty, &BTreeMap::new(), span))
-            .collect::<Result<Vec<_>, _>>()?;
-        if arguments.len() != templates[index].type_parameters.len() {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        }
-        pending.insert(FunctionInstanceKey::new(target, arguments));
-    }
-    let mut planned: BTreeMap<FunctionInstanceKey, PlannedInstance> = BTreeMap::new();
-    let calls_by_template = index_calls(parsed, typed, templates)?;
-    let mut generic_instance_count = 0;
-
-    while let Some(key) = pending.iter().next().cloned() {
-        pending.remove(&key);
-        if planned.contains_key(&key) {
-            continue;
-        }
-        let template_index = *template_by_symbol.get(&key.symbol()).ok_or(LoweringError {
-            kind: LoweringErrorKind::MissingFact,
-            span: None,
-        })?;
-        let template = &templates[template_index];
-        if template.type_parameters.len() != key.type_arguments().len() {
-            return Err(error(LoweringErrorKind::MissingFact, template.span));
-        }
-        if !key.type_arguments().is_empty()
-            && generic_instance_budget_exhausted(generic_instance_count)
-        {
-            return Err(error(
-                LoweringErrorKind::InstanceLimitExceeded,
-                template.span,
-            ));
-        }
-        let substitutions = template
-            .type_parameters
-            .iter()
-            .copied()
-            .zip(key.type_arguments().iter().copied())
-            .collect::<BTreeMap<_, _>>();
-
-        for (call_index, span) in &calls_by_template[template_index] {
-            let call = &typed.calls()[*call_index];
-            let CallableTarget::Source(target) = call.target() else {
-                continue;
-            };
-            let Some(target_index) = template_by_symbol.get(&target).copied() else {
-                continue;
-            };
-            let target_template = &templates[target_index];
-            let arguments = call
-                .instance()
-                .type_arguments()
-                .iter()
-                .map(|ty| resolve_concrete_type(typed, *ty, &substitutions, *span))
-                .collect::<Result<Vec<_>, _>>()?;
-            if arguments.len() != target_template.type_parameters.len() {
-                return Err(error(LoweringErrorKind::MissingFact, *span));
-            }
-            pending.insert(FunctionInstanceKey::new(target, arguments));
-        }
-
-        if !key.type_arguments().is_empty() {
-            generic_instance_count += 1;
-        }
-        planned.insert(
-            key.clone(),
-            PlannedInstance {
-                key,
-                template_index,
-                substitutions,
-            },
-        );
-    }
-
-    Ok(planned.into_values().collect())
-}
-
-fn index_calls(
-    parsed: &ParsedFile,
-    typed: &TypedFile,
-    templates: &[FunctionTemplate],
-) -> Result<Vec<Vec<(usize, Span)>>, LoweringError> {
-    let mut calls = vec![Vec::new(); templates.len()];
-    for (call_index, call) in typed.calls().iter().enumerate() {
-        let span = parsed
-            .ast()
-            .expressions()
-            .get(call.expression())
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?
-            .span();
-        let upper = templates.partition_point(|template| template.span.start() <= span.start());
-        let Some(template_index) = upper.checked_sub(1) else {
-            continue;
-        };
-        if span_contains(templates[template_index].span, span) {
-            calls[template_index].push((call_index, span));
-        }
-    }
-    Ok(calls)
+) -> Result<FunctionInstancePlan, LoweringError> {
+    callable_planner::plan(parsed, typed, owned, templates, deinit_spans)
 }
 
 pub(super) fn resolve_concrete_type(
@@ -209,6 +156,52 @@ pub(super) fn resolve_concrete_type(
             .get(parameter)
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span)),
+        Some(TypeKind::Function {
+            move_only,
+            parameters,
+            return_type,
+        }) => {
+            let parameters = parameters
+                .iter()
+                .map(|parameter| {
+                    Ok(FunctionParameterType {
+                        mode: parameter.mode,
+                        ty: resolve_concrete_type(typed, parameter.ty, substitutions, span)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            let return_type = resolve_concrete_type(typed, *return_type, substitutions, span)?;
+            typed
+                .types()
+                .find(&TypeKind::Function {
+                    move_only: *move_only,
+                    parameters,
+                    return_type,
+                })
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+        }
+        Some(TypeKind::Intrinsic {
+            constructor,
+            arguments,
+        }) if matches!(
+            constructor,
+            IntrinsicTypeConstructor::Array
+                | IntrinsicTypeConstructor::List
+                | IntrinsicTypeConstructor::MutableList
+        ) =>
+        {
+            let arguments = arguments
+                .iter()
+                .map(|argument| resolve_concrete_type(typed, *argument, substitutions, span))
+                .collect::<Result<Vec<_>, _>>()?;
+            typed
+                .types()
+                .find(&TypeKind::Intrinsic {
+                    constructor: *constructor,
+                    arguments,
+                })
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+        }
         Some(kind) if contains_type_parameter(typed, kind) => {
             Err(error(LoweringErrorKind::UnsupportedNode, span))
         }
@@ -266,3 +259,11 @@ mod tests {
         assert!(generic_instance_budget_exhausted(MAX_GENERIC_INSTANCES));
     }
 }
+
+#[cfg(test)]
+#[path = "instances/canonical_callable_tests.rs"]
+mod canonical_callable_tests;
+
+#[cfg(test)]
+#[path = "instances/callable_plan_tests.rs"]
+mod callable_plan_tests;

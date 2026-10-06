@@ -1,4 +1,7 @@
 //! SPEC-0274: native source length and temporary resource cleanup.
+
+#[path = "unit_runtime_constructor_tests.rs"]
+mod runtime_constructor_tests;
 use super::*;
 
 #[path = "unit_generic_container_tests.rs"]

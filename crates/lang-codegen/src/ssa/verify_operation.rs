@@ -1,5 +1,6 @@
 //! Typed SSA operation 的局部类型契约。
 
+mod borrowed_generate;
 mod constant_contract;
 use constant_contract::constant_contract;
 
@@ -241,6 +242,18 @@ pub(super) fn verify_operation(
             *initializer,
             &results,
         ),
+        Operation::ContainerGenerateBorrowed {
+            container,
+            length,
+            initializer,
+        } => borrowed_generate::contract(
+            module,
+            function,
+            *container,
+            *length,
+            *initializer,
+            &results,
+        ),
         Operation::ContainerLength { owner } => {
             container_length_contract(module, function, *owner, &results)
         }
@@ -300,6 +313,18 @@ pub(super) fn verify_operation(
                     kind: LoanKind::Shared,
                     target,
                 }]
+            )
+        }
+        Operation::SharedReferenceFollow { source } => {
+            matches!(
+                function.entity(EntityId::Loan(*source)).map(|entity| entity.ty),
+                Some(EntityType::Loan { kind: LoanKind::Shared, target: reference })
+                    if matches!(module.type_kind(reference),
+                        Some(SsaTypeKind::SharedReference { target })
+                            if results == [EntityType::Loan {
+                                kind: LoanKind::Shared,
+                                target: *target,
+                            }])
             )
         }
         Operation::Copy { source } => {

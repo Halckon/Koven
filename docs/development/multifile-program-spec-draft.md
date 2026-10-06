@@ -10,7 +10,7 @@
 | 关联计划 | [治理完成后的开发里程碑](post-governance-milestones.md)的 M1A |
 | 所属 Phase | Phase 2–4 的事实/执行及 Phase 6 的 project 验收 |
 | 起草依据 | 用户于 2026-10-04 要求文档起草，代码开发等待另一位 agent 完成治理计划 |
-| 规范入口 | [Guide v0.40](../guide/README.md)、[名称与文件](../guide/02-names-files-packages.md)、[所有权](../guide/10-ownership-borrowing-drop.md)、[顺序集合](../guide/12-collections-destructuring.md) |
+| 规范入口 | [Guide v0.41](../guide/README.md)、[名称与文件](../guide/02-names-files-packages.md)、[所有权](../guide/10-ownership-borrowing-drop.md)、[顺序集合](../guide/12-collections-destructuring.md) |
 | 阻塞项 | A1 已取得 native UnsupportedNode 红测；A2–A10 实现已交付，最终PR交付按0268账本及PR记录核对 |
 | 语义变更 | 目标限于现行语义；若复核发现需要新规则，停止对应实施并另行决策 |
 | 文档落点 | 源码在教程，实施验收在正式 Spec；本页保留原始总退出要求与承接记录 |

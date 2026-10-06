@@ -1,0 +1,864 @@
+{
+  "schema": "koven.spec0279-delivery.v1",
+  "initial": {
+    "schema": "koven.spec0279-ci.v1",
+    "stage": "initial",
+    "run_id": 37455222241,
+    "url": "https://github.com/Halckon/Koven/actions/runs/37455222241",
+    "source_commit": "a7faceaea97f5130a94689d65e0d97a497c653f6",
+    "source_tree": "a1ba776b4e71e8a8b07f7bc219b145a002ffb5b9",
+    "event": "pull_request",
+    "jobs": [
+      {
+        "id": 112241053907,
+        "name": "Rust Physical Line Guard",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112241053907"
+      },
+      {
+        "id": 112241054073,
+        "name": "Detect Changed Files",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112241054073"
+      },
+      {
+        "id": 112241054430,
+        "name": "Direct Workspace Dependency Guard",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112241054430"
+      },
+      {
+        "id": 112241140726,
+        "name": "Tree-sitter CLI Corpus",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112241140726"
+      },
+      {
+        "id": 112241140739,
+        "name": "Docs & Spec Structural Gate",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112241140739"
+      },
+      {
+        "id": 112241140907,
+        "name": "Rust Code Formatting",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112241140907"
+      },
+      {
+        "id": 112241296652,
+        "name": "Workspace Check & Clippy (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112241296652"
+      },
+      {
+        "id": 112241296771,
+        "name": "Workspace Check & Clippy (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112241296771"
+      },
+      {
+        "id": 112242057261,
+        "name": "Targeted Tests (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112242057261"
+      },
+      {
+        "id": 112242057315,
+        "name": "Targeted Tests (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112242057315"
+      },
+      {
+        "id": 112244458987,
+        "name": "Preview Producer (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112244458987"
+      },
+      {
+        "id": 112244459049,
+        "name": "Preview Producer (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112244459049"
+      },
+      {
+        "id": 112245147601,
+        "name": "Preview Independent Consumer (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112245147601"
+      },
+      {
+        "id": 112245605338,
+        "name": "Preview Independent Consumer (macos-14)",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112245605338"
+      },
+      {
+        "id": 112245913302,
+        "name": "CI Passed",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/Halckon/Koven/actions/runs/37455222241/job/112245913302"
+      }
+    ],
+    "hosts": {
+      "linux": {
+        "job_id": 112242057261,
+        "checkout_commit": "51ea5d566492a82dcb79cf2969659e99f6bb436c",
+        "checkout_tree": "a1ba776b4e71e8a8b07f7bc219b145a002ffb5b9",
+        "checkout_parents": [
+          "6575e9069506fbdddcbf7e8cd5e873de91eea5b7",
+          "a7faceaea97f5130a94689d65e0d97a497c653f6"
+        ],
+        "added_or_renamed_test_basename_counts": {
+          "runtime_constructor_public_single_build_and_run_reuse_named_callbacks": 1,
+          "runtime_constructor_public_project_build_and_run_forward_callbacks": 1,
+          "borrowed_generation_dynamic_length_keeps_checked_length_and_bytes_guards": 1,
+          "borrowed_generation_prepares_fixed_storage_once_outside_the_loop": 1,
+          "borrowed_unit_void_generation_calls_each_logical_index_without_buffer_addressing": 1,
+          "unit_for_captured_borrow_closure_executes_and_releases_each_iteration": 1,
+          "runtime_constructor_native_unit_cross_file_helper_preserves_element_and_environment": 1,
+          "runtime_constructor_native_unit_evaluates_operands_once_in_order": 1,
+          "runtime_constructor_native_unit_matrix_executes_logical_callbacks": 1,
+          "runtime_constructor_native_unit_nothing_operands_do_not_generate": 1,
+          "runtime_constructor_native_unit_orders_callbacks_elements_and_environment_cleanup": 1,
+          "runtime_constructor_native_unit_storable_helper_elements": 1,
+          "runtime_constructor_native_single_generic_helper_preserves_element_and_environment": 1,
+          "runtime_constructor_native_single_matrix_executes_logical_callbacks": 1,
+          "runtime_constructor_native_single_orders_callbacks_elements_and_environment_cleanup": 1,
+          "runtime_constructor_native_single_evaluates_operands_once_in_order": 1,
+          "runtime_constructor_native_single_nothing_operands_do_not_generate": 1,
+          "runtime_constructor_native_single_storable_helper_elements": 1,
+          "single_file_integer_index_reads_then_inverts_without_consuming_container": 1,
+          "borrowed_generation_accepts_pointer_shared_and_owned_without_consuming_initializer": 1,
+          "borrowed_generation_accepts_unit_void_as_one_logical_element": 1,
+          "borrowed_generation_invalid_unused_type_is_structurally_rejected": 1,
+          "borrowed_generation_keeps_shared_capture_dependency_until_callback_drop": 1,
+          "borrowed_generation_operand_registration_enforces_definition_order": 1,
+          "borrowed_generation_preserves_initializer_and_capture_dependencies_across_cfg_transfer": 1,
+          "borrowed_generation_rejects_exclusive_and_noncallable_initializer": 1,
+          "borrowed_generation_rejects_expired_initializer_and_owner_drop": 1,
+          "borrowed_generation_rejects_hidden_initializer_loan_across_cfg": 1,
+          "borrowed_generation_rejects_initializer_defined_only_in_successor": 1,
+          "borrowed_generation_rejects_wrong_index_mode_arity_and_element_return": 1,
+          "borrowed_generation_uses_rebound_active_capture_loan_in_successor": 1,
+          "borrowed_generation_accepts_external_borrow_callable_without_local_owner": 1,
+          "borrowed_generation_accepts_projected_function_pointer_without_capture_proof": 1,
+          "borrowed_generation_checks_current_root_capture_after_replacement": 1,
+          "borrowed_generation_keeps_concrete_closure_root_replace_rejected": 1,
+          "borrowed_generation_keeps_concrete_closure_root_swap_rejected": 1,
+          "borrowed_generation_normalizes_current_capture_at_a_conditional_join": 1,
+          "borrowed_generation_reads_current_root_contents_after_take": 1,
+          "borrowed_generation_rebinds_current_replacement_capture_across_cfg": 1,
+          "borrowed_generation_rejects_unknown_projected_capture_contents": 1,
+          "borrowed_generation_sequential_overwrite_forgets_ended_previous_capture": 1,
+          "borrowed_generation_helper_checks_current_root_capture_at_call_boundary": 1,
+          "borrowed_generation_pointer_helper_checks_current_root_capture_at_call_boundary": 1,
+          "shared_reference_follow_does_not_turn_reference_slot_into_owned_content_proof": 1,
+          "shared_reference_follow_llvm_loads_the_slot_pointer_before_reading_the_capture": 1,
+          "shared_reference_follow_preserves_parent_dependency_after_cfg_rebinding": 1,
+          "shared_reference_follow_reads_capture_and_index_in_a_real_thunk": 1,
+          "shared_reference_follow_rejects_exclusive_or_nonreference_source_and_wrong_results": 1,
+          "shared_reference_follow_requires_active_source_and_blocks_parent_or_ancestor_end": 1,
+          "shared_reference_follow_uses_target_contents_for_borrowed_generation": 1,
+          "runtime_generator_single_source_accepts_pointer_and_shared_initializers": 1,
+          "runtime_length_container_helper_borrows_selected_pointer_initializer": 1,
+          "runtime_generator_single_generic_helper_preserves_three_callable_environments": 1,
+          "runtime_generator_single_pointer_factory_keeps_return_identity": 1,
+          "runtime_generator_single_matrix_preserves_element_capture_and_storage_contracts": 1,
+          "single_callable_plan_alias_and_group_reuse_one_origin": 1,
+          "single_callable_plan_deferred_named_operand_cannot_supply_callback_abi": 1,
+          "single_callable_plan_distinct_lambda_expressions_do_not_merge_equal_shapes": 1,
+          "single_callable_plan_generic_and_callback_budget_charges_each_source_once": 1,
+          "single_callable_plan_lambda_owner_includes_concrete_generic_instance": 1,
+          "single_callable_plan_named_reordering_uses_sparse_declaration_slots": 1,
+          "single_callable_plan_new_owner_lambda_growth_stops_at_source_budget": 1,
+          "single_callable_plan_ordinary_nullable_generic_argument_keeps_existing_frontier": 1,
+          "single_callable_plan_parameter_forwarding_and_recursion_reuse_complete_keys": 1,
+          "single_callable_plan_pointer_factory_result_reuses_factory_owned_origin": 1,
+          "single_callable_plan_preserves_plain_roots_and_scalar_generic_deduplication": 1,
+          "single_callable_plan_repeated_origin_deduplicates_before_source_budget": 1,
+          "single_callable_plan_three_environments_keep_three_complete_helper_keys": 1,
+          "single_callable_plan_unknown_cfg_origin_is_rejected_at_argument": 1,
+          "single_callable_route_factory_memo_is_owned_by_factory_across_real_callers": 1,
+          "single_callable_route_forwarding_and_recursive_call_reuse_parameter_token": 1,
+          "single_callable_route_named_sparse_slots_preserve_complete_key_and_order": 1,
+          "single_callable_route_same_ast_lambda_has_distinct_concrete_owner_tokens": 1,
+          "single_callable_route_three_environments_point_to_three_planned_full_keys": 1,
+          "canonical_callable_single_missing_canonical_target_is_structured_and_readonly": 1,
+          "canonical_callable_single_specialization_keeps_modes_move_and_container_return": 1,
+          "single_runtime_deferred_named_helper_with_inner_break_never_selects_slot": 1,
+          "single_runtime_deferred_named_helper_with_inner_continue_never_selects_slot": 1,
+          "single_runtime_deferred_named_initializer_cannot_select_source_identity": 1,
+          "single_runtime_generic_helper_preserves_nominal_element_and_three_environments": 1,
+          "single_runtime_guard_keeps_size_loan_live_before_initializer_factory": 1,
+          "single_runtime_named_shared_callback_survives_constructor_and_arithmetic_cfg": 1,
+          "single_runtime_named_shared_callback_survives_when_sibling_edges": 1,
+          "single_runtime_nothing_operand_stops_before_borrow_and_initializer": 1,
+          "single_runtime_reachable_nested_lambda_remains_a_precise_boundary": 1,
+          "single_runtime_temporary_shared_callback_ends_capture_before_iteration_element": 1,
+          "single_runtime_unreachable_lambdas_do_not_register_storage_or_nested_layouts": 1,
+          "single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup": 1,
+          "callable_arena_named_body_and_lambda_do_not_merge_equal_pointer_shapes": 1,
+          "callable_arena_new_owner_keeps_same_expression_distinct_with_flat_references": 1,
+          "callable_arena_parameter_forwarding_reuses_identity_without_enclosing_keys": 1,
+          "unit_field_borrow_keeps_nested_generic_inline_and_owned_parameter_boundaries": 1,
+          "unit_field_borrow_parameter_projects_child_without_consuming_parent": 1,
+          "unit_runtime_generic_helper_returns_resource_in_three_environments": 1,
+          "unit_runtime_existing_frontend_loan_survives_inner_loop_break": 1,
+          "unit_runtime_existing_frontend_loan_survives_inner_loop_continue": 1,
+          "unit_runtime_bare_known_function_initializer_uses_a_typed_borrow_slot": 1,
+          "unit_runtime_borrowed_resource_parameter_reads_copyable_field": 1,
+          "unit_runtime_captured_resource_string_field_borrows_through_println": 1,
+          "unit_runtime_leaf_callback_reaches_deinit_body_and_borrowed_capture_fields": 1,
+          "scalar_type_plan_keeps_static_callees_and_generic_function_values_out_of_storage": 1,
+          "borrowed_closure_keeps_its_source_owner_until_the_closure_drop": 1,
+          "runtime_generator_unit_source_accepts_pointer_and_shared_initializers": 1,
+          "runtime_generator_unit_caller_first_pointer_factory_keeps_return_identity": 1,
+          "runtime_generator_unit_cross_file_generic_helper_preserves_three_callable_environments": 1,
+          "runtime_generator_unit_nothing_operand_stops_before_borrow_and_initializer": 1,
+          "runtime_generator_unit_unreachable_initializers_do_not_demand_callable_layouts": 1,
+          "runtime_generator_unit_matrix_preserves_element_capture_and_storage_contracts": 1,
+          "unit_callable_plan_factory_memo_and_routes_share_the_returned_pointer_token": 1,
+          "unit_callable_plan_frozen_named_routes_preserve_sparse_slots_and_owner_tokens": 1,
+          "unit_callable_plan_function_valued_capture_has_no_selected_environment_layout": 1,
+          "unit_callable_plan_keeps_static_routes_inside_lambda_and_hidden_deinit_bodies": 1,
+          "unit_callable_plan_known_function_reference_requires_the_selected_source_body": 1,
+          "unit_callable_plan_named_arguments_use_declaration_slots_instead_of_evaluation_order": 1,
+          "unit_callable_plan_named_unknown_reports_only_the_actual_callback_operand": 1,
+          "unit_callable_plan_pointer_factory_return_identity_is_memoized_per_source_instance": 1,
+          "unit_callable_plan_preserves_earlier_helper_error_before_later_recipe_frontier": 1,
+          "unit_callable_plan_same_origin_alias_and_recursive_parameter_reuse_one_instance": 1,
+          "unit_callable_plan_three_environments_have_three_full_keys_and_stable_input_order": 1,
+          "unit_callable_plan_three_parameter_forwarders_preserve_each_actual_environment": 1,
+          "unit_callable_plan_unknown_legal_cfg_join_does_not_guess_a_pointer_environment": 1,
+          "canonical_callable_unit_missing_canonical_target_is_structured_and_readonly": 1,
+          "canonical_callable_unit_specialization_keeps_modes_move_and_container_return": 1,
+          "unit_callable_return_query_direct_constructor_demands_returned_named_source_body": 1,
+          "unit_callable_return_query_direct_constructor_freezes_one_factory_owned_pointer": 1,
+          "callable_contract_abort_return_and_lambda_inner_return_are_not_outer_deliveries": 2,
+          "callable_contract_break_is_an_exit_but_continue_is_a_repeating_edge": 2,
+          "callable_contract_caller_first_factory_and_named_return_freeze_source_identity": 1,
+          "callable_contract_cfg_join_requires_the_same_origin_on_every_normal_path": 2,
+          "callable_contract_for_source_is_not_a_repeated_header_use": 2,
+          "callable_contract_function_type_alone_does_not_make_generic_reference_known": 1,
+          "callable_contract_lambda_alias_group_and_recursive_parameter_forwarding": 2,
+          "callable_contract_legal_multiple_and_capturing_returns_publish_no_summary": 1,
+          "callable_contract_loop_backedge_and_repeated_condition_revoke_unstable_origins": 2,
+          "callable_contract_loop_fixed_point_preserves_stable_and_overwritten_origins": 2,
+          "callable_contract_p3_error_clears_facts_and_existing_witness_rejects_mixed_analysis": 1,
+          "callable_contract_return_statistics_do_not_turn_owned_fn_argument_into_abort_result": 2,
+          "callable_contract_return_statistics_ignore_owned_int_call_arguments": 2,
+          "callable_contract_return_statistics_nested_actual_return_is_not_hidden_by_outer_return": 2,
+          "callable_contract_return_statistics_nested_return_in_value_argument_is_a_real_delivery": 2,
+          "callable_contract_unique_source_function_requires_both_declaration_and_function_type": 1,
+          "callable_provenance_preflight_bare_function_alias_group_and_parameter": 2,
+          "callable_provenance_preflight_caller_first_pointer_factories": 2,
+          "callable_provenance_preflight_legal_returns_outside_pointer_summary": 2,
+          "callable_provenance_preflight_loop_alias_stable_overwrite_and_conflict": 2,
+          "callable_provenance_preflight_ownership_error_suppresses_executable_facts": 2,
+          "callable_provenance_preflight_same_and_different_origin_cfg": 2,
+          "callable_provenance_preflight_type_error_and_analysis_witness": 2,
+          "ordinary_expected_lambda_keeps_capture_escape_and_ownership_errors": 2,
+          "ordinary_expected_move_literals_preserve_owned_capture_and_asap_drop": 2,
+          "runtime_generator_size_borrow_precedes_cross_file_initializer_nested_inout": 1,
+          "abandoned_temporary_move_closure_drops_owned_slots_before_element": 1,
+          "temporary_move_callback_does_not_unwind_owned_captures_on_abort": 1,
+          "temporary_move_callback_releases_owned_captures_in_reverse_order_on_call_and_transfer": 1,
+          "contextual_move_literal_acceptance_preserves_named_identity_mode_and_arity_errors": 2,
+          "ordinary_expected_move_literals_keep_canonical_type_and_borrow_parameters": 2,
+          "callable_contract_annotated_symbol_does_not_select_deferred_function_operand": 1,
+          "callable_contract_caller_first_factory_freezes_source_identity_and_aliases": 1,
+          "callable_contract_legal_multiple_and_capturing_returns_publish_no_pointer_summary": 1,
+          "callable_contract_p2_and_p3_errors_clear_both_public_tables": 1,
+          "runtime_generator_size_borrow_precedes_initializer_nested_inout": 1
+        },
+        "complete_codegen_result": {
+          "passed": 1040,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        "ignored_tests": [],
+        "raw_log": {
+          "path": "linux-targeted.log",
+          "raw_sha256": "090254900179ac8d00815113921bdba2168345f6ce52bf872825f44276f8e568"
+        }
+      },
+      "macos": {
+        "job_id": 112242057315,
+        "checkout_commit": "51ea5d566492a82dcb79cf2969659e99f6bb436c",
+        "checkout_tree": "a1ba776b4e71e8a8b07f7bc219b145a002ffb5b9",
+        "checkout_parents": [
+          "6575e9069506fbdddcbf7e8cd5e873de91eea5b7",
+          "a7faceaea97f5130a94689d65e0d97a497c653f6"
+        ],
+        "added_or_renamed_test_basename_counts": {
+          "runtime_constructor_public_single_build_and_run_reuse_named_callbacks": 1,
+          "runtime_constructor_public_project_build_and_run_forward_callbacks": 1,
+          "borrowed_generation_dynamic_length_keeps_checked_length_and_bytes_guards": 1,
+          "borrowed_generation_prepares_fixed_storage_once_outside_the_loop": 1,
+          "borrowed_unit_void_generation_calls_each_logical_index_without_buffer_addressing": 1,
+          "unit_for_captured_borrow_closure_executes_and_releases_each_iteration": 1,
+          "runtime_constructor_native_unit_cross_file_helper_preserves_element_and_environment": 1,
+          "runtime_constructor_native_unit_evaluates_operands_once_in_order": 1,
+          "runtime_constructor_native_unit_matrix_executes_logical_callbacks": 1,
+          "runtime_constructor_native_unit_nothing_operands_do_not_generate": 1,
+          "runtime_constructor_native_unit_orders_callbacks_elements_and_environment_cleanup": 1,
+          "runtime_constructor_native_unit_storable_helper_elements": 1,
+          "runtime_constructor_native_single_generic_helper_preserves_element_and_environment": 1,
+          "runtime_constructor_native_single_matrix_executes_logical_callbacks": 1,
+          "runtime_constructor_native_single_orders_callbacks_elements_and_environment_cleanup": 1,
+          "runtime_constructor_native_single_evaluates_operands_once_in_order": 1,
+          "runtime_constructor_native_single_nothing_operands_do_not_generate": 1,
+          "runtime_constructor_native_single_storable_helper_elements": 1,
+          "single_file_integer_index_reads_then_inverts_without_consuming_container": 1,
+          "borrowed_generation_accepts_pointer_shared_and_owned_without_consuming_initializer": 1,
+          "borrowed_generation_accepts_unit_void_as_one_logical_element": 1,
+          "borrowed_generation_invalid_unused_type_is_structurally_rejected": 1,
+          "borrowed_generation_keeps_shared_capture_dependency_until_callback_drop": 1,
+          "borrowed_generation_operand_registration_enforces_definition_order": 1,
+          "borrowed_generation_preserves_initializer_and_capture_dependencies_across_cfg_transfer": 1,
+          "borrowed_generation_rejects_exclusive_and_noncallable_initializer": 1,
+          "borrowed_generation_rejects_expired_initializer_and_owner_drop": 1,
+          "borrowed_generation_rejects_hidden_initializer_loan_across_cfg": 1,
+          "borrowed_generation_rejects_initializer_defined_only_in_successor": 1,
+          "borrowed_generation_rejects_wrong_index_mode_arity_and_element_return": 1,
+          "borrowed_generation_uses_rebound_active_capture_loan_in_successor": 1,
+          "borrowed_generation_accepts_external_borrow_callable_without_local_owner": 1,
+          "borrowed_generation_accepts_projected_function_pointer_without_capture_proof": 1,
+          "borrowed_generation_checks_current_root_capture_after_replacement": 1,
+          "borrowed_generation_keeps_concrete_closure_root_replace_rejected": 1,
+          "borrowed_generation_keeps_concrete_closure_root_swap_rejected": 1,
+          "borrowed_generation_normalizes_current_capture_at_a_conditional_join": 1,
+          "borrowed_generation_reads_current_root_contents_after_take": 1,
+          "borrowed_generation_rebinds_current_replacement_capture_across_cfg": 1,
+          "borrowed_generation_rejects_unknown_projected_capture_contents": 1,
+          "borrowed_generation_sequential_overwrite_forgets_ended_previous_capture": 1,
+          "borrowed_generation_helper_checks_current_root_capture_at_call_boundary": 1,
+          "borrowed_generation_pointer_helper_checks_current_root_capture_at_call_boundary": 1,
+          "shared_reference_follow_does_not_turn_reference_slot_into_owned_content_proof": 1,
+          "shared_reference_follow_llvm_loads_the_slot_pointer_before_reading_the_capture": 1,
+          "shared_reference_follow_preserves_parent_dependency_after_cfg_rebinding": 1,
+          "shared_reference_follow_reads_capture_and_index_in_a_real_thunk": 1,
+          "shared_reference_follow_rejects_exclusive_or_nonreference_source_and_wrong_results": 1,
+          "shared_reference_follow_requires_active_source_and_blocks_parent_or_ancestor_end": 1,
+          "shared_reference_follow_uses_target_contents_for_borrowed_generation": 1,
+          "runtime_generator_single_source_accepts_pointer_and_shared_initializers": 1,
+          "runtime_length_container_helper_borrows_selected_pointer_initializer": 1,
+          "runtime_generator_single_generic_helper_preserves_three_callable_environments": 1,
+          "runtime_generator_single_pointer_factory_keeps_return_identity": 1,
+          "runtime_generator_single_matrix_preserves_element_capture_and_storage_contracts": 1,
+          "single_callable_plan_alias_and_group_reuse_one_origin": 1,
+          "single_callable_plan_deferred_named_operand_cannot_supply_callback_abi": 1,
+          "single_callable_plan_distinct_lambda_expressions_do_not_merge_equal_shapes": 1,
+          "single_callable_plan_generic_and_callback_budget_charges_each_source_once": 1,
+          "single_callable_plan_lambda_owner_includes_concrete_generic_instance": 1,
+          "single_callable_plan_named_reordering_uses_sparse_declaration_slots": 1,
+          "single_callable_plan_new_owner_lambda_growth_stops_at_source_budget": 1,
+          "single_callable_plan_ordinary_nullable_generic_argument_keeps_existing_frontier": 1,
+          "single_callable_plan_parameter_forwarding_and_recursion_reuse_complete_keys": 1,
+          "single_callable_plan_pointer_factory_result_reuses_factory_owned_origin": 1,
+          "single_callable_plan_preserves_plain_roots_and_scalar_generic_deduplication": 1,
+          "single_callable_plan_repeated_origin_deduplicates_before_source_budget": 1,
+          "single_callable_plan_three_environments_keep_three_complete_helper_keys": 1,
+          "single_callable_plan_unknown_cfg_origin_is_rejected_at_argument": 1,
+          "single_callable_route_factory_memo_is_owned_by_factory_across_real_callers": 1,
+          "single_callable_route_forwarding_and_recursive_call_reuse_parameter_token": 1,
+          "single_callable_route_named_sparse_slots_preserve_complete_key_and_order": 1,
+          "single_callable_route_same_ast_lambda_has_distinct_concrete_owner_tokens": 1,
+          "single_callable_route_three_environments_point_to_three_planned_full_keys": 1,
+          "canonical_callable_single_missing_canonical_target_is_structured_and_readonly": 1,
+          "canonical_callable_single_specialization_keeps_modes_move_and_container_return": 1,
+          "single_runtime_deferred_named_helper_with_inner_break_never_selects_slot": 1,
+          "single_runtime_deferred_named_helper_with_inner_continue_never_selects_slot": 1,
+          "single_runtime_deferred_named_initializer_cannot_select_source_identity": 1,
+          "single_runtime_generic_helper_preserves_nominal_element_and_three_environments": 1,
+          "single_runtime_guard_keeps_size_loan_live_before_initializer_factory": 1,
+          "single_runtime_named_shared_callback_survives_constructor_and_arithmetic_cfg": 1,
+          "single_runtime_named_shared_callback_survives_when_sibling_edges": 1,
+          "single_runtime_nothing_operand_stops_before_borrow_and_initializer": 1,
+          "single_runtime_reachable_nested_lambda_remains_a_precise_boundary": 1,
+          "single_runtime_temporary_shared_callback_ends_capture_before_iteration_element": 1,
+          "single_runtime_unreachable_lambdas_do_not_register_storage_or_nested_layouts": 1,
+          "single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup": 1,
+          "callable_arena_named_body_and_lambda_do_not_merge_equal_pointer_shapes": 1,
+          "callable_arena_new_owner_keeps_same_expression_distinct_with_flat_references": 1,
+          "callable_arena_parameter_forwarding_reuses_identity_without_enclosing_keys": 1,
+          "unit_field_borrow_keeps_nested_generic_inline_and_owned_parameter_boundaries": 1,
+          "unit_field_borrow_parameter_projects_child_without_consuming_parent": 1,
+          "unit_runtime_generic_helper_returns_resource_in_three_environments": 1,
+          "unit_runtime_existing_frontend_loan_survives_inner_loop_break": 1,
+          "unit_runtime_existing_frontend_loan_survives_inner_loop_continue": 1,
+          "unit_runtime_bare_known_function_initializer_uses_a_typed_borrow_slot": 1,
+          "unit_runtime_borrowed_resource_parameter_reads_copyable_field": 1,
+          "unit_runtime_captured_resource_string_field_borrows_through_println": 1,
+          "unit_runtime_leaf_callback_reaches_deinit_body_and_borrowed_capture_fields": 1,
+          "scalar_type_plan_keeps_static_callees_and_generic_function_values_out_of_storage": 1,
+          "borrowed_closure_keeps_its_source_owner_until_the_closure_drop": 1,
+          "runtime_generator_unit_source_accepts_pointer_and_shared_initializers": 1,
+          "runtime_generator_unit_caller_first_pointer_factory_keeps_return_identity": 1,
+          "runtime_generator_unit_cross_file_generic_helper_preserves_three_callable_environments": 1,
+          "runtime_generator_unit_nothing_operand_stops_before_borrow_and_initializer": 1,
+          "runtime_generator_unit_unreachable_initializers_do_not_demand_callable_layouts": 1,
+          "runtime_generator_unit_matrix_preserves_element_capture_and_storage_contracts": 1,
+          "unit_callable_plan_factory_memo_and_routes_share_the_returned_pointer_token": 1,
+          "unit_callable_plan_frozen_named_routes_preserve_sparse_slots_and_owner_tokens": 1,
+          "unit_callable_plan_function_valued_capture_has_no_selected_environment_layout": 1,
+          "unit_callable_plan_keeps_static_routes_inside_lambda_and_hidden_deinit_bodies": 1,
+          "unit_callable_plan_known_function_reference_requires_the_selected_source_body": 1,
+          "unit_callable_plan_named_arguments_use_declaration_slots_instead_of_evaluation_order": 1,
+          "unit_callable_plan_named_unknown_reports_only_the_actual_callback_operand": 1,
+          "unit_callable_plan_pointer_factory_return_identity_is_memoized_per_source_instance": 1,
+          "unit_callable_plan_preserves_earlier_helper_error_before_later_recipe_frontier": 1,
+          "unit_callable_plan_same_origin_alias_and_recursive_parameter_reuse_one_instance": 1,
+          "unit_callable_plan_three_environments_have_three_full_keys_and_stable_input_order": 1,
+          "unit_callable_plan_three_parameter_forwarders_preserve_each_actual_environment": 1,
+          "unit_callable_plan_unknown_legal_cfg_join_does_not_guess_a_pointer_environment": 1,
+          "canonical_callable_unit_missing_canonical_target_is_structured_and_readonly": 1,
+          "canonical_callable_unit_specialization_keeps_modes_move_and_container_return": 1,
+          "unit_callable_return_query_direct_constructor_demands_returned_named_source_body": 1,
+          "unit_callable_return_query_direct_constructor_freezes_one_factory_owned_pointer": 1,
+          "callable_contract_abort_return_and_lambda_inner_return_are_not_outer_deliveries": 2,
+          "callable_contract_break_is_an_exit_but_continue_is_a_repeating_edge": 2,
+          "callable_contract_caller_first_factory_and_named_return_freeze_source_identity": 1,
+          "callable_contract_cfg_join_requires_the_same_origin_on_every_normal_path": 2,
+          "callable_contract_for_source_is_not_a_repeated_header_use": 2,
+          "callable_contract_function_type_alone_does_not_make_generic_reference_known": 1,
+          "callable_contract_lambda_alias_group_and_recursive_parameter_forwarding": 2,
+          "callable_contract_legal_multiple_and_capturing_returns_publish_no_summary": 1,
+          "callable_contract_loop_backedge_and_repeated_condition_revoke_unstable_origins": 2,
+          "callable_contract_loop_fixed_point_preserves_stable_and_overwritten_origins": 2,
+          "callable_contract_p3_error_clears_facts_and_existing_witness_rejects_mixed_analysis": 1,
+          "callable_contract_return_statistics_do_not_turn_owned_fn_argument_into_abort_result": 2,
+          "callable_contract_return_statistics_ignore_owned_int_call_arguments": 2,
+          "callable_contract_return_statistics_nested_actual_return_is_not_hidden_by_outer_return": 2,
+          "callable_contract_return_statistics_nested_return_in_value_argument_is_a_real_delivery": 2,
+          "callable_contract_unique_source_function_requires_both_declaration_and_function_type": 1,
+          "callable_provenance_preflight_bare_function_alias_group_and_parameter": 2,
+          "callable_provenance_preflight_caller_first_pointer_factories": 2,
+          "callable_provenance_preflight_legal_returns_outside_pointer_summary": 2,
+          "callable_provenance_preflight_loop_alias_stable_overwrite_and_conflict": 2,
+          "callable_provenance_preflight_ownership_error_suppresses_executable_facts": 2,
+          "callable_provenance_preflight_same_and_different_origin_cfg": 2,
+          "callable_provenance_preflight_type_error_and_analysis_witness": 2,
+          "ordinary_expected_lambda_keeps_capture_escape_and_ownership_errors": 2,
+          "ordinary_expected_move_literals_preserve_owned_capture_and_asap_drop": 2,
+          "runtime_generator_size_borrow_precedes_cross_file_initializer_nested_inout": 1,
+          "abandoned_temporary_move_closure_drops_owned_slots_before_element": 1,
+          "temporary_move_callback_does_not_unwind_owned_captures_on_abort": 1,
+          "temporary_move_callback_releases_owned_captures_in_reverse_order_on_call_and_transfer": 1,
+          "contextual_move_literal_acceptance_preserves_named_identity_mode_and_arity_errors": 2,
+          "ordinary_expected_move_literals_keep_canonical_type_and_borrow_parameters": 2,
+          "callable_contract_annotated_symbol_does_not_select_deferred_function_operand": 1,
+          "callable_contract_caller_first_factory_freezes_source_identity_and_aliases": 1,
+          "callable_contract_legal_multiple_and_capturing_returns_publish_no_pointer_summary": 1,
+          "callable_contract_p2_and_p3_errors_clear_both_public_tables": 1,
+          "runtime_generator_size_borrow_precedes_initializer_nested_inout": 1
+        },
+        "complete_codegen_result": {
+          "passed": 1039,
+          "failed": 0,
+          "ignored": 1,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        "ignored_tests": [
+          "llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame"
+        ],
+        "raw_log": {
+          "path": "macos-targeted.log",
+          "raw_sha256": "7c6496dfe716ad3730c1f7168dd902894f1e4c2fe3cac5507eeac6c162f3aa77"
+        }
+      }
+    },
+    "legitimate_skips": [],
+    "pull_request": {
+      "number": 57,
+      "url": "https://github.com/Halckon/Koven/pull/57",
+      "head": "a7faceaea97f5130a94689d65e0d97a497c653f6",
+      "base": "6575e9069506fbdddcbf7e8cd5e873de91eea5b7",
+      "synthetic_merge": "51ea5d566492a82dcb79cf2969659e99f6bb436c"
+    },
+    "added_or_renamed_source_test_functions": {
+      "crates/lang-cli/tests/native_cli/runtime_constructor.rs": [
+        "runtime_constructor_public_single_build_and_run_reuse_named_callbacks"
+      ],
+      "crates/lang-cli/tests/project_cli/runtime_constructor.rs": [
+        "runtime_constructor_public_project_build_and_run_forward_callbacks"
+      ],
+      "crates/lang-codegen/src/llvm/borrowed_generate_tests.rs": [
+        "borrowed_generation_dynamic_length_keeps_checked_length_and_bytes_guards",
+        "borrowed_generation_prepares_fixed_storage_once_outside_the_loop",
+        "borrowed_unit_void_generation_calls_each_logical_index_without_buffer_addressing"
+      ],
+      "crates/lang-codegen/src/native/unit_for_boundary_tests.rs": [
+        "unit_for_captured_borrow_closure_executes_and_releases_each_iteration"
+      ],
+      "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs": [
+        "runtime_constructor_native_unit_cross_file_helper_preserves_element_and_environment",
+        "runtime_constructor_native_unit_evaluates_operands_once_in_order",
+        "runtime_constructor_native_unit_matrix_executes_logical_callbacks",
+        "runtime_constructor_native_unit_nothing_operands_do_not_generate",
+        "runtime_constructor_native_unit_orders_callbacks_elements_and_environment_cleanup",
+        "runtime_constructor_native_unit_storable_helper_elements"
+      ],
+      "crates/lang-codegen/src/native_runtime_constructor_tests.rs": [
+        "runtime_constructor_native_single_generic_helper_preserves_element_and_environment",
+        "runtime_constructor_native_single_matrix_executes_logical_callbacks",
+        "runtime_constructor_native_single_orders_callbacks_elements_and_environment_cleanup"
+      ],
+      "crates/lang-codegen/src/native_runtime_constructor_tests/evaluation.rs": [
+        "runtime_constructor_native_single_evaluates_operands_once_in_order",
+        "runtime_constructor_native_single_nothing_operands_do_not_generate"
+      ],
+      "crates/lang-codegen/src/native_runtime_constructor_tests/storable_helpers.rs": [
+        "runtime_constructor_native_single_storable_helper_elements"
+      ],
+      "crates/lang-codegen/src/ssa/bitwise_lowering_tests.rs": [
+        "single_file_integer_index_reads_then_inverts_without_consuming_container"
+      ],
+      "crates/lang-codegen/src/ssa/borrowed_generate_tests.rs": [
+        "borrowed_generation_accepts_pointer_shared_and_owned_without_consuming_initializer",
+        "borrowed_generation_accepts_unit_void_as_one_logical_element",
+        "borrowed_generation_invalid_unused_type_is_structurally_rejected",
+        "borrowed_generation_keeps_shared_capture_dependency_until_callback_drop",
+        "borrowed_generation_operand_registration_enforces_definition_order",
+        "borrowed_generation_preserves_initializer_and_capture_dependencies_across_cfg_transfer",
+        "borrowed_generation_rejects_exclusive_and_noncallable_initializer",
+        "borrowed_generation_rejects_expired_initializer_and_owner_drop",
+        "borrowed_generation_rejects_hidden_initializer_loan_across_cfg",
+        "borrowed_generation_rejects_initializer_defined_only_in_successor",
+        "borrowed_generation_rejects_wrong_index_mode_arity_and_element_return",
+        "borrowed_generation_uses_rebound_active_capture_loan_in_successor"
+      ],
+      "crates/lang-codegen/src/ssa/borrowed_generate_tests/root_storage_tests.rs": [
+        "borrowed_generation_accepts_external_borrow_callable_without_local_owner",
+        "borrowed_generation_accepts_projected_function_pointer_without_capture_proof",
+        "borrowed_generation_checks_current_root_capture_after_replacement",
+        "borrowed_generation_keeps_concrete_closure_root_replace_rejected",
+        "borrowed_generation_keeps_concrete_closure_root_swap_rejected",
+        "borrowed_generation_normalizes_current_capture_at_a_conditional_join",
+        "borrowed_generation_reads_current_root_contents_after_take",
+        "borrowed_generation_rebinds_current_replacement_capture_across_cfg",
+        "borrowed_generation_rejects_unknown_projected_capture_contents",
+        "borrowed_generation_sequential_overwrite_forgets_ended_previous_capture"
+      ],
+      "crates/lang-codegen/src/ssa/borrowed_generate_tests/root_storage_tests/helper_calls.rs": [
+        "borrowed_generation_helper_checks_current_root_capture_at_call_boundary",
+        "borrowed_generation_pointer_helper_checks_current_root_capture_at_call_boundary"
+      ],
+      "crates/lang-codegen/src/ssa/borrowed_generate_tests/shared_reference_follow_tests.rs": [
+        "shared_reference_follow_does_not_turn_reference_slot_into_owned_content_proof",
+        "shared_reference_follow_llvm_loads_the_slot_pointer_before_reading_the_capture",
+        "shared_reference_follow_preserves_parent_dependency_after_cfg_rebinding",
+        "shared_reference_follow_reads_capture_and_index_in_a_real_thunk",
+        "shared_reference_follow_rejects_exclusive_or_nonreference_source_and_wrong_results",
+        "shared_reference_follow_requires_active_source_and_blocks_parent_or_ancestor_end",
+        "shared_reference_follow_uses_target_contents_for_borrowed_generation"
+      ],
+      "crates/lang-codegen/src/ssa/container_lowering_tests.rs": [
+        "runtime_generator_single_source_accepts_pointer_and_shared_initializers",
+        "runtime_length_container_helper_borrows_selected_pointer_initializer"
+      ],
+      "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_helpers.rs": [
+        "runtime_generator_single_generic_helper_preserves_three_callable_environments",
+        "runtime_generator_single_pointer_factory_keeps_return_identity"
+      ],
+      "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_matrix.rs": [
+        "runtime_generator_single_matrix_preserves_element_capture_and_storage_contracts"
+      ],
+      "crates/lang-codegen/src/ssa/lower_frontend/instances/callable_plan_tests.rs": [
+        "single_callable_plan_alias_and_group_reuse_one_origin",
+        "single_callable_plan_deferred_named_operand_cannot_supply_callback_abi",
+        "single_callable_plan_distinct_lambda_expressions_do_not_merge_equal_shapes",
+        "single_callable_plan_generic_and_callback_budget_charges_each_source_once",
+        "single_callable_plan_lambda_owner_includes_concrete_generic_instance",
+        "single_callable_plan_named_reordering_uses_sparse_declaration_slots",
+        "single_callable_plan_new_owner_lambda_growth_stops_at_source_budget",
+        "single_callable_plan_ordinary_nullable_generic_argument_keeps_existing_frontier",
+        "single_callable_plan_parameter_forwarding_and_recursion_reuse_complete_keys",
+        "single_callable_plan_pointer_factory_result_reuses_factory_owned_origin",
+        "single_callable_plan_preserves_plain_roots_and_scalar_generic_deduplication",
+        "single_callable_plan_repeated_origin_deduplicates_before_source_budget",
+        "single_callable_plan_three_environments_keep_three_complete_helper_keys",
+        "single_callable_plan_unknown_cfg_origin_is_rejected_at_argument"
+      ],
+      "crates/lang-codegen/src/ssa/lower_frontend/instances/callable_route_tests.rs": [
+        "single_callable_route_factory_memo_is_owned_by_factory_across_real_callers",
+        "single_callable_route_forwarding_and_recursive_call_reuse_parameter_token",
+        "single_callable_route_named_sparse_slots_preserve_complete_key_and_order",
+        "single_callable_route_same_ast_lambda_has_distinct_concrete_owner_tokens",
+        "single_callable_route_three_environments_point_to_three_planned_full_keys"
+      ],
+      "crates/lang-codegen/src/ssa/lower_frontend/instances/canonical_callable_tests.rs": [
+        "canonical_callable_single_missing_canonical_target_is_structured_and_readonly",
+        "canonical_callable_single_specialization_keeps_modes_move_and_container_return"
+      ],
+      "crates/lang-codegen/src/ssa/lower_frontend/source_closure/tests.rs": [
+        "single_runtime_deferred_named_helper_with_inner_break_never_selects_slot",
+        "single_runtime_deferred_named_helper_with_inner_continue_never_selects_slot",
+        "single_runtime_deferred_named_initializer_cannot_select_source_identity",
+        "single_runtime_generic_helper_preserves_nominal_element_and_three_environments",
+        "single_runtime_guard_keeps_size_loan_live_before_initializer_factory",
+        "single_runtime_named_shared_callback_survives_constructor_and_arithmetic_cfg",
+        "single_runtime_named_shared_callback_survives_when_sibling_edges",
+        "single_runtime_nothing_operand_stops_before_borrow_and_initializer",
+        "single_runtime_reachable_nested_lambda_remains_a_precise_boundary",
+        "single_runtime_temporary_shared_callback_ends_capture_before_iteration_element",
+        "single_runtime_unreachable_lambdas_do_not_register_storage_or_nested_layouts"
+      ],
+      "crates/lang-codegen/src/ssa/lower_frontend_resource_deinit_tests.rs": [
+        "single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup"
+      ],
+      "crates/lang-codegen/src/ssa/lowering_support/callable_instances.rs": [
+        "callable_arena_named_body_and_lambda_do_not_merge_equal_pointer_shapes",
+        "callable_arena_new_owner_keeps_same_expression_distinct_with_flat_references",
+        "callable_arena_parameter_forwarding_reuses_identity_without_enclosing_keys"
+      ],
+      "crates/lang-codegen/src/ssa/unit_field_borrow_tests.rs": [
+        "unit_field_borrow_keeps_nested_generic_inline_and_owned_parameter_boundaries",
+        "unit_field_borrow_parameter_projects_child_without_consuming_parent"
+      ],
+      "crates/lang-codegen/src/ssa/unit_lower/closure/generic_runtime_tests.rs": [
+        "unit_runtime_generic_helper_returns_resource_in_three_environments"
+      ],
+      "crates/lang-codegen/src/ssa/unit_lower/closure/runtime_slots_tests.rs": [
+        "unit_runtime_existing_frontend_loan_survives_inner_loop_break",
+        "unit_runtime_existing_frontend_loan_survives_inner_loop_continue"
+      ],
+      "crates/lang-codegen/src/ssa/unit_lower/closure/runtime_tests.rs": [
+        "unit_runtime_bare_known_function_initializer_uses_a_typed_borrow_slot",
+        "unit_runtime_borrowed_resource_parameter_reads_copyable_field",
+        "unit_runtime_captured_resource_string_field_borrows_through_println",
+        "unit_runtime_leaf_callback_reaches_deinit_body_and_borrowed_capture_fields"
+      ],
+      "crates/lang-codegen/src/ssa/unit_lower/type_plan.rs": [
+        "scalar_type_plan_keeps_static_callees_and_generic_function_values_out_of_storage"
+      ],
+      "crates/lang-codegen/src/ssa/unit_lower_closure_tests/shared_capture.rs": [
+        "borrowed_closure_keeps_its_source_owner_until_the_closure_drop"
+      ],
+      "crates/lang-codegen/src/ssa/unit_lower_container_tests.rs": [
+        "runtime_generator_unit_source_accepts_pointer_and_shared_initializers"
+      ],
+      "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_helpers.rs": [
+        "runtime_generator_unit_caller_first_pointer_factory_keeps_return_identity",
+        "runtime_generator_unit_cross_file_generic_helper_preserves_three_callable_environments",
+        "runtime_generator_unit_nothing_operand_stops_before_borrow_and_initializer",
+        "runtime_generator_unit_unreachable_initializers_do_not_demand_callable_layouts"
+      ],
+      "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_matrix.rs": [
+        "runtime_generator_unit_matrix_preserves_element_capture_and_storage_contracts"
+      ],
+      "crates/lang-codegen/src/ssa/unit_plan_tests/callable_identity.rs": [
+        "unit_callable_plan_factory_memo_and_routes_share_the_returned_pointer_token",
+        "unit_callable_plan_frozen_named_routes_preserve_sparse_slots_and_owner_tokens",
+        "unit_callable_plan_function_valued_capture_has_no_selected_environment_layout",
+        "unit_callable_plan_keeps_static_routes_inside_lambda_and_hidden_deinit_bodies",
+        "unit_callable_plan_known_function_reference_requires_the_selected_source_body",
+        "unit_callable_plan_named_arguments_use_declaration_slots_instead_of_evaluation_order",
+        "unit_callable_plan_named_unknown_reports_only_the_actual_callback_operand",
+        "unit_callable_plan_pointer_factory_return_identity_is_memoized_per_source_instance",
+        "unit_callable_plan_preserves_earlier_helper_error_before_later_recipe_frontier",
+        "unit_callable_plan_same_origin_alias_and_recursive_parameter_reuse_one_instance",
+        "unit_callable_plan_three_environments_have_three_full_keys_and_stable_input_order",
+        "unit_callable_plan_three_parameter_forwarders_preserve_each_actual_environment",
+        "unit_callable_plan_unknown_legal_cfg_join_does_not_guess_a_pointer_environment"
+      ],
+      "crates/lang-codegen/src/ssa/unit_plan_tests/canonical_callables.rs": [
+        "canonical_callable_unit_missing_canonical_target_is_structured_and_readonly",
+        "canonical_callable_unit_specialization_keeps_modes_move_and_container_return"
+      ],
+      "crates/lang-codegen/src/ssa/unit_plan_tests/factory_return_queries.rs": [
+        "unit_callable_return_query_direct_constructor_demands_returned_named_source_body",
+        "unit_callable_return_query_direct_constructor_freezes_one_factory_owned_pointer"
+      ],
+      "crates/lang-frontend/tests/multifile_ownership_checking/callable_contract.rs": [
+        "callable_contract_abort_return_and_lambda_inner_return_are_not_outer_deliveries",
+        "callable_contract_break_is_an_exit_but_continue_is_a_repeating_edge",
+        "callable_contract_caller_first_factory_and_named_return_freeze_source_identity",
+        "callable_contract_cfg_join_requires_the_same_origin_on_every_normal_path",
+        "callable_contract_for_source_is_not_a_repeated_header_use",
+        "callable_contract_function_type_alone_does_not_make_generic_reference_known",
+        "callable_contract_lambda_alias_group_and_recursive_parameter_forwarding",
+        "callable_contract_legal_multiple_and_capturing_returns_publish_no_summary",
+        "callable_contract_loop_backedge_and_repeated_condition_revoke_unstable_origins",
+        "callable_contract_loop_fixed_point_preserves_stable_and_overwritten_origins",
+        "callable_contract_p3_error_clears_facts_and_existing_witness_rejects_mixed_analysis",
+        "callable_contract_return_statistics_do_not_turn_owned_fn_argument_into_abort_result",
+        "callable_contract_return_statistics_ignore_owned_int_call_arguments",
+        "callable_contract_return_statistics_nested_actual_return_is_not_hidden_by_outer_return",
+        "callable_contract_return_statistics_nested_return_in_value_argument_is_a_real_delivery",
+        "callable_contract_unique_source_function_requires_both_declaration_and_function_type"
+      ],
+      "crates/lang-frontend/tests/multifile_ownership_checking/callable_provenance.rs": [
+        "callable_provenance_preflight_bare_function_alias_group_and_parameter",
+        "callable_provenance_preflight_caller_first_pointer_factories",
+        "callable_provenance_preflight_legal_returns_outside_pointer_summary",
+        "callable_provenance_preflight_loop_alias_stable_overwrite_and_conflict",
+        "callable_provenance_preflight_ownership_error_suppresses_executable_facts",
+        "callable_provenance_preflight_same_and_different_origin_cfg",
+        "callable_provenance_preflight_type_error_and_analysis_witness"
+      ],
+      "crates/lang-frontend/tests/multifile_ownership_checking/capture_escape.rs": [
+        "ordinary_expected_lambda_keeps_capture_escape_and_ownership_errors",
+        "ordinary_expected_move_literals_preserve_owned_capture_and_asap_drop"
+      ],
+      "crates/lang-frontend/tests/multifile_ownership_checking/constructions.rs": [
+        "runtime_generator_size_borrow_precedes_cross_file_initializer_nested_inout"
+      ],
+      "crates/lang-frontend/tests/multifile_ownership_checking/iteration.rs": [
+        "abandoned_temporary_move_closure_drops_owned_slots_before_element"
+      ],
+      "crates/lang-frontend/tests/multifile_ownership_checking/pending_lifetime/temporary_capture.rs": [
+        "temporary_move_callback_does_not_unwind_owned_captures_on_abort",
+        "temporary_move_callback_releases_owned_captures_in_reverse_order_on_call_and_transfer"
+      ],
+      "crates/lang-frontend/tests/multifile_type_checking/lambdas.rs": [
+        "contextual_move_literal_acceptance_preserves_named_identity_mode_and_arity_errors",
+        "ordinary_expected_move_literals_keep_canonical_type_and_borrow_parameters"
+      ],
+      "crates/lang-frontend/tests/ownership_closures.rs": [
+        "ordinary_expected_lambda_keeps_capture_escape_and_ownership_errors",
+        "ordinary_expected_move_literals_preserve_owned_capture_and_asap_drop"
+      ],
+      "crates/lang-frontend/tests/ownership_closures/callable_contract.rs": [
+        "callable_contract_abort_return_and_lambda_inner_return_are_not_outer_deliveries",
+        "callable_contract_annotated_symbol_does_not_select_deferred_function_operand",
+        "callable_contract_break_is_an_exit_but_continue_is_a_repeating_edge",
+        "callable_contract_caller_first_factory_freezes_source_identity_and_aliases",
+        "callable_contract_cfg_join_requires_the_same_origin_on_every_normal_path",
+        "callable_contract_for_source_is_not_a_repeated_header_use",
+        "callable_contract_lambda_alias_group_and_recursive_parameter_forwarding",
+        "callable_contract_legal_multiple_and_capturing_returns_publish_no_pointer_summary",
+        "callable_contract_loop_backedge_and_repeated_condition_revoke_unstable_origins",
+        "callable_contract_loop_fixed_point_preserves_stable_and_overwritten_origins",
+        "callable_contract_p2_and_p3_errors_clear_both_public_tables",
+        "callable_contract_return_statistics_do_not_turn_owned_fn_argument_into_abort_result",
+        "callable_contract_return_statistics_ignore_owned_int_call_arguments",
+        "callable_contract_return_statistics_nested_actual_return_is_not_hidden_by_outer_return",
+        "callable_contract_return_statistics_nested_return_in_value_argument_is_a_real_delivery"
+      ],
+      "crates/lang-frontend/tests/ownership_closures/callable_provenance.rs": [
+        "callable_provenance_preflight_bare_function_alias_group_and_parameter",
+        "callable_provenance_preflight_caller_first_pointer_factories",
+        "callable_provenance_preflight_legal_returns_outside_pointer_summary",
+        "callable_provenance_preflight_loop_alias_stable_overwrite_and_conflict",
+        "callable_provenance_preflight_ownership_error_suppresses_executable_facts",
+        "callable_provenance_preflight_same_and_different_origin_cfg",
+        "callable_provenance_preflight_type_error_and_analysis_witness"
+      ],
+      "crates/lang-frontend/tests/ownership_containers.rs": [
+        "runtime_generator_size_borrow_precedes_initializer_nested_inout"
+      ],
+      "crates/lang-frontend/tests/type_callable/expected_move_literals.rs": [
+        "contextual_move_literal_acceptance_preserves_named_identity_mode_and_arity_errors",
+        "ordinary_expected_move_literals_keep_canonical_type_and_borrow_parameters"
+      ]
+    },
+    "notes": [
+      "Source commit and synthetic PR checkout are recorded separately.",
+      "Full raw targeted logs retained; all 183 added/renamed annotated source test functions matched actual success with duplicate basename multiplicities on both hosts.",
+      "No local resource failure or ASan/LSan calibration; one obsolete object-path Guard accidentally executed during old-test reproduction and recorded separately; existing main remote CI explicitly authorized.",
+      "Runtime-length constructors implemented in selected source/helper layouts; universal LoanId lifecycle and unselected storage boundaries remain open."
+    ]
+  },
+  "retained_initial": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/pr-initial-jobs.json.gz",
+      "raw_sha256": "a09314c1cf58dca285813b5dbcaa93a88a2bf57769def9642cceaf3dcb3dc0af"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/pr-initial-linux-checkout.json.gz",
+      "raw_sha256": "543d317609973c3f0b46496d425bb4b305ceeddfe1d71b1ff2f261e30101ef39"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/pr-initial-linux-targeted.log.gz",
+      "raw_sha256": "090254900179ac8d00815113921bdba2168345f6ce52bf872825f44276f8e568"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/pr-initial-macos-checkout.json.gz",
+      "raw_sha256": "543d317609973c3f0b46496d425bb4b305ceeddfe1d71b1ff2f261e30101ef39"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/pr-initial-macos-targeted.log.gz",
+      "raw_sha256": "7c6496dfe716ad3730c1f7168dd902894f1e4c2fe3cac5507eeac6c162f3aa77"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/pr-initial-proof.json.gz",
+      "raw_sha256": "b89482f3045165c8b4f5d557f69cad396b39a43b6ac8e9cccaa6f4671663879c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/pr-initial-pull-request.json.gz",
+      "raw_sha256": "777c326f1e72d22ff0d7b2edde9a083ed490e38c6a02af2a87244df6b4ae44fe"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/pr-initial-run.json.gz",
+      "raw_sha256": "4c4fef2720310d51402e89d808374af9825e0f08000b60d19a4cab15fe5ab2f3"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/pr-initial-source-commit.json.gz",
+      "raw_sha256": "a68dc7aeb043f385ce947ea0070c12e626df48f2404813ce5e29c077d4eaaf97"
+    }
+  ],
+  "final_head": {
+    "status": "pending"
+  },
+  "merge": {
+    "status": "pending"
+  },
+  "actual_main": {
+    "status": "pending"
+  },
+  "not_run": [
+    "local safety verification",
+    "local resource failure injection/calibration (one old object-path Guard reproduction occurred; see ci-consumers receipt)",
+    "ASan/LSan calibration locally",
+    "allocation/free accounting targeted to SPEC-0279",
+    "daybreak",
+    "P2 budget recalibration"
+  ],
+  "archive_review": {
+    "reviewer": "review_0279_single_names_and_native_intent",
+    "source_head": "a7faceaea97f5130a94689d65e0d97a497c653f6",
+    "result": "no unresolved finding",
+    "checked": [
+      "active/archive exact historical preservation except three metadata lines and appended acceptance",
+      "9 compressed raw SHA, source/synthetic identical tree and correct parents",
+      "independent base-to-source 183 function extraction and duplicate-basename actual dual-host success",
+      "15 successful jobs, Linux1040/mac1039+one inherited LLDB ignored",
+      "inventory, DAG, local links, current Architecture boundaries",
+      "E3 injection/E4 accounting exclusions and old object Guard execution exception remain explicit",
+      "final archive head/merge/actual main are pending"
+    ]
+  },
+  "archive_local_validation": {
+    "commands": [
+      "python3 scripts/check_docs.py",
+      "python3 -m unittest discover -s scripts/tests -p test_check_docs.py -v",
+      "git diff --check"
+    ],
+    "results": [
+      "551 Markdown files passed",
+      "37 tests passed",
+      "passed"
+    ],
+    "context": "implementation a7facea plus this uncommitted documentation/inventory archival slice; no Rust changes"
+  }
+}

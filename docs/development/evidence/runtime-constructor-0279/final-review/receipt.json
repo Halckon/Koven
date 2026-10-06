@@ -1,0 +1,1306 @@
+{
+  "schema": "koven.spec0279.final-review.v1",
+  "scope": "final fresh review findings and exact-input local gates",
+  "actual_source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+  "source_state": "a65 checkpoint plus the explicitly hashed uncommitted A/B fixes; no clean HEAD relabeling",
+  "changed_rust_sha256": {
+    "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs": "5cf84ba1de69d5c9d3691a0597227a134b0c7ec3a62ce97c409f3d745ee67947",
+    "crates/lang-codegen/src/native_runtime_constructor_tests/evaluation.rs": "fc2b59cbe1dcc81379efd34ab1aaea34af4c0e8f1aa84c3c8c553b462ae72d6b",
+    "crates/lang-codegen/src/ssa/borrowed_generate_tests/root_storage_tests.rs": "1a57b71c9c7e969460ffeb118ee0e1ce72baf9c3d10e1dce301d485521270bc2",
+    "crates/lang-codegen/src/ssa/lower_frontend/container.rs": "6d89b1e9a71796dc9db292c06f19954c7229630ba4b97fbec85c2f4e699bd12e",
+    "crates/lang-codegen/src/ssa/lower_frontend/container/runtime.rs": "536749166ad53198218a4edb5bd95061304dabfeef5a85f91ec62c396a8f8068",
+    "crates/lang-codegen/src/ssa/lower_frontend/source_closure/tests.rs": "019e94736b3e3753e0f0637a784193404636a79e57fd475ea79f8c3980d89e3e",
+    "crates/lang-codegen/src/ssa/unit_lower/closure/layout.rs": "e71fa4b79900d03b491bf33ffb439f9a19b30c99b67fd7d521ff1fdafd8222f8",
+    "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_helpers.rs": "f27d2483e51f8c6070136be825e2d02a5d483155be1863ee7dc0608dc5ad20f8",
+    "crates/lang-codegen/src/ssa/unit_plan/callable_instances.rs": "6ed5e1e066eacdc6d1ad68e456a46479fea737b0bc9188ec7af4e384203c6123",
+    "crates/lang-codegen/src/ssa/verify/closure_content.rs": "1d3498f509a9dc952e3624d0ea896731b466326f8fed3b8d9fe4079c7c27d7e3",
+    "crates/lang-codegen/src/ssa/verify_ownership.rs": "eb024ad64bf515fdde083bec66830d6195799974e4b65088e50ba2903a38721b",
+    "crates/lang-codegen/src/ssa/verify_ownership/closure.rs": "92928490f8e7b30b3f4c2dc70ac7726ffc0c45a05b0894dcac7c528825a43159",
+    "crates/lang-codegen/src/ssa/borrowed_generate_tests/root_storage_tests/helper_calls.rs": "1beb42a914f2574f50f40de88d159b322e184fcd0e6a24b5627662331be5f279"
+  },
+  "policy_sha256": "dc9bf40982f11d884013d9d20b108555d71fbbdd4384260735297ed5eae4064f",
+  "final_gate_names": [
+    "final-review-shared-closure-consumers",
+    "final-review-borrowed-generator-complete",
+    "final-review-single-source-consumers",
+    "final-review-unit-source-consumers",
+    "final-review-callable-planner-consumers",
+    "final-review-current-native-complete",
+    "final-review-strict-clippy",
+    "final-review-workspace-check",
+    "final-review-cli-build",
+    "final-review-public-cli",
+    "final-review-format",
+    "final-review-size-policy",
+    "final-review-size-policy-tests",
+    "final-review-e6-static-ssa",
+    "final-review-e6-static-llvm",
+    "final-review-e6-zst-sentinel",
+    "final-review-e6-zst-drop",
+    "final-review-e6-owned-closure",
+    "final-review-docs"
+  ],
+  "results": [
+    {
+      "name": "final-review-borrowed-generator-complete",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.2634729170240462,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 34,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1005
+        }
+      ]
+    },
+    {
+      "name": "final-review-both-helper-current-capture-green",
+      "classification": "intermediate corrected scoped green; not final input proof",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 5.323741749860346,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 34,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1001
+        }
+      ]
+    },
+    {
+      "name": "final-review-callable-planner-consumers",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "ssa::unit_plan_tests",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.2536638749297708,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 72,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 967
+        }
+      ]
+    },
+    {
+      "name": "final-review-cli-build",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "build",
+        "-p",
+        "lang-cli",
+        "--bin",
+        "kovenc",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 6.18164970818907,
+      "test_results": []
+    },
+    {
+      "name": "final-review-current-native-complete",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "runtime_constructor_native_",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture",
+        "--test-threads=2"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 393.35189537494443,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1027
+        }
+      ]
+    },
+    {
+      "name": "final-review-docs",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "python3",
+        "scripts/check_docs.py"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.9321530000306666,
+      "test_results": []
+    },
+    {
+      "name": "final-review-e6-owned-closure",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "native_tests::move_closure_drops_or_invokes_its_owned_string_capture_once",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 1.9881487910170108,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1038
+        }
+      ]
+    },
+    {
+      "name": "final-review-e6-static-llvm",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "llvm::container_tests::runtime_length_generation_calls_initializer_in_an_explicit_loop",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.23491120897233486,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1038
+        }
+      ]
+    },
+    {
+      "name": "final-review-e6-static-ssa",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "ssa::container_operation_tests::generated_container_requires_int_to_element_initializer_contract",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.29397629108279943,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1038
+        }
+      ]
+    },
+    {
+      "name": "final-review-e6-zst-drop",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "llvm::container_tests::move_only_zst_drop_preserves_logical_count_without_address_or_free",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.23694762494415045,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1038
+        }
+      ]
+    },
+    {
+      "name": "final-review-e6-zst-sentinel",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "llvm::container_tests::zst_container_uses_aligned_sentinel_without_allocation_or_addressing",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.2971523751039058,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1038
+        }
+      ]
+    },
+    {
+      "name": "final-review-format",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 1.9920426669996232,
+      "test_results": []
+    },
+    {
+      "name": "final-review-helper-current-capture-corrected-green",
+      "classification": "intermediate corrected scoped green; not final input proof",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 10.107997166924179,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 33,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1001
+        }
+      ]
+    },
+    {
+      "name": "final-review-helper-current-capture-green",
+      "classification": "fixture/implementation compile error; not behavior red or green",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generate_tests",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 101,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 1.0583563330583274,
+      "test_results": []
+    },
+    {
+      "name": "final-review-helper-current-capture-red",
+      "classification": "genuine behavior red with valid frontend/SSA fixture",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generation_helper_checks_current_root_capture_at_call_boundary",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 101,
+      "expected_exit": 101,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.22807374992407858,
+      "test_results": [
+        {
+          "outcome": "FAILED",
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1033
+        }
+      ]
+    },
+    {
+      "name": "final-review-indirect-helper-current-capture-corrected-red",
+      "classification": "genuine behavior red with valid frontend/SSA fixture",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generation_pointer_helper_checks_current_root_capture_at_call_boundary",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 101,
+      "expected_exit": 101,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 6.9214375000447035,
+      "test_results": [
+        {
+          "outcome": "FAILED",
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1034
+        }
+      ]
+    },
+    {
+      "name": "final-review-indirect-helper-current-capture-red",
+      "classification": "fixture/implementation compile error; not behavior red or green",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "borrowed_generation_pointer_helper_checks_current_root_capture_at_call_boundary",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 101,
+      "expected_exit": 101,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 1.1741249167826027,
+      "test_results": []
+    },
+    {
+      "name": "final-review-public-cli",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-cli",
+        "--test",
+        "native_cli",
+        "--test",
+        "project_cli",
+        "runtime_constructor_public_",
+        "--no-fail-fast",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 27.30824229097925,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 9
+        },
+        {
+          "outcome": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 12
+        }
+      ]
+    },
+    {
+      "name": "final-review-runtime-nothing-native-green",
+      "classification": "intermediate corrected scoped green; not final input proof",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "nothing_operands_do_not_generate",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture",
+        "--test-threads=2"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 14.517014125129208,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1037
+        }
+      ]
+    },
+    {
+      "name": "final-review-runtime-nothing-source-green",
+      "classification": "partial implementation; Single size Nothing still failed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "nothing_operand_stops_before_borrow_and_initializer",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 101,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 7.027524957899004,
+      "test_results": [
+        {
+          "outcome": "FAILED",
+          "passed": 1,
+          "failed": 1,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1035
+        }
+      ]
+    },
+    {
+      "name": "final-review-runtime-nothing-source-red",
+      "classification": "genuine behavior red with valid frontend/SSA fixture",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "nothing_operand_stops_before_borrow_and_initializer",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 101,
+      "expected_exit": 101,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 6.917103374842554,
+      "test_results": [
+        {
+          "outcome": "FAILED",
+          "passed": 0,
+          "failed": 2,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1035
+        }
+      ]
+    },
+    {
+      "name": "final-review-runtime-nothing-storage-demand-green",
+      "classification": "intermediate corrected scoped green; not final input proof",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "nothing_operand_stops_before_borrow_and_initializer",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 3.973495415877551,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1035
+        }
+      ]
+    },
+    {
+      "name": "final-review-shared-closure-consumers",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "closure_operation_tests",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.2794030001387,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 47,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 992
+        }
+      ]
+    },
+    {
+      "name": "final-review-single-source-consumers",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "ssa::lower_frontend",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.6267830831930041,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 103,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 936
+        }
+      ]
+    },
+    {
+      "name": "final-review-size-policy-tests",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/tests",
+        "-p",
+        "test_check_rust_sizes.py",
+        "-v"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 17.848806750029325,
+      "test_results": []
+    },
+    {
+      "name": "final-review-size-policy",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "python3",
+        "scripts/check_rust_sizes.py",
+        "--base",
+        "6575e9069506fbdddcbf7e8cd5e873de91eea5b7"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 10.635368542047217,
+      "test_results": []
+    },
+    {
+      "name": "final-review-strict-clippy",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "clippy",
+        "-p",
+        "lang-codegen",
+        "-p",
+        "lang-cli",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 3.3981650001369417,
+      "test_results": []
+    },
+    {
+      "name": "final-review-unit-dead-runtime-corrected-red",
+      "classification": "fixture/implementation compile error; not behavior red or green",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "runtime_generator_unit_unreachable_initializers_do_not_demand_callable_layouts",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 101,
+      "expected_exit": 101,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 1.0069015838671476,
+      "test_results": []
+    },
+    {
+      "name": "final-review-unit-dead-runtime-green",
+      "classification": "intermediate corrected scoped green; not final input proof",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "runtime_generator_unit_unreachable_initializers_do_not_demand_callable_layouts",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.23483970807865262,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1036
+        }
+      ]
+    },
+    {
+      "name": "final-review-unit-dead-runtime-red",
+      "classification": "fixture/implementation compile error; not behavior red or green",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "runtime_generator_unit_unreachable_initializers_do_not_demand_callable_layouts",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 101,
+      "expected_exit": 101,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 1.6016131669748574,
+      "test_results": []
+    },
+    {
+      "name": "final-review-unit-dead-runtime-valid-fixture-red",
+      "classification": "genuine behavior red with valid frontend/SSA fixture",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "runtime_generator_unit_unreachable_initializers_do_not_demand_callable_layouts",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 101,
+      "expected_exit": 101,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 7.429385917028412,
+      "test_results": [
+        {
+          "outcome": "FAILED",
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 1033
+        }
+      ]
+    },
+    {
+      "name": "final-review-unit-source-consumers",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "lang-codegen",
+        "--lib",
+        "ssa::unit_lower",
+        "--locked",
+        "--offline",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 0.5186541671864688,
+      "test_results": [
+        {
+          "outcome": "ok",
+          "passed": 162,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 877
+        }
+      ]
+    },
+    {
+      "name": "final-review-workspace-check",
+      "classification": "final exact Rust-input gate passed",
+      "argv": [
+        "cargo",
+        "check",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "-j2"
+      ],
+      "actual_exit": 0,
+      "expected_exit": 0,
+      "source_head": "a65f85f935e301e4f364f7e041eb64dd10badcf5",
+      "dirty_source": true,
+      "elapsed_seconds": 1.6881239998620003,
+      "test_results": []
+    }
+  ],
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-borrowed-generator-complete.json.gz",
+      "raw_sha256": "6be676c7e5a01636371116fde9bb3c37976c0a6bfd2f2d225a2efa371cdb4b50"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-borrowed-generator-complete.log.gz",
+      "raw_sha256": "2d0c6a66265e0b7f889d7acf9094c5c887c187a3d7730f2718b4646e85a0805a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-both-helper-current-capture-green.json.gz",
+      "raw_sha256": "1fe07cde9e0fbf79952761237b371e1f13e9ec7016e143d676751408c557126e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-both-helper-current-capture-green.log.gz",
+      "raw_sha256": "c705bf53cd6224766c27ecbadcfec9f41a7187cd79dd96354629d80ed91b17f0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-callable-planner-consumers.json.gz",
+      "raw_sha256": "9cdb81e8a8cbefb0d78c4ba115b8031e13e23648ebdac90b7a47b3f874700a4d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-callable-planner-consumers.log.gz",
+      "raw_sha256": "95bb9c26e0abdfcafcd9755830da4c10e4f50a878d172b738ef6d83bda5c4262"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-cli-build.json.gz",
+      "raw_sha256": "861a7778ef5081858600cb20c7265c4c404d713a895aeacc623dc668eadc4a73"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-cli-build.log.gz",
+      "raw_sha256": "5c8cd2b549fc4d0a9ef55a642fc71000473d5b256e739812574c77abd9d34c70"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-current-native-complete.json.gz",
+      "raw_sha256": "8f3e94364afb2579535d7f509c112982888a7827f0c79ff4a8933672879d46ef"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-current-native-complete.log.gz",
+      "raw_sha256": "b7ae574c99d40895c4645bf9cd1d99e11d312271c261f8ad2f4f00552e29ac57"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-docs.json.gz",
+      "raw_sha256": "b7c35e54df712385781fe0dedf981dfdb1f6aaacdf4e43b3a1d01cf98102268e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-docs.log.gz",
+      "raw_sha256": "29cc437f6be15c1ab7b24b4bfc93c1571985dbc5b2ab5cc51eeabfdbb89aaa95"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-owned-closure.json.gz",
+      "raw_sha256": "0977fc27cd834fbbc7220a05235fdde972f5e515787fcb49556b925b3860c429"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-owned-closure.log.gz",
+      "raw_sha256": "80288dc4d9fb380fa74e7ba5abdb9ad4fed9b8d403f25db6eca9026d079dd36a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-static-llvm.json.gz",
+      "raw_sha256": "ee44e259a3d09c2f569aa7942acc3bb5af7fdfcf72b49cf0045b11ae114b9f7f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-static-llvm.log.gz",
+      "raw_sha256": "7a698d2e7e92b926028fc1c0eb6d0ac91785c4aa6c135f33dfef39f5cae7478f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-static-ssa.json.gz",
+      "raw_sha256": "fe8336339193627cba1783c8a1a6a5346db2463414ed0ebb45bced0076b108f1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-static-ssa.log.gz",
+      "raw_sha256": "b585ec03d457134242c1d7b0172c3f99c55cb61bdcde733e2afcbb3c0b63ad99"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-zst-drop.json.gz",
+      "raw_sha256": "70c4b1e2e18de8fab9ef2e4640475fb2e3f2d0ad442b8b5e6a799f2d663cb259"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-zst-drop.log.gz",
+      "raw_sha256": "5ec8354cdfe8f75dbd43e6225fa1f9828e92bdffee6b723dc7303e935f1154a4"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-zst-sentinel.json.gz",
+      "raw_sha256": "f136e433a51eb2bea8d75af9138acce0376e0a7e7b388cdbcae9180909b2fd2e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-e6-zst-sentinel.log.gz",
+      "raw_sha256": "6550f6caf07c4964836992be9948cf60920fea862beacbc24cf8710e49180209"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-format.json.gz",
+      "raw_sha256": "b8d2a40838eacb42a1fecc4756c68b06f4f10cb528d93c53f38a292192511b35"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-format.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-helper-current-capture-corrected-green.json.gz",
+      "raw_sha256": "2245a04074cc1aceb0271015c8518e7de04f443a5ada45c381b4fc51df25cd6d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-helper-current-capture-corrected-green.log.gz",
+      "raw_sha256": "cb1129c6a4decbc79cbc35a19eaff4616d54c0f29d9e8d5b883b8b8dec1eada6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-helper-current-capture-green.json.gz",
+      "raw_sha256": "60f92547383db08b071c4d3e48f5581dba32070099997c8ee81d64bc5d923184"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-helper-current-capture-green.log.gz",
+      "raw_sha256": "84c4be0a20223723973185f3f91af0b24579b758cd311e0960a6cebd73b1f50f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-helper-current-capture-red.json.gz",
+      "raw_sha256": "ac801bf54e93c27af43d0ecb7655303efa72b6e8ff93a7a74a178bc1b106c8c0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-helper-current-capture-red.log.gz",
+      "raw_sha256": "1ed574a271b1dc1fff5bd94e9f39317c8026503836dec1aabf83538b49021b71"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-indirect-helper-current-capture-corrected-red.json.gz",
+      "raw_sha256": "f8b2f119b587be8a78d8f9a72af6e2a7678185a0d3f6920ebdd6133608606198"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-indirect-helper-current-capture-corrected-red.log.gz",
+      "raw_sha256": "293ec4f383ea2b3032792ec7658a4ea6da8e52f6b5fadf73deb44b4e1f991084"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-indirect-helper-current-capture-red.json.gz",
+      "raw_sha256": "5bfdb6e826d4ece94ac37b6398168f19f8d7617c560e572ccc65355469120e27"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-indirect-helper-current-capture-red.log.gz",
+      "raw_sha256": "1e55046875c9192ad846148b06c807589fffa488d4f1ce332a0bd7eb280dcf7e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-public-cli.json.gz",
+      "raw_sha256": "791b1c65e5b0c4c43eba1b53567896399c33891991c360ee7609d904d3b4d59c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-public-cli.log.gz",
+      "raw_sha256": "89c552f95034ed464f28a8e5894a7e4e6431c3768af8d83a37529607ff4eab05"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-runtime-nothing-native-green.json.gz",
+      "raw_sha256": "ba3158bd8a23925be6f2ee43c74a0a949df3b3c516621bea47a77f946652bbff"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-runtime-nothing-native-green.log.gz",
+      "raw_sha256": "39c6cc64f397af5192b11cff7f49809fc353c71d3b30203cd3bfe6ed10c1badb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-runtime-nothing-source-green.json.gz",
+      "raw_sha256": "7305f11e2c07b288bad179f80214bfe49a83883be8342f3e3c337017b003cbc9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-runtime-nothing-source-green.log.gz",
+      "raw_sha256": "811fe7f6739086f14a3a8fea87926f9c572a0a2369f959743a287b5ee1df1528"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-runtime-nothing-source-red.json.gz",
+      "raw_sha256": "a8f4458a6108094e7e5175dd267f8a0bcd351441a5696d73f26ec7e5a534c3ea"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-runtime-nothing-source-red.log.gz",
+      "raw_sha256": "7b06d1c43673097bd8c5aec7c5e7d2a6361b9cfa396165e72e895a10a662328d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-runtime-nothing-storage-demand-green.json.gz",
+      "raw_sha256": "d07d614eb0329f5831bf6904455d8de94cd61333d2eac1d73c1a9579c28c3a34"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-runtime-nothing-storage-demand-green.log.gz",
+      "raw_sha256": "df7bea409681d61bb56ab4cfee2edfffc19ff93c2b708029df115d026397f5ce"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-shared-closure-consumers.json.gz",
+      "raw_sha256": "cffd3f821c939893d7e2036a30ce0743fea0db0e9b97d6e90a1fe0a9e0145f1f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-shared-closure-consumers.log.gz",
+      "raw_sha256": "bc714883206eeaff3a61c6b67933446dca6e5cff3287d94d9627b8a4942afbd2"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-single-source-consumers.json.gz",
+      "raw_sha256": "ad3175cd47b1f8fbd4a14c80eac4280061c84ce56a9619bf72031add65beb3f9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-single-source-consumers.log.gz",
+      "raw_sha256": "3071c6cd74a380baa407e616ad61748fef23bd0d24e882d472748aad5c18ecd0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-size-policy-tests.json.gz",
+      "raw_sha256": "8c287262c972abd8507d9f889cfb9d128b3ff75b180a18b93dc67d271d7343c6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-size-policy-tests.log.gz",
+      "raw_sha256": "0125c0dafa33baa5d54a879d3d1c54200f28c12e167489f1b9cdb545230be5b9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-size-policy.json.gz",
+      "raw_sha256": "ea46d159e570afbe84f79d4c78f86d2fa29a3a9f6e91fa31926b0693c36bcbaa"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-size-policy.log.gz",
+      "raw_sha256": "ea99ebc57601739bf8034dbe0c76069ef9c68fb5eb757a919a347c179e2a2fa5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-strict-clippy.json.gz",
+      "raw_sha256": "7407f134c508d95cd074f711ede71d9a8108043b1a389a722e7be2c096fd8fb3"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-strict-clippy.log.gz",
+      "raw_sha256": "a96f15d8301f662c5f2b5bb343d6ca7c92ab3b05b7c814aa5c1a29689a83b8e7"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-dead-runtime-corrected-red.json.gz",
+      "raw_sha256": "43d42884213f8a25d4b4e683978dec0c9d0e976a138748cac0aee7f60a66de43"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-dead-runtime-corrected-red.log.gz",
+      "raw_sha256": "20d03607b02d37be7dff27bb726e0ac7df2f5ae60ff2e5ae4bbc2053c38e7e4d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-dead-runtime-green.json.gz",
+      "raw_sha256": "a46c21ee55e77700f687520c7c1ac66ddaf4656f5717b89e1b283d9fe8028d9e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-dead-runtime-green.log.gz",
+      "raw_sha256": "5968bf171881f46d5308dbb2e9959f281ba3127dd91badda5749a2d0c46c5772"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-dead-runtime-red.json.gz",
+      "raw_sha256": "e5a0891300622accac4b56a12ad7906ffbf0dd22a18ac4cead021e12c324f18e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-dead-runtime-red.log.gz",
+      "raw_sha256": "6a72283aec50cd635f753442e6c8a8ed020252a900c123b79b11543c84eca919"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-dead-runtime-valid-fixture-red.json.gz",
+      "raw_sha256": "724bb56b7fdde7d818a24307730ef3c8e3d148d2433140de0f359165284e7b29"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-dead-runtime-valid-fixture-red.log.gz",
+      "raw_sha256": "fc67a4468625b2153b3d01e89635db2fd68b759a69eb3f2550e30ab9c62e0abf"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-source-consumers.json.gz",
+      "raw_sha256": "51df610bc5830fd84c3e9412bcc4a3113d75e38bb6e6c4000496340292856389"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-unit-source-consumers.log.gz",
+      "raw_sha256": "cc92108942114cc9d1f79491abf09fd898f47cf364cc842fa1488f41467c9116"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-workspace-check.json.gz",
+      "raw_sha256": "71f6ceaa4c33f55a8ba809746005c77ade8978603a88ad74d9ab6787bfeecd24"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/final-review/final-review-workspace-check.log.gz",
+      "raw_sha256": "7b80602c9a3f034d2a92a9ce918ada5b2b28c8f83ed947e8987f1df426ea59c9"
+    }
+  ],
+  "native": {
+    "rust_tests": 12,
+    "actual_programs": 512,
+    "single": 256,
+    "unit": 256,
+    "per_entry": "144 core + 48 base helper + 48 storable helper + 6 resource order + 6 evaluation + 4 Nothing Abort"
+  },
+  "public_cli": {
+    "rust_tests": 2,
+    "combinations_per_entry": 6,
+    "oracle": "build, artifact execution and independent CLI run"
+  },
+  "independent_review": {
+    "frontend_ssa": "/root/final_0279_frontend_ssa_review",
+    "source_abi": "/root/final_0279_source_abi_review",
+    "unresolved_actionable_findings": [],
+    "findings": [
+      "DirectCall and CallableInvoke helper Borrow current capture trust boundary",
+      "Nothing operand prefix and unreachable runtime initializer layout demand"
+    ],
+    "fixes_rechecked": true,
+    "verify_ownership_growth": {
+      "before": 1682,
+      "after": 1703,
+      "baseline": 1658,
+      "reviewed": true
+    }
+  },
+  "historical_e6": "docs/development/evidence/runtime-constructor-0279/e6-regression/receipt.json",
+  "limits": [
+    "Empty stdout on SIGABRT is not zero Drop/allocation proof",
+    "No universal dead-code generic helper, Resource/deinit or unsupported static storage support",
+    "ZST historical proofs inspect SSA/LLVM, not new source MoveOnly ZST or native accounting",
+    "Actual run HEAD/status and input hashes are retained in raw records; later commit identity is not invented"
+  ],
+  "not_run": [
+    "local safety verification",
+    "fault injection/calibration",
+    "ASan/LSan calibration",
+    "allocation/free accounting",
+    "daybreak",
+    "P2 budget recalibration"
+  ],
+  "remaining": [
+    "exact final PR/main cross-host CI",
+    "Spec archival delivery"
+  ]
+}

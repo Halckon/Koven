@@ -8,11 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 265 份"))
+ARCH(("已完成<br/>archive 266 份"))
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| 已完成 Spec（265 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（266 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
