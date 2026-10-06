@@ -88,9 +88,11 @@ impl Checker<'_> {
                 closure_phi_incomings: Vec::new(),
             },
         );
-        let Some(base) = prefix.next.take() else {
+        let Some(mut base) = prefix.next.take() else {
             return Ok(prefix);
         };
+        base.origins.attach(&self.callable_sources.arena);
+        let headers = base.origins.begin_loop();
         let body_flows = self.check_statement(body, base.clone())?;
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body, &body_flows)?;
@@ -111,6 +113,12 @@ impl Checker<'_> {
                 self.reject_surviving_element_closure(state, &exit_live, &bindings, source_span)?;
             }
         }
+        let origins = base.origins.loop_exit(
+            &headers,
+            body_flows.next.as_ref().map(|state| &state.origins),
+            body_flows.continues.as_ref().map(|state| &state.origins),
+            body_flows.breaks.as_ref().map(|state| &state.origins),
+        );
         let mut next = base;
         for state in [body_flows.next, body_flows.breaks, body_flows.continues]
             .into_iter()
@@ -118,6 +126,7 @@ impl Checker<'_> {
         {
             merge_state(&mut next, state);
         }
+        next.origins = origins;
         prefix.next = Some(next);
         let mut flows = prefix;
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]

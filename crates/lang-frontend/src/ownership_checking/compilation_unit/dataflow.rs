@@ -1,5 +1,6 @@
 //! Source-qualified body-local call ownership dataflow.
 
+mod callable_provenance;
 mod closure;
 mod construction;
 mod container;
@@ -47,6 +48,8 @@ use super::{
 use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
 pub(super) struct Analysis {
+    pub(super) callable_provenance:
+        crate::ownership_checking::callable_provenance::UnitCallableFacts,
     pub(super) iteration_conditional_scopes: Vec<(
         super::UnitConditionalReceiverDropFact,
         Vec<crate::type_checking::UnitStatementId>,
@@ -185,6 +188,7 @@ pub(super) fn analyze(
     let illegal_owned_capture_code = codes::catalog()?.resolve(codes::ILLEGAL_OWNED_CAPTURE)?;
     let non_transferable_delivery_code =
         codes::catalog()?.resolve(codes::NON_TRANSFERABLE_DELIVERY)?;
+    let mut callable_sources = callable_provenance::Collection::default();
     let mut diagnostics = Vec::new();
     let mut constant_materializations = Vec::new();
     let mut short_circuits = Vec::new();
@@ -253,6 +257,7 @@ pub(super) fn analyze(
             &mut rc_effects,
             &mut construction_plans,
             &mut non_null_assertions,
+            &mut callable_sources,
         )?;
         checker.constant_control = constant_control;
         let drop_analysis = checker.run()?;
@@ -273,7 +278,7 @@ pub(super) fn analyze(
         field_replacements.extend(checker.field_replacements);
     }
 
-    let diagnostics =
+    let diagnostics: Vec<Diagnostic> =
         ordered_unit_diagnostics(sources, names.names().index().source_units(), &diagnostics)?
             .into_iter()
             .cloned()
@@ -289,7 +294,13 @@ pub(super) fn analyze(
     non_null_assertions.dedup_by_key(|plan| plan.descriptor().expression());
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
+    let callable_provenance = if diagnostics.is_empty() && typed.diagnostics().is_empty() {
+        callable_provenance::finish(&callable_sources, typed, closure_inputs.captures)
+    } else {
+        Default::default()
+    };
     Ok(Analysis {
+        callable_provenance,
         iteration_conditional_scopes,
         iteration_owner_scopes,
         iteration_loan_ends,
@@ -366,6 +377,7 @@ struct ReceiverContext {
 
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
+    callable_sources: &'a mut callable_provenance::Collection,
     iterations: BTreeMap<
         crate::type_checking::UnitStatementId,
         crate::ownership_checking::UnitIterationOwnershipPlan,
@@ -450,6 +462,7 @@ impl<'a> Checker<'a> {
         rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
         construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
         non_null_assertions: &'a mut Vec<UnitNonNullAssertionOwnershipPlan>,
+        callable_sources: &'a mut callable_provenance::Collection,
     ) -> Result<Self, OwnershipCheckingError> {
         sources.source_text(parsed.source_id())?;
         let resolution = names
@@ -514,6 +527,7 @@ impl<'a> Checker<'a> {
             }
         }
         Ok(Self {
+            callable_sources,
             iterations: BTreeMap::new(),
             visited_lambdas: std::collections::BTreeSet::new(),
             constant_control: false,
@@ -774,6 +788,7 @@ impl<'a> Checker<'a> {
                 && operator == AssignmentOperator::Assign
                 && place.fields().is_empty()
             {
+                self.bind_callable_symbol(place.root(), state);
                 state.moved.remove(&place.root());
             }
             if self.diagnostics.len() != diagnostic_count {

@@ -134,6 +134,9 @@ impl Checker<'_> {
                 )?;
                 if let Some(next) = flows.next.as_mut() {
                     self.mark_available(name, next);
+                    if let Some(symbol) = self.marker_symbol(name).copied() {
+                        self.bind_callable_symbol(symbol, next);
+                    }
                     if let Some(source) = moved_closure {
                         next.closures.remove(&source);
                     }
@@ -146,10 +149,23 @@ impl Checker<'_> {
                 }
                 Ok(flows)
             }
-            Item::Function { name, form, .. } => {
+            Item::Function {
+                name,
+                parameters,
+                form,
+                ..
+            } => {
                 let previous_receiver = self.current_receiver;
                 self.current_receiver = self.receiver_context(name);
-                let result = self.check_function(form);
+                let mut function_state = State::default();
+                for parameter in parameters {
+                    if let Some(symbol) = self.marker_symbol(parameter.name).copied() {
+                        self.seed_callable_parameter(symbol, &mut function_state);
+                    }
+                }
+                let previous_return = self.enter_callable(name);
+                let result = self.check_function(form, function_state);
+                self.leave_callable(previous_return);
                 self.current_receiver = previous_receiver;
                 result?;
                 Ok(Flows::next(state))
@@ -195,8 +211,11 @@ impl Checker<'_> {
         }
     }
 
-    fn check_function(&mut self, form: FunctionForm) -> Result<(), OwnershipCheckingError> {
-        let state = State::default();
+    fn check_function(
+        &mut self,
+        form: FunctionForm,
+        state: State,
+    ) -> Result<(), OwnershipCheckingError> {
         match form {
             FunctionForm::ImplicitUnitAbsent => {}
             FunctionForm::ImplicitUnitBlock(body) => {
@@ -263,14 +282,23 @@ impl Checker<'_> {
                 condition, body, ..
             } => {
                 let errors = self.diagnostics.len();
+                let mut state = state;
+                state.origins.attach(&self.callable_sources.arena);
+                let headers = state.origins.begin_loop();
                 let prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
-                self.check_maybe_loop(prefix, body, errors)
+                self.check_maybe_loop(prefix, body, errors, &headers)
             }
             Statement::For { source, body, .. } => self.check_iteration(id, source, body, state),
             Statement::Loop { body, .. } => {
                 let errors = self.diagnostics.len();
                 let body_id = body;
+                let mut state = state;
+                state.origins.attach(&self.callable_sources.arena);
+                let headers = state.origins.begin_loop();
                 let body = self.check_statement(body, state)?;
+                for state in [&body.next, &body.continues].into_iter().flatten() {
+                    state.origins.backedge(&headers);
+                }
                 if self.diagnostics.len() == errors {
                     self.check_loop_backedge(body_id, &body)?;
                 }
@@ -307,6 +335,10 @@ impl Checker<'_> {
         mut prefix: Flows,
         body: StatementId,
         errors: usize,
+        headers: &[(
+            super::UnitSymbolId,
+            crate::ownership_checking::callable_provenance::graph::NodeId,
+        )],
     ) -> Result<Flows, OwnershipCheckingError> {
         let Some(base) = prefix.next.take() else {
             return Ok(prefix);
@@ -316,6 +348,12 @@ impl Checker<'_> {
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body_id, &body)?;
         }
+        let origins = base.origins.loop_exit(
+            headers,
+            body.next.as_ref().map(|state| &state.origins),
+            body.continues.as_ref().map(|state| &state.origins),
+            body.breaks.as_ref().map(|state| &state.origins),
+        );
         let mut next = base;
         for state in [body.next, body.breaks, body.continues]
             .into_iter()
@@ -323,11 +361,12 @@ impl Checker<'_> {
         {
             merge_state(&mut next, state);
         }
+        next.origins = origins;
         prefix.next = Some(next);
         Ok(prefix)
     }
 
-    pub(super) fn check_expression(
+    pub(super) fn check_expression_inner(
         &mut self,
         id: ExpressionId,
         state: State,

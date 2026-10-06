@@ -618,6 +618,7 @@ impl OwnershipDeferredFact {
 /// Phase 3 单文件所有权检查产物。
 #[derive(Clone, Debug)]
 pub struct OwnershipCheckedFile {
+    pub(super) callable_provenance: super::callable_provenance::FileCallableFacts,
     cleanup_steps: Vec<(DropPoint, super::IterationCleanupAction)>,
     cleanup_conditions: super::CleanupConditions,
     iterations: Vec<super::IterationOwnershipPlan>,
@@ -644,6 +645,7 @@ pub struct OwnershipCheckedFile {
 }
 
 pub(crate) struct OwnershipCheckedParts {
+    pub(super) callable_provenance: super::callable_provenance::FileCallableFacts,
     pub(crate) cleanup_steps: Vec<(DropPoint, super::IterationCleanupAction)>,
     pub(crate) cleanup_conditions: super::CleanupConditions,
     pub(crate) iterations: Vec<super::IterationOwnershipPlan>,
@@ -772,6 +774,7 @@ impl OwnershipCheckedFile {
     ) -> Self {
         Self {
             source_id,
+            callable_provenance: parts.callable_provenance,
             environment_owner,
             constant_materializations: parts.constant_materializations,
             iterations: parts.iterations,

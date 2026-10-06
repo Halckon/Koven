@@ -197,3 +197,15 @@ Shared Loan(T)，LLVM只读取slot pointer。父/祖先、CFG与provider依赖�
 相关回归通过（包含这7项），0failed/0ignored；独立非作者复核通过，
 [原始收据](../../development/evidence/runtime-constructor-0279/shared-reference-follow/receipt.json)
 保留API编译缺失与两处夹具错误，均不冒充行为红。source/shared/native与一般nested LoanId仍待。
+
+只读 callable 来源切片：两既有 sealed ownership 产物提供 Lambda/真实 Fn 参数/已选定函数/
+FactoryResult 来源及唯一正常无捕获返回摘要；Deferred 不补来源，P2/P3 错误清空两表。
+有限图增量求解复用实际 CFG 状态，不替代 capture/loan/drop 或重新检查 P2/P3。独立复审
+实际发现普通 Value 交付误计返回及 nested actual Return 被 depth 压掉，两类正式红测修后通过。
+31项正式合同与8项审阅边界均包含在374项完整相关回归中，不相加；0failed/0ignored/0filtered。
+专用 target 严格 clippy、全仓格式、尺寸及五crate全target编译检查通过；独立非作者完整复审
+和机械 lint 修正窄复审无未决 finding。共享 target 的缓存编译失败及0.02s缓存 lint不算行为
+或严格门禁通过，原始输出保留在[收据](../../development/evidence/runtime-constructor-0279/callable-provenance/receipt.json)。
+三项精确旧欠账例外锁checker1413、unit1149、dataflow1247，baseline未抬高；实现事实见
+[来源专页](../../architecture/callable-provenance.md)。本片不关闭helper ABI/source/native或PR/main；
+本地故障注入/校准按用户范围只登记未运行。

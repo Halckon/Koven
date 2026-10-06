@@ -23,6 +23,9 @@ mod parser_test_assertions;
 
 use parser_test_assertions::parse_file_twice;
 
+#[path = "ownership_closures/callable_provenance.rs"]
+mod callable_provenance;
+
 const BUILTINS: [BuiltinType; 16] = [
     BuiltinType::Byte,
     BuiltinType::Short,

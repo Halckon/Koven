@@ -1,0 +1,405 @@
+{
+  "schema": "koven.spec0279.callable-provenance.v1",
+  "phase": "Phase 3 readonly facts; final frozen regression/strict lint/shared consumers and independent review passed",
+  "contract": "Frozen API section 11 overrides earlier research suggestions; single deferred function references remain deferred",
+  "final_preflight": {
+    "passed": 14,
+    "failed": 0,
+    "ignored": 0,
+    "claim": "P2/P3 fixtures only; no provenance published"
+  },
+  "final_empty_table_behavior_red": {
+    "passed": 7,
+    "failed": 16,
+    "ignored": 0,
+    "claim": "23 executed; failed assertions require absent packed origin/return facts after clean parser/name/type/ownership preconditions"
+  },
+  "classification": {
+    "frontend-callable-provenance-fixtures": "compile fixture getter error, not behavior evidence",
+    "frontend-callable-provenance-fixtures-corrected": "unit parameter getter assertion wrong; six pass one fixture fail",
+    "frontend-callable-provenance-fixtures-signature-corrected": "unit seven pass; single six pass one deferred identity assertion wrong",
+    "frontend-callable-provenance-single-fixture-inspect": "intentional inspection confirms single Deferred(OverloadSelection), no KnownFunction claim",
+    "frontend-callable-provenance-fixtures-final": "14 preflight pass, no new API facts claimed",
+    "frontend-callable-api-contract-red": "missing four origin enum imports and readonly fact/summary query APIs; compile red only",
+    "frontend-callable-api-empty-facts-red": "empty facts failures mixed with fixture precondition errors; not final red",
+    "frontend-callable-api-corrected-empty-facts-red": "one remaining generic Borrow T fixture L0133; not final red",
+    "frontend-callable-api-final-empty-facts-red": "7 pass and 16 absent-fact behavior failures; fixture preconditions corrected",
+    "frontend-callable-provenance-first-green": "production E0382: finalization borrowed self after moving field_replacements; zero tests executed",
+    "frontend-callable-provenance-move-order-corrected": "production finalize moved before partial moves; actual 12 unit +11 single formal contracts passed, 0 ignored",
+    "frontend-callable-provenance-ownership-regression": "four complete suites 130+35+17+184 passed, 0failed/0ignored/0filtered; includes all 14preflight and23 formal contracts, not additional unique cases",
+    "frontend-callable-provenance-strict-clippy": "Shared-target cache-only exit0 in0.02s; NOT strict lint closure for this worktree. Replaced by exclusive current target later.",
+    "frontend-callable-provenance-return-statistics-review-red": "Shared-target cross-worktree cache pollution: missing newer APIs at test compilation; zero tests executed, not return-statistics behavior red.",
+    "frontend-callable-provenance-return-statistics-cache-isolated-red": "Exclusive current target rebuilt actual frontend. Four valid tests executed: unit2pass and single2 behavior failures after clean frontend gates.",
+    "frontend-callable-provenance-nested-return-complete-red": "Exclusive current target six valid tests: unit3pass single3fail; missing real returns and false normal return from owned Function argument. All failures after clean parser/name/type/ownership gates.",
+    "frontend-callable-provenance-return-statistics-fixed": "6 review fixtures passed in exclusive current target; unit3single3. This fix does not close newly discovered actual Return nested inside Return.value.",
+    "frontend-callable-provenance-final-contracts": "29 formal contracts passed (unit15single14), before nested actual Return.value review fixture; no full-review closure claimed.",
+    "frontend-callable-provenance-final-ownership-regression": "Four complete related suites372passed0failed0ignored0filtered, before nested actual Return.value fixture (133+38+17+184).",
+    "frontend-callable-provenance-nested-actual-return-red": "Exclusive current target: unit1 and single1 actual behavior failures after clean frontend gates; sole nested normal Return hidden by enclosing Return.value depth,0ignored.",
+    "frontend-callable-provenance-nested-actual-return-fixed": "Eight return-statistics review tests passed,unit4single4; both actual Return.value adapters exclude pure escape traversal and no longer suppress nested actual Return.",
+    "frontend-callable-provenance-reviewed-contracts": "Post-depth fix31formal contracts passed,unit16single15,0failed0ignored; exclusive current target.",
+    "frontend-callable-provenance-reviewed-ownership-regression": "Post-depth fix four complete related suites374passed(134+39+17+184),0failed0ignored0filtered; exclusive current target.",
+    "frontend-callable-provenance-exclusive-strict-clippy": "Actual exclusive-target compile/lint failed on three collapsible_if findings in two new adapters; private_interfaces narrowing succeeded, not semantic test evidence.",
+    "frontend-callable-provenance-exclusive-strict-clippy-corrected": "Actual exclusive current target strict clippy all lang-frontend targets passed with -D warnings -D private_interfaces; exact current production/test Rust SHAs retained.",
+    "frontend-callable-provenance-final-frozen-regression": "Final reviewed frontend production after mechanical lint changes: four whole suites374passed0failed0ignored0filtered including31formal contracts and14preflight; exact final Rust SHAs retained.",
+    "frontend-callable-provenance-final-fmt": "cargo fmt --all --check passed on final frozen sources.",
+    "frontend-callable-provenance-physical-size": "Physical size guard against origin/main passed with three explicit reviewed finite exceptions; baseline unchanged. Subsequent mechanical lint correction only decreased under-limit modules.",
+    "frontend-callable-provenance-workspace-consumers": "Final exclusive current target cargo check --workspace --all-targets passed for all five crates, no warning. Compilation only; no source/native behavior closure claimed.",
+    "frontend-callable-provenance-final-docs": "Documentation structural check passed,549Markdown; does not prove semantic equivalence."
+  },
+  "not_closed": [
+    "source helper/ABI/native",
+    "general nested LoanId lifecycle",
+    "local fault-injection/calibration explicitly not executed",
+    "PR/final/main CI"
+  ],
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-api-contract-red.json.gz",
+      "raw_sha256": "d1d3e08669ec42aa51a4dcd82b2840c6ac4c9f5818831441aa49984147c9c1f1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-api-contract-red.log.gz",
+      "raw_sha256": "75adf21d38e0bc6aa8cf7176d54fb6e6e9934382b7783ff9d147deec95949fa1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-api-corrected-empty-facts-red.json.gz",
+      "raw_sha256": "8da0f936ecbf9c7dba603fdf217f9919c20a8b37449bcaffd8928d6891610566"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-api-corrected-empty-facts-red.log.gz",
+      "raw_sha256": "83c4df96e0cc8f39ee64e1f4082b34307d5ef01604851266d07d1b96ad28c067"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-api-empty-facts-red.json.gz",
+      "raw_sha256": "878a689fa590ae0bca87f6ca2795413b7678a6364cd1900cc39e31089bf2d0f8"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-api-empty-facts-red.log.gz",
+      "raw_sha256": "8f8fe2b44ecc98c32f77e2bfa9904fcaf2c35d4b4a593ea845ffd12d535414db"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-api-final-empty-facts-red.json.gz",
+      "raw_sha256": "997df72cf7f6653b7b539981f31246c31acd8aed405daf3b0eab1ea68bad579b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-api-final-empty-facts-red.log.gz",
+      "raw_sha256": "2c03a5af9d2d0c45868b7c203cbc063526aee0123b688ea3a6952618e80948f0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-fixtures.json.gz",
+      "raw_sha256": "9a1a0ca3f2aea897a0d715adebd30288d481cff346fa5809073f4c24ad25d15f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-fixtures.log.gz",
+      "raw_sha256": "fc584e66a2e0596824df23fc23ad149dad37d991b70a4cb8b2496d2c8cb4f64c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-fixtures-corrected.json.gz",
+      "raw_sha256": "7f11911ec7da4d2d568f29c6b36a11e1765bcf9cdc2b0c0ac019999423fb31fe"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-fixtures-corrected.log.gz",
+      "raw_sha256": "5fa4611af8d2ef14f24db53d51886b5f11474838f49b97b30127231b06c12fa5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-fixtures-final.json.gz",
+      "raw_sha256": "d98f7192be4ca2b957af096480cc032d5192c763619b2a87f7ba2c44abca56ee"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-fixtures-final.log.gz",
+      "raw_sha256": "c1f36f346a6031f9ce324472c35468c1e31f1b70f6091d8c5476e3580a596784"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-fixtures-signature-corrected.json.gz",
+      "raw_sha256": "1f57c15d28bc5d254b47a7bed9bbad2763499d2898132994ea25675b81e5fc56"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-fixtures-signature-corrected.log.gz",
+      "raw_sha256": "6c06f3723bc04a9a033fa8f3a28b3b6c2b8079b16dabb4d7c6124a48bbddb019"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-single-fixture-inspect.json.gz",
+      "raw_sha256": "66d1d79a2c0aba45bb6e6b527227a3b8e63770e3fcf68a646f998e194e8aea38"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-single-fixture-inspect.log.gz",
+      "raw_sha256": "721ef58c8b6740ad217a3c740b2d322d3dbd92d66e2f050fe1b7a849872dd5ee"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frozen-helper-callable-api.txt.gz",
+      "raw_sha256": "d05b1b97ff0a64a1e643339cd27892fc33456a6e7736e366284c8cb7eb3d4b28"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-first-green.json.gz",
+      "raw_sha256": "3974c3c953fd62ba769b5fb8c2dba1eff5e8c5fdf76a7c56d61c2ab38ed0050b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-first-green.log.gz",
+      "raw_sha256": "98528aa8dc02d07f8f357e99f0387c649fc5a0724b93d26ee554b2b39be34507"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-move-order-corrected.json.gz",
+      "raw_sha256": "e25213694bd5b56bbfed7dc2fb536b085ccdb9ca4cdee31c9c71f2a610448b70"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-move-order-corrected.log.gz",
+      "raw_sha256": "9c9c48689a469e5fa4c7cd897758831e551ee1a0576fea8d3c24bd896a161e3e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-ownership-regression.json.gz",
+      "raw_sha256": "64457943fc3a3c7a19ad284e4b36a1fedb5fc4a34f6fce84cd198564cfc7b4c6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-ownership-regression.log.gz",
+      "raw_sha256": "4030757238014e289a51110b704e3d6876a81a3937a3c27c3f6e90108e8e9a6f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-strict-clippy.json.gz",
+      "raw_sha256": "12c7104358566f5719364d373743dc070f74ef2bf74e2e5a63e79a07ebf518f6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-strict-clippy.log.gz",
+      "raw_sha256": "a13905646e2aed93ec6ea9ed6ac91490a4e01f91af0215c3965279a910612149"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-return-statistics-review-red.json.gz",
+      "raw_sha256": "9b2cf955642918123bf7505d651a9f86d75a830d6cad7b04b2e2660930d83d1a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-return-statistics-review-red.log.gz",
+      "raw_sha256": "1aaeed7a49a0ff8e24978ea38cff49d42a5c58663d7c895a64fe641e22c564c0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-return-statistics-cache-isolated-red.json.gz",
+      "raw_sha256": "66d295f7c7c47e2005ecf034858d0ecb6b873c58d8dae912be9a7081842934b9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-return-statistics-cache-isolated-red.log.gz",
+      "raw_sha256": "77b3b65aed0ee9711d5f269d65796e51267e00cf261d0575d4f7d077b6afa9b4"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-nested-return-complete-red.json.gz",
+      "raw_sha256": "d37d24142bf4aecbf9b09b488b65bf5ac5dce8c0d3e39cc5db694b8aa372b9ee"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-nested-return-complete-red.log.gz",
+      "raw_sha256": "de9aa79a1f5f5604c551e7fd71ddfcbb272e110c12e823063400cc0c96f63cdb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-return-statistics-fixed.json.gz",
+      "raw_sha256": "cb28545c37819b1248a91ae0f25dd129e4de84bd0476155de7c32c31336bb48c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-return-statistics-fixed.log.gz",
+      "raw_sha256": "1a83bfff0897a095731f691406be74a5e2185e8dded308b3a5c065b515db8f9e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-contracts.json.gz",
+      "raw_sha256": "86393df70c099b5c0bfd7b869388198c854e85b6cb4296bd390f442cb051edd2"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-contracts.log.gz",
+      "raw_sha256": "d124ea27536ed39d36e8deeaa3dd69454a1b35077d99d65d4e6e0673de183711"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-ownership-regression.json.gz",
+      "raw_sha256": "1dc0362aa9262325b54c2f11070c2e319fa60d3ecd12f21c70d09fbe9c5f520c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-ownership-regression.log.gz",
+      "raw_sha256": "c4a64b2a293bffc369fe4dafa2281577e3bbb031ddeecb4aba759ea052f41413"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-nested-actual-return-red.json.gz",
+      "raw_sha256": "2e61ef7abe33c827aa4e3f4ffc4d44d44647e9f4f6d758e5d789b576922610eb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-nested-actual-return-red.log.gz",
+      "raw_sha256": "2dfc7c0ebee634a52a8a54f89ce4d0edf83df8809d40d1c4a3074bc68eabb8b2"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-nested-actual-return-fixed.json.gz",
+      "raw_sha256": "752f6e1c5e478bbe4e338eeff84b133d41c035299f4d6ec04682fb3166cd318a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-nested-actual-return-fixed.log.gz",
+      "raw_sha256": "8a0a33a0220093a687d424f515650dbb3fb1bc93574cf03e60907ea74d19736c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-reviewed-contracts.json.gz",
+      "raw_sha256": "6b0e0fb5a9d40a3b165d9e6f6fb9a6a51b6bce82a56e03788befc1e830a49bcc"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-reviewed-contracts.log.gz",
+      "raw_sha256": "7a2db36098aad8c0e9c6730eae52de04dcd12e0c848c8bbb51f452809d0e527e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-reviewed-ownership-regression.json.gz",
+      "raw_sha256": "eea1903a058b0e3b4d8b74c3563cc24490573ed1ef055321d4a93f84bf60d1e9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-reviewed-ownership-regression.log.gz",
+      "raw_sha256": "eef7f78d725216e63a3e0451a9424a873d9951c13c319370679843bd437cc6da"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-exclusive-strict-clippy.json.gz",
+      "raw_sha256": "08daa949fe96be7558c16112de96631c17df9b171ae982423fb4f1401af19696"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-exclusive-strict-clippy.log.gz",
+      "raw_sha256": "dceb70eec43ad32496a347f441aeb53fd3b5f98fe795791419b38ddaf0446ffb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-exclusive-strict-clippy-corrected.json.gz",
+      "raw_sha256": "cc60881f01bc16da9099414fad8010bc56cf1ab16bb1fa8316a2b619fe778cb6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-exclusive-strict-clippy-corrected.log.gz",
+      "raw_sha256": "ba777a155ef164e48090cc2b547e64757007406f61109c4fd8e292ec39462435"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-frozen-regression.json.gz",
+      "raw_sha256": "97e3f74c80b3f86621e8c6622a95fb21c8b095296db67b959c637908bce1c90c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-frozen-regression.log.gz",
+      "raw_sha256": "21bcb1c84d431fc2fff8ab369bc282efe2f67be78f932685d243282187a8a784"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-fmt.json.gz",
+      "raw_sha256": "9b1b8e72028cb765fbf84eff7d20a7e379f0938a56e70755ed081e7fa5bdb7dc"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-fmt.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-physical-size.json.gz",
+      "raw_sha256": "35dea310cb0dd81ef91eda14a2245272ddb2bdba8577acf32ae9f9967031173f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-physical-size.log.gz",
+      "raw_sha256": "6b200aa43c6539e0d3343117950d1232015a5b733f867666b1b121c35c8fe531"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-workspace-consumers.json.gz",
+      "raw_sha256": "d099b2179be2aea9778a1011e20ad2bf1a6dd8364a893b7a490ebd587bf527a4"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-workspace-consumers.log.gz",
+      "raw_sha256": "6adbac3cfcef56548f08e5a695923c9b52eb7cceaf9b10aa325dce562ed7f653"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-docs.json.gz",
+      "raw_sha256": "02ec11dd69ec61112deb0175f2d4e08d16519412a5349afacf24a4d29f4c6427"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/callable-provenance/frontend-callable-provenance-final-docs.log.gz",
+      "raw_sha256": "0ba1b8d577cd73801ebceffc621e77f749fbc9d60caa3799fa3023d10b25a9a7"
+    }
+  ],
+  "final_formal_contracts": {
+    "passed": 31,
+    "failed": 0,
+    "ignored": 0,
+    "claim": "unit16+single15; included in374 related tests, not additive"
+  },
+  "related_ownership_regression": {
+    "passed": 374,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "suites": [
+      "multifile_ownership_checking",
+      "ownership_closures",
+      "ownership_containers",
+      "ownership_iteration"
+    ],
+    "counts": [
+      134,
+      39,
+      17,
+      184
+    ]
+  },
+  "cache_isolation": {
+    "current_target": "/private/tmp/koven-spec0279-current-target",
+    "isolated_snapshots_target": "/private/tmp/koven-spec0277-review-target",
+    "claim": "No shared Cargo target between current sources and isolated snapshots; cache-only lint and compilation failures retained without behavior-pass claims."
+  },
+  "review_findings": [
+    "Single general escape traversal falsely counted as return delivery: six valid review fixtures reproduced and fix passed.",
+    "Both adapters hid true Return inside Return.value by depth guard: two valid review fixtures reproduced and actual-return/escaping separation with removal of depth corrected."
+  ],
+  "final_source_sha256": {
+    "crates/lang-frontend/src/ownership_checking/callable_provenance.rs": "406448249309bbc11032b402e214db582c447987b0b28b16240b4c9dfbb26938",
+    "crates/lang-frontend/src/ownership_checking/callable_provenance/graph.rs": "9dcff819d4064e228bcde418546fa4a063b069760529f88400cc989f736f3040",
+    "crates/lang-frontend/src/ownership_checking/checker.rs": "dda02862e20adca6203668d1af3dfaba5f421d38ecbde458115283d9b1a1880d",
+    "crates/lang-frontend/src/ownership_checking/checker/callable_provenance.rs": "29e982fd86d22f188598089a178ea7551941913bb79ca7171a787f7b34a7e403",
+    "crates/lang-frontend/src/ownership_checking/checker/closure.rs": "70b79950b8c94a3180264110db7c21ac66578da43bae6381b5d32c149ccddc60",
+    "crates/lang-frontend/src/ownership_checking/checker/control.rs": "1628170810ec05774d97270084cd58f3bed8639436ad126bea8ef67b758122a2",
+    "crates/lang-frontend/src/ownership_checking/checker/elvis.rs": "2add24ee3ed55f3713cc675b79226ce76bcd68ab72be57a3a87a40e672db59dd",
+    "crates/lang-frontend/src/ownership_checking/checker/iteration.rs": "55cbb949f67d9d32d2d8c9774341ba3195a5380783696a2c59399a7deec9c52c",
+    "crates/lang-frontend/src/ownership_checking/compilation_unit.rs": "31d784fc949c75df0cbcab29ae8cc76ddb00376a45b0a15f6e387bdb74344468",
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": "65f897cda280b8f10ddb95498913f0a838737ea623b0c046469b45910bc0a741",
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/callable_provenance.rs": "26b6b63d40fb96f2b3a6515473a1ee4a79c226435d1ca3704404aff8a84b9a98",
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/closure.rs": "f74e3ada2bbb5f95c0a0cfbbc450d250bd75f309260e75989a54dfa4667f3754",
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/control.rs": "06cee46c5730b6a8e6432594777074b322397557dced261de2bd5de3d7127f9e",
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/flow.rs": "b863074ff08b9d5864b34ec3d58c8f689e2d5188876c904105e3dfeba69ef660",
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/iteration.rs": "43643368e4deeda1cfb9ff48bcab3309f42e32692d8703c90d2150cbd2c184eb",
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/traversal.rs": "df9dac1bb7a6be7c99e71500e2a0960538a63961cf8eac2c944d1a53a317c389",
+    "crates/lang-frontend/src/ownership_checking/mod.rs": "80541c19d6760e4ff7ee76d016fb8e88eb2f9af62836f4f8fdb5a9eb68ccb7e6",
+    "crates/lang-frontend/src/ownership_checking/model.rs": "552e2c7a7f5f0e118793bfbdb1a19d4e3bb5b32e7771b3c4791bc2ad0fd29bd7",
+    "crates/lang-frontend/tests/multifile_ownership_checking.rs": "1e7aa90b423dbc575839d5995e193cc6e7bad2a4e73e8db296595aa2e5669f22",
+    "crates/lang-frontend/tests/multifile_ownership_checking/callable_contract.rs": "1ae45f3845ae59644ebd7e2b4dfaaabcac1bcb091b341dd722289495bd61d18f",
+    "crates/lang-frontend/tests/multifile_ownership_checking/callable_provenance.rs": "65b7f89a2a2c3184b65899735c33a5ea29236fd39bf9a60330442994141cbb91",
+    "crates/lang-frontend/tests/ownership_closures.rs": "61a9cac05586b335aad4f48377cabbb7b3dc73bc6dacd9f2060485a305dd666a",
+    "crates/lang-frontend/tests/ownership_closures/callable_contract.rs": "d0fa1d4be961458178b847930c12bc1a72a34514653e32a8bab64c95f8b0217c",
+    "crates/lang-frontend/tests/ownership_closures/callable_provenance.rs": "9cb05d7b20f60ca1e5e70e98ee980a5ad983882f11d453b545d9fc9fd375e07d"
+  },
+  "final_return_statistics_review_cases": {
+    "passed": 8,
+    "failed": 0,
+    "ignored": 0,
+    "claim": "subset of31formal contracts and374 related tests"
+  },
+  "independent_review": {
+    "reviewer": "/root/implement_0279_borrowed_generator",
+    "result": "full pass and follow-up narrow lint/metadata pass; no unresolved finding",
+    "checked": [
+      "readonly sealed identity and private constructors; no second witness",
+      "entry parameter seeding; Deferred remains unknown; all-body factory filtering",
+      "finite incremental graph and CFG loop edge distinction",
+      "P2/P3 error clearing and original capture/loan/drop contract",
+      "actual Return.value versus general escaping walker; nested actual Return and lambda isolation",
+      "three bounded growth exceptions; unchanged baseline and old owner/split plan",
+      "mechanical let-chain preserves short-circuit order and ReturnFrame body"
+    ],
+    "reviewed_source_sha256": {
+      "crates/lang-frontend/src/ownership_checking/callable_provenance.rs": "406448249309bbc11032b402e214db582c447987b0b28b16240b4c9dfbb26938",
+      "crates/lang-frontend/src/ownership_checking/callable_provenance/graph.rs": "9dcff819d4064e228bcde418546fa4a063b069760529f88400cc989f736f3040",
+      "crates/lang-frontend/src/ownership_checking/checker.rs": "dda02862e20adca6203668d1af3dfaba5f421d38ecbde458115283d9b1a1880d",
+      "crates/lang-frontend/src/ownership_checking/checker/callable_provenance.rs": "29e982fd86d22f188598089a178ea7551941913bb79ca7171a787f7b34a7e403",
+      "crates/lang-frontend/src/ownership_checking/checker/closure.rs": "70b79950b8c94a3180264110db7c21ac66578da43bae6381b5d32c149ccddc60",
+      "crates/lang-frontend/src/ownership_checking/checker/control.rs": "1628170810ec05774d97270084cd58f3bed8639436ad126bea8ef67b758122a2",
+      "crates/lang-frontend/src/ownership_checking/checker/elvis.rs": "2add24ee3ed55f3713cc675b79226ce76bcd68ab72be57a3a87a40e672db59dd",
+      "crates/lang-frontend/src/ownership_checking/checker/iteration.rs": "55cbb949f67d9d32d2d8c9774341ba3195a5380783696a2c59399a7deec9c52c",
+      "crates/lang-frontend/src/ownership_checking/compilation_unit.rs": "31d784fc949c75df0cbcab29ae8cc76ddb00376a45b0a15f6e387bdb74344468",
+      "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": "65f897cda280b8f10ddb95498913f0a838737ea623b0c046469b45910bc0a741",
+      "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/callable_provenance.rs": "26b6b63d40fb96f2b3a6515473a1ee4a79c226435d1ca3704404aff8a84b9a98",
+      "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/closure.rs": "f74e3ada2bbb5f95c0a0cfbbc450d250bd75f309260e75989a54dfa4667f3754",
+      "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/control.rs": "06cee46c5730b6a8e6432594777074b322397557dced261de2bd5de3d7127f9e",
+      "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/flow.rs": "b863074ff08b9d5864b34ec3d58c8f689e2d5188876c904105e3dfeba69ef660",
+      "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/iteration.rs": "43643368e4deeda1cfb9ff48bcab3309f42e32692d8703c90d2150cbd2c184eb",
+      "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/traversal.rs": "df9dac1bb7a6be7c99e71500e2a0960538a63961cf8eac2c944d1a53a317c389",
+      "crates/lang-frontend/src/ownership_checking/mod.rs": "80541c19d6760e4ff7ee76d016fb8e88eb2f9af62836f4f8fdb5a9eb68ccb7e6",
+      "crates/lang-frontend/src/ownership_checking/model.rs": "552e2c7a7f5f0e118793bfbdb1a19d4e3bb5b32e7771b3c4791bc2ad0fd29bd7",
+      "crates/lang-frontend/tests/multifile_ownership_checking.rs": "1e7aa90b423dbc575839d5995e193cc6e7bad2a4e73e8db296595aa2e5669f22",
+      "crates/lang-frontend/tests/multifile_ownership_checking/callable_contract.rs": "1ae45f3845ae59644ebd7e2b4dfaaabcac1bcb091b341dd722289495bd61d18f",
+      "crates/lang-frontend/tests/multifile_ownership_checking/callable_provenance.rs": "65b7f89a2a2c3184b65899735c33a5ea29236fd39bf9a60330442994141cbb91",
+      "crates/lang-frontend/tests/ownership_closures.rs": "61a9cac05586b335aad4f48377cabbb7b3dc73bc6dacd9f2060485a305dd666a",
+      "crates/lang-frontend/tests/ownership_closures/callable_contract.rs": "d0fa1d4be961458178b847930c12bc1a72a34514653e32a8bab64c95f8b0217c",
+      "crates/lang-frontend/tests/ownership_closures/callable_provenance.rs": "9cb05d7b20f60ca1e5e70e98ee980a5ad983882f11d453b545d9fc9fd375e07d"
+    }
+  }
+}

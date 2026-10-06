@@ -47,7 +47,7 @@ impl Checker<'_> {
             prefix.merge(flow);
         }
         let mut fallback = if escaping {
-            self.check_return_expression(right, base, usage)?
+            self.check_escaping_expression(right, base, usage)?
         } else {
             self.check_expression(right, base, usage)?
         };

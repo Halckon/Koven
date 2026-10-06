@@ -130,6 +130,7 @@ impl Checker<'_> {
         for parameter in parameters {
             if let Some(symbol) = self.symbols_by_span.get(&span_key(*parameter)).copied() {
                 body_state.moved.remove(&symbol);
+                self.seed_callable_parameter(symbol, &mut body_state);
             }
         }
         for capture in captures {

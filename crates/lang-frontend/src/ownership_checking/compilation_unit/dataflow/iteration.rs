@@ -130,6 +130,8 @@ impl Checker<'_> {
         let Some(mut next) = prefix.next.take() else {
             return Ok(prefix);
         };
+        next.origins.attach(&self.callable_sources.arena);
+        let headers = next.origins.begin_loop();
         let body_flows = self.check_statement(body, next.clone())?;
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body, &body_flows)?;
@@ -153,12 +155,19 @@ impl Checker<'_> {
                 )?;
             }
         }
+        let origins = next.origins.loop_exit(
+            &headers,
+            body_flows.next.as_ref().map(|state| &state.origins),
+            body_flows.continues.as_ref().map(|state| &state.origins),
+            body_flows.breaks.as_ref().map(|state| &state.origins),
+        );
         for state in [body_flows.next, body_flows.breaks, body_flows.continues]
             .into_iter()
             .flatten()
         {
             merge_state(&mut next, state);
         }
+        next.origins = origins;
         next.loans.retain(|loan| {
             loan.owner != ActiveLoanOwner::IterationSource(statement)
                 && loan.owner != ActiveLoanOwner::IterationElement(statement)

@@ -667,6 +667,7 @@ struct UnitOwnershipProvenance {
 /// SPEC-0198 的 recovery compilation-unit ownership product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
+    pub(super) callable_provenance: super::callable_provenance::UnitCallableFacts,
     iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     iteration_owner_scopes: Vec<(
         UnitStatementId,
@@ -825,6 +826,7 @@ impl CompilationUnitOwnership {
                 && dataflow.deferred.is_empty()
                 && typed.constants().is_some())
             .then_some(dataflow.constant_materializations),
+            callable_provenance: dataflow.callable_provenance,
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
                 analysis_owner: Arc::new(()),

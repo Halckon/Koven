@@ -119,6 +119,8 @@ fn diagnostic_codes(ownership: &CompilationUnitOwnership) -> Vec<String> {
 mod assignment_rollback;
 #[path = "multifile_ownership_checking/call_deliveries.rs"]
 mod call_deliveries;
+#[path = "multifile_ownership_checking/callable_provenance.rs"]
+mod callable_provenance;
 #[path = "multifile_ownership_checking/capture_escape.rs"]
 mod capture_escape;
 #[path = "multifile_ownership_checking/constructions.rs"]
