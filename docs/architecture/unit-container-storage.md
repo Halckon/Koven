@@ -5,8 +5,8 @@
 ## 单文件构造边界
 
 单文件 lowering 支持 `arrayOf<Unit>`、`listOf<Unit>`、`mutableListOf<Unit>` 的列表式构造。
-既有 `EmptyMutableList` 路径的 `MutableList<Unit>()` 也使用同一存储表示；这不扩展到一般
-runtime-length initializer。现行语义与存储决定仍来自 Guide 和 [ADR-0008](../adr/accepted/0008-internal-value-and-allocation-abi.md)。
+既有 `EmptyMutableList` 路径的 `MutableList<Unit>()` 也使用同一存储表示；本页仅描述列表式路径；后继runtime-length initializer的已接入范围见
+[源码ABI](callable-source-abi.md)。现行语义与存储决定仍来自 Guide 和 [ADR-0008](../adr/accepted/0008-internal-value-and-allocation-abi.md)。
 
 `ssa/lower_frontend/container.rs` 先按源码顺序 lower 每个 operand 一次，遇到
 `LoweredValue::Unit` 时核对 resolved frontend element / expression 的内建 Unit identity，

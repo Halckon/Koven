@@ -86,3 +86,11 @@ Map、借用返回、getOrNull、可逃逸迭代器、通用 clone、隐式容�
 后继[SPEC-0276](../archive/specs/0276-unit-generic-body-type-normalization.md)承接普通顶层函数
 body-only具体需求发布及其既有native消费者适配，保持原recursive-template边界。
 该片已按双宿主实现CI验收归档，最终head及actual main交付门禁已闭环，见[交付账本](evidence/generic-body-0276-delivery.json)；两片不代表整个M3A操作集已完成。
+
+
+## 8. 运行时长度构造承接
+
+[SPEC-0279](../archive/specs/0279-runtime-length-container-native.md)承接现行Array/List构造
+的两源码入口、具体callback/helper与普通native路径，按PR57双宿主及用户限定范围验收。
+本片未执行的定向注入/计数、后续交付状态见[0279账本](evidence/runtime-constructor-0279/delivery.json)。
+本材料的增长/删除、新API及其它C01–C08仍未批准或验收，不建立第二张0279完成表。

@@ -1,10 +1,10 @@
 # SPEC-0279: Array/List 运行时长度源码构造到 native
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收运行时长度顺序容器构造时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收运行时长度顺序容器构造时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0279` |
 | 所属 Phase | Phase 2/3 既有合同对齐；Phase 4 SSA/LLVM/native |
 | 语言规范 | 已启用 Guide v0.41；[集合](../../guide/12-collections-destructuring.md)、[closure](../../guide/07-calls-lambdas-closures.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0275、SPEC-0276、SPEC-0278 已 done；0278 final/merge/actual main CI 已闭环 |
 | 前置 ADR | [ADR-0008](../../adr/accepted/0008-internal-value-and-allocation-abi.md)、[ADR-0009](../../adr/accepted/0009-concrete-closure-internal-abi.md)、[ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) accepted |
 | 关联 ADR | 不新增 erased callable、heap environment 或容器 ABI |
-| 阻塞项 | expected move 冲突经用户明确启用 v0.41 已解决；callable 来源 API、来源图及 source/helper ABI 已完成本地验收；远端交付仍待 |
+| 阻塞项 | expected move 冲突经用户明确启用 v0.41 已解决；callable 来源 API、来源图及 source/helper ABI 已完成本地验收；双宿主实现验收通过；最终归档head/merge/main仍待交付 |
 | 影响范围 | lang-frontend lambda expected 合同；lang-codegen callable planning、source lowering、SSA、LLVM 与 native；验收及 Architecture |
 | 语言语义变更 | 用户明确启用 v0.41 的 expected move literal 澄清；其余工程范围不新增语义 |
 
@@ -386,3 +386,26 @@ native_tests旧欠账1300→1303仅真实拒绝夹具的rustfmt展开，baseline
 `emission_failure::Guard`一次；该次注入Backend已记录且已告知用户，不能冒称本轮完全未运行注入。
 后续修正仅运行普通SSA/LLVM/object/link/run。ASan/LSan、资源故障校准、daybreak、
 P2重采样和allocation/free accounting仍未在本地运行。修正提交远端CI及归档仍待。
+
+
+## 6. 精确实现 head 双宿主验收与范围归档（2026-10-06）
+
+实现 head `a7faceaea97f5130a94689d65e0d97a497c653f6` 的[PR57](https://github.com/Halckon/Koven/pull/57)
+[CI37455222241](https://github.com/Halckon/Koven/actions/runs/37455222241) 实际15/15 job成功，无跳过、失败或未决状态。
+双宿主日志逐项核对123个新增/改名codegen、58个frontend及两个公共CLI测试函数，
+重复basename按实际次数分别核对；12个runtime native入口和两个公共CLI入口确实执行。
+Linux完整codegen1040 passed/0 failed/0 ignored/0 filtered；macOS1039 passed/0 failed/
+1项既有LLDB权限ignored/0 filtered，ignored不计通过。既有远端资源生成/校准、
+preview producer/independent consumer实际运行成功；本地继续未运行故障校准。
+
+本片按用户限定范围验收既有语言构造、同步借用、具体helper ABI及正常资源路径；
+E3本片专用overflow/allocation fail注入、E4逐指针allocation/free及本地安全校准只登记未执行，
+不纳入本次完成声明。既有远端校准不替代这些未执行的定向证明。通用不可达helper/Resource/
+静态unsupported storage、任意callable layout join与一般嵌套LoanId生命周期不自动关闭。
+用户范围调整不代表规范降低或完整M3A/M4完成。
+
+[交付账本](../../development/evidence/runtime-constructor-0279/delivery.json)保全actual source
+commit/tree、PR synthetic checkout/parents、逐名命中、完整raw日志及SHA；原本地收据
+继续保存当时head/status，不改写为后续提交。E1–E7批准实现范围与E8独立全审/实现head
+双宿主验收完成，迁移done/archive并同步inventory/DAG。最终归档head CI、合并及actual
+main CI仍是交付门禁，尚未通过；后续只更新live交付账本，不重写本归档时点。

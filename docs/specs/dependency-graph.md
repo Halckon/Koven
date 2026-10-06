@@ -8,16 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 265 份"))
-subgraph Gactive["现行 active"]
-  S0279["S0279<br/>Array/List 运行时长度源码构造到 native"]
-end
-ARCH --> S0279
+ARCH(("已完成<br/>archive 266 份"))
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0279 | active | [0279-runtime-length-container-native.md](active/0279-runtime-length-container-native.md) |
-| 已完成 Spec（265 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（266 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

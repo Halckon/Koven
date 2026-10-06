@@ -58,7 +58,8 @@ field symbol、field index 与 target 后建立 `SharedHeapFieldLoan`；child �
 组合（显式与推断 T，single 同文件、unit 跨文件）已实际 object/link/run；Resource trace
 另各六个用例验证升序 callback、逆序 element drop 与 CallReturn temporary Owned
 environment 清理。两入口各六个正常求值/语言级拒负用例核对 size→factory→callback 顺序；
-公共 CLI 与全部交付闭环仍由 active SPEC-0279 的实际账本逐项记录，不从源码通过外推。
+公共CLI两入口各六组build/artifact/独立run已通过；双宿主实现CI及最终PR/main交付
+见[0279交付账本](../development/evidence/runtime-constructor-0279/delivery.json)，不从源码通过外推。
 
 helper 另各48个普通 native 用例覆盖 `Array<Int>`、`List<Int>`、Int 字段 value class 和
 泛型 `Holder<Int>`，组合两种外容器、三环境及显式/推断 T；核内层长度、实际末元素值、

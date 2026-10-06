@@ -28,6 +28,8 @@ Err 的回归证据。新测试25项、旧消费者及独立审阅见
 7 项定向及32项 borrowed 回归通过并经独立审阅，见
 [共享引用读取收据](../development/evidence/runtime-constructor-0279/shared-reference-follow/receipt.json)。
 
-这里只交付 raw SSA / LLVM 工程切片，源码构造/helper及资源 native 终点尚未验收。
+本页维护 raw SSA / LLVM 工程事实；已接入的源码构造/helper及普通资源native范围见
+[源码ABI](callable-source-abi.md)。调用者在DirectCall/CallableInvoke处按当前capture contents
+建立callee entry Borrow合同，不能靠helper边界绕过失效依赖校验。
 ConcreteClosure RootReplace/RootSwap 保留既有拒绝；一般 BorrowEnd、
 Drop、DirectCall 的 nested LoanId 生命周期仍开放，不能由新 generator 的窄域证明推导为已关闭。
