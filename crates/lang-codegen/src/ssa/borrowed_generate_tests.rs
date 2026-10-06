@@ -1,6 +1,7 @@
 //! Raw SSA contracts for synchronous borrowed container initialization.
 
 mod root_storage_tests;
+mod shared_reference_follow_tests;
 
 use lang_frontend::source::SourceMap;
 

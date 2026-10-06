@@ -252,6 +252,9 @@ impl<'a> Proof<'a> {
             Operation::RootPlace { owner } => Some(value(*owner)),
             Operation::BorrowBegin { place, .. } => Some(content(EntityId::Place(*place))),
             Operation::SharedReborrow { source } => Some(content(EntityId::Loan(*source))),
+            // Following an address cannot recover captured LoanIds from a capture-free slot.
+            // Capturing targets keep the unknown default; capture-free targets keep exact emptiness.
+            Operation::SharedReferenceFollow { .. } => None,
             Operation::RootPlaceTake { place, .. } => Some(content(EntityId::Place(*place))),
             Operation::Read { source } => Some(content(match source {
                 PlaceAccess::Place(place) => EntityId::Place(*place),

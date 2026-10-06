@@ -190,3 +190,10 @@ MissingFact；单文件复用已有 canonical find 核心，unit 参数结构构
 recipe/预算/nested nominal拒绝；原始来源SHA与隔离范围见
 [canonical验收收据](../../development/evidence/runtime-constructor-0279/canonical-callables/receipt.json)。
 helper concrete ABI和source/native仍未完成；E5保持待验收。
+
+共享引用读取切片：SharedReferenceFollow严格将active Shared Loan(SharedReference<T>)映射为
+Shared Loan(T)，LLVM只读取slot pointer。父/祖先、CFG与provider依赖复用既有合同；两个
+内容证明不从引用槽的空capture推断target闭包内容。7项正式有效红测修后通过，32项borrowed
+相关回归通过（包含这7项），0failed/0ignored；独立非作者复核通过，
+[原始收据](../../development/evidence/runtime-constructor-0279/shared-reference-follow/receipt.json)
+保留API编译缺失与两处夹具错误，均不冒充行为红。source/shared/native与一般nested LoanId仍待。

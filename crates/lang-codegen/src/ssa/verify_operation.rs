@@ -315,6 +315,18 @@ pub(super) fn verify_operation(
                 }]
             )
         }
+        Operation::SharedReferenceFollow { source } => {
+            matches!(
+                function.entity(EntityId::Loan(*source)).map(|entity| entity.ty),
+                Some(EntityType::Loan { kind: LoanKind::Shared, target: reference })
+                    if matches!(module.type_kind(reference),
+                        Some(SsaTypeKind::SharedReference { target })
+                            if results == [EntityType::Loan {
+                                kind: LoanKind::Shared,
+                                target: *target,
+                            }])
+            )
+        }
         Operation::Copy { source } => {
             single_value_result(&results) == value_type(function, *source)
         }

@@ -1,0 +1,128 @@
+{
+  "schema": "koven.spec0279.shared-reference-follow.v1",
+  "phase": "Phase 4 raw SSA/LLVM only; independent full review and isolated strict gates passed",
+  "source_content": "Each run retains exact start Rust SHA. Nine production files remained byte-identical since accepted first green. One test nested if was mechanically converted to a let chain after clippy finding; final seven tests reran on those exact current bytes. Isolated snapshot excludes unrelated frontend provenance WIP.",
+  "classification": {
+    "shared-reference-follow-api-contract-red": "missing operation variant plus one match-binding shadow in test fixture; compile failure, not behavior evidence",
+    "shared-reference-follow-corrected-api-contract-red": "four missing operation-variant errors after fixture shadow corrected; API compile red only",
+    "shared-reference-follow-structured-stub-red": "seven test failures; six valid stub contract/LLVM failures plus one CFG fixture InstructionPlacement",
+    "shared-reference-follow-corrected-structured-stub-red": "all seven valid positive controls failed on OperationContract/LLVM InvalidSsa, 0ignored, 953filtered; CFG fixture instruction.block corrected",
+    "shared-reference-follow-first-green": "seven passed, zero failed/ignored, 953filtered; actual capture/index body, LLVM slot pointer load, strict type/lifetime/CFG and both target-content proofs",
+    "shared-reference-follow-isolated-borrowed-regression": "32 passed, zero failed/ignored; includes seven new cases, not 32 additional unique tests",
+    "shared-reference-follow-isolated-strict-clippy": "failed on newly added test collapsible_if; no production logic finding",
+    "shared-reference-follow-isolated-clippy-corrected": "strict codegen all-targets lint actually recompiled and passed after mechanical test let-chain fix",
+    "shared-reference-follow-isolated-fmt": "whole isolated workspace fmt check passed",
+    "shared-reference-follow-isolated-size": "812 Rust files,45 over1000; physical guard passed with four precise growth exceptions and unchanged baselines",
+    "shared-reference-follow-isolated-final-seven": "seven passed again,0failed/0ignored; current production and test bytes checked against runner SHA"
+  },
+  "review": "Independent non-implementer checked operand/result/types, active source/parent/ancestor and CFG lineage, provider inheritance, both target default content proofs versus slot emptiness, LLVM pointer load with no owner copy/retain/alloca, seven intents and all reviewed source SHA against retained actual green runner; no blocking findings. Narrow independent review confirmed four exact size caps and metadata, unchanged baselines, raw hash classifications and Architecture/Spec scope. Test lint byte revision is explicitly separated from original full review.",
+  "not_closed": [
+    "source shared capture bridge",
+    "full helper/native generation",
+    "general nested LoanId lifetime",
+    "PR/final/main CI"
+  ],
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-api-contract-red.json.gz",
+      "raw_sha256": "74ea48c3265032e1608d2522c332b5d554ef9911fa0fc99124d438b042b3ebb5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-api-contract-red.log.gz",
+      "raw_sha256": "c1c9608353a0708654052d79bd59e9d84b98a1d4cacc6507a1c126ac42af243f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-corrected-api-contract-red.json.gz",
+      "raw_sha256": "7d3da3f86ca555d4efb8913bbbe103a603a3810deeca25a6d68d57574402a66f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-corrected-api-contract-red.log.gz",
+      "raw_sha256": "27fe523cc589e258fda5289d997c1c562ccbd2614c4bd1776e185be5002d63a2"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-corrected-structured-stub-red.json.gz",
+      "raw_sha256": "d7927ccd49d2f44f7068812c2e93afb8bee8a3a8f608c0cc0cbabc16ca215bf2"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-corrected-structured-stub-red.log.gz",
+      "raw_sha256": "c9f81cc18ebe2c972cd430fa8815c46e74c0916f5a23562d32317aa83d35e8d5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-first-green.json.gz",
+      "raw_sha256": "7ccd40d07421c7e177f0b4de02c65a05699dba7aa258beba8bd31dad9d16971e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-first-green.log.gz",
+      "raw_sha256": "a17d61b27c0cd6b53db8230bb2d8905803197a724275fd0a210464f1cc4ae1ed"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-borrowed-regression.json.gz",
+      "raw_sha256": "1457522da84013178558c30421f03ed3d83dbd7f4d29bfe3c841f3f6157efe34"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-borrowed-regression.log.gz",
+      "raw_sha256": "21ae4c6be635a7cd0203913d7ef004d0b2703e7a73dd6f72ae6e7b94c32be740"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-structured-stub-red.json.gz",
+      "raw_sha256": "6f17f449e07e7c97ab234f53b9f3f458a7b013a053ee9c3ef9d03762a475ce43"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-structured-stub-red.log.gz",
+      "raw_sha256": "d755035f7c8f18ea2682dc61cf87dddef8dfe6db1290fa1e9927179b94758590"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-strict-clippy.json.gz",
+      "raw_sha256": "616c5ffbd0323740ff4dce16c3fe2983b7ae17e0fa855aa58667e1afdab8598b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-strict-clippy.log.gz",
+      "raw_sha256": "5e529b0e0a368677930423b8f3c301a4ebb9fd103639f3b0f8698651c500d867"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-clippy-corrected.json.gz",
+      "raw_sha256": "2bca0e40fcfa2d0033f8f0a6c7e064ab2f19ab0c78aa15e08f4c7334b58aa7a7"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-clippy-corrected.log.gz",
+      "raw_sha256": "2d16496206a281a98ea419573059b05dcee13d9cc02d5c9dcc372e8b27103557"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-fmt.json.gz",
+      "raw_sha256": "1710ed6bf8396b142048f5be77cafbe016529e5a2ebad4ed43da93bef8dbb7b8"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-fmt.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-size.json.gz",
+      "raw_sha256": "7292fb514c8737595ab9346e2b66f2aed3e3a7aeb7e9f8be501cf05c28624d73"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-size.log.gz",
+      "raw_sha256": "ac31c0bda0203c044e337203570cf345d580842609fe712dc08b0df686f17637"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-final-seven.json.gz",
+      "raw_sha256": "6e42db57cfb4f508dd417b62f0e55331f153c2a3dc119ede480d9dde64412b40"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/shared-reference-follow/shared-reference-follow-isolated-final-seven.log.gz",
+      "raw_sha256": "dd5479aeffd2a07600fbdc744c4eb777db73454e8e8f995b32bc243e6a290f70"
+    }
+  ],
+  "final_review_files_sha256": {
+    "crates/lang-codegen/src/ssa/model.rs": "d3ae015d61c399ceaff27ad3c7990dee64b250146ad3d8c40f82395958ce42ae",
+    "crates/lang-codegen/src/ssa/render.rs": "a4389caed26f56b326a070f3f611a7b5280b5806470e6655e840e5012f835e2a",
+    "crates/lang-codegen/src/ssa/verify_operation.rs": "bd137d1ef8234683c9c94b99f4b6f4fc6baa4b0ee2c5ae44fc61d5ba5241ec28",
+    "crates/lang-codegen/src/ssa/verify_ownership.rs": "2cb500638f61a060d07b243ef34febe7ddec64222c71249a88951f6c5ffb78b5",
+    "crates/lang-codegen/src/ssa/verify_ownership/reborrow.rs": "3311b6f962c9dc939fa8424cf7a8de306927e5fbbb34e00945362dc0d6a666b2",
+    "crates/lang-codegen/src/ssa/verify_ownership/provider_lifetime.rs": "c1d3a63e5500d32f3ab7f5dda4ea6ff84c5bf1d7bfeafbb40fd6ff5e7cc5e0f7",
+    "crates/lang-codegen/src/ssa/verify/closure_escape/proof.rs": "aff0f82f76d8c46e0eebd544c034869b0078f453185fdd6788e889ed9a5d9a10",
+    "crates/lang-codegen/src/ssa/verify/closure_content.rs": "f0bf2ca464d9447dda77cb51921db3c5b52a5367e2597d86052717198e63fe2e",
+    "crates/lang-codegen/src/llvm/adapter.rs": "2c12f9a4c5698fc0358941adc132f04a6ae1366c3c94e221be47fbf2d3fe12d9",
+    "crates/lang-codegen/src/ssa/borrowed_generate_tests.rs": "b6f6b0f14528fe338acf79b0a0cc74931eed04b3d57d798fe2e734e9c4ac9414",
+    "crates/lang-codegen/src/ssa/borrowed_generate_tests/shared_reference_follow_tests.rs": "33e2f7669e04ec7d9bbab6c3b1b066e188343d48f4d91c81b04752918b9e1729"
+  }
+}

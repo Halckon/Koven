@@ -830,7 +830,7 @@ fn apply_operation(
                 ));
             }
         }
-        Operation::SharedReborrow { source } => {
+        Operation::SharedReborrow { source } | Operation::SharedReferenceFollow { source } => {
             if !state.loans.contains(source) {
                 errors.push(error(
                     VerifyErrorKind::LoanInactive { loan: *source },
@@ -1596,7 +1596,8 @@ impl AliasRoots {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Loan(*base));
                     }
-                    Operation::SharedReborrow { source } => {
+                    Operation::SharedReborrow { source }
+                    | Operation::SharedReferenceFollow { source } => {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Loan(*source));
                     }

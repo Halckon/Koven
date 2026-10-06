@@ -97,6 +97,7 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
                     ..
                 }
                 | Operation::SharedReborrow { source: loan }
+                | Operation::SharedReferenceFollow { source: loan }
                 | Operation::SharedFieldLoan { base: loan, .. }
                 | Operation::SharedHeapFieldLoan { base: loan, .. } => {
                     let reference = state.loans.get(&loan).cloned();

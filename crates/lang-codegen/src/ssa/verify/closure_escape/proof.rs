@@ -195,6 +195,8 @@ impl<'a> ValueProof<'a> {
             | Operation::SharedHeapFieldLoan { base: source, .. } => {
                 Some(state[content_index(self.function, EntityId::Loan(*source))])
             }
+            // A reference slot does not prove its target's owned contents. Use the target default.
+            Operation::SharedReferenceFollow { .. } => None,
             Operation::Read { source } => Some(
                 state[content_index(
                     self.function,

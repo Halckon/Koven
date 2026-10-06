@@ -349,6 +349,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 | Operation::SharedFieldLoan { .. }
                 | Operation::SharedHeapFieldLoan { .. }
                 | Operation::SharedReborrow { .. }
+                | Operation::SharedReferenceFollow { .. }
                 | Operation::ContainerElementPlace { .. }
                 | Operation::RootPlace { .. }
                 | Operation::BorrowBegin { .. }
@@ -993,6 +994,21 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 };
                 let pointer = self.access(crate::ssa::model::PlaceAccess::Loan(*source))?;
                 self.loans.insert(*result, pointer);
+            }
+            Operation::SharedReferenceFollow { source } => {
+                let [EntityId::Loan(result)] = instruction.results.as_slice() else {
+                    return Err(invalid_result_count(
+                        "shared reference follow",
+                        1,
+                        instruction.results.len(),
+                    ));
+                };
+                let pointer = self.builder.build_load(
+                    self.context.ptr_type(inkwell::AddressSpace::default()),
+                    self.access(crate::ssa::model::PlaceAccess::Loan(*source))?,
+                    &format!("l{}", result.index()),
+                )?;
+                self.loans.insert(*result, pointer.into_pointer_value());
             }
             Operation::NullableWrap { owner, .. } => {
                 let [result] = results.as_slice() else {

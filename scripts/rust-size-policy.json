@@ -172,32 +172,32 @@
       "review": "SPEC-0279独立完整审阅核对只读find与1513行精确增长；超过1513行或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/model.rs": {
-      "max_lines": 1349,
-      "reason": "SPEC-0279 新增 borrowed generator operation 的数据与 operand 登记；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。",
+      "max_lines": 1355,
+      "reason": "SPEC-0279 新增 borrowed generator operation 的数据与 operand 登记；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow的variant与operand登记仅6行增长。",
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续完整 operation/entity 模型按合同自然边界独立拆分，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0279 独立完整审阅已核有界接线；超过 1349 物理行或增加职责前重新审阅。"
+      "review": "SPEC-0279共享引用切片独立非作者复核严格类型/loan lineage/内容证明/LLVM，并锁定1355行；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/verify_operation.rs": {
-      "max_lines": 1169,
-      "reason": "SPEC-0279 新 operation 的 verifier 分发，算法已位于独立 borrowed_generate 子模块；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。",
+      "max_lines": 1181,
+      "reason": "SPEC-0279 新 operation 的 verifier 分发，算法已位于独立 borrowed_generate 子模块；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow严格类型合同仅12行增长。",
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续按 operation 家族整体迁移分发，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0279 独立完整审阅已核有界接线；超过 1169 物理行或增加职责前重新审阅。"
+      "review": "SPEC-0279共享引用切片独立非作者复核严格类型/loan lineage/内容证明/LLVM，并锁定1181行；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/verify_ownership.rs": {
-      "max_lines": 1681,
-      "reason": "SPEC-0279 新 operation ownership 分发以及传递 module 到捕获证明入口；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。",
+      "max_lines": 1682,
+      "reason": "SPEC-0279 新 operation ownership 分发以及传递 module 到捕获证明入口；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow复用活loan与alias路由，净增1行。",
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续按指令家族与 ownership 状态转移整体迁移，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0279 独立完整审阅已核有界接线；超过 1681 物理行或增加职责前重新审阅。"
+      "review": "SPEC-0279共享引用切片独立非作者复核严格类型/loan lineage/内容证明/LLVM，并锁定1682行；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/llvm/adapter.rs": {
-      "max_lines": 1607,
-      "reason": "SPEC-0279 borrowed generator adapter 分发，准备/调用算法已分离；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。",
+      "max_lines": 1623,
+      "reason": "SPEC-0279 borrowed generator adapter 分发，准备/调用算法已分离；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow仅增加loan-result路由与slot pointer load，16行增长。",
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续按 LLVM 指令家族整体迁移 adapter，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0279 独立完整审阅已核有界接线；超过 1607 物理行或增加职责前重新审阅。"
+      "review": "SPEC-0279共享引用切片独立非作者复核严格类型/loan lineage/内容证明/LLVM，并锁定1623行；超过该值或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/llvm/runtime.rs": {
       "max_lines": 1188,

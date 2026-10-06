@@ -22,6 +22,12 @@ ownership/content/escape 阶段。未引用的非法 container element ID 有真
 Err 的回归证据。新测试25项、旧消费者及独立审阅见
 [切片验收收据](../development/evidence/runtime-constructor-0279/borrowed-generator/receipt.json)。
 
-这里只交付 raw SSA / LLVM 工程切片，源码构造/helper、实际 shared capture body读取及资源
-native 终点尚未验收。ConcreteClosure RootReplace/RootSwap 保留既有拒绝；一般 BorrowEnd、
+`SharedReferenceFollow` 把 active Shared Loan(SharedReference<T>) 转成 Shared Loan(T)，
+读取 slot pointer 后交给既有 Read。父/祖先 loan、CFG 重绑定与 provider lineage 保持有效；
+引用槽无 capture 不等于其 callable target 无 capture，两个内容证明均采用 target 的保守默认。
+7 项定向及32项 borrowed 回归通过并经独立审阅，见
+[共享引用读取收据](../development/evidence/runtime-constructor-0279/shared-reference-follow/receipt.json)。
+
+这里只交付 raw SSA / LLVM 工程切片，源码构造/helper及资源 native 终点尚未验收。
+ConcreteClosure RootReplace/RootSwap 保留既有拒绝；一般 BorrowEnd、
 Drop、DirectCall 的 nested LoanId 生命周期仍开放，不能由新 generator 的窄域证明推导为已关闭。

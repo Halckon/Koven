@@ -529,6 +529,10 @@ pub(crate) enum Operation {
     SharedReborrow {
         source: LoanId,
     },
+    /// Follow a shared reference slot to a shared target view within its parent loan's extent.
+    SharedReferenceFollow {
+        source: LoanId,
+    },
     Copy {
         source: ValueId,
     },
@@ -684,7 +688,9 @@ impl Operation {
             Self::SharedFieldLoan { base, .. } | Self::SharedHeapFieldLoan { base, .. } => {
                 vec![EntityId::Loan(*base)]
             }
-            Self::SharedReborrow { source } => vec![EntityId::Loan(*source)],
+            Self::SharedReborrow { source } | Self::SharedReferenceFollow { source } => {
+                vec![EntityId::Loan(*source)]
+            }
             Self::BooleanNot { operand } | Self::IntegerNot { operand } => {
                 vec![EntityId::Value(*operand)]
             }
