@@ -6,7 +6,10 @@ use lang_frontend::{
     name_resolution::SymbolId,
     parser::ParsedFile,
     source::Span,
-    type_checking::{CallableTarget, TypeId, TypeKind, TypedFile},
+    type_checking::{
+        CallableTarget, FunctionParameterType, IntrinsicTypeConstructor, TypeId, TypeKind,
+        TypedFile,
+    },
 };
 
 use super::{LoweringError, LoweringErrorKind, error};
@@ -209,6 +212,52 @@ pub(super) fn resolve_concrete_type(
             .get(parameter)
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span)),
+        Some(TypeKind::Function {
+            move_only,
+            parameters,
+            return_type,
+        }) => {
+            let parameters = parameters
+                .iter()
+                .map(|parameter| {
+                    Ok(FunctionParameterType {
+                        mode: parameter.mode,
+                        ty: resolve_concrete_type(typed, parameter.ty, substitutions, span)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            let return_type = resolve_concrete_type(typed, *return_type, substitutions, span)?;
+            typed
+                .types()
+                .find(&TypeKind::Function {
+                    move_only: *move_only,
+                    parameters,
+                    return_type,
+                })
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+        }
+        Some(TypeKind::Intrinsic {
+            constructor,
+            arguments,
+        }) if matches!(
+            constructor,
+            IntrinsicTypeConstructor::Array
+                | IntrinsicTypeConstructor::List
+                | IntrinsicTypeConstructor::MutableList
+        ) =>
+        {
+            let arguments = arguments
+                .iter()
+                .map(|argument| resolve_concrete_type(typed, *argument, substitutions, span))
+                .collect::<Result<Vec<_>, _>>()?;
+            typed
+                .types()
+                .find(&TypeKind::Intrinsic {
+                    constructor: *constructor,
+                    arguments,
+                })
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+        }
         Some(kind) if contains_type_parameter(typed, kind) => {
             Err(error(LoweringErrorKind::UnsupportedNode, span))
         }
@@ -266,3 +315,7 @@ mod tests {
         assert!(generic_instance_budget_exhausted(MAX_GENERIC_INSTANCES));
     }
 }
+
+#[cfg(test)]
+#[path = "instances/canonical_callable_tests.rs"]
+mod canonical_callable_tests;

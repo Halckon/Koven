@@ -1,0 +1,116 @@
+{
+  "schema": "koven.spec0279.canonical-callables.v1",
+  "source_head": "9a6de39b86acfa5a8dfcc680eb000b618305a788",
+  "source_scope": "Isolated exact HEAD plus canonical production/tests for red/green/regressions/strict clippy/fmt/size; final four canonical tests also rerun in current worktree. Each runner records exact start Rust SHA, Git status, argv and raw hash. Parallel frontend provenance/reference-follow are outside this commit.",
+  "phase": "Phase 4 readonly canonical lookup; two small frontend query structure APIs",
+  "classification": {
+    "canonical-callable-isolated-red": "4 failed, 0 ignored; first positive shape failed before later shapes could execute",
+    "canonical-callable-isolated-complete-red": "test drafting syntax error introduced while collecting all per-shape results; compile fixture failure, no behavior evidence",
+    "canonical-callable-isolated-corrected-complete-red": "4 failed, 0 ignored; all six valid positive shape cases returned UnsupportedNode, two absent targets expected MissingFact but got UnsupportedNode",
+    "canonical-callable-isolated-first-green": "4 passed, 0 failed, 0 ignored; all six shapes plus two absent target cases, canonical arena unchanged",
+    "canonical-callable-isolated-unit-plan-regression": "57 passed, 0 failed, 0 ignored; includes two new unit canonical tests, not 57 additional unique tests",
+    "canonical-callable-isolated-single-plan-regression": "70 passed, 0 failed, 0 ignored; single plan/lowering direct consumers",
+    "canonical-callable-isolated-strict-clippy": "strict frontend/codegen all-targets clippy passed; incomplete callable provenance frontend excluded from isolated snapshot",
+    "canonical-callable-isolated-fmt": "whole isolated workspace fmt check passed",
+    "canonical-callable-isolated-size": "physical Rust size guard passed on HEAD plus canonical slice and exact1513/1406 exceptions; baseline not raised",
+    "canonical-callable-current-worktree-green": "all four new canonical tests passed again with current parallel frontend/reference-follow production; 0failed/0ignored",
+    "callable-foundation-workspace-check": "whole workspace all-targets check exited0; one private_interfaces warning in pending frontend provenance fields, recorded separately for repair; not strict lint closure for that parallel slice"
+  },
+  "review": "Non-implementer checked exact mode/move ordering, existing canonical find, public query constructors vs sealed type ID/intern/validated product, callers and unchanged recipe/budget/nested nominal boundaries; no blocking findings. Independent narrow review checked exact1513/1406 line counts, both unchanged baselines and all required exception metadata, Architecture/Spec scope; no findings.",
+  "not_closed": [
+    "source helper ABI/callsite/provenance",
+    "body-only demands beyond available canonical types",
+    "full source/native constructor",
+    "PR/final/main CI"
+  ],
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-complete-red.json.gz",
+      "raw_sha256": "f885947bc32ce6ade8fd8753eaf94c7be75b16eab1d2532a7c2d96391a87f3eb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-complete-red.log.gz",
+      "raw_sha256": "d32ed179b020adb3b65ecd75356270a8c588356636f367223a12869663c0e484"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-corrected-complete-red.json.gz",
+      "raw_sha256": "7fa66fcc347968bf5325103a59d3466adce507f9ccb70eef39f2bfb8b4672a72"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-corrected-complete-red.log.gz",
+      "raw_sha256": "23c4a8963ffa4e696c2b3c5149e6738d2d814058c593f278aec464defd0103fa"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-first-green.json.gz",
+      "raw_sha256": "bba7222dc2f7526945ef6635d516e659eb330ee42f2c3799c2c95672c693adfd"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-first-green.log.gz",
+      "raw_sha256": "8a2a1fb91da4a3fbaaef0c9cf93d44d9277dbfced5f42feaf13277576ed8cc68"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-red.json.gz",
+      "raw_sha256": "ff082f41aee617f558b3dc29d134247530904fb05443d3a9f172884ed8a2f497"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-red.log.gz",
+      "raw_sha256": "1d75c5bf3d8449416e9bbcbfc256b4880b19bb24073c35f45d17ebcbd20e4dcf"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-single-plan-regression.json.gz",
+      "raw_sha256": "647d084472dc990fa7e66ee0c097b63ec9342b9d4fcc64823d2db86b8e9158de"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-single-plan-regression.log.gz",
+      "raw_sha256": "b85ba1f5eb3e20134418b48006d2b34a46f2c6978ea8f4ce62f6c5ecfffb0c75"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-unit-plan-regression.json.gz",
+      "raw_sha256": "8ed4917ac9cf401e06c785b7ec66cd9adfa88d3217c4b327d23d57ba59c5efb8"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-unit-plan-regression.log.gz",
+      "raw_sha256": "bdcf4bc7f21baf868827efeb563a1d98e6b39231bec8f14af7e2b0dfd31ed9d6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-strict-clippy.json.gz",
+      "raw_sha256": "dfb0b0b89954313d1b8de2e949361e57122cb5b5612436f76d6f10cb4b5edbb6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-strict-clippy.log.gz",
+      "raw_sha256": "454d782dd4e17975b4e37d8cb8e3a6a3579279a9e56526e3cd526fc0e9b24137"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-fmt.json.gz",
+      "raw_sha256": "88c568b9b9b606432defa9c8afb37eea04d01a0f98a4d2246b9a562288f3670e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-fmt.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-size.json.gz",
+      "raw_sha256": "3acb762880c5dc42e590920bee969a85535de3bea8416c30b07a03c6326d03cb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-isolated-size.log.gz",
+      "raw_sha256": "0d44f676bee5e4e44a844c80fa1c8bdceb77905773d8d41701abc68554eb5762"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-current-worktree-green.json.gz",
+      "raw_sha256": "c106646619d61d8dbe778318739df2b471eb332fff8931d21d542fec5f28357e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/canonical-callable-current-worktree-green.log.gz",
+      "raw_sha256": "d680b4bee2eb26b54907f72020ae9332136c2ad324d1132499586ac4366f2b02"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/callable-foundation-workspace-check.json.gz",
+      "raw_sha256": "6727af320a2ad7955d45a43a801a6b6eb393703960b7b20ca76708399ef316b3"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/canonical-callables/callable-foundation-workspace-check.log.gz",
+      "raw_sha256": "a7dfa2c0d2160f22cd40363223cbfdf897f44fd971b53f9ab938bacb21189f2d"
+    }
+  ]
+}

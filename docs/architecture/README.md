@@ -53,6 +53,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | borrowed closure owned 交付与 known-clean 值证明 | [Closure 逃逸检查](borrowed-closure-escape.md) |
 | 同步 Borrow 容器生成与 callable 当前捕获证明 | [Borrowed generator](borrowed-container-generation.md) |
 | lambda expected 类型与临时 owned capture 清理 | [move literal 前端事实](expected-move-literals.md) |
+| 泛型 helper 的 Function canonical 只读替换 | [Callable 类型替换](canonical-callable-specialization.md) |
 | 整数具名位运算与 inv 的 const / typed / native 链路 | [整数位运算](integer-operations.md) |
 | String clone 的 intrinsic / loan / 独立 owner 全链路 | [String clone](string-clone.md) |
 | Guide 示例当前覆盖与 PR #6 审计更正 | [Guide 验证与更正](guide-conformance.md) |

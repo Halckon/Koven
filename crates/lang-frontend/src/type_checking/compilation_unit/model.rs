@@ -137,7 +137,9 @@ pub struct UnitFunctionParameterType {
 }
 
 impl UnitFunctionParameterType {
-    pub(crate) const fn new(mode: ParameterMode, ty: UnitTypeId) -> Self {
+    /// 组合参数模式与既有类型身份，供 canonical 结构查询使用；不发布类型事实。
+    #[must_use]
+    pub const fn new(mode: ParameterMode, ty: UnitTypeId) -> Self {
         Self { mode, ty }
     }
 

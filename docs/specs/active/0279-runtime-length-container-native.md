@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0275、SPEC-0276、SPEC-0278 已 done；0278 final/merge/actual main CI 已闭环 |
 | 前置 ADR | [ADR-0008](../../adr/accepted/0008-internal-value-and-allocation-abi.md)、[ADR-0009](../../adr/accepted/0009-concrete-closure-internal-abi.md)、[ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) accepted |
 | 关联 ADR | 不新增 erased callable、heap environment 或容器 ABI |
-| 阻塞项 | expected move 冲突经用户明确启用 v0.41 已解决；具体 helper API 复核中，复核前不修改对应 planner/bridge |
+| 阻塞项 | expected move 冲突经用户明确启用 v0.41 已解决；callable 来源 API 已冻结并有实际空表失败测试；来源图和 source/helper ABI 仍在实施 |
 | 影响范围 | lang-frontend lambda expected 合同；lang-codegen callable planning、source lowering、SSA、LLVM 与 native；验收及 Architecture |
 | 语言语义变更 | 用户明确启用 v0.41 的 expected move literal 澄清；其余工程范围不新增语义 |
 
@@ -45,7 +45,8 @@ unit planner 当前拒绝 lambda 内 resource demand，必须消费实际 concre
 
 不新增 MutableList 增长/删除、Map、动态分发、erased callable、跨线程或借用返回语义。
 不支持不同 callable layouts 的任意 runtime join；精确拒绝缺少 provenance 的边界。
-不启动 daybreak、P2 重采样或本地真实故障校准；主干既有远端 CI 按用户确认允许。
+不启动 daybreak、P2 重采样、本地安全验证或故障注入/校准；这类验证仅记录未执行，
+主干既有远端 CI 按用户确认允许。
 嵌套 capture LoanId 全局生命周期不因本片自动关闭；仅实际新失败测试证明必要时做最小修复。
 
 ## 3. 冻结的实现合同
@@ -79,8 +80,8 @@ generation 内”当作 source 顺序证明。raw generation 仍受既有非负/
 受检 bytes 与 buffer allocation 在 initializer expression 后、任何 callback 调用前发生。
 零长度仍求 initializer expression 一次、调用零次；正常按索引升序各一次、元素直接进槽。
 受检 bytes overflow 与 allocation fail 均必须不调用 callback，且保留已经发生的 initializer
-expression 副作用；沿新 borrowed 路径测试受检边界及确定性 test-only 分配失败。
-这属于构造错误路径行为测试，不运行 SPEC0269 的本地真实故障校准/变异/缩减设施。
+expression 副作用。按照用户最新范围，本地不执行确定性 test-only 分配失败及其他
+故障注入验证；这些验收登记为未执行，不能用正常路径或远端既有 CI 代替。
 Abort 不展开清理；正常逆索引 drop 元素，最后释放 buffer。
 
 LLVM 复用 checked allocation/loop，并把 callable function/environment 的准备与 Borrow Int
@@ -130,7 +131,8 @@ constructor CallReturn 只结束参数 loan。临时 owned environment 按 captu
 helper identity 与 canonical body demands→资源/public native 矩阵→全审及必要共享消费者→远端交付。
 独立作者仅在 API 一致且文件所有权明确时并行；root 串行运行本地 Cargo，不争用 target。
 每项记录命令、精确 head、宿主及 passed/failed/ignored/filtered；未跑不得记为通过。
-本地定向行为验证不运行真实故障校准；远端既有校准成功也不替代本片 intent tests。
+本地只执行普通编译器行为验证；安全验证、故障注入及校准仅登记未执行。
+远端既有校准成功也不替代本片 intent tests；E3 的相关未执行项必须保留到交付账本。
 
 ## 5. 交付账本
 
@@ -180,3 +182,11 @@ ConcreteClosure RootReplace/RootSwap 的 OperationContract 拒绝是旧边界，
 [borrowed generator 收据](../../development/evidence/runtime-constructor-0279/borrowed-generator/receipt.json)。
 这是 E6 的工程子集；两 source/helper/factory 成功目标仍实际 UnsupportedNode，
 E2/E3/E4/E5/E7/E8 尚未关闭，不据此归档本 Spec。
+
+只读 canonical 切片：两入口 Function 参数及返回类型替换保留 move/mode，缺失目标为
+MissingFact；单文件复用已有 canonical find 核心，unit 参数结构构造仅供查询，不产生类型。
+4项直接测试涵盖6个正形与2个缺事实对照，实际先失败后通过；unit plan57、single lowering70
+相关回归实际通过，0failed/0ignored。独立未参与作者复核了类型身份、validated边界及旧
+recipe/预算/nested nominal拒绝；原始来源SHA与隔离范围见
+[canonical验收收据](../../development/evidence/runtime-constructor-0279/canonical-callables/receipt.json)。
+helper concrete ABI和source/native仍未完成；E5保持待验收。
