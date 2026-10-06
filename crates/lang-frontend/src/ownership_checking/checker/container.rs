@@ -213,4 +213,22 @@ pub(super) fn populate_container_call_contracts(
             .entry(remove_last.expression().index())
             .or_default();
     }
+    for remove_first in typed.container_remove_firsts() {
+        receivers_by_expression.insert(
+            remove_first.expression().index(),
+            crate::type_checking::CallReceiverDescriptor {
+                origin: crate::type_checking::CallReceiverOrigin::Expression(
+                    remove_first.receiver(),
+                ),
+                mode: crate::type_checking::ParameterMode::Inout,
+                category: typed
+                    .expression_category(remove_first.receiver())
+                    .unwrap_or(crate::type_checking::ExpressionCategory::Place),
+                ty: remove_first.container_type(),
+            },
+        );
+        calls_by_expression
+            .entry(remove_first.expression().index())
+            .or_default();
+    }
 }

@@ -792,3 +792,48 @@ fn mutable_list_remove_last_rejects_use_after_move() {
     );
     assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
+
+#[test]
+fn mutable_list_remove_first_valid_ownership_succeeds() {
+    let (_, _, owned) = checked(
+        "class Resource { deinit() {} }\n\
+         fun consume(own r: Resource): Unit {}\n\
+         fun remove_head(): Unit {\n\
+             var list = mutableListOf(Resource(), Resource())\n\
+             val item = list.removeFirst()\n\
+             consume(item)\n\
+         }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+}
+
+#[test]
+fn mutable_list_remove_first_conflicts_with_active_element_borrow() {
+    let (_, _, owned) = checked(
+        "fun conflict(inout item: Int, action: Int): Unit {}\n\
+         fun remove_head(): Unit {\n\
+             var list = mutableListOf(1, 2)\n\
+             conflict(&list[0], list.removeFirst())\n\
+         }",
+    );
+    assert_eq!(
+        owned
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0135"]
+    );
+}
+
+#[test]
+fn mutable_list_remove_first_rejects_use_after_move() {
+    let (_, _, owned) = checked(
+        "fun consume(own l: MutableList<Int>): Unit {}\n\
+         fun remove_head(own list: MutableList<Int>): Unit {\n\
+             consume(list)\n\
+             val item = list.removeFirst()\n\
+         }",
+    );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+}
