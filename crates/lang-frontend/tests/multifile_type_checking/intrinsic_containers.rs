@@ -442,3 +442,31 @@ fn poisoned_intrinsic_container_element_places_defer_without_place_facts() {
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     assert!(typed.validate().is_ok());
 }
+
+#[test]
+fn mutable_list_add_member_is_typed_in_compilation_unit() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-append.ko",
+        "fun append(own list: MutableList<Int>): Unit { list.add(42) }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-append.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("MutableList.add is valid");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_appends().len(), 1);
+    let append = typed.container_appends()[0];
+    assert_eq!(
+        typed.types().get(append.result_type()),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+    );
+    assert!(typed.validate().is_ok());
+}

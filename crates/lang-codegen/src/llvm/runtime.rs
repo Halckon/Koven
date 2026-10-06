@@ -167,6 +167,10 @@ impl<'ctx> RuntimeAbi<'ctx> {
         Ok(runtime)
     }
 
+    pub(super) fn free(&self) -> Option<FunctionValue<'ctx>> {
+        self.free
+    }
+
     pub(super) fn allocate(
         &self,
         builder: &Builder<'ctx>,
@@ -1044,6 +1048,26 @@ impl RuntimeRequirements {
                     Operation::ContainerElementPlace { .. } => {
                         requirements.needs_abort = true;
                     }
+                    Operation::ContainerAppend { owner, .. } => {
+                        requirements.needs_allocation = true;
+                        requirements.needs_free = true;
+                        requirements.needs_abort = true;
+                        let container =
+                            match function.entity(EntityId::Value(owner)).map(|data| data.ty) {
+                                Some(EntityType::Value(ty)) => ty,
+                                _ => {
+                                    return Err(LlvmAdapterError::InvalidSsa(
+                                        "append owner 缺少 value type".to_owned(),
+                                    ));
+                                }
+                            };
+                        requirements.container_allocations.insert(container);
+                        let (_, element) =
+                            module.sequential_container(container).ok_or_else(|| {
+                                LlvmAdapterError::InvalidSsa("append owner 不是顺序容器".to_owned())
+                            })?;
+                        requirements.collect_drop_type(module, element)?;
+                    }
                     Operation::ContainerReplace { owner, .. } => {
                         requirements.needs_abort = true;
                         let container =
@@ -1051,14 +1075,14 @@ impl RuntimeRequirements {
                                 Some(EntityType::Value(ty)) => ty,
                                 _ => {
                                     return Err(LlvmAdapterError::InvalidSsa(
-                                        "container replace owner 缺少 value type".to_owned(),
+                                        "replace owner 缺少 value type".to_owned(),
                                     ));
                                 }
                             };
                         let (_, element) =
                             module.sequential_container(container).ok_or_else(|| {
                                 LlvmAdapterError::InvalidSsa(
-                                    "container replace owner 类型不是顺序容器".to_owned(),
+                                    "replace owner 不是顺序容器".to_owned(),
                                 )
                             })?;
                         requirements.collect_drop_type(module, element)?;
@@ -1139,16 +1163,13 @@ impl RuntimeRequirements {
                 self.needs_free = true;
                 self.collect_drop_type(module, *element)?;
             }
-            Some(SsaTypeKind::StringOwner) => {
-                self.needs_free = true;
-            }
+            Some(SsaTypeKind::StringOwner) => self.needs_free = true,
             Some(SsaTypeKind::Opaque { .. }) => {
                 return Err(LlvmAdapterError::Unsupported(
                     "opaque MoveOnly 类型没有可生成的 drop glue".to_owned(),
                 ));
             }
-            Some(SsaTypeKind::ZeroSized { .. }) => {}
-            Some(SsaTypeKind::FunctionPointer { .. }) => {}
+            Some(SsaTypeKind::ZeroSized { .. } | SsaTypeKind::FunctionPointer { .. }) => {}
             Some(SsaTypeKind::ConcreteClosure { captures, .. }) => {
                 for capture in captures {
                     if capture.mode == ClosureCaptureMode::Owned {

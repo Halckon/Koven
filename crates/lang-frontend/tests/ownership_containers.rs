@@ -617,3 +617,50 @@ fn container_size_in_assignment_rhs_keeps_old_owner_until_rhs_completes() {
         "a synchronous header read must not commit replacement cleanup"
     );
 }
+
+#[test]
+fn mutable_list_add_valid_ownership_succeeds() {
+    let (_, _, owned) =
+        checked("fun append(): Unit { var list = mutableListOf(1); list.add(2); list.add(3) }");
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+}
+
+#[test]
+fn mutable_list_add_conflicts_with_active_element_borrow() {
+    let (_, _, owned) = checked(
+        "fun conflict(inout item: Int, action: Unit): Unit {}\n\
+         fun append(): Unit {\n\
+             var list = mutableListOf(1)\n\
+             conflict(&list[0], list.add(2))\n\
+         }",
+    );
+    assert_eq!(
+        owned
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0135"]
+    );
+}
+
+#[test]
+fn mutable_list_add_transfers_move_only_elements() {
+    let (_, _, owned) = checked(
+        "class Resource { deinit() {} }\n\
+         fun consume(own r: Resource): Unit {}\n\
+         fun append(own r: Resource): Unit {\n\
+             var list = mutableListOf<Resource>()\n\
+             list.add(r)\n\
+             consume(r)\n\
+         }",
+    );
+    assert_eq!(
+        owned
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0131"]
+    );
+}

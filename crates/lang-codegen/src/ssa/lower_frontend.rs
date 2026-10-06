@@ -151,14 +151,8 @@ impl ExpressionLowerer<'_> {
         if let Some(value) = self.lower_nullable_extraction(expression)? {
             return Ok(LoweredValue::Value(value));
         }
-        if self.typed.container_size(expression).is_some() {
-            return self.lower_container_size(expression);
-        }
-        if self.typed.element_place(expression).is_some() {
-            return self.lower_container_index(expression);
-        }
-        if self.typed.container_construction(expression).is_some() {
-            return self.lower_container_construction(expression);
+        if let Some(value) = self.lower_container_expression(expression)? {
+            return Ok(value);
         }
         if self.typed.construction(expression).is_some() {
             return self.lower_construction(expression);

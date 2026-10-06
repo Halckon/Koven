@@ -184,7 +184,7 @@ impl<'a> Checker<'a> {
                 (call.expression().index(), effects)
             })
             .collect();
-        let receivers_by_expression = typed
+        let mut receivers_by_expression = typed
             .calls()
             .iter()
             .filter_map(|call| {
@@ -192,11 +192,11 @@ impl<'a> Checker<'a> {
                     .map(|receiver| (call.expression().index(), receiver))
             })
             .collect();
-        for construction in typed.container_constructions() {
-            calls_by_expression
-                .entry(construction.expression().index())
-                .or_insert_with(|| construction.parameter_modes().to_vec());
-        }
+        container::populate_container_call_contracts(
+            typed,
+            &mut receivers_by_expression,
+            &mut calls_by_expression,
+        );
         let capture::Analysis {
             captures,
             closures,

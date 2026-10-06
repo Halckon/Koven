@@ -644,6 +644,12 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*index))
         }
+        Operation::ContainerAppend { owner, element } => {
+            output.write_str("container.append ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*element))
+        }
         Operation::ContainerReplace {
             owner,
             index,

@@ -260,6 +260,9 @@ pub(super) fn verify_operation(
         Operation::ContainerElementPlace { owner, index } => {
             container_element_place_contract(module, function, *owner, *index, &results)
         }
+        Operation::ContainerAppend { owner, element } => {
+            container_append_contract(module, function, *owner, *element, &results)
+        }
         Operation::ContainerReplace {
             owner,
             index,
@@ -798,6 +801,23 @@ fn container_element_place_contract(
     };
     value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
         && results == [EntityType::Place(element)]
+}
+
+fn container_append_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    element: ValueId,
+    results: &[EntityType],
+) -> bool {
+    let Some((kind, elem_ty)) =
+        value_type(function, owner).and_then(|container| module.sequential_container(container))
+    else {
+        return false;
+    };
+    kind == super::model::SequentialContainerKind::MutableList
+        && value_type(function, element) == Some(elem_ty)
+        && single_value_result(results) == value_type(function, owner)
 }
 
 fn container_replace_contract(

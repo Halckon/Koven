@@ -44,7 +44,13 @@ impl Checker<'_> {
         };
         let callee_node = self.ast().expressions().get(callee)?;
         if !matches!(callee_node.payload(), Expression::Name) {
-            return Ok(None);
+            return self.check_container_append_call(
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+            );
         }
         let callee_span = callee_node.span();
         let intrinsic_callable = match self.reference(callee_span, Namespace::Value).cloned() {
@@ -516,6 +522,22 @@ impl Checker<'_> {
             )?;
             return Ok(Some(self.error_type()));
         }
+        if name == "add" {
+            if container == SequentialContainerKind::MutableList {
+                self.emit(
+                    self.invalid_container_member_code,
+                    "MutableList.add must be called as a method",
+                    name_span,
+                )?;
+            } else {
+                self.emit(
+                    self.invalid_container_member_code,
+                    "sequential container does not support 'add'",
+                    name_span,
+                )?;
+            }
+            return Ok(Some(self.error_type()));
+        }
         Ok(None)
     }
 
@@ -593,5 +615,108 @@ impl Checker<'_> {
             SequentialContainerKind::List => IntrinsicTypeConstructor::List,
             SequentialContainerKind::MutableList => IntrinsicTypeConstructor::MutableList,
         }
+    }
+
+    pub(super) fn check_container_append_call(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        let callee_node = self.ast().expressions().get(callee)?;
+        let Expression::Member {
+            receiver,
+            name_span,
+            safe,
+            ..
+        } = callee_node.payload().clone()
+        else {
+            return Ok(None);
+        };
+        if safe || self.sources.slice(name_span)? != "add" {
+            return Ok(None);
+        }
+        let receiver_result = self.check_expression(receiver, None, None)?;
+        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
+            return Ok(None);
+        };
+        if container != SequentialContainerKind::MutableList {
+            self.emit(
+                self.invalid_container_member_code,
+                "sequential container does not support 'add'",
+                name_span,
+            )?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        if !type_arguments.is_empty() {
+            self.emit(
+                self.type_argument_arity_code,
+                "MutableList.add accepts no type arguments",
+                name_span,
+            )?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        let parameters = [MappedParameter {
+            name: None,
+            mode: ParameterMode::Value,
+            ty: element_type,
+            span: None,
+        }];
+        let mapping = self.map_arguments(&parameters, arguments, call_span)?;
+        if let Err(error) = mapping {
+            self.emit_mapping_error(error)?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        let element_arg = &arguments[0];
+        let element_result = self.check_expression(element_arg.value, Some(element_type), None)?;
+        if !self.is_error(element_result.ty)
+            && !self.is_deferred(element_result.ty)
+            && !self.assignable(element_result.ty, element_type)
+        {
+            self.mismatch(
+                self.ast().expressions().get(element_arg.value)?.span(),
+                None,
+                element_result.ty,
+                element_type,
+            )?;
+        }
+        let unit_type = self.builtin(BuiltinType::Unit);
+        let function = self.types.intern(TypeKind::Function {
+            move_only: false,
+            parameters: vec![FunctionParameterType {
+                mode: ParameterMode::Value,
+                ty: element_type,
+            }],
+            return_type: unit_type,
+        });
+        self.set_expression(callee, function);
+        self.set_expression_category(callee, ExpressionCategory::Temporary);
+        self.container_appends.push(ContainerAppendDescriptor::new(
+            expression,
+            receiver,
+            element_arg.value,
+            receiver_result.ty,
+            element_type,
+            unit_type,
+            call_span,
+        ));
+        Ok(Some(ExprCheck {
+            ty: unit_type,
+            falls_through: receiver_result.falls_through && element_result.falls_through,
+        }))
     }
 }

@@ -739,14 +739,8 @@ impl UnitExpressionLowerer<'_> {
         if self.typed.rc_operation(unit_expression).is_some() {
             return self.lower_rc_operation(expression, span);
         }
-        if self.typed.container_construction(unit_expression).is_some() {
-            return self.lower_container_construction(expression, span);
-        }
-        if self.typed.container_size(unit_expression).is_some() {
-            return self.lower_container_size(expression, span);
-        }
-        if self.typed.element_place(unit_expression).is_some() {
-            return self.lower_container_index(expression, span);
+        if let Some(value) = self.lower_container_expression(expression, span)? {
+            return Ok(value);
         }
         if self.typed.aggregate_projection(unit_expression).is_some() {
             return self.lower_aggregate_projection(expression, span);

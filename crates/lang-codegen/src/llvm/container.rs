@@ -212,6 +212,181 @@ pub(super) fn replace<'ctx>(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn append<'ctx>(
+    llvm: &LlvmModule<'ctx>,
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    types: &TypeMap<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    container: SsaTypeId,
+    owner: StructValue<'ctx>,
+    element: BasicValueEnum<'ctx>,
+    name: &str,
+) -> Result<StructValue<'ctx>, LlvmAdapterError> {
+    let layout = types.container_layout(container)?;
+    let buffer = builder
+        .build_extract_value(owner, 0, &format!("{name}.old_buffer"))?
+        .into_pointer_value();
+    let old_length = builder
+        .build_extract_value(owner, 1, &format!("{name}.old_length"))?
+        .into_int_value();
+    let old_capacity = builder
+        .build_extract_value(owner, 2, &format!("{name}.old_capacity"))?
+        .into_int_value();
+
+    let size_type = runtime.size_type();
+    let need_grow = builder.build_int_compare(
+        inkwell::IntPredicate::EQ,
+        old_length,
+        old_capacity,
+        &format!("{name}.need_grow"),
+    )?;
+
+    let context = llvm.get_context();
+    let grow_block = context.append_basic_block(function, &format!("{name}.grow"));
+    let no_grow_block = context.append_basic_block(function, &format!("{name}.no_grow"));
+    let write_block = context.append_basic_block(function, &format!("{name}.write"));
+
+    builder.build_conditional_branch(need_grow, grow_block, no_grow_block)?;
+
+    builder.position_at_end(grow_block);
+    let zero = size_type.const_zero();
+    let is_zero_cap = builder.build_int_compare(
+        inkwell::IntPredicate::EQ,
+        old_capacity,
+        zero,
+        &format!("{name}.is_zero_cap"),
+    )?;
+    let four = size_type.const_int(4, false);
+    let double_cap = builder.build_int_mul(
+        old_capacity,
+        size_type.const_int(2, false),
+        &format!("{name}.double_cap"),
+    )?;
+    let new_capacity = builder
+        .build_select(
+            is_zero_cap,
+            four,
+            double_cap,
+            &format!("{name}.new_capacity"),
+        )?
+        .into_int_value();
+
+    let new_buffer = runtime.allocate_buffer(
+        llvm,
+        builder,
+        function,
+        new_capacity,
+        layout.stride,
+        &format!("{name}.new_buffer"),
+    )?;
+
+    if layout.stride != 0 {
+        let has_elements = builder.build_int_compare(
+            inkwell::IntPredicate::UGT,
+            old_length,
+            zero,
+            &format!("{name}.has_elements"),
+        )?;
+        let copy_block = context.append_basic_block(function, &format!("{name}.copy"));
+        let free_block = context.append_basic_block(function, &format!("{name}.free_check"));
+        builder.build_conditional_branch(has_elements, copy_block, free_block)?;
+
+        builder.position_at_end(copy_block);
+        let copy_bytes = builder.build_int_mul(
+            old_length,
+            size_type.const_int(layout.stride, false),
+            &format!("{name}.copy_bytes"),
+        )?;
+        builder.build_memcpy(new_buffer, 1, buffer, 1, copy_bytes)?;
+        builder.build_unconditional_branch(free_block)?;
+
+        builder.position_at_end(free_block);
+        let has_old_alloc = builder.build_int_compare(
+            inkwell::IntPredicate::UGT,
+            old_capacity,
+            zero,
+            &format!("{name}.has_old_alloc"),
+        )?;
+        let do_free_block = context.append_basic_block(function, &format!("{name}.do_free"));
+        let after_grow_block = context.append_basic_block(function, &format!("{name}.after_grow"));
+        builder.build_conditional_branch(has_old_alloc, do_free_block, after_grow_block)?;
+
+        builder.position_at_end(do_free_block);
+        if let Some(free_fn) = runtime.free() {
+            builder.build_call(
+                free_fn,
+                &[inkwell::values::BasicMetadataValueEnum::from(buffer)],
+                "",
+            )?;
+        }
+        builder.build_unconditional_branch(after_grow_block)?;
+
+        builder.position_at_end(after_grow_block);
+        builder.build_unconditional_branch(write_block)?;
+    } else {
+        builder.build_unconditional_branch(write_block)?;
+    }
+    let grow_final_block = builder.get_insert_block().unwrap();
+
+    builder.position_at_end(no_grow_block);
+    builder.build_unconditional_branch(write_block)?;
+
+    builder.position_at_end(write_block);
+    let active_buffer_phi = builder.build_phi(
+        context.ptr_type(inkwell::AddressSpace::default()),
+        &format!("{name}.active_buffer"),
+    )?;
+    active_buffer_phi.add_incoming(&[(&new_buffer, grow_final_block), (&buffer, no_grow_block)]);
+    let active_buffer = active_buffer_phi.as_basic_value().into_pointer_value();
+
+    let active_capacity_phi = builder.build_phi(size_type, &format!("{name}.active_capacity"))?;
+    active_capacity_phi.add_incoming(&[
+        (&new_capacity, grow_final_block),
+        (&old_capacity, no_grow_block),
+    ]);
+    let active_capacity = active_capacity_phi.as_basic_value().into_int_value();
+
+    if layout.stride != 0 {
+        let slot = unsafe {
+            builder.build_gep(
+                layout.element,
+                active_buffer,
+                &[old_length],
+                &format!("{name}.append_slot"),
+            )?
+        };
+        builder.build_store(slot, element)?;
+    }
+
+    let one = size_type.const_int(1, false);
+    let new_length = builder.build_int_add(old_length, one, &format!("{name}.new_length"))?;
+
+    let header_type = layout.header;
+    let with_buffer = builder
+        .build_insert_value(
+            header_type.const_zero(),
+            active_buffer,
+            0,
+            &format!("{name}.with_buffer"),
+        )?
+        .into_struct_value();
+    let with_length = builder
+        .build_insert_value(with_buffer, new_length, 1, &format!("{name}.with_length"))?
+        .into_struct_value();
+    let with_capacity = builder
+        .build_insert_value(
+            with_length,
+            active_capacity,
+            2,
+            &format!("{name}.with_capacity"),
+        )?
+        .into_struct_value();
+
+    Ok(with_capacity)
+}
+
 pub(super) fn build_header<'ctx>(
     builder: &Builder<'ctx>,
     header: inkwell::types::StructType<'ctx>,

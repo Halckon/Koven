@@ -353,3 +353,46 @@ fn container_size_publishes_receiver_identity_type_and_span() {
         SequentialContainerKind::MutableList
     );
 }
+
+#[test]
+fn mutable_list_add_member_is_typed() {
+    let text = "fun append(own list: MutableList<Int>): Unit { list.add(42) }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_appends().len(), 1);
+    let append = typed.container_appends()[0];
+    assert_eq!(
+        typed.types().get(append.result_type()),
+        Some(&lang_frontend::type_checking::TypeKind::Builtin(
+            lang_frontend::type_checking::BuiltinType::Unit
+        ))
+    );
+}
+
+#[test]
+fn container_add_rejects_array_and_list() {
+    let text = "fun bad(array: Array<Int>, list: List<Int>): Unit {\n\
+                    array.add(1)\n\
+                    list.add(2)\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+}
+
+#[test]
+fn container_add_rejects_property_access() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    val f = list.add\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+}
+
+#[test]
+fn container_add_rejects_mismatched_element_type() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    list.add(\"hello\")\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+}

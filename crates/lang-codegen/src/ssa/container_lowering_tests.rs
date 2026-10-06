@@ -267,3 +267,33 @@ fn runtime_length_container_helper_borrows_selected_pointer_initializer() {
     );
     crate::llvm::render_verified_program(&program).expect("incoming pointer ABI verifies in LLVM");
 }
+
+#[test]
+fn mutable_list_add_single_file_lowers_to_container_append() {
+    let text = "fun run(): Unit {\n\
+                var list = mutableListOf(1)\n\
+                list.add(2)\n\
+                list.add(3)\n\
+                }";
+    let analysis = analyze(text);
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("lowering succeeds");
+    let function = &program.modules[0].functions[0];
+    let appends = function
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::ContainerAppend { .. }))
+        .count();
+    assert_eq!(appends, 2);
+    crate::llvm::render_verified_program(&program).expect("program lowers to LLVM without error");
+}

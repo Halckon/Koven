@@ -914,6 +914,24 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                         .insert(result, layout.element.const_zero());
                 }
             }
+            Operation::ContainerAppend { owner, element } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("container append", 1, results.len()));
+                };
+                let container_type = value_type(self.function, *owner)?;
+                let new_owner = container::append(
+                    self.llvm,
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    container_type,
+                    self.struct_value(*owner)?,
+                    self.value(*element)?,
+                    &format!("append.i{}", instruction.id.index()),
+                )?;
+                self.values.insert(*result, new_owner.into());
+            }
             Operation::ContainerReplace {
                 owner,
                 index,
@@ -1597,7 +1615,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         match self.value(id)? {
             BasicValueEnum::IntValue(value) => Ok(value),
             _ => Err(LlvmAdapterError::InvalidSsa(
-                "integer operation 的 operand 不是 LLVM integer".to_owned(),
+                "operand 不是 LLVM integer".to_owned(),
             )),
         }
     }
@@ -1606,7 +1624,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         match self.value(id)? {
             BasicValueEnum::StructValue(value) => Ok(value),
             _ => Err(LlvmAdapterError::InvalidSsa(
-                "aggregate operation 的 operand 不是 LLVM struct".to_owned(),
+                "operand 不是 LLVM struct".to_owned(),
             )),
         }
     }

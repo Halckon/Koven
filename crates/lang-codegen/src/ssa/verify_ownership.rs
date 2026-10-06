@@ -809,6 +809,48 @@ fn apply_operation(
                 EntityId::Place(_) => unreachable!("operation contract rejects a place owner"),
             }
         }
+        Operation::ContainerAppend { owner, element } => {
+            if require_value(
+                module,
+                function,
+                *owner,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            ) && has_any_value_loan(*owner, aliases, state)
+            {
+                errors.push(error(
+                    VerifyErrorKind::OwnerLoanConflict { value: *owner },
+                    location.clone(),
+                    origin,
+                ));
+            }
+            consume_value(
+                module,
+                function,
+                *owner,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location.clone(),
+                origin,
+                errors,
+            );
+            consume_value(
+                module,
+                function,
+                *element,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::ContainerReplace { owner, value, .. } => {
             if require_value(
                 module,

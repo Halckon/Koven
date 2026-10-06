@@ -275,3 +275,45 @@ fn rc_move_errors_clear_all_executable_unit_facts() {
     assert!(ownership.value_deliveries().is_empty());
     assert!(ownership.rc_effects().is_empty());
 }
+
+#[test]
+fn mutable_list_add_publishes_inout_loan_and_value_delivery() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         class Resource { deinit() {} }\n\
+         fun consume(own item: Resource): Unit {}",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.Resource\n\
+         fun run(own item: Resource): Unit {\n\
+             var list = mutableListOf<Resource>()\n\
+             list.add(item)\n\
+             p.consume(item)\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = validated_types(&sources, &inputs, &names, &type_environment);
+    let ownership =
+        check_compilation_unit_ownership(&sources, &inputs, &names, &type_environment, &typed)
+            .expect("recovery ownership product");
+
+    assert_eq!(
+        ownership
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0131"]
+    );
+}
