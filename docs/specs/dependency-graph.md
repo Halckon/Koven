@@ -9,10 +9,15 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 267 份"))
+subgraph Gactive["现行 active"]
+  S0281["S0281<br/>MutableList 逆序元素清理与缓冲区复用 (MutableList.clear)"]
+end
+ARCH --> S0281
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0281 | active | [0281-mutable-list-clear.md](active/0281-mutable-list-clear.md) |
 | 已完成 Spec（267 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

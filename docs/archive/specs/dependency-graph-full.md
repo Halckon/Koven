@@ -277,6 +277,9 @@ subgraph Garchive["已完成（archive，267 份）"]
   S0279["S0279<br/>Array/List 运行时长度源码构造到 native"]
   S0280["S0280<br/>MutableList 顺序追加与动态扩容 (MutableList.add)"]
 end
+subgraph Gactive["现行 active"]
+  S0281["S0281<br/>MutableList 逆序元素清理与缓冲区复用 (MutableList.clear)"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1257,6 +1260,7 @@ S0277 --> S0278
 S0278 --> S0279
 S0278 --> S0280
 S0279 --> S0280
+S0280 --> S0281
 ```
 
 ## 节点链接
@@ -1530,3 +1534,4 @@ S0279 --> S0280
 | SPEC-0278 | archive | [0278-borrowed-closure-escape-verification.md](0278-borrowed-closure-escape-verification.md) |
 | SPEC-0279 | archive | [0279-runtime-length-container-native.md](0279-runtime-length-container-native.md) |
 | SPEC-0280 | archive | [0280-mutable-list-add.md](0280-mutable-list-add.md) |
+| SPEC-0281 | active | [0281-mutable-list-clear.md](../../specs/active/0281-mutable-list-clear.md) |
