@@ -1068,6 +1068,22 @@ impl RuntimeRequirements {
                             })?;
                         requirements.collect_drop_type(module, element)?;
                     }
+                    Operation::ContainerClear { owner } => {
+                        let container =
+                            match function.entity(EntityId::Value(owner)).map(|data| data.ty) {
+                                Some(EntityType::Value(ty)) => ty,
+                                _ => {
+                                    return Err(LlvmAdapterError::InvalidSsa(
+                                        "clear owner 缺少 value type".to_owned(),
+                                    ));
+                                }
+                            };
+                        let (_, element) =
+                            module.sequential_container(container).ok_or_else(|| {
+                                LlvmAdapterError::InvalidSsa("clear owner 不是顺序容器".to_owned())
+                            })?;
+                        requirements.collect_drop_type(module, element)?;
+                    }
                     Operation::ContainerReplace { owner, .. } => {
                         requirements.needs_abort = true;
                         let container =

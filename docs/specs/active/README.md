@@ -4,7 +4,9 @@
 
 当前 0 份 active。
 
-0280（`MutableList.add` 顺序追加与动态扩容）已按双宿主实现验收归档至 `docs/archive/specs/0280-mutable-list-add.md`；交付 PR 待发起。
+0281（`MutableList.clear` 逆序元素清理与缓冲区复用）已按双宿主实现验收归档至 `docs/archive/specs/0281-mutable-list-clear.md`；交付 PR 待发起。
+
+0280（`MutableList.add` 顺序追加与动态扩容）已按双宿主实现验收归档至 `docs/archive/specs/0280-mutable-list-add.md` 并通过 PR #59 合入 main。
 
 0279按[PR57](https://github.com/Halckon/Koven/pull/57)双宿主实现验收与用户限定范围归档；最终归档head/merge/main待交付，见[账本](../../development/evidence/runtime-constructor-0279/delivery.json)。
 

@@ -297,3 +297,32 @@ fn mutable_list_add_single_file_lowers_to_container_append() {
     assert_eq!(appends, 2);
     crate::llvm::render_verified_program(&program).expect("program lowers to LLVM without error");
 }
+
+#[test]
+fn mutable_list_clear_single_file_lowers_to_container_clear() {
+    let text = "fun run(): Unit {\n\
+                var list = mutableListOf(1, 2)\n\
+                list.clear()\n\
+                }";
+    let analysis = analyze(text);
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("lowering succeeds");
+    let function = &program.modules[0].functions[0];
+    let clears = function
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::ContainerClear { .. }))
+        .count();
+    assert_eq!(clears, 1);
+    crate::llvm::render_verified_program(&program).expect("program lowers to LLVM without error");
+}

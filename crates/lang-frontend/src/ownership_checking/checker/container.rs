@@ -163,4 +163,20 @@ pub(super) fn populate_container_call_contracts(
             .entry(append.expression().index())
             .or_insert_with(|| vec![crate::type_checking::ParameterMode::Value]);
     }
+    for clear in typed.container_clears() {
+        receivers_by_expression.insert(
+            clear.expression().index(),
+            crate::type_checking::CallReceiverDescriptor {
+                origin: crate::type_checking::CallReceiverOrigin::Expression(clear.receiver()),
+                mode: crate::type_checking::ParameterMode::Inout,
+                category: typed
+                    .expression_category(clear.receiver())
+                    .unwrap_or(crate::type_checking::ExpressionCategory::Place),
+                ty: clear.container_type(),
+            },
+        );
+        calls_by_expression
+            .entry(clear.expression().index())
+            .or_default();
+    }
 }

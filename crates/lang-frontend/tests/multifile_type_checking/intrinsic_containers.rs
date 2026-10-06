@@ -470,3 +470,79 @@ fn mutable_list_add_member_is_typed_in_compilation_unit() {
     );
     assert!(typed.validate().is_ok());
 }
+
+#[test]
+fn mutable_list_clear_member_is_typed_in_compilation_unit() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-clear.ko",
+        "fun clear_it(own list: MutableList<Int>): Unit { list.clear() }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-clear.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("MutableList.clear is valid");
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_clears().len(), 1);
+    let clear = typed.container_clears()[0];
+    assert_eq!(
+        typed.types().get(clear.result_type()),
+        Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+    );
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn mutable_list_clear_rejects_arguments_and_type_arguments_in_compilation_unit() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-clear-invalid.ko",
+        "fun bad1(own list: MutableList<Int>): Unit { list.clear(42) }\n\
+         fun bad2(own list: MutableList<Int>): Unit { list.clear<Int>() }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-clear-invalid.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("type check completes with diagnostics");
+    assert_eq!(typed.diagnostics().len(), 2);
+    assert_eq!(typed.diagnostics()[0].code().to_string(), "L0121");
+    assert_eq!(typed.diagnostics()[1].code().to_string(), "L0091");
+}
+
+#[test]
+fn container_clear_rejects_array_and_list_in_compilation_unit() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "container-clear-unsupported.ko",
+        "fun bad_array(items: Array<Int>): Unit { items.clear() }\n\
+         fun bad_list(items: List<Int>): Unit { items.clear() }",
+    );
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "container-clear-unsupported.ko",
+        source,
+        &file,
+    )];
+    let (name_environment, type_environment) = standard_environments();
+    let names = validated_names(&sources, &inputs, &name_environment);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+        .expect("type check completes with diagnostics");
+    assert_eq!(typed.diagnostics().len(), 2);
+    assert_eq!(typed.diagnostics()[0].code().to_string(), "L0130");
+    assert_eq!(typed.diagnostics()[1].code().to_string(), "L0130");
+}

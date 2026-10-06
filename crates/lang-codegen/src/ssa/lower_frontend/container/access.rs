@@ -143,6 +143,35 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Unit)
     }
 
+    pub(in crate::ssa::lower_frontend) fn lower_container_clear(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<LoweredValue, LoweringError> {
+        let descriptor = self
+            .typed
+            .container_clear(expression)
+            .ok_or(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let span = descriptor.span();
+        let (owner, symbol) = self.container_owner_for_append(descriptor.receiver())?;
+        let container_type = self.expression_ssa_type(descriptor.receiver(), span)?;
+        let (_, results) = self.append(
+            Operation::ContainerClear { owner },
+            vec![EntityType::Value(container_type)],
+            span,
+        )?;
+        let new_owner = value(results[0]);
+        if let Some(symbol) = symbol {
+            self.bindings.insert(symbol, LoweredValue::Value(new_owner));
+        }
+        self.emit_drops(lang_frontend::ownership_checking::DropPoint::CallReturn(
+            expression,
+        ))?;
+        Ok(LoweredValue::Unit)
+    }
+
     fn container_owner_for_append(
         &mut self,
         expression: ExpressionId,
@@ -186,6 +215,9 @@ impl ExpressionLowerer<'_> {
         }
         if self.typed.container_append(expression).is_some() {
             return self.lower_container_append(expression).map(Some);
+        }
+        if self.typed.container_clear(expression).is_some() {
+            return self.lower_container_clear(expression).map(Some);
         }
         if self.typed.container_construction(expression).is_some() {
             return self.lower_container_construction(expression).map(Some);

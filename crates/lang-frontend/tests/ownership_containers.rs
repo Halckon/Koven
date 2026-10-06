@@ -664,3 +664,41 @@ fn mutable_list_add_transfers_move_only_elements() {
         ["L0131"]
     );
 }
+
+#[test]
+fn mutable_list_clear_valid_ownership_succeeds() {
+    let (_, _, owned) =
+        checked("fun clear_it(): Unit { var list = mutableListOf(1, 2); list.clear() }");
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+}
+
+#[test]
+fn mutable_list_clear_conflicts_with_active_element_borrow() {
+    let (_, _, owned) = checked(
+        "fun conflict(inout item: Int, action: Unit): Unit {}\n\
+         fun clear_it(): Unit {\n\
+             var list = mutableListOf(1)\n\
+             conflict(&list[0], list.clear())\n\
+         }",
+    );
+    assert_eq!(
+        owned
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0135"]
+    );
+}
+
+#[test]
+fn mutable_list_clear_rejects_use_after_move() {
+    let (_, _, owned) = checked(
+        "fun consume(own l: MutableList<Int>): Unit {}\n\
+         fun clear_it(own list: MutableList<Int>): Unit {\n\
+             consume(list)\n\
+             list.clear()\n\
+         }",
+    );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+}

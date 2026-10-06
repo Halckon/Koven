@@ -57,6 +57,9 @@ impl UnitExpressionLowerer<'_> {
         if self.typed.container_append(unit_expression).is_some() {
             return self.lower_container_append(expression, span).map(Some);
         }
+        if self.typed.container_clear(unit_expression).is_some() {
+            return self.lower_container_clear(expression, span).map(Some);
+        }
         Ok(None)
     }
 
@@ -86,6 +89,7 @@ impl UnitExpressionLowerer<'_> {
             LoweredValue::Value(e) => e,
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
+        self.consume_container_delivery(id, descriptor.element().expression(), element, span)?;
         let concrete = resolve_concrete_type(
             self.typed,
             descriptor.container_type(),
@@ -118,6 +122,58 @@ impl UnitExpressionLowerer<'_> {
                 .insert(root_symbol, LoweredValue::Value(*new_owner));
         }
         self.emit_drops(UnitDropPoint::AfterExpression(descriptor.element()))?;
+        self.emit_drops(UnitDropPoint::CallReturn(id))?;
+        Ok(LoweredValue::Unit)
+    }
+
+    pub(super) fn lower_container_clear(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let id = UnitExpressionId::new(self.source_unit, expression);
+        let descriptor = self
+            .typed
+            .container_clear(id)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.expression() != id || descriptor.receiver().source_unit() != self.source_unit
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let (owner, root) =
+            self.container_owner_operand(descriptor.receiver().expression(), None, span)?;
+        let owner_val = match owner {
+            EntityId::Value(v) => v,
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
+        let concrete = resolve_concrete_type(
+            self.typed,
+            descriptor.container_type(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        let container_type = self
+            .type_ids
+            .get(&concrete)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let result_id = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::ContainerClear { owner: owner_val },
+                vec![EntityType::Value(container_type)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        if let Some(root_symbol) = root {
+            let [EntityId::Value(new_owner)] = result_id.1.as_slice() else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            self.bindings
+                .insert(root_symbol, LoweredValue::Value(*new_owner));
+        }
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
         Ok(LoweredValue::Unit)
     }

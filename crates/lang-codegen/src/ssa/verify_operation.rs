@@ -263,6 +263,9 @@ pub(super) fn verify_operation(
         Operation::ContainerAppend { owner, element } => {
             container_append_contract(module, function, *owner, *element, &results)
         }
+        Operation::ContainerClear { owner } => {
+            container_clear_contract(module, function, *owner, &results)
+        }
         Operation::ContainerReplace {
             owner,
             index,
@@ -817,6 +820,21 @@ fn container_append_contract(
     };
     kind == super::model::SequentialContainerKind::MutableList
         && value_type(function, element) == Some(elem_ty)
+        && single_value_result(results) == value_type(function, owner)
+}
+
+fn container_clear_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    results: &[EntityType],
+) -> bool {
+    let Some((kind, _)) =
+        value_type(function, owner).and_then(|container| module.sequential_container(container))
+    else {
+        return false;
+    };
+    kind == super::model::SequentialContainerKind::MutableList
         && single_value_result(results) == value_type(function, owner)
 }
 

@@ -282,6 +282,24 @@ impl CompilationUnitTypes {
             .copied()
             .find(|descriptor| descriptor.expression() == expression)
     }
+
+    /// 返回源码稳定顺序的 MutableList.clear 清空事实。
+    #[must_use]
+    pub fn container_clears(&self) -> &[UnitContainerClearDescriptor] {
+        &self.container_clears
+    }
+
+    /// 查询成功识别的 MutableList.clear 清空描述符。
+    #[must_use]
+    pub fn container_clear(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<UnitContainerClearDescriptor> {
+        self.container_clears
+            .iter()
+            .copied()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
 }
 
 /// Compilation unit 级别的 MutableList.add 追加描述符。
@@ -334,6 +352,73 @@ impl UnitContainerAppendDescriptor {
     #[must_use]
     pub const fn element(self) -> UnitExpressionId {
         self.element
+    }
+
+    /// 返回完整容器类型。
+    #[must_use]
+    pub const fn container_type(self) -> UnitTypeId {
+        self.container_type
+    }
+
+    /// 返回保持不擦除的元素类型。
+    #[must_use]
+    pub const fn element_type(self) -> UnitTypeId {
+        self.element_type
+    }
+
+    /// 返回 Unit 结果类型。
+    #[must_use]
+    pub const fn result_type(self) -> UnitTypeId {
+        self.result_type
+    }
+
+    /// 返回调用的源码范围。
+    #[must_use]
+    pub const fn span(self) -> crate::source::Span {
+        self.span
+    }
+}
+
+/// Compilation unit 级别的 MutableList.clear 清空描述符。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitContainerClearDescriptor {
+    expression: UnitExpressionId,
+    receiver: UnitExpressionId,
+    container_type: UnitTypeId,
+    element_type: UnitTypeId,
+    result_type: UnitTypeId,
+    span: crate::source::Span,
+}
+
+impl UnitContainerClearDescriptor {
+    pub(crate) const fn new(
+        expression: UnitExpressionId,
+        receiver: UnitExpressionId,
+        container_type: UnitTypeId,
+        element_type: UnitTypeId,
+        result_type: UnitTypeId,
+        span: crate::source::Span,
+    ) -> Self {
+        Self {
+            expression,
+            receiver,
+            container_type,
+            element_type,
+            result_type,
+            span,
+        }
+    }
+
+    /// 返回拥有该调用的 call expression identity。
+    #[must_use]
+    pub const fn expression(self) -> UnitExpressionId {
+        self.expression
+    }
+
+    /// 返回只求值一次的 receiver expression identity。
+    #[must_use]
+    pub const fn receiver(self) -> UnitExpressionId {
+        self.receiver
     }
 
     /// 返回完整容器类型。

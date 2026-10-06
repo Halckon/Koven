@@ -932,6 +932,24 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.values.insert(*result, new_owner.into());
             }
+            Operation::ContainerClear { owner } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("container clear", 1, results.len()));
+                };
+                let container_type = value_type(self.function, *owner)?;
+                let new_owner = container::clear(
+                    self.llvm,
+                    &self.builder,
+                    self.llvm_function,
+                    self.module,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    container_type,
+                    self.struct_value(*owner)?,
+                    &format!("clear.i{}", instruction.id.index()),
+                )?;
+                self.values.insert(*result, new_owner.into());
+            }
             Operation::ContainerReplace {
                 owner,
                 index,

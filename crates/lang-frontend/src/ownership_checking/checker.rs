@@ -962,7 +962,9 @@ impl<'a> Checker<'a> {
                     }
                     None => self.check_expression(callee, state, ExpressionUse::Read)?,
                 };
-                if let (Some(receiver), Some(expression)) = (receiver, receiver_expression) {
+                if self.diagnostics.len() == diagnostic_count
+                    && let (Some(receiver), Some(expression)) = (receiver, receiver_expression)
+                {
                     let span = self.parsed.ast().expressions().get(expression)?.span();
                     self.apply_argument_contract(
                         id,
