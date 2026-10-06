@@ -355,3 +355,32 @@ fn mutable_list_remove_at_single_file_lowers_to_container_remove_at() {
     assert_eq!(remove_ats, 1);
     crate::llvm::render_verified_program(&program).expect("program lowers to LLVM without error");
 }
+
+#[test]
+fn mutable_list_remove_last_single_file_lowers_to_container_remove_last() {
+    let text = "fun run(): Int {\n\
+                var list = mutableListOf(10, 20)\n\
+                return list.removeLast()\n\
+                }";
+    let analysis = analyze(text);
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("lowering succeeds");
+    let function = &program.modules[0].functions[0];
+    let remove_lasts = function
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::ContainerRemoveLast { .. }))
+        .count();
+    assert_eq!(remove_lasts, 1);
+    crate::llvm::render_verified_program(&program).expect("program lowers to LLVM without error");
+}

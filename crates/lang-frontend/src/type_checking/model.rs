@@ -13,9 +13,10 @@ use crate::{
 use super::{
     AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
     ContainerAppendDescriptor, ContainerClearDescriptor, ContainerConstructionDescriptor,
-    ContainerRemoveAtDescriptor, ContainerSizeDescriptor, ElementPlaceDescriptor,
-    ExpressionCategory, FunctionParameterType, IntrinsicCallable, OwnershipPrimitiveDescriptor,
-    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, StringOperationDescriptor,
+    ContainerRemoveAtDescriptor, ContainerRemoveLastDescriptor, ContainerSizeDescriptor,
+    ElementPlaceDescriptor, ExpressionCategory, FunctionParameterType, IntrinsicCallable,
+    OwnershipPrimitiveDescriptor, ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor,
+    StringOperationDescriptor,
     canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
 };
 
@@ -1107,6 +1108,7 @@ pub struct TypedFile {
     pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<ContainerClearDescriptor>,
     pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
+    pub(crate) container_remove_lasts: Vec<ContainerRemoveLastDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -1142,6 +1144,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<ContainerClearDescriptor>,
     pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
+    pub(crate) container_remove_lasts: Vec<ContainerRemoveLastDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
 }
 
@@ -1194,6 +1197,7 @@ impl TypedFile {
             container_appends: parts.container_appends,
             container_clears: parts.container_clears,
             container_remove_ats: parts.container_remove_ats,
+            container_remove_lasts: parts.container_remove_lasts,
             element_places: parts.element_places,
             diagnostics,
         }

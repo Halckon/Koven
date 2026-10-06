@@ -517,6 +517,9 @@ pub(crate) enum Operation {
         owner: ValueId,
         index: ValueId,
     },
+    ContainerRemoveLast {
+        owner: ValueId,
+    },
     ContainerReplace {
         owner: ValueId,
         index: ValueId,
@@ -691,6 +694,7 @@ impl Operation {
             Self::ContainerRemoveAt { owner, index } => {
                 vec![EntityId::Value(*owner), EntityId::Value(*index)]
             }
+            Self::ContainerRemoveLast { owner } => vec![EntityId::Value(*owner)],
             Self::ContainerReplace {
                 owner,
                 index,

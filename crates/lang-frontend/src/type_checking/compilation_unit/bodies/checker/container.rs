@@ -80,6 +80,17 @@ impl BodyChecker<'_> {
             )? {
                 return Ok(Some(clear));
             }
+            if let Some(remove_last) = self.check_container_remove_last_call(
+                source,
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+                return_type,
+            )? {
+                return Ok(Some(remove_last));
+            }
             return self.check_container_remove_at_call(
                 source,
                 expression,

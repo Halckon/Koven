@@ -479,3 +479,50 @@ fn container_remove_at_rejects_mismatched_index_and_arity() {
     let (_sources, _parsed, _names, typed) = checked(text);
     assert_eq!(codes(typed.diagnostics()), ["L0121", "L0121", "L0084"]);
 }
+
+#[test]
+fn mutable_list_remove_last_member_is_typed() {
+    let text = "fun pop(own list: MutableList<Int>): Int { return list.removeLast() }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_remove_lasts().len(), 1);
+    let remove_last = typed.container_remove_lasts()[0];
+    assert_eq!(
+        typed.types().get(remove_last.result_type()),
+        Some(&lang_frontend::type_checking::TypeKind::Builtin(
+            lang_frontend::type_checking::BuiltinType::Int
+        ))
+    );
+    assert_eq!(
+        typed.container_remove_last(remove_last.expression()),
+        Some(remove_last)
+    );
+}
+
+#[test]
+fn container_remove_last_rejects_array_and_list() {
+    let text = "fun bad(array: Array<Int>, list: List<Int>): Unit {\n\
+                    array.removeLast()\n\
+                    list.removeLast()\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+}
+
+#[test]
+fn container_remove_last_rejects_property_access() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    val f = list.removeLast\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+}
+
+#[test]
+fn container_remove_last_rejects_arguments() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    list.removeLast(0)\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0121"]);
+}

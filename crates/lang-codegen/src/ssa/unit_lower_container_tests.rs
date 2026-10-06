@@ -417,6 +417,53 @@ fn mutable_list_remove_at_compilation_unit_lowering_creates_container_remove_at(
     assert_eq!(remove_at_count, 1);
 }
 
+#[test]
+fn mutable_list_remove_last_compilation_unit_lowering_creates_container_remove_last() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         fun create(): MutableList<Int> { return mutableListOf(10, 20) }",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.create\n\
+         fun entry(): Int {\n\
+             var list = create()\n\
+             val item = list.removeLast()\n\
+             return item\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("lowering succeeds");
+    let func = function(&program.modules[0], "entry");
+    let remove_last_count = func
+        .instructions
+        .iter()
+        .filter(|instruction| {
+            matches!(instruction.operation, Operation::ContainerRemoveLast { .. })
+        })
+        .count();
+    assert_eq!(remove_last_count, 1);
+}
+
 fn function<'a>(module: &'a super::model::Module, name: &str) -> &'a Function {
     module
         .functions
