@@ -177,6 +177,6 @@ pub(super) fn populate_container_call_contracts(
         );
         calls_by_expression
             .entry(clear.expression().index())
-            .or_insert_with(Vec::new);
+            .or_default();
     }
 }
