@@ -1,10 +1,10 @@
 # SPEC-0284: MutableList 头部元素快速移出与队列弹出 (`MutableList.removeFirst`)
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或评审 MutableList 头部元素移出与队列弹出操作时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：追溯 MutableList 头部元素移出与队列弹出操作设计与实现时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0284` |
 | 所属 Phase | Phase 2 预声明成员识别；Phase 3 独占借用与元素移出；Phase 4 SSA、边界检查与 native 运行 |
 | 语言规范 | 现行 [Guide v0.41](../../guide/README.md)；[集合与解构](../../guide/12-collections-destructuring.md) |
@@ -69,13 +69,34 @@ Koven v0.41 Guide §12 明确规范：
 
 ## 5. 验收标准
 
-- [ ] G1: `MutableList<Int>.removeFirst()` 连续从头部弹出元素，验证 FIFO 顺序与返回值正确，`size` 逐次减 1，剩余元素索引正确前移，直至变为空列表。
-- [ ] G2: `MutableList<Resource>.removeFirst()` 移出 MoveOnly 资源，验证移出资源生命周期由接收方接管，容器内剩余资源在容器退出时逆序析构，零内存泄漏与双重释放。
-- [ ] G3: 对空 `MutableList`（`size == 0`）调用 `removeFirst()` 触发确定性运行时 abort。
-- [ ] G4: 活跃元素借用期间调用 `.removeFirst()` 产生编译期 L0135 诊断。
-- [ ] G5: 针对 `Array` / `List` 调用 `.removeFirst()` 产生无效成员编译期诊断。
-- [ ] G6: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
+- [x] G1: `MutableList<Int>.removeFirst()` 连续从头部弹出元素，验证 FIFO 顺序与返回值正确，`size` 逐次减 1，剩余元素索引正确前移，直至变为空列表。
+- [x] G2: `MutableList<Resource>.removeFirst()` 移出 MoveOnly 资源，验证移出资源生命周期由接收方接管，容器内剩余资源在容器退出时逆序析构，零内存泄漏与双重释放。
+- [x] G3: 对空 `MutableList`（`size == 0`）调用 `removeFirst()` 触发确定性运行时 abort。
+- [x] G4: 活跃元素借用期间调用 `.removeFirst()` 产生编译期 L0135 诊断。
+- [x] G5: 针对 `Array` / `List` 调用 `.removeFirst()` 产生无效成员编译期诊断。
+- [x] G6: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
 
 ## 6. 验证记录
 
-（实施后记录实际运行命令与输出证据）
+- **Phase 1 (规范与拓扑)**:
+  - Commit: `430eb9b`
+  - 产物：`docs/specs/active/0284-mutable-list-remove-first.md`，更新拓扑并运行 `check_docs.py` 通过。
+- **Phase 2 (类型检查)**:
+  - Commit: `9a11420`
+  - 验证命令：
+    - `cargo test -p lang-frontend --test type_containers` -> 27 passed; 0 failed
+    - `cargo test -p lang-frontend --test multifile_type_checking` -> 142 passed; 0 failed
+- **Phase 3 (所有权检查)**:
+  - Commit: `d1a3f0f`
+  - 验证命令：
+    - `cargo test -p lang-frontend --test ownership_containers` -> 32 passed; 0 failed
+- **Phase 4 (SSA Lowering 与 Native 执行)**:
+  - Commit: `79df49f`
+  - 验证命令：
+    - `cargo test -p lang-codegen --lib container_lowering_tests` -> 14 passed; 0 failed
+    - `cargo test -p lang-codegen --lib unit_lower_container_tests` -> 13 passed; 0 failed
+    - `cargo test -p lang-codegen --lib container_remove_first_tests` -> 4 passed; 0 failed
+    - `cargo clippy -p lang-frontend --all-targets -- -D warnings` -> passed
+    - `cargo clippy -p lang-codegen --all-targets -- -D warnings` -> passed
+    - `cargo fmt --check` -> passed
+    - `python3 scripts/check_rust_sizes.py --base origin/main` -> passed
