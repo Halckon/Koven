@@ -280,6 +280,9 @@ subgraph Garchive["已完成（archive，270 份）"]
   S0282["S0282<br/>MutableList 索引元素移出与剩余元素前移压缩 (MutableList.removeAt)"]
   S0283["S0283<br/>MutableList 尾部元素快速移出 (MutableList.removeLast)"]
 end
+subgraph Gactive["现行 active"]
+  S0284["S0284<br/>MutableList 头部元素快速移出与队列弹出 (MutableList.removeFirst)"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1263,9 +1266,13 @@ S0279 --> S0280
 S0280 --> S0281
 S0280 --> S0282
 S0280 --> S0283
+S0280 --> S0284
 S0281 --> S0282
 S0281 --> S0283
+S0281 --> S0284
 S0282 --> S0283
+S0282 --> S0284
+S0283 --> S0284
 ```
 
 ## 节点链接
@@ -1542,3 +1549,4 @@ S0282 --> S0283
 | SPEC-0281 | archive | [0281-mutable-list-clear.md](0281-mutable-list-clear.md) |
 | SPEC-0282 | archive | [0282-mutable-list-remove-at.md](0282-mutable-list-remove-at.md) |
 | SPEC-0283 | archive | [0283-mutable-list-remove-last.md](0283-mutable-list-remove-last.md) |
+| SPEC-0284 | active | [0284-mutable-list-remove-first.md](../../specs/active/0284-mutable-list-remove-first.md) |
