@@ -7,10 +7,11 @@ use crate::{
     type_checking::{
         AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
         ContainerAppendDescriptor, ContainerClearDescriptor, ContainerConstructionDescriptor,
-        ContainerRemoveAtDescriptor, ContainerRemoveLastDescriptor, ContainerSizeDescriptor,
-        DestructuringDescriptor, ElementPlaceDescriptor, ExpressionCategory, NonNullUseDescriptor,
-        NullComparisonDescriptor, OwnershipPrimitiveDescriptor, ParameterMode,
-        RcOperationDescriptor, StringOperationDescriptor, TypeId, TypeTable,
+        ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor, ContainerRemoveLastDescriptor,
+        ContainerSizeDescriptor, DestructuringDescriptor, ElementPlaceDescriptor,
+        ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor,
+        OwnershipPrimitiveDescriptor, ParameterMode, RcOperationDescriptor,
+        StringOperationDescriptor, TypeId, TypeTable,
     },
 };
 
@@ -51,6 +52,7 @@ pub(super) struct TrialState {
     container_clears: Vec<ContainerClearDescriptor>,
     container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
     container_remove_lasts: Vec<ContainerRemoveLastDescriptor>,
+    container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -87,6 +89,7 @@ impl Checker<'_> {
             container_clears: self.container_clears.clone(),
             container_remove_ats: self.container_remove_ats.clone(),
             container_remove_lasts: self.container_remove_lasts.clone(),
+            container_remove_firsts: self.container_remove_firsts.clone(),
             element_places: self.element_places.clone(),
             diagnostics: self.diagnostics.clone(),
         }
@@ -122,6 +125,7 @@ impl Checker<'_> {
         self.container_clears = state.container_clears;
         self.container_remove_ats = state.container_remove_ats;
         self.container_remove_lasts = state.container_remove_lasts;
+        self.container_remove_firsts = state.container_remove_firsts;
         self.element_places = state.element_places;
         self.diagnostics = state.diagnostics;
     }

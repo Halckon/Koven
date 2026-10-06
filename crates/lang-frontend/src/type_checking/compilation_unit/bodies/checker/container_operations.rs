@@ -10,8 +10,9 @@ use crate::{
         BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory, ParameterMode,
         SequentialContainerKind, TypeCheckingError, UnitContainerAppendDescriptor,
         UnitContainerClearDescriptor, UnitContainerRemoveAtDescriptor,
-        UnitContainerRemoveLastDescriptor, UnitContainerSizeDescriptor, UnitElementPlaceDescriptor,
-        UnitExpressionId, UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
+        UnitContainerRemoveFirstDescriptor, UnitContainerRemoveLastDescriptor,
+        UnitContainerSizeDescriptor, UnitElementPlaceDescriptor, UnitExpressionId,
+        UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, map_arguments},
     },
 };
@@ -240,17 +241,17 @@ impl BodyChecker<'_> {
             }
             return Ok(Some(self.error_type()));
         }
-        if name == "removeLast" {
+        if name == "removeLast" || name == "removeFirst" {
             if container == SequentialContainerKind::MutableList {
                 self.emit(
                     codes::INVALID_CONTAINER_MEMBER,
-                    "MutableList.removeLast must be called as a method",
+                    &format!("MutableList.{name} must be called as a method"),
                     name_span,
                 )?;
             } else {
                 self.emit(
                     codes::INVALID_CONTAINER_MEMBER,
-                    "sequential container does not support 'removeLast'",
+                    &format!("sequential container does not support '{name}'"),
                     name_span,
                 )?;
             }
@@ -749,16 +750,17 @@ impl BodyChecker<'_> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_container_remove_last_call(
+    fn check_container_endpoint_removal_call(
         &mut self,
         source: SourceUnitId,
-        expression: ExpressionId,
         call_span: Span,
         callee: ExpressionId,
         type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
         return_type: UnitTypeId,
-    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        expected_name: &'static str,
+    ) -> Result<Option<(ExpressionId, UnitTypeId, UnitTypeId, bool)>, CompilationUnitTypeError>
+    {
         let Expression::Member {
             receiver,
             name_span,
@@ -780,7 +782,7 @@ impl BodyChecker<'_> {
                 .sources
                 .slice(name_span)
                 .map_err(TypeCheckingError::from)?
-                != "removeLast"
+                != expected_name
         {
             return Ok(None);
         }
@@ -791,26 +793,30 @@ impl BodyChecker<'_> {
         if container != SequentialContainerKind::MutableList {
             self.emit(
                 codes::INVALID_CONTAINER_MEMBER,
-                "sequential container does not support 'removeLast'",
+                &format!("sequential container does not support '{expected_name}'"),
                 name_span,
             )?;
             self.check_call_arguments_without_expected(source, arguments, return_type)?;
-            return Ok(Some(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
+            return Ok(Some((
+                receiver,
+                self.error_type(),
+                self.error_type(),
+                receiver_result.falls_through,
+            )));
         }
         if !type_arguments.is_empty() {
             self.emit(
                 codes::TYPE_ARGUMENT_ARITY,
-                "MutableList.removeLast accepts no type arguments",
+                &format!("MutableList.{expected_name} accepts no type arguments"),
                 name_span,
             )?;
             self.check_call_arguments_without_expected(source, arguments, return_type)?;
-            return Ok(Some(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
+            return Ok(Some((
+                receiver,
+                self.error_type(),
+                self.error_type(),
+                receiver_result.falls_through,
+            )));
         }
         let parameters: [MappedParameter<UnitTypeId>; 0] = [];
         match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
@@ -820,10 +826,12 @@ impl BodyChecker<'_> {
             Err(error) => {
                 self.emit_mapping_error(error)?;
                 self.check_call_arguments_without_expected(source, arguments, return_type)?;
-                return Ok(Some(ExpressionCheck {
-                    ty: self.error_type(),
-                    falls_through: receiver_result.falls_through,
-                }));
+                return Ok(Some((
+                    receiver,
+                    self.error_type(),
+                    self.error_type(),
+                    receiver_result.falls_through,
+                )));
             }
         }
         let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
@@ -836,19 +844,95 @@ impl BodyChecker<'_> {
             UnitExpressionId::new(source, callee),
             ExpressionCategory::Temporary,
         );
-        self.parts
-            .container_remove_lasts
-            .push(UnitContainerRemoveLastDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
-                receiver_result.ty,
-                element_type,
-                element_type,
+        Ok(Some((
+            receiver,
+            receiver_result.ty,
+            element_type,
+            receiver_result.falls_through,
+        )))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_container_remove_last_call(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let Some((receiver, container_ty, element_type, falls_through)) = self
+            .check_container_endpoint_removal_call(
+                source,
                 call_span,
-            ));
+                callee,
+                type_arguments,
+                arguments,
+                return_type,
+                "removeLast",
+            )?
+        else {
+            return Ok(None);
+        };
+        if element_type != self.error_type() {
+            self.parts
+                .container_remove_lasts
+                .push(UnitContainerRemoveLastDescriptor::new(
+                    UnitExpressionId::new(source, expression),
+                    UnitExpressionId::new(source, receiver),
+                    container_ty,
+                    element_type,
+                    element_type,
+                    call_span,
+                ));
+        }
         Ok(Some(ExpressionCheck {
             ty: element_type,
-            falls_through: receiver_result.falls_through,
+            falls_through,
+        }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_container_remove_first_call(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let Some((receiver, container_ty, element_type, falls_through)) = self
+            .check_container_endpoint_removal_call(
+                source,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+                return_type,
+                "removeFirst",
+            )?
+        else {
+            return Ok(None);
+        };
+        if element_type != self.error_type() {
+            self.parts
+                .container_remove_firsts
+                .push(UnitContainerRemoveFirstDescriptor::new(
+                    UnitExpressionId::new(source, expression),
+                    UnitExpressionId::new(source, receiver),
+                    container_ty,
+                    element_type,
+                    element_type,
+                    call_span,
+                ));
+        }
+        Ok(Some(ExpressionCheck {
+            ty: element_type,
+            falls_through,
         }))
     }
 }

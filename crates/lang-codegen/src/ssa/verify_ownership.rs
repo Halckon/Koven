@@ -923,7 +923,7 @@ fn apply_operation(
                 errors,
             );
         }
-        Operation::ContainerRemoveLast { owner } => {
+        Operation::ContainerRemoveFirst { owner } | Operation::ContainerRemoveLast { owner } => {
             if require_value(
                 module,
                 function,

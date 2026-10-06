@@ -50,6 +50,7 @@ impl<'a> ValueProof<'a> {
                 | Operation::ContainerAppend { owner, .. }
                 | Operation::ContainerClear { owner, .. }
                 | Operation::ContainerRemoveAt { owner, .. }
+                | Operation::ContainerRemoveFirst { owner, .. }
                 | Operation::ContainerRemoveLast { owner, .. } => EntityId::Value(owner),
                 _ => continue,
             };
