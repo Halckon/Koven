@@ -3,7 +3,7 @@ use crate::{
     name_resolution::{Namespace, ReferenceTarget},
     parser::{AssignmentOperator, CallArgument, Expression, LiteralKind, ParameterModeMarker},
     source::Span,
-    type_checking::{ContainerConstructionKind, IntrinsicCallable},
+    type_checking::{ContainerConstructionKind, ContainerRemoveAtDescriptor, IntrinsicCallable},
 };
 
 use super::*;
@@ -53,7 +53,16 @@ impl Checker<'_> {
             )? {
                 return Ok(Some(res));
             }
-            return self.check_container_clear_call(
+            if let Some(res) = self.check_container_clear_call(
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+            )? {
+                return Ok(Some(res));
+            }
+            return self.check_container_remove_at_call(
                 expression,
                 call_span,
                 callee,
@@ -563,6 +572,22 @@ impl Checker<'_> {
             }
             return Ok(Some(self.error_type()));
         }
+        if name == "removeAt" {
+            if container == SequentialContainerKind::MutableList {
+                self.emit(
+                    self.invalid_container_member_code,
+                    "MutableList.removeAt must be called as a method",
+                    name_span,
+                )?;
+            } else {
+                self.emit(
+                    self.invalid_container_member_code,
+                    "sequential container does not support 'removeAt'",
+                    name_span,
+                )?;
+            }
+            return Ok(Some(self.error_type()));
+        }
         Ok(None)
     }
 
@@ -823,6 +848,110 @@ impl Checker<'_> {
         Ok(Some(ExprCheck {
             ty: unit_type,
             falls_through: receiver_result.falls_through,
+        }))
+    }
+
+    pub(super) fn check_container_remove_at_call(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        let callee_node = self.ast().expressions().get(callee)?;
+        let Expression::Member {
+            receiver,
+            name_span,
+            safe,
+            ..
+        } = callee_node.payload().clone()
+        else {
+            return Ok(None);
+        };
+        if safe || self.sources.slice(name_span)? != "removeAt" {
+            return Ok(None);
+        }
+        let receiver_result = self.check_expression(receiver, None, None)?;
+        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
+            return Ok(None);
+        };
+        if container != SequentialContainerKind::MutableList {
+            self.emit(
+                self.invalid_container_member_code,
+                "sequential container does not support 'removeAt'",
+                name_span,
+            )?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        if !type_arguments.is_empty() {
+            self.emit(
+                self.type_argument_arity_code,
+                "MutableList.removeAt accepts no type arguments",
+                name_span,
+            )?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        let int_type = self.builtin(BuiltinType::Int);
+        let parameters = [MappedParameter {
+            name: None,
+            mode: ParameterMode::Value,
+            ty: int_type,
+            span: None,
+        }];
+        let mapping = self.map_arguments(&parameters, arguments, call_span)?;
+        if let Err(error) = mapping {
+            self.emit_mapping_error(error)?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        let index_arg = &arguments[0];
+        let index_result = self.check_expression(index_arg.value, Some(int_type), None)?;
+        if !self.is_error(index_result.ty)
+            && !self.is_deferred(index_result.ty)
+            && !self.assignable(index_result.ty, int_type)
+        {
+            self.mismatch(
+                self.ast().expressions().get(index_arg.value)?.span(),
+                None,
+                index_result.ty,
+                int_type,
+            )?;
+        }
+        let function = self.types.intern(TypeKind::Function {
+            move_only: false,
+            parameters: vec![FunctionParameterType {
+                mode: ParameterMode::Value,
+                ty: int_type,
+            }],
+            return_type: element_type,
+        });
+        self.set_expression(callee, function);
+        self.set_expression_category(callee, ExpressionCategory::Temporary);
+        self.container_remove_ats
+            .push(ContainerRemoveAtDescriptor::new(
+                expression,
+                receiver,
+                index_arg.value,
+                receiver_result.ty,
+                element_type,
+                element_type,
+                call_span,
+            ));
+        Ok(Some(ExprCheck {
+            ty: element_type,
+            falls_through: receiver_result.falls_through && index_result.falls_through,
         }))
     }
 }

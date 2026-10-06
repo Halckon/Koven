@@ -9,8 +9,9 @@ use crate::{
     type_checking::{
         BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory, ParameterMode,
         SequentialContainerKind, TypeCheckingError, UnitContainerAppendDescriptor,
-        UnitContainerClearDescriptor, UnitContainerSizeDescriptor, UnitElementPlaceDescriptor,
-        UnitExpressionId, UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
+        UnitContainerClearDescriptor, UnitContainerRemoveAtDescriptor, UnitContainerSizeDescriptor,
+        UnitElementPlaceDescriptor, UnitExpressionId, UnitFunctionParameterType, UnitTypeId,
+        UnitTypeKind,
         argument_mapping::{MappedParameter, map_arguments},
     },
 };
@@ -218,6 +219,22 @@ impl BodyChecker<'_> {
                 self.emit(
                     codes::INVALID_CONTAINER_MEMBER,
                     "sequential container does not support 'clear'",
+                    name_span,
+                )?;
+            }
+            return Ok(Some(self.error_type()));
+        }
+        if name == "removeAt" {
+            if container == SequentialContainerKind::MutableList {
+                self.emit(
+                    codes::INVALID_CONTAINER_MEMBER,
+                    "MutableList.removeAt must be called as a method",
+                    name_span,
+                )?;
+            } else {
+                self.emit(
+                    codes::INVALID_CONTAINER_MEMBER,
+                    "sequential container does not support 'removeAt'",
                     name_span,
                 )?;
             }
@@ -572,6 +589,146 @@ impl BodyChecker<'_> {
         Ok(Some(ExpressionCheck {
             ty: unit_type,
             falls_through: receiver_result.falls_through,
+        }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_container_remove_at_call(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let Expression::Member {
+            receiver,
+            name_span,
+            safe,
+            ..
+        } = self
+            .file(source)
+            .ast()
+            .expressions()
+            .get(callee)
+            .map_err(TypeCheckingError::from)?
+            .payload()
+            .clone()
+        else {
+            return Ok(None);
+        };
+        if safe
+            || self
+                .sources
+                .slice(name_span)
+                .map_err(TypeCheckingError::from)?
+                != "removeAt"
+        {
+            return Ok(None);
+        }
+        let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
+        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
+            return Ok(None);
+        };
+        if container != SequentialContainerKind::MutableList {
+            self.emit(
+                codes::INVALID_CONTAINER_MEMBER,
+                "sequential container does not support 'removeAt'",
+                name_span,
+            )?;
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        if !type_arguments.is_empty() {
+            self.emit(
+                codes::TYPE_ARGUMENT_ARITY,
+                "MutableList.removeAt accepts no type arguments",
+                name_span,
+            )?;
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through,
+            }));
+        }
+        let int_type = self.builtin(BuiltinType::Int);
+        let parameters = [MappedParameter {
+            name: None,
+            mode: ParameterMode::Value,
+            ty: int_type,
+            span: None,
+        }];
+        match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
+            Ok(false)
+        })? {
+            Ok(_) => {}
+            Err(error) => {
+                self.emit_mapping_error(error)?;
+                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                return Ok(Some(ExpressionCheck {
+                    ty: self.error_type(),
+                    falls_through: receiver_result.falls_through,
+                }));
+            }
+        }
+        let index_arg = &arguments[0];
+        let index_result =
+            self.check_expression(source, index_arg.value, Some(int_type), None, return_type)?;
+        if !self.is_error(index_result.ty)
+            && !self.is_deferred(index_result.ty)
+            && !self.assignable(index_result.ty, int_type)
+        {
+            let primary = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(index_arg.value)
+                .map_err(TypeCheckingError::from)?
+                .span();
+            self.emit_maybe_label(
+                codes::TYPE_MISMATCH,
+                "expression type does not match the expected type",
+                primary,
+                None,
+                format!(
+                    "expected {}, found {}",
+                    self.type_name(int_type),
+                    self.type_name(index_result.ty)
+                ),
+            )?;
+        }
+        let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
+            move_only: false,
+            parameters: vec![UnitFunctionParameterType::new(
+                ParameterMode::Value,
+                int_type,
+            )],
+            return_type: element_type,
+        });
+        self.record_expression(source, callee, function);
+        self.parts.expression_categories.insert(
+            UnitExpressionId::new(source, callee),
+            ExpressionCategory::Temporary,
+        );
+        self.parts
+            .container_remove_ats
+            .push(UnitContainerRemoveAtDescriptor::new(
+                UnitExpressionId::new(source, expression),
+                UnitExpressionId::new(source, receiver),
+                UnitExpressionId::new(source, index_arg.value),
+                receiver_result.ty,
+                element_type,
+                element_type,
+                call_span,
+            ));
+        Ok(Some(ExpressionCheck {
+            ty: element_type,
+            falls_through: receiver_result.falls_through && index_result.falls_through,
         }))
     }
 }

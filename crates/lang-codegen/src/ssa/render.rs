@@ -654,6 +654,12 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("container.clear ")?;
             write_entity_id(output, EntityId::Value(*owner))
         }
+        Operation::ContainerRemoveAt { owner, index } => {
+            output.write_str("container.remove_at ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*index))
+        }
         Operation::ContainerReplace {
             owner,
             index,

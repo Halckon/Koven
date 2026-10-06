@@ -508,3 +508,145 @@ pub(super) fn clear<'ctx>(
 
     Ok(with_capacity)
 }
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn remove_at<'ctx>(
+    llvm: &LlvmModule<'ctx>,
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    module: &Module,
+    types: &TypeMap<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    container: SsaTypeId,
+    owner: StructValue<'ctx>,
+    index: IntValue<'ctx>,
+    name: &str,
+) -> Result<(BasicValueEnum<'ctx>, StructValue<'ctx>), LlvmAdapterError> {
+    let layout = types.container_layout(container)?;
+    let (_, _element) = module
+        .sequential_container(container)
+        .ok_or_else(|| LlvmAdapterError::InvalidSsa("removeAt owner 不是顺序容器".to_owned()))?;
+    let buffer = builder
+        .build_extract_value(owner, 0, &format!("{name}.buffer"))?
+        .into_pointer_value();
+    let length = builder
+        .build_extract_value(owner, 1, &format!("{name}.length"))?
+        .into_int_value();
+    let capacity = builder
+        .build_extract_value(owner, 2, &format!("{name}.capacity"))?
+        .into_int_value();
+
+    let logical_length = self::length(
+        builder,
+        owner,
+        index.get_type(),
+        &format!("{name}.logical_length"),
+    )?;
+    let negative = builder.build_int_compare(
+        inkwell::IntPredicate::SLT,
+        index,
+        index.get_type().const_zero(),
+        &format!("{name}.negative"),
+    )?;
+    let beyond = builder.build_int_compare(
+        inkwell::IntPredicate::SGE,
+        index,
+        logical_length,
+        &format!("{name}.beyond"),
+    )?;
+    let invalid = builder.build_or(negative, beyond, &format!("{name}.invalid"))?;
+    runtime.abort_if(builder, function, invalid, name)?;
+
+    let size_type = runtime.size_type();
+    let size_index = match index
+        .get_type()
+        .get_bit_width()
+        .cmp(&size_type.get_bit_width())
+    {
+        std::cmp::Ordering::Less => {
+            builder.build_int_z_extend(index, size_type, &format!("{name}.index.size"))?
+        }
+        std::cmp::Ordering::Equal => index,
+        std::cmp::Ordering::Greater => {
+            builder.build_int_truncate(index, size_type, &format!("{name}.index.size"))?
+        }
+    };
+
+    let removed_element: BasicValueEnum<'ctx> = if layout.stride == 0 {
+        layout.element.const_zero()
+    } else {
+        let slot = unsafe {
+            builder.build_gep(
+                layout.element,
+                buffer,
+                &[size_index],
+                &format!("{name}.remove_slot"),
+            )?
+        };
+        builder.build_load(layout.element, slot, &format!("{name}.removed_element"))?
+    };
+
+    let one = size_type.const_int(1, false);
+    if layout.stride > 0 {
+        let next_index = builder.build_int_add(size_index, one, &format!("{name}.next_index"))?;
+        let has_elements_to_shift = builder.build_int_compare(
+            inkwell::IntPredicate::ULT,
+            next_index,
+            length,
+            &format!("{name}.has_shift"),
+        )?;
+        let context = llvm.get_context();
+        let shift_block = context.append_basic_block(function, &format!("{name}.shift"));
+        let after_shift_block =
+            context.append_basic_block(function, &format!("{name}.after_shift"));
+        builder.build_conditional_branch(has_elements_to_shift, shift_block, after_shift_block)?;
+
+        builder.position_at_end(shift_block);
+        let shift_count =
+            builder.build_int_sub(length, next_index, &format!("{name}.shift_count"))?;
+        let shift_bytes = builder.build_int_mul(
+            shift_count,
+            size_type.const_int(layout.stride, false),
+            &format!("{name}.shift_bytes"),
+        )?;
+        let src_ptr = unsafe {
+            builder.build_gep(
+                layout.element,
+                buffer,
+                &[next_index],
+                &format!("{name}.src_slot"),
+            )?
+        };
+        let dst_ptr = unsafe {
+            builder.build_gep(
+                layout.element,
+                buffer,
+                &[size_index],
+                &format!("{name}.dst_slot"),
+            )?
+        };
+        builder.build_memmove(dst_ptr, 1, src_ptr, 1, shift_bytes)?;
+        builder.build_unconditional_branch(after_shift_block)?;
+
+        builder.position_at_end(after_shift_block);
+    }
+
+    let new_length = builder.build_int_sub(length, one, &format!("{name}.new_length"))?;
+    let header_type = layout.header;
+    let with_buffer = builder
+        .build_insert_value(
+            header_type.const_zero(),
+            buffer,
+            0,
+            &format!("{name}.with_buffer"),
+        )?
+        .into_struct_value();
+    let with_length = builder
+        .build_insert_value(with_buffer, new_length, 1, &format!("{name}.with_length"))?
+        .into_struct_value();
+    let with_capacity = builder
+        .build_insert_value(with_length, capacity, 2, &format!("{name}.with_capacity"))?
+        .into_struct_value();
+
+    Ok((removed_element, with_capacity))
+}

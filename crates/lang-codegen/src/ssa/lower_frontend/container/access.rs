@@ -172,6 +172,44 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Unit)
     }
 
+    pub(in crate::ssa::lower_frontend) fn lower_container_remove_at(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<LoweredValue, LoweringError> {
+        let descriptor = self
+            .typed
+            .container_remove_at(expression)
+            .ok_or(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let span = descriptor.span();
+        let (owner, symbol) = self.container_owner_for_append(descriptor.receiver())?;
+        let index = self.require_value(descriptor.index())?;
+        let element_type = self.expression_ssa_type(expression, span)?;
+        let container_type = self.expression_ssa_type(descriptor.receiver(), span)?;
+        let (_, results) = self.append(
+            Operation::ContainerRemoveAt { owner, index },
+            vec![
+                EntityType::Value(element_type),
+                EntityType::Value(container_type),
+            ],
+            span,
+        )?;
+        let removed_value = value(results[0]);
+        let new_owner = value(results[1]);
+        if let Some(symbol) = symbol {
+            self.bindings.insert(symbol, LoweredValue::Value(new_owner));
+        }
+        self.emit_drops(
+            lang_frontend::ownership_checking::DropPoint::AfterExpression(descriptor.index()),
+        )?;
+        self.emit_drops(lang_frontend::ownership_checking::DropPoint::CallReturn(
+            expression,
+        ))?;
+        Ok(LoweredValue::Value(removed_value))
+    }
+
     fn container_owner_for_append(
         &mut self,
         expression: ExpressionId,
@@ -218,6 +256,9 @@ impl ExpressionLowerer<'_> {
         }
         if self.typed.container_clear(expression).is_some() {
             return self.lower_container_clear(expression).map(Some);
+        }
+        if self.typed.container_remove_at(expression).is_some() {
+            return self.lower_container_remove_at(expression).map(Some);
         }
         if self.typed.container_construction(expression).is_some() {
             return self.lower_container_construction(expression).map(Some);

@@ -69,7 +69,18 @@ impl BodyChecker<'_> {
             )? {
                 return Ok(Some(append));
             }
-            return self.check_container_clear_call(
+            if let Some(clear) = self.check_container_clear_call(
+                source,
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+                return_type,
+            )? {
+                return Ok(Some(clear));
+            }
+            return self.check_container_remove_at_call(
                 source,
                 expression,
                 call_span,

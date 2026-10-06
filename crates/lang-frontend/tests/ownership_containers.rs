@@ -702,3 +702,48 @@ fn mutable_list_clear_rejects_use_after_move() {
     );
     assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
+
+#[test]
+fn mutable_list_remove_at_valid_ownership_succeeds() {
+    let (_, _, owned) = checked(
+        "class Resource { deinit() {} }\n\
+         fun consume(own r: Resource): Unit {}\n\
+         fun remove_it(): Unit {\n\
+             var list = mutableListOf(Resource(), Resource())\n\
+             val item = list.removeAt(0)\n\
+             consume(item)\n\
+         }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+}
+
+#[test]
+fn mutable_list_remove_at_conflicts_with_active_element_borrow() {
+    let (_, _, owned) = checked(
+        "fun conflict(inout item: Int, action: Int): Unit {}\n\
+         fun remove_it(): Unit {\n\
+             var list = mutableListOf(1, 2)\n\
+             conflict(&list[0], list.removeAt(1))\n\
+         }",
+    );
+    assert_eq!(
+        owned
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0135"]
+    );
+}
+
+#[test]
+fn mutable_list_remove_at_rejects_use_after_move() {
+    let (_, _, owned) = checked(
+        "fun consume(own l: MutableList<Int>): Unit {}\n\
+         fun remove_it(own list: MutableList<Int>): Unit {\n\
+             consume(list)\n\
+             val item = list.removeAt(0)\n\
+         }",
+    );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+}

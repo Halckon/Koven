@@ -60,6 +60,9 @@ impl UnitExpressionLowerer<'_> {
         if self.typed.container_clear(unit_expression).is_some() {
             return self.lower_container_clear(expression, span).map(Some);
         }
+        if self.typed.container_remove_at(unit_expression).is_some() {
+            return self.lower_container_remove_at(expression, span).map(Some);
+        }
         Ok(None)
     }
 
@@ -176,6 +179,84 @@ impl UnitExpressionLowerer<'_> {
         }
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
         Ok(LoweredValue::Unit)
+    }
+
+    pub(super) fn lower_container_remove_at(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let id = UnitExpressionId::new(self.source_unit, expression);
+        let descriptor = self
+            .typed
+            .container_remove_at(id)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.expression() != id
+            || descriptor.receiver().source_unit() != self.source_unit
+            || descriptor.index().source_unit() != self.source_unit
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let (owner, root) =
+            self.container_owner_operand(descriptor.receiver().expression(), None, span)?;
+        let owner_val = match owner {
+            EntityId::Value(v) => v,
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
+        let index = match self.lower(descriptor.index().expression())? {
+            LoweredValue::Value(idx) => idx,
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
+        let concrete_elem = resolve_concrete_type(
+            self.typed,
+            descriptor.element_type(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        let element_type = self
+            .type_ids
+            .get(&concrete_elem)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let concrete_container = resolve_concrete_type(
+            self.typed,
+            descriptor.container_type(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        let container_type = self
+            .type_ids
+            .get(&concrete_container)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let result_id = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::ContainerRemoveAt {
+                    owner: owner_val,
+                    index,
+                },
+                vec![
+                    EntityType::Value(element_type),
+                    EntityType::Value(container_type),
+                ],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let [EntityId::Value(removed_val), EntityId::Value(new_owner)] = result_id.1.as_slice()
+        else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        if let Some(root_symbol) = root {
+            self.bindings
+                .insert(root_symbol, LoweredValue::Value(*new_owner));
+        }
+        self.emit_drops(UnitDropPoint::AfterExpression(descriptor.index()))?;
+        self.emit_drops(UnitDropPoint::CallReturn(id))?;
+        Ok(LoweredValue::Value(*removed_val))
     }
 
     /// Read the header through the frontend's synchronous receiver loan.

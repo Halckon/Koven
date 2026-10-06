@@ -4,7 +4,9 @@
 
 当前 0 份 active。
 
-0281（`MutableList.clear` 逆序元素清理与缓冲区复用）已按双宿主实现验收归档至 `docs/archive/specs/0281-mutable-list-clear.md`；交付 PR 待发起。
+0282（`MutableList.removeAt` 索引元素移出与剩余元素前移压缩）已按双宿主实现验收归档至 `docs/archive/specs/0282-mutable-list-remove-at.md` 并发起 PR 闭环。
+
+0281（`MutableList.clear` 逆序元素清理与缓冲区复用）已按双宿主实现验收归档至 `docs/archive/specs/0281-mutable-list-clear.md` 并通过 PR #60 合入 main。
 
 0280（`MutableList.add` 顺序追加与动态扩容）已按双宿主实现验收归档至 `docs/archive/specs/0280-mutable-list-add.md` 并通过 PR #59 合入 main。
 
