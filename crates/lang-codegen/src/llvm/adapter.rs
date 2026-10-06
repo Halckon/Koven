@@ -914,22 +914,30 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                         .insert(result, layout.element.const_zero());
                 }
             }
-            Operation::ContainerReplace {
-                owner,
-                index,
-                value,
-            } => {
+            Operation::ContainerAppend { owner, element } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("container append", 1, results.len()));
+                };
                 let container_type = value_type(self.function, *owner)?;
-                container::replace(
+                let new_owner = container::append(
+                    self.llvm,
                     &self.builder,
                     self.llvm_function,
-                    self.module,
                     self.dependencies.type_map,
                     self.dependencies.runtime,
                     container_type,
                     self.struct_value(*owner)?,
-                    self.int_value(*index)?,
-                    self.value(*value)?,
+                    self.value(*element)?,
+                    &format!("append.i{}", instruction.id.index()),
+                )?;
+                self.values.insert(*result, new_owner.into());
+            }
+            Operation::ContainerReplace { owner, index, value } => {
+                let container_type = value_type(self.function, *owner)?;
+                container::replace(
+                    &self.builder, self.llvm_function, self.module, self.dependencies.type_map,
+                    self.dependencies.runtime, container_type, self.struct_value(*owner)?,
+                    self.int_value(*index)?, self.value(*value)?,
                     &format!("replace.i{}", instruction.id.index()),
                 )?;
             }
@@ -1572,9 +1580,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             .ty
         {
             EntityType::Value(ty) | EntityType::Loan { target: ty, .. } => Ok(ty),
-            EntityType::Place(_) => Err(LlvmAdapterError::InvalidSsa(
-                "shared owner 不能是 place".to_owned(),
-            )),
+            EntityType::Place(_) => Err(LlvmAdapterError::InvalidSsa("shared owner 不能是 place".to_owned())),
         }
     }
 
@@ -1587,35 +1593,27 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             EntityId::Loan(owner) => self.loans.get(&owner).copied().ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("shared owner loan 映射缺失".to_owned())
             }),
-            EntityId::Place(_) => Err(LlvmAdapterError::InvalidSsa(
-                "shared owner 不能是 place".to_owned(),
-            )),
+            EntityId::Place(_) => Err(LlvmAdapterError::InvalidSsa("shared owner 不能是 place".to_owned())),
         }
     }
 
     fn int_value(&self, id: ValueId) -> Result<IntValue<'ctx>, LlvmAdapterError> {
         match self.value(id)? {
             BasicValueEnum::IntValue(value) => Ok(value),
-            _ => Err(LlvmAdapterError::InvalidSsa(
-                "integer operation 的 operand 不是 LLVM integer".to_owned(),
-            )),
+            _ => Err(LlvmAdapterError::InvalidSsa("operand 不是 LLVM integer".to_owned())),
         }
     }
 
     fn struct_value(&self, id: ValueId) -> Result<StructValue<'ctx>, LlvmAdapterError> {
         match self.value(id)? {
             BasicValueEnum::StructValue(value) => Ok(value),
-            _ => Err(LlvmAdapterError::InvalidSsa(
-                "aggregate operation 的 operand 不是 LLVM struct".to_owned(),
-            )),
+            _ => Err(LlvmAdapterError::InvalidSsa("operand 不是 LLVM struct".to_owned())),
         }
     }
 }
 
 fn invalid_result_count(operation: &str, expected: usize, actual: usize) -> LlvmAdapterError {
-    LlvmAdapterError::InvalidSsa(format!(
-        "{operation} 结果数量错误：期望 {expected}，实际 {actual}"
-    ))
+    LlvmAdapterError::InvalidSsa(format!("{operation} 结果数量错误：期望 {expected}，实际 {actual}"))
 }
 
 fn unsupported(message: &str) -> LlvmAdapterError {

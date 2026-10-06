@@ -1,17 +1,16 @@
 #[path = "unit_handoff_contract_tests.rs"]
 mod handoff_contracts;
-
 #[path = "unit_string_clone_tests.rs"]
 mod string_clone_tests;
-
 #[path = "unit_borrow_string_tests.rs"]
 mod borrow_string_tests;
-
 #[path = "unit_container_size_tests.rs"]
 mod container_size_tests;
-
+#[path = "unit_container_append_tests.rs"]
+mod container_append_tests;
 #[path = "unit_receiver_two_phase_tests.rs"]
 mod receiver_two_phase_tests;
+
 
 use std::{fs, path::Path, process::Command};
 

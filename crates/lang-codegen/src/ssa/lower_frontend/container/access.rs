@@ -1,7 +1,7 @@
 //! Observable constructor results reuse committed container descriptors and owner views.
 
 use super::*;
-use crate::ssa::model::PlaceAccess;
+use crate::ssa::model::{PlaceAccess, ValueId};
 use lang_frontend::type_checking::Copyability;
 
 impl ExpressionLowerer<'_> {
@@ -108,5 +108,85 @@ impl ExpressionLowerer<'_> {
             }
             _ => self.require_value(expression).map(EntityId::Value),
         }
+    }
+
+    pub(in crate::ssa::lower_frontend) fn lower_container_append(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<LoweredValue, LoweringError> {
+        let descriptor = self.typed.container_append(expression).ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+        let span = descriptor.span();
+        let (owner, symbol) = self.container_owner_for_append(descriptor.receiver())?;
+        let element = self.require_value(descriptor.element())?;
+        let container_type = self.expression_ssa_type(descriptor.receiver(), span)?;
+        let (_, results) = self.append(
+            Operation::ContainerAppend { owner, element },
+            vec![EntityType::Value(container_type)],
+            span,
+        )?;
+        let new_owner = value(results[0]);
+        if let Some(symbol) = symbol {
+            self.bindings.insert(symbol, LoweredValue::Value(new_owner));
+        }
+        self.emit_drops(lang_frontend::ownership_checking::DropPoint::AfterExpression(
+            descriptor.element(),
+        ))?;
+        self.emit_drops(lang_frontend::ownership_checking::DropPoint::CallReturn(
+            expression,
+        ))?;
+        Ok(LoweredValue::Unit)
+    }
+
+    fn container_owner_for_append(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<(ValueId, Option<lang_frontend::name_resolution::SymbolId>), LoweringError> {
+        let span = self.expression_span(expression)?;
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+        match node.payload() {
+            Expression::Group { expression } => self.container_owner_for_append(*expression),
+            Expression::Name => {
+                let symbol = self
+                    .references
+                    .get(&span_key(span))
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                match self.bindings.get(&symbol).copied() {
+                    Some(LoweredValue::Value(owner)) => Ok((owner, Some(symbol))),
+                    _ => Err(error(LoweringErrorKind::MissingFact, span)),
+                }
+            }
+            _ => {
+                let owner = self.require_value(expression)?;
+                Ok((owner, None))
+            }
+        }
+    }
+
+    pub(in crate::ssa::lower_frontend) fn lower_container_expression(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<Option<LoweredValue>, LoweringError> {
+        if self.typed.container_size(expression).is_some() {
+            return self.lower_container_size(expression).map(Some);
+        }
+        if self.typed.element_place(expression).is_some() {
+            return self.lower_container_index(expression).map(Some);
+        }
+        if self.typed.container_append(expression).is_some() {
+            return self.lower_container_append(expression).map(Some);
+        }
+        if self.typed.container_construction(expression).is_some() {
+            return self.lower_container_construction(expression).map(Some);
+        }
+        Ok(None)
     }
 }

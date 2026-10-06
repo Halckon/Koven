@@ -44,7 +44,8 @@ pub(super) fn verify(function: &Function, types: &TypeCaptures, errors: &mut Vec
                 | Operation::SharedAllocate { payload, .. } => may(*payload),
                 Operation::HeapFieldReplace { value, .. }
                 | Operation::InlineFieldReplace { value, .. }
-                | Operation::ContainerReplace { value, .. } => may(*value),
+                | Operation::ContainerReplace { value, .. }
+                | Operation::ContainerAppend { element: value, .. } => may(*value),
                 Operation::HeapFieldExchange { replacement, .. } => may(*replacement),
                 Operation::Mutate { place, value } => proof.is_projected(*place) && may(*value),
                 _ => false,

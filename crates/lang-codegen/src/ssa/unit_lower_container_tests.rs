@@ -279,6 +279,52 @@ fn runtime_length_container_and_unsupported_element_remain_explicit_boundaries()
     }
 }
 
+#[test]
+fn lowers_cross_file_mutable_list_add_to_container_append() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         fun create(): MutableList<Int> = mutableListOf(10)",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.create\n\
+         fun entry(): Int {\n\
+             var list = create()\n\
+             list.add(20)\n\
+             list.add(30)\n\
+             return list[1]\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("lowering succeeds");
+    let func = function(&program.modules[0], "entry");
+    let append_count = func
+        .instructions
+        .iter()
+        .filter(|instruction| matches!(instruction.operation, Operation::ContainerAppend { .. }))
+        .count();
+    assert_eq!(append_count, 2);
+}
+
 fn function<'a>(module: &'a super::model::Module, name: &str) -> &'a Function {
     module
         .functions
