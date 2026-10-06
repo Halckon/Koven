@@ -214,11 +214,11 @@
       "review": "SPEC-0279独立审阅公开结构只用于canonical查询及1406行精确增长；再次增长或迁移前重新审阅。"
     },
     "crates/lang-codegen/src/native_tests.rs": {
-      "max_lines": 1300,
-      "reason": "SPEC-0279 native intent：在原1297基础仅新增3行注册独立runtime constructor测试模块；矩阵、generic helper及求值顺序算法均放单职责子页，不为注册机械搬迁历史native测试。",
+      "max_lines": 1303,
+      "reason": "SPEC-0279 native intent：在原1297基础仅新增3行注册独立runtime constructor测试模块；矩阵、generic helper及求值顺序算法均放单职责子页，不为注册机械搬迁历史native测试。 CI消费者修正另增3行：rustfmt展开真实可达nested lambda拒绝夹具，保留结构化UnsupportedSource与无object输出断言，不压行或机械迁移历史测试。",
       "owner": "lang-codegen native source verification",
       "split_plan": "后续native测试专项按普通源码、runtime ABI与object发布完整场景分组；保留现有共享harness。",
-      "review": "SPEC-0279 independent full review核对实际增长、领域子模块与现有行为边界；超过1300行或扩张职责前重新审阅。"
+      "review": "SPEC-0279 independent full review核对模块注册及真实nested lambda负控夹具的有界增长；超过1303行或扩张职责前重新审阅。"
     }
   },
   "generated": {}

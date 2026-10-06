@@ -1,0 +1,269 @@
+{
+  "source_head": "e9e3bf2c93f428742d1ca112d6c7fdaef8ce7c77",
+  "dirty_test_inputs_sha256": {
+    "crates/lang-codegen/src/native/unit_for_boundary_tests.rs": "84f264bea744810ef6124c0775d2a132025569fd1d6dd6ee58f02830fa60647d",
+    "crates/lang-codegen/src/native_tests.rs": "36938e5501d339f41928098e0361998b1c3b3ca253c0b2278940947fcaa0136f",
+    "crates/lang-codegen/src/ssa/container_lowering_tests.rs": "93b50aedb51ea6be9e055fb2bda5d6508daa9b50f5e29eaddac28153236efc68",
+    "crates/lang-codegen/src/ssa/unit_field_borrow_tests.rs": "c832769371e52b6e82c0923dabf719b590367b70edf6e2f4ab05126f846ce4c6"
+  },
+  "scope": "four consumer tests corrected after actual full dual-host CI; no production Rust changed",
+  "failed_pr_run": {
+    "id": 37451906783,
+    "head_sha": "e9e3bf2c93f428742d1ca112d6c7fdaef8ce7c77",
+    "conclusion": "failure",
+    "url": "https://github.com/Halckon/Koven/actions/runs/37451906783",
+    "raw": [
+      {
+        "file": "failed-pr-jobs-37451906783.json.gz",
+        "raw_sha256": "5a27fd92ddb11f6cdb417d7d050555fff52f42307b13ba0680f47a8351aa2acf"
+      },
+      {
+        "file": "failed-pr-run-37451906783.json.gz",
+        "raw_sha256": "33f835f8ac59a09548e43babb89bc94eddee2e05e99cf6704b2474a2ce7d1206"
+      },
+      {
+        "file": "failed-pr-targeted-tests-macos-112231034658.log.gz",
+        "raw_sha256": "ef56ca0492df1c538a14b723a2f366907caf3bb012563c0ec9fa02910b772e2d"
+      },
+      {
+        "file": "failed-pr-targeted-tests-ubuntu-112231034673.zip.gz",
+        "raw_sha256": "41b5895ca95082b95f233dbb375d2a3a5673da02b9cca1dc629c99eb554eaf3b"
+      }
+    ]
+  },
+  "local_checks": [
+    {
+      "name": "ci-regression-consumer-source-green",
+      "classification": "zero-tests-invalid-selection",
+      "actual_exit": 0,
+      "record": {
+        "file": "ci-regression-consumer-source-green.json.gz",
+        "raw_sha256": "b497038e073ee06ce67e39da1452467dc4cae8e39f1be091e602e923b2b358fc"
+      },
+      "log": {
+        "file": "ci-regression-consumer-source-green.log.gz",
+        "raw_sha256": "a3bb9f1d94bf95b36a7f84627ab47a8f1569ac7c8a19fae255e0799623f6b52e"
+      }
+    },
+    {
+      "name": "ci-regression-field-negative-green",
+      "classification": "corrected-exact-behavior-pass",
+      "actual_exit": 0,
+      "record": {
+        "file": "ci-regression-field-negative-green.json.gz",
+        "raw_sha256": "cabc4ec97a53734115456dd7032b9ffe79625f0ed109ba7501495a942852795e"
+      },
+      "log": {
+        "file": "ci-regression-field-negative-green.log.gz",
+        "raw_sha256": "23ac2176ae593eaa29ad13f6b10b33904613f43d12a389e4ea29a9151a19939a"
+      }
+    },
+    {
+      "name": "ci-regression-field-positive-green",
+      "classification": "corrected-exact-behavior-pass",
+      "actual_exit": 0,
+      "record": {
+        "file": "ci-regression-field-positive-green.json.gz",
+        "raw_sha256": "8b2a6608a3fad4552662e09cb71189254e62fc1febf388094bb03b7bbe50daea"
+      },
+      "log": {
+        "file": "ci-regression-field-positive-green.log.gz",
+        "raw_sha256": "a3f355031f256e5c8dc69e118571df02af2bce3245ee4b2a00ba335b7d12c32f"
+      }
+    },
+    {
+      "name": "ci-regression-iteration-native-green",
+      "classification": "corrected-exact-behavior-pass",
+      "actual_exit": 0,
+      "record": {
+        "file": "ci-regression-iteration-native-green.json.gz",
+        "raw_sha256": "37944bd537255c73eec85304f68ff09372448fe36847bf4b711bbb2b9efaefb0"
+      },
+      "log": {
+        "file": "ci-regression-iteration-native-green.log.gz",
+        "raw_sha256": "7383ccc253db426bc4e3543ba5262098097bb1e68c128457933ac771d3645b5a"
+      }
+    },
+    {
+      "name": "ci-regression-object-boundary-corrected-green",
+      "classification": "corrected-exact-behavior-pass",
+      "actual_exit": 0,
+      "record": {
+        "file": "ci-regression-object-boundary-corrected-green.json.gz",
+        "raw_sha256": "aeed430f1d1b7ff0374f6eaac3dcc8e27d8e41f11e12b77e79465e159a4a4211"
+      },
+      "log": {
+        "file": "ci-regression-object-boundary-corrected-green.log.gz",
+        "raw_sha256": "06c1d01efa7f1c7abe7c08d3a8170dc38b80171d3904c4a74d5b4dce301153c4"
+      }
+    },
+    {
+      "name": "ci-regression-object-boundary-green",
+      "classification": "failed-expectation-or-fixture",
+      "actual_exit": 101,
+      "record": {
+        "file": "ci-regression-object-boundary-green.json.gz",
+        "raw_sha256": "d6c2a4c1b730e267e320900e8483178ce5f964631f3943b608907960ebda4e3a"
+      },
+      "log": {
+        "file": "ci-regression-object-boundary-green.log.gz",
+        "raw_sha256": "e0148d463ae01c8264d6d27f9a7577fbd2380318ea8a2d2ba5cd0599602ab7fe"
+      }
+    },
+    {
+      "name": "ci-regression-old-consumer-0-red",
+      "classification": "old-consumer-expectation-failure",
+      "actual_exit": 101,
+      "record": {
+        "file": "ci-regression-old-consumer-0-red.json.gz",
+        "raw_sha256": "1dd4b5e0022bfda90004f6c0e52418b738a83ea8a6e744e004d8eb810d611c5a"
+      },
+      "log": {
+        "file": "ci-regression-old-consumer-0-red.log.gz",
+        "raw_sha256": "6d2f28f3d9461253ba3866fbdbffc78edb276448cff8a5931d727e067a85306c"
+      }
+    },
+    {
+      "name": "ci-regression-old-consumer-1-red",
+      "classification": "old-consumer-expectation-failure",
+      "actual_exit": 101,
+      "record": {
+        "file": "ci-regression-old-consumer-1-red.json.gz",
+        "raw_sha256": "e1015da924277436422f600d901d12d39c5210dd103cb0fa6bcc5461e09c2dfd"
+      },
+      "log": {
+        "file": "ci-regression-old-consumer-1-red.log.gz",
+        "raw_sha256": "d87e10a4bc5e9311d00affece0d30331d9bbf7a6fc0eae2e03139a38440e58e7"
+      }
+    },
+    {
+      "name": "ci-regression-old-consumer-2-red",
+      "classification": "old-consumer-expectation-failure",
+      "actual_exit": 101,
+      "record": {
+        "file": "ci-regression-old-consumer-2-red.json.gz",
+        "raw_sha256": "4089305d1dbb1e8669005be7d55f1e4854c7485ed2993804ed96b6d9ef64bb4c"
+      },
+      "log": {
+        "file": "ci-regression-old-consumer-2-red.log.gz",
+        "raw_sha256": "a91526297692e005d036d4a300259f147f3c761a41f681b5dc7ac457d005ecb7"
+      }
+    },
+    {
+      "name": "ci-regression-old-consumer-3-red",
+      "classification": "old-consumer-expectation-failure",
+      "actual_exit": 101,
+      "record": {
+        "file": "ci-regression-old-consumer-3-red.json.gz",
+        "raw_sha256": "345faca3c12d0e07e9858721fa989fc7626deca61ce60e1cdae9874850ee8cfb"
+      },
+      "log": {
+        "file": "ci-regression-old-consumer-3-red.log.gz",
+        "raw_sha256": "53326f647b0311439c2615331c770aa4029bb35ed6c9ace7854415829dd5bbe4"
+      }
+    },
+    {
+      "name": "ci-regression-pointer-source-corrected-green",
+      "classification": "corrected-exact-behavior-pass",
+      "actual_exit": 0,
+      "record": {
+        "file": "ci-regression-pointer-source-corrected-green.json.gz",
+        "raw_sha256": "d14d7e465bc3b23da624d02f0e5286ba4c5207b376e06671d441a4f775acb936"
+      },
+      "log": {
+        "file": "ci-regression-pointer-source-corrected-green.log.gz",
+        "raw_sha256": "d65aa911f2e797a033a6434032105b9cc127d41170b1122a27b1099768c363de"
+      }
+    },
+    {
+      "name": "ci-regression-pointer-source-green",
+      "classification": "failed-expectation-or-fixture",
+      "actual_exit": 101,
+      "record": {
+        "file": "ci-regression-pointer-source-green.json.gz",
+        "raw_sha256": "708887da2b7e31aa661667d8cb3fe2a3535271cf52ccfc152cb02fe9fe271bc2"
+      },
+      "log": {
+        "file": "ci-regression-pointer-source-green.log.gz",
+        "raw_sha256": "e7b81c7751d4376b54e9d7000a24d973cfe202d1ebfe7193a92a2299f4a3cc3a"
+      }
+    },
+    {
+      "name": "ci-consumer-clippy",
+      "classification": "gate-pass",
+      "actual_exit": 0,
+      "record": {
+        "file": "ci-consumer-clippy.json.gz",
+        "raw_sha256": "60cf21c413bac8dc5c02f73fff1d66a95b03cd44bddf8d751ca50a178a5c572c"
+      },
+      "log": {
+        "file": "ci-consumer-clippy.log.gz",
+        "raw_sha256": "c6b406ac96f67dcb1cc790e50c04ff712684ce718ddadc40292447835d746db3"
+      }
+    },
+    {
+      "name": "ci-consumer-fmt",
+      "classification": "gate-pass",
+      "actual_exit": 0,
+      "record": {
+        "file": "ci-consumer-fmt.json.gz",
+        "raw_sha256": "bcd2663a934a9d89b2fee3971774485a8ae85fc96c8834ce2675f30993dbb6ae"
+      },
+      "log": {
+        "file": "ci-consumer-fmt.log.gz",
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "ci-consumer-size-corrected",
+      "classification": "gate-pass",
+      "actual_exit": 0,
+      "record": {
+        "file": "ci-consumer-size-corrected.json.gz",
+        "raw_sha256": "a9828b8b38857659821d13d4ca53719cf7322f46ab6dada4bac41987a9c46978"
+      },
+      "log": {
+        "file": "ci-consumer-size-corrected.log.gz",
+        "raw_sha256": "03f7cad0941f29dd68dce774d4461b9dba11f7e8dca6976831d460cb21fdf83e"
+      }
+    },
+    {
+      "name": "ci-consumer-size",
+      "classification": "failed-expectation-or-fixture",
+      "actual_exit": 1,
+      "record": {
+        "file": "ci-consumer-size.json.gz",
+        "raw_sha256": "671509815384061adc0b3c612ee269dd07bd915992f1954f61da1181cd27d0ee"
+      },
+      "log": {
+        "file": "ci-consumer-size.log.gz",
+        "raw_sha256": "1b42a7914c545e3511ac8eec50b88704cca52bf00df7697596aa79c0a1a86fb6"
+      }
+    }
+  ],
+  "validation_limits": [
+    "five exact Rust tests, each 1 pass/0 ignored; natural iteration six native cases, Borrow field two ordinary LLVM/native cases",
+    "pointer corrected gate verifies only its relevant test input; other four exact corrected gates match all four final test inputs",
+    "stdout and verified lowering do not prove allocation/free or native destructor counts",
+    "remaining six field negative scenarios retained; explicit EndCaptureLoan exits not opened",
+    "initial full CI failed; corrected head remote CI and archival still pending"
+  ],
+  "local_execution_exception": {
+    "test": "old natural captured-Borrow iteration test",
+    "record": "ci-regression-old-consumer-0-red",
+    "fact": "exact old-test reproduction accidentally ran existing LLVM object-path emission_failure Guard once before preinspection; returned injected Backend",
+    "subsequent_action": "removed obsolete guard negative expectation from now-supported natural path; corrected verification uses ordinary SSA/LLVM/object/link/run",
+    "not_run": [
+      "ASan/LSan",
+      "resource failure calibration/injection",
+      "daybreak",
+      "P2 resampling",
+      "allocation/free accounting"
+    ]
+  },
+  "independent_review": {
+    "reviewer": "final_0279_source_abi_review",
+    "findings": "no unresolved finding; confirmed meaningful incoming/child loan identity, reached nested-lambda refusal, unchanged field negatives, no injection in corrected native helpers",
+    "size_exception": "native_tests.rs 1300 to 1303 only rustfmt expansion of reached nested-lambda fixture; baseline1297 unchanged; precise allowance independently approved"
+  }
+}

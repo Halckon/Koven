@@ -368,3 +368,21 @@ E6历史八门禁与16raw经独立核对；CI静态链确认双宿主PR/main→i
 选择codegen/CLI，注册的12个native和两个公共CLI child无ignore。但配置可选择仍不是
 远端实际通过，归档及精确final PR/actual main尚待。因最终共享verifier有变化，旧static、
 ZST与owned closure五个exact用例已对最终输入补复核并全部通过，不复用历史head冒称新门禁。
+
+
+2026-10-06 初次实现 PR #57：精确 `e9e3bf2` 的实际双宿主 CI run `37451906783`
+失败（Linux codegen 1035pass/4fail，macOS 1034pass/4fail/1既有LLDB ignore；preview 被跳过）。
+四项旧消费者断言未跟随新支持能力：runtime helper、Borrow 参数一级 String 字段、
+自然迭代捕获 Borrow closure 与无捕获 lambda。生产 Rust 未改；前三项改为真实调用、
+loan 身份和普通 native 正控；最后一项对象负控改为可达 nested lambda 的既有结构化拒绝。
+其余六项字段拒绝边界保留。五个 fully-qualified exact Rust test 均1pass/0ignored，
+自然循环0/1/3×两view共6native，Borrow字段两view共2普通LLVM链接运行；
+不据stdout宣称allocation/free或独立析构计数。严格clippy、fmt和修正尺寸门禁通过；
+native_tests旧欠账1300→1303仅真实拒绝夹具的rustfmt展开，baseline1297未抬高，
+精确例外经非作者复审。全部失败、0-test误选择、夹具失败与正确通过分开保全于
+[CI消费者修正收据](../../development/evidence/runtime-constructor-0279/ci-consumers/receipt.json)。
+
+本地执行范围例外：精确复现旧自然捕获循环测试前漏查对象路径故障钩子，误运行既有
+`emission_failure::Guard`一次；该次注入Backend已记录且已告知用户，不能冒称本轮完全未运行注入。
+后续修正仅运行普通SSA/LLVM/object/link/run。ASan/LSan、资源故障校准、daybreak、
+P2重采样和allocation/free accounting仍未在本地运行。修正提交远端CI及归档仍待。
