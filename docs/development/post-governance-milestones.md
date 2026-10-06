@@ -64,16 +64,18 @@ G0 的判断依据为[治理执行账本](engineering-governance-progress.md)及
 | M0 交接与基线收口 | 接收治理结果，固定缺口、入口和成本证据边界 | G0、G1 | S–M | 交接可追溯，必要阻塞项处理完成，保留项明确；不要求删除全部兼容入口 |
 | [M1A 多文件程序贯通](multifile-program-spec-draft.md) | 三文件参数报告程序，贯通跨文件字段、直接 Borrow、unit for | M0、G2、G3 | L | 两宿主 project build/run、输出、清理、拒绝与原子性通过 |
 | [M1B 文本处理程序](text-processing-spec-draft.md) | argv 词频版，再到选定输入方式的文本版 | M1A、所需 M3A API、必要语义决策 | L | 固定输入与错误集真实执行，文本/错误/API 边界明确 |
-| [M2 借用访问方案决策](borrow-access-spec-draft.md) | 根据实际需求选择现行索引/Borrow、受限返回或投影方案 | M1A 暴露的需求 | 设计 M；实现另估 | 接受/拒绝 litmus、方案及非目标明确；新增语义获启用后才实施 |
+| [M2 / 用户称 M2B 通用借用访问结果](borrow-access-spec-draft.md) | 设计可局部绑定/字段访问/受控转发的单来源结果，共用所有权核心 | 真实需求、现行直接 Borrow 对照；新 Guide 尚未启用 | 设计 M–L；实现另估 | 核心/声明合同/API 三层及正反矩阵明确；语法/Guide 审查后才实施 |
 | [M3A 顺序集合实用化](sequential-collections-spec-draft.md) | 补选定 Array/List/MutableList 操作 | M0、具体程序需求 | M–L | 所选访问/增长/搬迁/删除/清理合同完整，新增 API 语义前置满足 |
-| [M3B Map 合同与实现](map-collections-spec-draft.md) | 键、查询、更新、扩容与迭代的完整有界合同 | M1B 需求、语义批准；按查询方案依赖 M2 | L | 正反例与 native 通过，词频程序可用 Map 改写 |
+| [M3B Map 合同与实现](map-collections-spec-draft.md) | 键、查询、更新、扩容与迭代的完整有界合同，覆盖 String/Resource 借用需求 | M1B 需求、Map 语义批准；新增借用结果依赖 M2B | L | 与 List/字段共用来源核心；正反例与 native 通过，词频程序可用 Map 改写 |
 | [M4 安全验证](memory-safety-validation-spec-draft.md) | 检测接线、可复现随机执行、定向外审 | M1A 起逐步接入；外审另有范围与授权 | M–L | 检测覆盖实际生效，失败可定位、回归，审计意见有处置 |
 | [M5 度量与分发](measurement-distribution-spec-draft.md) | 新成本基线、双宿主 preview 与使用材料 | preview 依赖 M1A 和选定 M4 门槛；实用版本依赖 M1B | M | 新环境安装运行通过，原始测量与限制公开 |
 | [M6 线程与共享演进](thread-transfer-spec-draft.md) | 先 v1 所有权转移线程，另评估跨线程共享 | 稳定 runtime、M4 证据与真实需求 | L | 转移/join/错误/清理合同闭合；共享与新目标分别决策 |
 
 推进主线为 `治理交接 → M0 → M1A → M1B → 实用版本`。
 M3A 所需 API 可以先于 M1B 交付，避免“M3 必须等整个 M1”的循环依赖。
-M2 不阻塞 M1A，也不当然阻塞所有集合操作；M4 随功能推进，M5 preview 可在 M1A 后准备。
+M2B 是用户对原 M2 通用借用结果方向的称呼，不另占里程碑编号；它不阻塞 M1A，
+也不当然阻塞现行 M3A 构造/直接 Borrow 或 owned 查询；新增结果形态须等待其合同。
+M4 随功能推进，M5 preview 可在 M1A 后准备。
 并行描述的是工作依赖，不授权争用同一个 Cargo target，也不要求并行启动 agent。
 
 ## 5. M0：接收治理结果
@@ -112,16 +114,26 @@ Result 构造/匹配与后缀 `?` 分别核验，重点验证 Err 提前返回�
 
 ## 7. M2 与 M3：语义决策和集合合同
 
-M2 先说明现行元素 place 直接 Borrow 能解决哪些需求，再评估新增返回能力。
-litmus 至少覆盖来源唯一性、临时接收者、链式调用、容器搬迁失效、分支、capture、
-返回和字段存储；数量由风险覆盖决定，不为凑数量增加等价样例。
-选择新增语义时，proposal 与 Guide 明确启用先于相应 ADR/Spec 实施；ADR 不替代语言规范。
+M2B（原 M2）先以现行元素 place 直接 Borrow 作对照，设计可局部绑定、包装函数转发、
+继续字段投影的新结果；不以 Map<String,Int> 或隐式 clone 限缩通用能力。
+[候选 proposal](../proposals/general-borrow-access-results.md)按三层封闭：
+来源/Shared/Exclusive/reborrow/失效核心；receiver 或指定参数来源的函数/静态接口合同；
+集合与用户库 API/语法复用。首版单一明确来源、局部只读结果、受控跨函数转发、结构化独占修改。
+不预定 Rust lifetime 语法，不启用 v2 动态派发；普通对象/容器长期存借用、多来源、
+逃逸 closure、跨线程/async 延后，视图/树/parser/IO 仅列后继。
+litmus 同时覆盖 Map<String,String>/Resource、List<MoveOnly>、字段与 Map→List→字段，
+明确根 owner/selector/parent loan、临时 key 与 receiver 依赖分离、Missing 与 nullable slot、
+alias/CFG、失效/恢复/正常退出清理；现有 terminal element place 不等于已有通用投影链。
+proposal、语法审查与用户明确启用 Guide 先于相应 ADR/Spec 实施；ADR 不替代语言规范。
 
 M3A 使用现行 Array/List/MutableList 名称，不默认增加 Vec、Option 或条件成员。
 新增操作逐项定义 move/borrow、长度/大小溢出、relocation、别名和资源清理。
-M3B 复核[Map 候选](../proposals/map-ownership.md)后形成新决定，至少封闭 Hash/Equal 一致性、
+M3B 将[旧 Map 候选](../proposals/map-ownership.md)作为只读历史核对后形成新决定，不能直接采用
+其过时 marker/getRef/借用返回规则；至少封闭 Hash/Equal 一致性、
 MoveOnly key 查询、覆盖旧值归属、删除、扩容失效与迭代/输出顺序；候选正文仍为非规范。
+String/Resource 查询及嵌套访问共用 M2B 核心，不由 Map、List 和用户库分别增加来源规则。
 Set、开放 Iterator/Iterable 与借用视图按各自需求评审，不作为 Map 的隐含交付包。
+本轮仅扩充设计计划；SPEC-0279 独立生产 PR/CI 不受影响，新语义仍须明确启用后实施。
 
 ## 8. M4：分层安全证据
 
