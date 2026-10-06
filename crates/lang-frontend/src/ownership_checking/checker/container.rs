@@ -195,4 +195,22 @@ pub(super) fn populate_container_call_contracts(
             .entry(remove_at.expression().index())
             .or_insert_with(|| vec![crate::type_checking::ParameterMode::Value]);
     }
+    for remove_last in typed.container_remove_lasts() {
+        receivers_by_expression.insert(
+            remove_last.expression().index(),
+            crate::type_checking::CallReceiverDescriptor {
+                origin: crate::type_checking::CallReceiverOrigin::Expression(
+                    remove_last.receiver(),
+                ),
+                mode: crate::type_checking::ParameterMode::Inout,
+                category: typed
+                    .expression_category(remove_last.receiver())
+                    .unwrap_or(crate::type_checking::ExpressionCategory::Place),
+                ty: remove_last.container_type(),
+            },
+        );
+        calls_by_expression
+            .entry(remove_last.expression().index())
+            .or_default();
+    }
 }
