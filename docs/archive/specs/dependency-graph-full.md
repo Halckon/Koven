@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，266 份）"]
+subgraph Garchive["已完成（archive，267 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -275,8 +275,6 @@ subgraph Garchive["已完成（archive，266 份）"]
   S0277["S0277<br/>Linux P2 证据接收与词法测试预期对齐"]
   S0278["S0278<br/>borrowed closure 的 owned escape 交付校验"]
   S0279["S0279<br/>Array/List 运行时长度源码构造到 native"]
-end
-subgraph Gactive["现行 active"]
   S0280["S0280<br/>MutableList 顺序追加与动态扩容 (MutableList.add)"]
 end
 S0001 --> S0002
@@ -1531,4 +1529,4 @@ S0279 --> S0280
 | SPEC-0277 | archive | [0277-p2-evidence-test-alignment.md](0277-p2-evidence-test-alignment.md) |
 | SPEC-0278 | archive | [0278-borrowed-closure-escape-verification.md](0278-borrowed-closure-escape-verification.md) |
 | SPEC-0279 | archive | [0279-runtime-length-container-native.md](0279-runtime-length-container-native.md) |
-| SPEC-0280 | active | [0280-mutable-list-add.md](../../specs/active/0280-mutable-list-add.md) |
+| SPEC-0280 | archive | [0280-mutable-list-add.md](0280-mutable-list-add.md) |

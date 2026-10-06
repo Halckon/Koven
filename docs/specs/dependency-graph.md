@@ -8,16 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 266 份"))
-subgraph Gactive["现行 active"]
-  S0280["S0280<br/>MutableList 顺序追加与动态扩容 (MutableList.add)"]
-end
-ARCH --> S0280
+ARCH(("已完成<br/>archive 267 份"))
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0280 | active | [0280-mutable-list-add.md](active/0280-mutable-list-add.md) |
-| 已完成 Spec（266 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（267 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

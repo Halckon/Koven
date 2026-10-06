@@ -1,10 +1,10 @@
 # SPEC-0280: MutableList 顺序追加与动态扩容 (`MutableList.add`)
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或评审 MutableList 动态增长操作时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或评审 MutableList 动态增长操作时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0280` |
 | 所属 Phase | Phase 2 预声明成员识别；Phase 3 独占借用与元素转移；Phase 4 SSA、动态扩容原语与 native 运行 |
 | 语言规范 | 现行 [Guide v0.41](../../guide/README.md)；[集合与解构](../../guide/12-collections-destructuring.md) |
@@ -60,18 +60,18 @@ Koven v0.41 Guide §12 明确规范：
 - 不引入异常展开；容量溢出或分配失败按规范确定性 abort。
 
 ## 5. 验收标准
-
-- [ ] G1: `MutableList<Int>.add` 从空列表（`mutableListOf()` / `MutableList<Int>()`）追加单元素与多元素，验证 `size`、索引访问与遍历正确。
-- [ ] G2: `MutableList<String>.add` 与 `MutableList<Resource>.add`：MoveOnly 与含 `deinit` 的资源类型追加，验证所有权转移与逆序析构（零泄漏）。
-- [ ] G3: 活跃元素借用期间调用 `.add` 产生编译期 L0135 诊断。
-- [ ] G4: 针对 `Array` / `List` 调用 `.add` 产生无效成员编译期诊断。
-- [ ] G5: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
-
+ 
+- [x] G1: `MutableList<Int>.add` 从空列表（`mutableListOf()` / `MutableList<Int>()`）追加单元素与多元素，验证 `size`、索引访问与遍历正确。
+- [x] G2: `MutableList<String>.add` 与 `MutableList<Resource>.add`：MoveOnly 与含 `deinit` 的资源类型追加，验证所有权转移与逆序析构（零泄漏）。
+- [x] G3: 活跃元素借用期间调用 `.add` 产生编译期 L0135 诊断。
+- [x] G4: 针对 `Array` / `List` 调用 `.add` 产生无效成员编译期诊断。
+- [x] G5: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
+ 
 ## 6. 验证记录
-
+ 
 | 验收项 | 目标与过滤器 | 结果 | 证据 |
 |:---|:---|:---|:---|
-| 类型与成员检查 | `cargo test -p lang-frontend --test type_containers` | 待执行 | |
-| 所有权借用冲突 | `cargo test -p lang-frontend --test ownership_containers` | 待执行 | |
-| SSA 容器操作与 Verifier | `cargo test -p lang-codegen container_operation` | 待执行 | |
-| 双宿主 Native 执行与析构 | `cargo test -p lang-codegen --test native_container_append` | 待执行 | |
+| 类型与成员检查 | `cargo test -p lang-frontend --test type_containers` | PASS | 12 passed，覆盖 `container_add_rejects_array_and_list` 等负例及类型推导 |
+| 所有权借用冲突 | `cargo test -p lang-frontend --test ownership_containers` | PASS | 20 passed，覆盖 `mutable_list_add_conflicts_with_active_element_borrow` (L0135) 与 `mutable_list_add_transfers_move_only_elements` |
+| SSA 容器操作与 Verifier | `cargo test -p lang-codegen mutable_list_add` | PASS | 2 passed，覆盖单文件与多文件编译单元 SSA lower 到 `ContainerAppend` 并通过 verifier 校验 |
+| 双宿主 Native 执行与析构 | `cargo test -p lang-codegen unit_container_append` | PASS | 3 passed，验证空/非空初始容量动态倍增追加及 MoveOnly 元素逆序析构零泄漏 |
