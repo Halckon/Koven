@@ -6,6 +6,7 @@ Proposal 本身不修改现行 v0.41、不批准 Spec，也不代表实现优先
 已移入 guide，剩余候选仍未启用；普通开发任务不要读取本目录。
 
 - [通用借用访问结果（M2B）](general-borrow-access-results.md)
+- [借用结果声明与类型合同比较](borrow-access-contract-comparison.md)
 - [Map / MutableMap 所有权候选](map-ownership.md)
 - [v2 interface 值与动态分发](v2-interface-values-and-dynamic-dispatch.md)
 - [String Copyable 候选取舍](string-copyability.md)

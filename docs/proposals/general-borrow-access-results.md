@@ -30,12 +30,14 @@ SPEC-0279 的现行 runtime constructor 交付、独立 PR/CI 不受本稿影响
 局部借用结果的上界先以结构化块/访问域界定；结束块后可恢复 owner 操作权限，
 不能以最后一次读、优化器分析或 runtime 地址偶然稳定来缩短 loan。
 源 owner 可来自 caller 的具名 owner、Borrow 参数或有权限的 Inout 参数；
-首版新结果不借自 callee 局部 owner 或临时 receiver，也不隐式延长临时 receiver 生命周期。
+首版新结果不借自 callee 局部 owner、Own/Value 参数或临时 receiver，也不隐式延长临时 receiver 生命周期。
 现行直接 Borrow temporary 的调用期合法行为保留；临时 receiver 的新结果延寿另行评审。
 
 非目标：普通对象/容器长期存借用、多来源或来源集合、逃逸 closure、跨线程/async、
 引用环、任意用户自定义索引/迭代、slice 语法、隐式 pinning 和借用复制协议。
 其它视图、树、parser、IO 只作为同一核心的后继需求，不进入首版验收。
+短期不逃逸 closure 捕获新结果的合同同样待冻结，未批准前不开放；两方案均须证明
+source/parent 保活与捕获结束，不能由局部绑定或包装类型自动推导 capture 合法。
 
 库操作按所有权效果分别表达；下表的 `get`/`remove` 是需求名称，不批准具体新签名。
 
@@ -78,6 +80,13 @@ Exclusive 只来源于已验证 mutable place/Inout 能力；只读 child 存活
 与返回的目标类型、可选缺失协议共同构成 callable contract；它不是普通返回 `T` 的注释。
 本稿只写语义关系，不规定 `&T`、Rust lifetime 参数、返回 marker 或新的关键字。
 备选语法由独立方案审查决定；无需显式生命周期参数不等于可以不发布来源事实。
+
+来源输入须有 caller 保持的 Borrow 能力；callee 的 Own/Value 参数不能成为首版结果来源，
+即使目标 Copyable 也不能返回指向 callee 副本栈槽的借用。Inout 来源须先冻结原子的
+parent continuation/权限恢复，不能结束本次 Exclusive loan 后遗留 Shared child；未证明该
+子集前拒绝，不以普通 CallReturn end 冒充交接。具名 caller owner 传给 Borrow 参数不受此拒绝。
+声明、局部绑定与缺失协议的两个具体备选见[合同比较](borrow-access-contract-comparison.md)，
+目前尚未选定，不批准其中任何语法或 intrinsic 类型。
 
 callee 每条正常返回路径必须证明结果派生自声明的唯一输入，不能借自本地 owner、
 其它输入、闭包环境或已失效 selector。包装函数可继续投影该输入或转发已验证结果，
@@ -127,7 +136,7 @@ parent/child loan；中间查询不得重算 key/index、隐式 clone、提前 d
 | R05 | Map→List<Resource>→index→field / parent chain | 局部逐层投影、包装转发，所有 selector 各一次 | 丢 root、element 后 field 来源缺失或提前结束 parent 拒绝 |
 | R06 | receiver/指定参数 / 静态泛型 user-library wrapper | 同文件和跨文件相同来源/权限/结果关系 | 借另一参数、错误实例/memo、同签名不同来源混用拒绝 |
 | R07 | 同一根的 branch/loop aliases / CFG loan | 同来源且兼容 selector 合流、迭代内结束子 loan | 多来源 join、未经证明的 selector join、loop carry 超期限拒绝 |
-| R08 | callee 局部/临时 receiver / 返回结果 | 现行直接 Borrow temporary 作为基线仍合法 | 首版新借用结果绑定或转发临时/局部 owner 均拒绝 |
+| R08 | callee 局部/临时 receiver / 返回结果 | 现行直接 Borrow temporary 作为基线仍合法 | 首版新借用结果绑定或转发临时/局部/Own 参数 owner 均拒绝 |
 | R09 | 临时/具名 String key / receiver-result loan | key 查询结束可清理/复用，receiver 保护继续 | 让结果依赖 key 地址，或连同 key 结束 receiver loan 拒绝 |
 | R10 | Missing、Found(null)、Found(value) / 条件事实 | 三状态可区分，只有有效分支可读取目标 | missing 未检查读取、把 V? null 直接当缺失拒绝 |
 | R11 | shared aliases、同/未知 selector / overlap | 多个只读 alias 合法，域结束后可移动 owner | 存活结果期间 move/drop/relocation 或等价 key 修改拒绝 |
