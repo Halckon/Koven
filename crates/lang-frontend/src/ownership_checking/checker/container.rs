@@ -130,3 +130,38 @@ impl Checker<'_> {
         Ok(flows)
     }
 }
+
+pub(super) fn populate_container_call_contracts(
+    typed: &crate::type_checking::TypedFile,
+    receivers_by_expression: &mut std::collections::BTreeMap<
+        usize,
+        crate::type_checking::CallReceiverDescriptor,
+    >,
+    calls_by_expression: &mut std::collections::BTreeMap<
+        usize,
+        Vec<crate::type_checking::ParameterMode>,
+    >,
+) {
+    for construction in typed.container_constructions() {
+        calls_by_expression
+            .entry(construction.expression().index())
+            .or_insert_with(|| construction.parameter_modes().to_vec());
+    }
+    for append in typed.container_appends() {
+        receivers_by_expression.insert(
+            append.expression().index(),
+            crate::type_checking::CallReceiverDescriptor {
+                origin: crate::type_checking::CallReceiverOrigin::Expression(append.receiver()),
+                mode: crate::type_checking::ParameterMode::Inout,
+                category: typed
+                    .expression_category(append.receiver())
+                    .unwrap_or(crate::type_checking::ExpressionCategory::Place),
+                ty: append.container_type(),
+            },
+        );
+        calls_by_expression
+            .entry(append.expression().index())
+            .or_insert_with(|| vec![crate::type_checking::ParameterMode::Value]);
+    }
+}
+

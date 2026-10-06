@@ -64,6 +64,30 @@ pub(super) fn collect_call_receiver_contracts(
             source_receiver_span(typed, call.target()),
         ));
     }
+    for append in typed.container_appends() {
+        let call_id = append.expression();
+        let parsed = parsed_for_call(inputs, names, call_id)?;
+        let call_node = parsed.ast().expressions().get(call_id.expression())?;
+        let receiver_expr = append.receiver();
+        let receiver_span = parsed
+            .ast()
+            .expressions()
+            .get(receiver_expr.expression())?
+            .span();
+        contracts.push(UnitCallReceiverOwnershipContract::new(
+            call_id,
+            UnitCallTarget::FunctionValue,
+            UnitCallReceiverOrigin::Expression(receiver_expr),
+            append.container_type(),
+            typed
+                .expression_category(receiver_expr)
+                .unwrap_or(ExpressionCategory::Place),
+            ownership_kind(ParameterMode::Inout),
+            receiver_span,
+            call_node.span(),
+            None,
+        ));
+    }
     contracts.sort_by_key(|contract| {
         (
             contract.call().source_unit().index(),
@@ -141,6 +165,35 @@ pub(super) fn collect_call_argument_contracts(
     validate_unique_container_calls(typed.container_constructions(), &mut seen_calls)?;
     for descriptor in typed.container_constructions() {
         collect_container_contracts(inputs, names, typed, descriptor, &mut contracts)?;
+    }
+    for append in typed.container_appends() {
+        let call_id = append.expression();
+        if !seen_calls.insert(call_id) {
+            return Err(invalid_unit_call(call_id));
+        }
+        let parsed = parsed_for_call(inputs, names, call_id)?;
+        let call_node = parsed.ast().expressions().get(call_id.expression())?;
+        let element_expr = append.element();
+        let element_span = parsed
+            .ast()
+            .expressions()
+            .get(element_expr.expression())?
+            .span();
+        contracts.push(UnitCallArgumentOwnershipContract {
+            call: call_id,
+            argument: element_expr,
+            parameter_index: 0,
+            parameter_type: append.element_type(),
+            category: typed
+                .expression_category(element_expr)
+                .unwrap_or(ExpressionCategory::Temporary),
+            kind: ownership_kind(ParameterMode::Value),
+            crosses_thread: false,
+            argument_span: element_span,
+            call_span: call_node.span(),
+            parameter_span: None,
+            loan_begin_span: element_span,
+        });
     }
     contracts.sort_by_key(|contract| {
         (
