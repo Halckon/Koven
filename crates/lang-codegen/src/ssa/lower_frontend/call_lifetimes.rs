@@ -7,6 +7,35 @@ use lang_frontend::{
 use super::{ExpressionLowerer, LoweringError, LoweringErrorKind, Operation, error};
 
 impl ExpressionLowerer<'_> {
+    /// End only the committed frontend call loans, then execute its existing ASAP facts.
+    pub(super) fn finish_borrowed_call(
+        &mut self,
+        expression: ExpressionId,
+        span: lang_frontend::source::Span,
+    ) -> Result<(), LoweringError> {
+        let ending_loans = self.owned.loans_ending_at(expression).collect::<Vec<_>>();
+        for fact in &ending_loans {
+            let loan = self
+                .pending_call_loans
+                .remove(&(expression.index(), fact.argument().index()))
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.end_span()))?;
+            if let Some(loan) = loan {
+                self.append(Operation::BorrowEnd { loan }, Vec::new(), fact.end_span())?;
+            }
+        }
+        if self
+            .pending_call_loans
+            .keys()
+            .any(|(call, _)| *call == expression.index())
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        for fact in ending_loans {
+            self.emit_drops(DropPoint::AfterExpression(fact.argument()))?;
+        }
+        self.emit_drops(DropPoint::CallReturn(expression))
+    }
+
     /// 结束当前路径的调用前缀借用；兄弟分支由入口快照恢复。
     pub(super) fn emit_control_transfer_cleanup(
         &mut self,

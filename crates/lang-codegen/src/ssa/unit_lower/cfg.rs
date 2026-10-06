@@ -26,6 +26,7 @@ pub(super) struct BranchExit {
     pub(super) pending_operands: Vec<EntityId>,
     pub(super) temporaries: BTreeMap<UnitExpressionId, ValueId>,
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
+    pub(super) capture_loans: BTreeMap<(UnitExpressionId, usize), LoanId>,
 }
 
 impl BranchExit {
@@ -60,6 +61,7 @@ pub(super) struct CarriedBinding {
 
 #[derive(Clone)]
 pub(super) struct CarriedAccess {
+    captures: Vec<(UnitExpressionId, usize)>,
     symbol: Option<UnitSymbolId>,
     receiver: Option<super::ReceiverBinding>,
     source: EntityId,
@@ -150,6 +152,7 @@ impl UnitExpressionLowerer<'_> {
                     .map(|entity| entity.ty)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 Ok(CarriedAccess {
+                    captures: Vec::new(),
                     symbol: Some(*symbol),
                     receiver: None,
                     source: EntityId::Loan(*source),
@@ -167,12 +170,33 @@ impl UnitExpressionLowerer<'_> {
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             carried.push(CarriedAccess {
+                captures: Vec::new(),
                 symbol: None,
                 receiver: Some(receiver),
                 source: EntityId::Loan(source),
                 ty,
                 pending: Vec::new(),
             });
+        }
+        for (&key, &loan) in &self.capture_loans {
+            let entity = EntityId::Loan(loan);
+            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == entity) {
+                slot.captures.push(key);
+            } else {
+                let ty = self
+                    .function
+                    .entity(entity)
+                    .map(|entity| entity.ty)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                carried.push(CarriedAccess {
+                    symbol: None,
+                    receiver: None,
+                    source: entity,
+                    ty,
+                    pending: Vec::new(),
+                    captures: vec![key],
+                });
+            }
         }
         Ok(carried)
     }
@@ -210,6 +234,7 @@ impl UnitExpressionLowerer<'_> {
                         slot.pending.push(index);
                     } else {
                         loans.push(CarriedAccess {
+                            captures: Vec::new(),
                             symbol: None,
                             receiver: None,
                             source: entity,
@@ -396,13 +421,17 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         }
         let mut rebound = BTreeMap::new();
+        self.capture_loans.clear();
         for (slot, parameter) in loans.iter().zip(parameters.iter().skip(binding_count)) {
-            if slot.symbol.is_none() && slot.receiver.is_none() {
+            if slot.symbol.is_none() && slot.receiver.is_none() && slot.captures.is_empty() {
                 continue;
             }
             let EntityId::Loan(loan) = parameter else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };
+            for key in &slot.captures {
+                self.capture_loans.insert(*key, *loan);
+            }
             if let Some(symbol) = slot.symbol {
                 rebound.insert(symbol, *loan);
             } else if let Some(mut receiver) = slot.receiver {
@@ -425,6 +454,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings.clear();
             self.borrow_bindings.clear();
             self.closure_bindings.clear();
+            self.capture_loans.clear();
             self.temporaries.clear();
             self.pending_operands.clear();
             return Ok(LoweredValue::Diverged);
@@ -437,6 +467,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings = first.bindings.clone();
             self.borrow_bindings = first.borrow_bindings.clone();
             self.closure_bindings = first.closure_bindings.clone();
+            self.capture_loans = first.capture_loans.clone();
             self.temporaries = first.temporaries.clone();
             self.pending_operands = first.pending_operands.clone();
             return Ok(first.result);
@@ -459,6 +490,7 @@ impl UnitExpressionLowerer<'_> {
                 || exit.borrow_bindings.keys().copied().collect::<Vec<_>>() != loan_symbols
                 || exit.temporaries.keys().ne(first.temporaries.keys())
                 || exit.closure_bindings != first.closure_bindings
+                || exit.capture_loans.keys().ne(first.capture_loans.keys())
                 || exit.consumed_receiver != first.consumed_receiver
                 || match (first.receiver, exit.receiver) {
                     (None, None) => false,
@@ -563,6 +595,7 @@ impl UnitExpressionLowerer<'_> {
                     .iter()
                     .copied()
                     .chain(exit.temporaries.values().copied().map(EntityId::Value))
+                    .chain(exit.capture_loans.values().copied().map(EntityId::Loan))
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -639,6 +672,17 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
                 };
                 Ok((*expression, value))
+            })
+            .collect::<Result<_, _>>()?;
+        self.capture_loans = first
+            .capture_loans
+            .keys()
+            .zip(&pending_indices[first.pending_operands.len() + first.temporaries.len()..])
+            .map(|(key, index)| {
+                let EntityId::Loan(loan) = parameters[*index] else {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                };
+                Ok((*key, loan))
             })
             .collect::<Result<_, _>>()?;
         let mut parameters = parameters.into_iter();
@@ -798,6 +842,8 @@ impl UnitExpressionLowerer<'_> {
                     .map(EntityId::Loan)
             } else if slot.receiver.is_some() {
                 receiver(slot.receiver)
+            } else if let Some(key) = slot.captures.first() {
+                state.capture_loans.get(key).copied().map(EntityId::Loan)
             } else {
                 slot.pending
                     .first()
@@ -811,6 +857,11 @@ impl UnitExpressionLowerer<'_> {
                     .iter()
                     .any(|index| state.pending_operands.get(*index) != Some(&entity))
             {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            if slot.captures.iter().any(|key| {
+                state.capture_loans.get(key).copied().map(EntityId::Loan) != Some(entity)
+            }) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             arguments.push(entity);

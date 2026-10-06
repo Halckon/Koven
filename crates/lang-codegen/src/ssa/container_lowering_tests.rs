@@ -23,6 +23,50 @@ struct Analysis {
     owned: OwnershipCheckedFile,
 }
 
+#[path = "container_lowering_tests/runtime_helpers.rs"]
+mod runtime_helpers;
+
+#[path = "container_lowering_tests/runtime_matrix.rs"]
+mod runtime_matrix;
+
+#[path = "container_lowering_tests/runtime_matrix_support.rs"]
+pub(super) mod runtime_matrix_support;
+
+#[test]
+fn runtime_generator_single_source_accepts_pointer_and_shared_initializers() {
+    let mut failures = Vec::new();
+    for container in ["Array", "List"] {
+        for (environment, initializer) in [
+            ("pointer", "{ index -> index }"),
+            ("shared", "{ index -> index + scale }"),
+        ] {
+            let text = format!(
+                "fun entry(): Int {{ val scale = 7\n\
+                 val items = {container}<Int>(3, {initializer})\n\
+                 return items[2] }}"
+            );
+            let analysis = analyze(&text);
+            assert!(analysis.parsed.diagnostics().is_empty());
+            assert!(analysis.names.diagnostics().is_empty());
+            assert!(analysis.typed.diagnostics().is_empty());
+            assert!(analysis.owned.diagnostics().is_empty());
+            if let Err(error) = lower_scalar_file(
+                &analysis.sources,
+                &analysis.parsed,
+                &analysis.names,
+                &analysis.typed,
+                &analysis.owned,
+            ) {
+                failures.push(format!("{container}/{environment}: {error:?}"));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "existing synchronous Borrow constructors must reach verified source SSA: {failures:?}"
+    );
+}
+
 fn analyze(text: &str) -> Analysis {
     let mut sources = SourceMap::new();
     let source = sources

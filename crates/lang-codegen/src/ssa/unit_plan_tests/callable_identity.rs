@@ -1,5 +1,8 @@
 //! Callback identity belongs to a concrete source instance, never just its Function signature.
 
+#[path = "factory_return_queries.rs"]
+mod factory_return_queries;
+
 use super::*;
 use crate::ssa::lowering_support::callable_instances::CallableKey;
 use lang_frontend::{

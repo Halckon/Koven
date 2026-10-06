@@ -143,6 +143,8 @@ impl ExpressionLowerer<'_> {
             self.bindings.clone_from(&exit.bindings);
             self.temporaries.clone_from(&exit.temporaries);
             self.pending_call_loans.clone_from(&exit.loans);
+            self.capture_loans.clone_from(&exit.capture_loans);
+            self.borrow_bindings.clone_from(&exit.borrow_bindings);
             self.non_null_bindings.clone_from(&exit.views);
             self.emit_drops(lang_frontend::ownership_checking::DropPoint::LoopExit(
                 statement,
@@ -893,6 +895,7 @@ impl ExpressionLowerer<'_> {
                     _ => return Ok(()),
                 };
                 self.append(Operation::Drop { owner }, Vec::new(), fact.value_origin())?;
+                self.release_owner_capture_loans(owner, fact.value_origin())?;
             }
             Action::EndBinding { symbol, statement } => {
                 if let Some(loan) = self.borrow_bindings.remove(symbol) {
@@ -965,6 +968,8 @@ fn loop_slot_entity(
         exit.temporaries.get(key).copied().map(EntityId::Value)
     } else if let Some(key) = slot.loans.first() {
         exit.loans.get(key).copied().flatten().map(EntityId::Loan)
+    } else if let Some(key) = slot.captures.first() {
+        exit.capture_loans.get(key).copied().map(EntityId::Loan)
     } else if let Some(symbol) = slot.views.first() {
         exit.views.get(symbol).copied().map(EntityId::Loan)
     } else if let Some(symbol) = slot.borrow_symbols.first() {

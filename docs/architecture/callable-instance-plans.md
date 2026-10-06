@@ -22,7 +22,7 @@ generic、unit StaticSelf 与 callback specialization 共用既有 1024 source �
 plan 保留 `(source token, call expression)` 到完整 callee key 的只读路由。unit 路由还保留
 原 resolver 的 delegation 产物，driver 将整个 source plan 移交给 source 函数及 lambda thunk；
 ordinary static call 直接查询该路由。lambda 内调用继承所属 source owner，hidden deinit
-拥有自己的 source token。single 当前保留 plan，source callback ABI 的消费仍未完成。
+拥有自己的 source token。两入口 source callback ABI 的消费见[源码 ABI](callable-source-abi.md)。
 
 pointer factory 的摘要按具体 factory source memo，核对声明及调用位置的具体 Fn 类型，
 无捕获返回 lambda 归属 factory source；named function 依赖进入原 worklist。

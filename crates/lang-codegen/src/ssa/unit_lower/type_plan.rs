@@ -77,7 +77,14 @@ pub(super) fn intern_body_scalar_types(
                 types.intern(module, typed, value_type, span)?;
             }
         }
-        if requires_enum_discriminant(parsed, expression)? {
+        if typed
+            .container_construction(expression)
+            .is_some_and(|descriptor| {
+                descriptor.kind()
+                    == lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
+            })
+            || requires_enum_discriminant(parsed, expression)?
+        {
             for builtin in [BuiltinType::Int, BuiltinType::Boolean] {
                 let ty = typed
                     .types()
@@ -339,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn static_declaration_callees_do_not_grant_generic_function_value_storage() {
+    fn scalar_type_plan_keeps_static_callees_and_generic_function_values_out_of_storage() {
         let mut sources = SourceMap::new();
         let (provider_source, provider) = parsed(
             &mut sources,
@@ -391,15 +398,24 @@ mod tests {
                         .and_then(|ty| typed.types().types().get(ty)),
                     Some(UnitTypeKind::Function { .. })
                 ));
-                let error = resolve_concrete_type(
+                let concrete = resolve_concrete_type(
                     typed.types(),
                     typed.types().expression_type(callee).unwrap(),
                     instance.substitutions(),
                     None,
                     instance.span(),
                 )
-                .expect_err("the callee retains its own template T, rather than the caller's T");
-                assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+                .expect("the frontend has published the source-selected concrete Function type");
+                let Some(UnitTypeKind::Function { parameters, .. }) =
+                    typed.types().types().get(concrete)
+                else {
+                    panic!("the concrete static callee still has a Function type");
+                };
+                assert_eq!(parameters.len(), 1);
+                assert_eq!(
+                    builtin_type(typed.types(), parameters[0].ty()),
+                    Some(BuiltinType::String)
+                );
             } else {
                 assert!(typed.types().calls().iter().any(|call| {
                     call.target() == UnitCallTarget::FunctionValue
@@ -416,13 +432,15 @@ mod tests {
                 result.expect("direct calls do not materialize their template callee as a value");
                 assert_eq!(module.types, vec![SsaTypeKind::StringOwner]);
             } else {
-                assert_eq!(
-                    result
-                        .expect_err("generic function values keep the existing ABI boundary")
-                        .kind,
-                    LoweringErrorKind::UnsupportedNode
-                );
+                result.expect("canonical Function queries do not grant scalar storage");
             }
+            assert!(
+                !module.types.iter().any(|ty| matches!(
+                    ty,
+                    SsaTypeKind::FunctionPointer { .. } | SsaTypeKind::ConcreteClosure { .. }
+                )),
+                "concrete callable ABI must come from sealed provenance, not this scalar planner"
+            );
         }
     }
 

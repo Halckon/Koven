@@ -49,6 +49,7 @@ struct FunctionPlan {
     substitutions: BTreeMap<SymbolId, TypeId>,
     receiver: Option<(lang_frontend::type_checking::NominalId, TypeId)>,
     span: Span,
+    source: Option<crate::ssa::lowering_support::callable_instances::SourceToken>,
 }
 
 struct FunctionDeclaration {
@@ -216,58 +217,6 @@ fn lower_scalar_file_product(
         })?;
         type_mapper.intern(module, names, typed, ty, file_anchor)?;
     }
-    for construction in typed.constructions() {
-        let construction_span = parsed
-            .ast()
-            .expressions()
-            .get(construction.expression())
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?
-            .span();
-        type_mapper.intern(
-            module,
-            names,
-            typed,
-            construction.result_type(),
-            construction_span,
-        )?;
-        for argument in construction.arguments() {
-            type_mapper.intern(
-                module,
-                names,
-                typed,
-                argument.parameter_type(),
-                construction_span,
-            )?;
-        }
-    }
-    for construction in typed.container_constructions() {
-        let construction_span = parsed
-            .ast()
-            .expressions()
-            .get(construction.expression())
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?
-            .span();
-        type_mapper.intern(
-            module,
-            names,
-            typed,
-            construction.container_type(),
-            construction_span,
-        )?;
-        type_mapper.intern(
-            module,
-            names,
-            typed,
-            construction.element_type(),
-            construction_span,
-        )?;
-    }
     let declarations = collect_functions(parsed, names, typed)?;
     let templates = declarations
         .iter()
@@ -286,7 +235,92 @@ fn lower_scalar_file_product(
     let mut function_ids = BTreeMap::new();
     let mut plans = Vec::new();
 
-    for instance in instance_plan.instances() {
+    // Constructors demand storage; enum conditions and other typed-only metadata do not.
+    // Phase 3 construction plans exclude unreachable nominal construction expressions.
+    let empty_substitutions = BTreeMap::new();
+    for (span, substitutions) in instance_plan
+        .instances()
+        .iter()
+        .map(|instance| {
+            (
+                declarations[instance.template_index].span,
+                &instance.substitutions,
+            )
+        })
+        .chain(
+            deinit_spans
+                .iter()
+                .map(|&span| (span, &empty_substitutions)),
+        )
+    {
+        for construction in typed.constructions() {
+            if owned.construction_plan(construction.expression()).is_none() {
+                continue;
+            }
+            let construction_span = parsed
+                .ast()
+                .expressions()
+                .get(construction.expression())
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+                .span();
+            if construction_span.source_id() != span.source_id()
+                || construction_span.start() < span.start()
+                || construction_span.end() > span.end()
+            {
+                continue;
+            }
+            for ty in std::iter::once(construction.result_type()).chain(
+                construction
+                    .arguments()
+                    .iter()
+                    .map(|argument| argument.parameter_type()),
+            ) {
+                let concrete = resolve_concrete_type(typed, ty, substitutions, construction_span)?;
+                type_mapper.intern(module, names, typed, concrete, construction_span)?;
+            }
+        }
+        for construction in typed.container_constructions() {
+            let construction_span = parsed
+                .ast()
+                .expressions()
+                .get(construction.expression())
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+                .span();
+            if construction_span.source_id() != span.source_id()
+                || construction_span.start() < span.start()
+                || construction_span.end() > span.end()
+            {
+                continue;
+            }
+            if construction.kind()
+                == lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
+                && !owned
+                    .loans()
+                    .iter()
+                    .any(|loan| loan.call() == construction.expression())
+            {
+                continue;
+            }
+            for ty in [construction.container_type(), construction.element_type()] {
+                let concrete = resolve_concrete_type(typed, ty, substitutions, construction_span)?;
+                type_mapper.intern(module, names, typed, concrete, construction_span)?;
+            }
+        }
+    }
+    let mut source_closures = source_closure::declare(
+        module,
+        &mut type_mapper,
+        source_closure::Inputs {
+            parsed,
+            names,
+            typed,
+            owned,
+            instances: &instance_plan,
+            templates: &templates,
+        },
+    )?;
+
+    for (ordinal, instance) in instance_plan.instances().iter().enumerate() {
         let source_key = instance_plan.source(instance.source).ok_or(LoweringError {
             kind: LoweringErrorKind::MissingFact,
             span: None,
@@ -369,10 +403,24 @@ fn lower_scalar_file_product(
         let parameter_types = callable
             .parameters()
             .iter()
-            .map(|parameter| {
+            .enumerate()
+            .map(|(slot, parameter)| {
                 let concrete =
                     resolve_concrete_type(typed, parameter.ty, &instance.substitutions, span)?;
-                let ty = type_mapper.intern(module, names, typed, concrete, span)?;
+                let ty = if matches!(
+                    typed.types().get(concrete),
+                    Some(lang_frontend::type_checking::TypeKind::Function { .. })
+                ) {
+                    let token = source_key
+                        .callable_arguments()
+                        .iter()
+                        .find(|(index, _)| *index == slot)
+                        .map(|(_, token)| *token)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                    source_closures.token_type(&instance_plan, token, span)?
+                } else {
+                    type_mapper.intern(module, names, typed, concrete, span)?
+                };
                 match parameter.mode {
                     ParameterMode::Value => Ok(EntityType::Value(ty)),
                     ParameterMode::Borrow => Ok(EntityType::Loan {
@@ -388,14 +436,31 @@ fn lower_scalar_file_product(
         let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()
         } else {
-            vec![type_mapper.intern(module, names, typed, return_type, span)?]
+            vec![if matches!(
+                typed.types().get(return_type),
+                Some(lang_frontend::type_checking::TypeKind::Function { .. })
+            ) {
+                let token = instance_plan
+                    .pointer_return(instance.source)
+                    .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+                source_closures.token_type(&instance_plan, token, span)?
+            } else {
+                type_mapper.intern(module, names, typed, return_type, span)?
+            }]
         };
-        let id = module
-            .add_function(
-                instance_function_name(names, typed, source_key, span)?,
-                return_types,
-                Origin::Source(span),
+        let pointer = module
+            .add_function_pointer_type_with_parameters(
+                parameter_types.clone(),
+                return_types.clone(),
             )
+            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        source_closures.named.insert(instance.source, pointer);
+        let mut name = instance_function_name(names, typed, &type_mapper, source_key, span)?;
+        if !source_key.callable_arguments().is_empty() {
+            name.push_str(&format!(".c{ordinal}"));
+        }
+        let id = module
+            .add_function(name, return_types, Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         module
             .function_mut(id)
@@ -412,6 +477,7 @@ fn lower_scalar_file_product(
             substitutions: instance.substitutions.clone(),
             receiver: None,
             span,
+            source: Some(instance.source),
         });
     }
 
@@ -424,10 +490,8 @@ fn lower_scalar_file_product(
         substitutions: BTreeMap::new(),
         receiver: Some((plan.descriptor.owner(), plan.descriptor.receiver_type())),
         span: plan.span,
+        source: None,
     }));
-
-    let source_closures =
-        source_closure::declare(module, &mut type_mapper, parsed, names, typed, owned)?;
 
     let (type_ids, heap_payloads, enum_payloads) = type_mapper.into_parts();
     let source_text = sources
@@ -486,6 +550,10 @@ fn lower_scalar_file_product(
             references: &references,
             function_ids: &function_ids,
             source_closures: &source_closures,
+            instance_plan: &instance_plan,
+            source_token: plan.source,
+            thunk_expression: None,
+            capture_loans: BTreeMap::new(),
             type_ids: &type_ids,
             heap_payloads: &heap_payloads,
             enum_payloads: &enum_payloads,
@@ -519,15 +587,7 @@ fn lower_scalar_file_product(
         }
     }
 
-    let unit = typed
-        .types()
-        .builtin(BuiltinType::Unit)
-        .ok_or(LoweringError {
-            kind: LoweringErrorKind::MissingFact,
-            span: None,
-        })?;
-    let empty_substitutions = BTreeMap::new();
-    for plan in source_closures.values() {
+    for plan in source_closures.lambdas.values() {
         let function = module
             .function_mut(plan.thunk)
             .expect("planned thunk exists");
@@ -541,10 +601,14 @@ fn lower_scalar_file_product(
             references: &references,
             function_ids: &function_ids,
             source_closures: &source_closures,
+            instance_plan: &instance_plan,
+            source_token: Some(plan.owner),
+            thunk_expression: Some(plan.expression),
+            capture_loans: BTreeMap::new(),
             type_ids: &type_ids,
             heap_payloads: &heap_payloads,
             enum_payloads: &enum_payloads,
-            substitutions: &empty_substitutions,
+            substitutions: &plan.substitutions,
             function,
             block: entry,
             bindings: BTreeMap::new(),
@@ -552,18 +616,20 @@ fn lower_scalar_file_product(
             non_null_bindings: BTreeMap::new(),
             pending_call_loans: BTreeMap::new(),
             temporaries: BTreeMap::new(),
-            return_type: unit,
+            return_type: plan.return_type,
             deinit_receiver: None,
             loops: Vec::new(),
         };
         lowerer.bind_capture_views(plan)?;
-        let result = lowerer.lower_statement(plan.body)?;
+        let result = lowerer.lower_lambda_body(plan)?;
         if !matches!(result, LoweredValue::Diverged) {
+            lowerer.end_thunk_capture_views(plan.span)?;
+            let values = return_values(typed, plan.return_type, result, plan.span)?;
             lowerer
                 .function
                 .set_terminator(
                     lowerer.block,
-                    TerminatorKind::Return { values: Vec::new() },
+                    TerminatorKind::Return { values },
                     Origin::Source(plan.span),
                 )
                 .map_err(|_| error(LoweringErrorKind::InvalidModel, plan.span))?;
@@ -745,6 +811,7 @@ fn callable_symbol_name(names: &NameResolution, symbol: SymbolId) -> Result<Stri
 fn instance_function_name(
     names: &NameResolution,
     typed: &TypedFile,
+    mapper: &NominalTypeMapper,
     instance: &FunctionInstanceKey,
     span: Span,
 ) -> Result<String, LoweringError> {
@@ -757,12 +824,18 @@ fn instance_function_name(
         if index != 0 {
             name.push(',');
         }
-        let builtin = builtin_type(typed, ty)
-            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-        if !LOWERED_BUILTINS.contains(&builtin) {
+        if let Some(builtin) = builtin_type(typed, ty) {
+            if !LOWERED_BUILTINS.contains(&builtin) {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            name.push_str(builtin.name());
+        } else if mapper.contains_type(ty) {
+            // The canonical map-local identity is a deterministic name suffix, not a new
+            // storage admission rule or a global Function -> environment mapping.
+            name.push_str(&format!("t{}", ty.index()));
+        } else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
-        name.push_str(builtin.name());
     }
     name.push('>');
     Ok(name)

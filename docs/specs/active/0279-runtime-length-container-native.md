@@ -118,13 +118,13 @@ constructor CallReturn 只结束参数 loan。临时 owned environment 按 captu
 
 | Gate | 必需证据 | 当前状态 |
 |---|---|---|
-| E1 | 两前端合法 expected move literal 的失败测试；capture/loan/drop facts；两 source runtime lowering 成功目标的真实红测 | 前端已通过；两 source runtime lowering 红测保留，成功目标待实现 |
-| E2 | Array/List × single/unit × pointer/shared/owned 12 格源码 SSA/LLVM/native；0/1/3、named/temporary | 待 |
-| E3 | size 第一 Borrow 在后续 operand/nested call 内保持，initializer Inout size 冲突 L0135；size→拒负→initializer expression→allocation→callback；overflow/allocation fail 保留 expression 副作用且无 callback；零长度及升序一次，LLVM preheader 固定 storage | 待 |
-| E4 | 命名 callback 重用、capture source 冲突与最终 source 复用、temporary ASAP、逆索引 Resource drop；逐指针 allocation/free | 待 |
-| E5 | single 同文件与 unit 跨文件 generic/helper 各三种环境、显式/合法推断 T、body-only demands、同签名布局隔离、重复去重、正逆 inputs、arena 不增长及预算边界 | 待 |
+| E1 | 两前端合法 expected move literal 的失败测试；capture/loan/drop facts；两 source runtime lowering 成功目标的真实红测 | 正式红测保全；frontend及两source成功目标已通过，结构化缺来源反例保留 |
+| E2 | Array/List × single/unit × pointer/shared/owned 12 格源码 SSA/LLVM/native；0/1/3、named/temporary | 本地两入口各144源码与normal native组合及最新完整复核通过；远端宿主待 |
+| E3 | size 第一 Borrow 在后续 operand/nested call 内保持，initializer Inout size 冲突 L0135；size→拒负→initializer expression→allocation→callback；overflow/allocation fail 保留 expression 副作用且无 callback；零长度及升序一次，LLVM preheader 固定 storage | 普通源码/SSA/LLVM与两入口各6native求值trace通过；故障/校准及allocation观测按用户范围仅登记未执行 |
+| E4 | 命名 callback 重用、capture source 冲突与最终 source 复用、temporary ASAP、逆索引 Resource drop；逐指针 allocation/free | 源码生命周期/公共CLI重用与各6Resource native trace通过；逐指针allocation/free未执行 |
+| E5 | single 同文件与 unit 跨文件 generic/helper 各三种环境、显式/合法推断 T、body-only demands、同签名布局隔离、重复去重、正逆 inputs、arena 不增长及预算边界 | planner/源码完整回归与两入口各48helper native通过；已有其他可存储T的更广源码覆盖待核 |
 | E6 | malformed SSA callback/loan/type/mode 正反例；0278 既有控制、旧 static generator 与 Unit/ZST ABI 回归 | raw SSA/LLVM 切片已验收；源码/native 仍待 |
-| E7 | 两公共 CLI 入口实际 build/run；原 object 失败保全、无 temporary 残留、required CI 实际选择新测试 | 待 |
+| E7 | 两公共 CLI 入口实际 build/run；原 object 失败保全、无 temporary 残留、required CI 实际选择新测试 | 本地两入口各6公共build/run与最新生产复核通过；required CI实际选择待闭环 |
 | E8 | 独立 fresh-context 全审、Architecture/验收账本、归档 inventory、精确 final PR 与 actual main CI | 待 |
 
 顺序：合同及 E1 红测→frontend literal 合同→SSA/LLVM borrowed bridge→两 source 桥→
@@ -231,3 +231,96 @@ unit_lower旧欠账仅增长6行至1272，精确例外经非作者复核、basel
 unit lowering回归显式排除3项待实现source目标；6项两入口runtime/helper/factory成功目标
 另实际运行，仍0pass6fail UnsupportedNode，未用过滤结果声称source ABI/native通过。
 本片不关闭E2/E3/E4/E5/E7/E8，不归档、不提前PR；本地故障注入/校准仍只登记未运行。
+
+2026-10-06 source ABI 实施检查点：unit 每个 reachable source 冻结已有无捕获返回摘要，
+直接 constructor factory 查询及 returned named body 可达性两项合法红测转绿；完整 unit planner
+72项通过（包含两项，不相加）。源码矩阵另以精确 `1aef99b` 生产加测试覆盖的隔离快照
+运行，两入口各144个组合均先通过前端，实际288个 UnsupportedNode；不回滚正在实施的生产。
+当前 single 经具体签名、thunk、borrowed generation 和 descriptor-driven size/index 接入后，
+96个 pointer/Owned 组合已通过源码SSA/LLVM；48个Shared仍InvalidSsa，named CFG intent
+进一步实际定位LoanInactive。guard次序intent已通过，temporary Shared iteration intent仍失败。
+编译可见性错误、修正后all-targets编译成功与各实际失败原始输出均保留在
+[source ABI 收据](../../development/evidence/runtime-constructor-0279/source-abi/receipt.json)。
+这仅是源码部分进展；unit D、Shared生命周期、真实native/public CLI及E8仍待，不归档、不提前PR。
+
+后续实际 checkpoint：独立冻结 single 快照的4项runtime均通过，其中144个源码组合SSA/LLVM
+全部成功；144个normal native组合在133.57秒内全部object/link/run，校实际length、非零
+非Unit末值、callback次数（含Unit零stride）及Resource析构总数。总数不证明逐owner身份、
+升序callback、逆序析构或allocation accounting。live unit D首次all-targets编译通过；
+3项原direct/helper/factory成功，矩阵108个Int/String/Unit通过SSA/LLVM，36个Leaf仍被
+既有lambda resource demand gate拒绝。single直接bare具名函数新intent仍MissingFact；
+独立审阅另登记outer synthetic slot在内部loop控制转移时的潜在scope问题，待真实红测。
+native和两public CLI targets的原生产失败已保全，各循环首case失败不冒称全部执行；
+当前unit/native/public combined验收仍未关闭。细节及宿主/源码SHA见上述source ABI收据。
+
+
+实际事实修正及后续验收：single bare named initializer/helper 的 frontend 类型仍为
+Deferred(OverloadSelection/Call)，sealed callable 来源为空且 initializer 有 Temporary LoanFact；
+此前 synthetic no-fact KnownFunction 桥的假设不成立，已全部撤回。三个正式反例核对真实事实
+并要求精确 operand Span 的 UnsupportedNode，不能把它们记作成功 initializer 支持。
+真实 pointer 正控继续使用无捕获 lambda/已验证 pointer factory；unit 发布的 selected named
+事实不同，已有真实裸具名 initializer 正控。此前 innerloop slot 假说未到达 slot 分配，
+不是生命周期行为红；unit 两项 innerloop fixture 也因已有 frontend LoanFact 未满足 no-fact
+前置，原输出保全为夹具错误，后续按真实路径修正而不删除事实。
+
+single 公共 CLI build 与独立 run 六个组合实际通过；普通 Resource trace 六个组合实际
+证明 callback 升序、元素逆序以及 temporary Owned environment 在 CallReturn 清理。
+最初 Resource ASAP oracle 与 Guide10 lexical 规则不符，保全为 oracle 错误；修正后通过。
+single 泛型 nominal 命名曾使六个 Resource helper 正控实际失败，最小修复只对现有 mapper
+已接受的 canonical 类型使用 TypeId 后缀，旧 builtin 名称保持；正式正控及完整7项
+single_runtime_ intent family 已通过，arena 不增长。
+
+unit 选定 runtime initializer/resource demand 与具名指针 Borrow 地址接入后，两个正式
+intent 和144个源码组合均通过 SSA/LLVM。其 native 矩阵只执行完36个 Int、36个 String
+及 Leaf 首个零长度 case，后续 Borrow Resource 参数的 Copyable 字段读被拒绝；Unit native
+cases 尚未到达。Resource order pointer case 已执行，Shared 在 scale.name 的 String
+字段 Borrow 被拒绝。两个合法前置的字段 intent 均实际失败，当前最小字段路由修复实施中。
+这些 native 失败不能据 source 全绿宣布 E2/E4 完成；逐指针 allocation/free 仍未执行。
+本地安全验证、故障注入和校准继续仅登记，不运行。
+
+
+字段及 normal native 后续检查点：两个字段 intent 已转绿，unit144个组合及6个 Resource
+顺序 trace 均实际 object/link/run；两入口 generic helper 扩至各48个显式/推断 T 组合
+（Int/String/Resource/Unit × Array/List × 三环境 × 两种类型实参），全部运行通过。
+E3 另各6个 ordinary native trace 明确验证负值只求 size、零值仍求 factory 一次但不调用
+callback、正3值按0/1/2升序一次；source第一Borrow跨factory与Inout冲突由已有intent负责。
+首次两个新测试的 harness调用/模块路径编译错误已单列，不计行为红。
+
+新 fresh-context 完整审阅实际发现 single普通when漏 unmatched capture map，三个合法
+variant均真实InvalidSsa；3行新增与1处替换的最小修复后均通过，第四个同entry多条件
+matched合流正控随后补入。unit字段/完整ABI独立复审无生产finding；unit普通while的既有
+control-prefix拒绝不放开，两个innerloop intent改用真实for descriptor的已有能力切片，
+保留selectedidentity和真实TemporaryLoanFact，实际2项通过，不冒称synthetic ABI slot证明。
+五项尺寸增长经非作者复核，baseline未抬高，精确锁single driver1502/control1507、
+unit driver1325/control1079、native parent1300；新领域算法子页均小于1000行。
+严格门禁、完整相关共享消费者、第四when正控、公共两CLI与最终source SHA闭环正在继续。
+本地安全验证、故障注入、校准、逐指针allocation/free仍只记录未执行，E8/归档/PR未关闭。
+
+
+完整消费者检查点：single原94pass/6fail中三项旧正控确有whole-typed-span预登记回归，
+已改为现有structural construction descriptor与P3实际计划/loan demand；类型元信息及
+return后无实际Lambda origin的表达式不注册runtime布局/thunk。source member精确
+UnsupportedNode恢复；Int index/inv、owned Resource body、shared closure及canonical
+Function只读查询的旧负测改为实际契约正控，其他边界保留。两个非作者互换复审通过。
+当前Single102、Unit160、unit planner72、runtime source8均0fail0ignored；runtime source
+与Unit suite有重叠，不能相加为独立用例总数。第四when alternatives正控包含在102中。
+single driver最终1505（原source接线22＋member诊断3），policy已锁最终值，baseline未改。
+
+静态ListForm/EmptyMutableList缺少通用P3已求值容器事实的旧预登记边界另记录：原1aef99b
+同样对所有typed container descriptor预登记。本片没有借drop/loan缺失猜测其可达性，
+也未宣称所有不可达unsupported静态storage均闭环。严格clippy codegen/CLI all-targets
+实际通过；全workspace编译、CLI重新build及最新native/公共路径复核仍将按记录闭环。
+
+
+source ABI 逻辑切片最终本地检查点：冻结最新Rust后，8个normal native entry覆盖408个
+实际object/link/run组合全部通过（两入口各144 core＋48显式/推断helper＋6resource trace＋
+6evaluation trace），0failed/0ignored。两个公开CLI target重新各6组build、artifact run及
+独立run通过；CLI已重新build。codegen/CLI all-targets严格clippy、workspace五crate
+all-targets check、格式、精确尺寸及47项政策测试通过。fresh全审发现和完整消费者回归的
+实际失败都已保全，修复后非作者交叉复审无未决finding；机器检查改动Rust SHA与最终
+门禁输入一致，并解压核对raw SHA。详细边界见[source ABI收据](../../development/evidence/runtime-constructor-0279/source-abi/receipt.json)
+及[独立审阅记录](../../development/evidence/runtime-constructor-0279/source-abi/review.json)。
+
+本片可作为独立实现提交，Spec仍in-progress：E5已有其他可存储名义/嵌套容器T的更广
+源码native覆盖、最终跨宿主CI/归档/PR/main交付仍待；用户排除的本地安全/注入/校准与
+allocation观测只登记未执行。不能以本地Slice全绿代替完整Spec结束。

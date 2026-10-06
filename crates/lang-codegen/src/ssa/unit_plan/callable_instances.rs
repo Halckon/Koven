@@ -46,6 +46,7 @@ pub(crate) struct UnitCallablePlan {
     arena: CallableArena<UnitFunctionInstanceKey, UnitExpressionId>,
     routes: BTreeMap<(SourceToken, UnitExpressionId), PlannedUnitCallSite>,
     returns: BTreeMap<SourceToken, UnitPlannedCallableReturn>,
+    runtime_initializers: BTreeMap<(SourceToken, UnitExpressionId), CallableToken>,
 }
 
 impl UnitCallablePlan {
@@ -66,6 +67,16 @@ impl UnitCallablePlan {
         expression: UnitExpressionId,
     ) -> Option<&PlannedUnitCallSite> {
         self.routes.get(&(caller, expression))
+    }
+
+    pub(in crate::ssa) fn runtime_initializer(
+        &self,
+        source: SourceToken,
+        constructor: UnitExpressionId,
+    ) -> Option<CallableToken> {
+        self.runtime_initializers
+            .get(&(source, constructor))
+            .copied()
     }
 
     pub(in crate::ssa) fn callable_return(
@@ -112,6 +123,111 @@ impl<'a> CallablePlanner<'a> {
             .arena
             .intern_source(key.clone())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+    }
+
+    pub(super) fn freeze_runtime_initializers(
+        &mut self,
+        caller: SourceToken,
+        substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+        pending: &mut BTreeSet<UnitFunctionInstanceKey>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let key = self
+            .plan
+            .source(caller)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if key.deinit_owner().is_some() {
+            return Ok(());
+        }
+        let template = self
+            .by_target
+            .get(&key.target())
+            .and_then(|index| self.templates.get(*index))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let source_unit = template.source_unit;
+        let source_span = template.span;
+        let parsed = self
+            .parsed
+            .get(source_unit.index())
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        for descriptor in self.typed.container_constructions() {
+            if descriptor.expression().source_unit() != source_unit
+                || descriptor.kind()
+                    != lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
+            {
+                continue;
+            }
+            let node = parsed
+                .ast()
+                .expressions()
+                .get(descriptor.expression().expression())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if !span_contains(source_span, node.span()) {
+                continue;
+            }
+            let Expression::Call { arguments, .. } = node.payload() else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+            };
+            let [_, initializer] = arguments.as_slice() else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+            };
+            if descriptor.parameter_modes() != [ParameterMode::Borrow, ParameterMode::Borrow] {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+            }
+            let initializer_id = UnitExpressionId::new(source_unit, initializer.value);
+            let operand_span = parsed
+                .ast()
+                .expressions()
+                .get(initializer.value)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, initializer.span))?
+                .span();
+            let token =
+                self.origin(caller, substitutions, initializer_id, pending, operand_span)?;
+            self.plan
+                .runtime_initializers
+                .insert((caller, descriptor.expression()), token);
+        }
+        Ok(())
+    }
+
+    /// Resource bodies are enabled only for lambdas selected by the frozen callable routes.
+    pub(super) fn selected_resource_lambdas(
+        &self,
+        source: SourceToken,
+    ) -> BTreeSet<UnitExpressionId> {
+        let tokens = self
+            .plan
+            .routes
+            .iter()
+            .filter(|((caller, _), _)| *caller == source)
+            .flat_map(|(_, route)| {
+                route
+                    .key
+                    .callable_arguments()
+                    .iter()
+                    .map(|(_, token)| *token)
+            })
+            .chain(
+                self.plan
+                    .runtime_initializers
+                    .iter()
+                    .filter(|((caller, _), _)| *caller == source)
+                    .map(|(_, token)| *token),
+            )
+            .chain(
+                self.plan
+                    .callable_return(source)
+                    .map(|value| value.callable()),
+            );
+        tokens
+            .filter_map(|token| match self.plan.callable(token) {
+                Some(CallableKey::Lambda { owner, expression }) if *owner == source => {
+                    Some(*expression)
+                }
+                _ => None,
+            })
+            .collect()
     }
 
     fn substitutions(
@@ -475,14 +591,43 @@ impl<'a> CallablePlanner<'a> {
             resolved.key
         };
         let factory = self.reserve_source(&key, span)?;
-        pending.insert(key.clone());
-        if let Some(result) = self.plan.callable_return(factory) {
-            return Ok(result.callable());
-        }
-        let summary = self
-            .owned
-            .pointer_callable_return(key.target())
+        pending.insert(key);
+        self.freeze_pointer_return(factory, pending, span)?;
+        let result = self
+            .plan
+            .callable_return(factory)
             .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+        let actual = resolve_concrete_type(
+            self.typed,
+            call.return_type(),
+            substitutions,
+            current.static_self(),
+            span,
+        )?;
+        if result.function_type() != actual {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok(result.callable())
+    }
+
+    /// Every reachable pointer factory needs a frozen return ABI, including direct constructors.
+    pub(super) fn freeze_pointer_return(
+        &mut self,
+        factory: SourceToken,
+        pending: &mut BTreeSet<UnitFunctionInstanceKey>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if self.plan.callable_return(factory).is_some() {
+            return Ok(());
+        }
+        let key = self
+            .plan
+            .source(factory)
+            .cloned()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Some(summary) = self.owned.pointer_callable_return(key.target()) else {
+            return Ok(());
+        };
         let signature = unit_callable_signature(self.typed, key.target())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if summary.function_type() != signature.return_type() {
@@ -499,12 +644,16 @@ impl<'a> CallablePlanner<'a> {
             key.static_self(),
             summary.span(),
         )?;
+        let return_value_type = self
+            .typed
+            .expression_type(summary.return_value())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, summary.span()))?;
         let actual = resolve_concrete_type(
             self.typed,
-            call.return_type(),
-            substitutions,
-            current.static_self(),
-            span,
+            return_value_type,
+            &factory_substitutions,
+            key.static_self(),
+            summary.span(),
         )?;
         if function_type != actual
             || !matches!(
@@ -556,7 +705,7 @@ impl<'a> CallablePlanner<'a> {
                 function_type,
             },
         );
-        Ok(callable)
+        Ok(())
     }
 
     pub(super) fn finish(

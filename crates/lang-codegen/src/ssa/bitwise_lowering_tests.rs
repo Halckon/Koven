@@ -135,3 +135,69 @@ fn bitwise_lowering_preserves_adjacent_checked_arithmetic() {
         assert!(llvm.contains("llvm.sadd.with.overflow.i32"), "{llvm}");
     }
 }
+
+#[test]
+fn single_file_integer_index_reads_then_inverts_without_consuming_container() {
+    use super::model::{EntityId, Operation, PlaceAccess};
+    for (expression, inverted) in [("values[0]", false), ("values[0].inv()", true)] {
+        let program = lower_file(&format!("fun entry(values: List<Int>): Int = {expression}"));
+        let function = &program.modules[0].functions[0];
+        let element = function
+            .instructions
+            .iter()
+            .find(|instruction| {
+                matches!(
+                    instruction.operation,
+                    Operation::ContainerElementPlace { .. }
+                )
+            })
+            .expect("index uses the descriptor's element place");
+        assert!(matches!(
+            element.operation,
+            Operation::ContainerElementPlace {
+                owner: EntityId::Loan(_),
+                ..
+            }
+        ));
+        let [EntityId::Place(place)] = element.results.as_slice() else {
+            panic!("index must produce a place")
+        };
+        let read = function
+            .instructions
+            .iter()
+            .find(|instruction| {
+                matches!(
+                    instruction.operation,
+                    Operation::Read { source: PlaceAccess::Place(source) } if source == *place
+                )
+            })
+            .expect("Copyable Int is read from the borrowed element");
+        let inversions = function
+            .instructions
+            .iter()
+            .filter_map(|instruction| {
+                if let Operation::IntegerNot { operand } = instruction.operation {
+                    Some(EntityId::Value(operand))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            inversions,
+            if inverted {
+                read.results.clone()
+            } else {
+                Vec::new()
+            }
+        );
+        assert!(
+            function
+                .instructions
+                .iter()
+                .all(|instruction| !matches!(instruction.operation, Operation::Drop { .. }))
+        );
+        render_verified_program(&program)
+            .expect("descriptor index and integer inversion verify through LLVM");
+    }
+}

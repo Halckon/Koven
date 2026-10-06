@@ -1,3 +1,6 @@
+#[path = "native_runtime_constructor_tests.rs"]
+pub(crate) mod runtime_constructor_tests;
+
 #[path = "native_field_replace_tests.rs"]
 mod field_replace_tests;
 

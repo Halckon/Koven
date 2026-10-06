@@ -155,6 +155,7 @@ impl UnitExpressionLowerer<'_> {
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
+                capture_loans: self.capture_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
                 temporaries: self.temporaries.clone(),
             });
@@ -195,6 +196,7 @@ impl UnitExpressionLowerer<'_> {
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
+            capture_loans: self.capture_loans.clone(),
             pending_operands: self.pending_operands.clone(),
             temporaries: self.temporaries.clone(),
         });
@@ -356,6 +358,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings.clone(),
             self.borrow_bindings.clone(),
             self.closure_bindings.clone(),
+            self.capture_loans.clone(),
             self.pending_operands.clone(),
             self.temporaries.clone(),
             UnitDropPoint::BranchExit {
@@ -390,6 +393,7 @@ impl UnitExpressionLowerer<'_> {
             baseline.clone(),
             baseline_borrows,
             baseline_closures,
+            self.capture_loans.clone(),
             self.pending_operands.clone(),
             self.temporaries.clone(),
         ));
@@ -403,6 +407,7 @@ impl UnitExpressionLowerer<'_> {
                 unmatched_bindings,
                 unmatched_borrows,
                 unmatched_closures,
+                unmatched_captures,
                 unmatched_pending,
                 unmatched_temporaries,
             ) = unmatched
@@ -417,6 +422,7 @@ impl UnitExpressionLowerer<'_> {
                     unmatched_bindings,
                     unmatched_borrows,
                     unmatched_closures,
+                    unmatched_captures,
                     unmatched_pending,
                     unmatched_temporaries,
                     UnitDropPoint::BranchExit {
@@ -439,6 +445,7 @@ impl UnitExpressionLowerer<'_> {
             let mut next_bindings = unmatched_bindings;
             let mut next_borrows = unmatched_borrows;
             let mut next_closures = unmatched_closures;
+            let mut next_captures = unmatched_captures;
             let mut next_pending = unmatched_pending;
             let mut next_temporaries = unmatched_temporaries;
             let mut matches = Vec::new();
@@ -449,6 +456,7 @@ impl UnitExpressionLowerer<'_> {
                 self.bindings = next_bindings;
                 self.borrow_bindings = next_borrows;
                 self.closure_bindings = next_closures;
+                self.capture_loans = next_captures;
                 self.pending_operands = next_pending;
                 let entry_temporaries = next_temporaries.keys().copied().collect::<Vec<_>>();
                 self.temporaries = next_temporaries;
@@ -500,6 +508,7 @@ impl UnitExpressionLowerer<'_> {
                     receiver: self.current_receiver,
                     consumed_receiver: self.consumed_receiver,
                     closure_bindings: after_condition_closures.clone(),
+                    capture_loans: self.capture_loans.clone(),
                     pending_operands: self.pending_operands.clone(),
                     temporaries: self.temporaries.clone(),
                 });
@@ -518,6 +527,7 @@ impl UnitExpressionLowerer<'_> {
                 next_receiver = self.current_receiver;
                 next_consumed_receiver = self.consumed_receiver;
                 next_closures = after_condition_closures;
+                next_captures = self.capture_loans.clone();
                 next_pending = self.pending_operands.clone();
                 next_temporaries = self.temporaries.clone();
             }
@@ -531,6 +541,7 @@ impl UnitExpressionLowerer<'_> {
                 self.bindings.clone(),
                 self.borrow_bindings.clone(),
                 self.closure_bindings.clone(),
+                self.capture_loans.clone(),
                 self.pending_operands.clone(),
                 self.temporaries.clone(),
                 UnitDropPoint::BranchExit {
@@ -548,6 +559,7 @@ impl UnitExpressionLowerer<'_> {
                 next_bindings,
                 next_borrows,
                 next_closures,
+                next_captures,
                 next_pending,
                 next_temporaries,
             ));
@@ -560,6 +572,7 @@ impl UnitExpressionLowerer<'_> {
             unmatched_bindings,
             unmatched_borrows,
             unmatched_closures,
+            unmatched_captures,
             unmatched_pending,
             unmatched_temporaries,
         )) = unmatched
@@ -584,6 +597,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings = unmatched_bindings;
             self.borrow_bindings = unmatched_borrows;
             self.closure_bindings = unmatched_closures;
+            self.capture_loans = unmatched_captures;
             self.pending_operands = unmatched_pending;
             self.temporaries = unmatched_temporaries;
             self.emit_drops(UnitDropPoint::BranchExit {
@@ -598,6 +612,7 @@ impl UnitExpressionLowerer<'_> {
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
+                capture_loans: self.capture_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
                 temporaries: self.temporaries.clone(),
             });
@@ -825,6 +840,7 @@ impl UnitExpressionLowerer<'_> {
             self.rebind_carried_control(&baseline, then_block, &carried, &carried_loans, span)?;
         let then_borrows =
             self.rebind_carried_loans(then_block, carried.len(), &carried_loans, span)?;
+        let then_captures = self.capture_loans.clone();
         let then_pending = self.pending_operands.clone();
         let then_temporaries = self.temporaries.clone();
         let then_receiver = self.current_receiver;
@@ -835,6 +851,7 @@ impl UnitExpressionLowerer<'_> {
             self.rebind_carried_control(&baseline, else_block, &carried, &carried_loans, span)?;
         let else_borrows =
             self.rebind_carried_loans(else_block, carried.len(), &carried_loans, span)?;
+        let else_captures = self.capture_loans.clone();
         let else_pending = self.pending_operands.clone();
         let else_temporaries = self.temporaries.clone();
         let else_receiver = self.current_receiver;
@@ -848,6 +865,7 @@ impl UnitExpressionLowerer<'_> {
             then_baseline,
             then_borrows,
             baseline_closures.clone(),
+            then_captures,
             then_pending,
             then_temporaries,
             UnitDropPoint::BranchExit {
@@ -867,6 +885,7 @@ impl UnitExpressionLowerer<'_> {
                 else_baseline,
                 else_borrows,
                 baseline_closures.clone(),
+                else_captures,
                 else_pending,
                 else_temporaries,
                 UnitDropPoint::BranchExit {
@@ -887,6 +906,7 @@ impl UnitExpressionLowerer<'_> {
             self.bindings = else_baseline;
             self.borrow_bindings = else_borrows;
             self.closure_bindings = baseline_closures;
+            self.capture_loans = else_captures;
             self.pending_operands = else_pending;
             self.temporaries = else_temporaries;
             self.emit_drops(UnitDropPoint::BranchExit {
@@ -901,6 +921,7 @@ impl UnitExpressionLowerer<'_> {
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
+                capture_loans: self.capture_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
                 temporaries: self.temporaries.clone(),
             });
@@ -918,6 +939,7 @@ impl UnitExpressionLowerer<'_> {
         bindings: BTreeMap<UnitSymbolId, LoweredValue>,
         borrow_bindings: BTreeMap<UnitSymbolId, crate::ssa::model::LoanId>,
         closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
+        capture_loans: BTreeMap<(UnitExpressionId, usize), crate::ssa::model::LoanId>,
         pending_operands: Vec<EntityId>,
         temporaries: BTreeMap<UnitExpressionId, ValueId>,
         drop_point: UnitDropPoint,
@@ -930,6 +952,7 @@ impl UnitExpressionLowerer<'_> {
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
         self.closure_bindings = closure_bindings;
+        self.capture_loans = capture_loans;
         self.pending_operands = pending_operands;
         let entry_temporaries = temporaries.keys().copied().collect::<Vec<_>>();
         self.temporaries = temporaries;
@@ -968,6 +991,7 @@ impl UnitExpressionLowerer<'_> {
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
+            capture_loans: self.capture_loans.clone(),
             pending_operands: self.pending_operands.clone(),
             temporaries: self.temporaries.clone(),
         }))

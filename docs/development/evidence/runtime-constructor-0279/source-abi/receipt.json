@@ -1,0 +1,1294 @@
+{
+  "schema": "koven.spec0279.source-abi.v1",
+  "phase": "Reachable pointer-return query red/green established; source ABI production in progress",
+  "base_head": "1aef99b",
+  "classification": {
+    "unit-reachable-factory-return-query-red": "Two valid original-source query fixtures failed: direct constructor returnmemo missing and selected returned named body unreachable. Clean frontend gates; source ABI not implemented.",
+    "unit-reachable-factory-return-query-green": "Two query fixtures passed after freezing published pointer summary at each reachable source; not source constructor success.",
+    "unit-reachable-factory-return-plan-regression": "72 complete unit planner contracts passed, including these2; not additive. Other single unregistered source drafts were outside the compiled module graph; final source ABI gates remain pending.",
+    "source-matrix-original-production-red": "Exact 1aef99b production plus root test overlays only, isolated target. Both 144-case matrices completed clean frontend gates and failed UnsupportedNode for all 288 cases; 0 passed, 2 test entries failed. Genuine pre-implementation source ABI red, no current production rollback.",
+    "source-abi-single-consumer-corrected-runtime": "After descriptor-driven size/index consumers, pointer factory test passed. Other 3 entries failed: shared captures InvalidSsa. Matrix reached LLVM for 96 pointer/Owned cases and rejected 48 Shared cases; this is partial production progress, not overall success.",
+    "source-abi-single-runtime-intent": "Guard ordering intent passed; named Shared across arithmetic CFG and temporary Shared before iteration both failed InvalidSsa. 1 passed, 2 failed, no skipped tests. Shared lifetime production fix still pending.",
+    "source-abi-first-compile": "Initial all-targets source ABI compile failed E0603: layout::declare was not visible at the unit_lower sibling call site. A compile visibility failure, not behavior evidence.",
+    "source-abi-visibility-corrected-compile": "After narrowing declare visibility to unit_lower, workspace all-targets compilation passed. Does not establish source/runtime success.",
+    "source-abi-single-first-runtime": "First single source ABI stage advanced constructor/helper/factory paths but all 4 source entries failed UnsupportedNode at final size or Copy element consumer. No successful whole-source or verifier result yet.",
+    "source-abi-single-shared-verifier-diagnostic": "Actual named Shared CFG fixture produced verifier LoanInactive loan14 at instruction33 and full SSA. Diagnosis: source bridge repeated BorrowEnd after SSA closure Drop already releases capture dependency. Temporary test-only diagnostic hook was removed before further gates.",
+    "native-matrix-original-production-red": "Native test registration was initially inserted before an existing inner doc comment, causing E0753. Test fixture compilation failure only; no behavioral/native red evidence.",
+    "native-matrix-original-production-corrected-red": "Corrected native module registration compiled. Both native test entries passed frontend gates for their first Int/Array/pointer/temporary/length0 fixture and failed UnsupportedSource before object emission. Each loop stops at first failure: not 288 native executions or complete native preflight.",
+    "single-checkpoint-runtime-green": "Isolated 1aef99b production plus frozen single ABI overlays only; live unit D excluded. All 4 selected single runtime entries passed, including 144-case SSA/LLVM matrix. Single checkpoint evidence, not final combined source or native closure.",
+    "single-checkpoint-runtime-intent": "Isolated single checkpoint: guard ordering, named Shared reuse across arithmetic CFG and temporary Shared iteration all passed; new direct named pointer initializer failed MissingFact at selected identity operand after clean frontend gates. 3 passed, 1 failed; remaining real ABI gap.",
+    "single-checkpoint-native-matrix": "Isolated frozen single checkpoint completed all 144 ordinary source object/link/run cases: Int/String/Resource/Unit, Array/List, pointer/Shared/Owned, named/temporary, lengths0/1/3. Verified logical length, actual last element values for non-Unit nonempty cases, callback counts including Unit zero stride, Resource deinit total. Not callback order, reverse deinit order, allocation accounting, final combined source, or CLI proof.",
+    "public-cli-original-production-red": "Original1aef99b plus test-only overlays: both public CLI single/project targets compiled and failed UnsupportedSource in first pointer/Array fixture. --no-fail-fast actually selected both integration targets. Original failure preserved; no successful public build/run yet.",
+    "source-abi-unit-d-first-compile": "First live combined single ABI and unit D checkpoint, including registered root native/public CLI oracles, compiled workspace all targets successfully. Compilation only, not source/native closure.",
+    "source-abi-unit-d-runtime-checkpoint": "3 original unit direct/helper/factory entries passed. Matrix completed all144 clean frontend cases:108 Int/String/Unit cases verified SSA/LLVM;36 Leaf cases UnsupportedNode at nominal construction/field access. Real unit Resource source gap, not overall E2 success.",
+    "source-abi-live-single-known-pointer-and-lifetime-intent": "Live combined checkpoint still3pass1fail: guard/SharedCFG/Sharediteration passed, direct bare selected KnownFunction remains MissingFact operand82..90 after legal frontend gates. Initial ABI-slot bridge compiled but did not resolve the actual case.",
+    "source-abi-unit-resource-and-named-pointer-intent-red": "Two new intent entries failed after explicit clean frontend and unit selected-fn origin/type preconditions: Resource first environment hit existing lambda resource-demand gate; unit bare canonical KnownFunction initializer MissingFact at95..103. Valid unit behavior reds; three-env Resource loop stopped at first failure.",
+    "source-abi-single-inner-loop-known-pointer-scope-red": "Candidate scope positive tests failed earlier at Deferred(Call), not synthetic cleanup. 0passed2failed; their preconditions did not establish a concrete source-call ABI, so this is not a reproduced inner-loop lifetime bug. Speculative synthetic single bridge will be withdrawn; original static risk retained as review history.",
+    "source-abi-single-known-pointer-fact-diagnostic": "Actual operand published Deferred(OverloadSelection), origin None, and LoanFact Temporary. Contradicts the initial noLoanFact hypothesis; no canonical selected KnownFunction single ABI exists for this fixture. Production bridge did not apply and is being withdrawn, without extending P2 name selection.",
+    "single-checkpoint-facts-and-lifetime-green": "Isolated single checkpoint after withdrawing unsupported synthetic KnownFunction bridge:6 tests passed,3 guard/Shared lifetime positives plus3 exact actual Deferred/origin-missing negative boundaries. No P2 named overload selection added; missing genuine facts remain structured failures.",
+    "single-checkpoint-public-cli-green": "Isolated single checkpoint public native_cli test completed6 Array/List\u00d7pointer/Shared/Owned cases: each actual build emitted executable, artifact and independent CLI run returned exact runtime-ok, generated values and named callback reuse checked, sibling build temporaries absent. Project/unit public target not run green yet.",
+    "single-checkpoint-native-order-intent": "First native order oracle incorrectly assumed Resource scale uses ASAP. Actual pointer trace ends env after reverse elements, matching Guide10 Resource lexical scope rules161-165. Fixture expectation error, not a production ordering failure; correct normative expectations before rerun.",
+    "single-checkpoint-native-order-corrected-intent": "Corrected Guide10 normative Resource lexical expectations:6 Array/List\u00d7pointer/Shared/Owned cases completed actual object/link/run with exact stdout. Proves index0/1/2 callback order, distinct element two/one/zero reverse deinit, Shared source lexical drop, Owned temporary environment CallReturn drop before after. No allocator/fault validation.",
+    "source-abi-unit-resource-known-pointer-compile": "Live combined checkpoint after unit selected lambda Resource and typed KnownFunction ABI slots compiled workspace all targets. No local fault/safety calibration run.",
+    "source-abi-unit-resource-known-pointer-intent-green": "Two unit intent entries passed:Resource callback three environments now reaches declared deinit and active captured-field reads; bare canonical/sealedKnownFunction initializer verified bounded ABI address slot. Actual SSA/LLVM, not general innerloop frame lifetime or native proof.",
+    "source-abi-unit-complete-runtime-matrix-green": "All4 unit source entries passed, including complete144-case SSA/LLVM matrix:4elements\u00d72containers\u00d73environments\u00d72binding forms\u00d73lengths. Resource previous36 gate failures resolved; counts not additive to matrix subcases.",
+    "source-abi-single-nominal-helper-intent-red": "One new positive entry completed6 valid frontend cases: Array/List\u00d7pointer/Shared/Owned with nominal Resource T. All6 failed UnsupportedNode at helper declaration, consistent existing Builtin-only instance name gate. Genuine generic nominal source gap, production name generator unchanged for red.",
+    "source-abi-unit-native-matrix-and-order": "Actual 0 passed, 2 failed. Native matrix executed 36 Int and 36 String cases plus Leaf pointer temporary length 0; first Leaf length 1 failed UnsupportedSource at borrowed verify(value.number). Unit logical-zero-stride cases were not reached. Order trace pointer case executed then Shared failed UnsupportedSource at scale.name. No complete unit native claim.",
+    "source-abi-unit-borrowed-field-intent-red": "Genuine valid frontend source red: 0 passed, 1 failed, 1019 filtered. Borrowed Resource Copyable field read rejected UnsupportedNode at receiver value span 88..93; no production field fix yet.",
+    "source-abi-unit-captured-string-field-intent-red": "Genuine valid frontend source red: 0 passed, 1 failed, 1019 filtered. Captured Resource String field borrow through println rejected UnsupportedNode at scale.name span 177..187; loop stopped on first Shared case, Owned not executed.",
+    "source-abi-unit-inner-loop-slot-intent-first": "Fixture precondition failure: 0 passed, 2 failed, 1018 filtered. Valid typed/sealed function source has existing LoanFact; both no-LoanFact assertions failed before lowering. Not an ABI-slot lifecycle behavior red. Expected exit 0 differs actual 101; record retained unchanged.",
+    "source-abi-single-nominal-helper-intent-green": "Actual 1 passed, 0 failed, 1019 filtered, six Array/List by pointer/Shared/Owned Resource helper cases; canonical mapped nominal naming fix; SSA and LLVM verified, arena readonly.",
+    "source-abi-single-runtime-complete-checkpoint": "Actual 7 passed, 0 failed, 1013 filtered; complete single_runtime_ intent family including guard, Shared CFG, temporary iteration, three precise Deferred rejection contracts and six nominal generic helper cases. No native claim.",
+    "native-generic-helper-original-production-red": "Compiled original 1aef99b production plus only root tests: actual 0 passed, 2 failed, 1005 filtered. Each entry failed on first valid Int/Array/pointer/named/length3 UnsupportedSource. Not 48 native executions.",
+    "single-checkpoint-native-generic-helper-green": "Shared-target cache artifact failure, not current Single behavior red: no compilation, 0 passed 1 failed UnsupportedSource indistinguishable from preceding baseline snapshot. Separate snapshots had shared one Cargo target; resolved by dedicated Single target and fresh compile. Output and expected/actual mismatch retained unchanged.",
+    "single-checkpoint-native-generic-helper-isolated-target-resumed": "Dedicated Single target fresh lang-codegen compile; actual 1 passed 0 failed 1013 filtered. All 24 generic helper Int/String/Resource Leaf/Unit by Array/List and pointer/Shared/Owned cases object/link/run with length, nonUnit last value, logical callback count and Resource total oracle. Previous attempt interrupted during compile and had no completion record; process absence verified before resuming with unique run name.",
+    "source-abi-unit-fields-loops-nominal-checkpoint": "Actual5pass2fail0ignored1016filtered: two genuine field intents now green, selected named initializer and Leaf factory green, six Resource helper cases green. Two existing-LoanFact innerloop fixtures fail at old supports_control_prefix guard before loop CFG; static independent review confirms missing sequential iteration/constant view capability, not an ABI lifetime red. Expected0 actual101 retained.",
+    "source-abi-unit-native-fields-corrected-matrix": "Actual3passed0failed0ignored1020filtered: all144 normal unit native element/environment/named/length cases actualobject/link/run;24 truecross-filegenerichelper cases actualobject/link/run;6distinctResourceorder traces. Copyable borrowed Resource parameter and capturedString fieldborrow gap corrected. Actualvalue/logicalcallback countinclUnitvoid, Resource total and independent ordertrace; no allocation/free injection/calibration claim.",
+    "single-checkpoint-native-generic-helper-isolated-target": "Interrupted attempt: raw log ends at Compiling lang-codegen, no completion JSON/result. Unified exec handle missing; process-list read verified no live runner/cargo before a unique-name resumed run on the same dedicated target. Not success or behavior red.",
+    "source-abi-single-when-sibling-capture-intent-red": "Fixture compile failure E0061: root initially invoked existing callback-based analyze with one argument. Not a behavior red; corrected to the existing analyze/check hook before reproducing.",
+    "source-abi-unit-iteration-inner-loop-real-prefix-intent": "Fixture compile blocked by unrelated newly registered Single E0061 helper misuse. Expected0 actual101; no unit source or cleanup behavior executed.",
+    "source-abi-single-when-sibling-capture-corrected-intent-red": "Genuine fresh-review finding red: actual0pass1fail1023filtered. Three legal frontend variants (else/noelse/multiple entries) all InvalidSsa after named Shared callback crosses when sibling edges. Missing unmatched capture-loan snapshot/restore confirmed independently.",
+    "source-abi-single-when-sibling-capture-intent-green": "Actual1pass0fail1023filtered. Three variants now verified SSA/LLVM after3 new lines and1 replacement preserve unmatched capture map; arena readonly. Fourth multiple-alternatives variant added subsequently and awaits final source regression.",
+    "source-abi-unit-iteration-inner-loop-corrected-fixture-intent": "Actual2pass0fail1022filtered. Real sequential for descriptor selects existing control-prefix capability; inner while break/continue retain actual outer frontend Temporary LoanFact then static helper call and cleanup. Pointer drops count2 for generation lambda plus named source address, full verifier confirms each owner consumed once. Not no-LoanFact ABI slot proof.",
+    "native-evaluation-order-original-production-red": "Fixture registration E0583: nested module under path-loaded parent needed explicit path. Compile only, not native behavior red.",
+    "source-abi-native-evaluation-order-live-green": "Same E0583 fixture compile failure, expected0 actual101. No native executions, corrected explicit path registered before next gate.",
+    "native-evaluation-order-original-production-corrected-red": "Compiled exactoriginal1aef99b plus tests: actual0pass2fail1007filtered. Clean frontend first Array negative-length case per entry failed UnsupportedSource before native object. Not12native runs.",
+    "source-abi-native-evaluation-order-corrected-live-green": "Actual2pass0fail1024filtered. Each entry6ordinarynativecases(Array/List by -1/0/3), real size function and factory, exact stdout; negativeSIGABRT onlysize, zero factoryonce no callback, positive ordered indices once plusactualvalue/size. Unit API and factory cross-file. No allocation timing/fault/calibration coverage.",
+    "source-abi-native-generic-helper-explicit-inferred-checkpoint": "Actual2passed0failed0ignored1024filtered, each48cases=4elementtypes by Array/List by pointer/Shared/Owned by explicit/inferredtypeargs. Namedlength3, samefileSingle/realcross-fileUnit object/link/run. ActualnonUnitlastvalue, logicalcallbackcount3inclUnitvoid, Leaftotal4. No implicitenvironmentclone/retain; Rustfixturecloneonlytext metadata. No perowner/allocation pair proof.",
+    "source-abi-public-cli-combined-green": "Both public CLItargets actuallypassed1each,noignored: native_cli9filtered/project_cli12filtered. Each6Array/List by3environment cases publicbuild+artifactrun+independentCLIrun with namedcallbackreuse,sizeresult,actualelements,exactstdout/stderr/exit and no siblingtemporary. Twelvebuilds/24nativeprocesses, crossfileprojecthelper, no generalCLI-suite claim.",
+    "source-abi-single-complete-lowering-regression": "Actual94passed6failed0ignored926filtered, no skipped source gates. Three genuine preexisting positive regressions at eager body type planning/unreachable/meta uses; unsupported member diagnostic kind changed; integer index and owned Resource lambda old negatives now source success. Classification/intent confirmation and fixes pending, do not claim full Single regression green.",
+    "source-abi-unit-complete-lowering-regression": "Actual157passed2failed0ignored867filtered, all source selected. Old shared closure negative and canonical Function type query negative unexpectedly succeeded; independent intent review in progress, static function-value storage and other closure rejections must remain tested. Not full Unit regression green.",
+    "source-abi-single-demand-corrected-complete-regression": "Actual102passed0failed0ignored928filtered. Entire Single lowering consumers, original three positive eager-demand regressions restored, precise member Unsupported restored, integer index/Resource lambda negatives updated to meaningful SSA/LLVM positives with other limits retained, dead-lambda origin and live nested-lambda limits tested, four when capture sibling shapes pass. New intents were not run before implementation and do not get fictional red evidence.",
+    "source-abi-unit-intent-corrected-complete-regression": "Actual160passed0failed0ignored870filtered. Entire Unit lowering consumers, canonical Fn readonly query/static role no scalar callable storage and borrowed closure Shared facts/Follow/drop/order/LLVM positives updated; remaining10 closure rejections retained unchanged. No production change for those old intent mismatches.",
+    "source-abi-current-runtime-source-regression": "Actual8passed0failed0ignored1022filtered. Two frontend/native-boundary source matrices each144, directpointer/shared source targets, samefile/crossfile3environment generichelpers and pointerfactories. Current narrowed body demand production used. Unit selectedsource entries overlap fullUnit regression; do not sum unique test count.",
+    "source-abi-current-unit-planner-regression": "Actual72passed0failed0ignored958filtered. CompleteUnit planner regression including selectedruntime initializer and Resource/known-fn discovery, factoryreturn query, fullkey/specialization/ordinary1024budget/input-order contracts. Ordinaryplanner proof only, no P2budget recalibration.",
+    "source-abi-current-strict-clippy": "Freshlang-codegen/lang-cli all-targets strictclippy completedexit0 with-Dwarnings; no behavior/nativerun or safety/injection execution. Frozen finalRust source SHA captured.",
+    "source-abi-current-workspace-all-targets-check": "Current frozenRust workspace5crates all-targets check completedexit0; compile only, no execution of calibration/fault/safety tests.",
+    "source-abi-current-cli-build": "Actual cargo build-p lang-cli completedexit0 with current compiler production; publicpipeline bin artifact built for latest source ABI. No runtime claim.",
+    "source-abi-current-format-check": "Actual workspace cargo fmt--all-- --check exit0; readonly formatting check, no target compilation or source mutation. Briefly overlapped ordinary native gate without accessing compiler target artifacts; futureCargo orchestration continues serial.",
+    "source-abi-current-size-policy": "Actual guardexit0 against exactmain6575, finalsource includesdriver1505/control1507/unit1325/control1079/nativeparent1300;853handwrittenRustfiles at firstcheckpoint plus followup registered tests counted bylog. Baseline unchanged and exceptions independentlyreviewed. No debt silently erased.",
+    "source-abi-current-size-policy-tests": "Actual47Pythonpolicytestsran16.328s, allOK. Guard/schema/merge-base/rename/symlink/untracked fixture semantics only, no compiler fault/sanitizer/calibration execution.",
+    "source-abi-current-docs-check": "Actualdocumentationcheck551Markdowndocumentspassed. TextualSpeccheckpointstatus updatesfollowed; finaldocscheckrequiredagainbeforecommit; structural success is not semanticcompletion.",
+    "source-abi-current-native-complete-regression": "Actual8passed0failed0ignored1022filtered,currentfinalRustSHA. All408normalnativecases=each144corematrix+48generichelperexplicit/inferred+6Resourceorder+6evaluation(-1/0/3), bothsingle/unit. Allobject/link/run, currentnarrowconstructiondemand/memberdiag/whenfix compiled. Testthreads2, no safety/fault/calibration/daybreak tests. Native value/count,totaldrop plus separateorder/zero/negativeoracles, notallocation pairing.",
+    "source-abi-current-public-cli-final-regression": "Finalcurrentproduction: publicnative_cli1pass0fail0ignore9filtered andproject_cli1pass0fail0ignore12filtered. Each6builds plusartifactrun andindependentCLIrun, namedcallbackreuse, actualsize/elements, exactstdout/stderr/exit, temporarycleanup; rootCLIrebuilt beforegate.",
+    "source-abi-final-docs-check": "Final source ABI docstatus and Architecture snapshots: actual551Markdownstructuralcheckexit0, finalMDtextfrozen. Spec remainsin-progress and records remainingE5/crosshostCI/delivery andexcludedlocalvalidation."
+  },
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/unit-reachable-factory-return-query-red.json.gz",
+      "raw_sha256": "61e658027c581c4e0a2397d59a8d516051f0270add0347e9f9ea979d21923f8d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/unit-reachable-factory-return-query-red.log.gz",
+      "raw_sha256": "c377e1bc6a0142e82b7bb7d3e5b38e195cfb2e89256ab4556fa9e90fbe55e089"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/unit-reachable-factory-return-query-green.json.gz",
+      "raw_sha256": "c978ec3639d41117197b93b76d1aa58538caa5e35eae085fd38e4bb833017095"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/unit-reachable-factory-return-query-green.log.gz",
+      "raw_sha256": "bdc86ab648a1331e8eaf8b7c9fdcc3d062d95aa0762ccd54efbda644b2eeb50b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/unit-reachable-factory-return-plan-regression.json.gz",
+      "raw_sha256": "cd1a886dc11d510b6fff307a42436fdcb88b506e15087b221bd8d8e734d31b3d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/unit-reachable-factory-return-plan-regression.log.gz",
+      "raw_sha256": "3664c132e61f004839e957a71c136d1ffcf7b9c088bcb659ad913dc8018c2b3c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-matrix-original-production-red.json.gz",
+      "raw_sha256": "b63ff36c447d1c6b90ed5f2b33a9bd7047c8fb05cb3ef37d0f41591e491295e7"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-matrix-original-production-red.log.gz",
+      "raw_sha256": "c2bb4afa1a5df606690664048e97dd4386189e84c96dbde336ff24f6dad3e19f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-consumer-corrected-runtime.json.gz",
+      "raw_sha256": "0e7107be50e3d7638554f6980bfeb448a863fbebe748311374c1ab66ffcf94fc"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-consumer-corrected-runtime.log.gz",
+      "raw_sha256": "33b0f0fa7e56c9ff1b4396fdafd85fe138a8e52a92fb36eed4d8ed24dcde3834"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-runtime-intent.json.gz",
+      "raw_sha256": "70e3c61d525a013d7d423cc8f5189e95f89eec5ad1f84b8c59823fb642fcd77f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-runtime-intent.log.gz",
+      "raw_sha256": "696e9e80ab4ad414e07ae28ff2bae97fcbb401089e9a8929d498bbc02cca2f9f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-first-compile.json.gz",
+      "raw_sha256": "d69a17eb457fb37c35524084aea629a3c2052fe38bdcfde9cc963e9d311177be"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-first-compile.log.gz",
+      "raw_sha256": "5a507ac577cd9ac8b6dc9a229e9f10e56ac6022f33c81fe6098733c80bbc5f07"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-visibility-corrected-compile.json.gz",
+      "raw_sha256": "a40d787293235088c3987abf6c4d9d29707fda8b04805adcd33d5dfcdd993db2"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-visibility-corrected-compile.log.gz",
+      "raw_sha256": "70305f5a9b3082394b9dfb0a490c3de91460e2fac4214b2ccc9b99f64a3f2092"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-first-runtime.json.gz",
+      "raw_sha256": "ec22cce5303a44c3868c092ed1658d84180540c368572bc2d9865ed3ac15859c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-first-runtime.log.gz",
+      "raw_sha256": "3c2bcfcf2b17ed317340764aea710f1c64217079bc235fcb7ed97bd8d77470de"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-shared-verifier-diagnostic.json.gz",
+      "raw_sha256": "4b0c4c47c53c49eba349a6e77bf9cbc3311139cc63428561ac44a98c6444ed75"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-shared-verifier-diagnostic.log.gz",
+      "raw_sha256": "4eae2b1b5031a3661a5a2912d5ad9712fc6b1d41f99feef009c7ccdfd5cc7976"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-matrix-original-production-red.json.gz",
+      "raw_sha256": "a43bbdac9e9c909c9e80865dc17907ae3ec912c52b4d172bd3bd075ab9b8d643"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-matrix-original-production-red.log.gz",
+      "raw_sha256": "6b04c2407954c36668108df504fcca0204895702b377875daef30fa7e06844b5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-matrix-original-production-corrected-red.json.gz",
+      "raw_sha256": "e6ab8a31944951b1fee06e14133ce4c8e66b45f83a9eb0719b28c4290ea65812"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-matrix-original-production-corrected-red.log.gz",
+      "raw_sha256": "d3d78c0592188312950b3406cb4595b54c9d3c74af18bad85d1c1783fb7ddd18"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-runtime-green.json.gz",
+      "raw_sha256": "315cdfae7d37beb040cc2397f0adcf8ef5f7d121c0c3a18022931feaca24e35c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-runtime-green.log.gz",
+      "raw_sha256": "6b8f903620a2c1db5ed0ed637b3279afe30f4ae42fb508dd4b2abe4a5b1344a6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-runtime-intent.json.gz",
+      "raw_sha256": "590e3f08536b3bd618b5fbad84b2d12c24cf54b5b4542dae81e8e1a645254918"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-runtime-intent.log.gz",
+      "raw_sha256": "6b3d7b05fe08114a3b469692f1b977de804f33228dd42bf04c9872cebc4b165a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-matrix.json.gz",
+      "raw_sha256": "bf4fbcfc1341db578ccf196508c8de8508f0543767b84eba6d17afc9f6f3fe13"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-matrix.log.gz",
+      "raw_sha256": "98bb41568badb04955d3cfa7d544f76f81d90acae54c0e49cf9819087860735f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/public-cli-original-production-red.json.gz",
+      "raw_sha256": "d6bd465f35549e04a2ded3780630d239f042a25300c9810346ab3b8382f16158"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/public-cli-original-production-red.log.gz",
+      "raw_sha256": "643b8ecc1eb5f55549a7f8e8adc02e90e3a65ed1884c81b0f80ec9d0d588f4a9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-d-first-compile.json.gz",
+      "raw_sha256": "b0e83178bc0ed824220614a12bc617b2911cd1156d4a12149073d3afff4f7241"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-d-first-compile.log.gz",
+      "raw_sha256": "84382349da33606dc60db21c60403d1f0537d9796f062b3753bd7e4450e6abbf"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-d-runtime-checkpoint.json.gz",
+      "raw_sha256": "be3b323c817a2689138a6b4c19f14321b9b7abfb73f37a516f4760a853accb91"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-d-runtime-checkpoint.log.gz",
+      "raw_sha256": "0f01c79a1400a3c66eea03682862d89d0da0133b056fd92caf9129f180a5700f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-live-single-known-pointer-and-lifetime-intent.json.gz",
+      "raw_sha256": "fab15cff2f4b31d1a7fc9b4a61c3eafc96af06c00d1897320a8b14cc62dcfc33"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-live-single-known-pointer-and-lifetime-intent.log.gz",
+      "raw_sha256": "29823ab8d410bd6acb4409a62fd3fa55e28aea411c92b9157129f1d15c74190a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-resource-and-named-pointer-intent-red.json.gz",
+      "raw_sha256": "cdb72e8a930d669cf8a807bde9a355cfc3978585f608d04631907aa1d7c0aedb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-resource-and-named-pointer-intent-red.log.gz",
+      "raw_sha256": "0d5e5a1e5a57d02f71dcbdd20b896255e61003ba46f852b5f55714f4f23eccd7"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-inner-loop-known-pointer-scope-red.json.gz",
+      "raw_sha256": "bc4ae89f78653d056bbb2fdd3f4f57362595e97bcf4e0668bc5a7ef15439fc3d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-inner-loop-known-pointer-scope-red.log.gz",
+      "raw_sha256": "371db90df152b12c4a2c7033b996b1f6aee0efece47207520636c6bf64bb0af9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-known-pointer-fact-diagnostic.json.gz",
+      "raw_sha256": "e380a4fdaa73f3eaf4034abcd5562bfd7920624037823cb385993dc911b1a05c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-known-pointer-fact-diagnostic.log.gz",
+      "raw_sha256": "24c854f4bdc92396c94a6ab495cf55ffaa4852f7556bbb806f77453995fc5ef0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-facts-and-lifetime-green.json.gz",
+      "raw_sha256": "bd548346a3e948bd76a1f6c5ce17d92a39fac9f9bc6dbdfe3fbd90cf93ef896a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-facts-and-lifetime-green.log.gz",
+      "raw_sha256": "f78a3c96b5fd4643fd7cfd6bd9cda091541045395aea00a6943fd5f7dad76449"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-public-cli-green.json.gz",
+      "raw_sha256": "149791f2138c1d37579693b79fa3c09ab808ea3fb55b6dc30ea3608d4b08cad3"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-public-cli-green.log.gz",
+      "raw_sha256": "c8e72bbf0c11607b8e055648c749293771b8e984b0f6c945c0411ceb9f264b04"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-order-intent.json.gz",
+      "raw_sha256": "bca215234ea2dc0ab503081bca89f78f6fd6680ad31fe21c90e3e2c3422f84ba"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-order-intent.log.gz",
+      "raw_sha256": "0e173d3b863343292ae9b5919089a4dbd2434990f5be238f734f3b158090b730"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-order-corrected-intent.json.gz",
+      "raw_sha256": "318ea763b5a55583814c061036fd79ad494cee3a242ca8ac1ecc31cba1f2c3c4"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-order-corrected-intent.log.gz",
+      "raw_sha256": "8ce3f3bda293352895b521933a879d8cd02d29d8bd0b5ccb9e98ae2ac9b74f9f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-resource-known-pointer-compile.json.gz",
+      "raw_sha256": "d961cc17df4450e935be8cd90615065d935e8d8b20f88645273f8f1ec3ba0ff9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-resource-known-pointer-compile.log.gz",
+      "raw_sha256": "4fc1d2c56705f3307c0baf1935f19edda789bbf3a55de6f82d3158acf6ca4a41"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-resource-known-pointer-intent-green.json.gz",
+      "raw_sha256": "b712df1e565add26867bb3bfd6d256f6d719811763055b3a5d0eceb8a11ea569"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-resource-known-pointer-intent-green.log.gz",
+      "raw_sha256": "2b55a94adedf3a6427c57c657301bc06798a2add1d16ddc7ca0da2a3add4c4d1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-complete-runtime-matrix-green.json.gz",
+      "raw_sha256": "f7cf2bd60a215ddac68c1e288f0575af8655647568931befed484399dcce31eb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-complete-runtime-matrix-green.log.gz",
+      "raw_sha256": "1b2eff8f7478cbf9d21e156dd3551e03330a1ec085e987c4d43a81b88a3f6766"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-nominal-helper-intent-red.json.gz",
+      "raw_sha256": "cdd918d3d355cc8ee30a58d13d2ee0d3943f5821c56b870d1d53909f3c1d6051"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-nominal-helper-intent-red.log.gz",
+      "raw_sha256": "59807607d76e7dfd2a130cda689fb8565b6ee48c8b2e63d32c51db2405feb115"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-native-matrix-and-order.json.gz",
+      "raw_sha256": "0a28cb739fa1744244456866346c288189fb330a9617bc79f934082698c150a9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-native-matrix-and-order.log.gz",
+      "raw_sha256": "e8df8757eb03a17de5404a401644fef6e3d64c243fc9e1336538d7b7c1451175"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-borrowed-field-intent-red.json.gz",
+      "raw_sha256": "2e7fbdba6bdec5dfd55c63cea1d30f62ac91a80af47771652b3c1d22409acaae"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-borrowed-field-intent-red.log.gz",
+      "raw_sha256": "9eeb662c23cde88d49530436944d79bb536d729c5dbf2fc04accb89f5cdeba7d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-captured-string-field-intent-red.json.gz",
+      "raw_sha256": "7abba4391f6591e5ab32e98c0afb2d080c5578c0c069cbbfa3a5100b3754b222"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-captured-string-field-intent-red.log.gz",
+      "raw_sha256": "3ce8b395b035383d51df532d9dee202e18508f8844cd1732854b5fee0938299a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-inner-loop-slot-intent-first.json.gz",
+      "raw_sha256": "6006316cb916bfc606222c85d7154be96a3e4847a3366e6215d07e305b2ba7f4"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-inner-loop-slot-intent-first.log.gz",
+      "raw_sha256": "9dcde053ea0a6e4cd297208f44a6c542f59f5dd34f8032180ac8fee6f9757b25"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-nominal-helper-intent-green.json.gz",
+      "raw_sha256": "ea1f461fdc7084e050dbccc506def8d66ec6a9577caac069d28867625255a036"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-nominal-helper-intent-green.log.gz",
+      "raw_sha256": "90fc8fb217e7e49916661157865aeb84f0b18ae120e948390e8e219653f453a9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-runtime-complete-checkpoint.json.gz",
+      "raw_sha256": "f552c55cc7fe9f23560657e36868405fdddb8bbb5b4eb10dc6deefc2b20ed6ae"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-runtime-complete-checkpoint.log.gz",
+      "raw_sha256": "44827b61e640fd4368ef3714cd0ea1c5317ed6e7658210c009f24ff400548504"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-generic-helper-original-production-red.json.gz",
+      "raw_sha256": "2c7b21405861128d1dd7ac67093aee1209e60cc8bbcdff15b59351eceb2909f6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-generic-helper-original-production-red.log.gz",
+      "raw_sha256": "67b39246a75fc73206397fd63f588d403a3b4d87198eb1bc82d54efbe19352d1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-generic-helper-green.json.gz",
+      "raw_sha256": "b66dc1157d209370eeee5b7b796256511aea88cc6158d5add958a7870f2f18fd"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-generic-helper-green.log.gz",
+      "raw_sha256": "b43e982ef7687c8b1e09de3a032601f31c48b82438c3dc2b72540f836d46d40b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-generic-helper-isolated-target-resumed.json.gz",
+      "raw_sha256": "52bcf74cad55bf4e12745e37642298e1c7947440001b7e6fcc12dab57c0ae899"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-generic-helper-isolated-target-resumed.log.gz",
+      "raw_sha256": "9113fc07a881dadb0d6d570d76ff764a07666e43ff5cd605637ab2f14b6cc186"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-fields-loops-nominal-checkpoint.json.gz",
+      "raw_sha256": "e165283a647797063ef748c46acf594a81f581d1f8ff43a0619705ba3ef2f14e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-fields-loops-nominal-checkpoint.log.gz",
+      "raw_sha256": "8dd03a70f922da55a285f2090b13ecc708578827a23f1367ddbd2b50c3cc81bb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-native-fields-corrected-matrix.json.gz",
+      "raw_sha256": "9bc099af0f30434c4e23413d3ab1e14b4ec0a02bddc52c0faede282559cbc008"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-native-fields-corrected-matrix.log.gz",
+      "raw_sha256": "86bbfc425cca616ef050c61cc4a832a11d4ee9cae17e192f8a8e6343beb55a6c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/single-checkpoint-native-generic-helper-isolated-target.log.gz",
+      "raw_sha256": "6852087af67f25154f82a654b23bdd9c02a9fb6e52278030ee5207b8f52fdb5f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-when-sibling-capture-intent-red.json.gz",
+      "raw_sha256": "9d6ac3db46c8da267d09844a8a312cb78bd35dd89c655ab7f70878358b4f14ba"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-when-sibling-capture-intent-red.log.gz",
+      "raw_sha256": "d7051654e8e96def2e9265e6ae23f5074287fad920bfd24aa798020bdbea2f42"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-iteration-inner-loop-real-prefix-intent.json.gz",
+      "raw_sha256": "688753b07c3ec87cc29bba64334929aedf3fdd2699ce2bfd0dc9e33323c2da60"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-iteration-inner-loop-real-prefix-intent.log.gz",
+      "raw_sha256": "d7051654e8e96def2e9265e6ae23f5074287fad920bfd24aa798020bdbea2f42"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-when-sibling-capture-corrected-intent-red.json.gz",
+      "raw_sha256": "93c63188e9ff96cbfb1f6a8a4d0154bbd40dd9f696d953bd702c979e4203a5ff"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-when-sibling-capture-corrected-intent-red.log.gz",
+      "raw_sha256": "b2d5772cbb2a23399b8bc2a0aefffbd52959d79904f197aabe2a9321c76adcec"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-when-sibling-capture-intent-green.json.gz",
+      "raw_sha256": "ea508d09c408e65014732f13b96289ccef95e5f5ddaa68fe170f703ebdebaeee"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-when-sibling-capture-intent-green.log.gz",
+      "raw_sha256": "5aa0bb4c2a2b1d41bbd4780502862bed2f1b701f571f18600d98b81659acf83d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-iteration-inner-loop-corrected-fixture-intent.json.gz",
+      "raw_sha256": "a20fb1df4c0b6c6b1891830373819bf55be06e2f02d296eb1308ccb60a91be81"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-iteration-inner-loop-corrected-fixture-intent.log.gz",
+      "raw_sha256": "1c4113fdc89a685ccaddb0d4a4eae97f0fef0628c4483455b79909a6188f913d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-evaluation-order-original-production-red.json.gz",
+      "raw_sha256": "de710dc252a499ec94a8d06f2351571729d62dec7b601b199a4590764b2d6711"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-evaluation-order-original-production-red.log.gz",
+      "raw_sha256": "9716d2280295c92ac053716dd8d80e4abc1b6fe3936a986d32243e2f861eae8e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-native-evaluation-order-live-green.json.gz",
+      "raw_sha256": "7c3b44f332e80c519022501cfc080f307908b2d136b1a5a663373f4759ee2569"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-native-evaluation-order-live-green.log.gz",
+      "raw_sha256": "dd6e991d1825b30281ba42625fcf87c400cac5cd1bb7bb195298650911e1ecbe"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-evaluation-order-original-production-corrected-red.json.gz",
+      "raw_sha256": "dff66b22c8dad8d4cd7ca32cc5ff431c989267c9a9d61f54c31f0cfd9bfcd1a1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/native-evaluation-order-original-production-corrected-red.log.gz",
+      "raw_sha256": "aef4677da86ac9292f558b159d736eabe11173a25932fb5e76e206fe33c0f9db"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-native-evaluation-order-corrected-live-green.json.gz",
+      "raw_sha256": "2c166699993662f5a61bb19de44b7f2ef5868899b49beef7cd52e2f7075e601a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-native-evaluation-order-corrected-live-green.log.gz",
+      "raw_sha256": "1c263c4009f15553820dde2cd65b45ae3ba58a91a56e4ef4dbd956b1add0616f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-native-generic-helper-explicit-inferred-checkpoint.json.gz",
+      "raw_sha256": "e06224211597e13c137faa2e91a2aebbf73f0d23994aa95640bce7d56d6e41cc"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-native-generic-helper-explicit-inferred-checkpoint.log.gz",
+      "raw_sha256": "4e18cbd68019eaf46edebeab383af5d8c7436167fe63e2a877c23b677b45a0ff"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-public-cli-combined-green.json.gz",
+      "raw_sha256": "80063f1ed91661d0e4a8542c5ce85fead880fa3a697e45135de33c8fbe867a10"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-public-cli-combined-green.log.gz",
+      "raw_sha256": "ef82dbccac2643920e27664f7adf05a20308cc89d3833cc5c44e73541284213b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-complete-lowering-regression.json.gz",
+      "raw_sha256": "799bc94ca23d474aa73be34a9a65d4ea89b64a8401c14b7e80b3aec352448028"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-complete-lowering-regression.log.gz",
+      "raw_sha256": "db85da035f3b2a5986d905b809115fa3518fd3da35b11474324d776f4076ba33"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-complete-lowering-regression.json.gz",
+      "raw_sha256": "e6f1754ad2805710cb9625e76504dc2f5ffa51d141a255c65e0908dab38da8eb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-complete-lowering-regression.log.gz",
+      "raw_sha256": "dcfab2d864dfbd52b31a1d7cb0945c8d5696139c429b6149b9e038ed57c2050e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-demand-corrected-complete-regression.json.gz",
+      "raw_sha256": "877076b17f7ae4c46713e873911a13812db854c09b69967e989d2a03b4e16fba"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-single-demand-corrected-complete-regression.log.gz",
+      "raw_sha256": "fc7b735649982244156fb80fedeec570cfe7c9c6affdfb1e0185a8786c2322bc"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-intent-corrected-complete-regression.json.gz",
+      "raw_sha256": "44528532b77da80e40097411e8462ea28bd17663d987726895d6cbba60c7a037"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-unit-intent-corrected-complete-regression.log.gz",
+      "raw_sha256": "64bb1d9a36ca4cab8bbce2557110570ec4c856f05593bdec79f52e875567b534"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-runtime-source-regression.json.gz",
+      "raw_sha256": "0e9eb9c75dba14acfec87e184e604603f06418b1901662f5f4dabb87946a2ddc"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-runtime-source-regression.log.gz",
+      "raw_sha256": "cb581d3b91db32cd6e83ba1a75a0d853f1189499ed95fc3fd178d39d1fbed9db"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-unit-planner-regression.json.gz",
+      "raw_sha256": "25ea7a0de273c843941858a723928a4ec689f6c89f61c40759bc6772eeb31671"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-unit-planner-regression.log.gz",
+      "raw_sha256": "020835fa5b3bce50f59f4e8b952f5aa075821859eed304bedc81512267417dd3"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-strict-clippy.json.gz",
+      "raw_sha256": "2db67ed6086785201762c591c9f75507c872e71fdedf3ae8c56a78f81f243089"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-strict-clippy.log.gz",
+      "raw_sha256": "a76ad5eef641a317b612672799ecc81b24e5878a21a44ca7c8ac7102ab229cc9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-workspace-all-targets-check.json.gz",
+      "raw_sha256": "7c243ebd5373ab3305092110514a42419a1fca59a41f4ab9c74f3d66274eb266"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-workspace-all-targets-check.log.gz",
+      "raw_sha256": "f4b409e8613fc128f1e5613e3140dd974208246df3ce23d461bc568d165cde66"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-cli-build.json.gz",
+      "raw_sha256": "96a03cb1227768c52e04f66ded775be4d14e43817c951499542e0448e2a33d29"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-cli-build.log.gz",
+      "raw_sha256": "cd52c6bb9947df4450ba6c5af34ac5772cdfd3bb726cd1823348131906b94d40"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-format-check.json.gz",
+      "raw_sha256": "fe8c3198c8e4692122b4051ed5f403d1cc0c6a6bb12b388d1a50d89ca7b4f2ec"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-format-check.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-size-policy.json.gz",
+      "raw_sha256": "f0875f446e8d0c90aa8fddd3ecd7a1e4691427cfbc992a7b7c6b65b7256c1434"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-size-policy.log.gz",
+      "raw_sha256": "0844e0739680d8decf006129f900961e7aeb5c771b7c30abe457b3ef04b25bac"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-size-policy-tests.json.gz",
+      "raw_sha256": "ad6c24ad183bcbe705e556fec269918acc3dc05fc5cf03cdcadbd79f80425b42"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-size-policy-tests.log.gz",
+      "raw_sha256": "cc62025261cfec5cd13b72f18afd61554c419cf2887a6476ba8206b6673d6125"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-docs-check.json.gz",
+      "raw_sha256": "2021240be03f8cb89edf83bc8d1bb02e9ecc92a0fd6c8ebdb73b14c4f026ac09"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-docs-check.log.gz",
+      "raw_sha256": "29cc437f6be15c1ab7b24b4bfc93c1571985dbc5b2ab5cc51eeabfdbb89aaa95"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-native-complete-regression.json.gz",
+      "raw_sha256": "1e0c6efac791aac7408ad040b30141c6f7fb4d332d3bb3c9061501c119c7e57d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-native-complete-regression.log.gz",
+      "raw_sha256": "90e970c5b4ff27dec2a0bfb77a650b389232eabac5d3c389098665b06cddc1a4"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-public-cli-final-regression.json.gz",
+      "raw_sha256": "f890bac6720c3f4a30550656c32e02d9e7aff12ce0b565d742e3d0870283a5ee"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-current-public-cli-final-regression.log.gz",
+      "raw_sha256": "197015d3620e3cc6929518344198dd103a964c558016b7c45b8b17ddeee3b2cf"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-final-docs-check.json.gz",
+      "raw_sha256": "7808c179e5301edf0c3be600eb3a726ba4dc848a322900bfae92acad59881e20"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/source-abi/source-abi-final-docs-check.log.gz",
+      "raw_sha256": "29cc437f6be15c1ab7b24b4bfc93c1571985dbc5b2ab5cc51eeabfdbb89aaa95"
+    }
+  ],
+  "not_closed": [
+    "source/runtime/native matrices",
+    "complete source Fn signatures/layout and frozen callback routing",
+    "PR/main CI",
+    "local fault injection/calibration explicitly not run"
+  ],
+  "query_scope_sha256": {
+    "crates/lang-codegen/src/ssa/unit_plan.rs": "e9b0c17c2215644af9b0b30541475dd183e137ad787bb4108520e413b34f90d6",
+    "crates/lang-codegen/src/ssa/unit_plan/callable_instances.rs": "5652eaead205403f002112c58b9bd800e3853a274d8de5ae6f31393be24dccdf",
+    "crates/lang-codegen/src/ssa/unit_plan_tests/callable_identity.rs": "2a96b03f675aa2f8c96b603f1a839ecf366b3eb0f23655e5b89d066f69365cf3",
+    "crates/lang-codegen/src/ssa/unit_plan_tests/factory_return_queries.rs": "4a1a3198fdb08b8dfcdfa4e59e7fc2aa3b445e848d161a815503982dfe2edf97"
+  },
+  "original_matrix_snapshot": {
+    "snapshot_base": "1aef99b17a51757e20c41e5f3b6ac28c615daf19",
+    "archive_sha256": "cc541d273fccd2c560676e3379de260ae34d5754ffbc9fa89ae51de580138041",
+    "overlays": {
+      "crates/lang-codegen/src/ssa/container_lowering_tests.rs": "cd83f4acb63dd2fd8196748776a6e1c889ff5f9645983be4ac0453e65670f3fa",
+      "crates/lang-codegen/src/ssa/unit_lower_container_tests.rs": "23686ca1ac07970e176039a1c8bd4ed2b8e780321c1bbefa935247489cb1f447",
+      "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_helpers.rs": "736d2c1cb4571bcd25998084a29a0312e89fe50cfe1470b67dfaf7f7e92a25fd",
+      "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_helpers.rs": "ab3fd28134b5b53a8998bda4467e23f95f55968e65722ae313fb13da436bb083",
+      "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_matrix.rs": "7d6a187bfa169c47b75a8059a047c3ff8af72e20a5a9903a37eaeeda4ca16b5c",
+      "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_matrix_support.rs": "7ca26cc13d7e8461dbc81ceea28f50db08ab435892f109c8c64e89f0a3c0b53f",
+      "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_matrix.rs": "f6a90ab03bde7003e1055b427f522d183011e992626d03df8faa783a5eae3781"
+    },
+    "claim": "Exact1aef99b production, root source test overlays only. Current ABI worktree is independent."
+  },
+  "observed_test_results": {
+    "unit-reachable-factory-return-query-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 999
+      }
+    ],
+    "unit-reachable-factory-return-query-green": [
+      {
+        "outcome": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 999
+      }
+    ],
+    "unit-reachable-factory-return-plan-regression": [
+      {
+        "outcome": "ok",
+        "passed": 72,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 929
+      }
+    ],
+    "source-matrix-original-production-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 999
+      }
+    ],
+    "source-abi-single-consumer-corrected-runtime": [
+      {
+        "outcome": "FAILED",
+        "passed": 1,
+        "failed": 3,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1002
+      }
+    ],
+    "source-abi-single-runtime-intent": [
+      {
+        "outcome": "FAILED",
+        "passed": 1,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1003
+      }
+    ],
+    "source-abi-single-first-runtime": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 4,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 999
+      }
+    ],
+    "source-abi-single-shared-verifier-diagnostic": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1005
+      }
+    ],
+    "native-matrix-original-production-corrected-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1001
+      }
+    ],
+    "single-checkpoint-runtime-green": [
+      {
+        "outcome": "ok",
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1003
+      }
+    ],
+    "single-checkpoint-runtime-intent": [
+      {
+        "outcome": "FAILED",
+        "passed": 3,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1003
+      }
+    ],
+    "single-checkpoint-native-matrix": [
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1006
+      }
+    ],
+    "public-cli-original-production-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 9
+      },
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 12
+      }
+    ],
+    "source-abi-unit-d-runtime-checkpoint": [
+      {
+        "outcome": "FAILED",
+        "passed": 3,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1005
+      }
+    ],
+    "source-abi-live-single-known-pointer-and-lifetime-intent": [
+      {
+        "outcome": "FAILED",
+        "passed": 3,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1005
+      }
+    ],
+    "source-abi-unit-resource-and-named-pointer-intent-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1011
+      }
+    ],
+    "source-abi-single-inner-loop-known-pointer-scope-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1011
+      }
+    ],
+    "source-abi-single-known-pointer-fact-diagnostic": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1012
+      }
+    ],
+    "single-checkpoint-facts-and-lifetime-green": [
+      {
+        "outcome": "ok",
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1003
+      }
+    ],
+    "single-checkpoint-public-cli-green": [
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 9
+      }
+    ],
+    "single-checkpoint-native-order-intent": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1009
+      }
+    ],
+    "single-checkpoint-native-order-corrected-intent": [
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1009
+      }
+    ],
+    "source-abi-unit-resource-known-pointer-intent-green": [
+      {
+        "outcome": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1014
+      }
+    ],
+    "source-abi-unit-complete-runtime-matrix-green": [
+      {
+        "outcome": "ok",
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1012
+      }
+    ],
+    "source-abi-single-nominal-helper-intent-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1015
+      }
+    ],
+    "source-abi-unit-native-matrix-and-order": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1014
+      }
+    ],
+    "source-abi-unit-borrowed-field-intent-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1019
+      }
+    ],
+    "source-abi-unit-captured-string-field-intent-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1019
+      }
+    ],
+    "source-abi-unit-inner-loop-slot-intent-first": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1018
+      }
+    ],
+    "source-abi-single-nominal-helper-intent-green": [
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1019
+      }
+    ],
+    "source-abi-single-runtime-complete-checkpoint": [
+      {
+        "outcome": "ok",
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1013
+      }
+    ],
+    "native-generic-helper-original-production-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1005
+      }
+    ],
+    "single-checkpoint-native-generic-helper-green": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1006
+      }
+    ],
+    "single-checkpoint-native-generic-helper-isolated-target-resumed": [
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1013
+      }
+    ],
+    "source-abi-unit-fields-loops-nominal-checkpoint": [
+      {
+        "outcome": "FAILED",
+        "passed": 5,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1016
+      }
+    ],
+    "source-abi-unit-native-fields-corrected-matrix": [
+      {
+        "outcome": "ok",
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1020
+      }
+    ],
+    "source-abi-single-when-sibling-capture-corrected-intent-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1023
+      }
+    ],
+    "source-abi-single-when-sibling-capture-intent-green": [
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1023
+      }
+    ],
+    "source-abi-unit-iteration-inner-loop-corrected-fixture-intent": [
+      {
+        "outcome": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1022
+      }
+    ],
+    "native-evaluation-order-original-production-corrected-red": [
+      {
+        "outcome": "FAILED",
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1007
+      }
+    ],
+    "source-abi-native-evaluation-order-corrected-live-green": [
+      {
+        "outcome": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1024
+      }
+    ],
+    "source-abi-native-generic-helper-explicit-inferred-checkpoint": [
+      {
+        "outcome": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1024
+      }
+    ],
+    "source-abi-public-cli-combined-green": [
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 9
+      },
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 12
+      }
+    ],
+    "source-abi-single-complete-lowering-regression": [
+      {
+        "outcome": "FAILED",
+        "passed": 94,
+        "failed": 6,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 926
+      }
+    ],
+    "source-abi-unit-complete-lowering-regression": [
+      {
+        "outcome": "FAILED",
+        "passed": 157,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 867
+      }
+    ],
+    "source-abi-single-demand-corrected-complete-regression": [
+      {
+        "outcome": "ok",
+        "passed": 102,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 928
+      }
+    ],
+    "source-abi-unit-intent-corrected-complete-regression": [
+      {
+        "outcome": "ok",
+        "passed": 160,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 870
+      }
+    ],
+    "source-abi-current-runtime-source-regression": [
+      {
+        "outcome": "ok",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1022
+      }
+    ],
+    "source-abi-current-unit-planner-regression": [
+      {
+        "outcome": "ok",
+        "passed": 72,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 958
+      }
+    ],
+    "source-abi-current-native-complete-regression": [
+      {
+        "outcome": "ok",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 1022
+      }
+    ],
+    "source-abi-current-public-cli-final-regression": [
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 9
+      },
+      {
+        "outcome": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 12
+      }
+    ]
+  },
+  "slice_finalization": {
+    "base_commit": "1aef99b17a51757e20c41e5f3b6ac28c615daf19",
+    "changed_rust_file_count": 63,
+    "changed_rust_sha256": {
+      "crates/lang-cli/tests/native_cli.rs": "35cfd5ce221ff675d59db69d47edf3aad2d70948ac540e735dc9841c44793e2a",
+      "crates/lang-cli/tests/native_cli/runtime_constructor.rs": "78b1bb669cd85175b23ea1bd42c2129ad3cc4d9c0f1addcd59dc141e1a807c77",
+      "crates/lang-cli/tests/project_cli.rs": "d9988e56329275ce4e00eb6b22fe88eaeefcd8dff3ce067c29e145e0f2e4ea4e",
+      "crates/lang-cli/tests/project_cli/runtime_constructor.rs": "8a14f4050660a0b02f643e2f433831388a10ce7e9a918431f97e1777e67280d4",
+      "crates/lang-codegen/src/native/unit_container_size_tests.rs": "a8aa02745d65cad3fd019f73fa2baa61a7a54eebf0e5586298e3f01701f45324",
+      "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs": "e4fecea812fe52add61305566cd4966ebc6c37218b11a15bcba9411c94de1ed8",
+      "crates/lang-codegen/src/native_runtime_constructor_tests.rs": "68b8294bb23f7212368106501f109442aafa4768244984f346116a0294a4358c",
+      "crates/lang-codegen/src/native_runtime_constructor_tests/evaluation.rs": "9ef79522fe464b08647ee9adedd9bfbbd5e4ad3102ab90eef82579b28fcb38ca",
+      "crates/lang-codegen/src/native_tests.rs": "006ab2de46a289857c647cb2b7ea4c6d8136e0d216b7231a2abad4fce6f40fb1",
+      "crates/lang-codegen/src/ssa/bitwise_lowering_tests.rs": "a79881b960ae59c58e294ea650562b13b8e3a482ef5971648fd4ea1cd7a4c2c8",
+      "crates/lang-codegen/src/ssa/container_lowering_tests.rs": "cd83f4acb63dd2fd8196748776a6e1c889ff5f9645983be4ac0453e65670f3fa",
+      "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_helpers.rs": "736d2c1cb4571bcd25998084a29a0312e89fe50cfe1470b67dfaf7f7e92a25fd",
+      "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_matrix.rs": "7d6a187bfa169c47b75a8059a047c3ff8af72e20a5a9903a37eaeeda4ca16b5c",
+      "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_matrix_support.rs": "7ca26cc13d7e8461dbc81ceea28f50db08ab435892f109c8c64e89f0a3c0b53f",
+      "crates/lang-codegen/src/ssa/lower_frontend.rs": "0161eae940227df7f5e40e9e5a0610a17c3f4651884b8c6c8ec02cb68939e9dd",
+      "crates/lang-codegen/src/ssa/lower_frontend/call_lifetimes.rs": "4273aca55b9446c5ad2d89467e054b2911ed8f92c7092c7790e48d93689e5bc5",
+      "crates/lang-codegen/src/ssa/lower_frontend/container.rs": "3afddf1b28068ecefafc8c06401082012c9c429b084d21cd404cf5b250881134",
+      "crates/lang-codegen/src/ssa/lower_frontend/container/access.rs": "c21c00638f820cb6c1faf91a43a1e76fdf7f64c9a38d20a0b2473d5c5838f4c2",
+      "crates/lang-codegen/src/ssa/lower_frontend/container/runtime.rs": "deaa4b0f4aef77a69147411d59a1e5087f14bd367adeaa2b6be88e09440fe3e6",
+      "crates/lang-codegen/src/ssa/lower_frontend/control.rs": "5d504127fa9a5ca16f55aa19128563a2a5e67874d4b689a05f468878354533de",
+      "crates/lang-codegen/src/ssa/lower_frontend/drops.rs": "5930cdca2c131af7cd284032d393491f1023e3eec79377ebce310ffca927fd1d",
+      "crates/lang-codegen/src/ssa/lower_frontend/loop_control.rs": "2034b2d3114d2c08f4c3297adff06629703d6b800b44df9df092655569d28d0e",
+      "crates/lang-codegen/src/ssa/lower_frontend/nominal.rs": "f0a9e8bc7d219b2f41f13ba95fb2370c81f4e52932b5c472679eb36a678ef795",
+      "crates/lang-codegen/src/ssa/lower_frontend/orchestrate.rs": "b62a72e4a30cc7d6f5d41d599315d48baf92dc6894f2f831d556c714686f6a20",
+      "crates/lang-codegen/src/ssa/lower_frontend/source_closure.rs": "d8e79f3ca4757fb362012dabd203520635d517b919302e1b4a90597228cc6684",
+      "crates/lang-codegen/src/ssa/lower_frontend/source_closure/abi.rs": "35b12ce933cda255b88c9e22ba10b1f337b81e16347a24f972d065ccf32d1dea",
+      "crates/lang-codegen/src/ssa/lower_frontend/source_closure/declare.rs": "c463836b43ea19f33b81bf7a45b144c8b6b4a71e5a6dd0090d7d46e72222371f",
+      "crates/lang-codegen/src/ssa/lower_frontend/source_closure/formation.rs": "1e9f33b377d7df93f44a919269942ffde0c474263fa94b99a59337f0972a92ec",
+      "crates/lang-codegen/src/ssa/lower_frontend/source_closure/tests.rs": "ab8df0b0a230a171d1e3571237ee9dc363fdb6337335467466a1c7da96e4b73a",
+      "crates/lang-codegen/src/ssa/lower_frontend_resource_deinit_tests.rs": "2e9498ab2f9d7f3dcb4b5e8cd00a90dc7bd646031accab3181dc8e22003a0f3b",
+      "crates/lang-codegen/src/ssa/lower_frontend_tests.rs": "aaded3a525d9c349cac83bd5934fb3dd1b8bee1f9c781865094a5c2d17f641d8",
+      "crates/lang-codegen/src/ssa/unit_lower.rs": "11d9110a8b3ea302579186489c2079b9858983ad3621eca88420a9eb21ee411f",
+      "crates/lang-codegen/src/ssa/unit_lower/aggregate.rs": "418bc9f1a25211b06caf77206aed9e18f0ddae77745a2b0b6e87dd33ee50af30",
+      "crates/lang-codegen/src/ssa/unit_lower/borrow.rs": "f60c92cda181ef7e12c27286c83d54c16e16268f90864b5faa469e582f0a5a44",
+      "crates/lang-codegen/src/ssa/unit_lower/call.rs": "3c1edbf41dbdd95e8c41ecee476de81b94a3454105b11011b29b145902f9841f",
+      "crates/lang-codegen/src/ssa/unit_lower/call_lifetimes.rs": "c5552879fbd43e1eed140238c51d353e5a9677171dae79d63528f5619d10c493",
+      "crates/lang-codegen/src/ssa/unit_lower/callable_abi.rs": "a2d5402ca633fdd12adc078d2749d4d18c60efd7695bf284fe892fced6a5aef9",
+      "crates/lang-codegen/src/ssa/unit_lower/cfg.rs": "0dd946947be93d4e65a5b3552e65a3f4d8120bde9f69cbc463ad861466c9c7a3",
+      "crates/lang-codegen/src/ssa/unit_lower/closure.rs": "9ad1949c932ac40e5a9a3efdd45d3fea77723b79d25a5c0942266937d804ef0b",
+      "crates/lang-codegen/src/ssa/unit_lower/closure/generic_runtime_tests.rs": "5ec1221f886e35878570c9f166f0cc94ff7d084a98e22a84a9b6cbf76a95900d",
+      "crates/lang-codegen/src/ssa/unit_lower/closure/known_function.rs": "d821f5bf25679cfa25f99464e223c5b234a17acbddd8a7a82f15b84ae588f0ee",
+      "crates/lang-codegen/src/ssa/unit_lower/closure/layout.rs": "6126de6b061728a116e0b3ae7703131a840c4fce2dd3b64f93711334fc44a541",
+      "crates/lang-codegen/src/ssa/unit_lower/closure/runtime_slots_tests.rs": "08e52a39b9c5d46ce1af9281b70aa46049d84be5977abbbef217befba87af714",
+      "crates/lang-codegen/src/ssa/unit_lower/closure/runtime_tests.rs": "c625e998bc62dccada03a3d81b0f3ab7ca3e65e460ac3af5fb4f272b034f8672",
+      "crates/lang-codegen/src/ssa/unit_lower/closure/shared.rs": "780a562fdaf631e70266b634465884b1c8ff3a6ba0ff98eeb040db63b5cb971f",
+      "crates/lang-codegen/src/ssa/unit_lower/container.rs": "c13cc5976fecdd6b3e4aad3d7251e07ad8ca902a5d220a275adbe7053a86719e",
+      "crates/lang-codegen/src/ssa/unit_lower/container/runtime.rs": "a5cd2cf37d2c47d3bd85a4f1640f6caa9e4bc11a4bd2c4189fc9d8e0ed8529a8",
+      "crates/lang-codegen/src/ssa/unit_lower/control.rs": "4d047460dc013e56472f08c3b0aa3d107c283bc92f45c7b465a4b29f3967c30c",
+      "crates/lang-codegen/src/ssa/unit_lower/field_borrow.rs": "bd8e7360eade5e4dd22fa95d52c7c35680cac05426ada67677cb703742c35816",
+      "crates/lang-codegen/src/ssa/unit_lower/loop_control.rs": "5ef364f72cbdc1f0f64024d13cd4c68d0d1c0f47275c30610ac58ccf5a32386d",
+      "crates/lang-codegen/src/ssa/unit_lower/ownership.rs": "cd381a18db8ca82b6856fd2ef715dbc40219f0d63870317ee4338fcda8bdbc58",
+      "crates/lang-codegen/src/ssa/unit_lower/ownership_primitive.rs": "dc9910f1079fd0600377f573cf9473fa6488cddd1d09fdfd8a951a227f474eac",
+      "crates/lang-codegen/src/ssa/unit_lower/type_plan.rs": "eda34c0760a74dfa1d60d449f969bbf5b7929a687235ad1c41846ca048c13c4b",
+      "crates/lang-codegen/src/ssa/unit_lower_closure_tests.rs": "efe12baec0814fc01178d8173451602a29cc75f3c349ea179351ac315512bd9f",
+      "crates/lang-codegen/src/ssa/unit_lower_closure_tests/shared_capture.rs": "5211ceabe38d8e9740449728168b0fb5fd48ef3fdf5b6d71ba9a3b5ecf83d70c",
+      "crates/lang-codegen/src/ssa/unit_lower_container_tests.rs": "23686ca1ac07970e176039a1c8bd4ed2b8e780321c1bbefa935247489cb1f447",
+      "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_helpers.rs": "ab3fd28134b5b53a8998bda4467e23f95f55968e65722ae313fb13da436bb083",
+      "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_matrix.rs": "f6a90ab03bde7003e1055b427f522d183011e992626d03df8faa783a5eae3781",
+      "crates/lang-codegen/src/ssa/unit_plan.rs": "d29a5c5b6d6219c99d7ae65b9b2516be235825d5b79fc3993f8b500fc3e09c07",
+      "crates/lang-codegen/src/ssa/unit_plan/callable_instances.rs": "a9fa69328d0a21fc9f7e37638fec53f0755eafde646e5b61c8f9d4cb675f2708",
+      "crates/lang-codegen/src/ssa/unit_plan/deinit.rs": "3c02812bb9f5765028f68e9804012974cb4c9ee8e54315864e7985ba9e2ad192",
+      "crates/lang-codegen/src/ssa/unit_plan_tests/callable_identity.rs": "2a96b03f675aa2f8c96b603f1a839ecf366b3eb0f23655e5b89d066f69365cf3",
+      "crates/lang-codegen/src/ssa/unit_plan_tests/factory_return_queries.rs": "4a1a3198fdb08b8dfcdfa4e59e7fc2aa3b445e848d161a815503982dfe2edf97"
+    },
+    "required_local_green_records": [
+      "source-abi-single-demand-corrected-complete-regression",
+      "source-abi-unit-intent-corrected-complete-regression",
+      "source-abi-current-runtime-source-regression",
+      "source-abi-current-unit-planner-regression",
+      "source-abi-current-native-complete-regression",
+      "source-abi-current-public-cli-final-regression",
+      "source-abi-current-strict-clippy",
+      "source-abi-current-workspace-all-targets-check",
+      "source-abi-current-cli-build",
+      "source-abi-current-format-check",
+      "source-abi-current-size-policy",
+      "source-abi-current-size-policy-tests",
+      "source-abi-final-docs-check"
+    ],
+    "all_required_records_match_final_changed_rust_sha256": true,
+    "rust_size_baseline_unchanged": true,
+    "retained_raw_sha256_verified": 137,
+    "independent_review": "docs/development/evidence/runtime-constructor-0279/source-abi/review.json",
+    "native_normal_cases": {
+      "single": 204,
+      "unit": 204,
+      "total": 408
+    },
+    "scope": "Local source ABI logical slice; SPEC-0279 stays active, no PR/main/cross-host completion claim.",
+    "not_run": [
+      "local safety validation",
+      "fault injection/allocation accounting",
+      "ASan/LSan calibration",
+      "daybreak",
+      "P2 budget recalibration"
+    ],
+    "remaining": [
+      "broader existing storable nominal/nested container T native coverage",
+      "final remote CI on exact PR head and actual merged main",
+      "Spec archival and PR delivery"
+    ]
+  }
+}

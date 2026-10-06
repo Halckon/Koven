@@ -1,5 +1,8 @@
 //! 已完成 typed container descriptor 到顺序容器 SSA 的窄化 lowering。
 
+mod access;
+mod runtime;
+
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::NameResolution,
@@ -221,10 +224,8 @@ impl ExpressionLowerer<'_> {
                 }
                 Vec::new()
             }
-            // Runtime-length construction depends on the still-unimplemented callable initializer
-            // bridge and remains outside this source-construction slice.
             ContainerConstructionKind::RuntimeLength => {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                return self.lower_runtime_container(expression, arguments, span);
             }
         };
         let container = self.expression_ssa_type(expression, span)?;

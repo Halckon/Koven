@@ -449,6 +449,7 @@ pub(super) fn plan_unit_instances_from_facts(
             .collect::<BTreeMap<_, _>>();
         let source_token = callables.reserve_source(&key, template.span)?;
         callables.validate_arguments(&key, &substitutions, template.span)?;
+        callables.freeze_pointer_return(source_token, &mut pending, template.span)?;
         let instance_recipe_facts =
             recipe_root_facts_for_instance(typed, &template.type_parameters, key.type_arguments())?;
 
@@ -536,6 +537,13 @@ pub(super) fn plan_unit_instances_from_facts(
             pending.insert(target_key.key);
         }
 
+        callables.freeze_runtime_initializers(
+            source_token,
+            &substitutions,
+            &mut pending,
+            template.span,
+        )?;
+        let resource_lambdas = callables.selected_resource_lambdas(source_token);
         deinit::plan_instance_deinits(
             typed,
             names,
@@ -543,6 +551,7 @@ pub(super) fn plan_unit_instances_from_facts(
             template,
             &key,
             &substitutions,
+            &resource_lambdas,
             &mut pending,
         )?;
 

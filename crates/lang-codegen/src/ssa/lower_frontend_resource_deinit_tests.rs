@@ -3,7 +3,7 @@
 use super::{
     LoweringErrorKind, analyze, lower_scalar_file, render_program, render_verified_program,
 };
-use crate::ssa::model::{EntityType, LoanKind, Operation};
+use crate::ssa::model::{EntityId, EntityType, LoanKind, Operation, SsaTypeKind};
 
 fn lower_resource(source: &str) -> crate::ssa::model::Program {
     let analysis = analyze(source);
@@ -149,7 +149,6 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
     for source in [
         "class Resource { deinit() {} }\nfun inspect(value: Resource?): Unit {}",
         "class Resource<T>(val value: T) { deinit() {} }\nfun run(): Unit { val resource = Resource(1) }",
-        "class Resource { deinit() {} }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource() }; callback() }",
         "class Resource { deinit() {} }\nclass Holder<T>(val value: T)\nfun run(): Unit { val wrapped = Holder(Resource()) }",
     ] {
         let analysis = analyze(source);
@@ -176,6 +175,78 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
         assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode, "{source}");
         assert!(failure.span.is_some());
     }
+}
+
+#[test]
+fn single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup() {
+    let program = lower_resource(
+        "class Resource { deinit() {} }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource() }; callback() }",
+    );
+    let module = &program.modules[0];
+    let thunk = module
+        .functions
+        .iter()
+        .find(|function| function.name.ends_with(".thunk"))
+        .expect("one selected owned closure thunk");
+    assert_eq!(
+        thunk
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::HeapAllocate { .. }))
+            .count(),
+        1
+    );
+    let body_drops = thunk
+        .instructions
+        .iter()
+        .filter_map(|instruction| {
+            if let Operation::Drop { owner } = instruction.operation {
+                Some(thunk.entity(EntityId::Value(owner)).unwrap().ty)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    let [EntityType::Value(resource)] = body_drops.as_slice() else {
+        panic!("the callback's local Resource must have one drop")
+    };
+    assert!(matches!(
+        module.type_kind(*resource),
+        Some(SsaTypeKind::HeapOwner { .. })
+    ));
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .expect("run");
+    assert_eq!(
+        entry
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::CallableInvoke { .. }))
+            .count(),
+        1
+    );
+    let entry_drops = entry
+        .instructions
+        .iter()
+        .filter_map(|instruction| {
+            if let Operation::Drop { owner } = instruction.operation {
+                Some(entry.entity(EntityId::Value(owner)).unwrap().ty)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    let [EntityType::Value(closure)] = entry_drops.as_slice() else {
+        panic!("the closure must independently drop its owned String environment once")
+    };
+    assert!(matches!(
+        module.type_kind(*closure),
+        Some(SsaTypeKind::ConcreteClosure { .. })
+    ));
+    render_verified_program(&program)
+        .expect("body Resource and owned environment cleanup verify through LLVM");
 }
 
 #[test]

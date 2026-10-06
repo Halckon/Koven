@@ -1,0 +1,143 @@
+{
+  "schema": "koven.spec0279.source-abi-review.v1",
+  "base_commit": "1aef99b17a51757e20c41e5f3b6ac28c615daf19",
+  "changed_rust_source_sha256": {
+    "crates/lang-cli/tests/native_cli.rs": "35cfd5ce221ff675d59db69d47edf3aad2d70948ac540e735dc9841c44793e2a",
+    "crates/lang-cli/tests/native_cli/runtime_constructor.rs": "78b1bb669cd85175b23ea1bd42c2129ad3cc4d9c0f1addcd59dc141e1a807c77",
+    "crates/lang-cli/tests/project_cli.rs": "d9988e56329275ce4e00eb6b22fe88eaeefcd8dff3ce067c29e145e0f2e4ea4e",
+    "crates/lang-cli/tests/project_cli/runtime_constructor.rs": "8a14f4050660a0b02f643e2f433831388a10ce7e9a918431f97e1777e67280d4",
+    "crates/lang-codegen/src/native/unit_container_size_tests.rs": "a8aa02745d65cad3fd019f73fa2baa61a7a54eebf0e5586298e3f01701f45324",
+    "crates/lang-codegen/src/native/unit_runtime_constructor_tests.rs": "e4fecea812fe52add61305566cd4966ebc6c37218b11a15bcba9411c94de1ed8",
+    "crates/lang-codegen/src/native_runtime_constructor_tests.rs": "68b8294bb23f7212368106501f109442aafa4768244984f346116a0294a4358c",
+    "crates/lang-codegen/src/native_runtime_constructor_tests/evaluation.rs": "9ef79522fe464b08647ee9adedd9bfbbd5e4ad3102ab90eef82579b28fcb38ca",
+    "crates/lang-codegen/src/native_tests.rs": "006ab2de46a289857c647cb2b7ea4c6d8136e0d216b7231a2abad4fce6f40fb1",
+    "crates/lang-codegen/src/ssa/bitwise_lowering_tests.rs": "a79881b960ae59c58e294ea650562b13b8e3a482ef5971648fd4ea1cd7a4c2c8",
+    "crates/lang-codegen/src/ssa/container_lowering_tests.rs": "cd83f4acb63dd2fd8196748776a6e1c889ff5f9645983be4ac0453e65670f3fa",
+    "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_helpers.rs": "736d2c1cb4571bcd25998084a29a0312e89fe50cfe1470b67dfaf7f7e92a25fd",
+    "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_matrix.rs": "7d6a187bfa169c47b75a8059a047c3ff8af72e20a5a9903a37eaeeda4ca16b5c",
+    "crates/lang-codegen/src/ssa/container_lowering_tests/runtime_matrix_support.rs": "7ca26cc13d7e8461dbc81ceea28f50db08ab435892f109c8c64e89f0a3c0b53f",
+    "crates/lang-codegen/src/ssa/lower_frontend.rs": "0161eae940227df7f5e40e9e5a0610a17c3f4651884b8c6c8ec02cb68939e9dd",
+    "crates/lang-codegen/src/ssa/lower_frontend/call_lifetimes.rs": "4273aca55b9446c5ad2d89467e054b2911ed8f92c7092c7790e48d93689e5bc5",
+    "crates/lang-codegen/src/ssa/lower_frontend/container.rs": "3afddf1b28068ecefafc8c06401082012c9c429b084d21cd404cf5b250881134",
+    "crates/lang-codegen/src/ssa/lower_frontend/container/access.rs": "c21c00638f820cb6c1faf91a43a1e76fdf7f64c9a38d20a0b2473d5c5838f4c2",
+    "crates/lang-codegen/src/ssa/lower_frontend/container/runtime.rs": "deaa4b0f4aef77a69147411d59a1e5087f14bd367adeaa2b6be88e09440fe3e6",
+    "crates/lang-codegen/src/ssa/lower_frontend/control.rs": "5d504127fa9a5ca16f55aa19128563a2a5e67874d4b689a05f468878354533de",
+    "crates/lang-codegen/src/ssa/lower_frontend/drops.rs": "5930cdca2c131af7cd284032d393491f1023e3eec79377ebce310ffca927fd1d",
+    "crates/lang-codegen/src/ssa/lower_frontend/loop_control.rs": "2034b2d3114d2c08f4c3297adff06629703d6b800b44df9df092655569d28d0e",
+    "crates/lang-codegen/src/ssa/lower_frontend/nominal.rs": "f0a9e8bc7d219b2f41f13ba95fb2370c81f4e52932b5c472679eb36a678ef795",
+    "crates/lang-codegen/src/ssa/lower_frontend/orchestrate.rs": "b62a72e4a30cc7d6f5d41d599315d48baf92dc6894f2f831d556c714686f6a20",
+    "crates/lang-codegen/src/ssa/lower_frontend/source_closure.rs": "d8e79f3ca4757fb362012dabd203520635d517b919302e1b4a90597228cc6684",
+    "crates/lang-codegen/src/ssa/lower_frontend/source_closure/abi.rs": "35b12ce933cda255b88c9e22ba10b1f337b81e16347a24f972d065ccf32d1dea",
+    "crates/lang-codegen/src/ssa/lower_frontend/source_closure/declare.rs": "c463836b43ea19f33b81bf7a45b144c8b6b4a71e5a6dd0090d7d46e72222371f",
+    "crates/lang-codegen/src/ssa/lower_frontend/source_closure/formation.rs": "1e9f33b377d7df93f44a919269942ffde0c474263fa94b99a59337f0972a92ec",
+    "crates/lang-codegen/src/ssa/lower_frontend/source_closure/tests.rs": "ab8df0b0a230a171d1e3571237ee9dc363fdb6337335467466a1c7da96e4b73a",
+    "crates/lang-codegen/src/ssa/lower_frontend_resource_deinit_tests.rs": "2e9498ab2f9d7f3dcb4b5e8cd00a90dc7bd646031accab3181dc8e22003a0f3b",
+    "crates/lang-codegen/src/ssa/lower_frontend_tests.rs": "aaded3a525d9c349cac83bd5934fb3dd1b8bee1f9c781865094a5c2d17f641d8",
+    "crates/lang-codegen/src/ssa/unit_lower.rs": "11d9110a8b3ea302579186489c2079b9858983ad3621eca88420a9eb21ee411f",
+    "crates/lang-codegen/src/ssa/unit_lower/aggregate.rs": "418bc9f1a25211b06caf77206aed9e18f0ddae77745a2b0b6e87dd33ee50af30",
+    "crates/lang-codegen/src/ssa/unit_lower/borrow.rs": "f60c92cda181ef7e12c27286c83d54c16e16268f90864b5faa469e582f0a5a44",
+    "crates/lang-codegen/src/ssa/unit_lower/call.rs": "3c1edbf41dbdd95e8c41ecee476de81b94a3454105b11011b29b145902f9841f",
+    "crates/lang-codegen/src/ssa/unit_lower/call_lifetimes.rs": "c5552879fbd43e1eed140238c51d353e5a9677171dae79d63528f5619d10c493",
+    "crates/lang-codegen/src/ssa/unit_lower/callable_abi.rs": "a2d5402ca633fdd12adc078d2749d4d18c60efd7695bf284fe892fced6a5aef9",
+    "crates/lang-codegen/src/ssa/unit_lower/cfg.rs": "0dd946947be93d4e65a5b3552e65a3f4d8120bde9f69cbc463ad861466c9c7a3",
+    "crates/lang-codegen/src/ssa/unit_lower/closure.rs": "9ad1949c932ac40e5a9a3efdd45d3fea77723b79d25a5c0942266937d804ef0b",
+    "crates/lang-codegen/src/ssa/unit_lower/closure/generic_runtime_tests.rs": "5ec1221f886e35878570c9f166f0cc94ff7d084a98e22a84a9b6cbf76a95900d",
+    "crates/lang-codegen/src/ssa/unit_lower/closure/known_function.rs": "d821f5bf25679cfa25f99464e223c5b234a17acbddd8a7a82f15b84ae588f0ee",
+    "crates/lang-codegen/src/ssa/unit_lower/closure/layout.rs": "6126de6b061728a116e0b3ae7703131a840c4fce2dd3b64f93711334fc44a541",
+    "crates/lang-codegen/src/ssa/unit_lower/closure/runtime_slots_tests.rs": "08e52a39b9c5d46ce1af9281b70aa46049d84be5977abbbef217befba87af714",
+    "crates/lang-codegen/src/ssa/unit_lower/closure/runtime_tests.rs": "c625e998bc62dccada03a3d81b0f3ab7ca3e65e460ac3af5fb4f272b034f8672",
+    "crates/lang-codegen/src/ssa/unit_lower/closure/shared.rs": "780a562fdaf631e70266b634465884b1c8ff3a6ba0ff98eeb040db63b5cb971f",
+    "crates/lang-codegen/src/ssa/unit_lower/container.rs": "c13cc5976fecdd6b3e4aad3d7251e07ad8ca902a5d220a275adbe7053a86719e",
+    "crates/lang-codegen/src/ssa/unit_lower/container/runtime.rs": "a5cd2cf37d2c47d3bd85a4f1640f6caa9e4bc11a4bd2c4189fc9d8e0ed8529a8",
+    "crates/lang-codegen/src/ssa/unit_lower/control.rs": "4d047460dc013e56472f08c3b0aa3d107c283bc92f45c7b465a4b29f3967c30c",
+    "crates/lang-codegen/src/ssa/unit_lower/field_borrow.rs": "bd8e7360eade5e4dd22fa95d52c7c35680cac05426ada67677cb703742c35816",
+    "crates/lang-codegen/src/ssa/unit_lower/loop_control.rs": "5ef364f72cbdc1f0f64024d13cd4c68d0d1c0f47275c30610ac58ccf5a32386d",
+    "crates/lang-codegen/src/ssa/unit_lower/ownership.rs": "cd381a18db8ca82b6856fd2ef715dbc40219f0d63870317ee4338fcda8bdbc58",
+    "crates/lang-codegen/src/ssa/unit_lower/ownership_primitive.rs": "dc9910f1079fd0600377f573cf9473fa6488cddd1d09fdfd8a951a227f474eac",
+    "crates/lang-codegen/src/ssa/unit_lower/type_plan.rs": "eda34c0760a74dfa1d60d449f969bbf5b7929a687235ad1c41846ca048c13c4b",
+    "crates/lang-codegen/src/ssa/unit_lower_closure_tests.rs": "efe12baec0814fc01178d8173451602a29cc75f3c349ea179351ac315512bd9f",
+    "crates/lang-codegen/src/ssa/unit_lower_closure_tests/shared_capture.rs": "5211ceabe38d8e9740449728168b0fb5fd48ef3fdf5b6d71ba9a3b5ecf83d70c",
+    "crates/lang-codegen/src/ssa/unit_lower_container_tests.rs": "23686ca1ac07970e176039a1c8bd4ed2b8e780321c1bbefa935247489cb1f447",
+    "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_helpers.rs": "ab3fd28134b5b53a8998bda4467e23f95f55968e65722ae313fb13da436bb083",
+    "crates/lang-codegen/src/ssa/unit_lower_container_tests/runtime_matrix.rs": "f6a90ab03bde7003e1055b427f522d183011e992626d03df8faa783a5eae3781",
+    "crates/lang-codegen/src/ssa/unit_plan.rs": "d29a5c5b6d6219c99d7ae65b9b2516be235825d5b79fc3993f8b500fc3e09c07",
+    "crates/lang-codegen/src/ssa/unit_plan/callable_instances.rs": "a9fa69328d0a21fc9f7e37638fec53f0755eafde646e5b61c8f9d4cb675f2708",
+    "crates/lang-codegen/src/ssa/unit_plan/deinit.rs": "3c02812bb9f5765028f68e9804012974cb4c9ee8e54315864e7985ba9e2ad192",
+    "crates/lang-codegen/src/ssa/unit_plan_tests/callable_identity.rs": "2a96b03f675aa2f8c96b603f1a839ecf366b3eb0f23655e5b89d066f69365cf3",
+    "crates/lang-codegen/src/ssa/unit_plan_tests/factory_return_queries.rs": "4a1a3198fdb08b8dfcdfa4e59e7fc2aa3b445e848d161a815503982dfe2edf97"
+  },
+  "reviews": [
+    {
+      "reviewer": "review_0279_unit_field_routes",
+      "initial_role": "independent nonauthor review of Unit ABI and field routes",
+      "scope": [
+        "Unit callable_abi/borrow/container runtime/closure layouts and shared views",
+        "source-qualified memo, runtime initializer selection and Resource deinit demands",
+        "real LoanFact field projection root/symbol/index/type consistency",
+        "CFG carrier, parent-child loan cleanup, ABI temporary owner ordering",
+        "unit driver/control exact growth exceptions"
+      ],
+      "findings": [
+        "innerloop fixture had an existing frontend Temporary LoanFact and hit old control-prefix rejection before CFG; replaced by real for-supported source without fabricating facts"
+      ],
+      "subsequent_author_scope": [
+        "only canonical/static-role test intent update",
+        "borrowed closure negative moved into actual Shared facts/Drop/LLVM positive; other10rejections preserved"
+      ]
+    },
+    {
+      "reviewer": "review_0279_single_names_and_native_intent",
+      "initial_role": "independent nonauthor review of Single source ABI, naming, native fixtures and policy",
+      "scope": [
+        "owner-qualified lambda/Function argument and return layouts",
+        "readonly concrete type substitution and full callback instance keys",
+        "normal factory summaries and structured missing/Deferred boundaries",
+        "size first Borrow and explicit negative Abort before initializer",
+        "formation/capture cleanup and CFG transport",
+        "24-to48generic helper native fixtures, ordinary evaluation SIGABRT/stdout oracle",
+        "exact driver/control/native registration exceptions"
+      ],
+      "findings": [
+        "P2 when unmatched capture map missing across sibling paths; three genuine InvalidSsa variants fixed by3addedlines/1replacement and fourth alternatives variant passed fullsource regression",
+        "shared-target stale artifact must not be reported green; dedicated Single target fresh compile passed"
+      ],
+      "subsequent_author_scope": [
+        "Single structural constructor demand replaces arbitrary typed-span scan; actual CallableOrigin excludes dead lambda",
+        "precise unsupported source-member diagnostic preserved",
+        "integer index/inv and Resource owned closure old negatives replaced by meaningful positive intent with remaining rejects retained"
+      ]
+    },
+    {
+      "reviewer": "review_0279_unit_field_routes",
+      "role": "independent nonauthor review of final Single regression fixes",
+      "scope": [
+        "structural demand consumes P3 nominal construction plan/runtime Borrow facts",
+        "execution still validates missing construction facts, target and delivery",
+        "canonical substitution precedes mapper registration in concrete source owner",
+        "dead Lambda origin is absent, reachable nested Lambda still unsupported",
+        "source member guard restores Unsupported without swallowing ordinary route MissingFact",
+        "index/resource positive intent ownership and LLVM oracles",
+        "final driver1505 finite exception and unchanged baseline"
+      ],
+      "unresolved_actionable_findings": []
+    },
+    {
+      "reviewer": "review_0279_single_names_and_native_intent",
+      "role": "independent nonauthor review of final Unit test intent updates",
+      "scope": [
+        "canonical Function query preserves String parameter and does not grant scalar callable storage",
+        "static declaration exclusion1 and StringOwner-only scalar plan",
+        "original borrowed.ko Shared+Borrow capture,invoke1,ownerDrop2,closure before source,SharedReferenceFollow and LLVM",
+        "other10unsupported closure fixtures unchanged",
+        "closure parent946/child93/type_plan478 dimensions"
+      ],
+      "unresolved_actionable_findings": []
+    }
+  ],
+  "limitations": [
+    "reviews are static plus read existing gate outputs; reviewers did not run Cargo",
+    "local safety/fault/sanitizer/calibration/daybreak excluded per user",
+    "static ListForm/EmptyMutableList pre-registration lacks general evaluated-container facts; original1aef99b had this structural prepass, not closed by this slice",
+    "precise PR/main and second-host CI not completed by this review"
+  ]
+}
