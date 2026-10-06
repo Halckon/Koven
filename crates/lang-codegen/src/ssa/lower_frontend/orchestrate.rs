@@ -282,11 +282,15 @@ fn lower_scalar_file_product(
         .iter()
         .map(|plan| plan.span)
         .collect::<Vec<_>>();
-    let instances = plan_instances(parsed, typed, &templates, &deinit_spans)?;
+    let instance_plan = plan_instances(parsed, typed, owned, &templates, &deinit_spans)?;
     let mut function_ids = BTreeMap::new();
     let mut plans = Vec::new();
 
-    for instance in instances {
+    for instance in instance_plan.instances() {
+        let source_key = instance_plan.source(instance.source).ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
         let declaration = declarations
             .get(instance.template_index)
             .ok_or(LoweringError {
@@ -388,7 +392,7 @@ fn lower_scalar_file_product(
         };
         let id = module
             .add_function(
-                instance_function_name(names, typed, &instance.key, span)?,
+                instance_function_name(names, typed, source_key, span)?,
                 return_types,
                 Origin::Source(span),
             )
@@ -405,7 +409,7 @@ fn lower_scalar_file_product(
             body,
             parameter_symbols,
             return_type,
-            substitutions: instance.substitutions,
+            substitutions: instance.substitutions.clone(),
             receiver: None,
             span,
         });

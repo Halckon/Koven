@@ -1,6 +1,7 @@
 //! SPEC-0199 compilation-unit 可达 callable 与具体实例的确定性计划。
 
 mod call_routes;
+mod callable_instances;
 mod concrete_types;
 mod deinit;
 mod recipe_preflight;
@@ -24,13 +25,15 @@ use lang_frontend::{
     source::{SourceMap, Span},
     type_checking::{
         CompilationUnitTypes, NominalKind, TypeEnvironment, UnitCallTarget, UnitCallableSignature,
-        UnitCallableTarget, UnitNominalSignature, UnitTypeId, UnitTypeKind,
+        UnitCallableTarget, UnitExpressionId, UnitNominalSignature, UnitTypeId, UnitTypeKind,
         ValidatedCompilationUnitTypes,
     },
 };
 
 use super::{
-    LoweringError, LoweringErrorKind, lowering_support::error as lowering_error,
+    LoweringError, LoweringErrorKind,
+    lowering_support::callable_instances::{CallableToken, SourceIdentity, SourceToken},
+    lowering_support::error as lowering_error,
     unit_source_query::parsed_by_source_unit,
 };
 pub(crate) use call_routes::{callable_static_self_receiver, resolve_unit_call_instance};
@@ -38,6 +41,8 @@ pub(crate) use call_routes::{callable_static_self_receiver, resolve_unit_call_in
 pub(super) use call_routes::{
     resolve_delegated_dispatch_owner_argument, resolve_inherited_dispatch_owner_argument,
 };
+use callable_instances::CallablePlanner;
+pub(crate) use callable_instances::UnitCallablePlan;
 use concrete_types::contains_type_parameter;
 pub(crate) use concrete_types::resolve_concrete_type;
 use recipe_preflight::{
@@ -58,6 +63,7 @@ pub(crate) struct UnitFunctionInstanceKey {
     static_self: Option<UnitTypeId>,
     /// Hidden deinit uses its nominal declaration as identity, never a source callable.
     deinit: bool,
+    callable_arguments: Vec<(usize, CallableToken)>,
 }
 
 /// 一个已解析的 Borrow-only delegation receiver 投影。
@@ -111,6 +117,7 @@ pub(crate) enum UnitRuntimeTypeDemand {
 pub(crate) struct UnitInstancePlan {
     instances: Vec<UnitPlannedInstance>,
     runtime_type_demands: BTreeMap<UnitTypeId, UnitRuntimeTypeDemand>,
+    callables: UnitCallablePlan,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -131,8 +138,14 @@ impl UnitInstancePlan {
     ) -> (
         Vec<UnitPlannedInstance>,
         BTreeMap<UnitTypeId, UnitRuntimeTypeDemand>,
+        UnitCallablePlan,
     ) {
-        (self.instances, self.runtime_type_demands)
+        (self.instances, self.runtime_type_demands, self.callables)
+    }
+
+    #[cfg(test)]
+    pub(super) fn callable_plan(&self) -> &UnitCallablePlan {
+        &self.callables
     }
 }
 
@@ -172,6 +185,7 @@ impl UnitFunctionInstanceKey {
             type_arguments,
             static_self,
             deinit: false,
+            callable_arguments: Vec::new(),
         }
     }
 
@@ -181,6 +195,7 @@ impl UnitFunctionInstanceKey {
             type_arguments: Vec::new(),
             static_self: None,
             deinit: true,
+            callable_arguments: Vec::new(),
         }
     }
 
@@ -208,7 +223,19 @@ impl UnitFunctionInstanceKey {
     }
 
     pub(crate) fn is_specialized(&self) -> bool {
-        !self.type_arguments.is_empty() || self.static_self.is_some()
+        !self.type_arguments.is_empty()
+            || self.static_self.is_some()
+            || !self.callable_arguments.is_empty()
+    }
+
+    pub(in crate::ssa) fn callable_arguments(&self) -> &[(usize, CallableToken)] {
+        &self.callable_arguments
+    }
+}
+
+impl SourceIdentity for UnitFunctionInstanceKey {
+    fn callable_arguments(&self) -> &[(usize, CallableToken)] {
+        self.callable_arguments()
     }
 }
 
@@ -216,6 +243,7 @@ impl UnitFunctionInstanceKey {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct UnitPlannedInstance {
     key: UnitFunctionInstanceKey,
+    source_token: SourceToken,
     source_unit: SourceUnitId,
     item: ItemId,
     substitutions: BTreeMap<UnitSymbolId, UnitTypeId>,
@@ -226,6 +254,10 @@ pub(crate) struct UnitPlannedInstance {
 impl UnitPlannedInstance {
     pub(crate) const fn key(&self) -> &UnitFunctionInstanceKey {
         &self.key
+    }
+
+    pub(in crate::ssa) const fn source_token(&self) -> SourceToken {
+        self.source_token
     }
 
     pub(crate) const fn source_unit(&self) -> SourceUnitId {
@@ -350,6 +382,13 @@ pub(super) fn plan_unit_instances_from_facts(
     let mut planned = BTreeMap::new();
     let mut runtime_type_demands = BTreeMap::new();
     let mut generic_instance_count = 0;
+    let mut callables = CallablePlanner::new(
+        parsed_by_source,
+        typed,
+        owned,
+        &templates,
+        &template_by_target,
+    );
 
     while let Some(key) = pending.pop_first() {
         if planned.contains_key(&key) {
@@ -408,6 +447,8 @@ pub(super) fn plan_unit_instances_from_facts(
             .copied()
             .zip(key.type_arguments().iter().copied())
             .collect::<BTreeMap<_, _>>();
+        let source_token = callables.reserve_source(&key, template.span)?;
+        callables.validate_arguments(&key, &substitutions, template.span)?;
         let instance_recipe_facts =
             recipe_root_facts_for_instance(typed, &template.type_parameters, key.type_arguments())?;
 
@@ -468,7 +509,7 @@ pub(super) fn plan_unit_instances_from_facts(
                     )
                 })
                 .transpose()?;
-            let target_key =
+            let mut target_key =
                 resolve_unit_call_instance(typed, owned, target, arguments, receiver, *span)?;
             let target_template_index = template_by_target
                 .get(&target_key.key().target())
@@ -479,6 +520,14 @@ pub(super) fn plan_unit_instances_from_facts(
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, *span));
             }
+            callables.specialize_call(
+                source_token,
+                &substitutions,
+                call,
+                &mut target_key,
+                &mut pending,
+                *span,
+            )?;
             for dependent in target_key.dependent_owner_types {
                 runtime_type_demands
                     .entry(dependent)
@@ -504,6 +553,7 @@ pub(super) fn plan_unit_instances_from_facts(
             key.clone(),
             UnitPlannedInstance {
                 key,
+                source_token,
                 source_unit: template.source_unit,
                 item: template.item,
                 substitutions,
@@ -520,9 +570,11 @@ pub(super) fn plan_unit_instances_from_facts(
         &instances,
         &mut runtime_type_demands,
     )?;
+    let callables = callables.finish(&instances)?;
     Ok(UnitInstancePlan {
         instances,
         runtime_type_demands,
+        callables,
     })
 }
 

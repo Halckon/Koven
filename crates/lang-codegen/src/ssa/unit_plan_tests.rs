@@ -132,6 +132,7 @@ fn plan<'a>(
 }
 
 mod body_type_budget;
+mod callable_identity;
 mod canonical_callables;
 mod delegation_routes;
 mod entry_identity;

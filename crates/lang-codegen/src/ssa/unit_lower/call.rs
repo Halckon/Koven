@@ -11,7 +11,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         BuiltinType, Copyability, ExpressionCategory, ParameterMode, UnitCallDescriptor,
-        UnitCallReceiverOrigin, UnitCallTarget, UnitCallableTarget, UnitExpressionId,
+        UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId,
     },
 };
 
@@ -24,7 +24,6 @@ use crate::ssa::{
     model::{
         EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceAccess, PlaceId, SsaTypeId,
     },
-    unit_plan::resolve_unit_call_instance,
 };
 
 pub(super) struct LoweredCallArguments {
@@ -156,15 +155,14 @@ impl UnitExpressionLowerer<'_> {
                 span,
             );
         }
-        let target = match descriptor.target() {
-            UnitCallTarget::Declaration(target) => UnitCallableTarget::Declaration(target),
-            UnitCallTarget::Symbol(target) => UnitCallableTarget::Symbol(target),
+        match descriptor.target() {
+            UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_) => {}
             UnitCallTarget::External(_)
             | UnitCallTarget::FunctionValue
             | UnitCallTarget::StructuralComponent(_) => {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
-        };
+        }
         if arguments.len() != descriptor.arguments().len()
             || descriptor
                 .arguments()
@@ -173,14 +171,6 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let type_arguments = descriptor
-            .instance()
-            .type_arguments()
-            .iter()
-            .map(|ty| {
-                resolve_concrete_type(self.typed, *ty, self.substitutions, self.static_self, span)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
         let receiver = descriptor
             .receiver()
             .map(|receiver| {
@@ -193,14 +183,11 @@ impl UnitExpressionLowerer<'_> {
                 )
             })
             .transpose()?;
-        let resolved = resolve_unit_call_instance(
-            self.typed,
-            self.owned,
-            target,
-            type_arguments,
-            receiver,
-            span,
-        )?;
+        // The planner already resolved receiver/recipe routing and every callback slot.
+        let resolved = self
+            .source_plan
+            .call_site(self.source_token, call)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let callee = self
             .function_ids
             .get(resolved.key())

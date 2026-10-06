@@ -1,5 +1,6 @@
 //! 单文件与 compilation-unit adapter 共用的中立 lowering 支撑。
 
+pub(in crate::ssa) mod callable_instances;
 pub(in crate::ssa) mod string_literal;
 
 use lang_frontend::source::Span;

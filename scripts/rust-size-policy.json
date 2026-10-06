@@ -46,11 +46,11 @@
   },
   "exceptions": {
     "crates/lang-codegen/src/ssa/unit_lower.rs": {
-      "max_lines": 1266,
-      "reason": "SPEC-0268 仅挂接 Statement::For，并让 return 在已有 iteration cleanup 时保留完整有序动作；provider CFG 与 cleanup 算法位于独立 loop_control/iteration 模块。搬迁既有 driver 会扩大本行为切片。 SPEC-0274本轮：仅3行descriptor驱动的size分发，具体算法位于现有container子模块；移动整个lower入口不属于此次合同。",
+      "max_lines": 1272,
+      "reason": "SPEC-0268 仅挂接 Statement::For，并让 return 在已有 iteration cleanup 时保留完整有序动作；provider CFG 与 cleanup 算法位于独立 loop_control/iteration 模块。搬迁既有 driver 会扩大本行为切片。 SPEC-0274本轮：仅3行descriptor驱动的size分发，具体算法位于现有container子模块；移动整个lower入口不属于此次合同。 SPEC-0279仅新增6行，将冻结source plan与当前owner token传入两个已有lowerer构造点；callback身份和路由算法留unit_plan独立子模块。拆迁整个driver会扩大本行为切片。",
       "owner": "lang-codegen unit lowering",
       "split_plan": "后续按intrinsic分发职责整体迁移入口，不机械切片lower状态机。",
-      "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1266行或增加职责前重新审阅。"
+      "review": "SPEC-0279独立完整审阅核对此次6行产物接线与既有职责；超过1272行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": {
       "max_lines": 1247,

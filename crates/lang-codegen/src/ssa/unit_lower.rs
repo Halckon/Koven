@@ -155,7 +155,7 @@ fn lower_unit_from_facts(
         entry,
         MAX_UNIT_GENERIC_INSTANCES,
     )?;
-    let (instances, runtime_type_demands) = instance_plan.into_parts();
+    let (instances, runtime_type_demands, source_plan) = instance_plan.into_parts();
     let mut program = Program::default();
     let module_id = program.add_module("main");
     let module = program
@@ -469,6 +469,8 @@ fn lower_unit_from_facts(
             owned,
             constant_owned,
             function_ids: &function_ids,
+            source_plan: &source_plan,
+            source_token: plan.instance.source_token(),
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
             enum_payloads: types.enum_payloads(),
@@ -564,6 +566,8 @@ fn lower_unit_from_facts(
             owned,
             constant_owned,
             function_ids: &function_ids,
+            source_plan: &source_plan,
+            source_token: plan.source_token,
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
             enum_payloads: types.enum_payloads(),
@@ -607,6 +611,8 @@ struct UnitExpressionLowerer<'a> {
     owned: &'a CompilationUnitOwnership,
     constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
+    source_plan: &'a super::unit_plan::UnitCallablePlan,
+    source_token: super::lowering_support::callable_instances::SourceToken,
     type_ids: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     enum_payloads: &'a BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,

@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0275、SPEC-0276、SPEC-0278 已 done；0278 final/merge/actual main CI 已闭环 |
 | 前置 ADR | [ADR-0008](../../adr/accepted/0008-internal-value-and-allocation-abi.md)、[ADR-0009](../../adr/accepted/0009-concrete-closure-internal-abi.md)、[ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) accepted |
 | 关联 ADR | 不新增 erased callable、heap environment 或容器 ABI |
-| 阻塞项 | expected move 冲突经用户明确启用 v0.41 已解决；callable 来源 API 已冻结并有实际空表失败测试；来源图和 source/helper ABI 仍在实施 |
+| 阻塞项 | expected move 冲突经用户明确启用 v0.41 已解决；callable 来源 API 已冻结并有实际空表失败测试；来源图已验收；source/helper ABI 仍在实施 |
 | 影响范围 | lang-frontend lambda expected 合同；lang-codegen callable planning、source lowering、SSA、LLVM 与 native；验收及 Architecture |
 | 语言语义变更 | 用户明确启用 v0.41 的 expected move literal 澄清；其余工程范围不新增语义 |
 
@@ -209,3 +209,25 @@ FactoryResult 来源及唯一正常无捕获返回摘要；Deferred 不补来源
 三项精确旧欠账例外锁checker1413、unit1149、dataflow1247，baseline未抬高；实现事实见
 [来源专页](../../architecture/callable-provenance.md)。本片不关闭helper ABI/source/native或PR/main；
 本地故障注入/校准按用户范围只登记未运行。
+
+helper planner 首批正式旧 API 行为红：single13项5pass8fail、unit8项1pass7fail，
+全部最终夹具先通过源码/类型/所有权前置。首次测试Ord编译错误及两处MoveOnly alias
+移动后读取的非法夹具单独登记，不能冒充planner行为红；修正后共15处有效合同失败。
+shared arena使用双key-map与单append-only record Vec，source/callback token严格指向
+先前已reserve记录；3项普通合同通过，独立非作者窄审无finding，不增加预算或runtime值身份。
+两入口完整key/route正在实施，source ABI/native未关闭；原始输出见
+[planner收据](../../development/evidence/runtime-constructor-0279/helper-planner/receipt.json)。
+
+helper planner 切片：两入口完整 callback 槽、owner-qualified 来源、Parameter 转发、pointer
+factory memo 与只读 call 路由已实现；unit driver/static call/thunk 保留并消费同一个 source plan。
+原21项有效用例全部转绿，新增查询与复审边界后，single19项、unit13项及arena3项共35项
+新合同包含在308项相关通过中，不重复计数；0failed/0ignored，选择及过滤数见raw。
+独立复审实际发现普通 Nullable<T> 参数过早具体化、unit Fn capture 缺少明确拒绝，以及
+named Unknown 诊断包含名称前缀；各有合法前置真实红测，最小修复后独立窄复审通过。
+15个源码文件SHA与最终检查一致，首批80份压缩raw逐份解压SHA核验；严格codegen all-targets
+clippy、workspace all-targets编译、格式及尺寸门禁通过。Architecture索引201行门禁失败
+保留，修正文档路由句后通过；实现事实见[实例规划](../../architecture/callable-instance-plans.md)。
+unit_lower旧欠账仅增长6行至1272，精确例外经非作者复核、baseline1252未抬高。
+unit lowering回归显式排除3项待实现source目标；6项两入口runtime/helper/factory成功目标
+另实际运行，仍0pass6fail UnsupportedNode，未用过滤结果声称source ABI/native通过。
+本片不关闭E2/E3/E4/E5/E7/E8，不归档、不提前PR；本地故障注入/校准仍只登记未运行。

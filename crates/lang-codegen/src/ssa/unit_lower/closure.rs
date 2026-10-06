@@ -44,6 +44,7 @@ pub(super) struct CapturePlan {
 #[derive(Clone)]
 pub(super) struct CallablePlan {
     pub(super) scope: FunctionId,
+    pub(super) source_token: crate::ssa::lowering_support::callable_instances::SourceToken,
     pub(super) source_unit: SourceUnitId,
     pub(super) expression: UnitExpressionId,
     pub(super) callable: SsaTypeId,
@@ -342,6 +343,7 @@ pub(super) fn declare(
                     (function.id, id),
                     CallablePlan {
                         scope: function.id,
+                        source_token: function.instance.source_token(),
                         source_unit: function.instance.source_unit(),
                         expression: id,
                         callable,

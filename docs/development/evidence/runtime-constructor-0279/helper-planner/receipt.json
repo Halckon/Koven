@@ -1,0 +1,525 @@
+{
+  "schema": "koven.spec0279.helper-planner.v1",
+  "phase": "Reviewed finite source/callback instance planner and unit frozen call-route handoff passed; source constructor/helper ABI/native remain in progress",
+  "classification": {
+    "unit-callable-planner-original-api-red": "Compilation fixture error in parallel single tests: BTreeSet<ExpressionId> lacks Ord. No unit tests executed; not behavior red.",
+    "unit-callable-planner-original-api-fixture-corrected-red": "Eight actual unit tests:1recipe-control pass,6true planner behavior failures after clean gates,1alias fixture L0131 use-after-move; this mixed result is not the final valid red.",
+    "single-callable-planner-original-api-red": "13actual single tests:4positive controls pass,8true planner failures,1alias fixture L0131 use-after-move; mixed not final valid red.",
+    "unit-callable-planner-final-original-red": "Eight valid unit fixtures:1recipe-order control passed,7planner failures after clean frontend gates. Failures:source identity/environment merging,Parameter forward,sorted argument slots,factory memo,named body dependency,Unknown rejection,callback-specialized classification;0ignored.",
+    "single-callable-planner-final-original-red": "13valid single fixtures:5positive controls passed,8planner failures after clean frontend gates. Failures:distinct environment/AST/owner,sorted argument slots,Deferred/Unknown rejection,source-chain limit,generic+callback budget identity;0ignored. Parameter/alias/factory/plain-root/repeated-origin controls pass but do not prove new route/token queries.",
+    "callable-plan-arena-first-contracts": "Three ordinary private-arena contracts passed for parameter forwarding memo,owner-qualified flat chains,and selected-function versus lambda identity. No separate API compile-red or full helper/source/native success claim; original21 valid planner tests remain6pass15fail before adapters.",
+    "helper-planner-first-compile": "lib compile succeeded, test compile failed on missing BTreeSet imports; no behavior tests executed.",
+    "helper-planner-import-corrected-compile": "All lang-codegen targets compiled after explicit test imports; production interfaces compiled.",
+    "single-callable-planner-first-green": "13 original single behavioral contracts passed, zero ignored; not final review closure.",
+    "single-callable-route-first-green": "Five new immutable single route contracts passed, zero ignored.",
+    "unit-callable-planner-first-green": "Eleven unit contracts passed, zero ignored: eight original contracts and three new query/owner/route cases.",
+    "helper-planner-unit-plan-regression": "68 unit planning contracts passed, including eleven new tests; counts are not additive.",
+    "helper-planner-single-lowering-regression": "Wrong selector selected zero tests; explicitly not regression evidence.",
+    "helper-planner-single-lowering-corrected-selector": "Corrected existing single lowering selector passed; see raw result for actual count.",
+    "helper-planner-single-instance-regression": "Complete single instance test family passed; includes previously counted single new tests.",
+    "helper-planner-unit-lowering-regression": "136 existing unit lowering tests passed; three pending source runtime constructor targets failed UnsupportedNode. Mixed result is not full green regression.",
+    "single-ordinary-nullable-review-red": "One clean-frontier review test failed UnsupportedNode on ordinary Nullable<T> argument; actual production regression.",
+    "unit-fn-capture-review-red": "One clean frontend gate test confirmed selected Lambda and Fn capture fact, but planner published a plan instead of UnsupportedNode at capture reference; actual missing frontier rejection.",
+    "unit-named-unknown-review-red": "One clean named Unknown callback test failed exact diagnostic span: prefix217..227 versus actual operand221..227. This is a behavior red, not a type fixture failure.",
+    "helper-planner-final-arena-contracts": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-codegen-clippy": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-docs": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-fmt": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-receiver-contracts": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-rust-size": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-shared-arena": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-single-consumer": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-single-instances": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-single-lowering": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-source-runtime-still-red": "Six source constructor/helper/factory targets still fail UnsupportedNode after clean frontend preconditions,0pass6fail. No ABI/native completion claim.",
+    "helper-planner-final-unit-generic-containers": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-unit-llvm": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-unit-lowering": "136 existing unit lowering contracts passed,0failed0ignored; command explicitly --skip runtime_generator_unit excluded3 pending source targets, independently executed and retained in6-test actual red.",
+    "helper-planner-final-unit-plans": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-unit-receiver": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-final-workspace-compile": "Final frozen-scope check; actual results and selection boundaries are retained in raw output.",
+    "helper-planner-first-docs": "Actual documentation gate failure: architecture index reached201 lines, limit200; corrected with a single existing routing sentence, no rule removal.",
+    "helper-planner-single-reviewed-green": "Intermediate successful related check; final scope closure uses explicitly listed final checks only.",
+    "helper-planner-unit-existing-lowering-final": "Intermediate successful related check; final scope closure uses explicitly listed final checks only.",
+    "helper-planner-unit-reviewed-green": "Intermediate successful related check; final scope closure uses explicitly listed final checks only.",
+    "helper-planner-final-ledger-docs": "Final Spec ledger plus Architecture documentation gate:550 Markdown pages passed; structural check only."
+  },
+  "retained": [
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-callable-planner-original-api-red.json.gz",
+      "raw_sha256": "7c9b540e960714a0eba1dc2fc5c955ee82efb43e7adcb551d563676b2712f695"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-callable-planner-original-api-red.log.gz",
+      "raw_sha256": "657f03f78ccd02d4a3d302ecd802ee42ca4c8f00b5208ffdace291e8a5837a0a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-callable-planner-original-api-fixture-corrected-red.json.gz",
+      "raw_sha256": "2b21be3cc98d772ae750d4a07e56fde35957256b1405d8df540f3b44416bfbe4"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-callable-planner-original-api-fixture-corrected-red.log.gz",
+      "raw_sha256": "79651daeef56d2f26c81c496845b7374faa601f240030d839bb69a61804fce1f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-callable-planner-original-api-red.json.gz",
+      "raw_sha256": "c6c21bab10eee38ca0447717608e0333f119fcd71a367b66572b70cefea91c08"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-callable-planner-original-api-red.log.gz",
+      "raw_sha256": "93afb55ce0ada5cdd2d5e3e70bbf184a0221873a00af232943be040fbc5efba5"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-callable-planner-final-original-red.json.gz",
+      "raw_sha256": "301f5030a01cb508d7eefaea04929790adc157685001e3d2d2293c297dc46833"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-callable-planner-final-original-red.log.gz",
+      "raw_sha256": "52ac1249175428dd6afd6a8aef541f46c318ba393254abd9fd4d7d92f02c392f"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-callable-planner-final-original-red.json.gz",
+      "raw_sha256": "133981361229beb799992ce1fb7e3b115b383a5c0e8bc2de502e05a6dace205c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-callable-planner-final-original-red.log.gz",
+      "raw_sha256": "b8c4fa11fdde0711a00330c1b6bc50f885128719768f2acd198e39340712e46e"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/callable-plan-arena-first-contracts.json.gz",
+      "raw_sha256": "961d917796e314f43ca8a571d2423973405a844de0fea1a675d0f911f505f14b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/callable-plan-arena-first-contracts.log.gz",
+      "raw_sha256": "d8cc9f5ca6c8e4b243ae17b7646aeb0b116261898140197e1c0cfc03a10d3e5b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-first-compile.json.gz",
+      "raw_sha256": "2aa8e9024a70c9eba630475b9d3c877f91fbcaf8adb2288c4d1ce2f0b3399902"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-first-compile.log.gz",
+      "raw_sha256": "325bbae899e479fc0be94070f35d3e2900cdc2d52ab9f01def7509843b09b209"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-import-corrected-compile.json.gz",
+      "raw_sha256": "53fd28e2547a4865b6a290352199bcdbcf914b0377cc06fc5d008e25abab00a0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-import-corrected-compile.log.gz",
+      "raw_sha256": "d5a61c65996729e428a2fd3ea411439ffec2a0f1a0f992adca1d2a699002e603"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-callable-planner-first-green.json.gz",
+      "raw_sha256": "1cc58846d6f8b5ad145e6446563f06920b339620c6d8f3fda6df9a8afa1a78e0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-callable-planner-first-green.log.gz",
+      "raw_sha256": "f01f54df7afb16e08e529a5bcca62b1b4f2ad24911356511d219828de91c5405"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-callable-route-first-green.json.gz",
+      "raw_sha256": "11eb4bc3394e0e0c25373b49346734393799d59cb406f33580c5d7c31f1d96b2"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-callable-route-first-green.log.gz",
+      "raw_sha256": "ff7a4be9898329e0833a40c104d1fb60c919b7f7612f309e84e178fe28b33da6"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-callable-planner-first-green.json.gz",
+      "raw_sha256": "17619149c7f4f3eac3662fe800a181e43f71ac06b380f9085e5efc19ff112d30"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-callable-planner-first-green.log.gz",
+      "raw_sha256": "0d6b65c949f31eeee7fbd5ac72f262f6593bc512c27b79b455c048e428584393"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-unit-plan-regression.json.gz",
+      "raw_sha256": "72ce7755707b5478398df6a605593e7f511f65aeaf49b5ffe2b726dba62ec493"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-unit-plan-regression.log.gz",
+      "raw_sha256": "1013796f3a8c9f59b40a794a784ded8e3ea7033f671d1545d246a8bba58b9f43"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-single-lowering-regression.json.gz",
+      "raw_sha256": "31f52798813777cc3b698366c85a2a2b8bd7d2a5a829182eb85ae3b5ecaabe72"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-single-lowering-regression.log.gz",
+      "raw_sha256": "9f5c2dfe066b935212741ae0b2f650ad96fa3ee40af6fa9e32583ca5072e7a59"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-single-lowering-corrected-selector.json.gz",
+      "raw_sha256": "ae171b2e29db5da3becb7ff16435df08e7d4cc30354f214eec04d441b4434ac8"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-single-lowering-corrected-selector.log.gz",
+      "raw_sha256": "1d80f48c92f25234467adf11b59c5ee27cf35ee658ffa9f522432fb5131d84c1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-single-instance-regression.json.gz",
+      "raw_sha256": "51d8d8ba77f0a994d4f7590c63a8d1b4758dc3eed1deffa8532f296fcb37215b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-single-instance-regression.log.gz",
+      "raw_sha256": "d8e79b2151118a334d9d3bb52f9cc51b066b7bad10fc15a3437348d03653ca07"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-unit-lowering-regression.json.gz",
+      "raw_sha256": "a8a30262bd9cc1de008edb85c05574aa465da07265cae5356dbb643efe7049f1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-unit-lowering-regression.log.gz",
+      "raw_sha256": "69f2ca278d61e12e270a195445c521e94869c0bdc21aba108ba133ade872dbd1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-ordinary-nullable-review-red.json.gz",
+      "raw_sha256": "beacc4626076102e4fece1f33971e3c43c78ce2a51a1e5d8345406a5a306b35a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/single-ordinary-nullable-review-red.log.gz",
+      "raw_sha256": "b273e2ae30b3a88f7bf76a7ef783deb6860dc2e19b6ab70d68cea8e20b0b0c69"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-fn-capture-review-red.json.gz",
+      "raw_sha256": "660ed83e52ac4363651655558e56fdb5ef8e2212420ffb003fa4bb3aa9009185"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-fn-capture-review-red.log.gz",
+      "raw_sha256": "bd814e87d0583331945dd643aabad1640a62b2b588e34e9f214ec71a554d92b1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-named-unknown-review-red.json.gz",
+      "raw_sha256": "4ec6566c2407293b81152c3974ab68acce8ea5a9dbaf7dc1899d10a713853cbf"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/unit-named-unknown-review-red.log.gz",
+      "raw_sha256": "27094e8f5e7c1ea3c894801af54e5f261e3b7bc9a2cff88c265c502b64c5b251"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-arena-contracts.json.gz",
+      "raw_sha256": "92fc7d62b5e92110c1815f6e3f2f1725d7f155bcba834708b05a50fea17cf9b1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-arena-contracts.log.gz",
+      "raw_sha256": "1b5975f3b5e7be7ebc83c1dd364d112e9750c9fcaef5c84d0bd3628489f0a394"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-codegen-clippy.json.gz",
+      "raw_sha256": "bc231d42ef41c6da206b9d9303ebe895b3c4b4fc39f65e108d9036035dba7146"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-codegen-clippy.log.gz",
+      "raw_sha256": "41013f9017cac736d2e1463351dadeb43c3297ce85296b6e5142612f3277665b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-docs.json.gz",
+      "raw_sha256": "7e87c25ccb8587f5aa58e951bbfb0b32162037987cca3086494e6b6067dca065"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-docs.log.gz",
+      "raw_sha256": "c871319dfe9a65514278ecedcda8825d2c03d82c9a1074782bbd6b22c2b8005d"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-fmt.json.gz",
+      "raw_sha256": "8693a63b2640186722733dca9b99d3cac8a725f2bf4f3df3fb39b6c81de4dfe2"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-fmt.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-receiver-contracts.json.gz",
+      "raw_sha256": "47dc6cd6f59bfc42bc974e4be99524807f11d1e0de22cc0227b2e74df4399259"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-receiver-contracts.log.gz",
+      "raw_sha256": "f501a61804fb4d3d8148726d8c999a97271daf79b67a1b0a0f6ca9950a5d40d0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-rust-size.json.gz",
+      "raw_sha256": "f239236c2a6f5cb8646aed2702e7c1d9c6d61844f6954ba078a483e2c7f12000"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-rust-size.log.gz",
+      "raw_sha256": "7f9379dd1ded7669602f09065815580e59d2dbabfae20cca2a8d02785782892a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-shared-arena.json.gz",
+      "raw_sha256": "ef6d533a68a15aecf2af45593267d39af0fc5b179b1abf6fbcf26f9beb06dabb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-shared-arena.log.gz",
+      "raw_sha256": "3cb73f6e8deb1d1abaef5e5310ea8f38d856a56e81bde0e6b2d66166887ee660"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-single-consumer.json.gz",
+      "raw_sha256": "2b37d1eee4059d1aeeb3ace8d1d1be9d6ee98ba69f76c3f736b2f51f5d447855"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-single-consumer.log.gz",
+      "raw_sha256": "fd8e740a315a895822a20bd8c2f020a010f52e3a980e2101a14b9dfafbe43349"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-single-instances.json.gz",
+      "raw_sha256": "33be3bfb6b6e78c59d95d136f89a07c303db54b34a85da03ea6ce2b6b2fde927"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-single-instances.log.gz",
+      "raw_sha256": "39f3e92c51b35ee65de1f7939ea7825391b19d9c1870a7eade48f21a81e3b8d8"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-single-lowering.json.gz",
+      "raw_sha256": "c072fc1d537eb231239540400d93ab0f94c9103721877560cf024b41cc31822b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-single-lowering.log.gz",
+      "raw_sha256": "713bcecefe2d5ead8a0ad257c4b4e26a65f3f873e793a72f8368a0cd16599eb9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-source-runtime-still-red.json.gz",
+      "raw_sha256": "156626b70372fff14b5255ada29baa5c4b0873383f550a3680ee6a34e5924c0c"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-source-runtime-still-red.log.gz",
+      "raw_sha256": "24b5640d3f141fe65e96831072738101b6bd361a990afa4c0a2b096abc97b7aa"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-generic-containers.json.gz",
+      "raw_sha256": "888a7f95f37c46d67cd6381732d65a02a7c2d00416c3d5c185ae5f00712c27f1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-generic-containers.log.gz",
+      "raw_sha256": "ad409dc7b728289227cfb5369be342079816046415949a5795ceaba951992fc1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-llvm.json.gz",
+      "raw_sha256": "0f3e156fd0bcde4821edf9a21bf8f6f110a430d6418c41a0d2e2f06b3085cc99"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-llvm.log.gz",
+      "raw_sha256": "b004012dc0ccc17fc2cc5093ed97b879b1855209fb7c1a91afe625584e8c49bb"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-lowering.json.gz",
+      "raw_sha256": "0ed64e019ebbbc71cd74fa6ea7a22cf9e5d196fd6619cf242b0b71cb958f1fc9"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-lowering.log.gz",
+      "raw_sha256": "5e1796ec199fe4851fe166b2433f61d9a0737872df02e058effb42bd2cede6e3"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-plans.json.gz",
+      "raw_sha256": "16b25b3261fb2219833671c154b5b42d14230026b338d698c2b5a21fde6fd526"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-plans.log.gz",
+      "raw_sha256": "fd071e043d1d10168b586a52308ab168d74b00742da78d9e3112fa9c60ad155b"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-receiver.json.gz",
+      "raw_sha256": "a9e6719b496183346b332efbf1d95f4974b5688d8c414cecccc3cdfd4bae7f64"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-unit-receiver.log.gz",
+      "raw_sha256": "22138ed0ddf5b1dbb09b117ae1cf4823a97e811a230bb874141d88855118c236"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-workspace-compile.json.gz",
+      "raw_sha256": "cf208260f4cd0a02213f4b605453d2039de7dcc57e6b18285d7f8ca3de7b7dde"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-workspace-compile.log.gz",
+      "raw_sha256": "43c20253887577ddc97362ff64ad3a287c20e983b27e196e1edc1293aa20416a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-first-docs.json.gz",
+      "raw_sha256": "d8e34f3e6890947d429803df2bc1b5cb2235d45ab6564a768febe0bb1b6f1f32"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-first-docs.log.gz",
+      "raw_sha256": "b202bd7f2cb244d298b64752b7778646ac04fba867e67bf3f7f6be7a09687fca"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-single-reviewed-green.json.gz",
+      "raw_sha256": "ab610a688d8a57de2c3e964a13e19a8f9e438a0493439574c9df465ace2f2c45"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-single-reviewed-green.log.gz",
+      "raw_sha256": "7f7aef4ced45c50b41fc970f8ccf1d299633af93d1b146d187b711a238eb7fd0"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-unit-existing-lowering-final.json.gz",
+      "raw_sha256": "a5d583eeff4d40b6bd76161c040f064b92104fff39139d49ebcb10ffccff6f08"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-unit-existing-lowering-final.log.gz",
+      "raw_sha256": "bc422a93666fd81cc079ac9ffb555e7ce03f1c8117041117795c46266368a6b1"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-unit-reviewed-green.json.gz",
+      "raw_sha256": "9677b4d3bfa05ed64ddef0cf3161d16af9084b6699c5bb33a348629be7078edd"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-unit-reviewed-green.log.gz",
+      "raw_sha256": "db0c68cb9934ed22e42af914b1385fbbe9a23269406f885dd0ba10ad70c0453a"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-ledger-docs.json.gz",
+      "raw_sha256": "e060bbecf05f3cf484b6b1e1325a680c33f47ec16ce577b98100ded7c8df3874"
+    },
+    {
+      "path": "docs/development/evidence/runtime-constructor-0279/helper-planner/helper-planner-final-ledger-docs.log.gz",
+      "raw_sha256": "c871319dfe9a65514278ecedcda8825d2c03d82c9a1074782bbd6b22c2b8005d"
+    }
+  ],
+  "not_closed": [
+    "source constructor/helper Fn parameter and return ABI",
+    "source/native/publicCLI matrices, general nested LoanId lifecycle",
+    "PR/final/main CI",
+    "local injection/calibration explicitly not run"
+  ],
+  "original_planner_behavior_red": {
+    "single": {
+      "passed": 5,
+      "failed": 8,
+      "ignored": 0,
+      "executed": 13
+    },
+    "unit": {
+      "passed": 1,
+      "failed": 7,
+      "ignored": 0,
+      "executed": 8
+    },
+    "claim": "All21 final fixtures passed frontend preconditions. Earlier compile/P3 fixture failures retained separately."
+  },
+  "shared_arena": {
+    "ordinary_contracts_passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "independent_review": "/root/implement_0279_borrowed_generator verified complete-key dedupe,typed records,strict earlier creation refs,no recursive keys or budget; no finding",
+    "source_sha256": "4acfeb674a2d9c24c68d16dd4f403cd897d64b1c8cb0b7b97d34e6760ff18f48",
+    "claim": "Private token storage plus both planner adapters tested; source callback/runtime ABI remains in progress."
+  },
+  "scope_sha256": {
+    "crates/lang-codegen/src/ssa/lower_frontend/instances.rs": "6ba5c8f6155f6c1fccde79e23fd4cfef72006f5ae9f155b7f1e4342a1c7db767",
+    "crates/lang-codegen/src/ssa/lower_frontend/instances/callable_planner.rs": "432319c3df923e654b52af0912bf7dba7e5af1117cd25d7665d698eb43200f88",
+    "crates/lang-codegen/src/ssa/lower_frontend/instances/callable_planner/origins.rs": "ee840239fc4e1e208ab45840b4397a90387ae9a29bfc38aa7cfee9db3951c780",
+    "crates/lang-codegen/src/ssa/lower_frontend/instances/callable_plan_tests.rs": "d05063ac9842efa6844dc2b59aaef2ea61c7b2b2f14d177c941510afd7ed07b4",
+    "crates/lang-codegen/src/ssa/lower_frontend/instances/callable_route_tests.rs": "882845a6db4d00d95f645bdc1ab9e70f0f7b8a2a9a51e626a3926816a9c432dd",
+    "crates/lang-codegen/src/ssa/lower_frontend/orchestrate.rs": "153ac1ff17220cd578de192643cffd04a4e764c35d241b0918a31e7516c8fb06",
+    "crates/lang-codegen/src/ssa/lowering_support.rs": "a2477acd198e73d91e4962a72a46617ec6cc668f27a18b879d5fa324fc9be9d0",
+    "crates/lang-codegen/src/ssa/lowering_support/callable_instances.rs": "4acfeb674a2d9c24c68d16dd4f403cd897d64b1c8cb0b7b97d34e6760ff18f48",
+    "crates/lang-codegen/src/ssa/unit_plan.rs": "b41a9bbe41fb60185c357d9f9e77dd688b027d5839262e5092adc57a5868198a",
+    "crates/lang-codegen/src/ssa/unit_plan/callable_instances.rs": "93184cdfe5b17218415ddf88e7a18a3fcf7f2f2ee72f861aebf7d2e09cc7c1c1",
+    "crates/lang-codegen/src/ssa/unit_plan_tests.rs": "c8f3c45d5b877dd6bcb56cb68bf86f7bfd999245bbc212d8d5fa7f971789b783",
+    "crates/lang-codegen/src/ssa/unit_plan_tests/callable_identity.rs": "19cf4242bac40bde69bb1b1c32267c396ee04874f314016f2129fc1090b40a06",
+    "crates/lang-codegen/src/ssa/unit_lower.rs": "9d558c3ea011453d30505be1b2f4e0e432669503b7fde4ac338301a7a125520f",
+    "crates/lang-codegen/src/ssa/unit_lower/call.rs": "1a3c3aba2b7ee4a0f005890b3d54637a7177979f3753a4c48e27fdef88d52edd",
+    "crates/lang-codegen/src/ssa/unit_lower/closure.rs": "34d775c46dd9ecac23715870a67171c7b702d36bf0c4d4aa928b5091069036a0"
+  },
+  "final_checks": [
+    {
+      "name": "helper-planner-final-single-instances",
+      "passed": 22,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 977
+    },
+    {
+      "name": "helper-planner-final-unit-plans",
+      "passed": 70,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 929
+    },
+    {
+      "name": "helper-planner-final-single-lowering",
+      "passed": 70,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 929
+    },
+    {
+      "name": "helper-planner-final-unit-lowering",
+      "passed": 136,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 863
+    },
+    {
+      "name": "helper-planner-final-unit-generic-containers",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 995
+    },
+    {
+      "name": "helper-planner-final-unit-llvm",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 998
+    },
+    {
+      "name": "helper-planner-final-arena-contracts",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 996
+    },
+    {
+      "name": "helper-planner-final-receiver-contracts",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 997
+    }
+  ],
+  "final_checks_claim": "308 related tests passed in disjoint selected families,0failed0ignored. 32 new planner tests and3 new arena tests are included, not added. unit-lowering selector explicitly excludes3 pending runtime_generator_unit targets; all6 pending source targets were separately executed and failed UnsupportedNode. Test filtering is retained verbatim and is not claimed as whole-suite coverage.",
+  "review_findings": [
+    {
+      "case": "ordinary Nullable<T> data parameter entered new callable concrete gate",
+      "red": "single-ordinary-nullable-review-red",
+      "fix": "Only root Function/TypeParameter enters Fn discovery; regular wrappers retain old frontier.",
+      "review": "Independent borrowed-generator author reviewed root gate plus intent fixture after actual red; no unresolved finding."
+    },
+    {
+      "case": "unit selected Lambda captured Function without selected environment ABI",
+      "red": "unit-fn-capture-review-red",
+      "fix": "Before intern, consume existing captures,concretize within caller substitutions/StaticSelf, reject Fn at capture reference span.",
+      "review": "Independent single-planner author reviewed production and actual sealed-capture fixture; no unresolved finding."
+    },
+    {
+      "case": "unit named Unknown callback diagnostic included f = prefix",
+      "red": "unit-named-unknown-review-red",
+      "fix": "Fn diagnostics use actual argument.value AST span; failed AST lookup retains MissingFact at argument span.",
+      "review": "Independent single-planner author verified actualoperand/Unknown fixture and local span handoff; no unresolved finding."
+    }
+  ],
+  "independent_review": {
+    "single_and_arena": "Borrowed-generator author full pass: validated chain,full slots,owner identity,Parameter forwards,factory memo/return type,Deferred/Unknown span,budget and flat earlier-edge arena; nullable finding fixed and narrow re-review passed.",
+    "unit_and_root_handoff": "Single-planner author full pass: original recipe/route order,callback slots,source/thunk/deinit owner,full callee function lookup,factory owner/memo,dedup budget; Fn capture and named Unknown findings fixed with narrow re-review.",
+    "architecture": "Single-planner author checked three fact pages/links and explicit remaining ABI/native boundary; two scope qualifiers adopted.",
+    "size_policy": "Single-planner author verified unit_lower six field/constructor handoff lines,exact1272 exception,baseline1252 unchanged,owner/split_plan preserved."
+  },
+  "gates": {
+    "strict_clippy": "Actual5.43s codegen all-targets with -D warnings -D private_interfaces in exclusive current target; passed.",
+    "workspace_compile": "All workspace targets checked; passed (incremental only changed codegen/CLI printed).",
+    "fmt": "cargo fmt --all -- --check passed.",
+    "rust_size": "Explicitactualmain6575e906 base;829handwritten,45over1000historical,0generated;passed.",
+    "docs": "Architecture index201 failure retained; routing sentence correction restores200, final documentation check passed.",
+    "target_isolation": "All final checks use /private/tmp/koven-spec0279-current-target; no parallel target contention or cargo clean."
+  },
+  "size_exception": {
+    "path": "crates/lang-codegen/src/ssa/unit_lower.rs",
+    "baseline": 1252,
+    "previous_exception": 1266,
+    "final_exact_exception": 1272,
+    "growth": 6,
+    "claim": "Only source plan/token struct and constructor handoff; no new driver algorithm."
+  },
+  "retained_verified_count": 82
+}
