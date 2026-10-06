@@ -70,6 +70,19 @@ fn runtime_constructor_native_unit_cross_file_helper_preserves_element_and_envir
 }
 
 #[test]
+fn runtime_constructor_native_unit_storable_helper_elements() {
+    let cases = crate::native_tests::runtime_constructor_tests::storable_helpers::cases();
+    assert_eq!(cases.len(), 48);
+    for (case, api) in cases {
+        let analysis = analyze_sources(
+            &format!("package p\n{api}"),
+            &format!("package q\nimport p.generate\n{}", case.text),
+        );
+        assert_output(&case, &execute(&analysis, "nativeEntry", &case.label));
+    }
+}
+
+#[test]
 fn runtime_constructor_native_unit_evaluates_operands_once_in_order() {
     let cases = evaluation::evaluation_cases();
     assert_eq!(cases.len(), 6);

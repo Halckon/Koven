@@ -4,6 +4,9 @@ use super::*;
 #[path = "native_runtime_constructor_tests/evaluation.rs"]
 pub(crate) mod evaluation;
 
+#[path = "native_runtime_constructor_tests/storable_helpers.rs"]
+pub(crate) mod storable_helpers;
+
 #[derive(Clone)]
 pub(crate) struct RuntimeCase {
     pub(crate) text: String,

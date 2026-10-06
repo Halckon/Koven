@@ -50,6 +50,11 @@ field symbol、field index 与 target 后建立 `SharedHeapFieldLoan`；child �
 environment 清理。两入口各六个正常求值/语言级拒负用例核对 size→factory→callback 顺序；
 公共 CLI 与全部交付闭环仍由 active SPEC-0279 的实际账本逐项记录，不从源码通过外推。
 
+helper 另各48个普通 native 用例覆盖 `Array<Int>`、`List<Int>`、Int 字段 value class 和
+泛型 `Holder<Int>`，组合两种外容器、三环境及显式/推断 T；核内层长度、实际末元素值、
+外层长度与回调次数。证据见[元素扩展收据](../development/evidence/runtime-constructor-0279/storable-helpers/receipt.json)，
+不外推所有可存储 T，也不把无析构日志解释为零 Drop 或 allocation/free。
+
 普通 unit 入口的 while 与未提交 temporary call operand 仍受既有 control-prefix 门禁；
 只读迭代/常量 view 的既有能力不外推为任意 CFG 支持。Source/native 原始失败、夹具/缓存
 错误与通过结果见[分层收据](../development/evidence/runtime-constructor-0279/source-abi/receipt.json)。

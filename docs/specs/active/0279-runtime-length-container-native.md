@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0275、SPEC-0276、SPEC-0278 已 done；0278 final/merge/actual main CI 已闭环 |
 | 前置 ADR | [ADR-0008](../../adr/accepted/0008-internal-value-and-allocation-abi.md)、[ADR-0009](../../adr/accepted/0009-concrete-closure-internal-abi.md)、[ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) accepted |
 | 关联 ADR | 不新增 erased callable、heap environment 或容器 ABI |
-| 阻塞项 | expected move 冲突经用户明确启用 v0.41 已解决；callable 来源 API 已冻结并有实际空表失败测试；来源图已验收；source/helper ABI 仍在实施 |
+| 阻塞项 | expected move 冲突经用户明确启用 v0.41 已解决；callable 来源 API、来源图及 source/helper ABI 已完成本地验收；远端交付仍待 |
 | 影响范围 | lang-frontend lambda expected 合同；lang-codegen callable planning、source lowering、SSA、LLVM 与 native；验收及 Architecture |
 | 语言语义变更 | 用户明确启用 v0.41 的 expected move literal 澄清；其余工程范围不新增语义 |
 
@@ -122,7 +122,7 @@ constructor CallReturn 只结束参数 loan。临时 owned environment 按 captu
 | E2 | Array/List × single/unit × pointer/shared/owned 12 格源码 SSA/LLVM/native；0/1/3、named/temporary | 本地两入口各144源码与normal native组合及最新完整复核通过；远端宿主待 |
 | E3 | size 第一 Borrow 在后续 operand/nested call 内保持，initializer Inout size 冲突 L0135；size→拒负→initializer expression→allocation→callback；overflow/allocation fail 保留 expression 副作用且无 callback；零长度及升序一次，LLVM preheader 固定 storage | 普通源码/SSA/LLVM与两入口各6native求值trace通过；故障/校准及allocation观测按用户范围仅登记未执行 |
 | E4 | 命名 callback 重用、capture source 冲突与最终 source 复用、temporary ASAP、逆索引 Resource drop；逐指针 allocation/free | 源码生命周期/公共CLI重用与各6Resource native trace通过；逐指针allocation/free未执行 |
-| E5 | single 同文件与 unit 跨文件 generic/helper 各三种环境、显式/合法推断 T、body-only demands、同签名布局隔离、重复去重、正逆 inputs、arena 不增长及预算边界 | planner/源码完整回归与两入口各48helper native通过；已有其他可存储T的更广源码覆盖待核 |
+| E5 | single 同文件与 unit 跨文件 generic/helper 各三种环境、显式/合法推断 T、body-only demands、同签名布局隔离、重复去重、正逆 inputs、arena 不增长及预算边界 | planner/源码完整回归与两入口各48基础helper及48嵌套/名义元素helper native通过；不外推全部可存储T |
 | E6 | malformed SSA callback/loan/type/mode 正反例；0278 既有控制、旧 static generator 与 Unit/ZST ABI 回归 | raw SSA/LLVM 切片已验收；源码/native 仍待 |
 | E7 | 两公共 CLI 入口实际 build/run；原 object 失败保全、无 temporary 残留、required CI 实际选择新测试 | 本地两入口各6公共build/run与最新生产复核通过；required CI实际选择待闭环 |
 | E8 | 独立 fresh-context 全审、Architecture/验收账本、归档 inventory、精确 final PR 与 actual main CI | 待 |
@@ -324,3 +324,14 @@ all-targets check、格式、精确尺寸及47项政策测试通过。fresh全�
 本片可作为独立实现提交，Spec仍in-progress：E5已有其他可存储名义/嵌套容器T的更广
 源码native覆盖、最终跨宿主CI/归档/PR/main交付仍待；用户排除的本地安全/注入/校准与
 allocation观测只登记未执行。不能以本地Slice全绿代替完整Spec结束。
+
+2026-10-06 E5 扩展检查点：在 source ABI 提交 `03c0ba9` 上仅新增测试，生产实现未改。
+single 同文件和 unit 真实跨文件 `import p.generate` 各48个 helper 用例覆盖
+`Array<Int>`、`List<Int>`、Int 字段 value class 与普通泛型 `Holder<Int>`，分别组合
+Array/List、pointer/Shared/Owned 与显式/推断 T。两个测试实际全部通过，0failed、0ignored、
+1030filtered；真实前端验证、对象发射、链接及96次进程执行均由既有 harness 执行。
+借用 verifier 核内层长度1、末元素2/9、外层长度3及callback恰3次；不宣称全部元素内容
+和顺序，也不把无 `leaf` 输出当成零SSA Drop或allocation/free证明。
+独立非作者复审无阻断finding；codegen all-targets严格clippy、格式和精确尺寸检查通过。
+原 source ABI 收据保持冻结，新证据见[E5元素扩展收据](../../development/evidence/runtime-constructor-0279/storable-helpers/receipt.json)。
+E6普通回归核对与E7/E8远端交付仍待；用户排除的本地检查继续仅登记未执行。
