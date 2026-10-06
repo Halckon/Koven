@@ -95,11 +95,11 @@
       "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1639行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies.rs": {
-      "max_lines": 1375,
-      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。 SPEC-0280本轮：仅3行新增container_appends产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0281本轮：仅3行新增container_clears产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0282本轮：仅3行新增container_remove_ats产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0283本轮：仅3行新增container_remove_lasts产物字段与构造传递，descriptor定义与方法已在container子模块。",
+      "max_lines": 1380,
+      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。 SPEC-0280本轮：仅3行新增container_appends产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0281本轮：仅3行新增container_clears产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0282本轮：仅3行新增container_remove_ats产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0283本轮：仅3行新增container_remove_lasts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0284本轮：仅3行新增container_remove_firsts产物字段与构造传递，descriptor定义与方法已在container子模块。",
       "owner": "lang-frontend unit types",
       "split_plan": "后续按公开产物/调用描述职责拆分公开模型，保持跨crate接口。",
-      "review": "SPEC-0283独立完整审阅核对此次有界增长与既有职责；超过1375行或增加职责前重新审阅。"
+      "review": "SPEC-0284独立完整审阅核对此次有界增长与既有职责；超过1380行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": {
       "max_lines": 1226,
@@ -165,18 +165,18 @@
       "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1206行或增加职责前重新审阅。 SPEC-0279独立复核 gate、canonical身份、mode/arity/strong move/named负例；新精确上限1207，超出或新增职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/checker/container.rs": {
-      "max_lines": 1070,
-      "reason": "SPEC-0283本轮：为MutableList.removeLast添加成员访问拦截与无参调用类型检查，增加约85行；算法与clear/removeAt在同子模块收敛，不为单个成员接线机械切片旧container类型检查器。",
+      "max_lines": 1150,
+      "reason": "SPEC-0283本轮：为MutableList.removeLast添加成员访问拦截与无参调用类型检查，增加约85行；算法与clear/removeAt在同子模块收敛，不为单个成员接线机械切片旧container类型检查器。 SPEC-0284本轮：为MutableList.removeFirst添加成员访问拦截与无参调用类型检查，增加约76行；算法与removeLast在同子模块收敛，不为单个成员接线机械切片旧container类型检查器。",
       "owner": "lang-frontend single type container",
       "split_plan": "后续按容器构造、下标与修改方法等领域职责拆分子模块，保持与compilation_unit对称。",
-      "review": "SPEC-0283独立完整审阅核对MutableList.removeLast类型检查与1070行精确增长；超过1070行或增加职责前重新审阅。"
+      "review": "SPEC-0284独立完整审阅核对MutableList.removeFirst类型检查与1150行精确增长；超过1150行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/model.rs": {
-      "max_lines": 1528,
-      "reason": "保留SPEC-0274的descriptor查询入口；SPEC-0279仅增加6行复用canonical核心的只读find，未加入新的类型生产逻辑。 SPEC-0280本轮：仅4行新增container_appends字段与构造传递，不增加类型检查算法。 SPEC-0281本轮：仅3行新增container_clears字段与构造传递，不增加类型检查算法。 SPEC-0282本轮：仅3行新增container_remove_ats字段与构造传递，不增加类型检查算法。 SPEC-0283本轮：仅4行新增container_remove_lasts字段与构造传递，不增加类型检查算法。",
+      "max_lines": 1532,
+      "reason": "保留SPEC-0274的descriptor查询入口；SPEC-0279仅增加6行复用canonical核心的只读find，未加入新的类型生产逻辑。 SPEC-0280本轮：仅4行新增container_appends字段与构造传递，不增加类型检查算法。 SPEC-0281本轮：仅3行新增container_clears字段与构造传递，不增加类型检查算法。 SPEC-0282本轮：仅3行新增container_remove_ats字段与构造传递，不增加类型检查算法。 SPEC-0283本轮：仅4行新增container_remove_lasts字段与构造传递，不增加类型检查算法。 SPEC-0284本轮：仅3行新增container_remove_firsts字段与构造传递，不增加类型检查算法。",
       "owner": "lang-frontend single type model",
       "split_plan": "后续完整迁移typed产物查询接口，保持type identity与trial合同。",
-      "review": "SPEC-0283独立完整审阅核对container_remove_lasts与1528行精确增长；超过1528行或增加职责前重新审阅。"
+      "review": "SPEC-0284独立完整审阅核对container_remove_firsts与1532行精确增长；超过1532行或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/model.rs": {
       "max_lines": 1375,

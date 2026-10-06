@@ -370,6 +370,24 @@ impl TypedFile {
             .copied()
             .find(|descriptor| descriptor.expression() == expression)
     }
+
+    /// 返回源码稳定顺序的 MutableList.removeFirst 头部元素移出事实。
+    #[must_use]
+    pub fn container_remove_firsts(&self) -> &[ContainerRemoveFirstDescriptor] {
+        &self.container_remove_firsts
+    }
+
+    /// 查询成功识别的 MutableList.removeFirst 头部元素移出描述符。
+    #[must_use]
+    pub fn container_remove_first(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<ContainerRemoveFirstDescriptor> {
+        self.container_remove_firsts
+            .iter()
+            .copied()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
 }
 
 /// Phase 2 已识别的 MutableList.clear 清空操作。
@@ -605,6 +623,73 @@ pub struct ContainerRemoveLastDescriptor {
 }
 
 impl ContainerRemoveLastDescriptor {
+    pub(crate) const fn new(
+        expression: ExpressionId,
+        receiver: ExpressionId,
+        container_type: TypeId,
+        element_type: TypeId,
+        result_type: TypeId,
+        span: crate::source::Span,
+    ) -> Self {
+        Self {
+            expression,
+            receiver,
+            container_type,
+            element_type,
+            result_type,
+            span,
+        }
+    }
+
+    /// 返回拥有该调用的 call expression identity。
+    #[must_use]
+    pub const fn expression(self) -> ExpressionId {
+        self.expression
+    }
+
+    /// 返回只求值一次的 receiver expression identity。
+    #[must_use]
+    pub const fn receiver(self) -> ExpressionId {
+        self.receiver
+    }
+
+    /// 返回完整容器类型。
+    #[must_use]
+    pub const fn container_type(self) -> TypeId {
+        self.container_type
+    }
+
+    /// 返回保持不擦除的元素类型。
+    #[must_use]
+    pub const fn element_type(self) -> TypeId {
+        self.element_type
+    }
+
+    /// 返回被移出元素的值类型。
+    #[must_use]
+    pub const fn result_type(self) -> TypeId {
+        self.result_type
+    }
+
+    /// 返回调用的源码范围。
+    #[must_use]
+    pub const fn span(self) -> crate::source::Span {
+        self.span
+    }
+}
+
+/// Phase 2 已识别的 MutableList.removeFirst 头部元素移出操作。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ContainerRemoveFirstDescriptor {
+    expression: ExpressionId,
+    receiver: ExpressionId,
+    container_type: TypeId,
+    element_type: TypeId,
+    result_type: TypeId,
+    span: crate::source::Span,
+}
+
+impl ContainerRemoveFirstDescriptor {
     pub(crate) const fn new(
         expression: ExpressionId,
         receiver: ExpressionId,

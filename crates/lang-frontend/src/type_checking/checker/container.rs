@@ -4,8 +4,8 @@ use crate::{
     parser::{AssignmentOperator, CallArgument, Expression, LiteralKind, ParameterModeMarker},
     source::Span,
     type_checking::{
-        ContainerConstructionKind, ContainerRemoveAtDescriptor, ContainerRemoveLastDescriptor,
-        IntrinsicCallable,
+        ContainerConstructionKind, ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor,
+        ContainerRemoveLastDescriptor, IntrinsicCallable,
     },
 };
 
@@ -66,6 +66,15 @@ impl Checker<'_> {
                 return Ok(Some(res));
             }
             if let Some(res) = self.check_container_remove_last_call(
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+            )? {
+                return Ok(Some(res));
+            }
+            if let Some(res) = self.check_container_remove_first_call(
                 expression,
                 call_span,
                 callee,
@@ -600,17 +609,17 @@ impl Checker<'_> {
             }
             return Ok(Some(self.error_type()));
         }
-        if name == "removeLast" {
+        if name == "removeLast" || name == "removeFirst" {
             if container == SequentialContainerKind::MutableList {
                 self.emit(
                     self.invalid_container_member_code,
-                    "MutableList.removeLast must be called as a method",
+                    &format!("MutableList.{name} must be called as a method"),
                     name_span,
                 )?;
             } else {
                 self.emit(
                     self.invalid_container_member_code,
-                    "sequential container does not support 'removeLast'",
+                    &format!("sequential container does not support '{name}'"),
                     name_span,
                 )?;
             }
@@ -983,14 +992,14 @@ impl Checker<'_> {
         }))
     }
 
-    pub(super) fn check_container_remove_last_call(
+    fn check_container_endpoint_removal_call(
         &mut self,
-        expression: ExpressionId,
         call_span: Span,
         callee: ExpressionId,
         type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
-    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        expected_name: &'static str,
+    ) -> Result<Option<(ExpressionId, TypeId, TypeId, bool)>, TypeCheckingError> {
         let callee_node = self.ast().expressions().get(callee)?;
         let Expression::Member {
             receiver,
@@ -1001,7 +1010,7 @@ impl Checker<'_> {
         else {
             return Ok(None);
         };
-        if safe || self.sources.slice(name_span)? != "removeLast" {
+        if safe || self.sources.slice(name_span)? != expected_name {
             return Ok(None);
         }
         let receiver_result = self.check_expression(receiver, None, None)?;
@@ -1011,36 +1020,42 @@ impl Checker<'_> {
         if container != SequentialContainerKind::MutableList {
             self.emit(
                 self.invalid_container_member_code,
-                "sequential container does not support 'removeLast'",
+                &format!("sequential container does not support '{expected_name}'"),
                 name_span,
             )?;
             self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
+            return Ok(Some((
+                receiver,
+                self.error_type(),
+                self.error_type(),
+                receiver_result.falls_through,
+            )));
         }
         if !type_arguments.is_empty() {
             self.emit(
                 self.type_argument_arity_code,
-                "MutableList.removeLast accepts no type arguments",
+                &format!("MutableList.{expected_name} accepts no type arguments"),
                 name_span,
             )?;
             self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
+            return Ok(Some((
+                receiver,
+                self.error_type(),
+                self.error_type(),
+                receiver_result.falls_through,
+            )));
         }
         let parameters: [MappedParameter<TypeId>; 0] = [];
         let mapping = self.map_arguments(&parameters, arguments, call_span)?;
         if let Err(error) = mapping {
             self.emit_mapping_error(error)?;
             self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
+            return Ok(Some((
+                receiver,
+                self.error_type(),
+                self.error_type(),
+                receiver_result.falls_through,
+            )));
         }
         let function = self.types.intern(TypeKind::Function {
             move_only: false,
@@ -1049,18 +1064,83 @@ impl Checker<'_> {
         });
         self.set_expression(callee, function);
         self.set_expression_category(callee, ExpressionCategory::Temporary);
-        self.container_remove_lasts
-            .push(ContainerRemoveLastDescriptor::new(
-                expression,
-                receiver,
-                receiver_result.ty,
-                element_type,
-                element_type,
+        Ok(Some((
+            receiver,
+            receiver_result.ty,
+            element_type,
+            receiver_result.falls_through,
+        )))
+    }
+
+    pub(super) fn check_container_remove_last_call(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        let Some((receiver, container_ty, element_type, falls_through)) = self
+            .check_container_endpoint_removal_call(
                 call_span,
-            ));
+                callee,
+                type_arguments,
+                arguments,
+                "removeLast",
+            )?
+        else {
+            return Ok(None);
+        };
+        if element_type != self.error_type() {
+            self.container_remove_lasts
+                .push(ContainerRemoveLastDescriptor::new(
+                    expression,
+                    receiver,
+                    container_ty,
+                    element_type,
+                    element_type,
+                    call_span,
+                ));
+        }
         Ok(Some(ExprCheck {
             ty: element_type,
-            falls_through: receiver_result.falls_through,
+            falls_through,
+        }))
+    }
+
+    pub(super) fn check_container_remove_first_call(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        let Some((receiver, container_ty, element_type, falls_through)) = self
+            .check_container_endpoint_removal_call(
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+                "removeFirst",
+            )?
+        else {
+            return Ok(None);
+        };
+        if element_type != self.error_type() {
+            self.container_remove_firsts
+                .push(ContainerRemoveFirstDescriptor::new(
+                    expression,
+                    receiver,
+                    container_ty,
+                    element_type,
+                    element_type,
+                    call_span,
+                ));
+        }
+        Ok(Some(ExprCheck {
+            ty: element_type,
+            falls_through,
         }))
     }
 }
