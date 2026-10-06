@@ -5,6 +5,7 @@
 Proposal 本身不修改现行 v0.41、不批准 Spec，也不代表实现优先级。已选 String.clone 部分
 已移入 guide，剩余候选仍未启用；普通开发任务不要读取本目录。
 
+- [通用借用访问结果（M2B）](general-borrow-access-results.md)
 - [Map / MutableMap 所有权候选](map-ownership.md)
 - [v2 interface 值与动态分发](v2-interface-values-and-dynamic-dispatch.md)
 - [String Copyable 候选取舍](string-copyability.md)
@@ -14,7 +15,7 @@ Proposal 本身不修改现行 v0.41、不批准 Spec，也不代表实现优先
 
 ## 候选依赖与推进顺序
 
-六份候选不是彼此独立的，其中"集合算法"依赖一条前置链：
+以下候选不是彼此独立的，其中"集合算法"依赖一条前置链：
 
 ```text
 受限扩展函数  -->  View<T> intrinsic 与构造  -->  集合算法所有权
@@ -24,7 +25,9 @@ Proposal 本身不修改现行 v0.41、不批准 Spec，也不代表实现优先
 
 String Copyable  -->  若采纳，则集合算法物化的 clone 成本消失（非前置）
 
-Map 所有权、v2 interface 值  -->  独立，不依赖上述链
+通用借用访问结果（M2B）  -->  Map/List 的新增借用查询
+
+Map 其它 owned 查询、v2 interface 值  -->  不依赖上述视图链
 ```
 
 | 候选 | 前置 | 当前状态 |
@@ -33,7 +36,8 @@ Map 所有权、v2 interface 值  -->  独立，不依赖上述链
 | 显式 clone() | 无 | 仅 String 切片已进入 v0.40；通用 clone 等仍为候选 |
 | String Copyable | 无 | 候选结论：保持 `MoveOnly` |
 | 集合算法所有权 | 受限扩展函数、`View<T>` intrinsic、clone() | 候选设计已成形 |
-| Map / MutableMap 所有权 | 无 | 独立候选 |
+| 通用借用访问结果（M2B） | 真实程序需求、语法审查与 Guide 明确启用 | 未启用；字段/List/Map 及用户 API 共用来源核心 |
+| Map / MutableMap 所有权 | 新增借用结果依赖 M2B；其它查询按所选合同 | 历史候选；新决定须先重基 |
 | v2 interface 值与动态分发 | 无 | 独立候选 |
 
 推荐推进顺序：受限扩展函数 → `View<T>` intrinsic 与视图构造 → 集合算法表面 → expected type
