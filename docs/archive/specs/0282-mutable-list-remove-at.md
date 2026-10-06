@@ -1,10 +1,10 @@
 # SPEC-0282: MutableList 索引元素移出与剩余元素前移压缩 (`MutableList.removeAt`)
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或评审 MutableList 元素移出操作时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或评审 MutableList 元素移出操作时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0282` |
 | 所属 Phase | Phase 2 预声明成员识别；Phase 3 独占借用与元素移出；Phase 4 SSA、边界检查、内存平移与 native 运行 |
 | 语言规范 | 现行 [Guide v0.41](../../guide/README.md)；[集合与解构](../../guide/12-collections-destructuring.md) |
@@ -67,18 +67,18 @@ Koven v0.41 Guide §12 明确规范：
 
 ## 5. 验收标准
 
-- [ ] G1: `MutableList<Int>.removeAt` 从头部（`index = 0`）、中间和尾部（`index = size - 1`）移出元素，验证返回值与后续元素平移正确，`size` 逐次减 1。
-- [ ] G2: `MutableList<Resource>.removeAt` 移出 MoveOnly 资源，验证移出资源生命周期由接收方接管，容器内剩余资源在容器退出时逆序析构，零内存泄漏与双重释放。
-- [ ] G3: 越界索引（`index < 0` 或 `index >= size`）触发确定性运行时 abort。
-- [ ] G4: 活跃元素借用期间调用 `.removeAt` 产生编译期 L0135 诊断。
-- [ ] G5: 针对 `Array` / `List` 调用 `.removeAt` 产生无效成员编译期诊断。
-- [ ] G6: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
+- [x] G1: `MutableList<Int>.removeAt` 从头部（`index = 0`）、中间和尾部（`index = size - 1`）移出元素，验证返回值与后续元素平移正确，`size` 逐次减 1。
+- [x] G2: `MutableList<Resource>.removeAt` 移出 MoveOnly 资源，验证移出资源生命周期由接收方接管，容器内剩余资源在容器退出时逆序析构，零内存泄漏与双重释放。
+- [x] G3: 越界索引（`index < 0` 或 `index >= size`）触发确定性运行时 abort。
+- [x] G4: 活跃元素借用期间调用 `.removeAt` 产生编译期 L0135 诊断。
+- [x] G5: 针对 `Array` / `List` 调用 `.removeAt` 产生无效成员编译期诊断。
+- [x] G6: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
 
 ## 6. 验证记录
 
 | 验收项 | 目标与过滤器 | 结果 | 证据 |
 |:---|:---|:---|:---|
-| 类型与成员检查 | `cargo test -p lang-frontend --test type_containers` | 待执行 | |
-| 所有权借用冲突 | `cargo test -p lang-frontend --test ownership_containers` | 待执行 | |
-| SSA 容器操作与 Verifier | `cargo test -p lang-codegen mutable_list_remove_at` | 待执行 | |
-| 双宿主 Native 执行与析构 | `cargo test -p lang-codegen unit_container_remove_at` | 待执行 | |
+| 类型与成员检查 | `cargo test -p lang-frontend --test type_containers` | 通过 | 81 项类型测试通过，覆盖 removeAt 参数及成员拦截 |
+| 所有权借用冲突 | `cargo test -p lang-frontend --test ownership_containers` | 通过 | 26 项所有权测试通过，覆盖 Inout 独占借用及活跃元素借用冲突 L0135 |
+| SSA 容器操作与 Verifier | `cargo test -p lang-codegen mutable_list_remove_at` | 通过 | 单文件与编译单元 lowering 测试全通过，生成 ContainerRemoveAt |
+| 双宿主 Native 执行与析构 | `cargo test -p lang-codegen unit_container_remove_at` | 通过 | 4 项 native 测试全部通过：首/中/尾连续移出、MoveOnly 零泄漏析构、清空复用、越界 abort |

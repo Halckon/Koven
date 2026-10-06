@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 268 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 269 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -400,3 +400,5 @@
 - [SPEC-0280](0280-mutable-list-add.md)：MutableList 顺序追加与动态扩容；在单文件与多文件编译单元两入口完整交付，通过前端类型/独占借用/ASAP drop 检查、SSA ContainerAppend 原语与 verifier、LLVM 动态缓冲区翻倍扩容与 MoveOnly 元素逆序析构 zero-leak 验证。
  
 - [SPEC-0281](0281-mutable-list-clear.md)：MutableList 逆序元素清理与缓冲区复用；在单文件与多文件编译单元两入口完整交付，通过前端类型/独占借用/ASAP drop 检查、SSA ContainerClear 原语与 verifier、LLVM 逆序元素 drop 与缓冲区保留复用 zero-leak 验证。
+
+- [SPEC-0282](0282-mutable-list-remove-at.md)：MutableList 索引元素移出与剩余元素前移压缩；在单文件与多文件编译单元两入口完整交付，通过前端类型/独占借用/ASAP drop 检查、SSA ContainerRemoveAt 原语与 verifier、LLVM 边界检查 abort 与重叠安全 memmove 搬迁及 MoveOnly 元素所有权转移 zero-leak 验证。

@@ -8,16 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 268 份"))
-subgraph Gactive["现行 active"]
-  S0282["S0282<br/>MutableList 索引元素移出与剩余元素前移压缩 (MutableList.removeAt)"]
-end
-ARCH --> S0282
+ARCH(("已完成<br/>archive 269 份"))
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0282 | active | [0282-mutable-list-remove-at.md](active/0282-mutable-list-remove-at.md) |
-| 已完成 Spec（268 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（269 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

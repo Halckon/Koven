@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [SPEC-0282](0282-mutable-list-remove-at.md)：MutableList 索引元素移出与剩余元素前移压缩 (`MutableList.removeAt`)
+0282（`MutableList.removeAt` 索引元素移出与剩余元素前移压缩）已按双宿主实现验收归档至 `docs/archive/specs/0282-mutable-list-remove-at.md` 并发起 PR 闭环。
 
 0281（`MutableList.clear` 逆序元素清理与缓冲区复用）已按双宿主实现验收归档至 `docs/archive/specs/0281-mutable-list-clear.md` 并通过 PR #60 合入 main。
 
