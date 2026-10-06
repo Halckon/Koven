@@ -64,6 +64,29 @@ index }})
     cases
 }
 
+/// Language-level Nothing operands abort before generation or any callback invocation.
+pub(crate) fn nothing_operand_cases() -> Vec<EvaluationCase> {
+    let mut cases = Vec::new();
+    for container in ["Array", "List"] {
+        for (label, operands) in [
+            (
+                "size",
+                "error(\"size\"), { index -> println(\"call\")\nindex }",
+            ),
+            ("initializer", "3, error(\"initializer\")"),
+        ] {
+            cases.push(EvaluationCase {
+                label: format!("{container}/Nothing-{label}"),
+                api: "fun unused(): Unit {}".to_owned(),
+                entry: format!("fun entry(): Unit {{ val unused = {container}<Int>({operands})\nprintln(\"after\") }}"),
+                expected: b"",
+                aborts: true,
+            });
+        }
+    }
+    cases
+}
+
 pub(crate) fn assert_evaluation_output(case: &EvaluationCase, output: &std::process::Output) {
     if case.aborts {
         assert!(!output.status.success(), "{}: {output:?}", case.label);
@@ -93,6 +116,17 @@ fn runtime_constructor_native_single_evaluates_operands_once_in_order() {
     for case in cases {
         let text = format!("{}\n{}", case.api, case.entry);
         let output = emit_link_and_run("runtime-evaluation.ko", &text, "entry");
+        assert_evaluation_output(&case, &output);
+    }
+}
+
+#[test]
+fn runtime_constructor_native_single_nothing_operands_do_not_generate() {
+    let cases = nothing_operand_cases();
+    assert_eq!(cases.len(), 4);
+    for case in cases {
+        let text = format!("{}\n{}", case.api, case.entry);
+        let output = emit_link_and_run("runtime-nothing.ko", &text, "entry");
         assert_evaluation_output(&case, &output);
     }
 }

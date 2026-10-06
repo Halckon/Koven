@@ -27,8 +27,13 @@ pub(in crate::ssa::unit_lower) fn declare(
             .expressions()
             .iter()
             .filter_map(|(expression, node)| {
-                matches!(node.payload(), Expression::Lambda { .. })
-                    .then_some((expression, node.span()))
+                let id = UnitExpressionId::new(instance.source_unit(), expression);
+                (matches!(node.payload(), Expression::Lambda { .. })
+                    // Static descriptors also include lambdas after a terminating prefix.
+                    && owned.callable_origin(id).is_some_and(|fact| {
+                        fact.origin() == lang_frontend::ownership_checking::UnitCallableOrigin::Lambda(id)
+                    }))
+                .then_some((expression, node.span()))
             })
             .filter(|(_, span)| span_contains(instance.span(), *span))
             .collect::<Vec<_>>();

@@ -66,6 +66,65 @@ fn lower(text: &str) -> Program {
     })
 }
 
+#[test]
+fn single_runtime_nothing_operand_stops_before_borrow_and_initializer() {
+    let mut failures = Vec::new();
+    for container in ["Array", "List"] {
+        for (operands, size_loans) in [
+            ("error(\"size\"), { index -> index }", 0),
+            ("1, error(\"initializer\")", 1),
+        ] {
+            let text = format!(
+                "fun entry(): Int {{ val unused = {container}<Int>({operands})\nreturn 0 }}"
+            );
+            analyze(&text, |sources, parsed, names, typed, owned| {
+                let constructors = typed.container_constructions();
+                assert_eq!(constructors.len(), 1);
+                assert_eq!(
+                    owned
+                        .loans()
+                        .iter()
+                        .filter(|loan| loan.call() == constructors[0].expression())
+                        .count(),
+                    size_loans
+                );
+                let arena = typed.types().len();
+                match lower_scalar_file(sources, parsed, names, typed, owned) {
+                    Ok(program) => {
+                        assert!(
+                            program.modules[0]
+                                .functions
+                                .iter()
+                                .flat_map(|function| &function.instructions)
+                                .all(|instruction| !matches!(
+                                    instruction.operation,
+                                    Operation::ContainerGenerateBorrowed { .. }
+                                ))
+                        );
+                        assert!(
+                            program.modules[0]
+                                .functions
+                                .iter()
+                                .flat_map(|function| &function.blocks)
+                                .any(|block| block.terminator.as_ref().is_some_and(
+                                    |terminator| matches!(terminator.kind, TerminatorKind::Abort)
+                                ))
+                        );
+                        crate::llvm::render_verified_program(&program)
+                            .expect("ordinary source Abort verifies through LLVM");
+                    }
+                    Err(error) => failures.push(format!("{container}/{operands}: {error:?}")),
+                }
+                assert_eq!(typed.types().len(), arena);
+            });
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "Nothing must stop before creating later operand facts: {failures:?}"
+    );
+}
+
 /// A clean diagnostic list does not select an unresolved source callable for its ABI.
 fn assert_deferred_boundary(
     text: &str,

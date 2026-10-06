@@ -155,6 +155,8 @@ impl<'a> CallablePlanner<'a> {
             if descriptor.expression().source_unit() != source_unit
                 || descriptor.kind()
                     != lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
+                // A source constructor that never establishes its first Borrow does not run.
+                || !self.owned.loans().iter().any(|loan| loan.call() == descriptor.expression())
             {
                 continue;
             }
@@ -176,6 +178,19 @@ impl<'a> CallablePlanner<'a> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
             }
             let initializer_id = UnitExpressionId::new(source_unit, initializer.value);
+            let initializer_type = self
+                .typed
+                .expression_type(initializer_id)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, initializer.span))?;
+            if matches!(
+                self.typed.types().get(initializer_type),
+                Some(UnitTypeKind::Builtin(
+                    lang_frontend::type_checking::BuiltinType::Nothing
+                ))
+            ) {
+                // The size prefix runs, but the diverging operand forms no callable to freeze.
+                continue;
+            }
             let operand_span = parsed
                 .ast()
                 .expressions()

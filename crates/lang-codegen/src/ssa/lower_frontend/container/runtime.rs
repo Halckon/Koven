@@ -21,6 +21,9 @@ impl ExpressionLowerer<'_> {
         if descriptor.parameter_modes() != [ParameterMode::Borrow, ParameterMode::Borrow] {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        if self.runtime_operand_exits(size.value, size.span)? {
+            return Ok(LoweredValue::Diverged);
+        }
         // The first Borrow is live before the negative guard and any initializer expression.
         let (size_loan, ends_after_call) =
             self.lower_borrow_argument(expression, size.value, size.span)?;
@@ -38,6 +41,9 @@ impl ExpressionLowerer<'_> {
         )?;
         let length = value(results[0]);
         self.guard_nonnegative_length(length, size_type, span)?;
+        if self.runtime_operand_exits(initializer.value, initializer.span)? {
+            return Ok(LoweredValue::Diverged);
+        }
         // Successful frontend diagnostics do not resolve an overload operand. Its deferred
         // identity cannot choose an address or environment in the backend.
         let initializer_type = self
@@ -56,6 +62,12 @@ impl ExpressionLowerer<'_> {
             (expression.index(), initializer.value.index()),
             ends_after_call.then_some(initializer_loan),
         );
+        self.validate_container_identity(
+            descriptor.container(),
+            descriptor.element_type(),
+            descriptor.container_type(),
+            span,
+        )?;
         let container = self.expression_ssa_type(expression, span)?;
         let (_, results) = self.append(
             Operation::ContainerGenerateBorrowed {
@@ -68,6 +80,25 @@ impl ExpressionLowerer<'_> {
         )?;
         self.finish_borrowed_call(expression, span)?;
         Ok(LoweredValue::Value(value(results[0])))
+    }
+
+    /// Nothing ends the operand prefix; its loan and later operand facts do not exist.
+    fn runtime_operand_exits(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        let ty = self
+            .typed
+            .expression_type(expression)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if builtin_type(self.typed, ty) != Some(BuiltinType::Nothing) {
+            return Ok(false);
+        }
+        match self.lower(expression)? {
+            LoweredValue::Diverged => Ok(true),
+            _ => Err(error(LoweringErrorKind::InvalidModel, span)),
+        }
     }
 
     /// Reuse the existing linear carrier so loans and owners remain synchronized across the guard.

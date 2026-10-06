@@ -94,3 +94,16 @@ fn runtime_constructor_native_unit_evaluates_operands_once_in_order() {
         evaluation::assert_evaluation_output(&case, &execute(&analysis, "entry", &case.label));
     }
 }
+
+#[test]
+fn runtime_constructor_native_unit_nothing_operands_do_not_generate() {
+    let cases = evaluation::nothing_operand_cases();
+    assert_eq!(cases.len(), 4);
+    for case in cases {
+        let analysis = analyze_sources(
+            &format!("package p\n{}", case.api),
+            &format!("package q\n{}", case.entry),
+        );
+        evaluation::assert_evaluation_output(&case, &execute(&analysis, "entry", &case.label));
+    }
+}

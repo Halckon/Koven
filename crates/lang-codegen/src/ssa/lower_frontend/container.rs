@@ -143,12 +143,16 @@ impl ExpressionLowerer<'_> {
         if self.typed.expression_type(expression) != Some(descriptor.container_type()) {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        self.validate_container_identity(
-            descriptor.container(),
-            descriptor.element_type(),
-            descriptor.container_type(),
-            span,
-        )?;
+        // Runtime storage is demanded only after both operands complete; a Nothing prefix
+        // can legitimately have no pre-interned container layout.
+        if descriptor.kind() != ContainerConstructionKind::RuntimeLength {
+            self.validate_container_identity(
+                descriptor.container(),
+                descriptor.element_type(),
+                descriptor.container_type(),
+                span,
+            )?;
+        }
 
         let elements = match descriptor.kind() {
             ContainerConstructionKind::ListForm => {
