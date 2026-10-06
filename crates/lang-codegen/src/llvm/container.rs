@@ -413,3 +413,98 @@ pub(super) fn build_header<'ctx>(
         Ok(with_length)
     }
 }
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn clear<'ctx>(
+    llvm: &LlvmModule<'ctx>,
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    module: &Module,
+    types: &TypeMap<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    container: SsaTypeId,
+    owner: StructValue<'ctx>,
+    name: &str,
+) -> Result<StructValue<'ctx>, LlvmAdapterError> {
+    let layout = types.container_layout(container)?;
+    let (_, element) = module
+        .sequential_container(container)
+        .ok_or_else(|| LlvmAdapterError::InvalidSsa("clear owner 不是顺序容器".to_owned()))?;
+    let buffer = builder
+        .build_extract_value(owner, 0, &format!("{name}.buffer"))?
+        .into_pointer_value();
+    let length = builder
+        .build_extract_value(owner, 1, &format!("{name}.length"))?
+        .into_int_value();
+    let capacity = builder
+        .build_extract_value(owner, 2, &format!("{name}.capacity"))?
+        .into_int_value();
+
+    if module.type_ownership(element) == Some(Ownership::MoveOnly) {
+        let size_type = runtime.size_type();
+        let preheader = builder
+            .get_insert_block()
+            .ok_or_else(|| LlvmAdapterError::Build("container clear 缺少 preheader".to_owned()))?;
+        let context = llvm.get_context();
+        let loop_header = context.append_basic_block(function, &format!("{name}.drop.loop"));
+        let loop_body = context.append_basic_block(function, &format!("{name}.drop.body"));
+        let released = context.append_basic_block(function, &format!("{name}.drop.released"));
+        builder.build_unconditional_branch(loop_header)?;
+
+        builder.position_at_end(loop_header);
+        let remaining_phi = builder.build_phi(size_type, &format!("{name}.remaining"))?;
+        remaining_phi.add_incoming(&[(&length, preheader)]);
+        let remaining = remaining_phi.as_basic_value().into_int_value();
+        let is_empty = builder.build_int_compare(
+            inkwell::IntPredicate::EQ,
+            remaining,
+            size_type.const_zero(),
+            &format!("{name}.drop.empty"),
+        )?;
+        builder.build_conditional_branch(is_empty, released, loop_body)?;
+
+        builder.position_at_end(loop_body);
+        let one = size_type.const_int(1, false);
+        let index = builder.build_int_sub(remaining, one, &format!("{name}.drop.index"))?;
+        let value = if layout.stride == 0 {
+            layout.element.const_zero()
+        } else {
+            let slot = unsafe {
+                builder.build_gep(
+                    layout.element,
+                    buffer,
+                    &[index],
+                    &format!("{name}.drop.slot"),
+                )?
+            };
+            builder.build_load(layout.element, slot, &format!("{name}.drop.element"))?
+        };
+        runtime.emit_drop(builder, element, value)?;
+        let backedge = builder
+            .get_insert_block()
+            .ok_or_else(|| LlvmAdapterError::Build("container clear 缺少 backedge".to_owned()))?;
+        builder.build_unconditional_branch(loop_header)?;
+        remaining_phi.add_incoming(&[(&index, backedge)]);
+        builder.position_at_end(released);
+    }
+
+    let size_type = runtime.size_type();
+    let zero = size_type.const_zero();
+    let header_type = layout.header;
+    let with_buffer = builder
+        .build_insert_value(
+            header_type.const_zero(),
+            buffer,
+            0,
+            &format!("{name}.with_buffer"),
+        )?
+        .into_struct_value();
+    let with_length = builder
+        .build_insert_value(with_buffer, zero, 1, &format!("{name}.with_length"))?
+        .into_struct_value();
+    let with_capacity = builder
+        .build_insert_value(with_length, capacity, 2, &format!("{name}.with_capacity"))?
+        .into_struct_value();
+
+    Ok(with_capacity)
+}

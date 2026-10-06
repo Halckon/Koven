@@ -47,7 +47,8 @@ impl<'a> ValueProof<'a> {
                 | Operation::InlineFieldReplace { receiver, .. } => EntityId::Loan(receiver),
                 Operation::HeapFieldExchange { owner, .. }
                 | Operation::ContainerReplace { owner, .. }
-                | Operation::ContainerAppend { owner, .. } => EntityId::Value(owner),
+                | Operation::ContainerAppend { owner, .. }
+                | Operation::ContainerClear { owner, .. } => EntityId::Value(owner),
                 _ => continue,
             };
             affected.entry(access).or_insert_with(|| {

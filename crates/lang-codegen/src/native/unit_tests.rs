@@ -2,6 +2,8 @@
 mod borrow_string_tests;
 #[path = "unit_container_append_tests.rs"]
 mod container_append_tests;
+#[path = "unit_container_clear_tests.rs"]
+mod container_clear_tests;
 #[path = "unit_container_size_tests.rs"]
 mod container_size_tests;
 #[path = "unit_handoff_contract_tests.rs"]
