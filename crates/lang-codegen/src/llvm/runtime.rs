@@ -1084,6 +1084,9 @@ impl RuntimeRequirements {
                             })?;
                         requirements.collect_drop_type(module, element)?;
                     }
+                    Operation::ContainerRemoveAt { .. } => {
+                        requirements.needs_abort = true;
+                    }
                     Operation::ContainerReplace { owner, .. } => {
                         requirements.needs_abort = true;
                         let container =

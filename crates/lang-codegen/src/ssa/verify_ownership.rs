@@ -881,6 +881,48 @@ fn apply_operation(
                 errors,
             );
         }
+        Operation::ContainerRemoveAt { owner, index } => {
+            if require_value(
+                module,
+                function,
+                *owner,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            ) && has_any_value_loan(*owner, aliases, state)
+            {
+                errors.push(error(
+                    VerifyErrorKind::OwnerLoanConflict { value: *owner },
+                    location.clone(),
+                    origin,
+                ));
+            }
+            consume_value(
+                module,
+                function,
+                *owner,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location.clone(),
+                origin,
+                errors,
+            );
+            consume_value(
+                module,
+                function,
+                *index,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::ContainerReplace { owner, value, .. } => {
             if require_value(
                 module,
