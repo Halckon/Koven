@@ -25,12 +25,10 @@ SPEC-0279 的现行 runtime constructor 交付、独立 PR/CI 不受本稿影响
 | 函数/接口合同 | 结果明确借自 receiver 或指定一个参数；验证 body，跨模块/泛型保留同一关系 | 名称识别特权、读 callee body 猜来源、接口引入 v2 `dyn` |
 | 库 API/语法 | 集合与用户库以同一合同声明访问；区分查询、owned copy/move 与借用结果 | 把普通 `V?` 解释成引用，隐式 clone/retain，先拍定语法再补语义 |
 
-首版建议：单一明确来源、局部非 owning 绑定、只读重借用、可静态核验的跨函数转发，
-以及结构化独占修改；不返回可任意流转的 exclusive 结果，不默认引入完整 NLL。
+首片已选择[方案 A 与冻结边界](borrow-access-first-slice-decision.md)：单一明确来源、显式局部 non-owning binding、Shared reborrow、可静态核验的跨函数转发；不返回可任意流转的 exclusive 结果，不默认引入完整 NLL。结构化独占修改仍保留为共同所有权核心，但 Inout **不作为首片 borrow-result 来源**。
 局部借用结果的上界先以结构化块/访问域界定；结束块后可恢复 owner 操作权限，
 不能以最后一次读、优化器分析或 runtime 地址偶然稳定来缩短 loan。
-源 owner 可来自 caller 的具名 owner、Borrow 参数或有权限的 Inout 参数；
-首版新结果不借自 callee 局部 owner、Own/Value 参数或临时 receiver，也不隐式延长临时 receiver 生命周期。
+首片 borrow-result 来源只接受 caller 具名 owner 或已有 parent access 经 Borrow receiver/parameter 进入；Inout 来源延后。新结果不借自 callee 局部 owner、Own/Value 参数或临时 receiver，也不隐式延长临时 receiver 生命周期。
 现行直接 Borrow temporary 的调用期合法行为保留；临时 receiver 的新结果延寿另行评审。
 
 非目标：普通对象/容器长期存借用、多来源或来源集合、逃逸 closure、跨线程/async、
@@ -61,8 +59,7 @@ selector 的表达式/声明身份不等于目标存储身份；求值各一次�
 不能把 key 变量名、hash 值、零大小 sentinel 或地址当作条目/元素唯一身份。
 owner move/replacement、删除、重排与 relocation 必须检查仍有效的依赖，不以值相等恢复旧结果。
 
-Shared 允许同一目标的多次只读访问和只读 child reborrow，不允许移出 MoveOnly、
-变异、drop 或冲突 exclusive 访问；Copyable 的显式按值读取仍产生 owned copy。
+Shared 允许同一目标的多次只读访问和只读 child reborrow，不允许移出 MoveOnly、变异、drop 或冲突 exclusive 访问；Copyable 目标只有通过首片后续 Spec 明确命名的显式 owned-copy 操作才产生独立 copy，不允许普通 `val` 仅凭 expected type 偷偷在 borrow/copy 间切换。
 Exclusive 只来源于已验证 mutable place/Inout 能力；只读 child 存活时父 exclusive 的
 冲突权限暂停，child 结束后恢复；结构化修改期间目标始终完整初始化。
 借用结果只投影权限，不能因为 `.field` 或一层包装调用自动升级为可变/owned 能力。
@@ -81,12 +78,8 @@ Exclusive 只来源于已验证 mutable place/Inout 能力；只读 child 存活
 本稿只写语义关系，不规定 `&T`、Rust lifetime 参数、返回 marker 或新的关键字。
 备选语法由独立方案审查决定；无需显式生命周期参数不等于可以不发布来源事实。
 
-来源输入须有 caller 保持的 Borrow 能力；callee 的 Own/Value 参数不能成为首版结果来源，
-即使目标 Copyable 也不能返回指向 callee 副本栈槽的借用。Inout 来源须先冻结原子的
-parent continuation/权限恢复，不能结束本次 Exclusive loan 后遗留 Shared child；未证明该
-子集前拒绝，不以普通 CallReturn end 冒充交接。具名 caller owner 传给 Borrow 参数不受此拒绝。
-声明、局部绑定与缺失协议的两个具体备选见[合同比较](borrow-access-contract-comparison.md)，
-目前尚未选定，不批准其中任何语法或 intrinsic 类型。
+来源输入须有 caller 保持的 Borrow 能力；callee 的 Own/Value 参数不能成为首片结果来源，即使目标 Copyable 也不能返回指向 callee 副本栈槽的借用。Inout 来源已明确移出首片：必须先冻结原子的 parent continuation/权限恢复，不能结束本次 Exclusive loan 后遗留 Shared child；未证明该子集前继续拒绝，不以普通 CallReturn end 冒充交接。具名 caller owner 传给 Borrow 参数不受此拒绝。
+A/B 比较见[合同比较](borrow-access-contract-comparison.md)，首片选择 A 与 Missing、显式 binding、owned copy、Inout 边界见[设计冻结](borrow-access-first-slice-decision.md)。这些决定仍不批准具体语法关键字或启用 Guide。
 
 callee 每条正常返回路径必须证明结果派生自声明的唯一输入，不能借自本地 owner、
 其它输入、闭包环境或已失效 selector。包装函数可继续投影该输入或转发已验证结果，
@@ -140,7 +133,7 @@ parent/child loan；中间查询不得重算 key/index、隐式 clone、提前 d
 | R09 | 临时/具名 String key / receiver-result loan | key 查询结束可清理/复用，receiver 保护继续 | 让结果依赖 key 地址，或连同 key 结束 receiver loan 拒绝 |
 | R10 | Missing、Found(null)、Found(value) / 条件事实 | 三状态可区分，只有有效分支可读取目标 | missing 未检查读取、把 V? null 直接当缺失拒绝 |
 | R11 | shared aliases、同/未知 selector / overlap | 多个只读 alias 合法，域结束后可移动 owner | 存活结果期间 move/drop/relocation 或等价 key 修改拒绝 |
-| R12 | mutable source / 结构化 Exclusive 与 Shared child | child 结束恢复父能力，replace 后完整初始化 | Shared 升级 Exclusive、child 活跃时父变异、重叠独占拒绝 |
+| R12 | mutable source / 结构化 Exclusive 与 Shared child | 共同核心仍需定义 child→parent 恢复 | 首片 Inout result source 固定拒绝；Shared 升级 Exclusive、child 活跃时父变异、重叠独占拒绝 |
 | R13 | 正常/break/continue/return/可恢复错误 / cleanup | 每边 child→parent→owner，受控返回先交付依赖 | loan double-end、提前恢复、重复/遗漏 owner drop 拒绝；Abort 不冒称展开 |
 | R14 | 同一核心 / fields+Map+List / forged facts | frontend 与 SSA/verifier 使用同一发布身份 | 缺来源、失效 parent、目标类型/权限/analysis 不一致结构化拒绝 |
 | R15 | 存入普通 field/container 或 closure / escape | 短期库调用只读 reborrow 后归还权限 | 长期存借用、多来源、逃逸捕获、跨线程/async 均拒绝 |
