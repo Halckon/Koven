@@ -775,4 +775,3 @@ fn mutable_list_insert_at_rejects_unsupported_and_invalid_in_compilation_unit() 
     assert_eq!(typed.diagnostics()[2].code().to_string(), "L0084");
     assert_eq!(typed.diagnostics()[3].code().to_string(), "L0084");
 }
-

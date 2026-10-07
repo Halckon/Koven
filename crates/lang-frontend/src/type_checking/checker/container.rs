@@ -736,8 +736,8 @@ impl Checker<'_> {
         type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
     ) -> Result<Option<ExprCheck>, TypeCheckingError> {
-        let Some((receiver, receiver_ty, element_type, falls_through)) = self
-            .prepare_mutable_list_call(callee, "add", type_arguments, arguments)?
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, "add", type_arguments, arguments)?
         else {
             return Ok(None);
         };
@@ -809,8 +809,8 @@ impl Checker<'_> {
         type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
     ) -> Result<Option<ExprCheck>, TypeCheckingError> {
-        let Some((receiver, receiver_ty, element_type, falls_through)) = self
-            .prepare_mutable_list_call(callee, "clear", type_arguments, arguments)?
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, "clear", type_arguments, arguments)?
         else {
             return Ok(None);
         };
@@ -860,8 +860,8 @@ impl Checker<'_> {
         type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
     ) -> Result<Option<ExprCheck>, TypeCheckingError> {
-        let Some((receiver, receiver_ty, element_type, falls_through)) = self
-            .prepare_mutable_list_call(callee, "removeAt", type_arguments, arguments)?
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, "removeAt", type_arguments, arguments)?
         else {
             return Ok(None);
         };
@@ -934,8 +934,8 @@ impl Checker<'_> {
         arguments: &[CallArgument],
         expected_name: &'static str,
     ) -> Result<Option<(ExpressionId, TypeId, TypeId, bool)>, TypeCheckingError> {
-        let Some((receiver, receiver_ty, element_type, falls_through)) = self
-            .prepare_mutable_list_call(callee, expected_name, type_arguments, arguments)?
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, expected_name, type_arguments, arguments)?
         else {
             return Ok(None);
         };
@@ -966,12 +966,7 @@ impl Checker<'_> {
         });
         self.set_expression(callee, function);
         self.set_expression_category(callee, ExpressionCategory::Temporary);
-        Ok(Some((
-            receiver,
-            receiver_ty,
-            element_type,
-            falls_through,
-        )))
+        Ok(Some((receiver, receiver_ty, element_type, falls_through)))
     }
 
     pub(super) fn check_container_remove_last_call(
@@ -1054,8 +1049,8 @@ impl Checker<'_> {
         type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
     ) -> Result<Option<ExprCheck>, TypeCheckingError> {
-        let Some((receiver, receiver_ty, element_type, falls_through)) = self
-            .prepare_mutable_list_call(callee, "insertAt", type_arguments, arguments)?
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, "insertAt", type_arguments, arguments)?
         else {
             return Ok(None);
         };

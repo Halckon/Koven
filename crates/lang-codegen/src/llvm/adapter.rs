@@ -1015,6 +1015,30 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 self.values.insert(*removed_result, removed_element);
                 self.values.insert(*new_owner_result, new_owner.into());
             }
+            Operation::ContainerInsertAt {
+                owner,
+                index,
+                element,
+            } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("container insertAt", 1, results.len()));
+                };
+                let container_type = value_type(self.function, *owner)?;
+                let new_owner = container::insert_at(
+                    self.llvm,
+                    &self.builder,
+                    self.llvm_function,
+                    self.module,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    container_type,
+                    self.struct_value(*owner)?,
+                    self.int_value(*index)?,
+                    self.value(*element)?,
+                    &format!("insert_at.i{}", instruction.id.index()),
+                )?;
+                self.values.insert(*result, new_owner.into());
+            }
             Operation::ContainerReplace {
                 owner,
                 index,

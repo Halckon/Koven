@@ -629,4 +629,3 @@ fn container_insert_at_rejects_mismatched_index_type() {
     let (_sources, _parsed, _names, typed) = checked(text);
     assert_eq!(codes(typed.diagnostics()), ["L0084"]);
 }
-

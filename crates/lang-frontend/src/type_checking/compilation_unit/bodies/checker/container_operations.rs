@@ -9,11 +9,10 @@ use crate::{
     type_checking::{
         BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory, ParameterMode,
         SequentialContainerKind, TypeCheckingError, UnitContainerAppendDescriptor,
-        UnitContainerClearDescriptor, UnitContainerRemoveAtDescriptor,
-        UnitContainerRemoveFirstDescriptor, UnitContainerRemoveLastDescriptor,
-        UnitContainerInsertAtDescriptor,
-        UnitContainerSizeDescriptor, UnitElementPlaceDescriptor, UnitExpressionId,
-        UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
+        UnitContainerClearDescriptor, UnitContainerInsertAtDescriptor,
+        UnitContainerRemoveAtDescriptor, UnitContainerRemoveFirstDescriptor,
+        UnitContainerRemoveLastDescriptor, UnitContainerSizeDescriptor, UnitElementPlaceDescriptor,
+        UnitExpressionId, UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, map_arguments},
     },
 };
@@ -340,7 +339,8 @@ impl BodyChecker<'_> {
         type_arguments: &[TypeRefId],
         arguments: &[CallArgument],
         return_type: UnitTypeId,
-    ) -> Result<Option<(ExpressionId, UnitTypeId, UnitTypeId, bool)>, CompilationUnitTypeError> {
+    ) -> Result<Option<(ExpressionId, UnitTypeId, UnitTypeId, bool)>, CompilationUnitTypeError>
+    {
         let Expression::Member {
             receiver,
             name_span,
@@ -744,12 +744,7 @@ impl BodyChecker<'_> {
             UnitExpressionId::new(source, callee),
             ExpressionCategory::Temporary,
         );
-        Ok(Some((
-            receiver,
-            receiver_type,
-            element_type,
-            falls_through,
-        )))
+        Ok(Some((receiver, receiver_type, element_type, falls_through)))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -920,8 +915,13 @@ impl BodyChecker<'_> {
             )?;
         }
         let element_arg = &arguments[1];
-        let element_result =
-            self.check_expression(source, element_arg.value, Some(element_type), None, return_type)?;
+        let element_result = self.check_expression(
+            source,
+            element_arg.value,
+            Some(element_type),
+            None,
+            return_type,
+        )?;
         if !self.is_error(element_result.ty)
             && !self.is_deferred(element_result.ty)
             && !self.assignable(element_result.ty, element_type)

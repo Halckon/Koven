@@ -7,10 +7,9 @@ use crate::{
     type_checking::{
         AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
         ContainerAppendDescriptor, ContainerClearDescriptor, ContainerConstructionDescriptor,
-        ContainerInsertAtDescriptor, ContainerRemoveAtDescriptor,
-        ContainerRemoveFirstDescriptor, ContainerRemoveLastDescriptor,
-        ContainerSizeDescriptor, DestructuringDescriptor, ElementPlaceDescriptor,
-        ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor,
+        ContainerInsertAtDescriptor, ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor,
+        ContainerRemoveLastDescriptor, ContainerSizeDescriptor, DestructuringDescriptor,
+        ElementPlaceDescriptor, ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor,
         OwnershipPrimitiveDescriptor, ParameterMode, RcOperationDescriptor,
         StringOperationDescriptor, TypeId, TypeTable,
     },

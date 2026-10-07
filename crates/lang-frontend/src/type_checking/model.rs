@@ -13,11 +13,10 @@ use crate::{
 use super::{
     AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
     ContainerAppendDescriptor, ContainerClearDescriptor, ContainerConstructionDescriptor,
-    ContainerInsertAtDescriptor, ContainerRemoveAtDescriptor,
-    ContainerRemoveFirstDescriptor, ContainerRemoveLastDescriptor,
-    ContainerSizeDescriptor, ElementPlaceDescriptor, ExpressionCategory, FunctionParameterType,
-    IntrinsicCallable, OwnershipPrimitiveDescriptor, ParameterBindingDescriptor, ParameterMode,
-    RcOperationDescriptor, StringOperationDescriptor,
+    ContainerInsertAtDescriptor, ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor,
+    ContainerRemoveLastDescriptor, ContainerSizeDescriptor, ElementPlaceDescriptor,
+    ExpressionCategory, FunctionParameterType, IntrinsicCallable, OwnershipPrimitiveDescriptor,
+    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, StringOperationDescriptor,
     canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
 };
 

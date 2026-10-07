@@ -514,6 +514,50 @@ fn mutable_list_remove_first_compilation_unit_lowering_creates_container_remove_
     assert_eq!(remove_first_count, 1);
 }
 
+#[test]
+fn mutable_list_insert_at_compilation_unit_lowering_creates_container_insert_at() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         fun create(): MutableList<Int> { return mutableListOf(10, 20) }",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         import p.create\n\
+         fun entry(): Unit {\n\
+             var list = create()\n\
+             list.insertAt(1, 15)\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let (program, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        declaration(&names, "q", "entry"),
+    )
+    .expect("lowering succeeds");
+    let func = function(&program.modules[0], "entry");
+    let insert_at_count = func
+        .instructions
+        .iter()
+        .filter(|instruction| matches!(instruction.operation, Operation::ContainerInsertAt { .. }))
+        .count();
+    assert_eq!(insert_at_count, 1);
+}
+
 fn function<'a>(module: &'a super::model::Module, name: &str) -> &'a Function {
     module
         .functions
