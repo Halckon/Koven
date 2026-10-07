@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，273 份）"]
+subgraph Garchive["已完成（archive，274 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -282,8 +282,6 @@ subgraph Garchive["已完成（archive，273 份）"]
   S0284["S0284<br/>MutableList 头部元素快速移出与队列弹出 (MutableList.removeFirst)"]
   S0285["S0285<br/>MutableList 元素指定索引插入与向后平移扩容 (MutableList.insertAt)"]
   S0286["S0286<br/>编译单元局部解构 SSA Lowering 与原生执行 (val (a, b) = expr)"]
-end
-subgraph Gactive["现行 active"]
   S0287["S0287<br/>M2B 通用借用合同冻结与 Map 键值容器类型系统基础 (Map&lt;K, V&gt; / MutableMap&lt;K, V&gt;)"]
 end
 S0001 --> S0002
@@ -1563,4 +1561,4 @@ S0286 --> S0287
 | SPEC-0284 | archive | [0284-mutable-list-remove-first.md](0284-mutable-list-remove-first.md) |
 | SPEC-0285 | archive | [0285-mutable-list-insert-at.md](0285-mutable-list-insert-at.md) |
 | SPEC-0286 | archive | [0286-unit-local-destructuring.md](0286-unit-local-destructuring.md) |
-| SPEC-0287 | active | [0287-m2b-and-map-type-system.md](../../specs/active/0287-m2b-and-map-type-system.md) |
+| SPEC-0287 | archive | [0287-m2b-and-map-type-system.md](0287-m2b-and-map-type-system.md) |

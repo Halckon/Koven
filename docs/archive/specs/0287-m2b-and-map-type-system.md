@@ -1,10 +1,10 @@
 # SPEC-0287: M2B 通用借用合同冻结与 Map 键值容器类型系统基础 (`Map<K, V>` / `MutableMap<K, V>`)
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或评审 M2B 通用借用合同与 Map 容器前端类型系统时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或评审 M2B 通用借用合同与 Map 容器前端类型系统时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0287` |
 | 所属 Phase | Phase 1 规范与语法；Phase 2 类型检查、内建能力与符号绑定；Phase 3 所有权分析与 drop planning |
 | 语言规范 | 现行 [Guide v0.41](../../guide/README.md)；[集合、索引与解构](../../guide/12-collections-destructuring.md) |
@@ -66,20 +66,27 @@
 
 ## 5. 验收标准
 
-- [ ] G1: Guide v0.41 §12 正式启用 `Map` 与 `MutableMap` 规范，冻结 M2B 方案 A 设计决定。
-- [ ] G2: 前端正确识别 `Map<K, V>` 与 `MutableMap<K, V>` 类型引用，精准校验 2 个类型实参及 `K: Hashable` 约束。
-- [ ] G3: 非 Hashable 键类型（如普通 class 或 List）触发确定性结构化诊断。
-- [ ] G4: 正确识别 `mapOf()`、`mutableMapOf()` 构造器及 `size`、`put`、`get`、`remove` 操作的签名与类型规则。
-- [ ] G5: Copyable `V` 支持 `V?` 查询，MoveOnly `V` 按值查询被正确拦截。
-- [ ] G6: 全套 Rust 尺寸护栏（`check_rust_sizes.py`）及所有文档门禁 100% 绿灯。
+- [x] G1: Guide v0.41 §12 正式启用 `Map` 与 `MutableMap` 规范，冻结 M2B 方案 A 设计决定。
+- [x] G2: 前端正确识别 `Map<K, V>` 与 `MutableMap<K, V>` 类型引用，精准校验 2 个类型实参及 `K: Hashable` 约束。
+- [x] G3: 非 Hashable 键类型（如普通 class 或 List）触发确定性结构化诊断（L0161）。
+- [x] G4: 正确识别 `mapOf()`、`mutableMapOf()` 构造器及 `size`、`put`、`get`、`remove` 操作的签名与类型规则。
+- [x] G5: Copyable `V` 支持 `V?` 查询，MoveOnly `V` 按值查询被正确拦截（L0136）。
+- [x] G6: 全套 Rust 尺寸护栏（`check_rust_sizes.py`）及所有文档门禁 100% 绿灯。
 
 ## 6. 验证记录
 
 - **Phase 1 (规范与拓扑)**:
-  - 待运行：拓扑与文档门禁。
+  - 运行 `python3 scripts/check_docs.py`，全绿通过（commit `54fc531`）。
 - **Phase 2 (前端实现)**:
-  - 待运行：编译检查。
+  - 运行 `cargo check --workspace`，全工作区无警告编译通过。
+  - 审阅并更新 `scripts/rust-size-policy.json`，确保无未受控超限。
 - **Phase 3 (测试与门禁)**:
-  - 待运行：单元测试，`clippy`，`fmt`，`check_rust_sizes`。
+  - 新增专用集成测试文件 `crates/lang-frontend/tests/type_map.rs`（11 个场景全绿）；
+  - 运行 `cargo test -p lang-frontend`，整库所有测试及文档测试全绿通过；
+  - 运行 `cargo clippy --all-targets`，零警告通过；
+  - 运行 `cargo fmt --check`，格式规范检查通过；
+  - 运行 `python3 scripts/check_rust_sizes.py --base origin/main`，865 个 Rust 文件尺寸检查 100% 绿灯（commit `f1ec58f`）。
 - **Phase 4 (归档与 PR 闭环)**:
-  - 待运行：PR 创建、双宿主 CI 监控与合并。
+  - 归档本 Spec 至 `docs/archive/specs/0287-m2b-and-map-type-system.md`；
+  - 更新 active/archive README、`scripts/check_docs.py`，重建 DAG 拓扑；
+  - 提交 PR 并完成双宿主 CI 自动化验证闭环合入。
