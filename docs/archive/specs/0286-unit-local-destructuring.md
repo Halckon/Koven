@@ -1,10 +1,10 @@
 # SPEC-0286: 编译单元局部解构 SSA Lowering 与原生执行 (`val (a, b) = expr`)
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或评审编译单元局部解构 lowering 与原生执行时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：追溯编译单元局部解构 lowering 与原生执行设计与实现时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0286` |
 | 所属 Phase | Phase 4 SSA Lowering 与 native 原生运行验证 |
 | 语言规范 | 现行 [Guide v0.41](../../guide/README.md)；[集合与解构](../../guide/12-collections-destructuring.md) |
@@ -52,13 +52,14 @@ Koven v0.41 Guide §12 明确规范：
    - 递归降低右值 `initializer`，取得聚合的 SSA `ValueId`；
    - 解析各分量的 SSA 类型；
    - 根据 descriptor 的 `mode` 发射 `Operation::AggregateCopyExplode` 或 `Operation::AggregateExplode`；
+   - 若为 `DestructuringMode::Consume`，调用 `transfer_owned_expression` 转移源聚合所有权；
    - 将结果实体逐一存入 `self.bindings` 供后续局部变量引用；
    - 在 `crates/lang-codegen/src/ssa/unit_lower.rs` 中，将 `Statement::LocalDestructuring { initializer, .. }` 路由至 `self.lower_destructuring(statement, *initializer, span)`。
 2. **测试验证**：
    - SSA 单元测试：验证 multi-file 场景下生成合法的 `aggregate.copy_explode` 与 `aggregate.explode` 指令；
    - Native 运行测试：
-     - 多文件 `Pair(10, 20)` Copyable 解构原生运行验证；
-     - 多文件包含 MoveOnly 资源的 `value class` 解构原生运行验证，确认资源按需转移且在退出时正确逆序析构，无内存泄漏与双重释放。
+     - 多文件 `IntPair(10, 32)` Copyable 解构原生运行验证，正确计算并输出 `42`；
+     - 多文件包含 MoveOnly 资源的 `ResourcePair(Leaf("left"), Leaf("right"))` 解构原生运行验证，确认资源按需转移且在退出时正确逆序析构（先 `right` 后 `left`），经 `run_counted_allocations` 确认精确两次分配，零内存泄漏与双重释放。
 
 ## 4. 非目标
 
@@ -68,17 +69,24 @@ Koven v0.41 Guide §12 明确规范：
 
 ## 5. 验收标准
 
-- [ ] G1: 编译单元支持 Copyable `value class` 的局部解构，分量绑定正确，源值可继续使用。
-- [ ] G2: 编译单元支持 MoveOnly `value class` 的局部解构，源值原子消费，分量所有权移出并由新局部变量持有。
-- [ ] G3: MoveOnly 分量在作用域结束时恰好析构一次，验证端到端零内存泄漏与双重释放。
-- [ ] G4: 生成并通过类型完备的 SSA 指令（`aggregate.copy_explode` 与 `aggregate.explode`）。
-- [ ] G5: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
+- [x] G1: 编译单元支持 Copyable `value class` 的局部解构，分量绑定正确，源值可继续使用。
+- [x] G2: 编译单元支持 MoveOnly `value class` 的局部解构，源值原子消费，分量所有权移出并由新局部变量持有。
+- [x] G3: MoveOnly 分量在作用域结束时恰好析构一次，验证端到端零内存泄漏与双重释放。
+- [x] G4: 生成并通过类型完备的 SSA 指令（`aggregate.copy_explode` 与 `aggregate.explode`）。
+- [x] G5: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
 
 ## 6. 验证记录
 
 - **Phase 1 (规范与拓扑)**:
   - 产物：`docs/specs/active/0286-unit-local-destructuring.md`，更新拓扑并运行 `check_docs.py` 通过。
 - **Phase 2 (SSA Lowering 实现)**:
-  - 待运行：编译检查。
+  - 修改 `crates/lang-codegen/src/ssa/unit_lower/aggregate.rs`，实现 `lower_destructuring`；
+  - 修改 `crates/lang-codegen/src/ssa/unit_lower.rs`，分派 `Statement::LocalDestructuring`。
+  - `cargo check -p lang-codegen` 0 警告通过。
 - **Phase 3 (测试与门禁)**:
-  - 待运行：SSA 与 Native 单元测试，`cargo clippy`，`cargo fmt`，`check_rust_sizes.py`。
+  - SSA 测试：`cargo test -p lang-codegen --lib -- lowers_compilation_unit_copyable_and_move_only_destructuring` 通过；
+  - Native 测试：`cargo test -p lang-codegen --lib -- unit_destructuring_native_move_only_and_copyable_execution` 在 `constants = false` 与 `constants = true` 下均执行通过且内存统计精确为 2 次无泄漏；
+  - 套件测试：`cargo test -p lang-codegen --lib -- resource_deinit_tests` 33 项全绿；
+  - 门禁：`check_rust_sizes.py` 100% 绿灯；`cargo clippy --all-targets` 零告警通过；`cargo fmt --check` 通过。
+- **Phase 4 (归档与 PR 闭环)**:
+  - 归档至 `docs/archive/specs/0286-unit-local-destructuring.md`。

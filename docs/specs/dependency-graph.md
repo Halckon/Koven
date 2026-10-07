@@ -8,16 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 272 份"))
-subgraph Gactive["现行 active"]
-  S0286["S0286<br/>编译单元局部解构 SSA Lowering 与原生执行 (val (a, b) = expr)"]
-end
-ARCH --> S0286
+ARCH(("已完成<br/>archive 273 份"))
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0286 | active | [0286-unit-local-destructuring.md](active/0286-unit-local-destructuring.md) |
-| 已完成 Spec（272 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（273 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

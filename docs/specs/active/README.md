@@ -2,8 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active：
-- [0286](0286-unit-local-destructuring.md)：编译单元局部解构 SSA Lowering 与原生执行
+当前 0 份 active。
+
+0286（编译单元局部解构 SSA Lowering 与原生执行）已按双宿主实现验收归档至 `docs/archive/specs/0286-unit-local-destructuring.md`。
 
 0285（`MutableList.insertAt` 元素指定索引插入与向后平移扩容）已按双宿主实现验收归档至 `docs/archive/specs/0285-mutable-list-insert-at.md`。
 

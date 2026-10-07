@@ -1,14 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="7328" height="7666" viewBox="0 0 7328 7666" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="6984" height="7666" viewBox="0 0 6984 7666" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="7328" height="7666" fill="#ffffff"/>
-  <rect x="40" y="30" width="6880" height="7408" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3480" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，272 份）</text>
-  <rect x="6984" y="7452" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="7124" y="7472" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <rect width="6984" height="7666" fill="#ffffff"/>
+  <rect x="40" y="30" width="6880" height="7564" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3480" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，273 份）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -994,7 +992,7 @@
   <path d="M 2028 6642 C 2028 6674, 180 6986, 180 7018" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 6642 C 2028 6674, 180 7142, 180 7174" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 6642 C 2028 6674, 180 7298, 180 7330" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 2148 6596 C 4576 6596, 4576 7532, 7004 7532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 2028 6642 C 2028 6674, 180 7454, 180 7486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 6798 C 708 6830, 708 6830, 708 6862" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 6798 C 708 6830, 180 6986, 180 7018" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 6798 C 708 6830, 180 7142, 180 7174" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1005,7 +1003,7 @@
   <path d="M 180 7110 C 180 7142, 180 7142, 180 7174" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 7110 C 180 7142, 180 7298, 180 7330" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 7266 C 180 7298, 180 7298, 180 7330" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 300 7376 C 3652 7376, 3652 7532, 7004 7532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 7422 C 180 7454, 180 7454, 180 7486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2146,9 +2144,9 @@
   <text x="180" y="7371" text-anchor="middle" font-size="13">MutableList 元素</text>
   <text x="180" y="7389" text-anchor="middle" font-size="13">指定索引插入与向后平移扩容 </text>
   <text x="180" y="7407" text-anchor="middle" font-size="13">(MutableList.…</text>
-  <rect x="7004" y="7486" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7124" y="7509" text-anchor="middle" font-size="13" font-weight="600">SPEC-0286</text>
-  <text x="7124" y="7527" text-anchor="middle" font-size="13">编译单元局部解构 SSA L</text>
-  <text x="7124" y="7545" text-anchor="middle" font-size="13">owering 与原生执行 </text>
-  <text x="7124" y="7563" text-anchor="middle" font-size="13">(val (a, b) =…</text>
+  <rect x="60" y="7486" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="180" y="7509" text-anchor="middle" font-size="13">SPEC-0286</text>
+  <text x="180" y="7527" text-anchor="middle" font-size="13">编译单元局部解构 SSA L</text>
+  <text x="180" y="7545" text-anchor="middle" font-size="13">owering 与原生执行 </text>
+  <text x="180" y="7563" text-anchor="middle" font-size="13">(val (a, b) =…</text>
 </svg>
