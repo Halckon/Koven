@@ -1,10 +1,10 @@
 # SPEC-0285: MutableList 元素指定索引插入与向后平移扩容 (`MutableList.insertAt`)
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或评审 MutableList 元素指定索引插入与向后平移扩容操作时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：追溯 MutableList 元素指定索引插入与向后平移扩容操作设计与实现时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0285` |
 | 所属 Phase | Phase 2 预声明成员识别；Phase 3 独占借用与元素所有权转移；Phase 4 SSA、边界检查、几何扩容、内存平移与 native 运行 |
 | 语言规范 | 现行 [Guide v0.41](../../guide/README.md)；[集合与解构](../../guide/12-collections-destructuring.md) |
@@ -81,21 +81,34 @@ Koven v0.41 Guide §12 明确规范：
 
 ## 5. 验收标准
 
-- [ ] G1: `MutableList<Int>.insertAt` 覆盖在头部（`index = 0`）、中间（`0 < index < size`）以及尾部（`index = size`）插入元素，验证列表元素顺序正确，`size` 递增。
-- [ ] G2: 当插入前 `size == capacity` 时（含从空列表 `capacity == 0` 开始连续插入），验证几何扩容正确执行，不丢失已存在元素且容量增长符合预期。
-- [ ] G3: `MutableList<Resource>.insertAt` 插入 MoveOnly 资源，验证资源所有权正确移入容器，容器退出时全部元素逆序析构，零内存泄漏与双重释放。
-- [ ] G4: 索引越界检查：对 `index < 0` 或 `index > size`（注意 `index == size` 合法）调用 `insertAt` 触发确定性运行时 abort。
-- [ ] G5: 借用冲突检查：在活跃元素借用期间调用 `.insertAt` 产生编译期 L0135 诊断。
-- [ ] G6: 针对 `Array` / `List` 调用 `.insertAt` 产生无效成员编译期诊断；错误参数数量或类型产生相应诊断。
-- [ ] G7: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
+- [x] G1: `MutableList<Int>.insertAt` 覆盖在头部（`index = 0`）、中间（`0 < index < size`）以及尾部（`index = size`）插入元素，验证列表元素顺序正确，`size` 递增。
+- [x] G2: 当插入前 `size == capacity` 时（含从空列表 `capacity == 0` 开始连续插入），验证几何扩容正确执行，不丢失已存在元素且容量增长符合预期。
+- [x] G3: `MutableList<Resource>.insertAt` 插入 MoveOnly 资源，验证资源所有权正确移入容器，容器退出时全部元素逆序析构，零内存泄漏与双重释放。
+- [x] G4: 索引越界检查：对 `index < 0` 或 `index > size`（注意 `index == size` 合法）调用 `insertAt` 触发确定性运行时 abort。
+- [x] G5: 借用冲突检查：在活跃元素借用期间调用 `.insertAt` 产生编译期 L0135 诊断。
+- [x] G6: 针对 `Array` / `List` 调用 `.insertAt` 产生无效成员编译期诊断；错误参数数量或类型产生相应诊断。
+- [x] G7: 双宿主（macOS arm64 / Linux x86_64）native 测试全绿，通过架构及尺寸门禁。
 
 ## 6. 验证记录
 
 - **Phase 1 (规范与拓扑)**:
+  - Commit: `ed2fd02`
   - 产物：`docs/specs/active/0285-mutable-list-insert-at.md`，更新拓扑并运行 `check_docs.py` 通过。
 - **Phase 2 (类型检查)**:
-  - 待运行：`cargo test -p lang-frontend --test type_containers`，`cargo test -p lang-frontend --test multifile_type_checking`。
+  - Commit: `43e49b3`
+  - 验证命令：
+    - `cargo test -p lang-frontend --test type_containers` -> 32 passed; 0 failed
+    - `cargo test -p lang-frontend --test multifile_type_checking` -> 144 passed; 0 failed
 - **Phase 3 (所有权检查)**:
-  - 待运行：`cargo test -p lang-frontend --test ownership_containers`。
+  - Commit: `b9306c0`
+  - 验证命令：
+    - `cargo test -p lang-frontend --test ownership_containers` -> 35 passed; 0 failed
 - **Phase 4 (SSA Lowering 与 Native 执行)**:
-  - 待运行：`cargo test -p lang-codegen`，`cargo clippy`，`cargo fmt`，`check_rust_sizes.py`。
+  - Commit: `283ba05`
+  - 验证命令：
+    - `cargo test -p lang-codegen mutable_list_insert_at` -> 2 passed; 0 failed
+    - `cargo test -p lang-codegen unit_container_insert_at` -> 4 passed; 0 failed
+    - `cargo test -p lang-codegen container` -> 136 passed; 0 failed
+    - `cargo clippy --all-targets` -> passed
+    - `cargo fmt --check` -> passed
+    - `python3 scripts/check_rust_sizes.py --base origin/main` -> passed
