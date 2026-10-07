@@ -1129,6 +1129,7 @@ pub struct TypedFile {
     pub(crate) container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
     pub(crate) container_insert_ats: Vec<ContainerInsertAtDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
+    pub(crate) map_descriptors: super::map_descriptor::MapDescriptors,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -1167,6 +1168,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
     pub(crate) container_insert_ats: Vec<ContainerInsertAtDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
+    pub(crate) map_descriptors: super::map_descriptor::MapDescriptors,
 }
 
 impl TypedFile {
@@ -1222,6 +1224,7 @@ impl TypedFile {
             container_remove_firsts: parts.container_remove_firsts,
             container_insert_ats: parts.container_insert_ats,
             element_places: parts.element_places,
+            map_descriptors: parts.map_descriptors,
             diagnostics,
         }
     }

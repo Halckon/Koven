@@ -176,6 +176,7 @@ struct Checker<'a> {
     container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
     container_insert_ats: Vec<ContainerInsertAtDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
+    pub(super) map_descriptors: super::map_descriptor::MapDescriptors,
     callables: Vec<CallableContext>,
     loop_depth: usize,
     candidate_local_expected: bool,
@@ -382,6 +383,7 @@ impl<'a> Checker<'a> {
             container_remove_firsts: Vec::new(),
             container_insert_ats: Vec::new(),
             element_places: Vec::new(),
+            map_descriptors: super::map_descriptor::MapDescriptors::default(),
             callables: Vec::new(),
             loop_depth: 0,
             candidate_local_expected: false,
@@ -570,6 +572,7 @@ impl<'a> Checker<'a> {
                 container_remove_firsts: self.container_remove_firsts,
                 container_insert_ats: self.container_insert_ats,
                 element_places: self.element_places,
+                map_descriptors: self.map_descriptors,
             },
             diagnostics,
         ))

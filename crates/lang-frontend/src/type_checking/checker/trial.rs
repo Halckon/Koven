@@ -55,6 +55,7 @@ pub(super) struct TrialState {
     container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
     container_insert_ats: Vec<ContainerInsertAtDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
+    map_descriptors: super::super::map_descriptor::MapDescriptors,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -93,6 +94,7 @@ impl Checker<'_> {
             container_remove_firsts: self.container_remove_firsts.clone(),
             container_insert_ats: self.container_insert_ats.clone(),
             element_places: self.element_places.clone(),
+            map_descriptors: self.map_descriptors.clone(),
             diagnostics: self.diagnostics.clone(),
         }
     }
@@ -130,6 +132,7 @@ impl Checker<'_> {
         self.container_remove_firsts = state.container_remove_firsts;
         self.container_insert_ats = state.container_insert_ats;
         self.element_places = state.element_places;
+        self.map_descriptors = state.map_descriptors;
         self.diagnostics = state.diagnostics;
     }
 }

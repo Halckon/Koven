@@ -95,11 +95,11 @@
       "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1639行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies.rs": {
-      "max_lines": 1380,
-      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。 SPEC-0280本轮：仅3行新增container_appends产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0281本轮：仅3行新增container_clears产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0282本轮：仅3行新增container_remove_ats产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0283本轮：仅3行新增container_remove_lasts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0284本轮：仅3行新增container_remove_firsts产物字段与构造传递，descriptor定义与方法已在container子模块。",
+      "max_lines": 1385,
+      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。 SPEC-0280本轮：仅3行新增container_appends产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0281本轮：仅3行新增container_clears产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0282本轮：仅3行新增container_remove_ats产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0283本轮：仅3行新增container_remove_lasts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0284本轮：仅3行新增container_remove_firsts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0288本轮：仅3行新增map_descriptors产物字段与构造传递，descriptor定义与方法收敛于独立map子模块。",
       "owner": "lang-frontend unit types",
       "split_plan": "后续按公开产物/调用描述职责拆分公开模型，保持跨crate接口。",
-      "review": "SPEC-0284独立完整审阅核对此次有界增长与既有职责；超过1380行或增加职责前重新审阅。"
+      "review": "SPEC-0288独立完整审阅核对此次有界增长与既有职责；超过1385行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": {
       "max_lines": 1226,

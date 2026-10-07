@@ -29,13 +29,14 @@ mod ownership_primitive;
 mod projection;
 mod rc;
 mod string;
+mod map;
 
 pub use checker::check_compilation_unit_types;
 pub(crate) use checker::copyability::UnitTransferability;
 pub use integer::*;
 pub use ownership_primitive::*;
 pub use {
-    assignment::*, container::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
+    assignment::*, container::*, map::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
     string::*,
 };
 
@@ -571,6 +572,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) container_remove_firsts: Vec<UnitContainerRemoveFirstDescriptor>,
     pub(crate) container_insert_ats: Vec<UnitContainerInsertAtDescriptor>,
     pub(crate) element_places: Vec<UnitElementPlaceDescriptor>,
+    pub(crate) map_descriptors: UnitMapDescriptors,
     pub(crate) nullable: UnitNullableFacts,
 }
 
@@ -619,6 +621,7 @@ pub struct CompilationUnitTypes {
     container_remove_firsts: Vec<UnitContainerRemoveFirstDescriptor>,
     container_insert_ats: Vec<UnitContainerInsertAtDescriptor>,
     element_places: Vec<UnitElementPlaceDescriptor>,
+    pub(crate) map_descriptors: UnitMapDescriptors,
     nullable: UnitNullableFacts,
     body_diagnostics: Vec<Diagnostic>,
     diagnostics: Vec<Diagnostic>,
@@ -684,6 +687,7 @@ impl CompilationUnitTypes {
             container_remove_firsts: parts.container_remove_firsts,
             container_insert_ats: parts.container_insert_ats,
             element_places: parts.element_places,
+            map_descriptors: parts.map_descriptors,
             nullable: parts.nullable,
             body_diagnostics,
             diagnostics,
