@@ -378,8 +378,9 @@ impl SignatureCollector<'_> {
                             }
                         }
                         UnitTypeParameterBound::Any
-                        | UnitTypeParameterBound::Capability(Capability::Copyable)
-                        | UnitTypeParameterBound::Capability(Capability::Transferable)
+                        | UnitTypeParameterBound::Capability(
+                            Capability::Copyable | Capability::Transferable | Capability::Hashable,
+                        )
                         | UnitTypeParameterBound::Error => {}
                     }
                 }

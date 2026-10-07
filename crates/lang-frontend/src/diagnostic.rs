@@ -174,6 +174,7 @@ pub mod codes {
     pub(crate) const INVALID_ITERATION_SOURCE: &str = "L0159";
     pub(crate) const INVALID_ITERATION_PATTERN: &str = "L0160";
     pub(crate) const CONSTANT_EVALUATION_FAILURE: &str = "L0158";
+    pub(crate) const HASHABLE_TYPE_ARGUMENT_BOUND: &str = "L0161";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -337,6 +338,7 @@ pub mod codes {
         CONSTANT_EVALUATION_FAILURE,
         INVALID_ITERATION_SOURCE,
         INVALID_ITERATION_PATTERN,
+        HASHABLE_TYPE_ARGUMENT_BOUND,
     ];
 
     /// 由集中定义创建生产错误码目录。

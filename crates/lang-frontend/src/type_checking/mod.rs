@@ -84,6 +84,12 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
                 .expect("the Transferable capability name must remain unique"),
             Capability::Transferable,
         ),
+        (
+            names
+                .declare_type("Hashable")
+                .expect("the Hashable capability name must remain unique"),
+            Capability::Hashable,
+        ),
     ];
     let intrinsics = [
         ("Box", IntrinsicTypeConstructor::Box),
@@ -91,6 +97,8 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
         ("Array", IntrinsicTypeConstructor::Array),
         ("List", IntrinsicTypeConstructor::List),
         ("MutableList", IntrinsicTypeConstructor::MutableList),
+        ("Map", IntrinsicTypeConstructor::Map),
+        ("MutableMap", IntrinsicTypeConstructor::MutableMap),
     ]
     .map(|(name, intrinsic)| {
         (
@@ -110,6 +118,8 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
         ("arrayOf", IntrinsicCallable::ArrayOf),
         ("listOf", IntrinsicCallable::ListOf),
         ("mutableListOf", IntrinsicCallable::MutableListOf),
+        ("mapOf", IntrinsicCallable::MapOf),
+        ("mutableMapOf", IntrinsicCallable::MutableMapOf),
         ("replace", IntrinsicCallable::Replace),
         ("swap", IntrinsicCallable::Swap),
     ]
@@ -221,16 +231,21 @@ mod tests {
         expected.extend([
             "Copyable",
             "Transferable",
+            "Hashable",
             "Box",
             "Rc",
             "Array",
             "List",
             "MutableList",
+            "Map",
+            "MutableMap",
             "error",
             "println",
             "arrayOf",
             "listOf",
             "mutableListOf",
+            "mapOf",
+            "mutableMapOf",
             "replace",
             "swap",
         ]);
@@ -280,12 +295,18 @@ mod tests {
             binding("Transferable"),
             &ExternalTypeBinding::Capability(Capability::Transferable)
         );
+        assert_eq!(
+            binding("Hashable"),
+            &ExternalTypeBinding::Capability(Capability::Hashable)
+        );
         for (name, intrinsic) in [
             ("Box", IntrinsicTypeConstructor::Box),
             ("Rc", IntrinsicTypeConstructor::Rc),
             ("Array", IntrinsicTypeConstructor::Array),
             ("List", IntrinsicTypeConstructor::List),
             ("MutableList", IntrinsicTypeConstructor::MutableList),
+            ("Map", IntrinsicTypeConstructor::Map),
+            ("MutableMap", IntrinsicTypeConstructor::MutableMap),
         ] {
             assert_eq!(binding(name), &ExternalTypeBinding::Intrinsic(intrinsic));
         }
@@ -293,6 +314,8 @@ mod tests {
             ("arrayOf", IntrinsicCallable::ArrayOf),
             ("listOf", IntrinsicCallable::ListOf),
             ("mutableListOf", IntrinsicCallable::MutableListOf),
+            ("mapOf", IntrinsicCallable::MapOf),
+            ("mutableMapOf", IntrinsicCallable::MutableMapOf),
             ("replace", IntrinsicCallable::Replace),
             ("swap", IntrinsicCallable::Swap),
         ] {

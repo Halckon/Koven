@@ -453,6 +453,13 @@ impl SignatureCollector<'_> {
                                 &mut BTreeSet::new(),
                                 invalid_inline,
                             ),
+                        UnitTypeParameterBound::Capability(Capability::Hashable) => {
+                            if self.is_hashable_type(argument) {
+                                CapabilityState::Yes
+                            } else {
+                                CapabilityState::No
+                            }
+                        }
                         _ => continue,
                     };
                     if state == CapabilityState::No {
@@ -478,6 +485,11 @@ impl SignatureCollector<'_> {
                     codes::TRANSFERABLE_TYPE_ARGUMENT_BOUND,
                     "type argument does not satisfy its Transferable bound",
                     "Transferable bound declared here",
+                ),
+                UnitTypeParameterBound::Capability(Capability::Hashable) => (
+                    codes::HASHABLE_TYPE_ARGUMENT_BOUND,
+                    "type argument does not satisfy its Hashable bound",
+                    "Hashable bound declared here",
                 ),
                 _ => continue,
             };
@@ -715,6 +727,20 @@ impl SignatureCollector<'_> {
         };
         active.remove(&nominal);
         result
+    }
+
+    fn is_hashable_type(&self, ty: UnitTypeId) -> bool {
+        match self.types.get(ty) {
+            Some(UnitTypeKind::Builtin(
+                BuiltinType::Int | BuiltinType::Boolean | BuiltinType::Char | BuiltinType::String,
+            )) => true,
+            Some(UnitTypeKind::TypeParameter(symbol)) => {
+                self.type_parameters.get(symbol).is_some_and(|parameter| {
+                    parameter.bound() == UnitTypeParameterBound::Capability(Capability::Hashable)
+                })
+            }
+            _ => false,
+        }
     }
 }
 

@@ -467,13 +467,55 @@ impl BodyChecker<'_> {
         constructor: IntrinsicTypeConstructor,
         arguments: Vec<UnitTypeId>,
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
-        if arguments.len() != 1 {
+        let expected_count = constructor.expected_type_argument_count();
+        if arguments.len() != expected_count {
             self.emit(
                 codes::TYPE_ARGUMENT_ARITY,
                 "intrinsic type has the wrong number of type arguments",
                 segment.name_span,
             )?;
             return Ok(self.error_type());
+        }
+        if expected_count == 2 {
+            let key = arguments[0];
+            let val = arguments[1];
+            if self.is_error(key) || self.is_error(val) {
+                return Ok(self.error_type());
+            }
+            if !self.is_hashable_type(key) {
+                let primary = self
+                    .file(source)
+                    .ast()
+                    .type_refs()
+                    .get(segment.arguments[0])
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                self.emit(
+                    codes::HASHABLE_TYPE_ARGUMENT_BOUND,
+                    "Map key type must be Hashable",
+                    primary,
+                )?;
+                return Ok(self.error_type());
+            }
+            if !self.is_structurally_storable_type(val) {
+                let primary = self
+                    .file(source)
+                    .ast()
+                    .type_refs()
+                    .get(segment.arguments[1])
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                self.emit(
+                    codes::INVALID_CONTAINER_ELEMENT,
+                    "container value type is not structurally storable",
+                    primary,
+                )?;
+                return Ok(self.error_type());
+            }
+            return Ok(self.signatures.types_mut().intern(UnitTypeKind::Intrinsic {
+                constructor,
+                arguments,
+            }));
         }
         let argument = arguments[0];
         if self.is_error(argument) {
@@ -499,6 +541,7 @@ impl BodyChecker<'_> {
                 | IntrinsicTypeConstructor::Rc,
                 _,
             ) => self.is_structurally_storable_type(argument),
+            (IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap, _) => false,
         };
         if !valid {
             let (code, message) = if constructor == IntrinsicTypeConstructor::Box {
@@ -571,6 +614,12 @@ impl BodyChecker<'_> {
                     codes::TRANSFERABLE_TYPE_ARGUMENT_BOUND,
                     "type argument does not satisfy its Transferable bound",
                     "Transferable bound declared here",
+                ),
+                UnitTypeParameterBound::Capability(Capability::Hashable) => (
+                    !self.is_hashable_type(argument),
+                    codes::HASHABLE_TYPE_ARGUMENT_BOUND,
+                    "type argument does not satisfy its Hashable bound",
+                    "Hashable bound declared here",
                 ),
                 UnitTypeParameterBound::Any | UnitTypeParameterBound::Error => continue,
             };
@@ -676,6 +725,24 @@ impl BodyChecker<'_> {
                 | UnitTypeKind::Deferred(_),
             )
             | None => false,
+        }
+    }
+
+    pub(super) fn is_hashable_type(&self, ty: UnitTypeId) -> bool {
+        match self.signatures.types().get(ty) {
+            Some(UnitTypeKind::Builtin(
+                crate::type_checking::BuiltinType::Int
+                | crate::type_checking::BuiltinType::Boolean
+                | crate::type_checking::BuiltinType::Char
+                | crate::type_checking::BuiltinType::String,
+            )) => true,
+            Some(UnitTypeKind::TypeParameter(parameter)) => self
+                .signatures
+                .type_parameter(*parameter)
+                .is_some_and(|desc| {
+                    desc.bound() == UnitTypeParameterBound::Capability(Capability::Hashable)
+                }),
+            _ => false,
         }
     }
 

@@ -37,6 +37,7 @@ pub(super) enum BoundFailureKind {
     Interface,
     Copyable,
     Transferable,
+    Hashable,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -66,6 +67,7 @@ impl Checker<'_> {
             TypeParameterBound::Capability(Capability::Transferable) => {
                 self.transferability_of(actual) == Transferability::Transferable
             }
+            TypeParameterBound::Capability(Capability::Hashable) => self.is_hashable_type(actual),
         })
     }
 
@@ -198,6 +200,9 @@ impl Checker<'_> {
                     (self.transferability_of(actual) != Transferability::Transferable)
                         .then_some(BoundFailureKind::Transferable)
                 }
+                TypeParameterBound::Capability(Capability::Hashable) => {
+                    (!self.is_hashable_type(actual)).then_some(BoundFailureKind::Hashable)
+                }
             };
             if let Some(kind) = kind {
                 return Ok(Err(InstantiationFailure::Bound {
@@ -266,6 +271,10 @@ impl Checker<'_> {
                     BoundFailureKind::Transferable => (
                         self.transferable_type_argument_bound_code,
                         "type argument does not satisfy its Transferable bound",
+                    ),
+                    BoundFailureKind::Hashable => (
+                        self.hashable_type_argument_bound_code,
+                        "type argument does not satisfy its Hashable bound",
                     ),
                 };
                 self.emit_with_label(
@@ -339,7 +348,9 @@ impl Checker<'_> {
                     IntrinsicTypeConstructor::Box
                     | IntrinsicTypeConstructor::Array
                     | IntrinsicTypeConstructor::List
-                    | IntrinsicTypeConstructor::MutableList,
+                    | IntrinsicTypeConstructor::MutableList
+                    | IntrinsicTypeConstructor::Map
+                    | IntrinsicTypeConstructor::MutableMap,
                 arguments,
             } => arguments
                 .iter()
@@ -371,7 +382,7 @@ impl Checker<'_> {
                     Some(
                         TypeParameterBound::Any
                         | TypeParameterBound::Interface(_)
-                        | TypeParameterBound::Capability(Capability::Copyable),
+                        | TypeParameterBound::Capability(Capability::Copyable | Capability::Hashable),
                     )
                     | None => Transferability::NotTransferable,
                 }

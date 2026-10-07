@@ -35,6 +35,11 @@ impl BodyChecker<'_> {
             operator_span,
             value,
         } = assignment;
+        if let Some(result) =
+            self.check_map_assignment(source, target, operator, operator_span, value, return_type)?
+        {
+            return Ok(result);
+        }
         if let Some(result) = self.check_container_assignment(
             source,
             target,

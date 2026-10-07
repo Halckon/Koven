@@ -14,6 +14,7 @@ mod item;
 mod iteration;
 mod layout;
 mod literal;
+mod map;
 mod members;
 mod nominal;
 mod ownership_primitives;
@@ -229,6 +230,7 @@ struct Checker<'a> {
     invalid_construction_target_code: DiagnosticCode,
     construction_inference_code: DiagnosticCode,
     transferable_type_argument_bound_code: DiagnosticCode,
+    hashable_type_argument_bound_code: DiagnosticCode,
     invalid_iteration_source_code: DiagnosticCode,
     invalid_iteration_pattern_code: DiagnosticCode,
     invalid_container_element_code: DiagnosticCode,
@@ -440,6 +442,8 @@ impl<'a> Checker<'a> {
             construction_inference_code: catalog.resolve(codes::CONSTRUCTION_INFERENCE)?,
             transferable_type_argument_bound_code: catalog
                 .resolve(codes::TRANSFERABLE_TYPE_ARGUMENT_BOUND)?,
+            hashable_type_argument_bound_code: catalog
+                .resolve(codes::HASHABLE_TYPE_ARGUMENT_BOUND)?,
             invalid_iteration_source_code: catalog.resolve(codes::INVALID_ITERATION_SOURCE)?,
             invalid_iteration_pattern_code: catalog.resolve(codes::INVALID_ITERATION_PATTERN)?,
             invalid_container_element_code: catalog.resolve(codes::INVALID_CONTAINER_ELEMENT)?,
@@ -759,25 +763,29 @@ impl<'a> Checker<'a> {
             TypeKind::Intrinsic {
                 constructor,
                 arguments,
-            } => format!(
-                "{}<{}>",
-                match constructor {
+            } => {
+                let name = match constructor {
                     IntrinsicTypeConstructor::Box => "Box",
                     IntrinsicTypeConstructor::Rc => "Rc",
                     IntrinsicTypeConstructor::Array => "Array",
                     IntrinsicTypeConstructor::List => "List",
                     IntrinsicTypeConstructor::MutableList => "MutableList",
-                },
-                arguments
-                    .first()
+                    IntrinsicTypeConstructor::Map => "Map",
+                    IntrinsicTypeConstructor::MutableMap => "MutableMap",
+                };
+                let args = arguments
+                    .iter()
                     .map(|argument| self.type_name(*argument))
-                    .unwrap_or_else(|| "<missing>".to_owned())
-            ),
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{name}<{args}>")
+            }
             TypeKind::EnumCase { case, .. } => format!("enum-case#{}", case.index()),
             TypeKind::TypeParameter(symbol) => format!("type-parameter#{}", symbol.index()),
             TypeKind::StaticSelf(interface) => format!("Self<{}>", self.type_name(*interface)),
             TypeKind::Capability(Capability::Copyable) => "Copyable".to_owned(),
             TypeKind::Capability(Capability::Transferable) => "Transferable".to_owned(),
+            TypeKind::Capability(Capability::Hashable) => "Hashable".to_owned(),
             TypeKind::IntegerLiteral(_) => "integer literal".to_owned(),
             TypeKind::Error => "<error>".to_owned(),
             TypeKind::Deferred(reason) => format!("<deferred:{reason:?}>"),

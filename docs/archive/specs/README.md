@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 273 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 274 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -410,5 +410,8 @@
 - [SPEC-0285](0285-mutable-list-insert-at.md)：MutableList 元素指定索引插入与向后平移扩容；在单文件与多文件编译单元两入口完整交付，通过前端类型/独占借用/ASAP drop 检查、SSA ContainerInsertAt 原语与 verifier、LLVM 边界检查 abort 与几何扩容、memmove 向后平移及 MoveOnly 元素所有权转移 zero-leak 验证。
  
 - [SPEC-0286](0286-unit-local-destructuring.md)：编译单元局部解构 SSA Lowering 与原生执行；消除 compilation unit 下对 `Statement::LocalDestructuring` 的 `UnsupportedNode` 限制，消费 `UnitDestructuringDescriptor`，分别发射 `AggregateCopyExplode` 与 `AggregateExplode`，完整支持 Copyable 与 MoveOnly 资源的解构、变量绑定与零泄漏生命周期析构验证。
+ 
+- [SPEC-0287](0287-m2b-and-map-type-system.md)：M2B 通用借用合同冻结与 Map 键值容器类型系统基础；在 Guide v0.41 §12 启用 Map/MutableMap 规范并冻结 M2B 方案 A 借用合同，实现 Hashable capability、双类型实参 IntrinsicTypeConstructor、mapOf/mutableMapOf 工厂函数与单文件/编译单元 Map 类型系统检查（size/get/contains/put/remove 与下标读写脱糖），通过全套类型与 MoveOnly 借用保护门禁。
+
 
 

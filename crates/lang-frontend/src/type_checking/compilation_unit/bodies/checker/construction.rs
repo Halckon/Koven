@@ -627,6 +627,12 @@ impl BodyChecker<'_> {
                             "constructor type argument does not satisfy its Transferable bound",
                         ))
                 }
+                UnitTypeParameterBound::Capability(Capability::Hashable) => {
+                    (!self.is_hashable_type(actual)).then_some((
+                        codes::HASHABLE_TYPE_ARGUMENT_BOUND,
+                        "constructor type argument does not satisfy its Hashable bound",
+                    ))
+                }
             };
             if let Some((code, message)) = failure {
                 self.emit_maybe_label(

@@ -33,6 +33,7 @@ struct ContainerCall<'a> {
 enum Target {
     ListForm(SequentialContainerKind),
     Named(SequentialContainerKind),
+    Map(IntrinsicCallable),
 }
 
 struct CheckedConstruction {
@@ -58,6 +59,17 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
         let Some(target) = self.container_target(source, callee)? else {
+            if let Some(map_method) = self.check_map_method_call(
+                source,
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+                return_type,
+            )? {
+                return Ok(Some(map_method));
+            }
             if let Some(append) = self.check_container_append_call(
                 source,
                 expression,
@@ -135,6 +147,19 @@ impl BodyChecker<'_> {
             return_type,
         };
         match target {
+            Target::Map(callable) => self
+                .check_map_construction_call(
+                    source,
+                    expression,
+                    call_span,
+                    callee,
+                    callable,
+                    type_arguments,
+                    arguments,
+                    expected,
+                    return_type,
+                )
+                .map(Some),
             Target::ListForm(kind) => self.check_list_form_construction(call, kind).map(Some),
             Target::Named(kind) => self
                 .check_named_container_construction(call, kind)
@@ -159,13 +184,16 @@ impl BodyChecker<'_> {
         let span = node.span();
         let value_target = self.reference(source, span, Namespace::Value);
         if let Some(callable) = self.intrinsic_container_callable(value_target) {
-            let kind = match callable {
-                IntrinsicCallable::ArrayOf => SequentialContainerKind::Array,
-                IntrinsicCallable::ListOf => SequentialContainerKind::List,
-                IntrinsicCallable::MutableListOf => SequentialContainerKind::MutableList,
+            let target = match callable {
+                IntrinsicCallable::ArrayOf => Target::ListForm(SequentialContainerKind::Array),
+                IntrinsicCallable::ListOf => Target::ListForm(SequentialContainerKind::List),
+                IntrinsicCallable::MutableListOf => {
+                    Target::ListForm(SequentialContainerKind::MutableList)
+                }
+                IntrinsicCallable::MapOf | IntrinsicCallable::MutableMapOf => Target::Map(callable),
                 IntrinsicCallable::Replace | IntrinsicCallable::Swap => return Ok(None),
             };
-            return Ok(Some(Target::ListForm(kind)));
+            return Ok(Some(target));
         }
         if !matches!(value_target, None | Some(UnitReferenceTarget::Unresolved)) {
             return Ok(None);
@@ -527,7 +555,10 @@ impl BodyChecker<'_> {
             IntrinsicTypeConstructor::Array => Some(SequentialContainerKind::Array),
             IntrinsicTypeConstructor::List => Some(SequentialContainerKind::List),
             IntrinsicTypeConstructor::MutableList => Some(SequentialContainerKind::MutableList),
-            IntrinsicTypeConstructor::Box | IntrinsicTypeConstructor::Rc => None,
+            IntrinsicTypeConstructor::Box
+            | IntrinsicTypeConstructor::Rc
+            | IntrinsicTypeConstructor::Map
+            | IntrinsicTypeConstructor::MutableMap => None,
         }
     }
 

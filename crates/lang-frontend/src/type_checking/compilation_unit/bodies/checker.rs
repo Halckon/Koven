@@ -41,6 +41,7 @@ mod integer;
 mod iteration;
 mod lambda;
 mod literals;
+mod map;
 mod members;
 mod nullable;
 mod operators;
@@ -827,7 +828,20 @@ impl<'a> BodyChecker<'a> {
                 return_type,
             )?,
             Expression::Index { receiver, index } => {
-                self.check_container_index(source, expression, receiver, index, return_type)?
+                let receiver_result =
+                    self.check_expression(source, receiver, None, None, return_type)?;
+                if let Some(map_res) = self.check_map_index(
+                    source,
+                    expression,
+                    receiver,
+                    receiver_result,
+                    index,
+                    return_type,
+                )? {
+                    map_res
+                } else {
+                    self.check_container_index(source, expression, receiver, index, return_type)?
+                }
             }
         };
         if let Some(expected) = expected
@@ -1099,7 +1113,7 @@ impl<'a> BodyChecker<'a> {
         Ok(())
     }
 
-    fn emit_maybe_label(
+    pub(super) fn emit_maybe_label(
         &mut self,
         code: &str,
         message: &str,
