@@ -6,7 +6,8 @@ Proposal 本身不修改现行 v0.41、不批准 Spec，也不代表实现优先
 已移入 guide，剩余候选仍未启用；普通开发任务不要读取本目录。
 
 - [通用借用访问结果（M2B）](general-borrow-access-results.md)
-- [借用结果声明与类型合同比较](borrow-access-contract-comparison.md)
+- [M2B 首片设计冻结：方案 A、Missing/binding/copy/Inout 边界](borrow-access-first-slice-decision.md)
+- [借用结果声明与类型合同比较（A/B 取舍记录）](borrow-access-contract-comparison.md)
 - [Map / MutableMap 所有权候选](map-ownership.md)
 - [v2 interface 值与动态分发](v2-interface-values-and-dynamic-dispatch.md)
 - [String Copyable 候选取舍](string-copyability.md)
@@ -37,7 +38,7 @@ Map 其它 owned 查询、v2 interface 值  -->  不依赖上述视图链
 | 显式 clone() | 无 | 仅 String 切片已进入 v0.40；通用 clone 等仍为候选 |
 | String Copyable | 无 | 候选结论：保持 `MoveOnly` |
 | 集合算法所有权 | 受限扩展函数、`View<T>` intrinsic、clone() | 候选设计已成形 |
-| 通用借用访问结果（M2B） | 真实程序需求、语法审查与 Guide 明确启用 | 未启用；字段/List/Map 及用户 API 共用来源核心 |
+| 通用借用访问结果（M2B） | 真实程序需求、ADR/Spec、语法审查与 Guide 明确启用 | 首片设计已冻结为 A；Missing/binding/copy/Inout 边界已定，但语义仍未启用 |
 | Map / MutableMap 所有权 | 新增借用结果依赖 M2B；其它查询按所选合同 | 历史候选；新决定须先重基 |
 | v2 interface 值与动态分发 | 无 | 独立候选 |
 
