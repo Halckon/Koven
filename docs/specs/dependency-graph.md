@@ -9,10 +9,15 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 273 份"))
+subgraph Gactive["现行 active"]
+  S0287["S0287<br/>M2B 通用借用合同冻结与 Map 键值容器类型系统基础 (Map&lt;K, V&gt; / MutableMap&lt;K, V&gt;)"]
+end
+ARCH --> S0287
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0287 | active | [0287-m2b-and-map-type-system.md](active/0287-m2b-and-map-type-system.md) |
 | 已完成 Spec（273 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

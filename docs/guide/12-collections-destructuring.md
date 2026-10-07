@@ -186,9 +186,31 @@ v1 不提供顺序容器 `getOrNull`。当前类型系统既不能用普通 `T?`
 | `List<T>` | 运行时长度，只读 | `list[i]` 越界触发 `error()` | 显式检查 `i in 0..<list.size` |
 | `MutableList<T>` | 可增删，元素可替换 | `list[i]` / `list[i] = v` 越界触发 `error()` | 显式检查 `i in 0..<list.size` |
 
-### `Map` / `MutableMap` 边界
+### `Map` / `MutableMap` 键值容器所有权规范
 
-`Map` / `MutableMap` 不属于 v0.37 的可实施语义；顺序容器规则不得外推到键值容器。仅在评审未来 Map 设计时按需读取[非规范候选](../proposals/map-ownership.md)。
+`Map<K, V>` 与 `MutableMap<K, V>` 是编译器预声明的独占 owning 键值映射容器。
+
+1. **键能力与等价约束 (`Hashable`)**：
+   - 键类型 `K` 必须满足内建 capability `Hashable`；
+   - 标量与内建类型 `Int`、`Boolean`、`Char`、`String` 内建满足 `Hashable`；
+   - `Hashable` 与 `Copyable` 正交：`String` 虽为 `MoveOnly`，仍可稳定按其 UTF-8 字节进行确定性哈希与相等比较；
+   - 普通 `class`、`Box<T>`、`Rc<T>` 默认不满足 `Hashable`。
+2. **容器角色与所有权**：
+   - `Map<K, V>` 是构造后大小确定、只读的独占 owning 容器；
+   - `MutableMap<K, V>` 是支持条目插入、覆盖与删除的可变独占 owning 容器；
+   - 容器自身唯一拥有其底层哈希表与条目存储，因此不满足 `Copyable`；
+   - 两者均预声明只读属性 `size: Int`；
+   - 预声明工厂函数：`mapOf()`、`mutableMapOf()`。
+3. **查询语义与借用访问 (对齐 M2B 合同)**：
+   - 下标查询 `map[key]` 自动按 `Borrow` 模式借用 `key`，不消费调用者的键；
+   - 当 `V` 满足 `Copyable` 时，返回复制的 `V?`（若键不存在则返回 `null`）；
+   - 当 `V` 为 `MoveOnly` 时，按值下标查询在 Phase 2 拒绝（防止非法移出容器内部值），须采用声明端 `borrow V from map` 的借用查询合同（对齐 M2B 方案 A 通用借用访问）；
+   - 包含性检查：`key in map` 或 `map.contains(key)` 返回 `Boolean`。
+4. **修改语义**：
+   - `mutableMap.put(key, value)`：取得 `key` 与 `value` 的所有权（`own` 契约）；若覆盖旧条目，旧键与旧值各自就地精确析构一次；
+   - `mutableMap[key] = value`：为 `put(key, value)` 的下标语法糖；
+   - `mutableMap.remove(key)`：Borrow `key` 定位并移出条目，按值交付 `value`，被移出的 `key` 精确析构；
+   - 变异操作要求 receiver 具有独占 Inout 权限，并在存在活跃借用时报告借用冲突。
 
 ### 分配、禁止的隐式表示与 codegen 优化
 
