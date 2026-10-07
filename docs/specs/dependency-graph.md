@@ -9,10 +9,15 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 274 份"))
+subgraph Gactive["现行 active"]
+  S0288["S0288<br/>Map 键值容器原生执行基础（SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）"]
+end
+ARCH --> S0288
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0288 | active | [0288-map-native-execution.md](active/0288-map-native-execution.md) |
 | 已完成 Spec（274 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

@@ -284,6 +284,9 @@ subgraph Garchive["已完成（archive，274 份）"]
   S0286["S0286<br/>编译单元局部解构 SSA Lowering 与原生执行 (val (a, b) = expr)"]
   S0287["S0287<br/>M2B 通用借用合同冻结与 Map 键值容器类型系统基础 (Map&lt;K, V&gt; / MutableMap&lt;K, V&gt;)"]
 end
+subgraph Gactive["现行 active"]
+  S0288["S0288<br/>Map 键值容器原生执行基础（SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1282,6 +1285,7 @@ S0283 --> S0285
 S0284 --> S0285
 S0285 --> S0286
 S0286 --> S0287
+S0287 --> S0288
 ```
 
 ## 节点链接
@@ -1562,3 +1566,4 @@ S0286 --> S0287
 | SPEC-0285 | archive | [0285-mutable-list-insert-at.md](0285-mutable-list-insert-at.md) |
 | SPEC-0286 | archive | [0286-unit-local-destructuring.md](0286-unit-local-destructuring.md) |
 | SPEC-0287 | archive | [0287-m2b-and-map-type-system.md](0287-m2b-and-map-type-system.md) |
+| SPEC-0288 | active | [0288-map-native-execution.md](../../specs/active/0288-map-native-execution.md) |
