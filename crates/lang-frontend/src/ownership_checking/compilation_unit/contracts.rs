@@ -184,6 +184,30 @@ pub(super) fn collect_call_receiver_contracts(
             None,
         ));
     }
+    for insert_at in typed.container_insert_ats() {
+        let call_id = insert_at.expression();
+        let parsed = parsed_for_call(inputs, names, call_id)?;
+        let call_node = parsed.ast().expressions().get(call_id.expression())?;
+        let receiver_expr = insert_at.receiver();
+        let receiver_span = parsed
+            .ast()
+            .expressions()
+            .get(receiver_expr.expression())?
+            .span();
+        contracts.push(UnitCallReceiverOwnershipContract::new(
+            call_id,
+            UnitCallTarget::FunctionValue,
+            UnitCallReceiverOrigin::Expression(receiver_expr),
+            insert_at.container_type(),
+            typed
+                .expression_category(receiver_expr)
+                .unwrap_or(ExpressionCategory::Place),
+            ownership_kind(ParameterMode::Inout),
+            receiver_span,
+            call_node.span(),
+            None,
+        ));
+    }
     contracts.sort_by_key(|contract| {
         (
             contract.call().source_unit().index(),
@@ -340,6 +364,60 @@ pub(super) fn collect_call_argument_contracts(
             call_span: call_node.span(),
             parameter_span: None,
             loan_begin_span: index_span,
+        });
+    }
+    for insert_at in typed.container_insert_ats() {
+        let call_id = insert_at.expression();
+        if !seen_calls.insert(call_id) {
+            return Err(invalid_unit_call(call_id));
+        }
+        let parsed = parsed_for_call(inputs, names, call_id)?;
+        let call_node = parsed.ast().expressions().get(call_id.expression())?;
+        let index_expr = insert_at.index();
+        let index_span = parsed
+            .ast()
+            .expressions()
+            .get(index_expr.expression())?
+            .span();
+        let int = typed
+            .types()
+            .builtin(BuiltinType::Int)
+            .ok_or_else(|| invalid_unit_call(call_id))?;
+        contracts.push(UnitCallArgumentOwnershipContract {
+            call: call_id,
+            argument: index_expr,
+            parameter_index: 0,
+            parameter_type: int,
+            category: typed
+                .expression_category(index_expr)
+                .unwrap_or(ExpressionCategory::Temporary),
+            kind: ownership_kind(ParameterMode::Value),
+            crosses_thread: false,
+            argument_span: index_span,
+            call_span: call_node.span(),
+            parameter_span: None,
+            loan_begin_span: index_span,
+        });
+        let element_expr = insert_at.element();
+        let element_span = parsed
+            .ast()
+            .expressions()
+            .get(element_expr.expression())?
+            .span();
+        contracts.push(UnitCallArgumentOwnershipContract {
+            call: call_id,
+            argument: element_expr,
+            parameter_index: 1,
+            parameter_type: insert_at.element_type(),
+            category: typed
+                .expression_category(element_expr)
+                .unwrap_or(ExpressionCategory::Temporary),
+            kind: ownership_kind(ParameterMode::Value),
+            crosses_thread: false,
+            argument_span: element_span,
+            call_span: call_node.span(),
+            parameter_span: None,
+            loan_begin_span: element_span,
         });
     }
     contracts.sort_by_key(|contract| {

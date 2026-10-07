@@ -837,3 +837,47 @@ fn mutable_list_remove_first_rejects_use_after_move() {
     );
     assert_eq!(codes(owned.diagnostics()), ["L0131"]);
 }
+
+#[test]
+fn mutable_list_insert_at_valid_ownership_succeeds() {
+    let (_, _, owned) = checked(
+        "class Resource { deinit() {} }\n\
+         fun insert_resource(): Unit {\n\
+             var list = mutableListOf(Resource())\n\
+             list.insertAt(0, Resource())\n\
+         }",
+    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+}
+
+#[test]
+fn mutable_list_insert_at_conflicts_with_active_element_borrow() {
+    let (_, _, owned) = checked(
+        "fun conflict(inout item: Int, action: Unit): Unit {}\n\
+         fun insert_conflict(): Unit {\n\
+             var list = mutableListOf(1, 2)\n\
+             conflict(&list[0], list.insertAt(0, 42))\n\
+         }",
+    );
+    assert_eq!(
+        owned
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0135"]
+    );
+}
+
+#[test]
+fn mutable_list_insert_at_rejects_use_after_move() {
+    let (_, _, owned) = checked(
+        "fun consume(own l: MutableList<Int>): Unit {}\n\
+         fun insert_moved(own list: MutableList<Int>): Unit {\n\
+             consume(list)\n\
+             list.insertAt(0, 42)\n\
+         }",
+    );
+    assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+}
+
