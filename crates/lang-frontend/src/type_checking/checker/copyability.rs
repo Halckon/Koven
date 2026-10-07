@@ -64,7 +64,9 @@ impl Checker<'_> {
                     Some(
                         TypeParameterBound::Any
                         | TypeParameterBound::Interface(_)
-                        | TypeParameterBound::Capability(Capability::Transferable),
+                        | TypeParameterBound::Capability(
+                            Capability::Transferable | Capability::Hashable,
+                        ),
                     )
                     | None => Copyability::MoveOnly,
                 }

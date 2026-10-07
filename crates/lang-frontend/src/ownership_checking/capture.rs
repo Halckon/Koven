@@ -313,7 +313,9 @@ impl<'a> TransferabilityEvaluator<'a> {
                     IntrinsicTypeConstructor::Box
                     | IntrinsicTypeConstructor::Array
                     | IntrinsicTypeConstructor::List
-                    | IntrinsicTypeConstructor::MutableList,
+                    | IntrinsicTypeConstructor::MutableList
+                    | IntrinsicTypeConstructor::Map
+                    | IntrinsicTypeConstructor::MutableMap,
                 arguments,
             } => arguments
                 .iter()
@@ -341,7 +343,7 @@ impl<'a> TransferabilityEvaluator<'a> {
                     Some(
                         TypeParameterBound::Any
                         | TypeParameterBound::Interface(_)
-                        | TypeParameterBound::Capability(Capability::Copyable),
+                        | TypeParameterBound::Capability(Capability::Copyable | Capability::Hashable),
                     )
                     | None => Transferability::NotTransferable,
                 }

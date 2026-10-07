@@ -40,6 +40,7 @@ pub(super) enum UnitBoundFailureKind {
     Interface,
     Copyable,
     Transferable,
+    Hashable,
 }
 
 impl BodyChecker<'_> {
@@ -192,6 +193,9 @@ impl BodyChecker<'_> {
                     (self.transferability_of(actual) != UnitTransferability::Transferable)
                         .then_some(UnitBoundFailureKind::Transferable)
                 }
+                UnitTypeParameterBound::Capability(Capability::Hashable) => {
+                    (!self.is_hashable_type(actual)).then_some(UnitBoundFailureKind::Hashable)
+                }
             };
             if let Some(kind) = kind {
                 return Ok(Err(UnitInstantiationFailure::Bound {
@@ -260,6 +264,10 @@ impl BodyChecker<'_> {
                     UnitBoundFailureKind::Transferable => (
                         codes::TRANSFERABLE_TYPE_ARGUMENT_BOUND,
                         "type argument does not satisfy its Transferable bound",
+                    ),
+                    UnitBoundFailureKind::Hashable => (
+                        codes::HASHABLE_TYPE_ARGUMENT_BOUND,
+                        "type argument does not satisfy its Hashable bound",
                     ),
                 };
                 self.emit_maybe_label(

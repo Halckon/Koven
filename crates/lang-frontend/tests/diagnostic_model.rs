@@ -123,6 +123,7 @@ fn production_catalog_contains_exactly_the_published_frontend_codes() {
         "L0131", "L0132", "L0133", "L0134", "L0135", "L0136", "L0137", "L0138", "L0139", "L0140",
         "L0141", "L0142", "L0143", "L0144", "L0145", "L0146", "L0147", "L0148", "L0149", "L0150",
         "L0151", "L0152", "L0153", "L0154", "L0155", "L0156", "L0157", "L0158", "L0159", "L0160",
+        "L0161",
     ];
     let catalog = codes::catalog().expect("the checked-in production catalog must be valid");
 

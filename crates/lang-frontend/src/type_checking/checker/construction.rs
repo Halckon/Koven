@@ -378,6 +378,10 @@ impl Checker<'_> {
                         self.transferable_type_argument_bound_code,
                         "constructor type argument does not satisfy its Transferable bound",
                     ),
+                    TypeParameterBound::Capability(Capability::Hashable) => (
+                        self.hashable_type_argument_bound_code,
+                        "constructor type argument does not satisfy its Hashable bound",
+                    ),
                     TypeParameterBound::Any
                     | TypeParameterBound::Interface(_)
                     | TypeParameterBound::Error => (

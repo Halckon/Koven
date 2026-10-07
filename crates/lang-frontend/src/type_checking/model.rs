@@ -553,6 +553,8 @@ pub enum Capability {
     Copyable,
     /// Value can be transferred across threads.
     Transferable,
+    /// Value can be hashed and compared for map key equivalence.
+    Hashable,
 }
 
 /// 由类型环境显式绑定、不能由源码同名声明冒充的内建类型构造器。
@@ -568,6 +570,21 @@ pub enum IntrinsicTypeConstructor {
     List,
     /// Growable sequential owner.
     MutableList,
+    /// Read-only associative key-value owner.
+    Map,
+    /// Growable associative key-value owner.
+    MutableMap,
+}
+
+impl IntrinsicTypeConstructor {
+    /// 期望的泛型类型实参数量。
+    #[must_use]
+    pub const fn expected_type_argument_count(self) -> usize {
+        match self {
+            Self::Box | Self::Rc | Self::Array | Self::List | Self::MutableList => 1,
+            Self::Map | Self::MutableMap => 2,
+        }
+    }
 }
 
 /// 一个规范化类型在当前静态上下文中的复制能力。

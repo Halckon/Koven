@@ -828,7 +828,7 @@ impl<'a> SignatureCollector<'a> {
                 }
             }
             Some(ExternalTypeBinding::Intrinsic(constructor)) => {
-                if arguments.len() == 1 {
+                if arguments.len() == constructor.expected_type_argument_count() {
                     Ok(self.types.intern(UnitTypeKind::Intrinsic {
                         constructor,
                         arguments,

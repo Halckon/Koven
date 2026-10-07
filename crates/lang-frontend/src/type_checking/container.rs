@@ -11,6 +11,10 @@ pub enum IntrinsicCallable {
     ListOf,
     /// `mutableListOf(...)`.
     MutableListOf,
+    /// `mapOf(...)`.
+    MapOf,
+    /// `mutableMapOf(...)`.
+    MutableMapOf,
     /// `replace(&place, val)`.
     Replace,
     /// `swap(&a, &b)`.

@@ -204,13 +204,43 @@ impl Checker<'_> {
         segment: &TypePathSegment,
         constructor: IntrinsicTypeConstructor,
     ) -> Result<TypeId, TypeCheckingError> {
-        if segment.arguments.len() != 1 {
+        let expected_count = constructor.expected_type_argument_count();
+        if segment.arguments.len() != expected_count {
             self.emit(
                 self.type_argument_arity_code,
                 "intrinsic type has the wrong number of type arguments",
                 segment.name_span,
             )?;
             return Ok(self.error_type());
+        }
+        if expected_count == 2 {
+            let key_ref = segment.arguments[0];
+            let value_ref = segment.arguments[1];
+            let key_type = self.resolve_type_ref(key_ref)?;
+            let value_type = self.resolve_type_ref(value_ref)?;
+            if self.is_error(key_type) || self.is_error(value_type) {
+                return Ok(self.error_type());
+            }
+            if !self.is_hashable_type(key_type) {
+                self.emit(
+                    self.hashable_type_argument_bound_code,
+                    "Map key type must be Hashable",
+                    self.ast().type_refs().get(key_ref)?.span(),
+                )?;
+                return Ok(self.error_type());
+            }
+            if !self.is_structurally_storable_type(value_type) {
+                self.emit(
+                    self.invalid_container_element_code,
+                    "container value type is not structurally storable",
+                    self.ast().type_refs().get(value_ref)?.span(),
+                )?;
+                return Ok(self.error_type());
+            }
+            return Ok(self.types.intern(TypeKind::Intrinsic {
+                constructor,
+                arguments: vec![key_type, value_type],
+            }));
         }
         let argument_ref = segment.arguments[0];
         let argument = self.resolve_type_ref(argument_ref)?;
@@ -235,6 +265,7 @@ impl Checker<'_> {
                 | IntrinsicTypeConstructor::Rc,
                 _,
             ) => self.is_structurally_storable_type(argument),
+            (IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap, _) => false,
         };
         if !valid {
             let (code, message) = if constructor == IntrinsicTypeConstructor::Box {

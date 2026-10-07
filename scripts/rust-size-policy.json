@@ -165,18 +165,18 @@
       "review": "SPEC-0274独立完整审阅核对此次有界增长与既有职责；超过1206行或增加职责前重新审阅。 SPEC-0279独立复核 gate、canonical身份、mode/arity/strong move/named负例；新精确上限1207，超出或新增职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/checker/container.rs": {
-      "max_lines": 1155,
-      "reason": "SPEC-0283本轮：为MutableList.removeLast添加成员访问拦截与无参调用类型检查，增加约85行；算法与clear/removeAt在同子模块收敛，不为单个成员接线机械切片旧container类型检查器。 SPEC-0284本轮：为MutableList.removeFirst添加成员访问拦截与无参调用类型检查，增加约76行；算法与removeLast在同子模块收敛，不为单个成员接线机械切片旧container类型检查器。 SPEC-0285本轮：为MutableList.insertAt添加成员访问拦截与二元调用类型检查，经通用方法预检helper抽取后净增7行；算法在同子模块收敛，不为单个成员接线机械切片旧container类型检查器。",
+      "max_lines": 1180,
+      "reason": "SPEC-0283本轮：为MutableList.removeLast添加成员访问拦截与无参调用类型检查，增加约85行；算法与clear/removeAt在同子模块收敛，不为单个成员接线机械切片旧container类型检查器。 SPEC-0284本轮：为MutableList.removeFirst添加成员访问拦截与无参调用类型检查，增加约76行；算法与removeLast在同子模块收敛，不为单个成员接线机械切片旧container类型检查器。 SPEC-0285本轮：为MutableList.insertAt添加成员访问拦截与二元调用类型检查，经通用方法预检helper抽取后净增7行；算法在同子模块收敛，不为单个成员接线机械切片旧container类型检查器。 SPEC-0287本轮：Map/MutableMap构造、成员属性、方法与下标委托挂接净增约28行，实际算法完全独立收敛于map.rs子模块。",
       "owner": "lang-frontend single type container",
       "split_plan": "后续按容器构造、下标与修改方法等领域职责拆分子模块，保持与compilation_unit对称。",
-      "review": "SPEC-0285独立完整审阅核对MutableList.insertAt类型检查与1155行精确增长；超过1155行或增加职责前重新审阅。"
+      "review": "SPEC-0287独立完整审阅核对Map与MutableMap在container.rs的微量委托接线，锁定1180行；超过1180行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/model.rs": {
-      "max_lines": 1535,
-      "reason": "保留SPEC-0274的descriptor查询入口；SPEC-0279仅增加6行复用canonical核心的只读find，未加入新的类型生产逻辑。 SPEC-0280本轮：仅4行新增container_appends字段与构造传递，不增加类型检查算法。 SPEC-0281本轮：仅3行新增container_clears字段与构造传递，不增加类型检查算法。 SPEC-0282本轮：仅3行新增container_remove_ats字段与构造传递，不增加类型检查算法。 SPEC-0283本轮：仅4行新增container_remove_lasts字段与构造传递，不增加类型检查算法。 SPEC-0284本轮：仅3行新增container_remove_firsts字段与构造传递，不增加类型检查算法。 SPEC-0285本轮：仅3行新增container_insert_ats字段与构造传递，不增加类型检查算法。",
+      "max_lines": 1555,
+      "reason": "保留SPEC-0274的descriptor查询入口；SPEC-0279仅增加6行复用canonical核心的只读find，未加入新的类型生产逻辑。 SPEC-0280本轮：仅4行新增container_appends字段与构造传递，不增加类型检查算法。 SPEC-0281本轮：仅3行新增container_clears字段与构造传递，不增加类型检查算法。 SPEC-0282本轮：仅3行新增container_remove_ats字段与构造传递，不增加类型检查算法。 SPEC-0283本轮：仅4行新增container_remove_lasts字段与构造传递，不增加类型检查算法。 SPEC-0284本轮：仅3行新增container_remove_firsts字段与构造传递，不增加类型检查算法。 SPEC-0285本轮：仅3行新增container_insert_ats字段与构造传递，不增加类型检查算法。 SPEC-0287本轮：新增Capability::Hashable与IntrinsicTypeConstructor::{Map, MutableMap}及其实参数量辅助方法，净增约15行，不增加类型检查算法。",
       "owner": "lang-frontend single type model",
       "split_plan": "后续完整迁移typed产物查询接口，保持type identity与trial合同。",
-      "review": "SPEC-0285独立完整审阅核对container_insert_ats与1535行精确增长；超过1535行或增加职责前重新审阅。"
+      "review": "SPEC-0287独立完整审阅核对Map与MutableMap类型构造器与Hashable能力扩展，锁定1555行；超过1555行或增加职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/model.rs": {
       "max_lines": 1395,

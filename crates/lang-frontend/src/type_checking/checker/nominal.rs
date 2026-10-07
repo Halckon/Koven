@@ -541,6 +541,17 @@ impl Checker<'_> {
                             )?;
                         }
                     }
+                    TypeParameterBound::Capability(Capability::Hashable) => {
+                        if !self.is_hashable_type(argument) {
+                            self.emit_with_label(
+                                self.hashable_type_argument_bound_code,
+                                "type argument does not satisfy its Hashable bound",
+                                self.ast().type_refs().get(segment.arguments[index])?.span(),
+                                self.symbol_spans[parameter.symbol().index()],
+                                "Hashable bound declared here",
+                            )?;
+                        }
+                    }
                     TypeParameterBound::Any
                     | TypeParameterBound::Capability(Capability::Transferable)
                     | TypeParameterBound::Error => {}

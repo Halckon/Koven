@@ -12,12 +12,12 @@ use crate::{
 use super::*;
 
 #[derive(Clone, Copy)]
-struct ContainerCall<'a> {
-    expression: ExpressionId,
-    callee: ExpressionId,
-    span: Span,
-    type_arguments: &'a [TypeRefId],
-    arguments: &'a [CallArgument],
+pub(super) struct ContainerCall<'a> {
+    pub(super) expression: ExpressionId,
+    pub(super) callee: ExpressionId,
+    pub(super) span: Span,
+    pub(super) type_arguments: &'a [TypeRefId],
+    pub(super) arguments: &'a [CallArgument],
 }
 
 struct CheckedConstruction {
@@ -47,6 +47,15 @@ impl Checker<'_> {
         };
         let callee_node = self.ast().expressions().get(callee)?;
         if !matches!(callee_node.payload(), Expression::Name) {
+            if let Some(res) = self.check_map_method_call(
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+            )? {
+                return Ok(Some(res));
+            }
             if let Some(res) = self.check_container_append_call(
                 expression,
                 call_span,
@@ -123,6 +132,11 @@ impl Checker<'_> {
                 IntrinsicCallable::ArrayOf => SequentialContainerKind::Array,
                 IntrinsicCallable::ListOf => SequentialContainerKind::List,
                 IntrinsicCallable::MutableListOf => SequentialContainerKind::MutableList,
+                IntrinsicCallable::MapOf | IntrinsicCallable::MutableMapOf => {
+                    return self
+                        .check_map_construction_call(call, callable, expected)
+                        .map(Some);
+                }
                 IntrinsicCallable::Replace | IntrinsicCallable::Swap => return Ok(None),
             };
             return self
@@ -443,6 +457,9 @@ impl Checker<'_> {
         index: ExpressionId,
     ) -> Result<ExprCheck, TypeCheckingError> {
         let receiver_result = self.check_expression(receiver, None, None)?;
+        if let Some(res) = self.check_map_index(expression, receiver, receiver_result, index)? {
+            return Ok(res);
+        }
         let Some((container, element)) = self.container_parts(receiver_result.ty) else {
             self.check_expression(index, None, None)?;
             return Ok(ExprCheck {
@@ -494,6 +511,9 @@ impl Checker<'_> {
         operator_span: Span,
         value: ExpressionId,
     ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        if let Some(res) = self.check_map_assignment(target, operator, operator_span, value)? {
+            return Ok(Some(res));
+        }
         self.check_expression(target, None, None)?;
         if let Some(place) = self.element_place_for_expression(target) {
             let mut valid = place.is_mutable();
@@ -546,6 +566,11 @@ impl Checker<'_> {
         name: &str,
         name_span: Span,
     ) -> Result<Option<TypeId>, TypeCheckingError> {
+        if let Some(res) =
+            self.check_map_member_type(expression, receiver_expression, receiver, name, name_span)?
+        {
+            return Ok(Some(res));
+        }
         let Some((container, element)) = self.container_parts(receiver) else {
             return Ok(None);
         };
@@ -656,7 +681,10 @@ impl Checker<'_> {
             IntrinsicTypeConstructor::Array => Some(SequentialContainerKind::Array),
             IntrinsicTypeConstructor::List => Some(SequentialContainerKind::List),
             IntrinsicTypeConstructor::MutableList => Some(SequentialContainerKind::MutableList),
-            IntrinsicTypeConstructor::Box | IntrinsicTypeConstructor::Rc => None,
+            IntrinsicTypeConstructor::Box
+            | IntrinsicTypeConstructor::Rc
+            | IntrinsicTypeConstructor::Map
+            | IntrinsicTypeConstructor::MutableMap => None,
         }
     }
 
