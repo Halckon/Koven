@@ -573,3 +573,60 @@ fn container_remove_first_rejects_arguments() {
     let (_sources, _parsed, _names, typed) = checked(text);
     assert_eq!(codes(typed.diagnostics()), ["L0121"]);
 }
+
+#[test]
+fn mutable_list_insert_at_member_is_typed() {
+    let text = "fun insert(own list: MutableList<Int>): Unit { list.insertAt(0, 42) }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(typed.container_insert_ats().len(), 1);
+    let insert_at = typed.container_insert_ats()[0];
+    assert_eq!(
+        typed.types().get(insert_at.result_type()),
+        Some(&lang_frontend::type_checking::TypeKind::Builtin(
+            lang_frontend::type_checking::BuiltinType::Unit
+        ))
+    );
+    assert_eq!(
+        typed.container_insert_at(insert_at.expression()),
+        Some(insert_at)
+    );
+}
+
+#[test]
+fn container_insert_at_rejects_array_and_list() {
+    let text = "fun bad(array: Array<Int>, list: List<Int>): Unit {\n\
+                    array.insertAt(0, 1)\n\
+                    list.insertAt(0, 1)\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0130", "L0130"]);
+}
+
+#[test]
+fn container_insert_at_rejects_property_access() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    val f = list.insertAt\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0130"]);
+}
+
+#[test]
+fn container_insert_at_rejects_mismatched_element_type() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    list.insertAt(0, \"hello\")\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+}
+
+#[test]
+fn container_insert_at_rejects_mismatched_index_type() {
+    let text = "fun bad(own list: MutableList<Int>): Unit {\n\
+                    list.insertAt(\"zero\", 42)\n\
+                }";
+    let (_sources, _parsed, _names, typed) = checked(text);
+    assert_eq!(codes(typed.diagnostics()), ["L0084"]);
+}
+

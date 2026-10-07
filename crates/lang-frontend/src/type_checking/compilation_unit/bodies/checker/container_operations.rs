@@ -11,6 +11,7 @@ use crate::{
         SequentialContainerKind, TypeCheckingError, UnitContainerAppendDescriptor,
         UnitContainerClearDescriptor, UnitContainerRemoveAtDescriptor,
         UnitContainerRemoveFirstDescriptor, UnitContainerRemoveLastDescriptor,
+        UnitContainerInsertAtDescriptor,
         UnitContainerSizeDescriptor, UnitElementPlaceDescriptor, UnitExpressionId,
         UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, map_arguments},
@@ -209,39 +210,10 @@ impl BodyChecker<'_> {
             }
             return Ok(Some(self.error_type()));
         }
-        if name == "clear" {
-            if container == SequentialContainerKind::MutableList {
-                self.emit(
-                    codes::INVALID_CONTAINER_MEMBER,
-                    "MutableList.clear must be called as a method",
-                    name_span,
-                )?;
-            } else {
-                self.emit(
-                    codes::INVALID_CONTAINER_MEMBER,
-                    "sequential container does not support 'clear'",
-                    name_span,
-                )?;
-            }
-            return Ok(Some(self.error_type()));
-        }
-        if name == "removeAt" {
-            if container == SequentialContainerKind::MutableList {
-                self.emit(
-                    codes::INVALID_CONTAINER_MEMBER,
-                    "MutableList.removeAt must be called as a method",
-                    name_span,
-                )?;
-            } else {
-                self.emit(
-                    codes::INVALID_CONTAINER_MEMBER,
-                    "sequential container does not support 'removeAt'",
-                    name_span,
-                )?;
-            }
-            return Ok(Some(self.error_type()));
-        }
-        if name == "removeLast" || name == "removeFirst" {
+        if matches!(
+            name,
+            "add" | "clear" | "removeAt" | "removeLast" | "removeFirst" | "insertAt"
+        ) {
             if container == SequentialContainerKind::MutableList {
                 self.emit(
                     codes::INVALID_CONTAINER_MEMBER,
@@ -360,407 +332,15 @@ impl BodyChecker<'_> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_container_append_call(
+    fn prepare_mutable_list_method_call(
         &mut self,
         source: SourceUnitId,
-        expression: ExpressionId,
-        call_span: Span,
         callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-        return_type: UnitTypeId,
-    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
-        let Expression::Member {
-            receiver,
-            name_span,
-            safe,
-            ..
-        } = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(callee)
-            .map_err(TypeCheckingError::from)?
-            .payload()
-            .clone()
-        else {
-            return Ok(None);
-        };
-        if safe
-            || self
-                .sources
-                .slice(name_span)
-                .map_err(TypeCheckingError::from)?
-                != "add"
-        {
-            return Ok(None);
-        }
-        let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
-        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
-            return Ok(None);
-        };
-        if container != SequentialContainerKind::MutableList {
-            self.emit(
-                codes::INVALID_CONTAINER_MEMBER,
-                "sequential container does not support 'add'",
-                name_span,
-            )?;
-            self.check_call_arguments_without_expected(source, arguments, return_type)?;
-            return Ok(Some(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        if !type_arguments.is_empty() {
-            self.emit(
-                codes::TYPE_ARGUMENT_ARITY,
-                "MutableList.add accepts no type arguments",
-                name_span,
-            )?;
-            self.check_call_arguments_without_expected(source, arguments, return_type)?;
-            return Ok(Some(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        let parameters = [MappedParameter {
-            name: None,
-            mode: ParameterMode::Value,
-            ty: element_type,
-            span: None,
-        }];
-        match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
-            Ok(false)
-        })? {
-            Ok(_) => {}
-            Err(error) => {
-                self.emit_mapping_error(error)?;
-                self.check_call_arguments_without_expected(source, arguments, return_type)?;
-                return Ok(Some(ExpressionCheck {
-                    ty: self.error_type(),
-                    falls_through: receiver_result.falls_through,
-                }));
-            }
-        }
-        let element_arg = &arguments[0];
-        let element_result = self.check_expression(
-            source,
-            element_arg.value,
-            Some(element_type),
-            None,
-            return_type,
-        )?;
-        if !self.is_error(element_result.ty)
-            && !self.is_deferred(element_result.ty)
-            && !self.assignable(element_result.ty, element_type)
-        {
-            let primary = self
-                .file(source)
-                .ast()
-                .expressions()
-                .get(element_arg.value)
-                .map_err(TypeCheckingError::from)?
-                .span();
-            self.emit_maybe_label(
-                codes::TYPE_MISMATCH,
-                "expression type does not match the expected type",
-                primary,
-                None,
-                format!(
-                    "expected {}, found {}",
-                    self.type_name(element_type),
-                    self.type_name(element_result.ty)
-                ),
-            )?;
-        }
-        let unit_type = self.builtin(BuiltinType::Unit);
-        let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
-            move_only: false,
-            parameters: vec![UnitFunctionParameterType::new(
-                ParameterMode::Value,
-                element_type,
-            )],
-            return_type: unit_type,
-        });
-        self.record_expression(source, callee, function);
-        self.parts.expression_categories.insert(
-            UnitExpressionId::new(source, callee),
-            ExpressionCategory::Temporary,
-        );
-        self.parts
-            .container_appends
-            .push(UnitContainerAppendDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
-                UnitExpressionId::new(source, element_arg.value),
-                receiver_result.ty,
-                element_type,
-                unit_type,
-                call_span,
-            ));
-        Ok(Some(ExpressionCheck {
-            ty: unit_type,
-            falls_through: receiver_result.falls_through && element_result.falls_through,
-        }))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_container_clear_call(
-        &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        call_span: Span,
-        callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-        return_type: UnitTypeId,
-    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
-        let Expression::Member {
-            receiver,
-            name_span,
-            safe,
-            ..
-        } = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(callee)
-            .map_err(TypeCheckingError::from)?
-            .payload()
-            .clone()
-        else {
-            return Ok(None);
-        };
-        if safe
-            || self
-                .sources
-                .slice(name_span)
-                .map_err(TypeCheckingError::from)?
-                != "clear"
-        {
-            return Ok(None);
-        }
-        let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
-        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
-            return Ok(None);
-        };
-        if container != SequentialContainerKind::MutableList {
-            self.emit(
-                codes::INVALID_CONTAINER_MEMBER,
-                "sequential container does not support 'clear'",
-                name_span,
-            )?;
-            self.check_call_arguments_without_expected(source, arguments, return_type)?;
-            return Ok(Some(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        if !type_arguments.is_empty() {
-            self.emit(
-                codes::TYPE_ARGUMENT_ARITY,
-                "MutableList.clear accepts no type arguments",
-                name_span,
-            )?;
-            self.check_call_arguments_without_expected(source, arguments, return_type)?;
-            return Ok(Some(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        let parameters: [MappedParameter<UnitTypeId>; 0] = [];
-        match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
-            Ok(false)
-        })? {
-            Ok(_) => {}
-            Err(error) => {
-                self.emit_mapping_error(error)?;
-                self.check_call_arguments_without_expected(source, arguments, return_type)?;
-                return Ok(Some(ExpressionCheck {
-                    ty: self.error_type(),
-                    falls_through: receiver_result.falls_through,
-                }));
-            }
-        }
-        let unit_type = self.builtin(BuiltinType::Unit);
-        let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
-            move_only: false,
-            parameters: Vec::new(),
-            return_type: unit_type,
-        });
-        self.record_expression(source, callee, function);
-        self.parts.expression_categories.insert(
-            UnitExpressionId::new(source, callee),
-            ExpressionCategory::Temporary,
-        );
-        self.parts
-            .container_clears
-            .push(UnitContainerClearDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
-                receiver_result.ty,
-                element_type,
-                unit_type,
-                call_span,
-            ));
-        Ok(Some(ExpressionCheck {
-            ty: unit_type,
-            falls_through: receiver_result.falls_through,
-        }))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_container_remove_at_call(
-        &mut self,
-        source: SourceUnitId,
-        expression: ExpressionId,
-        call_span: Span,
-        callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-        return_type: UnitTypeId,
-    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
-        let Expression::Member {
-            receiver,
-            name_span,
-            safe,
-            ..
-        } = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(callee)
-            .map_err(TypeCheckingError::from)?
-            .payload()
-            .clone()
-        else {
-            return Ok(None);
-        };
-        if safe
-            || self
-                .sources
-                .slice(name_span)
-                .map_err(TypeCheckingError::from)?
-                != "removeAt"
-        {
-            return Ok(None);
-        }
-        let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
-        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
-            return Ok(None);
-        };
-        if container != SequentialContainerKind::MutableList {
-            self.emit(
-                codes::INVALID_CONTAINER_MEMBER,
-                "sequential container does not support 'removeAt'",
-                name_span,
-            )?;
-            self.check_call_arguments_without_expected(source, arguments, return_type)?;
-            return Ok(Some(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        if !type_arguments.is_empty() {
-            self.emit(
-                codes::TYPE_ARGUMENT_ARITY,
-                "MutableList.removeAt accepts no type arguments",
-                name_span,
-            )?;
-            self.check_call_arguments_without_expected(source, arguments, return_type)?;
-            return Ok(Some(ExpressionCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        let int_type = self.builtin(BuiltinType::Int);
-        let parameters = [MappedParameter {
-            name: None,
-            mode: ParameterMode::Value,
-            ty: int_type,
-            span: None,
-        }];
-        match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
-            Ok(false)
-        })? {
-            Ok(_) => {}
-            Err(error) => {
-                self.emit_mapping_error(error)?;
-                self.check_call_arguments_without_expected(source, arguments, return_type)?;
-                return Ok(Some(ExpressionCheck {
-                    ty: self.error_type(),
-                    falls_through: receiver_result.falls_through,
-                }));
-            }
-        }
-        let index_arg = &arguments[0];
-        let index_result =
-            self.check_expression(source, index_arg.value, Some(int_type), None, return_type)?;
-        if !self.is_error(index_result.ty)
-            && !self.is_deferred(index_result.ty)
-            && !self.assignable(index_result.ty, int_type)
-        {
-            let primary = self
-                .file(source)
-                .ast()
-                .expressions()
-                .get(index_arg.value)
-                .map_err(TypeCheckingError::from)?
-                .span();
-            self.emit_maybe_label(
-                codes::TYPE_MISMATCH,
-                "expression type does not match the expected type",
-                primary,
-                None,
-                format!(
-                    "expected {}, found {}",
-                    self.type_name(int_type),
-                    self.type_name(index_result.ty)
-                ),
-            )?;
-        }
-        let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
-            move_only: false,
-            parameters: vec![UnitFunctionParameterType::new(
-                ParameterMode::Value,
-                int_type,
-            )],
-            return_type: element_type,
-        });
-        self.record_expression(source, callee, function);
-        self.parts.expression_categories.insert(
-            UnitExpressionId::new(source, callee),
-            ExpressionCategory::Temporary,
-        );
-        self.parts
-            .container_remove_ats
-            .push(UnitContainerRemoveAtDescriptor::new(
-                UnitExpressionId::new(source, expression),
-                UnitExpressionId::new(source, receiver),
-                UnitExpressionId::new(source, index_arg.value),
-                receiver_result.ty,
-                element_type,
-                element_type,
-                call_span,
-            ));
-        Ok(Some(ExpressionCheck {
-            ty: element_type,
-            falls_through: receiver_result.falls_through && index_result.falls_through,
-        }))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn check_container_endpoint_removal_call(
-        &mut self,
-        source: SourceUnitId,
-        call_span: Span,
-        callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-        return_type: UnitTypeId,
         expected_name: &'static str,
-    ) -> Result<Option<(ExpressionId, UnitTypeId, UnitTypeId, bool)>, CompilationUnitTypeError>
-    {
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<Option<(ExpressionId, UnitTypeId, UnitTypeId, bool)>, CompilationUnitTypeError> {
         let Expression::Member {
             receiver,
             name_span,
@@ -818,6 +398,326 @@ impl BodyChecker<'_> {
                 receiver_result.falls_through,
             )));
         }
+        Ok(Some((
+            receiver,
+            receiver_result.ty,
+            element_type,
+            receiver_result.falls_through,
+        )))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_container_append_call(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let Some((receiver, receiver_type, element_type, falls_through)) = self
+            .prepare_mutable_list_method_call(
+                source,
+                callee,
+                "add",
+                type_arguments,
+                arguments,
+                return_type,
+            )?
+        else {
+            return Ok(None);
+        };
+        if receiver_type == self.error_type() {
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let parameters = [MappedParameter {
+            name: None,
+            mode: ParameterMode::Value,
+            ty: element_type,
+            span: None,
+        }];
+        match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
+            Ok(false)
+        })? {
+            Ok(_) => {}
+            Err(error) => {
+                self.emit_mapping_error(error)?;
+                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                return Ok(Some(ExpressionCheck {
+                    ty: self.error_type(),
+                    falls_through,
+                }));
+            }
+        }
+        let element_arg = &arguments[0];
+        let element_result = self.check_expression(
+            source,
+            element_arg.value,
+            Some(element_type),
+            None,
+            return_type,
+        )?;
+        if !self.is_error(element_result.ty)
+            && !self.is_deferred(element_result.ty)
+            && !self.assignable(element_result.ty, element_type)
+        {
+            let primary = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(element_arg.value)
+                .map_err(TypeCheckingError::from)?
+                .span();
+            self.emit_maybe_label(
+                codes::TYPE_MISMATCH,
+                "expression type does not match the expected type",
+                primary,
+                None,
+                format!(
+                    "expected {}, found {}",
+                    self.type_name(element_type),
+                    self.type_name(element_result.ty)
+                ),
+            )?;
+        }
+        let unit_type = self.builtin(BuiltinType::Unit);
+        let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
+            move_only: false,
+            parameters: vec![UnitFunctionParameterType::new(
+                ParameterMode::Value,
+                element_type,
+            )],
+            return_type: unit_type,
+        });
+        self.record_expression(source, callee, function);
+        self.parts.expression_categories.insert(
+            UnitExpressionId::new(source, callee),
+            ExpressionCategory::Temporary,
+        );
+        self.parts
+            .container_appends
+            .push(UnitContainerAppendDescriptor::new(
+                UnitExpressionId::new(source, expression),
+                UnitExpressionId::new(source, receiver),
+                UnitExpressionId::new(source, element_arg.value),
+                receiver_type,
+                element_type,
+                unit_type,
+                call_span,
+            ));
+        Ok(Some(ExpressionCheck {
+            ty: unit_type,
+            falls_through: falls_through && element_result.falls_through,
+        }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_container_clear_call(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let Some((receiver, receiver_type, element_type, falls_through)) = self
+            .prepare_mutable_list_method_call(
+                source,
+                callee,
+                "clear",
+                type_arguments,
+                arguments,
+                return_type,
+            )?
+        else {
+            return Ok(None);
+        };
+        if receiver_type == self.error_type() {
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let parameters: [MappedParameter<UnitTypeId>; 0] = [];
+        match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
+            Ok(false)
+        })? {
+            Ok(_) => {}
+            Err(error) => {
+                self.emit_mapping_error(error)?;
+                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                return Ok(Some(ExpressionCheck {
+                    ty: self.error_type(),
+                    falls_through,
+                }));
+            }
+        }
+        let unit_type = self.builtin(BuiltinType::Unit);
+        let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
+            move_only: false,
+            parameters: Vec::new(),
+            return_type: unit_type,
+        });
+        self.record_expression(source, callee, function);
+        self.parts.expression_categories.insert(
+            UnitExpressionId::new(source, callee),
+            ExpressionCategory::Temporary,
+        );
+        self.parts
+            .container_clears
+            .push(UnitContainerClearDescriptor::new(
+                UnitExpressionId::new(source, expression),
+                UnitExpressionId::new(source, receiver),
+                receiver_type,
+                element_type,
+                unit_type,
+                call_span,
+            ));
+        Ok(Some(ExpressionCheck {
+            ty: unit_type,
+            falls_through,
+        }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_container_remove_at_call(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let Some((receiver, receiver_type, element_type, falls_through)) = self
+            .prepare_mutable_list_method_call(
+                source,
+                callee,
+                "removeAt",
+                type_arguments,
+                arguments,
+                return_type,
+            )?
+        else {
+            return Ok(None);
+        };
+        if receiver_type == self.error_type() {
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let int_type = self.builtin(BuiltinType::Int);
+        let parameters = [MappedParameter {
+            name: None,
+            mode: ParameterMode::Value,
+            ty: int_type,
+            span: None,
+        }];
+        match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
+            Ok(false)
+        })? {
+            Ok(_) => {}
+            Err(error) => {
+                self.emit_mapping_error(error)?;
+                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                return Ok(Some(ExpressionCheck {
+                    ty: self.error_type(),
+                    falls_through,
+                }));
+            }
+        }
+        let index_arg = &arguments[0];
+        let index_result =
+            self.check_expression(source, index_arg.value, Some(int_type), None, return_type)?;
+        if !self.is_error(index_result.ty)
+            && !self.is_deferred(index_result.ty)
+            && !self.assignable(index_result.ty, int_type)
+        {
+            let primary = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(index_arg.value)
+                .map_err(TypeCheckingError::from)?
+                .span();
+            self.emit_maybe_label(
+                codes::TYPE_MISMATCH,
+                "expression type does not match the expected type",
+                primary,
+                None,
+                format!(
+                    "expected {}, found {}",
+                    self.type_name(int_type),
+                    self.type_name(index_result.ty)
+                ),
+            )?;
+        }
+        let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
+            move_only: false,
+            parameters: vec![UnitFunctionParameterType::new(
+                ParameterMode::Value,
+                int_type,
+            )],
+            return_type: element_type,
+        });
+        self.record_expression(source, callee, function);
+        self.parts.expression_categories.insert(
+            UnitExpressionId::new(source, callee),
+            ExpressionCategory::Temporary,
+        );
+        self.parts
+            .container_remove_ats
+            .push(UnitContainerRemoveAtDescriptor::new(
+                UnitExpressionId::new(source, expression),
+                UnitExpressionId::new(source, receiver),
+                UnitExpressionId::new(source, index_arg.value),
+                receiver_type,
+                element_type,
+                element_type,
+                call_span,
+            ));
+        Ok(Some(ExpressionCheck {
+            ty: element_type,
+            falls_through: falls_through && index_result.falls_through,
+        }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn check_container_endpoint_removal_call(
+        &mut self,
+        source: SourceUnitId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+        expected_name: &'static str,
+    ) -> Result<Option<(ExpressionId, UnitTypeId, UnitTypeId, bool)>, CompilationUnitTypeError>
+    {
+        let Some((receiver, receiver_type, element_type, falls_through)) = self
+            .prepare_mutable_list_method_call(
+                source,
+                callee,
+                expected_name,
+                type_arguments,
+                arguments,
+                return_type,
+            )?
+        else {
+            return Ok(None);
+        };
+        if receiver_type == self.error_type() {
+            return Ok(Some((receiver, receiver_type, element_type, falls_through)));
+        }
         let parameters: [MappedParameter<UnitTypeId>; 0] = [];
         match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
             Ok(false)
@@ -830,7 +730,7 @@ impl BodyChecker<'_> {
                     receiver,
                     self.error_type(),
                     self.error_type(),
-                    receiver_result.falls_through,
+                    falls_through,
                 )));
             }
         }
@@ -846,9 +746,9 @@ impl BodyChecker<'_> {
         );
         Ok(Some((
             receiver,
-            receiver_result.ty,
+            receiver_type,
             element_type,
-            receiver_result.falls_through,
+            falls_through,
         )))
     }
 
@@ -933,6 +833,149 @@ impl BodyChecker<'_> {
         Ok(Some(ExpressionCheck {
             ty: element_type,
             falls_through,
+        }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_container_insert_at_call(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        return_type: UnitTypeId,
+    ) -> Result<Option<ExpressionCheck>, CompilationUnitTypeError> {
+        let Some((receiver, receiver_type, element_type, falls_through)) = self
+            .prepare_mutable_list_method_call(
+                source,
+                callee,
+                "insertAt",
+                type_arguments,
+                arguments,
+                return_type,
+            )?
+        else {
+            return Ok(None);
+        };
+        if receiver_type == self.error_type() {
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let int_type = self.builtin(BuiltinType::Int);
+        let parameters = [
+            MappedParameter {
+                name: None,
+                mode: ParameterMode::Value,
+                ty: int_type,
+                span: None,
+            },
+            MappedParameter {
+                name: None,
+                mode: ParameterMode::Value,
+                ty: element_type,
+                span: None,
+            },
+        ];
+        match map_arguments(self.sources, &parameters, arguments, call_span, |_| {
+            Ok(false)
+        })? {
+            Ok(_) => {}
+            Err(error) => {
+                self.emit_mapping_error(error)?;
+                self.check_call_arguments_without_expected(source, arguments, return_type)?;
+                return Ok(Some(ExpressionCheck {
+                    ty: self.error_type(),
+                    falls_through,
+                }));
+            }
+        }
+        let index_arg = &arguments[0];
+        let index_result =
+            self.check_expression(source, index_arg.value, Some(int_type), None, return_type)?;
+        if !self.is_error(index_result.ty)
+            && !self.is_deferred(index_result.ty)
+            && !self.assignable(index_result.ty, int_type)
+        {
+            let primary = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(index_arg.value)
+                .map_err(TypeCheckingError::from)?
+                .span();
+            self.emit_maybe_label(
+                codes::TYPE_MISMATCH,
+                "expression type does not match the expected type",
+                primary,
+                None,
+                format!(
+                    "expected {}, found {}",
+                    self.type_name(int_type),
+                    self.type_name(index_result.ty)
+                ),
+            )?;
+        }
+        let element_arg = &arguments[1];
+        let element_result =
+            self.check_expression(source, element_arg.value, Some(element_type), None, return_type)?;
+        if !self.is_error(element_result.ty)
+            && !self.is_deferred(element_result.ty)
+            && !self.assignable(element_result.ty, element_type)
+        {
+            let primary = self
+                .file(source)
+                .ast()
+                .expressions()
+                .get(element_arg.value)
+                .map_err(TypeCheckingError::from)?
+                .span();
+            self.emit_maybe_label(
+                codes::TYPE_MISMATCH,
+                "expression type does not match the expected type",
+                primary,
+                None,
+                format!(
+                    "expected {}, found {}",
+                    self.type_name(element_type),
+                    self.type_name(element_result.ty)
+                ),
+            )?;
+        }
+        let unit_type = self.builtin(BuiltinType::Unit);
+        let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
+            move_only: false,
+            parameters: vec![
+                UnitFunctionParameterType::new(ParameterMode::Value, int_type),
+                UnitFunctionParameterType::new(ParameterMode::Value, element_type),
+            ],
+            return_type: unit_type,
+        });
+        self.record_expression(source, callee, function);
+        self.parts.expression_categories.insert(
+            UnitExpressionId::new(source, callee),
+            ExpressionCategory::Temporary,
+        );
+        self.parts
+            .container_insert_ats
+            .push(UnitContainerInsertAtDescriptor::new(
+                UnitExpressionId::new(source, expression),
+                UnitExpressionId::new(source, receiver),
+                UnitExpressionId::new(source, index_arg.value),
+                UnitExpressionId::new(source, element_arg.value),
+                receiver_type,
+                element_type,
+                unit_type,
+                call_span,
+            ));
+        Ok(Some(ExpressionCheck {
+            ty: unit_type,
+            falls_through: falls_through
+                && index_result.falls_through
+                && element_result.falls_through,
         }))
     }
 }
