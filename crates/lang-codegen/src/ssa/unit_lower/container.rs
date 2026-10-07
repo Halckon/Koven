@@ -71,7 +71,48 @@ impl UnitExpressionLowerer<'_> {
         if self.typed.container_remove_last(unit_expression).is_some() {
             return self.lower_container_remove_last(expression, span).map(Some);
         }
+        if self.typed.container_insert_at(unit_expression).is_some() {
+            return self.lower_container_insert_at(expression, span).map(Some);
+        }
         Ok(None)
+    }
+
+    fn extract_owner_val(
+        &mut self,
+        receiver: UnitExpressionId,
+        span: Span,
+    ) -> Result<
+        (
+            ValueId,
+            Option<lang_frontend::name_resolution::UnitSymbolId>,
+        ),
+        LoweringError,
+    > {
+        if receiver.source_unit() != self.source_unit {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let (owner, root) = self.container_owner_operand(receiver.expression(), None, span)?;
+        let EntityId::Value(owner_val) = owner else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        Ok((owner_val, root))
+    }
+
+    fn record_new_owner(
+        &mut self,
+        root: Option<lang_frontend::name_resolution::UnitSymbolId>,
+        result_entities: &[EntityId],
+        owner_index: usize,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if let Some(root_symbol) = root {
+            let Some(EntityId::Value(new_owner)) = result_entities.get(owner_index) else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            self.bindings
+                .insert(root_symbol, LoweredValue::Value(*new_owner));
+        }
+        Ok(())
     }
 
     pub(super) fn lower_container_append(
@@ -84,18 +125,10 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .container_append(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if descriptor.expression() != id
-            || descriptor.receiver().source_unit() != self.source_unit
-            || descriptor.element().source_unit() != self.source_unit
-        {
+        if descriptor.expression() != id || descriptor.element().source_unit() != self.source_unit {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let (owner, root) =
-            self.container_owner_operand(descriptor.receiver().expression(), None, span)?;
-        let owner_val = match owner {
-            EntityId::Value(v) => v,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-        };
+        let (owner, root) = self.extract_owner_val(descriptor.receiver(), span)?;
         let element = match self.lower(descriptor.element().expression())? {
             LoweredValue::Value(e) => e,
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
@@ -106,21 +139,12 @@ impl UnitExpressionLowerer<'_> {
             .function
             .append_instruction(
                 self.block,
-                Operation::ContainerAppend {
-                    owner: owner_val,
-                    element,
-                },
+                Operation::ContainerAppend { owner, element },
                 vec![EntityType::Value(container_type)],
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        if let Some(root_symbol) = root {
-            let [EntityId::Value(new_owner)] = result_id.1.as_slice() else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            self.bindings
-                .insert(root_symbol, LoweredValue::Value(*new_owner));
-        }
+        self.record_new_owner(root, &result_id.1, 0, span)?;
         self.emit_drops(UnitDropPoint::AfterExpression(descriptor.element()))?;
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
         Ok(LoweredValue::Unit)
@@ -136,33 +160,21 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .container_clear(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if descriptor.expression() != id || descriptor.receiver().source_unit() != self.source_unit
-        {
+        if descriptor.expression() != id {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let (owner, root) =
-            self.container_owner_operand(descriptor.receiver().expression(), None, span)?;
-        let owner_val = match owner {
-            EntityId::Value(v) => v,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-        };
+        let (owner, root) = self.extract_owner_val(descriptor.receiver(), span)?;
         let container_type = self.resolve_ssa_type(descriptor.container_type(), span)?;
         let result_id = self
             .function
             .append_instruction(
                 self.block,
-                Operation::ContainerClear { owner: owner_val },
+                Operation::ContainerClear { owner },
                 vec![EntityType::Value(container_type)],
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        if let Some(root_symbol) = root {
-            let [EntityId::Value(new_owner)] = result_id.1.as_slice() else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            self.bindings
-                .insert(root_symbol, LoweredValue::Value(*new_owner));
-        }
+        self.record_new_owner(root, &result_id.1, 0, span)?;
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
         Ok(LoweredValue::Unit)
     }
@@ -177,18 +189,10 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .container_remove_at(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if descriptor.expression() != id
-            || descriptor.receiver().source_unit() != self.source_unit
-            || descriptor.index().source_unit() != self.source_unit
-        {
+        if descriptor.expression() != id || descriptor.index().source_unit() != self.source_unit {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let (owner, root) =
-            self.container_owner_operand(descriptor.receiver().expression(), None, span)?;
-        let owner_val = match owner {
-            EntityId::Value(v) => v,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-        };
+        let (owner, root) = self.extract_owner_val(descriptor.receiver(), span)?;
         let index = match self.lower(descriptor.index().expression())? {
             LoweredValue::Value(idx) => idx,
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
@@ -199,10 +203,7 @@ impl UnitExpressionLowerer<'_> {
             .function
             .append_instruction(
                 self.block,
-                Operation::ContainerRemoveAt {
-                    owner: owner_val,
-                    index,
-                },
+                Operation::ContainerRemoveAt { owner, index },
                 vec![
                     EntityType::Value(element_type),
                     EntityType::Value(container_type),
@@ -210,17 +211,58 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let [EntityId::Value(removed_val), EntityId::Value(new_owner)] = result_id.1.as_slice()
-        else {
+        let Some(EntityId::Value(removed_val)) = result_id.1.first().copied() else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        if let Some(root_symbol) = root {
-            self.bindings
-                .insert(root_symbol, LoweredValue::Value(*new_owner));
-        }
+        self.record_new_owner(root, &result_id.1, 1, span)?;
         self.emit_drops(UnitDropPoint::AfterExpression(descriptor.index()))?;
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
-        Ok(LoweredValue::Value(*removed_val))
+        Ok(LoweredValue::Value(removed_val))
+    }
+
+    pub(super) fn lower_container_insert_at(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let id = UnitExpressionId::new(self.source_unit, expression);
+        let descriptor = self
+            .typed
+            .container_insert_at(id)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.expression() != id
+            || descriptor.index().source_unit() != self.source_unit
+            || descriptor.element().source_unit() != self.source_unit
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let (owner, root) = self.extract_owner_val(descriptor.receiver(), span)?;
+        let LoweredValue::Value(index) = self.lower(descriptor.index().expression())? else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let LoweredValue::Value(element) = self.lower(descriptor.element().expression())? else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        self.consume_container_delivery(id, descriptor.element().expression(), element, span)?;
+        let container_type = self.resolve_ssa_type(descriptor.container_type(), span)?;
+        let result_id = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::ContainerInsertAt {
+                    owner,
+                    index,
+                    element,
+                },
+                vec![EntityType::Value(container_type)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        self.record_new_owner(root, &result_id.1, 0, span)?;
+        self.emit_drops(UnitDropPoint::AfterExpression(descriptor.index()))?;
+        self.emit_drops(UnitDropPoint::AfterExpression(descriptor.element()))?;
+        self.emit_drops(UnitDropPoint::CallReturn(id))?;
+        Ok(LoweredValue::Unit)
     }
 
     fn lower_container_endpoint_removal(
@@ -232,21 +274,14 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
         make_op: impl FnOnce(ValueId) -> Operation,
     ) -> Result<LoweredValue, LoweringError> {
-        if receiver.source_unit() != self.source_unit {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let (owner, root) = self.container_owner_operand(receiver.expression(), None, span)?;
-        let owner_val = match owner {
-            EntityId::Value(v) => v,
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-        };
+        let (owner, root) = self.extract_owner_val(receiver, span)?;
         let ssa_element_type = self.resolve_ssa_type(element_type, span)?;
         let ssa_container_type = self.resolve_ssa_type(container_type, span)?;
         let result_id = self
             .function
             .append_instruction(
                 self.block,
-                make_op(owner_val),
+                make_op(owner),
                 vec![
                     EntityType::Value(ssa_element_type),
                     EntityType::Value(ssa_container_type),
@@ -254,16 +289,12 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        let [EntityId::Value(removed_val), EntityId::Value(new_owner)] = result_id.1.as_slice()
-        else {
+        let Some(EntityId::Value(removed_val)) = result_id.1.first().copied() else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        if let Some(root_symbol) = root {
-            self.bindings
-                .insert(root_symbol, LoweredValue::Value(*new_owner));
-        }
+        self.record_new_owner(root, &result_id.1, 1, span)?;
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
-        Ok(LoweredValue::Value(*removed_val))
+        Ok(LoweredValue::Value(removed_val))
     }
 
     pub(super) fn lower_container_remove_first(

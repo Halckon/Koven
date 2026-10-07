@@ -4,6 +4,8 @@
 
 当前 0 份 active。
 
+0285（`MutableList.insertAt` 元素指定索引插入与向后平移扩容）已按双宿主实现验收归档至 `docs/archive/specs/0285-mutable-list-insert-at.md`。
+
 0284（`MutableList.removeFirst` 头部元素快速移出与队列弹出）已按双宿主实现验收归档至 `docs/archive/specs/0284-mutable-list-remove-first.md`。
 
 0283（`MutableList.removeLast` 尾部元素快速移出与生命周期交付）已按双宿主实现验收归档至 `docs/archive/specs/0283-mutable-list-remove-last.md` 并通过 PR #62 合入 main。

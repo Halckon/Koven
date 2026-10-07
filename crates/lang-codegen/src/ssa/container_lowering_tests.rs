@@ -413,3 +413,32 @@ fn mutable_list_remove_first_single_file_lowers_to_container_remove_first() {
     assert_eq!(remove_firsts, 1);
     crate::llvm::render_verified_program(&program).expect("program lowers to LLVM without error");
 }
+
+#[test]
+fn mutable_list_insert_at_single_file_lowers_to_container_insert_at() {
+    let text = "fun run(): Unit {\n\
+                var list = mutableListOf(10, 20)\n\
+                list.insertAt(1, 15)\n\
+                }";
+    let analysis = analyze(text);
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .expect("lowering succeeds");
+    let function = &program.modules[0].functions[0];
+    let insert_ats = function
+        .instructions
+        .iter()
+        .filter(|inst| matches!(inst.operation, Operation::ContainerInsertAt { .. }))
+        .count();
+    assert_eq!(insert_ats, 1);
+    crate::llvm::render_verified_program(&program).expect("program lowers to LLVM without error");
+}

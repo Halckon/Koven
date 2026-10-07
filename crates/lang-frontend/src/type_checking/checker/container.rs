@@ -4,8 +4,8 @@ use crate::{
     parser::{AssignmentOperator, CallArgument, Expression, LiteralKind, ParameterModeMarker},
     source::Span,
     type_checking::{
-        ContainerConstructionKind, ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor,
-        ContainerRemoveLastDescriptor, IntrinsicCallable,
+        ContainerConstructionKind, ContainerInsertAtDescriptor, ContainerRemoveAtDescriptor,
+        ContainerRemoveFirstDescriptor, ContainerRemoveLastDescriptor, IntrinsicCallable,
     },
 };
 
@@ -75,6 +75,15 @@ impl Checker<'_> {
                 return Ok(Some(res));
             }
             if let Some(res) = self.check_container_remove_first_call(
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+            )? {
+                return Ok(Some(res));
+            }
+            if let Some(res) = self.check_container_insert_at_call(
                 expression,
                 call_span,
                 callee,
@@ -561,55 +570,10 @@ impl Checker<'_> {
             )?;
             return Ok(Some(self.error_type()));
         }
-        if name == "add" {
-            if container == SequentialContainerKind::MutableList {
-                self.emit(
-                    self.invalid_container_member_code,
-                    "MutableList.add must be called as a method",
-                    name_span,
-                )?;
-            } else {
-                self.emit(
-                    self.invalid_container_member_code,
-                    "sequential container does not support 'add'",
-                    name_span,
-                )?;
-            }
-            return Ok(Some(self.error_type()));
-        }
-        if name == "clear" {
-            if container == SequentialContainerKind::MutableList {
-                self.emit(
-                    self.invalid_container_member_code,
-                    "MutableList.clear must be called as a method",
-                    name_span,
-                )?;
-            } else {
-                self.emit(
-                    self.invalid_container_member_code,
-                    "sequential container does not support 'clear'",
-                    name_span,
-                )?;
-            }
-            return Ok(Some(self.error_type()));
-        }
-        if name == "removeAt" {
-            if container == SequentialContainerKind::MutableList {
-                self.emit(
-                    self.invalid_container_member_code,
-                    "MutableList.removeAt must be called as a method",
-                    name_span,
-                )?;
-            } else {
-                self.emit(
-                    self.invalid_container_member_code,
-                    "sequential container does not support 'removeAt'",
-                    name_span,
-                )?;
-            }
-            return Ok(Some(self.error_type()));
-        }
-        if name == "removeLast" || name == "removeFirst" {
+        if matches!(
+            name,
+            "add" | "clear" | "removeAt" | "removeLast" | "removeFirst" | "insertAt"
+        ) {
             if container == SequentialContainerKind::MutableList {
                 self.emit(
                     self.invalid_container_member_code,
@@ -704,301 +668,12 @@ impl Checker<'_> {
         }
     }
 
-    pub(super) fn check_container_append_call(
+    fn prepare_mutable_list_call(
         &mut self,
-        expression: ExpressionId,
-        call_span: Span,
         callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
-        let callee_node = self.ast().expressions().get(callee)?;
-        let Expression::Member {
-            receiver,
-            name_span,
-            safe,
-            ..
-        } = callee_node.payload().clone()
-        else {
-            return Ok(None);
-        };
-        if safe || self.sources.slice(name_span)? != "add" {
-            return Ok(None);
-        }
-        let receiver_result = self.check_expression(receiver, None, None)?;
-        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
-            return Ok(None);
-        };
-        if container != SequentialContainerKind::MutableList {
-            self.emit(
-                self.invalid_container_member_code,
-                "sequential container does not support 'add'",
-                name_span,
-            )?;
-            self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        if !type_arguments.is_empty() {
-            self.emit(
-                self.type_argument_arity_code,
-                "MutableList.add accepts no type arguments",
-                name_span,
-            )?;
-            self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        let parameters = [MappedParameter {
-            name: None,
-            mode: ParameterMode::Value,
-            ty: element_type,
-            span: None,
-        }];
-        let mapping = self.map_arguments(&parameters, arguments, call_span)?;
-        if let Err(error) = mapping {
-            self.emit_mapping_error(error)?;
-            self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        let element_arg = &arguments[0];
-        let element_result = self.check_expression(element_arg.value, Some(element_type), None)?;
-        if !self.is_error(element_result.ty)
-            && !self.is_deferred(element_result.ty)
-            && !self.assignable(element_result.ty, element_type)
-        {
-            self.mismatch(
-                self.ast().expressions().get(element_arg.value)?.span(),
-                None,
-                element_result.ty,
-                element_type,
-            )?;
-        }
-        let unit_type = self.builtin(BuiltinType::Unit);
-        let function = self.types.intern(TypeKind::Function {
-            move_only: false,
-            parameters: vec![FunctionParameterType {
-                mode: ParameterMode::Value,
-                ty: element_type,
-            }],
-            return_type: unit_type,
-        });
-        self.set_expression(callee, function);
-        self.set_expression_category(callee, ExpressionCategory::Temporary);
-        self.container_appends.push(ContainerAppendDescriptor::new(
-            expression,
-            receiver,
-            element_arg.value,
-            receiver_result.ty,
-            element_type,
-            unit_type,
-            call_span,
-        ));
-        Ok(Some(ExprCheck {
-            ty: unit_type,
-            falls_through: receiver_result.falls_through && element_result.falls_through,
-        }))
-    }
-
-    pub(super) fn check_container_clear_call(
-        &mut self,
-        expression: ExpressionId,
-        call_span: Span,
-        callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
-        let callee_node = self.ast().expressions().get(callee)?;
-        let Expression::Member {
-            receiver,
-            name_span,
-            safe,
-            ..
-        } = callee_node.payload().clone()
-        else {
-            return Ok(None);
-        };
-        if safe || self.sources.slice(name_span)? != "clear" {
-            return Ok(None);
-        }
-        let receiver_result = self.check_expression(receiver, None, None)?;
-        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
-            return Ok(None);
-        };
-        if container != SequentialContainerKind::MutableList {
-            self.emit(
-                self.invalid_container_member_code,
-                "sequential container does not support 'clear'",
-                name_span,
-            )?;
-            self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        if !type_arguments.is_empty() {
-            self.emit(
-                self.type_argument_arity_code,
-                "MutableList.clear accepts no type arguments",
-                name_span,
-            )?;
-            self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        let parameters: [MappedParameter<TypeId>; 0] = [];
-        let mapping = self.map_arguments(&parameters, arguments, call_span)?;
-        if let Err(error) = mapping {
-            self.emit_mapping_error(error)?;
-            self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        let unit_type = self.builtin(BuiltinType::Unit);
-        let function = self.types.intern(TypeKind::Function {
-            move_only: false,
-            parameters: Vec::new(),
-            return_type: unit_type,
-        });
-        self.set_expression(callee, function);
-        self.set_expression_category(callee, ExpressionCategory::Temporary);
-        self.container_clears.push(ContainerClearDescriptor::new(
-            expression,
-            receiver,
-            receiver_result.ty,
-            element_type,
-            unit_type,
-            call_span,
-        ));
-        Ok(Some(ExprCheck {
-            ty: unit_type,
-            falls_through: receiver_result.falls_through,
-        }))
-    }
-
-    pub(super) fn check_container_remove_at_call(
-        &mut self,
-        expression: ExpressionId,
-        call_span: Span,
-        callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
-    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
-        let callee_node = self.ast().expressions().get(callee)?;
-        let Expression::Member {
-            receiver,
-            name_span,
-            safe,
-            ..
-        } = callee_node.payload().clone()
-        else {
-            return Ok(None);
-        };
-        if safe || self.sources.slice(name_span)? != "removeAt" {
-            return Ok(None);
-        }
-        let receiver_result = self.check_expression(receiver, None, None)?;
-        let Some((container, element_type)) = self.container_parts(receiver_result.ty) else {
-            return Ok(None);
-        };
-        if container != SequentialContainerKind::MutableList {
-            self.emit(
-                self.invalid_container_member_code,
-                "sequential container does not support 'removeAt'",
-                name_span,
-            )?;
-            self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        if !type_arguments.is_empty() {
-            self.emit(
-                self.type_argument_arity_code,
-                "MutableList.removeAt accepts no type arguments",
-                name_span,
-            )?;
-            self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        let int_type = self.builtin(BuiltinType::Int);
-        let parameters = [MappedParameter {
-            name: None,
-            mode: ParameterMode::Value,
-            ty: int_type,
-            span: None,
-        }];
-        let mapping = self.map_arguments(&parameters, arguments, call_span)?;
-        if let Err(error) = mapping {
-            self.emit_mapping_error(error)?;
-            self.check_construction_operands(arguments)?;
-            return Ok(Some(ExprCheck {
-                ty: self.error_type(),
-                falls_through: receiver_result.falls_through,
-            }));
-        }
-        let index_arg = &arguments[0];
-        let index_result = self.check_expression(index_arg.value, Some(int_type), None)?;
-        if !self.is_error(index_result.ty)
-            && !self.is_deferred(index_result.ty)
-            && !self.assignable(index_result.ty, int_type)
-        {
-            self.mismatch(
-                self.ast().expressions().get(index_arg.value)?.span(),
-                None,
-                index_result.ty,
-                int_type,
-            )?;
-        }
-        let function = self.types.intern(TypeKind::Function {
-            move_only: false,
-            parameters: vec![FunctionParameterType {
-                mode: ParameterMode::Value,
-                ty: int_type,
-            }],
-            return_type: element_type,
-        });
-        self.set_expression(callee, function);
-        self.set_expression_category(callee, ExpressionCategory::Temporary);
-        self.container_remove_ats
-            .push(ContainerRemoveAtDescriptor::new(
-                expression,
-                receiver,
-                index_arg.value,
-                receiver_result.ty,
-                element_type,
-                element_type,
-                call_span,
-            ));
-        Ok(Some(ExprCheck {
-            ty: element_type,
-            falls_through: receiver_result.falls_through && index_result.falls_through,
-        }))
-    }
-
-    fn check_container_endpoint_removal_call(
-        &mut self,
-        call_span: Span,
-        callee: ExpressionId,
-        type_arguments: &[TypeRefId],
-        arguments: &[CallArgument],
         expected_name: &'static str,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
     ) -> Result<Option<(ExpressionId, TypeId, TypeId, bool)>, TypeCheckingError> {
         let callee_node = self.ast().expressions().get(callee)?;
         let Expression::Member {
@@ -1045,6 +720,233 @@ impl Checker<'_> {
                 receiver_result.falls_through,
             )));
         }
+        Ok(Some((
+            receiver,
+            receiver_result.ty,
+            element_type,
+            receiver_result.falls_through,
+        )))
+    }
+
+    pub(super) fn check_container_append_call(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, "add", type_arguments, arguments)?
+        else {
+            return Ok(None);
+        };
+        if receiver_ty == self.error_type() {
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let parameters = [MappedParameter {
+            name: None,
+            mode: ParameterMode::Value,
+            ty: element_type,
+            span: None,
+        }];
+        let mapping = self.map_arguments(&parameters, arguments, call_span)?;
+        if let Err(error) = mapping {
+            self.emit_mapping_error(error)?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let element_arg = &arguments[0];
+        let element_result = self.check_expression(element_arg.value, Some(element_type), None)?;
+        if !self.is_error(element_result.ty)
+            && !self.is_deferred(element_result.ty)
+            && !self.assignable(element_result.ty, element_type)
+        {
+            self.mismatch(
+                self.ast().expressions().get(element_arg.value)?.span(),
+                None,
+                element_result.ty,
+                element_type,
+            )?;
+        }
+        let unit_type = self.builtin(BuiltinType::Unit);
+        let function = self.types.intern(TypeKind::Function {
+            move_only: false,
+            parameters: vec![FunctionParameterType {
+                mode: ParameterMode::Value,
+                ty: element_type,
+            }],
+            return_type: unit_type,
+        });
+        self.set_expression(callee, function);
+        self.set_expression_category(callee, ExpressionCategory::Temporary);
+        self.container_appends.push(ContainerAppendDescriptor::new(
+            expression,
+            receiver,
+            element_arg.value,
+            receiver_ty,
+            element_type,
+            unit_type,
+            call_span,
+        ));
+        Ok(Some(ExprCheck {
+            ty: unit_type,
+            falls_through: falls_through && element_result.falls_through,
+        }))
+    }
+
+    pub(super) fn check_container_clear_call(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, "clear", type_arguments, arguments)?
+        else {
+            return Ok(None);
+        };
+        if receiver_ty == self.error_type() {
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let parameters: [MappedParameter<TypeId>; 0] = [];
+        let mapping = self.map_arguments(&parameters, arguments, call_span)?;
+        if let Err(error) = mapping {
+            self.emit_mapping_error(error)?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let unit_type = self.builtin(BuiltinType::Unit);
+        let function = self.types.intern(TypeKind::Function {
+            move_only: false,
+            parameters: Vec::new(),
+            return_type: unit_type,
+        });
+        self.set_expression(callee, function);
+        self.set_expression_category(callee, ExpressionCategory::Temporary);
+        self.container_clears.push(ContainerClearDescriptor::new(
+            expression,
+            receiver,
+            receiver_ty,
+            element_type,
+            unit_type,
+            call_span,
+        ));
+        Ok(Some(ExprCheck {
+            ty: unit_type,
+            falls_through,
+        }))
+    }
+
+    pub(super) fn check_container_remove_at_call(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, "removeAt", type_arguments, arguments)?
+        else {
+            return Ok(None);
+        };
+        if receiver_ty == self.error_type() {
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let int_type = self.builtin(BuiltinType::Int);
+        let parameters = [MappedParameter {
+            name: None,
+            mode: ParameterMode::Value,
+            ty: int_type,
+            span: None,
+        }];
+        let mapping = self.map_arguments(&parameters, arguments, call_span)?;
+        if let Err(error) = mapping {
+            self.emit_mapping_error(error)?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let index_arg = &arguments[0];
+        let index_result = self.check_expression(index_arg.value, Some(int_type), None)?;
+        if !self.is_error(index_result.ty)
+            && !self.is_deferred(index_result.ty)
+            && !self.assignable(index_result.ty, int_type)
+        {
+            self.mismatch(
+                self.ast().expressions().get(index_arg.value)?.span(),
+                None,
+                index_result.ty,
+                int_type,
+            )?;
+        }
+        let function = self.types.intern(TypeKind::Function {
+            move_only: false,
+            parameters: vec![FunctionParameterType {
+                mode: ParameterMode::Value,
+                ty: int_type,
+            }],
+            return_type: element_type,
+        });
+        self.set_expression(callee, function);
+        self.set_expression_category(callee, ExpressionCategory::Temporary);
+        self.container_remove_ats
+            .push(ContainerRemoveAtDescriptor::new(
+                expression,
+                receiver,
+                index_arg.value,
+                receiver_ty,
+                element_type,
+                element_type,
+                call_span,
+            ));
+        Ok(Some(ExprCheck {
+            ty: element_type,
+            falls_through: falls_through && index_result.falls_through,
+        }))
+    }
+
+    fn check_container_endpoint_removal_call(
+        &mut self,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+        expected_name: &'static str,
+    ) -> Result<Option<(ExpressionId, TypeId, TypeId, bool)>, TypeCheckingError> {
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, expected_name, type_arguments, arguments)?
+        else {
+            return Ok(None);
+        };
+        if receiver_ty == self.error_type() {
+            return Ok(Some((
+                receiver,
+                self.error_type(),
+                self.error_type(),
+                falls_through,
+            )));
+        }
         let parameters: [MappedParameter<TypeId>; 0] = [];
         let mapping = self.map_arguments(&parameters, arguments, call_span)?;
         if let Err(error) = mapping {
@@ -1054,7 +956,7 @@ impl Checker<'_> {
                 receiver,
                 self.error_type(),
                 self.error_type(),
-                receiver_result.falls_through,
+                falls_through,
             )));
         }
         let function = self.types.intern(TypeKind::Function {
@@ -1064,12 +966,7 @@ impl Checker<'_> {
         });
         self.set_expression(callee, function);
         self.set_expression_category(callee, ExpressionCategory::Temporary);
-        Ok(Some((
-            receiver,
-            receiver_result.ty,
-            element_type,
-            receiver_result.falls_through,
-        )))
+        Ok(Some((receiver, receiver_ty, element_type, falls_through)))
     }
 
     pub(super) fn check_container_remove_last_call(
@@ -1141,6 +1038,111 @@ impl Checker<'_> {
         Ok(Some(ExprCheck {
             ty: element_type,
             falls_through,
+        }))
+    }
+
+    pub(super) fn check_container_insert_at_call(
+        &mut self,
+        expression: ExpressionId,
+        call_span: Span,
+        callee: ExpressionId,
+        type_arguments: &[TypeRefId],
+        arguments: &[CallArgument],
+    ) -> Result<Option<ExprCheck>, TypeCheckingError> {
+        let Some((receiver, receiver_ty, element_type, falls_through)) =
+            self.prepare_mutable_list_call(callee, "insertAt", type_arguments, arguments)?
+        else {
+            return Ok(None);
+        };
+        if receiver_ty == self.error_type() {
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let int_type = self.builtin(BuiltinType::Int);
+        let parameters = [
+            MappedParameter {
+                name: None,
+                mode: ParameterMode::Value,
+                ty: int_type,
+                span: None,
+            },
+            MappedParameter {
+                name: None,
+                mode: ParameterMode::Value,
+                ty: element_type,
+                span: None,
+            },
+        ];
+        let mapping = self.map_arguments(&parameters, arguments, call_span)?;
+        if let Err(error) = mapping {
+            self.emit_mapping_error(error)?;
+            self.check_construction_operands(arguments)?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through,
+            }));
+        }
+        let index_arg = &arguments[0];
+        let index_result = self.check_expression(index_arg.value, Some(int_type), None)?;
+        if !self.is_error(index_result.ty)
+            && !self.is_deferred(index_result.ty)
+            && !self.assignable(index_result.ty, int_type)
+        {
+            self.mismatch(
+                self.ast().expressions().get(index_arg.value)?.span(),
+                None,
+                index_result.ty,
+                int_type,
+            )?;
+        }
+        let element_arg = &arguments[1];
+        let element_result = self.check_expression(element_arg.value, Some(element_type), None)?;
+        if !self.is_error(element_result.ty)
+            && !self.is_deferred(element_result.ty)
+            && !self.assignable(element_result.ty, element_type)
+        {
+            self.mismatch(
+                self.ast().expressions().get(element_arg.value)?.span(),
+                None,
+                element_result.ty,
+                element_type,
+            )?;
+        }
+        let unit_type = self.builtin(BuiltinType::Unit);
+        let function = self.types.intern(TypeKind::Function {
+            move_only: false,
+            parameters: vec![
+                FunctionParameterType {
+                    mode: ParameterMode::Value,
+                    ty: int_type,
+                },
+                FunctionParameterType {
+                    mode: ParameterMode::Value,
+                    ty: element_type,
+                },
+            ],
+            return_type: unit_type,
+        });
+        self.set_expression(callee, function);
+        self.set_expression_category(callee, ExpressionCategory::Temporary);
+        self.container_insert_ats
+            .push(ContainerInsertAtDescriptor::new(
+                expression,
+                receiver,
+                index_arg.value,
+                element_arg.value,
+                receiver_ty,
+                element_type,
+                unit_type,
+                call_span,
+            ));
+        Ok(Some(ExprCheck {
+            ty: unit_type,
+            falls_through: falls_through
+                && index_result.falls_through
+                && element_result.falls_through,
         }))
     }
 }

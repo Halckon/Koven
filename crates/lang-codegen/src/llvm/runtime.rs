@@ -1048,19 +1048,18 @@ impl RuntimeRequirements {
                     Operation::ContainerElementPlace { .. } => {
                         requirements.needs_abort = true;
                     }
-                    Operation::ContainerAppend { owner, .. } => {
+                    Operation::ContainerAppend { owner, .. }
+                    | Operation::ContainerInsertAt { owner, .. } => {
                         requirements.needs_allocation = true;
                         requirements.needs_free = true;
                         requirements.needs_abort = true;
-                        let container =
-                            match function.entity(EntityId::Value(owner)).map(|data| data.ty) {
-                                Some(EntityType::Value(ty)) => ty,
-                                _ => {
-                                    return Err(LlvmAdapterError::InvalidSsa(
-                                        "append owner 缺少 value type".to_owned(),
-                                    ));
-                                }
-                            };
+                        let Some(EntityType::Value(container)) =
+                            function.entity(EntityId::Value(owner)).map(|data| data.ty)
+                        else {
+                            return Err(LlvmAdapterError::InvalidSsa(
+                                "append owner 缺少 value type".to_owned(),
+                            ));
+                        };
                         requirements.container_allocations.insert(container);
                         let (_, element) =
                             module.sequential_container(container).ok_or_else(|| {

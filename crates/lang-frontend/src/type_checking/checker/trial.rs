@@ -7,9 +7,9 @@ use crate::{
     type_checking::{
         AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
         ContainerAppendDescriptor, ContainerClearDescriptor, ContainerConstructionDescriptor,
-        ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor, ContainerRemoveLastDescriptor,
-        ContainerSizeDescriptor, DestructuringDescriptor, ElementPlaceDescriptor,
-        ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor,
+        ContainerInsertAtDescriptor, ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor,
+        ContainerRemoveLastDescriptor, ContainerSizeDescriptor, DestructuringDescriptor,
+        ElementPlaceDescriptor, ExpressionCategory, NonNullUseDescriptor, NullComparisonDescriptor,
         OwnershipPrimitiveDescriptor, ParameterMode, RcOperationDescriptor,
         StringOperationDescriptor, TypeId, TypeTable,
     },
@@ -53,6 +53,7 @@ pub(super) struct TrialState {
     container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
     container_remove_lasts: Vec<ContainerRemoveLastDescriptor>,
     container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
+    container_insert_ats: Vec<ContainerInsertAtDescriptor>,
     element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -90,6 +91,7 @@ impl Checker<'_> {
             container_remove_ats: self.container_remove_ats.clone(),
             container_remove_lasts: self.container_remove_lasts.clone(),
             container_remove_firsts: self.container_remove_firsts.clone(),
+            container_insert_ats: self.container_insert_ats.clone(),
             element_places: self.element_places.clone(),
             diagnostics: self.diagnostics.clone(),
         }
@@ -126,6 +128,7 @@ impl Checker<'_> {
         self.container_remove_ats = state.container_remove_ats;
         self.container_remove_lasts = state.container_remove_lasts;
         self.container_remove_firsts = state.container_remove_firsts;
+        self.container_insert_ats = state.container_insert_ats;
         self.element_places = state.element_places;
         self.diagnostics = state.diagnostics;
     }

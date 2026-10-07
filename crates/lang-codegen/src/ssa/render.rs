@@ -668,6 +668,18 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("container.remove_last ")?;
             write_entity_id(output, EntityId::Value(*owner))
         }
+        Operation::ContainerInsertAt {
+            owner,
+            index,
+            element,
+        } => {
+            output.write_str("container.insert_at ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*index))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*element))
+        }
         Operation::ContainerReplace {
             owner,
             index,

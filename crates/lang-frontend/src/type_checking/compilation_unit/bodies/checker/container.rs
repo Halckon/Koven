@@ -102,6 +102,17 @@ impl BodyChecker<'_> {
             )? {
                 return Ok(Some(remove_first));
             }
+            if let Some(insert_at) = self.check_container_insert_at_call(
+                source,
+                expression,
+                call_span,
+                callee,
+                type_arguments,
+                arguments,
+                return_type,
+            )? {
+                return Ok(Some(insert_at));
+            }
             return self.check_container_remove_at_call(
                 source,
                 expression,

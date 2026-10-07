@@ -13,10 +13,10 @@ use crate::{
 use super::{
     AggregateProjectionDescriptor, CallDescriptor, ConstructionDescriptor,
     ContainerAppendDescriptor, ContainerClearDescriptor, ContainerConstructionDescriptor,
-    ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor, ContainerRemoveLastDescriptor,
-    ContainerSizeDescriptor, ElementPlaceDescriptor, ExpressionCategory, FunctionParameterType,
-    IntrinsicCallable, OwnershipPrimitiveDescriptor, ParameterBindingDescriptor, ParameterMode,
-    RcOperationDescriptor, StringOperationDescriptor,
+    ContainerInsertAtDescriptor, ContainerRemoveAtDescriptor, ContainerRemoveFirstDescriptor,
+    ContainerRemoveLastDescriptor, ContainerSizeDescriptor, ElementPlaceDescriptor,
+    ExpressionCategory, FunctionParameterType, IntrinsicCallable, OwnershipPrimitiveDescriptor,
+    ParameterBindingDescriptor, ParameterMode, RcOperationDescriptor, StringOperationDescriptor,
     canonical::{CanonicalTypeId, CanonicalTypeKind, CanonicalTypeTable},
 };
 
@@ -1110,6 +1110,7 @@ pub struct TypedFile {
     pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
     pub(crate) container_remove_lasts: Vec<ContainerRemoveLastDescriptor>,
     pub(crate) container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
+    pub(crate) container_insert_ats: Vec<ContainerInsertAtDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -1147,6 +1148,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
     pub(crate) container_remove_lasts: Vec<ContainerRemoveLastDescriptor>,
     pub(crate) container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
+    pub(crate) container_insert_ats: Vec<ContainerInsertAtDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
 }
 
@@ -1201,6 +1203,7 @@ impl TypedFile {
             container_remove_ats: parts.container_remove_ats,
             container_remove_lasts: parts.container_remove_lasts,
             container_remove_firsts: parts.container_remove_firsts,
+            container_insert_ats: parts.container_insert_ats,
             element_places: parts.element_places,
             diagnostics,
         }

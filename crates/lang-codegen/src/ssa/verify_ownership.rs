@@ -810,30 +810,12 @@ fn apply_operation(
             }
         }
         Operation::ContainerAppend { owner, element } => {
-            if require_value(
-                module,
-                function,
-                *owner,
-                state,
-                location.clone(),
-                origin,
-                errors,
-            ) && has_any_value_loan(*owner, aliases, state)
-            {
-                errors.push(error(
-                    VerifyErrorKind::OwnerLoanConflict { value: *owner },
-                    location.clone(),
-                    origin,
-                ));
-            }
-            consume_value(
+            check_and_consume_container_owner(
                 module,
                 function,
                 *owner,
                 aliases,
                 state,
-                &BTreeSet::new(),
-                &BTreeSet::new(),
                 location.clone(),
                 origin,
                 errors,
@@ -851,61 +833,20 @@ fn apply_operation(
                 errors,
             );
         }
-        Operation::ContainerClear { owner } => {
-            if require_value(
-                module,
-                function,
-                *owner,
-                state,
-                location.clone(),
-                origin,
-                errors,
-            ) && has_any_value_loan(*owner, aliases, state)
-            {
-                errors.push(error(
-                    VerifyErrorKind::OwnerLoanConflict { value: *owner },
-                    location.clone(),
-                    origin,
-                ));
-            }
-            consume_value(
-                module,
-                function,
-                *owner,
-                aliases,
-                state,
-                &BTreeSet::new(),
-                &BTreeSet::new(),
-                location,
-                origin,
-                errors,
+        Operation::ContainerClear { owner }
+        | Operation::ContainerRemoveFirst { owner }
+        | Operation::ContainerRemoveLast { owner } => {
+            check_and_consume_container_owner(
+                module, function, *owner, aliases, state, location, origin, errors,
             );
         }
         Operation::ContainerRemoveAt { owner, index } => {
-            if require_value(
-                module,
-                function,
-                *owner,
-                state,
-                location.clone(),
-                origin,
-                errors,
-            ) && has_any_value_loan(*owner, aliases, state)
-            {
-                errors.push(error(
-                    VerifyErrorKind::OwnerLoanConflict { value: *owner },
-                    location.clone(),
-                    origin,
-                ));
-            }
-            consume_value(
+            check_and_consume_container_owner(
                 module,
                 function,
                 *owner,
                 aliases,
                 state,
-                &BTreeSet::new(),
-                &BTreeSet::new(),
                 location.clone(),
                 origin,
                 errors,
@@ -923,27 +864,37 @@ fn apply_operation(
                 errors,
             );
         }
-        Operation::ContainerRemoveFirst { owner } | Operation::ContainerRemoveLast { owner } => {
-            if require_value(
+        Operation::ContainerInsertAt {
+            owner,
+            index,
+            element,
+        } => {
+            check_and_consume_container_owner(
                 module,
                 function,
                 *owner,
+                aliases,
                 state,
                 location.clone(),
                 origin,
                 errors,
-            ) && has_any_value_loan(*owner, aliases, state)
-            {
-                errors.push(error(
-                    VerifyErrorKind::OwnerLoanConflict { value: *owner },
-                    location.clone(),
-                    origin,
-                ));
-            }
+            );
             consume_value(
                 module,
                 function,
-                *owner,
+                *index,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location.clone(),
+                origin,
+                errors,
+            );
+            consume_value(
+                module,
+                function,
+                *element,
                 aliases,
                 state,
                 &BTreeSet::new(),
@@ -1415,6 +1366,47 @@ fn require_value(
         ));
         false
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_and_consume_container_owner(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    aliases: &AliasRoots,
+    state: &mut BlockState,
+    location: VerifyLocation,
+    origin: &super::model::Origin,
+    errors: &mut Vec<VerifyError>,
+) {
+    if require_value(
+        module,
+        function,
+        owner,
+        state,
+        location.clone(),
+        origin,
+        errors,
+    ) && has_any_value_loan(owner, aliases, state)
+    {
+        errors.push(error(
+            VerifyErrorKind::OwnerLoanConflict { value: owner },
+            location.clone(),
+            origin,
+        ));
+    }
+    consume_value(
+        module,
+        function,
+        owner,
+        aliases,
+        state,
+        &BTreeSet::new(),
+        &BTreeSet::new(),
+        location,
+        origin,
+        errors,
+    );
 }
 
 fn require_place(

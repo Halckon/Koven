@@ -272,6 +272,11 @@ pub(super) fn verify_operation(
         Operation::ContainerRemoveFirst { owner } | Operation::ContainerRemoveLast { owner } => {
             container_remove_endpoint_contract(module, function, *owner, &results)
         }
+        Operation::ContainerInsertAt {
+            owner,
+            index,
+            element,
+        } => container_insert_at_contract(module, function, *owner, *index, *element, &results),
         Operation::ContainerReplace {
             owner,
             index,
@@ -812,6 +817,16 @@ fn container_element_place_contract(
         && results == [EntityType::Place(element)]
 }
 
+fn mutable_list_element_type(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+) -> Option<SsaTypeId> {
+    let (kind, elem_ty) =
+        value_type(function, owner).and_then(|container| module.sequential_container(container))?;
+    (kind == super::model::SequentialContainerKind::MutableList).then_some(elem_ty)
+}
+
 fn container_append_contract(
     module: &Module,
     function: &Function,
@@ -819,13 +834,7 @@ fn container_append_contract(
     element: ValueId,
     results: &[EntityType],
 ) -> bool {
-    let Some((kind, elem_ty)) =
-        value_type(function, owner).and_then(|container| module.sequential_container(container))
-    else {
-        return false;
-    };
-    kind == super::model::SequentialContainerKind::MutableList
-        && value_type(function, element) == Some(elem_ty)
+    mutable_list_element_type(module, function, owner) == value_type(function, element)
         && single_value_result(results) == value_type(function, owner)
 }
 
@@ -835,12 +844,7 @@ fn container_clear_contract(
     owner: ValueId,
     results: &[EntityType],
 ) -> bool {
-    let Some((kind, _)) =
-        value_type(function, owner).and_then(|container| module.sequential_container(container))
-    else {
-        return false;
-    };
-    kind == super::model::SequentialContainerKind::MutableList
+    mutable_list_element_type(module, function, owner).is_some()
         && single_value_result(results) == value_type(function, owner)
 }
 
@@ -851,17 +855,27 @@ fn container_remove_at_contract(
     index: ValueId,
     results: &[EntityType],
 ) -> bool {
-    let Some((kind, elem_ty)) =
-        value_type(function, owner).and_then(|container| module.sequential_container(container))
-    else {
+    let Some(elem_ty) = mutable_list_element_type(module, function, owner) else {
         return false;
     };
     let Some(owner_type) = value_type(function, owner) else {
         return false;
     };
-    kind == super::model::SequentialContainerKind::MutableList
-        && value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
+    value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
         && results == [EntityType::Value(elem_ty), EntityType::Value(owner_type)]
+}
+
+fn container_insert_at_contract(
+    module: &Module,
+    function: &Function,
+    owner: ValueId,
+    index: ValueId,
+    element: ValueId,
+    results: &[EntityType],
+) -> bool {
+    mutable_list_element_type(module, function, owner) == value_type(function, element)
+        && value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
+        && single_value_result(results) == value_type(function, owner)
 }
 
 fn container_remove_endpoint_contract(

@@ -51,7 +51,8 @@ impl<'a> ValueProof<'a> {
                 | Operation::ContainerClear { owner, .. }
                 | Operation::ContainerRemoveAt { owner, .. }
                 | Operation::ContainerRemoveFirst { owner, .. }
-                | Operation::ContainerRemoveLast { owner, .. } => EntityId::Value(owner),
+                | Operation::ContainerRemoveLast { owner, .. }
+                | Operation::ContainerInsertAt { owner, .. } => EntityId::Value(owner),
                 _ => continue,
             };
             affected.entry(access).or_insert_with(|| {
@@ -255,7 +256,8 @@ impl<'a> ValueProof<'a> {
             Operation::ContainerReplace { owner, value, .. } => {
                 Some((EntityId::Value(owner), may(value), false))
             }
-            Operation::ContainerAppend { owner, element } => {
+            Operation::ContainerAppend { owner, element }
+            | Operation::ContainerInsertAt { owner, element, .. } => {
                 Some((EntityId::Value(owner), may(element), false))
             }
             _ => None,
