@@ -665,6 +665,68 @@ fn rejects_generic_nominal_and_move_only_field_read_without_partial_ssa() {
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
 }
 
+#[test]
+fn lowers_compilation_unit_copyable_and_move_only_destructuring() {
+    let mut sources = SourceMap::new();
+    let (provider_source, provider) = parsed(
+        &mut sources,
+        "p/provider.ko",
+        "package p\n\
+         value class Pair(val first: Int, val second: Int)\n\
+         class Token(val id: Int)\n\
+         value class ResourcePair(val left: Token, val right: Token)\n\
+         fun makePair(): Pair = Pair(10, 20)\n\
+         fun makeResourcePair(): ResourcePair = ResourcePair(Token(1), Token(2))",
+    );
+    let (consumer_source, consumer) = parsed(
+        &mut sources,
+        "q/consumer.ko",
+        "package q\n\
+         fun copyableEntry(): Int {\n\
+             val (a, b) = p.makePair()\n\
+             return a + b\n\
+         }\n\
+         fun moveOnlyEntry(): Int {\n\
+             val (x, y) = p.makeResourcePair()\n\
+             return x.id + y.id\n\
+         }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
+        SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
+    ];
+    let (name_environment, type_environment) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+
+    let entry_copy = declaration(&names, "q", "copyableEntry");
+    let (program_copy, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry_copy,
+    )
+    .expect("copyable destructuring lowers to verified SSA");
+    let rendered_copy = render_program(&program_copy);
+    assert!(rendered_copy.contains("aggregate.copy_explode"));
+
+    let entry_move = declaration(&names, "q", "moveOnlyEntry");
+    let (program_move, _) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        entry_move,
+    )
+    .expect("move-only destructuring lowers to verified SSA");
+    let rendered_move = render_program(&program_move);
+    assert!(rendered_move.contains("aggregate.explode"));
+}
+
 fn function<'a>(module: &'a super::model::Module, name: &str) -> &'a super::model::Function {
     module
         .functions
