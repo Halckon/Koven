@@ -1,13 +1,14 @@
 //! concrete nominal aggregate 与 intrinsic Box lowering。
 
 use lang_frontend::{
-    ast::ExpressionId,
+    ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
     source::Span,
     type_checking::{
-        Copyability, ExpressionCategory, IntrinsicTypeConstructor, NominalKind, ParameterMode,
-        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitConstructionDescriptor,
-        UnitConstructionTarget, UnitExpressionId, UnitTypeId, UnitTypeKind,
+        Copyability, DestructuringMode, ExpressionCategory, IntrinsicTypeConstructor, NominalKind,
+        ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
+        UnitConstructionDescriptor, UnitConstructionTarget, UnitExpressionId, UnitStatementId,
+        UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -649,5 +650,46 @@ impl UnitExpressionLowerer<'_> {
             }
             EntityId::Place(_) => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
         }
+    }
+
+    pub(super) fn lower_destructuring(
+        &mut self,
+        statement: StatementId,
+        initializer: ExpressionId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let descriptor = self
+            .typed
+            .destructuring(UnitStatementId::new(self.source_unit, statement))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let source = self.require_expression_value(initializer)?;
+        let result_types = descriptor
+            .components()
+            .iter()
+            .map(|component| {
+                self.type_ids
+                    .get(&component.ty())
+                    .copied()
+                    .map(EntityType::Value)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let operation = match descriptor.mode() {
+            DestructuringMode::Copy => Operation::AggregateCopyExplode { aggregate: source },
+            DestructuringMode::Consume => Operation::AggregateExplode { aggregate: source },
+        };
+        let (_, results) = self
+            .function
+            .append_instruction(self.block, operation, result_types, Origin::Source(span))
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        if descriptor.mode() == DestructuringMode::Consume {
+            self.transfer_owned_expression(initializer, source, span)?;
+        }
+        for (component, entity) in descriptor.components().iter().zip(results) {
+            let value = require_value(entity, span)?;
+            self.bindings
+                .insert(component.symbol(), LoweredValue::Value(value));
+        }
+        Ok(LoweredValue::Unit)
     }
 }

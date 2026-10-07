@@ -4,6 +4,8 @@
 
 当前 0 份 active。
 
+0286（编译单元局部解构 SSA Lowering 与原生执行）已按双宿主实现验收归档至 `docs/archive/specs/0286-unit-local-destructuring.md`。
+
 0285（`MutableList.insertAt` 元素指定索引插入与向后平移扩容）已按双宿主实现验收归档至 `docs/archive/specs/0285-mutable-list-insert-at.md`。
 
 0284（`MutableList.removeFirst` 头部元素快速移出与队列弹出）已按双宿主实现验收归档至 `docs/archive/specs/0284-mutable-list-remove-first.md`。

@@ -973,9 +973,10 @@ impl UnitExpressionLowerer<'_> {
             } => self.lower_while(statement, *condition, *body, span),
             Statement::Loop { body, .. } => self.lower_loop(statement, *body, span),
             Statement::For { source, body, .. } => self.lower_for(statement, *source, *body, span),
-            Statement::Error | Statement::LocalDestructuring { .. } => {
-                Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
+            Statement::LocalDestructuring { initializer, .. } => {
+                self.lower_destructuring(statement, *initializer, span)
             }
+            Statement::Error => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }
 

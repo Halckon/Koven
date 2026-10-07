@@ -166,6 +166,40 @@ fun entry(): Unit { val guard = Guard(Leaf("field")); println("scope") }
     }
 }
 
+#[test]
+fn unit_destructuring_native_move_only_and_copyable_execution() {
+    for constants in [false, true] {
+        let provider = format!(
+            r#"package p
+{LEAF}
+value class ResourcePair(val left: Leaf, val right: Leaf)
+value class IntPair(val first: Int, val second: Int)
+fun makeResources(): ResourcePair = ResourcePair(Leaf("left"), Leaf("right"))
+fun makeInts(): IntPair = IntPair(10, 32)
+"#
+        );
+        let consumer = r#"package q
+import p.Leaf
+import p.ResourcePair
+import p.IntPair
+fun entry(): Unit {
+    val (x, y) = p.makeInts()
+    if (x + y == 42) {
+        println("42")
+    }
+    val (r1, r2) = p.makeResources()
+    println("destructured")
+}
+"#;
+        let (run, llvm) = run_unit(&provider, consumer, constants);
+        let expected = b"42\ndestructured\nright\nleft\n";
+        assert!(run.status.success(), "{run:?}");
+        assert_eq!(run.stdout, expected);
+        let counted = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 2);
+        crate::native_tests::boxed_enum_tests::assert_success(&counted, expected);
+    }
+}
+
 fn run_unit(provider: &str, consumer: &str, constants: bool) -> (std::process::Output, String) {
     let provider = if constants {
         provider.replacen(
