@@ -982,3 +982,28 @@ Span 报 UnsupportedNode，并有保持该边界的正常源码回归；旧 get/
 聚合、远端 CI 未运行。Mac 合同仍为 skipped_reasons
 `["address:macos-asan-unsupported", "leak:macos-counter-only"]`、acceptance.status=partial、
 requirements_met=false。Spec 保持 in-progress；未提交、暂存、push、开 PR、合并或清理工作树。
+
+## 7. 分支收尾账本（2026-10-09）
+
+分支 `feature/spec-0288` 已按四层提交收口：`345f858e`（frontend）、`787fda73`（codegen）、
+`95811288`（CLI 与尺寸政策）、`debda352`（文档检查点），并以 `a7ecbf77` 登记 signatures.rs
+相对远端旧 tip 的 2 行 N1a 休眠接线例外。N1a 代码随同一源码树休眠进入分支，Guide v0.43、
+SPEC-0289 规格、ADR-0030 与 v0.43 迁移账本未进入本分支，继续在本分支上作为 SPEC-0289 推进。
+
+| 门禁 | 在提交树上的结果 |
+|---|---|
+| `cargo check --workspace --all-targets` | exit 0 |
+| `cargo fmt --all -- --check` | exit 0 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | exit 0 |
+| `cargo test -p lang-frontend` | 1968 passed，0 failed，0 ignored |
+| `cargo test -p lang-codegen`（跳过四个既定故障/校准入口） | 1190 passed，0 failed，1 ignored（既有 macOS LLDB） |
+| `cargo test -p lang-cli` / `-p lang-lsp` | 108 / 45 passed，0 failed |
+| `check_docs.py` / `check_rust_sizes.py --base a236151` | 通过（597 Markdown；1023 文件，38 项历史欠账或例外） |
+| PR #69 远端 CI（head `a7ecbf77`，pull_request run `37923292513`） | `CI Passed` 通过；Workspace Check & Clippy、Targeted Tests、Preview 等全部 pass |
+
+远端 `Targeted Tests (ubuntu-24.04)` 中的 `check_native_sanitizers.py --linux` 通过，但它只验证
+通用 `clean/user/runtime/drop/leak` 夹具的 ASan/LSan 分类，**不执行 Map 程序**。
+
+G5 因此保持未闭合：Map 作用域退出与条目覆盖/删除的 ASan/LSan 零泄漏尚无专属远端证据；Map 的
+精确释放仅由计数型原生测试覆盖。在补入 Map 专属 sanitizer 夹具并通过远端 CI 前，本 Spec 保持
+in-progress，不归档，PR #69 保持 Draft，不合并。
