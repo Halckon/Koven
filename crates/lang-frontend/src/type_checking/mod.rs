@@ -1,6 +1,7 @@
 //! Phase 2 单文件类型检查与可供所有权阶段消费的 typed facts。
 
 mod argument_mapping;
+mod borrow_result;
 mod call;
 mod canonical;
 mod checker;
@@ -39,6 +40,7 @@ use crate::{
 
 pub(crate) use expression_use::{ExpressionUse, collect_expression_uses};
 
+pub use borrow_result::{BorrowReturnContract, BorrowReturnOrigin};
 pub use call::*;
 pub use compilation_unit::*;
 pub use constant::*;
