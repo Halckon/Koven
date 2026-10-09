@@ -466,6 +466,7 @@ impl BodyChecker<'_> {
                 type_arguments: Vec::new(),
             },
             return_type: ty,
+            borrow_return: None,
             receiver: Some(UnitCallReceiverDescriptor {
                 origin: UnitCallReceiverOrigin::Expression(UnitExpressionId::new(source, receiver)),
                 mode: crate::type_checking::ParameterMode::Borrow,

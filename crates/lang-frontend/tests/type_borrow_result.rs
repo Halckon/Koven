@@ -338,3 +338,168 @@ fn invalid_signature_source_is_rejected_before_the_unsupported_path_gate() {
         assert_frontier(text, "L0162", marker);
     }
 }
+
+#[test]
+fn selected_generic_call_carries_declaration_contract_without_opening_the_gate() {
+    let text = "fun <T> view(aux: Int, source: T): borrow T from source = source\nfun main(source: String) { println(view(source = source, aux = 0)) }";
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("signature.ko", text).unwrap();
+    let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(file.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&sources, &file, &environment).unwrap();
+    assert!(names.diagnostics().is_empty());
+    let typed = check_types(&sources, &file, &names, &types).unwrap();
+    assert_eq!(typed.diagnostics().len(), 1);
+    assert_eq!(typed.diagnostics()[0].code().to_string(), "L0164");
+    let callable = typed
+        .callables()
+        .iter()
+        .find(|c| c.borrow_return().is_some())
+        .unwrap();
+    let call = typed
+        .calls()
+        .iter()
+        .find(|c| c.borrow_return().is_some())
+        .unwrap();
+    assert_eq!(call.borrow_return(), callable.borrow_return());
+    assert_eq!(call.arguments()[0].parameter_index(), 1);
+    assert_eq!(call.arguments()[1].parameter_index(), 0);
+    assert!(matches!(
+        typed.types().get(call.return_type()),
+        Some(TypeKind::Builtin(
+            lang_frontend::type_checking::BuiltinType::String
+        ))
+    ));
+    assert_eq!(call.instance().type_arguments(), &[call.return_type()]);
+    let stages = std::cell::RefCell::new(Vec::new());
+    let analysis = analyze_single_file::<(), _>(
+        &sources,
+        source,
+        &environment,
+        &types,
+        |stage, diagnostics| {
+            stages.borrow_mut().push(stage);
+            if diagnostics.is_empty() {
+                Ok(())
+            } else {
+                Err(stage)
+            }
+        },
+        |_| panic!("borrow signature metadata cannot authorize an observer or ownership"),
+    );
+    assert!(matches!(
+        analysis,
+        Err(SingleFileAnalysisError::Host(SingleFileStage::TypeChecking))
+    ));
+    assert_eq!(stages.borrow().last(), Some(&SingleFileStage::TypeChecking));
+}
+
+#[test]
+fn unit_selected_generic_call_keeps_provider_origin_and_caller_identity_separate() {
+    use lang_frontend::type_checking::{BuiltinType, UnitCallTarget, UnitTypeKind};
+    let mut sources = SourceMap::new();
+    let consumer = sources.add_source("consumer/main.ko", "package consumer\nimport api.view\nfun main(source: String) { println(view(source = source, aux = 0)) }").unwrap();
+    let provider = sources
+        .add_source(
+            "api/view.ko",
+            "package api\npublic fun <T> view(aux: Int, source: T): borrow T from source = source",
+        )
+        .unwrap();
+    let files = [
+        parse_file(&sources, &lex(&sources, consumer).unwrap()).unwrap(),
+        parse_file(&sources, &lex(&sources, provider).unwrap()).unwrap(),
+    ];
+    assert!(files.iter().all(|f| f.diagnostics().is_empty()));
+    let forward = [
+        SourceUnitInput::new("root", "consumer/main.ko", consumer, &files[0]),
+        SourceUnitInput::new("root", "api/view.ko", provider, &files[1]),
+    ];
+    let reverse = [forward[1], forward[0]];
+    let (environment, types) = standard_environments();
+    let mut observations = Vec::new();
+    for inputs in [&forward, &reverse] {
+        let index = index_compilation_unit(&sources, inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, inputs, &names, &types).unwrap();
+        assert_eq!(typed.diagnostics().len(), 1);
+        assert_eq!(typed.diagnostics()[0].code().to_string(), "L0164");
+        let call = typed
+            .calls()
+            .iter()
+            .find(|c| c.borrow_return().is_some())
+            .unwrap();
+        let UnitCallTarget::Declaration(target) = call.target() else {
+            panic!("source declaration call")
+        };
+        let callable = typed
+            .signatures()
+            .declaration(target)
+            .unwrap()
+            .callable()
+            .unwrap();
+        let contract = call.borrow_return().unwrap();
+        assert_eq!(Some(contract), callable.borrow_return());
+        assert_eq!(contract.origin(), BorrowReturnOrigin::Parameter(1));
+        assert_eq!(contract.source_span().source_id(), provider);
+        assert_eq!(
+            names.names().index().source_units()[call.expression().source_unit().index()]
+                .source_id(),
+            consumer
+        );
+        let parameter = callable.parameters()[1].symbol().unwrap();
+        assert_ne!(parameter.source_unit(), call.expression().source_unit());
+        assert_eq!(
+            names.names().index().source_units()[parameter.source_unit().index()].source_id(),
+            provider
+        );
+        assert_eq!(call.arguments()[0].parameter_index(), 1);
+        assert_eq!(call.arguments()[1].parameter_index(), 0);
+        assert!(matches!(
+            typed.types().get(call.return_type()),
+            Some(UnitTypeKind::Builtin(BuiltinType::String))
+        ));
+        assert_eq!(call.instance().type_arguments(), &[call.return_type()]);
+        observations.push((call.expression(), call.target(), contract, parameter));
+        assert!(typed.validate().is_err());
+    }
+    assert_eq!(observations[0], observations[1]);
+}
+
+#[test]
+fn owned_source_external_and_function_value_calls_keep_their_default_contract() {
+    let text = "fun owned(own source: String): String = source\nfun main() { val result = owned(\"x\"); println(result); val invoke = { println(\"callback\") }; invoke() }";
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("signature.ko", text).unwrap();
+    let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(file.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&sources, &file, &environment).unwrap();
+    assert!(names.diagnostics().is_empty());
+    let single = check_types(&sources, &file, &names, &types).unwrap();
+    assert!(
+        single.diagnostics().is_empty(),
+        "{:?}",
+        single.diagnostics()
+    );
+    assert!(
+        single
+            .callables()
+            .iter()
+            .all(|c| c.borrow_return().is_none())
+    );
+    assert!(single.calls().iter().all(|c| c.borrow_return().is_none()));
+    let inputs = [SourceUnitInput::new("root", "signature.ko", source, &file)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert!(typed.calls().iter().all(|c| c.borrow_return().is_none()));
+    assert!(typed.validate().is_ok());
+}

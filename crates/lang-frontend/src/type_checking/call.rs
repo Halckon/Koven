@@ -173,6 +173,7 @@ pub struct CallDescriptor {
     expression: ExpressionId,
     instance: CallableInstanceKey,
     return_type: TypeId,
+    borrow_return: Option<super::BorrowReturnContract>,
     receiver: Option<CallReceiverDescriptor>,
     arguments: Vec<CallArgumentDescriptor>,
     aborts: bool,
@@ -195,11 +196,25 @@ impl CallDescriptor {
             expression,
             instance: CallableInstanceKey::new(target, type_arguments),
             return_type,
+            borrow_return: None,
             receiver,
             arguments,
             aborts,
             prints_line,
         }
+    }
+
+    pub(crate) fn with_borrow_return(
+        mut self,
+        contract: Option<super::BorrowReturnContract>,
+    ) -> Self {
+        self.borrow_return = contract;
+        self
+    }
+
+    /// 返回声明的普通借用合同；不证明实际 origin 或 caller continuation。
+    pub const fn borrow_return(&self) -> Option<super::BorrowReturnContract> {
+        self.borrow_return
     }
 
     /// 返回 call expression identity。

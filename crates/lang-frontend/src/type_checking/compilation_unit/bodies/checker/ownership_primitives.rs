@@ -314,6 +314,7 @@ impl BodyChecker<'_> {
                 type_arguments: vec![t],
             },
             return_type: t,
+            borrow_return: None,
             receiver: None,
             arguments: vec![
                 UnitCallArgumentDescriptor {
@@ -570,6 +571,7 @@ impl BodyChecker<'_> {
                 type_arguments: vec![t],
             },
             return_type: unit,
+            borrow_return: None,
             receiver: None,
             arguments: vec![
                 UnitCallArgumentDescriptor {

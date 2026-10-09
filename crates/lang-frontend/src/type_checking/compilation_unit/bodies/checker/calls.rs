@@ -21,58 +21,11 @@ use crate::{
 
 use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
 
+mod candidate;
 mod generic;
 mod member;
 
-#[derive(Clone)]
-struct CallCandidate {
-    target: UnitCallTarget,
-    declaration_span: Option<crate::source::Span>,
-    type_parameters: Vec<crate::name_resolution::UnitSymbolId>,
-    move_only: bool,
-    parameters: Vec<MappedParameter<UnitTypeId>>,
-    return_type: UnitTypeId,
-    instance_arguments: Vec<UnitTypeId>,
-    receiver: Option<(ParameterMode, UnitTypeId)>,
-    owner_substitutions: BTreeMap<crate::name_resolution::UnitSymbolId, UnitTypeId>,
-    cross_thread_parameters: BTreeSet<usize>,
-    aborts: bool,
-    prints_line: bool,
-}
-
-impl CallCandidate {
-    fn from_signature(declaration: DeclarationId, callable: &UnitCallableSignature) -> Self {
-        Self::from_source(UnitCallTarget::Declaration(declaration), callable)
-    }
-
-    fn from_source(target: UnitCallTarget, callable: &UnitCallableSignature) -> Self {
-        Self {
-            target,
-            declaration_span: Some(callable.name_span()),
-            type_parameters: callable.type_parameters().to_vec(),
-            move_only: false,
-            parameters: callable
-                .parameters()
-                .iter()
-                .map(|parameter| MappedParameter {
-                    name: parameter.name().map(str::to_owned),
-                    mode: parameter.mode(),
-                    ty: parameter.ty(),
-                    span: Some(parameter.span()),
-                })
-                .collect(),
-            return_type: callable.return_type(),
-            instance_arguments: Vec::new(),
-            receiver: callable
-                .receiver()
-                .map(|receiver| (receiver.mode(), receiver.ty())),
-            owner_substitutions: BTreeMap::new(),
-            cross_thread_parameters: BTreeSet::new(),
-            aborts: false,
-            prints_line: false,
-        }
-    }
-}
+use candidate::CallCandidate;
 
 impl BodyChecker<'_> {
     pub(super) fn check_call(
@@ -272,6 +225,7 @@ impl BodyChecker<'_> {
                         })
                         .collect(),
                     return_type,
+                    borrow_return: None,
                     instance_arguments: Vec::new(),
                     receiver: None,
                     owner_substitutions: BTreeMap::new(),
@@ -491,6 +445,7 @@ impl BodyChecker<'_> {
             move_only: false,
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
+            borrow_return: None,
             instance_arguments: Vec::new(),
             receiver: None,
             owner_substitutions: BTreeMap::new(),
@@ -915,6 +870,7 @@ impl BodyChecker<'_> {
                 type_arguments: candidate.instance_arguments.clone(),
             },
             return_type: candidate.return_type,
+            borrow_return: candidate.borrow_return,
             receiver,
             arguments: descriptors,
             aborts: candidate.aborts,

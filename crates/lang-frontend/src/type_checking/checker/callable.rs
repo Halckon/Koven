@@ -13,21 +13,10 @@ use crate::{
 
 use super::*;
 
+mod candidate;
 mod generic;
 
-#[derive(Clone)]
-struct CallCandidate {
-    target: CallableTarget,
-    declaration_span: Option<Span>,
-    type_parameters: Vec<SymbolId>,
-    instance_arguments: Vec<TypeId>,
-    receiver: Option<CallReceiverDescriptor>,
-    parameters: Vec<MappedParameter<TypeId>>,
-    return_type: TypeId,
-    cross_thread_parameters: BTreeSet<usize>,
-    aborts: bool,
-    prints_line: bool,
-}
+use candidate::CallCandidate;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum MemberCallShapeType {
@@ -147,6 +136,7 @@ impl Checker<'_> {
                         })
                         .collect(),
                     return_type,
+                    borrow_return: None,
                     cross_thread_parameters: BTreeSet::new(),
                     aborts: false,
                     prints_line: false,
@@ -795,6 +785,7 @@ impl Checker<'_> {
             receiver,
             parameters,
             return_type: self.substitute_type(descriptor.return_type(), &substitutions)?,
+            borrow_return: descriptor.borrow_return(),
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
             prints_line: false,
@@ -839,6 +830,7 @@ impl Checker<'_> {
             receiver: None,
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
+            borrow_return: None,
             cross_thread_parameters: signature
                 .effects
                 .iter()
@@ -974,16 +966,19 @@ impl Checker<'_> {
                 )
             })
             .collect();
-        self.calls.push(CallDescriptor::new(
-            expression,
-            candidate.target,
-            candidate.instance_arguments,
-            candidate.return_type,
-            candidate.receiver,
-            descriptors,
-            candidate.aborts,
-            candidate.prints_line,
-        ));
+        self.calls.push(
+            CallDescriptor::new(
+                expression,
+                candidate.target,
+                candidate.instance_arguments,
+                candidate.return_type,
+                candidate.receiver,
+                descriptors,
+                candidate.aborts,
+                candidate.prints_line,
+            )
+            .with_borrow_return(candidate.borrow_return),
+        );
         Ok(ExprCheck {
             ty: candidate.return_type,
             falls_through: !self.is_builtin(candidate.return_type, BuiltinType::Nothing),
