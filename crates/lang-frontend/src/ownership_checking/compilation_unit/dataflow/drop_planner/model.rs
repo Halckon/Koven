@@ -247,3 +247,55 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
     }
     merged
 }
+
+use super::{Checker, UnitOwnershipDeferredFact, liveness};
+
+pub(super) struct DropPlanner<'a, 'checker> {
+    pub(super) iteration_conditional_scopes:
+        Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
+    pub(super) iteration_temporary_scopes: Vec<(
+        UnitStatementId,
+        crate::ownership_checking::UnitDropTarget,
+        bool,
+    )>,
+    pub(super) iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
+    pub(super) iteration_actions: Vec<(
+        PlannerDropPoint,
+        crate::ownership_checking::UnitIterationCleanupAction,
+    )>,
+    pub(super) iteration_exits: Vec<(
+        UnitStatementId,
+        crate::ownership_checking::UnitIterationExitKind,
+        PlannerDropPoint,
+    )>,
+    pub(super) planned_iterations: std::collections::BTreeSet<UnitStatementId>,
+    pub(super) resource_deferred: Vec<UnitOwnershipDeferredFact>,
+    pub(super) checker: &'a Checker<'checker>,
+    pub(super) liveness: liveness::Liveness,
+    pub(super) facts: Vec<PlannerDropFact>,
+    pub(super) conditional_receiver_facts: Vec<PlannerConditionalReceiverDropFact>,
+    pub(super) loop_boundaries: Vec<usize>,
+    pub(super) scope_depth: usize,
+    pub(super) binding_depths: BTreeMap<UnitSymbolId, usize>,
+}
+
+impl<'a, 'checker> DropPlanner<'a, 'checker> {
+    pub(super) fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
+        Self {
+            iteration_conditional_scopes: Vec::new(),
+            iteration_temporary_scopes: Vec::new(),
+            iteration_scope_depths: BTreeMap::new(),
+            iteration_actions: Vec::new(),
+            iteration_exits: Vec::new(),
+            planned_iterations: std::collections::BTreeSet::new(),
+            resource_deferred: Vec::new(),
+            checker,
+            liveness,
+            facts: Vec::new(),
+            conditional_receiver_facts: Vec::new(),
+            loop_boundaries: Vec::new(),
+            scope_depth: 0,
+            binding_depths: BTreeMap::new(),
+        }
+    }
+}

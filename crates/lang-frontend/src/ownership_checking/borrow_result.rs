@@ -77,3 +77,14 @@ pub(crate) const fn marker_span(marker: NameMarker) -> Span {
         NameMarker::Present(span) | NameMarker::Missing(span) | NameMarker::Error(span) => span,
     }
 }
+
+impl super::CompilationUnitOwnership {
+    /// Actual source-qualified return proofs; these do not authorize caller continuation.
+    #[must_use]
+    pub fn borrow_return_origins(
+        &self,
+    ) -> &[BorrowReturnOriginFact<crate::type_checking::UnitExpressionId, super::UnitLoanTarget>]
+    {
+        &self.borrow_return_origins
+    }
+}

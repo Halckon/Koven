@@ -73,6 +73,7 @@ pub(super) fn analyze(
         ),
     )?;
     if !dataflow.diagnostics.is_empty() {
+        dataflow.borrow_return_origins.clear();
         dataflow.receiver_facts.clear();
         dataflow.conditional_receiver_deliveries.clear();
         dataflow.loans.clear();

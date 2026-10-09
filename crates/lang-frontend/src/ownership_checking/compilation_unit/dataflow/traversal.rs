@@ -2,7 +2,7 @@
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
-    diagnostic::{Diagnostic, Severity},
+    diagnostic::{Diagnostic, Severity, codes},
     parser::{Expression, FunctionBody, FunctionForm, Item, Statement, StringPart},
 };
 
@@ -155,6 +155,9 @@ impl Checker<'_> {
                 form,
                 ..
             } => {
+                let borrow_source = self.borrow_return_source(form, &parameters);
+                let previous_borrow =
+                    std::mem::replace(&mut self.current_borrow_return, borrow_source);
                 let previous_receiver = self.current_receiver;
                 self.current_receiver = self.receiver_context(name);
                 let mut function_state = State::default();
@@ -166,6 +169,7 @@ impl Checker<'_> {
                 let previous_return = self.enter_callable(name);
                 let result = self.check_function(form, function_state);
                 self.leave_callable(previous_return);
+                self.current_borrow_return = previous_borrow;
                 self.current_receiver = previous_receiver;
                 result?;
                 Ok(Flows::next(state))
@@ -222,7 +226,17 @@ impl Checker<'_> {
                 self.check_statement(body, state)?;
             }
             FunctionForm::Explicit { body, .. } => match body {
-                FunctionBody::Absent => {}
+                FunctionBody::Absent => {
+                    if let Some(source) = self.current_borrow_return {
+                        self.diagnostics.push(Diagnostic::new(
+                            self.sources,
+                            Severity::Error,
+                            codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
+                            "borrow result has no body proving its origin",
+                            source.marker,
+                        )?);
+                    }
+                }
                 FunctionBody::Expression { expression, .. } => {
                     self.check_return_expression(
                         expression,

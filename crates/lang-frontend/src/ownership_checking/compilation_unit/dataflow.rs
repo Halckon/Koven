@@ -1,5 +1,7 @@
 //! Source-qualified body-local call ownership dataflow.
 
+mod borrow_result;
+mod call_contract;
 mod callable_provenance;
 mod closure;
 mod construction;
@@ -48,6 +50,8 @@ use super::{
 use flow::{ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Flows, State, merge_state};
 
 pub(super) struct Analysis {
+    pub(super) borrow_return_origins:
+        Vec<crate::ownership_checking::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
     pub(super) callable_provenance:
         crate::ownership_checking::callable_provenance::UnitCallableFacts,
     pub(super) iteration_conditional_scopes: Vec<(
@@ -188,6 +192,7 @@ pub(super) fn analyze(
     let illegal_owned_capture_code = codes::catalog()?.resolve(codes::ILLEGAL_OWNED_CAPTURE)?;
     let non_transferable_delivery_code =
         codes::catalog()?.resolve(codes::NON_TRANSFERABLE_DELIVERY)?;
+    let mut borrow_return_origins = Vec::new();
     let mut callable_sources = callable_provenance::Collection::default();
     let mut diagnostics = Vec::new();
     let mut constant_materializations = Vec::new();
@@ -261,6 +266,7 @@ pub(super) fn analyze(
         )?;
         checker.constant_control = constant_control;
         let drop_analysis = checker.run()?;
+        borrow_return_origins.extend(checker.borrow_return_origins);
         iteration_templates.extend(checker.iterations.into_values());
         iterations.extend(drop_analysis.iterations);
         iteration_conditional_scopes.extend(drop_analysis.iteration_conditional_scopes);
@@ -294,12 +300,22 @@ pub(super) fn analyze(
     non_null_assertions.dedup_by_key(|plan| plan.descriptor().expression());
     constant_materializations.sort_by_key(|plan| plan.descriptor.expression());
     short_circuits.sort_by_key(|plan| plan.expression);
+    if !diagnostics.is_empty() || !deferred.is_empty() {
+        borrow_return_origins.clear();
+    }
+    borrow_return_origins.sort_by_key(|fact| {
+        (
+            fact.expression().source_unit().index(),
+            fact.expression().expression().index(),
+        )
+    });
     let callable_provenance = if diagnostics.is_empty() && typed.diagnostics().is_empty() {
         callable_provenance::finish(&callable_sources, typed, closure_inputs.captures)
     } else {
         Default::default()
     };
     Ok(Analysis {
+        borrow_return_origins,
         callable_provenance,
         iteration_conditional_scopes,
         iteration_owner_scopes,
@@ -404,6 +420,10 @@ struct Checker<'a> {
     contracts_by_call: BTreeMap<UnitExpressionId, Vec<UnitCallArgumentOwnershipContract>>,
     receiver_contracts_by_call: BTreeMap<UnitExpressionId, UnitCallReceiverOwnershipContract>,
     current_receiver: Option<ReceiverContext>,
+    current_borrow_return:
+        Option<crate::ownership_checking::borrow_result::ReturnSource<UnitSymbolId>>,
+    borrow_return_origins:
+        Vec<crate::ownership_checking::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
     expression_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
     statement_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
     codes: Codes,
@@ -550,6 +570,8 @@ impl<'a> Checker<'a> {
             contracts_by_call,
             receiver_contracts_by_call,
             current_receiver: None,
+            current_borrow_return: None,
+            borrow_return_origins: Vec::new(),
             expression_live_after: Vec::new(),
             statement_live_after: Vec::new(),
             codes,
@@ -604,125 +626,6 @@ impl<'a> Checker<'a> {
         } else {
             Ok(drop_planner::Analysis::default())
         }
-    }
-
-    fn apply_contract(
-        &mut self,
-        contract: UnitCallArgumentOwnershipContract,
-        state: &mut State,
-    ) -> Result<(), OwnershipCheckingError> {
-        match contract.kind() {
-            UnitCallArgumentOwnershipKind::Value => {
-                let Some((kind, source)) = self.value_delivery(contract, state)? else {
-                    return Ok(());
-                };
-                self.value_deliveries.push(UnitValueDeliveryFact::new(
-                    contract.call(),
-                    contract.argument(),
-                    source,
-                    kind,
-                    contract.argument_span(),
-                    contract.parameter_span(),
-                ));
-            }
-            UnitCallArgumentOwnershipKind::SharedLoan
-            | UnitCallArgumentOwnershipKind::ExclusiveLoan => {
-                let kind = if contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan {
-                    LoanKind::Shared
-                } else {
-                    LoanKind::Exclusive
-                };
-                if kind == LoanKind::Exclusive
-                    && !self.is_mutable_place(contract.argument().expression())?
-                {
-                    let mut diagnostic = Diagnostic::new(
-                        self.sources,
-                        Severity::Error,
-                        self.codes.immutable_inout,
-                        "inout argument is not a mutable place",
-                        contract.loan_begin_span(),
-                    )?;
-                    if let Some(place) = self.place(contract.argument().expression())? {
-                        diagnostic.add_label(
-                            self.sources,
-                            self.symbol_span(place.root())?,
-                            "immutable binding declared here",
-                        )?;
-                    }
-                    add_parameter_label(self.sources, &mut diagnostic, contract.parameter_span())?;
-                    self.diagnostics.push(diagnostic);
-                    return Ok(());
-                }
-                let target = match contract.category() {
-                    ExpressionCategory::Temporary => {
-                        if kind == LoanKind::Exclusive {
-                            return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
-                                source_unit: contract.argument().source_unit().index(),
-                                expression: contract.argument().expression().index(),
-                            });
-                        }
-                        UnitLoanTarget::Temporary(
-                            self.constant_temporary_origin(contract.argument().expression())
-                                .map_or(contract.argument(), |(owner, _)| owner),
-                        )
-                    }
-                    ExpressionCategory::Place => {
-                        if self.expression_is_this(contract.argument().expression())? {
-                            let Some(target) =
-                                self.apply_this_argument_loan(contract, kind, state)?
-                            else {
-                                return Ok(());
-                            };
-                            target
-                        } else if let Some(place) =
-                            self.loan_place(contract.argument().expression())?
-                        {
-                            let access = if kind == LoanKind::Shared {
-                                AccessKind::SharedLoan
-                            } else {
-                                AccessKind::ExclusiveLoan
-                            };
-                            if !self.access_place(
-                                &place,
-                                access,
-                                contract.loan_begin_span(),
-                                contract.parameter_span(),
-                                state,
-                            )? {
-                                return Ok(());
-                            }
-                            state.loans.push(ActiveLoan {
-                                owner: ActiveLoanOwner::Call(contract.call()),
-                                target: ActiveLoanTarget::Place(place.clone()),
-                                kind,
-                                reserved: false,
-                                origin: contract.loan_begin_span(),
-                            });
-                            UnitLoanTarget::Place(place)
-                        } else if let Some(owner) =
-                            self.temporary_projection_owner(contract.argument().expression())?
-                        {
-                            UnitLoanTarget::Temporary(owner)
-                        } else {
-                            return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
-                                source_unit: contract.argument().source_unit().index(),
-                                expression: contract.argument().expression().index(),
-                            });
-                        }
-                    }
-                };
-                self.loans.push(UnitLoanFact::new(
-                    contract.call(),
-                    contract.argument(),
-                    target,
-                    kind,
-                    contract.loan_begin_span(),
-                    contract.call_span(),
-                    contract.parameter_span(),
-                ));
-            }
-        }
-        Ok(())
     }
 
     fn check_assignment(

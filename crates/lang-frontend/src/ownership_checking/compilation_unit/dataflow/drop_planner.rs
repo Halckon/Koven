@@ -5,8 +5,6 @@ mod model;
 mod pending_call;
 mod resource;
 
-use std::collections::BTreeMap;
-
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::UnitSymbolId,
@@ -28,9 +26,9 @@ use crate::ownership_checking::{
 
 use super::{Checker, OwnershipCheckingError, UnitCallArgumentOwnershipKind, liveness, span_key};
 use model::{
-    DropExpressionUse, OwnedThis, OwnedValue, PlannerConditionalReceiverDropFact, PlannerDropFact,
-    PlannerDropPoint, PlannerDropTarget, StringOperandDrop, ValueState, marker_span,
-    merge_value_states,
+    DropExpressionUse, DropPlanner, OwnedThis, OwnedValue, PlannerConditionalReceiverDropFact,
+    PlannerDropFact, PlannerDropPoint, PlannerDropTarget, StringOperandDrop, ValueState,
+    marker_span, merge_value_states,
 };
 
 #[derive(Default)]
@@ -133,54 +131,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
     })
 }
 
-struct DropPlanner<'a, 'checker> {
-    iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
-    iteration_temporary_scopes: Vec<(
-        UnitStatementId,
-        crate::ownership_checking::UnitDropTarget,
-        bool,
-    )>,
-    iteration_scope_depths: BTreeMap<UnitStatementId, usize>,
-    iteration_actions: Vec<(
-        PlannerDropPoint,
-        crate::ownership_checking::UnitIterationCleanupAction,
-    )>,
-    iteration_exits: Vec<(
-        UnitStatementId,
-        crate::ownership_checking::UnitIterationExitKind,
-        PlannerDropPoint,
-    )>,
-    planned_iterations: std::collections::BTreeSet<UnitStatementId>,
-    resource_deferred: Vec<UnitOwnershipDeferredFact>,
-    checker: &'a Checker<'checker>,
-    liveness: liveness::Liveness,
-    facts: Vec<PlannerDropFact>,
-    conditional_receiver_facts: Vec<PlannerConditionalReceiverDropFact>,
-    loop_boundaries: Vec<usize>,
-    scope_depth: usize,
-    binding_depths: BTreeMap<UnitSymbolId, usize>,
-}
-
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
-    fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
-        Self {
-            iteration_conditional_scopes: Vec::new(),
-            iteration_temporary_scopes: Vec::new(),
-            iteration_scope_depths: BTreeMap::new(),
-            iteration_actions: Vec::new(),
-            iteration_exits: Vec::new(),
-            planned_iterations: std::collections::BTreeSet::new(),
-            resource_deferred: Vec::new(),
-            checker,
-            liveness,
-            facts: Vec::new(),
-            conditional_receiver_facts: Vec::new(),
-            loop_boundaries: Vec::new(),
-            scope_depth: 0,
-            binding_depths: BTreeMap::new(),
-        }
-    }
-
     fn run(mut self) -> Result<Self, OwnershipCheckingError> {
         for &root in self.checker.parsed.roots() {
             self.item(root)?;
@@ -613,6 +564,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 }
             };
         }
+        let usage = if self
+            .checker
+            .borrow_return_origins
+            .iter()
+            .any(|fact| fact.expression() == self.checker.unit_expression(id))
+        {
+            DropExpressionUse::Read
+        } else {
+            usage
+        };
         let node = self.checker.parsed.ast().expressions().get(id)?;
         match node.payload().clone() {
             Expression::Error | Expression::Literal(_) | Expression::SuperMember { .. } => Ok(true),
