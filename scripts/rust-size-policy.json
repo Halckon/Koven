@@ -213,6 +213,13 @@
       "split_plan": "后续按 runtime allocation/drop 职责拆分，保持旧 static/closure 消费者合同。",
       "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1261 行；不声称独立评审。再次增长或职责增加前重新审阅。"
     },
+    "crates/lang-frontend/src/type_checking/compilation_unit/signatures.rs": {
+      "max_lines": 1036,
+      "reason": "SPEC-0289 N1a 休眠接线：新增 mod range_carrier 与 check_range_types 调用，相对远端中间提交 9c4df04 的 1034 行净增 2 行；其余 0288 签名接线未增加职责。",
+      "owner": "lang-frontend compilation-unit signatures",
+      "split_plan": "N1a range carrier 签名检查迁入 range_carrier 子模块后取消本例外；本条只登记分支内增长。",
+      "review": "SPEC-0288 分支收尾核对 2 行接线与既有职责；超过 1036 行或新增签名职责前重新审阅。"
+    },
     "crates/lang-frontend/src/type_checking/compilation_unit/model.rs": {
       "max_lines": 1406,
       "reason": "SPEC-0279仅为现有参数结构构造方法增加公开查询用途说明和must_use，两行增长，不新增生产事实或类型存储。",
