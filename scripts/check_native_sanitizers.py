@@ -14,6 +14,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT_TEST = "native_sanitizer_tests::asan_instruments_generated_user_runtime_and_drop"
+MAP_EXPORT_TEST = "native_sanitizer_tests::map_sanitizer_program_exports_ir_and_runs_clean"
 CASES = {"clean", "user", "runtime", "drop", "leak"}
 
 
@@ -144,8 +145,8 @@ def checked(command, directory, name, **kwargs):
     return result
 
 
-def assert_export_ran(text):
-    if (len(re.findall(rf"^test {re.escape(EXPORT_TEST)} \.\.\. ok$", text, re.M)) != 1
+def assert_export_ran(text, name=EXPORT_TEST):
+    if (len(re.findall(rf"^test {re.escape(name)} \.\.\. ok$", text, re.M)) != 1
             or len(re.findall(r"test result: ok\. 1 passed; 0 failed; 0 ignored;", text)) != 1):
         raise AssertionError("the exact sanitizer exporter test must run once, without failures or ignores")
 
@@ -233,6 +234,27 @@ def assert_lsan_entry(text):
         raise AssertionError("LSan fixture adapter requires exactly define i32 @main()")
 
 
+def check_map(directory, map_dir, clang, symbolizer, asan_env, lsan_entry):
+    """Run the Map program under ASan (attribute-marked IR) and LSan (raw IR behind the C adapter)."""
+    expected = (map_dir / "map.expected.stdout").read_bytes()
+    functions = (map_dir / "map.functions").read_text().splitlines()
+    if len(functions) < 4:
+        raise AssertionError("Map fixture must instrument actual Koven callees and glue")
+    asan_exe = directory / "map-asan"
+    checked([clang, "-O0", "-g", "-fno-omit-frame-pointer", "-fsanitize=address",
+             map_dir / "map.asan.ll", "-o", asan_exe], directory, "build-map-asan")
+    assert_clean(run([asan_exe], directory, "run-map-asan", timeout=10, env=asan_env), expected)
+    raw = map_dir / "map.raw.ll"
+    assert_lsan_entry(raw.read_text())
+    lsan_exe = directory / "map-lsan"
+    checked([clang, "-O0", "-g", "-fno-omit-frame-pointer", "-fsanitize=leak", "-pthread",
+             "-Wl,--wrap=main", raw, lsan_entry, "-o", lsan_exe], directory, "build-map-lsan")
+    options = f"detect_leaks=1:exitcode=87:external_symbolizer_path={symbolizer}"
+    assert_clean(run([lsan_exe], directory, "run-map-lsan", timeout=10, env={"LSAN_OPTIONS": options}), expected)
+    return [f"ASan map: {len(functions)} Koven definitions instrumented; clean program, no sanitizer report",
+            "LSan map: clean program, no leak report"]
+
+
 def check_linux(directory):
     if platform.system() != "Linux" or platform.machine() != "x86_64":
         raise RuntimeError("required dynamic acceptance needs Linux x86_64; other hosts must not pass by skipping")
@@ -317,6 +339,13 @@ def check_linux(directory):
             else:
                 assert_clean(result, expected)
             summary.append(f"LSan {name}/enabled={enabled}: expected classification verified")
+    # SPEC-0288 G5: the Map program itself, not only the generic Cell fixtures.
+    map_dir = directory / "map-fixture"
+    map_export = checked(["cargo", "test", "--locked", "--offline", "-p", "lang-codegen", "--lib",
+                          MAP_EXPORT_TEST, "--", "--exact", "--nocapture"], directory, "export-map",
+                         timeout=900, env={"KOVEN_SANITIZER_MAP_ARTIFACTS": str(map_dir)})
+    assert_export_ran(map_export.stdout.decode(), MAP_EXPORT_TEST)
+    summary.extend(check_map(directory, map_dir, clang, symbolizer, asan_env, lsan_entry))
     (directory / "acceptance.txt").write_text("\n".join(summary) + "\nUBSan on Koven LLVM IR: NOT COVERED\n")
     print("\n".join(summary))
     print(f"Linux sanitizer artifacts: {directory}")
