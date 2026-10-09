@@ -186,6 +186,9 @@ impl Parser<'_> {
             return self.parse_block_statement(outer_stops);
         }
         let expression_stops = Stops::block_expression(outer_stops);
+        if self.borrow_local_start()? {
+            return self.parse_borrow_local(expression_stops);
+        }
         if self.local_destructuring_start(Keyword::Val) {
             let val_span = self.bump()?.span();
             return self.parse_local_destructuring(val_span, expression_stops);

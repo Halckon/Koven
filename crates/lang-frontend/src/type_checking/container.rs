@@ -19,6 +19,8 @@ pub enum IntrinsicCallable {
     Replace,
     /// `swap(&a, &b)`.
     Swap,
+    /// 来源受检的内联 View 构造，仅授权的标准来源可调用。
+    RangeView,
 }
 
 /// v1 封闭的顺序容器种类。

@@ -11,6 +11,32 @@ impl CompilationUnitOwnership {
         }
         for (index, plan) in self.iterations.iter().enumerate() {
             let statement = plan.descriptor().statement();
+            if plan.descriptor().provider() == crate::type_checking::IterationProvider::RangeView
+                && matches!(plan.source(), UnitLoanTarget::Temporary(_))
+            {
+                let Some(fact) = self.borrow_results.range_uses.iter().find(|fact| {
+                    fact.expression() == plan.descriptor().source()
+                        && fact.site() == crate::ownership_checking::RangeUseSite::Iteration
+                }) else {
+                    return false;
+                };
+                let source = fact.source_loan();
+                if fact.origin() != plan.source()
+                    || source.call() != fact.expression()
+                    || self
+                        .loans
+                        .iter()
+                        .find(|loan| {
+                            loan.call() == source.call() && loan.argument() == source.argument()
+                        })
+                        .is_none_or(|loan| {
+                            loan.target() != fact.origin()
+                                || loan.kind() != crate::ownership_checking::LoanKind::Shared
+                        })
+                {
+                    return false;
+                }
+            }
             if self.iterations[..index]
                 .iter()
                 .any(|other| other.descriptor().statement() == statement)

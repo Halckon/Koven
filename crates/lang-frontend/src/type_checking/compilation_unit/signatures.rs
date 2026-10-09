@@ -1,3 +1,4 @@
+mod callable;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -33,9 +34,9 @@ use super::{
     shapes::{duplicate_member_shapes, duplicate_top_level_shapes},
 };
 
-mod callable;
 mod constants;
 mod graph;
+mod range_carrier;
 
 /// 收集 canonical compilation unit 的全部顶层、nominal 与 callable signatures。
 ///
@@ -165,6 +166,7 @@ impl<'a> SignatureCollector<'a> {
         self.compute_interface_closures()?;
         let declarations = self.collect_declarations()?;
         self.validate_type_argument_bounds()?;
+        self.check_range_types()?;
         self.check_duplicate_top_level_shapes(&declarations)?;
         let diagnostics = ordered_unit_diagnostics(
             self.sources,

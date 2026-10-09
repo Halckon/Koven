@@ -1,5 +1,8 @@
 use super::{CompilationUnitTypes, UnitExpressionId, UnitTypeId};
 use crate::type_checking::IntrinsicCallable;
+/// source-qualified 确定 Map 槽位借用。
+pub type UnitMapRequireValueDescriptor =
+    crate::type_checking::MapRequireValueDescriptor<UnitExpressionId, UnitTypeId>;
 
 /// compilation-unit 中经过 Phase 2 检查的 Map 构造调用 (`mapOf()` / `mutableMapOf()`)。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -356,11 +359,38 @@ pub(crate) struct UnitMapDescriptors {
     pub(crate) sizes: Vec<UnitMapSizeDescriptor>,
     pub(crate) contains_calls: Vec<UnitMapContainsDescriptor>,
     pub(crate) gets: Vec<UnitMapGetDescriptor>,
+    pub(crate) requires: Vec<UnitMapRequireValueDescriptor>,
+    pub(crate) with_values:
+        Vec<crate::type_checking::MapWithValueDescriptor<UnitExpressionId, UnitTypeId>>,
     pub(crate) puts: Vec<UnitMapPutDescriptor>,
     pub(crate) removes: Vec<UnitMapRemoveDescriptor>,
 }
 
 impl CompilationUnitTypes {
+    /// 编译单元中的确定槽位借用查询。
+    pub fn map_require_values(&self) -> &[UnitMapRequireValueDescriptor] {
+        &self.map_descriptors.requires
+    }
+    /// 按 source-qualified 调用 identity 查询确定槽位借用。
+    pub fn map_require_value(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<&UnitMapRequireValueDescriptor> {
+        self.map_descriptors
+            .requires
+            .iter()
+            .find(|d| d.expression() == expression)
+    }
+    /// 普通与内建调用的借用返回合同。
+    pub fn call_borrow_return(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<crate::type_checking::BorrowReturnContract> {
+        self.map_require_value(expression)
+            .map(|d| d.borrow_return())
+            .or_else(|| self.call(expression).and_then(|d| d.borrow_return()))
+    }
+
     /// 返回编译单元中所有 Map 构造调用描述符。
     #[must_use]
     pub fn map_constructions(&self) -> &[UnitMapConstructionDescriptor] {
@@ -452,5 +482,24 @@ impl CompilationUnitTypes {
             .removes
             .iter()
             .find(|descriptor| descriptor.expression() == expression)
+    }
+}
+
+impl CompilationUnitTypes {
+    /// 编译单元的同步作用域访问描述符。
+    pub fn map_with_values(
+        &self,
+    ) -> &[crate::type_checking::MapWithValueDescriptor<UnitExpressionId, UnitTypeId>] {
+        &self.map_descriptors.with_values
+    }
+    /// 查询 source-qualified 同步作用域访问。
+    pub fn map_with_value(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<&crate::type_checking::MapWithValueDescriptor<UnitExpressionId, UnitTypeId>> {
+        self.map_descriptors
+            .with_values
+            .iter()
+            .find(|d| d.expression() == expression)
     }
 }

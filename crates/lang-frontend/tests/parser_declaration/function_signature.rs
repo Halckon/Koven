@@ -7,6 +7,7 @@ fn function_payload_preserves_generic_signature_and_optional_body() {
     let (sources, parsed) = parsed_ok(text);
     let Item::Function {
         name,
+        extension_receiver,
         type_parameters,
         type_parameter_list_span,
         parameters,
@@ -16,6 +17,7 @@ fn function_payload_preserves_generic_signature_and_optional_body() {
         panic!("function")
     };
     assert_eq!(sources.slice(marker_span(*name)).expect("name"), "map");
+    assert!(extension_receiver.is_none());
     assert_eq!(type_parameters.len(), 1);
     assert_eq!(
         sources
@@ -28,7 +30,7 @@ fn function_payload_preserves_generic_signature_and_optional_body() {
     let FunctionForm::Explicit {
         colon_span,
         type_ref: return_type,
-        borrow_return: None,
+        result_source: None,
         body,
     } = form
     else {
@@ -83,7 +85,7 @@ fn missing_return_colon_fallback_preserves_the_expression_body() {
             FunctionForm::Explicit {
                 colon_span,
                 type_ref: return_type,
-                borrow_return: None,
+                result_source: None,
                 body,
             },
         ..

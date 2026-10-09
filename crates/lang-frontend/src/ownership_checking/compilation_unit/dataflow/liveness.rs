@@ -286,6 +286,12 @@ impl Builder<'_, '_> {
                     .container_size(self.checker.unit_expression(id))
                     .map(|size| size.receiver())
             })
+            .or_else(|| {
+                self.checker
+                    .typed
+                    .map_size(self.checker.unit_expression(id))
+                    .map(|size| size.receiver())
+            })
         {
             let mut receiver_live = live_after;
             if let Some(place) = self.checker.loan_place(receiver.expression())? {
@@ -485,6 +491,31 @@ impl Builder<'_, '_> {
                 value,
                 ..
             } => {
+                if let Some(descriptor) = self
+                    .checker
+                    .typed
+                    .map_put(self.checker.unit_expression(target))
+                {
+                    let live = self.expression(
+                        descriptor.value().expression(),
+                        ExpressionUse::Consume {
+                            parameter_span: None,
+                        },
+                        live_after,
+                    )?;
+                    let live = self.expression(
+                        descriptor.key().expression(),
+                        ExpressionUse::Consume {
+                            parameter_span: None,
+                        },
+                        live,
+                    )?;
+                    return self.expression(
+                        descriptor.receiver().expression(),
+                        ExpressionUse::Read,
+                        live,
+                    );
+                }
                 if let Some(descriptor) = self.checker.element_place_descriptor(target)? {
                     let live = self.expression(
                         value,

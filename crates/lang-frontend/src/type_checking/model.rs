@@ -1,7 +1,6 @@
 mod callable_descriptor;
-pub use callable_descriptor::CallableDescriptor;
-
 use crate::type_checking::IntegerOperationDescriptor;
+pub use callable_descriptor::CallableDescriptor;
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
@@ -527,6 +526,8 @@ pub enum IntrinsicTypeConstructor {
     Map,
     /// Growable associative key-value owner.
     MutableMap,
+    /// Single-source, non-escaping inline range descriptor; owns no elements.
+    View,
 }
 
 impl IntrinsicTypeConstructor {
@@ -534,7 +535,7 @@ impl IntrinsicTypeConstructor {
     #[must_use]
     pub const fn expected_type_argument_count(self) -> usize {
         match self {
-            Self::Box | Self::Rc | Self::Array | Self::List | Self::MutableList => 1,
+            Self::Box | Self::Rc | Self::Array | Self::List | Self::MutableList | Self::View => 1,
             Self::Map | Self::MutableMap => 2,
         }
     }
@@ -704,6 +705,8 @@ pub struct TypeEnvironment {
     owner: Arc<()>,
     symbol_kinds: Vec<ExternalSymbolKind>,
     bindings: BTreeMap<ExternalSymbolId, ExternalTypeBinding>,
+    pub(super) range_sources: Vec<SourceId>,
+    pub(super) range_extension_sources: Vec<SourceId>,
 }
 
 impl TypeEnvironment {
@@ -714,6 +717,8 @@ impl TypeEnvironment {
             owner: names.owner(),
             symbol_kinds: names.symbols().iter().map(|symbol| symbol.kind()).collect(),
             bindings: BTreeMap::new(),
+            range_sources: Vec::new(),
+            range_extension_sources: Vec::new(),
         }
     }
 
@@ -1075,6 +1080,7 @@ pub struct TypedFile {
     integer_operations: Vec<IntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
+    pub(crate) range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
     pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<ContainerClearDescriptor>,
     pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
@@ -1114,6 +1120,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) integer_operations: Vec<IntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
+    pub(crate) range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
     pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<ContainerClearDescriptor>,
     pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
@@ -1170,6 +1177,7 @@ impl TypedFile {
             integer_operations: parts.integer_operations,
             container_constructions: parts.container_constructions,
             container_sizes: parts.container_sizes,
+            range_sizes: parts.range_sizes,
             container_appends: parts.container_appends,
             container_clears: parts.container_clears,
             container_remove_ats: parts.container_remove_ats,

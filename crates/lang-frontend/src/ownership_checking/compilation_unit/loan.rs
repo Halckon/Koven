@@ -1,4 +1,4 @@
-//! Source-qualified synchronous loan facts.
+//! source-qualified 同步 loan 的目标与事实合同。
 use super::*;
 
 /// unit loan 的稳定目标。

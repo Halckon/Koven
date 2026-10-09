@@ -125,6 +125,11 @@ impl Checker<'_> {
                 self.symbol_scopes[symbol.index()],
                 name_text,
                 type_parameters.len(),
+                self.typed_callables
+                    .iter()
+                    .find(|d| d.symbol() == symbol)
+                    .and_then(|d| d.range_extension())
+                    .and_then(|b| self.shape_type(b.receiver_type(), &parameter_slots)),
                 shape_parameters,
             );
             if let Some(first) = first_by_shape.get(&key).copied() {

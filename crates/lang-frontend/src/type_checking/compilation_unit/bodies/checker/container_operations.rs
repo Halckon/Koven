@@ -7,12 +7,13 @@ use crate::{
     parser::{AssignmentOperator, CallArgument, Expression},
     source::Span,
     type_checking::{
-        BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory, ParameterMode,
-        SequentialContainerKind, TypeCheckingError, UnitContainerAppendDescriptor,
-        UnitContainerClearDescriptor, UnitContainerInsertAtDescriptor,
-        UnitContainerRemoveAtDescriptor, UnitContainerRemoveFirstDescriptor,
-        UnitContainerRemoveLastDescriptor, UnitContainerSizeDescriptor, UnitElementPlaceDescriptor,
-        UnitExpressionId, UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
+        BuiltinType, CompilationUnitTypeError, DeferredReason, ExpressionCategory,
+        IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, TypeCheckingError,
+        UnitContainerAppendDescriptor, UnitContainerClearDescriptor,
+        UnitContainerInsertAtDescriptor, UnitContainerRemoveAtDescriptor,
+        UnitContainerRemoveFirstDescriptor, UnitContainerRemoveLastDescriptor,
+        UnitContainerSizeDescriptor, UnitElementPlaceDescriptor, UnitExpressionId,
+        UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, map_arguments},
     },
 };
@@ -158,6 +159,11 @@ impl BodyChecker<'_> {
         receiver: UnitTypeId,
         name_span: Span,
     ) -> Result<Option<UnitTypeId>, CompilationUnitTypeError> {
+        if let Some(result) =
+            self.range_member_type(expression, receiver_expression, receiver, name_span)?
+        {
+            return Ok(Some(result));
+        }
         let Some((container, element)) = self.container_parts(receiver) else {
             return Ok(None);
         };
@@ -292,7 +298,14 @@ impl BodyChecker<'_> {
         else {
             return Ok(false);
         };
-        Ok(self.container_parts(receiver_type).is_some()
+        Ok((self.container_parts(receiver_type).is_some()
+            || matches!(
+                self.signatures.types().get(receiver_type),
+                Some(UnitTypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::View,
+                    ..
+                })
+            ))
             && self
                 .sources
                 .slice(*name_span)

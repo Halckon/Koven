@@ -187,6 +187,10 @@ impl DropPlanner<'_, '_> {
         for loan in &loans {
             if let LoanTarget::Temporary(subject) = loan.target()
                 && self.is_move_only_temporary(*subject)
+                && !state
+                    .nullable_temporaries
+                    .iter()
+                    .any(|temporary| temporary.subject == *subject)
             {
                 state.nullable_temporaries.push(NullableTemporary {
                     versions: versions.clone(),
@@ -235,6 +239,13 @@ impl DropPlanner<'_, '_> {
                 }
             }
             for loan in frame.loans {
+                if matches!(point, LoanEndPoint::CallReturn(_))
+                    && self
+                        .checker
+                        .continues_source_loan(loan.call(), loan.argument())
+                {
+                    continue;
+                }
                 let fact = LoanEndFact {
                     call: loan.call(),
                     argument: loan.argument(),

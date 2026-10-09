@@ -191,7 +191,9 @@ impl BodyChecker<'_> {
                     Target::ListForm(SequentialContainerKind::MutableList)
                 }
                 IntrinsicCallable::MapOf | IntrinsicCallable::MutableMapOf => Target::Map(callable),
-                IntrinsicCallable::Replace | IntrinsicCallable::Swap => return Ok(None),
+                IntrinsicCallable::Replace
+                | IntrinsicCallable::Swap
+                | IntrinsicCallable::RangeView => return Ok(None),
             };
             return Ok(Some(target));
         }
@@ -478,6 +480,17 @@ impl BodyChecker<'_> {
         if self.construction_type_contains_poison(element) {
             return Ok(false);
         }
+        if crate::type_checking::range_type_uses::unit_contains_range(
+            self.signatures.types(),
+            element,
+        ) {
+            self.emit(
+                codes::BORROW_RESULT_ESCAPE,
+                "range carrier cannot be a container element",
+                span,
+            )?;
+            return Ok(false);
+        }
         if self.is_structurally_storable_type(element) {
             return Ok(true);
         }
@@ -558,7 +571,8 @@ impl BodyChecker<'_> {
             IntrinsicTypeConstructor::Box
             | IntrinsicTypeConstructor::Rc
             | IntrinsicTypeConstructor::Map
-            | IntrinsicTypeConstructor::MutableMap => None,
+            | IntrinsicTypeConstructor::MutableMap
+            | IntrinsicTypeConstructor::View => None,
         }
     }
 

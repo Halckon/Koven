@@ -262,6 +262,7 @@ impl Checker<'_> {
                 IntrinsicTypeConstructor::Array
                 | IntrinsicTypeConstructor::List
                 | IntrinsicTypeConstructor::MutableList
+                | IntrinsicTypeConstructor::View
                 | IntrinsicTypeConstructor::Rc,
                 _,
             ) => self.is_structurally_storable_type(argument),

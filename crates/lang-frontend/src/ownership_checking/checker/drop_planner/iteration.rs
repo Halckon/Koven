@@ -64,7 +64,12 @@ impl DropPlanner<'_, '_> {
         );
         let temporary_owner = self
             .checker
-            .temporary_element_owner(source)?
+            .range_use(source)
+            .and_then(|fact| match fact.origin() {
+                crate::ownership_checking::LoanTarget::Temporary(owner) => Some(*owner),
+                _ => None,
+            })
+            .or(self.checker.temporary_element_owner(source)?)
             .unwrap_or(source);
         let temporary = if self.is_move_only_temporary(temporary_owner) {
             let origin = self

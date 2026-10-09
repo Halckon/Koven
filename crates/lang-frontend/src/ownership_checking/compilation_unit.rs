@@ -1,4 +1,6 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
+mod loan;
+pub use loan::{UnitLoanFact, UnitLoanTarget};
 
 mod analysis;
 mod binding;
@@ -7,11 +9,8 @@ mod constant;
 #[cfg(test)]
 mod constants_tests;
 mod construction;
-mod contracts;
-pub use contracts::{UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource};
+pub(super) mod contracts;
 mod iteration;
-mod loan;
-pub use loan::{UnitLoanFact, UnitLoanTarget};
 mod iteration_validation;
 #[cfg(test)]
 mod iteration_validation_tests;
@@ -235,6 +234,42 @@ impl UnitOwnershipPlace {
     }
 }
 
+/// 向 Value 参数交付值时的实际所有权效果。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitValueDeliveryKind {
+    /// `Copyable` place 按值复制，源仍可用。
+    Copy,
+    /// MoveOnly owned place 被移动，源随后不可用。
+    Move,
+    /// 本次求值产生的 temporary 被直接交付。
+    Temporary,
+}
+
+/// Value delivery 的可追溯来源。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UnitValueDeliverySource {
+    /// 名称、字段或具名容器 element place。
+    Place(UnitOwnershipPlace),
+    /// 直接产生值的 temporary。
+    Temporary(UnitExpressionId),
+    /// 由 owner 支撑、但本身不是可移动 place 的 payload/element projection。
+    BorrowedProjection {
+        /// 保持投影值存活的 owner expression。
+        owner: UnitExpressionId,
+    },
+}
+
+/// 一个已经由 body-local 数据流确认的 Value argument delivery。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitValueDeliveryFact {
+    call: UnitExpressionId,
+    argument: UnitExpressionId,
+    source: UnitValueDeliverySource,
+    kind: UnitValueDeliveryKind,
+    span: Span,
+    parameter_span: Option<Span>,
+}
+
 /// 一个 source-qualified intrinsic `Rc<T>` ownership effect。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnitRcOwnershipEffect {
@@ -281,6 +316,72 @@ impl UnitRcOwnershipEffect {
     #[must_use]
     pub const fn kind(self) -> RcOwnershipEffectKind {
         self.kind
+    }
+}
+
+impl UnitValueDeliveryFact {
+    pub(super) const fn new(
+        call: UnitExpressionId,
+        argument: UnitExpressionId,
+        source: UnitValueDeliverySource,
+        kind: UnitValueDeliveryKind,
+        span: Span,
+        parameter_span: Option<Span>,
+    ) -> Self {
+        Self {
+            call,
+            argument,
+            source,
+            kind,
+            span,
+            parameter_span,
+        }
+    }
+
+    /// 返回所属 call。
+    #[must_use]
+    pub const fn call(&self) -> UnitExpressionId {
+        self.call
+    }
+
+    /// 返回源码实参。
+    #[must_use]
+    pub const fn argument(&self) -> UnitExpressionId {
+        self.argument
+    }
+
+    /// 返回 place；temporary/borrowed projection 为 `None`。
+    #[must_use]
+    pub const fn place(&self) -> Option<&UnitOwnershipPlace> {
+        match &self.source {
+            UnitValueDeliverySource::Place(place) => Some(place),
+            UnitValueDeliverySource::Temporary(_)
+            | UnitValueDeliverySource::BorrowedProjection { .. } => None,
+        }
+    }
+
+    /// 返回完整 delivery source。
+    #[must_use]
+    pub const fn source(&self) -> &UnitValueDeliverySource {
+        &self.source
+    }
+
+    /// 返回 copy/move/temporary 效果。
+    #[must_use]
+    pub const fn kind(&self) -> UnitValueDeliveryKind {
+        self.kind
+    }
+
+    /// 返回交付操作数的源码范围。
+    #[must_use]
+    pub const fn span(&self) -> Span {
+        self.span
+    }
+
+    /// 返回被选择源码参数的声明位置。
+    #[must_use]
+    pub const fn parameter_span(&self) -> Option<Span> {
+        self.parameter_span
     }
 }
 
@@ -482,6 +583,9 @@ struct UnitOwnershipProvenance {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
     pub(super) callable_provenance: super::callable_provenance::UnitCallableFacts,
+    pub(super) borrow_results: super::borrow_result::UnitBorrowResults,
+    pub(super) borrow_return_origins:
+        Vec<super::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
     iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     iteration_owner_scopes: Vec<(
         UnitStatementId,
@@ -508,9 +612,6 @@ pub struct CompilationUnitOwnership {
         UnitSymbolId,
         UnitTypeId,
     )>,
-    pub(super) borrow_return_origins:
-        Vec<super::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
-    pub(super) borrow_results: super::borrow_result::UnitBorrowResults,
     provenance: UnitOwnershipProvenance,
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<UnitOwnershipBindingDescriptor>,
@@ -643,6 +744,16 @@ impl CompilationUnitOwnership {
                 && dataflow.deferred.is_empty()
                 && typed.constants().is_some())
             .then_some(dataflow.constant_materializations),
+            borrow_results: if successful && dataflow.deferred.is_empty() {
+                dataflow.borrow_results
+            } else {
+                Default::default()
+            },
+            borrow_return_origins: if successful && dataflow.deferred.is_empty() {
+                dataflow.borrow_return_origins
+            } else {
+                Vec::new()
+            },
             callable_provenance: dataflow.callable_provenance,
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),
@@ -666,12 +777,6 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
-            borrow_return_origins: if successful && dataflow.deferred.is_empty() {
-                dataflow.borrow_return_origins
-            } else {
-                Vec::new()
-            },
-            borrow_results: Default::default(),
             diagnostics: dataflow.diagnostics,
             bindings,
             call_argument_contracts,

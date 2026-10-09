@@ -2,7 +2,7 @@
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
-    diagnostic::{Diagnostic, Severity, codes},
+    diagnostic::{Diagnostic, Severity},
     parser::{Expression, FunctionBody, FunctionForm, Item, Statement, StringPart},
 };
 
@@ -120,8 +120,19 @@ impl Checker<'_> {
             Item::Error | Item::Constant { .. } => Ok(Flows::next(state)),
             Item::Modified { declaration, .. } => self.check_item(declaration, state),
             Item::Variable {
-                name, initializer, ..
+                kind,
+                name,
+                initializer,
+                ..
             } => {
+                if let super::VariableKind::BorrowVal(marker) = kind {
+                    self.emit_borrow_binding_diagnostic(
+                        crate::diagnostic::codes::BORROW_RESULT_ESCAPE,
+                        "borrow binding must remain in a local scope",
+                        marker,
+                    )?;
+                    return Ok(Flows::next(state));
+                }
                 let diagnostic_count = self.diagnostics.len();
                 let closure = self.closure_origin(initializer, &state)?;
                 let moved_closure = self.expression_root_symbol(initializer)?;
@@ -155,7 +166,17 @@ impl Checker<'_> {
                 form,
                 ..
             } => {
-                let borrow_source = self.borrow_return_source(form, &parameters);
+                let receiver_symbol = self
+                    .typed
+                    .signatures()
+                    .declarations()
+                    .iter()
+                    .filter_map(|d| d.callable())
+                    .find(|c| {
+                        c.name_span() == crate::ownership_checking::borrow_result::marker_span(name)
+                    })
+                    .and_then(|c| c.extension_receiver_symbol());
+                let borrow_source = self.borrow_return_source(form, &parameters, receiver_symbol);
                 let previous_borrow =
                     std::mem::replace(&mut self.current_borrow_return, borrow_source);
                 let previous_receiver = self.current_receiver;
@@ -228,11 +249,12 @@ impl Checker<'_> {
             FunctionForm::Explicit { body, .. } => match body {
                 FunctionBody::Absent => {
                     if let Some(source) = self.current_borrow_return {
-                        self.diagnostics.push(Diagnostic::new(
+                        self.diagnostics.push(crate::diagnostic::Diagnostic::new(
                             self.sources,
-                            Severity::Error,
-                            codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
-                            "borrow result has no body proving its origin",
+                            crate::diagnostic::Severity::Error,
+                            crate::diagnostic::codes::catalog()?
+                                .resolve(crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW)?,
+                            "borrow result declaration has no body proving its origin",
                             source.marker,
                         )?);
                     }
@@ -263,8 +285,17 @@ impl Checker<'_> {
             Statement::Error => Ok(Flows::next(state)),
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
-            | Statement::ControlBody { elements } => self.check_elements(&elements, state),
+            | Statement::ControlBody { elements } => self.check_borrow_scope(&elements, state),
             Statement::LocalVariable { declaration } => {
+                if let Item::Variable {
+                    kind: super::VariableKind::BorrowVal(marker),
+                    name,
+                    initializer,
+                    ..
+                } = self.parsed.ast().items().get(declaration)?.payload()
+                {
+                    return self.check_borrow_binding(*name, *initializer, *marker, state);
+                }
                 let mut flows = self.check_item(declaration, state)?;
                 if let Item::Variable { name, .. } = self
                     .parsed
@@ -334,12 +365,20 @@ impl Checker<'_> {
         elements: &[StatementId],
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let inherited = state.borrow_bindings.keys().copied().collect();
+        let uses = crate::ownership_checking::borrow_last_use::StraightLineBorrowUses::build(
+            self.parsed,
+            elements,
+            |id| self.place(id).map(|place| place.map(|p| p.root())),
+        )?;
         let mut flows = Flows::next(state);
         for &element in elements {
             let Some(next) = flows.next.take() else {
                 break;
             };
-            flows.merge(self.check_statement(element, next)?);
+            let mut checked = self.check_statement(element, next)?;
+            self.end_last_borrow_uses(element, uses.as_ref(), &inherited, &mut checked);
+            flows.merge(checked);
         }
         Ok(flows)
     }
@@ -425,6 +464,20 @@ impl Checker<'_> {
                 state,
             );
         }
+        if let Some(descriptor) = self.typed.range_size(self.unit_expression(id)) {
+            return self.check_shared_receiver_read(
+                descriptor.expression(),
+                descriptor.receiver(),
+                state,
+            );
+        }
+        if let Some(descriptor) = self.typed.map_size(self.unit_expression(id)) {
+            return self.check_shared_receiver_read(
+                descriptor.expression(),
+                descriptor.receiver(),
+                state,
+            );
+        }
         if let Some(descriptor) = self.typed.string_operation(self.unit_expression(id)) {
             return self.check_string_operation(descriptor, state);
         }
@@ -442,7 +495,11 @@ impl Checker<'_> {
             }
             Expression::This => {
                 let mut state = state;
-                self.use_this(id, span, usage, &mut state)?;
+                if self.reference_symbol(span).is_some() {
+                    self.use_name(id, span, usage, &mut state)?;
+                } else {
+                    self.use_this(id, span, usage, &mut state)?;
+                }
                 Ok(Flows::next(state))
             }
             Expression::Name => {
@@ -531,6 +588,9 @@ impl Checker<'_> {
                 value,
                 ..
             } => {
+                if let Some(put) = self.typed.map_put(self.unit_expression(target)) {
+                    return self.check_map_assignment(put, state);
+                }
                 let diagnostic_count = self.diagnostics.len();
                 if self.place(target)?.is_some_and(|place| {
                     !place.fields().is_empty()
@@ -662,7 +722,27 @@ impl Checker<'_> {
                             parameter_span: contract.declaration_span(),
                         },
                     };
-                    self.check_expression(receiver.expression(), state, usage)?
+                    let previous = self.allowed_borrow_call;
+                    let range = contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
+                        && self.range_expression_is_proven(receiver.expression());
+                    if range {
+                        self.allowed_borrow_call = Some(receiver.expression());
+                    }
+                    let checked = self.check_expression(receiver.expression(), state, usage);
+                    self.allowed_borrow_call = previous;
+                    let mut flows = checked?;
+                    if range && self.diagnostics.len() == diagnostic_count && flows.next.is_some() {
+                        self.record_range_use(
+                            receiver.expression(),
+                            crate::ownership_checking::RangeUseSite::Call(call),
+                        );
+                        self.continue_range_source(
+                            receiver.expression(),
+                            super::ActiveLoanOwner::Call(call),
+                            &mut flows,
+                        );
+                    }
+                    flows
                 }
                 crate::type_checking::UnitCallReceiverOrigin::ImplicitThis(_) => Flows::next(state),
             }
@@ -703,7 +783,26 @@ impl Checker<'_> {
             {
                 self.reject_borrowed_closure_escape(argument.value, next)?;
             }
+            let previous = self.allowed_borrow_call;
+            let range = contract.is_some_and(|c| {
+                c.kind() == UnitCallArgumentOwnershipKind::SharedLoan && !c.crosses_thread()
+            }) && self.range_expression_is_proven(argument.value);
+            if range {
+                self.allowed_borrow_call = Some(argument.value);
+            }
             flows = self.chain_expression(flows, argument.value, usage)?;
+            self.allowed_borrow_call = previous;
+            if range && self.diagnostics.len() == diagnostic_count && flows.next.is_some() {
+                self.record_range_use(
+                    argument.value,
+                    crate::ownership_checking::RangeUseSite::Call(self.unit_expression(id)),
+                );
+                self.continue_range_source(
+                    argument.value,
+                    super::ActiveLoanOwner::Call(self.unit_expression(id)),
+                    &mut flows,
+                );
+            }
             if self.is_nothing_expression(self.unit_expression(argument.value)) {
                 flows.next = None;
                 continue;
@@ -729,9 +828,19 @@ impl Checker<'_> {
             .into_iter()
             .flatten()
         {
-            state
-                .loans
-                .retain(|loan| loan.owner != super::ActiveLoanOwner::Call(call));
+            state.loans.retain(|loan| {
+                loan.owner != super::ActiveLoanOwner::Call(call)
+                    || (self.allowed_borrow_call == Some(id)
+                        && self.borrowed_call_source(id).and_then(|argument| {
+                            self.loans
+                                .iter()
+                                .find(|fact| {
+                                    fact.call() == call
+                                        && fact.argument() == self.unit_expression(argument)
+                                })
+                                .map(|fact| fact.begin_span())
+                        }) == Some(loan.origin))
+            });
         }
         for expression in receiver_expression
             .into_iter()

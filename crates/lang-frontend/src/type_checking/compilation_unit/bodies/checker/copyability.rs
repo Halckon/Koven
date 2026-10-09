@@ -199,7 +199,9 @@ impl CapabilityQuery<'_> {
                 self.transferability_with(*inner, substitutions, active)
             }
             Some(UnitTypeKind::Intrinsic {
-                constructor: crate::type_checking::IntrinsicTypeConstructor::Rc,
+                constructor:
+                    crate::type_checking::IntrinsicTypeConstructor::Rc
+                    | crate::type_checking::IntrinsicTypeConstructor::View,
                 ..
             }) => UnitTransferability::NotTransferable,
             Some(UnitTypeKind::Intrinsic { arguments, .. }) => {

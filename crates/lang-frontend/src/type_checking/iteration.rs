@@ -5,6 +5,15 @@ use crate::{
     name_resolution::SymbolId,
 };
 
+/// 编译器绑定的只读迭代来源；View 不取得元素所有权。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IterationProvider {
+    /// 拥有元素的顺序容器。
+    Sequential(SequentialContainerKind),
+    /// 借用区间描述符。
+    RangeView,
+}
+
 /// 本轮 element access 的 binding；所有名称均为 loop-scoped Borrow。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SequentialIterationBinding {
@@ -47,7 +56,7 @@ pub struct SequentialIterationDescriptor {
     pub(crate) statement: StatementId,
     pub(crate) source: ExpressionId,
     pub(crate) source_type: TypeId,
-    pub(crate) provider: SequentialContainerKind,
+    pub(crate) provider: IterationProvider,
     pub(crate) element_type: TypeId,
     pub(crate) binding: SequentialIterationBinding,
 }
@@ -69,7 +78,7 @@ impl SequentialIterationDescriptor {
     }
     /// 编译器绑定的 provider 身份。
     #[must_use]
-    pub fn provider(&self) -> SequentialContainerKind {
+    pub fn provider(&self) -> IterationProvider {
         self.provider
     }
     /// 每轮 element 的精确类型。

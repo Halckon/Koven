@@ -9,7 +9,7 @@ pub(super) struct CallCandidate {
     pub(super) move_only: bool,
     pub(super) parameters: Vec<MappedParameter<UnitTypeId>>,
     pub(super) return_type: UnitTypeId,
-    pub(super) borrow_return: Option<crate::type_checking::BorrowReturnContract>,
+    pub(super) result_source: crate::type_checking::CallableResultSource,
     pub(super) instance_arguments: Vec<UnitTypeId>,
     pub(super) receiver: Option<(ParameterMode, UnitTypeId)>,
     pub(super) owner_substitutions: BTreeMap<crate::name_resolution::UnitSymbolId, UnitTypeId>,
@@ -43,7 +43,7 @@ impl CallCandidate {
                 })
                 .collect(),
             return_type: callable.return_type(),
-            borrow_return: callable.borrow_return(),
+            result_source: callable.result_source(),
             instance_arguments: Vec::new(),
             receiver: callable
                 .receiver()

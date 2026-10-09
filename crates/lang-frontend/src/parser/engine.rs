@@ -4,9 +4,11 @@ mod boundary;
 mod class;
 mod core;
 mod declaration;
+mod declaration_head;
 mod destructuring;
 mod expression;
 mod file;
+mod lambda;
 mod operator;
 mod postfix;
 mod recovery;
@@ -35,15 +37,16 @@ use super::lambda_trial::{LambdaHeaderIndex, LambdaHeaderTrial};
 use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
     AssignmentOperator, BinaryOperator, BorrowReturnSource, BorrowReturnSyntax, CallArgument,
-    CastOperator, ClassField, ClassifierBody, ClassifierDeclaration, ClassifierKind,
-    CompanionObject, DeclarationModifiers, DelegationClause, EnumVariant, EnumVariantParameter,
-    Expression, ExpressionAst, FloatLiteralKind, ForBinding, FunctionBody, FunctionForm,
-    FunctionTypeParameter, ImportAlias, ImportDirective, IntegerLiteralKind, Item, LiteralKind,
-    MAX_RECURSION_DEPTH, NameMarker, NamedArgumentPrefix, PackageDirective, ParameterModeMarker,
-    ParsedBlock, ParsedDeclaration, ParsedExpression, ParsedFile, ParserInternalError,
-    PrefixOperator, PrimaryConstructor, QualifiedNameSegment, Statement, StringPart,
-    SupertypeEntry, TypeParameter, TypePathSegment, TypeRef, ValueParameter, VariableKind,
-    VisibilityModifier, WhenCondition, WhenEntry,
+    CarrierReturnSyntax, CastOperator, ClassField, ClassifierBody, ClassifierDeclaration,
+    ClassifierKind, CompanionObject, DeclarationModifiers, DelegationClause, EnumVariant,
+    EnumVariantParameter, Expression, ExpressionAst, ExtensionReceiverSyntax, FloatLiteralKind,
+    ForBinding, FunctionBody, FunctionForm, FunctionResultSource, FunctionTypeParameter,
+    ImportAlias, ImportDirective, IntegerLiteralKind, Item, LiteralKind, MAX_RECURSION_DEPTH,
+    NameMarker, NamedArgumentPrefix, PackageDirective, ParameterModeMarker, ParsedBlock,
+    ParsedDeclaration, ParsedExpression, ParsedFile, ParserInternalError, PrefixOperator,
+    PrimaryConstructor, QualifiedNameSegment, Statement, StringPart, SupertypeEntry, TypeParameter,
+    TypePathSegment, TypeRef, ValueParameter, VariableKind, VisibilityModifier, WhenCondition,
+    WhenEntry,
 };
 
 const PREC_ASSIGNMENT: u8 = 1;

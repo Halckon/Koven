@@ -1,9 +1,12 @@
-use super::OwnershipCheckingError;
+//! 普通借用的实际来源、结果绑定依赖与显式终止事实。
+
 use crate::{
     ast::ExpressionId,
     parser::{Expression, NameMarker, ParsedFile},
     source::Span,
 };
+
+use super::OwnershipCheckingError;
 
 /// 从实际返回表达式验证的来源；E/T 保持 single 与 source-qualified unit 的 ID 边界。
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -41,29 +44,104 @@ impl<E: Copy, T> BorrowReturnOriginFact<E, T> {
     }
 }
 
+/// 已证明交付新内联 descriptor 的实际根；与既有存储借用返回分离。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RangeReturnOriginFact<E, T> {
+    expression: E,
+    origin: T,
+    declaration_span: Span,
+}
+impl<E: Copy, T> RangeReturnOriginFact<E, T> {
+    pub(crate) const fn new(expression: E, origin: T, declaration_span: Span) -> Self {
+        Self {
+            expression,
+            origin,
+            declaration_span,
+        }
+    }
+    /// 实际返回构造/已证明转发的表达式。
+    pub const fn expression(&self) -> E {
+        self.expression
+    }
+    /// 经过实际 source 操作数验证的根。
+    pub const fn origin(&self) -> &T {
+        &self.origin
+    }
+    /// 真实 producer from 标记。
+    pub const fn declaration_span(&self) -> Span {
+        self.declaration_span
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct ReturnSource<S> {
     pub(crate) symbol: Option<S>,
     pub(crate) span: Span,
     pub(crate) marker: Span,
+    pub(crate) new_range: bool,
 }
 
-/// Only a stable place can prove this producer's origin; calls need caller continuation.
+/// 新 descriptor 的短期使用边界，不延长普通 borrow val 的来源寿命。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RangeUseSite<E> {
+    /// metadata 与根依赖保持到同步 Borrow 调用结束。
+    Call(E),
+    /// metadata 与 hidden root 由既有 provider 正常退出计划结束。
+    Iteration,
+}
+
+/// 真实构造调用的 source loan 被短期 descriptor/provider 延续。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RangeUseFact<E, T> {
+    pub(crate) expression: E,
+    pub(crate) source_loan: BorrowSourceLoan<E>,
+    pub(crate) origin: T,
+    pub(crate) site: RangeUseSite<E>,
+}
+impl<E: Copy, T> RangeUseFact<E, T> {
+    /// 实际求值的新 descriptor 调用。
+    pub const fn expression(&self) -> E {
+        self.expression
+    }
+    /// 构造调用实际建立并续接的来源 loan。
+    pub const fn source_loan(&self) -> BorrowSourceLoan<E> {
+        self.source_loan
+    }
+    /// 从实际来源操作数验证的根 owner/place。
+    pub const fn origin(&self) -> &T {
+        &self.origin
+    }
+    /// 短期使用结束边界，不能提升为持久绑定。
+    pub const fn site(&self) -> RangeUseSite<E> {
+        self.site
+    }
+}
+
+/// Group 透明；普通包装调用只沿 Phase 2 发布的唯一实际来源实参追踪。
 pub(crate) fn origin_expression(
     parsed: &ParsedFile,
     mut expression: ExpressionId,
+    call_source: impl Fn(ExpressionId) -> Option<ExpressionId>,
 ) -> Result<Option<ExpressionId>, OwnershipCheckingError> {
     loop {
         match parsed.ast().expressions().get(expression)?.payload() {
             Expression::Group { expression: inner } => expression = *inner,
-            Expression::Name | Expression::Member { .. } => return Ok(Some(expression)),
+            Expression::Call { .. } => {
+                let Some(source) = call_source(expression) else {
+                    return Ok(None);
+                };
+                expression = source;
+            }
+            Expression::Name | Expression::This | Expression::Member { .. } => {
+                return Ok(Some(expression));
+            }
             _ => return Ok(None),
         }
     }
 }
 
 impl super::OwnershipCheckedFile {
-    /// Actual return-place proofs; these do not authorize caller loan continuation.
+    /// 实际返回来源证明；不将它当作 caller loan 的结束/恢复计划。
     #[must_use]
     pub fn borrow_return_origins(
         &self,
@@ -72,20 +150,20 @@ impl super::OwnershipCheckedFile {
     }
 }
 
-pub(crate) const fn marker_span(marker: NameMarker) -> Span {
-    match marker {
-        NameMarker::Present(span) | NameMarker::Missing(span) | NameMarker::Error(span) => span,
-    }
-}
-
 impl super::CompilationUnitOwnership {
-    /// Actual source-qualified return proofs; these do not authorize caller continuation.
+    /// source-qualified 的实际返回来源证明。
     #[must_use]
     pub fn borrow_return_origins(
         &self,
     ) -> &[BorrowReturnOriginFact<crate::type_checking::UnitExpressionId, super::UnitLoanTarget>]
     {
         &self.borrow_return_origins
+    }
+}
+
+pub(crate) const fn marker_span(marker: NameMarker) -> Span {
+    match marker {
+        NameMarker::Present(span) | NameMarker::Missing(span) | NameMarker::Error(span) => span,
     }
 }
 
@@ -106,11 +184,23 @@ impl<E: Copy> BorrowSourceLoan<E> {
     }
 }
 
-/// 确定 shared 结果的绑定 identity、真实来源及父依赖。
+/// borrow val 的实际存储种类；新 metadata 不拥有根或元素。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BorrowBindingStorage {
+    /// 借用既有普通值存储。
+    BorrowedStorage,
+    /// 借用既有 carrier metadata，保留父 metadata 依赖。
+    BorrowedCarrierMetadata,
+    /// 新交付的 root-flat 内联描述符存储。
+    NewRangeDescriptor,
+}
+
+/// 确定结果绑定的存储种类、真实来源 lease、来源 loan 与必要父依赖。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BorrowBindingFact<E, S, T> {
     pub(crate) binding: S,
     pub(crate) initializer: E,
+    pub(crate) storage: BorrowBindingStorage,
     pub(crate) origin: T,
     pub(crate) parent: Option<S>,
     pub(crate) source_loan: Option<BorrowSourceLoan<E>>,
@@ -125,7 +215,11 @@ impl<E: Copy, S: Copy, T> BorrowBindingFact<E, S, T> {
     pub const fn initializer(&self) -> E {
         self.initializer
     }
-    /// 经过别名和投影解析的实际存储。
+    /// 返回既有存储借用或新描述符交付的明确事实。
+    pub const fn storage(&self) -> BorrowBindingStorage {
+        self.storage
+    }
+    /// 经过别名和投影解析的来源 lease；新 metadata 由 storage() 区分。
     pub const fn origin(&self) -> &T {
         &self.origin
     }
@@ -166,6 +260,8 @@ pub struct BorrowResultFacts<E, S, T, P> {
     pub(crate) bindings: Vec<BorrowBindingFact<E, S, T>>,
     pub(crate) ends: Vec<BorrowBindingEndFact<S, P>>,
     pub(crate) forwarded: Vec<BorrowSourceLoan<E>>,
+    pub(crate) range_returns: Vec<RangeReturnOriginFact<E, T>>,
+    pub(crate) range_uses: Vec<RangeUseFact<E, T>>,
 }
 impl<E, S, T, P> Default for BorrowResultFacts<E, S, T, P> {
     fn default() -> Self {
@@ -173,6 +269,8 @@ impl<E, S, T, P> Default for BorrowResultFacts<E, S, T, P> {
             bindings: Vec::new(),
             ends: Vec::new(),
             forwarded: Vec::new(),
+            range_returns: Vec::new(),
+            range_uses: Vec::new(),
         }
     }
 }
@@ -185,9 +283,17 @@ impl<E, S, T, P> BorrowResultFacts<E, S, T, P> {
     pub fn ends(&self) -> &[BorrowBindingEndFact<S, P>] {
         &self.ends
     }
-    /// 普通返回实际交付给 caller 的来源 loan，不能在 CallReturn 结束。
+    /// 新 descriptor 的实际返回根证明；不使用普通借用返回 ABI。
+    pub fn range_return_origins(&self) -> &[RangeReturnOriginFact<E, T>] {
+        &self.range_returns
+    }
+    /// 返回实际交付给 caller 的来源 loan，不能在 CallReturn 结束。
     pub fn forwarded_source_loans(&self) -> &[BorrowSourceLoan<E>] {
         &self.forwarded
+    }
+    /// 同步调用/for 的短期新 descriptor 及真实根来源。
+    pub fn range_uses(&self) -> &[RangeUseFact<E, T>] {
+        &self.range_uses
     }
 }
 

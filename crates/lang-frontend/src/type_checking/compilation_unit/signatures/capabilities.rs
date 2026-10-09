@@ -606,7 +606,7 @@ impl SignatureCollector<'_> {
                 self.transferability(*inner, substitutions, active, invalid_inline)
             }
             Some(UnitTypeKind::Intrinsic {
-                constructor: IntrinsicTypeConstructor::Rc,
+                constructor: IntrinsicTypeConstructor::Rc | IntrinsicTypeConstructor::View,
                 ..
             }) => CapabilityState::No,
             Some(UnitTypeKind::Intrinsic { arguments, .. }) => {

@@ -1,22 +1,8 @@
-//! Callable body context and declaration traversal.
-use super::*;
+//! 声明入口、callee 状态与返回来源上下文的生命周期。
+use super::{Checker, OwnershipCheckingError, State};
+use crate::{ast::ItemId, parser::Item, type_checking::ParameterMode};
 
 impl Checker<'_> {
-    pub(super) fn ownership_bindings(&self) -> Vec<OwnershipBindingDescriptor> {
-        self.typed
-            .parameter_bindings()
-            .iter()
-            .map(|binding| {
-                let kind = match binding.mode() {
-                    ParameterMode::Value => OwnershipBindingKind::Owned,
-                    ParameterMode::Borrow => OwnershipBindingKind::Shared,
-                    ParameterMode::Inout => OwnershipBindingKind::Exclusive,
-                };
-                OwnershipBindingDescriptor::new(binding.symbol(), kind)
-            })
-            .collect()
-    }
-
     pub(super) fn check_item(
         &mut self,
         id: ItemId,
@@ -26,8 +12,19 @@ impl Checker<'_> {
             Item::Error | Item::Constant { .. } => {}
             Item::Modified { declaration, .. } => self.check_item(declaration, state)?,
             Item::Variable {
-                name, initializer, ..
+                kind,
+                name,
+                initializer,
+                ..
             } => {
+                if let crate::parser::VariableKind::BorrowVal(marker) = kind {
+                    self.emit_borrow_binding_diagnostic(
+                        crate::diagnostic::codes::BORROW_RESULT_ESCAPE,
+                        "borrow binding must remain in a local scope",
+                        marker,
+                    )?;
+                    return Ok(());
+                }
                 if let Some(next) = self.check_variable(name, initializer, state.clone())?.next {
                     *state = next;
                 }
@@ -38,7 +35,11 @@ impl Checker<'_> {
                 form,
                 ..
             } => {
-                let borrow_source = self.borrow_return_source(form, &parameters);
+                let receiver_symbol = self
+                    .marker_symbol(name)
+                    .and_then(|symbol| self.typed.callables().iter().find(|c| c.symbol() == symbol))
+                    .and_then(|c| c.extension_receiver_symbol());
+                let borrow_source = self.borrow_return_source(form, &parameters, receiver_symbol);
                 let previous_borrow =
                     std::mem::replace(&mut self.current_borrow_return, borrow_source);
                 let mut function_state = State::default();
@@ -82,39 +83,6 @@ impl Checker<'_> {
                 self.current_receiver_mode = previous;
                 result?;
             }
-        }
-        Ok(())
-    }
-
-    fn check_function(
-        &mut self,
-        form: FunctionForm,
-        state: State,
-    ) -> Result<(), OwnershipCheckingError> {
-        match form {
-            FunctionForm::ImplicitUnitAbsent => {}
-            FunctionForm::ImplicitUnitBlock(body) => {
-                self.check_statement(body, state)?;
-            }
-            FunctionForm::Explicit { body, .. } => match body {
-                FunctionBody::Absent => {
-                    if let Some(source) = self.current_borrow_return {
-                        self.diagnostics.push(Diagnostic::new(
-                            self.sources,
-                            Severity::Error,
-                            codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
-                            "borrow result has no body proving its origin",
-                            source.marker,
-                        )?);
-                    }
-                }
-                FunctionBody::Expression { expression, .. } => {
-                    self.check_return_expression(expression, state, ExpressionUse::Consume)?;
-                }
-                FunctionBody::Block(body) => {
-                    self.check_statement(body, state)?;
-                }
-            },
         }
         Ok(())
     }

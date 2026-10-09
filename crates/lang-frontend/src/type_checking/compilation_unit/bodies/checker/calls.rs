@@ -1,4 +1,6 @@
 //! SPEC-0197 compilation-unit source callable mapping、选择与 typed descriptor。
+mod candidate;
+use candidate::CallCandidate;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,11 +23,9 @@ use crate::{
 
 use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
 
-mod candidate;
 mod generic;
 mod member;
-
-use candidate::CallCandidate;
+mod range_extension;
 
 impl BodyChecker<'_> {
     pub(super) fn check_call(
@@ -51,6 +51,17 @@ impl BodyChecker<'_> {
             .get(expression)
             .map_err(TypeCheckingError::from)?
             .span();
+        if let Some(result) = self.check_range_construction_call(
+            source,
+            expression,
+            call_span,
+            callee,
+            type_arguments,
+            arguments,
+            return_type,
+        )? {
+            return Ok(result);
+        }
         if let Some(result) = self.check_integer_inv_call(
             source,
             expression,
@@ -115,6 +126,7 @@ impl BodyChecker<'_> {
             self.signatures
                 .declaration(declaration)
                 .and_then(|signature| signature.callable())
+                .filter(|callable| callable.receiver().is_none())
                 .map(|callable| CallCandidate::from_signature(declaration, callable))
         })
         .collect::<Vec<_>>();
@@ -225,7 +237,7 @@ impl BodyChecker<'_> {
                         })
                         .collect(),
                     return_type,
-                    borrow_return: None,
+                    result_source: crate::type_checking::CallableResultSource::Owned,
                     instance_arguments: Vec::new(),
                     receiver: None,
                     owner_substitutions: BTreeMap::new(),
@@ -445,7 +457,7 @@ impl BodyChecker<'_> {
             move_only: false,
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
-            borrow_return: None,
+            result_source: crate::type_checking::CallableResultSource::Owned,
             instance_arguments: Vec::new(),
             receiver: None,
             owner_substitutions: BTreeMap::new(),
@@ -870,8 +882,9 @@ impl BodyChecker<'_> {
                 type_arguments: candidate.instance_arguments.clone(),
             },
             return_type: candidate.return_type,
-            borrow_return: candidate.borrow_return,
             receiver,
+            result_source: candidate.result_source,
+            range_construction: None,
             arguments: descriptors,
             aborts: candidate.aborts,
             prints_line: candidate.prints_line,

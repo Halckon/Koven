@@ -1,3 +1,4 @@
+mod element;
 use crate::{
     ast::{ExpressionId, TypeRefId},
     name_resolution::{Namespace, ReferenceTarget},
@@ -137,7 +138,9 @@ impl Checker<'_> {
                         .check_map_construction_call(call, callable, expected)
                         .map(Some);
                 }
-                IntrinsicCallable::Replace | IntrinsicCallable::Swap => return Ok(None),
+                IntrinsicCallable::Replace
+                | IntrinsicCallable::Swap
+                | IntrinsicCallable::RangeView => return Ok(None),
             };
             return self
                 .check_list_form_construction(call, kind, expected)
@@ -404,52 +407,6 @@ impl Checker<'_> {
         Ok(())
     }
 
-    fn validate_construction_element(
-        &mut self,
-        element: TypeId,
-        span: Span,
-    ) -> Result<bool, TypeCheckingError> {
-        if self.is_error(element) || self.is_deferred(element) {
-            return Ok(false);
-        }
-        if self.is_structurally_storable_type(element) {
-            return Ok(true);
-        }
-        self.emit(
-            self.invalid_container_element_code,
-            "sequential container element type is not structurally storable",
-            span,
-        )?;
-        Ok(false)
-    }
-
-    pub(super) fn is_structurally_storable_type(&self, ty: TypeId) -> bool {
-        match self.kind(ty) {
-            TypeKind::Builtin(BuiltinType::Any | BuiltinType::Nothing) => false,
-            TypeKind::Builtin(_) => true,
-            TypeKind::Nullable(inner) => self.is_structurally_storable_type(*inner),
-            TypeKind::Function { .. } => true,
-            TypeKind::Nominal { nominal, arguments } => {
-                self.nominals
-                    .iter()
-                    .find(|descriptor| descriptor.id() == *nominal)
-                    .is_some_and(|descriptor| descriptor.kind() != NominalKind::Interface)
-                    && !self.invalid_inline_nominals.contains(nominal)
-                    && arguments
-                        .iter()
-                        .all(|argument| self.is_structurally_storable_type(*argument))
-            }
-            TypeKind::Intrinsic { .. } | TypeKind::TypeParameter(_) => true,
-            TypeKind::EnumCase { root, .. } | TypeKind::StaticSelf(root) => {
-                self.is_structurally_storable_type(*root)
-            }
-            TypeKind::Capability(_)
-            | TypeKind::IntegerLiteral(_)
-            | TypeKind::Error
-            | TypeKind::Deferred(_) => false,
-        }
-    }
-
     pub(super) fn check_container_index(
         &mut self,
         expression: ExpressionId,
@@ -571,6 +528,26 @@ impl Checker<'_> {
         {
             return Ok(Some(res));
         }
+        if name == "size"
+            && matches!(
+                self.kind(receiver),
+                TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::View,
+                    ..
+                }
+            )
+        {
+            let result = self.builtin(BuiltinType::Int);
+            self.range_sizes
+                .push(crate::type_checking::RangeSizeDescriptor {
+                    expression,
+                    receiver: receiver_expression,
+                    receiver_type: receiver,
+                    result_type: result,
+                    span: self.ast().expressions().get(expression)?.span(),
+                });
+            return Ok(Some(result));
+        }
         let Some((container, element)) = self.container_parts(receiver) else {
             return Ok(None);
         };
@@ -642,7 +619,14 @@ impl Checker<'_> {
         let Some(receiver_type) = self.expression_types[receiver.index()] else {
             return Ok(false);
         };
-        Ok(self.container_parts(receiver_type).is_some()
+        Ok((self.container_parts(receiver_type).is_some()
+            || matches!(
+                self.kind(receiver_type),
+                TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::View,
+                    ..
+                }
+            ))
             && self.sources.slice(*name_span)? == "size")
     }
 
@@ -684,7 +668,8 @@ impl Checker<'_> {
             IntrinsicTypeConstructor::Box
             | IntrinsicTypeConstructor::Rc
             | IntrinsicTypeConstructor::Map
-            | IntrinsicTypeConstructor::MutableMap => None,
+            | IntrinsicTypeConstructor::MutableMap
+            | IntrinsicTypeConstructor::View => None,
         }
     }
 

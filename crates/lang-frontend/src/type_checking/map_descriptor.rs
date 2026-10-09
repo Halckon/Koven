@@ -1,5 +1,5 @@
-use crate::ast::ExpressionId;
 use super::{IntrinsicCallable, TypeId, TypedFile};
+use crate::ast::ExpressionId;
 
 /// 单文件中经过 Phase 2 类型检查的 Map 构造调用 (`mapOf()` / `mutableMapOf()`)。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -349,6 +349,61 @@ impl MapRemoveDescriptor {
     }
 }
 
+/// 确定存在的 Map 槽位借用，source-qualified unit 使用同一封闭合同。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MapRequireValueDescriptor<E = ExpressionId, T = TypeId> {
+    expression: E,
+    receiver: E,
+    key: E,
+    key_type: T,
+    value_type: T,
+    borrow_return: super::BorrowReturnContract,
+}
+impl<E: Copy, T: Copy> MapRequireValueDescriptor<E, T> {
+    pub(crate) const fn new(
+        expression: E,
+        receiver: E,
+        key: E,
+        key_type: T,
+        value_type: T,
+        marker: crate::source::Span,
+        source: crate::source::Span,
+    ) -> Self {
+        Self {
+            expression,
+            receiver,
+            key,
+            key_type,
+            value_type,
+            borrow_return: super::BorrowReturnContract::intrinsic_receiver(marker, source),
+        }
+    }
+    /// 查询调用 identity。
+    pub const fn expression(self) -> E {
+        self.expression
+    }
+    /// 唯一来源 receiver。
+    pub const fn receiver(self) -> E {
+        self.receiver
+    }
+    /// 同步 Borrow 的 key。
+    pub const fn key(self) -> E {
+        self.key
+    }
+    /// 已验证的 key 类型。
+    pub const fn key_type(self) -> T {
+        self.key_type
+    }
+    /// 槽位的原始 V 类型，不增加 nullable 层。
+    pub const fn value_type(self) -> T {
+        self.value_type
+    }
+    /// 唯一 from receiver 的只读交付合同。
+    pub const fn borrow_return(self) -> super::BorrowReturnContract {
+        self.borrow_return
+    }
+}
+
 /// 单文件中所有 Map 相关的结构化操作描述符集合。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct MapDescriptors {
@@ -356,11 +411,37 @@ pub(crate) struct MapDescriptors {
     pub(crate) sizes: Vec<MapSizeDescriptor>,
     pub(crate) contains_calls: Vec<MapContainsDescriptor>,
     pub(crate) gets: Vec<MapGetDescriptor>,
+    pub(crate) requires: Vec<MapRequireValueDescriptor>,
+    pub(crate) with_values: Vec<super::MapWithValueDescriptor>,
     pub(crate) puts: Vec<MapPutDescriptor>,
     pub(crate) removes: Vec<MapRemoveDescriptor>,
 }
 
 impl TypedFile {
+    /// 文件中的确定槽位借用查询。
+    pub fn map_require_values(&self) -> &[MapRequireValueDescriptor] {
+        &self.map_descriptors.requires
+    }
+    /// 按实际调用 identity 查询确定槽位借用。
+    pub fn map_require_value(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&MapRequireValueDescriptor> {
+        self.map_descriptors
+            .requires
+            .iter()
+            .find(|d| d.expression() == expression)
+    }
+    /// 普通与内建调用的借用返回合同。
+    pub fn call_borrow_return(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<super::BorrowReturnContract> {
+        self.map_require_value(expression)
+            .map(|d| d.borrow_return())
+            .or_else(|| self.call(expression).and_then(|d| d.borrow_return()))
+    }
+
     /// 返回文件中所有 Map 构造调用描述符。
     #[must_use]
     pub fn map_constructions(&self) -> &[MapConstructionDescriptor] {
@@ -369,10 +450,7 @@ impl TypedFile {
 
     /// 按表达式 ID 查询 Map 构造描述符。
     #[must_use]
-    pub fn map_construction(
-        &self,
-        expression: ExpressionId,
-    ) -> Option<&MapConstructionDescriptor> {
+    pub fn map_construction(&self, expression: ExpressionId) -> Option<&MapConstructionDescriptor> {
         self.map_descriptors
             .constructions
             .iter()

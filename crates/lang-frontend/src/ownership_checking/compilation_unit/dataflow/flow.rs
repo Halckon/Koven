@@ -8,7 +8,7 @@ use crate::{
     type_checking::{UnitExpressionId, UnitStatementId},
 };
 
-use super::{AccessKind, LoanKind, UnitOwnershipPlace};
+use super::{LoanKind, UnitOwnershipPlace};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ActiveLoan {
@@ -29,6 +29,7 @@ impl ActiveLoan {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ActiveLoanOwner {
     Call(UnitExpressionId),
+    BorrowBinding(UnitSymbolId),
     Closure(UnitExpressionId),
     IterationSource(UnitStatementId),
     IterationElement(UnitStatementId),
@@ -51,6 +52,7 @@ pub(super) struct State {
     pub(super) loans: Vec<ActiveLoan>,
     pub(super) closures: BTreeMap<UnitSymbolId, UnitExpressionId>,
     pub(super) non_owning: BTreeMap<UnitSymbolId, Span>,
+    pub(super) borrow_bindings: BTreeMap<UnitSymbolId, UnitOwnershipPlace>,
     pub(super) immutable_captures: BTreeMap<UnitSymbolId, Span>,
 }
 
@@ -100,6 +102,9 @@ pub(super) fn merge_state(target: &mut State, source: State) {
         .closures
         .retain(|symbol, closure| source.closures.get(symbol) == Some(closure));
     target
+        .borrow_bindings
+        .retain(|symbol, origin| source.borrow_bindings.get(symbol) == Some(origin));
+    target
         .non_owning
         .retain(|symbol, origin| source.non_owning.get(symbol) == Some(origin));
     target
@@ -125,4 +130,20 @@ pub(super) fn merge_state(target: &mut State, source: State) {
         (Some(origin), None) | (None, Some(origin)) => Some(origin),
         (None, None) => None,
     };
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ExpressionUse {
+    Read,
+    Consume { parameter_span: Option<Span> },
+    Place { parameter_span: Option<Span> },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum AccessKind {
+    Read,
+    Move,
+    Mutation,
+    SharedLoan,
+    ExclusiveLoan,
 }

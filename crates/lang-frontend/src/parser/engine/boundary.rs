@@ -364,6 +364,15 @@ impl TypeStops {
     pub(super) const INTERPOLATION_END: u16 = 1 << 4;
     pub(super) const FILE: u16 = 1 << 9;
     pub(super) const ARROW: u16 = 1 << 10;
+    pub(super) const EXTENSION_NAME: u16 = 1 << 11;
+
+    pub(super) const fn ends_at_extension_name(self) -> bool {
+        self.0 & Self::EXTENSION_NAME != 0
+    }
+
+    pub(super) const fn without_extension_name(self) -> Self {
+        Self(self.0 & !Self::EXTENSION_NAME)
+    }
 
     pub(super) const fn from_expression(stops: Stops) -> Self {
         let mut bits = 0;

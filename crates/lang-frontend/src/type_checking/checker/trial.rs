@@ -48,6 +48,7 @@ pub(super) struct TrialState {
     integer_operations: Vec<IntegerOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     container_sizes: Vec<ContainerSizeDescriptor>,
+    range_sizes: Vec<crate::type_checking::RangeSizeDescriptor<crate::ast::ExpressionId, TypeId>>,
     container_appends: Vec<ContainerAppendDescriptor>,
     container_clears: Vec<ContainerClearDescriptor>,
     container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
@@ -87,6 +88,7 @@ impl Checker<'_> {
             integer_operations: self.integer_operations.clone(),
             container_constructions: self.container_constructions.clone(),
             container_sizes: self.container_sizes.clone(),
+            range_sizes: self.range_sizes.clone(),
             container_appends: self.container_appends.clone(),
             container_clears: self.container_clears.clone(),
             container_remove_ats: self.container_remove_ats.clone(),
@@ -125,6 +127,7 @@ impl Checker<'_> {
         self.integer_operations = state.integer_operations;
         self.container_constructions = state.container_constructions;
         self.container_sizes = state.container_sizes;
+        self.range_sizes = state.range_sizes;
         self.container_appends = state.container_appends;
         self.container_clears = state.container_clears;
         self.container_remove_ats = state.container_remove_ats;

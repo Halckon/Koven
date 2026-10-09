@@ -1,3 +1,7 @@
+#[path = "map_require.rs"]
+mod map_require;
+#[path = "map_with.rs"]
+mod map_with;
 use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::codes,
@@ -189,17 +193,20 @@ impl Checker<'_> {
         };
 
         if name == "size" {
-            self.map_descriptors.sizes.push(
-                crate::type_checking::MapSizeDescriptor::new(
+            self.map_descriptors
+                .sizes
+                .push(crate::type_checking::MapSizeDescriptor::new(
                     expression,
                     receiver_expression,
                     receiver,
-                ),
-            );
+                ));
             return Ok(Some(self.builtin(BuiltinType::Int)));
         }
 
-        if matches!(name, "get" | "put" | "remove" | "contains") {
+        if matches!(
+            name,
+            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue"
+        ) {
             self.emit(
                 self.invalid_container_member_code,
                 &format!("Map.{name} must be called as a method"),
@@ -235,7 +242,10 @@ impl Checker<'_> {
         }
 
         let name = self.sources.slice(name_span)?;
-        if !matches!(name, "get" | "put" | "remove" | "contains") {
+        if !matches!(
+            name,
+            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue"
+        ) {
             return Ok(None);
         }
 
@@ -258,6 +268,27 @@ impl Checker<'_> {
         }
 
         match name {
+            "withValue" => Ok(Some(self.check_map_with_call(
+                expression,
+                receiver,
+                receiver_result.falls_through,
+                key_type,
+                value_type,
+                arguments,
+                call_span,
+            )?)),
+            "requireValue" => Ok(Some(self.check_map_require_call(
+                expression,
+                receiver,
+                receiver_result.falls_through,
+                key_type,
+                value_type,
+                arguments,
+                call_span,
+                name_span,
+                self.ast().expressions().get(receiver)?.span(),
+            )?)),
+
             "get" => {
                 let check = self.check_map_get_call(
                     expression,
@@ -333,6 +364,7 @@ impl Checker<'_> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_map_get_call(
         &mut self,
         call_expression: ExpressionId,
@@ -376,7 +408,7 @@ impl Checker<'_> {
                 .expect("MOVE_FROM_CONTAINER_ELEMENT catalog resolve");
             self.emit(
                 code,
-                "cannot move MoveOnly map value by get; use borrow access",
+                "cannot move MoveOnly map value by get; use requireValue or withValue",
                 call_span,
             )?;
             return Ok(ExprCheck {
@@ -385,17 +417,28 @@ impl Checker<'_> {
             });
         }
 
+        if matches!(self.kind(value_type), TypeKind::Nullable(_)) {
+            self.emit(
+                codes::catalog()?.resolve(codes::INVALID_CONTAINER_MEMBER)?,
+                "nullable map values require withValue to distinguish Missing from Found(null)",
+                call_span,
+            )?;
+            return Ok(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver_falls_through && arg_result.falls_through,
+            });
+        }
         let nullable_val = self.types.intern(TypeKind::Nullable(value_type));
-        self.map_descriptors.gets.push(
-            crate::type_checking::MapGetDescriptor::new(
+        self.map_descriptors
+            .gets
+            .push(crate::type_checking::MapGetDescriptor::new(
                 call_expression,
                 receiver,
                 arg.value,
                 key_type,
                 value_type,
                 nullable_val,
-            ),
-        );
+            ));
         Ok(ExprCheck {
             ty: nullable_val,
             falls_through: receiver_falls_through && arg_result.falls_through,
@@ -438,20 +481,21 @@ impl Checker<'_> {
             )?;
         }
 
-        self.map_descriptors.contains_calls.push(
-            crate::type_checking::MapContainsDescriptor::new(
+        self.map_descriptors
+            .contains_calls
+            .push(crate::type_checking::MapContainsDescriptor::new(
                 call_expression,
                 receiver,
                 arg.value,
                 key_type,
-            ),
-        );
+            ));
         Ok(ExprCheck {
             ty: self.builtin(BuiltinType::Boolean),
             falls_through: receiver_falls_through && arg_result.falls_through,
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_map_put_call(
         &mut self,
         call_expression: ExpressionId,
@@ -504,16 +548,16 @@ impl Checker<'_> {
             )?;
         }
 
-        self.map_descriptors.puts.push(
-            crate::type_checking::MapPutDescriptor::new(
+        self.map_descriptors
+            .puts
+            .push(crate::type_checking::MapPutDescriptor::new(
                 call_expression,
                 receiver,
                 key_arg.value,
                 val_arg.value,
                 key_type,
                 value_type,
-            ),
-        );
+            ));
         Ok(ExprCheck {
             ty: self.builtin(BuiltinType::Unit),
             falls_through: receiver_falls_through
@@ -522,6 +566,7 @@ impl Checker<'_> {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_map_remove_call(
         &mut self,
         call_expression: ExpressionId,
@@ -559,17 +604,21 @@ impl Checker<'_> {
             )?;
         }
 
-        let nullable_val = self.types.intern(TypeKind::Nullable(value_type));
-        self.map_descriptors.removes.push(
-            crate::type_checking::MapRemoveDescriptor::new(
+        let nullable_val = if matches!(self.kind(value_type), TypeKind::Nullable(_)) {
+            value_type
+        } else {
+            self.types.intern(TypeKind::Nullable(value_type))
+        };
+        self.map_descriptors
+            .removes
+            .push(crate::type_checking::MapRemoveDescriptor::new(
                 call_expression,
                 receiver,
                 key_arg.value,
                 key_type,
                 value_type,
                 nullable_val,
-            ),
-        );
+            ));
         Ok(ExprCheck {
             ty: nullable_val,
             falls_through: receiver_falls_through && key_result.falls_through,
@@ -617,7 +666,7 @@ impl Checker<'_> {
                 .expect("MOVE_FROM_CONTAINER_ELEMENT catalog resolve");
             self.emit(
                 code,
-                "cannot move MoveOnly map value by index; use borrow access",
+                "cannot move MoveOnly map value by index; use requireValue or withValue",
                 self.ast().expressions().get(expression)?.span(),
             )?;
             return Ok(Some(ExprCheck {
@@ -626,17 +675,28 @@ impl Checker<'_> {
             }));
         }
 
+        if matches!(self.kind(value_type), TypeKind::Nullable(_)) {
+            self.emit(
+                codes::catalog()?.resolve(codes::INVALID_CONTAINER_MEMBER)?,
+                "nullable map values require withValue to distinguish Missing from Found(null)",
+                self.ast().expressions().get(expression)?.span(),
+            )?;
+            return Ok(Some(ExprCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through && index_result.falls_through,
+            }));
+        }
         let nullable_val = self.types.intern(TypeKind::Nullable(value_type));
-        self.map_descriptors.gets.push(
-            crate::type_checking::MapGetDescriptor::new(
+        self.map_descriptors
+            .gets
+            .push(crate::type_checking::MapGetDescriptor::new(
                 expression,
                 receiver,
                 index,
                 key_type,
                 value_type,
                 nullable_val,
-            ),
-        );
+            ));
         Ok(Some(ExprCheck {
             ty: nullable_val,
             falls_through: receiver_result.falls_through && index_result.falls_through,
@@ -709,16 +769,11 @@ impl Checker<'_> {
             )?;
         }
 
-        self.map_descriptors.puts.push(
-            crate::type_checking::MapPutDescriptor::new(
-                target,
-                receiver,
-                index,
-                value,
-                key_type,
-                value_type,
-            ),
-        );
+        self.map_descriptors
+            .puts
+            .push(crate::type_checking::MapPutDescriptor::new(
+                target, receiver, index, value, key_type, value_type,
+            ));
 
         Ok(Some(ExprCheck {
             ty: self.builtin(BuiltinType::Unit),
@@ -728,4 +783,3 @@ impl Checker<'_> {
         }))
     }
 }
-

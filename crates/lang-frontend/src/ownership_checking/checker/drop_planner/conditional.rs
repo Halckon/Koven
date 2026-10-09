@@ -82,6 +82,7 @@ impl DropPlanner<'_, '_> {
             .borrow_return_origins
             .iter()
             .any(|fact| fact.expression() == id)
+            || self.checker.is_range_return_expression(id)
         {
             ExpressionUse::Read
         } else {

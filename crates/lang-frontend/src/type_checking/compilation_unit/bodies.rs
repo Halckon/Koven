@@ -504,7 +504,9 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) string_operations: Vec<UnitStringOperationDescriptor>,
     pub(crate) integer_operations: Vec<UnitIntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
-    pub(crate) container_sizes: Vec<UnitContainerSizeDescriptor>,
+    container_sizes: Vec<UnitContainerSizeDescriptor>,
+    pub(crate) range_sizes:
+        Vec<crate::type_checking::RangeSizeDescriptor<UnitExpressionId, UnitTypeId>>,
     pub(crate) container_appends: Vec<UnitContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<UnitContainerClearDescriptor>,
     pub(crate) container_remove_ats: Vec<UnitContainerRemoveAtDescriptor>,
@@ -554,6 +556,8 @@ pub struct CompilationUnitTypes {
     integer_operations: Vec<UnitIntegerOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
     container_sizes: Vec<UnitContainerSizeDescriptor>,
+    pub(crate) range_sizes:
+        Vec<crate::type_checking::RangeSizeDescriptor<UnitExpressionId, UnitTypeId>>,
     container_appends: Vec<UnitContainerAppendDescriptor>,
     container_clears: Vec<UnitContainerClearDescriptor>,
     container_remove_ats: Vec<UnitContainerRemoveAtDescriptor>,
@@ -620,6 +624,7 @@ impl CompilationUnitTypes {
             integer_operations: parts.integer_operations,
             container_constructions: parts.container_constructions,
             container_sizes: parts.container_sizes,
+            range_sizes: parts.range_sizes,
             container_appends: parts.container_appends,
             container_clears: parts.container_clears,
             container_remove_ats: parts.container_remove_ats,

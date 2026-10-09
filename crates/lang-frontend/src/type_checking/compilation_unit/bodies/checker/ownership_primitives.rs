@@ -314,8 +314,9 @@ impl BodyChecker<'_> {
                 type_arguments: vec![t],
             },
             return_type: t,
-            borrow_return: None,
             receiver: None,
+            result_source: crate::type_checking::CallableResultSource::Owned,
+            range_construction: None,
             arguments: vec![
                 UnitCallArgumentDescriptor {
                     argument_index: 0,
@@ -571,8 +572,9 @@ impl BodyChecker<'_> {
                 type_arguments: vec![t],
             },
             return_type: unit,
-            borrow_return: None,
             receiver: None,
+            result_source: crate::type_checking::CallableResultSource::Owned,
+            range_construction: None,
             arguments: vec![
                 UnitCallArgumentDescriptor {
                     argument_index: 0,

@@ -28,7 +28,21 @@ impl BodyChecker<'_> {
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let errors = self.diagnostics.len();
         let checked = self.check_expression(source, iteration_source, None, None, return_type)?;
-        let provider = self.container_parts(checked.ty);
+        let provider = match self.signatures.types().get(checked.ty) {
+            Some(UnitTypeKind::Intrinsic {
+                constructor: crate::type_checking::IntrinsicTypeConstructor::View,
+                arguments,
+            }) if arguments.len() == 1 => Some((
+                crate::type_checking::IterationProvider::RangeView,
+                arguments[0],
+            )),
+            _ => self.container_parts(checked.ty).map(|(kind, element)| {
+                (
+                    crate::type_checking::IterationProvider::Sequential(kind),
+                    element,
+                )
+            }),
+        };
         let mut resolved = None;
         if !self.iteration_type_poisoned(checked.ty) {
             if let Some((_, element)) = provider {
@@ -43,7 +57,7 @@ impl BodyChecker<'_> {
                     .span();
                 self.emit_iteration_error(
                     codes::INVALID_ITERATION_SOURCE,
-                    "for source requires a compiler-bound sequential container",
+                    "for source requires a compiler-bound sequential container or View",
                     span,
                     checked.ty,
                 )?;

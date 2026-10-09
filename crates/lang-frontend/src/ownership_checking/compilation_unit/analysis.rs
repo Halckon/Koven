@@ -73,7 +73,6 @@ pub(super) fn analyze(
         ),
     )?;
     if !dataflow.diagnostics.is_empty() {
-        dataflow.borrow_return_origins.clear();
         dataflow.receiver_facts.clear();
         dataflow.conditional_receiver_deliveries.clear();
         dataflow.loans.clear();
@@ -87,14 +86,18 @@ pub(super) fn analyze(
         dataflow.conditional_receiver_drops.clear();
     }
 
-    Ok(CompilationUnitOwnership::new(
+    let mut owned = CompilationUnitOwnership::new(
         typed,
         bindings.into_values().collect(),
         call_argument_contracts,
         call_receiver_contracts,
         capture,
         dataflow,
-    ))
+    );
+    if owned.diagnostics.is_empty() && owned.deferred.is_empty() {
+        owned.diagnostics = crate::ownership_checking::backend_frontier::unit(sources, typed)?;
+    }
+    Ok(owned)
 }
 
 fn collect_callable_bindings(
@@ -102,6 +105,17 @@ fn collect_callable_bindings(
     names: &ValidatedCompilationUnitNames,
     bindings: &mut BTreeMap<UnitSymbolId, UnitOwnershipBindingDescriptor>,
 ) -> Result<(), OwnershipCheckingError> {
+    if let Some(symbol) = callable.extension_receiver_symbol() {
+        insert_binding(
+            names,
+            bindings,
+            UnitOwnershipBindingDescriptor::new(
+                symbol,
+                OwnershipBindingKind::Shared,
+                unit_symbol_span(names, symbol)?,
+            ),
+        )?;
+    }
     for parameter in callable.parameters() {
         let Some(symbol) = parameter.symbol() else {
             continue;

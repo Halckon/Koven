@@ -37,6 +37,7 @@ pub(super) enum UnitInstantiationFailure {
 
 #[derive(Clone, Copy)]
 pub(super) enum UnitBoundFailureKind {
+    RangeCarrier,
     Interface,
     Copyable,
     Transferable,
@@ -115,7 +116,23 @@ impl BodyChecker<'_> {
                         .span(),
                 );
             }
-        } else if !parameters.is_empty() {
+        }
+        if let Some((template, actual)) = self.range_extension_receiver_types(&candidate)
+            && let Err(parameter) = self.infer_unit_type_arguments(
+                template,
+                actual,
+                &parameter_set,
+                &mut substitutions,
+                &mut origins,
+                callee_span,
+            )
+        {
+            return Ok(Err(UnitInstantiationFailure::Inference {
+                primary: callee_span,
+                parameter,
+            }));
+        }
+        if explicit_types.is_empty() && !parameters.is_empty() {
             for (argument_index, &parameter_index) in mapping.iter().enumerate() {
                 let Some(actual) = inference_types[argument_index] else {
                     continue;
@@ -173,6 +190,16 @@ impl BodyChecker<'_> {
         for &parameter in &parameters {
             let actual = substitutions[&parameter];
             let primary = origins.get(&parameter).copied().unwrap_or(callee_span);
+            if crate::type_checking::range_type_uses::unit_contains_range(
+                self.signatures.types(),
+                actual,
+            ) {
+                return Ok(Err(UnitInstantiationFailure::Bound {
+                    kind: UnitBoundFailureKind::RangeCarrier,
+                    primary,
+                    parameter,
+                }));
+            }
             let bound = self
                 .signatures
                 .type_parameter(parameter)
@@ -253,6 +280,10 @@ impl BodyChecker<'_> {
                 parameter,
             } => {
                 let (code, message) = match kind {
+                    UnitBoundFailureKind::RangeCarrier => (
+                        codes::BORROW_RESULT_ESCAPE,
+                        "range carrier cannot be a generic type argument",
+                    ),
                     UnitBoundFailureKind::Interface => (
                         codes::TYPE_ARGUMENT_BOUND,
                         "type argument does not satisfy its interface bound",

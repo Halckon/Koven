@@ -1,18 +1,22 @@
+mod declaration;
 use std::collections::BTreeMap;
 
+mod borrow_binding;
 mod borrow_result;
+mod call;
 mod callable_provenance;
 mod closure;
 mod construction;
 mod container;
 mod control;
-mod declaration;
 mod drop_planner;
 mod elvis;
 mod iteration;
 mod loan;
+mod map;
 mod nullable_when;
 mod ownership_primitive;
+mod range_construction;
 mod rc;
 mod receiver;
 mod string;
@@ -51,6 +55,7 @@ struct State {
     closure_results: BTreeMap<usize, Vec<ExpressionId>>,
     pending_closures: BTreeMap<usize, Vec<ExpressionId>>,
     non_owning: BTreeMap<SymbolId, Span>,
+    borrow_bindings: BTreeMap<SymbolId, super::OwnershipPlace>,
     immutable_captures: BTreeMap<SymbolId, Span>,
 }
 
@@ -125,6 +130,10 @@ struct Checker<'a> {
     variable_kinds: BTreeMap<SymbolId, VariableKind>,
     field_kinds: BTreeMap<SymbolId, VariableKind>,
     current_receiver_mode: Option<ParameterMode>,
+    checking_borrow_return: bool,
+    allowed_borrow_call: Option<ExpressionId>,
+    borrow_results: super::borrow_result::FileBorrowResults,
+    range_producers: Vec<Span>,
     current_borrow_return: Option<super::borrow_result::ReturnSource<SymbolId>>,
     borrow_return_origins: Vec<super::BorrowReturnOriginFact<ExpressionId, super::LoanTarget>>,
     diagnostics: Vec<Diagnostic>,
@@ -191,12 +200,15 @@ impl<'a> Checker<'a> {
         let mut receivers_by_expression = typed
             .calls()
             .iter()
-            .filter_map(|call| {
-                call.receiver()
-                    .map(|receiver| (call.expression().index(), receiver))
-            })
+            .filter_map(|call| call.receiver().map(|r| (call.expression().index(), r)))
             .collect();
         container::populate_container_call_contracts(
+            typed,
+            &mut receivers_by_expression,
+            &mut calls_by_expression,
+        );
+        map::populate_map_call_contracts(
+            parsed,
             typed,
             &mut receivers_by_expression,
             &mut calls_by_expression,
@@ -223,6 +235,10 @@ impl<'a> Checker<'a> {
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
             current_receiver_mode: None,
+            checking_borrow_return: false,
+            allowed_borrow_call: None,
+            borrow_results: Default::default(),
+            range_producers: super::range_producer::collect_single(sources, parsed, names, typed)?,
             current_borrow_return: None,
             borrow_return_origins: Vec::new(),
             loop_has_exit: BTreeMap::new(),
@@ -271,10 +287,24 @@ impl<'a> Checker<'a> {
             .cloned()
             .collect::<Vec<_>>();
         if !diagnostics.is_empty() {
+            self.borrow_return_origins.clear();
+            self.borrow_results = Default::default();
             self.loans.clear();
             self.rc_effects.clear();
         }
-        let bindings = self.ownership_bindings();
+        let bindings = self
+            .typed
+            .parameter_bindings()
+            .iter()
+            .map(|binding| {
+                let kind = match binding.mode() {
+                    ParameterMode::Value => OwnershipBindingKind::Owned,
+                    ParameterMode::Borrow => OwnershipBindingKind::Shared,
+                    ParameterMode::Inout => OwnershipBindingKind::Exclusive,
+                };
+                OwnershipBindingDescriptor::new(binding.symbol(), kind)
+            })
+            .collect();
         let drop_plan = if diagnostics.is_empty() {
             drop_planner::plan(&self)?
         } else {
@@ -287,8 +317,14 @@ impl<'a> Checker<'a> {
             loan_ends,
             iterations,
             deferred,
+            borrow_ends,
         } = drop_plan;
+        self.borrow_results.ends = borrow_ends;
         self.deferred.extend(deferred);
+        if !self.deferred.is_empty() {
+            self.borrow_results = Default::default();
+            self.borrow_return_origins.clear();
+        }
         self.finish_nullable_drops(&drops)?;
         let callable_provenance = self
             .finish_callable_sources(diagnostics.is_empty() && self.typed.diagnostics().is_empty());
@@ -324,15 +360,15 @@ impl<'a> Checker<'a> {
         } else {
             Vec::new()
         };
-        if !diagnostics.is_empty() || !self.deferred.is_empty() {
-            self.borrow_return_origins.clear();
-        }
-        self.borrow_return_origins
-            .sort_by_key(|fact| fact.expression().index());
         let captures = if diagnostics.is_empty() {
             self.captures
         } else {
             Vec::new()
+        };
+        let diagnostics = if diagnostics.is_empty() && self.deferred.is_empty() {
+            super::backend_frontier::single(self.sources, self.typed)?
+        } else {
+            diagnostics
         };
         Ok(OwnershipCheckedFile::new(
             self.parsed.source_id(),
@@ -341,8 +377,8 @@ impl<'a> Checker<'a> {
             diagnostics,
             OwnershipCheckedParts {
                 callable_provenance,
+                borrow_results: self.borrow_results,
                 borrow_return_origins: self.borrow_return_origins,
-                borrow_results: Default::default(),
                 cleanup_steps,
                 cleanup_conditions,
                 iterations,
@@ -438,6 +474,40 @@ impl<'a> Checker<'a> {
         Ok(flows)
     }
 
+    fn check_function(
+        &mut self,
+        form: FunctionForm,
+        state: State,
+    ) -> Result<(), OwnershipCheckingError> {
+        match form {
+            FunctionForm::ImplicitUnitAbsent => {}
+            FunctionForm::ImplicitUnitBlock(body) => {
+                self.check_statement(body, state)?;
+            }
+            FunctionForm::Explicit { body, .. } => match body {
+                FunctionBody::Absent => {
+                    if let Some(source) = self.current_borrow_return {
+                        self.diagnostics.push(crate::diagnostic::Diagnostic::new(
+                            self.sources,
+                            crate::diagnostic::Severity::Error,
+                            crate::diagnostic::codes::catalog()?
+                                .resolve(crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW)?,
+                            "borrow result declaration has no body proving its origin",
+                            source.marker,
+                        )?);
+                    }
+                }
+                FunctionBody::Expression { expression, .. } => {
+                    self.check_return_expression(expression, state, ExpressionUse::Consume)?;
+                }
+                FunctionBody::Block(body) => {
+                    self.check_statement(body, state)?;
+                }
+            },
+        }
+        Ok(())
+    }
+
     fn check_statement(
         &mut self,
         id: StatementId,
@@ -447,10 +517,13 @@ impl<'a> Checker<'a> {
             Statement::Error => Ok(Flows::next(state)),
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
-            | Statement::ControlBody { elements } => self.check_elements(&elements, state),
+            | Statement::ControlBody { elements } => self.check_borrow_scope(&elements, state),
             Statement::LocalVariable { declaration } => {
                 let Item::Variable {
-                    name, initializer, ..
+                    kind,
+                    name,
+                    initializer,
+                    ..
                 } = self
                     .parsed
                     .ast()
@@ -461,6 +534,9 @@ impl<'a> Checker<'a> {
                 else {
                     return Ok(Flows::next(state));
                 };
+                if let VariableKind::BorrowVal(marker) = kind {
+                    return self.check_borrow_binding(name, initializer, marker, state);
+                }
                 let mut flows = self.check_variable(name, initializer, state)?;
                 if let Some(next) = flows.next.as_mut()
                     && let Some(symbol) = self.marker_symbol(name)
@@ -524,12 +600,19 @@ impl<'a> Checker<'a> {
         elements: &[StatementId],
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let inherited = state.borrow_bindings.keys().copied().collect();
+        let uses =
+            super::borrow_last_use::StraightLineBorrowUses::build(self.parsed, elements, |id| {
+                self.place(id).map(|place| place.map(|p| p.root()))
+            })?;
         let mut flows = Flows::next(state);
         for &element in elements {
             let Some(next) = flows.next.take() else {
                 break;
             };
-            flows.merge(self.check_statement(element, next)?);
+            let mut checked = self.check_statement(element, next)?;
+            self.end_last_borrow_uses(element, uses.as_ref(), &inherited, &mut checked);
+            flows.merge(checked);
         }
         Ok(flows)
     }
@@ -601,12 +684,22 @@ impl<'a> Checker<'a> {
         if let Some(descriptor) = self.typed.integer_operation(id) {
             return self.check_expression(descriptor.receiver(), state, ExpressionUse::Read);
         }
-        if let Some(descriptor) = self.typed.container_size(id) {
-            return self.check_shared_receiver_read(
-                descriptor.expression(),
-                descriptor.receiver(),
-                state,
-            );
+        if let Some(r) = self
+            .typed
+            .container_size(id)
+            .map(|d| (d.expression(), d.receiver()))
+            .or_else(|| {
+                self.typed
+                    .range_size(id)
+                    .map(|d| (d.expression(), d.receiver()))
+            })
+            .or_else(|| {
+                self.typed
+                    .map_size(id)
+                    .map(|d| (d.expression(), d.receiver()))
+            })
+        {
+            return self.check_shared_receiver_read(r.0, r.1, state);
         }
         if let Some(descriptor) = self.typed.string_operation(id) {
             return self.check_string_operation(descriptor, state);
@@ -617,6 +710,11 @@ impl<'a> Checker<'a> {
         let node = self.parsed.ast().expressions().get(id)?;
         let span = node.span();
         match node.payload().clone() {
+            Expression::This if self.reference_symbol(span).is_some() => {
+                let mut state = state;
+                self.use_name(span, usage, &mut state)?;
+                Ok(Flows::next(state))
+            }
             Expression::This => {
                 let access = match usage {
                     ExpressionUse::Place => return Ok(Flows::next(state)),
@@ -755,6 +853,9 @@ impl<'a> Checker<'a> {
                 if self.element_place_descriptor(target)?.is_some() {
                     return self.check_element_assignment(target, operator, value, state);
                 }
+                if let Some(put) = self.typed.map_put(target) {
+                    return self.check_map_assignment(put, target, operator, value, state);
+                }
                 let diagnostic_count = self.diagnostics.len();
                 let root = self
                     .place(target)?
@@ -829,162 +930,12 @@ impl<'a> Checker<'a> {
             }
             Expression::Call {
                 callee, arguments, ..
-            } => {
-                let diagnostic_count = self.diagnostics.len();
-                let receiver = self.receivers_by_expression.get(&id.index()).copied();
-                let mut receiver_expression = None;
-                let mut flows = match receiver.map(CallReceiverDescriptor::origin) {
-                    Some(CallReceiverOrigin::Expression(expression)) => {
-                        receiver_expression = Some(expression);
-                        let usage = if receiver
-                            .is_some_and(|receiver| receiver.mode() == ParameterMode::Value)
-                        {
-                            ExpressionUse::Consume
-                        } else {
-                            ExpressionUse::Place
-                        };
-                        self.check_expression(expression, state, usage)?
-                    }
-                    Some(CallReceiverOrigin::ImplicitThis(_)) => {
-                        if receiver.is_some_and(|receiver| receiver.mode() == ParameterMode::Inout)
-                            && self.current_receiver_mode != Some(ParameterMode::Inout)
-                        {
-                            self.diagnostics.push(Diagnostic::new(
-                                self.sources,
-                                Severity::Error,
-                                self.immutable_inout_code,
-                                "current this cannot supply an inout receiver",
-                                self.parsed.ast().expressions().get(id)?.span(),
-                            )?);
-                        } else if receiver.is_some_and(|receiver| {
-                            receiver.mode() == ParameterMode::Value
-                                && self.typed.copyability(receiver.ty())
-                                    == Some(Copyability::MoveOnly)
-                        }) && self.current_receiver_mode != Some(ParameterMode::Value)
-                            && self.access_this(
-                                AccessKind::Move,
-                                self.parsed.ast().expressions().get(callee)?.span(),
-                                &state,
-                            )?
-                        {
-                            self.diagnostics.push(Diagnostic::new(
-                                self.sources,
-                                Severity::Error,
-                                self.borrowed_move_code,
-                                "cannot move this from a non-owning receiver",
-                                self.parsed.ast().expressions().get(id)?.span(),
-                            )?);
-                        }
-                        Flows::next(state)
-                    }
-                    None => self.check_expression(callee, state, ExpressionUse::Read)?,
-                };
-                if self.diagnostics.len() == diagnostic_count
-                    && let (Some(receiver), Some(expression)) = (receiver, receiver_expression)
-                {
-                    let span = self.parsed.ast().expressions().get(expression)?.span();
-                    self.apply_argument_contract(
-                        id,
-                        crate::parser::CallArgument {
-                            span,
-                            named_prefix: None,
-                            mode_marker: None,
-                            value: expression,
-                        },
-                        receiver.mode(),
-                        true,
-                        &mut flows,
-                    )?;
-                } else if let Some(receiver) = receiver
-                    && let CallReceiverOrigin::ImplicitThis(nominal) = receiver.origin()
-                    && self.diagnostics.len() == diagnostic_count
-                {
-                    self.apply_this_contract(
-                        id,
-                        callee,
-                        nominal,
-                        receiver.mode(),
-                        true,
-                        &mut flows,
-                    )?;
-                }
-                self.hold_call_closures(id, receiver_expression.unwrap_or(callee), &mut flows)?;
-                let modes = self.calls_by_expression.get(&id.index()).cloned();
-                let cross_thread = self.cross_thread_by_expression.get(&id.index()).cloned();
-                let argument_expressions = arguments
-                    .iter()
-                    .map(|argument| argument.value)
-                    .collect::<Vec<_>>();
-                for (index, argument) in arguments.into_iter().enumerate() {
-                    let mode = modes.as_ref().and_then(|modes| modes.get(index)).copied();
-                    let crosses_thread = cross_thread
-                        .as_ref()
-                        .and_then(|effects| effects.get(index))
-                        .copied()
-                        .unwrap_or(false);
-                    let usage = match mode {
-                        Some(ParameterMode::Value) => ExpressionUse::Consume,
-                        Some(ParameterMode::Borrow | ParameterMode::Inout) => ExpressionUse::Place,
-                        None => ExpressionUse::Read,
-                    };
-                    let argument_diagnostics = self.diagnostics.len();
-                    flows = if mode == Some(ParameterMode::Value) && !crosses_thread {
-                        self.chain_escaping_expression(flows, argument.value, usage)?
-                    } else {
-                        self.chain_expression(flows, argument.value, usage)?
-                    };
-                    self.hold_call_closures(id, argument.value, &mut flows)?;
-                    if crosses_thread
-                        && self.diagnostics.len() == argument_diagnostics
-                        && let Some(next) = flows.next.as_ref()
-                    {
-                        self.check_cross_thread_delivery(argument.value, next)?;
-                    }
-                    if self.diagnostics.len() == argument_diagnostics
-                        && let Some(mode) = mode
-                    {
-                        self.apply_argument_contract(id, argument, mode, false, &mut flows)?;
-                    }
-                }
-                if self.diagnostics.len() == diagnostic_count {
-                    self.activate_receiver(id, &mut flows)?;
-                }
-                if self.diagnostics.len() == diagnostic_count
-                    && let Some(next) = flows.next.as_ref()
-                {
-                    self.record_ownership_primitive(id, &argument_expressions, next)?;
-                }
-                self.end_call_loans(id, &mut flows);
-                self.finish_call_closures(id, &mut flows);
-                for expression in receiver_expression
-                    .into_iter()
-                    .chain(receiver.is_none().then_some(callee))
-                    .chain(argument_expressions)
-                {
-                    self.release_last_closure_use(expression, &mut flows)?;
-                }
-                if flows.next.is_some()
-                    && self.diagnostics.len() == diagnostic_count
-                    && self
-                        .typed
-                        .aggregate_projection(id)
-                        .is_some_and(|projection| {
-                            projection.kind() == AggregateProjectionKind::StructuralComponent
-                        })
-                {
-                    let callee = self.parsed.ast().expressions().get(callee)?;
-                    if let Expression::Member { name_span, .. } = callee.payload() {
-                        self.reject_partial_move(id, *name_span)?;
-                    }
-                }
-                if self.is_nothing_expression(id) {
-                    flows.next = None;
-                }
-                Ok(flows)
-            }
+            } => self.check_call(id, callee, arguments, state),
             Expression::Index { receiver, index } => {
                 if self.element_place_descriptor(id)?.is_some() {
                     self.check_element_expression(id, state, usage)
+                } else if self.typed.map_get(id).is_some() {
+                    self.check_map_index(receiver, index, state)
                 } else {
                     self.defer(id, OwnershipDeferredReason::IndexPlace);
                     let flows = self.check_expression(receiver, state, ExpressionUse::Read)?;
@@ -1312,6 +1263,9 @@ fn merge_state(target: &mut State, source: State) {
         merged.sort_by_key(|origin| origin.index());
         merged.dedup();
     }
+    target
+        .borrow_bindings
+        .retain(|symbol, origin| source.borrow_bindings.get(symbol) == Some(origin));
     target
         .non_owning
         .retain(|symbol, origin| source.non_owning.get(symbol) == Some(origin));

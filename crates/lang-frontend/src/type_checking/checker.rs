@@ -19,6 +19,8 @@ mod members;
 mod nominal;
 mod ownership_primitives;
 mod projection;
+mod range_carrier;
+mod range_construction;
 mod rc;
 mod string;
 mod trial;
@@ -127,6 +129,7 @@ struct Checker<'a> {
     associated_constant_uses: BTreeMap<usize, SymbolId>,
     associated_constants: BTreeMap<SymbolId, constants::AssociatedNamespace>,
     references: BTreeMap<(usize, usize, u8), ReferenceTarget>,
+    value_lookup_hints: BTreeMap<(usize, usize), ReferenceTarget>,
     symbols_by_span: BTreeMap<(usize, usize), SymbolId>,
     symbol_kinds: Vec<SymbolKind>,
     symbol_spans: Vec<Span>,
@@ -169,6 +172,7 @@ struct Checker<'a> {
     integer_operations: Vec<IntegerOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     container_sizes: Vec<ContainerSizeDescriptor>,
+    range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
     container_appends: Vec<ContainerAppendDescriptor>,
     container_clears: Vec<ContainerClearDescriptor>,
     container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
@@ -241,8 +245,6 @@ struct Checker<'a> {
     immutable_container_place_code: DiagnosticCode,
     invalid_container_member_code: DiagnosticCode,
     jump_outside_loop_code: DiagnosticCode,
-    invalid_borrow_contract_code: DiagnosticCode,
-    unsupported_borrow_path_code: DiagnosticCode,
     invalid_constant_type_code: DiagnosticCode,
     invalid_constant_expression_code: DiagnosticCode,
     invalid_constant_context_code: DiagnosticCode,
@@ -329,6 +331,16 @@ impl<'a> Checker<'a> {
             associated_constant_uses: BTreeMap::new(),
             associated_constants: BTreeMap::new(),
             references,
+            value_lookup_hints: names
+                .value_lookup_hints()
+                .iter()
+                .map(|hint| {
+                    (
+                        (hint.span().start(), hint.span().end()),
+                        hint.target().clone(),
+                    )
+                })
+                .collect(),
             symbols_by_span,
             symbol_kinds,
             symbol_spans,
@@ -378,6 +390,7 @@ impl<'a> Checker<'a> {
             integer_operations: Vec::new(),
             container_constructions: Vec::new(),
             container_sizes: Vec::new(),
+            range_sizes: Vec::new(),
             container_appends: Vec::new(),
             container_clears: Vec::new(),
             container_remove_ats: Vec::new(),
@@ -459,8 +472,6 @@ impl<'a> Checker<'a> {
             immutable_container_place_code: catalog.resolve(codes::IMMUTABLE_CONTAINER_PLACE)?,
             invalid_container_member_code: catalog.resolve(codes::INVALID_CONTAINER_MEMBER)?,
             jump_outside_loop_code: catalog.resolve(codes::JUMP_OUTSIDE_LOOP)?,
-            invalid_borrow_contract_code: catalog.resolve(codes::INVALID_BORROW_CONTRACT)?,
-            unsupported_borrow_path_code: catalog.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
             invalid_constant_type_code: catalog.resolve(codes::INVALID_CONSTANT_TYPE)?,
             invalid_constant_expression_code: catalog
                 .resolve(codes::INVALID_CONSTANT_EXPRESSION)?,
@@ -491,9 +502,11 @@ impl<'a> Checker<'a> {
             self.check_item(root)?;
         }
         self.validate_type_argument_bounds()?;
+        self.check_range_types()?;
         let constants = self.build_constant_facts()?;
         // 后置泛型约束等检查完成后才允许发布阶段计划；recovery 类型仍保留。
         if !self.diagnostics.is_empty() || !self.input_error_spans.is_empty() {
+            self.clear_range_facts();
             self.iterations.clear();
             self.ownership_primitives.clear();
             self.integer_operations.clear();
@@ -569,6 +582,7 @@ impl<'a> Checker<'a> {
                 integer_operations: self.integer_operations,
                 container_constructions: self.container_constructions,
                 container_sizes: self.container_sizes,
+                range_sizes: self.range_sizes,
                 container_appends: self.container_appends,
                 container_clears: self.container_clears,
                 container_remove_ats: self.container_remove_ats,
@@ -779,6 +793,7 @@ impl<'a> Checker<'a> {
                     IntrinsicTypeConstructor::MutableList => "MutableList",
                     IntrinsicTypeConstructor::Map => "Map",
                     IntrinsicTypeConstructor::MutableMap => "MutableMap",
+                    IntrinsicTypeConstructor::View => "View",
                 };
                 let args = arguments
                     .iter()

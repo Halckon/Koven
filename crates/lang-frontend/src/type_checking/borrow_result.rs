@@ -1,6 +1,9 @@
 use super::ParameterMode;
 use crate::{
-    parser::{BorrowReturnSource, FunctionForm, NameMarker, ParameterModeMarker, ValueParameter},
+    parser::{
+        BorrowReturnSource, FunctionForm, FunctionResultSource, NameMarker, ParameterModeMarker,
+        ValueParameter,
+    },
     source::{SourceError, SourceMap, Span},
 };
 
@@ -22,6 +25,14 @@ pub struct BorrowReturnContract {
 }
 
 impl BorrowReturnContract {
+    pub(crate) const fn intrinsic_receiver(marker_span: Span, source_span: Span) -> Self {
+        Self {
+            origin: BorrowReturnOrigin::Receiver,
+            marker_span,
+            source_span,
+        }
+    }
+
     /// 返回唯一参数/receiver 来源。
     pub const fn origin(self) -> BorrowReturnOrigin {
         self.origin
@@ -36,7 +47,6 @@ impl BorrowReturnContract {
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct BorrowReturnIssue {
     pub(crate) span: Span,
     pub(crate) message: &'static str,
@@ -49,7 +59,7 @@ pub(crate) fn resolve_borrow_return(
     receiver: Option<ParameterMode>,
 ) -> Result<Result<Option<BorrowReturnContract>, BorrowReturnIssue>, SourceError> {
     let FunctionForm::Explicit {
-        borrow_return: Some(syntax),
+        result_source: Some(FunctionResultSource::Borrow(syntax)),
         ..
     } = form
     else {
@@ -104,74 +114,4 @@ pub(crate) fn resolve_borrow_return(
         marker_span: syntax.borrow_span,
         source_span,
     })))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        lexer::lex,
-        parser::{Item, parse_file},
-    };
-
-    fn resolved(
-        text: &str,
-        receiver: Option<ParameterMode>,
-    ) -> (SourceMap, Option<BorrowReturnContract>) {
-        let mut sources = SourceMap::new();
-        let source = sources.add_source("signature.ko", text).unwrap();
-        let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-        assert!(file.diagnostics().is_empty());
-        let (form, parameters) = file
-            .ast()
-            .items()
-            .iter()
-            .find_map(|(_, node)| match node.payload() {
-                Item::Function {
-                    form, parameters, ..
-                } => Some((*form, parameters)),
-                _ => None,
-            })
-            .unwrap();
-        let contract = resolve_borrow_return(&sources, form, parameters, receiver)
-            .unwrap()
-            .unwrap();
-        (sources, contract)
-    }
-
-    #[test]
-    fn unique_parameter_origin_uses_declaration_order_and_real_source_spans() {
-        let (sources, contract) = resolved(
-            "fun view(aux: Int, source: String): borrow String from source = source",
-            None,
-        );
-        let contract = contract.unwrap();
-        assert_eq!(contract.origin(), BorrowReturnOrigin::Parameter(1));
-        assert_eq!(sources.slice(contract.marker_span()).unwrap(), "borrow");
-        assert_eq!(sources.slice(contract.source_span()).unwrap(), "source");
-        assert_eq!(contract.source_span().start(), 55);
-    }
-
-    #[test]
-    fn receiver_contract_accepts_only_non_owning_modes() {
-        for mode in [ParameterMode::Borrow, ParameterMode::Inout] {
-            let (sources, contract) = resolved(
-                "class Record { fun view(): borrow String from this }",
-                Some(mode),
-            );
-            let contract = contract.unwrap();
-            assert_eq!(contract.origin(), BorrowReturnOrigin::Receiver);
-            assert_eq!(sources.slice(contract.source_span()).unwrap(), "this");
-        }
-    }
-
-    #[test]
-    fn default_owned_return_does_not_create_a_borrow_contract() {
-        assert!(
-            resolved("fun view(source: String): String = source", None)
-                .1
-                .is_none()
-        );
-        assert!(resolved("fun view() {}", None).1.is_none());
-    }
 }

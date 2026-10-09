@@ -53,6 +53,22 @@ fn binding_type_is_available_before_the_body_is_checked() {
 }
 
 #[test]
+fn range_view_publishes_a_distinct_shared_provider_without_owned_container_identity() {
+    use lang_frontend::type_checking::{IterationProvider, ParameterMode};
+    for element in ["String", "Item", "Token"] {
+        let (_, typed) = checked(&format!(
+            "class Item(val n:Int){{}}\nclass Token{{deinit(){{}}}}\nfun run(source:View<{element}>):Unit{{for(item in source){{}}}}"
+        ));
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let [plan] = typed.sequential_iterations() else {
+            panic!("one provider");
+        };
+        assert_eq!(plan.provider(), IterationProvider::RangeView);
+        assert_eq!(plan.delivery(), ParameterMode::Borrow);
+    }
+}
+
+#[test]
 fn three_providers_publish_name_discard_and_ordered_borrowed_components() {
     use lang_frontend::type_checking::{
         BuiltinType, ParameterMode, SequentialContainerKind, SequentialIterationBinding, TypeKind,
@@ -70,7 +86,10 @@ fn three_providers_publish_name_discard_and_ordered_borrowed_components() {
         let plans = typed.sequential_iterations();
         assert_eq!(plans.len(), 3);
         for plan in plans {
-            assert_eq!(plan.provider(), provider);
+            assert_eq!(
+                plan.provider(),
+                lang_frontend::type_checking::IterationProvider::Sequential(provider)
+            );
             assert_eq!(plan.delivery(), ParameterMode::Borrow);
             let TypeKind::Intrinsic { arguments, .. } =
                 typed.types().get(plan.source_type()).unwrap()

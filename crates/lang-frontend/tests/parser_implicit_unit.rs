@@ -162,7 +162,7 @@ fn expression_body_missing_return_annotation_has_one_exact_recovery_root() {
     let FunctionForm::Explicit {
         colon_span,
         type_ref,
-        borrow_return: None,
+        result_source: None,
         body: FunctionBody::Expression {
             equals_span,
             expression,

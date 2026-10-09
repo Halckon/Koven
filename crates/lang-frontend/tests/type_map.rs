@@ -86,6 +86,49 @@ fn unit_map_signatures_check_hashable_and_storable_arguments() {
 }
 
 #[test]
+fn map_nullable_value_queries_require_scoped_access_with_diagnostic_span() {
+    for (query, code) in [("m.get(1)", "L0130"), ("m[1]", "L0130")] {
+        let text = format!("fun read(m: Map<Int, Int?>): Unit {{ val result = {query} }}");
+        let (sources, _, _, single) = checked(&text);
+        let (unit_sources, unit) = checked_unit_with_sources(&text);
+        for (sources, diagnostics) in [
+            (&sources, single.diagnostics()),
+            (&unit_sources, unit.diagnostics()),
+        ] {
+            let diagnostic = diagnostics
+                .iter()
+                .find(|d| d.code().to_string() == code)
+                .unwrap_or_else(|| panic!("{text}: {diagnostics:?}"));
+            assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), query);
+            assert!(diagnostic.message().contains("withValue"));
+        }
+        assert!(single.map_gets().is_empty());
+        assert!(unit.map_gets().is_empty());
+    }
+}
+
+#[test]
+fn map_move_only_get_contract_stays_rejected_including_nullable_values() {
+    for value in ["String", "String?"] {
+        for query in ["m.get(1)", "m[1]"] {
+            let text = format!("fun read(m: Map<Int, {value}>): Unit {{ val result = {query} }}");
+            let (sources, _, _, single) = checked(&text);
+            let (unit_sources, unit) = checked_unit_with_sources(&text);
+            for (sources, diagnostics) in [
+                (&sources, single.diagnostics()),
+                (&unit_sources, unit.diagnostics()),
+            ] {
+                let diagnostic = diagnostics
+                    .iter()
+                    .find(|d| d.code().to_string() == "L0136")
+                    .unwrap_or_else(|| panic!("{text}: {diagnostics:?}"));
+                assert_eq!(sources.slice(diagnostic.primary_span()).unwrap(), query);
+            }
+        }
+    }
+}
+
+#[test]
 fn test_map_and_mutable_map_construction_and_members() {
     let text = r#"
         fun test() {

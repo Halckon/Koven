@@ -182,7 +182,13 @@ impl Checker<'_> {
         } else {
             None
         };
+        let previous_borrow_delivery = if is_lambda {
+            std::mem::replace(&mut self.checking_borrow_return, false)
+        } else {
+            self.checking_borrow_return
+        };
         let checked = self.check_expression_inner(id, state, usage);
+        self.checking_borrow_return = previous_borrow_delivery;
         if is_lambda {
             self.current_borrow_return = previous_borrow;
         }

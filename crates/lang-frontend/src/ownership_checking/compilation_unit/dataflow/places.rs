@@ -266,7 +266,7 @@ impl Checker<'_> {
     ) -> Result<Option<UnitOwnershipPlace>, OwnershipCheckingError> {
         let node = self.parsed.ast().expressions().get(expression)?;
         match node.payload() {
-            Expression::Name => Ok(self
+            Expression::Name | Expression::This => Ok(self
                 .reference_symbol(node.span())
                 .filter(|symbol| self.is_place_symbol(*symbol))
                 .map(|symbol| UnitOwnershipPlace::new(symbol, Vec::new()))),

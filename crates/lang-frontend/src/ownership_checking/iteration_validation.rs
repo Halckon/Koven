@@ -90,7 +90,29 @@ pub fn validate_iteration_facts(
             .expressions()
             .get(root)
             .map_err(|_| reject("unknown source expression"))?;
+        let range_source = owned.borrow_results().range_uses().iter().find(|fact| {
+            fact.expression() == *source && fact.site() == super::RangeUseSite::Iteration
+        });
+        if let Some(fact) = range_source {
+            let source = fact.source_loan();
+            if fact.origin() != plan.source()
+                || owned
+                    .loans()
+                    .iter()
+                    .find(|loan| {
+                        loan.call() == source.call() && loan.argument() == source.argument()
+                    })
+                    .is_none_or(|loan| {
+                        loan.target() != fact.origin() || loan.kind() != super::LoanKind::Shared
+                    })
+            {
+                return Err(reject(
+                    "range continuation does not match actual source loan",
+                ));
+            }
+        }
         match plan.source() {
+            _ if range_source.is_some() => {}
             LoanTarget::Place(path) if path.is_root() => {
                 if !matches!(source_node.payload(), Expression::Name) || !names.references().iter().any(|reference| reference.span() == source_node.span() && matches!(reference.target(), ReferenceTarget::Symbol(symbol) if *symbol == path.root())) {
                     return Err(reject("source owner does not match evaluated source"));

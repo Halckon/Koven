@@ -89,7 +89,10 @@ fn three_providers_cover_five_sources_and_source_qualified_plans() {
             let plans = typed.sequential_iterations();
             assert_eq!(plans.len(), 1);
             let plan = &plans[0];
-            assert_eq!(plan.provider(), kind);
+            assert_eq!(
+                plan.provider(),
+                lang_frontend::type_checking::IterationProvider::Sequential(kind)
+            );
             assert_eq!(plan.delivery(), ParameterMode::Borrow);
             assert_eq!(
                 typed.types().get(plan.element_type()),

@@ -1,3 +1,7 @@
+#[path = "map_require.rs"]
+mod map_require;
+#[path = "map_with.rs"]
+mod map_with;
 use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::codes,
@@ -159,16 +163,15 @@ impl BodyChecker<'_> {
             arguments: vec![key_type, value_type],
         });
 
-        self.parts
-            .map_descriptors
-            .constructions
-            .push(super::super::map::UnitMapConstructionDescriptor::new(
+        self.parts.map_descriptors.constructions.push(
+            super::super::map::UnitMapConstructionDescriptor::new(
                 super::super::super::UnitExpressionId::new(source, expression),
                 callable,
                 map_ty,
                 key_type,
                 value_type,
-            ));
+            ),
+        );
 
         Ok(ExpressionCheck {
             ty: map_ty,
@@ -205,7 +208,10 @@ impl BodyChecker<'_> {
             return Ok(Some(self.builtin(BuiltinType::Int)));
         }
 
-        if matches!(name, "get" | "put" | "remove" | "contains") {
+        if matches!(
+            name,
+            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue"
+        ) {
             self.emit(
                 codes::INVALID_CONTAINER_MEMBER,
                 &format!("Map.{name} must be called as a method"),
@@ -252,7 +258,10 @@ impl BodyChecker<'_> {
             .sources
             .slice(name_span)
             .map_err(TypeCheckingError::from)?;
-        if !matches!(name, "get" | "put" | "remove" | "contains") {
+        if !matches!(
+            name,
+            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue"
+        ) {
             return Ok(None);
         }
 
@@ -275,6 +284,38 @@ impl BodyChecker<'_> {
         }
 
         match name {
+            "withValue" => Ok(Some(self.check_map_with_call(
+                source,
+                expression,
+                receiver,
+                receiver_result.falls_through,
+                key_type,
+                value_type,
+                arguments,
+                call_span,
+                return_type,
+            )?)),
+            "requireValue" => Ok(Some(
+                self.check_map_require_call(
+                    source,
+                    expression,
+                    receiver,
+                    receiver_result.falls_through,
+                    key_type,
+                    value_type,
+                    arguments,
+                    call_span,
+                    name_span,
+                    self.file(source)
+                        .ast()
+                        .expressions()
+                        .get(receiver)
+                        .map_err(TypeCheckingError::from)?
+                        .span(),
+                    return_type,
+                )?,
+            )),
+
             "get" => {
                 let check = self.check_map_get_call(
                     source,
@@ -407,7 +448,7 @@ impl BodyChecker<'_> {
         if self.copyability_of(value_type) == Copyability::MoveOnly {
             self.emit(
                 codes::MOVE_FROM_CONTAINER_ELEMENT,
-                "cannot move MoveOnly map value by get; use borrow access",
+                "cannot move MoveOnly map value by get; use requireValue or withValue",
                 call_span,
             )?;
             return Ok(ExpressionCheck {
@@ -416,6 +457,20 @@ impl BodyChecker<'_> {
             });
         }
 
+        if matches!(
+            self.signatures.types().get(value_type),
+            Some(UnitTypeKind::Nullable(_))
+        ) {
+            self.emit(
+                codes::INVALID_CONTAINER_MEMBER,
+                "nullable map values require withValue to distinguish Missing from Found(null)",
+                call_span,
+            )?;
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: receiver_falls_through && arg_result.falls_through,
+            });
+        }
         let nullable_val = self
             .signatures
             .types_mut()
@@ -482,15 +537,14 @@ impl BodyChecker<'_> {
             )?;
         }
 
-        self.parts
-            .map_descriptors
-            .contains_calls
-            .push(super::super::map::UnitMapContainsDescriptor::new(
+        self.parts.map_descriptors.contains_calls.push(
+            super::super::map::UnitMapContainsDescriptor::new(
                 super::super::super::UnitExpressionId::new(source, expression),
                 super::super::super::UnitExpressionId::new(source, receiver),
                 super::super::super::UnitExpressionId::new(source, arg.value),
                 key_type,
-            ));
+            ),
+        );
         Ok(ExpressionCheck {
             ty: self.builtin(BuiltinType::Boolean),
             falls_through: receiver_falls_through && arg_result.falls_through,
@@ -629,10 +683,16 @@ impl BodyChecker<'_> {
             )?;
         }
 
-        let nullable_val = self
-            .signatures
-            .types_mut()
-            .intern(UnitTypeKind::Nullable(value_type));
+        let nullable_val = if matches!(
+            self.signatures.types().get(value_type),
+            Some(UnitTypeKind::Nullable(_))
+        ) {
+            value_type
+        } else {
+            self.signatures
+                .types_mut()
+                .intern(UnitTypeKind::Nullable(value_type))
+        };
         self.parts
             .map_descriptors
             .removes
@@ -696,7 +756,7 @@ impl BodyChecker<'_> {
         if self.copyability_of(value_type) == Copyability::MoveOnly {
             self.emit(
                 codes::MOVE_FROM_CONTAINER_ELEMENT,
-                "cannot move MoveOnly map value by index; use borrow access",
+                "cannot move MoveOnly map value by index; use requireValue or withValue",
                 self.file(source)
                     .ast()
                     .expressions()
@@ -710,6 +770,25 @@ impl BodyChecker<'_> {
             }));
         }
 
+        if matches!(
+            self.signatures.types().get(value_type),
+            Some(UnitTypeKind::Nullable(_))
+        ) {
+            self.emit(
+                codes::INVALID_CONTAINER_MEMBER,
+                "nullable map values require withValue to distinguish Missing from Found(null)",
+                self.file(source)
+                    .ast()
+                    .expressions()
+                    .get(expression)
+                    .map_err(TypeCheckingError::from)?
+                    .span(),
+            )?;
+            return Ok(Some(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through: receiver_result.falls_through && index_result.falls_through,
+            }));
+        }
         let nullable_val = self
             .signatures
             .types_mut()

@@ -492,3 +492,26 @@ fn direct_field_replace_captured_receiver_defers_owner_provenance() {
     assert!(unit.deferred().iter().any(|fact| fact.reason() == lang_frontend::ownership_checking::OwnershipDeferredReason::OwnershipPrimitiveClosureTransport));
     assert!(unit.validate().is_err());
 }
+
+#[test]
+fn direct_field_replace_shared_capture_never_gains_exclusive_permission() {
+    let text = "class Holder(var state: Int)\nfun run(): Int {\nval holder = Holder(1)\nval callback: () -> Int = { replace(&holder.state, 2) }\nreturn callback()\n}";
+    let (single, unit) = checked(text);
+    for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code().to_string(), "L0135");
+        let span = diagnostics[0].primary_span();
+        assert_eq!(&text[span.start()..span.end()], "&");
+        assert!(diagnostics[0].details().iter().any(|detail| {
+            let lang_frontend::diagnostic::DiagnosticDetail::Label(label) = detail else {
+                return false;
+            };
+            let span = label.span();
+            &text[span.start()..span.end()] == "holder"
+        }));
+    }
+    assert!(single.field_replacements().is_empty());
+    assert!(unit.field_replacements().is_empty());
+    assert!(single.ownership_primitives().is_empty());
+    assert!(unit.ownership_primitives().is_empty());
+}

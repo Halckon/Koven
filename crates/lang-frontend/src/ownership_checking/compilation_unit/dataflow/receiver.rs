@@ -23,7 +23,9 @@ impl Checker<'_> {
         expression: crate::ast::ExpressionId,
     ) -> Result<bool, OwnershipCheckingError> {
         match self.parsed.ast().expressions().get(expression)?.payload() {
-            Expression::This => Ok(true),
+            Expression::This => Ok(self
+                .reference_symbol(self.parsed.ast().expressions().get(expression)?.span())
+                .is_none()),
             Expression::Group { expression } => self.expression_is_this(*expression),
             _ => Ok(false),
         }
@@ -190,6 +192,35 @@ impl Checker<'_> {
         let Some((target, kind)) = effect else {
             return Ok(());
         };
+        // Only a proven range producer or definite Map result continues this actual source loan.
+        if (self.typed.map_require_value(contract.call()).is_some()
+            || self.typed.map_with_value(contract.call()).is_some()
+            || self.range_expression_is_proven(contract.call().expression()))
+            && contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
+            && let UnitCallReceiverOrigin::Expression(argument) = contract.source()
+        {
+            let source = match &target {
+                UnitReceiverOwnershipTarget::Place(place) => {
+                    Some(super::UnitLoanTarget::Place(place.clone()))
+                }
+                UnitReceiverOwnershipTarget::Temporary(expression) => {
+                    Some(super::UnitLoanTarget::Temporary(*expression))
+                }
+                UnitReceiverOwnershipTarget::This(_) => None,
+            };
+            if let Some(source) = source {
+                self.loans
+                    .push(crate::ownership_checking::UnitLoanFact::new(
+                        contract.call(),
+                        argument,
+                        source,
+                        LoanKind::Shared,
+                        contract.receiver_span(),
+                        contract.call_span(),
+                        contract.declaration_span(),
+                    ));
+            }
+        }
         self.receiver_facts.push(UnitReceiverOwnershipFact::new(
             contract.call(),
             contract.source(),
@@ -285,6 +316,45 @@ impl Checker<'_> {
             };
             return self.implicit_receiver_effect(contract, receiver.owner, state);
         }
+        if contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
+            && let Some(fact) = self.range_use(expression)
+        {
+            let target = fact.origin().clone();
+            return match target {
+                super::UnitLoanTarget::Place(place) => {
+                    if !self.access_place(
+                        &place,
+                        AccessKind::SharedLoan,
+                        contract.receiver_span(),
+                        contract.declaration_span(),
+                        state,
+                    )? {
+                        return Ok(None);
+                    }
+                    state.loans.push(ActiveLoan {
+                        owner: ActiveLoanOwner::Call(contract.call()),
+                        target: ActiveLoanTarget::Place(place.clone()),
+                        kind: LoanKind::Shared,
+                        reserved: false,
+                        origin: contract.receiver_span(),
+                    });
+                    Ok(Some((
+                        UnitReceiverOwnershipTarget::Place(place),
+                        UnitReceiverOwnershipKind::SharedLoan,
+                    )))
+                }
+                super::UnitLoanTarget::Temporary(expression) => Ok(Some((
+                    UnitReceiverOwnershipTarget::Temporary(expression),
+                    UnitReceiverOwnershipKind::SharedLoan,
+                ))),
+                super::UnitLoanTarget::This(_) => {
+                    Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                        source_unit: self.source_unit.index(),
+                        expression: expression.index(),
+                    })
+                }
+            };
+        }
         if contract.category() == ExpressionCategory::Temporary {
             return match contract.kind() {
                 UnitCallArgumentOwnershipKind::SharedLoan => Ok(Some((
@@ -350,6 +420,7 @@ impl Checker<'_> {
                 )? {
                     return Ok(None);
                 }
+                let place = self.canonical_borrow_place(&place, state);
                 state.loans.push(ActiveLoan {
                     owner: ActiveLoanOwner::Call(contract.call()),
                     target: ActiveLoanTarget::Place(place.clone()),
@@ -768,4 +839,12 @@ impl Checker<'_> {
         }
         self.is_mutable_place(expression)
     }
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct ReceiverContext {
+    pub(super) owner: super::DeclarationId,
+    pub(super) mode: ParameterMode,
+    pub(super) ty: super::UnitTypeId,
+    pub(super) declaration_span: crate::source::Span,
 }

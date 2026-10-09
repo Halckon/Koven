@@ -436,6 +436,18 @@ impl Symbol {
         }
     }
 
+    pub(crate) fn synthetic_receiver(id: SymbolId, anchor: Span, scope: ScopeId) -> Self {
+        Self {
+            id,
+            name: "this".to_owned(),
+            span: anchor,
+            scope,
+            namespace: Namespace::Value,
+            kind: SymbolKind::ValueParameter,
+            synthetic: true,
+        }
+    }
+
     pub(crate) fn synthetic_lambda_parameter(
         id: SymbolId,
         name: String,
@@ -527,6 +539,8 @@ pub struct NameResolution {
     symbols: Vec<Symbol>,
     enum_cases: Vec<EnumCase>,
     references: Vec<NameReference>,
+    value_lookup_hints: Vec<NameReference>,
+    receiver_symbols: BTreeMap<(usize, usize), SymbolId>,
     diagnostics: Vec<Diagnostic>,
 }
 impl NameResolution {
@@ -547,9 +561,40 @@ impl NameResolution {
             symbols,
             enum_cases,
             references,
+            value_lookup_hints: Vec::new(),
+            receiver_symbols: BTreeMap::new(),
             diagnostics,
         }
     }
+    pub(crate) fn with_value_lookup_hints(mut self, hints: Vec<NameReference>) -> Self {
+        self.value_lookup_hints = hints;
+        self
+    }
+    pub(crate) fn with_receiver_symbols(
+        mut self,
+        symbols: BTreeMap<(usize, usize), SymbolId>,
+    ) -> Self {
+        self.receiver_symbols = symbols;
+        self
+    }
+    pub(crate) fn receiver_symbols(&self) -> &BTreeMap<(usize, usize), SymbolId> {
+        &self.receiver_symbols
+    }
+    /// 返回同一来源中扩展 receiver 类型区间锚定的真实合成参数身份。
+    #[must_use]
+    pub(crate) fn receiver_symbol(&self, span: Span) -> Option<SymbolId> {
+        (span.source_id() == self.source_id)
+            .then(|| {
+                self.receiver_symbols
+                    .get(&(span.start(), span.end()))
+                    .copied()
+            })
+            .flatten()
+    }
+    pub(crate) fn value_lookup_hints(&self) -> &[NameReference] {
+        &self.value_lookup_hints
+    }
+
     /// 返回输入源码身份。
     #[must_use]
     pub const fn source_id(&self) -> SourceId {

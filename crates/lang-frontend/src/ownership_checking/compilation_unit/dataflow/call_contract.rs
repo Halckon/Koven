@@ -1,5 +1,6 @@
-//! Apply selected argument ownership contracts.
+//! 应用已选定的调用实参所有权合同。
 use super::*;
+
 impl Checker<'_> {
     pub(super) fn apply_contract(
         &mut self,
@@ -48,61 +49,90 @@ impl Checker<'_> {
                     self.diagnostics.push(diagnostic);
                     return Ok(());
                 }
-                let target = match contract.category() {
-                    ExpressionCategory::Temporary => {
-                        if kind == LoanKind::Exclusive {
-                            return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
-                                source_unit: contract.argument().source_unit().index(),
-                                expression: contract.argument().expression().index(),
-                            });
+                let range_root = (kind == LoanKind::Shared)
+                    .then(|| {
+                        self.range_use(contract.argument().expression())
+                            .map(|fact| fact.origin().clone())
+                    })
+                    .flatten();
+                let target = if let Some(target) = range_root {
+                    if let UnitLoanTarget::Place(place) = &target {
+                        if !self.access_place(
+                            place,
+                            AccessKind::SharedLoan,
+                            contract.loan_begin_span(),
+                            contract.parameter_span(),
+                            state,
+                        )? {
+                            return Ok(());
                         }
-                        UnitLoanTarget::Temporary(
-                            self.constant_temporary_origin(contract.argument().expression())
-                                .map_or(contract.argument(), |(owner, _)| owner),
-                        )
+                        state.loans.push(ActiveLoan {
+                            owner: ActiveLoanOwner::Call(contract.call()),
+                            target: ActiveLoanTarget::Place(place.clone()),
+                            kind,
+                            reserved: false,
+                            origin: contract.loan_begin_span(),
+                        });
                     }
-                    ExpressionCategory::Place => {
-                        if self.expression_is_this(contract.argument().expression())? {
-                            let Some(target) =
-                                self.apply_this_argument_loan(contract, kind, state)?
-                            else {
-                                return Ok(());
-                            };
-                            target
-                        } else if let Some(place) =
-                            self.loan_place(contract.argument().expression())?
-                        {
-                            let access = if kind == LoanKind::Shared {
-                                AccessKind::SharedLoan
-                            } else {
-                                AccessKind::ExclusiveLoan
-                            };
-                            if !self.access_place(
-                                &place,
-                                access,
-                                contract.loan_begin_span(),
-                                contract.parameter_span(),
-                                state,
-                            )? {
-                                return Ok(());
+                    target
+                } else {
+                    match contract.category() {
+                        ExpressionCategory::Temporary => {
+                            if kind == LoanKind::Exclusive {
+                                return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                                    source_unit: contract.argument().source_unit().index(),
+                                    expression: contract.argument().expression().index(),
+                                });
                             }
-                            state.loans.push(ActiveLoan {
-                                owner: ActiveLoanOwner::Call(contract.call()),
-                                target: ActiveLoanTarget::Place(place.clone()),
-                                kind,
-                                reserved: false,
-                                origin: contract.loan_begin_span(),
-                            });
-                            UnitLoanTarget::Place(place)
-                        } else if let Some(owner) =
-                            self.temporary_projection_owner(contract.argument().expression())?
-                        {
-                            UnitLoanTarget::Temporary(owner)
-                        } else {
-                            return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
-                                source_unit: contract.argument().source_unit().index(),
-                                expression: contract.argument().expression().index(),
-                            });
+                            UnitLoanTarget::Temporary(
+                                self.constant_temporary_origin(contract.argument().expression())
+                                    .map_or(contract.argument(), |(owner, _)| owner),
+                            )
+                        }
+                        ExpressionCategory::Place => {
+                            if self.expression_is_this(contract.argument().expression())? {
+                                let Some(target) =
+                                    self.apply_this_argument_loan(contract, kind, state)?
+                                else {
+                                    return Ok(());
+                                };
+                                target
+                            } else if let Some(place) =
+                                self.loan_place(contract.argument().expression())?
+                            {
+                                let access = if kind == LoanKind::Shared {
+                                    AccessKind::SharedLoan
+                                } else {
+                                    AccessKind::ExclusiveLoan
+                                };
+                                if !self.access_place(
+                                    &place,
+                                    access,
+                                    contract.loan_begin_span(),
+                                    contract.parameter_span(),
+                                    state,
+                                )? {
+                                    return Ok(());
+                                }
+                                let place = self.canonical_borrow_place(&place, state);
+                                state.loans.push(ActiveLoan {
+                                    owner: ActiveLoanOwner::Call(contract.call()),
+                                    target: ActiveLoanTarget::Place(place.clone()),
+                                    kind,
+                                    reserved: false,
+                                    origin: contract.loan_begin_span(),
+                                });
+                                UnitLoanTarget::Place(place)
+                            } else if let Some(owner) =
+                                self.temporary_projection_owner(contract.argument().expression())?
+                            {
+                                UnitLoanTarget::Temporary(owner)
+                            } else {
+                                return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                                    source_unit: contract.argument().source_unit().index(),
+                                    expression: contract.argument().expression().index(),
+                                });
+                            }
                         }
                     }
                 };

@@ -8,7 +8,9 @@ pub struct UnitCallDescriptor {
     pub(super) expression: UnitExpressionId,
     pub(super) instance: UnitCallableInstanceKey,
     pub(super) return_type: UnitTypeId,
-    pub(super) borrow_return: Option<BorrowReturnContract>,
+    pub(super) result_source: crate::type_checking::CallableResultSource,
+    pub(super) range_construction:
+        Option<crate::type_checking::RangeConstructionDescriptor<UnitExpressionId, UnitTypeId>>,
     pub(super) receiver: Option<UnitCallReceiverDescriptor>,
     pub(super) arguments: Vec<UnitCallArgumentDescriptor>,
     pub(super) aborts: bool,
@@ -16,9 +18,21 @@ pub struct UnitCallDescriptor {
 }
 
 impl UnitCallDescriptor {
-    /// 返回声明的普通借用合同；不证明实际 origin 或 caller continuation。
+    /// 返回 source-qualified 范围构造的实际操作数。
+    pub fn range_construction(
+        &self,
+    ) -> Option<&crate::type_checking::RangeConstructionDescriptor<UnitExpressionId, UnitTypeId>>
+    {
+        self.range_construction.as_ref()
+    }
+    /// 返回 owned、既有存储借用或新 carrier 的封闭来源合同。
+    pub const fn result_source(&self) -> crate::type_checking::CallableResultSource {
+        self.result_source
+    }
+
+    /// 仅投影既有存储借用；None 也可能表示新 carrier 交付。
     pub const fn borrow_return(&self) -> Option<BorrowReturnContract> {
-        self.borrow_return
+        self.result_source.borrow_return()
     }
     /// 返回带 source-unit 限定的 call expression identity。
     #[must_use]

@@ -17,7 +17,21 @@ impl Checker<'_> {
     ) -> Result<(), TypeCheckingError> {
         let diagnostic_start = self.diagnostics.len();
         let source_type = self.check_expression(source, None, None)?.ty;
-        let provider = self.container_parts(source_type);
+        let provider = match self.kind(source_type) {
+            TypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::View,
+                arguments,
+            } if arguments.len() == 1 => Some((
+                crate::type_checking::IterationProvider::RangeView,
+                arguments[0],
+            )),
+            _ => self.container_parts(source_type).map(|(kind, element)| {
+                (
+                    crate::type_checking::IterationProvider::Sequential(kind),
+                    element,
+                )
+            }),
+        };
         let element = provider.map(|(_, element)| element);
         let mut plan_binding = None;
         if !self.iteration_type_poisoned(source_type) {
@@ -29,7 +43,7 @@ impl Checker<'_> {
                 let span = self.ast().expressions().get(source)?.span();
                 self.emit_iteration_error(
                     self.invalid_iteration_source_code,
-                    "for source requires a compiler-bound sequential container",
+                    "for source requires a compiler-bound sequential container or View",
                     span,
                     source_type,
                 )?;

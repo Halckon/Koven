@@ -431,6 +431,9 @@ impl SignatureCollector<'_> {
     }
 
     fn map_value_is_storable(&self, ty: UnitTypeId) -> bool {
+        if crate::type_checking::range_type_uses::unit_contains_range(&self.types, ty) {
+            return false;
+        }
         match self.types.get(ty) {
             Some(UnitTypeKind::Builtin(BuiltinType::Any | BuiltinType::Nothing)) => false,
             Some(

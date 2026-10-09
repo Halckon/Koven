@@ -173,6 +173,10 @@ impl TypedFile {
             Some(TypeKind::Nominal { nominal, arguments }) => {
                 ResourceType::Nominal(*nominal, arguments)
             }
+            Some(TypeKind::Intrinsic {
+                constructor: super::IntrinsicTypeConstructor::View,
+                ..
+            }) => ResourceType::Pure,
             Some(TypeKind::Intrinsic { arguments, .. }) => ResourceType::Aggregate(arguments),
             Some(TypeKind::Nullable(inner) | TypeKind::EnumCase { root: inner, .. }) => {
                 ResourceType::Inner(*inner)
@@ -249,6 +253,10 @@ impl CompilationUnitTypes {
                 declaration,
                 arguments,
             }) => ResourceType::Nominal(*declaration, arguments),
+            Some(UnitTypeKind::Intrinsic {
+                constructor: super::IntrinsicTypeConstructor::View,
+                ..
+            }) => ResourceType::Pure,
             Some(UnitTypeKind::Intrinsic { arguments, .. }) => ResourceType::Aggregate(arguments),
             Some(UnitTypeKind::Nullable(inner) | UnitTypeKind::EnumCase { root: inner, .. }) => {
                 ResourceType::Inner(*inner)

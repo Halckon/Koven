@@ -36,6 +36,7 @@ pub(super) enum ActiveLoanTarget {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ActiveLoanOwner {
     Call(ExpressionId),
+    BorrowBinding(SymbolId),
     ReservedReceiver(ExpressionId),
     IterationSource(StatementId),
     IterationElement(StatementId),
@@ -52,7 +53,7 @@ impl Checker<'_> {
         }
         let node = self.parsed.ast().expressions().get(expression)?;
         match node.payload() {
-            Expression::Name => Ok(self
+            Expression::Name | Expression::This => Ok(self
                 .reference_symbol(node.span())
                 .map(|root| OwnershipPlace::new(root, Vec::new()))),
             Expression::Group { expression } => self.place(*expression),
@@ -221,6 +222,7 @@ impl Checker<'_> {
         primary: Span,
         state: &mut State,
     ) -> Result<bool, OwnershipCheckingError> {
+        let canonical = self.canonical_borrow_place(place, state);
         // Value delivery copies Copyable places, including member projections.
         let access = if access == AccessKind::Move && !move_only {
             AccessKind::Read
@@ -235,7 +237,7 @@ impl Checker<'_> {
         ) && let Some(loan) = state.loans.iter().find(|loan| {
             matches!(loan.owner, ActiveLoanOwner::ReservedReceiver(_))
                 && match &loan.target {
-                    ActiveLoanTarget::Place(target) => target.overlaps(place),
+                    ActiveLoanTarget::Place(target) => target.overlaps(&canonical),
                     ActiveLoanTarget::This => self
                         .names
                         .symbols()
@@ -256,7 +258,7 @@ impl Checker<'_> {
             AccessKind::Move | AccessKind::Mutation | AccessKind::ExclusiveLoan
         ) && let Some(loan) = state.loans.iter().find(|loan| {
             matches!(loan.owner, ActiveLoanOwner::IterationSource(_))
-                && matches!(&loan.target, ActiveLoanTarget::Place(source) if source.overlaps(place))
+                && matches!(&loan.target, ActiveLoanTarget::Place(source) if source.overlaps(&canonical))
         }) {
             self.emit_loan_conflict(
                 primary,
@@ -322,7 +324,8 @@ impl Checker<'_> {
         }
 
         if access == AccessKind::Mutation
-            && self.typed.parameter_mode(place.root()) == Some(ParameterMode::Borrow)
+            && (self.typed.parameter_mode(place.root()) == Some(ParameterMode::Borrow)
+                || state.borrow_bindings.contains_key(&place.root()))
         {
             let Some(binding) = self.names.symbols().get(place.root().index()) else {
                 return Ok(false);
@@ -430,7 +433,36 @@ impl Checker<'_> {
         match mode {
             ParameterMode::Value => {}
             ParameterMode::Borrow => {
-                if let Some(place) = self.shared_receiver_place(argument.value)? {
+                if let Some(target) = self
+                    .range_use(argument.value)
+                    .map(|fact| fact.origin().clone())
+                {
+                    if let LoanTarget::Place(place) = &target {
+                        if !self.access_place(
+                            place,
+                            AccessKind::SharedLoan,
+                            false,
+                            operand_span,
+                            state,
+                        )? {
+                            return Ok(());
+                        }
+                        state.loans.push(ActiveLoan {
+                            owner: ActiveLoanOwner::Call(call),
+                            target: ActiveLoanTarget::Place(place.clone()),
+                            kind: LoanKind::Shared,
+                            origin: operand_span,
+                        });
+                    }
+                    self.loans.push(LoanFact::new(
+                        call,
+                        argument.value,
+                        target,
+                        LoanKind::Shared,
+                        operand_span,
+                        call_span,
+                    ));
+                } else if let Some(place) = self.shared_receiver_place(argument.value)? {
                     if self.access_place(
                         &place,
                         AccessKind::SharedLoan,
@@ -438,6 +470,7 @@ impl Checker<'_> {
                         operand_span,
                         state,
                     )? {
+                        let place = self.canonical_borrow_place(&place, state);
                         self.loans.push(LoanFact::new(
                             call,
                             argument.value,
@@ -573,13 +606,23 @@ impl Checker<'_> {
             .flatten()
         {
             state.loans.retain(|loan| {
-                loan.owner != ActiveLoanOwner::Call(call)
+                (loan.owner != ActiveLoanOwner::Call(call)
+                    || (self.allowed_borrow_call == Some(call)
+                        && self.borrowed_call_source(call).and_then(|argument| {
+                            self.loans
+                                .iter()
+                                .find(|fact| fact.call() == call && fact.argument() == argument)
+                                .map(|fact| fact.begin_span())
+                        }) == Some(loan.origin)))
                     && loan.owner != ActiveLoanOwner::ReservedReceiver(call)
             });
         }
     }
 
-    fn is_mutable_place(&self, expression: ExpressionId) -> Result<bool, OwnershipCheckingError> {
+    pub(super) fn is_mutable_place(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<bool, OwnershipCheckingError> {
         let node = self.parsed.ast().expressions().get(expression)?;
         match node.payload() {
             Expression::This => Ok(self.current_receiver_mode == Some(ParameterMode::Inout)),
@@ -653,7 +696,11 @@ impl Checker<'_> {
     ) -> Result<bool, OwnershipCheckingError> {
         loop {
             match self.parsed.ast().expressions().get(expression)?.payload() {
-                Expression::This => return Ok(true),
+                Expression::This => {
+                    return Ok(self
+                        .reference_symbol(self.parsed.ast().expressions().get(expression)?.span())
+                        .is_none());
+                }
                 Expression::Group { expression: inner } => expression = *inner,
                 _ => return Ok(false),
             }

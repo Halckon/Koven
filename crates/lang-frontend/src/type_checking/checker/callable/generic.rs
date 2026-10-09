@@ -34,6 +34,7 @@ pub(super) enum InstantiationFailure {
 
 #[derive(Clone, Copy)]
 pub(super) enum BoundFailureKind {
+    RangeCarrier,
     Interface,
     Copyable,
     Transferable,
@@ -130,7 +131,23 @@ impl Checker<'_> {
                 substitutions.insert(parameter, actual);
                 origins.insert(parameter, self.ast().type_refs().get(type_ref)?.span());
             }
-        } else if !parameters.is_empty() {
+        }
+        if let Some((template, actual)) = self.range_extension_receiver_types(&candidate)
+            && let Err(parameter) = self.infer_type_arguments(
+                template,
+                actual,
+                &parameter_set,
+                &mut substitutions,
+                &mut origins,
+                callee_span,
+            )
+        {
+            return Ok(Err(InstantiationFailure::Inference {
+                primary: callee_span,
+                parameter,
+            }));
+        }
+        if explicit_types.is_empty() && !parameters.is_empty() {
             for (argument_index, &parameter_index) in mapping.iter().enumerate() {
                 let Some(actual) = inference_types[argument_index] else {
                     continue;
@@ -179,6 +196,13 @@ impl Checker<'_> {
         for &parameter in &parameters {
             let actual = substitutions[&parameter];
             let primary = origins.get(&parameter).copied().unwrap_or(callee_span);
+            if crate::type_checking::range_type_uses::file_contains_range(&self.types, actual) {
+                return Ok(Err(InstantiationFailure::Bound {
+                    kind: BoundFailureKind::RangeCarrier,
+                    primary,
+                    parameter,
+                }));
+            }
             let bound = self
                 .type_parameters
                 .iter()
@@ -260,6 +284,10 @@ impl Checker<'_> {
                 parameter,
             } => {
                 let (code, message) = match kind {
+                    BoundFailureKind::RangeCarrier => (
+                        codes::catalog()?.resolve(codes::BORROW_RESULT_ESCAPE)?,
+                        "range carrier cannot be a generic type argument",
+                    ),
                     BoundFailureKind::Interface => (
                         self.type_argument_bound_code,
                         "type argument does not satisfy its interface bound",
@@ -340,7 +368,7 @@ impl Checker<'_> {
                 self.nominal_transferability(*nominal, arguments, substitutions, active)
             }
             TypeKind::Intrinsic {
-                constructor: IntrinsicTypeConstructor::Rc,
+                constructor: IntrinsicTypeConstructor::Rc | IntrinsicTypeConstructor::View,
                 ..
             } => Transferability::NotTransferable,
             TypeKind::Intrinsic {

@@ -10,7 +10,7 @@ pub(super) struct CallCandidate {
     pub(super) receiver: Option<CallReceiverDescriptor>,
     pub(super) parameters: Vec<MappedParameter<TypeId>>,
     pub(super) return_type: TypeId,
-    pub(super) borrow_return: Option<crate::type_checking::BorrowReturnContract>,
+    pub(super) result_source: crate::type_checking::CallableResultSource,
     pub(super) cross_thread_parameters: BTreeSet<usize>,
     pub(super) aborts: bool,
     pub(super) prints_line: bool,

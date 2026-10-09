@@ -25,13 +25,27 @@ impl Checker<'_> {
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         let errors = self.diagnostics.len();
-        let mut prefix = self.check_expression(
+        let previous = self.allowed_borrow_call;
+        if self.range_expression_is_proven(source) {
+            self.allowed_borrow_call = Some(source);
+        }
+        let checked = self.check_expression(
             source,
             state,
             ExpressionUse::Place {
                 parameter_span: None,
             },
-        )?;
+        );
+        self.allowed_borrow_call = previous;
+        let mut prefix = checked?;
+        if self.diagnostics.len() == errors && self.range_expression_is_proven(source) {
+            self.record_range_use(source, crate::ownership_checking::RangeUseSite::Iteration);
+            self.continue_range_source(
+                source,
+                ActiveLoanOwner::IterationSource(UnitStatementId::new(self.source_unit, statement)),
+                &mut prefix,
+            );
+        }
         let Some(base) = prefix.next.as_mut() else {
             return Ok(prefix);
         };
@@ -43,7 +57,9 @@ impl Checker<'_> {
             },
         )?;
         let span = self.parsed.ast().expressions().get(source)?.span();
-        let target = if let Some(place) = self.place(source)? {
+        let target = if let Some(fact) = self.range_use(source) {
+            fact.origin().clone()
+        } else if let Some(place) = self.place(source)? {
             if self.access_place(&place, AccessKind::SharedLoan, span, None, base)? {
                 base.loans.push(ActiveLoan {
                     owner: ActiveLoanOwner::IterationSource(statement),

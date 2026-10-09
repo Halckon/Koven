@@ -307,7 +307,10 @@ impl Analysis<'_, '_> {
             }
             Statement::LocalVariable { declaration } => {
                 let Item::Variable {
-                    name, initializer, ..
+                    kind,
+                    name,
+                    initializer,
+                    ..
                 } = self
                     .checker
                     .parsed
@@ -319,9 +322,19 @@ impl Analysis<'_, '_> {
                 else {
                     return Ok(Flow::next(state));
                 };
-                let mut flow = self.expression(initializer, ExpressionUse::Consume, state)?;
+                let borrowed = matches!(kind, crate::parser::VariableKind::BorrowVal(_));
+                let mut flow = self.expression(
+                    initializer,
+                    if borrowed {
+                        ExpressionUse::Read
+                    } else {
+                        ExpressionUse::Consume
+                    },
+                    state,
+                )?;
                 if let Some(state) = &mut flow.next {
                     if let Some(symbol) = self.checker.marker_symbol(name)
+                        && !borrowed
                         && self.checker.is_move_only_variable(symbol)
                     {
                         state.bind(symbol);

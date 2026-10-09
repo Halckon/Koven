@@ -1,3 +1,7 @@
+mod candidate;
+mod range_extension;
+mod special_call;
+use candidate::CallCandidate;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
@@ -13,10 +17,7 @@ use crate::{
 
 use super::*;
 
-mod candidate;
 mod generic;
-
-use candidate::CallCandidate;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum MemberCallShapeType {
@@ -41,45 +42,7 @@ impl Checker<'_> {
         arguments: Vec<CallArgument>,
         expected: Option<TypeId>,
     ) -> Result<ExprCheck, TypeCheckingError> {
-        if let Some(result) = self.check_construction_call(
-            expression,
-            call_span,
-            callee,
-            &type_arguments,
-            &arguments,
-            expected,
-        )? {
-            return Ok(result);
-        }
-        if let Some(result) =
-            self.check_integer_inv_call(expression, call_span, callee, &type_arguments, &arguments)?
-        {
-            return Ok(result);
-        }
-        if let Some(result) = self.check_string_clone_call(
-            expression,
-            call_span,
-            callee,
-            &type_arguments,
-            &arguments,
-        )? {
-            return Ok(result);
-        }
-        if let Some(result) =
-            self.check_rc_share_call(expression, call_span, callee, &type_arguments, &arguments)?
-        {
-            return Ok(result);
-        }
-        if let Some(result) = self.check_intrinsic_ownership_primitive_call(
-            expression,
-            call_span,
-            callee,
-            &type_arguments,
-            &arguments,
-        )? {
-            return Ok(result);
-        }
-        if let Some(result) = self.check_intrinsic_container_call(
+        if let Some(result) = self.check_special_call(
             expression,
             call_span,
             callee,
@@ -136,7 +99,7 @@ impl Checker<'_> {
                         })
                         .collect(),
                     return_type,
-                    borrow_return: None,
+                    result_source: crate::type_checking::CallableResultSource::Owned,
                     cross_thread_parameters: BTreeSet::new(),
                     aborts: false,
                     prints_line: false,
@@ -593,7 +556,12 @@ impl Checker<'_> {
         let receiver_type = self.check_expression(receiver, None, None)?.ty;
         let receiver_category = self.expression_categories[receiver.index()];
         let TypeKind::Nominal { nominal, arguments } = self.kind(receiver_type).clone() else {
-            return Ok(Vec::new());
+            return self.range_extension_candidates(
+                receiver,
+                receiver_type,
+                receiver_category,
+                name_span,
+            );
         };
         let owner = self
             .nominals
@@ -746,6 +714,13 @@ impl Checker<'_> {
         else {
             return Ok(None);
         };
+        // 顶层扩展必须携带显式 receiver；不能借普通函数语法丢失 this 槽。
+        if descriptor.owner().is_none()
+            && descriptor.receiver().is_some()
+            && explicit_receiver.is_none()
+        {
+            return Ok(None);
+        }
         let mut parameters = Vec::with_capacity(descriptor.parameters().len());
         for (index, parameter) in descriptor.parameters().iter().enumerate() {
             let symbol = descriptor.parameter_symbols()[index];
@@ -785,7 +760,7 @@ impl Checker<'_> {
             receiver,
             parameters,
             return_type: self.substitute_type(descriptor.return_type(), &substitutions)?,
-            borrow_return: descriptor.borrow_return(),
+            result_source: descriptor.result_source(),
             cross_thread_parameters: BTreeSet::new(),
             aborts: false,
             prints_line: false,
@@ -830,7 +805,7 @@ impl Checker<'_> {
             receiver: None,
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
-            borrow_return: None,
+            result_source: crate::type_checking::CallableResultSource::Owned,
             cross_thread_parameters: signature
                 .effects
                 .iter()
@@ -977,7 +952,7 @@ impl Checker<'_> {
                 candidate.aborts,
                 candidate.prints_line,
             )
-            .with_borrow_return(candidate.borrow_return),
+            .with_result_source(candidate.result_source),
         );
         Ok(ExprCheck {
             ty: candidate.return_type,

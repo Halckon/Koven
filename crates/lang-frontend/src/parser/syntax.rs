@@ -26,6 +26,8 @@ pub enum VariableKind {
     Val,
     /// `var`。
     Var,
+    /// 显式只读、非 owning 的局部 `borrow val`；保留真实 marker。
+    BorrowVal(Span),
 }
 
 /// class-family 与声明 wrapper 保存的显式可见性。
@@ -240,11 +242,38 @@ pub enum FunctionForm {
         colon_span: Span,
         /// 显式返回类型或恢复建立的错误 TypeRef。
         type_ref: TypeRefId,
-        /// 只属于函数结果的普通借用合同，不是 TypeRef。
-        borrow_return: Option<BorrowReturnSyntax>,
+        /// 只属于函数结果的来源模式，不是可嵌套的 TypeRef。
+        result_source: Option<FunctionResultSource>,
         /// 显式分支的互斥 body 形态。
         body: FunctionBody,
     },
+}
+
+/// 函数结果的来源模式；新描述符交付不冒充对既有对象的借用。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FunctionResultSource {
+    /// 对既有存储的 `borrow T from source`。
+    Borrow(BorrowReturnSyntax),
+    /// 新 carrier 的 `T from source`；后续语义未接通时必须拒绝。
+    Carrier(CarrierReturnSyntax),
+}
+
+/// 新 carrier 结果的唯一来源；目标类型仍引用 Explicit 的 TypeRef。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CarrierReturnSyntax {
+    /// 真实 `from` token。
+    pub from_span: Span,
+    /// 唯一来源，不复制名称字符串或伪造 borrow marker。
+    pub source: BorrowReturnSource,
+}
+
+/// 顶层扩展函数的显式 receiver 类型与分隔符。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExtensionReceiverSyntax {
+    /// receiver 的唯一 TypeRef；mode 复用 DeclarationModifiers。
+    pub type_ref: TypeRefId,
+    /// receiver 与函数名之间的真实 `.`。
+    pub dot_span: Span,
 }
 
 /// 普通借用结果的唯一源码来源。
@@ -519,6 +548,8 @@ pub enum Item {
     Function {
         /// 函数名称。
         name: NameMarker,
+        /// 显式扩展 receiver；普通顶层与 instance 函数为 None。
+        extension_receiver: Option<ExtensionReceiverSyntax>,
         /// 源码顺序的类型参数。
         type_parameters: Vec<TypeParameter>,
         /// `<...>` 的合成范围；没有类型参数表时为 `None`。

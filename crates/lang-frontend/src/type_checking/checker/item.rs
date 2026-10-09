@@ -13,6 +13,25 @@ impl Checker<'_> {
             .map(|(_, node)| node.payload().clone())
             .collect::<Vec<_>>();
         for item in items {
+            if !matches!(
+                &item,
+                Item::Function {
+                    extension_receiver: Some(_),
+                    ..
+                }
+            ) && let Some((span, message)) =
+                super::super::declaration_frontier::unsupported_declaration(
+                    &item,
+                    self.environment
+                        .is_authorized_range_source(self.parsed.source_id()),
+                )
+            {
+                self.emit(
+                    codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
+                    message,
+                    span,
+                )?;
+            }
             match item {
                 Item::Variable {
                     name,
@@ -32,6 +51,7 @@ impl Checker<'_> {
                     type_parameters,
                     parameters,
                     form,
+                    extension_receiver,
                     ..
                 } => {
                     let mut parameter_types = Vec::with_capacity(parameters.len());
@@ -85,31 +105,47 @@ impl Checker<'_> {
                             .get(&self.symbol_scopes[symbol.index()])
                             .copied();
                         let modifiers = self.function_modifiers(symbol)?;
-                        let receiver = owner
-                            .and_then(|owner| {
-                                self.nominals
-                                    .iter()
-                                    .find(|descriptor| descriptor.id() == owner)
-                                    .cloned()
+                        let extension_type = extension_receiver
+                            .map(|r| self.resolve_type_ref(r.type_ref))
+                            .transpose()?;
+                        let extension_span = extension_receiver
+                            .map(|r| self.ast().type_refs().get(r.type_ref).map(|n| n.span()))
+                            .transpose()?;
+                        let receiver = extension_span
+                            .zip(extension_type)
+                            .map(|(r, ty)| CallableReceiverDescriptor {
+                                mode: source_parameter_mode(modifiers.receiver_mode),
+                                ty,
+                                declaration_span: r,
+                                marker_span: modifiers.receiver_mode.map(parameter_mode_span),
                             })
-                            .and_then(|owner| {
-                                let mode = source_parameter_mode(modifiers.receiver_mode);
-                                if owner.kind() == NominalKind::Object
-                                    && mode != ParameterMode::Borrow
-                                {
-                                    None
-                                } else {
-                                    self.symbol_type(owner.id().symbol()).map(|ty| {
-                                        CallableReceiverDescriptor {
-                                            mode,
-                                            ty,
-                                            declaration_span: span,
-                                            marker_span: modifiers
-                                                .receiver_mode
-                                                .map(parameter_mode_span),
+                            .or_else(|| {
+                                owner
+                                    .and_then(|owner| {
+                                        self.nominals
+                                            .iter()
+                                            .find(|descriptor| descriptor.id() == owner)
+                                            .cloned()
+                                    })
+                                    .and_then(|owner| {
+                                        let mode = source_parameter_mode(modifiers.receiver_mode);
+                                        if owner.kind() == NominalKind::Object
+                                            && mode != ParameterMode::Borrow
+                                        {
+                                            None
+                                        } else {
+                                            self.symbol_type(owner.id().symbol()).map(|ty| {
+                                                CallableReceiverDescriptor {
+                                                    mode,
+                                                    ty,
+                                                    declaration_span: span,
+                                                    marker_span: modifiers
+                                                        .receiver_mode
+                                                        .map(parameter_mode_span),
+                                                }
+                                            })
                                         }
                                     })
-                                }
                             });
                         if owner.is_some()
                             && receiver.is_none()
@@ -121,31 +157,6 @@ impl Checker<'_> {
                                 parameter_mode_span(marker),
                             )?;
                         }
-                        let borrow_return =
-                            match crate::type_checking::borrow_result::resolve_borrow_return(
-                                self.sources,
-                                form,
-                                &parameters,
-                                receiver.map(|receiver| receiver.mode()),
-                            )? {
-                                Ok(Some(contract)) => {
-                                    self.emit(
-                                    self.unsupported_borrow_path_code,
-                                    "borrow result requires proven origin and caller continuation",
-                                    contract.marker_span(),
-                                )?;
-                                    Some(contract)
-                                }
-                                Err(issue) => {
-                                    self.emit(
-                                        self.invalid_borrow_contract_code,
-                                        issue.message,
-                                        issue.span,
-                                    )?;
-                                    None
-                                }
-                                Ok(None) => None,
-                            };
                         if let Some(owner) = owner
                             && let Some(descriptor) = self
                                 .nominals
@@ -154,15 +165,54 @@ impl Checker<'_> {
                         {
                             descriptor.members.push(symbol);
                         }
+                        let result_source =
+                            match super::super::result_source::resolve_result_source(
+                                self.sources,
+                                form,
+                                &parameters,
+                                receiver.map(|r| r.mode()),
+                            )? {
+                                Ok(contract) => contract,
+                                Err(issue) => {
+                                    self.emit(
+                                        codes::catalog()?
+                                            .resolve(codes::INVALID_BORROW_CONTRACT)?,
+                                        issue.message,
+                                        issue.span,
+                                    )?;
+                                    crate::type_checking::CallableResultSource::Owned
+                                }
+                            };
+                        self.check_carrier_contract(
+                            result_source,
+                            return_type,
+                            &function_parameters,
+                            receiver,
+                        )?;
+                        let range_extension = receiver.filter(|_| owner.is_none()).and_then(|r| {
+                            self.bind_range_extension(symbol, r, return_type, result_source)
+                        });
+                        let extension_receiver_symbol = range_extension
+                            .and_then(|binding| self.symbol_at(binding.receiver_span()));
+                        if let Some(symbol) = extension_receiver_symbol {
+                            self.symbol_types[symbol.index()] = receiver.map(|r| r.ty());
+                            self.set_parameter_mode(symbol, ParameterMode::Borrow);
+                        }
+                        if extension_receiver.is_some() && range_extension.is_none() {
+                            self.emit(codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
+                                "extension receiver lacks a trusted canonical Borrow List/View binding", extension_receiver.map(|r| r.dot_span).unwrap_or(span))?;
+                        }
                         self.typed_callables.push(CallableDescriptor {
                             symbol,
                             owner,
+                            extension_receiver_symbol,
                             receiver,
                             type_parameters,
                             parameter_symbols,
                             parameters: function_parameters,
                             return_type,
-                            borrow_return,
+                            result_source,
+                            range_extension,
                         });
                     }
                 }
@@ -283,13 +333,23 @@ impl Checker<'_> {
                     }
                 }
             }
-            Item::Function { form, .. } => {
+            Item::Function { name, form, .. } => {
+                let extension = self.marker_symbol_for_receiver(name);
+                if let Some(receiver) = extension {
+                    self.classifiers.push(receiver.ty());
+                }
                 let previous = self.current_receiver_mode;
+                if extension.is_some() {
+                    self.current_receiver_mode = Some(ParameterMode::Borrow);
+                }
                 if !self.classifiers.is_empty() && self.current_receiver_mode.is_none() {
                     self.current_receiver_mode = Some(ParameterMode::Borrow);
                 }
                 let result = self.check_function(form);
                 self.current_receiver_mode = previous;
+                if extension.is_some() {
+                    self.classifiers.pop();
+                }
                 result?;
             }
             Item::Classifier(classifier) => {
