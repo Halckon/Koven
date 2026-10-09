@@ -729,7 +729,7 @@ impl SignatureCollector<'_> {
         result
     }
 
-    fn is_hashable_type(&self, ty: UnitTypeId) -> bool {
+    pub(super) fn is_hashable_type(&self, ty: UnitTypeId) -> bool {
         match self.types.get(ty) {
             Some(UnitTypeKind::Builtin(
                 BuiltinType::Int | BuiltinType::Boolean | BuiltinType::Char | BuiltinType::String,

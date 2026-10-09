@@ -40,6 +40,51 @@ fn checked(text: &str) -> (SourceMap, ParsedFile, NameResolution, TypedFile) {
     (sources, parsed, resolution, typed)
 }
 
+fn checked_unit(text: &str) -> lang_frontend::type_checking::CompilationUnitTypes {
+    checked_unit_with_sources(text).1
+}
+
+fn checked_unit_with_sources(
+    text: &str,
+) -> (
+    SourceMap,
+    lang_frontend::type_checking::CompilationUnitTypes,
+) {
+    let (sources, file) = parsed(text);
+    let (environment, types) = standard_environments();
+    let source = file.source_id();
+    let inputs = [SourceUnitInput::new("root", "map_test.ko", source, &file)];
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    (sources, typed)
+}
+
+#[test]
+fn unit_map_signatures_check_hashable_and_storable_arguments() {
+    for constructor in ["Map", "MutableMap"] {
+        let typed = checked_unit(&format!(
+            "fun bad(m: {constructor}<List<Int>, String>): Unit {{}}"
+        ));
+        assert!(
+            typed
+                .diagnostics()
+                .iter()
+                .any(|d| d.code().to_string() == "L0161"),
+            "{:?}",
+            typed.diagnostics()
+        );
+        let typed = checked_unit(&format!("fun bad(m: {constructor}<Int, Any>): Unit {{}}"));
+        assert!(
+            !typed.diagnostics().is_empty(),
+            "Any must not enter Map storage in a signature"
+        );
+    }
+}
+
 #[test]
 fn test_map_and_mutable_map_construction_and_members() {
     let text = r#"
