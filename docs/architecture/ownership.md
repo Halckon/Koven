@@ -1,6 +1,6 @@
 # 所有权事实与数据流
 
-> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 move、loan、capture、drop 或 validated ownership gate 时 · **唯一真源**：`lang-frontend` 所有权代码与测试
+> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 move、loan、capture、drop 或 validated ownership gate 时 · **唯一真源**：`lang-frontend` 所有权代码与测试；普通返回 origin 与 loan 边界见[专题](map-native-execution.md#普通借用返回与-caller-continuation)
 
 ## 分析入口与产物
 

@@ -25,9 +25,22 @@ FunctionForm::ImplicitUnitBlock(StatementId)
 FunctionForm::Explicit {
     colon_span: Span,
     type_ref: TypeRefId,
+    result_source: Option<FunctionResultSource>,
     body: FunctionBody,
 }
 ```
+
+`FunctionResultSource` 用封闭枚举区分 `Borrow(BorrowReturnSyntax)` 与
+`Carrier(CarrierReturnSyntax)`，普通返回为 `None`。现行普通借用的 `BorrowReturnSyntax`
+独立保存 `borrow`、`from` 与唯一参数/receiver 来源的真实 `Span`；目标类型仍复用
+`type_ref`，不得把结果来源模式编码为可嵌套的 TypeRef。
+局部显式借用以 `VariableKind::BorrowVal(Span)` 保留声明 marker。
+
+`Carrier` 是首片声明前置的内部表示，保存真实 `from` 与来源，不伪造 `borrow` marker。
+函数 item 的 `extension_receiver: Option<ExtensionReceiverSyntax>` 同样只保存 receiver 的
+TypeRef ID 与分隔点 Span，显式 mode 复用 `DeclarationModifiers.receiver_mode`。
+这些字段不启用候选语言语义；carrier 与扩展声明在 single/unit 类型阶段必须明确拒绝，
+不能误交付为普通 owned callable。现行 Guide 与后续语义批准边界保持不变。
 
 ## Statement Table 与函数 Body
 
@@ -45,7 +58,7 @@ block AST 使用有 payload 的 statement table；所有 block element 都以有
 实现可采用可证明同样保持 typed ID、顺序与下述范围的等价枚举命名，但不能把 block 降为
 `Vec<ExpressionId>`。函数 item 必须用一个合并的封闭 sum type 同时保存返回标注来源与 body，
 至少等价于 `ImplicitUnitAbsent | ImplicitUnitBlock(StatementId) | Explicit {
-colon_span: Span, type_ref: TypeRefId, body: FunctionBody }`；其中显式分支的 `FunctionBody` 才可为
+colon_span: Span, type_ref: TypeRefId, result_source: Option<FunctionResultSource>, body: FunctionBody }`；其中显式分支的 `FunctionBody` 才可为
 `Absent | Expression { equals_span: Span, expression: ExpressionId } | Block(StatementId)`。
 表达式体必须继续精确保存[声明规则](../guide/05-declarations-callables.md)规定的真实 `=` token `Span`。
 不得把返回标注和 body

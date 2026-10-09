@@ -110,10 +110,10 @@ Copyable Inout receiver 的 inline writeback owner 与原始 Place 一起跨参�
 Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。
 MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回。
 常量专用入口的 named function-value callee pending 帧包围参数帧，参数 return/break/continue
-先移除 alias 再消费 frontend owner drop，Abort 不展开。lambda 的 Borrow String 参数
-在基础与常量入口复用 shared Loan ABI；基础入口仍拒绝参数控制退出。非 Name callee、
-带捕获的 borrowed closure 和其他 MoveOnly Borrow
-参数仍不支持。
+先移除 alias 再消费 frontend owner drop，Abort 不展开。lambda 的 Borrow storage 参数
+在基础与常量入口复用 shared Loan ABI；基础入口仍拒绝参数控制退出。普通调用的非 Name callee、带捕获 borrowed closure 与超出现行 storage mapper 的 Borrow
+参数仍有边界；Borrow Unit 与 Inout callback 参数保持拒绝。Map 专用同步 callback
+的通用 storage 与 capture 接线见 [Map 当前边界](map-native-execution.md)。
 常量专用入口允许外层 pending temporary 穿过内层 loop/while；header、回边与 break/false
 出口携带完整 owner/loan/pending 状态，内层跳转仅结束本循环内的调用帧并移除其前缀槽位。
 循环结束保留外层 temporary；return 清理退出帧，Abort 不展开。Copyable 命名变量与已求值
