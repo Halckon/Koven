@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 
+mod borrow_result;
 mod callable_provenance;
 mod closure;
 mod construction;
 mod container;
 mod control;
+mod declaration;
 mod drop_planner;
 mod elvis;
 mod iteration;
@@ -123,6 +125,8 @@ struct Checker<'a> {
     variable_kinds: BTreeMap<SymbolId, VariableKind>,
     field_kinds: BTreeMap<SymbolId, VariableKind>,
     current_receiver_mode: Option<ParameterMode>,
+    current_borrow_return: Option<super::borrow_result::ReturnSource<SymbolId>>,
+    borrow_return_origins: Vec<super::BorrowReturnOriginFact<ExpressionId, super::LoanTarget>>,
     diagnostics: Vec<Diagnostic>,
     loans: Vec<LoanFact>,
     deferred: Vec<OwnershipDeferredFact>,
@@ -219,6 +223,8 @@ impl<'a> Checker<'a> {
             variable_kinds: BTreeMap::new(),
             field_kinds: BTreeMap::new(),
             current_receiver_mode: None,
+            current_borrow_return: None,
+            borrow_return_origins: Vec::new(),
             loop_has_exit: BTreeMap::new(),
             constant_materializations: BTreeMap::new(),
             nullable_whens: BTreeMap::new(),
@@ -330,6 +336,11 @@ impl<'a> Checker<'a> {
         } else {
             Vec::new()
         };
+        if !diagnostics.is_empty() || !self.deferred.is_empty() {
+            self.borrow_return_origins.clear();
+        }
+        self.borrow_return_origins
+            .sort_by_key(|fact| fact.expression().index());
         let captures = if diagnostics.is_empty() {
             self.captures
         } else {
@@ -342,6 +353,7 @@ impl<'a> Checker<'a> {
             diagnostics,
             OwnershipCheckedParts {
                 callable_provenance,
+                borrow_return_origins: self.borrow_return_origins,
                 cleanup_steps,
                 cleanup_conditions,
                 iterations,
@@ -410,67 +422,6 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
-    fn check_item(&mut self, id: ItemId, state: &mut State) -> Result<(), OwnershipCheckingError> {
-        match self.parsed.ast().items().get(id)?.payload().clone() {
-            Item::Error | Item::Constant { .. } => {}
-            Item::Modified { declaration, .. } => self.check_item(declaration, state)?,
-            Item::Variable {
-                name, initializer, ..
-            } => {
-                if let Some(next) = self.check_variable(name, initializer, state.clone())?.next {
-                    *state = next;
-                }
-            }
-            Item::Function {
-                name,
-                parameters,
-                form,
-                ..
-            } => {
-                let mut function_state = State::default();
-                for parameter in parameters {
-                    self.mark_available(parameter.name, &mut function_state);
-                    if let Some(symbol) = self.marker_symbol(parameter.name) {
-                        self.seed_callable_parameter(symbol, &mut function_state);
-                    }
-                }
-                let receiver_mode = self.marker_symbol(name).and_then(|symbol| {
-                    self.typed
-                        .callables()
-                        .iter()
-                        .find(|callable| callable.symbol() == symbol)
-                        .and_then(|callable| callable.receiver())
-                        .map(|receiver| receiver.mode())
-                });
-                let previous = std::mem::replace(&mut self.current_receiver_mode, receiver_mode);
-                let previous_return = self.enter_callable(self.marker_symbol(name));
-                let result = self.check_function(form, function_state);
-                self.leave_callable(previous_return);
-                self.current_receiver_mode = previous;
-                result?;
-            }
-            Item::Classifier(classifier) => {
-                if let Some(body) = classifier.body {
-                    for member in body.members {
-                        self.check_item(member, &mut State::default())?;
-                    }
-                }
-            }
-            Item::Companion(companion) => {
-                for member in companion.body.members {
-                    self.check_item(member, &mut State::default())?;
-                }
-            }
-            Item::Deinit { body, .. } => {
-                let previous = self.current_receiver_mode.replace(ParameterMode::Borrow);
-                let result = self.check_statement(body, State::default());
-                self.current_receiver_mode = previous;
-                result?;
-            }
-        }
-        Ok(())
-    }
-
     /// Only a normally completed initializer establishes a binding; preserve all other edges.
     fn check_variable(
         &mut self,
@@ -496,29 +447,6 @@ impl<'a> Checker<'a> {
             }
         }
         Ok(flows)
-    }
-
-    fn check_function(
-        &mut self,
-        form: FunctionForm,
-        state: State,
-    ) -> Result<(), OwnershipCheckingError> {
-        match form {
-            FunctionForm::ImplicitUnitAbsent => {}
-            FunctionForm::ImplicitUnitBlock(body) => {
-                self.check_statement(body, state)?;
-            }
-            FunctionForm::Explicit { body, .. } => match body {
-                FunctionBody::Absent => {}
-                FunctionBody::Expression { expression, .. } => {
-                    self.check_return_expression(expression, state, ExpressionUse::Consume)?;
-                }
-                FunctionBody::Block(body) => {
-                    self.check_statement(body, state)?;
-                }
-            },
-        }
-        Ok(())
     }
 
     fn check_statement(

@@ -147,6 +147,7 @@ impl Checker<'_> {
         mut state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
+        self.check_borrow_call_use(id, usage == ExpressionUse::Consume)?;
         state.origins.attach(&self.callable_sources.arena);
         let ast = self.parsed.ast().expressions().get(id)?;
         let span = ast.span();
@@ -171,7 +172,15 @@ impl Checker<'_> {
         } else {
             None
         };
+        let previous_borrow = if is_lambda {
+            self.current_borrow_return.take()
+        } else {
+            None
+        };
         let checked = self.check_expression_inner(id, state, usage);
+        if is_lambda {
+            self.current_borrow_return = previous_borrow;
+        }
         if is_lambda {
             self.callable_sources.active_return = previous;
         }
@@ -209,6 +218,9 @@ impl Checker<'_> {
         state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
+        if self.current_borrow_return.is_some() {
+            return self.check_borrow_return(id, state);
+        }
         let result = self.check_escaping_expression(id, state, usage);
         let flows = result?;
         if let Some(next) = &flows.next {
