@@ -1,6 +1,7 @@
 //! 同步 shared 实参的 frontend loan 验证与 place 准备。
 use super::*;
 use crate::ssa::model::PlaceId;
+use crate::ssa::model::SsaTypeKind;
 use lang_frontend::ownership_checking::{LoanKind as FrontendLoanKind, UnitLoanTarget};
 
 impl UnitExpressionLowerer<'_> {
@@ -13,6 +14,17 @@ impl UnitExpressionLowerer<'_> {
         call_span: Span,
     ) -> Result<(LoanId, Vec<LoanId>, Span), LoweringError> {
         let argument_id = UnitExpressionId::new(self.source_unit, argument);
+        if self.owned.borrow_results().range_uses().iter().any(|fact| {
+            fact.expression() == argument_id
+                && fact.site() == lang_frontend::ownership_checking::RangeUseSite::Call(call)
+        }) {
+            let loan = self.lower_short_range(argument, target, span)?;
+            return Ok((
+                loan,
+                self.short_range_call_loans(argument, loan, span)?,
+                call_span,
+            ));
+        }
         let mut facts = self
             .owned
             .loans()
@@ -28,6 +40,55 @@ impl UnitExpressionLowerer<'_> {
             || fact.end_span() != call_span
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if matches!(
+            self.ssa_types.get(target.index()),
+            Some(SsaTypeKind::RangeView { .. })
+        ) && let Some(symbol) = self.direct_name_symbol(argument, span)?
+            && let Some(LoweredValue::Value(value)) = self.bindings.get(&symbol).copied()
+        {
+            let (_, place) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::RootPlace { owner: value },
+                    vec![EntityType::Place(target)],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let [EntityId::Place(place)] = place.as_slice() else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            let (_, loan) = self
+                .function
+                .append_instruction(
+                    self.block,
+                    Operation::BorrowBegin {
+                        place: *place,
+                        kind: LoanKind::Shared,
+                    },
+                    vec![EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target,
+                    }],
+                    Origin::Source(span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let [EntityId::Loan(loan)] = loan.as_slice() else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            return Ok((*loan, vec![*loan], fact.end_span()));
+        }
+        if let Some(symbol) = self.direct_name_symbol(argument, span)?
+            && self
+                .owned
+                .borrow_results()
+                .bindings()
+                .iter()
+                .any(|binding| binding.binding() == symbol && binding.origin() == fact.target())
+            && let Some(loan) = self.borrow_bindings.get(&symbol).copied()
+        {
+            return Ok((loan, Vec::new(), fact.end_span()));
         }
         if let Some(loan) =
             self.lower_borrowed_heap_field_loan(argument, fact.target(), target, fact.begin_span())?

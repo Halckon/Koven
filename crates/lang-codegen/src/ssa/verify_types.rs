@@ -35,6 +35,15 @@ pub(super) fn verify_types(module: &Module, errors: &mut Vec<VerifyError>) {
     }
     verify_inline_type_cycles(module, errors);
     verify_container_type_cycles(module, errors);
+    for (&result, &value) in &module.map_results {
+        if !module.valid_map_result_type(result, value) {
+            push_type_error(
+                errors,
+                result,
+                "Map result requires Boolean presence and matching payload ownership",
+            );
+        }
+    }
 }
 
 fn verify_named_identity(
@@ -73,6 +82,28 @@ fn verify_type_definition(
     kind: &SsaTypeKind,
     errors: &mut Vec<VerifyError>,
 ) {
+    let is_range = |ty| matches!(module.type_kind(ty), Some(SsaTypeKind::RangeView { .. }));
+    let embeds_range = match kind {
+        SsaTypeKind::Aggregate { fields, .. } => fields.iter().copied().any(is_range),
+        SsaTypeKind::SequentialContainer { element, .. } => is_range(*element),
+        SsaTypeKind::MapContainer { key, value, .. } => is_range(*key) || is_range(*value),
+        SsaTypeKind::SharedReference { target }
+        | SsaTypeKind::SharedOwner {
+            payload: Some(target),
+            ..
+        } => is_range(*target),
+        SsaTypeKind::ConcreteClosure { captures, .. } => {
+            captures.iter().any(|capture| is_range(capture.ty))
+        }
+        _ => false,
+    };
+    if embeds_range {
+        push_type_error(
+            errors,
+            id,
+            "range metadata cannot be stored in an owning field, container or capture",
+        );
+    }
     match kind {
         SsaTypeKind::Aggregate {
             fields, ownership, ..
@@ -182,6 +213,17 @@ fn verify_type_definition(
                 );
             }
         }
+        SsaTypeKind::RangeView { source } => {
+            if !matches!(
+                module.type_kind(*source),
+                Some(SsaTypeKind::SequentialContainer {
+                    kind: super::model::SequentialContainerKind::List,
+                    ..
+                })
+            ) {
+                push_type_error(errors, id, "range source must be a defined local List");
+            }
+        }
         SsaTypeKind::SequentialContainer { element, .. } => {
             if element.module() != module.id
                 || module.type_kind(*element).is_none()
@@ -192,6 +234,52 @@ fn verify_type_definition(
                     id,
                     "sequential container element type must be defined in the same module",
                 );
+            }
+        }
+        SsaTypeKind::MapContainer { key, value, .. } => {
+            if key.module() != module.id
+                || module.type_kind(*key).is_none()
+                || !module.type_is_defined(*key)
+            {
+                push_type_error(
+                    errors,
+                    id,
+                    "map container key type must be defined in the same module",
+                );
+            }
+            if !matches!(
+                module.type_kind(*key),
+                Some(
+                    SsaTypeKind::StringOwner
+                        | SsaTypeKind::Boolean
+                        | SsaTypeKind::Char
+                        | SsaTypeKind::Integer {
+                            bits: 32,
+                            signed: true
+                        }
+                )
+            ) {
+                push_type_error(
+                    errors,
+                    id,
+                    "map key must have a supported Hashable representation",
+                );
+            }
+            if value.module() != module.id
+                || module.type_kind(*value).is_none()
+                || !module.type_is_defined(*value)
+            {
+                push_type_error(
+                    errors,
+                    id,
+                    "map container value type must be defined in the same module",
+                );
+            }
+            if matches!(
+                module.type_kind(*value),
+                Some(SsaTypeKind::SharedReference { .. })
+            ) {
+                push_type_error(errors, id, "map value must own storable data");
             }
         }
         SsaTypeKind::SharedReference { target } => {
@@ -266,6 +354,7 @@ fn verify_callable_signature(
     signature: &CallableSignature,
     errors: &mut Vec<VerifyError>,
 ) {
+    if signature.returns.iter().any(|ty|matches!(module.type_kind(*ty),Some(SsaTypeKind::RangeView {..}))) || signature.parameters.iter().any(|p|matches!(p,super::model::EntityType::Value(ty) if matches!(module.type_kind(*ty),Some(SsaTypeKind::RangeView {..})))) {push_type_error(errors,id,"range ABI cannot be erased into an owned callable signature");}
     if signature.returns.len() > 1 {
         push_type_error(
             errors,

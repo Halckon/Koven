@@ -1,5 +1,7 @@
 //! compilation-unit CFG 中跨 edge 携带 value/loan 与出口合流的共享基元。
 
+mod range;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
@@ -27,6 +29,7 @@ pub(super) struct BranchExit {
     pub(super) temporaries: BTreeMap<UnitExpressionId, ValueId>,
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     pub(super) capture_loans: BTreeMap<(UnitExpressionId, usize), LoanId>,
+    pub(super) result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
 }
 
 impl BranchExit {
@@ -61,6 +64,7 @@ pub(super) struct CarriedBinding {
 
 #[derive(Clone)]
 pub(super) struct CarriedAccess {
+    range_sources: Vec<(UnitSymbolId, usize)>,
     captures: Vec<(UnitExpressionId, usize)>,
     symbol: Option<UnitSymbolId>,
     receiver: Option<super::ReceiverBinding>,
@@ -152,6 +156,7 @@ impl UnitExpressionLowerer<'_> {
                     .map(|entity| entity.ty)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 Ok(CarriedAccess {
+                    range_sources: Vec::new(),
                     captures: Vec::new(),
                     symbol: Some(*symbol),
                     receiver: None,
@@ -170,6 +175,7 @@ impl UnitExpressionLowerer<'_> {
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             carried.push(CarriedAccess {
+                range_sources: Vec::new(),
                 captures: Vec::new(),
                 symbol: None,
                 receiver: Some(receiver),
@@ -194,10 +200,12 @@ impl UnitExpressionLowerer<'_> {
                     source: entity,
                     ty,
                     pending: Vec::new(),
+                    range_sources: Vec::new(),
                     captures: vec![key],
                 });
             }
         }
+        self.carry_range_sources(&mut carried, span)?;
         Ok(carried)
     }
 
@@ -234,6 +242,7 @@ impl UnitExpressionLowerer<'_> {
                         slot.pending.push(index);
                     } else {
                         loans.push(CarriedAccess {
+                            range_sources: Vec::new(),
                             captures: Vec::new(),
                             symbol: None,
                             receiver: None,
@@ -370,6 +379,8 @@ impl UnitExpressionLowerer<'_> {
                 self.temporaries.insert(*expression, *value);
             }
         }
+        let source_parameters = parameters[bindings.len()..].to_vec();
+        self.rebind_range_sources(loans, &source_parameters, span)?;
         Ok(rebound)
     }
 
@@ -455,6 +466,7 @@ impl UnitExpressionLowerer<'_> {
             self.borrow_bindings.clear();
             self.closure_bindings.clear();
             self.capture_loans.clear();
+            self.result_source_loans.clear();
             self.temporaries.clear();
             self.pending_operands.clear();
             return Ok(LoweredValue::Diverged);
@@ -468,6 +480,7 @@ impl UnitExpressionLowerer<'_> {
             self.borrow_bindings = first.borrow_bindings.clone();
             self.closure_bindings = first.closure_bindings.clone();
             self.capture_loans = first.capture_loans.clone();
+            self.result_source_loans = first.result_source_loans.clone();
             self.temporaries = first.temporaries.clone();
             self.pending_operands = first.pending_operands.clone();
             return Ok(first.result);
@@ -491,6 +504,7 @@ impl UnitExpressionLowerer<'_> {
                 || exit.temporaries.keys().ne(first.temporaries.keys())
                 || exit.closure_bindings != first.closure_bindings
                 || exit.capture_loans.keys().ne(first.capture_loans.keys())
+                || range::keys(&exit.result_source_loans) != range::keys(&first.result_source_loans)
                 || exit.consumed_receiver != first.consumed_receiver
                 || match (first.receiver, exit.receiver) {
                     (None, None) => false,
@@ -596,6 +610,7 @@ impl UnitExpressionLowerer<'_> {
                     .copied()
                     .chain(exit.temporaries.values().copied().map(EntityId::Value))
                     .chain(exit.capture_loans.values().copied().map(EntityId::Loan))
+                    .chain(range::arguments(&exit.result_source_loans))
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -685,6 +700,15 @@ impl UnitExpressionLowerer<'_> {
                 Ok((*key, loan))
             })
             .collect::<Result<_, _>>()?;
+        let source_offset =
+            first.pending_operands.len() + first.temporaries.len() + first.capture_loans.len();
+        self.result_source_loans = range::rebind(
+            &first.result_source_loans,
+            pending_indices[source_offset..]
+                .iter()
+                .map(|index| parameters[*index]),
+            span,
+        )?;
         let mut parameters = parameters.into_iter();
         let result = if result_type.is_some() {
             let EntityId::Value(value) = parameters
@@ -842,6 +866,13 @@ impl UnitExpressionLowerer<'_> {
                     .map(EntityId::Loan)
             } else if slot.receiver.is_some() {
                 receiver(slot.receiver)
+            } else if let Some((symbol, index)) = slot.range_sources.first() {
+                state
+                    .result_source_loans
+                    .get(symbol)
+                    .and_then(|loans| loans.get(*index))
+                    .copied()
+                    .map(EntityId::Loan)
             } else if let Some(key) = slot.captures.first() {
                 state.capture_loans.get(key).copied().map(EntityId::Loan)
             } else {
@@ -857,6 +888,17 @@ impl UnitExpressionLowerer<'_> {
                     .iter()
                     .any(|index| state.pending_operands.get(*index) != Some(&entity))
             {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            if slot.range_sources.iter().any(|(symbol, index)| {
+                state
+                    .result_source_loans
+                    .get(symbol)
+                    .and_then(|loans| loans.get(*index))
+                    .copied()
+                    .map(EntityId::Loan)
+                    != Some(entity)
+            }) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             if slot.captures.iter().any(|key| {

@@ -122,6 +122,19 @@ pub(super) fn validate_type(
     }) = typed.types().get(ty)
         && matches!(
             constructor,
+            IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap
+        )
+        && let [key, value] = arguments.as_slice()
+    {
+        validate_type(typed, *key, span)?;
+        return validate_map_value_type(typed, *value, span);
+    }
+    if let Some(TypeKind::Intrinsic {
+        constructor,
+        arguments,
+    }) = typed.types().get(ty)
+        && matches!(
+            constructor,
             IntrinsicTypeConstructor::Array
                 | IntrinsicTypeConstructor::List
                 | IntrinsicTypeConstructor::MutableList
@@ -156,6 +169,24 @@ pub(super) fn validate_type(
         }
     }
     Ok(())
+}
+
+/// Map storage may conditionally own an existing class resource using its pointer niche.
+/// Keep direct non-Map Resource? and inline/Rc/Box resource wrappers under their old guard.
+pub(super) fn validate_map_value_type(
+    typed: &TypedFile,
+    ty: TypeId,
+    span: Span,
+) -> Result<(), LoweringError> {
+    if let Some(TypeKind::Nullable(inner)) = typed.types().get(ty)
+        && let Some(TypeKind::Nominal { nominal, .. }) = typed.types().get(*inner)
+        && typed.nominals().iter().any(|descriptor| {
+            descriptor.id() == *nominal && descriptor.kind() == NominalKind::Class
+        })
+    {
+        return validate_type(typed, *inner, span);
+    }
+    validate_type(typed, ty, span)
 }
 
 impl super::ExpressionLowerer<'_> {

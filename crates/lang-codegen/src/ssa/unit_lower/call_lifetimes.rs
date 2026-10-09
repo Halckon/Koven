@@ -41,6 +41,11 @@ impl UnitExpressionLowerer<'_> {
     /// Span containment selects the capability slice, never an ownership or cleanup action.
     pub(super) fn supports_control_prefix(&self, span: Span) -> bool {
         self.constant_owned.is_some()
+            || self.owned.borrow_results().range_uses().iter().any(|fact| {
+                matches!(fact.site(), lang_frontend::ownership_checking::RangeUseSite::Call(call)
+                    if call.source_unit() == self.source_unit
+                        && self.parsed.ast().expressions().get(call.expression()).is_ok_and(|node| node.span() == span))
+            })
             || self.typed.sequential_iterations().iter().any(|descriptor| {
                 descriptor.statement().source_unit() == self.source_unit
                     && self
@@ -103,25 +108,25 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         let mut retained = self.pending_operands.len();
-        for frame in self.pending_call_frames.iter().rev() {
+        for frame_index in (0..self.pending_call_frames.len()).rev() {
+            let frame = &self.pending_call_frames[frame_index];
             if frame.loop_depth < minimum_loop_depth {
                 continue;
             }
             retained = retained.min(frame.pending_start);
-            for &index in frame.created_loans.iter().rev() {
+            let ending_slots = frame
+                .created_loans
+                .iter()
+                .rev()
+                .copied()
+                .collect::<Vec<_>>();
+            for index in ending_slots {
                 let Some(EntityId::Loan(loan)) = self.pending_operands.get(index).copied() else {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 };
-                self.function
-                    .append_instruction(
-                        self.block,
-                        Operation::BorrowEnd { loan },
-                        Vec::new(),
-                        Origin::Source(span),
-                    )
-                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+                self.end_short_call_loan(loan, span)?;
             }
-            for &(owner, _) in frame.abi_slots.iter().rev() {
+            for &(owner, _) in self.pending_call_frames[frame_index].abi_slots.iter().rev() {
                 let value = require_value(
                     *self
                         .pending_operands

@@ -201,6 +201,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     pub(super) fn emit_drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
+        self.end_result_bindings(point)?;
         if let Some(actions) = self.owned.iteration_cleanup_at(point).map(<[_]>::to_vec) {
             return self.emit_iteration_cleanup(&actions);
         }

@@ -537,7 +537,7 @@ pub(super) fn plan_unit_instances_from_facts(
             pending.insert(target_key.key);
         }
 
-        callables.freeze_runtime_initializers(
+        callables.freeze_runtime_callbacks(
             source_token,
             &substitutions,
             &mut pending,

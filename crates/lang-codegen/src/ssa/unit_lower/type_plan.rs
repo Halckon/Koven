@@ -20,6 +20,69 @@ use super::{
 };
 use crate::ssa::{model::Module, unit_plan::UnitPlannedInstance};
 
+/// 在签名与函数体之前冻结 reachable Map 查询结果的 identity。
+pub(super) fn intern_map_result_types(
+    module: &mut Module,
+    parsed_by_source: &[&ParsedFile],
+    instances: &[UnitPlannedInstance],
+    typed: &CompilationUnitTypes,
+    types: &mut UnitTypeLowering,
+) -> Result<(), LoweringError> {
+    for instance in instances {
+        let parsed = parsed_by_source
+            .get(instance.source_unit().index())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
+        let descriptors = typed
+            .map_gets()
+            .iter()
+            .map(|get| (get.expression(), get.value_type(), get.result_type()))
+            .chain(typed.map_removes().iter().map(|remove| {
+                (
+                    remove.expression(),
+                    remove.value_type(),
+                    remove.result_type(),
+                )
+            }));
+        for (expression, value_type, result_type) in descriptors {
+            if expression.source_unit() != instance.source_unit() {
+                continue;
+            }
+            let span = parsed
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?
+                .span();
+            if !span_contains(instance.span(), span) {
+                continue;
+            }
+            let value_type = resolve_concrete_type(
+                typed,
+                value_type,
+                instance.substitutions(),
+                instance.key().static_self(),
+                span,
+            )?;
+            // Scoped 三态已启用；旧按值查询/owned remove 不将 Found(null) 合并为 Missing。
+            if matches!(
+                typed.types().get(value_type),
+                Some(lang_frontend::type_checking::UnitTypeKind::Nullable(_))
+            ) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let result = resolve_concrete_type(
+                typed,
+                result_type,
+                instance.substitutions(),
+                instance.key().static_self(),
+                span,
+            )?;
+            types.intern_map_result(module, typed, result, span)?;
+        }
+    }
+    Ok(())
+}
+
 /// 只为当前 reachable instance body 中实际出现的已支持 storage type 建立 SSA identity。
 pub(super) fn intern_body_scalar_types(
     module: &mut Module,
@@ -65,6 +128,21 @@ pub(super) fn intern_body_scalar_types(
             instance.key().static_self(),
             span,
         )?;
+        if typed.range_size(expression).is_some()
+            || typed.call(expression).is_some_and(|d| {
+                matches!(
+                    d.result_source(),
+                    lang_frontend::type_checking::CallableResultSource::Carrier(_)
+                )
+            })
+        {
+            types.intern(module, typed, concrete, span)?;
+        }
+        if typed.map_construction(expression).is_some() {
+            // Consume the concrete descriptor even for unsupported storage shapes, so an
+            // inline nullable Map is rejected here rather than becoming a missing SSA fact.
+            types.intern(module, typed, concrete, span)?;
+        }
         if let Some(primitive) = typed.ownership_primitive(expression) {
             let value_type = resolve_concrete_type(
                 typed,

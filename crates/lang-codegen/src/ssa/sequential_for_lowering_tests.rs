@@ -209,7 +209,10 @@ fn incoming_edges(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)>
                     when_non_null,
                     ..
                 } => vec![when_null, when_non_null],
-                TerminatorKind::Return { .. } | TerminatorKind::Abort => Vec::new(),
+                TerminatorKind::Return { .. }
+                | TerminatorKind::RangeReturn { .. }
+                | TerminatorKind::BorrowReturn { .. }
+                | TerminatorKind::Abort => Vec::new(),
             };
             edges.into_iter().map(move |edge| (block.id, edge))
         })

@@ -14,6 +14,7 @@ use super::{
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 
+mod borrow_storage;
 mod shared_capture;
 
 #[test]
@@ -773,11 +774,10 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
              }",
         ),
         (
-            "test/move-only-borrow-parameter.ko",
+            "test/unit-borrow-parameter.ko",
             "package test\n\
-             class Host {}\n\
              fun entry(): Unit {\n\
-                 val action: move (borrow Host) -> Unit = move { item -> }\n\
+                 val action: move (borrow Unit) -> Unit = move { item -> }\n\
              }",
         ),
         (

@@ -20,6 +20,7 @@ type EnumPayloadMap = BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>;
 
 pub(super) struct NominalTypeMapper {
     type_ids: FrontendTypeMap,
+    map_result_types: BTreeSet<TypeId>,
     heap_payloads: HeapPayloadMap,
     construction_fields: BTreeMap<TypeId, Vec<TypeId>>,
     enum_construction_fields: BTreeMap<(TypeId, EnumCaseId), Vec<TypeId>>,
@@ -35,6 +36,31 @@ struct PendingBoxDefinition {
 }
 
 impl NominalTypeMapper {
+    pub(super) fn intern_map_result(
+        &mut self,
+        module: &mut Module,
+        names: &NameResolution,
+        typed: &TypedFile,
+        ty: TypeId,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        let Some(TypeKind::Nullable(inner)) = typed.types().get(ty) else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let inner = self.intern(module, names, typed, *inner, span)?;
+        let result = if matches!(
+            module.type_kind(inner),
+            Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. })
+        ) {
+            module.add_nullable_handle_type(inner)
+        } else {
+            module.add_map_result_type(inner)
+        }
+        .map_err(|_| error(LoweringErrorKind::UnsupportedNode, span))?;
+        self.type_ids.insert(ty, result);
+        self.map_result_types.insert(ty);
+        Ok(result)
+    }
     /// Naming may reference only canonical identities already accepted as concrete storage.
     pub(super) fn contains_type(&self, ty: TypeId) -> bool {
         self.type_ids.contains_key(&ty)
@@ -77,6 +103,7 @@ impl NominalTypeMapper {
         }
         Ok(Self {
             type_ids: BTreeMap::new(),
+            map_result_types: BTreeSet::new(),
             heap_payloads: BTreeMap::new(),
             construction_fields,
             enum_construction_fields,
@@ -136,6 +163,15 @@ impl NominalTypeMapper {
         ty: TypeId,
         span: Span,
     ) -> Result<SsaTypeId, LoweringError> {
+        // Only results explicitly planned from Map descriptors may bypass the generic
+        // resource-wrapper rejection; unrelated Resource? signatures remain deferred.
+        if self.map_result_types.contains(&ty) {
+            return self
+                .type_ids
+                .get(&ty)
+                .copied()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span));
+        }
         super::resource_deinit::validate_type(typed, ty, span)?;
         if let Some(mapped) = self.type_ids.get(&ty).copied() {
             return Ok(mapped);
@@ -146,12 +182,31 @@ impl NominalTypeMapper {
                 self.intern_nominal(module, names, typed, ty, *nominal, span)?
             }
             Some(TypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::View,
+                arguments,
+            }) => {
+                let source = self.intern_container(
+                    module,
+                    names,
+                    typed,
+                    IntrinsicTypeConstructor::List,
+                    arguments,
+                    span,
+                )?;
+                module.intern_type(SsaTypeKind::RangeView { source })
+            }
+            Some(TypeKind::Intrinsic {
                 constructor:
                     constructor @ (IntrinsicTypeConstructor::Array
                     | IntrinsicTypeConstructor::List
                     | IntrinsicTypeConstructor::MutableList),
                 arguments,
             }) => self.intern_container(module, names, typed, *constructor, arguments, span)?,
+            Some(TypeKind::Intrinsic {
+                constructor:
+                    constructor @ (IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap),
+                arguments,
+            }) => self.intern_map(module, names, typed, *constructor, arguments, span)?,
             Some(TypeKind::Intrinsic {
                 constructor: IntrinsicTypeConstructor::Box,
                 arguments,

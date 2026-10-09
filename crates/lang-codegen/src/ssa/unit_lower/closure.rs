@@ -539,6 +539,11 @@ pub(super) fn finish_thunk(
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
         lowerer.transfer_owned_expression(expression, value, plan.span)?;
     }
+    // Abort does not unwind its operand-prefix owners; ordinary Return already
+    // consumed its frontend cleanup facts and is checked by the SSA verifier.
+    if result == LoweredValue::Diverged {
+        return Ok(());
+    }
     if !lowerer.temporaries.is_empty() {
         return Err(lowering_error(
             LoweringErrorKind::UnsupportedNode,
@@ -565,9 +570,6 @@ pub(super) fn finish_thunk(
                 plan.span,
             ));
         }
-    }
-    if result == LoweredValue::Diverged {
-        return Ok(());
     }
     lowerer.end_thunk_capture_views(plan.span)?;
     let values = match (builtin_type(lowerer.typed, plan.return_type), result) {

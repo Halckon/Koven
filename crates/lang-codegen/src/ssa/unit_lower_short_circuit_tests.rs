@@ -1,12 +1,12 @@
 use lang_frontend::{
     name_resolution::SourceUnitInput,
+    ownership_checking::UnitDropPoint,
     parser::{BinaryOperator, Expression},
     source::SourceMap,
-    type_checking::standard_environments,
+    type_checking::{UnitExpressionId, standard_environments},
 };
 
 use super::{
-    LoweringErrorKind,
     model::{BlockId, EntityId, Function, FunctionId, Operation, ScalarConstant, TerminatorKind},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
@@ -161,21 +161,33 @@ fn lowers_cross_file_and_or_with_exact_short_edges_and_carried_owner() {
 }
 
 #[test]
-fn rejects_rhs_only_move_until_frontend_publishes_short_circuit_owner_facts() {
+fn rhs_only_move_uses_published_short_circuit_cleanup_on_both_exits() {
     let mut sources = SourceMap::new();
     let (provider_source, provider) = parsed(
         &mut sources,
         "p/provider.ko",
-        "package p\nfun consume(own input: String): Boolean = true",
+        "package p\nfun consume(own input: String): Boolean { println(input); return true }",
     );
     let (consumer_source, consumer) = parsed(
         &mut sources,
         "q/consumer.ko",
-        "package q\n\
-         fun entry(): Boolean {\n\
-             val owner = \"kept\"\n\
-             return true || p.consume(owner)\n\
-         }",
+        r#"package q
+fun original(): Boolean {
+ val owner = "kept"
+ return true || p.consume(owner)
+}
+fun either(flag: Boolean): Boolean {
+ val owner = "kept".clone()
+ return flag || p.consume(owner)
+}
+fun both(flag: Boolean): Boolean {
+ val owner = "kept".clone()
+ return flag && p.consume(owner)
+}
+fun entry(): Unit {
+ if (original()) { println("original skip") }
+ if (either(true) && either(false) && both(true) && !both(false)) { println("both exits") }
+}"#,
     );
     let inputs = [
         SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
@@ -183,20 +195,35 @@ fn rejects_rhs_only_move_until_frontend_publishes_short_circuit_owner_facts() {
     ];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let short_span = consumer
+    let short_expression = consumer
         .ast()
         .expressions()
         .iter()
-        .find_map(|(_, node)| match node.payload() {
+        .find_map(|(expression, node)| match node.payload() {
             Expression::Binary {
                 operator: BinaryOperator::LogicalOr,
                 ..
-            } => Some(node.span()),
+            } => Some(expression),
             _ => None,
         })
         .expect("logical-or expression exists");
 
-    let error = match lower_scalar_unit_with_entry(
+    let consumer_unit = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|item| item.name() == "original")
+        .unwrap()
+        .source_unit();
+    assert!(
+        owned.ownership().drops().iter().any(|fact| matches!(
+            fact.point(), UnitDropPoint::BranchExit { control, branch: 1 }
+            if control == UnitExpressionId::new(consumer_unit, short_expression)
+        )),
+        "the original skip edge must carry a frontend owner cleanup fact"
+    );
+    let (program, entry) = lower_scalar_unit_with_entry(
         &sources,
         &inputs,
         &names,
@@ -204,12 +231,12 @@ fn rejects_rhs_only_move_until_frontend_publishes_short_circuit_owner_facts() {
         &typed,
         &owned,
         declaration(&names, "q", "entry"),
-    ) {
-        Err(error) => error,
-        Ok(_) => panic!("path-specific owner state must not be guessed"),
-    };
-    assert_eq!(error.kind, LoweringErrorKind::MissingFact);
-    assert_eq!(error.span, Some(short_span));
+    )
+    .expect("published path-specific owner cleanup must lower to verified SSA");
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 4);
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"original skip\nkept\nkept\nboth exits\n");
 }
 
 fn function_id(module: &super::model::Module, name: &str) -> FunctionId {

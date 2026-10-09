@@ -145,6 +145,7 @@ impl UnitExpressionLowerer<'_> {
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: condition_closures,
             capture_loans: self.capture_loans.clone(),
+            result_source_loans: self.result_source_loans.clone(),
             pending_operands: self.pending_operands.clone(),
             temporaries: self.temporaries.clone(),
         });
@@ -305,7 +306,7 @@ impl UnitExpressionLowerer<'_> {
             .last()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let (temporaries, pending_count) = match (&context.iteration, breaking) {
-            (Some(iteration), true) => (&iteration.outer_temporaries, iteration.start),
+            (Some(iteration), true) => (&iteration.outer_temporaries, iteration.retained_start),
             _ => (&context.entry_temporaries, context.entry_pending_count),
         };
         if self
@@ -343,6 +344,7 @@ impl UnitExpressionLowerer<'_> {
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
             capture_loans: self.capture_loans.clone(),
+            result_source_loans: self.result_source_loans.clone(),
             pending_operands: self.pending_operands.clone(),
             temporaries: self.temporaries.clone(),
         }

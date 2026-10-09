@@ -7,6 +7,8 @@ use super::model::{
     ScalarConstant, SsaTypeId, SsaTypeKind, TerminatorKind,
 };
 
+mod map;
+
 /// 生成只用于调试和测试的确定性 SSA 文本。
 pub(super) fn render_program(program: &Program) -> String {
     let mut output = String::new();
@@ -119,6 +121,19 @@ fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
             output.push('>');
             Ok(())
         }
+        SsaTypeKind::RangeView { source } => {
+            output.write_str("range_view<")?;
+            write_type_id(output, *source)?;
+            output.write_str(">")
+        }
+        SsaTypeKind::MapContainer { kind, key, value } => {
+            write!(output, "map {kind:?}<")?;
+            write_type_id(output, *key)?;
+            output.write_str(", ")?;
+            write_type_id(output, *value)?;
+            output.push('>');
+            Ok(())
+        }
         SsaTypeKind::SharedReference { target } => {
             output.write_str("shared_ref<")?;
             write_type_id(output, *target)?;
@@ -187,6 +202,9 @@ fn write_function(output: &mut String, function: &Function) -> fmt::Result {
         }
     }
     output.write_str(") -> (")?;
+    if let Some(index) = function.borrow_return {
+        write!(output, "borrow from parameter[{index}] ")?;
+    }
     write_type_ids(output, &function.return_types)?;
     output.write_str(") ")?;
     write_origin(output, &function.origin)?;
@@ -431,6 +449,42 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         Operation::FunctionAddress { target } => {
             write!(output, "function_address @f{}", target.index())
         }
+        Operation::BorrowCall {
+            callee,
+            arguments,
+            source,
+        } => {
+            write!(output, "borrow.call @f{} from ", callee.index())?;
+            write_entity_id(output, EntityId::Loan(*source))?;
+            output.push('(');
+            write_entity_ids(output, arguments)?;
+            output.push(')');
+            Ok(())
+        }
+        Operation::RangeConstruct {
+            view,
+            source,
+            begin,
+            end,
+        } => write!(
+            output,
+            "range.construct !t{} from {source:?} [{begin:?}, {end:?})",
+            view.index()
+        ),
+        Operation::RangeCall {
+            callee,
+            arguments,
+            source,
+        } => write!(
+            output,
+            "range.call @f{} {arguments:?} from {source:?}",
+            callee.index()
+        ),
+        Operation::RangeLength { view } => write!(output, "range.length {view:?}"),
+        Operation::RangeElementPlace { view, index } => {
+            write!(output, "range.element.place {view:?} {index:?}")
+        }
+        Operation::RangeEnd { view, source } => write!(output, "range.end {view:?} {source:?}"),
         Operation::ClosureConstruct {
             closure,
             thunk,
@@ -589,6 +643,10 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("nullable.is_null ")?;
             write_entity_id(output, EntityId::Value(*owner))
         }
+        Operation::NullableLoanIsNull { source } => {
+            output.write_str("nullable.loan_is_null ")?;
+            write_entity_id(output, EntityId::Loan(*source))
+        }
         Operation::NullableTake { owner, proof } => {
             output.write_str("nullable.take ")?;
             write_entity_id(output, EntityId::Value(*owner))?;
@@ -692,6 +750,15 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*value))
         }
+        Operation::MapConstruct { .. }
+        | Operation::MapSize { .. }
+        | Operation::MapContains { .. }
+        | Operation::MapRequireValue { .. }
+        | Operation::MapWithValue { .. }
+        | Operation::MapGet { .. }
+        | Operation::MapResultUnwrap { .. }
+        | Operation::MapPut { .. }
+        | Operation::MapRemove { .. } => map::write_operation(output, operation),
         Operation::FieldPlace { base, field } => {
             output.write_str("field_place ")?;
             write_entity_id(output, EntityId::Place(*base))?;
@@ -892,6 +959,13 @@ fn write_terminator(output: &mut String, terminator: &TerminatorKind) -> fmt::Re
             Ok(())
         }
         TerminatorKind::Abort => output.write_str("abort"),
+        TerminatorKind::RangeReturn { view, source } => {
+            write!(output, "range.return {view:?} from {source:?}")
+        }
+        TerminatorKind::BorrowReturn { loan } => {
+            output.write_str("borrow.return ")?;
+            write_entity_id(output, EntityId::Loan(*loan))
+        }
     }
 }
 

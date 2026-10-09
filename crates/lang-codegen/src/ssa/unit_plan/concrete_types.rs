@@ -140,7 +140,8 @@ pub(crate) fn resolve_concrete_type(
             },
         ) if matches!(
             constructor,
-            IntrinsicTypeConstructor::Array
+            IntrinsicTypeConstructor::View
+                | IntrinsicTypeConstructor::Array
                 | IntrinsicTypeConstructor::List
                 | IntrinsicTypeConstructor::MutableList
         ) && contains_type_parameter(typed, kind) =>

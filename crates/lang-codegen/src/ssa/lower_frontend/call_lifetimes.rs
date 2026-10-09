@@ -30,6 +30,7 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        self.finish_short_call_ranges(expression, span)?;
         for fact in ending_loans {
             self.emit_drops(DropPoint::AfterExpression(fact.argument()))?;
         }
@@ -49,15 +50,30 @@ impl ExpressionLowerer<'_> {
             .filter(|fact| fact.point() == LoanEndPoint::ControlTransfer(transfer))
             .map(|fact| (fact.call().index(), fact.argument().index()))
             .collect::<Vec<_>>();
-        for key in endings {
+        for key in &endings {
             let loan = self
                 .pending_call_loans
-                .remove(&key)
+                .remove(key)
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             if let Some(loan) = loan {
                 self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
             }
             self.release_primitive_unit_operand(key.0, key.1);
+        }
+        let ranges = self
+            .owned
+            .borrow_results()
+            .range_uses()
+            .iter()
+            .filter(|fact| {
+                matches!(fact.site(), lang_frontend::ownership_checking::RangeUseSite::Call(call)
+                    if endings.iter().any(|key| key.0 == call.index()))
+                    && self.temporaries.contains_key(&fact.expression().index())
+            })
+            .map(|fact| fact.expression())
+            .collect::<Vec<_>>();
+        for range in ranges.into_iter().rev() {
+            self.finish_short_range(range, span)?;
         }
         // A transfer leaves proofs introduced inside its target scope. Owners may
         // survive a break/continue and must not keep that branch-local view alive.

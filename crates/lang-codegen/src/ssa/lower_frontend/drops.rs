@@ -7,6 +7,7 @@ use crate::ssa::model::Operation;
 
 impl ExpressionLowerer<'_> {
     pub(super) fn emit_drops(&mut self, point: DropPoint) -> Result<(), LoweringError> {
+        self.end_result_bindings(point)?;
         let facts = self
             .owned
             .drops()

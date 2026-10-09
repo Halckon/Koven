@@ -1,0 +1,16 @@
+package koven.algorithms
+
+// Count policy lives in Koven; only the checked descriptor construction is compiler-bound.
+fun <T> take(source: List<T>, count: Int): View<T> from source {
+    if (count < 0) { error("take count must be non-negative") }
+    val size = source.size
+    val clipped = if (count > size) size else count
+    return rangeView(source, 0, clipped)
+}
+
+fun <T> take(source: View<T>, count: Int): View<T> from source {
+    if (count < 0) { error("take count must be non-negative") }
+    val size = source.size
+    val clipped = if (count > size) size else count
+    return rangeView(source, 0, clipped)
+}

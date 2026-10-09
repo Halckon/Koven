@@ -24,6 +24,7 @@ mod entry_tests;
 pub(crate) mod layout;
 #[cfg(test)]
 mod layout_tests;
+mod map;
 #[cfg(test)]
 mod nullable_tests;
 #[cfg(test)]

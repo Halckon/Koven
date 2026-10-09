@@ -320,6 +320,7 @@ impl<'a> Proof<'a> {
             | Operation::HeapPayloadPlace { .. }
             | Operation::SharedPayloadPlace { .. }
             | Operation::ContainerElementPlace { .. }
+            | Operation::RangeElementPlace { .. }
             | Operation::TaggedPayloadPlace { .. }
             | Operation::AggregateProject { .. }
             | Operation::AggregateExplode { .. }
