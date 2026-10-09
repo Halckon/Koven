@@ -47,6 +47,7 @@ use crate::{
 pub(crate) enum ProjectBuildError {
     Project(ProjectLoadError),
     Source(SourceError),
+    StandardSource(lang_frontend::type_checking::TypeCheckingError),
     Lexer(LexerInternalError),
     Parser(ParserInternalError),
     Input(CompilationUnitInputError),
@@ -71,6 +72,9 @@ impl fmt::Display for ProjectBuildError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Project(error) => write!(formatter, "project load failed: {error}"),
+            Self::StandardSource(error) => {
+                write!(formatter, "standard source binding failed: {error}")
+            }
             Self::Source(error) => write!(formatter, "source setup failed: {error}"),
             Self::Lexer(error) => write!(formatter, "lexer failed: {error}"),
             Self::Parser(error) => write!(formatter, "parser failed: {error}"),
@@ -142,7 +146,12 @@ pub(crate) fn emit_project_object(
             source_id,
         ));
     }
-    let (name_environment, type_environment) = standard_environments();
+    let (name_environment, mut type_environment) = standard_environments();
+    crate::standard_sources::append_standard_sources(
+        &mut sources,
+        &mut descriptors,
+        &mut type_environment,
+    )?;
     let snapshot =
         analyze_unit_names(sources, descriptors, name_environment).map_err(
             |error| match error {

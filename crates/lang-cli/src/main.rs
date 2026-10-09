@@ -12,6 +12,7 @@ mod native_command;
 mod project;
 mod project_build;
 mod project_command;
+mod standard_sources;
 
 use std::{ffi::OsString, io::Write, process::ExitCode};
 
