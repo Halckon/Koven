@@ -2,6 +2,21 @@
 use super::*;
 
 impl Checker<'_> {
+    pub(super) fn ownership_bindings(&self) -> Vec<OwnershipBindingDescriptor> {
+        self.typed
+            .parameter_bindings()
+            .iter()
+            .map(|binding| {
+                let kind = match binding.mode() {
+                    ParameterMode::Value => OwnershipBindingKind::Owned,
+                    ParameterMode::Borrow => OwnershipBindingKind::Shared,
+                    ParameterMode::Inout => OwnershipBindingKind::Exclusive,
+                };
+                OwnershipBindingDescriptor::new(binding.symbol(), kind)
+            })
+            .collect()
+    }
+
     pub(super) fn check_item(
         &mut self,
         id: ItemId,

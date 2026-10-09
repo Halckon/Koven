@@ -620,6 +620,7 @@ impl OwnershipDeferredFact {
 pub struct OwnershipCheckedFile {
     pub(super) callable_provenance: super::callable_provenance::FileCallableFacts,
     pub(super) borrow_return_origins: Vec<super::BorrowReturnOriginFact<ExpressionId, LoanTarget>>,
+    pub(super) borrow_results: super::borrow_result::FileBorrowResults,
     cleanup_steps: Vec<(DropPoint, super::IterationCleanupAction)>,
     cleanup_conditions: super::CleanupConditions,
     iterations: Vec<super::IterationOwnershipPlan>,
@@ -648,6 +649,7 @@ pub struct OwnershipCheckedFile {
 pub(crate) struct OwnershipCheckedParts {
     pub(super) callable_provenance: super::callable_provenance::FileCallableFacts,
     pub(super) borrow_return_origins: Vec<super::BorrowReturnOriginFact<ExpressionId, LoanTarget>>,
+    pub(super) borrow_results: super::borrow_result::FileBorrowResults,
     pub(crate) cleanup_steps: Vec<(DropPoint, super::IterationCleanupAction)>,
     pub(crate) cleanup_conditions: super::CleanupConditions,
     pub(crate) iterations: Vec<super::IterationOwnershipPlan>,
@@ -778,6 +780,7 @@ impl OwnershipCheckedFile {
             source_id,
             callable_provenance: parts.callable_provenance,
             borrow_return_origins: parts.borrow_return_origins,
+            borrow_results: parts.borrow_results,
             environment_owner,
             constant_materializations: parts.constant_materializations,
             iterations: parts.iterations,

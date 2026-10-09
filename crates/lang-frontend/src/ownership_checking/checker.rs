@@ -274,19 +274,7 @@ impl<'a> Checker<'a> {
             self.loans.clear();
             self.rc_effects.clear();
         }
-        let bindings = self
-            .typed
-            .parameter_bindings()
-            .iter()
-            .map(|binding| {
-                let kind = match binding.mode() {
-                    ParameterMode::Value => OwnershipBindingKind::Owned,
-                    ParameterMode::Borrow => OwnershipBindingKind::Shared,
-                    ParameterMode::Inout => OwnershipBindingKind::Exclusive,
-                };
-                OwnershipBindingDescriptor::new(binding.symbol(), kind)
-            })
-            .collect();
+        let bindings = self.ownership_bindings();
         let drop_plan = if diagnostics.is_empty() {
             drop_planner::plan(&self)?
         } else {
@@ -354,6 +342,7 @@ impl<'a> Checker<'a> {
             OwnershipCheckedParts {
                 callable_provenance,
                 borrow_return_origins: self.borrow_return_origins,
+                borrow_results: Default::default(),
                 cleanup_steps,
                 cleanup_conditions,
                 iterations,

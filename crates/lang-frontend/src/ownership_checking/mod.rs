@@ -24,7 +24,10 @@ use crate::{
     type_checking::TypedFile,
 };
 
-pub use borrow_result::BorrowReturnOriginFact;
+pub use borrow_result::{
+    BorrowBindingEndFact, BorrowBindingFact, BorrowResultFacts, BorrowReturnOriginFact,
+    BorrowSourceLoan,
+};
 pub use callable_provenance::{
     CallableOrigin, CallableOriginFact, PointerCallableReturnOrigin, PointerCallableReturnSummary,
     UnitCallableOrigin, UnitCallableOriginFact, UnitPointerCallableReturnOrigin,
