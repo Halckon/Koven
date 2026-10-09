@@ -1,6 +1,6 @@
-# Koven v0.42：语法索引
+# Koven v0.41：语法索引
 
-> **性质**：规范性导航索引 · **状态**：current（v0.42） · **读取时机**：从 token 或语法形式定位规则时 · **唯一真源**：链接指向的领域正文
+> **性质**：规范性导航索引 · **状态**：current（v0.41） · **读取时机**：从 token 或语法形式定位规则时 · **唯一真源**：链接指向的领域正文
 
 本页不重复关键字表、产生式或优先级，只提供到唯一规则正文的入口。
 
@@ -36,7 +36,6 @@
 | 空安全与错误 | `?:`、`!!`、nullable 与 `error()` | [`error()` 与空安全运算符](09-nullability-errors.md#error-与空安全运算符) |
 | 空安全与错误 | postfix `?` 与 `Result<T, E>` | [`Result<T, E>` 与 Postfix `?`](09-nullability-errors.md#resultt-e-与-postfix-) |
 | 所有权 | Value/Borrow/Inout、loan 与 place | [调用期借用与 ASAP 析构](10-ownership-borrowing-drop.md#调用期借用与-asap-析构) |
-| 普通借用结果 | `: borrow T from source`、`borrow val` | [唯一来源与显式局部绑定](10-ownership-borrowing-drop.md#普通借用结果与显式局部绑定) |
 | 构造 | class/value/enum/Box 构造 | [名义值与 Intrinsic Box 构造](11-copyability-layout-construction.md#名义值与-intrinsic-box-构造) |
 | 集合与解构 | 顺序容器构造、index 与 element place | [顺序容器的表示与索引语义](12-collections-destructuring.md#顺序容器的表示与索引语义) |
 | 集合与解构 | 局部 `val` 解构 | [局部 `val` 解构语法](12-collections-destructuring.md#局部-val-解构语法) |

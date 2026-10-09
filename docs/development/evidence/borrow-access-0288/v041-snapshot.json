@@ -1,0 +1,117 @@
+{
+  "head": "f82e4deaa2cc392d97992473a6d612d5df7fb003",
+  "pages": [
+    {
+      "source": "docs/guide/01-lexical.md",
+      "snapshot": "docs/archive/guides/v0.41/01-lexical.md",
+      "source_sha256": "d792c25228680bb1c7501ef6ef188316bed2fbd3c93611d0ba2bff00854d29ea",
+      "snapshot_sha256": "d792c25228680bb1c7501ef6ef188316bed2fbd3c93611d0ba2bff00854d29ea",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/02-names-files-packages.md",
+      "snapshot": "docs/archive/guides/v0.41/02-names-files-packages.md",
+      "source_sha256": "cfb9d8dc69b02e15cb176e1618bcf680d832e18bf98910c352fa987efd871eb9",
+      "snapshot_sha256": "cfb9d8dc69b02e15cb176e1618bcf680d832e18bf98910c352fa987efd871eb9",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/03-types-generics.md",
+      "snapshot": "docs/archive/guides/v0.41/03-types-generics.md",
+      "source_sha256": "03fcfd8e87f04503b1767bf4c0700b9b7fc776a1d1943489e8c567cb8aea9751",
+      "snapshot_sha256": "03fcfd8e87f04503b1767bf4c0700b9b7fc776a1d1943489e8c567cb8aea9751",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/04-expressions-operators.md",
+      "snapshot": "docs/archive/guides/v0.41/04-expressions-operators.md",
+      "source_sha256": "f0e36aea31f6ad44c791d84bdd7288eafd3196f9a5e48addfab1aa0762280ea0",
+      "snapshot_sha256": "f0e36aea31f6ad44c791d84bdd7288eafd3196f9a5e48addfab1aa0762280ea0",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/05-declarations-callables.md",
+      "snapshot": "docs/archive/guides/v0.41/05-declarations-callables.md",
+      "source_sha256": "e3ac70a5783efdc365ce56862539b0c4573eb17dfe6763f2072388e05702ca04",
+      "snapshot_sha256": "334b02c5e4d41c91c03ddd41073705207d833573a1fe045f362e23854611148b",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/06-blocks-control-flow.md",
+      "snapshot": "docs/archive/guides/v0.41/06-blocks-control-flow.md",
+      "source_sha256": "432472230ade951f0b7365ba161d0d556692d9c6fce68cab175ec372330e7257",
+      "snapshot_sha256": "98c3891706ddc71b325d1bd4f1afc51c41e8174f6b3e8ca7728ddd746325a4bd",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/07-calls-lambdas-closures.md",
+      "snapshot": "docs/archive/guides/v0.41/07-calls-lambdas-closures.md",
+      "source_sha256": "e17a84f6411f2cf1a2c7736246a539aef2252802f73d510533028cabfea74638",
+      "snapshot_sha256": "46a184788cfec0d57d1942736a1443e1dc3b2bf571e971ba1d0170261cf09014",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/08-class-family-members.md",
+      "snapshot": "docs/archive/guides/v0.41/08-class-family-members.md",
+      "source_sha256": "e65ce44182fa38e8f510fa42c4f03c2b74a1ef96aa215f86ef5b3b6d6c205ac7",
+      "snapshot_sha256": "02536429856a3f2d263f9a478194e95c310410303d167b32577344257087f627",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/09-nullability-errors.md",
+      "snapshot": "docs/archive/guides/v0.41/09-nullability-errors.md",
+      "source_sha256": "261951a73e3a5c4d7e548c88ef1c222f16e36ff0bb1a0c442c83aef44ba2c3e8",
+      "snapshot_sha256": "261951a73e3a5c4d7e548c88ef1c222f16e36ff0bb1a0c442c83aef44ba2c3e8",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/10-ownership-borrowing-drop.md",
+      "snapshot": "docs/archive/guides/v0.41/10-ownership-borrowing-drop.md",
+      "source_sha256": "1e79b128e57e22defa66d27cf30bf2f55a9a08d23496252ee0b3e5749766ba9f",
+      "snapshot_sha256": "1e79b128e57e22defa66d27cf30bf2f55a9a08d23496252ee0b3e5749766ba9f",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/11-copyability-layout-construction.md",
+      "snapshot": "docs/archive/guides/v0.41/11-copyability-layout-construction.md",
+      "source_sha256": "f286f08fa5838ec6a4247729e6c31e3b383642377a6b63d679440d0a43c0b755",
+      "snapshot_sha256": "f286f08fa5838ec6a4247729e6c31e3b383642377a6b63d679440d0a43c0b755",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/12-collections-destructuring.md",
+      "snapshot": "docs/archive/guides/v0.41/12-collections-destructuring.md",
+      "source_sha256": "5aff6d29ed3013b27987cdf3f83de3536e7ad9e584bb0267375ce4f781df158d",
+      "snapshot_sha256": "5aff6d29ed3013b27987cdf3f83de3536e7ad9e584bb0267375ce4f781df158d",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/13-program-runtime-standard-library.md",
+      "snapshot": "docs/archive/guides/v0.41/13-program-runtime-standard-library.md",
+      "source_sha256": "268f37400576a031b27c7313f98ea9e105f5dfda5876284608a0ff0fb19515d7",
+      "snapshot_sha256": "a17c5b59be7aeade8ec50ec89039c378871923d72437bad52ff2bff733709fa6",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/14-syntax-index.md",
+      "snapshot": "docs/archive/guides/v0.41/14-syntax-index.md",
+      "source_sha256": "5b069dcd2df5a015d9f3c9ce0796dce341a460386b439b9e35a6611fcc5ea4f7",
+      "snapshot_sha256": "5b069dcd2df5a015d9f3c9ce0796dce341a460386b439b9e35a6611fcc5ea4f7",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/15-conformance-and-staging.md",
+      "snapshot": "docs/archive/guides/v0.41/15-conformance-and-staging.md",
+      "source_sha256": "c6e63faa19cca52fa672c8c829bea5605060dd6c051ee5b1cbf1eeaf6535dbd5",
+      "snapshot_sha256": "fab02f532c9e0b195b336511189e97f8fbec3248a35ac8c0d4d4f7ff7877301a",
+      "transformation": "relative Markdown links only"
+    },
+    {
+      "source": "docs/guide/README.md",
+      "snapshot": "docs/archive/guides/v0.41/README.md",
+      "source_sha256": "7763e42cd3522016ea0c965ff7cb596c7fa8d162fff072d6ebebf8814ea384d5",
+      "snapshot_sha256": "c2c937169bd7bfd34d2e675a8fba30ed0e7f55fb92ab5e473d8bc4e40a6941ce",
+      "transformation": "relative Markdown links only"
+    }
+  ]
+}

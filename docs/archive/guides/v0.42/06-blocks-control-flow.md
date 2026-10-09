@@ -113,7 +113,7 @@ block 并要求 EOF；函数 block body 由本节完整 `standalone_declaration`
 
 ### Statement AST、Body 表示与 `Span`
 
-statement table 与函数 body 的封闭表示见[Statement AST 工程合同](../compiler-specs/parser-ast.md#statement-table-与函数-body)；
+statement table 与函数 body 的封闭表示见[Statement AST 工程合同](../../../compiler-specs/parser-ast.md#statement-table-与函数-body)；
 以下源码范围规则保持适用。
 
 | 节点 | 合成范围 |
@@ -169,7 +169,7 @@ delimiter，并至少增加下列稳定错误类别；具体 `L` 码和固定消
   遗留 token 随后按允许的最大合法 element 规则解析；可能产生的独立错误
   必须各有真实根因，不能为同一未消费 token 重复发诊断。
 - 每次循环要么消费至少一个 raw lexeme，要么在 `}` / EOF 结束；诊断顺序按源码位置稳定。
-  扫描次数与资源边界见[Block dispatch 工程合同](../compiler-specs/parser-algorithms.md#block-dispatch-资源约束)。
+  扫描次数与资源边界见[Block dispatch 工程合同](../../../compiler-specs/parser-algorithms.md#block-dispatch-资源约束)。
 
 缺 block `}` 复用 expected closing delimiter；Lexer 已诊断的未终止 owner 根因继续按[词法规则](01-lexical.md)
 抑制同义 closer 诊断。独立 block 后仍有 token 复用 unexpected trailing token。跨顶层声明、

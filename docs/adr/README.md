@@ -17,6 +17,8 @@
 
 [0028 前端泛型body类型归一化](accepted/0028-frontend-generic-body-type-normalization.md)已按站立授权及独立准备审阅接受；实施/验收由0276维护。
 
+[0029 普通借用结果延续](accepted/0029-ordinary-borrow-result-continuation.md)按 2026-10-07 用户明确批准接受，局部扩展 0016；实施/验收由 0288 维护。
+
 ## Proposed
 
 [0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为

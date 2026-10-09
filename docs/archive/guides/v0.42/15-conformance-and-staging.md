@@ -89,16 +89,16 @@ comma 的新接受形式，既有 TypeRef list 恢复继续适用。所有路径
 
 跨 Phase 功能只实施依赖完备且获授权的部分。保留关键字或候选设计不等于授权提前实现；v2 动态分发与 Shareable、v3 协程、v4+ 自举及未排期语义均不属于 v0.42。
 
-具体测试选择与并行方式见 [测试与分层验收](../development/testing.md)；上表规定阶段产物，
+具体测试选择与并行方式见 [测试与分层验收](../../../development/testing.md)；上表规定阶段产物，
 不要求每个实施切片重复执行全量测试。
 
 ## v0.40 迁移与未完成边界
 
 本版本在真实 v0.39（已含 String.clone、Parser 澄清及 Compiler Contracts 分离）的本地
 整合基线上启用以下三项已批准规则。完整前版已归档，来源与机械变换见
-[迁移账本](../archive/migrations/v0.40-enablement.md)。规范启用本身不构成main合并、PR CI
-或编译阶段验收的证明；当前实现和已有交付分别见[Guide覆盖账本](../architecture/guide-conformance.md)
-与[演进实施账本](../specs/evolution-status.md)，不以迁移时快照推断今日完成状态。
+[迁移账本](../../migrations/v0.40-enablement.md)。规范启用本身不构成main合并、PR CI
+或编译阶段验收的证明；当前实现和已有交付分别见[Guide覆盖账本](../../../architecture/guide-conformance.md)
+与[演进实施账本](../../../specs/evolution-status.md)，不以迁移时快照推断今日完成状态。
 
 | 受影响位置 | 迁移与权威入口 |
 |---|---|
@@ -141,7 +141,7 @@ loan branch ADR，不能交给 owner-only `NullableBranch`；这不反向否定�
 scalar/value/enum/String/顺序容器等 inline/tagged nullable 需要独立 SSA/LLVM ABI ADR 与后继 Spec；
 Elvis、safe call、`as?`、nullable function value、条件借用结果和跨 nullable 的 place-return
 也继续延后。普通确定借用 nullable 存储与条件借用结果不同；v0.42 的普通结果合同见
-[§28](10-ownership-borrowing-drop.md)，阶段接线依照 [ADR-0029](../adr/accepted/0029-ordinary-borrow-result-continuation.md)。
+[§28](10-ownership-borrowing-drop.md)，阶段接线依照 [ADR-0029](../../../adr/accepted/0029-ordinary-borrow-result-continuation.md)。
 这些规定不允许后端凭表示猜测接线。
 
 顺序迭代的 typed/ownership 与首轮 native source 边界见[§37.4](12-collections-destructuring.md#374-irphase-交接与非目标)；规范启用不表示阶段实现已完成。
@@ -396,5 +396,5 @@ fun main(): Unit {
 
 本版本完整继承 v0.40，仅按用户明确决定澄清 expected move literal 合同；规则真源为
 [类型与泛型](03-types-generics.md#expected-typelocal-与-lambda)，不新增 named Function 转换。
-[迁移账本](../archive/migrations/v0.41-enablement.md)保全启用记录与旧版快照。
+[迁移账本](../../migrations/v0.41-enablement.md)保全启用记录与旧版快照。
 前端接受性、capture/loan/drop 与 SSA/LLVM/native 仍需分别验收；规范启用不是实现完成。

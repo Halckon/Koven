@@ -1,8 +1,8 @@
-# Koven v0.42：所有权、借用与析构
+# Koven v0.41：所有权、借用与析构
 
-> **性质**：规范性语言规范 · **状态**：current（v0.42） · **读取时机**：实现或评审 loan、move、place、drop 与 Transferable 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.41） · **读取时机**：实现或评审 loan、move、place、drop 与 Transferable 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.42 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.41 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## `Transferable`
 
@@ -37,7 +37,7 @@
 
 ### 所有者、参数绑定与调用期 Loan
 
-v1 有 owned value、调用期 loan 与下节的受限普通借用结果，不引入可存储的引用类型或生命周期参数。
+v1 只有 owned value 和调用期 loan，不引入引用类型、生命周期参数或可存储的 borrow value。
 局部变量、临时值和声明端 `own` 所映射的 `Value` 参数在其值为 `MoveOnly` 时拥有唯一析构
 义务；无标记或显式 `borrow` 的 `Borrow` 参数以及 `Inout`
 参数只是调用者 place 的非 owning 绑定，由调用者保持 owner，callee 退出时不得析构它们。
@@ -50,14 +50,13 @@ v1 有 owned value、调用期 loan 与下节的受限普通借用结果，不�
    声明端 `own` 的 `Value` 对 `Copyable` 产生 owned copy、对 `MoveOnly` 转移 owner；
    `Borrow` 建立 shared loan；
    `Inout` 建立 exclusive loan。因而较早实参的 loan 在较晚实参及其嵌套调用求值期间已经有效。
-3. 交付本次 callee 的所有成功建立的 loan 持续到该 callee 返回；没有结果延续的 loan 返回后结束。
-   普通借用结果的唯一来源按下节延续，不能与其他实参 loan 一起结束。`Borrow temporary` 合法，
+3. 交付本次 callee 的所有成功建立的 loan 持续到该 callee 返回；返回后同时结束。`Borrow temporary` 合法，
    temporary owner 延长到调用返回后再按本节析构。`Inout temporary` 继续非法。
 4. operand 或 callee 产生 `Nothing` 时，不求值其后的 argument，也不为未求值 argument 建立
    loan。`error()` 是 abort，不做异常展开或沿栈析构。
 
-普通调用期 loan 不因 callee 内的最后一次访问提前结束。普通借用结果的受限 last-use 必须
-有独立、可验证的延续与终止事实，不能以 owned ASAP 推定；本规则不启用完整 NLL。
+这不是 NLL：loan 不因 callee 内或调用者表达式中的“最后一次实际访问”提前结束，也不跨越
+本次同步调用存储、返回或挂起。调用期 loan 是所有权检查产物，不成为源码可命名的值。
 
 ### Two-Phase Borrows（方法接收者两阶段借用）
 
@@ -90,46 +89,13 @@ v1 有 owned value、调用期 loan 与下节的受限普通借用结果，不�
   reborrow 和以完整新 `T` 替换原值；替换必须先求值 RHS，再析构旧值并提交新值。它不允许
   把 `MoveOnly` 值移出后留下未初始化的调用者 place。
 - 从 `Borrow` / `Inout` 参数返回或赋给 owned 目标时，只在 `T : Copyable` 时产生 owned copy；
-  `MoveOnly` 情况属于非法移出，而不是借用逃逸。显式普通借用返回按下节交付 shared loan，
-  不按 owned 目标消费该值。
+  `MoveOnly` 情况属于非法移出，而不是借用逃逸。v1 没有 borrow-return 类型。
 - nested reborrow 不得超过 nested call；callee 返回时原 `Inout` place 必须仍为一个完整、
   已初始化且由调用者拥有的 `T`。
 
 闭包捕获会产生超出单次普通调用的环境 owner，仍由 closure capture 与 Transferable 规则封闭；
 本节不借“调用期 loan”提前接受或拒绝捕获。instance member receiver 使用
 [class-family 与成员规则](08-class-family-members.md)的显式/缺省 mode，并复用本节的 loan 能力。
-
-### 普通借用结果与显式局部绑定
-
-具名函数可声明 `fun view(borrow source: T): borrow U from source`；实例函数可写
-`: borrow U from this`。`from` 必须明确唯一的非 owning 参数或 receiver 来源；
-结果必须是其稳定 place、只读投影或已验证的普通借用调用延续，不得来自局部 owner、
-temporary、`own` 参数或另一个来源。`Inout` 来源可交付只读 shared reborrow，不能交付
-inout 返回；父权限在结果及全部子 loan 结束前保持受限。包装函数同样验证实际来源，
-不能靠声明文字冒充 origin。泛型 `T`/`U` 表示被借用对象的类型，不是可存储借用类型。
-
-普通借用结果必须在每条正常返回路径交付确定、有效的 shared loan；它不是条件借用。
-被借用的既有存储可以是 nullable：此时 loan 本身仍确定存在，payload 可以为 null。
-不引入 `(borrow T)?`、`borrow?`、条件绑定或 maybe 语法，不允许条件借用作为值或泛型实参。
-未来条件访问优先作为成功分支绑定／失败即退出的受限控制流结果，另行批准后实施。
-
-局部必须显式写 `borrow val item: U = view(source)`（标注可省略）。initializer 也可为
-稳定只读 place；绑定不取得 owner、不产生 payload drop，保留真实 origin/loan identity。
-普通 `val` 不直接绑定借用调用结果；禁止 `borrow var`、inout 局部、字段/集合/全局存储借用。
-借用结果可同步交付 Borrow 参数，或由同一 `from` 的普通借用函数包装转发；不能交付
-own/Inout 参数、owned 返回或逃逸闭包。`Copyable` 的显式借用绑定读取仍可产生普通 owned copy。
-
-caller 在 call 返回时结束无关实参 loan，并延续唯一来源及结果 loan；最后使用后的显式
-终止边或局部作用域退出先结束结果/子 loan，再恢复父权限，最后按双轨 drop 规则清理 owner。
-任何存活结果都阻止重叠 owner 的 move、drop、变异及 exclusive 借用。
-受限 last-use 只在全部别名、投影和子 loan 的未来使用可证明时结束；不将完整 CFG/NLL
-作为已实现前提，复杂尚未支持路径用结构化诊断拒绝，不能猜测来源或提前结束 loan。
-
-| 诊断 | 合同 |
-|---|---|
-| L0162 | 普通借用声明／绑定或唯一 from 来源不合法；primary 指向相关 marker，label 指向来源声明 |
-| L0163 | 借用结果试图成为 owned 值、存储或逃逸；primary 指向交付/捕获位置，label 指向结果来源 |
-| L0164 | 受限借用路径尚无完整 origin/终止证明；primary 指向未支持的控制流或表达式 |
 
 ### 原地置换原子原语：replace 与 swap
 
@@ -226,8 +192,7 @@ drop facts；Phase 4 消费这些事实生成 drop/free，不得重新猜测生�
   延迟到最近共同安全边界，不能提前析构。合流后的未来使用若可从已移动路径到达，仍产生
   L0131，而不是通过在其他路径插入 copy 修复。
 - loop backedge 上仍可能在后续迭代使用的 owner 保持 live；只有离开 loop 的边或可证明不再
-  回到使用点的路径可以析构。v1 不做完整跨闭包或依赖运行时索引的 NLL 证明；
-  普通借用的跨调用延续由上节独立证明，不由本节 owned liveness 推导。
+  回到使用点的路径可以析构。v1 不做跨调用、跨闭包或依赖运行时索引的 NLL 证明。
 
 任何有效 loan 都把对应 owner 视为 live；drop 与 loan 冲突必须先报告借用错误，不能通过
 提前结束 loan 或静默延后到不可复核的位置“修复”源码。程序已有所有权错误时可以保留用于
@@ -248,6 +213,6 @@ loan end 与 drop facts，并保留 owner/place identity、loan kind 和来源 `
 
 本节定义 call argument/receiver loan、参数体内 reborrow 与 owned-value drop point。index element
 place、closure capture 和 receiver 都必须发布各自稳定 identity 后再复用这些规则。借用返回、用户
-生命周期语法、可存储借用、条件借用、完整 NLL 和普通字段部分移动不进入 v1；本节不新增 LLVM 类型。
+生命周期语法、跨调用 loan、完整 NLL 和普通字段部分移动不进入 v1；本节不新增 LLVM 类型。
 
 ---

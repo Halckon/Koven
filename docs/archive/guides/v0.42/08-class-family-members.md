@@ -263,7 +263,7 @@ exclusive access。手写 override、default 与多 delegate 冲突仍沿用
 Parser/AST 保存 receiver marker；类型检查发布规范化 receiver contract、`this`/member call 与
 Borrow-only delegate forwarder facts；所有权检查据此建立 receiver loan/move/drop、字段冲突与
 capture facts；lowering 使用既有 Value ABI 或
-[Borrow/Inout pointer ABI](../adr/accepted/0016-interprocedural-borrow-abi.md)，不得在后端重新推导契约。
+[Borrow/Inout pointer ABI](../../../adr/accepted/0016-interprocedural-borrow-abi.md)，不得在后端重新推导契约。
 
 本节不定义 callable reference/绑定 method value、extension method、safe call、borrow-return、
 动态 interface value、反射或 vtable，也不授权尚未启用的迭代设计。具体集合、IO、thread API

@@ -1,8 +1,8 @@
-# Koven v0.42：集合、索引与解构
+# Koven v0.41：集合、索引与解构
 
-> **性质**：规范性语言规范 · **状态**：current（v0.42） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.41） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
 
-本页是现行 Koven v0.42 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.41 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 顺序容器的表示与索引语义
 
@@ -204,15 +204,7 @@ v1 不提供顺序容器 `getOrNull`。当前类型系统既不能用普通 `T?`
 3. **查询语义与借用访问 (对齐 M2B 合同)**：
    - 下标查询 `map[key]` 自动按 `Borrow` 模式借用 `key`，不消费调用者的键；
    - 当 `V` 满足 `Copyable` 时，返回复制的 `V?`（若键不存在则返回 `null`）；
-   - `get(key)` 与下标始终是 Copyable 按值查询，不随 `V` 的能力静默改成借用；MoveOnly V 拒绝此按值形式；
-   - `requireValue(key): borrow V from this` 对所有可存储 V 使用同一个确定只读借用合同；
-     key 自动 Borrow，缺失按既定 `error()`/Abort 机制终止，存在时交付真实槽位 loan，不 clone/retain；
-   - `withValue(key, action: (borrow V) -> Unit): Boolean` 只在存在时同步调用 action 一次并返回 true，
-     缺失时不调用并返回 false。callback 不得存储、返回或捕获条目 loan 使其逃逸；callback 期间
-     重叠 Map 移动、清理、修改及 exclusive 借用均冲突，正常返回／callback 局部退出后恢复权限；
-   - `Map<K,V?>` 允许 nullable 存储。`withValue` 的 false 是 Missing，true 时 action 可读取 null
-     payload；`requireValue` 同样借用确定存在的 nullable 槽位。旧按值 nullable 查询不能表达三态，
-     对 nullable V 不以扁平 null 代替缺失，须使用上述控制流接口；
+   - 当 `V` 为 `MoveOnly` 时，按值下标查询在 Phase 2 拒绝（防止非法移出容器内部值），须采用声明端 `borrow V from map` 的借用查询合同（对齐 M2B 方案 A 通用借用访问）；
    - 包含性检查：`key in map` 或 `map.contains(key)` 返回 `Boolean`。
 4. **修改语义**：
    - `mutableMap.put(key, value)`：取得 `key` 与 `value` 的所有权（`own` 契约）；若覆盖旧条目，旧键与旧值各自就地精确析构一次；

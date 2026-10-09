@@ -20,3 +20,5 @@ Archive 不参与现行语言语义、实现授权或默认 Agent 路由。历�
 - [v0.40 真实前版快照与启用账本](migrations/v0.40-enablement.md)
 - [v0.38 Parser 工程合同迁移账本](migrations/v0.38-parser-compiler-contracts.md)
 - [v0.40 合入上游 PR #6 的协调来源](migrations/v0.40-upstream-pr6-reconciliation.md)
+
+- [v0.42 普通借用结果启用账本](migrations/v0.42-enablement.md)

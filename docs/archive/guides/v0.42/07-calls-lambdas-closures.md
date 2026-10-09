@@ -248,7 +248,7 @@ trivia token 起严格匹配完整前缀 `[ Identifier { "," Identifier } ] "->"
 成功才提交。任一 token 不匹配就以零状态失败，并从 `{` 后按零参数 body 解析，不得继续搜索
 后方任意顶层 `->`。因此 `{ source as () -> Int }` 中函数类型的箭头绝不会反向把 `source as ()`
 误判为 lambda 参数，`{ x y -> z }` 也不是可恢复 header，而是带非法 body token 的零参数
-lambda。严格前缀的 DFA 与共享索引见[Parser 工程合同](../compiler-specs/parser-algorithms.md#lambda-header-试探-dfa)。
+lambda。严格前缀的 DFA 与共享索引见[Parser 工程合同](../../../compiler-specs/parser-algorithms.md#lambda-header-试探-dfa)。
 
 Body 复用[block 与控制流规则](06-blocks-control-flow.md)的三种 element 和最大 element / 显式 stop 规则，但使用独立 lambda-body
 payload，不能复用静态类型固定为 `Unit` 的 `Statement::Block`。若最后一个 element 是
@@ -279,7 +279,7 @@ lambda body 在最大 expression 已完整、没有子语法等待 token，且 d
 或其他 nested owner 内的 `,` / `->` 不受影响，因此 `{ source as () -> Int }` 仍是单个完整
 尾表达式。
 
-Lambda payload 与 header 状态见[Lambda AST 工程合同](../compiler-specs/parser-ast.md#lambda-payload-字段)。
+Lambda payload 与 header 状态见[Lambda AST 工程合同](../../../compiler-specs/parser-ast.md#lambda-payload-字段)。
 完整 lambda Span 从真实 `move`（若存在）
 或 `{` 起至匹配 `}` 终；缺 `}` 时止于最后实际消费位置。由于 header 只在严格完整匹配后
 提交，参数均为真实 Identifier，不存在 missing / error 参数 marker；header Span 从首参数
@@ -298,7 +298,7 @@ form；普通 token 每次精确消费一个，`const val` 可消费固定前缀
 最内层 lambda / block，不能越过未闭合 lambda 交给父 block；只有局部栈顶为 `)`、`]` 等异形
 frame 时，调用方 `}` 才作为 hard closer 被保留。
 
-Header 的预索引与查询复杂度见[共享预索引合同](../compiler-specs/parser-algorithms.md#lambda-header-共享预索引)。
+Header 的预索引与查询复杂度见[共享预索引合同](../../../compiler-specs/parser-algorithms.md#lambda-header-共享预索引)。
 
 缺 lambda `}` 时，正式 parser 在最早的
 调用方 hard stop 停止，即使预索引的词法范围延伸得更远也不得越界。每轮要么消费 lexeme，

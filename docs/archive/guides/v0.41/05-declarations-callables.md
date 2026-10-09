@@ -1,8 +1,8 @@
-# Koven v0.42：声明与 Callable
+# Koven v0.41：声明与 Callable
 
-> **性质**：规范性语言规范 · **状态**：current（v0.42） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.41） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
 
-本页是现行 Koven v0.42 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.41 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Callable 与函数值
 
@@ -67,7 +67,7 @@ string / interpolation poison 若没有真实 `:`，不得被猜成显式返回�
 Lexer 根因，不在同一 `Span` 追加 expected explicit return type 或 trailing-token 诊断。
 terminal Lexer 根因抵达 EOF 时同样提交 `ImplicitUnitAbsent`，不得派生 Parser 诊断。
 
-返回来源与 body 的封闭表示见[函数 AST 工程合同](../compiler-specs/parser-ast.md#函数返回来源与-body-封闭表示)。
+返回来源与 body 的封闭表示见[函数 AST 工程合同](../../../compiler-specs/parser-ast.md#函数返回来源与-body-封闭表示)。
 
 两个 implicit variant 都不拥有虚构 TypeRef 或 `:` Span；Phase 2 把它们解析为内建 `Unit`。
 显式 `: Unit` 保持 `Explicit`，以便工具和诊断忠实反映源码。`FunctionBody` 只嵌在显式分支，
@@ -95,10 +95,8 @@ type_annotation      = ":", type_ref ;
 function_declaration = "fun", [ type_parameter_list ], Identifier,
                        "(", [ value_parameter,
                                { ",", value_parameter } ], ")",
-                       [ ":", ( type_ref | borrow_return ) ],
+                       [ ":", type_ref ],
                        [ "=", expression | block ] ;
-borrow_return       = "borrow", type_ref, "from", ( Identifier | "this" ) ;
-local_borrow        = "borrow", "val", Identifier, [ type_annotation ], "=", expression ;
 
 value_parameter = [ parameter_mode ], Identifier, ":", type_ref ;
 parameter_mode = "own" | "borrow" | "inout" ;
@@ -110,9 +108,6 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
 
 若函数使用 `= expression`，返回类型标注必须存在；无体或 block body 函数可省略标注，省略时
 精确返回 `Unit`。这些形态共用上面唯一一套 `function_declaration`，不另设历史兼容产生式。
-`borrow_return` 仅属于具名函数的显式结果契约；`local_borrow` 仅属于 block/lambda 的局部声明。
-二者不成为 `type_ref` 的新一等类型，不接受条件 marker 或 inout 结果／局部。
-唯一来源、非逃逸及权限恢复由[普通借用结果合同](10-ownership-borrowing-drop.md#普通借用结果与显式局部绑定)定义。
 
 ### 声明形态与分阶段边界
 
@@ -158,7 +153,7 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
 
 ### 声明 AST 与 `Span`
 
-索引式 declaration root 与节点引用见[声明 AST 工程合同](../compiler-specs/parser-ast.md#声明-root-与索引引用)。
+索引式 declaration root 与节点引用见[声明 AST 工程合同](../../../compiler-specs/parser-ast.md#声明-root-与索引引用)。
 
 `ValueParameter` 唯一增加 `mode_marker: Option<ParameterModeMarker>`；使用与函数类型参数
 相同的封闭 marker（`Own` / `Borrow` / `Inout` 三项），不增加新的参数 AST table。marker
@@ -262,7 +257,7 @@ default、initializer 缺 `=` 的兜底、返回类型分隔符兜底及独立�
   `L0004` 结束，扫描随后仍处于它的父 interpolation / string；因此后续逗号或 `)` 只有等到
   所有剩余 owner 正常或终止退出后才可能成为声明 stop。EOF 处已有 `L0004`–`L0006` 根因时
   继续沿用[词法规则](01-lexical.md)的 closer 诊断抑制，不另造 parser 级联。
-- 恢复的扫描、terminal event 索引与复杂度见[声明恢复资源合同](../compiler-specs/parser-algorithms.md#声明恢复资源约束)。
+- 恢复的扫描、terminal event 索引与复杂度见[声明恢复资源合同](../../../compiler-specs/parser-algorithms.md#声明恢复资源约束)。
   lexeme / terminal-owner 关系若违反已验证不变量，
   属于 Parser 内部错误，不得降级为用户语法诊断。
 
