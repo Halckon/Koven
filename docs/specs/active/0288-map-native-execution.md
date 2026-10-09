@@ -767,7 +767,7 @@ ASan/LSan 未运行边界不变。
 - [x] G2: 单文件与多文件编译单元成功将 `mapOf()`、`mutableMapOf()`、`m.size`、`m.contains(k)`、`mm.put(k, v)`、`mm[k] = v`、`mm.remove(k)` lower 为 typed SSA（保留旧 get/remove 对 nullable V 的结构化拒绝边界），见 §2.9。
 - [x] G3: LLVM IR 生成开地址哈希表，正确处理标量（`Int`, `Boolean`, `Char`）与 `String` 键的哈希和比较（Char 通过现行常量物化路径）。
 - [x] G4: 哈希表支持动态扩容、哈希冲突线性探测与墓碑复用（正常 native 定向已覆盖；最终过滤全库结果见验收账本）。
-- [ ] G5: Map 作用域退出与条目覆盖/删除实现精确析构，通过 ASan/LSan 零泄漏检验。
+- [x] G5: Map 作用域退出与条目覆盖/删除实现精确析构，通过 ASan/LSan 零泄漏检验（远端证据见 §7.1）。
 - [x] G6: 最新冻结片 Rust 尺寸与文档门禁通过（965 Rust / 41 历史超限，581 Markdown）；本片记录见 §2.13，旧片记录与历史欠账保留。
 
 ## 6. 验证记录
