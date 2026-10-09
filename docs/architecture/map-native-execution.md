@@ -1,6 +1,6 @@
 # Map 原生执行当前边界
 
-> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 Map 的类型、所有权、SSA 或 LLVM 时 · **唯一真源**：代码与测试；交付账本见 [SPEC0288](../specs/active/0288-map-native-execution.md)
+> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 Map 的类型、所有权、SSA 或 LLVM 时 · **唯一真源**：代码与测试；交付账本见 [SPEC0288](../archive/specs/0288-map-native-execution.md)
 
 Map 的实现按具体 K/V 实例建立布局，不以 `Map<String, Int>` 特例承载其他类型。
 单文件与编译单元都消费 typed Map 描述符。签名及表达式入口均检查键的 Hashable 能力和
@@ -153,7 +153,7 @@ Resource wrapper。现行 pointer-like nullable 的 owned null 比较复用 Null
 该 storage 的 pointer bits 并比较 null，不创建 payload owner、复制、retain 或 unwrap。
 该接线只处理已发布 NullComparisonDescriptor 的存在性比较，不开放借用 payload 的通用
 窄化 view 或 `!!`。实际三态 callback native 和原 unit 比较源码均有回归；验收状态见
-[SPEC0288](../specs/active/0288-map-native-execution.md)。
+[SPEC0288](../archive/specs/0288-map-native-execution.md)。
 
 ## 哈希表与执行证据
 

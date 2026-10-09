@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 274 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 275 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -411,6 +411,8 @@
  
 - [SPEC-0286](0286-unit-local-destructuring.md)：编译单元局部解构 SSA Lowering 与原生执行；消除 compilation unit 下对 `Statement::LocalDestructuring` 的 `UnsupportedNode` 限制，消费 `UnitDestructuringDescriptor`，分别发射 `AggregateCopyExplode` 与 `AggregateExplode`，完整支持 Copyable 与 MoveOnly 资源的解构、变量绑定与零泄漏生命周期析构验证。
  
+- [SPEC-0288](0288-map-native-execution.md)：Map 键值容器原生执行基础；交付 typed SSA 的 Map 原语、LLVM 开地址哈希表与 native runtime，覆盖单文件与编译单元的 native 执行、普通借用结果、nullable Map 提升，并以 Linux ASan/LSan 的 Map 夹具（PR #69）闭合 G5。
+
 - [SPEC-0287](0287-m2b-and-map-type-system.md)：M2B 通用借用合同冻结与 Map 键值容器类型系统基础；在 Guide v0.41 §12 启用 Map/MutableMap 规范并冻结 M2B 方案 A 借用合同，实现 Hashable capability、双类型实参 IntrinsicTypeConstructor、mapOf/mutableMapOf 工厂函数与单文件/编译单元 Map 类型系统检查（size/get/contains/put/remove 与下标读写脱糖），通过全套类型与 MoveOnly 借用保护门禁。
 
 

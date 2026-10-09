@@ -1,10 +1,10 @@
 # SPEC-0288: Map 键值容器原生执行基础（SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或评审 Map 容器 SSA 原语、LLVM 代码生成与原生哈希表运行时时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或评审 Map 容器 SSA 原语、LLVM 代码生成与原生哈希表运行时时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0288` |
 | 所属 Phase | Phase 1 普通借用语法；Phase 2 类型与来源合同；Phase 3 所有权延续与终止；Phase 4 typed SSA；Phase 5 LLVM；Phase 6 native 集成 |
 | 语言规范 | 现行 [Guide v0.42](../../guide/README.md)；[集合、索引与解构](../../guide/12-collections-destructuring.md) |
@@ -1007,3 +1007,24 @@ SPEC-0289 规格、ADR-0030 与 v0.43 迁移账本未进入本分支，继续在
 G5 因此保持未闭合：Map 作用域退出与条目覆盖/删除的 ASan/LSan 零泄漏尚无专属远端证据；Map 的
 精确释放仅由计数型原生测试覆盖。在补入 Map 专属 sanitizer 夹具并通过远端 CI 前，本 Spec 保持
 in-progress，不归档，PR #69 保持 Draft，不合并。
+
+### 7.1 G5 远端证据（2026-10-09）
+
+Map 专属 sanitizer 夹具由 `b37226b5` 引入（作者 zengxj），随后仅改写作者为 halckon 得到
+`50b29b59`，文件内容不变（`native_sanitizer_tests.rs` +147、`check_native_sanitizers.py` +33/-2）。
+夹具覆盖覆盖写、40 次 put/remove 的扩容与墓碑复用、owned remove，以及作用域退出时仍存活的
+Int 键 value class 与 String 键条目；未运行时的 stdout 合同为 `done`，且 stderr 为空。
+
+| 证据 | 结果 |
+|---|---|
+| PR #69 pull_request run `37946407889`，headSha `50b29b59` | 15 个 job 全部 success，`CI Passed` 通过 |
+| `Targeted Tests (ubuntu-24.04)` | success；其中 `check_native_sanitizers.py --linux` 的 `check_map` 对 Map 程序执行 ASan 构建与 LSan 构建，要求无 sanitizer report |
+| `Targeted Tests (macos-14)` | success；macOS 的 address/leak 合同保持原 skipped_reasons，不把 macOS 当作 ASan/LSan 通过证据 |
+| `Workspace Check & Clippy`（ubuntu/macos） | success |
+| push run `37946402414`，headSha `50b29b59` | success；其 Targeted Tests 为 skipped，本账本的 Map 证据只取自 pull_request run |
+
+据此 G5 勾选，§5 全部验收项已勾选。§2 历史记录中的 `acceptance.status=partial`、
+`requirements_met=false` 与 Mac 合同未被改写。
+
+用户于 2026-10-09 授权合并。本 Spec 随 PR #69 归档为 done，位置迁入 `docs/archive/specs/`；
+`scripts/check_docs.py` inventory、两个 README 与依赖图同步；合并前 head 的 CI 需全绿。

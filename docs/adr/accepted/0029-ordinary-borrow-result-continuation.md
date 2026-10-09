@@ -45,7 +45,7 @@ Map 的已有按值 Copyable 查询和 owned remove 不复用此 Shared Loan 结
 验收同时检查前端诊断/Span、SSA origin/continuation/终止证明与正常 native 行为，
 包括错误来源、owner 移动/变异、嵌套包装、闭包逃逸、callback 退出后恢复权限及 nullable V。
 故障 IR 校准/注入不属于本次授权，不执行也不由聚合脚本间接触发。
-实施和实际结果由 [SPEC-0288](../../specs/active/0288-map-native-execution.md)记录。
+实施和实际结果由 [SPEC-0288](../../archive/specs/0288-map-native-execution.md)记录。
 
 取代关系：局部扩展 ADR-0016 的“所有返回 owned、所有 call loan 返回即结束”部分；
 其参数及同步借用 ABI 决策继续生效。当前 accepted 不表示实现已经完成。

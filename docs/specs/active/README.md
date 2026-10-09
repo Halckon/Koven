@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [0288-map-native-execution.md](0288-map-native-execution.md)：Map 键值容器原生执行基础（SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）
+0288（Map 键值容器原生执行基础：SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）已按双宿主 CI 与 Linux ASan/LSan Map 证据验收归档至 `docs/archive/specs/0288-map-native-execution.md` 并通过 PR #69 合入 main。
 
 0287（M2B 通用借用合同冻结与 Map 键值容器类型系统基础）已按前端类型系统与规范验收归档至 `docs/archive/specs/0287-m2b-and-map-type-system.md`。
 
