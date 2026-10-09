@@ -1,5 +1,6 @@
 //! Phase 3 变量所有权状态与 use-after-move 检查。
 
+mod borrow_result;
 mod callable_provenance;
 mod capture;
 mod checker;
@@ -23,6 +24,7 @@ use crate::{
     type_checking::TypedFile,
 };
 
+pub use borrow_result::BorrowReturnOriginFact;
 pub use callable_provenance::{
     CallableOrigin, CallableOriginFact, PointerCallableReturnOrigin, PointerCallableReturnSummary,
     UnitCallableOrigin, UnitCallableOriginFact, UnitPointerCallableReturnOrigin,
