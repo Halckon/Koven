@@ -1,4 +1,5 @@
 mod block;
+mod borrow_result;
 mod boundary;
 mod class;
 mod core;
@@ -33,15 +34,16 @@ use std::cell::Cell;
 use super::lambda_trial::{LambdaHeaderIndex, LambdaHeaderTrial};
 use super::trial::{CallTrial, StrictCallTrialIndex};
 use super::{
-    AssignmentOperator, BinaryOperator, CallArgument, CastOperator, ClassField, ClassifierBody,
-    ClassifierDeclaration, ClassifierKind, CompanionObject, DeclarationModifiers, DelegationClause,
-    EnumVariant, EnumVariantParameter, Expression, ExpressionAst, FloatLiteralKind, ForBinding,
-    FunctionBody, FunctionForm, FunctionTypeParameter, ImportAlias, ImportDirective,
-    IntegerLiteralKind, Item, LiteralKind, MAX_RECURSION_DEPTH, NameMarker, NamedArgumentPrefix,
-    PackageDirective, ParameterModeMarker, ParsedBlock, ParsedDeclaration, ParsedExpression,
-    ParsedFile, ParserInternalError, PrefixOperator, PrimaryConstructor, QualifiedNameSegment,
-    Statement, StringPart, SupertypeEntry, TypeParameter, TypePathSegment, TypeRef, ValueParameter,
-    VariableKind, VisibilityModifier, WhenCondition, WhenEntry,
+    AssignmentOperator, BinaryOperator, BorrowReturnSource, BorrowReturnSyntax, CallArgument,
+    CastOperator, ClassField, ClassifierBody, ClassifierDeclaration, ClassifierKind,
+    CompanionObject, DeclarationModifiers, DelegationClause, EnumVariant, EnumVariantParameter,
+    Expression, ExpressionAst, FloatLiteralKind, ForBinding, FunctionBody, FunctionForm,
+    FunctionTypeParameter, ImportAlias, ImportDirective, IntegerLiteralKind, Item, LiteralKind,
+    MAX_RECURSION_DEPTH, NameMarker, NamedArgumentPrefix, PackageDirective, ParameterModeMarker,
+    ParsedBlock, ParsedDeclaration, ParsedExpression, ParsedFile, ParserInternalError,
+    PrefixOperator, PrimaryConstructor, QualifiedNameSegment, Statement, StringPart,
+    SupertypeEntry, TypeParameter, TypePathSegment, TypeRef, ValueParameter, VariableKind,
+    VisibilityModifier, WhenCondition, WhenEntry,
 };
 
 const PREC_ASSIGNMENT: u8 = 1;

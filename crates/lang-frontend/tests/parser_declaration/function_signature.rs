@@ -28,6 +28,7 @@ fn function_payload_preserves_generic_signature_and_optional_body() {
     let FunctionForm::Explicit {
         colon_span,
         type_ref: return_type,
+        borrow_return: None,
         body,
     } = form
     else {
@@ -82,6 +83,7 @@ fn missing_return_colon_fallback_preserves_the_expression_body() {
             FunctionForm::Explicit {
                 colon_span,
                 type_ref: return_type,
+                borrow_return: None,
                 body,
             },
         ..

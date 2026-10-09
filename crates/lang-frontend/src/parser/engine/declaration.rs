@@ -147,12 +147,13 @@ impl Parser<'_> {
     ) -> Result<(FunctionForm, usize), ParserInternalError> {
         if self.current_is_symbol(Symbol::Colon) {
             let colon_span = self.bump()?.span();
-            let type_ref = self.parse_type_ref(
-                TypeStops::from_expression(declaration_stops)
-                    .with(TypeStops::EQUAL)
-                    .with(TypeStops::LEFT_BRACE),
-            )?;
-            return self.finish_explicit_function_form(colon_span, type_ref, declaration_stops);
+            let (type_ref, borrow_return) = self.parse_explicit_result(declaration_stops)?;
+            return self.finish_explicit_function_form(
+                colon_span,
+                type_ref,
+                borrow_return,
+                declaration_stops,
+            );
         }
 
         if self.current_is_symbol(Symbol::Equal) {
@@ -163,7 +164,12 @@ impl Parser<'_> {
                 insertion,
             )?;
             let type_ref = self.add_type_ref(insertion, TypeRef::Error)?;
-            return self.finish_explicit_function_form(insertion, type_ref, declaration_stops);
+            return self.finish_explicit_function_form(
+                insertion,
+                type_ref,
+                None,
+                declaration_stops,
+            );
         }
 
         if self.current_is_symbol(Symbol::LeftBrace) {
@@ -185,7 +191,12 @@ impl Parser<'_> {
                     .with(TypeStops::EQUAL)
                     .with(TypeStops::LEFT_BRACE),
             )?;
-            return self.finish_explicit_function_form(colon_span, type_ref, declaration_stops);
+            return self.finish_explicit_function_form(
+                colon_span,
+                type_ref,
+                None,
+                declaration_stops,
+            );
         }
 
         Ok((FunctionForm::ImplicitUnitAbsent, parameter_end))
@@ -195,6 +206,7 @@ impl Parser<'_> {
         &mut self,
         colon_span: Span,
         type_ref: TypeRefId,
+        borrow_return: Option<BorrowReturnSyntax>,
         declaration_stops: Stops,
     ) -> Result<(FunctionForm, usize), ParserInternalError> {
         let body = if self.current_is_symbol(Symbol::Equal) {
@@ -218,6 +230,7 @@ impl Parser<'_> {
             FunctionForm::Explicit {
                 colon_span,
                 type_ref,
+                borrow_return,
                 body,
             },
             end,

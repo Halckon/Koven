@@ -38,7 +38,7 @@ impl Checker<'_> {
                     let mut parameter_symbols = Vec::with_capacity(parameters.len());
                     let mut has_error = false;
                     let mut has_deferred = false;
-                    for parameter in parameters {
+                    for parameter in &parameters {
                         let ty = self.resolve_type_ref(parameter.type_ref)?;
                         let mode = source_parameter_mode(parameter.mode_marker);
                         has_error |= self.is_error(ty);
@@ -120,6 +120,24 @@ impl Checker<'_> {
                                 "object instance member receiver must be Borrow",
                                 parameter_mode_span(marker),
                             )?;
+                        }
+                        match crate::type_checking::borrow_result::resolve_borrow_return(
+                            self.sources,
+                            form,
+                            &parameters,
+                            receiver.map(|receiver| receiver.mode()),
+                        )? {
+                            Ok(Some(contract)) => self.emit(
+                                self.unsupported_borrow_path_code,
+                                "borrow result requires proven origin and caller continuation",
+                                contract.marker_span(),
+                            )?,
+                            Err(issue) => self.emit(
+                                self.invalid_borrow_contract_code,
+                                issue.message,
+                                issue.span,
+                            )?,
+                            Ok(None) => {}
                         }
                         if let Some(owner) = owner
                             && let Some(descriptor) = self

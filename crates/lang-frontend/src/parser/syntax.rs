@@ -240,9 +240,31 @@ pub enum FunctionForm {
         colon_span: Span,
         /// 显式返回类型或恢复建立的错误 TypeRef。
         type_ref: TypeRefId,
+        /// 只属于函数结果的普通借用合同，不是 TypeRef。
+        borrow_return: Option<BorrowReturnSyntax>,
         /// 显式分支的互斥 body 形态。
         body: FunctionBody,
     },
+}
+
+/// 普通借用结果的唯一源码来源。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BorrowReturnSource {
+    /// 一个参数名称或定点恢复 marker。
+    Parameter(NameMarker),
+    /// 实例 receiver 的真实 `this` token。
+    Receiver(Span),
+}
+
+/// 显式 `borrow T from source` 的语法 marker；T 使用 Explicit 的 TypeRef。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BorrowReturnSyntax {
+    /// 真实 `borrow` token。
+    pub borrow_span: Span,
+    /// 真实 `from` token，缺失恢复时为空范围。
+    pub from_span: Span,
+    /// 唯一来源，不复制源码名称字符串。
+    pub source: BorrowReturnSource,
 }
 
 /// block 中按源码顺序保存的 statement payload。
