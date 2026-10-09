@@ -175,6 +175,9 @@ pub mod codes {
     pub(crate) const INVALID_ITERATION_PATTERN: &str = "L0160";
     pub(crate) const CONSTANT_EVALUATION_FAILURE: &str = "L0158";
     pub(crate) const HASHABLE_TYPE_ARGUMENT_BOUND: &str = "L0161";
+    pub(crate) const INVALID_BORROW_CONTRACT: &str = "L0162";
+    pub(crate) const BORROW_RESULT_ESCAPE: &str = "L0163";
+    pub(crate) const UNSUPPORTED_BORROW_FLOW: &str = "L0164";
 
     /// 已发布的生产错误码。
     pub const ALL: &[&str] = &[
@@ -339,6 +342,9 @@ pub mod codes {
         INVALID_ITERATION_SOURCE,
         INVALID_ITERATION_PATTERN,
         HASHABLE_TYPE_ARGUMENT_BOUND,
+        INVALID_BORROW_CONTRACT,
+        BORROW_RESULT_ESCAPE,
+        UNSUPPORTED_BORROW_FLOW,
     ];
 
     /// 由集中定义创建生产错误码目录。
