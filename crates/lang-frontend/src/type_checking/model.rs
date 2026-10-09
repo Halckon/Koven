@@ -1,4 +1,6 @@
+mod callable_descriptor;
 use crate::type_checking::IntegerOperationDescriptor;
+pub use callable_descriptor::CallableDescriptor;
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
@@ -323,18 +325,6 @@ impl CallableReceiverDescriptor {
     }
 }
 
-/// 已规范化的顶层或实例 member callable 签名。
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CallableDescriptor {
-    pub(crate) symbol: SymbolId,
-    pub(crate) owner: Option<NominalId>,
-    pub(crate) receiver: Option<CallableReceiverDescriptor>,
-    pub(crate) type_parameters: Vec<SymbolId>,
-    pub(crate) parameter_symbols: Vec<Option<SymbolId>>,
-    pub(crate) parameters: Vec<FunctionParameterType>,
-    pub(crate) return_type: TypeId,
-}
-
 /// enum case 的 typed identity、root 实例模板与 payload 类型。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EnumCaseDescriptor {
@@ -376,44 +366,6 @@ impl EnumCaseDescriptor {
     #[must_use]
     pub fn payloads(&self) -> &[(SymbolId, TypeId)] {
         &self.payloads
-    }
-}
-
-impl CallableDescriptor {
-    /// 返回函数声明 symbol。
-    #[must_use]
-    pub const fn symbol(&self) -> SymbolId {
-        self.symbol
-    }
-    /// 返回实例 member owner；顶层函数为 `None`。
-    #[must_use]
-    pub const fn owner(&self) -> Option<NominalId> {
-        self.owner
-    }
-    /// 返回 instance member 的隐藏 receiver 契约；顶层 callable 为 `None`。
-    #[must_use]
-    pub const fn receiver(&self) -> Option<CallableReceiverDescriptor> {
-        self.receiver
-    }
-    /// 返回 callable 自身的源码顺序类型参数。
-    #[must_use]
-    pub fn type_parameters(&self) -> &[SymbolId] {
-        &self.type_parameters
-    }
-    /// 返回与参数顺序对齐的稳定名称 symbol；恢复参数为 `None`。
-    #[must_use]
-    pub fn parameter_symbols(&self) -> &[Option<SymbolId>] {
-        &self.parameter_symbols
-    }
-    /// 返回包含参数模式的规范化参数。
-    #[must_use]
-    pub fn parameters(&self) -> &[FunctionParameterType] {
-        &self.parameters
-    }
-    /// 返回规范化返回类型。
-    #[must_use]
-    pub const fn return_type(&self) -> TypeId {
-        self.return_type
     }
 }
 
@@ -574,6 +526,8 @@ pub enum IntrinsicTypeConstructor {
     Map,
     /// Growable associative key-value owner.
     MutableMap,
+    /// Single-source, non-escaping inline range descriptor; owns no elements.
+    View,
 }
 
 impl IntrinsicTypeConstructor {
@@ -581,7 +535,7 @@ impl IntrinsicTypeConstructor {
     #[must_use]
     pub const fn expected_type_argument_count(self) -> usize {
         match self {
-            Self::Box | Self::Rc | Self::Array | Self::List | Self::MutableList => 1,
+            Self::Box | Self::Rc | Self::Array | Self::List | Self::MutableList | Self::View => 1,
             Self::Map | Self::MutableMap => 2,
         }
     }
@@ -751,6 +705,8 @@ pub struct TypeEnvironment {
     owner: Arc<()>,
     symbol_kinds: Vec<ExternalSymbolKind>,
     bindings: BTreeMap<ExternalSymbolId, ExternalTypeBinding>,
+    pub(super) range_sources: Vec<SourceId>,
+    pub(super) range_extension_sources: Vec<SourceId>,
 }
 
 impl TypeEnvironment {
@@ -761,6 +717,8 @@ impl TypeEnvironment {
             owner: names.owner(),
             symbol_kinds: names.symbols().iter().map(|symbol| symbol.kind()).collect(),
             bindings: BTreeMap::new(),
+            range_sources: Vec::new(),
+            range_extension_sources: Vec::new(),
         }
     }
 
@@ -1122,6 +1080,7 @@ pub struct TypedFile {
     integer_operations: Vec<IntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
+    pub(crate) range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
     pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<ContainerClearDescriptor>,
     pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
@@ -1129,6 +1088,7 @@ pub struct TypedFile {
     pub(crate) container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
     pub(crate) container_insert_ats: Vec<ContainerInsertAtDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
+    pub(crate) map_descriptors: super::map_descriptor::MapDescriptors,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -1160,6 +1120,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) integer_operations: Vec<IntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
+    pub(crate) range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
     pub(crate) container_appends: Vec<ContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<ContainerClearDescriptor>,
     pub(crate) container_remove_ats: Vec<ContainerRemoveAtDescriptor>,
@@ -1167,6 +1128,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) container_remove_firsts: Vec<ContainerRemoveFirstDescriptor>,
     pub(crate) container_insert_ats: Vec<ContainerInsertAtDescriptor>,
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
+    pub(crate) map_descriptors: super::map_descriptor::MapDescriptors,
 }
 
 impl TypedFile {
@@ -1215,6 +1177,7 @@ impl TypedFile {
             integer_operations: parts.integer_operations,
             container_constructions: parts.container_constructions,
             container_sizes: parts.container_sizes,
+            range_sizes: parts.range_sizes,
             container_appends: parts.container_appends,
             container_clears: parts.container_clears,
             container_remove_ats: parts.container_remove_ats,
@@ -1222,6 +1185,7 @@ impl TypedFile {
             container_remove_firsts: parts.container_remove_firsts,
             container_insert_ats: parts.container_insert_ats,
             element_places: parts.element_places,
+            map_descriptors: parts.map_descriptors,
             diagnostics,
         }
     }

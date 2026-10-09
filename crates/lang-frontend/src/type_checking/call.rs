@@ -173,6 +173,8 @@ pub struct CallDescriptor {
     expression: ExpressionId,
     instance: CallableInstanceKey,
     return_type: TypeId,
+    result_source: super::CallableResultSource,
+    range_construction: Option<super::RangeConstructionDescriptor<ExpressionId, TypeId>>,
     receiver: Option<CallReceiverDescriptor>,
     arguments: Vec<CallArgumentDescriptor>,
     aborts: bool,
@@ -180,6 +182,22 @@ pub struct CallDescriptor {
 }
 
 impl CallDescriptor {
+    pub(crate) fn clear_range_construction(&mut self) {
+        self.range_construction = None;
+    }
+    pub(crate) fn with_range_construction(
+        mut self,
+        descriptor: super::RangeConstructionDescriptor<ExpressionId, TypeId>,
+    ) -> Self {
+        self.range_construction = Some(descriptor);
+        self
+    }
+    /// 返回可复用范围构造的实际操作数；普通 callable 没有该事实。
+    pub fn range_construction(
+        &self,
+    ) -> Option<&super::RangeConstructionDescriptor<ExpressionId, TypeId>> {
+        self.range_construction.as_ref()
+    }
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         expression: ExpressionId,
@@ -195,11 +213,29 @@ impl CallDescriptor {
             expression,
             instance: CallableInstanceKey::new(target, type_arguments),
             return_type,
+            result_source: crate::type_checking::CallableResultSource::Owned,
+            range_construction: None,
             receiver,
             arguments,
             aborts,
             prints_line,
         }
+    }
+
+    /// 返回 call expression identity。
+    pub(crate) fn with_result_source(mut self, contract: super::CallableResultSource) -> Self {
+        self.result_source = contract;
+        self
+    }
+
+    /// 返回 owned、既有存储借用或新 carrier 的封闭来源合同。
+    pub const fn result_source(&self) -> crate::type_checking::CallableResultSource {
+        self.result_source
+    }
+
+    /// 仅投影既有存储借用；None 也可能表示新 carrier 交付。
+    pub const fn borrow_return(&self) -> Option<super::BorrowReturnContract> {
+        self.result_source.borrow_return()
     }
 
     /// 返回 call expression identity。

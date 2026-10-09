@@ -118,6 +118,24 @@ impl<'ctx> TypeMap<'ctx> {
                     containers.insert(id, container);
                     Some(container.into())
                 }
+                SsaTypeKind::RangeView { .. } => Some(
+                    context
+                        .struct_type(&[pointer.into(), size_type.into(), size_type.into()], false)
+                        .into(),
+                ),
+                SsaTypeKind::MapContainer { .. } => {
+                    let map_type = context.opaque_struct_type(&format!("koven.map.t{index}"));
+                    map_type.set_body(
+                        &[
+                            pointer.into(),
+                            size_type.into(),
+                            size_type.into(),
+                            size_type.into(),
+                        ],
+                        false,
+                    );
+                    Some(map_type.into())
+                }
                 SsaTypeKind::StringOwner => {
                     let string = context.opaque_struct_type(&format!("koven.string.t{index}"));
                     string.set_body(&[pointer.into(), size_type.into(), size_type.into()], false);

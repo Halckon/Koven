@@ -25,6 +25,13 @@ impl UnitExpressionLowerer<'_> {
         value: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self
+            .typed
+            .map_put(UnitExpressionId::new(self.source_unit, target))
+            .is_some()
+        {
+            return self.lower_map_put(target, span);
+        }
         if operator == AssignmentOperator::Assign
             && let Some(field) = self.current_receiver_field(target, span)?
         {

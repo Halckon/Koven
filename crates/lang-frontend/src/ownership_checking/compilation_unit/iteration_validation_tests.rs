@@ -343,3 +343,51 @@ fn iteration_schema_requires_conditional_receiver_between_its_nested_provider_bo
         );
     }
 }
+
+#[test]
+fn temporary_range_unit_schema_requires_the_actual_source_loan_continuation() {
+    use crate::{
+        lexer::lex,
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        parser::parse_file,
+        source::SourceMap,
+        type_checking::{check_compilation_unit_types, standard_environments},
+    };
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source(
+            "range.ko",
+            "fun run():Unit{for(item in rangeView(listOf(\"a\"),0,1)){println(item)}}",
+        )
+        .unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    let inputs = [SourceUnitInput::new("std", "range.ko", source, &parsed)];
+    let (env, mut types) = standard_environments();
+    types.authorize_range_source(&sources, source).unwrap();
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let valid =
+        super::check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+    assert!(valid.clone().validate().is_ok());
+    let mut missing = valid.clone();
+    missing.borrow_results.range_uses.clear();
+    assert!(missing.validate().is_err());
+    let mut missing_loan = valid.clone();
+    let source = valid.borrow_results.range_uses[0].source_loan();
+    missing_loan
+        .loans
+        .retain(|loan| loan.call() != source.call() || loan.argument() != source.argument());
+    assert!(missing_loan.validate().is_err());
+    let mut wrong = valid;
+    wrong.borrow_results.range_uses[0].origin = super::UnitLoanTarget::Temporary(source.call());
+    assert!(wrong.validate().is_err());
+}

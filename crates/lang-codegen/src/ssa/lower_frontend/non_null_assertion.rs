@@ -27,6 +27,19 @@ impl ExpressionLowerer<'_> {
         if plan.descriptor() != &descriptor || descriptor.expression() != expression {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        let nullable = self.resolve_type(descriptor.nullable_type(), span)?;
+        if let Some(&result) = self.type_ids.get(&nullable)
+            && self.map_results.get(&result).copied().is_some()
+            && plan.non_null_transfer() == NonNullAssertionTransferKind::Copy
+        {
+            if plan.non_null_transfer() != NonNullAssertionTransferKind::Copy
+                || descriptor.copyability() != lang_frontend::type_checking::Copyability::Copyable
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            let operand = self.require_value(descriptor.operand())?;
+            return self.unwrap_map_result(operand, descriptor.operator_span());
+        }
         if plan.non_null_transfer() != NonNullAssertionTransferKind::Consume
             || !matches!(
                 descriptor.source_category(),

@@ -4,7 +4,10 @@ use crate::{
     diagnostic::codes,
     name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId},
     parser::{ClassifierDeclaration, Item, NameMarker, TypeParameter, TypeRef},
-    type_checking::{BuiltinType, Capability, NominalKind, TypeCheckingError, UnitTypeRefId},
+    type_checking::{
+        BuiltinType, Capability, IntrinsicTypeConstructor, NominalKind, TypeCheckingError,
+        UnitTypeRefId,
+    },
 };
 
 use super::{
@@ -335,6 +338,44 @@ impl SignatureCollector<'_> {
                 if let Some(UnitTypeKind::Nullable(inner)) = self.types.get(ty) {
                     ty = *inner;
                 }
+                if let Some(UnitTypeKind::Intrinsic {
+                    constructor:
+                        IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+                    arguments,
+                }) = self.types.get(ty)
+                {
+                    let [key, value] = arguments.as_slice() else {
+                        continue;
+                    };
+                    let (key, value) = (*key, *value);
+                    if !self.is_error(key) && !self.is_hashable_type(key) {
+                        let span = self.inputs[source_index]
+                            .ast()
+                            .type_refs()
+                            .get(segment.arguments[0])
+                            .map_err(TypeCheckingError::from)?
+                            .span();
+                        self.emit(
+                            codes::HASHABLE_TYPE_ARGUMENT_BOUND,
+                            "Map key type must be Hashable",
+                            span,
+                        )?;
+                    }
+                    if !self.is_error(value) && !self.map_value_is_storable(value) {
+                        let span = self.inputs[source_index]
+                            .ast()
+                            .type_refs()
+                            .get(segment.arguments[1])
+                            .map_err(TypeCheckingError::from)?
+                            .span();
+                        self.emit(
+                            codes::INVALID_CONTAINER_ELEMENT,
+                            "container value type is not structurally storable",
+                            span,
+                        )?;
+                    }
+                    continue;
+                }
                 let Some(declaration) = self.nominal_declaration(ty) else {
                     continue;
                 };
@@ -387,6 +428,39 @@ impl SignatureCollector<'_> {
             }
         }
         self.validate_capabilities_and_layout()
+    }
+
+    fn map_value_is_storable(&self, ty: UnitTypeId) -> bool {
+        if crate::type_checking::range_type_uses::unit_contains_range(&self.types, ty) {
+            return false;
+        }
+        match self.types.get(ty) {
+            Some(UnitTypeKind::Builtin(BuiltinType::Any | BuiltinType::Nothing)) => false,
+            Some(
+                UnitTypeKind::Builtin(_)
+                | UnitTypeKind::Function { .. }
+                | UnitTypeKind::Intrinsic { .. }
+                | UnitTypeKind::TypeParameter(_),
+            ) => true,
+            Some(
+                UnitTypeKind::Nullable(inner)
+                | UnitTypeKind::EnumCase { root: inner, .. }
+                | UnitTypeKind::StaticSelf(inner),
+            ) => self.map_value_is_storable(*inner),
+            Some(UnitTypeKind::Nominal {
+                declaration,
+                arguments,
+            }) => {
+                self.nominals
+                    .get(declaration)
+                    .is_some_and(|nominal| nominal.kind() != NominalKind::Interface)
+                    && !self.invalid_inline_nominals.contains(declaration)
+                    && arguments
+                        .iter()
+                        .all(|argument| self.map_value_is_storable(*argument))
+            }
+            _ => false,
+        }
     }
 
     fn direct_interface_targets(&self, owner: DeclarationId) -> Vec<DeclarationId> {

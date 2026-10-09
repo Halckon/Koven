@@ -76,11 +76,17 @@ impl Checker<'_> {
             }
             _ => return self.check_statement(statement, state),
         };
+        let parents = state
+            .borrow_bindings
+            .keys()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
         let Some((&tail, prefix)) = elements.split_last() else {
             return Ok(Flows::next(state));
         };
         let mut flows = self.check_elements(prefix, state)?;
         let Some(next) = flows.next.take() else {
+            self.restore_borrow_scope(&parents, &mut flows);
             return Ok(flows);
         };
         let tail = match self.parsed.ast().statements().get(tail)?.payload().clone() {
@@ -94,6 +100,7 @@ impl Checker<'_> {
             _ => self.check_statement(tail, next)?,
         };
         flows.merge(tail);
+        self.restore_borrow_scope(&parents, &mut flows);
         Ok(flows)
     }
     /// 只在可继续的路径交付逃逸值，保留先前实参的提前退出路径。

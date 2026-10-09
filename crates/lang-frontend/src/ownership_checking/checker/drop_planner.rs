@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+mod binding;
+mod borrow_result;
 mod capture;
 mod conditional;
 mod control;
@@ -7,12 +9,15 @@ mod elvis;
 mod iteration;
 mod lambda;
 mod liveness;
+mod map;
 mod origins;
 mod ownership_primitive;
 mod pending_call;
 mod resource;
+mod short_circuit;
 mod snapshot;
 mod source_owner;
+mod string;
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId},
@@ -47,6 +52,8 @@ pub(super) struct DropPlan {
     pub(super) cleanup_steps: Vec<(DropPoint, IterationCleanupAction)>,
     pub(super) cleanup_conditions: crate::ownership_checking::CleanupConditions,
     pub(super) drops: Vec<DropFact>,
+    pub(super) borrow_ends:
+        Vec<crate::ownership_checking::BorrowBindingEndFact<SymbolId, DropPoint>>,
     pub(super) loan_ends: Vec<LoanEndFact>,
     pub(super) iterations: Vec<IterationOwnershipPlan>,
     pub(super) deferred: Vec<OwnershipDeferredFact>,
@@ -107,6 +114,8 @@ struct NullableTemporary {
 
 #[derive(Clone, Debug, Default)]
 struct ValueState {
+    borrow_bindings: Vec<SymbolId>,
+    pending_borrow_results: Vec<SymbolId>,
     replacements: Vec<SymbolId>,
     iterations: Vec<iteration::IterationFrame>,
     nullable_temporaries: Vec<NullableTemporary>,
@@ -180,15 +189,17 @@ struct DropPlanner<'a, 'checker> {
     loan_ends: Vec<LoanEndFact>,
     loop_boundaries: Vec<usize>,
     scope_depth: usize,
+    borrow_ends: Vec<crate::ownership_checking::BorrowBindingEndFact<SymbolId, DropPoint>>,
     binding_depths: BTreeMap<SymbolId, usize>,
 }
 
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn owner_protected_by_context(&self, symbol: SymbolId, state: &ValueState) -> bool {
-        state
-            .iterations
-            .iter()
-            .any(|frame| frame.source_root == Some(symbol))
+        self.borrow_source_protected(symbol, state)
+            || state
+                .iterations
+                .iter()
+                .any(|frame| frame.source_root == Some(symbol))
             || state.pending_calls.iter().any(|call| {
                 call.callees.contains(&symbol)
                     || call.loans.iter().any(|loan| {
@@ -230,6 +241,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             loan_ends: Vec::new(),
             loop_boundaries: Vec::new(),
             scope_depth: 0,
+            borrow_ends: Vec::new(),
             binding_depths: BTreeMap::new(),
         }
     }
@@ -290,6 +302,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             cleanup_steps: self.cleanup,
             cleanup_conditions: self.conditions,
             drops: self.facts,
+            borrow_ends: self.borrow_ends,
             loan_ends: self.loan_ends,
             iterations,
             deferred: Vec::new(),
@@ -393,7 +406,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         Ok(())
     }
 
-    fn statement(
+    fn statement_inner(
         &mut self,
         id: StatementId,
         state: &mut ValueState,
@@ -423,48 +436,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.scope_depth -= 1;
                 Ok(true)
             }
-            Statement::LocalVariable { declaration } => {
-                let Item::Variable {
-                    name, initializer, ..
-                } = self
-                    .checker
-                    .parsed
-                    .ast()
-                    .items()
-                    .get(declaration)?
-                    .payload()
-                    .clone()
-                else {
-                    return Ok(true);
-                };
-                if !self.expression(initializer, ExpressionUse::Consume, state)? {
-                    return Ok(false);
-                }
-                let snapshot = self.save_result_snapshot(initializer, state)?;
-                let closures = std::mem::take(&mut state.result_closures);
-                if let Some(symbol) = self.checker.marker_symbol(name)
-                    && self.checker.is_move_only_variable(symbol)
-                {
-                    self.binding_depths.insert(symbol, self.scope_depth);
-                    let versions = self.bind_result_owners(marker_span(name), state);
-                    state.insert(OwnedValue {
-                        versions,
-                        condition: state.path,
-                        symbol,
-                        origin: marker_span(name),
-                        declaration: marker_span(name),
-                        scope_depth: self.scope_depth,
-                    });
-                    if !closures.is_empty() {
-                        state.closures.insert(symbol, closures);
-                    }
-                    self.commit_snapshot(snapshot, initializer, symbol);
-                    if !self.liveness.statement_after[id.index()].contains(&symbol) {
-                        self.drop_named_asap(DropPoint::AfterStatement(id), symbol, state);
-                    }
-                }
-                Ok(true)
-            }
+            Statement::LocalVariable { declaration } => self.local_variable(id, declaration, state),
             Statement::LocalDestructuring { initializer, .. } => {
                 let usage = self
                     .checker
@@ -576,6 +548,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     .container_size(id)
                     .map(|size| size.receiver())
             })
+            .or_else(|| self.checker.typed.map_size(id).map(|size| size.receiver()))
         {
             state.pending_calls.push(pending_call::PendingCall::new(
                 id,
@@ -967,6 +940,12 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 right,
                 ..
             } => self.elvis(id, left, right, state),
+            Expression::Binary {
+                left,
+                operator: BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr,
+                right,
+                ..
+            } => self.short_circuit(id, left, right, state),
             Expression::Binary { left, right, .. } => {
                 if !self.expression(left, ExpressionUse::Read, state)? {
                     return Ok(false);
@@ -979,6 +958,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 value,
                 ..
             } => {
+                if self.checker.typed.map_put(target).is_some() {
+                    return self.map_assignment(id, target, state);
+                }
                 if let Some(descriptor) = self.checker.element_place_descriptor(target)? {
                     self.expression(descriptor.receiver(), ExpressionUse::Place, state)?;
                     self.expression(descriptor.index(), ExpressionUse::Read, state)?;
@@ -1181,6 +1163,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     return Ok(false);
                 }
                 self.commit_ownership_primitive(id, state)?;
+                self.continue_range_temporary(id, state);
                 let roots = self
                     .end_pending_calls(LoanEndPoint::CallReturn(id), state, |call| call.call == id);
                 // Value parameters now own their arguments; only borrowed temporaries expire here.
@@ -1198,6 +1181,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 Ok(true)
             }
             Expression::Index { receiver, index } => {
+                if self.checker.typed.map_get(id).is_some() {
+                    return self.map_subscript(id, state);
+                }
                 if !self.expression(receiver, ExpressionUse::Place, state)? {
                     return Ok(false);
                 }
@@ -1254,108 +1240,32 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn is_move_only_temporary(&self, expression: ExpressionId) -> bool {
-        self.checker.typed.expression_category(expression) == Some(ExpressionCategory::Temporary)
+        if self
+            .checker
+            .typed
+            .expression_type(expression)
+            .and_then(|ty| self.checker.typed.types().get(ty))
+            .is_some_and(|ty| {
+                matches!(
+                    ty,
+                    TypeKind::Intrinsic {
+                        constructor: crate::type_checking::IntrinsicTypeConstructor::View,
+                        ..
+                    }
+                )
+            })
+        {
+            return false;
+        }
+        self.checker.borrow_result_call(expression).is_none()
+            && self.checker.typed.expression_category(expression)
+                == Some(ExpressionCategory::Temporary)
             && self
                 .checker
                 .typed
                 .expression_type(expression)
                 .and_then(|ty| self.checker.typed.copyability(ty))
                 == Some(Copyability::MoveOnly)
-    }
-
-    fn is_string_expression(&self, expression: ExpressionId) -> bool {
-        self.checker
-            .typed
-            .expression_type(expression)
-            .and_then(|ty| self.checker.typed.types().get(ty))
-            == Some(&TypeKind::Builtin(BuiltinType::String))
-    }
-
-    fn string_binary(
-        &mut self,
-        left: ExpressionId,
-        right: ExpressionId,
-        binary: ExpressionId,
-        state: &mut ValueState,
-    ) -> Result<bool, OwnershipCheckingError> {
-        let (continues, left_drop) = self.string_view_operand(left, state)?;
-        if !continues {
-            return Ok(false);
-        }
-        // The right operand can leave this expression before the operation executes.
-        // Keep the completed left temporary in the existing control-transfer cleanup stack.
-        if let Some(StringOperandDrop::Temporary(subject, origin)) = left_drop {
-            state.nullable_temporaries.push(NullableTemporary {
-                versions: Vec::new(),
-                closures: Vec::new(),
-                transfers_at_call: false,
-                control: binary,
-                subject,
-                origin,
-                loop_depth: self.loop_boundaries.len(),
-                prior_symbols: state.values.iter().map(|value| value.symbol).collect(),
-            });
-        }
-        let (continues, right_drop) = self.string_view_operand(right, state)?;
-        // Normal completion uses AfterBinaryOperands below. A terminated path has either
-        // already cleaned the obligation at its transfer, or aborted without unwinding.
-        state
-            .nullable_temporaries
-            .retain(|temporary| temporary.control != binary);
-        if !continues {
-            return Ok(false);
-        }
-        let point = DropPoint::AfterBinaryOperands(binary);
-        for pending in [right_drop, left_drop].into_iter().flatten() {
-            match pending {
-                StringOperandDrop::Named(symbol) => self.drop_named_asap(point, symbol, state),
-                StringOperandDrop::Temporary(expression, origin) => self.push_fact(DropFact::new(
-                    point,
-                    DropTarget::Temporary(expression),
-                    origin,
-                )),
-            }
-        }
-        Ok(true)
-    }
-
-    fn string_view_operand(
-        &mut self,
-        expression: ExpressionId,
-        state: &mut ValueState,
-    ) -> Result<(bool, Option<StringOperandDrop>), OwnershipCheckingError> {
-        let node = self.checker.parsed.ast().expressions().get(expression)?;
-        if self.checker.is_constant_use(expression) {
-            return Ok((
-                true,
-                Some(StringOperandDrop::Temporary(expression, node.span())),
-            ));
-        }
-        match node.payload() {
-            Expression::Group { expression } => self.string_view_operand(*expression, state),
-            Expression::Name => {
-                let Some(symbol) = self.checker.reference_symbol(node.span()) else {
-                    return Ok((true, None));
-                };
-                Ok((
-                    true,
-                    (!self.liveness.expression_after[expression.index()].contains(&symbol))
-                        .then_some(StringOperandDrop::Named(symbol)),
-                ))
-            }
-            _ => {
-                if !self.expression(expression, ExpressionUse::Read, state)? {
-                    return Ok((false, None));
-                }
-                if !self.is_move_only_temporary(expression) {
-                    return Ok((true, None));
-                }
-                Ok((
-                    true,
-                    Some(StringOperandDrop::Temporary(expression, node.span())),
-                ))
-            }
-        }
     }
 
     /// Release inner scopes first, then the subject temporary, then older named owners.
@@ -1420,6 +1330,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn drop_all(&mut self, point: DropPoint, state: &mut ValueState) {
+        state.pending_borrow_results.clear();
+        self.end_borrow_bindings(point, state, |_| true);
         if let DropPoint::ControlTransfer(expression) = point {
             while let Some(frame) = state.iterations.last() {
                 self.drop_deeper_than(frame.scope_depth, frame.loop_depth, point, state);
@@ -1440,6 +1352,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     }
 
     fn drop_scope(&mut self, depth: usize, point: DropPoint, state: &mut ValueState) {
+        self.end_borrow_bindings(point, state, |binding_depth| binding_depth == depth);
         // Dropping a closure may recursively remove an earlier captured source.
         let symbols = state
             .values
@@ -1460,6 +1373,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         point: DropPoint,
         state: &mut ValueState,
     ) {
+        self.end_borrow_bindings(point, state, |binding_depth| binding_depth > depth);
         if let DropPoint::ControlTransfer(expression) = point {
             self.end_pending_calls(LoanEndPoint::ControlTransfer(expression), state, |call| {
                 call.loop_depth >= loop_depth

@@ -103,6 +103,7 @@ impl Parser<'_> {
     pub(super) fn parse_function_declaration(
         &mut self,
         declaration_stops: Stops,
+        allow_extension: bool,
     ) -> Result<ItemId, ParserInternalError> {
         let fun_span = self.bump()?.span();
         // receiver mode 只能位于 `fun` 前；在这里定向消费逆序 token，避免把它恢复成函数名
@@ -120,11 +121,14 @@ impl Parser<'_> {
             )?;
         }
         let (type_parameters, type_parameter_list_span) = self.parse_type_parameters()?;
-        let name = self.parse_name_marker(
-            codes::EXPECTED_DECLARATION_NAME,
-            "expected declaration name",
-            NameContext::Declaration,
-        )?;
+        let (name, extension_receiver) = self.parse_function_head(declaration_stops)?;
+        if !allow_extension && let Some(receiver) = extension_receiver {
+            self.emit(
+                codes::INVALID_DECLARATION_MODIFIER,
+                "extension declarations require a top-level function slot",
+                receiver.dot_span,
+            )?;
+        }
         let parameters = self.parse_value_parameters()?;
         let parameter_end = self.previous_significant_end().max(fun_span.end());
         let (form, end) = self.parse_function_form(parameter_end, declaration_stops)?;
@@ -132,6 +136,7 @@ impl Parser<'_> {
             self.span(fun_span.start(), end)?,
             Item::Function {
                 name,
+                extension_receiver,
                 type_parameters,
                 type_parameter_list_span,
                 parameters,
@@ -147,12 +152,13 @@ impl Parser<'_> {
     ) -> Result<(FunctionForm, usize), ParserInternalError> {
         if self.current_is_symbol(Symbol::Colon) {
             let colon_span = self.bump()?.span();
-            let type_ref = self.parse_type_ref(
-                TypeStops::from_expression(declaration_stops)
-                    .with(TypeStops::EQUAL)
-                    .with(TypeStops::LEFT_BRACE),
-            )?;
-            return self.finish_explicit_function_form(colon_span, type_ref, declaration_stops);
+            let (type_ref, result_source) = self.parse_explicit_result(declaration_stops)?;
+            return self.finish_explicit_function_form(
+                colon_span,
+                type_ref,
+                result_source,
+                declaration_stops,
+            );
         }
 
         if self.current_is_symbol(Symbol::Equal) {
@@ -163,7 +169,12 @@ impl Parser<'_> {
                 insertion,
             )?;
             let type_ref = self.add_type_ref(insertion, TypeRef::Error)?;
-            return self.finish_explicit_function_form(insertion, type_ref, declaration_stops);
+            return self.finish_explicit_function_form(
+                insertion,
+                type_ref,
+                None,
+                declaration_stops,
+            );
         }
 
         if self.current_is_symbol(Symbol::LeftBrace) {
@@ -185,7 +196,12 @@ impl Parser<'_> {
                     .with(TypeStops::EQUAL)
                     .with(TypeStops::LEFT_BRACE),
             )?;
-            return self.finish_explicit_function_form(colon_span, type_ref, declaration_stops);
+            return self.finish_explicit_function_form(
+                colon_span,
+                type_ref,
+                None,
+                declaration_stops,
+            );
         }
 
         Ok((FunctionForm::ImplicitUnitAbsent, parameter_end))
@@ -195,6 +211,7 @@ impl Parser<'_> {
         &mut self,
         colon_span: Span,
         type_ref: TypeRefId,
+        result_source: Option<FunctionResultSource>,
         declaration_stops: Stops,
     ) -> Result<(FunctionForm, usize), ParserInternalError> {
         let body = if self.current_is_symbol(Symbol::Equal) {
@@ -218,6 +235,7 @@ impl Parser<'_> {
             FunctionForm::Explicit {
                 colon_span,
                 type_ref,
+                result_source,
                 body,
             },
             end,

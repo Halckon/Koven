@@ -1,5 +1,8 @@
 //! Phase 3 变量所有权状态与 use-after-move 检查。
 
+mod backend_frontier;
+mod borrow_last_use;
+mod borrow_result;
 mod callable_provenance;
 mod capture;
 mod checker;
@@ -15,6 +18,7 @@ mod model;
 mod non_null_assertion;
 mod nullable_when;
 mod ownership_primitive;
+mod range_producer;
 mod rc;
 mod string;
 
@@ -23,6 +27,10 @@ use crate::{
     type_checking::TypedFile,
 };
 
+pub use borrow_result::{
+    BorrowBindingEndFact, BorrowBindingFact, BorrowBindingStorage, BorrowResultFacts,
+    BorrowReturnOriginFact, BorrowSourceLoan, RangeReturnOriginFact, RangeUseFact, RangeUseSite,
+};
 pub use callable_provenance::{
     CallableOrigin, CallableOriginFact, PointerCallableReturnOrigin, PointerCallableReturnSummary,
     UnitCallableOrigin, UnitCallableOriginFact, UnitPointerCallableReturnOrigin,

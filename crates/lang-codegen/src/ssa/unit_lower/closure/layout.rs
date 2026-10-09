@@ -109,11 +109,11 @@ pub(in crate::ssa::unit_lower) fn declare(
                 )?;
                 let supported_value = parameter.mode() == ParameterMode::Value
                     && super::super::type_lower::is_supported_storage_type(typed, concrete);
-                let supported_string_borrow = parameter.mode() == ParameterMode::Borrow
-                    && builtin_type(typed, concrete) == Some(BuiltinType::String);
+                let supported_storage_borrow = parameter.mode() == ParameterMode::Borrow
+                    && super::super::type_lower::is_supported_storage_type(typed, concrete);
                 if parameter.mode() == ParameterMode::Inout
                     || (!supported_value
-                        && !supported_string_borrow
+                        && !supported_storage_borrow
                         && typed.copyability(concrete) != Copyability::Copyable)
                     || (parameter.mode() == ParameterMode::Borrow
                         && builtin_type(typed, concrete) == Some(BuiltinType::Unit))

@@ -1,6 +1,7 @@
 //! Phase 2 单文件类型检查与可供所有权阶段消费的 typed facts。
 
 mod argument_mapping;
+mod borrow_result;
 mod call;
 mod canonical;
 mod checker;
@@ -13,17 +14,21 @@ mod constant_graph;
 mod constant_value;
 mod construction;
 mod container;
+mod declaration_frontier;
 mod error;
 mod expression_use;
 mod integer;
 mod iteration;
 mod literal_value;
+mod map_descriptor;
+mod map_with_descriptor;
 mod model;
 mod non_null_assertion;
 mod nullable_when;
 mod ownership_primitive;
 mod parameter;
 mod projection;
+mod range_type_uses;
 mod rc;
 mod resource;
 mod string;
@@ -38,6 +43,9 @@ use crate::{
 
 pub(crate) use expression_use::{ExpressionUse, collect_expression_uses};
 
+pub use borrow_result::{BorrowReturnContract, BorrowReturnOrigin};
+mod result_source;
+mod source_authority;
 pub use call::*;
 pub use compilation_unit::*;
 pub use constant::*;
@@ -48,6 +56,8 @@ pub use error::TypeCheckingError;
 pub use integer::*;
 pub use iteration::*;
 pub use literal_value::integer_literal_magnitude;
+pub use map_descriptor::*;
+pub use map_with_descriptor::MapWithValueDescriptor;
 pub use model::*;
 pub use non_null_assertion::*;
 pub use nullable_when::*;
@@ -56,6 +66,11 @@ pub use parameter::*;
 pub use projection::*;
 pub use rc::*;
 pub use resource::*;
+pub use result_source::{CallableResultSource, CarrierReturnContract, CarrierSourceMarker};
+mod range_construction;
+pub use range_construction::{RangeConstructionDescriptor, RangeSizeDescriptor, RangeSourceKind};
+mod range_extension;
+pub use range_extension::RangeExtensionBinding;
 pub use string::*;
 
 /// 构造一组共享身份、包含全部编译器内建类型的标准分析环境。
@@ -99,6 +114,7 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
         ("MutableList", IntrinsicTypeConstructor::MutableList),
         ("Map", IntrinsicTypeConstructor::Map),
         ("MutableMap", IntrinsicTypeConstructor::MutableMap),
+        ("View", IntrinsicTypeConstructor::View),
     ]
     .map(|(name, intrinsic)| {
         (
@@ -122,6 +138,7 @@ pub fn standard_environments() -> (NameEnvironment, TypeEnvironment) {
         ("mutableMapOf", IntrinsicCallable::MutableMapOf),
         ("replace", IntrinsicCallable::Replace),
         ("swap", IntrinsicCallable::Swap),
+        ("rangeView", IntrinsicCallable::RangeView),
     ]
     .map(|(name, callable)| {
         (
@@ -239,6 +256,7 @@ mod tests {
             "MutableList",
             "Map",
             "MutableMap",
+            "View",
             "error",
             "println",
             "arrayOf",
@@ -248,6 +266,7 @@ mod tests {
             "mutableMapOf",
             "replace",
             "swap",
+            "rangeView",
         ]);
         let actual = first_names
             .symbols()
@@ -307,6 +326,7 @@ mod tests {
             ("MutableList", IntrinsicTypeConstructor::MutableList),
             ("Map", IntrinsicTypeConstructor::Map),
             ("MutableMap", IntrinsicTypeConstructor::MutableMap),
+            ("View", IntrinsicTypeConstructor::View),
         ] {
             assert_eq!(binding(name), &ExternalTypeBinding::Intrinsic(intrinsic));
         }

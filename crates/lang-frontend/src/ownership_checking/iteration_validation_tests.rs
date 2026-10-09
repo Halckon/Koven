@@ -16,10 +16,20 @@ fn fixture() -> (ParsedFile, NameResolution, TypedFile, OwnershipCheckedFile) {
 }
 
 fn fixture_source(text: &str) -> (ParsedFile, NameResolution, TypedFile, OwnershipCheckedFile) {
+    fixture_source_authority(text, false)
+}
+
+fn fixture_source_authority(
+    text: &str,
+    trusted: bool,
+) -> (ParsedFile, NameResolution, TypedFile, OwnershipCheckedFile) {
     let mut sources = SourceMap::default();
     let source = sources.add_source("validator.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let (environment, types) = standard_environments();
+    let (environment, mut types) = standard_environments();
+    if trusted {
+        types.authorize_range_source(&sources, source).unwrap();
+    }
     let names = resolve_names(&sources, &parsed, &environment).unwrap();
     let typed = check_types(&sources, &parsed, &names, &types).unwrap();
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
@@ -112,4 +122,25 @@ fn missing_return_descriptor_and_reordered_cleanup_are_rejected() {
             .reason(),
         "element/provider/source cleanup order"
     );
+}
+
+#[test]
+fn temporary_range_schema_requires_matching_continuation_and_shared_source_loan() {
+    let (parsed, names, typed, valid) = fixture_source_authority(
+        "fun run():Unit{for(item in rangeView(listOf(\"a\"),0,1)){println(item)}}",
+        true,
+    );
+    validate_iteration_facts(&parsed, &names, &typed, &valid).unwrap();
+    let mut missing = valid.clone();
+    missing.borrow_results.range_uses.clear();
+    assert!(validate_iteration_facts(&parsed, &names, &typed, &missing).is_err());
+    let mut missing_loan = valid.clone();
+    let source = valid.borrow_results.range_uses[0].source_loan();
+    missing_loan
+        .loans
+        .retain(|loan| loan.call() != source.call() || loan.argument() != source.argument());
+    assert!(validate_iteration_facts(&parsed, &names, &typed, &missing_loan).is_err());
+    let mut wrong_origin = valid;
+    wrong_origin.borrow_results.range_uses[0].origin = LoanTarget::Temporary(source.call());
+    assert!(validate_iteration_facts(&parsed, &names, &typed, &wrong_origin).is_err());
 }

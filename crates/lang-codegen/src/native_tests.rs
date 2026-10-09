@@ -28,6 +28,12 @@ mod sequential_for_tests;
 #[path = "native_boxed_enum_tests.rs"]
 pub(crate) mod boxed_enum_tests;
 
+#[path = "native_map_tests.rs"]
+mod map_tests;
+
+#[path = "native_borrow_result_tests.rs"]
+mod borrow_result_tests;
+
 use std::{
     fs,
     path::PathBuf,

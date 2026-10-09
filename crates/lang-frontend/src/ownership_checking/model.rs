@@ -165,7 +165,7 @@ pub enum LoanTarget {
     This(NominalId),
 }
 
-/// 一次成功建立的 loan；实际终止路径由 OwnershipCheckedFile::loan_ends 描述。
+/// 一次成功建立的 loan；终止或结果交接由 `loan_ends` 与 `borrow_results` 描述。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoanFact {
     call: ExpressionId,
@@ -250,7 +250,7 @@ impl LoanFact {
         self.begin_span
     }
 
-    /// 返回同步调用结束位置。
+    /// 返回同步调用的结束/交接位置；结果来源的终止另见 `borrow_results`。
     #[must_use]
     pub const fn end_span(&self) -> Span {
         self.end_span
@@ -626,6 +626,8 @@ pub struct OwnershipCheckedFile {
     non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     ownership_primitives: Vec<super::OwnershipPrimitiveOwnershipPlan>,
     field_replacements: Vec<super::FieldReplaceOwnershipPlan>,
+    pub(super) borrow_results: super::borrow_result::FileBorrowResults,
+    pub(super) borrow_return_origins: Vec<super::BorrowReturnOriginFact<ExpressionId, LoanTarget>>,
     loan_ends: Vec<LoanEndFact>,
     nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     source_id: SourceId,
@@ -653,6 +655,8 @@ pub(crate) struct OwnershipCheckedParts {
     pub(crate) non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     pub(crate) ownership_primitives: Vec<super::OwnershipPrimitiveOwnershipPlan>,
     pub(crate) field_replacements: Vec<super::FieldReplaceOwnershipPlan>,
+    pub(crate) borrow_results: super::borrow_result::FileBorrowResults,
+    pub(crate) borrow_return_origins: Vec<super::BorrowReturnOriginFact<ExpressionId, LoanTarget>>,
     pub(crate) loan_ends: Vec<LoanEndFact>,
     pub(crate) nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     pub(crate) bindings: Vec<OwnershipBindingDescriptor>,
@@ -784,6 +788,8 @@ impl OwnershipCheckedFile {
             non_null_assertions: parts.non_null_assertions,
             ownership_primitives: parts.ownership_primitives,
             field_replacements: parts.field_replacements,
+            borrow_results: parts.borrow_results,
+            borrow_return_origins: parts.borrow_return_origins,
             loan_ends: parts.loan_ends,
             typed_analysis_owner,
             diagnostics,

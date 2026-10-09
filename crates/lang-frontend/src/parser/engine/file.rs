@@ -270,9 +270,31 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_declaration_item(&mut self) -> Result<ItemId, ParserInternalError> {
-        let modifiers =
-            self.parse_declaration_modifiers(false, ReceiverModifierPolicy::Rejected)?;
+        let mut modifiers =
+            self.parse_declaration_modifiers(false, ReceiverModifierPolicy::Allowed)?;
         let declaration = self.parse_unmodified_declaration_item()?;
+        if let Some(mode) = modifiers.receiver_mode
+            && (matches!(mode, ParameterModeMarker::Inout(_))
+                || !matches!(
+                    self.ast.items().get(declaration)?.payload(),
+                    Item::Function {
+                        extension_receiver: Some(_),
+                        ..
+                    }
+                ))
+        {
+            let span = match mode {
+                ParameterModeMarker::Own(span)
+                | ParameterModeMarker::Borrow(span)
+                | ParameterModeMarker::Inout(span) => span,
+            };
+            self.emit(
+                codes::INVALID_DECLARATION_MODIFIER,
+                "invalid declaration modifier",
+                span,
+            )?;
+            modifiers.receiver_mode = None;
+        }
         self.wrap_modified_item(modifiers, declaration)
     }
 
@@ -309,7 +331,7 @@ impl Parser<'_> {
             } else if self.current_is_keyword(Keyword::Const) {
                 self.parse_constant_declaration(declaration_stops)?
             } else if self.current_is_keyword(Keyword::Fun) {
-                self.parse_function_declaration(declaration_stops)?
+                self.parse_function_declaration(declaration_stops, true)?
             } else if self.classifier_declaration_start()? {
                 self.parse_classifier_declaration()?
             } else {

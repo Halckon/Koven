@@ -109,6 +109,7 @@ fn lower_scalar_file_product(
     owned: &OwnershipCheckedFile,
 ) -> Result<LoweredFile, LoweringError> {
     validate_inputs(sources, parsed, names, typed, owned)?;
+    super::borrow_result::validate(parsed, typed, owned)?;
     if let Some(root) =
         owned.cleanup_steps().iter().find_map(|(_, action)| {
             match action {
@@ -279,6 +280,25 @@ fn lower_scalar_file_product(
                 type_mapper.intern(module, names, typed, concrete, construction_span)?;
             }
         }
+        for call in typed.calls().iter().filter(|call| {
+            matches!(
+                call.result_source(),
+                lang_frontend::type_checking::CallableResultSource::Carrier(_)
+            )
+        }) {
+            let call_span = parsed
+                .ast()
+                .expressions()
+                .get(call.expression())
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+                .span();
+            if call_span.start() < span.start() || call_span.end() > span.end() {
+                continue;
+            }
+            let result =
+                resolve_concrete_type(typed, call.return_type(), substitutions, call_span)?;
+            type_mapper.intern(module, names, typed, result, call_span)?;
+        }
         for construction in typed.container_constructions() {
             let construction_span = parsed
                 .ast()
@@ -305,6 +325,77 @@ fn lower_scalar_file_product(
                 let concrete = resolve_concrete_type(typed, ty, substitutions, construction_span)?;
                 type_mapper.intern(module, names, typed, concrete, construction_span)?;
             }
+        }
+        for construction in typed.map_constructions() {
+            let construction_span = parsed
+                .ast()
+                .expressions()
+                .get(construction.expression())
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+                .span();
+            if construction_span.source_id() != span.source_id()
+                || construction_span.start() < span.start()
+                || construction_span.end() > span.end()
+            {
+                continue;
+            }
+            for ty in [
+                construction.map_type(),
+                construction.key_type(),
+                construction.value_type(),
+            ] {
+                let concrete = resolve_concrete_type(typed, ty, substitutions, construction_span)?;
+                type_mapper.intern(module, names, typed, concrete, construction_span)?;
+            }
+        }
+        for remove in typed.map_removes() {
+            let remove_span = parsed
+                .ast()
+                .expressions()
+                .get(remove.expression())
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+                .span();
+            if remove_span.source_id() != span.source_id()
+                || remove_span.start() < span.start()
+                || remove_span.end() > span.end()
+            {
+                continue;
+            }
+            let value_type =
+                resolve_concrete_type(typed, remove.value_type(), substitutions, remove_span)?;
+            if matches!(
+                typed.types().get(value_type),
+                Some(lang_frontend::type_checking::TypeKind::Nullable(_))
+            ) {
+                return Err(error(LoweringErrorKind::UnsupportedNode, remove_span));
+            }
+            let concrete =
+                resolve_concrete_type(typed, remove.result_type(), substitutions, remove_span)?;
+            type_mapper.intern_map_result(module, names, typed, concrete, remove_span)?;
+        }
+        for get in typed.map_gets() {
+            let get_span = parsed
+                .ast()
+                .expressions()
+                .get(get.expression())
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+                .span();
+            if get_span.source_id() != span.source_id()
+                || get_span.start() < span.start()
+                || get_span.end() > span.end()
+            {
+                continue;
+            }
+            let value_type =
+                resolve_concrete_type(typed, get.value_type(), substitutions, get_span)?;
+            if matches!(
+                typed.types().get(value_type),
+                Some(lang_frontend::type_checking::TypeKind::Nullable(_))
+            ) {
+                return Err(error(LoweringErrorKind::UnsupportedNode, get_span));
+            }
+            let result = resolve_concrete_type(typed, get.result_type(), substitutions, get_span)?;
+            type_mapper.intern_map_result(module, names, typed, result, get_span)?;
         }
     }
     let mut source_closures = source_closure::declare(
@@ -448,13 +539,18 @@ fn lower_scalar_file_product(
                 type_mapper.intern(module, names, typed, return_type, span)?
             }]
         };
-        let pointer = module
-            .add_function_pointer_type_with_parameters(
-                parameter_types.clone(),
-                return_types.clone(),
-            )
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        source_closures.named.insert(instance.source, pointer);
+        if matches!(
+            callable.result_source(),
+            lang_frontend::type_checking::CallableResultSource::Owned
+        ) {
+            let pointer = module
+                .add_function_pointer_type_with_parameters(
+                    parameter_types.clone(),
+                    return_types.clone(),
+                )
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+            source_closures.named.insert(instance.source, pointer);
+        }
         let mut name = instance_function_name(names, typed, &type_mapper, source_key, span)?;
         if !source_key.callable_arguments().is_empty() {
             name.push_str(&format!(".c{ordinal}"));
@@ -467,6 +563,33 @@ fn lower_scalar_file_product(
             .expect("new function must exist")
             .add_block(parameter_types, Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        if callable.borrow_return().is_some() {
+            module
+                .function_mut(id)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                .borrow_return = Some(0);
+        }
+        if let lang_frontend::type_checking::CallableResultSource::Carrier(contract) =
+            callable.result_source()
+        {
+            let lang_frontend::type_checking::BorrowReturnOrigin::Parameter(index) =
+                contract.origin()
+            else {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            if !owned
+                .borrow_results()
+                .range_return_origins()
+                .iter()
+                .any(|fact| fact.declaration_span() == contract.marker_span())
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            module
+                .function_mut(id)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                .carrier_return = Some(index);
+        }
         function_ids.insert(instance.key.clone(), id);
         plans.push(FunctionPlan {
             id,
@@ -511,7 +634,8 @@ fn lower_scalar_file_product(
 
     for plan in plans {
         let function = module
-            .function_mut(plan.id)
+            .functions
+            .get_mut(plan.id.index())
             .expect("planned function must exist");
         let entry = function
             .entry_block()
@@ -556,12 +680,15 @@ fn lower_scalar_file_product(
             capture_loans: BTreeMap::new(),
             type_ids: &type_ids,
             heap_payloads: &heap_payloads,
+            map_results: &module.map_results,
+            ssa_types: &module.types,
             enum_payloads: &enum_payloads,
             substitutions: &plan.substitutions,
             function,
             block: entry,
             bindings,
             borrow_bindings,
+            result_source_loans: BTreeMap::new(),
             non_null_bindings: BTreeMap::new(),
             pending_call_loans: BTreeMap::new(),
             temporaries: BTreeMap::new(),
@@ -570,6 +697,19 @@ fn lower_scalar_file_product(
             loops: Vec::new(),
         };
         lowerer.emit_drops(DropPoint::FunctionEntry(plan.item_id))?;
+        if lowerer.function.borrow_return.is_some() {
+            let FunctionPlanBody::Expression(expression) = plan.body else {
+                return Err(error(LoweringErrorKind::UnsupportedNode, plan.span));
+            };
+            lowerer.lower_result_return(expression, plan.span)?;
+            continue;
+        }
+        if lowerer.function.carrier_return.is_some()
+            && let FunctionPlanBody::Expression(expression) = plan.body
+        {
+            lowerer.lower_range_return(expression, plan.span)?;
+            continue;
+        }
         let result = match plan.body {
             FunctionPlanBody::Expression(expression) => lowerer.lower(expression)?,
             FunctionPlanBody::Block(block) => lowerer.lower_statement(block)?,
@@ -589,7 +729,8 @@ fn lower_scalar_file_product(
 
     for plan in source_closures.lambdas.values() {
         let function = module
-            .function_mut(plan.thunk)
+            .functions
+            .get_mut(plan.thunk.index())
             .expect("planned thunk exists");
         let entry = function.entry_block().expect("planned thunk entry exists");
         let mut lowerer = ExpressionLowerer {
@@ -607,12 +748,15 @@ fn lower_scalar_file_product(
             capture_loans: BTreeMap::new(),
             type_ids: &type_ids,
             heap_payloads: &heap_payloads,
+            map_results: &module.map_results,
+            ssa_types: &module.types,
             enum_payloads: &enum_payloads,
             substitutions: &plan.substitutions,
             function,
             block: entry,
             bindings: BTreeMap::new(),
             borrow_bindings: BTreeMap::new(),
+            result_source_loans: BTreeMap::new(),
             non_null_bindings: BTreeMap::new(),
             pending_call_loans: BTreeMap::new(),
             temporaries: BTreeMap::new(),

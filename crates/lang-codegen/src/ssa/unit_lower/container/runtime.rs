@@ -71,7 +71,7 @@ impl UnitExpressionLowerer<'_> {
             return Ok(LoweredValue::Diverged);
         }
         let int = self.expression_ssa_type(size.value, size.span)?;
-        let size_slot = self.runtime_borrow_operand(call, size, int, span)?;
+        let size_slot = self.runtime_borrow_operand(call, size.value, int, size.span, span)?;
         let loan = self.runtime_pending_loan(size_slot, span)?;
         let (_, values) = self
             .function
@@ -91,7 +91,8 @@ impl UnitExpressionLowerer<'_> {
             return Ok(LoweredValue::Diverged);
         }
         let callable = self.expression_ssa_type(initializer.value, initializer.span)?;
-        let initializer_slot = self.runtime_borrow_operand(call, initializer, callable, span)?;
+        let initializer_slot =
+            self.runtime_borrow_operand(call, initializer.value, callable, initializer.span, span)?;
         let initializer = self.runtime_pending_loan(initializer_slot, span)?;
         let length = require_value(self.pending_operands[length_slot], span)?;
         let container = self.expression_ssa_type(call.expression(), span)?;
@@ -112,15 +113,16 @@ impl UnitExpressionLowerer<'_> {
     }
 
     /// Stable indices are also registered with the existing control-transfer cleanup frame.
-    fn runtime_borrow_operand(
+    pub(in crate::ssa::unit_lower) fn runtime_borrow_operand(
         &mut self,
         call: UnitExpressionId,
-        argument: &lang_frontend::parser::CallArgument,
+        expression: ExpressionId,
         ty: SsaTypeId,
+        argument_span: Span,
         span: Span,
     ) -> Result<usize, LoweringError> {
         let (loan, created, _) =
-            self.lower_borrow_argument(call, argument.value, ty, argument.span, span)?;
+            self.lower_borrow_argument(call, expression, ty, argument_span, span)?;
         let mut slots = Vec::new();
         let mut result = None;
         for current in created {
@@ -141,14 +143,13 @@ impl UnitExpressionLowerer<'_> {
             .last_mut()
             .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         frame.created_loans.extend(&slots);
-        frame.loan_arguments.push((
-            UnitExpressionId::new(self.source_unit, argument.value),
-            slots,
-        ));
+        frame
+            .loan_arguments
+            .push((UnitExpressionId::new(self.source_unit, expression), slots));
         Ok(index)
     }
 
-    fn runtime_operand_exits(
+    pub(in crate::ssa::unit_lower) fn runtime_operand_exits(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -162,7 +163,11 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn runtime_pending_loan(&self, index: usize, span: Span) -> Result<LoanId, LoweringError> {
+    pub(in crate::ssa::unit_lower) fn runtime_pending_loan(
+        &self,
+        index: usize,
+        span: Span,
+    ) -> Result<LoanId, LoweringError> {
         match self.pending_operands.get(index) {
             Some(EntityId::Loan(loan)) => Ok(*loan),
             _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),

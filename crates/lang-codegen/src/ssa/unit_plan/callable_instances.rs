@@ -46,7 +46,7 @@ pub(crate) struct UnitCallablePlan {
     arena: CallableArena<UnitFunctionInstanceKey, UnitExpressionId>,
     routes: BTreeMap<(SourceToken, UnitExpressionId), PlannedUnitCallSite>,
     returns: BTreeMap<SourceToken, UnitPlannedCallableReturn>,
-    runtime_initializers: BTreeMap<(SourceToken, UnitExpressionId), CallableToken>,
+    runtime_callbacks: BTreeMap<(SourceToken, UnitExpressionId), CallableToken>,
 }
 
 impl UnitCallablePlan {
@@ -69,14 +69,12 @@ impl UnitCallablePlan {
         self.routes.get(&(caller, expression))
     }
 
-    pub(in crate::ssa) fn runtime_initializer(
+    pub(in crate::ssa) fn runtime_callback(
         &self,
         source: SourceToken,
         constructor: UnitExpressionId,
     ) -> Option<CallableToken> {
-        self.runtime_initializers
-            .get(&(source, constructor))
-            .copied()
+        self.runtime_callbacks.get(&(source, constructor)).copied()
     }
 
     pub(in crate::ssa) fn callable_return(
@@ -125,7 +123,7 @@ impl<'a> CallablePlanner<'a> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
-    pub(super) fn freeze_runtime_initializers(
+    pub(super) fn freeze_runtime_callbacks(
         &mut self,
         caller: SourceToken,
         substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
@@ -200,8 +198,37 @@ impl<'a> CallablePlanner<'a> {
             let token =
                 self.origin(caller, substitutions, initializer_id, pending, operand_span)?;
             self.plan
-                .runtime_initializers
+                .runtime_callbacks
                 .insert((caller, descriptor.expression()), token);
+        }
+        for descriptor in self.typed.map_with_values() {
+            let call = descriptor.expression();
+            if call.source_unit() != source_unit
+                || !self
+                    .owned
+                    .loans()
+                    .iter()
+                    .any(|loan| loan.call() == call && loan.argument() == descriptor.action())
+            {
+                continue;
+            }
+            let node = parsed
+                .ast()
+                .expressions()
+                .get(call.expression())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if !span_contains(source_span, node.span()) {
+                continue;
+            }
+            let action = descriptor.action();
+            let action_span = parsed
+                .ast()
+                .expressions()
+                .get(action.expression())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, node.span()))?
+                .span();
+            let token = self.origin(caller, substitutions, action, pending, action_span)?;
+            self.plan.runtime_callbacks.insert((caller, call), token);
         }
         Ok(())
     }
@@ -225,7 +252,7 @@ impl<'a> CallablePlanner<'a> {
             })
             .chain(
                 self.plan
-                    .runtime_initializers
+                    .runtime_callbacks
                     .iter()
                     .filter(|((caller, _), _)| *caller == source)
                     .map(|(_, token)| *token),

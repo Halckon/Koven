@@ -50,6 +50,15 @@ impl UnitExpressionLowerer<'_> {
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if let Some(value) = self.bindings.get(&symbol).copied() {
+            if self
+                .typed
+                .non_null_use(UnitExpressionId::new(self.source_unit, expression))
+                .is_some()
+                && let LoweredValue::Value(result) = value
+                && self.is_map_result_value(result)
+            {
+                return self.unwrap_map_result(result, span);
+            }
             return Ok(value);
         }
         let loan = self
@@ -372,14 +381,7 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         for (loan, end_span) in created_loans.into_iter().rev() {
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::BorrowEnd { loan },
-                    Vec::new(),
-                    Origin::Source(end_span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
+            self.end_short_call_loan(loan, end_span)?;
         }
         self.drop_abi_call_owners(abi_owners, span)?;
         if let Some(receiver) = receiver {
@@ -663,6 +665,7 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .map(|(owner, _)| require_value(self.pending_operands[*owner], span))
             .collect::<Result<Vec<_>, _>>()?;
+        self.preserve_short_range_ends();
         self.pending_operands.truncate(pending_start);
         Ok(Some(LoweredCallArguments {
             arguments,

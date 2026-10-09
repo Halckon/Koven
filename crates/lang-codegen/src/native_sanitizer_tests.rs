@@ -355,3 +355,150 @@ impl Drop for Artifacts {
         }
     }
 }
+
+/// SPEC-0288 G5: a Map program with overwrite, growth and tombstone reuse, an owned
+/// removal, and entries still live at scope exit. Its IR feeds the Linux sanitizer driver.
+const MAP_SOURCE: &str = r#"value class Text(val text: String)
+fun entry(): Unit {
+ var m = mutableMapOf<Int, Text>()
+ m.put(1, Text("a".clone()))
+ m.put(1, Text("b".clone()))
+ m.put(10, Text("x".clone()))
+ m.remove(10)
+ m.put(11, Text("x".clone()))
+ m.remove(11)
+ m.put(12, Text("x".clone()))
+ m.remove(12)
+ m.put(13, Text("x".clone()))
+ m.remove(13)
+ m.put(14, Text("x".clone()))
+ m.remove(14)
+ m.put(15, Text("x".clone()))
+ m.remove(15)
+ m.put(16, Text("x".clone()))
+ m.remove(16)
+ m.put(17, Text("x".clone()))
+ m.remove(17)
+ m.put(18, Text("x".clone()))
+ m.remove(18)
+ m.put(19, Text("x".clone()))
+ m.remove(19)
+ m.put(20, Text("x".clone()))
+ m.remove(20)
+ m.put(21, Text("x".clone()))
+ m.remove(21)
+ m.put(22, Text("x".clone()))
+ m.remove(22)
+ m.put(23, Text("x".clone()))
+ m.remove(23)
+ m.put(24, Text("x".clone()))
+ m.remove(24)
+ m.put(25, Text("x".clone()))
+ m.remove(25)
+ m.put(26, Text("x".clone()))
+ m.remove(26)
+ m.put(27, Text("x".clone()))
+ m.remove(27)
+ m.put(28, Text("x".clone()))
+ m.remove(28)
+ m.put(29, Text("x".clone()))
+ m.remove(29)
+ m.put(30, Text("x".clone()))
+ m.remove(30)
+ m.put(31, Text("x".clone()))
+ m.remove(31)
+ m.put(32, Text("x".clone()))
+ m.remove(32)
+ m.put(33, Text("x".clone()))
+ m.remove(33)
+ m.put(34, Text("x".clone()))
+ m.remove(34)
+ m.put(35, Text("x".clone()))
+ m.remove(35)
+ m.put(36, Text("x".clone()))
+ m.remove(36)
+ m.put(37, Text("x".clone()))
+ m.remove(37)
+ m.put(38, Text("x".clone()))
+ m.remove(38)
+ m.put(39, Text("x".clone()))
+ m.remove(39)
+ m.put(40, Text("x".clone()))
+ m.remove(40)
+ m.put(41, Text("x".clone()))
+ m.remove(41)
+ m.put(42, Text("x".clone()))
+ m.remove(42)
+ m.put(43, Text("x".clone()))
+ m.remove(43)
+ m.put(44, Text("x".clone()))
+ m.remove(44)
+ m.put(45, Text("x".clone()))
+ m.remove(45)
+ m.put(46, Text("x".clone()))
+ m.remove(46)
+ m.put(47, Text("x".clone()))
+ m.remove(47)
+ m.put(48, Text("x".clone()))
+ m.remove(48)
+ m.put(49, Text("x".clone()))
+ m.remove(49)
+ m.put(2, Text("keep".clone()))
+ m.remove(2)
+ var s = mutableMapOf<String, Text>()
+ s.put("k".clone(), Text("v".clone()))
+ s.put("k".clone(), Text("w".clone()))
+ s.put("left".clone(), Text("alive".clone()))
+ println("done")
+}
+"#;
+
+/// The unsanitized program must print its exact oracle; the sanitizer inputs derive from the same IR.
+#[test]
+fn map_sanitizer_program_exports_ir_and_runs_clean() {
+    let export = std::env::var_os("KOVEN_SANITIZER_MAP_ARTIFACTS").map(PathBuf::from);
+    let directory = match &export {
+        Some(path) => {
+            fs::create_dir(path).expect("map sanitizer artifact directory must be new");
+            path.clone()
+        }
+        None => std::env::temp_dir().join(format!("koven-map-sanitizers-{}", std::process::id())),
+    };
+    fs::create_dir_all(&directory).unwrap();
+    let original =
+        crate::native_tests::boxed_enum_tests::lower_to_llvm("map-sanitizers.ko", MAP_SOURCE);
+    fs::write(directory.join("map.raw.ll"), &original).unwrap();
+    fs::write(directory.join("map-program.ko"), MAP_SOURCE).unwrap();
+    fs::write(directory.join("map.expected.stdout"), b"done\n").unwrap();
+
+    let plain = directory.join("map-plain");
+    let linked = Command::new(crate::test_support::ir_clang())
+        .arg(directory.join("map.raw.ll"))
+        .arg("-o")
+        .arg(&plain)
+        .output()
+        .unwrap();
+    assert!(linked.status.success(), "{linked:?}");
+    let run = Command::new(&plain).output().unwrap();
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"done\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
+
+    // ASan input: every Koven definition carries sanitize_address, as in the generated fixtures.
+    let context = Context::create();
+    let buffer = MemoryBuffer::create_from_memory_range_copy(original.as_bytes(), "map");
+    let module = context.create_module_from_ir(buffer).unwrap();
+    let functions = mark_address_sanitizer(&context, &module);
+    module
+        .verify()
+        .expect("attributes must preserve valid LLVM IR");
+    fs::write(
+        directory.join("map.asan.ll"),
+        module.print_to_string().to_bytes(),
+    )
+    .unwrap();
+    fs::write(directory.join("map.functions"), functions.join("\n")).unwrap();
+    if export.is_none() {
+        let _ = fs::remove_dir_all(&directory);
+    }
+}

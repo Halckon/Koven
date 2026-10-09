@@ -98,3 +98,5 @@ MoveOnly value；对 inline aggregate 更无法保持地址与可变性语义。
   [ADR-0015](./0015-shared-owner-runtime-abi.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无
+- 结果身份与 source loan continuation 由 [ADR-0029](0029-ordinary-borrow-result-continuation.md)
+  局部扩展；其余参数、地址与同步调用 ABI 决定继续生效。

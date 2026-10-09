@@ -1,7 +1,9 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 
 mod aggregate;
+mod binding;
 mod borrow_argument;
+mod borrow_result;
 mod call_lifetimes;
 mod constant;
 mod constant_presence;
@@ -13,11 +15,17 @@ mod field_replace;
 mod instances;
 mod integer;
 mod loop_control;
+mod map;
+mod map_require;
+mod map_result;
+mod map_with;
 mod nominal;
 mod non_null_assertion;
+mod nullable_comparison;
 mod nullable_when;
 pub(super) mod orchestrate;
 mod ownership_primitive;
+mod range;
 mod resource_deinit;
 mod source_closure;
 mod string_clone;
@@ -99,12 +107,15 @@ struct ExpressionLowerer<'a> {
     capture_loans: BTreeMap<(usize, usize), LoanId>,
     type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    map_results: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    ssa_types: &'a [super::model::SsaTypeKind],
     enum_payloads: &'a BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>,
     substitutions: &'a BTreeMap<SymbolId, TypeId>,
     function: &'a mut Function,
     block: BlockId,
     bindings: BTreeMap<SymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<SymbolId, LoanId>,
+    result_source_loans: BTreeMap<SymbolId, Vec<LoanId>>,
     non_null_bindings: BTreeMap<SymbolId, LoanId>,
     temporaries: BTreeMap<usize, ValueId>,
     pending_call_loans: BTreeMap<(usize, usize), Option<LoanId>>,
@@ -152,6 +163,9 @@ impl ExpressionLowerer<'_> {
             return Ok(LoweredValue::Value(value));
         }
         if let Some(value) = self.lower_container_expression(expression)? {
+            return Ok(value);
+        }
+        if let Some(value) = self.lower_map_expression(expression)? {
             return Ok(value);
         }
         if self.typed.construction(expression).is_some() {
@@ -610,64 +624,6 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-    fn lower_local_variable(
-        &mut self,
-        declaration: ItemId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let (item, _) = orchestrate::unwrap_modified(self.parsed, declaration)?;
-        let Item::Variable {
-            name, initializer, ..
-        } = item
-        else {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        };
-        let mut lowered = self.lower(initializer)?;
-        if matches!(lowered, LoweredValue::Diverged) {
-            return Ok(lowered);
-        }
-        let name_span =
-            present_name(name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        if self.source_slice(name_span)? == "_" {
-            return Ok(LoweredValue::Unit);
-        }
-        let symbol = self.declaration_symbol(name_span, SymbolKind::Variable)?;
-        let declared = self
-            .typed
-            .symbol_type(symbol)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        // The new local owns a MoveOnly initializer, including grouped aliases.
-        // Retire the source before nullable wrapping can replace its SSA identity.
-        if let LoweredValue::Value(owner) = lowered {
-            let concrete = self.resolve_type(declared, span)?;
-            if self.typed.copyability(concrete) == Some(Copyability::MoveOnly) {
-                self.forget_delivered_owners(&[owner]);
-            } else {
-                self.temporaries.retain(|_, temporary| *temporary != owner);
-            }
-        }
-        if let Some(TypeKind::Nullable(inner)) = self.typed.types().get(declared)
-            && self.typed.expression_type(initializer) == Some(*inner)
-        {
-            let nullable = self
-                .type_ids
-                .get(&self.resolve_type(declared, span)?)
-                .copied()
-                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-            let LoweredValue::Value(owner) = lowered else {
-                return Err(error(LoweringErrorKind::MissingFact, span));
-            };
-            let (_, results) = self.append(
-                Operation::NullableWrap { nullable, owner },
-                vec![EntityType::Value(nullable)],
-                span,
-            )?;
-            lowered = LoweredValue::Value(value(results[0]));
-        }
-        self.bindings.insert(symbol, lowered);
-        Ok(LoweredValue::Unit)
-    }
-
     fn lower_literal(
         &mut self,
         literal: LiteralKind,
@@ -733,6 +689,12 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
         if let Some(value) = self.bindings.get(symbol).copied() {
+            if self.typed.non_null_use(expression).is_some()
+                && let LoweredValue::Value(source) = value
+                && self.is_map_result_value(source)
+            {
+                return self.unwrap_map_result(source, span);
+            }
             return Ok(value);
         }
         let loan = self
@@ -832,6 +794,14 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(result) =
+            self.lower_map_result_binary(left, operator, right, expression, span)?
+        {
+            return Ok(result);
+        }
+        if let Some(result) = self.lower_nullable_comparison(expression, span)? {
+            return Ok(result);
+        }
         if matches!(
             operator,
             AstBinaryOperator::LogicalAnd | AstBinaryOperator::LogicalOr
@@ -961,6 +931,9 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self.typed.map_put(target).is_some() {
+            return self.lower_map_put(target);
+        }
         let target_node =
             self.parsed
                 .ast()
@@ -1011,6 +984,12 @@ impl ExpressionLowerer<'_> {
         expression: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self.function.carrier_return.is_some() {
+            return self.lower_range_return(
+                expression.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?,
+                span,
+            );
+        }
         let result = match expression {
             Some(expression) => self.lower(expression)?,
             None => LoweredValue::Unit,
@@ -1280,6 +1259,7 @@ impl ExpressionLowerer<'_> {
         if !call_loans.is_empty() {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        self.finish_short_call_ranges(expression, span)?;
         // Borrow argument lowering may form a place directly (for example `Rc.value`) without
         // recursively lowering the argument expression. Emit its expression-local ASAP drops
         // only after every call loan has ended, so two arguments may safely view the same owner.

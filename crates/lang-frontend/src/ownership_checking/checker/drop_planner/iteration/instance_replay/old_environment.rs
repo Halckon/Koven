@@ -146,6 +146,7 @@ val used = final()
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
         // 非 owning source 切片已经公开，直接消费公开产物。
         DropPlan {
+            borrow_ends: Vec::new(),
             cleanup_steps: owned.cleanup_steps().to_vec(),
             cleanup_conditions: owned.cleanup_conditions().clone(),
             drops: owned.drops().to_vec(),

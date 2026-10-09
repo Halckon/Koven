@@ -49,7 +49,7 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
     if !function.instructions.iter().any(|instruction| {
         matches!(
             instruction.operation,
-            Operation::ContainerElementPlace { .. }
+            Operation::ContainerElementPlace { .. } | Operation::RangeElementPlace { .. }
         )
     }) {
         return;
@@ -96,6 +96,7 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
                     owner: EntityId::Loan(loan),
                     ..
                 }
+                | Operation::RangeElementPlace { view: loan, .. }
                 | Operation::SharedReborrow { source: loan }
                 | Operation::SharedReferenceFollow { source: loan }
                 | Operation::SharedFieldLoan { base: loan, .. }

@@ -168,6 +168,7 @@ pub struct CompilationUnitNames {
     source_units: Vec<SourceUnitNames>,
     declaration_symbols: BTreeMap<DeclarationId, UnitSymbolId>,
     references: Vec<UnitNameReference>,
+    value_lookup_hints: Vec<UnitNameReference>,
     diagnostics: Vec<Diagnostic>,
 }
 impl CompilationUnitNames {
@@ -183,9 +184,18 @@ impl CompilationUnitNames {
             source_units,
             declaration_symbols,
             references,
+            value_lookup_hints: Vec::new(),
             diagnostics,
         }
     }
+    pub(super) fn with_value_lookup_hints(mut self, hints: Vec<UnitNameReference>) -> Self {
+        self.value_lookup_hints = hints;
+        self
+    }
+    pub(crate) fn value_lookup_hints(&self) -> &[UnitNameReference] {
+        &self.value_lookup_hints
+    }
+
     /// 返回共同拥有的 package/source/declaration index。
     #[must_use]
     pub const fn index(&self) -> &CompilationUnitIndex {

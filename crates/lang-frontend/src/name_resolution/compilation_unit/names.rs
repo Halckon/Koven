@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+mod member_lookup;
 #[path = "qualified.rs"]
 mod qualified;
 
@@ -49,6 +50,7 @@ struct UnitResolver<'a> {
     declaration_symbols: BTreeMap<DeclarationId, UnitSymbolId>,
     bindings: Vec<FileBindings>,
     references: Vec<UnitNameReference>,
+    value_lookup_hints: Vec<UnitNameReference>,
     diagnostics: Vec<Diagnostic>,
     suppressed_unresolved: Vec<BTreeSet<(usize, usize)>>,
 }
@@ -131,6 +133,7 @@ impl<'a> UnitResolver<'a> {
             declaration_symbols,
             bindings: (0..unit_count).map(|_| FileBindings::default()).collect(),
             references: Vec::new(),
+            value_lookup_hints: Vec::new(),
             diagnostics: Vec::new(),
             suppressed_unresolved: (0..unit_count).map(|_| BTreeSet::new()).collect(),
         })
@@ -141,6 +144,7 @@ impl<'a> UnitResolver<'a> {
         self.resolve_imports()?;
         self.resolve_qualified_paths()?;
         self.resolve_file_references()?;
+        self.resolve_member_lookups()?;
 
         let mut all_diagnostics = self.index.diagnostics().to_vec();
         let mut source_units = Vec::with_capacity(self.local.len());
@@ -165,7 +169,9 @@ impl<'a> UnitResolver<'a> {
                 resolution.enum_cases().to_vec(),
                 resolution.references().to_vec(),
                 filtered,
-            );
+            )
+            .with_value_lookup_hints(resolution.value_lookup_hints().to_vec())
+            .with_receiver_symbols(resolution.receiver_symbols().clone());
             source_units.push(SourceUnitNames::new(source_unit, resolution));
         }
         all_diagnostics.extend(self.diagnostics);
@@ -189,7 +195,8 @@ impl<'a> UnitResolver<'a> {
             self.declaration_symbols,
             self.references,
             diagnostics,
-        ))
+        )
+        .with_value_lookup_hints(self.value_lookup_hints))
     }
 
     fn build_automatic_bindings(&mut self) {

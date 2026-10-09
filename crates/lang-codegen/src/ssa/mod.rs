@@ -4,6 +4,7 @@ mod closure;
 mod deinit;
 mod integer;
 mod lower_frontend;
+mod map_result;
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
@@ -16,6 +17,13 @@ mod render;
 pub(crate) fn render_program(program: &model::Program) -> String {
     render::render_program(program)
 }
+#[cfg(test)]
+mod borrow_result_contract_tests;
+mod borrow_result_support;
+#[cfg(test)]
+mod borrow_storage_contract_tests;
+#[cfg(test)]
+mod map_promotion_contract_tests;
 mod types;
 pub(crate) mod unit_lower;
 pub(crate) mod unit_plan;
@@ -23,6 +31,7 @@ mod unit_source_query;
 #[cfg(test)]
 mod unit_source_query_tests;
 pub(crate) mod verify;
+mod verify_borrow_result;
 mod verify_operation;
 mod verify_ownership;
 mod verify_types;
@@ -88,6 +97,8 @@ mod unit_lower_type_plan_tests;
 #[cfg(test)]
 mod unit_lower_when_tests;
 #[cfg(test)]
+mod unit_map_tests;
+#[cfg(test)]
 mod unit_plan_tests;
 #[cfg(test)]
 mod unit_receiver_two_phase_tests;
@@ -103,6 +114,9 @@ mod verify_scalar_tests;
 
 #[cfg(test)]
 mod lower_frontend_tests;
+
+#[cfg(test)]
+mod borrow_result_boundary_tests;
 
 #[cfg(test)]
 mod nullable_operation_tests;
@@ -145,3 +159,6 @@ mod lowering_entry_contract_tests;
 mod lowering_dependency_tests;
 
 pub(crate) use lower_frontend::orchestrate::validate_inputs as validate_frontend_inputs;
+
+#[cfg(test)]
+mod range_lowering_tests;

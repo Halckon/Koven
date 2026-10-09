@@ -538,6 +538,7 @@ impl BodyChecker<'_> {
                 IntrinsicTypeConstructor::Array
                 | IntrinsicTypeConstructor::List
                 | IntrinsicTypeConstructor::MutableList
+                | IntrinsicTypeConstructor::View
                 | IntrinsicTypeConstructor::Rc,
                 _,
             ) => self.is_structurally_storable_type(argument),
@@ -691,6 +692,9 @@ impl BodyChecker<'_> {
     }
 
     pub(super) fn is_structurally_storable_type(&self, ty: UnitTypeId) -> bool {
+        if crate::type_checking::range_type_uses::unit_contains_range(self.signatures.types(), ty) {
+            return false;
+        }
         match self.signatures.types().get(ty) {
             Some(UnitTypeKind::Builtin(
                 crate::type_checking::BuiltinType::Any | crate::type_checking::BuiltinType::Nothing,

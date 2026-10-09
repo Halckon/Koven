@@ -1,4 +1,6 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
+mod loan;
+pub use loan::{UnitLoanFact, UnitLoanTarget};
 
 mod analysis;
 mod binding;
@@ -7,7 +9,7 @@ mod constant;
 #[cfg(test)]
 mod constants_tests;
 mod construction;
-mod contracts;
+pub(super) mod contracts;
 mod iteration;
 mod iteration_validation;
 #[cfg(test)]
@@ -229,93 +231,6 @@ impl UnitOwnershipPlace {
             (Some(left), Some(right)) => left.may_alias(right),
             (None, _) | (_, None) => true,
         }
-    }
-}
-
-/// unit loan 的稳定目标。
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum UnitLoanTarget {
-    /// 名称、字段或 terminal element place。
-    Place(UnitOwnershipPlace),
-    /// 当前 callable 的稳定 receiver identity。
-    This(DeclarationId),
-    /// 延长到同步调用返回的 temporary。
-    Temporary(UnitExpressionId),
-}
-
-/// 一次成功建立并在同步 call 返回时结束的 source-qualified loan。
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct UnitLoanFact {
-    call: UnitExpressionId,
-    argument: UnitExpressionId,
-    target: UnitLoanTarget,
-    kind: LoanKind,
-    begin_span: Span,
-    end_span: Span,
-    parameter_span: Option<Span>,
-}
-
-impl UnitLoanFact {
-    pub(super) const fn new(
-        call: UnitExpressionId,
-        argument: UnitExpressionId,
-        target: UnitLoanTarget,
-        kind: LoanKind,
-        begin_span: Span,
-        end_span: Span,
-        parameter_span: Option<Span>,
-    ) -> Self {
-        Self {
-            call,
-            argument,
-            target,
-            kind,
-            begin_span,
-            end_span,
-            parameter_span,
-        }
-    }
-
-    /// 返回所属同步 call。
-    #[must_use]
-    pub const fn call(&self) -> UnitExpressionId {
-        self.call
-    }
-
-    /// 返回建立 loan 的源码实参。
-    #[must_use]
-    pub const fn argument(&self) -> UnitExpressionId {
-        self.argument
-    }
-
-    /// 返回 place 或 temporary 目标。
-    #[must_use]
-    pub const fn target(&self) -> &UnitLoanTarget {
-        &self.target
-    }
-
-    /// 返回 shared/exclusive loan 种类。
-    #[must_use]
-    pub const fn kind(&self) -> LoanKind {
-        self.kind
-    }
-
-    /// 返回 loan 生效位置。
-    #[must_use]
-    pub const fn begin_span(&self) -> Span {
-        self.begin_span
-    }
-
-    /// 返回同步 call 结束位置。
-    #[must_use]
-    pub const fn end_span(&self) -> Span {
-        self.end_span
-    }
-
-    /// 返回被选择源码参数的声明位置；external/function-value 没有该位置。
-    #[must_use]
-    pub const fn parameter_span(&self) -> Option<Span> {
-        self.parameter_span
     }
 }
 
@@ -668,6 +583,9 @@ struct UnitOwnershipProvenance {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
     pub(super) callable_provenance: super::callable_provenance::UnitCallableFacts,
+    pub(super) borrow_results: super::borrow_result::UnitBorrowResults,
+    pub(super) borrow_return_origins:
+        Vec<super::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
     iteration_conditional_scopes: Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     iteration_owner_scopes: Vec<(
         UnitStatementId,
@@ -826,6 +744,16 @@ impl CompilationUnitOwnership {
                 && dataflow.deferred.is_empty()
                 && typed.constants().is_some())
             .then_some(dataflow.constant_materializations),
+            borrow_results: if successful && dataflow.deferred.is_empty() {
+                dataflow.borrow_results
+            } else {
+                Default::default()
+            },
+            borrow_return_origins: if successful && dataflow.deferred.is_empty() {
+                dataflow.borrow_return_origins
+            } else {
+                Vec::new()
+            },
             callable_provenance: dataflow.callable_provenance,
             provenance: UnitOwnershipProvenance {
                 typed_analysis_owner: Arc::clone(typed.analysis_owner()),

@@ -193,7 +193,7 @@ impl BodyChecker<'_> {
             .ty;
         let Some((owner_declaration, owner_arguments)) = self.nominal_type_parts(receiver_type)
         else {
-            return Ok(Vec::new());
+            return self.range_extension_candidates(source, receiver_type, name_span);
         };
         let owner = self
             .signatures
@@ -473,6 +473,8 @@ impl BodyChecker<'_> {
                 ty: receiver_result.ty,
             }),
             arguments: Vec::new(),
+            result_source: crate::type_checking::CallableResultSource::Owned,
+            range_construction: None,
             aborts: false,
             prints_line: false,
         });

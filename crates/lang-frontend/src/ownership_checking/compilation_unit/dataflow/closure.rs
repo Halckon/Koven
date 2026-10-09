@@ -30,6 +30,17 @@ impl Checker<'_> {
         let lambda_id = self.unit_expression(lambda);
         let captures = self.captures_of(lambda).collect::<Vec<_>>();
         for capture in &captures {
+            if let UnitClosureCaptureSource::Symbol(symbol) = capture.source()
+                && state.borrow_bindings.contains_key(&symbol)
+            {
+                self.emit_borrow_binding_diagnostic(
+                    crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                    "borrow result capture continuation is not yet proven",
+                    capture.reference_span(),
+                )?;
+            }
+        }
+        for capture in &captures {
             match (capture.mode(), capture.source(), capture.effect()) {
                 (ClosureCaptureMode::Shared, UnitClosureCaptureSource::Symbol(symbol), _) => {
                     let place = UnitOwnershipPlace::new(symbol, Vec::new());

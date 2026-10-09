@@ -28,9 +28,9 @@ impl CallableAbi {
             let runtime_tokens = typed
                 .container_constructions()
                 .iter()
-                .filter_map(|descriptor| {
-                    plan.runtime_initializer(instance.source_token(), descriptor.expression())
-                });
+                .map(|d| d.expression())
+                .chain(typed.map_with_values().iter().map(|d| d.expression()))
+                .filter_map(|call| plan.runtime_callback(instance.source_token(), call));
             for token in instance
                 .key()
                 .callable_arguments()

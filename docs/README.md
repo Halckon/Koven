@@ -9,7 +9,7 @@
 
 | 想回答的问题 | 读取入口 | 权威性 |
 |---|---|---|
-| Koven v0.41 允许什么、语义是什么 | [语言规范](guide/README.md) | 规范性真源 |
+| Koven v0.42 允许什么、语义是什么 | [语言规范](guide/README.md) | 规范性真源 |
 | 编译器内部表示、算法与资源必须遵守什么 | [Compiler Contracts](compiler-specs/README.md) | 工程合同，语言与 Phase 仍以 Guide 为准 |
 | 编译器当前实际如何实现 | [Architecture](architecture/README.md) | 当前事实快照 |
 | 如何开发、测试和交付 | [Development](development/README.md) | 工程流程 |

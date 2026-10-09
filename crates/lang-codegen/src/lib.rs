@@ -2,7 +2,15 @@
 
 mod native;
 #[cfg(test)]
+mod native_borrow_last_use_cases;
+#[cfg(test)]
+mod native_borrow_place_cases;
+#[cfg(test)]
+mod native_borrow_storage_cases;
+#[cfg(test)]
 mod native_generated_owner_tests;
+#[cfg(test)]
+mod native_map_promotion_cases;
 #[cfg(test)]
 mod native_sanitizer_tests;
 #[cfg(test)]
@@ -26,3 +34,8 @@ mod ssa;
 
 #[cfg(test)]
 mod bitwise_test_support;
+
+#[cfg(test)]
+mod native_map_require_cases;
+#[cfg(test)]
+mod native_map_with_cases;

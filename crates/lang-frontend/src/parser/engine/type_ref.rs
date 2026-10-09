@@ -106,6 +106,12 @@ impl Parser<'_> {
         let mut end = first.end();
 
         while self.current_is_symbol(Symbol::Dot) {
+            if stops.ends_at_extension_name()
+                && self.peek_is_identifier(1)
+                && self.peek_is_symbol(2, Symbol::LeftParen)
+            {
+                break;
+            }
             let dot = self.bump()?.span();
             if !self.current_is_identifier() {
                 let current = self.current()?;
@@ -135,6 +141,7 @@ impl Parser<'_> {
             let mut arguments = Vec::new();
             let argument_stops = stops
                 .without_block_elements()
+                .without_extension_name()
                 .with(TypeStops::COMMA)
                 .with(TypeStops::GREATER);
             loop {

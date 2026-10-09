@@ -126,6 +126,12 @@ pub(crate) enum SequentialContainerKind {
     MutableList,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum MapContainerKind {
+    Map,
+    MutableMap,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct CallableSignature {
     pub(crate) parameters: Vec<EntityType>,
@@ -194,6 +200,15 @@ pub(crate) enum SsaTypeKind {
     SequentialContainer {
         kind: SequentialContainerKind,
         element: SsaTypeId,
+    },
+    /// Inline non-owning descriptor; source is the exact stable List storage type.
+    RangeView {
+        source: SsaTypeId,
+    },
+    MapContainer {
+        kind: MapContainerKind,
+        key: SsaTypeId,
+        value: SsaTypeId,
     },
     SharedReference {
         target: SsaTypeId,
@@ -320,452 +335,9 @@ pub(crate) enum ClosureCaptureOperand {
     Owned(ValueId),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Operation {
-    Constant(ScalarConstant),
-    /// 编译器封闭的 UTF-8 stdout 行输出；bytes 必须以 `\n` 结尾。
-    PrintLiteral {
-        bytes: Vec<u8>,
-    },
-    /// 以已解码 UTF-8 bytes 创建普通 String owner。
-    StringLiteral {
-        string: SsaTypeId,
-        bytes: Vec<u8>,
-    },
-    /// 读取两个 String view 并创建新的唯一 owner，不消费具名 operand。
-    StringConcat {
-        left: EntityId,
-        right: EntityId,
-    },
-    /// 深拷贝 active shared String loan，产生独立的唯一 owner。
-    StringClone {
-        source: LoanId,
-    },
-    /// 按 UTF-8 bytes 比较两个 String view，不进行 Unicode normalization。
-    StringEqual {
-        left: EntityId,
-        right: EntityId,
-    },
-    /// 读取 active shared loan，输出全部 String bytes 后追加换行。
-    PrintString {
-        value: LoanId,
-    },
-    /// SPEC-0033 的低层 primitive；算术变体只允许在范围证明后使用。
-    /// 源语言 `+`/`-`/`*` 必须先 lower 为 `CheckedArithmetic`。
-    Binary {
-        operator: BinaryOperator,
-        left: ValueId,
-        right: ValueId,
-    },
-    /// 返回算术结果与失败标志；lowering 必须把失败标志导向 `Abort`。
-    CheckedArithmetic {
-        operator: CheckedArithmeticOperator,
-        left: ValueId,
-        right: ValueId,
-    },
-    /// Exact-width integer operations; shift counts are masked by width - 1.
-    IntegerBitwise {
-        operator: IntegerBitwiseOperator,
-        left: ValueId,
-        right: ValueId,
-    },
-    /// Bitwise inversion within the integer operand/result width.
-    IntegerNot {
-        operand: ValueId,
-    },
-    Compare {
-        operator: ComparisonOperator,
-        left: ValueId,
-        right: ValueId,
-    },
-    BooleanNot {
-        operand: ValueId,
-    },
-    DirectCall {
-        callee: FunctionId,
-        /// instance call 的隐藏第零操作数；普通函数调用为 `None`。
-        receiver: Option<EntityId>,
-        arguments: Vec<EntityId>,
-    },
-    FunctionAddress {
-        target: FunctionId,
-    },
-    ClosureConstruct {
-        closure: SsaTypeId,
-        thunk: FunctionId,
-        captures: Vec<ClosureCaptureOperand>,
-    },
-    CallableInvoke {
-        callable: ValueId,
-        arguments: Vec<EntityId>,
-    },
-    AggregateConstruct {
-        aggregate: SsaTypeId,
-        fields: Vec<ValueId>,
-    },
-    AggregateProject {
-        aggregate: ValueId,
-        field: usize,
-    },
-    AggregateExplode {
-        aggregate: ValueId,
-    },
-    AggregateCopyExplode {
-        aggregate: ValueId,
-    },
-    TaggedConstruct {
-        tagged: SsaTypeId,
-        variant: usize,
-        payload: ValueId,
-    },
-    TaggedPayloadPlace {
-        owner: ValueId,
-        variant: usize,
-    },
-    TaggedDiscriminant {
-        owner: ValueId,
-    },
-    HeapAllocate {
-        owner: SsaTypeId,
-        payload: ValueId,
-    },
-    HeapPayloadPlace {
-        owner: ValueId,
-    },
-    /// Read one Copyable payload field through an active heap-owner receiver loan.
-    HeapFieldRead {
-        receiver: LoanId,
-        field: usize,
-    },
-    /// Replace one payload field through an active exclusive heap-owner receiver loan.
-    /// MoveOnly fields implicitly drop the old value before committing the replacement.
-    HeapFieldReplace {
-        receiver: LoanId,
-        field: usize,
-        value: ValueId,
-    },
-    /// Exchange one direct payload field under its exact exclusive field loan.
-    /// Consumes the loan and replacement, returns the old field value, and preserves owner.
-    /// No drop or observable uninitialized state occurs during this ownership commit.
-    HeapFieldExchange {
-        owner: ValueId,
-        field: usize,
-        loan: LoanId,
-        replacement: ValueId,
-    },
-    /// Replace one field of an inline aggregate through an active exclusive receiver loan.
-    /// MoveOnly fields implicitly drop the old value before committing the replacement.
-    InlineFieldReplace {
-        receiver: LoanId,
-        field: usize,
-        value: ValueId,
-    },
-    SharedAllocate {
-        owner: SsaTypeId,
-        payload: ValueId,
-    },
-    SharedRetain {
-        owner: EntityId,
-    },
-    SharedPayloadPlace {
-        owner: EntityId,
-    },
-    NullableWrap {
-        nullable: SsaTypeId,
-        owner: ValueId,
-    },
-    NullableNull {
-        nullable: SsaTypeId,
-    },
-    NullableIsNull {
-        owner: ValueId,
-    },
-    NullableTake {
-        owner: ValueId,
-        proof: LoanId,
-    },
-    ContainerConstruct {
-        container: SsaTypeId,
-        elements: Vec<ValueId>,
-    },
-    ContainerGenerate {
-        container: SsaTypeId,
-        length: ValueId,
-        initializer: FunctionId,
-    },
-    /// Synchronously read a shared callable loan without transferring its owner.
-    ContainerGenerateBorrowed {
-        container: SsaTypeId,
-        length: ValueId,
-        initializer: LoanId,
-    },
-    ContainerLength {
-        owner: EntityId,
-    },
-    ContainerElementPlace {
-        owner: EntityId,
-        index: ValueId,
-    },
-    ContainerAppend {
-        owner: ValueId,
-        element: ValueId,
-    },
-    ContainerClear {
-        owner: ValueId,
-    },
-    ContainerRemoveAt {
-        owner: ValueId,
-        index: ValueId,
-    },
-    ContainerRemoveFirst {
-        owner: ValueId,
-    },
-    ContainerRemoveLast {
-        owner: ValueId,
-    },
-    ContainerInsertAt {
-        owner: ValueId,
-        index: ValueId,
-        element: ValueId,
-    },
-    ContainerReplace {
-        owner: ValueId,
-        index: ValueId,
-        value: ValueId,
-    },
-    FieldPlace {
-        base: PlaceId,
-        field: usize,
-    },
-    /// Project an active shared aggregate loan to one shared field loan.
-    SharedFieldLoan {
-        base: LoanId,
-        field: usize,
-    },
-    /// Project an active shared heap-owner receiver loan to one shared payload-field loan.
-    SharedHeapFieldLoan {
-        base: LoanId,
-        field: usize,
-    },
-    /// Narrow an active shared/exclusive loan to a call-scoped shared loan.
-    SharedReborrow {
-        source: LoanId,
-    },
-    /// Follow a shared reference slot to a shared target view within its parent loan's extent.
-    SharedReferenceFollow {
-        source: LoanId,
-    },
-    Copy {
-        source: ValueId,
-    },
-    Consume {
-        owner: ValueId,
-    },
-    RootPlace {
-        owner: ValueId,
-    },
-    /// Take one MoveOnly owner back from its direct root place after all loans end.
-    RootPlaceTake {
-        owner: ValueId,
-        place: PlaceId,
-    },
-    /// Atomically replace an owned root under its active exclusive loan.
-    /// Results are the new root identity followed by the detached old value; the loan ends.
-    RootReplace {
-        owner: ValueId,
-        loan: LoanId,
-        replacement: ValueId,
-    },
-    /// Atomically exchange two disjoint owned roots and end both exclusive loans.
-    /// Results are the new identities in the same order as `owners`.
-    RootSwap {
-        owners: [ValueId; 2],
-        loans: [LoanId; 2],
-    },
-    BorrowBegin {
-        place: PlaceId,
-        kind: LoanKind,
-    },
-    BorrowEnd {
-        loan: LoanId,
-    },
-    Read {
-        source: PlaceAccess,
-    },
-    Mutate {
-        place: PlaceId,
-        value: ValueId,
-    },
-    Drop {
-        owner: ValueId,
-    },
-}
-
-impl Operation {
-    pub(crate) fn entities(&self) -> Vec<EntityId> {
-        match self {
-            Self::Constant(_)
-            | Self::PrintLiteral { .. }
-            | Self::StringLiteral { .. }
-            | Self::NullableNull { .. } => Vec::new(),
-            Self::StringConcat { left, right } | Self::StringEqual { left, right } => {
-                vec![*left, *right]
-            }
-            Self::PrintString { value } => vec![EntityId::Loan(*value)],
-            Self::StringClone { source } => vec![EntityId::Loan(*source)],
-            Self::Binary { left, right, .. }
-            | Self::CheckedArithmetic { left, right, .. }
-            | Self::IntegerBitwise { left, right, .. }
-            | Self::Compare { left, right, .. } => {
-                vec![EntityId::Value(*left), EntityId::Value(*right)]
-            }
-            Self::DirectCall {
-                receiver,
-                arguments,
-                ..
-            } => receiver
-                .iter()
-                .copied()
-                .chain(arguments.iter().copied())
-                .collect(),
-            Self::FunctionAddress { .. } => Vec::new(),
-            Self::ClosureConstruct { captures, .. } => captures
-                .iter()
-                .map(|capture| match capture {
-                    ClosureCaptureOperand::Shared(loan) => EntityId::Loan(*loan),
-                    ClosureCaptureOperand::Owned(value) => EntityId::Value(*value),
-                })
-                .collect(),
-            Self::CallableInvoke {
-                callable,
-                arguments,
-            } => {
-                let mut entities = vec![EntityId::Value(*callable)];
-                entities.extend(arguments.iter().copied());
-                entities
-            }
-            Self::AggregateConstruct { fields, .. } => {
-                fields.iter().copied().map(EntityId::Value).collect()
-            }
-            Self::AggregateProject { aggregate, .. }
-            | Self::AggregateExplode { aggregate }
-            | Self::AggregateCopyExplode { aggregate }
-            | Self::HeapPayloadPlace { owner: aggregate } => {
-                vec![EntityId::Value(*aggregate)]
-            }
-            Self::HeapFieldRead { receiver, .. } => vec![EntityId::Loan(*receiver)],
-            Self::HeapFieldReplace {
-                receiver, value, ..
-            }
-            | Self::InlineFieldReplace {
-                receiver, value, ..
-            } => vec![EntityId::Loan(*receiver), EntityId::Value(*value)],
-            Self::HeapFieldExchange {
-                owner,
-                loan,
-                replacement,
-                ..
-            } => vec![
-                EntityId::Value(*owner),
-                EntityId::Loan(*loan),
-                EntityId::Value(*replacement),
-            ],
-            Self::SharedRetain { owner } | Self::SharedPayloadPlace { owner } => vec![*owner],
-            Self::NullableWrap { owner, .. } | Self::NullableIsNull { owner } => {
-                vec![EntityId::Value(*owner)]
-            }
-            Self::NullableTake { owner, proof } => {
-                vec![EntityId::Value(*owner), EntityId::Loan(*proof)]
-            }
-            Self::TaggedConstruct { payload, .. } => vec![EntityId::Value(*payload)],
-            Self::TaggedPayloadPlace { owner, .. } => vec![EntityId::Value(*owner)],
-            Self::TaggedDiscriminant { owner } => vec![EntityId::Value(*owner)],
-            Self::HeapAllocate { payload, .. } => vec![EntityId::Value(*payload)],
-            Self::SharedAllocate { payload, .. } => vec![EntityId::Value(*payload)],
-            Self::ContainerConstruct { elements, .. } => {
-                elements.iter().copied().map(EntityId::Value).collect()
-            }
-            Self::ContainerGenerate { length, .. } => vec![EntityId::Value(*length)],
-            Self::ContainerGenerateBorrowed {
-                length,
-                initializer,
-                ..
-            } => {
-                vec![EntityId::Value(*length), EntityId::Loan(*initializer)]
-            }
-            Self::ContainerLength { owner } => vec![*owner],
-            Self::ContainerElementPlace { owner, index } => vec![*owner, EntityId::Value(*index)],
-            Self::ContainerAppend { owner, element } => {
-                vec![EntityId::Value(*owner), EntityId::Value(*element)]
-            }
-            Self::ContainerClear { owner } => vec![EntityId::Value(*owner)],
-            Self::ContainerRemoveAt { owner, index } => {
-                vec![EntityId::Value(*owner), EntityId::Value(*index)]
-            }
-            Self::ContainerRemoveFirst { owner } => vec![EntityId::Value(*owner)],
-            Self::ContainerRemoveLast { owner } => vec![EntityId::Value(*owner)],
-            Self::ContainerInsertAt {
-                owner,
-                index,
-                element,
-            } => vec![
-                EntityId::Value(*owner),
-                EntityId::Value(*index),
-                EntityId::Value(*element),
-            ],
-            Self::ContainerReplace {
-                owner,
-                index,
-                value,
-            } => vec![
-                EntityId::Value(*owner),
-                EntityId::Value(*index),
-                EntityId::Value(*value),
-            ],
-            Self::FieldPlace { base, .. } => vec![EntityId::Place(*base)],
-            Self::SharedFieldLoan { base, .. } | Self::SharedHeapFieldLoan { base, .. } => {
-                vec![EntityId::Loan(*base)]
-            }
-            Self::SharedReborrow { source } | Self::SharedReferenceFollow { source } => {
-                vec![EntityId::Loan(*source)]
-            }
-            Self::BooleanNot { operand } | Self::IntegerNot { operand } => {
-                vec![EntityId::Value(*operand)]
-            }
-            Self::Copy { source } => vec![EntityId::Value(*source)],
-            Self::Consume { owner } | Self::RootPlace { owner } | Self::Drop { owner } => {
-                vec![EntityId::Value(*owner)]
-            }
-            Self::RootPlaceTake { owner, place } => {
-                vec![EntityId::Value(*owner), EntityId::Place(*place)]
-            }
-            Self::RootReplace {
-                owner,
-                loan,
-                replacement,
-            } => vec![
-                EntityId::Value(*owner),
-                EntityId::Loan(*loan),
-                EntityId::Value(*replacement),
-            ],
-            Self::RootSwap { owners, loans } => vec![
-                EntityId::Value(owners[0]),
-                EntityId::Loan(loans[0]),
-                EntityId::Value(owners[1]),
-                EntityId::Loan(loans[1]),
-            ],
-            Self::BorrowBegin { place, .. } => vec![EntityId::Place(*place)],
-            Self::BorrowEnd { loan } => vec![EntityId::Loan(*loan)],
-            Self::Read { source } => vec![match source {
-                PlaceAccess::Place(place) => EntityId::Place(*place),
-                PlaceAccess::Loan(loan) => EntityId::Loan(*loan),
-            }],
-            Self::Mutate { place, value } => {
-                vec![EntityId::Place(*place), EntityId::Value(*value)]
-            }
-        }
-    }
-}
+#[path = "model/operation.rs"]
+mod operation;
+pub(crate) use operation::Operation;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Instruction {
@@ -799,6 +371,13 @@ pub(crate) enum TerminatorKind {
     Return {
         values: Vec<ValueId>,
     },
+    BorrowReturn {
+        loan: LoanId,
+    },
+    RangeReturn {
+        view: ValueId,
+        source: LoanId,
+    },
     Abort,
 }
 
@@ -828,6 +407,10 @@ impl TerminatorKind {
                 entities
             }
             Self::Return { values } => values.iter().copied().map(EntityId::Value).collect(),
+            Self::BorrowReturn { loan } => vec![EntityId::Loan(*loan)],
+            Self::RangeReturn { view, source } => {
+                vec![EntityId::Value(*view), EntityId::Loan(*source)]
+            }
             Self::Abort => Vec::new(),
         }
     }
@@ -845,7 +428,10 @@ impl TerminatorKind {
                 when_non_null,
                 ..
             } => vec![when_null.target, when_non_null.target],
-            Self::Return { .. } | Self::Abort => Vec::new(),
+            Self::Return { .. }
+            | Self::BorrowReturn { .. }
+            | Self::RangeReturn { .. }
+            | Self::Abort => Vec::new(),
         }
     }
 }
@@ -870,6 +456,10 @@ pub(crate) struct Function {
     pub(crate) id: FunctionId,
     pub(crate) name: String,
     pub(crate) return_types: Vec<SsaTypeId>,
+    /// 唯一参数来源；返回 ABI 为指向 return_types[0] storage 的 shared pointer。
+    pub(crate) borrow_return: Option<usize>,
+    /// Range result returns inline metadata and continues this caller source loan.
+    pub(crate) carrier_return: Option<usize>,
     /// instance callable 的隐藏 receiver 参数类型；它必须是 entry block 的首个参数。
     pub(crate) receiver: Option<EntityType>,
     pub(crate) blocks: Vec<Block>,
@@ -1105,6 +695,7 @@ pub(crate) struct Module {
     pub(super) type_origins: BTreeMap<SsaTypeId, TypeOrigin>,
     pub(crate) functions: Vec<Function>,
     pub(super) deinits: BTreeMap<SsaTypeId, FunctionId>,
+    pub(super) map_results: BTreeMap<SsaTypeId, SsaTypeId>,
 }
 
 impl Module {
@@ -1184,6 +775,8 @@ impl Module {
             name: name.into(),
             return_types,
             receiver,
+            borrow_return: None,
+            carrier_return: None,
             blocks: Vec::new(),
             instructions: Vec::new(),
             values: Vec::new(),
@@ -1246,6 +839,7 @@ impl Program {
             type_origins: BTreeMap::new(),
             functions: Vec::new(),
             deinits: BTreeMap::new(),
+            map_results: BTreeMap::new(),
         });
         id
     }

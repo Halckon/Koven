@@ -12,6 +12,7 @@ use lang_frontend::{
 pub(super) struct IterationContext {
     pub(super) statement: UnitStatementId,
     pub(super) start: usize,
+    pub(super) retained_start: usize,
     pub(super) outer_temporaries: BTreeSet<UnitExpressionId>,
     pub(super) element: usize,
     pub(super) step: ValueId,
@@ -49,59 +50,74 @@ impl UnitExpressionLowerer<'_> {
         let int_type = self.ssa_builtin(BuiltinType::Int, span)?;
         let bool_type = self.ssa_builtin(BuiltinType::Boolean, span)?;
         let outer_temporaries = self.temporaries.keys().copied().collect();
-        let source_loan = match plan.source() {
-            UnitLoanTarget::Place(place) => {
-                let symbol = place.root();
-                let symbol_data = self.names.names().source_units()[symbol.source_unit().index()]
+        let retained_start = self.pending_operands.len();
+        let source_loan = if descriptor.provider()
+            == lang_frontend::type_checking::IterationProvider::RangeView
+        {
+            self.range_iteration_loan(source, container, span)?
+        } else {
+            match plan.source() {
+                UnitLoanTarget::Place(place) => {
+                    let symbol = place.root();
+                    let symbol_data = self.names.names().source_units()
+                        [symbol.source_unit().index()]
                     .resolution()
                     .symbols()
                     .get(symbol.symbol().index())
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                if !place.is_root()
-                    || symbol_data.kind() == lang_frontend::name_resolution::SymbolKind::Field
-                {
+                    if !place.is_root()
+                        || symbol_data.kind() == lang_frontend::name_resolution::SymbolKind::Field
+                    {
+                        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                    }
+                    match plan.source_access() {
+                        UnitIterationSourceAccess::Shared => {
+                            let loan = *self.borrow_bindings.get(&symbol).ok_or_else(|| {
+                                lowering_error(LoweringErrorKind::MissingFact, span)
+                            })?;
+                            self.iteration_loan(
+                                Operation::SharedReborrow { source: loan },
+                                container,
+                                span,
+                            )?
+                        }
+                        UnitIterationSourceAccess::Owned => {
+                            let Some(LoweredValue::Value(owner)) =
+                                self.bindings.get(&symbol).copied()
+                            else {
+                                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                            };
+                            self.iteration_owner_loan(owner, container, span)?
+                        }
+                        _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+                    }
+                }
+                UnitLoanTarget::Temporary(_) => {
+                    let owner = match self.lower(source)? {
+                        LoweredValue::Value(owner) => owner,
+                        LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+                        LoweredValue::Unit => {
+                            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                        }
+                    };
+                    self.iteration_owner_loan(owner, container, span)?
+                }
+                UnitLoanTarget::This(_) => {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
-                match plan.source_access() {
-                    UnitIterationSourceAccess::Shared => {
-                        let loan = *self
-                            .borrow_bindings
-                            .get(&symbol)
-                            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                        self.iteration_loan(
-                            Operation::SharedReborrow { source: loan },
-                            container,
-                            span,
-                        )?
-                    }
-                    UnitIterationSourceAccess::Owned => {
-                        let Some(LoweredValue::Value(owner)) = self.bindings.get(&symbol).copied()
-                        else {
-                            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                        };
-                        self.iteration_owner_loan(owner, container, span)?
-                    }
-                    _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-                }
-            }
-            UnitLoanTarget::Temporary(_) => {
-                let owner = match self.lower(source)? {
-                    LoweredValue::Value(owner) => owner,
-                    LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
-                    LoweredValue::Unit => {
-                        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                    }
-                };
-                self.iteration_owner_loan(owner, container, span)?
-            }
-            UnitLoanTarget::This(_) => {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         };
         let preheader = self.block;
         let origin = Origin::Source(span);
-        let snapshot = provider::snapshot(self.function, preheader, source_loan, int_type, &origin)
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let snapshot = provider::snapshot(
+            self.function,
+            preheader,
+            source_loan,
+            int_type,
+            &origin,
+            descriptor.provider(),
+        )
+        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         let start = self.pending_operands.len();
         self.pending_operands.extend([
             EntityId::Loan(source_loan),
@@ -160,6 +176,7 @@ impl UnitExpressionLowerer<'_> {
             body_edge,
             false_edge,
             &origin,
+            descriptor.provider(),
         )
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.block = body_block;
@@ -169,6 +186,7 @@ impl UnitExpressionLowerer<'_> {
         context.iteration = Some(IterationContext {
             statement: statement_id,
             start,
+            retained_start,
             outer_temporaries,
             element: element_slot,
             step: header.step,
@@ -224,7 +242,7 @@ impl UnitExpressionLowerer<'_> {
         self.closure_bindings = context.entry_closure_bindings.clone();
         self.loops.push(context);
         self.emit_drops(UnitDropPoint::LoopExit(statement_id))?;
-        self.pending_operands.truncate(start);
+        self.pending_operands.truncate(retained_start);
         let false_exit = self.loop_state();
         let context = self
             .loops

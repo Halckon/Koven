@@ -103,12 +103,20 @@ pub(crate) fn snapshot(
     source: LoanId,
     int_type: SsaTypeId,
     origin: &Origin,
+    provider: lang_frontend::type_checking::IterationProvider,
 ) -> Result<ProviderSnapshot, ModelError> {
     let length = append_value(
         function,
         preheader,
-        Operation::ContainerLength {
-            owner: EntityId::Loan(source),
+        match provider {
+            lang_frontend::type_checking::IterationProvider::RangeView => Operation::RangeLength {
+                view: EntityId::Loan(source),
+            },
+            lang_frontend::type_checking::IterationProvider::Sequential(_) => {
+                Operation::ContainerLength {
+                    owner: EntityId::Loan(source),
+                }
+            }
         },
         int_type,
         origin,
@@ -200,6 +208,7 @@ pub(crate) fn guard_and_begin(
     body: Edge,
     exit: Edge,
     origin: &Origin,
+    provider: lang_frontend::type_checking::IterationProvider,
 ) -> Result<GuardedElement, ProviderBuildError> {
     let body_id = body.target;
     let body_block = function
@@ -245,9 +254,19 @@ pub(crate) fn guard_and_begin(
     let place = append_place(
         function,
         body_id,
-        Operation::ContainerElementPlace {
-            owner: EntityId::Loan(body_source),
-            index: body_cursor,
+        match provider {
+            lang_frontend::type_checking::IterationProvider::RangeView => {
+                Operation::RangeElementPlace {
+                    view: body_source,
+                    index: body_cursor,
+                }
+            }
+            lang_frontend::type_checking::IterationProvider::Sequential(_) => {
+                Operation::ContainerElementPlace {
+                    owner: EntityId::Loan(body_source),
+                    index: body_cursor,
+                }
+            }
         },
         element_type,
         origin,

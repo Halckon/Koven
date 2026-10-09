@@ -1,4 +1,6 @@
 //! SPEC-0008 / SPEC-0118 的独立声明 Parser 公共契约与恢复测试。
+#[path = "parser_declaration/function_signature.rs"]
+mod function_signature;
 
 use lang_frontend::{
     ast::{ExpressionId, TypeRefId},
@@ -143,78 +145,6 @@ fn variable_and_constant_payloads_preserve_typed_children_and_spans() {
     assert!(matches!(
         expression(&parsed, *initializer),
         Expression::Literal(_)
-    ));
-}
-
-#[test]
-fn function_payload_preserves_generic_signature_and_optional_body() {
-    let text = "fun <T: pkg.Outer<Inner>> map(x: T, f: move (T) -> T): T = f(x)";
-    let (sources, parsed) = parsed_ok(text);
-    let Item::Function {
-        name,
-        type_parameters,
-        type_parameter_list_span,
-        parameters,
-        form,
-    } = item(&parsed)
-    else {
-        panic!("function")
-    };
-    assert_eq!(sources.slice(marker_span(*name)).expect("name"), "map");
-    assert_eq!(type_parameters.len(), 1);
-    assert_eq!(
-        sources
-            .slice(type_parameter_list_span.expect("list"))
-            .expect("list"),
-        "<T: pkg.Outer<Inner>>"
-    );
-    assert!(type_parameters[0].bound.is_some());
-    assert_eq!(parameters.len(), 2);
-    let FunctionForm::Explicit {
-        colon_span,
-        type_ref: return_type,
-        body,
-    } = form
-    else {
-        panic!("explicit function")
-    };
-    assert_eq!(sources.slice(*colon_span).expect("colon"), ":");
-    assert!(matches!(
-        type_ref(&parsed, *return_type),
-        TypeRef::Qualified { .. }
-    ));
-    let FunctionBody::Expression {
-        equals_span,
-        expression: body,
-    } = body
-    else {
-        panic!("expression body")
-    };
-    assert_eq!(sources.slice(*equals_span).expect("equals"), "=");
-    assert!(matches!(
-        expression(&parsed, *body),
-        Expression::Call { .. }
-    ));
-
-    let (_, signature) = parsed_ok("fun idle(): Unit");
-    let Item::Function {
-        type_parameters,
-        type_parameter_list_span,
-        parameters,
-        form,
-        ..
-    } = item(&signature)
-    else {
-        panic!("signature")
-    };
-    assert!(type_parameters.is_empty() && parameters.is_empty());
-    assert!(type_parameter_list_span.is_none());
-    assert!(matches!(
-        form,
-        FunctionForm::Explicit {
-            body: FunctionBody::Absent,
-            ..
-        }
     ));
 }
 
@@ -575,39 +505,6 @@ fn missing_initializer_fallback_consumes_one_error_region_without_trailing_casca
             .collect::<Vec<_>>(),
         ["L0020"]
     );
-}
-
-#[test]
-fn missing_return_colon_fallback_preserves_the_expression_body() {
-    let text = "fun f() = 1";
-    let (_, parsed) = parsed(text);
-    let Item::Function {
-        form:
-            FunctionForm::Explicit {
-                colon_span,
-                type_ref: return_type,
-                body,
-            },
-        ..
-    } = item(&parsed)
-    else {
-        panic!("function")
-    };
-    assert_eq!((colon_span.start(), colon_span.end()), (8, 8));
-    assert!(matches!(type_ref(&parsed, *return_type), TypeRef::Error));
-    let FunctionBody::Expression {
-        expression: body, ..
-    } = body
-    else {
-        panic!("preserved expression body")
-    };
-    assert!(matches!(expression(&parsed, *body), Expression::Literal(_)));
-    let codes = parsed
-        .diagnostics()
-        .iter()
-        .map(|diagnostic| diagnostic.code().to_string())
-        .collect::<Vec<_>>();
-    assert_eq!(codes, ["L0021"]);
 }
 
 #[test]

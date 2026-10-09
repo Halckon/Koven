@@ -354,6 +354,9 @@ impl ExpressionLowerer<'_> {
         &mut self,
         expression: ExpressionId,
     ) -> Result<Option<LoweredValue>, LoweringError> {
+        if self.typed.range_size(expression).is_some() {
+            return self.lower_range_size(expression).map(Some);
+        }
         if self.typed.container_size(expression).is_some() {
             return self.lower_container_size(expression).map(Some);
         }

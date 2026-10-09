@@ -1,7 +1,18 @@
 //! Typed SSA operation 的局部类型契约。
 
+mod range;
+pub(super) use range::{
+    parameter as range_parameter, return_contract as range_return_contract,
+    verify_signature as range_verify_signature,
+};
+mod callable;
+use callable::{
+    callable_invoke_contract, closure_construct_contract, direct_call_contract,
+    function_address_contract,
+};
 mod borrowed_generate;
 mod constant_contract;
+mod map;
 use constant_contract::constant_contract;
 
 use super::{
@@ -77,6 +88,20 @@ pub(super) fn verify_operation(
         } => direct_call_contract(module, function, *callee, *receiver, arguments, &results),
         Operation::FunctionAddress { target } => {
             function_address_contract(module, *target, &results)
+        }
+        Operation::BorrowCall {
+            callee,
+            arguments,
+            source,
+        } => super::verify_borrow_result::call_contract(
+            module, function, *callee, arguments, *source, &results,
+        ),
+        Operation::RangeConstruct { .. }
+        | Operation::RangeCall { .. }
+        | Operation::RangeLength { .. }
+        | Operation::RangeElementPlace { .. }
+        | Operation::RangeEnd { .. } => {
+            range::contract(module, function, &instruction.operation, &results)
         }
         Operation::ClosureConstruct {
             closure,
@@ -161,6 +186,7 @@ pub(super) fn verify_operation(
             replacement,
         } => value_type(function, *owner)
             .and_then(|owner| module.heap_payload(owner))
+            .filter(|payload| module.map_result_value(*payload).is_none())
             .and_then(|payload| module.aggregate_fields(payload))
             .and_then(|fields| fields.get(*field).copied())
             .is_some_and(|field| {
@@ -223,6 +249,12 @@ pub(super) fn verify_operation(
             value_type(function, *owner).is_some_and(|ty| module.nullable_inner(ty).is_some())
                 && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
         }
+        Operation::NullableLoanIsNull { source } => {
+            matches!(function.entity(EntityId::Loan(*source)).map(|e| e.ty),
+                Some(EntityType::Loan {kind:LoanKind::Shared,target})
+                    if matches!(module.type_kind(target),Some(SsaTypeKind::NullableHandle {..})))
+                && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
+        }
         Operation::NullableTake { owner, proof } => {
             nullable_take_contract(module, function, *owner, *proof, &results)
         }
@@ -282,6 +314,17 @@ pub(super) fn verify_operation(
             index,
             value,
         } => container_replace_contract(module, function, *owner, *index, *value, &results),
+        Operation::MapConstruct { .. }
+        | Operation::MapSize { .. }
+        | Operation::MapContains { .. }
+        | Operation::MapGet { .. }
+        | Operation::MapRequireValue { .. }
+        | Operation::MapWithValue { .. }
+        | Operation::MapResultUnwrap { .. }
+        | Operation::MapPut { .. }
+        | Operation::MapRemove { .. } => {
+            map::verify_map_operation(module, function, &instruction.operation, &results)
+        }
         Operation::FieldPlace { base, field } => {
             field_place_contract(module, function, *base, *field, &results)
         }
@@ -295,16 +338,17 @@ pub(super) fn verify_operation(
             else {
                 return;
             };
-            module
-                .aggregate_fields(target)
-                .and_then(|fields| fields.get(*field))
-                .is_some_and(|field_ty| {
-                    results
-                        == [EntityType::Loan {
-                            kind: LoanKind::Shared,
-                            target: *field_ty,
-                        }]
-                })
+            module.map_result_value(target).is_none()
+                && module
+                    .aggregate_fields(target)
+                    .and_then(|fields| fields.get(*field))
+                    .is_some_and(|field_ty| {
+                        results
+                            == [EntityType::Loan {
+                                kind: LoanKind::Shared,
+                                target: *field_ty,
+                            }]
+                    })
         }
         Operation::SharedHeapFieldLoan { base, field } => {
             matches!(
@@ -347,9 +391,14 @@ pub(super) fn verify_operation(
         Operation::Copy { source } => {
             single_value_result(&results) == value_type(function, *source)
         }
-        Operation::Consume { .. } | Operation::BorrowEnd { .. } | Operation::Drop { .. } => {
+        Operation::Consume { owner } | Operation::Drop { owner } => {
             results.is_empty()
+                && !matches!(
+                    value_type(function, *owner).and_then(|ty| module.type_kind(ty)),
+                    Some(SsaTypeKind::RangeView { .. })
+                )
         }
+        Operation::BorrowEnd { .. } => results.is_empty(),
         Operation::RootPlace { owner } => {
             results
                 == [EntityType::Place(
@@ -460,6 +509,11 @@ fn aggregate_construct_contract(
     fields: &[ValueId],
     results: &[EntityType],
 ) -> bool {
+    if module.map_result_value(aggregate).is_some()
+        && module.type_ownership(aggregate) == Some(Ownership::MoveOnly)
+    {
+        return false;
+    }
     let Some(expected_fields) = module.aggregate_fields(aggregate) else {
         return false;
     };
@@ -578,6 +632,7 @@ fn aggregate_explode_contract(
         return false;
     };
     module.type_ownership(aggregate) == Some(super::model::Ownership::MoveOnly)
+        && module.map_result_value(aggregate).is_none()
         && module.aggregate_fields(aggregate).is_some_and(|fields| {
             results
                 == fields
@@ -686,6 +741,7 @@ fn heap_field_type(
     };
     module
         .heap_payload(target)
+        .filter(|payload| module.map_result_value(*payload).is_none())
         .and_then(|payload| module.aggregate_fields(payload))
         .and_then(|fields| fields.get(field))
         .copied()
@@ -701,7 +757,10 @@ fn inline_field_type(
         return None;
     };
     module
-        .aggregate_fields(target)
+        .map_result_value(target)
+        .is_none()
+        .then_some(target)
+        .and_then(|target| module.aggregate_fields(target))
         .and_then(|fields| fields.get(field))
         .copied()
 }
@@ -725,6 +784,7 @@ fn field_place_contract(
     results: &[EntityType],
 ) -> bool {
     place_type(function, base)
+        .filter(|aggregate| module.map_result_value(*aggregate).is_none())
         .and_then(|aggregate| module.aggregate_fields(aggregate))
         .and_then(|fields| fields.get(field))
         .is_some_and(|field| results == [EntityType::Place(*field)])
@@ -984,172 +1044,6 @@ fn comparison_contract(
     }
 }
 
-fn direct_call_contract(
-    module: &Module,
-    function: &Function,
-    callee: super::model::FunctionId,
-    receiver: Option<EntityId>,
-    arguments: &[EntityId],
-    results: &[EntityType],
-) -> bool {
-    let Some(callee) = module.function(callee) else {
-        return false;
-    };
-    let Some(entry) = callee.blocks.first() else {
-        return false;
-    };
-    let Some(parameter_types) = entry
-        .parameters
-        .iter()
-        .map(|parameter| callee.entity(*parameter).map(|data| data.ty))
-        .collect::<Option<Vec<_>>>()
-    else {
-        return false;
-    };
-    let receiver_count = usize::from(callee.receiver.is_some());
-    if parameter_types.len() != arguments.len() + receiver_count
-        || callee.receiver.is_some() != receiver.is_some()
-        || !parameter_types.iter().all(|ty| match ty {
-            EntityType::Value(ty) => is_first_class(module, *ty),
-            EntityType::Loan { target, .. } => is_first_class(module, *target),
-            EntityType::Place(_) => false,
-        })
-        || !callee
-            .return_types
-            .iter()
-            .all(|ty| is_first_class(module, *ty))
-    {
-        return false;
-    }
-    let receiver_matches = receiver
-        .zip(callee.receiver)
-        .is_none_or(|(receiver, expected)| {
-            !matches!(receiver, EntityId::Place(_))
-                && function.entity(receiver).map(|entity| entity.ty) == Some(expected)
-        });
-    let arguments_match = arguments
-        .iter()
-        .zip(parameter_types.into_iter().skip(receiver_count))
-        .all(|(argument, parameter)| {
-            !matches!(argument, EntityId::Place(_))
-                && function.entity(*argument).map(|entity| entity.ty) == Some(parameter)
-        });
-    let results_match = results
-        == callee
-            .return_types
-            .iter()
-            .copied()
-            .map(EntityType::Value)
-            .collect::<Vec<_>>();
-    receiver_matches && arguments_match && results_match
-}
-
-fn function_address_contract(module: &Module, target: FunctionId, results: &[EntityType]) -> bool {
-    let Some(result) = single_value_result(results) else {
-        return false;
-    };
-    let Some(SsaTypeKind::FunctionPointer { signature }) = module.type_kind(result) else {
-        return false;
-    };
-    function_matches_signature(module, target, signature, None)
-}
-
-fn closure_construct_contract(
-    module: &Module,
-    function: &Function,
-    closure: SsaTypeId,
-    thunk: FunctionId,
-    operands: &[ClosureCaptureOperand],
-    results: &[EntityType],
-) -> bool {
-    let Some(SsaTypeKind::ConcreteClosure {
-        signature,
-        environment,
-        captures,
-        ..
-    }) = module.type_kind(closure)
-    else {
-        return false;
-    };
-    if single_value_result(results) != Some(closure) || operands.len() != captures.len() {
-        return false;
-    }
-    let captures_match = operands.iter().zip(captures).all(|(operand, capture)| {
-        match (operand, capture.mode) {
-            (ClosureCaptureOperand::Owned(value), ClosureCaptureMode::Owned) => {
-                value_type(function, *value) == Some(capture.ty)
-            }
-            (ClosureCaptureOperand::Shared(loan), ClosureCaptureMode::Shared) => matches!(
-                function.entity(EntityId::Loan(*loan)).map(|entity| entity.ty),
-                Some(EntityType::Loan { kind: LoanKind::Shared, target }) if target == capture.ty
-            ),
-            _ => false,
-        }
-    });
-    captures_match && function_matches_signature(module, thunk, signature, Some(*environment))
-}
-
-fn callable_invoke_contract(
-    module: &Module,
-    function: &Function,
-    callable: ValueId,
-    arguments: &[EntityId],
-    results: &[EntityType],
-) -> bool {
-    let Some(signature) =
-        value_type(function, callable).and_then(|ty| module.callable_signature(ty))
-    else {
-        return false;
-    };
-    arguments.len() == signature.parameters.len()
-        && arguments
-            .iter()
-            .zip(&signature.parameters)
-            .all(|(argument, expected)| {
-                !matches!(argument, EntityId::Place(_))
-                    && function.entity(*argument).map(|entity| entity.ty) == Some(*expected)
-            })
-        && results
-            == signature
-                .returns
-                .iter()
-                .copied()
-                .map(EntityType::Value)
-                .collect::<Vec<_>>()
-}
-
-fn function_matches_signature(
-    module: &Module,
-    target: FunctionId,
-    signature: &CallableSignature,
-    environment: Option<SsaTypeId>,
-) -> bool {
-    let Some(function) = module.function(target) else {
-        return false;
-    };
-    if function.receiver.is_some() {
-        return false;
-    }
-    let Some(entry) = function.blocks.first() else {
-        return false;
-    };
-    let mut expected = environment
-        .into_iter()
-        .map(|target| EntityType::Loan {
-            kind: LoanKind::Shared,
-            target,
-        })
-        .collect::<Vec<_>>();
-    expected.extend(signature.parameters.iter().copied());
-    entry.parameters.len() == expected.len()
-        && entry
-            .parameters
-            .iter()
-            .zip(expected)
-            .all(|(parameter, ty)| function.entity(*parameter).map(|data| data.ty) == Some(ty))
-        && function.return_types == signature.returns
-}
-
 fn integer_fits(value: i128, bits: u16, signed: bool) -> bool {
     if !(1..=128).contains(&bits) {
         return false;
@@ -1187,7 +1081,9 @@ fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
                 | SsaTypeKind::SharedOwner { .. }
                 | SsaTypeKind::StringOwner
                 | SsaTypeKind::NullableHandle { .. }
+                | SsaTypeKind::RangeView { .. }
                 | SsaTypeKind::SequentialContainer { .. }
+                | SsaTypeKind::MapContainer { .. }
                 | SsaTypeKind::ZeroSized { .. }
                 | SsaTypeKind::SharedReference { .. }
                 | SsaTypeKind::FunctionPointer { .. }
@@ -1230,7 +1126,12 @@ fn is_integer(module: &Module, ty: Option<SsaTypeId>) -> bool {
 }
 
 fn is_equality_type(module: &Module, ty: Option<SsaTypeId>) -> bool {
-    ty.is_some_and(|ty| is_scalar(module, ty))
+    ty.is_some_and(|ty| {
+        is_scalar(module, ty)
+            || module
+                .map_result_value(ty)
+                .is_some_and(|value| is_scalar(module, value))
+    })
 }
 
 fn is_boolean(module: &Module, ty: SsaTypeId) -> bool {

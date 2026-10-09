@@ -179,7 +179,7 @@ impl LayoutCalculator<'_, '_> {
                 | SsaTypeKind::SharedReference { .. }
                 | SsaTypeKind::FunctionPointer { .. },
             ) => self.pointer_layout,
-            Some(SsaTypeKind::StringOwner) => self.record(
+            Some(SsaTypeKind::RangeView { .. } | SsaTypeKind::StringOwner) => self.record(
                 ty,
                 &[self.pointer_layout, self.size_layout, self.size_layout],
             )?,
@@ -216,6 +216,19 @@ impl LayoutCalculator<'_, '_> {
                     }
                 };
                 self.record(ty, &fields)?
+            }
+            Some(SsaTypeKind::MapContainer { key, value, .. }) => {
+                let _ = self.dependency(*key)?;
+                let _ = self.dependency(*value)?;
+                self.record(
+                    ty,
+                    &[
+                        self.pointer_layout,
+                        self.size_layout,
+                        self.size_layout,
+                        self.size_layout,
+                    ],
+                )?
             }
             Some(SsaTypeKind::ConcreteClosure { environment, .. }) => {
                 let environment = self.dependency(*environment)?;

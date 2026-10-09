@@ -185,7 +185,8 @@ pub(super) fn resolve_concrete_type(
             arguments,
         }) if matches!(
             constructor,
-            IntrinsicTypeConstructor::Array
+            IntrinsicTypeConstructor::View
+                | IntrinsicTypeConstructor::Array
                 | IntrinsicTypeConstructor::List
                 | IntrinsicTypeConstructor::MutableList
         ) =>

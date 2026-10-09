@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
 mod constant_context;
+mod function_scope;
+mod member_lookup;
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},
@@ -49,6 +51,8 @@ struct Resolver<'a> {
     enum_case_by_span: BTreeMap<(usize, usize), EnumCaseId>,
     payload_candidates: BTreeMap<ScopeId, BTreeMap<String, Vec<SymbolId>>>,
     references: Vec<NameReference>,
+    value_lookup_hints: Vec<NameReference>,
+    receiver_symbols: BTreeMap<(usize, usize), SymbolId>,
     diagnostics: Vec<Diagnostic>,
     duplicate_code: DiagnosticCode,
     unresolved_code: DiagnosticCode,
@@ -76,6 +80,8 @@ impl<'a> Resolver<'a> {
             enum_case_by_span: BTreeMap::new(),
             payload_candidates: BTreeMap::new(),
             references: Vec::new(),
+            value_lookup_hints: Vec::new(),
+            receiver_symbols: BTreeMap::new(),
             diagnostics: Vec::new(),
             duplicate_code: catalog.resolve(codes::DUPLICATE_NAME)?,
             unresolved_code: catalog.resolve(codes::UNRESOLVED_NAME)?,
@@ -106,7 +112,9 @@ impl<'a> Resolver<'a> {
             self.enum_cases,
             self.references,
             ordered,
-        ))
+        )
+        .with_value_lookup_hints(self.value_lookup_hints)
+        .with_receiver_symbols(self.receiver_symbols))
     }
 
     fn ast(&self) -> &SyntaxAst {
@@ -308,50 +316,23 @@ impl<'a> Resolver<'a> {
             }
             Item::Function {
                 type_parameters,
+                extension_receiver,
                 parameters,
                 form,
                 ..
-            } => self.resolve_function(span, scope, &type_parameters, &parameters, form),
+            } => self.resolve_function(
+                span,
+                scope,
+                &type_parameters,
+                extension_receiver.map(|r| r.type_ref),
+                &parameters,
+                form,
+            ),
             Item::Classifier(classifier) => self.resolve_classifier(span, scope, &classifier),
             Item::Companion(companion) => self.resolve_companion(scope, &companion),
             Item::Deinit { body, .. } => {
                 let fn_scope = self.add_scope(Some(scope), ScopeKind::Function, Some(span));
                 self.resolve_statement(body, fn_scope)
-            }
-        }
-    }
-
-    fn resolve_function(
-        &mut self,
-        span: Span,
-        parent: ScopeId,
-        type_parameters: &[TypeParameter],
-        parameters: &[ValueParameter],
-        form: FunctionForm,
-    ) -> Result<(), NameResolutionError> {
-        let scope = self.add_scope(Some(parent), ScopeKind::Function, Some(span));
-        self.resolve_type_parameters(type_parameters, scope)?;
-        for parameter in parameters {
-            self.resolve_type(parameter.type_ref, scope)?;
-            self.insert_marker(
-                scope,
-                parameter.name,
-                Namespace::Value,
-                SymbolKind::ValueParameter,
-            )?;
-        }
-        match form {
-            FunctionForm::ImplicitUnitAbsent => Ok(()),
-            FunctionForm::ImplicitUnitBlock(body) => self.resolve_statement(body, scope),
-            FunctionForm::Explicit { type_ref, body, .. } => {
-                self.resolve_type(type_ref, scope)?;
-                match body {
-                    FunctionBody::Absent => Ok(()),
-                    FunctionBody::Expression { expression, .. } => {
-                        self.resolve_expression(expression, scope)
-                    }
-                    FunctionBody::Block(body) => self.resolve_statement(body, scope),
-                }
             }
         }
     }
@@ -686,7 +667,7 @@ impl<'a> Resolver<'a> {
         let span = node.span();
         let expression = node.payload().clone();
         match expression {
-            Expression::This => self.check_constant_this(span),
+            Expression::This => self.resolve_extension_this(span, scope),
             Expression::Error
             | Expression::Literal(_)
             | Expression::Break { .. }
@@ -795,6 +776,7 @@ impl<'a> Resolver<'a> {
                 ..
             } => {
                 self.resolve_expression_with_type_fallback(receiver, scope)?;
+                self.record_member_lookup(name_span, scope)?;
                 let receiver_node = self.ast().expressions().get(receiver)?;
                 if matches!(receiver_node.payload(), Expression::This) {
                     if let Some(candidates) =

@@ -172,6 +172,22 @@ fn schedule_layout(
     }) = typed.types().get(ty)
         && matches!(
             constructor,
+            lang_frontend::type_checking::IntrinsicTypeConstructor::Map
+                | lang_frontend::type_checking::IntrinsicTypeConstructor::MutableMap
+        )
+    {
+        let [key, value] = arguments.as_slice() else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        schedule_layout(typed, *key, pending, visited, span)?;
+        return schedule_layout(typed, *value, pending, visited, span);
+    }
+    if let Some(UnitTypeKind::Intrinsic {
+        constructor,
+        arguments,
+    }) = typed.types().get(ty)
+        && matches!(
+            constructor,
             lang_frontend::type_checking::IntrinsicTypeConstructor::Array
                 | lang_frontend::type_checking::IntrinsicTypeConstructor::List
                 | lang_frontend::type_checking::IntrinsicTypeConstructor::MutableList

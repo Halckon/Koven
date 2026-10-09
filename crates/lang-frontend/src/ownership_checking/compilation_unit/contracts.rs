@@ -19,6 +19,8 @@ use super::{
     UnitCallReceiverOwnershipContract,
 };
 
+mod map;
+
 pub(super) fn collect_call_receiver_contracts(
     inputs: &[SourceUnitInput<'_>],
     names: &ValidatedCompilationUnitNames,
@@ -208,6 +210,7 @@ pub(super) fn collect_call_receiver_contracts(
             None,
         ));
     }
+    contracts.extend(map::collect(inputs, names, typed)?.0);
     contracts.sort_by_key(|contract| {
         (
             contract.call().source_unit().index(),
@@ -420,6 +423,7 @@ pub(super) fn collect_call_argument_contracts(
             loan_begin_span: element_span,
         });
     }
+    contracts.extend(map::collect(inputs, names, typed)?.1);
     contracts.sort_by_key(|contract| {
         (
             contract.call.source_unit().index(),
@@ -706,7 +710,7 @@ fn source_receiver_span(typed: &CompilationUnitTypes, target: UnitCallTarget) ->
         })
 }
 
-pub(super) fn source_callable_signature(
+pub(in crate::ownership_checking) fn source_callable_signature(
     typed: &CompilationUnitTypes,
     target: UnitCallTarget,
 ) -> Option<&UnitCallableSignature> {

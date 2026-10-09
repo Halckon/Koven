@@ -24,6 +24,17 @@ impl Checker<'_> {
         mut state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         let captures = self.captures_of(lambda).collect::<Vec<_>>();
+        for capture in &captures {
+            if let ClosureCaptureSource::Symbol(symbol) = capture.source()
+                && state.borrow_bindings.contains_key(&symbol)
+            {
+                self.emit_borrow_binding_diagnostic(
+                    crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                    "borrow result capture continuation is not yet proven",
+                    capture.reference_span(),
+                )?;
+            }
+        }
         let mut captured_closures: Vec<ExpressionId> = Vec::new();
         for capture in &captures {
             if let ClosureCaptureSource::Symbol(symbol) = capture.source()

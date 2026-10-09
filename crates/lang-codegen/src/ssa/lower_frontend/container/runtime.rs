@@ -83,7 +83,7 @@ impl ExpressionLowerer<'_> {
     }
 
     /// Nothing ends the operand prefix; its loan and later operand facts do not exist.
-    fn runtime_operand_exits(
+    pub(in crate::ssa::lower_frontend) fn runtime_operand_exits(
         &mut self,
         expression: ExpressionId,
         span: Span,

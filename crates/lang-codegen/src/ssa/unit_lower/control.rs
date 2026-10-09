@@ -1,5 +1,7 @@
 //! compilation-unit `if` 的 owner-aware CFG 与 branch-state 合流。
 
+mod branch;
+
 use std::collections::BTreeMap;
 
 use lang_frontend::{
@@ -141,12 +143,10 @@ impl UnitExpressionLowerer<'_> {
             if !matches!(right_result, LoweredValue::Value(_)) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, right_span));
             }
-            if let Some(plan) = plan {
-                self.emit_drops(UnitDropPoint::BranchExit {
-                    control,
-                    branch: plan.rhs_branch(),
-                })?;
-            }
+            self.emit_drops(UnitDropPoint::BranchExit {
+                control,
+                branch: plan.map_or(0, |plan| plan.rhs_branch()),
+            })?;
             exits.push(BranchExit {
                 block: self.block,
                 result: right_result,
@@ -156,6 +156,7 @@ impl UnitExpressionLowerer<'_> {
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 capture_loans: self.capture_loans.clone(),
+                result_source_loans: self.result_source_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
                 temporaries: self.temporaries.clone(),
             });
@@ -169,12 +170,10 @@ impl UnitExpressionLowerer<'_> {
         self.borrow_bindings =
             self.rebind_carried_loans(short_block, carried.len(), &carried_loans, span)?;
         self.closure_bindings = baseline_closures;
-        if let Some(plan) = plan {
-            self.emit_drops(UnitDropPoint::BranchExit {
-                control,
-                branch: 1 - plan.rhs_branch(),
-            })?;
-        }
+        self.emit_drops(UnitDropPoint::BranchExit {
+            control,
+            branch: plan.map_or(1, |plan| 1 - plan.rhs_branch()),
+        })?;
         let ty = self.expression_ssa_type(expression, span)?;
         let (_, results) = self
             .function
@@ -197,6 +196,7 @@ impl UnitExpressionLowerer<'_> {
             borrow_bindings: self.borrow_bindings.clone(),
             closure_bindings: self.closure_bindings.clone(),
             capture_loans: self.capture_loans.clone(),
+            result_source_loans: self.result_source_loans.clone(),
             pending_operands: self.pending_operands.clone(),
             temporaries: self.temporaries.clone(),
         });
@@ -357,6 +357,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver,
             self.bindings.clone(),
             self.borrow_bindings.clone(),
+            self.result_source_loans.clone(),
             self.closure_bindings.clone(),
             self.capture_loans.clone(),
             self.pending_operands.clone(),
@@ -421,6 +422,7 @@ impl UnitExpressionLowerer<'_> {
                     unmatched_consumed_receiver,
                     unmatched_bindings,
                     unmatched_borrows,
+                    self.result_source_loans.clone(),
                     unmatched_closures,
                     unmatched_captures,
                     unmatched_pending,
@@ -509,6 +511,7 @@ impl UnitExpressionLowerer<'_> {
                     consumed_receiver: self.consumed_receiver,
                     closure_bindings: after_condition_closures.clone(),
                     capture_loans: self.capture_loans.clone(),
+                    result_source_loans: self.result_source_loans.clone(),
                     pending_operands: self.pending_operands.clone(),
                     temporaries: self.temporaries.clone(),
                 });
@@ -540,6 +543,7 @@ impl UnitExpressionLowerer<'_> {
                 self.consumed_receiver,
                 self.bindings.clone(),
                 self.borrow_bindings.clone(),
+                self.result_source_loans.clone(),
                 self.closure_bindings.clone(),
                 self.capture_loans.clone(),
                 self.pending_operands.clone(),
@@ -613,6 +617,7 @@ impl UnitExpressionLowerer<'_> {
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 capture_loans: self.capture_loans.clone(),
+                result_source_loans: self.result_source_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
                 temporaries: self.temporaries.clone(),
             });
@@ -784,6 +789,10 @@ impl UnitExpressionLowerer<'_> {
         if result_required
             && builtin_type(self.typed, concrete_type) != Some(BuiltinType::Nothing)
             && !is_supported_storage_type(self.typed, concrete_type)
+            && !self
+                .type_ids
+                .get(&concrete_type)
+                .is_some_and(|ty| self.map_results.contains_key(ty))
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -843,6 +852,7 @@ impl UnitExpressionLowerer<'_> {
         let then_captures = self.capture_loans.clone();
         let then_pending = self.pending_operands.clone();
         let then_temporaries = self.temporaries.clone();
+        let then_sources = self.result_source_loans.clone();
         let then_receiver = self.current_receiver;
         let then_consumed_receiver = self.consumed_receiver;
         self.current_receiver = baseline_receiver;
@@ -854,6 +864,7 @@ impl UnitExpressionLowerer<'_> {
         let else_captures = self.capture_loans.clone();
         let else_pending = self.pending_operands.clone();
         let else_temporaries = self.temporaries.clone();
+        let else_sources = self.result_source_loans.clone();
         let else_receiver = self.current_receiver;
         let else_consumed_receiver = self.consumed_receiver;
         let mut exits = Vec::with_capacity(2);
@@ -864,6 +875,7 @@ impl UnitExpressionLowerer<'_> {
             then_consumed_receiver,
             then_baseline,
             then_borrows,
+            then_sources,
             baseline_closures.clone(),
             then_captures,
             then_pending,
@@ -884,6 +896,7 @@ impl UnitExpressionLowerer<'_> {
                 else_consumed_receiver,
                 else_baseline,
                 else_borrows,
+                else_sources.clone(),
                 baseline_closures.clone(),
                 else_captures,
                 else_pending,
@@ -905,6 +918,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver = else_consumed_receiver;
             self.bindings = else_baseline;
             self.borrow_bindings = else_borrows;
+            self.result_source_loans = else_sources;
             self.closure_bindings = baseline_closures;
             self.capture_loans = else_captures;
             self.pending_operands = else_pending;
@@ -922,158 +936,11 @@ impl UnitExpressionLowerer<'_> {
                 borrow_bindings: self.borrow_bindings.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 capture_loans: self.capture_loans.clone(),
+                result_source_loans: self.result_source_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
                 temporaries: self.temporaries.clone(),
             });
         }
         self.merge_unit_exits(exits, span)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn lower_if_branch(
-        &mut self,
-        block: BlockId,
-        statement: StatementId,
-        receiver: Option<super::ReceiverBinding>,
-        consumed_receiver: Option<super::ConsumedReceiver>,
-        bindings: BTreeMap<UnitSymbolId, LoweredValue>,
-        borrow_bindings: BTreeMap<UnitSymbolId, crate::ssa::model::LoanId>,
-        closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
-        capture_loans: BTreeMap<(UnitExpressionId, usize), crate::ssa::model::LoanId>,
-        pending_operands: Vec<EntityId>,
-        temporaries: BTreeMap<UnitExpressionId, ValueId>,
-        drop_point: UnitDropPoint,
-        result_required: bool,
-    ) -> Result<Option<BranchExit>, LoweringError> {
-        self.block = block;
-        self.current_receiver = receiver;
-        self.consumed_receiver = consumed_receiver;
-        let entry_symbols = bindings.keys().copied().collect();
-        self.bindings = bindings;
-        self.borrow_bindings = borrow_bindings;
-        self.closure_bindings = closure_bindings;
-        self.capture_loans = capture_loans;
-        self.pending_operands = pending_operands;
-        let entry_temporaries = temporaries.keys().copied().collect::<Vec<_>>();
-        self.temporaries = temporaries;
-        let result_expression = result_required
-            .then(|| self.control_tail_expression(statement))
-            .transpose()?;
-        let result = if result_required {
-            self.lower_tail_value_body(statement)?
-        } else {
-            self.lower_statement(statement)?
-        };
-        if result == LoweredValue::Diverged {
-            return Ok(None);
-        }
-        if let (Some(expression), LoweredValue::Value(value)) = (result_expression, result) {
-            self.transfer_owned_expression(expression, value, self.statement_span(statement)?)?;
-        }
-        let expected_result = if result_required {
-            matches!(result, LoweredValue::Value(_))
-        } else {
-            result == LoweredValue::Unit
-        };
-        if !expected_result || self.temporaries.keys().copied().ne(entry_temporaries) {
-            return Err(lowering_error(
-                LoweringErrorKind::UnsupportedNode,
-                self.statement_span(statement)?,
-            ));
-        }
-        self.emit_drops(drop_point)?;
-        self.discard_non_entry_bindings(&entry_symbols, self.statement_span(statement)?)?;
-        Ok(Some(BranchExit {
-            block: self.block,
-            result,
-            receiver: self.current_receiver,
-            consumed_receiver: self.consumed_receiver,
-            bindings: self.bindings.clone(),
-            borrow_bindings: self.borrow_bindings.clone(),
-            closure_bindings: self.closure_bindings.clone(),
-            capture_loans: self.capture_loans.clone(),
-            pending_operands: self.pending_operands.clone(),
-            temporaries: self.temporaries.clone(),
-        }))
-    }
-
-    fn control_tail_expression(
-        &self,
-        statement: StatementId,
-    ) -> Result<ExpressionId, LoweringError> {
-        let node = self
-            .parsed
-            .ast()
-            .statements()
-            .get(statement)
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
-        let tail = match node.payload() {
-            lang_frontend::parser::Statement::Expression { expression } => return Ok(*expression),
-            lang_frontend::parser::Statement::ControlBody { elements } => elements.last(),
-            _ => None,
-        }
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-        let tail = self
-            .parsed
-            .ast()
-            .statements()
-            .get(*tail)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-        match tail.payload() {
-            lang_frontend::parser::Statement::Expression { expression } => Ok(*expression),
-            _ => Err(lowering_error(LoweringErrorKind::MissingFact, tail.span())),
-        }
-    }
-
-    pub(super) fn lower_tail_value_body(
-        &mut self,
-        statement: StatementId,
-    ) -> Result<LoweredValue, LoweringError> {
-        let node = self
-            .parsed
-            .ast()
-            .statements()
-            .get(statement)
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
-        let elements = match node.payload() {
-            lang_frontend::parser::Statement::ControlBody { elements }
-            | lang_frontend::parser::Statement::LambdaBody { elements } => elements,
-            _ => return self.lower_statement(statement),
-        };
-        let elements = elements.clone();
-        let Some((&last, prefix)) = elements.split_last() else {
-            return Ok(LoweredValue::Unit);
-        };
-        for &element in prefix {
-            if self.lower_statement(element)? == LoweredValue::Diverged {
-                return Ok(LoweredValue::Diverged);
-            }
-        }
-        let result = self.lower_statement(last)?;
-        if result != LoweredValue::Diverged {
-            self.emit_drops(UnitDropPoint::AfterStatement(UnitStatementId::new(
-                self.source_unit,
-                statement,
-            )))?;
-        }
-        Ok(result)
-    }
-
-    pub(super) fn statement_span(&self, statement: StatementId) -> Result<Span, LoweringError> {
-        self.parsed
-            .ast()
-            .statements()
-            .get(statement)
-            .map(|statement| statement.span())
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })
     }
 }

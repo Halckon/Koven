@@ -23,6 +23,7 @@ use crate::{
 
 mod assignment;
 mod bindings;
+mod callable_body;
 mod calls;
 mod constant_dependencies;
 mod constant_evaluation;
@@ -47,6 +48,8 @@ mod nullable;
 mod operators;
 mod ownership_primitives;
 mod postfix;
+mod range_carrier;
+mod range_construction;
 mod rc;
 mod string;
 mod top_level;
@@ -272,6 +275,7 @@ impl<'a> BodyChecker<'a> {
         }
         self.materialize_generic_body_types_with_limit(generic_limit)?;
         self.materialize_runtime_field_layouts()?;
+        self.check_range_types()?;
         self.parts.constants = self.build_constant_facts();
         let source_units = self.names.names().index().source_units();
         let body_diagnostics =
@@ -291,6 +295,7 @@ impl<'a> BodyChecker<'a> {
             .any(|diagnostic| diagnostic.severity() == Severity::Error)
         {
             self.parts.ownership_primitives.clear();
+            self.clear_range_facts();
             self.parts.integer_operations.clear();
             self.parts.iterations.clear();
         }
@@ -384,85 +389,6 @@ impl<'a> BodyChecker<'a> {
                 ));
         }
         Ok(())
-    }
-
-    fn check_function(
-        &mut self,
-        source: SourceUnitId,
-        form: FunctionForm,
-        callable: &UnitCallableSignature,
-    ) -> Result<(), CompilationUnitTypeError> {
-        self.callable_loop_bases.push(self.loop_depth);
-        let result = self.check_function_body(source, form, callable);
-        self.callable_loop_bases.pop();
-        result
-    }
-
-    fn check_function_body(
-        &mut self,
-        source: SourceUnitId,
-        form: FunctionForm,
-        callable: &UnitCallableSignature,
-    ) -> Result<(), CompilationUnitTypeError> {
-        self.flow_facts.clear();
-        let expected_span = match form {
-            FunctionForm::Explicit { type_ref, .. } => Some(
-                self.file(source)
-                    .ast()
-                    .type_refs()
-                    .get(type_ref)
-                    .map_err(TypeCheckingError::from)?
-                    .span(),
-            ),
-            FunctionForm::ImplicitUnitAbsent | FunctionForm::ImplicitUnitBlock(_) => None,
-        };
-        self.current_return_span = expected_span;
-        match form {
-            FunctionForm::ImplicitUnitAbsent => Ok(()),
-            FunctionForm::ImplicitUnitBlock(body) => {
-                self.check_statement(source, body, callable.return_type(), expected_span)?;
-                Ok(())
-            }
-            FunctionForm::Explicit { body, .. } => match body {
-                FunctionBody::Absent => Ok(()),
-                FunctionBody::Expression { expression, .. } => {
-                    self.check_expression(
-                        source,
-                        expression,
-                        Some(callable.return_type()),
-                        expected_span,
-                        callable.return_type(),
-                    )?;
-                    Ok(())
-                }
-                FunctionBody::Block(body) => {
-                    let result =
-                        self.check_statement(source, body, callable.return_type(), expected_span)?;
-                    if result.falls_through
-                        && !self.is_builtin(callable.return_type(), BuiltinType::Unit)
-                        && !self.is_error(callable.return_type())
-                    {
-                        let primary = self
-                            .file(source)
-                            .ast()
-                            .statements()
-                            .get(body)
-                            .map_err(TypeCheckingError::from)?
-                            .span();
-                        self.emit_maybe_label(
-                            codes::MISSING_RETURN,
-                            "non-Unit function can reach the end of its body",
-                            self.sources
-                                .span(primary.source_id(), primary.end(), primary.end())
-                                .map_err(TypeCheckingError::from)?,
-                            expected_span,
-                            "function return type declared here",
-                        )?;
-                    }
-                    Ok(())
-                }
-            },
-        }
     }
 
     fn check_statement(

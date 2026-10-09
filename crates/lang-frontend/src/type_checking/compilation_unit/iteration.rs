@@ -2,7 +2,7 @@
 use super::{UnitExpressionId, UnitStatementId, UnitTypeId};
 use crate::{
     name_resolution::UnitSymbolId,
-    type_checking::{ParameterMode, SequentialContainerKind},
+    type_checking::{IterationProvider, ParameterMode},
 };
 
 /// 当前轮的借用 binding，所有 identity 均限定所属 source。
@@ -64,7 +64,7 @@ pub struct UnitSequentialIterationDescriptor {
     pub(crate) statement: UnitStatementId,
     pub(crate) source: UnitExpressionId,
     pub(crate) source_type: UnitTypeId,
-    pub(crate) provider: SequentialContainerKind,
+    pub(crate) provider: IterationProvider,
     pub(crate) element_type: UnitTypeId,
     pub(crate) binding: UnitSequentialIterationBinding,
 }
@@ -87,7 +87,7 @@ impl UnitSequentialIterationDescriptor {
     }
     /// compiler-bound provider 身份。
     #[must_use]
-    pub const fn provider(&self) -> SequentialContainerKind {
+    pub const fn provider(&self) -> IterationProvider {
         self.provider
     }
     /// 精确 element 类型。

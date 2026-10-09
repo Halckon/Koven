@@ -77,6 +77,17 @@ impl DropPlanner<'_, '_> {
         usage: ExpressionUse,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        let usage = if self
+            .checker
+            .borrow_return_origins
+            .iter()
+            .any(|fact| fact.expression() == id)
+            || self.checker.is_range_return_expression(id)
+        {
+            ExpressionUse::Read
+        } else {
+            usage
+        };
         state.result_closures.clear();
         state.result_owners.clear();
         let payload = self.checker.parsed.ast().expressions().get(id)?.payload();

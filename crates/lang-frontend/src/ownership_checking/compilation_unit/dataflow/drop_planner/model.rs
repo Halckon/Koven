@@ -167,6 +167,8 @@ pub(super) struct OwnedThis {
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct ValueState {
+    pub(super) borrow_bindings: Vec<UnitSymbolId>,
+    pub(super) pending_borrow_results: Vec<UnitSymbolId>,
     /// 实际已求值的实参loan与建立时loop深度；未求值后缀不得参与退出清理。
     pub(super) pending_loans: Vec<(crate::ownership_checking::UnitIterationCleanupAction, usize)>,
     pub(super) iterations: Vec<super::iteration::IterationFrame>,

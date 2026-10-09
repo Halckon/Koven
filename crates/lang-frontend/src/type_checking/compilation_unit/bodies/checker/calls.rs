@@ -1,4 +1,6 @@
 //! SPEC-0197 compilation-unit source callable mapping、选择与 typed descriptor。
+mod candidate;
+use candidate::CallCandidate;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -23,56 +25,7 @@ use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
 
 mod generic;
 mod member;
-
-#[derive(Clone)]
-struct CallCandidate {
-    target: UnitCallTarget,
-    declaration_span: Option<crate::source::Span>,
-    type_parameters: Vec<crate::name_resolution::UnitSymbolId>,
-    move_only: bool,
-    parameters: Vec<MappedParameter<UnitTypeId>>,
-    return_type: UnitTypeId,
-    instance_arguments: Vec<UnitTypeId>,
-    receiver: Option<(ParameterMode, UnitTypeId)>,
-    owner_substitutions: BTreeMap<crate::name_resolution::UnitSymbolId, UnitTypeId>,
-    cross_thread_parameters: BTreeSet<usize>,
-    aborts: bool,
-    prints_line: bool,
-}
-
-impl CallCandidate {
-    fn from_signature(declaration: DeclarationId, callable: &UnitCallableSignature) -> Self {
-        Self::from_source(UnitCallTarget::Declaration(declaration), callable)
-    }
-
-    fn from_source(target: UnitCallTarget, callable: &UnitCallableSignature) -> Self {
-        Self {
-            target,
-            declaration_span: Some(callable.name_span()),
-            type_parameters: callable.type_parameters().to_vec(),
-            move_only: false,
-            parameters: callable
-                .parameters()
-                .iter()
-                .map(|parameter| MappedParameter {
-                    name: parameter.name().map(str::to_owned),
-                    mode: parameter.mode(),
-                    ty: parameter.ty(),
-                    span: Some(parameter.span()),
-                })
-                .collect(),
-            return_type: callable.return_type(),
-            instance_arguments: Vec::new(),
-            receiver: callable
-                .receiver()
-                .map(|receiver| (receiver.mode(), receiver.ty())),
-            owner_substitutions: BTreeMap::new(),
-            cross_thread_parameters: BTreeSet::new(),
-            aborts: false,
-            prints_line: false,
-        }
-    }
-}
+mod range_extension;
 
 impl BodyChecker<'_> {
     pub(super) fn check_call(
@@ -98,6 +51,17 @@ impl BodyChecker<'_> {
             .get(expression)
             .map_err(TypeCheckingError::from)?
             .span();
+        if let Some(result) = self.check_range_construction_call(
+            source,
+            expression,
+            call_span,
+            callee,
+            type_arguments,
+            arguments,
+            return_type,
+        )? {
+            return Ok(result);
+        }
         if let Some(result) = self.check_integer_inv_call(
             source,
             expression,
@@ -162,6 +126,7 @@ impl BodyChecker<'_> {
             self.signatures
                 .declaration(declaration)
                 .and_then(|signature| signature.callable())
+                .filter(|callable| callable.receiver().is_none())
                 .map(|callable| CallCandidate::from_signature(declaration, callable))
         })
         .collect::<Vec<_>>();
@@ -272,6 +237,7 @@ impl BodyChecker<'_> {
                         })
                         .collect(),
                     return_type,
+                    result_source: crate::type_checking::CallableResultSource::Owned,
                     instance_arguments: Vec::new(),
                     receiver: None,
                     owner_substitutions: BTreeMap::new(),
@@ -491,6 +457,7 @@ impl BodyChecker<'_> {
             move_only: false,
             parameters,
             return_type: self.normalize_environment_type(&signature.return_type),
+            result_source: crate::type_checking::CallableResultSource::Owned,
             instance_arguments: Vec::new(),
             receiver: None,
             owner_substitutions: BTreeMap::new(),
@@ -916,6 +883,8 @@ impl BodyChecker<'_> {
             },
             return_type: candidate.return_type,
             receiver,
+            result_source: candidate.result_source,
+            range_construction: None,
             arguments: descriptors,
             aborts: candidate.aborts,
             prints_line: candidate.prints_line,

@@ -197,6 +197,7 @@ impl<'a> ValueProof<'a> {
                 Some(state[content_index(self.function, EntityId::Place(*place))])
             }
             Operation::SharedReborrow { source }
+            | Operation::RangeElementPlace { view: source, .. }
             | Operation::SharedFieldLoan { base: source, .. }
             | Operation::SharedHeapFieldLoan { base: source, .. } => {
                 Some(state[content_index(self.function, EntityId::Loan(*source))])
@@ -333,6 +334,7 @@ pub(in crate::ssa::verify) fn projected_places(
             instruction.operation,
             Operation::FieldPlace { .. }
                 | Operation::ContainerElementPlace { .. }
+                | Operation::RangeElementPlace { .. }
                 | Operation::TaggedPayloadPlace { .. }
                 | Operation::HeapPayloadPlace { .. }
                 | Operation::SharedPayloadPlace { .. }

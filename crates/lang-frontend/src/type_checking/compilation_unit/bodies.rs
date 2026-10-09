@@ -1,3 +1,5 @@
+mod call_descriptor;
+pub use call_descriptor::UnitCallDescriptor;
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
@@ -23,6 +25,7 @@ mod constants;
 mod container;
 pub use constants::*;
 mod integer;
+mod map;
 mod non_null_assertion;
 mod nullable;
 mod ownership_primitive;
@@ -35,7 +38,7 @@ pub(crate) use checker::copyability::UnitTransferability;
 pub use integer::*;
 pub use ownership_primitive::*;
 pub use {
-    assignment::*, container::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
+    assignment::*, container::*, map::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
     string::*,
 };
 
@@ -165,68 +168,6 @@ impl UnitCallArgumentDescriptor {
     #[must_use]
     pub const fn crosses_thread(self) -> bool {
         self.cross_thread
-    }
-}
-
-/// 一个已唯一选择并完成首批 unit body 契约检查的 call。
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct UnitCallDescriptor {
-    expression: UnitExpressionId,
-    instance: UnitCallableInstanceKey,
-    return_type: UnitTypeId,
-    receiver: Option<UnitCallReceiverDescriptor>,
-    arguments: Vec<UnitCallArgumentDescriptor>,
-    aborts: bool,
-    prints_line: bool,
-}
-
-impl UnitCallDescriptor {
-    /// 返回带 source-unit 限定的 call expression identity。
-    #[must_use]
-    pub const fn expression(&self) -> UnitExpressionId {
-        self.expression
-    }
-
-    /// 返回唯一静态 call target。
-    #[must_use]
-    pub const fn target(&self) -> UnitCallTarget {
-        self.instance.target()
-    }
-
-    /// 返回 target 与完整类型实参组成的实例 identity。
-    #[must_use]
-    pub const fn instance(&self) -> &UnitCallableInstanceKey {
-        &self.instance
-    }
-
-    /// 返回 call 的结果类型。
-    #[must_use]
-    pub const fn return_type(&self) -> UnitTypeId {
-        self.return_type
-    }
-
-    /// 返回 member call 的隐藏 receiver；非 member call 为 `None`。
-    #[must_use]
-    pub const fn receiver(&self) -> Option<UnitCallReceiverDescriptor> {
-        self.receiver
-    }
-
-    /// 返回源码实参顺序的参数映射。
-    #[must_use]
-    pub fn arguments(&self) -> &[UnitCallArgumentDescriptor] {
-        &self.arguments
-    }
-
-    /// 返回 call target 是否具有编译器绑定的 abort effect。
-    #[must_use]
-    pub const fn aborts(&self) -> bool {
-        self.aborts
-    }
-
-    /// 返回 call target 是否具有编译器绑定的 stdout 行输出 effect。
-    #[must_use]
-    pub const fn prints_line(&self) -> bool {
-        self.prints_line
     }
 }
 
@@ -563,7 +504,9 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) string_operations: Vec<UnitStringOperationDescriptor>,
     pub(crate) integer_operations: Vec<UnitIntegerOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
-    pub(crate) container_sizes: Vec<UnitContainerSizeDescriptor>,
+    container_sizes: Vec<UnitContainerSizeDescriptor>,
+    pub(crate) range_sizes:
+        Vec<crate::type_checking::RangeSizeDescriptor<UnitExpressionId, UnitTypeId>>,
     pub(crate) container_appends: Vec<UnitContainerAppendDescriptor>,
     pub(crate) container_clears: Vec<UnitContainerClearDescriptor>,
     pub(crate) container_remove_ats: Vec<UnitContainerRemoveAtDescriptor>,
@@ -571,6 +514,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) container_remove_firsts: Vec<UnitContainerRemoveFirstDescriptor>,
     pub(crate) container_insert_ats: Vec<UnitContainerInsertAtDescriptor>,
     pub(crate) element_places: Vec<UnitElementPlaceDescriptor>,
+    pub(crate) map_descriptors: UnitMapDescriptors,
     pub(crate) nullable: UnitNullableFacts,
 }
 
@@ -612,6 +556,8 @@ pub struct CompilationUnitTypes {
     integer_operations: Vec<UnitIntegerOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
     container_sizes: Vec<UnitContainerSizeDescriptor>,
+    pub(crate) range_sizes:
+        Vec<crate::type_checking::RangeSizeDescriptor<UnitExpressionId, UnitTypeId>>,
     container_appends: Vec<UnitContainerAppendDescriptor>,
     container_clears: Vec<UnitContainerClearDescriptor>,
     container_remove_ats: Vec<UnitContainerRemoveAtDescriptor>,
@@ -619,6 +565,7 @@ pub struct CompilationUnitTypes {
     container_remove_firsts: Vec<UnitContainerRemoveFirstDescriptor>,
     container_insert_ats: Vec<UnitContainerInsertAtDescriptor>,
     element_places: Vec<UnitElementPlaceDescriptor>,
+    pub(crate) map_descriptors: UnitMapDescriptors,
     nullable: UnitNullableFacts,
     body_diagnostics: Vec<Diagnostic>,
     diagnostics: Vec<Diagnostic>,
@@ -677,6 +624,7 @@ impl CompilationUnitTypes {
             integer_operations: parts.integer_operations,
             container_constructions: parts.container_constructions,
             container_sizes: parts.container_sizes,
+            range_sizes: parts.range_sizes,
             container_appends: parts.container_appends,
             container_clears: parts.container_clears,
             container_remove_ats: parts.container_remove_ats,
@@ -684,6 +632,7 @@ impl CompilationUnitTypes {
             container_remove_firsts: parts.container_remove_firsts,
             container_insert_ats: parts.container_insert_ats,
             element_places: parts.element_places,
+            map_descriptors: parts.map_descriptors,
             nullable: parts.nullable,
             body_diagnostics,
             diagnostics,

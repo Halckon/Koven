@@ -644,7 +644,7 @@ impl Parser<'_> {
             }
             self.parse_companion_object()?
         } else if self.current_is_keyword(Keyword::Fun) {
-            self.parse_function_declaration(member_stops)?
+            self.parse_function_declaration(member_stops, false)?
         } else if self.current_identifier_is("deinit")? {
             if !context.allows_deinit() {
                 self.emit(

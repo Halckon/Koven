@@ -1,13 +1,36 @@
 //! Exact parent-child lifetime dependencies, including provider element loans.
 use super::*;
 impl ReborrowDependencies {
-    pub(super) fn compute(function: &Function) -> Self {
+    pub(super) fn compute(module: &Module, function: &Function) -> Self {
         let mut parent_by_child = BTreeMap::new();
         let mut must_end_children = BTreeSet::new();
         for instruction in &function.instructions {
             let (source, must_end) = match instruction.operation {
+                Operation::RangeConstruct { source, .. } | Operation::RangeCall { source, .. } => {
+                    let Some(EntityId::Loan(child)) = instruction.results.last() else {
+                        continue;
+                    };
+                    must_end_children.insert(*child);
+                    if range::source::is_view(module, function, source) {
+                        // A new descriptor owns a fresh root capability, independent of metadata.
+                        // A borrowed View parameter is the function's implicit root capability.
+                        let Some(root) = range::source::root(function, source) else {
+                            continue;
+                        };
+                        if function.blocks[0]
+                            .parameters
+                            .contains(&EntityId::Loan(root))
+                        {
+                            parent_by_child.insert(*child, root);
+                        }
+                        continue;
+                    }
+                    (source, true)
+                }
                 Operation::SharedReborrow { source }
-                | Operation::SharedHeapFieldLoan { base: source, .. } => (source, true),
+                | Operation::SharedHeapFieldLoan { base: source, .. }
+                | Operation::BorrowCall { source, .. }
+                | Operation::MapRequireValue { source, .. } => (source, true),
                 // Capture field views inherit a borrow parameter's function extent, but they still
                 // block an explicit parent end while active.
                 Operation::SharedFieldLoan { base: source, .. }
@@ -23,18 +46,23 @@ impl ReborrowDependencies {
                     let Some(instruction) = function.instruction(instruction) else {
                         continue;
                     };
-                    let Operation::ContainerElementPlace {
-                        owner: EntityId::Loan(source),
-                        ..
-                    } = instruction.operation
-                    else {
-                        continue;
+                    let source = match instruction.operation {
+                        Operation::ContainerElementPlace {
+                            owner: EntityId::Loan(source),
+                            ..
+                        }
+                        | Operation::RangeElementPlace { view: source, .. } => source,
+                        _ => continue,
                     };
                     (source, true)
                 }
                 _ => continue,
             };
-            let [EntityId::Loan(child)] = instruction.results.as_slice() else {
+            let Some(EntityId::Loan(child)) = instruction
+                .results
+                .iter()
+                .find(|entity| matches!(entity, EntityId::Loan(_)))
+            else {
                 continue;
             };
             parent_by_child.insert(*child, source);

@@ -579,6 +579,13 @@ fn verify_cfg_types(module: &Module, function: &Function, errors: &mut Vec<Verif
                 );
             }
             TerminatorKind::Return { values } => {
+                if function.borrow_return.is_some() {
+                    errors.push(VerifyError {
+                        kind: VerifyErrorKind::ReturnType { index: 0 },
+                        location: VerifyLocation::Terminator(block.id),
+                        origin: Some(terminator.origin.clone()),
+                    });
+                }
                 if values.len() != function.return_types.len() {
                     errors.push(VerifyError {
                         kind: VerifyErrorKind::ReturnArity {
@@ -607,6 +614,26 @@ fn verify_cfg_types(module: &Module, function: &Function, errors: &mut Vec<Verif
                 }
             }
             TerminatorKind::Abort => {}
+            TerminatorKind::RangeReturn { view, source } => {
+                super::verify_operation::range_return_contract(
+                    module,
+                    function,
+                    *view,
+                    *source,
+                    block.id,
+                    &terminator.origin,
+                    errors,
+                );
+            }
+            TerminatorKind::BorrowReturn { loan } => {
+                super::verify_borrow_result::return_contract(
+                    function,
+                    *loan,
+                    block.id,
+                    &terminator.origin,
+                    errors,
+                );
+            }
         }
     }
 }
@@ -756,7 +783,10 @@ fn non_null_target_is_proof_closed(
                 when_null.target != target
                     && (when_non_null.target != target || *view == expected_view)
             }
-            TerminatorKind::Return { .. } | TerminatorKind::Abort => true,
+            TerminatorKind::Return { .. }
+            | TerminatorKind::RangeReturn { .. }
+            | TerminatorKind::BorrowReturn { .. }
+            | TerminatorKind::Abort => true,
         }
     })
 }

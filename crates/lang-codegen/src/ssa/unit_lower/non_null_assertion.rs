@@ -2,7 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
+use super::{
+    LoweredValue, UnitExpressionLowerer, lowering_error, require_value, resolve_concrete_type,
+};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{Edge, EntityId, EntityType, LoanKind, Operation, Origin, TerminatorKind},
@@ -34,6 +36,27 @@ impl UnitExpressionLowerer<'_> {
             || descriptor.operand().source_unit() != self.source_unit
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let nullable = resolve_concrete_type(
+            self.typed,
+            descriptor.nullable_type(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        if self
+            .type_ids
+            .get(&nullable)
+            .is_some_and(|result| self.map_results.contains_key(result))
+            && plan.non_null_transfer() == NonNullAssertionTransferKind::Copy
+        {
+            if plan.non_null_transfer() != NonNullAssertionTransferKind::Copy
+                || descriptor.copyability() != lang_frontend::type_checking::Copyability::Copyable
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            let operand = self.require_expression_value(descriptor.operand().expression())?;
+            return self.unwrap_map_result(operand, descriptor.operator_span());
         }
         if plan.non_null_transfer() != NonNullAssertionTransferKind::Consume
             || !matches!(

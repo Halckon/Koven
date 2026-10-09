@@ -62,6 +62,19 @@ impl UnitExpressionLowerer<'_> {
                     let context = self.iteration_context(*statement, span)?;
                     let loan = self.iteration_pending_loan(context.start, span)?;
                     self.iteration_end_loan(loan, span)?;
+                    if let Some(source) = self
+                        .owned
+                        .iteration(*statement)
+                        .map(|plan| plan.descriptor().source())
+                        && self
+                            .owned
+                            .borrow_results()
+                            .range_uses()
+                            .iter()
+                            .any(|fact| fact.expression() == source)
+                    {
+                        self.finish_short_range(source.expression(), span)?;
+                    }
                 }
                 Action::EndCallLoan(fact) => {
                     let slots = self
@@ -81,7 +94,7 @@ impl UnitExpressionLowerer<'_> {
                         })?;
                     for slot in slots.into_iter().rev() {
                         let loan = self.iteration_pending_loan(slot, fact.begin_span())?;
-                        self.iteration_end_loan(loan, fact.end_span())?;
+                        self.end_short_call_loan(loan, fact.end_span())?;
                     }
                 }
                 Action::EndReceiverLoan(fact) => {

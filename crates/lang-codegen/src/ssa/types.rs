@@ -1,7 +1,8 @@
 //! Target-independent named aggregate and heap-owner type construction.
 
 use super::model::{
-    ModelError, Module, Ownership, SequentialContainerKind, SsaTypeId, SsaTypeKind,
+    MapContainerKind, ModelError, Module, Ownership, SequentialContainerKind, SsaTypeId,
+    SsaTypeKind,
 };
 
 impl Module {
@@ -157,6 +158,17 @@ impl Module {
         Ok(self.intern_type(SsaTypeKind::SequentialContainer { kind, element }))
     }
 
+    pub(crate) fn add_map_container_type(
+        &mut self,
+        kind: MapContainerKind,
+        key: SsaTypeId,
+        value: SsaTypeId,
+    ) -> Result<SsaTypeId, ModelError> {
+        self.check_type_id(key)?;
+        self.check_type_id(value)?;
+        Ok(self.intern_type(SsaTypeKind::MapContainer { kind, key, value }))
+    }
+
     /// 建立只接受已定义 pointer-like owner 的 nullable handle identity。
     pub(crate) fn add_nullable_handle_type(
         &mut self,
@@ -189,7 +201,9 @@ impl Module {
             | SsaTypeKind::SharedOwner { .. }
             | SsaTypeKind::StringOwner
             | SsaTypeKind::NullableHandle { .. } => Some(Ownership::MoveOnly),
-            SsaTypeKind::SequentialContainer { .. } => Some(Ownership::MoveOnly),
+            SsaTypeKind::RangeView { .. }
+            | SsaTypeKind::SequentialContainer { .. }
+            | SsaTypeKind::MapContainer { .. } => Some(Ownership::MoveOnly),
             SsaTypeKind::FunctionPointer { .. } | SsaTypeKind::ConcreteClosure { .. } => {
                 Some(Ownership::MoveOnly)
             }
@@ -236,7 +250,9 @@ impl Module {
     pub(crate) fn nullable_inner(&self, id: SsaTypeId) -> Option<SsaTypeId> {
         match self.type_kind(id)? {
             SsaTypeKind::NullableHandle { inner } => Some(*inner),
-            _ => None,
+            _ => self
+                .map_result_value(id)
+                .filter(|_| self.type_ownership(id) == Some(Ownership::MoveOnly)),
         }
     }
 
@@ -253,6 +269,16 @@ impl Module {
     ) -> Option<(SequentialContainerKind, SsaTypeId)> {
         match self.type_kind(id)? {
             SsaTypeKind::SequentialContainer { kind, element } => Some((*kind, *element)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn map_container(
+        &self,
+        id: SsaTypeId,
+    ) -> Option<(MapContainerKind, SsaTypeId, SsaTypeId)> {
+        match self.type_kind(id)? {
+            SsaTypeKind::MapContainer { kind, key, value } => Some((*kind, *key, *value)),
             _ => None,
         }
     }
