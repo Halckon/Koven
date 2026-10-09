@@ -9,8 +9,8 @@ use lang_frontend::{
     parser::{BorrowReturnSource, FunctionForm, Item, NameMarker, TypeRef, parse_file},
     source::SourceMap,
     type_checking::{
-        check_compilation_unit_types, check_types, collect_compilation_unit_signatures,
-        standard_environments,
+        BorrowReturnOrigin, TypeKind, check_compilation_unit_types, check_types,
+        collect_compilation_unit_signatures, standard_environments,
     },
 };
 
@@ -67,6 +67,126 @@ fn assert_frontier(text: &str, code: &str, marker: &str) {
         Err(SingleFileAnalysisError::Host(SingleFileStage::TypeChecking))
     ));
     assert_eq!(stages.last(), Some(&SingleFileStage::TypeChecking));
+}
+
+#[test]
+fn callable_contract_keeps_parameter_identity_and_owned_default_in_generic_declarations() {
+    let text = "fun <T> view(aux: Int, source: T): borrow T from source = source\nfun <T> owned(own source: T): T = source";
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("signature.ko", text).unwrap();
+    let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(file.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&sources, &file, &environment).unwrap();
+    assert!(names.diagnostics().is_empty());
+    let typed = check_types(&sources, &file, &names, &types).unwrap();
+    assert_eq!(typed.diagnostics().len(), 1);
+    assert_eq!(typed.diagnostics()[0].code().to_string(), "L0164");
+    let view = typed
+        .callables()
+        .iter()
+        .find(|c| c.borrow_return().is_some())
+        .unwrap();
+    let contract = view.borrow_return().unwrap();
+    assert_eq!(contract.origin(), BorrowReturnOrigin::Parameter(1));
+    assert_eq!(contract.source_span().source_id(), source);
+    assert_eq!(sources.slice(contract.source_span()).unwrap(), "source");
+    let parameter = view.parameter_symbols()[1].unwrap();
+    assert_eq!(
+        sources
+            .slice(names.symbols()[parameter.index()].span())
+            .unwrap(),
+        "source"
+    );
+    assert!(
+        matches!(typed.types().get(view.return_type()), Some(TypeKind::TypeParameter(symbol)) if *symbol == view.type_parameters()[0])
+    );
+    let owned = typed
+        .callables()
+        .iter()
+        .find(|c| {
+            sources
+                .slice(names.symbols()[c.symbol().index()].span())
+                .unwrap()
+                == "owned"
+        })
+        .unwrap();
+    assert!(owned.borrow_return().is_none());
+    assert_eq!(
+        owned.parameters()[0].mode,
+        lang_frontend::type_checking::ParameterMode::Value
+    );
+}
+
+#[test]
+fn unit_callable_contract_uses_qualified_symbols_and_canonical_declaration_spans() {
+    use lang_frontend::type_checking::{ParameterMode, UnitTypeKind};
+    let mut sources = SourceMap::new();
+    let a = sources
+        .add_source(
+            "a.ko",
+            "package alpha\nfun <T> view(aux: Int, source: T): borrow T from source = source",
+        )
+        .unwrap();
+    let b = sources.add_source("b.ko", "package beta\nfun <T> view(source: T): borrow T from source = source\nfun owned(own source: String): String = source").unwrap();
+    let files = [
+        parse_file(&sources, &lex(&sources, a).unwrap()).unwrap(),
+        parse_file(&sources, &lex(&sources, b).unwrap()).unwrap(),
+    ];
+    assert!(files.iter().all(|f| f.diagnostics().is_empty()));
+    let forward = [
+        SourceUnitInput::new("root", "alpha/a.ko", a, &files[0]),
+        SourceUnitInput::new("root", "beta/b.ko", b, &files[1]),
+    ];
+    let reverse = [forward[1], forward[0]];
+    let (environment, types) = standard_environments();
+    let mut observed = Vec::new();
+    for inputs in [&forward, &reverse] {
+        let index = index_compilation_unit(&sources, inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let signatures =
+            collect_compilation_unit_signatures(&sources, inputs, &names, &types).unwrap();
+        assert_eq!(signatures.diagnostics().len(), 2);
+        assert!(
+            signatures
+                .diagnostics()
+                .iter()
+                .all(|d| d.code().to_string() == "L0164")
+        );
+        let mut origins = Vec::new();
+        for declaration in signatures.declarations() {
+            let Some(callable) = declaration.callable() else {
+                continue;
+            };
+            if let Some(contract) = callable.borrow_return() {
+                let BorrowReturnOrigin::Parameter(index) = contract.origin() else {
+                    panic!("parameter contract")
+                };
+                let symbol = callable.parameters()[index].symbol().unwrap();
+                let source =
+                    names.names().index().source_units()[symbol.source_unit().index()].source_id();
+                assert_eq!(contract.source_span().source_id(), source);
+                assert_eq!(contract.marker_span().source_id(), source);
+                assert_eq!(sources.slice(contract.source_span()).unwrap(), "source");
+                assert_eq!(callable.parameters()[index].mode(), ParameterMode::Borrow);
+                assert!(
+                    matches!(signatures.types().get(callable.return_type()), Some(UnitTypeKind::TypeParameter(symbol)) if *symbol == callable.type_parameters()[0])
+                );
+                origins.push((symbol, contract));
+            } else {
+                assert_eq!(callable.name(), "owned");
+                assert_eq!(callable.parameters()[0].mode(), ParameterMode::Value);
+            }
+        }
+        assert_eq!(origins.len(), 2);
+        assert_ne!(origins[0].0.source_unit(), origins[1].0.source_unit());
+        observed.push(origins);
+        assert!(signatures.validate().is_err());
+    }
+    assert_eq!(observed[0], observed[1]);
 }
 
 #[test]

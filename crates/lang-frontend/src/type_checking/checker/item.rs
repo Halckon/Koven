@@ -121,24 +121,31 @@ impl Checker<'_> {
                                 parameter_mode_span(marker),
                             )?;
                         }
-                        match crate::type_checking::borrow_result::resolve_borrow_return(
-                            self.sources,
-                            form,
-                            &parameters,
-                            receiver.map(|receiver| receiver.mode()),
-                        )? {
-                            Ok(Some(contract)) => self.emit(
-                                self.unsupported_borrow_path_code,
-                                "borrow result requires proven origin and caller continuation",
-                                contract.marker_span(),
-                            )?,
-                            Err(issue) => self.emit(
-                                self.invalid_borrow_contract_code,
-                                issue.message,
-                                issue.span,
-                            )?,
-                            Ok(None) => {}
-                        }
+                        let borrow_return =
+                            match crate::type_checking::borrow_result::resolve_borrow_return(
+                                self.sources,
+                                form,
+                                &parameters,
+                                receiver.map(|receiver| receiver.mode()),
+                            )? {
+                                Ok(Some(contract)) => {
+                                    self.emit(
+                                    self.unsupported_borrow_path_code,
+                                    "borrow result requires proven origin and caller continuation",
+                                    contract.marker_span(),
+                                )?;
+                                    Some(contract)
+                                }
+                                Err(issue) => {
+                                    self.emit(
+                                        self.invalid_borrow_contract_code,
+                                        issue.message,
+                                        issue.span,
+                                    )?;
+                                    None
+                                }
+                                Ok(None) => None,
+                            };
                         if let Some(owner) = owner
                             && let Some(descriptor) = self
                                 .nominals
@@ -155,6 +162,7 @@ impl Checker<'_> {
                             parameter_symbols,
                             parameters: function_parameters,
                             return_type,
+                            borrow_return,
                         });
                     }
                 }

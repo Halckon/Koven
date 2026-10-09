@@ -48,7 +48,7 @@ impl SignatureCollector<'_> {
                 parameter_mode_marker_span(marker),
             )?;
         }
-        match crate::type_checking::borrow_result::resolve_borrow_return(
+        let borrow_return = match crate::type_checking::borrow_result::resolve_borrow_return(
             self.sources,
             *form,
             parameters,
@@ -56,14 +56,20 @@ impl SignatureCollector<'_> {
         )
         .map_err(TypeCheckingError::from)?
         {
-            Ok(Some(contract)) => self.emit(
-                codes::UNSUPPORTED_BORROW_FLOW,
-                "borrow result requires proven origin and caller continuation",
-                contract.marker_span(),
-            )?,
-            Err(issue) => self.emit(codes::INVALID_BORROW_CONTRACT, issue.message, issue.span)?,
-            Ok(None) => {}
-        }
+            Ok(Some(contract)) => {
+                self.emit(
+                    codes::UNSUPPORTED_BORROW_FLOW,
+                    "borrow result requires proven origin and caller continuation",
+                    contract.marker_span(),
+                )?;
+                Some(contract)
+            }
+            Err(issue) => {
+                self.emit(codes::INVALID_BORROW_CONTRACT, issue.message, issue.span)?;
+                None
+            }
+            Ok(None) => None,
+        };
         let type_parameters = type_parameters
             .iter()
             .filter_map(|parameter| self.marker_symbol(source, parameter.name))
@@ -106,7 +112,8 @@ impl SignatureCollector<'_> {
                     !matches!(body, crate::parser::FunctionBody::Absent)
                 }
             },
-        ))
+        )
+        .with_borrow_return(borrow_return))
     }
 
     fn callable_parameter(
