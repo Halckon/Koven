@@ -91,7 +91,7 @@ class CompositionContracts(unittest.TestCase):
         cargo = [line for line in calls if line.startswith("cargo ")]
         targets = [target for line in cargo for target in re.findall(r"--test ([a-z0-9_]+)", line)]
         self.assertEqual(len(targets), len(set(targets)))
-        self.assertEqual(79, len(targets))
+        self.assertEqual(102, len(targets))
         self.assertEqual(10, len(cargo))
         self.assertTrue(calls[-1].endswith("scripts/check_tutorial.py"))
 

@@ -56,6 +56,34 @@ def stage_command_is_unfiltered(command):
 
 
 class CheckCiResultsTests(unittest.TestCase):
+    def test_spec_0288_frontend_targets_are_selected_once_without_filters(self):
+        # PR #69 changed these top-level integration targets. Keep every contract
+        # in the bounded matrix; range coverage does not authorize Guide enablement.
+        targets = (
+            "diagnostic_model",
+            "ownership_borrow_continuation", "ownership_borrow_last_use",
+            "ownership_borrow_origins", "ownership_borrow_result",
+            "ownership_field_replace", "ownership_map", "ownership_map_require",
+            "ownership_map_with", "ownership_range_carrier",
+            "ownership_range_construction", "ownership_range_producer",
+            "ownership_range_receiver", "parser_borrow_result",
+            "parser_declaration", "parser_implicit_unit", "parser_n1a_frontier",
+            "type_borrow_result", "type_declaration_frontier", "type_iteration",
+            "type_map", "type_range_carrier", "type_range_construction",
+            "type_range_extension", "type_range_source_authority",
+        )
+        root = Path(__file__).resolve().parents[2]
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        for target in targets:
+            with self.subTest(target=target):
+                selected = stage_target_occurrences(stage, target)
+                self.assertEqual(1, len(selected), f"{target} must execute exactly once")
+                self.assertTrue(selected[0].startswith(
+                    "run cargo test --locked -p lang-frontend --no-fail-fast "))
+                self.assertTrue(stage_command_is_unfiltered(selected[0]),
+                                "contract targets must not be filtered")
+                self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+
     def test_lexical_alignment_targets_are_selected_once_without_filters(self):
         # The repaired parser matrices must execute on both CI hosts.
         root = Path(__file__).resolve().parents[2]
