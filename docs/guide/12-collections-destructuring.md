@@ -219,6 +219,11 @@ v1 不提供顺序容器 `getOrNull`。当前类型系统既不能用普通 `T?`
    - `mutableMap[key] = value`：为 `put(key, value)` 的下标语法糖；
    - `mutableMap.remove(key)`：Borrow `key` 定位并移出条目，按值交付 `value`，被移出的 `key` 精确析构；
    - 变异操作要求 receiver 具有独占 Inout 权限，并在存在活跃借用时报告借用冲突。
+5. **消费式转换 `consume()`**：
+   - `mutableMap.consume(): Map<K, V>` 是预声明的立即转换：取得 receiver 的 owned 所有权，产出同 K/V 的只读 `Map<K, V>` owner；
+   - receiver 须为 owned 本地绑定；调用成功后源绑定不可用，之后再使用报既有 move 诊断；
+   - 不复制、不 clone 任何键或值，条目缓冲区整体移交；活跃借用期间不能转换同一来源（沿用 L0135 冲突诊断）；
+   - 复制式 `toMap()` 本版不启用；它将与 `.toList()` 一样以元素 clone 为前提另行规范。
 
 ### 分配、禁止的隐式表示与 codegen 优化
 
