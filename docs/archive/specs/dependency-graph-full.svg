@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="6984" height="7978" viewBox="0 0 6984 7978" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="7328" height="8116" viewBox="0 0 7328 8116" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="6984" height="7978" fill="#ffffff"/>
+  <rect width="7328" height="8116" fill="#ffffff"/>
   <rect x="40" y="30" width="6880" height="7876" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="3480" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，275 份）</text>
+  <rect x="6984" y="7920" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="7124" y="7940" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1006,6 +1008,7 @@
   <path d="M 180 7422 C 180 7454, 180 7454, 180 7486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 7578 C 180 7610, 180 7610, 180 7642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 7734 C 180 7766, 180 7766, 180 7798" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 7844 C 3652 7844, 3652 7991, 7004 7991" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2161,4 +2164,8 @@
   <text x="180" y="7839" text-anchor="middle" font-size="13">Map 键值容器原生执行基础</text>
   <text x="180" y="7857" text-anchor="middle" font-size="13">（SSA 原语、LLVM I</text>
   <text x="180" y="7875" text-anchor="middle" font-size="13">R 代码生成与 Nativ…</text>
+  <rect x="7004" y="7954" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="7124" y="7977" text-anchor="middle" font-size="13" font-weight="600">SPEC-0290</text>
+  <text x="7124" y="7995" text-anchor="middle" font-size="13">PR69 交付回归修复与验收</text>
+  <text x="7124" y="8013" text-anchor="middle" font-size="13">边界一致</text>
 </svg>

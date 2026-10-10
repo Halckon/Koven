@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [SPEC-0290：PR69 交付回归修复与验收边界一致](0290-pr69-regression-repair.md)：in-progress；四项代码回归与 CI 选择修复按阶段验收，N1a 语义处置仍待用户决定，不视为启用授权。
 
 0288（Map 键值容器原生执行基础：SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）已按双宿主 CI 与 Linux ASan/LSan Map 证据验收归档至 `docs/archive/specs/0288-map-native-execution.md` 并通过 PR #69 合入 main。
 

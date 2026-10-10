@@ -285,6 +285,9 @@ subgraph Garchive["已完成（archive，275 份）"]
   S0287["S0287<br/>M2B 通用借用合同冻结与 Map 键值容器类型系统基础 (Map&lt;K, V&gt; / MutableMap&lt;K, V&gt;)"]
   S0288["S0288<br/>Map 键值容器原生执行基础（SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）"]
 end
+subgraph Gactive["现行 active"]
+  S0290["S0290<br/>PR69 交付回归修复与验收边界一致"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1284,6 +1287,7 @@ S0284 --> S0285
 S0285 --> S0286
 S0286 --> S0287
 S0287 --> S0288
+S0288 --> S0290
 ```
 
 ## 节点链接
@@ -1565,3 +1569,4 @@ S0287 --> S0288
 | SPEC-0286 | archive | [0286-unit-local-destructuring.md](0286-unit-local-destructuring.md) |
 | SPEC-0287 | archive | [0287-m2b-and-map-type-system.md](0287-m2b-and-map-type-system.md) |
 | SPEC-0288 | archive | [0288-map-native-execution.md](0288-map-native-execution.md) |
+| SPEC-0290 | active | [0290-pr69-regression-repair.md](../../specs/active/0290-pr69-regression-repair.md) |
