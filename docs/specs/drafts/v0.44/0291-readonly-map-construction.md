@@ -7,12 +7,13 @@
 | 状态 | draft |
 | Goal ID | `KOV-P2-0291` |
 | 所属 Phase | Phase 1 规范（Guide 12）；Phase 2 类型检查；Phase 3 所有权与 move；Phase 4 typed SSA；Phase 5 LLVM；Phase 6 native |
-| 语言规范 | 拟并入 v0.43 Guide：[12-collections-destructuring.md](../../../guide/12-collections-destructuring.md) 中 `MutableMap` 第 5 条"消费式转换 `consume()`"（WIP 位于 `feature/spec-0289`，尚未启用） |
+| 语言规范 | 现行 [Guide v0.42](../../../guide/README.md)；§3.1 为拟新增的 Guide 12 条款，**不并入 v0.43**，候选启用版本 v0.44 |
 | 批准依据 | 2026-10-09 用户确认：(1) 消费式转换并入 v0.43，不新开 v0.44；(2) `mutableMap.consume(): Map<K, V>` 为立即转换，复制式 `toMap()` 延后；(3) 本草案改名为 0291；(4) Guide 正文按快照恢复 |
-| 前置 Spec | [SPEC-0288](../../../archive/specs/0288-map-native-execution.md) 已合入 main（`ef60f2fc`）；SPEC-0289 的 v0.43 启用（WIP） |
+| 前置 Spec | [SPEC-0288](../../../archive/specs/0288-map-native-execution.md) 已合入 main（`ef60f2fc`） |
+| 关联 Spec | SPEC-0289 的 v0.43 启用（WIP） |
 | 前置 ADR | 无（不改变布局或 ABI） |
 | 关联 ADR | 无 |
-| 阻塞项 | (1) **v0.43 尚未启用**：SPEC-0289 的 v0.43 WIP 未合入 main，Guide 启用与 `check_docs.py` 的 v0.43 门禁更新需单独批准；(2) 实施前须确认 §3.1 的规范文本；(3) `consume` 与 Guide 05 现有调用拼写 `consume(x)` 的关系需在启用前写清（见 §6） |
+| 阻塞项 | (1) §3.1 规范文本须获用户确认后才能写入 Guide；(2) 启用版本待定：v0.43 的 README 明确"不启用 consume"，因此本条不随 SPEC-0289 启用；(3) `consume` 与 Guide 05 现有调用拼写 `consume(x)` 的关系需在启用前写清（见 §6）；(4) 实施不依赖 N1a，但须在 v0.42 或下一版 Guide 中有合法规范依据 |
 | 影响范围 | `lang-frontend`（方法识别、receiver move 检查、诊断）、`lang-codegen`（SSA 操作与 verifier、LLVM 移交、native 测试）、Guide 12 |
 | 语言语义变更 | 是：新增 `MutableMap<K, V>.consume(): Map<K, V>`，需 v0.43 启用 |
 
@@ -31,7 +32,17 @@ Guide 12 规定 `Map<K, V>` 为只读独占 owning 容器，但 `mapOf()` / `mut
 
 ## 3. 范围与需求
 
-### 3.1 语言规范（拟并入 v0.43）
+### 3.1 语言规范（拟新增，未启用）
+
+以下为拟写入 Guide 12 第 5 条的文本，与 r3 §3.2 一致，待确认后方可写入：
+
+5. **消费式转换 `consume()`**：
+   - `mutableMap.consume(): Map<K, V>` 是预声明的立即转换：取得 receiver 的 owned 所有权，产出同 K/V 的只读 `Map<K, V>` owner；
+   - receiver 须为 owned 本地绑定；调用成功后源绑定不可用，之后再使用报既有 move 诊断；
+   - 不复制、不 clone 任何键或值，条目缓冲区整体移交；活跃借用期间不能转换同一来源（沿用 L0135 冲突诊断）；
+   - 复制式 `toMap()` 本版不启用；它将与 `.toList()` 一样以元素 clone 为前提另行规范。
+
+以下为执行合同摘要：
 
 - `MutableMap<K, V>.consume(): Map<K, V>` 为预声明、立即产出的转换（不返回延迟序列）。
 - receiver 必须是 owned 本地绑定；调用成功后源绑定不可用，之后使用报既有 move 诊断。
@@ -62,7 +73,7 @@ Guide 12 规定 `Map<K, V>` 为只读独占 owning 容器，但 `mapOf()` / `mut
 
 ## 5. 验收标准
 
-- [ ] v0.43 启用后，Guide 12 的第 5 条与 r3 §3.2 一致；`check_docs.py` 的 v0.43 门禁更新并通过。
+- [ ] 规范文本经用户确认并写入 Guide 12 后，与 r3 §3.2 一致；对应版本的 `check_docs.py` 门禁更新并通过。
 - [ ] 前端 single-file：非空 `MutableMap<String, Int>` 调用 `consume()` 后，只读查询通过；源绑定再次使用被拒绝。
 - [ ] 前端 compilation-unit：同上，并验证正逆输入顺序的 SSA 一致。
 - [ ] 前端负例：Borrow/Inout/字段/元素 receiver 被拒绝，诊断码与 `Span` 正确；活跃借用期间的转换报 L0135。

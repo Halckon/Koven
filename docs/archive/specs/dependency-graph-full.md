@@ -285,6 +285,9 @@ subgraph Garchive["已完成（archive，275 份）"]
   S0287["S0287<br/>M2B 通用借用合同冻结与 Map 键值容器类型系统基础 (Map&lt;K, V&gt; / MutableMap&lt;K, V&gt;)"]
   S0288["S0288<br/>Map 键值容器原生执行基础（SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）"]
 end
+subgraph Gdrafts_v044["v0.44（draft）"]
+  S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
+end
 S0001 --> S0002
 S0001 --> S0004
 S0001 --> S0005
@@ -1284,6 +1287,7 @@ S0284 --> S0285
 S0285 --> S0286
 S0286 --> S0287
 S0287 --> S0288
+S0288 --> S0291
 ```
 
 ## 节点链接
@@ -1565,3 +1569,4 @@ S0287 --> S0288
 | SPEC-0286 | archive | [0286-unit-local-destructuring.md](0286-unit-local-destructuring.md) |
 | SPEC-0287 | archive | [0287-m2b-and-map-type-system.md](0287-m2b-and-map-type-system.md) |
 | SPEC-0288 | archive | [0288-map-native-execution.md](0288-map-native-execution.md) |
+| SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
