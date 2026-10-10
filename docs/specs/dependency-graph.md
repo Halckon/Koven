@@ -8,15 +8,11 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 275 份"))
-subgraph Gactive["现行 active"]
-  S0293["S0293<br/>PR 普通文档追加提交复用真实代码 CI"]
-end
+ARCH(("已完成<br/>archive 276 份"))
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0293 | active | [0293-pr-code-ci-reuse.md](active/0293-pr-code-ci-reuse.md) |
-| 已完成 Spec（275 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（276 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

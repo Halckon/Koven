@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [SPEC-0293：PR 普通文档追加提交复用真实代码 CI](0293-pr-code-ci-reuse.md)：in-progress；本地策略与证据绑定实现，远端复用验收未运行。
+0293（PR 普通文档追加提交复用真实代码 CI）已按 [PR #70](https://github.com/Halckon/Koven/pull/70) 首轮真实完整 CI 与追加文档复用验收归档至 `docs/archive/specs/0293-pr-code-ci-reuse.md`；归档 head 与合并交付待对应 CI 闭环。
 
 0288（Map 键值容器原生执行基础：SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）已按双宿主 CI 与 Linux ASan/LSan Map 证据验收归档至 `docs/archive/specs/0288-map-native-execution.md` 并通过 PR #69 合入 main。
 
