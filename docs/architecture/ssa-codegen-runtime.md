@@ -113,7 +113,7 @@ MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径
 先移除 alias 再消费 frontend owner drop，Abort 不展开。lambda 的 Borrow storage 参数
 在基础与常量入口复用 shared Loan ABI；基础入口仍拒绝参数控制退出。普通调用的非 Name callee、带捕获 borrowed closure 与超出现行 storage mapper 的 Borrow
 参数仍有边界；Borrow Unit 与 Inout callback 参数保持拒绝。Map 专用同步 callback
-的通用 storage 与 capture 接线见 [Map 当前边界](map-native-execution.md)。
+的通用 storage 与 capture 接线见 [Map 当前边界](map-native-execution.md)。Map contains/get/put/remove 在后续参数 CFG 后读取 carry/pending 槽的重绑定 owner/loan；MapPut 自行收集 K/V drop glue，MapRemove 收集 K 并交付 owned V，不依赖 scope Drop。
 常量专用入口允许外层 pending temporary 穿过内层 loop/while；header、回边与 break/false
 出口携带完整 owner/loan/pending 状态，内层跳转仅结束本循环内的调用帧并移除其前缀槽位。
 循环结束保留外层 temporary；return 清理退出帧，Abort 不展开。Copyable 命名变量与已求值
@@ -157,7 +157,7 @@ implementation 和 delegation route，不重新按名称或 shape 选择；callb
 - source-qualified drop、loan、Value delivery 和 multi-file entry。
 
 lowerer 只接受它能证明的 concrete layout 和 runtime recipe。缺少 frontend fact、身份不一致或不支持的
-concrete 表示返回带 source origin 的 typed error，而不是生成猜测性 IR。
+concrete 表示返回带 source origin 的 typed error，而不是生成猜测性 IR。借用 wrapper 核对外层 return-origin 后透过 Group 使用真实 Call；unit 保留 source-qualified 身份，以完整参数帧建立 owner.field 来源 loan 并延续到结果 loan 终止。[SPEC-0290](../specs/active/0290-pr69-regression-repair.md) 的有界回归不扩大复杂 CFG 或投影支持。
 
 普通 `lower_owned_unit_with_entry` 消费[封闭 view](pipeline-and-workspace.md#普通-owned-unit-交接)，直接进入原私有 driver/planner，不再建立交接 index。
 旧 lower/planner adapter 保留原签名与受限可见性，各经一次 factory；私有 driver 只读取同链 types/ownership facts。
