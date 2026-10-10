@@ -254,7 +254,10 @@ def render_mermaid(view: GraphView) -> str:
     lines = ["flowchart TD"]
     if view.synthetic_archive:
         lines.append(f'ARCH(("已完成<br/>archive {view.archived} 份"))')
-    for partition in sorted({node.partition for node in view.nodes}, key=partition_rank):
+    for partition in sorted(
+        {node.partition for node in view.nodes},
+        key=lambda partition: (partition_rank(partition), partition),
+    ):
         gid = "G" + partition.replace("/", "_").replace(".", "")
         lines.append(f'subgraph {gid}["{partition_label(partition, view)}"]')
         for node in (item for item in view.nodes if item.partition == partition):
@@ -333,7 +336,10 @@ def compute_layout(view: GraphView) -> tuple[dict[str, tuple[float, float, float
         number: 2 * PAD_Y + len(lines) * LINE_H for number, lines in labels.items()
     }
 
-    partitions = sorted({node.partition for _, node in drawable}, key=partition_rank)
+    partitions = sorted(
+        {node.partition for _, node in drawable},
+        key=lambda partition: (partition_rank(partition), partition),
+    )
     members_by_partition = {
         partition: sorted(
             (item for item in drawable if item[1].partition == partition),
@@ -419,7 +425,7 @@ def render_svg(view: GraphView) -> str:
     for number, rect in rects.items():
         lanes.setdefault(partition_of[number], []).append(rect)
     for partition, member_rects in sorted(
-        lanes.items(), key=lambda item: partition_rank(item[0])
+        lanes.items(), key=lambda item: (partition_rank(item[0]), item[0])
     ):
         x0 = min(r[0] for r in member_rects) - LANE_PAD_X
         x1 = max(r[0] + r[2] for r in member_rects) + LANE_PAD_X
