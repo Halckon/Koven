@@ -12,7 +12,7 @@
 | 前置 Spec | 无 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无新增长期架构决定 |
-| 阻塞项 | 功能验收已完成；归档提交的完整 CI 与合并交付仍须通过 PR #70 完成 |
+| 阻塞项 | 功能与归档输入回退验收已完成；最终 head 检查与合并交付以 PR #70 为准 |
 | 影响范围 | CI workflow、Python 证据判定与汇总、普通 fixture 测试 |
 | 语言语义变更 | 否 |
 
@@ -59,7 +59,7 @@
 | `test_check_docs.py` / `python3 scripts/check_docs.py` / `git diff --check` | 37/37、598 Markdown、whitespace 通过 | YAML 解析、Python py_compile 亦通过；未运行 actionlint |
 | 远端 PR #70 首轮真实完整 CI | 16/16 jobs 成功 | [run 38064383882](https://github.com/Halckon/Koven/actions/runs/38064383882)，head `189d1b4`；双宿主 check/clippy/test、preview producer/consumer、物理证据与最终汇总均成功 |
 | 同 PR 普通文档追加提交真实复用 | 通过 | [run 38065460124](https://github.com/Halckon/Koven/actions/runs/38065460124)，head `42d56e9`；`reuse=true`，来源 run `38064383882` attempt 1；代码 jobs skipped，docs/尺寸/依赖与最终独立汇总 success |
-| 归档 inventory 改变后的代码输入回退 | 待 PR CI 验证 | 本次迁移同时修改 `scripts/check_docs.py`，必须不复用旧指纹；不将待运行记录计为通过 |
+| 归档 inventory 改变后的代码输入回退 | 通过；16/16 jobs 成功 | [run 38065729625](https://github.com/Halckon/Koven/actions/runs/38065729625)，head `55d6624`；`scripts/check_docs.py` 改变指纹，`reuse=false`，双宿主与 preview 完整重跑成功 |
 
 ## 5. 远端证据身份
 
@@ -68,7 +68,8 @@
 - 文档复用 head：`42d56e9bebec31693ed6649b667cf8bc15da224b`；synthetic merge：`c3060baf8b8751eb040e115d4b09f5130aaab534`。
 - 两轮输入指纹均为 `de6ee38134bea489ee74d567f754f982dd3511611286345f01a1480434e413d6`。
 - 第二轮重新完成 docs、尺寸、依赖与 CI Passed；物理证据 job skipped，未生成传递式证据。
-- 归档与最终合并状态以 PR 对应 head 的实际检查为准，不把此前成功冒充新 head 成功。
+- 归档回退 head：`55d6624873adff8ec5e8df17edd8c63d55f2288f`；synthetic merge：`5229937153be51e803256850934f500307354776`；新指纹 `01b9529525c25ba2e30f36d5662a78890227c37f99c83821337d5146c963ad51`，完整 CI 已成功。
+- 最终合并状态以 PR 对应 head 的实际检查为准，不把此前成功冒充新 head 成功。
 
 ## 6. 参考与限制
 
