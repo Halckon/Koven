@@ -1,6 +1,6 @@
-# Koven v0.42：集合、索引与解构
+# Koven v0.43：集合、索引与解构
 
-> **性质**：规范性语言规范 · **状态**：current（v0.42） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.43） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
 
 本页是现行 Koven v0.42 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
@@ -469,3 +469,67 @@ source 静态类型不是上述 intrinsic container 时使用 L0159；primary �
 本节不启用 consuming iteration、可逃逸 iterator value、反向/步进/并行迭代、Map/range/String/
 IO provider、用户自定义 iteration、borrow-return/place-return、动态分发或 coroutine generator。
 未来扩展必须另行启用 guide；不能把普通同名方法或某个标准库 class 反向识别为本 intrinsic provider。
+
+## N1a 单来源连续范围 carrier
+
+本节只启用连续范围 `View<T>`；它是携带单一来源 loan 的内联描述符，不能由源码同名
+class、value class、函数或 package 获得身份。该身份由编译器类型环境绑定，元素 T 仍
+遵循现行可存储类型约束。用户不能声明新的非逃逸类型。
+
+### 类型与使用位置
+
+允许 Borrow 形参、同步 Borrow 实参、表达式链、现行 `for` source、显式 `borrow val`
+绑定，以及下节带唯一 `from` 的结果。普通 `val`/`var`、字段、集合元素、泛型实参、own/
+inout 形参、escaping closure 捕获或跨线程传递均禁止；`View<T>?` 也禁止。
+View 不是 Copyable 或 Transferable，不获得 Shareable。函数类型不能擦除来源合同以
+运输 carrier 结果；不能将 carrier 经 Any 或默认可逃逸类型参数绕过这些限制。
+
+非法使用位置使用 L0163，缺失、错误或 owning 来源合同使用 L0162；尚未证明的流或
+后端交付使用 L0164/结构化 unsupported，不能继续生成 owned 结果或伪造借用指针。
+
+### 新描述符交付与既有描述符借用
+
+函数显式结果 `View<T> from source` 构造并交付新内联描述符，延续 source 的根 loan；
+`borrow View<T> from source` 只借用既有描述符，不能借此宣称完成新描述符交付。
+两种结果的唯一 source 必须是该 callable 的非 owning 参数或 receiver，T 与真实来源
+元素类型一致；普通 owned 结果不能交付 carrier。合法 wrapper 继续运输根来源，不能
+仅凭声明的 from 把局部 owner、外部 owner 或条件/多来源提升为合法结果。
+
+`borrow val` 接新描述符时拥有这份内联 metadata 的存储，但不拥有元素或根 owner；
+接既有 carrier 时只建立描述符借用，保留对父 metadata 的依赖。来源、交付种类与终止
+必须是独立、可查询的阶段事实，不能仅靠相同 TypeId 或借用类型检查通过推断。
+
+### 根来源与结束
+
+从 List 创建范围记录实际根 owner；从 View 派生范围继承其既有根来源并限制在父范围
+内，不借父 metadata 来冒充元素来源，也不延长根自身寿命。root-flat 新描述符不依赖
+父 metadata 的持久存储，借用已有描述符则保留该依赖。
+所有活跃父、子、兄弟描述符与元素 loan 都保护同一根；其中一个结束不能恢复仍被其他
+依赖保护的根权限。根不可在这些依赖存活时 move、drop、变异或独占访问。
+结束顺序先解除相应结果/元素 loan，再解除来源依赖，最后清理根 owner。
+last-use 仅在已有显式事实足以证明的路径应用，否则保守到词法范围结束或明确拒绝。
+
+禁止把临时来源的 View 保存或返回到来源有效范围之外。同一表达式的立即 Borrow 使用
+与现行 `for` hidden-source 延续合法，均不得演变为持久 owner 延寿；for 的正常 break/
+return cleanup 仍遵守本页既有 provider 顺序，Abort 不展开。
+
+### 算法与声明边界
+
+首个闭环是 List/View 的 take，后续范围算法复用同一构造原语。算法 body 由 `.ko`
+实现；编译器只绑定可复用范围构造、访问和迭代原语，不按算法名称重推语义。
+扩展声明只允许可信标准库来源和本片 List/View 的 Borrow receiver；package、源码名
+或文件路径不能充当可信来源证明。未发布该证明及 canonical 选择事实前继续拒绝扩展
+语义；不开放用户扩展、任意 receiver、扩展属性、mode 重载或 inout 扩展。
+
+范围构造原语只从实际 List/View source 和受检边界创建描述符；动态边界必须满足
+`0 <= begin <= end <= source.size`，否则按 error()/Abort 处理，不能扩大父范围。
+语言可观察的计数规则如下：take/drop/dropLast 的 `n < 0` 一律 Abort；非负时先令
+`k = min(n, size)`，take 保留前 k 个、drop 去前 k 个、dropLast 去后 k 个。
+`n = 0` 时结果分别为空/原范围/原范围；`n >= size` 时分别为原范围/空/空。
+空源的非负计数都返回空范围，负数仍 Abort。最大 Int 必须先 clip 后算边界，避免先加减
+产生溢出。此计数合同不改变普通索引的越界规则。
+
+Phase 2 发布封闭 identity、位置与 callable/result mode；Phase 3 证明实际 origin、
+caller root-loan continuation、绑定及 end facts；Phase 4 必须再由 SSA/verifier 验证
+描述符交付、来源与权限恢复，Phase 5/6 验证 String/MoveOnly/Resource 正常 native 清理。
+前一阶段通过不能替代后一阶段证明。仅有 Parser/AST 或类型通过的路径不得误编。

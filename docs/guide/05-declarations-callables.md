@@ -1,6 +1,6 @@
-# Koven v0.42：声明与 Callable
+# Koven v0.43：声明与 Callable
 
-> **性质**：规范性语言规范 · **状态**：current（v0.42） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.43） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
 
 本页是现行 Koven v0.42 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
@@ -92,12 +92,14 @@ constant_declaration = "const", "val", Identifier,
                        [ type_annotation ], "=", expression ;
 type_annotation      = ":", type_ref ;
 
-function_declaration = "fun", [ type_parameter_list ], Identifier,
+function_declaration = "fun", [ type_parameter_list ], function_head,
                        "(", [ value_parameter,
                                { ",", value_parameter } ], ")",
-                       [ ":", ( type_ref | borrow_return ) ],
+                       [ ":", ( type_ref | borrow_return | carrier_return ) ],
                        [ "=", expression | block ] ;
 borrow_return       = "borrow", type_ref, "from", ( Identifier | "this" ) ;
+carrier_return      = type_ref, "from", ( Identifier | "this" ) ;
+function_head       = Identifier | type_ref, ".", Identifier ;
 local_borrow        = "borrow", "val", Identifier, [ type_annotation ], "=", expression ;
 
 value_parameter = [ parameter_mode ], Identifier, ":", type_ref ;
@@ -113,6 +115,9 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
 `borrow_return` 仅属于具名函数的显式结果契约；`local_borrow` 仅属于 block/lambda 的局部声明。
 二者不成为 `type_ref` 的新一等类型，不接受条件 marker 或 inout 结果／局部。
 唯一来源、非逃逸及权限恢复由[普通借用结果合同](10-ownership-borrowing-drop.md#普通借用结果与显式局部绑定)定义。
+`carrier_return` 只交付 [N1a 连续范围描述符](12-collections-destructuring.md#n1a-单来源连续范围-carrier)，
+不能用于普通对象 owned 返回。显式 receiver 仅用于该节可信标准库的受限 Borrow 扩展，
+mode 位于 `fun` 前；缺少来源/选择事实时仍明确拒绝，不开放任意用户扩展。
 
 ### 声明形态与分阶段边界
 
@@ -139,7 +144,7 @@ type_parameter       = Identifier, [ ":", type_ref ] ;
   `Any` 属于 Phase 2。变量与常量声明不接受类型参数表。
 - 除 `const val` 这个不可拆分的固定声明前缀外，本入口不接受 `public` / `internal` /
   `private`、`extern`、`operator`、`override` 或软词 `infix` 等修饰符，也不定义其顺序。它不
-  解析 extension receiver、匿名函数声明、class-family 成员上下文、控制流或声明自身的解构
+  解析 N1a 受限标准库以外的 extension receiver、匿名函数声明、class-family 成员上下文、控制流或声明自身的解构
   pattern。这里约束的是 declaration shape：initializer / expression body 可包含
   [lambda expression](07-calls-lambdas-closures.md#lambda-literal)，其中的 call 可包含
   [命名 / 模式实参](07-calls-lambdas-closures.md#typed-call-argument)；不得继续用本条把合法
