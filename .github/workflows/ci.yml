@@ -1,4 +1,6 @@
 name: CI
+# Immutable, event-derived identity; REST pull_requests may be empty.
+run-name: CI ${{ github.event_name }} PR ${{ github.event.pull_request.number || 0 }}
 
 on:
   push:
@@ -28,6 +30,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     runs-on: ubuntu-latest
     outputs:
       docs: ${{ steps.filter.outputs.docs }}
@@ -36,8 +39,16 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       codegen: ${{ steps.filter.outputs.codegen }}
       preview: ${{ steps.filter.outputs.preview }}
+      reuse: ${{ steps.reuse.outputs.reuse }}
+      reuse_run: ${{ steps.reuse.outputs.reuse_run }}
+      reuse_attempt: ${{ steps.reuse.outputs.reuse_attempt }}
+      fingerprint: ${{ steps.reuse.outputs.fingerprint }}
+      marker: ${{ steps.reuse.outputs.marker }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -50,6 +61,10 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/actions/setup-llvm/**'
             rust:
+              - '.cargo/**'
+              - 'docs/guide/**'
+              - 'docs/compiler-specs/**'
+              - 'scripts/**'
               - 'crates/**'
               - 'Cargo.*'
               - 'rust-toolchain.toml'
@@ -109,6 +124,15 @@ jobs:
             codegen:
               - 'crates/lang-codegen/**'
 
+      - name: Verify previous physical PR code CI
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUST: ${{ steps.filter.outputs.rust }}
+          CI_PREVIEW: ${{ steps.filter.outputs.preview }}
+          CI_EDITORS: ${{ steps.filter.outputs.editors }}
+        run: python3 scripts/pr_ci_reuse.py
+
   rust-size:
     name: Rust Physical Line Guard
     runs-on: ubuntu-latest
@@ -150,7 +174,7 @@ jobs:
   docs:
     name: Docs & Spec Structural Gate
     needs: changes
-    if: needs.changes.outputs.docs == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request' || needs.changes.outputs.docs == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -167,7 +191,7 @@ jobs:
   editors:
     name: Tree-sitter CLI Corpus
     needs: changes
-    if: needs.changes.outputs.editors == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.reuse != 'true' && (needs.changes.outputs.editors == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -188,7 +212,7 @@ jobs:
   fmt:
     name: Rust Code Formatting
     needs: changes
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.reuse != 'true' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -203,6 +227,7 @@ jobs:
     name: Workspace Check & Clippy (${{ matrix.os }})
     needs: [changes, docs, fmt]
     if: |
+      needs.changes.outputs.reuse != 'true' &&
       always() &&
       (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
@@ -234,6 +259,7 @@ jobs:
     name: Targeted Tests (${{ matrix.os }})
     needs: [changes, clippy]
     if: |
+      needs.changes.outputs.reuse != 'true' &&
       always() &&
       (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
@@ -291,6 +317,7 @@ jobs:
     name: Preview Producer (macos-14)
     needs: [changes, test]
     if: |
+      needs.changes.outputs.reuse != 'true' &&
       always() && needs.test.result == 'success' &&
       (needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: macos-14
@@ -371,6 +398,7 @@ jobs:
     name: Preview Producer (ubuntu-24.04)
     needs: [changes, test]
     if: |
+      needs.changes.outputs.reuse != 'true' &&
       always() && needs.test.result == 'success' &&
       (needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
@@ -447,14 +475,36 @@ jobs:
           path: ${{ runner.temp }}/preview-consumer-evidence
           if-no-files-found: error
 
+  code-evidence:
+    name: ${{ needs.changes.outputs.marker || 'Code CI Evidence unavailable' }}
+    needs: [changes, rust-size, dependencies, docs, editors, fmt, clippy, test, preview-macos-produce, preview-linux-produce, preview-macos-consume, preview-linux-consume]
+    if: |
+      always() && github.event_name == 'pull_request' &&
+      needs.changes.outputs.reuse == 'false' && needs.changes.outputs.marker != '' &&
+      (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || needs.changes.outputs.editors == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Attest only physically successful required jobs
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/check_ci_results.py
+
   ci-passed:
     name: CI Passed
     needs: [changes, rust-size, dependencies, docs, editors, fmt, clippy, test, preview-macos-produce, preview-linux-produce, preview-macos-consume, preview-linux-consume]
     if: always()
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Verify required jobs and legitimate skips
         env:
+          GH_TOKEN: ${{ github.token }}
           CI_NEEDS: ${{ toJSON(needs) }}
         run: python3 scripts/check_ci_results.py

@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 275 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 276 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -417,3 +417,5 @@
 
 
 
+
+- [SPEC-0293](0293-pr-code-ci-reuse.md)：同一 PR 的普通文档追加提交复用真实代码 CI；精确绑定身份、base 与 Git 输入，实际 required jobs 证据和最终独立复核已由 PR #70 验证。
