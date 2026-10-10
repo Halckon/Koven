@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，275 份）"]
+subgraph Garchive["已完成（archive，274 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -283,7 +283,13 @@ subgraph Garchive["已完成（archive，275 份）"]
   S0285["S0285<br/>MutableList 元素指定索引插入与向后平移扩容 (MutableList.insertAt)"]
   S0286["S0286<br/>编译单元局部解构 SSA Lowering 与原生执行 (val (a, b) = expr)"]
   S0287["S0287<br/>M2B 通用借用合同冻结与 Map 键值容器类型系统基础 (Map&lt;K, V&gt; / MutableMap&lt;K, V&gt;)"]
+end
+subgraph Gactive["现行 active"]
   S0288["S0288<br/>Map 键值容器原生执行基础（SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）"]
+  S0289["S0289<br/>N1a 单来源范围描述符端到端交付"]
+end
+subgraph Gdrafts_v043["v0.43（draft）"]
+  S0290["S0290<br/>链内立即消费序列与 owned 结果"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1284,6 +1290,8 @@ S0284 --> S0285
 S0285 --> S0286
 S0286 --> S0287
 S0287 --> S0288
+S0287 --> S0289
+S0289 --> S0290
 ```
 
 ## 节点链接
@@ -1564,4 +1572,6 @@ S0287 --> S0288
 | SPEC-0285 | archive | [0285-mutable-list-insert-at.md](0285-mutable-list-insert-at.md) |
 | SPEC-0286 | archive | [0286-unit-local-destructuring.md](0286-unit-local-destructuring.md) |
 | SPEC-0287 | archive | [0287-m2b-and-map-type-system.md](0287-m2b-and-map-type-system.md) |
-| SPEC-0288 | archive | [0288-map-native-execution.md](0288-map-native-execution.md) |
+| SPEC-0288 | active | [0288-map-native-execution.md](../../specs/active/0288-map-native-execution.md) |
+| SPEC-0289 | active | [0289-n1a-range-carrier.md](../../specs/active/0289-n1a-range-carrier.md) |
+| SPEC-0290 | drafts/v0.43 | [0290-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0290-immediate-consuming-sequence.md) |

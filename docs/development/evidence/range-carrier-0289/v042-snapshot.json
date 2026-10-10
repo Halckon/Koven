@@ -1,0 +1,135 @@
+{
+  "baseline": "/tmp/koven-n1a-semantic-base",
+  "source_head": "f82e4deaa2cc392d97992473a6d612d5df7fb003",
+  "operation": "complete 16-page v0.42 preservation; Markdown relative link recalculation only",
+  "files": [
+    {
+      "source": "docs/guide/01-lexical.md",
+      "snapshot": "docs/archive/guides/v0.42/01-lexical.md",
+      "source_sha256": "62299b4aae9e79d8e7e220d6107177c45d49f3185c46a58f16d08ca707bdc86d",
+      "snapshot_sha256": "62299b4aae9e79d8e7e220d6107177c45d49f3185c46a58f16d08ca707bdc86d",
+      "source_lines": 283,
+      "snapshot_lines": 283
+    },
+    {
+      "source": "docs/guide/02-names-files-packages.md",
+      "snapshot": "docs/archive/guides/v0.42/02-names-files-packages.md",
+      "source_sha256": "cc00ace56beeb4813d32bed9aaeaf270e24802bb6852a52b4fae8dff1d9b93f3",
+      "snapshot_sha256": "cc00ace56beeb4813d32bed9aaeaf270e24802bb6852a52b4fae8dff1d9b93f3",
+      "source_lines": 281,
+      "snapshot_lines": 281
+    },
+    {
+      "source": "docs/guide/03-types-generics.md",
+      "snapshot": "docs/archive/guides/v0.42/03-types-generics.md",
+      "source_sha256": "1bfcb34c0ccd84e333c00e0f53fdf140f7caecc6cbd4c155ee095de357a1289f",
+      "snapshot_sha256": "1bfcb34c0ccd84e333c00e0f53fdf140f7caecc6cbd4c155ee095de357a1289f",
+      "source_lines": 374,
+      "snapshot_lines": 374
+    },
+    {
+      "source": "docs/guide/04-expressions-operators.md",
+      "snapshot": "docs/archive/guides/v0.42/04-expressions-operators.md",
+      "source_sha256": "1c1fc9aee172c91e707142e1af5f600c50a84d4ac462396e3d59a11a129a6a97",
+      "snapshot_sha256": "1c1fc9aee172c91e707142e1af5f600c50a84d4ac462396e3d59a11a129a6a97",
+      "source_lines": 228,
+      "snapshot_lines": 228
+    },
+    {
+      "source": "docs/guide/05-declarations-callables.md",
+      "snapshot": "docs/archive/guides/v0.42/05-declarations-callables.md",
+      "source_sha256": "69e585139559b72e61d6a536c814d122cf9b384d84c1723d341f70c03d80d208",
+      "snapshot_sha256": "d01cde3e4cacd318178ac2f0d3a1c76f05951a778a60f357783bf81f722df020",
+      "source_lines": 357,
+      "snapshot_lines": 357
+    },
+    {
+      "source": "docs/guide/06-blocks-control-flow.md",
+      "snapshot": "docs/archive/guides/v0.42/06-blocks-control-flow.md",
+      "source_sha256": "3d7846c05cb228ab4203189b82ab355cfdaa133ace2226c0cc54c7531919709d",
+      "snapshot_sha256": "2b54be542d05d7786da3478d193560424e20871e756a7cbc8e209241d741abd1",
+      "source_lines": 373,
+      "snapshot_lines": 373
+    },
+    {
+      "source": "docs/guide/07-calls-lambdas-closures.md",
+      "snapshot": "docs/archive/guides/v0.42/07-calls-lambdas-closures.md",
+      "source_sha256": "0987a516db8984d4afb16ae6cb599b48592c2b589e6193517086a9c8438f550d",
+      "snapshot_sha256": "71460eeaba97126e50fd4eec46b76db2a5f1ceea154f3755d9f440b2cb9cd958",
+      "source_lines": 521,
+      "snapshot_lines": 521
+    },
+    {
+      "source": "docs/guide/08-class-family-members.md",
+      "snapshot": "docs/archive/guides/v0.42/08-class-family-members.md",
+      "source_sha256": "2b56b8ef59ac882aabd1b66da3d4cdb2c43fa4dec0613231ce1711d045996fb9",
+      "snapshot_sha256": "6c0e771052a83e617384256a5cd4166030ee29caa51cb0efa1c41072810f10f8",
+      "source_lines": 517,
+      "snapshot_lines": 517
+    },
+    {
+      "source": "docs/guide/09-nullability-errors.md",
+      "snapshot": "docs/archive/guides/v0.42/09-nullability-errors.md",
+      "source_sha256": "8b3b0aa08041ba5e0485e2abf98e51d08e145d2deb122e5bfc3795439e345dba",
+      "snapshot_sha256": "8b3b0aa08041ba5e0485e2abf98e51d08e145d2deb122e5bfc3795439e345dba",
+      "source_lines": 137,
+      "snapshot_lines": 137
+    },
+    {
+      "source": "docs/guide/10-ownership-borrowing-drop.md",
+      "snapshot": "docs/archive/guides/v0.42/10-ownership-borrowing-drop.md",
+      "source_sha256": "b3ab15b4fe2c9852e3d0818d93a7f1dab07def79ebd87122a37ac81e42b64fbc",
+      "snapshot_sha256": "b3ab15b4fe2c9852e3d0818d93a7f1dab07def79ebd87122a37ac81e42b64fbc",
+      "source_lines": 253,
+      "snapshot_lines": 253
+    },
+    {
+      "source": "docs/guide/11-copyability-layout-construction.md",
+      "snapshot": "docs/archive/guides/v0.42/11-copyability-layout-construction.md",
+      "source_sha256": "3ba7150b199055c874327a478dff852fc4e5c1009108fdf7bab93d4947d7c5a9",
+      "snapshot_sha256": "3ba7150b199055c874327a478dff852fc4e5c1009108fdf7bab93d4947d7c5a9",
+      "source_lines": 211,
+      "snapshot_lines": 211
+    },
+    {
+      "source": "docs/guide/12-collections-destructuring.md",
+      "snapshot": "docs/archive/guides/v0.42/12-collections-destructuring.md",
+      "source_sha256": "ef8dd96389d88704286d23a89a38e785aab0fbefb0b890a1786a179b20a711a0",
+      "snapshot_sha256": "ef8dd96389d88704286d23a89a38e785aab0fbefb0b890a1786a179b20a711a0",
+      "source_lines": 471,
+      "snapshot_lines": 471
+    },
+    {
+      "source": "docs/guide/13-program-runtime-standard-library.md",
+      "snapshot": "docs/archive/guides/v0.42/13-program-runtime-standard-library.md",
+      "source_sha256": "291a69a6cd1410e23d4739b927c3738f9eadd66a2541536369e8e2f250736405",
+      "snapshot_sha256": "46f35957849ea1a688e0f2eca48b2d71d3da262d531f892373b685f3b85c4cb9",
+      "source_lines": 309,
+      "snapshot_lines": 309
+    },
+    {
+      "source": "docs/guide/14-syntax-index.md",
+      "snapshot": "docs/archive/guides/v0.42/14-syntax-index.md",
+      "source_sha256": "b74eac55635b0f77570d4831a6b152c6859e975366782f36c43a76a1c8bb0311",
+      "snapshot_sha256": "b74eac55635b0f77570d4831a6b152c6859e975366782f36c43a76a1c8bb0311",
+      "source_lines": 46,
+      "snapshot_lines": 46
+    },
+    {
+      "source": "docs/guide/15-conformance-and-staging.md",
+      "snapshot": "docs/archive/guides/v0.42/15-conformance-and-staging.md",
+      "source_sha256": "8511853c5fe9448efab4c7788d94b7ad87eb8de96f38bda119895c6ed4b07340",
+      "snapshot_sha256": "7827d534f1c578caf3a0c7466f6712c75cbb9cc3a2ca0eff5d9593b73e06582b",
+      "source_lines": 400,
+      "snapshot_lines": 400
+    },
+    {
+      "source": "docs/guide/README.md",
+      "snapshot": "docs/archive/guides/v0.42/README.md",
+      "source_sha256": "886a75c35d24f8f8720d05bfa34c2cb7d7489b13806a36cd33b42d473d4bc265",
+      "snapshot_sha256": "b697cbeea6c53e5b47149028cb53e9641da5fd10a47674285a43abbb30cdd2e0",
+      "source_lines": 67,
+      "snapshot_lines": 67
+    }
+  ]
+}
