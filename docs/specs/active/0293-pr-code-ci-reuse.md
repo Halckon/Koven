@@ -57,7 +57,8 @@
 | `python3 -m unittest discover -s scripts/tests -p test_pr_ci_reuse.py -v` | 21/21 通过 | 普通 metadata / 临时 Git fixture；含连续复用、状态屏障、attempt/分页/API 回退 |
 | `python3 -m unittest discover -s scripts/tests -p test_check_ci_results.py -v` | 30/30 通过 | 必需 job 严格检查及独立复核 |
 | `test_check_docs.py` / `python3 scripts/check_docs.py` / `git diff --check` | 37/37、598 Markdown、whitespace 通过 | YAML 解析、Python py_compile 亦通过；未运行 actionlint |
-| 远端 PR 双宿主与追加文档真实复用 | 未运行 | 尚未执行；保持 in-progress |
+| 远端 PR #70 首轮真实完整 CI | 16/16 jobs 成功 | [run 38064383882](https://github.com/Halckon/Koven/actions/runs/38064383882)，head `189d1b4`；双宿主 check/clippy/test、preview producer/consumer、物理证据与最终汇总均成功 |
+| 同 PR 普通文档追加提交真实复用 | 待验证 | 本次仅更新普通文档验收记录；不改变代码输入，保持 in-progress |
 
 ## 5. 参考与限制
 
