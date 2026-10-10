@@ -115,6 +115,8 @@ impl UnitExpressionLowerer<'_> {
             .map_contains(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let (owner, _) = self.map_owner_operand(descriptor.receiver().expression(), span)?;
+        let pending_start = self.pending_operands.len();
+        self.pending_operands.push(owner);
         let key_span = self
             .parsed
             .ast()
@@ -123,6 +125,9 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
             .span();
         let (key, _) = self.map_owner_operand(descriptor.key().expression(), key_span)?;
+        let owner = self.pending_operands.get(pending_start).copied();
+        self.pending_operands.truncate(pending_start);
+        let owner = owner.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let bool_ty = self.expression_ssa_type(expression, span)?;
         let result_id = self
             .function
@@ -151,6 +156,8 @@ impl UnitExpressionLowerer<'_> {
             .map_get(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let (owner, _) = self.map_owner_operand(descriptor.receiver().expression(), span)?;
+        let pending_start = self.pending_operands.len();
+        self.pending_operands.push(owner);
         let key_span = self
             .parsed
             .ast()
@@ -159,6 +166,9 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
             .span();
         let (key, _) = self.map_owner_operand(descriptor.key().expression(), key_span)?;
+        let owner = self.pending_operands.get(pending_start).copied();
+        self.pending_operands.truncate(pending_start);
+        let owner = owner.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let val_ty = self.expression_ssa_type(expression, span)?;
         let result_id = self
             .function
@@ -187,8 +197,11 @@ impl UnitExpressionLowerer<'_> {
             .map_put(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let (owner, root) = self.extract_map_owner_val(descriptor.receiver(), span)?;
+        let pending_start = self.pending_operands.len();
+        self.pending_operands.push(EntityId::Value(owner));
         let lowered_key = self.lower(descriptor.key().expression())?;
         let key = require_lowered_value(lowered_key, span)?;
+        self.pending_operands.push(EntityId::Value(key));
         let lowered_val = self.lower(descriptor.value().expression())?;
         let val = require_lowered_value(lowered_val, span)?;
         let (val, _) = self.adapt_owned_value_to_expected(
@@ -197,6 +210,12 @@ impl UnitExpressionLowerer<'_> {
             descriptor.value_type(),
             span,
         )?;
+        let owner = self.pending_operands.get(pending_start).copied();
+        let key = self.pending_operands.get(pending_start + 1).copied();
+        self.pending_operands.truncate(pending_start);
+        let (Some(EntityId::Value(owner)), Some(EntityId::Value(key))) = (owner, key) else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
         let receiver_span = self
             .parsed
             .ast()
@@ -260,6 +279,8 @@ impl UnitExpressionLowerer<'_> {
             .map_remove(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let (owner, root) = self.extract_map_owner_val(descriptor.receiver(), span)?;
+        let pending_start = self.pending_operands.len();
+        self.pending_operands.push(EntityId::Value(owner));
         let key_span = self
             .parsed
             .ast()
@@ -268,6 +289,11 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
             .span();
         let (key, _) = self.map_owner_operand(descriptor.key().expression(), key_span)?;
+        let owner = self.pending_operands.get(pending_start).copied();
+        self.pending_operands.truncate(pending_start);
+        let Some(EntityId::Value(owner)) = owner else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
         let receiver_span = self
             .parsed
             .ast()

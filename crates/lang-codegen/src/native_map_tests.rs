@@ -498,3 +498,55 @@ fn native_mutable_map_string_keys() {
         "str size 2\nhas hello\nno foo\nhello is 1\nhello removed\nstr size 1\n"
     );
 }
+
+#[test]
+fn native_map_operands_follow_argument_control_flow() {
+    let run = emit_link_and_run(
+        "map_argument_cfg.ko",
+        r#"
+fun main(): Unit {
+ var m = mutableMapOf<Int, Int>()
+ m.put(if (true) { 1 } else { 2 }, if (false) { 4 } else { 3 })
+ if (m.size == 1) { println("put") }
+ if (m.get(if (true) { 1 } else { 2 }) == 3) { println("get") }
+ if (m.contains(if (false) { 2 } else { 1 })) { println("contains") }
+ if (m.remove(if (true) { 1 } else { 2 }) == 3) { println("remove") }
+ if (m.size == 0) { println("empty") }
+ var strings = mutableMapOf<String, Int>()
+ val key = "key".clone()
+ strings.put(key, if (true) { 3 } else { 4 })
+ strings.put("key".clone(), if (false) { 4 } else { 5 })
+ if (strings.size == 1 && strings.get("key") == 5) { println("string key") }
+}
+"#,
+        "main",
+    );
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(
+        run.stdout,
+        b"put\nget\ncontains\nremove\nempty\nstring key\n"
+    );
+}
+
+#[test]
+fn native_map_mutation_collects_drop_glue_before_abort() {
+    for (declarations, body) in [
+        (
+            "class Resource(val n: Int) { deinit() { println(\"drop\") } }",
+            "var m = mutableMapOf<Int, Resource>()\n m.put(1, Resource(1))\n error(\"stop\")",
+        ),
+        (
+            "",
+            "var m = mutableMapOf<String, Int>()\n val key = \"key\".clone()\n m.remove(key)\n error(key)",
+        ),
+    ] {
+        let text = format!("{declarations}\nfun main(): Unit {{\n {body}\n}}");
+        let run = emit_link_and_run("map_abort_drop_glue.ko", &text, "main");
+        assert!(!run.status.success(), "{run:?}");
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(run.status.signal(), Some(6));
+        }
+    }
+}

@@ -292,3 +292,62 @@ fn unit_map_string_keys_and_move_only_values_execute_with_precise_drops() {
     assert!(run.status.success(), "{run:?}");
     assert_eq!(run.stdout, b"drop\nkey\ndrop\n");
 }
+
+#[test]
+fn unit_map_operands_follow_argument_control_flow() {
+    for operation in [
+        "m.put(if (true) { 1 } else { 2 }, 3)",
+        "m.put(1, if (true) { 3 } else { 4 })",
+        "m.get(if (true) { 1 } else { 2 })",
+        "m.contains(if (true) { 1 } else { 2 })",
+        "m.remove(if (true) { 1 } else { 2 })",
+    ] {
+        let source = format!(
+            "package p\nfun entry(): Unit {{\n var m = mutableMapOf<Int, Int>()\n {operation}\n m.size\n}}"
+        );
+        assert_map_unit_source_lowers(&source);
+    }
+    for key in ["key", "\"key\".clone()"] {
+        let source = format!(
+            "package p\nfun entry(): Unit {{\n var m = mutableMapOf<String, Int>()\n val key = \"key\".clone()\n m.put({key}, if (true) {{ 3 }} else {{ 4 }})\n m.size\n}}"
+        );
+        assert_map_unit_source_lowers(&source);
+    }
+}
+
+#[test]
+fn unit_map_mutation_collects_drop_glue_before_abort() {
+    for (declarations, body) in [
+        (
+            "class Resource(val n: Int) { deinit() { println(\"drop\") } }",
+            "var m = mutableMapOf<Int, Resource>()\n m.put(1, Resource(1))\n error(\"stop\")",
+        ),
+        (
+            "",
+            "var m = mutableMapOf<String, Int>()\n val key = \"key\".clone()\n m.remove(key)\n error(key)",
+        ),
+    ] {
+        let source = format!("package p\n{declarations}\nfun entry(): Unit {{\n {body}\n}}");
+        assert_map_unit_source_lowers(&source);
+    }
+}
+
+fn assert_map_unit_source_lowers(text: &str) {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "p/entry.ko", text);
+    let inputs = [SourceUnitInput::new("root", "p/entry.ko", source, &file)];
+    let (environment, types) = standard_environments();
+    let (names, typed, owned) = analyze(&sources, &inputs, &environment, &types);
+    let (program, entry) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &types,
+        &typed,
+        &owned,
+        declaration(&names, "p", "entry"),
+    )
+    .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+    crate::llvm::render_verified_program_with_entry(&program, entry)
+        .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+}

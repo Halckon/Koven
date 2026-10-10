@@ -177,12 +177,31 @@ impl RuntimeRequirements {
                             })?;
                         requirements.collect_drop_type(module, element)?;
                     }
-                    Operation::MapConstruct { .. }
-                    | Operation::MapPut { .. }
-                    | Operation::MapRemove { .. } => {
+                    Operation::MapConstruct { .. } => {
                         requirements.needs_allocation = true;
                         requirements.needs_free = true;
                         requirements.needs_abort = true;
+                    }
+                    Operation::MapPut { owner, .. } | Operation::MapRemove { owner, .. } => {
+                        requirements.needs_allocation = true;
+                        requirements.needs_free = true;
+                        requirements.needs_abort = true;
+                        let Some(EntityType::Value(container)) =
+                            function.entity(EntityId::Value(owner)).map(|data| data.ty)
+                        else {
+                            return Err(LlvmAdapterError::InvalidSsa(
+                                "map mutation owner 缺少 value type".to_owned(),
+                            ));
+                        };
+                        let (_, key, value) = module.map_container(container).ok_or_else(|| {
+                            LlvmAdapterError::InvalidSsa("map mutation owner 不是 Map".to_owned())
+                        })?;
+                        // put drops the old entry; remove drops only its key and returns V.
+                        // These dependencies exist even if every continuation aborts without Drop.
+                        requirements.collect_drop_type(module, key)?;
+                        if matches!(instruction.operation, Operation::MapPut { .. }) {
+                            requirements.collect_drop_type(module, value)?;
+                        }
                     }
                     Operation::MapGet { .. } | Operation::MapResultUnwrap { .. } => {
                         requirements.needs_abort = true;
