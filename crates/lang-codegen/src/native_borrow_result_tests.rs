@@ -108,3 +108,37 @@ fn native_map_with_single_key_and_capture_owners_release_exactly_once() {
         assert_eq!(run.stdout, expected, "{name}");
     }
 }
+
+#[test]
+fn borrow_call_lowering_single_groups_and_field_forwarding_run_without_owner_leaks() {
+    for (name, provider, body, allocations, expected) in [
+        (
+            "grouped-binding",
+            "fun view(source: String): borrow String from source = source",
+            "val source = \"kept\".clone(); borrow val item = ((view(source))); println(item)",
+            1,
+            &b"kept\n"[..],
+        ),
+        (
+            "grouped-return",
+            "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = ((view(source)))",
+            "val source = \"kept\".clone(); borrow val item = wrap(source); println(item)",
+            1,
+            &b"kept\n"[..],
+        ),
+        (
+            "field-forwarding",
+            "class Packet(val text: String)\nfun view(source: String): borrow String from source = source\nfun wrap(source: Packet): borrow String from source = view(source.text)\nfun consume(own source: Packet) {}",
+            "val source = Packet(\"kept\".clone()); borrow val item = wrap(source); println(item); consume(source)",
+            2,
+            &b"kept\n"[..],
+        ),
+    ] {
+        let text = format!("{provider}\nfun entry() {{ {body} }}");
+        let run = emit_link_and_run(name, &text, "entry");
+        super::boxed_enum_tests::assert_success(&run, expected);
+        let llvm = super::boxed_enum_tests::lower_to_llvm(name, &text);
+        let counted = super::boxed_enum_tests::run_counted_allocations(&llvm, allocations);
+        super::boxed_enum_tests::assert_success(&counted, expected);
+    }
+}

@@ -338,3 +338,72 @@ fn native_map_with_unit_key_and_capture_owners_release_exactly_once() {
         assert_eq!(run.stdout, expected, "{name}");
     }
 }
+
+#[test]
+fn borrow_call_lowering_unit_groups_and_field_forwarding_run_without_owner_leaks() {
+    for (name, provider, body, allocations, expected) in [
+        (
+            "grouped-binding",
+            "fun view(source: String): borrow String from source = source",
+            "val source = \"kept\".clone(); borrow val item = ((view(source))); println(item)",
+            1,
+            &b"kept\n"[..],
+        ),
+        (
+            "grouped-return",
+            "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = ((view(source)))",
+            "val source = \"kept\".clone(); borrow val item = wrap(source); println(item)",
+            1,
+            &b"kept\n"[..],
+        ),
+        (
+            "field-forwarding",
+            "class Packet(val text: String)\nfun view(source: String): borrow String from source = source\nfun wrap(source: Packet): borrow String from source = view(source.text)\nfun consume(own source: Packet) {}",
+            "val source = Packet(\"kept\".clone()); borrow val item = wrap(source); println(item); consume(source)",
+            2,
+            &b"kept\n"[..],
+        ),
+    ] {
+        let analysis = analyze_sources(
+            &format!("package p\n{provider}"),
+            &format!("package q\nimport p.*\nfun entry() {{ {body} }}"),
+        );
+        let (program, entry) = lower_scalar_unit_with_entry(
+            &analysis.sources,
+            &analysis.inputs(),
+            &analysis.names,
+            &analysis.environment,
+            &analysis.typed,
+            &analysis.owned,
+            analysis.declaration("q", "entry"),
+        )
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let counted =
+            crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, allocations);
+        crate::native_tests::boxed_enum_tests::assert_success(&counted, expected);
+        let directory = TestDirectory::create();
+        let object = directory.join("borrow-call.o");
+        let executable = directory.join("borrow-call");
+        emit_native_unit_object(
+            &analysis.sources,
+            &analysis.inputs(),
+            &analysis.names,
+            &analysis.environment,
+            &analysis.typed,
+            &analysis.owned,
+            analysis.declaration("q", "entry"),
+            &object,
+        )
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let linked = Command::new(crate::test_support::clang())
+            .arg(&object)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .unwrap();
+        assert!(linked.status.success(), "{name}: {linked:?}");
+        let run = Command::new(&executable).output().unwrap();
+        crate::native_tests::boxed_enum_tests::assert_success(&run, expected);
+    }
+}
