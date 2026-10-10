@@ -39,7 +39,7 @@ v0.42 权威。工具链保持 Rust 1.96.0 与 LLVM 21.1.8，不以降级、替�
 | R2 | MapPut/MapRemove 的 K/V drop glue 依赖偶然出现的 scope Drop | 操作自身登记所需 drop glue；普通源码以 Abort 终止、无作用域 Drop 时仍可生成并验证 LLVM |
 | R3 | 透明 Group 包装借用返回 Call 时，source.call 与外层表达式身份不等导致拒绝 | 透明分组不改变来源合同；保留真实 Call 身份，合法源码可 lowering，非法来源仍拒绝 |
 | R4 | unit borrow-return wrapper 以 owner.field 传借用参数时缺 pending call frame | 为直接字段来源建立真实调用帧并正确结束 loan；不扩大投影、逃逸或其他 ABI 支持 |
-| R5 | 23 个新增 frontend integration targets 未进入 CI 组合执行 | 清点实际遗漏名单、去重纳入现有选择，并以选择合同锁定应执行目标，避免只有源码却不执行 |
+| R5 | 23 个遗漏 frontend integration targets 未进入 CI 组合执行 | 清点实际遗漏名单、去重纳入现有选择，并以选择合同锁定应执行目标，避免只有源码却不执行 |
 | R6 | N1a 声称休眠，但 CLI 标准源与 take 实际无开关 | 核对普通 CLI 输入、标准源装载及 take 的实际路径；准确登记可达性与规范差异，提交用户决定 |
 
 R1–R4 先写普通 Koven 源码最小回归，记录修复前失败及其阶段，再对同一选择记录修复后
