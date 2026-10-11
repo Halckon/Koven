@@ -22,19 +22,13 @@ SSA 的查询键是 Value 或 active Shared Loan，exclusive/失效 loan 被 ver
 单文件与 compilation-unit 的普通短路清理按 RHS 求值出口与跳过出口分别规划，并在 SSA 合流前消费对应 drop 事实，
 避免 Map 最后一次查询只在 RHS 路径释放而导致合流缺少 binding。
 
-Copyable 且非 nullable 的 V 查询采用 Module 显式登记的独立 `{Boolean presence, V payload}`
-aggregate identity；它保留 V? 与 V 的区别，复用 aggregate 布局。verifier 检查 presence 类型、
-payload 所有权和注册身份；MapGet 拒绝裸 V、同形的未登记 aggregate 以及 MoveOnly 的复制查询。
-缺失查询返回 false 和零初始化 payload；已存入的 0/false 仍有 true 标记。源码 null 比较读取
-presence；标量 nullable 等值比较同时检查存在性与值；窄化读取及 `!!` 使用受检 Copy 提取，
-只有缺失提取才 Abort。多文件签名先登记 reachable 查询结果类型，再交接只读类型事实。
-查询下标的 receiver/key 在同步查询完成后清理，求值期间的控制转移仍保留已求值 owner 的义务。
-单文件与 unit 的 flow-refined Copyable 查询/删除结果可作为同步 Borrow 实参：消费同一 source/root
-的 non-null descriptor，核对声明/窄化类型与注册 payload、明确 Copyable 后提取 inner 并建立
-短时 shared place/loan。原 nullable binding 保留；不把 aggregate 重新解释为 inner place，也不
-扩大 MoveOnly 提取、普通 inline nullable ABI 或 Map entry 借用能力。真实应用的两遍 argv
-及原字节合同由 [SPEC-0295](../specs/active/0295-map-argv-word-frequency.md) 单独验收。
-
+Copyable 非 nullable V 的查询/删除使用 Module 登记的 `{Boolean presence, V payload}` aggregate；
+verifier 核对 presence、payload 所有权与注册身份，拒绝裸 V、未登记同形 aggregate 和 MoveOnly 复制。
+缺失返回 false 与零初始化 payload；已存 0/false 保持 true。null 比较读取 presence，等值比较同时
+检查 presence 和值；窄化与 `!!` 受检 Copy 提取，缺失才 Abort。unit 签名先登记 reachable 结果类型。
+两入口的窄化 Borrow 实参核对 typed non-null 的 source/root、声明/窄化类型、注册 payload 和
+Copyable 后复制 inner，建立短时 shared place/loan，保留原 nullable binding，不重解释 aggregate。
+不扩大 MoveOnly 提取、普通 inline nullable ABI 或 entry 借用。查询结束清理 receiver/key；前序 owner 的控制转移义务不变。
 
 String 和 MoveOnly inline V 的 owned remove 复用登记的 presence/payload aggregate，
 结果所有权与 V 一致。条件 drop 只在 present 分支析构 payload；缺失的零值不承担 owner。
