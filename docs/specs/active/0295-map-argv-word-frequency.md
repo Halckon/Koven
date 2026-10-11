@@ -10,7 +10,7 @@
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[Map 与 for](../../guide/12-collections-destructuring.md)、[nullable](../../guide/09-nullability-errors.md)、[String](../../guide/13-program-runtime-standard-library.md) |
 | 批准依据 | 用户要求继续里程碑并选择现行 Guide 允许的 M3B K-H 真实 argv 词频 Map 改写 |
 | 前置 Spec | SPEC-0274、SPEC-0288、SPEC-0294 |
-| 前置 ADR | ADR-0017、ADR-0018、ADR-0019、ADR-0027、ADR-0030 |
+| 前置 ADR | ADR-0017、ADR-0018、ADR-0019、ADR-0023、ADR-0027 |
 | 影响范围 | 教程唯一三文件源码、普通源码/native 验收、实际触发的阶段交接 |
 | 语言语义变更 | 否 |
 
@@ -69,4 +69,8 @@ Map 迭代 API、consume、通用 Clone、Option、新 String/IO API、语义或
 
 ## 7. 当前记录
 
-2026-10-11 已确认基线及独立分支；尚未运行验收，无语言规则未决项。
+2026-10-11 首次红测：基线 CLI `cargo build --locked -p lang-cli` 成功；Rust 1.96.0、
+LLVM 21.1.8。教程两遍实现通过类型/所有权后，在第一个空 argv 项目的 build 阶段因
+`native object InvalidModel: frontend lowering failed with InvalidSsa` 失败，未执行 artifact。
+原 8 组 oracle 无修改。另追加固定 32 不同词、非排序次序及尾部重复的第 9 组，独立手写
+期待字节；原 37 命令仍可按原项目/argv 识别，新增 3 命令后总数 40。正在定位实际 SSA 缺口。

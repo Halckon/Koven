@@ -584,6 +584,58 @@
             "stdout": "é\t2\né\t1\nALPHA\t1\nalpha\t1\n",
             "stderr": ""
           }
+        },
+        {
+          "args": [
+            "word31",
+            "word00",
+            "word30",
+            "word01",
+            "word29",
+            "word02",
+            "word28",
+            "word03",
+            "word27",
+            "word04",
+            "word26",
+            "word05",
+            "word25",
+            "word06",
+            "word24",
+            "word07",
+            "word23",
+            "word08",
+            "word22",
+            "word09",
+            "word21",
+            "word10",
+            "word20",
+            "word11",
+            "word19",
+            "word12",
+            "word18",
+            "word13",
+            "word17",
+            "word14",
+            "word16",
+            "word15",
+            "word31",
+            "word07",
+            "word00",
+            "word31",
+            "word30",
+            "word00"
+          ],
+          "artifact": {
+            "exit": 0,
+            "stdout": "word31\t3\nword00\t3\nword30\t2\nword01\t1\nword29\t1\nword02\t1\nword28\t1\nword03\t1\nword27\t1\nword04\t1\nword26\t1\nword05\t1\nword25\t1\nword06\t1\nword24\t1\nword07\t2\nword23\t1\nword08\t1\nword22\t1\nword09\t1\nword21\t1\nword10\t1\nword20\t1\nword11\t1\nword19\t1\nword12\t1\nword18\t1\nword13\t1\nword17\t1\nword14\t1\nword16\t1\nword15\t1\n",
+            "stderr": ""
+          },
+          "run": {
+            "exit": 0,
+            "stdout": "word31\t3\nword00\t3\nword30\t2\nword01\t1\nword29\t1\nword02\t1\nword28\t1\nword03\t1\nword27\t1\nword04\t1\nword26\t1\nword05\t1\nword25\t1\nword06\t1\nword24\t1\nword07\t2\nword23\t1\nword08\t1\nword22\t1\nword09\t1\nword21\t1\nword10\t1\nword20\t1\nword11\t1\nword19\t1\nword12\t1\nword18\t1\nword13\t1\nword17\t1\nword14\t1\nword16\t1\nword15\t1\n",
+            "stderr": ""
+          }
         }
       ]
     }

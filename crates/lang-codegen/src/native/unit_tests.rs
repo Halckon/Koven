@@ -1,3 +1,5 @@
+#[path = "unit_map_word_frequency_tests.rs"]
+mod map_word_frequency_tests;
 #[path = "unit_borrow_result_tests.rs"]
 mod borrow_result_tests;
 #[path = "unit_borrow_string_tests.rs"]
