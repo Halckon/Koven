@@ -1,10 +1,10 @@
 # SPEC-0294: Map.put 参数 return 提前退出的清理与 Diverged 传播
 
-> **性质**：单一变更合同 · **状态**：in-progress · **读取时机**：实施或验收本修复时 · **唯一真源**：本 Spec 的范围与验收账本
+> **性质**：单一变更合同 · **状态**：done · **读取时机**：实施或验收本修复时 · **唯一真源**：本 Spec 的范围与验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0294` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | 现行 [Guide v0.43](../../guide/README.md)、[所有权与 drop](../../guide/10-ownership-borrowing-drop.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0288、SPEC-0290 |
 | 前置 ADR | ADR-0016 |
 | 关联 ADR | 无新增 |
-| 阻塞项 | 发布及双宿主 CI 尚未执行 |
+| 阻塞项 | return 有界实现 head 已通过双宿主 CI；同步 main 后的最终归档 head CI、merge/main 仍待交付 |
 | 影响范围 | `lang-codegen` 的 single/unit Map.put lowering、直接回归和当前事实文档 |
 | 语言语义变更 | 否 |
 
@@ -53,7 +53,7 @@ break/continue 的 loop 出口临时值恢复仍是独立审计候选，不属�
 - [x] 动态 if、Boolean when、短路条件的无退出 Map.put 对照保持成功。
 - [x] fmt、受影响 crate clippy、文档与尺寸静态检查完成；逐项记实际命中数与未运行项。
 - [x] Architecture 已更新本片 return 已验证事实，不扩称一般控制退出。
-- [ ] 独立发布后记录 exact head 双宿主 CI，再归档。
+- [x] PR73 exact implementation head 双宿主 CI 已记录，并按本片 return Goal 有界归档。
 
 ## 6. 技术方案与边界
 
@@ -66,7 +66,8 @@ pending loan / operand slots、分支快照和清理机制，不从 AST 重推�
 1. [x] Spec/inventory 与红测 → 验证 §10 的首次失败。
 2. [x] 最小实现及直接回归 → 验证同一测试选择与正常 native。
 3. [x] 当前事实与本地账本 → 验证文档、格式、尺寸、clippy。
-4. [ ] 发布后 exact head CI → 依证据归档，不提前宣称 CI 通过。
+4. [x] PR73 exact implementation head CI → 已按实际双宿主日志验收归档。
+5. [ ] 同步 main 后的最终归档 head CI、merge/main → 作为后续交付状态单独记录。
 
 ## 8. 提交计划
 
@@ -78,9 +79,10 @@ pending loan / operand slots、分支快照和清理机制，不从 AST 重推�
 
 ## 9. 未决问题
 
-无语义未决项。完成状态依赖独立 exact-head CI，不复用 PR72 的成功覆盖本分支。
+无语义未决项。return 有界实现已按 PR73 exact-head CI 验收；PR72 成功不替代本分支，
+同步其 actual main 后仍需验证新的最终归档 head。最终 merge/main 状态见交付账本。
 
-## 10. 验证记录
+## 10. 本地验证记录（保留当时边界）
 
 | 验收项 / 命令（目标与过滤器） | 结果（实际测试数） | 未运行原因 / 复用证据 |
 |---|---|---|
@@ -105,3 +107,38 @@ Cargo 复用 `CARGO_TARGET_DIR=../koven-pr69-fixes/target`，全程串行。新�
 不同测试通过；重复红绿运行不重复计作新增覆盖。原生运行观察分支/顺序/Resource 析构，
 不替代 allocation/free 计数或 sanitizer。独立只读审阅已核对 exact reservation identity、
 分支重绑定、Diverged 返回和 named key temporary 清理；未把审阅当成 CI 执行证据。
+
+## 11. 实现 head 双宿主验收（2026-10-11）
+
+[PR73](https://github.com/Halckon/Koven/pull/73) 的实现 head
+`1211815fad665d5aa26093dbe6c18e4ac1bef2ef` 在
+[run 38113299459](https://github.com/Halckon/Koven/actions/runs/38113299459) attempt 1
+通过 15 个 job；Tree-sitter 依未改变 editor 输入合法 skipped。该 run 的 base 为
+`6667635bd9a22cdc2c2a039912aa2e7ffaf0ec1d`，实际 checkout 合成 merge 为
+`348502c8c2ba554697e07c87406c46bca6f4c818`，不冒充后续 main 同步的验证。
+
+| 本片 Goal | 双宿主实际证据 |
+|---|---|
+| receiver reservation 与 mixed 合流 | single 9 个 SSA 回归各命中一次，含反向 mixed、连续 key/value 分支 |
+| key/value 全 return 的 Diverged | single/unit 共 8 个双/直接 return 用例，断言零 MapPut、无后缀 DirectCall |
+| named/temporary/grouped String key 前缀清理 | 两 native 测试各执行 15 份正常源码，保留 Resource 析构、存储值与未执行后缀断言 |
+| 正常 Map 行为及既有拒绝边界 | 本地选定的全部 20 新增 + 9 既有测试，在两平台各恰命中一次且通过 |
+
+Ubuntu codegen lib 为 1238 passed / 0 failed / 0 ignored；macOS 为
+1237 passed / 0 failed / 1 ignored。唯一 ignore 是既有 LLDB 源码断点测试的 debugserver
+权限限制，本片 29 个目标均未 skipped/ignored。双平台 workspace check/clippy、普通组合、
+preview producer/consumer、CI Passed 与 Code CI Evidence 均成功。Linux 日志也保留既有
+ASan/LSan Map clean 证据；它不是新增 return 专属 sanitizer 或逐指针计数矩阵。
+
+完整 Goal→证据映射、job 身份、29 个测试原文、解码日志 hash 与边界见
+[交付账本](../../development/evidence/map-put-return-0294/delivery.json) 和
+[实际测试 receipt](../../development/evidence/map-put-return-0294/implementation-ci-tests.json)。
+§10 的本地未运行条目保留历史时点，远端证据仅由本节与 receipt 追加。
+
+## 12. 同步主干与最终交付边界
+
+PR72 已合为 actual main `3f97679839a175088ba33163851e56dccc1dd860`；本分支保留
+已发布 PR73 父链并将其合入，0289/0290 冻结验收正文保持主干原文。同步后重新生成
+两份 Markdown 与两份 SVG 依赖图，索引/inventory 同时保留 0289、0294 的归档状态。
+本归档只关闭 return 有界 Goal；最终归档 head CI、PR73 merge 和 actual main CI 尚待
+后续真实状态，不由上述旧 base 的 implementation run 推导。
