@@ -1,25 +1,26 @@
 # SPEC-0290: PR69 交付回归修复与验收边界一致
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：修复或验收 PR69 审计发现时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：修复或验收 PR69 审计发现时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-0290` |
 | 所属 Phase | Phase 3 所有权事实；Phase 4 typed SSA；Phase 5 LLVM；Phase 6 native 与交付验收 |
 | 语言规范 | 现行 [Guide v0.43](../../guide/README.md)，尤其所有权、集合及实施边界章节 |
-| 批准依据 | 2026-10-10 用户授权云端分阶段修复，随后批准 push，已发布6提交；15:00 要求审查新推送0289/0291后继续里程碑；PR/merge 仍未授权 |
+| 批准依据 | 2026-10-10 用户授权分阶段修复、push 与 N1a 合同接收；随后已发布 PR71，2026-10-11 完成双宿主实现验收；本次仅本地验收归档，不执行 push/merge |
 | 前置 Spec | SPEC-0288 已归档且 PR69 已合入 main；原证据按需从 archive 追溯 |
 | 前置 ADR | [ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) 已 accepted |
 | 关联 ADR | 无新增长期架构决定 |
-| 阻塞项 | 本地有界修复与6提交发布已完成，push CI 通过其实际选择项；PR/merge 未授权。N1a 已批准 Guide v0.43 从0289分支补回，合同/门禁验证与0289后继实现仍独立验收 |
+| 阻塞项 | R1–R6 有界合同与 PR71 实现 head 双宿主 CI 已验收；最终归档 head CI、merge 与 actual main CI 尚待验证。0289 保持 active，后继 Int 算术片独立交付 |
 | 影响范围 | `lang-codegen`、相关 frontend/CLI 回归、CI 测试选择与当前事实文档 |
 | 语言语义变更 | 否；不通过本 Spec 启用、禁用或改写 N1a 语义 |
 
 ## 1. Goal
 
 在现行 Guide 合同内修复 PR69 的编译回归，使普通源码回归、CI 测试选择和交付陈述相互
-一致；对未授权的 N1a 语义处置保留明确决策边界，不将未决发现或未运行验收计作闭环。
+一致；N1a 方向已由接收的正式合同确认，本 Spec 只关闭事实核对与决策边界，不替代
+0289 实现验收，不将未运行的最终归档 head/merge/main 交付计作闭环。
 
 ## 2. 背景
 
@@ -28,7 +29,7 @@
 旧 PR 的归档结论保留为历史，当前修复与新证据单独记录。
 
 现行规范以 [Guide 入口](../../guide/README.md)为准；其他页面的旧版本标记不能覆盖其
-v0.42 权威。工具链保持 Rust 1.96.0 与 LLVM 21.1.8，不以降级、替代版本或删除覆盖来
+v0.43 权威。工具链保持 Rust 1.96.0 与 LLVM 21.1.8，不以降级、替代版本或删除覆盖来
 取得绿色。失效的旧工作目录或旧构建结果不能充当本分支验收。
 
 ## 3. 范围与需求
@@ -60,7 +61,8 @@ Guide 启用规则后另行确定合同。这个边界不阻塞已明确的 R1�
 - 不运行故障生成、内存故障注入或校准；不调用会间接触发这些入口的聚合门禁。
 - 不修改 archive 中的旧 Spec 正文、验收结论或证据；生成的依赖拓扑只作机械更新。
 - 不默认执行 frontend 全量，不用无关全量测试替代定向红绿证据。
-- 本次不 push、不创建远端 PR、不 merge；后续需另获授权，不能据本地结果宣称远端 CI 通过。
+- 初始修复阶段不 push、不创建远端 PR、不 merge；后续已发布与 PR CI 事实见 §11。
+  本次归档只改本地文档/治理 inventory，不执行新的远端写入或 merge。
 
 ## 5. 验收标准
 
@@ -70,11 +72,11 @@ Guide 启用规则后另行确定合同。这个边界不阻塞已明确的 R1�
 - [x] A3：R3 的分组借用返回正例与不分组对照通过，现有错误来源/逃逸拒绝边界不变。
 - [x] A4：R4 的 unit owner.field wrapper 正例通过，loan/frame 事实与 native 结果吻合，已有字段借用拒绝边界保留。
 - [x] A5：R5 的遗漏清单逐项对齐 CI 调用链，选择 policy 正反例通过，实际执行数与未运行部分分别登记。
-- [ ] A6：R6 的当前路径、Guide 对照与需用户决定的选项有源码/测试证据；未决不标为语义修复完成。
+- [x] A6：R6 当前路径与原规范差异已有事实记录；接收 Guide v0.43/ADR-0030 后方向已确认，证据见 §11；不据此关闭 0289。
 - [x] A7：按影响面完成 fmt、受影响 crate clippy、直接消费者与必要 native 回归，记录实际命中数和未运行项。
 - [x] A8：独立审查确认修复、CI 选择和批准边界一致；当前 Architecture 已同步，或逐项说明无需更新。
-- [x] A9 本地：文档/尺寸/diff 已有通过证据，CI、Map 与借用代码已分批本地提交；最终文档提交前复核记录见 §10。
-- [ ] A9 远端：push、PR、双宿主 CI 与 merge 均待授权且未执行；保持 active，不归档为 done。
+- [x] A9 实现验收：原本地门禁、代码提交与 PR71 实现 head 双宿主 CI 已通过，见 §10–§11；按根 AGENTS 的先归档再合并顺序完成有界归档。
+- [ ] A9 最终交付：本次归档提交尚未生成，精确最终 head CI、merge 与 actual main CI 未验证；继续由 live 交付账本跟踪，不计作已完成。
 
 ## 6. 技术方案与边界
 
@@ -96,8 +98,8 @@ CI 选择沿既有脚本整合，使用 Python policy 测试验证缺失、重�
 |---|---|---|
 | S0 恢复基线 | completed | 固定工具链校验与最小 smoke 通过，真实仓库编译完成；修复前 11 个普通源码回归失败，证据见 §10 |
 | S1 四项修复 | completed（本地） | 11 个基线失败已转绿，并新增 2 个借用 native 验证；聚焦共 13 passed，相邻联合 107 passed 包含这 13 项 |
-| S2 选择与边界 | R5 completed；R6 合同已接收，验收开放 | R5 选择 policy 与 23 个遗漏 targets 的 162 个测试实际通过；R6 当前合同与后继状态见末尾补记，未决语义不实施 |
-| S3 验证与审查 | completed（本地代码）；远端未执行 | 独立审查、fmt/clippy、最终 107 项邻域与代码本地提交完成；最终文档/尺寸复核及文档提交待执行，macOS/远端交付未执行且未授权 |
+| S2 选择与边界 | completed（有界合同） | R5 本地 23 个遗漏 targets / 162 passed 与 PR 双宿主组合成功；R6 方向已确认，0289 实现独立验收 |
+| S3 验证与审查 | completed（实现验收）；最终交付待验证 | 本地独立审查与 107 项邻域通过，PR71 实现 head 双宿主/preview/CI Passed 全绿；归档 head、merge/main 仍待 |
 
 ## 8. 提交计划
 
@@ -111,21 +113,23 @@ CI 选择沿既有脚本整合，使用 Python policy 测试验证缺失、重�
 | 4 | R5 CI 选择、policy 与 R6 事实核验记录 | `test(ci): cover PR69 frontend targets (SPEC-0290)` |
 | 5 | 实际验收、独立审查与当前事实同步 | `docs(spec): record bounded PR69 repair evidence (SPEC-0290)` |
 
-分批提交由本次任务统一协调；远端操作待单独授权。未完成所需双宿主/PR 交付或仍有
-会影响本合同闭环的阻塞时保持 active，不能为了最终文档提交而提前 done/归档。
+初始分批提交与远端授权分别推进；未完成所需双宿主/PR 实现验收时保持 active。
+该前置现由 §11 的 PR71 实现 head CI 满足；本次归档不代替精确最终 head/merge/main 验证。
 
-## 9. 未决问题
+## 9. 当前边界与待交付项
 
-本次 R1–R5 的现行合同修复范围无待启用语义。R6 的 N1a 语义处置尚未决定，明确在本次
-已批准实现范围之外：要维持哪项能力、是否需开关、是否启用新 Guide，须提交具体差异与
-证据后由用户决定。审计六项不能因此整体宣称已闭环。
+R1–R5 已在原有合同内修复；R6 的“启用或休眠”二选一已由真实 Guide v0.43、
+ADR-0030 接收与继续实施指令解决。0290 的事实核对/决策合同可关闭，不把 0289 的
+receiver、算法或剩余 CFG 边界转成 0290 的未决语义，也不宣布完整 N1a 完成。
 
-若后续把该待定语义实现纳入同一 Goal，须重新确认合同；存在改变范围/语义的未决问题
-时按模板保持 draft，不把本 Spec 的 in-progress 当作 N1a 批准依据。
+本次按根 AGENTS §4.7 及既有有界归档范式，先冻结实现验收，再验证归档提交与合并。
+最终归档 head、merge、actual main CI 尚无成功证据，状态见
+[交付账本](../../development/evidence/pr69-repair-0290/delivery.json)。
 
 ## 10. 验证记录
 
-实际命令、精确目标/过滤器、测试命中数与结果在执行后补入本表；失败与未执行记录保留。
+以下保留 2026-10-10 各执行时点的实际命令、结果、失败与未执行记录；其中待决定、
+未授权、未发布与远端未执行仅描述当时状态，当前结论以 §11 和交付账本为准。
 
 | 验收项 / 命令（目标与过滤器） | 结果（实际测试数） | 未运行原因 / 复用证据 |
 |---|---|---|
@@ -233,13 +237,42 @@ v0.43/ADR-0030；此前的语义二选一源于缺失分支资料。现按正式
 [整合记录](../../development/n1a-contract-integration.md)，A6仍不借此声明0289完成。
 
 
-### 2026-10-10 R6 当前事实与后继交付边界
+### 2026-10-10 R6 事实与后继交付边界检查点
 
 R6已由真实Guide v0.43/ADR-0030与用户继续实施指令消除“启用或休眠”的二选一；
 不再把N1a方向列作待决定。后继receiver静态ABI、稳定root续接与std take已本地提交
 `3ac650b`、`2134c3a`、`65b6fc0`，准确验收与剩余CFG边界由
-[SPEC-0289 §19](0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)维护。
+[SPEC-0289 §19](../../specs/active/0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)维护。
 A6/A9仍不据此关闭完整交付。publication `815b1fb`树上传两次取消，远端仍`f50b48c`，
 分批方案待用户确认，新代码未push。PR70已合并`56af80b`，增量CI在main，本分支未合入；
 不能挪用其结果作为本分支全量或双宿主通过证据。当前用户允许GitHub Actions故障注入/
 校准，云开发仍禁止；以上旧检查点的禁止与未授权表述不重写为当前授权状态。
+
+
+## 11. 2026-10-11 有界实现验收与归档
+
+[PR71](https://github.com/Halckon/Koven/pull/71) 的实现 head 为
+`becba6904787307b90310c695aad46816ed60ac3`，与本地
+`5e0b16e857af4bc49997983c806a34906fe430e0` 的树相同：
+`e7d61153c8a108958056a44799de498f0f0f3598`。本次读取 GitHub PR metadata 与
+[CI38100665089](https://github.com/Halckon/Koven/actions/runs/38100665089) jobs，
+确认 16/16 job completed/success，包括两宿主 Check & Clippy、Targeted Tests、
+Preview Producer、Preview Independent Consumer、Code CI Evidence 与 CI Passed。
+Code CI Evidence 明确绑定 base `56af80ba92a544abf9c6531606a6340825f9a25f`、
+上述 head 与测试合并 ref `f04b7ae3d693d075f813852fadf4a29518749481`。
+该测试合并 ref 不是实际合并提交：PR 仍 open/draft，`merged=false`。
+
+- R1–R4：§10 的 11 个真实源码红测转为 13 个聚焦绿测，最终 107 项邻域包含这 13 项；
+  此次双宿主配置 CI 提供补充宿主证据，不把聚焦数重复相加。
+- R5：23 个遗漏 targets 本地实际 162 passed，选择 policy 与 PR 两宿主 bounded
+  composition step 成功；frontend 仍为 lib/stage 有界组合，不称为 frontend 全量。
+- R6/A6：先前事实差异和决策请求已记录；接收的 Guide v0.43/ADR-0030 与
+  [合同接收证据](../../development/n1a-contract-integration.md)解除方向等待。
+  本项验收只关闭审计事实/批准边界，0289 保持 active；独立 Int 算术后继片不纳入本次归档。
+- A9：本地既有修复验收及此次实现 head CI 支持 done/archive；归档提交自身尚无 head
+  身份或 CI，merge 与 actual main CI 继续开放。未来仅更新 live 交付账本，不改写本冻结时点。
+- 本次不运行 Cargo、故障注入、校准或聚合门禁；远端 Linux sanitizer step 成功，
+  macOS 对应 Linux-only steps 合法 skipped，不据 16 个成功 job 宣称每个 step 均实际执行。
+
+归档路径、inventory、索引与生成 DAG 在同一文档变更中更新。本次治理检查结果在
+交付账本记录；本地修复证据、已验证实现 head 和尚待验证的最终交付彼此独立。

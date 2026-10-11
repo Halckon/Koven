@@ -1,0 +1,63 @@
+{
+  "spec": "SPEC-0290",
+  "observed_at_utc": "2026-10-11T01:22:22Z",
+  "scope": "R1–R6 bounded repair acceptance; SPEC-0289 remains active and the independent Int arithmetic successor is excluded",
+  "pr_url": "https://github.com/Halckon/Koven/pull/71",
+  "pr_state": "open",
+  "pr_draft": true,
+  "merged": false,
+  "implementation": {
+    "remote_head": "becba6904787307b90310c695aad46816ed60ac3",
+    "local_head": "5e0b16e857af4bc49997983c806a34906fe430e0",
+    "tree": "e7d61153c8a108958056a44799de498f0f0f3598",
+    "base": "56af80ba92a544abf9c6531606a6340825f9a25f",
+    "tested_merge_ref": "f04b7ae3d693d075f813852fadf4a29518749481",
+    "run_url": "https://github.com/Halckon/Koven/actions/runs/38100665089",
+    "jobs_completed_success": 16,
+    "targeted_tests_jobs": {
+      "macos-14": 114356150520,
+      "ubuntu-24.04": 114356150539
+    },
+    "preview_producer_jobs": {
+      "macos-14": 114357401853,
+      "ubuntu-24.04": 114357401889
+    },
+    "preview_consumer_jobs": {
+      "macos-14": 114357914346,
+      "ubuntu-24.04": 114357717441
+    },
+    "ci_passed_job": 114358041422,
+    "limits": [
+      "job/step status inspected; individual Rust test counts not rederived from remote logs",
+      "frontend is the configured bounded lib/stage composition, not full frontend",
+      "Linux-only sanitizer steps skipped on macOS; no local fault injection, calibration or aggregate runs"
+    ]
+  },
+  "final_archive_head": null,
+  "final_archive_head_ci": "pending",
+  "merge_commit": null,
+  "actual_main_ci": "pending",
+  "local_governance_checks": {
+    "docs": {
+      "command": "python3 scripts/check_docs.py",
+      "result": "passed",
+      "markdown_files": 609
+    },
+    "policy": {
+      "command": "python3 -m unittest scripts.tests.test_check_docs scripts.tests.test_gen_spec_dag scripts.tests.test_check_ci_results scripts.tests.test_recovery_gates",
+      "result": "passed",
+      "tests": 75
+    },
+    "diff": {
+      "command": "git diff --check",
+      "result": "passed"
+    },
+    "not_run": [
+      "Cargo/Rust tests",
+      "local fault injection",
+      "calibration",
+      "aggregate gates"
+    ],
+    "commit_status": "checks completed before archive commit; final publication tracked by final_archive_head fields"
+  }
+}
