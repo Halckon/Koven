@@ -4,9 +4,11 @@
 
 当前 2 份 active。
 
-- [SPEC-0289：N1a 单来源范围描述符端到端交付](0289-n1a-range-carrier.md)：in-progress；Guide v0.43/ADR-0030 已接入，历史阶段证据与本次验证分开，receiver 后端仍待交付。
+- [SPEC-0289：N1a 单来源范围描述符端到端交付](0289-n1a-range-carrier.md)：in-progress；Guide v0.43/ADR-0030 已接入，历史阶段证据与本次验证分开，receiver 后端与 std take 已本地验收，待分支远端交付。
 
 - [SPEC-0290：PR69 交付回归修复与验收边界一致](0290-pr69-regression-repair.md)：in-progress；四项代码回归与 CI 选择修复按阶段验收，N1a 既有批准合同已由新推送分支补回；本 Spec 不替代 0289 的实现验收。
+
+0293（PR 普通文档追加提交复用真实代码 CI）已按 [PR #70](https://github.com/Halckon/Koven/pull/70) 首轮真实完整 CI 与追加文档复用验收归档至 `docs/archive/specs/0293-pr-code-ci-reuse.md`；已合并为 `56af80b`，合并后 main CI 单独跟踪。
 
 0288（Map 键值容器原生执行基础：SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）已按双宿主 CI 与 Linux ASan/LSan Map 证据验收归档至 `docs/archive/specs/0288-map-native-execution.md` 并通过 PR #69 合入 main。
 

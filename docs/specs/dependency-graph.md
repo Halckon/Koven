@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 275 份"))
+ARCH(("已完成<br/>archive 276 份"))
 subgraph Gactive["现行 active"]
   S0289["S0289<br/>N1a 单来源范围描述符端到端交付"]
   S0290["S0290<br/>PR69 交付回归修复与验收边界一致"]
@@ -33,4 +33,4 @@ ARCH --> S0291
 | SPEC-0290 | active | [0290-pr69-regression-repair.md](active/0290-pr69-regression-repair.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| 已完成 Spec（275 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（276 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

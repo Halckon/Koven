@@ -68,8 +68,10 @@ clippy、核心测试、`check_stage_integration.sh` 和 `check_guide_litmus.sh`
 Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 安装 LLVM 官方 Noble 21 签名源
 中的固定 21.1.8 包，macOS 保留 `brew install llvm@21`；版本或工具缺失直接失败。
 
-PR 的普通文档变更仍仅跑文档门禁；Guide10/11/13/15 的 Litmus 输入、门禁脚本、workflow/LLVM action
-变更触发 Rust 门禁。main 与 workflow_dispatch 强制执行全部配置，feature/fix push 保持
+PR 的普通文档变更保留路径豁免；全部 Guide、compiler-specs、scripts、workflow/LLVM action
+变更触发 Rust 门禁。代码门禁成功后追加普通文档，可按 [SPEC-0293](../archive/specs/0293-pr-code-ci-reuse.md)
+复用同 PR、同 base、同 head/merge 有效输入的真实 job 证据；汇总独立重验，不能只凭 workflow success。
+证据不可用保守重跑，docs 每次 PR 运行，跳过不表示本 head 再次执行或生成新 preview 包。main 与 workflow_dispatch 强制执行全部配置，feature/fix push 保持
 仅文档/fmt 的现有成本策略；完整矩阵在 PR 执行。最终汇总拒绝 changes 失败或必需 job 跳过。
 
 独立的[手写 Rust 尺寸护栏](rust-size-policy.md)在所有上述事件运行，包含policy测试和基于

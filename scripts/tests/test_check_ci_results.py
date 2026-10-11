@@ -100,12 +100,28 @@ class CheckCiResultsTests(unittest.TestCase):
             with self.subTest(suffix=suffix):
                 self.assertFalse(stage_command_is_unfiltered(command + suffix))
 
+    def test_reuse_cannot_bypass_independent_verification_or_current_docs(self):
+        jobs = needs("true", "true", "true", "true", docs="success")
+        jobs["changes"]["outputs"].update(reuse="true", reuse_run="10", fingerprint="a" * 64)
+        self.assertTrue(CI.check_results(jobs, "pull_request", "refs/pull/1/merge"))
+        self.assertEqual([], CI.check_results(jobs, "pull_request", "refs/pull/1/merge", True))
+        for name in ("docs", "rust-size", "dependencies"):
+            self.assertTrue(CI.check_results({**jobs, name: {"result": "skipped"}},
+                                             "pull_request", "refs/pull/1/merge", True))
+        for event in ("push", "workflow_dispatch"):
+            self.assertTrue(CI.check_results(jobs, event, "refs/heads/main", True))
+
+    def test_missing_reuse_evidence_keeps_required_jobs_strict(self):
+        jobs = needs("true", "true", docs="success")
+        jobs["changes"]["outputs"]["reuse"] = "false"
+        self.assertTrue(CI.check_results(jobs, "pull_request", "refs/pull/1/merge"))
+
     def test_docs_only_pr_can_skip_rust(self):
         self.assertEqual([], CI.check_results(
             needs("true", "false", docs="success"), "pull_request", "refs/pull/1/merge"))
 
     def test_rust_pr_requires_both_matrix_jobs(self):
-        jobs = needs("false", "true", fmt="success", clippy="success", test="success")
+        jobs = needs("false", "true", docs="success", fmt="success", clippy="success", test="success")
         self.assertEqual([], CI.check_results(jobs, "pull_request", "refs/pull/1/merge"))
         for name in ("fmt", "clippy", "test"):
             for result in ("skipped", "failure", "cancelled"):
@@ -122,7 +138,8 @@ class CheckCiResultsTests(unittest.TestCase):
 
     def test_editor_change_requires_actual_job_on_push_and_pr(self):
         for event in ("push", "pull_request"):
-            jobs = needs(editors_changed="true", editors="success")
+            jobs = needs(editors_changed="true", editors="success",
+                         docs="success" if event == "pull_request" else "skipped")
             self.assertEqual([], CI.check_results(jobs, event, "refs/heads/feature/editor"))
             for result in ("skipped", "failure", "cancelled", None):
                 with self.subTest(event=event, result=result):
@@ -130,7 +147,7 @@ class CheckCiResultsTests(unittest.TestCase):
                     self.assertTrue(CI.check_results(altered, event, "refs/heads/feature/editor"))
 
     def test_editor_and_rust_changes_require_both_independent_gates(self):
-        jobs = needs(rust_changed="true", editors_changed="true", editors="success",
+        jobs = needs(rust_changed="true", editors_changed="true", editors="success", docs="success",
                      fmt="success", clippy="success", test="success")
         self.assertEqual([], CI.check_results(jobs, "pull_request", "refs/pull/1/merge"))
         for name in ("editors", "test"):
@@ -307,7 +324,7 @@ class CheckCiResultsTests(unittest.TestCase):
             self.assertTrue(CI.check_results(needs(rust_changed=value), "pull_request", "refs/pull/1/merge"))
 
     def test_candidate_requires_each_host_producer_and_independent_consumer(self):
-        jobs = needs(preview_changed='true', fmt='success', clippy='success', test='success',
+        jobs = needs(preview_changed='true', docs='success', fmt='success', clippy='success', test='success',
                      **dict.fromkeys(PREVIEW_JOBS, 'success'))
         self.assertEqual([], CI.check_results(jobs, 'pull_request', 'refs/pull/1/merge'))
         for name in PREVIEW_JOBS:
@@ -319,7 +336,7 @@ class CheckCiResultsTests(unittest.TestCase):
                                          'pull_request', 'refs/pull/1/merge'))
 
     def test_candidate_skip_is_only_accepted_for_exempt_changes_or_feature_push(self):
-        self.assertEqual([], CI.check_results(needs(), 'pull_request', 'refs/pull/1/merge'))
+        self.assertEqual([], CI.check_results(needs(docs='success'), 'pull_request', 'refs/pull/1/merge'))
         self.assertTrue(CI.check_results(needs(preview_changed=None), 'pull_request', 'refs/pull/1/merge'))
         self.assertEqual([], CI.check_results(needs(preview_changed='true', fmt='success'),
                                             'push', 'refs/heads/feature/preview'))

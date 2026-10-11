@@ -1,18 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="8016" height="8134" viewBox="0 0 8016 8134" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="8280" height="8134" viewBox="0 0 8280 8134" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="8016" height="8134" fill="#ffffff"/>
-  <rect x="40" y="30" width="6880" height="7876" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3480" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，275 份）</text>
-  <rect x="6984" y="7764" width="280" height="280" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="7124" y="7784" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
-  <rect x="7328" y="7920" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="7468" y="7940" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
-  <rect x="7672" y="7920" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="7812" y="7940" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
+  <rect width="8280" height="8134" fill="#ffffff"/>
+  <rect x="40" y="30" width="7144" height="7876" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3612" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，276 份）</text>
+  <rect x="7248" y="7764" width="280" height="280" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="7388" y="7784" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <rect x="7592" y="7920" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="7732" y="7940" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
+  <rect x="7936" y="7920" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="8076" y="7940" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1012,10 +1012,10 @@
   <path d="M 180 7422 C 180 7454, 180 7454, 180 7486" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 7578 C 180 7610, 180 7610, 180 7642" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 7734 C 180 7766, 180 7766, 180 7798" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 300 7688 C 3652 7688, 3652 7835, 7004 7835" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 300 7844 C 3652 7844, 3652 7991, 7004 7991" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 300 7844 C 3996 7844, 3996 8000, 7692 8000" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 7244 7835 C 7296 7835, 7296 7991, 7348 7991" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 7688 C 3784 7688, 3784 7835, 7268 7835" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 7844 C 3784 7844, 3784 7991, 7268 7991" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 7844 C 4128 7844, 4128 8000, 7956 8000" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 7508 7835 C 7560 7835, 7560 7991, 7612 7991" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2171,21 +2171,25 @@
   <text x="180" y="7839" text-anchor="middle" font-size="13">Map 键值容器原生执行基础</text>
   <text x="180" y="7857" text-anchor="middle" font-size="13">（SSA 原语、LLVM I</text>
   <text x="180" y="7875" text-anchor="middle" font-size="13">R 代码生成与 Nativ…</text>
-  <rect x="7004" y="7798" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7124" y="7821" text-anchor="middle" font-size="13" font-weight="600">SPEC-0289</text>
-  <text x="7124" y="7839" text-anchor="middle" font-size="13">N1a 单来源范围描述符端到</text>
-  <text x="7124" y="7857" text-anchor="middle" font-size="13">端交付</text>
-  <rect x="7004" y="7954" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7124" y="7977" text-anchor="middle" font-size="13" font-weight="600">SPEC-0290</text>
-  <text x="7124" y="7995" text-anchor="middle" font-size="13">PR69 交付回归修复与验收</text>
-  <text x="7124" y="8013" text-anchor="middle" font-size="13">边界一致</text>
-  <rect x="7692" y="7954" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7812" y="7977" text-anchor="middle" font-size="13" font-weight="600">SPEC-0291</text>
-  <text x="7812" y="7995" text-anchor="middle" font-size="13">非空只读 Map 构造：Mu</text>
-  <text x="7812" y="8013" text-anchor="middle" font-size="13">tableMap 立即消费式</text>
-  <text x="7812" y="8031" text-anchor="middle" font-size="13">转换 consume()</text>
-  <rect x="7348" y="7954" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7468" y="7977" text-anchor="middle" font-size="13" font-weight="600">SPEC-0292</text>
-  <text x="7468" y="7995" text-anchor="middle" font-size="13">链内立即消费序列与 owne</text>
-  <text x="7468" y="8013" text-anchor="middle" font-size="13">d 结果</text>
+  <rect x="7268" y="7798" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="7388" y="7821" text-anchor="middle" font-size="13" font-weight="600">SPEC-0289</text>
+  <text x="7388" y="7839" text-anchor="middle" font-size="13">N1a 单来源范围描述符端到</text>
+  <text x="7388" y="7857" text-anchor="middle" font-size="13">端交付</text>
+  <rect x="7268" y="7954" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="7388" y="7977" text-anchor="middle" font-size="13" font-weight="600">SPEC-0290</text>
+  <text x="7388" y="7995" text-anchor="middle" font-size="13">PR69 交付回归修复与验收</text>
+  <text x="7388" y="8013" text-anchor="middle" font-size="13">边界一致</text>
+  <rect x="7956" y="7954" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="8076" y="7977" text-anchor="middle" font-size="13" font-weight="600">SPEC-0291</text>
+  <text x="8076" y="7995" text-anchor="middle" font-size="13">非空只读 Map 构造：Mu</text>
+  <text x="8076" y="8013" text-anchor="middle" font-size="13">tableMap 立即消费式</text>
+  <text x="8076" y="8031" text-anchor="middle" font-size="13">转换 consume()</text>
+  <rect x="7612" y="7954" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="7732" y="7977" text-anchor="middle" font-size="13" font-weight="600">SPEC-0292</text>
+  <text x="7732" y="7995" text-anchor="middle" font-size="13">链内立即消费序列与 owne</text>
+  <text x="7732" y="8013" text-anchor="middle" font-size="13">d 结果</text>
+  <rect x="6924" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="7044" y="87" text-anchor="middle" font-size="13">SPEC-0293</text>
+  <text x="7044" y="105" text-anchor="middle" font-size="13">PR 普通文档追加提交复用真</text>
+  <text x="7044" y="123" text-anchor="middle" font-size="13">实代码 CI</text>
 </svg>
