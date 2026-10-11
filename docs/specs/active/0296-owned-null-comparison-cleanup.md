@@ -17,7 +17,7 @@
 ## 1. Goal 与基线
 
 从 main `e168c485a5379764cf927433452f8b7059f7b334` 新建 `fix/spec-0296`，
-修复 owned nullable 判空最后使用时提前消费 owner 的交接，使 MoveOnly Map.remove
+修复具名 owned nullable 判空最后使用时提前消费 owner 的交接，使 MoveOnly Map.remove
 结果在普通源码循环与非循环中按既有合同判空、借用或消费，并生成通过 verifier 的 native。
 0295 [原始边界源码与失败](../../development/evidence/map-word-frequency-0295/known-boundary.json)
 保留历史，不重写其当时结论。修复不得按 Map/String 名称、源码形状或循环特判。
@@ -34,7 +34,7 @@
 ## 3. 非目标
 
 Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借用能力、LLVM/runtime 改写、
-完整 CFG/NLL 重构、放松 verifier、性能宣称。云本机只跑正常源码、普通负例与静态检查；
+完整 CFG/NLL 重构、直接 temporary 二元判空的新前端清理事实、放松 verifier、性能宣称。云本机只跑正常源码、普通负例与静态检查；
 不跑故障注入、校准、malformed IR、LLVM/allocator counter、reducer 或聚合驱动。双宿主 CI 留远端。
 
 ## 4. 验收账本
@@ -42,7 +42,7 @@ Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借�
 | ID | 验收项 / 目标 | 实际结果 |
 |---|---|---|
 | R1 | 原 0295 known-boundary public build/run，记录基线红与修复绿 | 待执行 |
-| R2 | 正常源码 SSA/native：单文件及两 unit，String/Resource、for/非循环、分支、判空、消费与缺失 | 待执行 |
+| R2 | 正常源码 SSA/native：单文件及两 unit，String/Resource、for/非循环、分支、判空、消费与缺失 | 12/12，0 ignored；unit source 正逆排列，Resource 4 类 loop 退出，详见 matrix green |
 | R3 | frontend 普通能力负例与相邻通用 nullable/Map 回归 | 待执行 |
 | R4 | fmt、受影响 crate 严格 clippy、docs、diff、Rust 尺寸静态检查 | 待执行 |
 | R5 | 独立审查、远端双宿主 CI、最终归档与精确 head 交付 | 待授权/远端执行；本机不宣称通过 |
@@ -65,3 +65,12 @@ Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借�
 原始命令、日志和 SHA256 见[本机 checkpoint](../../development/evidence/owned-null-cleanup-0296/local-checkpoint.json)。
 循环原项目由 unit/basic 与 const 原样验收；single 外层 Map owner 进入 for 在更早的既有
 UnsupportedNode 门禁被拒绝，另存正常源码，暂不纳入本片能力扩展或通过计数。
+
+扩展探索另确认直接 `m.remove(1) != null` 不发布结果 Temporary drop，和 named 的提前
+drop 不同；两入口仍为 InvalidSsa。该 Phase 3 缺口已交后继独立认领，不纳入本片绿验收。
+
+扩展[正常源码矩阵](../../development/evidence/owned-null-cleanup-0296/local-matrix-green.json)
+12/12：6 种相等/不等、左右/group 形态分别覆盖 String 与 MoveOnly Text 的 present/missing，
+SSA 精确核对 MapRemove 的第二个 owned result 先读取 presence 后唯一次 drop；不复制 owner。
+Resource 的消费通过既有显式 `!!` 交付，正常/continue/break/return 的词法次序由 stdout 验证。
+条件分支中的 Resource 消费仍受既有 ResourceLifetime 门限制，不从本片推定通用支持。

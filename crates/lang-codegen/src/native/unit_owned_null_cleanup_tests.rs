@@ -116,3 +116,95 @@ fn unit_owned_null_cleanup_grouped_and_mirrored_reads() {
     run_units(&source, "p.exercise()", &expected);
 }
 
+const REUSE_AND_CONSUME: &str = r#"
+class Resource(val text: String) { deinit() { println(this.text) } }
+fun consume(own value: Resource): Unit { println("consume") }
+fun exercise(): Unit {
+    var texts = mutableMapOf<Int, String>()
+    texts.put(1, "text".clone())
+    val value = texts.remove(1)
+    val present = value != null
+    if (!present) { error("missing text") }
+    val missing = null == value
+    if (missing) { error("lost text") }
+    println(value!!)
+    var resources = mutableMapOf<Int, Resource>()
+    resources.put(1, Resource("consumed"))
+    resources.put(2, Resource("lexical"))
+    val consumed = resources.remove(1)
+    val available = consumed != null
+    if (!available) { error("missing consumed resource") }
+    consume(consumed!!)
+    val lexical = resources.remove(2)
+    val isPresent = lexical != null
+    if (!isPresent) { error("missing resource") }
+    println("before scope exit")
+}
+"#;
+
+#[test]
+fn single_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource() {
+    run_single(
+        REUSE_AND_CONSUME,
+        "exercise()",
+        "text\nconsume\nconsumed\nbefore scope exit\nlexical\n",
+    );
+}
+
+#[test]
+fn unit_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource() {
+    run_units(
+        REUSE_AND_CONSUME,
+        "p.exercise()",
+        "text\nconsume\nconsumed\nbefore scope exit\nlexical\n",
+    );
+}
+
+#[test]
+fn unit_owned_null_cleanup_loop_resource_exits() {
+    for (exit, expected) in [
+        (
+            "",
+            "present\nbody\ntail\none\nbody\ntail\npresent\nbody\ntail\ntwo\nafter\ndone\n",
+        ),
+        (
+            "continue",
+            "present\nbody\none\nbody\npresent\nbody\ntwo\nafter\ndone\n",
+        ),
+        ("break", "present\nbody\none\nafter\ntwo\ndone\n"),
+        ("return", "present\nbody\none\ntwo\ndone\n"),
+    ] {
+        let source = format!(
+            r#"
+class Resource(val text: String) {{ deinit() {{ println(this.text) }} }}
+fun exercise(args: Array<Int>): Unit {{
+    var resources = mutableMapOf<Int, Resource>()
+    resources.put(1, Resource("one"))
+    resources.put(2, Resource("two"))
+    for (key in args) {{
+        val removed = resources.remove(key)
+        if (removed != null) {{ println("present") }}
+        println("body")
+        {exit}
+        println("tail")
+    }}
+    println("after")
+}}
+"#
+        );
+        run_units(
+            &source,
+            "p.exercise(arrayOf(1, 1, 2)); println(\"done\")",
+            expected,
+        );
+    }
+}
+
+#[test]
+fn unit_owned_null_cleanup_zero_and_one_iteration() {
+    run_units(
+        KNOWN_BOUNDARY.strip_prefix("package p\n").unwrap(),
+        "p.exercise(arrayOf<String>()); p.exercise(arrayOf(\"key\"))",
+        "done\ntext present\nkey\ndone\n",
+    );
+}

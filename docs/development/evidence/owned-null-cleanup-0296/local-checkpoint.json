@@ -47,7 +47,7 @@
     "passed": 7,
     "failed": 0,
     "ignored": 0,
-    "log": "local-initial-green.log"
+    "log": "local-initial-green.json"
   },
   "unrun": [
     "remote macOS and Linux CI",
@@ -55,7 +55,7 @@
   ],
   "sha256": {
     "local-red.log": "c64e70c2019dc793f71df7a918dfbea16c9d5126a748c1f992cd655750792438",
-    "local-initial-green.log": "73be0cb4c00f25b01a637e5d35cf375b5ebba20640fefa6bfc677d49129b1df2",
-    "single-loop-boundary.ko": "758060ff624c9da6227ec5515170813d792dbed06bce0f8ebf1900c02fe25d43"
+    "single-loop-boundary.ko": "758060ff624c9da6227ec5515170813d792dbed06bce0f8ebf1900c02fe25d43",
+    "local-initial-green.json": "68c7fb06fb31836c168d34763950cae54ec7d9b59146d65d84aaa63dcebd4f57"
   }
 }
