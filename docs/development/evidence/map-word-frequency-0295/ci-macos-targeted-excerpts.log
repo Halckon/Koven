@@ -1,0 +1,43 @@
+2026-10-11T09:55:28.1133430Z HEAD is now at bc7bb8b Merge 6843ac7b306db14237108461860837837d66c09c into 4321e99e401a3d8b9099f087c577840822a64512
+2026-10-11T09:58:27.6335860Z test llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame ... ignored, requires debugserver task-port permission unavailable in ordinary sandbox or CI
+2026-10-11T09:58:59.2499610Z test native::unit_tests::map_word_frequency_tests::single_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove ... ok
+2026-10-11T09:58:59.4348880Z test native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove ... ok
+2026-10-11T09:58:59.6724330Z test native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_owner_carry_remains_generic ... ok
+2026-10-11T09:59:00.0276630Z test native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_two_passes_keep_first_occurrence_order ... ok
+2026-10-11T09:59:05.7551030Z test native::unit_tests::string_clone_tests::string_clone_cross_file_borrow_container_and_return_reach_native ... ok
+2026-10-11T09:59:11.2592140Z test native_tests::map_tests::native_map_copyable_missing_assertion_aborts ... ok
+2026-10-11T09:59:11.3463120Z test native_tests::map_tests::native_map_copyable_queries_preserve_missing_zero_and_false ... ok
+2026-10-11T09:59:11.4091780Z test native_tests::map_tests::native_map_copyable_value_class_queries_keep_generic_payload_layout ... ok
+2026-10-11T09:59:31.2236500Z test ssa::borrow_call_lowering_tests::field_return_unit_preserves_projected_source_loan ... ok
+2026-10-11T09:59:31.2347500Z test ssa::borrow_call_lowering_tests::grouped_binding_single_preserves_returned_loan ... ok
+2026-10-11T09:59:31.2371230Z test ssa::borrow_call_lowering_tests::grouped_binding_unit_preserves_returned_loan ... ok
+2026-10-11T09:59:31.2453140Z test ssa::borrow_call_lowering_tests::grouped_return_single_preserves_forwarded_loan ... ok
+2026-10-11T09:59:31.2519940Z test ssa::borrow_call_lowering_tests::grouped_return_unit_preserves_forwarded_loan ... ok
+2026-10-11T09:59:33.3748210Z test ssa::lower_frontend_tests::rejects_inline_nullable_lowering_without_panicking ... ok
+2026-10-11T09:59:33.8894810Z test ssa::map_promotion_contract_tests::nullable_map_promotion_preserves_direct_inline_nullable_rejection ... ok
+2026-10-11T09:59:50.6488880Z test ssa::unit_lower_borrow_tests::inout_and_non_root_borrows_remain_atomic_boundaries ... ok
+2026-10-11T09:59:50.6491300Z test ssa::unit_lower_borrow_tests::lowers_cross_file_shared_borrows_and_loan_forwarding_deterministically ... ok
+2026-10-11T09:59:53.6990060Z test result: ok. 1246 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 86.05s
+2026-10-11T10:01:09.4674880Z test map_queries_borrow_string_keys_and_allow_reuse ... ok
+2026-10-11T10:01:09.4708790Z test map_mutation_requires_mutable_receiver ... ok
+2026-10-11T10:01:09.4710290Z test map_put_owns_string_key_and_move_only_value ... ok
+2026-10-11T10:01:09.4710720Z test map_subscript_releases_a_temporary_string_key_after_query ... ok
+2026-10-11T10:01:09.4711220Z test map_remove_borrows_string_key ... ok
+2026-10-11T10:01:11.0520660Z test map_nullable_value_queries_require_scoped_access_with_diagnostic_span ... ok
+2026-10-11T10:01:11.0567260Z test map_nullable_borrow_argument_requires_a_non_null_proof ... ok
+2026-10-11T10:01:11.0576820Z test test_map_and_mutable_map_construction_and_members ... ok
+2026-10-11T10:01:11.0595180Z test test_map_key_must_be_hashable ... ok
+2026-10-11T10:01:11.0595950Z test test_map_key_and_value_type_mismatches ... ok
+2026-10-11T10:01:11.0596850Z test map_move_only_get_contract_stays_rejected_including_nullable_values ... ok
+2026-10-11T10:01:11.0597750Z test test_map_method_must_be_called ... ok
+2026-10-11T10:01:11.0598430Z test test_map_readonly_mutation_disallowed ... ok
+2026-10-11T10:01:11.0599130Z test test_map_type_argument_arity_check ... ok
+2026-10-11T10:01:11.0599820Z test test_map_multifile_compilation_unit ... ok
+2026-10-11T10:01:11.0600550Z test test_move_only_value_get_disallowed ... ok
+2026-10-11T10:01:11.0601250Z test test_string_value_map_get_is_move_only ... ok
+2026-10-11T10:01:11.0601950Z test test_mutable_map_key_must_be_hashable ... ok
+2026-10-11T10:01:11.0602670Z test test_move_only_value_index_read_disallowed ... ok
+2026-10-11T10:01:11.0627580Z test unit_map_signatures_check_hashable_and_storable_arguments ... ok
+2026-10-11T10:01:37.1944890Z tutorial: 32 executed cases; 1 planned in selection
+2026-10-11T10:01:40.3557520Z word-frequency: 40 public commands passed; /Users/runner/work/_temp/koven-word-frequency
+2026-10-11T10:01:42.1141990Z Artifact word-frequency-macOS-bc7bb8b384e3be42fb742185641341e6561ca71c successfully finalized. Artifact ID 11698382875

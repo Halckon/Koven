@@ -1,0 +1,67 @@
+{
+  "schema": "koven.spec0295.test-selection.v1",
+  "groups": {
+    "new_native": [
+      "unit_map_word_frequency_two_passes_keep_first_occurrence_order",
+      "unit_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove",
+      "single_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove",
+      "unit_map_word_frequency_owner_carry_remains_generic"
+    ],
+    "frontend": [
+      "unit_map_signatures_check_hashable_and_storable_arguments",
+      "map_nullable_value_queries_require_scoped_access_with_diagnostic_span",
+      "map_move_only_get_contract_stays_rejected_including_nullable_values",
+      "test_map_and_mutable_map_construction_and_members",
+      "test_map_key_must_be_hashable",
+      "test_mutable_map_key_must_be_hashable",
+      "test_map_type_argument_arity_check",
+      "test_map_readonly_mutation_disallowed",
+      "test_map_method_must_be_called",
+      "test_map_key_and_value_type_mismatches",
+      "test_move_only_value_index_read_disallowed",
+      "test_move_only_value_get_disallowed",
+      "test_string_value_map_get_is_move_only",
+      "test_map_multifile_compilation_unit",
+      "map_nullable_borrow_argument_requires_a_non_null_proof",
+      "map_queries_borrow_string_keys_and_allow_reuse",
+      "map_subscript_releases_a_temporary_string_key_after_query",
+      "map_mutation_requires_mutable_receiver",
+      "map_put_owns_string_key_and_move_only_value",
+      "map_remove_borrows_string_key"
+    ],
+    "regressions": [
+      "lowers_cross_file_shared_borrows_and_loan_forwarding_deterministically",
+      "inout_and_non_root_borrows_remain_atomic_boundaries",
+      "grouped_binding_single_preserves_returned_loan",
+      "grouped_binding_unit_preserves_returned_loan",
+      "grouped_return_single_preserves_forwarded_loan",
+      "grouped_return_unit_preserves_forwarded_loan",
+      "field_return_unit_preserves_projected_source_loan",
+      "rejects_inline_nullable_lowering_without_panicking",
+      "nullable_map_promotion_preserves_direct_inline_nullable_rejection",
+      "native_map_copyable_queries_preserve_missing_zero_and_false",
+      "native_map_copyable_value_class_queries_keep_generic_payload_layout",
+      "native_map_copyable_missing_assertion_aborts",
+      "string_clone_cross_file_borrow_container_and_return_reach_native"
+    ]
+  },
+  "logs": {
+    "macos": {
+      "job_id": 114442399171,
+      "url": "https://github.com/Halckon/Koven/actions/runs/38129904554/job/114442399171",
+      "original_decoded_log_sha256": "0d9d06204c0703cf3b039ef2f957f2496814d0cba5bcf413e1410533fe19d8cc",
+      "excerpt": "ci-macos-targeted-excerpts.log",
+      "excerpt_sha256": "1d2facbe8551a26188e00640e9ca163cc129475de00105371e623a27138710af",
+      "unique_passing_selected_tests": 37
+    },
+    "ubuntu": {
+      "job_id": 114442399239,
+      "url": "https://github.com/Halckon/Koven/actions/runs/38129904554/job/114442399239",
+      "original_decoded_log_sha256": "ac5554cc17da22ba265468fbf44955ca3752492098c3e5861c10c2ec2e7c158f",
+      "excerpt": "ci-ubuntu-targeted-excerpts.log",
+      "excerpt_sha256": "e4bf1af0f0b1f09aaf0e4aa70c89a2ed1d61727cb1bf1e631e88f1fbf30e4dc5",
+      "unique_passing_selected_tests": 37
+    }
+  },
+  "note": "Original timestamped lines are selected without rewriting; source paths and exact names identify the 4 + 20 + 13 selection. No artifact program was executed locally."
+}

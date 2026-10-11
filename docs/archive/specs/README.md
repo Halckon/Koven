@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 279 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 280 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -425,3 +425,5 @@
 - [SPEC-0289](0289-n1a-range-carrier.md)：N1a 单来源范围 descriptor、List/View take/drop/dropLast、可信 Borrow receiver、有界 typed Int 计数与 native 清理；按 PR72 实现 head 双宿主证据验收，最终归档 head/merge/main 待交付，见[交付账本](../../development/evidence/range-carrier-0289/delivery.json)。
 
 - [SPEC-0294](0294-map-put-control-exit.md)：Map.put key/value return 的 reservation、Diverged 与 MoveOnly key 前缀清理；按 PR73 实现 head 双宿主 20 新增+9既有测试验收，最终归档 head/merge/main 待交付，见[交付账本](../../development/evidence/map-put-return-0294/delivery.json)。
+
+- [SPEC-0295](0295-map-argv-word-frequency.md)：M3B K-H 两遍 argv Map 词频应用、通用 Copyable nullable→Borrow 交接；按 PR74 实现 head 双宿主各40公开命令及4+20+13定向回归验收，最终归档 head/merge/main 见[交付账本](../../development/evidence/map-word-frequency-0295/delivery.json)。

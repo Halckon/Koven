@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，279 份）"]
+subgraph Garchive["已完成（archive，280 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -288,8 +288,6 @@ subgraph Garchive["已完成（archive，279 份）"]
   S0290["S0290<br/>PR69 交付回归修复与验收边界一致"]
   S0293["S0293<br/>PR 普通文档追加提交复用真实代码 CI"]
   S0294["S0294<br/>Map.put 参数 return 提前退出的清理与 Diverged 传播"]
-end
-subgraph Gactive["现行 active"]
   S0295["S0295<br/>两遍 argv Map 词频应用"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -1591,6 +1589,6 @@ S0294 --> S0295
 | SPEC-0290 | archive | [0290-pr69-regression-repair.md](0290-pr69-regression-repair.md) |
 | SPEC-0293 | archive | [0293-pr-code-ci-reuse.md](0293-pr-code-ci-reuse.md) |
 | SPEC-0294 | archive | [0294-map-put-control-exit.md](0294-map-put-control-exit.md) |
-| SPEC-0295 | active | [0295-map-argv-word-frequency.md](../../specs/active/0295-map-argv-word-frequency.md) |
+| SPEC-0295 | archive | [0295-map-argv-word-frequency.md](0295-map-argv-word-frequency.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

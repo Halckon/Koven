@@ -1,10 +1,10 @@
 # SPEC-0295: 两遍 argv Map 词频应用
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施或验收 M3B K-H 应用替换时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：实施或验收 M3B K-H 应用替换时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-295` |
 | 所属 Phase | Phase 2/3 既有事实交接、Phase 4 native、Phase 6 应用验收 |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[Map 与 for](../../guide/12-collections-destructuring.md)、[nullable](../../guide/09-nullability-errors.md)、[String](../../guide/13-program-runtime-standard-library.md) |
@@ -49,7 +49,7 @@ Map 迭代 API、consume、通用 Clone、Option、新 String/IO API、语义或
 云执行仅正常源码和静态门禁；生成器、缩减、注入、校准、LLVM 改写、资源 counter 和 aggregate
 仅交给 CI，不能把未运行记成通过。原错误合同的直接公开命令验收不改写源码或 LLVM。
 
-## 5. 验收账本
+## 5. 本机 checkpoint 验收账本（最终实现 CI 见 §9）
 
 | ID | 验收目标与命令 | 实际结果 |
 |---|---|---|
@@ -67,18 +67,18 @@ Map 迭代 API、consume、通用 Clone、Option、新 String/IO API、语义或
 
 每个逻辑切片独立提交并包含 SPEC-0295；共享 Cargo target 串行使用，不执行 cargo clean。
 
-## 7. 当前记录
+## 7. 实施历史记录
 
 2026-10-11 首次红测：基线 CLI `cargo build --locked -p lang-cli` 成功；Rust 1.96.0、
 LLVM 21.1.8。教程两遍实现通过类型/所有权后，在第一个空 argv 项目的 build 阶段因
 `native object InvalidModel: frontend lowering failed with InvalidSsa` 失败，未执行 artifact。
 原 8 组 oracle 无修改。另追加固定 32 不同词、非排序次序及尾部重复的第 9 组，独立手写
-期待字节；原 37 命令仍可按原项目/argv 识别，新增 3 命令后总数 40。正在定位实际 SSA 缺口。
+期待字节；原 37 命令仍可按原项目/argv 识别，新增 3 命令后总数 40。当时正在定位实际 SSA 缺口。
 
 已定位并补齐的真实缺口是：Copyable Map result 在非空 edge 传默认 Borrow 参数时，旧 lowering
 把 presence/payload aggregate 错当 inner 的 RootPlace。两入口只消费 typed non-null descriptor，
 核对 root、声明/窄化类型、注册结果和 Copyable 能力，再复制 inner 建立同步 loan；不改 verifier。
-普通 Int/Boolean/value-class 用例由 InvalidSsa 红转绿；最终矩阵与 public CLI 仍待记录。
+普通 Int/Boolean/value-class 用例由 InvalidSsa 红转绿；当时最终矩阵与 public CLI 尚待记录，后补见 §8–9。
 
 额外探索的 MoveOnly String remove + for-body null 比较在未改生产的 main CLI 同样失败：
 结果先 drop 后比较，verifier 报 ValueUnavailable。完整正常源码、基线 compiler/source 哈希和
@@ -106,4 +106,33 @@ LLVM 21.1.8。教程两遍实现通过类型/所有权后，在第一个空 argv
 
 所有新增 Rust 文件低于1000行；两个既有超限 test 入口仍在既有精确例外内，未抬高baseline。
 未执行 macOS、完整 CI、preview、故障生成/缩减/注入/校准、LLVM 改写、counter 与 aggregate；
-本机通过不是这些项目通过。Spec 保持 in-progress，远端最终验收与归档由后续交付闭环完成。
+本机通过不是这些项目通过。当时 Spec 保持 in-progress；后续远端实现验收与归档见 §9。
+
+## 9. 双宿主实现验收与有界归档（2026-10-11）
+
+按用户明确授权，以 [PR74](https://github.com/Halckon/Koven/pull/74) 的完整实现
+[run38129904554 / attempt1](https://github.com/Halckon/Koven/actions/runs/38129904554) 归档。
+精确 head `6843ac7b306db14237108461860837837d66c09c`、base `4321e99e401a3d8b9099f087c577840822a64512`、
+targeted synthetic merge `bc7bb8b384e3be42fb742185641341e6561ca71c`，15 jobs 成功；
+Tree-sitter 因输入未变合法 skipped。CI Passed、Code CI Evidence 与双 preview producer/consumer 实际成功。
+
+| Goal | 双宿主直接证据与结论 |
+|---|---|
+| H1 | 各 10 项目 / 40 public commands；原 8 argv oracle 及 decimal/非法 UTF-8 的 37 命令全部保持；逐条比对 argv/cwd/exit/stdout/stderr 原 bytes |
+| H2 | 固定 32 distinct、38 argv 的增长/覆盖/remove 后 Missing 项目新增 3 命令，首次次序与独立关联序列参考相同；教程仍为唯一三文件源码 |
+| H3 | 每宿主逐名核 4 新 native + 20 frontend + 13 相关 SSA/native，各一次 ok；两入口通用 Copyable 借用交接、未判空拒绝、普通 nullable 边界、String/Resource owner carry 保留 |
+| H4 | 实现 CI 的 fmt、严格 clippy、docs、尺寸及直接依赖门禁成功；本次归档静态结果单独记入交付账本 |
+| H5 | 每宿主教程 32 执行 / 1 planned；独立 preview 的 parameter-report 4 cases / 12 commands 成功；实现独立审阅通过，归档后的最终交付仍待闭环 |
+
+[交付账本](../../development/evidence/map-word-frequency-0295/delivery.json)固定逐 Goal、run/job/artifact 身份和摘要哈希；
+[macOS 原始 JSON](../../development/evidence/map-word-frequency-0295/ci-macos-word-results.json)、
+[Linux 原始 JSON](../../development/evidence/map-word-frequency-0295/ci-linux-word-results.json)未经改写保留 40 命令原字节。
+[逐名测试清单及日志摘要](../../development/evidence/map-word-frequency-0295/ci-test-selection.json)与
+[preview 身份收据](../../development/evidence/map-word-frequency-0295/ci-preview-verification.json)分开。
+preview 只含 parameter-report，不能充当安装包内 Map 词频应用验收。
+
+Linux codegen 为 1247 passed / 0 ignored；macOS 为 1246 passed / 1 ignored，唯一 ignore 是
+既有 LLDB task-port 权限限制。Linux sanitizer 与双宿主 generated-resource 实际成功；macOS
+不运行 Linux-only sanitizer。云只下载、静态读取证据，没有执行 artifact 内程序或故障内容。
+§7 的 MoveOnly for-body 既有失败仍未修复、不计入通过；本片只关闭 M3B K-H 的有界应用 Goal。
+最终归档 head CI、merge 和 actual main CI 仍为 pending，不能从本实现 run 推断通过。

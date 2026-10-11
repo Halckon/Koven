@@ -427,3 +427,15 @@ Builtin Int 计数已按 PR72 实现 head `d3d6f3c` 的双宿主直接证据验�
 [交付账本](evidence/range-carrier-0289/delivery.json)分别保留最终归档 head CI、merge
 与 actual main CI 的待交付状态。更广 CFG 按 Guide 12 结构化拒绝；consume、通用
 Clone、N1b 及其他候选不随归档启用。§23–24 与之前检查点仍保留原时点含义。
+
+
+## 26. M3B K-H 词频应用有界验收（2026-10-11）
+
+现行 Guide v0.43 下，0295 将真实三文件 argv 词频改为两遍 MutableMap；首次出现顺序、
+原 8 组 byte oracle、decimal 与非法 UTF-8 合同不变。PR74 实现 head `6843ac7b` 的
+双宿主各40公开命令、4新 native +20 frontend +13直接回归通过，记录见
+[归档验收](../archive/specs/0295-map-argv-word-frequency.md#9-双宿主实现验收与有界归档2026-10-11)及
+[交付账本](evidence/map-word-frequency-0295/delivery.json)。preview 只验 parameter-report。
+本片只关闭 K-H 应用 Goal；不声称 M3B 全部完成。另行记录的 MoveOnly for-body 提前 drop
+基线缺口仍开放；不启用 consume、通用 Clone、Map 迭代或新 Guide 语义。最终归档 head CI、
+merge、actual main CI 仍待交付；此前草稿与 checkpoint 保持各自历史时点含义。

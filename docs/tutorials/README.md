@@ -10,7 +10,7 @@
 原新增5项及当时22项完整选集的双宿主实际证据见 [SPEC-0271](../archive/specs/0271-tour-combination-coverage.md)；PR49实现head已通过双宿主CI。第23项及本轮23项完整选集已在PR50实现head通过双宿主CI，验收见0273。
 argv词频及decimal/非法UTF-8边界已在PR52实现head通过双宿主各37条真实命令；
 完整字节账本见[0274验收](../archive/specs/0274-argv-word-frequency.md#9-双宿主实际验收与归档2026-10-05)。
-Map 两遍改写及新增增长病例由 [SPEC-0295](../specs/active/0295-map-argv-word-frequency.md) 验收，当前历史37命令证据不自动证明新源码；新选集为40命令。
+Map 两遍改写及新增增长病例已由 [SPEC-0295](../archive/specs/0295-map-argv-word-frequency.md) 的 PR74 实现 head 双宿主各40命令验收，保留原37命令合同；原始字节与最终交付状态见[账本](../development/evidence/map-word-frequency-0295/delivery.json)。
 仅线程native仍为planned，不计通过；`gap-scope-branch`由 [SPEC-0273](../archive/specs/0273-control-body-resource-cleanup.md) 修复并进入实际执行合同。
 编排mock测试本身不作为实际CLI证据。
 历史教程保留在 archive，不代表当前实现。planned 示例不计入通过。
