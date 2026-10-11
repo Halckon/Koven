@@ -46,7 +46,7 @@ Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借�
 | R2 | 正常源码 SSA/native：单文件及两 unit，String/Resource、for/非循环、分支、判空、消费与缺失 | 12/12，0 ignored；unit source 正逆排列，Resource 4 类 loop 退出，详见 matrix green |
 | R3 | frontend 普通能力负例与相邻通用 nullable/Map 回归 | 33项codegen直接消费者及20项frontend Map正负例通过，0 ignored |
 | R4 | fmt、受影响 crate 严格 clippy、docs、diff、Rust 尺寸静态检查 | 全通过；codegen --all-targets -D warnings；37项docs checker测试；无尺寸新例外 |
-| R5 | 独立审查、远端双宿主 CI、最终归档与精确 head 交付 | 待授权/远端执行；本机不宣称通过 |
+| R5 | 独立审查、远端双宿主 CI、最终归档与精确 head 交付 | 最终本机证据已独立只读复核；远端CI及生命周期仍待授权/执行 |
 
 ## 5. 实施与提交
 
@@ -103,7 +103,7 @@ carrier 缺口不扩入本片。第一阶段证据和当时边界保留，不追
 | T1 | 单文件/unit真实facts：actual operand一次、AfterBinaryOperands、精确origin；Copyable/named/borrowed/未完成对照 | 5/5；另锁key CallReturn与结果清理分离、inout receiver负例 |
 | T2 | direct/group、null左右、==/!=、String/Text/Resource、命中/Missing；Boolean和if，single与两unit native | 临时9/9；unit循环4退出与0/1/重复键；原项目/scalar/temporary合计6条公开build/run通过 |
 | T3 | 第一阶段矩阵及直接消费者、相邻nullable/String ownership；frontend/codegen严格clippy与跨crate静态check | cleanup22、直接消费者33、frontend107+6通过；clippy/workspace all-targets check及其余静态门禁通过 |
-| T4 | 独立审查、最终本机证据；远端CI仍独立 | 独立合同/实现/矩阵静态审查无阻塞；最终证据待复核，远端仍未执行 |
+| T4 | 独立审查、最终本机证据；远端CI仍独立 | 独立合同/实现/矩阵审查无阻塞；最终本机证据已独立只读复核通过，远端CI未执行 |
 
 先保存本合同与真实红测，再做最小事实和消费接线；每个逻辑切片独立提交。
 
@@ -120,3 +120,6 @@ carrier 缺口不扩入本片。第一阶段证据和当时边界保留，不追
 113项frontend为107项定向套件与6项String binary对照。首轮严格clippy只报新增测试冗余usize cast，
 最小删除后复跑受影响测试、22项cleanup和严格门禁通过；未加allow、未改变生产代码。
 原0295项目三文件逐字节对照main基线不变；远端CI、归档及合并尚未执行。
+
+最终独立只读审查核对 `f6b15351`：17个Rust源码SHA256与工作树一致、原0295三文件保持
+基线字节、各命令实际命中数/exit与汇总一致，独立diff检查通过；审查者未重跑Cargo。
