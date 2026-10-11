@@ -43,8 +43,8 @@ impl UnitExpressionLowerer<'_> {
         };
         let boolean = self.expression_ssa_type(expression, span)?;
         let result = self.append_scalar(operation, boolean, span)?;
-        let result = // Aggregate flags mean present; pointer predicates mean absent.
-        if d.non_null_when_true() != aggregate_presence {
+        // Aggregate flags mean present; pointer predicates mean absent.
+        let result = if d.non_null_when_true() != aggregate_presence {
             let LoweredValue::Value(operand) = result else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };

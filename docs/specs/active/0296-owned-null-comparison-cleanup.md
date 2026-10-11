@@ -18,7 +18,7 @@
 
 从 main `e168c485a5379764cf927433452f8b7059f7b334` 新建 `fix/spec-0296`，
 修复具名 owned nullable 判空最后使用时提前消费 owner 的交接，使 MoveOnly Map.remove
-结果在普通源码循环与非循环中按既有合同判空、借用或消费，并生成通过 verifier 的 native。
+结果在支持的普通源码循环与非循环判空中保持 owner 可用，并保全已有显式消费路径。
 0295 [原始边界源码与失败](../../development/evidence/map-word-frequency-0295/known-boundary.json)
 保留历史，不重写其当时结论。修复不得按 Map/String 名称、源码形状或循环特判。
 
@@ -28,7 +28,8 @@
   source-qualified ownership/drop facts 和已有 aggregate/pointer 表示，不重新猜测 liveness。
 - 纯内存 MoveOnly 遵循现行 ASAP；资源类型遵循词法退出逆序析构。消费交付后原绑定不能重复 drop。
 - 单文件、普通 unit 与常量 unit 使用同一不变量；循环回边保留必要 owner/loan，
-  分支出口、判空、分组/交换操作数、消费及缺失结果均有正常源码覆盖。
+  unit 循环的分支出口、判空、分组/交换操作数、显式消费及缺失结果均有正常源码覆盖；
+  single for 的既有 guarded-owner 门独立记录。
 - 先重放原项目并补最小红测，区分 for 根因与一般最后判空；任何更广问题单独记录。
 
 ## 3. 非目标
@@ -41,10 +42,10 @@ Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借�
 
 | ID | 验收项 / 目标 | 实际结果 |
 |---|---|---|
-| R1 | 原 0295 known-boundary public build/run，记录基线红与修复绿 | 待执行 |
+| R1 | 原 0295 known-boundary public build/run，记录基线红与修复绿 | 原项目与single scalar合计4条公开build/run，exit0及精确stdout/stderr |
 | R2 | 正常源码 SSA/native：单文件及两 unit，String/Resource、for/非循环、分支、判空、消费与缺失 | 12/12，0 ignored；unit source 正逆排列，Resource 4 类 loop 退出，详见 matrix green |
-| R3 | frontend 普通能力负例与相邻通用 nullable/Map 回归 | 待执行 |
-| R4 | fmt、受影响 crate 严格 clippy、docs、diff、Rust 尺寸静态检查 | 待执行 |
+| R3 | frontend 普通能力负例与相邻通用 nullable/Map 回归 | 33项codegen直接消费者及20项frontend Map正负例通过，0 ignored |
+| R4 | fmt、受影响 crate 严格 clippy、docs、diff、Rust 尺寸静态检查 | 全通过；codegen --all-targets -D warnings；37项docs checker测试；无尺寸新例外 |
 | R5 | 独立审查、远端双宿主 CI、最终归档与精确 head 交付 | 待授权/远端执行；本机不宣称通过 |
 
 ## 5. 实施与提交
@@ -74,3 +75,7 @@ drop 不同；两入口仍为 InvalidSsa。该 Phase 3 缺口已交后继独立�
 SSA 精确核对 MapRemove 的第二个 owned result 先读取 presence 后唯一次 drop；不复制 owner。
 Resource 的消费通过既有显式 `!!` 交付，正常/continue/break/return 的词法次序由 stdout 验证。
 条件分支中的 Resource 消费仍受既有 ResourceLifetime 门限制，不从本片推定通用支持。
+
+第一阶段完整[验收记录](../../development/evidence/owned-null-cleanup-0296/phase-one-acceptance.json)
+保留各命令完整输出及actual compiler哈希；12项新增矩阵、33项直接消费者、20项frontend，
+四条公开build/run及静态门禁通过。独立首轮审查未见阻塞；远端双宿主与生命周期仍未执行。
