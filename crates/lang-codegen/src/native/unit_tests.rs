@@ -18,6 +18,8 @@ mod container_remove_last_tests;
 mod container_size_tests;
 #[path = "unit_handoff_contract_tests.rs"]
 mod handoff_contracts;
+#[path = "unit_map_word_frequency_tests.rs"]
+mod map_word_frequency_tests;
 #[path = "unit_receiver_two_phase_tests.rs"]
 mod receiver_two_phase_tests;
 #[path = "unit_string_clone_tests.rs"]

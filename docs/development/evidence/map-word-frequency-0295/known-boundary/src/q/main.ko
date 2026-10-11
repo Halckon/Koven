@@ -1,0 +1,2 @@
+package q
+fun entry(): Unit { p.exercise(arrayOf("key", "key")) }

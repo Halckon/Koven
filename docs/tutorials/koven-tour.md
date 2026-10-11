@@ -356,25 +356,6 @@ fun decimal(value: Int): String {
 ```koven argv-word-frequency-statistics
 package app
 
-fun sameWord(left: String, right: String): Boolean = left == right
-
-fun appearedBefore(args: Array<String>, word: String, limit: Int): Boolean {
-    var index = 0
-    while (index < limit) {
-        if (sameWord(args[index], word)) { return true }
-        index += 1
-    }
-    return false
-}
-
-fun countWord(args: Array<String>, word: String): Int {
-    var count = 0
-    for (argument in args) {
-        if (argument == word) { count += 1 }
-    }
-    return count
-}
-
 fun printWord(word: String, count: Int): Unit {
     println(word + "\t" + decimal(count))
 }
@@ -386,17 +367,23 @@ fun printWord(word: String, count: Int): Unit {
 package app
 
 fun main(args: Array<String>): Unit {
-    var index = 0
-    while (index < args.size) {
-        if (!appearedBefore(args, args[index], index)) {
-            val count = countWord(args, args[index])
-            printWord(args[index], count)
+    var counts = mutableMapOf<String, Int>()
+    for (word in args) {
+        val previous = counts.get(word)
+        val count = if (previous == null) { 1 } else { previous + 1 }
+        counts.put(word.clone(), count)
+    }
+    for (word in args) {
+        val count = counts.remove(word)
+        if (count != null) {
+            printWord(word, count)
         }
-        index += 1
     }
 }
 ```
 
-统计只借用 argv，重扫需要 O(n²) 比较。`index` 递增到 `args.size` 为止，
-`count` 不超过 `args.size`；两者保持在非负 Int 域。decimal 最多递归十层，
-支持 0 到 Int.MAX_VALUE；负值在正常输出之前 abort。该应用没有新增集合或格式化 API。
+统计借用 argv 两遍，共 O(n) 次 Map 操作；String clone、字节哈希/相等与碰撞成本另计，
+不据此承诺总时间 O(n)。第一遍 clone 每个词为 Map 提供独立 owned key；第二遍按 argv
+顺序 remove，仅首次移出计数时输出，不依赖 Map 遍历顺序。`count` 不超过 `args.size`，
+保持在非负 Int 域。decimal 最多递归十层，支持 0 到 Int.MAX_VALUE；负值在正常输出之前
+abort。该应用只组合现有 Map、String clone 和 nullable 合同，没有新增集合或格式化 API。

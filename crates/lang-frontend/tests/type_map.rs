@@ -314,3 +314,26 @@ fn test_map_multifile_compilation_unit() {
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let _validated = typed.validate().unwrap();
 }
+
+#[test]
+fn map_nullable_borrow_argument_requires_a_non_null_proof() {
+    for query in ["values.get(1)", "values.remove(1)"] {
+        let text = format!(
+            "fun observe(value: Int): Unit {{}}\nfun entry(): Unit {{\n var values = mutableMapOf<Int, Int>()\n val result = {query}\n observe(result)\n}}"
+        );
+        let (sources, _, _, single) = checked(&text);
+        let (unit_sources, unit) = checked_unit_with_sources(&text);
+        for (sources, diagnostics) in [
+            (&sources, single.diagnostics()),
+            (&unit_sources, unit.diagnostics()),
+        ] {
+            let error = diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code().to_string() == "L0084")
+                .unwrap_or_else(|| panic!("{query}: {diagnostics:?}"));
+            assert_eq!(sources.slice(error.primary_span()).unwrap(), "result");
+        }
+        assert!(single.non_null_uses().is_empty());
+        assert!(unit.non_null_uses().is_empty());
+    }
+}

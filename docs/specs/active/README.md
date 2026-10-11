@@ -4,6 +4,10 @@
 
 当前 0 份 active。
 
+0295 两遍 argv Map 词频应用已按 [PR74](https://github.com/Halckon/Koven/pull/74) 实现 head
+双宿主各 40 条公开命令及通用回归有界归档；最终归档 head CI、merge、main 待交付，见
+[交付账本](../../development/evidence/map-word-frequency-0295/delivery.json)。只关闭 M3B K-H 应用 Goal。
+
 0294 的 Map.put key/value return 有界修复已按 [PR73](https://github.com/Halckon/Koven/pull/73)
 实现 head 双宿主 CI 归档；同步 main 后的最终归档 head/merge/main 仍待交付，见
 [交付账本](../../development/evidence/map-put-return-0294/delivery.json)。不扩大一般 CFG 或 loop 退出。

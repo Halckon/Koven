@@ -1,0 +1,14 @@
+package p
+class Resource(val word: String) { deinit() { println(this.word) } }
+fun exercise(args: Array<String>): Unit {
+    var texts = mutableMapOf<String, String>()
+    for (word in args) { texts.put(word.clone(), word.clone()) }
+    for (word in args) {
+        val value = texts.remove(word)
+        if (value != null) { println("text present") }
+    }
+    var resources = mutableMapOf<String, Resource>()
+    for (word in args) { resources.put(word.clone(), Resource(word.clone())) }
+    for (word in args) { val removed = resources.remove(word) }
+    println("done")
+}

@@ -31,6 +31,21 @@ class WordFrequencyContracts(unittest.TestCase):
                             if item[0]['id'] == 'argv-word-frequency')
         return copy.deepcopy(row), sources
 
+    def test_map_example_keeps_two_argv_passes_and_fixed_growth_oracle(self):
+        row, sources = self.fixture()
+        main = sources['src/app/main.ko']
+        self.assertIn('mutableMapOf<String, Int>()', main)
+        self.assertEqual(main.count('for (word in args)'), 2)
+        self.assertIn('counts.get(word)', main)
+        self.assertIn('counts.put(word.clone(), count)', main)
+        self.assertIn('counts.remove(word)', main)
+        self.assertNotIn('appearedBefore', ''.join(sources.values()))
+        growth = row['cases'][8]
+        self.assertEqual(len(set(growth['args'])), 32)
+        self.assertEqual(growth['artifact']['stdout'].encode('utf-8'),
+                         WORD.frequency_bytes(growth['args']))
+        self.assertEqual(growth['artifact'], growth['run'])
+
     def test_wrong_manifest_oracle_is_refused_before_any_compiler_command(self):
         row, sources = self.fixture()
         row['cases'][0]['artifact']['stdout'] = 'invented\n'

@@ -1,0 +1,5 @@
+schema="koven.project"
+version=1
+[project]
+name="map-loop-boundary"
+source-roots=["src"]
