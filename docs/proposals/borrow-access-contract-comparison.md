@@ -1,6 +1,6 @@
 # M2B 声明与结果类型：两种候选的可比较合同
 
-> **性质**：非规范候选合同比较 · **状态**：draft / 未启用 · **读取时机**：选择借用结果声明、绑定和缺失协议时 · **唯一真源**：本页维护备选差异；共同候选合同见通用借用访问结果，现行规则见 Guide
+> **性质**：非规范候选合同比较 · **状态**：comparison closed / 未启用 · **读取时机**：追溯 A/B 取舍时 · **唯一真源**：本页维护备选差异；首片决定见[设计冻结](borrow-access-first-slice-decision.md)，共同候选合同见通用借用访问结果，现行规则见 Guide
 
 性质：只读设计研究；两种方案都未启用、不可按现行语法编译。本页不是 Guide、ADR、Spec 或红测证据。`from`、`maybe`、`borrow val`、`return borrow`、`Access`、`LookupAccess`、结果分支及复制操作均只是候选记法；不批准新关键字、Map、用户索引、动态分发或新的版本语义。
 
@@ -9,7 +9,7 @@
 计划分支最初基于 v0.40，现已重基到 PR57 合并后的主干 v0.41。
 本页没有运行编译或原型；下面的 API 位置只证明复用点，不证明新能力已实现。
 
-建议先比较 A：返回访问 mode + 唯一声明来源。它能直接表达字段、元素、局部绑定和包装返回，新增表面类型较少。B：受限访问结果类型，对查询的状态与转发更显式，但必须增加独立的非存储能力分类。两者共享同一来源/selector/loan 核心；B 不会消除跨调用 loan 交接的成本。
+比较结论已闭环：首片选择 A（返回访问 mode + 唯一声明来源），详见[设计冻结](borrow-access-first-slice-decision.md)。B 保留为后继研究材料，不进入首片。原因不是 B 无法表达需求，而是两者共享同一来源/selector/loan continuation 与跨调用 handoff 成本；B 还额外要求独立的非存储能力分类、generic containment 与 handle 迁移/refinement。
 
 ## 1. 两方案共同必须成立的合同
 
@@ -85,7 +85,7 @@ when (hit) {
 
 这里 `Found(slot)` 建立真实 nullable slot 的 child access；null 分支只是读取该 slot 的空状态，不是缺失。内层分支语法、nullable view refinement 都需独立定义，不能复用 ordinary owned `T?` 的 Elvis/copy 行为而漏掉 loan。
 
-对 Int 等 Copyable 目标，候选 `val snapshot: Int = selected` 是显式 owned local context，发布 Copy fact，并得到不再依赖来源的副本；`borrow val alias = selected` 则发布 Shared reborrow，不是复制 owner。String/Resource 的前者仍拒绝。是否允许省略 `borrow` 的 inferred `val` 自动成为访问绑定，应先决定；本比较建议首版不允许，以避免同一 `val` 因 T 的 Copyable 性质悄然改变查询合同。
+首片已冻结普通 `val` 不自动推导成 access binding；局部借用必须显式区分。对 Int 等 Copyable 目标，owned snapshot 还必须使用后续 Spec 明确命名的显式 copy 操作（设计冻结以概念 `copy(access)` 表示），不能仅靠 `val snapshot: Int = selected` 的目标类型触发。`borrow val alias = selected` 表示 Shared reborrow，不是复制 owner；String/Resource 的 owned copy 继续拒绝。
 
 包装函数可以返回其同一参数来源下的 `selected`，但必须显式借用返回合同并在所有路径核验。将 `return borrow other.text` 写在 `from holder` 的函数中应在 Phase 3 拒绝；普通 `return selected` 不能擦掉 mode。局部 binding 离开 defining function，仅允许该声明合同授权的交接，不允许逃逸 closure、字段或无合同的 ordinary returned value。
 
@@ -181,7 +181,7 @@ Missing/Found(null)/Found(value)：Missing 无 element loan、无可读 target�
 | R09 | key 比较/哈希各一次，仅 key call loan 结束，result protector 继续 | key 投影 API 必须声明 key 来源 |
 | R10 | 三状态/refinement 明确，Missing 没有可读 loan | A 存在 mode；B LookupAccess tag |
 | R11 | 共享 aliases 合法，活动结果阻止 root move/drop/relocation/重叠修改 | B 显式 reborrow 而非 handle Copy |
-| R12 | mutable place/Inout 的结构化 Exclusive + Shared child 结束后恢复父权限 | 两方案都不返回任意 Exclusive capability；读结果不升级权限 |
+| R12 | mutable place/Inout 的结构化 Exclusive + Shared child 结束后恢复父权限 | **首片明确拒绝 Inout 结果来源**；待独立 continuation/protector ADR/Spec 后再开放；两方案都不返回任意 Exclusive capability |
 | R13 | 每条退出 child→parent→owner，受控 return 先交接；Abort 不展开 | B handle cleanup 仅结束 loan，绝不 free target |
 | R14 | frontend/SSA 校验同一个身份、权限、当前实例/内容；伪造事实拒绝 | A/B 都要新的结果 producer/handoff 消费合同 |
 | R15 | 普通存储、逃逸 closure、线程/async 拒绝；短期同步 Borrow 可行 | B 必须阻止 generic/nullable/container 间接包住 access；短期不逃逸 capture 两方案同样待冻结 |
