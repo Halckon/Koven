@@ -34,8 +34,8 @@ caller 用真实 receiver expression 建立 Shared source loan，View 派生续�
 carrier_return=0；function.receiver 仍为 None，复用现有 verifier/LLVM，不从名称
 推断身份。仅移除已接通声明路径的 L0164；未证明 producer、来源错误与其他能力门保留。
 语义错误或 Deferred 仍按既有原子门撤销事实。
-真实 `ranges.ko` 已有 List/View Borrow receiver take wrapper，body 转发既有顶层
-`take(this, count)`；View 仍不是 owned sequential container。
+真实 `ranges.ko` 已有 List/View Borrow receiver take/drop/dropLast wrapper，body 转发
+各自既有顶层算法；View 仍不是 owned sequential container。
 
 ## 已有 metadata 借用
 
@@ -65,9 +65,9 @@ callee identity 验证转发到声明参数；没有构造依据的递归环不�
 原子撤销返回和 continuation。RangeReturnOriginFact 与普通 borrow-return facts 分离，
 转发保留真实 source loan，caller 新 descriptor 绑定/root/end 复用已验证路径。
 
-`lang-std/koven/algorithms/ranges.ko` 实现通用 List<T>/View<T> 顶层 take 及转发它的 receiver wrapper；负数 error、非负
+`lang-std/koven/algorithms/ranges.ko` 实现通用 List<T>/View<T> 顶层 take/drop/dropLast 及转发它们的 receiver wrapper；负数 error、非负
 clip 都由 Koven body 完成。CLI project 加载该固定资产并复用 import/alias 选择，
-不按 take 名称重推算法。公共 CLI 已实际编译并运行 String、MoveOnly 与 Resource
+不按算法名称重推语义。公共 CLI 已实际编译并运行 String、MoveOnly 与 Resource
 实例，count 为负时 Abort，0/空来源、等长、超长与 Int 最大值均按真实标准库 body
 处理；host facts 证明标准返回 from、caller root loan 与 end。
 
@@ -129,7 +129,7 @@ return/正常耗尽各在规定边界结束；body-local Resource 先按逆序�
 释放身份都必须匹配。公共 CLI 加入来源只求值一次、连续构造、empty 及 local 清理回归。
 保存或错误返回临时范围仍 L0162，不把根寿命扩大到词法绑定或调用返回之外。
 
-当前支持 List/View 的顶层与可信 receiver take、size、只读元素、具名 for 和以上
+当前支持 List/View 的顶层与可信 receiver take/drop/dropLast、size、只读元素、具名 for 和以上
 同步临时来源。稳定 named root 的短期范围借用按已验证 Place origin 延续到外层
 消费者 CallReturn，避免内部 take 返回时提前 drop；消费者结束后仍遵守原 liveness /
 resource 清理规则。single pending call loans 与 unit argument frame 保存 receiver
@@ -137,9 +137,11 @@ resource 清理规则。single pending call loans 与 unit argument frame 保存
 
 更广 CFG 保留精确门：producer count 分支缺来源证明仍 L0164；borrow val initializer
 内 return 仍 UnsupportedNode(return)；receiver count break 的 single/source binding
-与 unit/整个 for 仍 UnsupportedNode。未新增 View 索引、drop/dropLast、一般扩展、
-consume/Clone 或 N1b。当前定向验收与本地提交/未发布边界见 active SPEC-0289 §19；
-§§16–17 只记录此前前端与旧源码冻结结果。
+与 unit/整个 for 仍 UnsupportedNode。新增对照中，含 carrier binding 的函数使用
+inline `(-2147483647-1)` count 仍 UnsupportedNode；Int MIN 的既有字面量实际
+验证 Abort。未新增
+View 索引、一般扩展、consume/Clone 或 N1b。当前 drop/dropLast 定向验收与本地
+提交/未发布边界见 active SPEC-0289 §20；§§16–19 保留此前源码冻结结果。
 
 
 ## View 来源的新 descriptor 与转发
@@ -181,3 +183,14 @@ build/run 同一个 take 的两种来源。当前 View 阶段定向证据见 SPE
 使用现有词法结束点恢复根权限。正常路径提交 owned 参数，早退路径清理已求值 owner，
 不执行后续实参或调用消费者。健康 native 回归覆盖四种 List/View 来源与三类元素；
 公共 CLI 和阶段门禁的实际验收由 SPEC-0289 §14 记录。
+
+## drop/dropLast 标准库复用
+
+`ranges.ko` 的四个顶层 body 复用原有 count clip 骨架和 checked range 构造，
+四个 receiver wrapper 转调顶层；没有 Rust 生产变更或新 intrinsic/CFG/ABI。
+公开 CLI 验证 List/View、空范围、非零 offset 父子/兄弟链、alias、MAX/MIN、
+String/MoveOnly/Resource 与根保护拒绝；旧 take 同套回归通过。来源宿主精确验证
+六个 receiver canonical identity、12 个返回来源与伪标准来源授权隔离。
+single/unit 有 healthy source verifier/render；额外 single 和反序 unit 各有一次
+未改写 LLVM 的真实 native Resource 链。stdout 证明各根元素析构顺序及一次性，
+没有进行 allocation/free 身份统计。本片36项定向通过不代表全量或跨平台 CI。

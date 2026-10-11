@@ -1,0 +1,11 @@
+   Compiling lang-cli v0.1.0 (/workspace/scratch/e92619458311/koven-pr69-fixes/crates/lang-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.29s
+     Running unittests src/main.rs (target/debug/deps/kovenc-682376c137abbbcf)
+
+running 3 tests
+test standard_sources::tests::a_user_std_path_and_package_do_not_receive_loader_authority ... ok
+test standard_sources::tests::a_forged_standard_receiver_cannot_inherit_loader_extension_authority ... ok
+test standard_sources::tests::loaded_std_ranges_prove_generic_return_caller_root_continuation_and_end ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 49 filtered out; finished in 0.21s
+

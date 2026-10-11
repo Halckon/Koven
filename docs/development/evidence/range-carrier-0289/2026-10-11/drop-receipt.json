@@ -1,0 +1,50 @@
+{
+  "date_utc": "2026-10-11",
+  "source_commit": "c5a8870eb71677f9fb74a16bde02bcbfa8e35eef",
+  "tests": {
+    "cli": 29,
+    "ssa": 3,
+    "host": 3,
+    "std": 1
+  },
+  "total_passed": 36,
+  "failed": 0,
+  "ignored": 0,
+  "native_new": {
+    "cli_normal_programs": 7,
+    "cli_defined_abort_programs": 48,
+    "single_and_reversed_unit_plain_llvm_programs": 2,
+    "allocation_identity_instrumentation": false
+  },
+  "not_run": [
+    "full frontend",
+    "full codegen",
+    "workspace aggregate",
+    "cross-platform CI",
+    "fault injection",
+    "IR mutation",
+    "calibration"
+  ],
+  "sha256": {
+    "drop-cli-final.log": "e05d7fce997319c79e6a5be29379586697f86d6906f3299617c4f083a120424b",
+    "drop-cli-green.log": "6c8c5002a7cdf5972024bf1afdfa68ff734856775708c3aad33a6f3f4a85634a",
+    "drop-cli-red.log": "0d1812ba567440cd0f8064c853d704e373b0e9bc6c1a70d03a9f904bce458d93",
+    "drop-clippy-final.log": "5773e2edde68fa6748e0d4f76130f829ed0ed9484286e283189c5123ee1c10d1",
+    "drop-diff-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "drop-docs-final.log": "59de1d4ad67047e4fcfd8de3511aab39e97c34e31902daaf977d00f8bacaa3f6",
+    "drop-fmt-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "drop-host-final.log": "4b5b309d5f274e7175661f2cd3a54000b5226b9d7d62281ed539e9ea47df3e48",
+    "drop-sizes-final.log": "8495ed21242652dbdf7a0e6b0cc9b94cb6b9d98197b2d3381b4993dd0a2a86b4",
+    "drop-ssa-final.log": "db79d20aa0b00c3575af94885fc27456fb0e00230dcb89942b57fb323d285cb9",
+    "drop-ssa-green.log": "543439d61fd91718316b25e30ec4d7edca64e551f549ae0742734d44da3a421f",
+    "drop-ssa-red.log": "fd4b119d71b93ff308c125207d076e285e72ba1abc4773fdb95a76bc97dbc382",
+    "drop-std-final.log": "31ebc6384fd263d40b437765b2ce5e8a94eb01894d8d4de8f21bfd5b53927afa"
+  },
+  "gates": {
+    "fmt": 0,
+    "clippy_cli_std_codegen_all_targets": 0,
+    "rust_size": 0,
+    "docs": 0,
+    "diff_check": 0
+  }
+}

@@ -1,0 +1,37 @@
+   Compiling lang-cli v0.1.0 (/workspace/scratch/e92619458311/koven-pr69-fixes/crates/lang-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.47s
+     Running tests/range_project_cli.rs (target/debug/deps/range_project_cli-fb1881a8df3be3f6)
+
+running 29 tests
+test drop_algorithms::public_std_drop_algorithms_do_not_authorize_same_named_user_sources ... ok
+test drop_algorithms::public_std_drop_algorithms_keep_existing_inline_binary_count_capability_gate ... ok
+test drop_algorithms::public_std_drop_algorithms_keep_empty_child_and_sibling_roots_protected ... ok
+test public_std_take_immediate_named_source_remains_alive_until_consumer_ends ... ok
+test drop_algorithms::public_std_drop_algorithms_nonzero_offset_preserves_elements_and_root_once ... ok
+test public_std_take_for_reads_string_move_only_and_resource_elements ... ok
+test public_std_take_clips_zero_empty_and_int_max_counts ... ok
+test public_std_take_metadata_alias_and_borrow_return_keep_the_resource_root_alive ... ok
+test public_std_take_for_empty_break_continue_and_return_use_provider_cleanup ... ok
+test public_std_take_named_view_for_keeps_root_until_provider_finishes ... ok
+test public_std_take_negative_count_aborts_from_healthy_source ... ok
+test public_std_take_resource_root_is_consumable_after_descriptor_ends ... ok
+test public_std_take_temporary_for_keeps_root_until_provider_finishes ... ok
+test public_std_take_temporary_sequential_descriptors_keep_distinct_roots ... ok
+test public_std_take_returns_an_inline_range_and_reads_size_without_copying_elements ... ok
+test public_std_take_temporary_empty_source_finishes_without_elements ... ok
+test public_std_take_temporary_source_is_alive_through_immediate_borrow ... ok
+test drop_algorithms::public_std_drop_algorithms_clip_list_view_and_receiver_counts ... ok
+test public_std_take_view_source_empty_and_negative_use_the_real_std_body ... ok
+test receiver::public_std_receiver_take_clips_counts_and_preserves_top_level_calls ... ok
+test public_std_take_temporary_for_cleans_all_exit_paths ... ok
+test receiver::public_std_receiver_take_named_root_immediate_borrow_matches_top_level ... ok
+test public_std_take_call_prefix_return_restores_named_and_temporary_roots ... ok
+test public_std_take_temporary_string_and_move_only_keep_both_consumers_alive ... ok
+test receiver::public_std_receiver_take_negative_count_aborts_for_list_view_and_empty_source ... ok
+test receiver::public_std_receiver_take_temporary_chain_preserves_string_move_only_and_resource ... ok
+test public_std_take_call_prefix_owned_arguments_remain_with_caller_until_commit ... ok
+test public_std_take_view_source_composes_generic_elements_and_releases_root_once ... ok
+test drop_algorithms::public_std_drop_algorithms_negative_counts_abort_even_for_empty_views ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.38s
+

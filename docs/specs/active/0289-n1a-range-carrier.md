@@ -12,18 +12,18 @@
 | 前置 Spec | [SPEC-0287](../../archive/specs/0287-m2b-and-map-type-system.md) 的已发布来源合同 |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | [ADR-0030](../../adr/accepted/0030-range-carrier-source-facts.md)；List/View 终态见 §12–13；receiver 前端见 §15–16，静态 ABI 与真实 std 接线见 §19 |
-| 阻塞项 | receiver/static ABI 与 std take 已本地提交；当前分支全量、跨平台 CI 与发布尚未完成，更广 CFG 仍拒绝；见 §19 |
+| 阻塞项 | std take/drop/dropLast 已本地提交；本片全量、跨平台 CI 与发布尚未完成，更广 CFG 仍拒绝；见 §20 |
 | 影响范围 | lang-frontend、lang-codegen、lang-std；必要 CLI 标准来源接线 |
 | 语言语义变更 | 是；已批准最小合同已启用，未实现能力保留精确拒绝 |
 
-当前已接通 List/View 顶层 take、可信 Borrow receiver 的来源/续接、静态 RangeCall ABI
-与真实 std receiver take wrapper。稳定 named root 的短期范围借用在外层消费者返回后
-才清理；single/unit 与公共 CLI 的本轮定向证据见 §19。此前 §7–18 保留各时点记录，
-不将旧 Mac `/tmp` 全量或早期能力门当作当前分支的验证状态。更广 CFG 仍精确拒绝，
-未完成本分支全量/跨平台 CI 或远端发布，SPEC-0289 继续 in-progress。
+当前已接通 List/View 顶层及可信 Borrow receiver 的 take/drop/dropLast，复用同一
+来源/续接、静态 RangeCall ABI 与真实 std Koven body。稳定 named root 的短期范围
+借用在外层消费者返回后才清理。本片定向证据见 §20；此前 §7–19 保留各时点记录，
+不将旧 Mac 全量或早期能力门当作当前验证状态。更广 CFG 仍精确拒绝，本片尚未完成
+全量/跨平台 CI 或远端发布，SPEC-0289 继续 in-progress。
 
-里程碑主线是 M3A 的单来源 take 首片，依赖 M2B 来源与 continuation/end 合同，
-并回归 SPEC-0288 的 B2/B7/B8；当前不扩至 consume、Clone、N1b 或更多算法。
+里程碑主线由 M3A 单来源 take 首片推进到 §2/§4 的 drop/dropLast，继续依赖 M2B
+来源与 continuation/end 合同；不扩至 consume、Clone、N1b 或更多算法。
 
 ## 1. Goal
 
@@ -58,7 +58,7 @@ LLVM 返回内联描述符而非 callee 局部对象地址。root-flat 只去掉
 
 ## 5. 唯一验收账本
 
-本节表格保留声明检查点的实际结果；后续逐项证据在 §7–19，当前阶段以 §19 为准。历史全量只证明各自冻结源码。
+本节表格保留声明检查点的实际结果；后续逐项证据在 §7–20，当前阶段以 §20 为准。历史全量只证明各自冻结源码。
 
 | 验收项 / 目标 | 实际结果 | 未运行或未完成原因 |
 |---|---|---|
@@ -916,3 +916,59 @@ Actions 故障注入/校准，云开发环境仍禁止；本轮未执行这些�
 但本轮代码尚未经过远端 CI，不能将 PR70 的通过结果用于本轮实现。publication `815b1fb` 的树上传两次均取消，
 远端仍为 `f50b48c`，分批发布方案待用户确认；上述新代码仅本地提交，未 push。
 SPEC-0289 保持 in-progress，不归档。
+
+## 20. List/View drop/dropLast 的标准库复用片
+
+2026-10-11 UTC，按 §2/§4 已批准顺序推进剩余两项计数算法；此前 §19 的
+“不扩 drop/dropLast”保留该时点含义。本片源码提交 `c5a8870eb71677f9fb74a16bde02bcbfa8e35eef`；此处仅记录
+本地定向验收，不代表该提交已 push、通过远端 CI 或完整 SPEC-0289 已完成。
+
+生产变更仅在 `lang-std/koven/algorithms/ranges.ko`：四个 List/View 顶层 body
+复用既有 `rangeView`，四个可信 Borrow receiver wrapper 转发顶层算法。负数先
+error，非负先 clip，再算相对源边界；没有新增 intrinsic、算法名特判、Rust 生产
+代码或 CFG/proof/ABI 能力。View 的非零起点继续由既有描述符原语组合。
+
+公开 CLI 的新增独立 `range_project_cli/drop_algorithms.rs` 覆盖 List、非空 View、
+空 List/View、顶层/receiver 与 import alias；0、等长、超长、Int MAX 的数量及元素
+顺序均由实际运行验证。-1 与已支持的 Int MIN 字面量 `-2147483648` 包含空源，
+全部按规定 Abort。String、MoveOnly 与 Resource 的非零 offset 父子/兄弟/空范围
+链及临时来源正常运行；精确 stdout 验证 Resource 各根的元素只逆序析构一次，
+不将该结果冒充 allocation/free 身份插桩。
+
+SSA 独立 `range_lowering_tests/drop_algorithms.rs` 通过 single/unit 的 healthy source
+与 verifier/render，任意名 `window(source, begin, end)` 保持动态 Int 边界复用。
+额外 single 与反序 unit 两次真实 native 直接编译未改写 LLVM，验证 Resource
+`window → dropLast → drop` 链的元素输出及一次析构。未改造 IR、未运行故障注入。
+
+宿主来源测试精确断言六个 `List/View × take/drop/dropLast` receiver 的独立 canonical
+身份及 `from this`；12 个返回来源、六个 wrapper 转发继续匹配。三算法各有真实
+caller origin/continuation/end 证据，伪标准来源仍不能继承 producer/extension 授权。
+
+先运行公开源码红测试：CLI 新选择 **0 passed / 3 failed**，SSA 新选择
+**0 passed / 1 failed**，缺失算法的名称/导入解析失败；不是故障生成。中途新增
+根保护反例误用 `println(Int)` 导致 L0084，修正为合法 size 条件后，真实 L0135
+与无产物断言通过。新增 MIN 算术写法 `(-2147483647-1)` 在含 carrier binding 的
+consumer 仍遭既有 UnsupportedNode 能力门拒绝；take/drop/dropLast 三者拒绝对照
+已保留，未扩 lowering。MIN 本身由既有合法负整数字面量独立验证。
+
+红/绿与最终日志及 `drop-receipt.json` 均已保全至
+`docs/development/evidence/range-carrier-0289/2026-10-11/`，下表日志名相对此目录。
+
+| 最终验收项 | 实际结果 | 命令选择 / 日志 |
+|---|---|---|
+| 公开 CLI 全 range suite，含旧 take | 29 passed，0 failed/ignored | `cargo test --locked --offline -p lang-cli --test range_project_cli`；`drop-cli-final.log` |
+| single/unit 新 SSA 与两次 native | 3 passed，0 failed/ignored | `cargo test --locked --offline -p lang-codegen --lib range_drop_algorithms`；`drop-ssa-final.log` |
+| 标准源宿主身份与授权 | 3 passed，0 failed/ignored | `cargo test --locked --offline -p lang-cli --bin kovenc standard_sources`；`drop-host-final.log` |
+| std 源码资产 | 1 passed，0 failed/ignored | `cargo test --locked --offline -p lang-std`；`drop-std-final.log` |
+
+最终不同选择合计 **36 passed**。新增 CLI 六项中，4 个程序执行80次非负算法调用，
+3 个程序验证通用元素/根链，48 次规定负数 Abort；另9次 build 分别拒绝根权限4例、
+未授权2例和上述旧 Binary 能力门3例。另有 single/reversed-unit 两次真实 native。
+以上不含 fault、IR mutation、calibration、聚合 driver 或 frontend 全量。
+
+最终 fmt check、CLI/std/codegen all-targets 严格 clippy、尺寸及 diff 均 exit 0；
+日志 `drop-{fmt,clippy,sizes}-final.log`。尺寸为1027手写 Rust、38既有超限，
+无新增超限。文档结构检查通过（609 Markdown），`git diff --check` 通过；
+收据为同目录 `drop-docs-final.log` 与 `drop-diff-final.log`。本片未运行完整 codegen/frontend、
+workspace 聚合或跨平台 CI；consume、Clone、N1b、一般扩展和更广 CFG 均未扩展。
+SPEC-0289 继续 in-progress，不归档。
