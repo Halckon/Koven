@@ -59,5 +59,9 @@ Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借�
 ## 6. 调查与验证记录
 
 编号已确认未占用；没有仓库级 `.agents/skills`。工具链 Rust 1.96.0、LLVM 21.1.8。
-基线 native CLI 构建中；初步检查指出 aggregate null comparison 的 operand lowering 与
-既有 pointer nullable descriptor 清理顺序存在差异，待普通源码 red 确認。
+基线 native CLI 构建成功，原项目 build exit 1 / InvalidSsa。进一步对照确认 unit 最后 if 判空
+也失败；single 直接 if 已有 NullableBranch 保护，但 Boolean 绑定判空同样失败。
+原样 7 项正常源码测试为 1 通过、6 InvalidSsa 失败；最小 descriptor/表示接线修复后 7/7 通过。
+原始命令、日志和 SHA256 见[本机 checkpoint](../../development/evidence/owned-null-cleanup-0296/local-checkpoint.json)。
+循环原项目由 unit/basic 与 const 原样验收；single 外层 Map owner 进入 for 在更早的既有
+UnsupportedNode 门禁被拒绝，另存正常源码，暂不纳入本片能力扩展或通过计数。

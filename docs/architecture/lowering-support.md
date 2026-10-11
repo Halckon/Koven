@@ -11,3 +11,10 @@
 StringOwner结构和definition→use关系，不比较裸TypeId。单文件Borrow String receiver调用仍
 UnsupportedNode，unit保留原支持；const与basic能力不混用。实际源码词法依赖护栏禁止unit回依赖
 single adapter与IR core反向读取support；它不是完整Rust依赖图，也不代表P4全部收敛。
+
+## nullable 最后读取与 cleanup
+
+两入口 scalar nullable comparison 先按 typed null descriptor 和已登记的 aggregate/pointer
+表示读取 presence，再消费原 operand 的最后使用 drop。String 与 MoveOnly inline 的单文件
+Boolean 判空、unit 最后 if 判空已有普通源码 SSA/native 证据；借用 aggregate 继续经过
+既有 Copyable 门。单文件 owning if 的 NullableBranch、资源词法和后续消费事实保持。
