@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [SPEC-0296：owned nullable 最后判空与循环清理](0296-owned-null-comparison-cleanup.md)：修复普通 MoveOnly Map.remove 结果的最后判空 cleanup，保持 Guide v0.43。
 
 0295 两遍 argv Map 词频应用已按 [PR74](https://github.com/Halckon/Koven/pull/74) 实现 head
 双宿主各 40 条公开命令及通用回归有界归档；最终归档 head CI、merge、main 待交付，见
