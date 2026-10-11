@@ -20,6 +20,8 @@ mod container_size_tests;
 mod handoff_contracts;
 #[path = "unit_map_word_frequency_tests.rs"]
 mod map_word_frequency_tests;
+#[path = "unit_owned_null_cleanup_tests.rs"]
+mod owned_null_cleanup_tests;
 #[path = "unit_receiver_two_phase_tests.rs"]
 mod receiver_two_phase_tests;
 #[path = "unit_string_clone_tests.rs"]

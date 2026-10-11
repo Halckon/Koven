@@ -22,19 +22,29 @@ impl UnitExpressionLowerer<'_> {
             .get(&ty)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if self.map_results.contains_key(&target) {
-            return Ok(None);
-        }
+        let aggregate_presence = self.map_results.contains_key(&target);
         let operation = if let Some(&source) = self.borrow_bindings.get(&d.symbol()) {
+            // Preserve the existing borrowed aggregate path and its Copyable gate.
+            if aggregate_presence {
+                return Ok(None);
+            }
             Operation::NullableLoanIsNull { source }
         } else if let Some(LoweredValue::Value(owner)) = self.bindings.get(&d.symbol()).copied() {
-            Operation::NullableIsNull { owner }
+            if aggregate_presence {
+                Operation::AggregateProject {
+                    aggregate: owner,
+                    field: 0,
+                }
+            } else {
+                Operation::NullableIsNull { owner }
+            }
         } else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
         let boolean = self.expression_ssa_type(expression, span)?;
         let result = self.append_scalar(operation, boolean, span)?;
-        let result = if d.non_null_when_true() {
+        let result = // Aggregate flags mean present; pointer predicates mean absent.
+        if d.non_null_when_true() != aggregate_presence {
             let LoweredValue::Value(operand) = result else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };

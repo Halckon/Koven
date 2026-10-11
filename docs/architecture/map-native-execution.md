@@ -198,3 +198,12 @@ Int/Boolean/Char 使用确定性标量哈希，String 使用 UTF-8 字节哈希�
   macOS 仍只有正常计数证据，不能据此宣称 ASan/LSan 动态检出通过。
 
 SPEC0288 已有界验收归档并经 PR #69 合入 main，见[原验收 §7.1](../archive/specs/0288-map-native-execution.md#71-g5-远端证据2026-10-09)。
+
+## owned nullable 最后判空
+
+两入口 scalar nullable comparison 先消费 typed null descriptor，再按登记的 aggregate presence
+或 pointer null 表示读取判别值；原 operand 的 ASAP drop 在该读取后消费，保留分组的原始
+表达式身份。借用 aggregate 继续经过既有 Copyable 读取门，不新增 MoveOnly copy。
+单文件 Boolean 结果判空和 unit 直接 if 的 String/MoveOnly inline 最后读取已有普通源码
+SSA/native 证据；单文件直接 owning if 原有 NullableBranch 路径保持。资源词法与后续消费
+继续由前端 drop/liveness 事实决定，不能因该表示分派改变生命周期。

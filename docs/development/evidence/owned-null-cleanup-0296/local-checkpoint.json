@@ -1,0 +1,61 @@
+{
+  "schema": "koven.owned-null-cleanup-local.v1",
+  "baseline_commit": "e168c485a5379764cf927433452f8b7059f7b334",
+  "baseline_compiler_sha256": "798bc8f1b978008082306d354e00e6c78bd01da55b9b9a604cf42e4cb1e07fa9",
+  "toolchain": {
+    "rust": "1.96.0",
+    "llvm": "21.1.8",
+    "host": "x86_64-unknown-linux-gnu"
+  },
+  "original_boundary": {
+    "argv": [
+      "kovenc",
+      "build",
+      "--project",
+      "docs/development/evidence/map-word-frequency-0295/known-boundary/project.toml",
+      "--entry",
+      "q.entry",
+      "-o",
+      "<scratch>/baseline-program"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: project build failed: native object InvalidModel: frontend lowering failed with InvalidSsa\n"
+  },
+  "scalar_single_boundary": {
+    "argv": [
+      "kovenc",
+      "build",
+      "<scratch>/nonloop-scalar.ko",
+      "-o",
+      "<scratch>/nonloop-scalar"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderr": "error: native build failed: native object InvalidModel: frontend lowering failed with InvalidSsa\n"
+  },
+  "red": {
+    "command": "cargo test --locked -p lang-codegen --lib owned_null_cleanup_tests",
+    "passed": 1,
+    "failed": 6,
+    "ignored": 0,
+    "log": "local-red.log",
+    "reason": "All six failures are ordinary-source InvalidSsa; the existing single-file direct if is a passing control."
+  },
+  "initial_green": {
+    "command": "cargo test --locked -p lang-codegen --lib owned_null_cleanup_tests",
+    "passed": 7,
+    "failed": 0,
+    "ignored": 0,
+    "log": "local-initial-green.log"
+  },
+  "unrun": [
+    "remote macOS and Linux CI",
+    "fault injection, malformed IR, allocator/LLVM instrumentation, reducers and aggregate drivers (prohibited locally)"
+  ],
+  "sha256": {
+    "local-red.log": "c64e70c2019dc793f71df7a918dfbea16c9d5126a748c1f992cd655750792438",
+    "local-initial-green.log": "73be0cb4c00f25b01a637e5d35cf375b5ebba20640fefa6bfc677d49129b1df2",
+    "single-loop-boundary.ko": "758060ff624c9da6227ec5515170813d792dbed06bce0f8ebf1900c02fe25d43"
+  }
+}

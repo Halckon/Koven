@@ -1,0 +1,15 @@
+   Compiling lang-codegen v0.1.0 (/workspace/scratch/e92619458311/koven-map-remove-loop/crates/lang-codegen)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.21s
+     Running unittests src/lib.rs (/workspace/scratch/e92619458311/koven-pr69-fixes/target/debug/deps/lang_codegen-ebf35c020d0bc183)
+
+running 7 tests
+test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_scalar_last_read ... ok
+test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_without_loop ... ok
+test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_without_loop ... ok
+test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_scalar_last_read ... ok
+test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_grouped_and_mirrored_reads ... ok
+test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_known_loop_boundary ... ok
+test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_grouped_and_mirrored_reads ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 1247 filtered out; finished in 1.23s
+
