@@ -1,10 +1,10 @@
 # SPEC-0296: owned nullable 最后判空与循环清理
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施或验收 owned nullable 判空 cleanup 修复时 · **唯一真源**：本页
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：实施或验收 owned nullable 判空 cleanup 修复时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-296` |
 | 所属 Phase | Phase 3 具名事实交接与临时结果清理事实、Phase 4 SSA/native |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[所有权与双轨析构](../../guide/10-ownership-borrowing-drop.md)、[空安全](../../guide/09-nullability-errors.md) |
@@ -123,3 +123,33 @@ carrier 缺口不扩入本片。第一阶段证据和当时边界保留，不追
 
 最终独立只读审查核对 `f6b15351`：17个Rust源码SHA256与工作树一致、原0295三文件保持
 基线字节、各命令实际命中数/exit与汇总一致，独立diff检查通过；审查者未重跑Cargo。
+
+## 8. 双宿主实现验收与有界归档（2026-10-11）
+
+用户已明确授权本片归档、删除 active 旧路径及最终交付。按 [PR75](https://github.com/Halckon/Koven/pull/75)
+[run38145836171 / attempt1](https://github.com/Halckon/Koven/actions/runs/38145836171) 的实际成功归档。
+实现 head `258aaa48ee274c24d4378406a38ef2cbf3034c7f`、base `e168c485a5379764cf927433452f8b7059f7b334`，
+双宿主 checkout merge `78cb64ac47de69538fce4825bc6b9304396c80a3`；三者中的实现/merge树与冻结本机树
+均为 `7137e50471efc896c8c6ba3ab748bd4385c2328e`。15 jobs成功，Tree-sitter输入未变合法skipped；
+双host targeted、四preview、Code CI Evidence、CI Passed均实际成功，并非复用跳过本次代码测试。
+
+| Goal | 已核实的实现证据 |
+|---|---|
+| R1/R2 | 本机6条公开build/run保留原stdout/stderr；双host逐名核22项cleanup（含1项工厂拒绝边界），原0295循环provider按原字节执行于unit native测试 |
+| R3/T1/T2 | 每host另33项codegen直接消费者与25项Map frontend；55+25项每项恰一次ok、0 selected ignored；5项临时facts/普通负例包含其中 |
+| R4/T3 | 双host workspace check/严格clippy、fmt、docs、尺寸、依赖与规定workflow通过；本机113项frontend与远端选择分别记录 |
+| R5/T4 | 本机实现及证据独立只读审查通过；实现CI与逐名远端日志核对完成；归档head/merge/main仍独立待闭环 |
+
+[交付账本](../../development/evidence/owned-null-cleanup-0296/delivery.json)固定run/job、选中清单、
+完整decoded日志SHA256与原行摘录；原本机红绿证据作为当时快照保留，不追改历史状态。
+Linux全codegen为1271 passed/0 ignored；macOS为1270/1，唯一ignore是既有LLDB debugserver
+无task-port权限，未混入本片55项codegen通过计数。
+
+远端generated-resource证据Linux为pass/requirements_met=true，macOS为partial/false：
+`address:macos-asan-unsupported`、`leak:macos-counter-only`。两host的16个普通生成病例通过
+不等于双平台完整sanitizer能力验收。Linux sanitizer原记录亦明确LLVM IR UBSan **NOT COVERED**。
+云归档仅下载和静态读取这些证据，没有本地执行artifact程序、故障注入或聚合驱动。
+
+本次只关闭具名最后判空与已完成临时nullable结果清理的有界Goal；single for guarded owner、
+普通Resource?工厂规划及其他记录边界未被扩大。最终归档head CI、merge和actual main CI仍pending，
+不能由本次实现run推定通过；后续状态由交付账本记录。

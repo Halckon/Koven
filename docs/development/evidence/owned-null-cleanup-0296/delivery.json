@@ -1,0 +1,175 @@
+{
+  "schema": "koven.owned-null-cleanup-delivery.v1",
+  "spec": "SPEC-0296",
+  "pr": 75,
+  "pr_url": "https://github.com/Halckon/Koven/pull/75",
+  "status": "implementation acceptance verified; archive head, merge and main pending",
+  "implementation": {
+    "head": "258aaa48ee274c24d4378406a38ef2cbf3034c7f",
+    "base": "e168c485a5379764cf927433452f8b7059f7b334",
+    "synthetic_merge": "78cb64ac47de69538fce4825bc6b9304396c80a3",
+    "tree": "7137e50471efc896c8c6ba3ab748bd4385c2328e",
+    "frozen_local_head": "a1a828c34a1ba26601d86d1c74ad52bff40243fd",
+    "identity": "frozen local, published implementation and actual dual-host synthetic merge have identical trees",
+    "run_id": 38145836171,
+    "attempt": 1,
+    "run_url": "https://github.com/Halckon/Koven/actions/runs/38145836171",
+    "conclusion": "success",
+    "completed_at": "2026-10-11T14:21:39Z",
+    "jobs": {
+      "success": 15,
+      "skipped": 1,
+      "skipped_job": "Tree-sitter CLI Corpus",
+      "skip_reason": "editor inputs unchanged; paths filter false; not counted as physically executed"
+    },
+    "physical_code_ci_reused": false,
+    "fingerprint": "e7652e6669ac5c32d45a4988daf841d487eb2f98bda4b6b5dcb281a7d83b36a2"
+  },
+  "acceptance": {
+    "named_and_temporary_cleanup": "both hosts: all22 cleanup tests once ok, including one explicit unsupported factory boundary",
+    "direct_consumers": "both hosts:33 additional codegen tests once ok; selected codegen total55",
+    "frontend_map": "both hosts:ownership_map10 + type_map15 once ok; new temporary fact and ordinary-negative tests5 included",
+    "selected_ignored": 0,
+    "local_public_cli": "six build/run commands from phase-two-acceptance.json; not claimed as six remote public commands",
+    "local_frontend": "107 adjacent-suite tests +6 String binary tests; see phase-two-acceptance.json, not claimed as the same113 CI selection",
+    "static_and_workflow": "required implementation jobs successful, including both workspace check/clippy, docs, size, dependency, formatting, four preview jobs, Code CI Evidence and CI Passed",
+    "review": "local implementation and final evidence independently read-only reviewed; archive delta review pending",
+    "preview": "both independent consumers12/12 commands:exit0,stdout/stderr bytes verified, cleanup removed and sentinel unchanged; producer source is implementation head, not synthetic merge"
+  },
+  "platform_boundaries": {
+    "linux_codegen": "1271 passed;0 ignored",
+    "macos_codegen": "1270 passed;1 ignored:existing LLDB debugserver task-port permission; outside selected0296 tests",
+    "generated_resources": {
+      "linux": {
+        "status": "pass",
+        "requirements_met": true,
+        "case_count": 16,
+        "all_cases_pass": true,
+        "partial_reasons": [],
+        "source": "ci-generated-linux-acceptance.json"
+      },
+      "macos": {
+        "status": "partial",
+        "requirements_met": false,
+        "case_count": 16,
+        "all_cases_pass": true,
+        "partial_reasons": [
+          "address:macos-asan-unsupported",
+          "leak:macos-counter-only"
+        ],
+        "source": "ci-generated-macos-acceptance.json"
+      }
+    },
+    "linux_sanitizer": "ASan/LSan expected classifications verified by remote workflow; UBSan on Koven LLVM IR NOT COVERED",
+    "interpretation": "workflow success does not mean full sanitizer capability acceptance on both hosts"
+  },
+  "retained_boundaries": [
+    "single Map owner entering for guarded IterationPhi cleanup:SPEC-0300 follow-up",
+    "single ordinary Resource? factory return-type planning:separate audit candidate",
+    "grouped null literal inference and temporary inout receiver are not enabled",
+    "MoveOnly get, narrowed non-consuming Borrow and general key control transfer are not expanded"
+  ],
+  "archive_local_checks": {
+    "status": "passed",
+    "commands": [
+      {
+        "command": "python3 scripts/check_docs.py",
+        "exit_code": 0,
+        "markdown_files": 612
+      },
+      {
+        "command": "python3 -m unittest scripts.tests.test_check_docs",
+        "exit_code": 0,
+        "tests": 37
+      },
+      {
+        "command": "git diff --check",
+        "exit_code": 0
+      }
+    ],
+    "rust_and_workflow_delta": "none; scripts/check_docs.py only moves0296 between frozen inventories",
+    "no_cargo_execution": true
+  },
+  "archive_head_ci": {
+    "status": "pending"
+  },
+  "merge": {
+    "status": "pending"
+  },
+  "actual_main_ci": {
+    "status": "pending"
+  },
+  "evidence": [
+    {
+      "path": "ci-artifacts.json",
+      "sha256": "70189c7e9f6d003f1968541c0c1fae18ae84f0d89e14023327b70828a9903447",
+      "bytes": 8645
+    },
+    {
+      "path": "ci-generated-linux-acceptance.json",
+      "sha256": "452e0fe6a86298e13465072fccc4c0e20d0b2a4fe70dab0f562b42128dc695b3",
+      "bytes": 45963
+    },
+    {
+      "path": "ci-generated-linux-environment.json",
+      "sha256": "61f4c815bbac2aa9ef833d372e02594fdc396b1e3218ff69578fdcb13b00d547",
+      "bytes": 1109
+    },
+    {
+      "path": "ci-generated-macos-acceptance.json",
+      "sha256": "00a9fb887226a78e2230ea23fe6f5043115090235bdc636971e1aaf169e111e7",
+      "bytes": 46049
+    },
+    {
+      "path": "ci-generated-macos-environment.json",
+      "sha256": "4b9808f5a3885f70132039f66f425bee4b08058fda398e9442c2a9ef28e32638",
+      "bytes": 1095
+    },
+    {
+      "path": "ci-jobs.json",
+      "sha256": "5b701921e5342d21fedf53ec60d78cfb8684b5c3ca357272d32ddbb6c457deb1",
+      "bytes": 22949
+    },
+    {
+      "path": "ci-linux-sanitizer-acceptance.txt",
+      "sha256": "e84342d874b1d27037ef9cb7784fb3d92cf7e5148ea7d0a1729c6916f8de9b57",
+      "bytes": 783
+    },
+    {
+      "path": "ci-linux-targeted-excerpts.log",
+      "sha256": "4b77e53cfb5121d90ddf9701dcc3931df674b86a9e71907c3d158c4b14a48811",
+      "bytes": 10467
+    },
+    {
+      "path": "ci-macos-targeted-excerpts.log",
+      "sha256": "de1a46e157925d9c2561fe8e8e4f64eb7e35f080beb522ec4af198d0a35ffbc1",
+      "bytes": 10671
+    },
+    {
+      "path": "ci-monitor-summary.json",
+      "sha256": "10c265d269e658a3c2fa6cb443a9a44cadfa39663a9d15111b8b5ef366352206",
+      "bytes": 42236
+    },
+    {
+      "path": "ci-preview-verification.json",
+      "sha256": "e7cfed942ca76562dc3e6c09507882f030d431efeaa3d26ee9af4502067d1a25",
+      "bytes": 17191
+    },
+    {
+      "path": "ci-run.json",
+      "sha256": "ba8ac3a3fead9a7d0cb08918d599853c5e12f6fb476baf6e4ed79a9c397d900d",
+      "bytes": 1209
+    },
+    {
+      "path": "ci-targeted-verification.json",
+      "sha256": "65b5476cdb2cede3cfe78ae3d173cb92382e00af0025898406a95e1323a81b4d",
+      "bytes": 19525
+    },
+    {
+      "path": "ci-test-selection.json",
+      "sha256": "dc5ea61520227bd93c511f142723ed5d2ed6c6e6cafb9fee8513f42b16e0efb5",
+      "bytes": 8681
+    }
+  ],
+  "local_execution_limit": "during archive preparation only downloaded/read CI outputs and ran static documentation checks; no Cargo, artifact execution, local injection, malformed IR, counters, sanitizer or reducer/aggregate driver"
+}

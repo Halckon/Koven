@@ -1,0 +1,167 @@
+{
+  "status": "verified exactly once ok per physical host",
+  "pr": 75,
+  "implementation_head": "258aaa48ee274c24d4378406a38ef2cbf3034c7f",
+  "tree": "7137e50471efc896c8c6ba3ab748bd4385c2328e",
+  "expected_codegen": [
+    "native::unit_tests::map_word_frequency_tests::single_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove",
+    "native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove",
+    "native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_owner_carry_remains_generic",
+    "native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_two_passes_keep_first_occurrence_order",
+    "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_grouped_and_mirrored_reads",
+    "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource",
+    "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_scalar_last_read",
+    "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_without_loop",
+    "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_grouped_and_mirrored_reads",
+    "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_known_loop_boundary",
+    "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_loop_resource_exits",
+    "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource",
+    "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_scalar_last_read",
+    "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_without_loop",
+    "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_zero_and_one_iteration",
+    "native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_call_operands",
+    "native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_resource_precedes_body_named_stays_lexical",
+    "native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_scalar_and_if_matrix",
+    "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_call_operands_and_plain_nullable",
+    "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_loop_exits",
+    "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_resource_precedes_body_named_stays_lexical",
+    "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_scalar_and_if_matrix",
+    "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_zero_one_and_repeated_string_loops",
+    "ssa::borrow_call_lowering_tests::field_return_unit_preserves_projected_source_loan",
+    "ssa::borrow_call_lowering_tests::grouped_binding_single_preserves_returned_loan",
+    "ssa::borrow_call_lowering_tests::grouped_binding_unit_preserves_returned_loan",
+    "ssa::borrow_call_lowering_tests::grouped_return_single_preserves_forwarded_loan",
+    "ssa::borrow_call_lowering_tests::grouped_return_unit_preserves_forwarded_loan",
+    "ssa::borrow_storage_contract_tests::borrowed_storage_single_and_unit_ordinary_nullable_comparison_uses_real_presence",
+    "ssa::lower_frontend_tests::map_result_tests::map_mutation_collects_drop_glue_before_abort",
+    "ssa::lower_frontend_tests::map_result_tests::map_nullable_value_owned_remove_remains_unsupported",
+    "ssa::lower_frontend_tests::map_result_tests::map_operands_follow_argument_control_flow",
+    "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_both_return_key",
+    "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_both_return_value",
+    "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_direct_return_key",
+    "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_direct_return_value",
+    "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_key_then_value",
+    "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_return_key",
+    "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_return_value",
+    "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_reversed_key",
+    "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_reversed_value",
+    "ssa::lower_frontend_tests::map_result_tests::map_remove_single_for_guarded_owner_boundary_is_explicit",
+    "ssa::lower_frontend_tests::map_result_tests::map_remove_temporary_null_comparison_inspects_real_drop_facts",
+    "ssa::map_promotion_contract_tests::nullable_map_cached_owned_results_cannot_enable_move_only_inline_storage",
+    "ssa::map_promotion_contract_tests::nullable_map_cached_result_single_cannot_enable_inline_storage",
+    "ssa::map_promotion_contract_tests::nullable_map_cached_result_unit_cannot_enable_inline_storage",
+    "ssa::map_promotion_contract_tests::nullable_map_promotion_generic_storage_transfers_constructor_and_local_owners",
+    "ssa::map_promotion_contract_tests::nullable_map_promotion_preserves_direct_inline_nullable_rejection",
+    "ssa::map_promotion_contract_tests::nullable_map_promotion_single_direct_constructor",
+    "ssa::map_promotion_contract_tests::nullable_map_promotion_unit_direct_constructor",
+    "ssa::owned_null_cleanup_tests::owned_null_cleanup_presence_precedes_unique_asap_drop",
+    "ssa::owned_null_cleanup_tests::single_nullable_factory_planning_boundary_precedes_any_comparison",
+    "ssa::owned_null_cleanup_tests::temporary_null_cleanup_presence_precedes_unique_result_drop",
+    "ssa::unit_lower_borrow_tests::inout_and_non_root_borrows_remain_atomic_boundaries",
+    "ssa::unit_lower_borrow_tests::lowers_cross_file_shared_borrows_and_loan_forwarding_deterministically"
+  ],
+  "expected_frontend_map": [
+    {
+      "suite": "ownership_map",
+      "name": "map_remove_borrows_string_key"
+    },
+    {
+      "suite": "ownership_map",
+      "name": "map_subscript_releases_a_temporary_string_key_after_query"
+    },
+    {
+      "suite": "ownership_map",
+      "name": "map_temporary_null_cleanup_keeps_key_call_return_separate"
+    },
+    {
+      "suite": "ownership_map",
+      "name": "map_queries_borrow_string_keys_and_allow_reuse"
+    },
+    {
+      "suite": "ownership_map",
+      "name": "map_temporary_null_comparison_keeps_inout_receiver_place_rejection"
+    },
+    {
+      "suite": "ownership_map",
+      "name": "map_temporary_null_direct_borrow_result_keeps_rejection"
+    },
+    {
+      "suite": "ownership_map",
+      "name": "map_put_owns_string_key_and_move_only_value"
+    },
+    {
+      "suite": "ownership_map",
+      "name": "map_mutation_requires_mutable_receiver"
+    },
+    {
+      "suite": "ownership_map",
+      "name": "map_temporary_null_cleanup_excludes_copyable_named_borrowed_and_incomplete_results"
+    },
+    {
+      "suite": "ownership_map",
+      "name": "map_temporary_null_comparisons_publish_one_result_cleanup"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_map_key_must_be_hashable"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_map_and_mutable_map_construction_and_members"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_map_key_and_value_type_mismatches"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_map_method_must_be_called"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_map_multifile_compilation_unit"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_map_readonly_mutation_disallowed"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_move_only_value_get_disallowed"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_move_only_value_index_read_disallowed"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_mutable_map_key_must_be_hashable"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_string_value_map_get_is_move_only"
+    },
+    {
+      "suite": "type_map",
+      "name": "test_map_type_argument_arity_check"
+    },
+    {
+      "suite": "type_map",
+      "name": "map_nullable_value_queries_require_scoped_access_with_diagnostic_span"
+    },
+    {
+      "suite": "type_map",
+      "name": "map_nullable_borrow_argument_requires_a_non_null_proof"
+    },
+    {
+      "suite": "type_map",
+      "name": "unit_map_signatures_check_hashable_and_storable_arguments"
+    },
+    {
+      "suite": "type_map",
+      "name": "map_move_only_get_contract_stays_rejected_including_nullable_values"
+    }
+  ],
+  "local_evidence": "phase-two-acceptance.json",
+  "local_evidence_sha256": "576350d6bb77daaf3f1221a5f4616615c1ab9bdfa7f660fb6e0d24b3015fc76e"
+}

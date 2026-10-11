@@ -1,0 +1,211 @@
+[
+  {
+    "id": 11705391792,
+    "name": "preview-linux-producer-evidence-38145836171-1",
+    "size_in_bytes": 31027,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705391792",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705391792/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:20:01Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:20:01Z",
+    "digest": "sha256:318d835034ab55357055d282a299d1a043c03add0610c8e8e0ea29052db77a7a",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11705246954,
+    "name": "generated-owners-Linux-78cb64ac47de69538fce4825bc6b9304396c80a3",
+    "size_in_bytes": 19232567,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705246954",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705246954/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:17:19Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:17:19Z",
+    "digest": "sha256:2dbad46fcde784db13cbf766e4bddde2bbff70b6e10906cbf53ed26ecd65dc83",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11705217205,
+    "name": "preview-linux-38145836171-1",
+    "size_in_bytes": 4504850,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705217205",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705217205/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:20:00Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:20:00Z",
+    "digest": "sha256:b17b61f2f2cc919a9a40b95a65729ad5baa587b4565cd0302e7677c3e74c6c82",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11705102448,
+    "name": "preview-macos-producer-evidence-38145836171-1",
+    "size_in_bytes": 33665,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705102448",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705102448/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:20:48Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:20:48Z",
+    "digest": "sha256:82aad0d77fadda1e451d0c597b03c7f8888d4e8bc94542ce10718666dca16b2c",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11705062585,
+    "name": "preview-macos-consumer-evidence-38145836171-1",
+    "size_in_bytes": 22336,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705062585",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705062585/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:21:26Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:21:26Z",
+    "digest": "sha256:cb1f0bb88a9d1b8d2f2d56a0681b2624e63227b06d47ce59bc0d9c55cf918208",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11705027645,
+    "name": "preview-linux-consumer-evidence-38145836171-1",
+    "size_in_bytes": 18840,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705027645",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11705027645/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:20:24Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:20:24Z",
+    "digest": "sha256:6d58fad9c198953903c18a897aaab65113db2d4c481cbbf3f1ad0a43b8310719",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11704842712,
+    "name": "generated-owners-macOS-78cb64ac47de69538fce4825bc6b9304396c80a3",
+    "size_in_bytes": 904435,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704842712",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704842712/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:17:52Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:17:52Z",
+    "digest": "sha256:f2f729e51a1d08e277f647182e47b14983f383dd789a46209d757a95cbb07c3a",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11704793286,
+    "name": "preview-macos-38145836171-1",
+    "size_in_bytes": 3897167,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704793286",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704793286/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:20:47Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:20:47Z",
+    "digest": "sha256:8dbf8f4c78d017bfd9672d24859bb35886559017e395bd12a97ee3d9eefc0bb8",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11704517843,
+    "name": "native-sanitizers-Linux-78cb64ac47de69538fce4825bc6b9304396c80a3",
+    "size_in_bytes": 6250475,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704517843",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704517843/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:15:15Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:15:15Z",
+    "digest": "sha256:ba972bfeed6bcdeef9efa84bebabc539f23ccde363616a3ee1f08e616ef7532f",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11704462901,
+    "name": "word-frequency-Linux-78cb64ac47de69538fce4825bc6b9304396c80a3",
+    "size_in_bytes": 119423,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704462901",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704462901/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:15:08Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:15:08Z",
+    "digest": "sha256:ab72224a3cb020d599f4c4f32019deafef99420a19b008de3a758750b70d7e90",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  },
+  {
+    "id": 11704298271,
+    "name": "word-frequency-macOS-78cb64ac47de69538fce4825bc6b9304396c80a3",
+    "size_in_bytes": 97842,
+    "url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704298271",
+    "archive_download_url": "https://api.github.com/repos/Halckon/Koven/actions/artifacts/11704298271/zip",
+    "expired": false,
+    "created_at": "2026-10-11T14:15:37Z",
+    "expires_at": "2027-01-09T14:06:23Z",
+    "updated_at": "2026-10-11T14:15:37Z",
+    "digest": "sha256:87ba658dfc1d7f29bd0df52d1c300238f7ac50eb25e77dc631e76bf72ca2eaef",
+    "workflow_run": {
+      "id": 38145836171,
+      "repository_id": 1351924634,
+      "head_repository_id": 1351924634,
+      "head_branch": "fix/spec-0296",
+      "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f"
+    }
+  }
+]

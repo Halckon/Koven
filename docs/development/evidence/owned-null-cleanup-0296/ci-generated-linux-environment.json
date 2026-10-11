@@ -1,0 +1,25 @@
+{
+  "exporter": "/home/runner/work/Koven/Koven/target/debug/deps/lang_codegen-64e5f48465b91422",
+  "exporter_sha256": "9e503472b9d98a74beb356e69e47b9d7e01bc5399fcfcfd2dfa194106ca74f99",
+  "limits": {
+    "artifact_bytes": 67108864,
+    "artifact_root": "/home/runner/work/_temp/koven-generated-owners",
+    "output_bytes": 1048576,
+    "processes": 16,
+    "rss_bytes": 1073741824
+  },
+  "lock_sha256": "5d66391842becd2b46a1fbae79a73199b3a426640fef9226d68d478981ba2d60",
+  "machine": "x86_64",
+  "rss_scope": "sampled Linux process group",
+  "source_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "system": "Linux",
+  "versions": {
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+    "clang": "Ubuntu clang version 21.1.8 (++20251221032922+2078da43e25a-1~exp1~20251221153059.70)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /usr/lib/llvm-21/bin",
+    "compiler-sha": "78cb64ac47de69538fce4825bc6b9304396c80a3",
+    "compiler-status": "",
+    "llvm": "21.1.8",
+    "python": "Python 3.12.3",
+    "rust": "rustc 1.96.0 (ac68faa20 2026-05-25)"
+  }
+}
