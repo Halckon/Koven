@@ -14,3 +14,8 @@ fun <T> take(source: View<T>, count: Int): View<T> from source {
     val clipped = if (count > size) size else count
     return rangeView(source, 0, clipped)
 }
+
+// Receiver syntax reuses the same count policy and root-checked descriptor producer.
+borrow fun <T> List<T>.take(count: Int): View<T> from this = take(this, count)
+
+borrow fun <T> View<T>.take(count: Int): View<T> from this = take(this, count)

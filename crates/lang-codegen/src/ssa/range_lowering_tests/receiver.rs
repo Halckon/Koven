@@ -287,6 +287,28 @@ fn range_receiver_source_temporary_for_cleans_the_root_after_elements() {
     }
 }
 
+#[test]
+fn real_std_receiver_take_preserves_nonzero_view_offsets_and_top_level_compatibility() {
+    let trusted = "fun window(source:List<String>):View<String> from source=rangeView(source,1,2)";
+    let consumer = "fun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun main():Unit{val root=listOf(\"first\".clone(),\"second\".clone());borrow val parent=window(root);borrow val child=parent.take(2147483647);read(child);read(take(child,1));read(child.take(0))}";
+    for (program, entry) in [
+        single_with_entry(&format!("{trusted}\n{consumer}")),
+        unit_with_provider_order(
+            &format!(
+                "package app\nimport koven.algorithms.take\nimport koven.algorithms.window\n{consumer}"
+            ),
+            trusted,
+            true,
+        ),
+    ] {
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let run = crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(
+            &llvm,
+            &[1, 0, 2],
+        );
+        crate::native_tests::boxed_enum_tests::assert_success(&run, b"second\nsecond\n");
+    }
+}
 
 #[test]
 fn range_receiver_named_root_short_borrow_cleans_after_consumer_and_return() {

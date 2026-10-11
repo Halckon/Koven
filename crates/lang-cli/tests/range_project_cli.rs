@@ -5,6 +5,9 @@ use std::{
     process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
+#[path = "range_project_cli/receiver.rs"]
+mod receiver;
+
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 struct Project(PathBuf);
 impl Project {
