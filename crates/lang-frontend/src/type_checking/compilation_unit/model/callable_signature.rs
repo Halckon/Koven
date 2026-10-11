@@ -23,7 +23,7 @@ pub struct UnitCallableSignature {
 
 impl UnitCallableSignature {
     /// 同一 SourceUnit 中锚定到可信扩展 receiver 的合成参数身份。
-    pub(crate) const fn extension_receiver_symbol(&self) -> Option<UnitSymbolId> {
+    pub const fn extension_receiver_symbol(&self) -> Option<UnitSymbolId> {
         self.extension_receiver_symbol
     }
     pub(crate) fn with_extension_receiver_symbol(mut self, symbol: Option<UnitSymbolId>) -> Self {

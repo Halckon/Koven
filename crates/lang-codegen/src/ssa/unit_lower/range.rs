@@ -357,8 +357,9 @@ impl UnitExpressionLowerer<'_> {
         let CallableResultSource::Carrier(contract) = descriptor.result_source() else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        let BorrowReturnOrigin::Parameter(index) = contract.origin() else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        let index = match contract.origin() {
+            BorrowReturnOrigin::Parameter(index) => index,
+            BorrowReturnOrigin::Receiver => 0,
         };
         let view = self.expression_ssa_type(expression, span)?;
         let Some(SsaTypeKind::RangeView { source: source_ty }) = self.ssa_types.get(view.index())

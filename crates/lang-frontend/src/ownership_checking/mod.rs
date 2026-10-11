@@ -1,6 +1,5 @@
 //! Phase 3 变量所有权状态与 use-after-move 检查。
 
-mod backend_frontier;
 mod borrow_last_use;
 mod borrow_result;
 mod callable_provenance;

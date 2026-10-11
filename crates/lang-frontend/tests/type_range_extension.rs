@@ -1,4 +1,4 @@
-//! 可信 receiver 类型选择；Phase 3 证明之后的后端仍受 L0164 门保护。
+//! 可信 receiver 类型选择；合法来源证明允许 Phase 3 owned 交付。
 use lang_frontend::{
     lexer::lex,
     name_resolution::resolve_names,
@@ -487,8 +487,8 @@ fn duplicate_receiver_shapes_still_reject_alpha_equivalent_declarations() {
 }
 
 #[test]
-fn trusted_receiver_analysis_observes_types_but_stops_before_backend_delivery() {
-    use lang_frontend::analysis::{SingleFileAnalysisError, SingleFileStage, analyze_single_file};
+fn trusted_receiver_analysis_observes_types_and_publishes_ownership_facts() {
+    use lang_frontend::analysis::analyze_single_file;
     let mut sources = SourceMap::new();
     let source = sources
         .add_source(
@@ -519,11 +519,16 @@ fn trusted_receiver_analysis_observes_types_but_stops_before_backend_delivery() 
             Ok(())
         },
     );
-    assert!(matches!(
-        result,
-        Err(SingleFileAnalysisError::Host(
-            SingleFileStage::OwnershipChecking
-        ))
-    ));
+    let analysis = result.unwrap();
     assert!(typed_observed);
+    assert!(analysis.owned().diagnostics().is_empty());
+    assert!(analysis.owned().deferred().is_empty());
+    assert_eq!(
+        analysis
+            .owned()
+            .borrow_results()
+            .range_return_origins()
+            .len(),
+        1
+    );
 }

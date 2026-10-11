@@ -485,13 +485,13 @@ fn lower_scalar_file_product(
                 type_mapper.intern(module, names, typed, concrete, primitive_span)?;
             }
         }
-        let parameter_symbols = callable
+        let mut parameter_symbols = callable
             .parameter_symbols()
             .iter()
             .copied()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let parameter_types = callable
+        let mut parameter_types = callable
             .parameters()
             .iter()
             .enumerate()
@@ -522,6 +522,17 @@ fn lower_scalar_file_product(
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
+        if let Some((symbol, receiver)) = super::range::receiver_parameter(
+            module,
+            names,
+            typed,
+            callable,
+            &instance.substitutions,
+            &mut type_mapper,
+        )? {
+            parameter_symbols.insert(0, symbol);
+            parameter_types.insert(0, receiver);
+        }
         let return_type =
             resolve_concrete_type(typed, callable.return_type(), &instance.substitutions, span)?;
         let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
@@ -572,11 +583,11 @@ fn lower_scalar_file_product(
         if let lang_frontend::type_checking::CallableResultSource::Carrier(contract) =
             callable.result_source()
         {
-            let lang_frontend::type_checking::BorrowReturnOrigin::Parameter(index) =
-                contract.origin()
-            else {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            };
+            let index = super::range::carrier_source_index(
+                contract.origin(),
+                callable.range_extension().is_some(),
+                span,
+            )?;
             if !owned
                 .borrow_results()
                 .range_return_origins()

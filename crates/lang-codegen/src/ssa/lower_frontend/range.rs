@@ -6,6 +6,47 @@ use lang_frontend::{
     type_checking::{BorrowReturnOrigin, CallableResultSource},
 };
 
+/// A frontend-authorized extension is a static range function whose first ABI slot is this.
+/// It is deliberately separate from nominal instance dispatch and ordinary borrow returns.
+pub(super) fn receiver_parameter(
+    module: &mut crate::ssa::model::Module,
+    names: &NameResolution,
+    typed: &TypedFile,
+    callable: &lang_frontend::type_checking::CallableDescriptor,
+    substitutions: &BTreeMap<SymbolId, TypeId>,
+    mapper: &mut super::nominal::NominalTypeMapper,
+) -> Result<Option<(SymbolId, EntityType)>, LoweringError> {
+    let Some(binding) = callable.range_extension() else {
+        return Ok(None);
+    };
+    let span = binding.receiver_span();
+    let symbol = callable
+        .extension_receiver_symbol()
+        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+    let concrete =
+        instances::resolve_concrete_type(typed, binding.receiver_type(), substitutions, span)?;
+    let target = mapper.intern(module, names, typed, concrete, span)?;
+    Ok(Some((
+        symbol,
+        EntityType::Loan {
+            kind: LoanKind::Shared,
+            target,
+        },
+    )))
+}
+
+pub(super) fn carrier_source_index(
+    origin: BorrowReturnOrigin,
+    extension: bool,
+    span: Span,
+) -> Result<usize, LoweringError> {
+    match origin {
+        BorrowReturnOrigin::Parameter(index) => Ok(index),
+        BorrowReturnOrigin::Receiver if extension => Ok(0),
+        _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
+    }
+}
+
 impl ExpressionLowerer<'_> {
     pub(super) fn lower_short_range(
         &mut self,
@@ -287,8 +328,20 @@ impl ExpressionLowerer<'_> {
         let CallableResultSource::Carrier(contract) = descriptor.result_source() else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
-        let BorrowReturnOrigin::Parameter(index) = contract.origin() else {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        let (index, receiver) = match contract.origin() {
+            BorrowReturnOrigin::Parameter(index) => (index, None),
+            BorrowReturnOrigin::Receiver => {
+                let receiver = descriptor
+                    .receiver()
+                    .filter(|receiver| receiver.mode() == ParameterMode::Borrow)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let lang_frontend::type_checking::CallReceiverOrigin::Expression(receiver) =
+                    receiver.origin()
+                else {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                };
+                (0, Some(receiver))
+            }
         };
         let view = self.expression_ssa_type(expression, span)?;
         let Some(SsaTypeKind::RangeView { source: source_ty }) = self.ssa_types.get(view.index())
@@ -296,8 +349,16 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
         let source_ty = *source_ty;
-        let mut ordered = vec![None; arguments.len()];
-        let mut created = Vec::new();
+        let offset = usize::from(receiver.is_some());
+        let mut ordered = vec![None; arguments.len() + offset];
+        let mut borrowed = Vec::new();
+        if let Some(receiver) = receiver {
+            let (loan, new) = self.lower_borrow_argument(expression, receiver, span)?;
+            ordered[0] = Some(EntityId::Loan(loan));
+            self.pending_call_loans
+                .insert((expression.index(), receiver.index()), new.then_some(loan));
+            borrowed.push((0, receiver));
+        }
         for (actual, argument) in arguments.iter().enumerate() {
             let mapping = descriptor
                 .arguments()
@@ -308,9 +369,11 @@ impl ExpressionLowerer<'_> {
                 ParameterMode::Borrow => {
                     let (loan, new) =
                         self.lower_borrow_argument(expression, argument.value, argument.span)?;
-                    if new {
-                        created.push(loan);
-                    }
+                    self.pending_call_loans.insert(
+                        (expression.index(), argument.value.index()),
+                        new.then_some(loan),
+                    );
+                    borrowed.push((mapping.parameter_index() + offset, argument.value));
                     EntityId::Loan(loan)
                 }
                 ParameterMode::Value => {
@@ -329,10 +392,39 @@ impl ExpressionLowerer<'_> {
                 }
             };
             let slot = ordered
-                .get_mut(mapping.parameter_index())
+                .get_mut(mapping.parameter_index() + offset)
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             if slot.replace(entity).is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+        }
+        // Later operands can branch or return. Recover only the current block's
+        // frontend-authorized loan identities, and leave early-exit cleanup to the same map.
+        let mut created = Vec::new();
+        for (slot, argument) in borrowed {
+            let pending = self
+                .pending_call_loans
+                .remove(&(expression.index(), argument.index()))
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if let Some(loan) = pending {
+                ordered[slot] = Some(EntityId::Loan(loan));
+                created.push(loan);
+            } else {
+                let actual =
+                    crate::ssa::borrow_result_support::ungroup(self.parsed, argument, span)?;
+                let node = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(actual)
+                    .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+                if let Some(loan) = self
+                    .references
+                    .get(&span_key(node.span()))
+                    .and_then(|symbol| self.borrow_bindings.get(symbol))
+                {
+                    ordered[slot] = Some(EntityId::Loan(*loan));
+                }
             }
         }
         let arguments = ordered
@@ -473,9 +565,13 @@ impl ExpressionLowerer<'_> {
             .parsed
             .ast()
             .expressions()
-            .get(descriptor.receiver())
+            .get(crate::ssa::borrow_result_support::ungroup(
+                self.parsed,
+                descriptor.receiver(),
+                span,
+            )?)
             .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
-        if !matches!(node.payload(), Expression::Name) {
+        if !matches!(node.payload(), Expression::Name | Expression::This) {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
         let symbol = self

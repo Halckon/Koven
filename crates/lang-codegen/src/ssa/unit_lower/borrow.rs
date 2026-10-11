@@ -274,7 +274,9 @@ impl UnitExpressionLowerer<'_> {
             .get(expression)
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
         match node.payload() {
-            Expression::Name => Ok(self.references.get(&span_key(node.span())).copied()),
+            Expression::Name | Expression::This => {
+                Ok(self.references.get(&span_key(node.span())).copied())
+            }
             Expression::Group { expression } => self.direct_name_symbol(*expression, span),
             _ => Ok(None),
         }
