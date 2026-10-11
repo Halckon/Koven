@@ -668,7 +668,7 @@ fn map_put_control_exit_cases() -> Vec<(String, String, String)> {
         );
         cases.push((operand.into(), text, "eight\nseven\n".into()));
     }
-    for key in ["\"key\".clone()", "key"] {
+    for key in ["\"key\".clone()", "key", "(key)"] {
         let text = format!(
             "class Resource(val label: String) {{ deinit() {{ println(label) }} }}\nfun inspect(own flag: Boolean): Unit {{\n var m = mutableMapOf<String, Resource>()\n m.put(\"key\".clone(), Resource(\"old\"))\n val key = \"key\".clone()\n m.put({key}, if (flag) {{ return }} else {{ Resource(\"new\") }})\n println(\"after\")\n}}\nfun entry(): Unit {{ inspect(false); inspect(true); println(\"done\") }}"
         );

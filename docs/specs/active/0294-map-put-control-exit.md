@@ -51,8 +51,9 @@ break/continue 的 loop 出口临时值恢复仍是独立审计候选，不属�
 - [x] 同一选择修复后通过，typed SSA/verifier 与 LLVM 正常生成；完整退出不生成 MapPut。
 - [x] 正常 native 覆盖动态真假分支、求值顺序/未执行后缀及资源析构输出。
 - [x] 动态 if、Boolean when、短路条件的无退出 Map.put 对照保持成功。
-- [ ] fmt、受影响 crate clippy、文档与尺寸静态检查完成；逐项记实际命中数与未运行项。
-- [ ] Architecture 更新当前已验证事实；独立发布后记录 exact head 双宿主 CI，再归档。
+- [x] fmt、受影响 crate clippy、文档与尺寸静态检查完成；逐项记实际命中数与未运行项。
+- [x] Architecture 已更新本片 return 已验证事实，不扩称一般控制退出。
+- [ ] 独立发布后记录 exact head 双宿主 CI，再归档。
 
 ## 6. 技术方案与边界
 
@@ -64,7 +65,7 @@ pending loan / operand slots、分支快照和清理机制，不从 AST 重推�
 
 1. [x] Spec/inventory 与红测 → 验证 §10 的首次失败。
 2. [x] 最小实现及直接回归 → 验证同一测试选择与正常 native。
-3. [ ] 当前事实与本地账本 → 验证文档、格式、尺寸、clippy。
+3. [x] 当前事实与本地账本 → 验证文档、格式、尺寸、clippy。
 4. [ ] 发布后 exact head CI → 依证据归档，不提前宣称 CI 通过。
 
 ## 8. 提交计划
@@ -73,7 +74,7 @@ pending loan / operand slots、分支快照和清理机制，不从 AST 重推�
 |---|---|---|
 | 1 | Spec 与正常源码红测 | `test(codegen): expose Map.put control exits (SPEC-0294)` |
 | 2 | Map.put 最小修复与正常 native | `fix(codegen): preserve Map.put control exits (SPEC-0294)` |
-| 3 | 本地验收记录与当前事实 | `docs(spec): record Map.put local verification (SPEC-0294)` |
+| 3 | grouped key 正常回归、本地验收记录与当前事实 | `test(codegen): verify grouped Map.put return cleanup (SPEC-0294)` |
 
 ## 9. 未决问题
 
@@ -87,5 +88,20 @@ pending loan / operand slots、分支快照和清理机制，不从 AST 重推�
 | `python3 scripts/check_docs.py`；`git diff --check` | passed；610 Markdown | 新 Spec/inventory 与依赖图同步 |
 | 同一 20-test 选择（receiver/Diverged 初修） | 19 passed / 1 failed | unit named String key 的 return drop 缺 temporary identity；保留失败，不以 Int 成功替代验收。 |
 | 同一 20-test 选择（补齐 unit MoveOnly key 前缀） | 20 passed / 0 failed / 0 ignored；1218 filtered | 18 SSA；2 native tests 各真实 object/link/run 14 份正常源码；无 LLVM 改写/计数。 |
-| 既有定向回归、fmt、clippy、最终 docs、尺寸 | 待执行 | 记录确切选择和数量 |
+| 同一 20-test 选择（再补 grouped `(key)`） | 20 passed / 0 failed / 0 ignored；1218 filtered | 两 native tests 各 15 份源码，共 30 次正常 object/link/run；named/temporary/grouped String key 均通过。 |
+| `cargo test --locked -p lang-codegen --lib map_operands_follow_argument_control_flow -- --nocapture` | 3 passed / 0 failed | single/unit SSA 与正常 native；未执行 counter |
+| `cargo test --locked -p lang-codegen --lib map_mutation_collects_drop_glue_before_abort -- --nocapture` | 3 passed / 0 failed | 正常源码 `error` 的既定 Abort，不改写产物或注入故障 |
+| `cargo test --locked -p lang-codegen --lib native_map_put_preserves_copyable_key_and_value_bindings -- --nocapture` | 1 passed / 0 failed | 正常 native，保留 Copyable 与下标赋值行为 |
+| `cargo test --locked -p lang-codegen --lib map_nullable_value_owned_remove_remains_unsupported -- --nocapture` | 2 passed / 0 failed | 保留原有结构化 UnsupportedNode/Span 边界 |
+| `cargo fmt --all -- --check` | passed | grouped case 后重跑 |
+| `cargo clippy --locked -p lang-codegen --all-targets -- -D warnings` | passed | grouped case 后重跑；不等于执行全部 Rust tests |
+| `python3 -m unittest scripts.tests.test_check_docs -q` | 37 passed | 文档 checker inventory 的定向静态合同 |
+| `python3 scripts/check_docs.py`；`git diff --check` | passed；610 Markdown | 修正 Map Architecture 页增长越过 200 行，最终仍 200 行；不改其他历史事实 |
+| `python3 scripts/check_rust_sizes.py --base origin/main` | passed；1027 手写 Rust，38 份既有超限 | 本次 5 份变更 Rust 分别 450/402/186/444/682 行；无新增/增长例外 |
 | 聚合、counter、故障注入、校准、sanitizer、双宿主 CI | 未执行 | 本地授权边界；由独立 PR CI 验证 |
+
+本地环境：Linux x86_64，Rust 1.96.0、LLVM 21.1.8；先 `source ../toolchains/env.sh`，
+Cargo 复用 `CARGO_TARGET_DIR=../koven-pr69-fixes/target`，全程串行。新增 20 + 既有 9 个
+不同测试通过；重复红绿运行不重复计作新增覆盖。原生运行观察分支/顺序/Resource 析构，
+不替代 allocation/free 计数或 sanitizer。独立只读审阅已核对 exact reservation identity、
+分支重绑定、Diverged 返回和 named key temporary 清理；未把审阅当成 CI 执行证据。
