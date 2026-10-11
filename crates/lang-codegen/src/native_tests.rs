@@ -133,7 +133,7 @@ fn symbol(analysis: &Analysis, name: &str, kind: SymbolKind) -> SymbolId {
         })
 }
 
-fn emit_link_and_run(source_name: &str, text: &str, entry_name: &str) -> Output {
+pub(crate) fn emit_link_and_run(source_name: &str, text: &str, entry_name: &str) -> Output {
     let analysis = analyze(source_name, text);
     assert!(
         analysis.parsed.diagnostics().is_empty(),

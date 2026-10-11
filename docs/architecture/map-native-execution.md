@@ -29,6 +29,12 @@ payload 所有权和注册身份；MapGet 拒绝裸 V、同形的未登记 aggre
 presence；标量 nullable 等值比较同时检查存在性与值；窄化读取及 `!!` 使用受检 Copy 提取，
 只有缺失提取才 Abort。多文件签名先登记 reachable 查询结果类型，再交接只读类型事实。
 查询下标的 receiver/key 在同步查询完成后清理，求值期间的控制转移仍保留已求值 owner 的义务。
+单文件与 unit 的 flow-refined Copyable 查询/删除结果可作为同步 Borrow 实参：消费同一 source/root
+的 non-null descriptor，核对声明/窄化类型与注册 payload、明确 Copyable 后提取 inner 并建立
+短时 shared place/loan。原 nullable binding 保留；不把 aggregate 重新解释为 inner place，也不
+扩大 MoveOnly 提取、普通 inline nullable ABI 或 Map entry 借用能力。真实应用的两遍 argv
+及原字节合同由 [SPEC-0295](../specs/active/0295-map-argv-word-frequency.md) 单独验收。
+
 
 String 和 MoveOnly inline V 的 owned remove 复用登记的 presence/payload aggregate，
 结果所有权与 V 一致。条件 drop 只在 present 分支析构 payload；缺失的零值不承担 owner。

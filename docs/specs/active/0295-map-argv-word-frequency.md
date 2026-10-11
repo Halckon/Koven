@@ -74,3 +74,14 @@ LLVM 21.1.8。教程两遍实现通过类型/所有权后，在第一个空 argv
 `native object InvalidModel: frontend lowering failed with InvalidSsa` 失败，未执行 artifact。
 原 8 组 oracle 无修改。另追加固定 32 不同词、非排序次序及尾部重复的第 9 组，独立手写
 期待字节；原 37 命令仍可按原项目/argv 识别，新增 3 命令后总数 40。正在定位实际 SSA 缺口。
+
+已定位并补齐的真实缺口是：Copyable Map result 在非空 edge 传默认 Borrow 参数时，旧 lowering
+把 presence/payload aggregate 错当 inner 的 RootPlace。两入口只消费 typed non-null descriptor，
+核对 root、声明/窄化类型、注册结果和 Copyable 能力，再复制 inner 建立同步 loan；不改 verifier。
+普通 Int/Boolean/value-class 用例由 InvalidSsa 红转绿；最终矩阵与 public CLI 仍待记录。
+
+额外探索的 MoveOnly String remove + for-body null 比较在未改生产的 main CLI 同样失败：
+结果先 drop 后比较，verifier 报 ValueUnavailable。完整正常源码、基线 compiler/source 哈希和
+公开 build 原始失败见[独立边界记录](../../development/evidence/map-word-frequency-0295/known-boundary.json)。
+它不是本次 Copyable Borrow 修复造成，且本片不扩成一般 MoveOnly CFG 清理工程；没有计为通过。
+现有通用 Map 合同继续保留，新增 String/Resource owner carry、覆盖及 loop 外移出另行验收。

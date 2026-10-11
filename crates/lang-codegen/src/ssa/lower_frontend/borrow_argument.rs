@@ -216,10 +216,43 @@ impl ExpressionLowerer<'_> {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             }
         };
-        let target = self.expression_ssa_type(argument, span)?;
+        let target_type = self.expression_ssa_type(argument, span)?;
+        // Match the validated nullable use to its whole-root query result before
+        // copying the registered payload for this synchronous shared argument.
+        let mut owner = owner;
+        if let LoanTarget::Place(root) = target
+            && root.is_root()
+            && let Some(proof) = self.typed.non_null_use(argument)
+            && self.is_map_result_value(owner)
+        {
+            let declared = self.resolve_type(proof.declared_type(), span)?;
+            let narrowed = self.resolve_type(proof.narrowed_type(), span)?;
+            if self.typed.copyability(narrowed)
+                != Some(lang_frontend::type_checking::Copyability::Copyable)
+            {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let actual = self
+                .function
+                .entity(EntityId::Value(owner))
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                .ty
+                .semantic_type();
+            if proof.symbol() != root.root()
+                || self.type_ids.get(&declared) != Some(&actual)
+                || self.type_ids.get(&narrowed) != Some(&target_type)
+                || self.map_results.get(&actual) != Some(&target_type)
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            owner = match self.unwrap_map_result(owner, span)? {
+                LoweredValue::Value(value) => value,
+                _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+            };
+        }
         let (_, results) = self.append(
             Operation::RootPlace { owner },
-            vec![EntityType::Place(target)],
+            vec![EntityType::Place(target_type)],
             span,
         )?;
         Ok(place(results[0]))

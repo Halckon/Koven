@@ -247,6 +247,53 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         };
+        // A flow-refined Copyable query result borrows a copied payload, never
+        // reinterprets the presence/payload aggregate as the inner value's place.
+        let mut owner = owner;
+        if let UnitLoanTarget::Place(place) = loan_target
+            && place.is_root()
+            && let Some(proof) = self
+                .typed
+                .non_null_use(UnitExpressionId::new(self.source_unit, argument))
+            && self.is_map_result_value(owner)
+        {
+            let declared = super::resolve_concrete_type(
+                self.typed,
+                proof.declared_type(),
+                self.substitutions,
+                self.static_self,
+                span,
+            )?;
+            let narrowed = super::resolve_concrete_type(
+                self.typed,
+                proof.narrowed_type(),
+                self.substitutions,
+                self.static_self,
+                span,
+            )?;
+            if self.typed.copyability(narrowed)
+                != lang_frontend::type_checking::Copyability::Copyable
+            {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let actual = self
+                .function
+                .entity(EntityId::Value(owner))
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+                .ty
+                .semantic_type();
+            if proof.symbol() != place.root()
+                || self.type_ids.get(&declared) != Some(&actual)
+                || self.type_ids.get(&narrowed) != Some(&target)
+                || self.map_results.get(&actual) != Some(&target)
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            owner = match self.unwrap_map_result(owner, span)? {
+                LoweredValue::Value(value) => value,
+                _ => return Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+            };
+        }
         let (_, results) = self
             .function
             .append_instruction(
