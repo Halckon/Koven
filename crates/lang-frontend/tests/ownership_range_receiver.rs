@@ -494,3 +494,36 @@ fn receiver_producer_with_count_branch_retains_unproven_delivery_frontier() {
     }
     assert!(unit.validate().is_err());
 }
+
+#[test]
+fn stable_range_root_drop_is_published_at_the_outer_consumer() {
+    use lang_frontend::ownership_checking::{RangeUseSite, UnitDropPoint, UnitDropTarget};
+    for expression in ["root.prefix(1)", "take(root,1)"] {
+        let text = format!(
+            "{RECEIVERS}\nfun take(source:List<String>,count:Int):View<String> from source=rangeView(source,0,count)\nfun read(view:View<String>):Unit{{println(\"read\")}}\nfun main():Unit{{val root=listOf(\"first\");read({expression});println(\"done\")}}"
+        );
+        let (_, single, unit) = checked(&text);
+        assert!(
+            single.diagnostics().is_empty(),
+            "{:?}",
+            single.diagnostics()
+        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let [use_fact] = unit.borrow_results().range_uses() else {
+            panic!("one immediate range consumer")
+        };
+        let RangeUseSite::Call(outer) = use_fact.site() else {
+            panic!("call consumer")
+        };
+        let UnitLoanTarget::Place(root) = use_fact.origin() else {
+            panic!("stable owner root")
+        };
+        let drops = unit
+            .drops()
+            .iter()
+            .filter(|fact| fact.target() == UnitDropTarget::Named(root.root()))
+            .collect::<Vec<_>>();
+        assert_eq!(drops.len(), 1, "{drops:?}");
+        assert_eq!(drops[0].point(), UnitDropPoint::CallReturn(outer));
+    }
+}

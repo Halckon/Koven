@@ -286,3 +286,62 @@ fn range_receiver_source_temporary_for_cleans_the_root_after_elements() {
         );
     }
 }
+
+
+#[test]
+fn range_receiver_named_root_short_borrow_cleans_after_consumer_and_return() {
+    use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+    for (declaration, element, values, read, drops) in [
+        (
+            "",
+            "String",
+            "\"first\".clone(),\"second\".clone()",
+            "println(item)",
+            "",
+        ),
+        (
+            "class Item(val text:String){deinit(){println(this.text)}}",
+            "Item",
+            "Item(\"first\"),Item(\"second\")",
+            "println(item.text)",
+            "second\nfirst\n",
+        ),
+    ] {
+        for operation in ["cut(root,1)", "root.prefix(1)"] {
+            for reader in [
+                "println(\"read\")".to_owned(),
+                format!("for(item in view){{{read}}};println(\"read\")"),
+            ] {
+                let provider = format!(
+                    "{EXTENSIONS}\nfun <T> cut(source:List<T>,count:Int):View<T> from source=rangeView(source,0,count)"
+                );
+                let consumer = format!(
+                    "{declaration}\nfun read(view:View<{element}>,number:Int):Unit{{{reader}}}\nfun scan(stop:Boolean):Unit{{val root=listOf({values});read({operation},if(stop){{return}}else{{0}});println(\"after\")}}\nfun main():Unit{{scan(false);scan(true);println(\"done\")}}"
+                );
+                for (program, entry) in [
+                    single_with_entry(&format!("{provider}\n{consumer}")),
+                    unit_with_provider_order(
+                        &format!(
+                            "package app\nimport koven.algorithms.prefix\nimport koven.algorithms.cut\n{consumer}"
+                        ),
+                        &provider,
+                        true,
+                    ),
+                ] {
+                    let llvm =
+                        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                    let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2, 4, 3, 5]);
+                    let prefix = if reader.starts_with("for") {
+                        "first\n"
+                    } else {
+                        ""
+                    };
+                    assert_success(
+                        &run,
+                        format!("{prefix}read\nafter\n{drops}{drops}done\n").as_bytes(),
+                    );
+                }
+            }
+        }
+    }
+}

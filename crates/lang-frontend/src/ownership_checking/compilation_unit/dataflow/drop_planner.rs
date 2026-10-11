@@ -1185,7 +1185,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                     }
                 }
-                state.pending_borrows.retain(|(call, _)| *call != id);
+                self.finish_call_borrows(id, &mut borrowed_roots, state);
                 state.pending_loans.retain(|(action, _)| match action {
                     crate::ownership_checking::UnitIterationCleanupAction::EndCallLoan(loan) => {
                         loan.call() != self.checker.unit_expression(id)
@@ -1195,7 +1195,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     ) => fact.call() != self.checker.unit_expression(id),
                     _ => true,
                 });
-                self.continue_range_temporary(id, state);
+                self.continue_range_source(id, state);
                 self.finish_pending_temporaries(id, PlannerDropPoint::CallReturn(id), state);
                 for root in borrowed_roots {
                     if !self.liveness.expression_after[id.index()].contains(&root) {
