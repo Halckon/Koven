@@ -135,6 +135,34 @@ String/Resource 查询及嵌套访问共用 M2B 核心，不由 Map、List 和�
 Set、开放 Iterator/Iterable 与借用视图按各自需求评审，不作为 Map 的隐含交付包。
 本轮仅扩充设计计划；SPEC-0279 独立生产 PR/CI 不受影响，新语义仍须明确启用后实施。
 
+### 7.1 集合算法 r3.1 的受审后继路线
+
+2026-10-08，用户要求评审 collection 修订并在可接受时整合后续开发。
+[r3.1](../proposals/collection-algorithm-ownership-r3.md)接受显式物化、consume 立即取得 owner、
+首片立即产出与 metadata 成本透明的候选方向；不是 Guide/ADR/Spec 启用或新实现授权。
+当前 v0.42 已批准的 M2B/Map 合同和 SPEC0288 范围不变，先闭合其已批准欠项。
+
+后继排序：分别评审显式 consume 基础/可复用 owned 构造与消费原语、复制能力；再冻结
+N1a 范围 carrier 的交付与来源合同，对齐受限扩展声明，形成最小范围视图/立即消费矩阵；
+N1b/filter 留作后续验收，最后逐项加入其他算法。原语不能反向依赖算法实现。
+Option 只在可选 owned 元素返回需要时成为条件依赖，不强加给 filter、consume 或确定借用。
+
+候选首片的 N1a 即使无堆缓冲，也须封闭新描述符交付、carrier 绑定/参数/返回、真实 origin、
+caller loan continuation 和权限恢复；根保护覆盖全部父子、兄弟及元素 loan。临时源允许
+同表达式使用与现行 for-source 延续，不允许持久保存；consume 链临时 owner 承担接管前的
+正常退出清理，Resource 规则不改。N1b 的自有索引、filter.take 非连续表示与返回交付是后续
+验收条件，不阻塞 N1a。复用 borrowed-closure 基础设施不改变既有 closure 合同。
+T?? 继续非法；通用 Clone/Option 未启用，ConsumingSeq 链内限制是候选首片选择。
+详细依赖和验收见[collection §11](../proposals/collection-algorithm-ownership-r3.md#11-phase-边界)。
+本轮只维护候选与规划，不新增实施 Spec、不归档0288、不修改生产、Cargo 或 CI。
+
+2026-10-08 后续用户已批准 N1a 首片本地实施及负数 Abort/越 size 截边界，并再次要求
+以里程碑交付为主线。[SPEC-0289](../specs/active/0289-n1a-range-carrier.md)作为 M3A 最小
+take 的有界后继，依赖 M2B 实际来源/延续/结束，并回归 0288 的 B2/B7/B8 共享合同。
+前端最小检查点后优先贯通同一 take 的 SSA/verifier、String/MoveOnly/Resource 正常 native
+与权限恢复，不横向铺新算法。consume、Clone、N1b 与用户通用扩展继续留后续独立验收。
+这里记录用户授权后的后继状态，不把此前候选审阅或声明通过当作实现完成。
+
 ## 8. M4：分层安全证据
 
 1. M4a 先选 Linux 小范围验证检测接线，用故意错误探针证明 Koven 生成的用户函数与
@@ -369,3 +397,23 @@ ABI与普通native路径；用户明确启用Guide v0.41 expected move literal�
 完整M3A操作集、M1B-b文本/API、一般嵌套LoanId生命周期、性能预算与M4/M6其它范围继续
 按各自前置。后继先根据actual main重新核对现行语义的程序缺口；新的标准库API、文本输入、
 返回借用或长期架构须满足Guide/ADR前置，不因本片交付自动启用。
+
+
+## 23. 新推送合同接收与继续 N1a（2026-10-10）
+
+用户要求审查新推送0289/0291后继续里程碑。现接收已批准的 N1a Guide v0.43
+与 active 0289；保留0290已验证修复与发布记录，不回退生产实现。
+[整合记录](n1a-contract-integration.md)固定两分支身份、v0.42完整快照及实际验证。
+下一实现闭环仍为可信 List/View receiver 的实际来源与静态 ABI 交付，不横向铺新算法。
+0291只读Map转换与改号0292消费序列均保持draft，不随N1a启用。历史临时证据只作
+原时点记录，后继实现须独立验收；本轮不进行故障注入或校准。
+
+
+## 24. N1a receiver 本地闭环与待发布边界（2026-10-10）
+
+可信 receiver 静态 ABI、稳定根外层消费者续接与真实 std List/View.take 已分三片
+本地提交；[SPEC-0289 §19](../specs/active/0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)
+记录最终148项定向测试、29次新增 native 执行与工程门禁，不用旧全量替代本轮。
+更广 CFG、剩余范围算法及整个 N1a 仍开放；consume/Clone/N1b 不扩展。
+PR70增量CI已合入main，本开发分支尚未接入；本轮新代码尚未push、全量/双宿主CI未跑。
+用户现允许GitHub Actions故障注入/校准，云开发环境仍禁止；此前记录保留历史含义。

@@ -1,0 +1,66 @@
+   Compiling lang-cli v0.1.0 (/workspace/scratch/e92619458311/koven-pr69-fixes/crates/lang-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.98s
+     Running tests/native_cli.rs (target/debug/deps/native_cli-d09ba906a01e0c66)
+
+running 10 tests
+test parameterized_main_rejects_invalid_utf8_before_entering_koven ... ok
+test parameterized_main_accepts_an_empty_argument_array ... ok
+test native_commands_reject_usage_outputs_entries_and_frontend_errors ... ok
+test conventional_main_builds_and_runs_intrinsic_rc_owners ... ok
+test public_build_and_run_execute_an_external_hello_world ... ok
+test conventional_main_reports_selection_failures_and_explicit_entry_still_wins ... ok
+test conventional_main_builds_and_runs_without_an_entry_option ... ok
+test parameterized_main_preserves_argument_bytes_and_order_for_build_and_run ... ok
+test string_clone_builds_and_runs_through_public_cli ... ok
+test runtime_constructor::runtime_constructor_public_single_build_and_run_reuse_named_callbacks ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.29s
+
+     Running tests/project_cli.rs (target/debug/deps/project_cli-9879fa9badacd4d2)
+
+running 13 tests
+test project_cross_file_field_borrow_conflict_preserves_outputs ... ok
+test project_names_gate_aggregates_lex_parse_and_names_without_later_diagnostics ... ok
+test project_frontend_diagnostics_precede_entry_and_preserve_source_key_order ... ok
+test project_ownership_gate_precedes_entry_in_source_key_order ... ok
+test project_type_gate_precedes_ownership_and_entry_in_source_key_order ... ok
+test project_output_preflight_and_operational_errors_are_non_clobbering ... ok
+test project_build_and_run_execute_instance_receivers ... ok
+test project_constants_build_run_and_preserve_outputs_on_invalid_constants ... ok
+test string_clone_project_preserves_borrowed_argv_and_cross_file_return ... ok
+test project_build_and_run_link_multi_package_exact_alias_and_argv_entries ... ok
+test project_cross_file_var_field_replace_preserves_old_and_new_values ... ok
+test runtime_constructor::runtime_constructor_public_project_build_and_run_forward_callbacks ... ok
+test project_cross_file_field_borrow_reads_without_consuming_the_parent ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.84s
+
+     Running tests/range_project_cli.rs (target/debug/deps/range_project_cli-fb1881a8df3be3f6)
+
+running 23 tests
+test public_std_take_negative_count_aborts_from_healthy_source ... ok
+test public_std_take_metadata_alias_and_borrow_return_keep_the_resource_root_alive ... ok
+test public_std_take_named_view_for_keeps_root_until_provider_finishes ... ok
+test public_std_take_resource_root_is_consumable_after_descriptor_ends ... ok
+test public_std_take_immediate_named_source_remains_alive_until_consumer_ends ... ok
+test public_std_take_returns_an_inline_range_and_reads_size_without_copying_elements ... ok
+test public_std_take_temporary_for_keeps_root_until_provider_finishes ... ok
+test public_std_take_temporary_empty_source_finishes_without_elements ... ok
+test public_std_take_for_reads_string_move_only_and_resource_elements ... ok
+test public_std_take_temporary_source_is_alive_through_immediate_borrow ... ok
+test public_std_take_temporary_sequential_descriptors_keep_distinct_roots ... ok
+test public_std_take_clips_zero_empty_and_int_max_counts ... ok
+test public_std_take_for_empty_break_continue_and_return_use_provider_cleanup ... ok
+test public_std_take_view_source_empty_and_negative_use_the_real_std_body ... ok
+test receiver::public_std_receiver_take_named_root_immediate_borrow_matches_top_level ... ok
+test receiver::public_std_receiver_take_clips_counts_and_preserves_top_level_calls ... ok
+test receiver::public_std_receiver_take_negative_count_aborts_for_list_view_and_empty_source ... ok
+test public_std_take_temporary_for_cleans_all_exit_paths ... ok
+test receiver::public_std_receiver_take_temporary_chain_preserves_string_move_only_and_resource ... ok
+test public_std_take_temporary_string_and_move_only_keep_both_consumers_alive ... ok
+test public_std_take_view_source_composes_generic_elements_and_releases_root_once ... ok
+test public_std_take_call_prefix_owned_arguments_remain_with_caller_until_commit ... ok
+test public_std_take_call_prefix_return_restores_named_and_temporary_roots ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.00s
+

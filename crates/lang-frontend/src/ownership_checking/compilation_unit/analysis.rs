@@ -86,7 +86,7 @@ pub(super) fn analyze(
         dataflow.conditional_receiver_drops.clear();
     }
 
-    let mut owned = CompilationUnitOwnership::new(
+    let owned = CompilationUnitOwnership::new(
         typed,
         bindings.into_values().collect(),
         call_argument_contracts,
@@ -94,9 +94,6 @@ pub(super) fn analyze(
         capture,
         dataflow,
     );
-    if owned.diagnostics.is_empty() && owned.deferred.is_empty() {
-        owned.diagnostics = crate::ownership_checking::backend_frontier::unit(sources, typed)?;
-    }
     Ok(owned)
 }
 

@@ -489,8 +489,46 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let pending_start = self.pending_operands.len();
-        let mut ordered = vec![None; descriptor.arguments().len()];
+        let range_receiver = matches!(descriptor.result_source(),
+            lang_frontend::type_checking::CallableResultSource::Carrier(contract)
+                if contract.origin() == lang_frontend::type_checking::BorrowReturnOrigin::Receiver);
+        let offset = usize::from(range_receiver);
+        let mut ordered = vec![None; descriptor.arguments().len() + offset];
         let mut created_loans = Vec::new();
+        if range_receiver {
+            let receiver = descriptor
+                .receiver()
+                .filter(|receiver| receiver.mode() == ParameterMode::Borrow)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let UnitCallReceiverOrigin::Expression(receiver) = receiver.origin() else {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            };
+            if receiver.source_unit() != self.source_unit {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            let target = self.expression_ssa_type(receiver.expression(), span)?;
+            let (loan, created, end_span) =
+                self.lower_borrow_argument(call, receiver.expression(), target, span, span)?;
+            let mut slots = Vec::new();
+            for created in created {
+                let slot = self.pending_operands.len();
+                self.pending_operands.push(EntityId::Loan(created));
+                slots.push(slot);
+                created_loans.push((slot, end_span));
+                self.pending_call_frames
+                    .last_mut()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+                    .created_loans
+                    .push(slot);
+            }
+            self.pending_call_frames
+                .last_mut()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+                .loan_arguments
+                .push((receiver, slots));
+            ordered[0] = Some(self.pending_operands.len());
+            self.pending_operands.push(EntityId::Loan(loan));
+        }
         for (argument_index, argument) in arguments.iter().enumerate() {
             let mapping = descriptor
                 .arguments()
@@ -626,7 +664,7 @@ impl UnitExpressionLowerer<'_> {
             let pending_index = self.pending_operands.len();
             self.pending_operands.push(entity);
             let slot = ordered
-                .get_mut(mapping.parameter_index())
+                .get_mut(mapping.parameter_index() + offset)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
             if slot.replace(pending_index).is_some() {
                 return Err(lowering_error(

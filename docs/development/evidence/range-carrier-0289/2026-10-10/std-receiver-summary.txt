@@ -1,0 +1,69 @@
+# N1a std receiver take 与 stable short-range root 清理收据
+
+2026-10-10 UTC；基线 3ac650b；待父线程独立 review / commit。源码编辑已停止。
+
+## 交付
+
+1. `crates/lang-std/koven/algorithms/ranges.ko` 增加真实 List<T>.take / View<T>.take 两个 Borrow receiver wrapper，body 只调用既有 `take(this,count)`。负数 Abort、0、超 size clamp 均复用顶层算法，不复制计数逻辑。
+2. std loader 已对真实加载 SourceId 分别授予 producer / extension 权限，无需改 CLI 生产授权。host 回归验证两个 wrapper 向原顶层 Parameter(0) carrier 转发；普通应用及伪造 std path/package 不取得权限，伪造 receiver 得到 L0164 且不发布 extension binding。
+3. 公共 std 接线暴露既有 unit planner 缺口：`read(take(namedRoot,1))` 也把 root drop 发布在内部 take CallReturn，而非外部 read CallReturn，导致正常源码 InvalidSsa。最小修复仅在 frontend：按已验证 range-use Place origin，把 named owner 的 pending borrow 延续到 outer consumer；该调用结束时收集并解除其 pending roots，再按既有 liveness / resource 规则发布 drop。single 生产实现、backend、verifier/LLVM 均未改动。
+
+## 正常源码红证据
+
+- `std-receiver-cli-red.log`：首次 offline 因既有 lockfile 中 equivalent v1.0.2 未缓存而未执行测试。随后仅按现有锁下载 registry 依赖；Cargo.lock 未变。
+- `std-receiver-cli-red-network.log`：`cargo test --locked -p lang-cli --test range_project_cli receiver::`，实现 std wrapper 前 0/3，通过真实 CLI 编译产生 L0123 / MissingFact。
+- `std-receiver-offset-red.log`：`cargo test --locked --offline -p lang-codegen --lib real_std_receiver_take_preserves_nonzero_view_offsets_and_top_level_compatibility`，wrapper 缺失 L0123，0/1。
+- `std-receiver-cli-green1.log`：加 wrapper 后 2/3；count/兼容和临时链已绿，负数正常语义例因 InvalidSsa 失败。
+- `std-receiver-negative-detail.log`：非空 stable List 的 `source.take(-1)` 编译 InvalidSsa；不是运行时负数合同改变。
+- `std-receiver-immediate-red.log`：`public_std_receiver_take_named_root_immediate_borrow_matches_top_level` 第一项顶层 `read(take(source,1))` 即 InvalidSsa，证明不专属 receiver 或负数。
+- `std-receiver-root-facts-red.log`：`stable_range_root_drop_is_published_at_the_outer_consumer`，frontend 的 drop 为内部 CallReturn(ExpressionId25)，精确期望外部 CallReturn(ExpressionId26)。没有修改/伪造 IR。
+- 最小 frontend 修复后 `std-receiver-root-facts-green.log` 1 pass、`std-receiver-cli-green2.log` 4 pass。
+- `std-receiver-host-green1.log` 是错误选择不存在 --lib target 的命令，无测试执行；实际 binary target 使用 --bin kovenc。
+- `std-receiver-host-green2.log` 2 pass /1 fail：伪造 receiver 的 body 触发旧 UnsupportedBody 路径；fixture 改为声明级授权测试，精确核对 L0164/source与只有两个真实std bindings。green3及最终host均3 pass。未改变生产类型检查规则。
+
+## 最终验证（所有环境均 source ../toolchains/env.sh）
+
+Rust 1.96.0 / LLVM 21.1.8。以下 148 个测试通过，0 failed /0 ignored；这是定向集合，不是全量 frontend/codegen。
+
+- 80 frontend：
+  `cargo test --locked --offline -p lang-frontend --test ownership_range_receiver --test type_range_extension --test ownership_range_carrier --test ownership_range_construction --test ownership_range_producer --test type_range_carrier --test type_range_construction --test type_range_source_authority --test ownership_borrow_last_use --test ownership_borrow_continuation`
+  日志 `std-receiver-final-front.log`。分项 continuation14、last_use8、range_carrier2、range_construction12、range_producer6、range_receiver11、type_carrier7、type_construction3、type_extension13、source_authority4。
+- 12 codegen receiver：
+  `cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::receiver::`
+  日志 `std-receiver-final-codegen.log`。
+- 6 codegen 正常 call-prefix：
+  `cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::call_prefix::`
+  日志 `std-receiver-final-prefix.log`。
+- 46 CLI：
+  `cargo test --locked --offline -p lang-cli --test range_project_cli --test project_cli --test native_cli`
+  日志 `std-receiver-final-cli.log`，range23 /project13 /native10。
+- 3 std loader host：
+  `cargo test --locked --offline -p lang-cli --bin kovenc standard_sources::tests::`
+  日志 `std-receiver-final-host.log`。
+- 1 std source asset：
+  `cargo test --locked --offline -p lang-std --lib`
+  日志 `std-receiver-final-assets.log`。
+- `cargo build --locked --offline -p lang-cli`，exit0，`std-receiver-final-build.log`。
+- `cargo clippy --locked --offline -p lang-codegen -p lang-frontend -p lang-cli -p lang-std --all-targets -- -D warnings`，exit0，`std-receiver-final-clippy.log`。
+- `cargo fmt --all -- --check`，exit0，见 `std-receiver-final-fmt.log`。
+- `python3 scripts/check_rust_sizes.py --base origin/main`，exit0，`std-receiver-final-sizes.log`；1025 handwritten Rust /38既有超限，未新增超限；unit drop_planner仍1605行零净增长、borrow_result helper137行。
+- `git diff --check`，exit0，`std-receiver-final-diff.log`。
+
+Cargo只由本worker运行。一次 CLI命令在尚未收取frontend完成状态时启动，先等待同target的file lock，实际build串行（green2日志保留Waiting行）；之后各命令均确认上一执行结束再启动。
+
+## 本片新增实际执行范围
+
+- std CLI 新4tests运行11个程序：正常最大count/0/空List及顶层兼容；String/MoveOnly/Resource各1个临时source alias链；非空/空List与View的4个负数SIGABRT6；顶层/receiver只println及真实size读的3个稳定root对照。
+- codegen新增2tests运行18个程序：
+  - 实际std body配合test-only trusted window创建非零offset，single + reversed-unit验证 receiver take(MAX)、take(0) 和旧顶层take，精确释放[1,0,2]。未新增公共window/drop API。
+  - String/Resource ×顶层cut/receiver.prefix ×reader只println/真实元素读 ×single/reversed-unit，16个native程序。每程序执行正常分支与第二参数if(stop){return}else{0}提前返回分支，释放顺序[1,0,2,4,3,5]精确一次；Resource正常读/after后析构，提前return不调用reader。
+- 本片新增29次正常程序/规定负数Abort执行；未执行故障生成、变造IR、校准、sanitizer故障项或聚合driver。
+
+## 提交划分与剩余边界
+
+可先独立提交frontend修复：unit drop_planner.rs、其borrow_result.rs、ownership_range_receiver.rs末尾新root-fact测试，以及codegen receiver.rs末尾 `range_receiver_named_root_short_borrow_cleans_after_consumer_and_return` hunk。
+std小片：ranges.ko、CLI standard_sources/tests.rs、range_project_cli.rs及新range_project_cli/receiver.rs、codegen receiver.rs的real_std_nonzero_offset测试hunk。
+
+保留现有producer count-CFG未证明、borrow-val initializer包含return的CFG、receiver count-break在旧loop汇合处UnsupportedNode等边界。没有扩consume/Clone/N1b/general extensions/drop/dropLast；未编辑repo文档或CI。所有源码保持待父线程提交，未自行commit/push。
+
+最终8文件 SHA-256 见 `std-receiver-source-freeze.json`。

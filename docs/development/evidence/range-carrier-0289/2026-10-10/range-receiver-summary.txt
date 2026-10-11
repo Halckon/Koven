@@ -1,0 +1,94 @@
+# N1a trusted range receiver 后端首片验收（2026-10-10 UTC）
+
+## 结果与范围
+
+- 已实现可信 List/View Borrow receiver 到静态 RangeCall ABI 的最小闭环。消费 frontend 已绑定的合成 this symbol 和 receiver_type，将 this 运输为 SSA 入口参数 0，显式参数后移，carrier_return=0；function.receiver 保持 None，复用原 RangeCall/RangeReturn verifier 和 LLVM ABI。
+- 对 single/unit 暴露只读 extension_receiver_symbol getter；实际 range return origin 仍须由 ownership facts 证明。删除仅用于这一已完成后端路径的声明级 L0164 门；类型、可信 SourceId、来源、借用和其他 capability 门未放宽。
+- single pending_call_loans 保存 receiver/借用参数跨 count CFG 的当前 loan，控制转移按现有 end facts 结束。unit 复用 pending argument frame；iteration receiver end 识别可信 range 的确切 receiver expression 对应槽。
+- single View this.size / (this).size 消费已解析引用和透明 group；未从名称猜测 receiver 身份。
+- 不改 std、LLVM/verifier 规则、文档、CI。未提交或 push。本首片不宣称完整 SPEC-0289 完成。
+
+## 通过的验证
+
+环境：每次 Cargo 前 source ../toolchains/env.sh；既有 Rust 1.96.0 / LLVM 21.1.8。全部 Cargo 串行，无故障生成、IR 变造、校准或聚合 driver。
+
+1. 新 receiver 正常/非法源码测试：10 passed、0 failed、0 ignored。
+   - 其中 7 个 native 测试累计 21 次正常程序执行，验证 String/MoveOnly/Resource、single/unit/反转unit、group receiver、根恢复与精确 allocation identity / release order、立即消费的 count 提前 return、List this.size / View (this).size 实际结果、非零 View offset / this 转发、Borrow Name 参数 count 非return分支、Resource 临时 call/for 链仅一次源求值与析构。
+   - 两项结构化拒绝测试锁定原有 binding CFG / loop CFG 精确错误种类与 Span；不是通过运行 break 路径。
+   - 命令：cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::receiver::
+   - 日志：range-receiver-final-source3.log
+2. 既有正常 call-prefix：6 passed、0 failed、0 ignored。
+   - 命令：cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::call_prefix::
+   - 日志：range-receiver-final-prefix.log
+3. range / ordinary-borrow 逐项精确源码回归：15 passed、0 failed、0 ignored。
+   - 日志：range-receiver-final-regressions.log；每项准确命令在下方列出。
+   - 没有执行 range_verifier_* 或其他变造 IR 的测试。
+4. frontend 8 个显式 integration suites：57 passed、0 failed、0 ignored。
+   - 命令：cargo test --locked --offline -p lang-frontend --test ownership_range_receiver --test type_range_extension --test ownership_range_carrier --test ownership_range_construction --test ownership_range_producer --test type_range_carrier --test type_range_construction --test type_range_source_authority
+   - 日志：range-receiver-final-front.log
+   - 分 suite 数量：ownership_range_carrier 2；ownership_range_construction 12；ownership_range_producer 6；ownership_range_receiver 10；type_range_carrier 7；type_range_construction 3；type_range_extension 13；type_range_source_authority 4。
+5. cargo fmt --all -- --check：exit 0；range-receiver-final-fmt2.log。
+6. cargo clippy --locked --offline -p lang-codegen -p lang-frontend --all-targets -- -D warnings：exit 0；range-receiver-final-clippy.log。
+7. python3 scripts/check_rust_sizes.py --base origin/main：exit 0；1024 handwritten Rust / 38 既有超限；无新增长例外。single orchestrate 997 行，range helper 599 行；range-receiver-final-sizes.log。
+8. git diff --check：exit 0；range-receiver-final-diff.log。
+
+行为验证完成后仅折行格式化了拒绝测试中的 SourceUnitInput 调用；生产源码未再改变。最终文件 SHA-256 见 range-receiver-source-freeze.json。以上日志均位于本目录。
+
+## 真实红例与修复证据
+
+- range-receiver-red.log：初始正常 receiver 链 1 failed，原因是原声明级 L0164；之后 range-receiver-green1.log 1 passed、range-receiver-native1.log 2 passed。
+- range-receiver-cfg-red.log：borrow val 接 count 含 return 的 carrier initializer 仍被既有 UnsupportedNode(return) 精确拒绝；此门保持。
+- range-receiver-size-red.log：正常 View (this).size 因 single 仅接 Name 而 UnsupportedNode；修复后 native 执行实际 size 断言。
+- range-receiver-expanded-red.log：立即 read(receiver.prefix(if(stop){return}else{1})) 的可达路径 MissingFact(return)，确认 pending loan 缺口；修复后 native 正常/提前返回两支均通过。该批还保留 size 红，以及 offset native 的测试预期错误（误把仍在词法范围内的 root 析构放到 println(done) 之前）；修正测试输出预期，未改变原 root end 规则。
+- range-receiver-unit-break-red.log：unit count break 原先在 receiver Span MissingFact；补准确 receiver 槽映射后仍在旧 loop 汇合边界 UnsupportedNode(整个 for)，没有声称 break runtime 成功。
+- range-receiver-expanded-green2.log：带 count if 的 this.choose producer 在 frontend 未取得构造证明，调用仍 L0164。未扩大前端 producer CFG 合同；新增 frontend 测试对 single/unit 各 1 个 L0164 和精确 parent.choose(true) Span 作断言。
+- range-receiver-final-source.log：新拒绝测试使用 unwrap_err 触发 Program 不实现 Debug 的测试代码编译错误；改为 err().expect，未改生产行为。
+- range-receiver-final-source2.log：拒绝 fixture 的 unit logical path 与 package 不符，L0146；修正为 app/frontier.ko 后 final-source3 全绿。
+- range-receiver-final-fmt.log：仅上述 SourceUnitInput 行需折行；修正后 final-fmt2 exit 0。
+
+## 保留的边界 / 未运行
+
+- 借用绑定的 count 提前 return：single/unit 精确 UnsupportedNode(return)。
+- for 内 receiver count break：single 精确 UnsupportedNode(source binding)，unit 精确 UnsupportedNode(整个 for)。unit EndReceiverLoan 修复只证明回到结构化能力门，不证明 break native 完成。
+- 带 count 分支的 receiver producer 返回闭包未获前端来源证明：single/unit L0164；未放宽 producer 算法。
+- 未连接 std receiver take wrapper，现行真实 std 仍仅已有顶层 take。后继可复用其算法，不在本次修改。
+- 未运行 frontend/codegen 全量、sanitizer 动态检查、故障生成/IR 变造/校准、聚合脚本；未扩 consume、Clone、N1b 或一般扩展。
+
+## 15 项 exact 回归命令
+
+- cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::range_single_and_unit_keep_the_same_new_descriptor_abi -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::range_metadata_borrow_is_separate_from_constructing_a_new_descriptor -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::view_source::range_view_source_take_single_and_unit_end_parent_before_child_use -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::view_source::range_view_source_native_single_and_unit_preserve_collection_and_element_identities -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::view_source::range_view_source_offsets_and_forwarded_return_preserve_absolute_root_coordinates -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::temporary::range_temporary_native_single_and_unit_release_string_move_only_and_resource_identities -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::range_lowering_tests::temporary::range_temporary_sequential_uses_and_loop_exits_keep_correlated_ssa_facts -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::borrow_result_boundary_tests::multi_parameter_borrow_return_single_lowering_remains_unsupported -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::borrow_result_boundary_tests::multi_parameter_borrow_return_unit_lowering_remains_unsupported -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::borrow_result_boundary_tests::stable_place_root_single_lowering_preserves_real_storage -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::borrow_result_boundary_tests::stable_place_root_unit_lowering_preserves_real_storage -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::borrow_result_contract_tests::borrowed_result_single_ssa_uses_returned_loan_and_orders_end_before_move -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::borrow_result_contract_tests::borrowed_result_unit_ssa_uses_returned_loan_and_orders_end_before_move -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::borrow_result_contract_tests::borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa -- --exact
+- cargo test --locked --offline -p lang-codegen --lib ssa::borrow_result_contract_tests::borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported -- --exact
+
+## 本片文件（待父线程显式暂存）
+
+- crates/lang-codegen/src/ssa/lower_frontend/borrow_argument.rs
+- crates/lang-codegen/src/ssa/lower_frontend/orchestrate.rs
+- crates/lang-codegen/src/ssa/lower_frontend/range.rs
+- crates/lang-codegen/src/ssa/range_lowering_tests.rs
+- crates/lang-codegen/src/ssa/unit_lower/borrow.rs
+- crates/lang-codegen/src/ssa/unit_lower/call.rs
+- crates/lang-codegen/src/ssa/unit_lower/loop_control/iteration_cleanup.rs
+- crates/lang-codegen/src/ssa/unit_lower/orchestrate.rs
+- crates/lang-codegen/src/ssa/unit_lower/range.rs
+- crates/lang-frontend/src/ownership_checking/backend_frontier.rs
+- crates/lang-frontend/src/ownership_checking/checker.rs
+- crates/lang-frontend/src/ownership_checking/compilation_unit/analysis.rs
+- crates/lang-frontend/src/ownership_checking/mod.rs
+- crates/lang-frontend/src/type_checking/compilation_unit/model/callable_signature.rs
+- crates/lang-frontend/src/type_checking/model/callable_descriptor.rs
+- crates/lang-frontend/tests/ownership_range_receiver.rs
+- crates/lang-frontend/tests/type_range_extension.rs
+- crates/lang-codegen/src/ssa/range_lowering_tests/receiver.rs

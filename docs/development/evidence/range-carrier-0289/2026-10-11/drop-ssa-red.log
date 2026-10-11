@@ -1,0 +1,22 @@
+   Compiling lang-codegen v0.1.0 (/workspace/scratch/e92619458311/koven-pr69-fixes/crates/lang-codegen)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 26.32s
+     Running unittests src/lib.rs (target/debug/deps/lang_codegen-ebf35c020d0bc183)
+
+running 1 test
+test ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_single_and_unit_share_the_descriptor_abi ... FAILED
+
+failures:
+
+---- ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_single_and_unit_share_the_descriptor_abi stdout ----
+
+thread 'ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_single_and_unit_share_the_descriptor_abi' (418) panicked at crates/lang-codegen/src/ssa/range_lowering_tests.rs:297:5:
+[Diagnostic { severity: Error, code: L0164, message: DiagnosticText("new range return requires an actual construction or proven producer forwarding"), primary_span: Span { source_id: SourceId(0), start: 312, end: 341 }, details: [] }, Diagnostic { severity: Error, code: L0164, message: DiagnosticText("new range return requires an actual construction or proven producer forwarding"), primary_span: Span { source_id: SourceId(0), start: 564, end: 593 }, details: [] }, Diagnostic { severity: Error, code: L0164, message: DiagnosticText("new range return requires an actual construction or proven producer forwarding"), primary_span: Span { source_id: SourceId(0), start: 744, end: 761 }, details: [] }, Diagnostic { severity: Error, code: L0164, message: DiagnosticText("new range return requires an actual construction or proven producer forwarding"), primary_span: Span { source_id: SourceId(0), start: 824, end: 841 }, details: [] }, Diagnostic { severity: Error, code: L0162, message: DiagnosticText("borrow binding requires a stable source place"), primary_span: Span { source_id: SourceId(0), start: 997, end: 1003 }, details: [] }, Diagnostic { severity: Error, code: L0162, message: DiagnosticText("borrow binding requires a stable source place"), primary_span: Span { source_id: SourceId(0), start: 1028, end: 1034 }, details: [] }, Diagnostic { severity: Error, code: L0162, message: DiagnosticText("borrow binding requires a stable source place"), primary_span: Span { source_id: SourceId(0), start: 1064, end: 1070 }, details: [] }, Diagnostic { severity: Error, code: L0162, message: DiagnosticText("borrow binding requires a stable source place"), primary_span: Span { source_id: SourceId(0), start: 1102, end: 1108 }, details: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_single_and_unit_share_the_descriptor_abi
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1215 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p lang-codegen --lib`

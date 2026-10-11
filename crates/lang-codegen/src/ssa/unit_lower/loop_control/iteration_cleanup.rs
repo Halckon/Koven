@@ -1,7 +1,10 @@
 //! Consume each frontend cleanup sequence once, preserving provider/call/drop ordering.
 use super::*;
 use crate::ssa::model::{EntityId, LoanId, Operation};
-use lang_frontend::ownership_checking::UnitIterationCleanupAction as Action;
+use lang_frontend::{
+    ownership_checking::UnitIterationCleanupAction as Action,
+    type_checking::{BorrowReturnOrigin, CallableResultSource, UnitCallReceiverOrigin},
+};
 
 impl UnitExpressionLowerer<'_> {
     pub(in super::super) fn emit_iteration_cleanup(
@@ -98,18 +101,42 @@ impl UnitExpressionLowerer<'_> {
                     }
                 }
                 Action::EndReceiverLoan(fact) => {
-                    let frame = self
+                    // Trusted range receivers travel as ABI parameter zero in the
+                    // argument frame. Use their exact frontend receiver identity;
+                    // nominal receiver frames keep their existing cleanup contract.
+                    let range_receiver = self.typed.call(fact.call()).is_some_and(|call| {
+                        matches!(call.result_source(),
+                            CallableResultSource::Carrier(contract)
+                                if contract.origin() == BorrowReturnOrigin::Receiver)
+                    });
+                    let slots = self
                         .pending_call_frames
                         .iter()
                         .rev()
-                        .find(|frame| frame.call == fact.call() && frame.receiver)
+                        .filter(|frame| frame.call == fact.call())
+                        .find_map(
+                            |frame| match (frame.receiver, range_receiver, fact.source()) {
+                                (true, _, _) => Some(frame.created_loans.clone()),
+                                (false, true, UnitCallReceiverOrigin::Expression(receiver)) => {
+                                    frame
+                                        .loan_arguments
+                                        .iter()
+                                        .find(|(argument, _)| *argument == receiver)
+                                        .map(|(_, slots)| slots.clone())
+                                }
+                                _ => None,
+                            },
+                        )
                         .ok_or_else(|| {
                             lowering_error(LoweringErrorKind::MissingFact, fact.begin_span())
                         })?;
-                    let slots = frame.created_loans.clone();
                     for slot in slots.into_iter().rev() {
                         let loan = self.iteration_pending_loan(slot, fact.begin_span())?;
-                        self.iteration_end_loan(loan, fact.end_span())?;
+                        if range_receiver {
+                            self.end_short_call_loan(loan, fact.end_span())?;
+                        } else {
+                            self.iteration_end_loan(loan, fact.end_span())?;
+                        }
                     }
                 }
                 Action::EndCaptureLoan { closure, .. } => {

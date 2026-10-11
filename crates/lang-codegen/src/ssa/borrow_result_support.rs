@@ -1,9 +1,29 @@
 //! 首片 CFG 能力边界：不让尚未运输的结果/source loan 隐式跨块。
 use super::{LoweringError, LoweringErrorKind, lowering_support::error};
 use lang_frontend::{
+    ast::ExpressionId,
     parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
     source::Span,
 };
+
+/// Only discard transparent syntax; callers still validate the published expression facts.
+pub(super) fn ungroup(
+    parsed: &ParsedFile,
+    mut expression: ExpressionId,
+    span: Span,
+) -> Result<ExpressionId, LoweringError> {
+    loop {
+        let node = parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+        let Expression::Group { expression: inner } = node.payload() else {
+            return Ok(expression);
+        };
+        expression = *inner;
+    }
+}
 
 pub(super) fn declaration(parsed: &ParsedFile, marker: Span) -> Result<(), LoweringError> {
     let found = parsed.ast().items().iter().find(|(_, node)| {

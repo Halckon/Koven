@@ -9,9 +9,19 @@ run() { "$@" || status=$?; }
 
 # Integration contracts touched by SPEC-0229–0237; keep these distinct
 # from the full frontend suite. SPEC-0247 includes the repaired multifile baseline.
+# SPEC-0290 retains all 25 frontend contracts changed by SPEC-0288 / PR #69.
 run cargo test --locked -p lang-frontend --no-fail-fast \
   --test numeric_literals --test bitwise_constants --test integer_inv --test type_ownership_primitives --test ownership_primitives --test ownership_field_replace \
   --test string_clone --test clone_primitive_integration \
+  --test diagnostic_model \
+  --test ownership_borrow_continuation --test ownership_borrow_last_use \
+  --test ownership_borrow_origins --test ownership_borrow_result \
+  --test ownership_map --test ownership_map_require --test ownership_map_with \
+  --test ownership_range_carrier --test ownership_range_construction \
+  --test ownership_range_producer --test ownership_range_receiver \
+  --test type_borrow_result --test type_declaration_frontier --test type_iteration \
+  --test type_map --test type_range_carrier --test type_range_construction \
+  --test type_range_extension --test type_range_source_authority \
   --test type_checking --test type_callable --test type_copyability --test multifile_type_checking \
   --test const_owned_compilation_unit_view --test const_owned_unit_view_compile_contracts \
   --test multifile_constant_ownership \
@@ -29,6 +39,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test ownership_rc --test multifile_ownership_checking
 run cargo test --locked -p lang-frontend --no-fail-fast \
   --test parser_contextual_type_ref --test parser_class_family \
+  --test parser_borrow_result --test parser_implicit_unit --test parser_n1a_frontier \
   --test parser_call_argument --test parser_diagnostic_witness_matrix \
   --test parser_return_control --test tree_sitter_grammar --test textmate_grammar \
   --test parser_block_line_continuation --test parser_entry_line_break_boundary_matrix \

@@ -14,7 +14,7 @@ P2成本继续延期，后续候选能力不因M1A交付自动关闭。原[恢�
 
 ## 当前入口
 
-- [Active](active/README.md)：当前0份；0293 已按 [PR #70](https://github.com/Halckon/Koven/pull/70) 真实完整 CI 与追加文档复用验收归档；归档 head 完整 CI 已成功，最终合并交付以 PR 检查为准。0279按[PR57](https://github.com/Halckon/Koven/pull/57)双宿主限定范围归档，最终归档head/merge/main待交付，见[账本](../development/evidence/runtime-constructor-0279/delivery.json)；0278按[PR56](https://github.com/Halckon/Koven/pull/56)双宿主实现验收归档，最终归档head、merge及actual main CI已闭环，见[交付账本](../development/evidence/closure-escape-0278/delivery.json)；0269 的 M4b 首片已验收归档，实现证据见[账本](../development/evidence/generated-owners-0269-delivery.json)，最终归档/merge/main 见[PR48](https://github.com/Halckon/Koven/pull/48)；0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终归档head及actual main已闭环，见[交付账本](../development/evidence/p2-linux-0277-delivery.json)；0276按[PR54](https://github.com/Halckon/Koven/pull/54)归档并合并，最终head及actual main CI闭环见[交付证据](../development/evidence/generic-body-0276-delivery.json)；0275按[PR53](https://github.com/Halckon/Koven/pull/53)归档并合并，最终归档CI及main CI已闭环，见[交付证据](../development/evidence/generic-containers-0275-delivery.json)；0274按[PR52](https://github.com/Halckon/Koven/pull/52)双宿主实现验收归档；0272按[PR51](https://github.com/Halckon/Koven/pull/51)双宿主实现验收归档；0273已按[PR50](https://github.com/Halckon/Koven/pull/50)双宿主实现证据归档；0271已按[PR49](https://github.com/Halckon/Koven/pull/49)双宿主实现证据归档；0270双宿主归档见[PR47](https://github.com/Halckon/Koven/pull/47)；0263–0268及M1A双宿主交付见[PR46](https://github.com/Halckon/Koven/pull/46)
+- [Active](active/README.md)：当前1份，[SPEC-0289](active/0289-n1a-range-carrier.md) 延续 N1a 有界里程碑；0290 已按 PR71 实现 head 双宿主 CI 有界归档，最终归档 head/merge/main 待验证，见[交付账本](../development/evidence/pr69-repair-0290/delivery.json)；N1a 已批准合同经新推送分支补回，当前 Guide 为 v0.43；实现验收保持独立。历史交付：0293 已按 [PR #70](https://github.com/Halckon/Koven/pull/70) 完整 CI / 文档复用 / 输入改变回退验收归档并合并为 `56af80b`；0279按[PR57](https://github.com/Halckon/Koven/pull/57)双宿主限定范围归档，最终归档head/merge/main待交付，见[账本](../development/evidence/runtime-constructor-0279/delivery.json)；0278按[PR56](https://github.com/Halckon/Koven/pull/56)双宿主实现验收归档，最终归档head、merge及actual main CI已闭环，见[交付账本](../development/evidence/closure-escape-0278/delivery.json)；0269 的 M4b 首片已验收归档，实现证据见[账本](../development/evidence/generated-owners-0269-delivery.json)，最终归档/merge/main 见[PR48](https://github.com/Halckon/Koven/pull/48)；0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终归档head及actual main已闭环，见[交付账本](../development/evidence/p2-linux-0277-delivery.json)；0276按[PR54](https://github.com/Halckon/Koven/pull/54)归档并合并，最终head及actual main CI闭环见[交付证据](../development/evidence/generic-body-0276-delivery.json)；0275按[PR53](https://github.com/Halckon/Koven/pull/53)归档并合并，最终归档CI及main CI已闭环，见[交付证据](../development/evidence/generic-containers-0275-delivery.json)；0274按[PR52](https://github.com/Halckon/Koven/pull/52)双宿主实现验收归档；0272按[PR51](https://github.com/Halckon/Koven/pull/51)双宿主实现验收归档；0273已按[PR50](https://github.com/Halckon/Koven/pull/50)双宿主实现证据归档；0271已按[PR49](https://github.com/Halckon/Koven/pull/49)双宿主实现证据归档；0270双宿主归档见[PR47](https://github.com/Halckon/Koven/pull/47)；0263–0268及M1A双宿主交付见[PR46](https://github.com/Halckon/Koven/pull/46)
 - [演进实施账本](evolution-status.md)：13 项计划的当前实现、最终交付与独立缺口，唯一进度摘要
 - [当前路线图](../development/roadmap.md)：从现状导航到下一批次；不复制第二张演进状态表
 - [治理执行账本](../development/engineering-governance-progress.md)：获批整体架构与工程治理的批次基线与交付
@@ -22,10 +22,13 @@ P2成本继续延期，后续候选能力不因M1A交付自动关闭。原[恢�
 
 ## 版本与历史导航
 
+- [v0.43 首片准备](drafts/v0.43/README.md)：0289 已迁 active；0292 为未启用 consume 草案
+- [v0.44 候选](drafts/v0.44/README.md)：0291 只读 Map 消费式转换保持 draft
+
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；现行 v0.41 的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：276 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：277 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

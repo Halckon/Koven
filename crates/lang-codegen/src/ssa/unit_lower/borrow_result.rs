@@ -269,6 +269,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        // The return-origin fact belongs to the outer expression; forwarding belongs to its call.
+        let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
+        let id = UnitExpressionId::new(self.source_unit, expression);
         let node = self
             .parsed
             .ast()
@@ -276,7 +279,7 @@ impl UnitExpressionLowerer<'_> {
             .get(expression)
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let loan = match node.payload() {
-            Expression::Name | Expression::Member { .. } | Expression::Group { .. } => {
+            Expression::Name | Expression::Member { .. } => {
                 self.validate_return_place(expression, place.root(), place.fields(), span)?;
                 let mut created = Vec::new();
                 self.clone_field_loan(expression, &mut created, span)?
@@ -354,6 +357,7 @@ impl UnitExpressionLowerer<'_> {
         source: BorrowSourceLoan<UnitExpressionId>,
         span: Span,
     ) -> Result<(LoanId, Vec<LoanId>), LoweringError> {
+        let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
         let id = UnitExpressionId::new(self.source_unit, expression);
         if source.call() != id {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -396,21 +400,25 @@ impl UnitExpressionLowerer<'_> {
             .get(route.key())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let target = self.expression_ssa_type(expression, span)?;
-        let source_target = self.expression_ssa_type(argument.value, argument.span)?;
-        let (source_loan, created, _) = self.lower_borrow_argument(
-            id,
-            argument.value,
-            source_target,
-            argument.span,
-            node.span(),
-        )?;
+        // Reuse the ordinary call frame for projected arguments, but extend its loans
+        // with the borrowed result instead of ending them at the synchronous call boundary.
+        let lowered = self
+            .lower_call_arguments(id, arguments, descriptor, node.span())?
+            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+        if !lowered.abi_owners.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let [EntityId::Loan(source_loan)] = lowered.arguments.as_slice() else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        let source_loan = *source_loan;
         let (_, results) = self
             .function
             .append_instruction(
                 self.block,
                 Operation::BorrowCall {
                     callee,
-                    arguments: vec![EntityId::Loan(source_loan)],
+                    arguments: lowered.arguments,
                     source: source_loan,
                 },
                 vec![EntityType::Loan {
@@ -423,7 +431,14 @@ impl UnitExpressionLowerer<'_> {
         let [EntityId::Loan(result)] = results.as_slice() else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        Ok((*result, created))
+        Ok((
+            *result,
+            lowered
+                .created_loans
+                .into_iter()
+                .map(|(loan, _)| loan)
+                .collect(),
+        ))
     }
 
     pub(super) fn end_result_bindings(

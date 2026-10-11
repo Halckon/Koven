@@ -1,0 +1,23 @@
+{
+  "head": "815b1fb36cacb628c3d515d4454aadd974e31cb3",
+  "files": {
+    "crates/lang-codegen/src/ssa/lower_frontend/borrow_argument.rs": "1abfdfdfb61c0af2e4f5775204f231eb85c7a54b3b1f39edd50c54a90abf9f85",
+    "crates/lang-codegen/src/ssa/lower_frontend/orchestrate.rs": "921056f87212bdc7a108e2725d13a7315b9299e0dd4f85e1b8d539e4f4a5735e",
+    "crates/lang-codegen/src/ssa/lower_frontend/range.rs": "c790e331188ad32b5e69813072d87da0fef8388247524e0e554dcaa4db178461",
+    "crates/lang-codegen/src/ssa/range_lowering_tests.rs": "af079e524908c7ec6f4e83c19f4b43f3deb1c3e88f140bb58ee3271f84b62fde",
+    "crates/lang-codegen/src/ssa/unit_lower/borrow.rs": "2d56d3d6960611e475b441d2949f8b5ffdcb1a68e929d5a34f1f42a6c1ed85ea",
+    "crates/lang-codegen/src/ssa/unit_lower/call.rs": "568a39f8404c2c967b7597ae56ffc6faf43d37a7b7abc99eacf6fbf69990ed07",
+    "crates/lang-codegen/src/ssa/unit_lower/loop_control/iteration_cleanup.rs": "659fe7df73a3d4e644a9ff1222d34ff0254099188148eb2b7f01172700aa6fe5",
+    "crates/lang-codegen/src/ssa/unit_lower/orchestrate.rs": "c9c5fcd2024c7d3d95dfa3ca5f4e17bec8d452e0e9c5ffb56c17e05622a9cf87",
+    "crates/lang-codegen/src/ssa/unit_lower/range.rs": "999a935e282f6b3affac7d1e6dc6664f27f154fe8413c9abbc139eebf9b7de9b",
+    "crates/lang-frontend/src/ownership_checking/backend_frontier.rs": null,
+    "crates/lang-frontend/src/ownership_checking/checker.rs": "c07c0e2972fd38c223ce7e6b9b2e8aaaa40e42935a426b69cf783df0fdc7dc22",
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/analysis.rs": "783fcf4a6e43bfa19ccc5b12aee33a304d928870633476bf4227eea9017182f4",
+    "crates/lang-frontend/src/ownership_checking/mod.rs": "4fec2dab9edffd7f888244ad62abb5641371d6c9715155894b8a4e98cfacdffd",
+    "crates/lang-frontend/src/type_checking/compilation_unit/model/callable_signature.rs": "cfc15e5fef63317fe621ca68978ae9a2e5ecf364db1f75a51362f39622ffff17",
+    "crates/lang-frontend/src/type_checking/model/callable_descriptor.rs": "814427f3ee04a46fdf4fe0fc89a69af46166047985aa70a7180e0fad4607a8b2",
+    "crates/lang-frontend/tests/ownership_range_receiver.rs": "da4cdeb69aeaeec3bb1191cfed1e8d0d77f1942f0ec129cdf241ad90772ea0c1",
+    "crates/lang-frontend/tests/type_range_extension.rs": "0de1b1d3476c8b70c492fe930131ffef5cbd6adadaeec845fa367d27c5a462c8",
+    "crates/lang-codegen/src/ssa/range_lowering_tests/receiver.rs": "0f4b55f46515b2d15f37158549d55870a305edc6dcd80b644220b9302a5c3215"
+  }
+}

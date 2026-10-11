@@ -365,11 +365,6 @@ impl<'a> Checker<'a> {
         } else {
             Vec::new()
         };
-        let diagnostics = if diagnostics.is_empty() && self.deferred.is_empty() {
-            super::backend_frontier::single(self.sources, self.typed)?
-        } else {
-            diagnostics
-        };
         Ok(OwnershipCheckedFile::new(
             self.parsed.source_id(),
             self.typed.environment_owner().clone(),

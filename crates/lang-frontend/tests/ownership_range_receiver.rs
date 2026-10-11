@@ -1,4 +1,4 @@
-//! 可信 receiver 的实际来源事实；正常源码验证，后端交付仍由 L0164 阻止。
+//! 可信 receiver 的实际来源事实与所有权检查交付；仅使用正常源码验证。
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -37,20 +37,8 @@ fn trusted_list_receiver_return_publishes_an_actual_source_qualified_root() {
     let typed = check_types(&sources, &parsed, &names, &types).unwrap();
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
     let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(
-        owned
-            .diagnostics()
-            .iter()
-            .all(|d| d.code().to_string() == "L0164"),
-        "{:?}",
-        owned.diagnostics()
-    );
-    assert!(
-        owned
-            .diagnostics()
-            .iter()
-            .any(|d| d.code().to_string() == "L0164")
-    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
     let [returned] = owned.borrow_results().range_return_origins() else {
         panic!("actual receiver return")
     };
@@ -72,14 +60,7 @@ fn trusted_list_receiver_return_publishes_an_actual_source_qualified_root() {
     let typed = typed.validate().unwrap();
     let owned =
         check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    assert!(
-        owned
-            .diagnostics()
-            .iter()
-            .all(|d| d.code().to_string() == "L0164"),
-        "{:?}",
-        owned.diagnostics()
-    );
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     let [returned] = owned.borrow_results().range_return_origins() else {
         panic!("unit actual receiver return")
     };
@@ -93,7 +74,7 @@ fn trusted_list_receiver_return_publishes_an_actual_source_qualified_root() {
     assert!(receiver.is_synthetic());
     assert_eq!(receiver.name(), "this");
     assert_eq!(receiver.span().source_id(), source);
-    assert!(owned.validate().is_err());
+    assert!(owned.validate().is_ok());
 }
 
 fn checked(
@@ -149,11 +130,7 @@ fn named_receiver_continues_each_real_root_loan_until_dependent_bindings_end() {
         );
         let (_, single, unit) = checked(&text);
         for diagnostics in [single.diagnostics(), unit.diagnostics()] {
-            assert!(
-                diagnostics.iter().all(|d| d.code().to_string() == "L0164"),
-                "{diagnostics:?}"
-            );
-            assert_eq!(diagnostics.len(), 2);
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
         }
         assert_eq!(single.borrow_results().bindings().len(), 3);
         assert_eq!(unit.borrow_results().bindings().len(), 3);
@@ -228,6 +205,8 @@ fn named_receiver_continues_each_real_root_loan_until_dependent_bindings_end() {
         }
         assert_eq!(single.borrow_results().ends().len(), 3);
         assert_eq!(unit.borrow_results().ends().len(), 3);
+        assert!(single.deferred().is_empty(), "{:?}", single.deferred());
+        assert!(unit.validate().is_ok());
     }
 }
 
@@ -246,11 +225,7 @@ fn temporary_receiver_chain_publishes_source_loans_for_the_actual_immediate_cons
         );
         let (_, single, unit) = checked(&text);
         for diagnostics in [single.diagnostics(), unit.diagnostics()] {
-            assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
-            assert!(
-                diagnostics.iter().all(|d| d.code().to_string() == "L0164"),
-                "{diagnostics:?}"
-            );
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
         }
         assert_eq!(single.borrow_results().range_uses().len(), 2);
         assert_eq!(unit.borrow_results().range_uses().len(), 2);
@@ -284,32 +259,37 @@ fn temporary_receiver_chain_publishes_source_loans_for_the_actual_immediate_cons
             .collect();
         assert_eq!(cleanup.len(), 1);
         assert_eq!(cleanup[0].point(), UnitDropPoint::CallReturn(consumer));
+        assert!(single.deferred().is_empty(), "{:?}", single.deferred());
+        assert!(unit.validate().is_ok());
     }
 }
 
 #[test]
 fn receiver_producer_cannot_substitute_a_sibling_local_or_temporary_root() {
-    for body in [
-        "rangeView(other, 0, 0)",
-        "{ val local = listOf(\"local\"); return rangeView(local, 0, 0) }",
-        "rangeView(listOf(\"temporary\"), 0, 0)",
-    ] {
-        let text = format!(
-            "borrow fun List<String>.wrong(other: List<String>): View<String> from this = {body}"
-        );
-        // Block bodies have no expression-body '=' marker.
-        let text = text.replace("= {", "{");
-        let (_, single, unit) = checked(&text);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
-            assert!(
-                diagnostics.iter().any(|d| d.code().to_string() == "L0162"),
-                "{diagnostics:?}"
+    for receiver in ["List", "View"] {
+        for body in [
+            "rangeView(other, 0, 0)",
+            "{ val local = listOf(\"local\"); return rangeView(local, 0, 0) }",
+            "rangeView(listOf(\"temporary\"), 0, 0)",
+        ] {
+            let text = format!(
+                "borrow fun {receiver}<String>.wrong(other: List<String>): View<String> from this = {body}"
             );
+            // Block bodies have no expression-body '=' marker.
+            let text = text.replace("= {", "{");
+            let (_, single, unit) = checked(&text);
+            for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+                assert!(
+                    diagnostics.iter().any(|d| d.code().to_string() == "L0162"),
+                    "{diagnostics:?}"
+                );
+            }
+            assert!(single.borrow_results().range_return_origins().is_empty());
+            assert!(unit.borrow_results().range_return_origins().is_empty());
+            assert!(single.borrow_results().forwarded_source_loans().is_empty());
+            assert!(unit.borrow_results().forwarded_source_loans().is_empty());
+            assert!(unit.validate().is_err());
         }
-        assert!(single.borrow_results().range_return_origins().is_empty());
-        assert!(unit.borrow_results().range_return_origins().is_empty());
-        assert!(single.borrow_results().forwarded_source_loans().is_empty());
-        assert!(unit.borrow_results().forwarded_source_loans().is_empty());
     }
 }
 
@@ -394,11 +374,7 @@ fn receiver_element_loans_protect_root_and_end_before_scope_restores_permission(
     );
     let (_, single, unit) = checked(&text);
     for diagnostics in [single.diagnostics(), unit.diagnostics()] {
-        assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
-        assert!(
-            diagnostics.iter().all(|d| d.code().to_string() == "L0164"),
-            "{diagnostics:?}"
-        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
     assert_eq!(single.iterations().len(), 1);
     assert_eq!(unit.iterations().len(), 1);
@@ -418,6 +394,8 @@ fn receiver_element_loans_protect_root_and_end_before_scope_restores_permission(
     );
     assert_eq!(single.borrow_results().ends().len(), 1);
     assert_eq!(unit.borrow_results().ends().len(), 1);
+    assert!(single.deferred().is_empty(), "{:?}", single.deferred());
+    assert!(unit.validate().is_ok());
 }
 
 #[test]
@@ -459,12 +437,7 @@ fn imported_receiver_and_producer_forwarding_preserve_each_actual_source_identit
             .unwrap();
         let unit =
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-        assert_eq!(unit.diagnostics().len(), 2, "{:?}", unit.diagnostics());
-        assert!(
-            unit.diagnostics()
-                .iter()
-                .all(|d| d.code().to_string() == "L0164")
-        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
         assert_eq!(unit.borrow_results().range_return_origins().len(), 3);
         assert_eq!(unit.borrow_results().bindings().len(), 2);
         for binding in unit.borrow_results().bindings() {
@@ -501,6 +474,56 @@ fn imported_receiver_and_producer_forwarding_preserve_each_actual_source_identit
             );
             assert_ne!(symbol.span().source_id(), parsed[2].1);
         }
-        assert!(unit.validate().is_err());
+        assert!(unit.validate().is_ok());
+    }
+}
+
+#[test]
+fn receiver_producer_with_count_branch_retains_unproven_delivery_frontier() {
+    let text = format!(
+        "{RECEIVERS}\nborrow fun <T> View<T>.choose(flag:Boolean):View<T> from this=(this).prefix(if(flag){{1}}else{{0}})\nfun read(view:View<String>):Unit{{}}\nfun main():Unit{{val root=listOf(\"first\");borrow val parent=root.prefix(1);read(parent.choose(true))}}"
+    );
+    let (sources, single, unit) = checked(&text);
+    for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code().to_string(), "L0164");
+        assert_eq!(
+            sources.slice(diagnostics[0].primary_span()).unwrap(),
+            "parent.choose(true)"
+        );
+    }
+    assert!(unit.validate().is_err());
+}
+
+#[test]
+fn stable_range_root_drop_is_published_at_the_outer_consumer() {
+    use lang_frontend::ownership_checking::{RangeUseSite, UnitDropPoint, UnitDropTarget};
+    for expression in ["root.prefix(1)", "take(root,1)"] {
+        let text = format!(
+            "{RECEIVERS}\nfun take(source:List<String>,count:Int):View<String> from source=rangeView(source,0,count)\nfun read(view:View<String>):Unit{{println(\"read\")}}\nfun main():Unit{{val root=listOf(\"first\");read({expression});println(\"done\")}}"
+        );
+        let (_, single, unit) = checked(&text);
+        assert!(
+            single.diagnostics().is_empty(),
+            "{:?}",
+            single.diagnostics()
+        );
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        let [use_fact] = unit.borrow_results().range_uses() else {
+            panic!("one immediate range consumer")
+        };
+        let RangeUseSite::Call(outer) = use_fact.site() else {
+            panic!("call consumer")
+        };
+        let UnitLoanTarget::Place(root) = use_fact.origin() else {
+            panic!("stable owner root")
+        };
+        let drops = unit
+            .drops()
+            .iter()
+            .filter(|fact| fact.target() == UnitDropTarget::Named(root.root()))
+            .collect::<Vec<_>>();
+        assert_eq!(drops.len(), 1, "{drops:?}");
+        assert_eq!(drops[0].point(), UnitDropPoint::CallReturn(outer));
     }
 }

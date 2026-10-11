@@ -1,0 +1,100 @@
+# SPEC-0291: 非空只读 Map 构造：MutableMap 立即消费式转换 consume()
+
+> **性质**：变更合同 · **状态**：draft · **读取时机**：准备或验收非空只读 Map 构造路径时 · **唯一真源**：本 Spec；候选语言语义须经后续 Guide 明确启用（暂列 v0.44）
+
+| 字段 | 值 |
+|---|---|
+| 状态 | draft |
+| Goal ID | `KOV-P2-0291` |
+| 所属 Phase | Phase 1 规范（Guide 12）；Phase 2 类型检查；Phase 3 所有权与 move；Phase 4 typed SSA；Phase 5 LLVM；Phase 6 native |
+| 语言规范 | 现行 [Guide v0.43](../../../guide/README.md)；§3.1 为拟新增的 Guide 12 条款，**不并入 v0.43**，候选启用版本 v0.44 |
+| 批准依据 | 来源分支历史引用（本次未独立核验）记载 2026-10-09 曾要求并入 v0.43；现行 v0.43 明确不启用 consume，本次仅接收为 v0.44 候选，具体启用须另行确认。其余历史方向：(1) `mutableMap.consume(): Map<K, V>` 为立即转换，复制式 `toMap()` 延后；(2) 本草案改名为 0291；(3) Guide 正文按快照恢复 |
+| 前置 Spec | [SPEC-0288](../../../archive/specs/0288-map-native-execution.md) 已合入 main（`ef60f2fc`） |
+| 关联 Spec | [SPEC-0289](../../active/0289-n1a-range-carrier.md) 的已启用 v0.43 N1a 合同；实现仍 in-progress |
+| 前置 ADR | 无（不改变布局或 ABI） |
+| 关联 ADR | 无 |
+| 阻塞项 | (1) §3.1 规范文本须获用户确认后才能写入 Guide；(2) 暂列 v0.44 候选，启用仍待确认：v0.43 的 README 明确"不启用 consume"，因此本条不随 SPEC-0289 启用；(3) `consume` 与 Guide 05 现有调用拼写 `consume(x)` 的关系需在启用前写清（见 §6）；(4) 实施不依赖 N1a，但须在后续 Guide 中有合法规范依据 |
+| 影响范围 | `lang-frontend`（方法识别、receiver move 检查、诊断）、`lang-codegen`（SSA 操作与 verifier、LLVM 移交、native 测试）、Guide 12 |
+| 语言语义变更 | 是：新增 `MutableMap<K, V>.consume(): Map<K, V>`，候选 v0.44，未启用 |
+
+## 1. Goal
+
+完成后，已填充的 `MutableMap<K, V>` 可以通过预声明的立即消费式转换 `consume()` 零复制地得到同 K/V 的只读 `Map<K, V>`，
+并且只读 Map 的查询与 `size` 在单文件与编译单元中都可原生执行、精确释放。
+
+## 2. 背景
+
+Guide 12 规定 `Map<K, V>` 为只读独占 owning 容器，但 `mapOf()` / `mutableMapOf()` 在 v1 不接受参数，
+因此只读 Map 当前只能是空的。r3 候选（`docs/proposals/collection-algorithm-ownership-r3.md` §3.2）规定：
+**消费式**一律用 `consume()` 取得 owner，源 binding 之后不可用；**复制式**用 `.toList()` 等以元素 clone 为前提。
+本 Spec 只实现 Map 的消费式路径；复制式 `toMap()` 延后，与 `.toList()` 同属 clone 前提的物化。
+命名与 Kotlin 对齐的是复制式 `toMap()`，但 Koven 的 `consume()` 语义是移动，不复制。
+
+## 3. 范围与需求
+
+### 3.1 语言规范（拟新增，未启用）
+
+以下为拟写入 Guide 12 第 5 条的文本，与 r3 §3.2 一致，待确认后方可写入：
+
+5. **消费式转换 `consume()`**：
+   - `mutableMap.consume(): Map<K, V>` 是预声明的立即转换：取得 receiver 的 owned 所有权，产出同 K/V 的只读 `Map<K, V>` owner；
+   - receiver 须为 owned 本地绑定；调用成功后源绑定不可用，之后再使用报既有 move 诊断；
+   - 不复制、不 clone 任何键或值，条目缓冲区整体移交；活跃借用期间不能转换同一来源（沿用 L0135 冲突诊断）；
+   - 复制式 `toMap()` 本版不启用；它将与 `.toList()` 一样以元素 clone 为前提另行规范。
+
+以下为执行合同摘要：
+
+- `MutableMap<K, V>.consume(): Map<K, V>` 为预声明、立即产出的转换（不返回延迟序列）。
+- receiver 必须是 owned 本地绑定；调用成功后源绑定不可用，之后使用报既有 move 诊断。
+- 结果是同 K/V 的只读 `Map<K, V>` owner；不复制、不 clone 任何键或值，条目缓冲区整体移交。
+- 活跃借用期间不能转换同一来源，沿用 L0135 冲突诊断。
+- 复制式 `toMap()` 不在本版启用。
+
+### 3.2 前端（lang-frontend）
+
+- single-file 与 compilation-unit 两条路径识别 `consume()`，返回类型为 `Map<K, V>`。
+- 检查 receiver 的 owner 状态与 move 退休，发布 typed 描述符（receiver、K、V、源与结果类型）。
+- 非 owned receiver 给出结构化诊断，保留真实 `Span`。
+
+### 3.3 SSA、verifier 与 LLVM（lang-codegen）
+
+- 新增 SSA 操作：消费一个 `MutableMap` owner，产生一个同 K/V 的 `Map` owner。
+- verifier：输入必须是 owned `MutableMap`；输出必须是同 K/V 的 `Map`；源 owner 已消费。
+- LLVM：原样移交 header `{buffer, size, capacity, tombstones}` 与条目缓冲区，不改变布局、不复制条目、不析构。
+- drop：只读 Map 与 MutableMap 使用同一套 drop glue（遍历 Occupied 槽位，分别析构 MoveOnly 键与值，再释放缓冲区）。
+
+## 4. 非目标
+
+- `mapOf(...)` / `mutableMapOf(...)` 带参数形式：依赖 `to` 运算符的规范冲突裁决（Guide 01 写作构建 `Pair`，Guide 04 写作 range，编译器中为 deferred），延后。
+- 复制式 `toMap()`：需要 K/V 可 clone 的前提，延后。
+- `Map` → `MutableMap` 反向转换、只读借用视图、Map 迭代（M3B）。
+- nullable V 的 owned `remove` 三态表示与 Option（独立问题，不是 consume 前置）；nullable 布局仍受现有 ABI 能力门约束，不承诺所有 `T?`。
+- 用户自定义 `Hashable`。
+
+## 5. 验收标准
+
+- [ ] 规范文本经用户确认并写入 Guide 12 后，与 r3 §3.2 一致；对应版本的 `check_docs.py` 门禁更新并通过。
+- [ ] 前端 single-file：非空 `MutableMap<String, Int>` 调用 `consume()` 后，只读查询通过；源绑定再次使用被拒绝。
+- [ ] 前端 compilation-unit：同上，并验证正逆输入顺序的 SSA 一致。
+- [ ] 前端负例：Borrow/Inout/字段/元素 receiver 被拒绝，诊断码与 `Span` 正确；活跃借用期间的转换报 L0135。
+- [ ] SSA verifier 正例与负例：输入非 MutableMap、K/V 不一致、源未消费均被拒绝。
+- [ ] native（single 与 unit 各一组）：String 键，空表与非空表；Copyable 值验证 `get` 成功，MoveOnly/Resource 值验证 `get` 被拒绝，并通过 `requireValue` / `withValue` 访问；两类均验证 `contains` 与 `size`。
+- [ ] native 计数：每个键、值与缓冲区精确释放一次，无重复析构。
+- [ ] 不改变 `MutableMap` 或 `Map` 的既有布局与已有测试结果。
+- [ ] 门禁：`cargo fmt`、`cargo clippy -D warnings`、相关 targeted tests、`check_docs.py`、`check_rust_sizes.py`、`git diff --check` 均实际运行并记录结果。
+- [ ] 未运行的检查明确标注，不计作通过。
+
+## 6. 开放决策
+
+1. receiver 是否接受 owned 临时值，例如 `mutableMapOf<Int, Int>().consume()`。建议接受，待确认。
+2. 诊断码分配（非 owned receiver、转换后使用）。
+3. **命名冲突核对**：v0.42 Guide 05 写有"调用仍写 `consume(x)`"，Guide 07 有示例 `fun consume(own value: T)`。需要在启用前确认：预声明的方法形式 `mm.consume()` 与该调用拼写互不歧义，并确认 `consume` 不是保留字。
+4. 确认 `consume()` 对 `MutableMap` 的签名与 r3 §8.1 中 `List.consume(): ConsumingSeq<T>` 的关系：两者结果类型不同（Map 直接产出，List 首片为序列）。
+
+## 7. 验证记录
+
+来源分支历史记录（未独立核验）：尚未开始实施，草案本身曾用 `check_docs.py` 对 `feature/spec-0289` 的 Guide 条目做过检查，当时 v0.43 门禁尚未启用，因此不计为通过；本次结构验证另见接收记录。
+
+2026-10-10 接收补记：仅校正候选版本、读取路径和 Copyable-only `get` 验收边界；
+具名 owned 本地 binding 保持候选首片，临时 receiver 仍待决定。来源稿的批准引用与
+历史检查不构成本次 consume 启用或实现验收。

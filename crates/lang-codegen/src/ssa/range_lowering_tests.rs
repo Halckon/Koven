@@ -13,6 +13,12 @@ mod view_source;
 #[path = "range_lowering_tests/call_prefix.rs"]
 mod call_prefix;
 
+#[path = "range_lowering_tests/receiver.rs"]
+mod receiver;
+
+#[path = "range_lowering_tests/drop_algorithms.rs"]
+mod drop_algorithms;
+
 fn unit(consumer: &str) -> Program {
     unit_with_entry(consumer).0
 }
@@ -22,6 +28,10 @@ fn unit_with_entry(consumer: &str) -> (Program, FunctionId) {
 }
 
 fn unit_with_provider_entry(consumer: &str, trusted: &str) -> (Program, FunctionId) {
+    unit_with_provider_order(consumer, trusted, false)
+}
+
+fn unit_with_provider_order(consumer: &str, trusted: &str, reverse: bool) -> (Program, FunctionId) {
     let mut sources = SourceMap::new();
     let (p, provider) = super::unit_lower_test_support::parsed(
         &mut sources,
@@ -32,12 +42,16 @@ fn unit_with_provider_entry(consumer: &str, trusted: &str) -> (Program, Function
         ),
     );
     let (q, consumer) = super::unit_lower_test_support::parsed(&mut sources, "main.ko", consumer);
-    let inputs = [
+    let mut inputs = [
         SourceUnitInput::new("std", "koven/algorithms/ranges.ko", p, &provider),
         SourceUnitInput::new("app", "app/main.ko", q, &consumer),
     ];
+    if reverse {
+        inputs.reverse();
+    }
     let (environment, mut types) = standard_environments();
     types.authorize_range_source(&sources, p).unwrap();
+    types.authorize_range_extension_source(&sources, p).unwrap();
     let (names, typed, owned) =
         super::unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
     let result = super::unit_lower::lower_scalar_unit_with_entry(
@@ -273,6 +287,9 @@ fn single_with_entry(consumer: &str) -> (Program, FunctionId) {
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
     let (environment, mut types) = standard_environments();
     types.authorize_range_source(&sources, source).unwrap();
+    types
+        .authorize_range_extension_source(&sources, source)
+        .unwrap();
     let names = resolve_names(&sources, &parsed, &environment).unwrap();
     let typed = check_types(&sources, &parsed, &names, &types).unwrap();
     assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());

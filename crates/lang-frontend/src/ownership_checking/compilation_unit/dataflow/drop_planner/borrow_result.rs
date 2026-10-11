@@ -2,10 +2,22 @@
 use super::*;
 use crate::ownership_checking::BorrowBindingEndFact;
 impl DropPlanner<'_, '_> {
-    pub(super) fn continue_range_temporary(&self, id: ExpressionId, state: &mut ValueState) {
+    pub(super) fn continue_range_source(&self, id: ExpressionId, state: &mut ValueState) {
         if let Some(fact) = self.checker.range_use(id) {
             match fact.site() {
                 crate::ownership_checking::RangeUseSite::Call(outer) => {
+                    // The short descriptor keeps its verified named owner borrowed until
+                    // its outer consumer returns, just as a continued temporary does.
+                    if let crate::ownership_checking::UnitLoanTarget::Place(place) = fact.origin()
+                        && state.position(place.root()).is_some()
+                        && !state
+                            .pending_borrows
+                            .contains(&(outer.expression(), place.root()))
+                    {
+                        state
+                            .pending_borrows
+                            .push((outer.expression(), place.root()));
+                    }
                     for temporary in &mut state.pending_temporaries {
                         if temporary.control == id {
                             temporary.control = outer.expression();
@@ -19,6 +31,22 @@ impl DropPlanner<'_, '_> {
                 }
             }
         }
+    }
+    pub(super) fn finish_call_borrows(
+        &self,
+        id: ExpressionId,
+        borrowed_roots: &mut Vec<UnitSymbolId>,
+        state: &mut ValueState,
+    ) {
+        state.pending_borrows.retain(|(call, root)| {
+            if *call != id {
+                return true;
+            }
+            if !borrowed_roots.contains(root) {
+                borrowed_roots.push(*root);
+            }
+            false
+        });
     }
     pub(super) fn statement(
         &mut self,

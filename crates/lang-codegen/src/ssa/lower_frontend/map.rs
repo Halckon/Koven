@@ -17,6 +17,12 @@ use crate::ssa::model::{
     EntityId, EntityType, MapContainerKind, Module, Operation, SsaTypeId, ValueId,
 };
 
+enum PendingMapOperand {
+    Copyable(EntityId),
+    Owner { expression: usize, retained: bool },
+    Loan { key: (usize, usize), retained: bool },
+}
+
 impl NominalTypeMapper {
     pub(super) fn intern_map(
         &mut self,
@@ -143,7 +149,9 @@ impl ExpressionLowerer<'_> {
         })?;
         let span = self.expression_span(expression)?;
         let owner = self.lower_map_owner(descriptor.receiver(), span)?;
+        let owner = self.preserve_map_operand(expression, descriptor.receiver(), owner, span)?;
         let key = self.lower_map_owner(descriptor.key(), span)?;
+        let owner = self.restore_map_operand(owner, span)?;
         let ty = self.expression_ssa_type(expression, span)?;
         let (_, results) = self.append(
             Operation::MapContains { owner, key },
@@ -161,7 +169,9 @@ impl ExpressionLowerer<'_> {
         })?;
         let span = self.expression_span(expression)?;
         let owner = self.lower_map_owner(descriptor.receiver(), span)?;
+        let owner = self.preserve_map_operand(expression, descriptor.receiver(), owner, span)?;
         let key = self.lower_map_owner(descriptor.key(), span)?;
+        let owner = self.restore_map_operand(owner, span)?;
         let ty = self.expression_ssa_type(expression, span)?;
         let (_, results) = self.append(
             Operation::MapGet { owner, key },
@@ -182,7 +192,15 @@ impl ExpressionLowerer<'_> {
         })?;
         let span = self.expression_span(expression)?;
         let (owner, symbol) = self.map_owner_for_mutation(descriptor.receiver())?;
+        let owner = self.preserve_map_operand(
+            expression,
+            descriptor.receiver(),
+            EntityId::Value(owner),
+            span,
+        )?;
         let key = self.require_value(descriptor.key())?;
+        let key =
+            self.preserve_map_operand(expression, descriptor.key(), EntityId::Value(key), span)?;
         let val = self.require_value(descriptor.value())?;
         let val = self.adapt_owned_value_to_expected(
             descriptor.value(),
@@ -190,6 +208,12 @@ impl ExpressionLowerer<'_> {
             descriptor.value_type(),
             span,
         )?;
+        let EntityId::Value(owner) = self.restore_map_operand(owner, span)? else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let EntityId::Value(key) = self.restore_map_operand(key, span)? else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
         let container_type = self.expression_ssa_type(descriptor.receiver(), span)?;
         let (_, results) = self.append(
             Operation::MapPut {
@@ -229,7 +253,16 @@ impl ExpressionLowerer<'_> {
         })?;
         let span = self.expression_span(expression)?;
         let (owner, symbol) = self.map_owner_for_mutation(descriptor.receiver())?;
+        let owner = self.preserve_map_operand(
+            expression,
+            descriptor.receiver(),
+            EntityId::Value(owner),
+            span,
+        )?;
         let key = self.lower_map_owner(descriptor.key(), span)?;
+        let EntityId::Value(owner) = self.restore_map_operand(owner, span)? else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
         let container_type = self.expression_ssa_type(descriptor.receiver(), span)?;
         let result_type = self.expression_ssa_type(expression, span)?;
         let (_, results) = self.append(
@@ -246,6 +279,75 @@ impl ExpressionLowerer<'_> {
         }
         self.emit_drops(DropPoint::CallReturn(expression))?;
         Ok(LoweredValue::Value(value(results[1])))
+    }
+
+    // Later arguments may introduce CFG edges. Reuse the existing carry slots rather
+    // than retaining an owner/loan ID from the receiver's original block.
+    fn preserve_map_operand(
+        &mut self,
+        call: ExpressionId,
+        expression: ExpressionId,
+        operand: EntityId,
+        span: Span,
+    ) -> Result<PendingMapOperand, LoweringError> {
+        match operand {
+            EntityId::Value(owner) => {
+                let ty = self
+                    .typed
+                    .expression_type(expression)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let ty = self.resolve_type(ty, span)?;
+                match self.typed.copyability(ty) {
+                    Some(lang_frontend::type_checking::Copyability::Copyable) => {
+                        Ok(PendingMapOperand::Copyable(operand))
+                    }
+                    Some(lang_frontend::type_checking::Copyability::MoveOnly) => {
+                        let retained = self.temporaries.insert(expression.index(), owner).is_some();
+                        Ok(PendingMapOperand::Owner {
+                            expression: expression.index(),
+                            retained,
+                        })
+                    }
+                    _ => Err(error(LoweringErrorKind::MissingFact, span)),
+                }
+            }
+            EntityId::Loan(loan) => {
+                let key = (call.index(), expression.index());
+                let retained = self.pending_call_loans.insert(key, Some(loan)).is_some();
+                Ok(PendingMapOperand::Loan { key, retained })
+            }
+            EntityId::Place(_) => Err(error(LoweringErrorKind::MissingFact, span)),
+        }
+    }
+
+    fn restore_map_operand(
+        &mut self,
+        operand: PendingMapOperand,
+        span: Span,
+    ) -> Result<EntityId, LoweringError> {
+        let operand = match operand {
+            PendingMapOperand::Copyable(operand) => Some(operand),
+            PendingMapOperand::Owner {
+                expression,
+                retained,
+            } => {
+                let owner = if retained {
+                    self.temporaries.get(&expression).copied()
+                } else {
+                    self.temporaries.remove(&expression)
+                };
+                owner.map(EntityId::Value)
+            }
+            PendingMapOperand::Loan { key, retained } => {
+                let loan = if retained {
+                    self.pending_call_loans.get(&key).copied()
+                } else {
+                    self.pending_call_loans.remove(&key)
+                };
+                loan.flatten().map(EntityId::Loan)
+            }
+        };
+        operand.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
     }
 
     fn lower_map_owner(

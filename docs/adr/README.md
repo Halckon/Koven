@@ -19,6 +19,9 @@
 
 [0029 普通借用结果延续](accepted/0029-ordinary-borrow-result-continuation.md)按 2026-10-07 用户明确批准接受，局部扩展 0016；实施/验收由 0288 维护。
 
+[0030 范围 carrier 来源事实](accepted/0030-range-carrier-source-facts.md)只覆盖已批准 N1a 首片，
+运输独立新描述符 mode 与根来源/end facts；实现与端到端验收由 0289 维护。
+
 ## Proposed
 
 [0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为

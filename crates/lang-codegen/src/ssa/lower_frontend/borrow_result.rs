@@ -226,6 +226,8 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        // The return-origin fact belongs to the outer expression; forwarding belongs to its call.
+        let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
         let node = self
             .parsed
             .ast()
@@ -233,7 +235,7 @@ impl ExpressionLowerer<'_> {
             .get(expression)
             .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
         let loan = match node.payload() {
-            Expression::Name | Expression::Member { .. } | Expression::Group { .. } => {
+            Expression::Name | Expression::Member { .. } => {
                 self.validate_return_place(expression, place.root(), place.fields(), span)?;
                 let mut created = Vec::new();
                 self.clone_field_loan(expression, &mut created)?
@@ -305,6 +307,7 @@ impl ExpressionLowerer<'_> {
         source: BorrowSourceLoan<ExpressionId>,
         span: Span,
     ) -> Result<(LoanId, Vec<LoanId>), LoweringError> {
+        let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
         if source.call() != expression {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }

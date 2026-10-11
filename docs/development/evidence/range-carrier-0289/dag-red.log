@@ -1,0 +1,13 @@
+F
+======================================================================
+FAIL: test_parallel_draft_versions_are_stable_across_hash_seeds (test_gen_spec_dag.SpecDagDeterminismTests.test_parallel_draft_versions_are_stable_across_hash_seeds)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e92619458311/koven-pr69-fixes/scripts/tests/test_gen_spec_dag.py", line 38, in test_parallel_draft_versions_are_stable_across_hash_seeds
+    self.assertTrue(all(output == outputs[0] for output in outputs[1:]))
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 1 test in 1.720s
+
+FAILED (failures=1)

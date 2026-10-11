@@ -61,7 +61,7 @@ impl ExpressionLowerer<'_> {
                 constructor: lang_frontend::type_checking::IntrinsicTypeConstructor::View,
                 ..
             })
-        ) && matches!(node.payload(), Expression::Name)
+        ) && matches!(node.payload(), Expression::Name | Expression::This)
             && let Some(symbol) = self.references.get(&super::span_key(node.span()))
             && let Some(LoweredValue::Value(view)) = self.bindings.get(symbol).copied()
         {
@@ -88,7 +88,7 @@ impl ExpressionLowerer<'_> {
             };
             return Ok((loan, true));
         }
-        if matches!(node.payload(), Expression::Name)
+        if matches!(node.payload(), Expression::Name | Expression::This)
             && let Some(symbol) = self.references.get(&super::span_key(node.span()))
             && self
                 .owned

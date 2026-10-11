@@ -131,6 +131,7 @@ pub(super) fn lower_unit_from_facts(
                 })
             }
             (None, None) => None,
+            (Some(_), None) if callable.range_extension().is_some() => None,
             (Some(receiver), None) => {
                 return Err(lowering_error(
                     LoweringErrorKind::MissingFact,
@@ -149,6 +150,24 @@ pub(super) fn lower_unit_from_facts(
             Vec::with_capacity(callable.parameters().len() + usize::from(receiver.is_some()));
         if let Some(receiver) = receiver {
             parameter_types.push(receiver.entity_type);
+        }
+        if let Some(binding) = callable.range_extension() {
+            let symbol = callable
+                .extension_receiver_symbol()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
+            let concrete = resolve_concrete_type(
+                typed,
+                binding.receiver_type(),
+                instance.substitutions(),
+                instance.key().static_self(),
+                binding.receiver_span(),
+            )?;
+            let target = types.intern(module, typed, concrete, binding.receiver_span())?;
+            parameter_symbols.push(symbol);
+            parameter_types.push(EntityType::Loan {
+                kind: LoanKind::Shared,
+                target,
+            });
         }
         for (slot, parameter) in callable.parameters().iter().enumerate() {
             let symbol = parameter
@@ -237,13 +256,19 @@ pub(super) fn lower_unit_from_facts(
         if let lang_frontend::type_checking::CallableResultSource::Carrier(contract) =
             callable.result_source()
         {
-            let lang_frontend::type_checking::BorrowReturnOrigin::Parameter(index) =
-                contract.origin()
-            else {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    instance.span(),
-                ));
+            let index = match contract.origin() {
+                lang_frontend::type_checking::BorrowReturnOrigin::Parameter(index) => index,
+                lang_frontend::type_checking::BorrowReturnOrigin::Receiver
+                    if callable.range_extension().is_some() =>
+                {
+                    0
+                }
+                _ => {
+                    return Err(lowering_error(
+                        LoweringErrorKind::UnsupportedNode,
+                        instance.span(),
+                    ));
+                }
             };
             if !owned
                 .borrow_results()

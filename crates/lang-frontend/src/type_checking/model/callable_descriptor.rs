@@ -21,7 +21,7 @@ pub struct CallableDescriptor {
 
 impl CallableDescriptor {
     /// 可信扩展接收者的实际合成 Borrow 参数，与 canonical 声明同轮绑定。
-    pub(crate) const fn extension_receiver_symbol(&self) -> Option<SymbolId> {
+    pub const fn extension_receiver_symbol(&self) -> Option<SymbolId> {
         self.extension_receiver_symbol
     }
     /// 受限扩展签名的可信绑定；不代表 ownership 或 lowering 已接通。
