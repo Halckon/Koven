@@ -18,3 +18,8 @@ single adapter与IR core反向读取support；它不是完整Rust依赖图，也
 表示读取 presence，再消费原 operand 的最后使用 drop。String 与 MoveOnly inline 的单文件
 Boolean 判空、unit 最后 if 判空已有普通源码 SSA/native 证据；借用 aggregate 继续经过
 既有 Copyable 门。单文件 owning if 的 NullableBranch、资源词法和后续消费事实保持。
+
+两 frontend 对 nullable temporary 与 null literal 的比较，在实际 operand 完成后发布
+AfterBinaryOperands 结果事实；Group 归一叶和 origin，借用结果与未完成值不产生 owning drop。
+两入口以精确结果事实和已登记的 aggregate/NullableHandle 表示读取 presence，再清理临时
+owner；Resource temporary 在 if body 前析构，具名 Resource 的词法清理不变。

@@ -79,7 +79,7 @@ impl ExpressionLowerer<'_> {
         Ok(value(wrapped[0]))
     }
 
-    fn is_null_literal(&self, expression: ExpressionId) -> bool {
+    pub(super) fn is_null_literal(&self, expression: ExpressionId) -> bool {
         match self
             .parsed
             .ast()

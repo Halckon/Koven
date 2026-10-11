@@ -8,7 +8,7 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<LoweredValue>, LoweringError> {
         let id = UnitExpressionId::new(self.source_unit, expression);
         let Some(d) = self.typed.null_comparison(id) else {
-            return Ok(None);
+            return self.lower_temporary_nullable_comparison(expression, span);
         };
         let ty = resolve_concrete_type(
             self.typed,
@@ -85,5 +85,95 @@ impl UnitExpressionLowerer<'_> {
             self.source_unit,
             expression,
         )))
+    }
+}
+
+impl UnitExpressionLowerer<'_> {
+    // A frontend result-cleanup fact identifies the owning temporary. Never invent
+    // a drop from syntax or from a nullable type alone (borrow results share types).
+    fn lower_temporary_nullable_comparison(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<LoweredValue>, LoweringError> {
+        use lang_frontend::ownership_checking::UnitDropTarget;
+        use lang_frontend::parser::BinaryOperator as Operator;
+        let expressions = self.parsed.ast().expressions();
+        let node = expressions
+            .get(expression)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Expression::Binary {
+            left,
+            operator,
+            right,
+            ..
+        } = *node.payload()
+        else {
+            return Ok(None);
+        };
+        if !matches!(operator, Operator::Equal | Operator::NotEqual) {
+            return Ok(None);
+        }
+        let operand = if self.is_null_literal(right) {
+            left
+        } else if self.is_null_literal(left) {
+            right
+        } else {
+            return Ok(None);
+        };
+        let mut leaf = operand;
+        let origin = loop {
+            let node = expressions
+                .get(leaf)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if let Expression::Group { expression } = *node.payload() {
+                leaf = expression;
+            } else {
+                break node.span();
+            }
+        };
+        let point =
+            UnitDropPoint::AfterBinaryOperands(UnitExpressionId::new(self.source_unit, expression));
+        let target = UnitDropTarget::Temporary(UnitExpressionId::new(self.source_unit, leaf));
+        let mut facts = self
+            .owned
+            .drops()
+            .iter()
+            .filter(|fact| fact.point() == point && fact.target() == target);
+        let Some(fact) = facts.next() else {
+            return Ok(None);
+        };
+        if facts.next().is_some() || fact.value_origin() != origin {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let target = self.expression_ssa_type(leaf, origin)?;
+        let aggregate_presence = self.map_results.contains_key(&target);
+        if !aggregate_presence
+            && !matches!(
+                self.ssa_types.get(target.index()),
+                Some(crate::ssa::model::SsaTypeKind::NullableHandle { .. })
+            )
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let owner = self.require_expression_value(operand)?;
+        let operation = if aggregate_presence {
+            Operation::AggregateProject {
+                aggregate: owner,
+                field: 0,
+            }
+        } else {
+            Operation::NullableIsNull { owner }
+        };
+        let boolean = self.expression_ssa_type(expression, span)?;
+        let mut result = self.append_scalar(operation, boolean, span)?;
+        if (operator == Operator::NotEqual) != aggregate_presence {
+            let LoweredValue::Value(operand) = result else {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            };
+            result = self.append_scalar(Operation::BooleanNot { operand }, boolean, span)?;
+        }
+        self.emit_drops(point)?;
+        Ok(Some(result))
     }
 }

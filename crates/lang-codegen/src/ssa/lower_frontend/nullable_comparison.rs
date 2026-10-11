@@ -7,7 +7,7 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<LoweredValue>, LoweringError> {
         let Some(d) = self.typed.null_comparison(expression) else {
-            return Ok(None);
+            return self.lower_temporary_nullable_comparison(expression, span);
         };
         let ty = self.resolve_type(d.nullable_type(), span)?;
         let target = self
@@ -86,5 +86,97 @@ impl ExpressionLowerer<'_> {
             _ => {}
         }
         self.emit_drops(lang_frontend::ownership_checking::DropPoint::AfterExpression(expression))
+    }
+}
+
+impl ExpressionLowerer<'_> {
+    // A frontend result-cleanup fact identifies the owning temporary. Never invent
+    // a drop from syntax or from a nullable type alone (borrow results share types).
+    fn lower_temporary_nullable_comparison(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<LoweredValue>, LoweringError> {
+        use lang_frontend::ownership_checking::DropTarget;
+        use lang_frontend::parser::BinaryOperator as Operator;
+        let expressions = self.parsed.ast().expressions();
+        let node = expressions
+            .get(expression)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+        let Expression::Binary {
+            left,
+            operator,
+            right,
+            ..
+        } = *node.payload()
+        else {
+            return Ok(None);
+        };
+        if !matches!(operator, Operator::Equal | Operator::NotEqual) {
+            return Ok(None);
+        }
+        let operand = if self.is_null_literal(right) {
+            left
+        } else if self.is_null_literal(left) {
+            right
+        } else {
+            return Ok(None);
+        };
+        let mut leaf = operand;
+        let origin = loop {
+            let node = expressions
+                .get(leaf)
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+            if let Expression::Group { expression } = *node.payload() {
+                leaf = expression;
+            } else {
+                break node.span();
+            }
+        };
+        let point = DropPoint::AfterBinaryOperands(expression);
+        let target = DropTarget::Temporary(leaf);
+        let mut facts = self
+            .owned
+            .drops()
+            .iter()
+            .filter(|fact| fact.point() == point && fact.target() == target);
+        let Some(fact) = facts.next() else {
+            return Ok(None);
+        };
+        if facts.next().is_some() || fact.value_origin() != origin {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let target = self.expression_ssa_type(leaf, origin)?;
+        let aggregate_presence = self.map_results.contains_key(&target);
+        if !aggregate_presence
+            && !matches!(
+                self.ssa_types.get(target.index()),
+                Some(crate::ssa::model::SsaTypeKind::NullableHandle { .. })
+            )
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let owner = self.require_value(operand)?;
+        let operation = if aggregate_presence {
+            Operation::AggregateProject {
+                aggregate: owner,
+                field: 0,
+            }
+        } else {
+            Operation::NullableIsNull { owner }
+        };
+        let boolean = self.expression_ssa_type(expression, span)?;
+        let (_, results) = self.append(operation, vec![EntityType::Value(boolean)], span)?;
+        let mut result = value(results[0]);
+        if (operator == Operator::NotEqual) != aggregate_presence {
+            let (_, results) = self.append(
+                Operation::BooleanNot { operand: result },
+                vec![EntityType::Value(boolean)],
+                span,
+            )?;
+            result = value(results[0]);
+        }
+        self.emit_drops(point)?;
+        Ok(Some(LoweredValue::Value(result)))
     }
 }

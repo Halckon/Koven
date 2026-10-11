@@ -1,0 +1,14 @@
+{
+  "phase": "SPEC-0296 explicit temporary result cleanup first green",
+  "red_commit": "d9f9f700",
+  "frontend": {
+    "command": "cargo test --locked -p lang-frontend --test ownership_map map_temporary_null",
+    "exit_code": 0,
+    "log": "   Compiling lang-frontend v0.1.0 (/workspace/scratch/e92619458311/koven-map-remove-loop/crates/lang-frontend)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.66s\n     Running tests/ownership_map.rs (/workspace/scratch/e92619458311/koven-pr69-fixes/target/debug/deps/ownership_map-4a2a2ce765671e08)\n\nrunning 3 tests\ntest map_temporary_null_direct_borrow_result_keeps_rejection ... ok\ntest map_temporary_null_cleanup_excludes_copyable_named_borrowed_and_incomplete_results ... ok\ntest map_temporary_null_comparisons_publish_one_result_cleanup ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.10s\n\n"
+  },
+  "native": {
+    "command": "cargo test --locked -p lang-codegen --lib temporary_null_cleanup_tests",
+    "exit_code": 0,
+    "log": "   Compiling lang-codegen v0.1.0 (/workspace/scratch/e92619458311/koven-map-remove-loop/crates/lang-codegen)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.85s\n     Running unittests src/lib.rs (/workspace/scratch/e92619458311/koven-pr69-fixes/target/debug/deps/lang_codegen-ebf35c020d0bc183)\n\nrunning 4 tests\ntest native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_resource_precedes_body_named_stays_lexical ... ok\ntest native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_scalar_and_if_matrix ... ok\ntest native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_resource_precedes_body_named_stays_lexical ... ok\ntest native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_scalar_and_if_matrix ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 1261 filtered out; finished in 1.17s\n\n"
+  }
+}

@@ -199,20 +199,24 @@ fn map_remove_temporary_null_comparison_inspects_real_drop_facts() {
         .iter()
         .filter(|fact| fact.target() == DropTarget::Temporary(removed))
         .collect::<Vec<_>>();
-    assert!(
-        drops.is_empty(),
-        "classify the current missing-temporary-drop boundary from real frontend facts"
+    assert_eq!(
+        drops.len(),
+        1,
+        "frontend publishes the actual result cleanup"
     );
-    let error = lower_scalar_file(
+    assert!(matches!(
+        drops[0].point(),
+        lang_frontend::ownership_checking::DropPoint::AfterBinaryOperands(_)
+    ));
+    let program = lower_scalar_file(
         &analysis.sources,
         &analysis.parsed,
         &analysis.names,
         &analysis.typed,
         &analysis.owned,
     )
-    .err()
-    .expect("temporary result currently has no cleanup fact");
-    assert_eq!(error.kind, LoweringErrorKind::InvalidSsa);
+    .expect("temporary result consumes its explicit frontend cleanup fact");
+    crate::llvm::render_verified_program(&program).unwrap();
 }
 
 #[test]
