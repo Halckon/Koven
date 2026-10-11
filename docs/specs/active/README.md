@@ -6,7 +6,7 @@
 
 - [SPEC-0289：N1a 单来源范围描述符端到端交付](0289-n1a-range-carrier.md)：in-progress；Guide v0.43/ADR-0030 已接入，历史阶段证据与本次验证分开，receiver 后端与 std take 已本地验收；PR71 已有有界实现 head CI，完整 0289 与后继实现仍独立验收。
 
-0290（PR69 交付回归修复）已按 [PR71](https://github.com/Halckon/Koven/pull/71) 实现 head 双宿主 CI 验收归档；最终归档 head、merge 与 actual main CI 尚待验证，见[交付账本](../../development/evidence/pr69-repair-0290/delivery.json)。0289 继续 active，后继实现独立交付。
+0290（PR69 交付回归修复）已按 [PR71](https://github.com/Halckon/Koven/pull/71) 实现 head 双宿主 CI 验收归档；最终归档 head、合并 `6667635` 与 actual main CI 已验证，见[交付账本](../../development/evidence/pr69-repair-0290/delivery.json)。0289 继续 active，后继实现独立交付。
 
 0293（PR 普通文档追加提交复用真实代码 CI）已按 [PR #70](https://github.com/Halckon/Koven/pull/70) 首轮真实完整 CI 与追加文档复用验收归档至 `docs/archive/specs/0293-pr-code-ci-reuse.md`；已合并为 `56af80b`，合并后 main CI 单独跟踪。
 
