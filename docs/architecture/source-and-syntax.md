@@ -63,9 +63,11 @@ Pratt binding power 只有一个实现来源。Parser 保存参数 marker、调�
 N1a 声明前置由 `engine/declaration_head.rs` 复用正式 TypeRef 解析扩展 receiver，保存
 receiver 类型与分隔点 Span；顶层显式 mode 限于 borrow/own，inout、普通函数 mode、成员
 扩展和扩展属性仍有结构化拒绝。`FunctionResultSource` 区分普通存储借用与新 carrier
-来源，不伪造 borrow Span。single/unit 类型阶段以 L0164 阻断 carrier/扩展声明，扩展选择、
-carrier 交付与运行时尚未接通，Guide v0.42 未变。直接覆盖是 `parser_n1a_frontier` 与
-`type_declaration_frontier`，既有普通借用仍由 `parser_borrow_result` 等套件验证。
+来源，不伪造 borrow Span。现行 Guide v0.43 的 compiler-bound View 与可信标准库
+List/View Borrow receiver 已接通 single/unit 类型选择、实际来源、静态 ABI 与 native；
+未授权声明及未证明路径仍由 L0164/结构化 unsupported 封闭，详见[范围 carrier](range-carrier.md)。
+Parser 直接覆盖为 `parser_n1a_frontier`；`type_declaration_frontier` 验证未授权声明拒绝，
+类型与来源接线由 `type_range_*` / `ownership_range_*` 验证，普通借用回归保持。
 
 错误恢复遵守 lexical owner、delimiter 和声明/block 边界；恢复必须单调前进。递归语法在隔离 worker
 栈和固定递归预算内执行，资源边界以内部错误返回。

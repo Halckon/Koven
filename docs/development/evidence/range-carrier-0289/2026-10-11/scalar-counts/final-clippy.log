@@ -1,0 +1,4 @@
+    Checking lang-frontend v0.1.0 (/workspace/scratch/e92619458311/koven-range-counts/crates/lang-frontend)
+    Checking lang-codegen v0.1.0 (/workspace/scratch/e92619458311/koven-range-counts/crates/lang-codegen)
+    Checking lang-cli v0.1.0 (/workspace/scratch/e92619458311/koven-range-counts/crates/lang-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 47.68s

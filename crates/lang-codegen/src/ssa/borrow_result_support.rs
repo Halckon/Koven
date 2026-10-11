@@ -2,7 +2,7 @@
 use super::{LoweringError, LoweringErrorKind, lowering_support::error};
 use lang_frontend::{
     ast::ExpressionId,
-    parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
+    parser::{BinaryOperator, Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
     source::Span,
 };
 
@@ -52,6 +52,7 @@ pub(super) fn binding(
     marker: Span,
     range: bool,
     range_prefixes: &[Span],
+    is_int: impl Fn(ExpressionId) -> bool,
 ) -> Result<(), LoweringError> {
     let function = parsed
         .ast()
@@ -63,7 +64,29 @@ pub(super) fn binding(
         .map(|(_, node)| node.span())
         .min_by_key(|span| span.end() - span.start())
         .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, marker))?;
-    for (_, node) in parsed.ast().expressions().iter() {
+    for (expression, node) in parsed.ast().expressions().iter() {
+        // Checked Int arithmetic uses the existing success/Abort edges and their
+        // explicit carrier/root/source-loan transport; other borrow bindings keep
+        // the original CFG frontier. Syntax alone is not a scalar type proof.
+        if range
+            && let Expression::Binary {
+                operator,
+                left,
+                right,
+                ..
+            } = node.payload()
+            && matches!(
+                operator,
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Remainder
+            )
+            && [expression, *left, *right].into_iter().all(&is_int)
+        {
+            continue;
+        }
         if range
             && matches!(
                 node.payload(),

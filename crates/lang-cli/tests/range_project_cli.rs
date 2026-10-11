@@ -11,6 +11,9 @@ mod receiver;
 #[path = "range_project_cli/drop_algorithms.rs"]
 mod drop_algorithms;
 
+#[path = "range_project_cli/scalar_counts.rs"]
+mod scalar_counts;
+
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 struct Project(PathBuf);
 impl Project {

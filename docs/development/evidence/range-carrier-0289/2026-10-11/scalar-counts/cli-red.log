@@ -1,0 +1,26 @@
+   Compiling lang-codegen v0.1.0 (/workspace/scratch/e92619458311/koven-range-counts/crates/lang-codegen)
+   Compiling lang-cli v0.1.0 (/workspace/scratch/e92619458311/koven-range-counts/crates/lang-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 29.80s
+     Running tests/range_project_cli.rs (/workspace/scratch/e92619458311/koven-pr69-fixes/target/debug/deps/range_project_cli-fb1881a8df3be3f6)
+
+running 3 tests
+
+thread 'scalar_counts::public_std_range_scalar_count_abort_precedes_consumer_without_unwind' (574) panicked at crates/lang-cli/tests/range_project_cli/scalar_counts.rs:77:13:
+take/n+1: Output { status: ExitStatus(unix_wait_status(256)), stdout: "", stderr: "error: project build failed: native object UnsupportedSource: frontend lowering failed with UnsupportedNode\n" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test scalar_counts::public_std_range_scalar_count_abort_precedes_consumer_without_unwind ... FAILED
+
+thread 'scalar_counts::public_std_range_scalar_counts_preserve_live_descriptors' (577) panicked at crates/lang-cli/tests/range_project_cli/scalar_counts.rs:52:17:
+take/root/false: Output { status: ExitStatus(unix_wait_status(256)), stdout: "", stderr: "error: project build failed: native object UnsupportedSource: frontend lowering failed with UnsupportedNode\n" }
+test scalar_counts::public_std_range_scalar_counts_preserve_live_descriptors ... FAILED
+test scalar_counts::public_std_range_scalar_counts_keep_other_binary_capability_gates ... ok
+
+failures:
+
+failures:
+    scalar_counts::public_std_range_scalar_count_abort_precedes_consumer_without_unwind
+    scalar_counts::public_std_range_scalar_counts_preserve_live_descriptors
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.17s
+
+error: test failed, to rerun pass `-p lang-cli --test range_project_cli`

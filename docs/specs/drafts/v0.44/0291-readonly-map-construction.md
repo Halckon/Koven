@@ -10,7 +10,7 @@
 | 语言规范 | 现行 [Guide v0.43](../../../guide/README.md)；§3.1 为拟新增的 Guide 12 条款，**不并入 v0.43**，候选启用版本 v0.44 |
 | 批准依据 | 来源分支历史引用（本次未独立核验）记载 2026-10-09 曾要求并入 v0.43；现行 v0.43 明确不启用 consume，本次仅接收为 v0.44 候选，具体启用须另行确认。其余历史方向：(1) `mutableMap.consume(): Map<K, V>` 为立即转换，复制式 `toMap()` 延后；(2) 本草案改名为 0291；(3) Guide 正文按快照恢复 |
 | 前置 Spec | [SPEC-0288](../../../archive/specs/0288-map-native-execution.md) 已合入 main（`ef60f2fc`） |
-| 关联 Spec | [SPEC-0289](../../active/0289-n1a-range-carrier.md) 的已启用 v0.43 N1a 合同；实现仍 in-progress |
+| 关联 Spec | [SPEC-0289](../../../archive/specs/0289-n1a-range-carrier.md) 的已启用 v0.43 N1a 合同；有界实现已验收归档，最终交付见其 §22 |
 | 前置 ADR | 无（不改变布局或 ABI） |
 | 关联 ADR | 无 |
 | 阻塞项 | (1) §3.1 规范文本须获用户确认后才能写入 Guide；(2) 暂列 v0.44 候选，启用仍待确认：v0.43 的 README 明确"不启用 consume"，因此本条不随 SPEC-0289 启用；(3) `consume` 与 Guide 05 现有调用拼写 `consume(x)` 的关系需在启用前写清（见 §6）；(4) 实施不依赖 N1a，但须在后续 Guide 中有合法规范依据 |

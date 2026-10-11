@@ -4,12 +4,20 @@
 
 ## 当前路线与下一批次
 
-1. 语言规则与强制 Phase 以 [Guide v0.41](../guide/README.md) 为准
+1. 语言规则与强制 Phase 以 [Guide v0.43](../guide/README.md) 为准
 2. 原 13 项语言演进的已实现、延期、未启用与 native 边界，以[演进实施账本](../specs/evolution-status.md)为唯一摘要
-3. [Active Specs](../specs/active/README.md)给出当前有界合同；0271补强tour组合及诊断边界，归档不表示全部语言能力完成
+3. [Active Specs](../specs/active/README.md)给出当前有界合同；当前0 active / 278 archive，归档不表示全部语言能力完成
 4. [整体架构与工程治理计划](engineering-governance-plan.md)保留获批 P0–P5 范围；实际交付及延期见[治理执行账本](engineering-governance-progress.md)
 5. [后继里程碑](post-governance-milestones.md)维护 M0–M6 候选顺序；正式实施及完成以各 Spec 为准
 
+N1a 的 List/View take/drop/dropLast、可信 Borrow receiver 与有界 Int 计数已由 PR72
+实现 head 双宿主证据验收；最终归档 head CI、merge 与 actual main CI 待交付，见
+[0289交付账本](evidence/range-carrier-0289/delivery.json)。下一步先闭合这些交付状态，
+再按现行 Guide 与独立合同选择后继；consume、通用 Clone、N1b 仍未启用。
+
+## 2026-10-04 导航检查点（历史）
+
+以下保留该文档批次的原始基线、计数与未运行项，不作为当前验收状态。
 文档分支创建基线为main `adb51d6`；合入时已接收main `a83749f`的PR46交付（2026-10-04）。
 [本批核对记录](documentation-status-sync.md)固定依据、旧 Spec 处理与未接收的并行工作。
 
