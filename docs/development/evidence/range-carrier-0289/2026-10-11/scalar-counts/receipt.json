@@ -1,0 +1,301 @@
+{
+  "date_utc": "2026-10-11",
+  "source_commit": "85d0b3dbf88d13f06e2df3ed2be86f2299f49ab9",
+  "branch": "fix/spec-0289",
+  "main_base": "56af80ba92a544abf9c6531606a6340825f9a25f",
+  "dependency_merge": "8914630ea701b30fa5c00331f9c1d4c41d1a8471",
+  "pr71_frozen_dependency": "5e0b16e857af4bc49997983c806a34906fe430e0",
+  "pr71_ci_proves_this_slice": false,
+  "environment": {
+    "rust": "1.96.0",
+    "llvm": "21.1.8",
+    "cargo_target_dir": "/workspace/scratch/e92619458311/koven-pr69-fixes/target",
+    "cargo_parallel_invocations": false,
+    "cargo_clean": false
+  },
+  "commands": {
+    "red.log": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-codegen",
+      "--lib",
+      "range_scalar_counts_single_and_unit_transport_live_parent_child_roots",
+      "--",
+      "--nocapture"
+    ],
+    "cli-red.log": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-cli",
+      "--test",
+      "range_project_cli",
+      "scalar_counts",
+      "--",
+      "--nocapture"
+    ],
+    "final-codegen.log": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-codegen",
+      "--lib",
+      "--",
+      "range_lowering_tests::scalar_counts",
+      "range_lowering_tests::drop_algorithms",
+      "borrow_result_boundary_tests",
+      "borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported",
+      "borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa",
+      "borrowed_result_single_ssa_uses_returned_loan_and_orders_end_before_move",
+      "borrowed_result_unit_ssa_uses_returned_loan_and_orders_end_before_move",
+      "range_receiver_source_single_and_unit_keep_root_until_last_child",
+      "range_receiver_source_count_break_retains_existing_loop_cfg_frontier",
+      "range_receiver_source_retains_existing_binding_cfg_frontier",
+      "range_metadata_borrow_is_separate_from_constructing_a_new_descriptor",
+      "range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans",
+      "--nocapture"
+    ],
+    "final-cli.log": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-cli",
+      "--test",
+      "range_project_cli",
+      "--",
+      "--nocapture"
+    ],
+    "final-clippy.log": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-codegen",
+      "-p",
+      "lang-cli",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "final-fmt.log": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "final-size.log": [
+      "python3",
+      "scripts/check_rust_sizes.py",
+      "--base",
+      "origin/main"
+    ],
+    "final-diff.log": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "docs-final.log": [
+      "python3",
+      "scripts/check_docs.py"
+    ],
+    "docs-diff-final.log": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "green1.log": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-codegen",
+      "--lib",
+      "range_lowering_tests::scalar_counts",
+      "--",
+      "--nocapture"
+    ],
+    "green2.log": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-codegen",
+      "--lib",
+      "range_lowering_tests::scalar_counts",
+      "--",
+      "--nocapture"
+    ],
+    "green3.log": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-codegen",
+      "--lib",
+      "range_lowering_tests::scalar_counts",
+      "--",
+      "--nocapture"
+    ],
+    "green4.log": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-codegen",
+      "--lib",
+      "range_lowering_tests::scalar_counts",
+      "--",
+      "--nocapture"
+    ],
+    "cli-green.log": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "lang-cli",
+      "--test",
+      "range_project_cli",
+      "scalar_counts",
+      "--",
+      "--nocapture"
+    ],
+    "docs-first-size-rejection.log": [
+      "python3",
+      "scripts/check_docs.py"
+    ]
+  },
+  "red": {
+    "codegen": {
+      "passed": 0,
+      "failed": 1,
+      "kind": "UnsupportedNode",
+      "source_fragment": "count(n)-1"
+    },
+    "cli": {
+      "passed": 1,
+      "failed": 2,
+      "kind": "UnsupportedNode"
+    }
+  },
+  "final_tests": {
+    "codegen": {
+      "passed": 21,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 1202
+    },
+    "cli": {
+      "passed": 32,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    }
+  },
+  "total_passed": 53,
+  "intermediate_failures": {
+    "green1.log": "Rust compile error: Binary pattern omitted operator_span; fixed with ..",
+    "green3.log": "Rust compile error: test used TypeKind instead of SsaTypeKind; fixed",
+    "docs-first-size-rejection.log": "Architecture page initially exceeded 200-line cap; new facts were integrated into its existing capability-boundary paragraph without changing the cap. Final page: 199 lines."
+  },
+  "native_added_or_changed": {
+    "scope": "Only added or changed native cases in the final selections; excludes other legacy native executions and intermediate reruns.",
+    "ssa_normal": 6,
+    "ssa_defined_abort": 27,
+    "ssa_entry_orders": [
+      "single",
+      "unit",
+      "reversed_unit"
+    ],
+    "cli_normal": 12,
+    "cli_normal_count_calls": 84,
+    "cli_arithmetic_abort": 21,
+    "cli_minimum_expression_abort": 3,
+    "total_executions": 69,
+    "llvm_mutation": false,
+    "allocation_identity_instrumentation": false
+  },
+  "legacy_native_explicitly_rerun": {
+    "drop_single_and_reversed_unit": 2
+  },
+  "preserved_boundaries": [
+    "ordinary borrow and metadata alias bindings, including mixtures with new range bindings",
+    "non-Int Binary, String add, comparison, bitwise, short-circuit",
+    "wider if/while/return and existing receiver count break / initializer return gates"
+  ],
+  "not_run": [
+    "full frontend",
+    "full codegen",
+    "workspace aggregate",
+    "macOS",
+    "this slice remote CI",
+    "fault injection",
+    "IR mutation",
+    "calibration",
+    "aggregate drivers"
+  ],
+  "gates": {
+    "fmt": 0,
+    "clippy_codegen_cli_all_targets": 0,
+    "rust_size": 0,
+    "diff_check": 0,
+    "docs": 0,
+    "docs_diff_check": 0
+  },
+  "rust_size": {
+    "handwritten_files": 1029,
+    "existing_over_limit": 38,
+    "new_exceptions": 0
+  },
+  "source_sha256": {
+    "crates/lang-codegen/src/ssa/borrow_result_support.rs": "9c8cc27c16a2c86d870e6ceabbdbb69992db05ce2ead8769ef0d6e737f055046",
+    "crates/lang-codegen/src/ssa/lower_frontend/borrow_result.rs": "e621fc14f4976a5c14ae6b266a79b6ac26320e43586ef6f2bb2e3fb15bdc77fb",
+    "crates/lang-codegen/src/ssa/unit_lower/borrow_result.rs": "ba2d1a48837067e259de87b6deb8179604f9d3b5bb1734f703339fac69796507",
+    "crates/lang-codegen/src/ssa/range_lowering_tests.rs": "39ee21daf8a054dc819221d06bd5221262ab9b5f200b3b167af7df6c3c978567",
+    "crates/lang-codegen/src/ssa/range_lowering_tests/scalar_counts.rs": "7c368d58017412bd19f97d744a54f72ecb51b93fe53e8c8ccc931d6f6afd78f3",
+    "crates/lang-cli/tests/range_project_cli.rs": "9828085c6b5befe31e1bc30e9a90164d97e51067ca5009085b9f4f7a2a091538",
+    "crates/lang-cli/tests/range_project_cli/scalar_counts.rs": "06b9a8116bf3cb082f5dde64a02f04521779073be18beab975b933610c26e95a",
+    "crates/lang-cli/tests/range_project_cli/drop_algorithms.rs": "6a45ae49dc131c822cfca033a74e4639adc366f2e75b111a54227b7cdf956549"
+  },
+  "documentation": {
+    "markdown_files_checked": 609,
+    "architecture_lines": 199,
+    "spec_status": "in-progress",
+    "prior_section_20_unchanged": true
+  },
+  "sha256": {
+    "cli-green.log": "d58f0b149297d8a2eee8e4c1da3e57fee25716eba3384f92311196bc40150fb4",
+    "cli-red.log": "1d946c45d86d3ca22ce93bcb0e74de920272529394661f91f1c7a0bf62b2b170",
+    "docs-diff-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docs-final.log": "59de1d4ad67047e4fcfd8de3511aab39e97c34e31902daaf977d00f8bacaa3f6",
+    "docs-first-size-rejection.log": "2f223e534d6fb5aae6454567efe3b161b5eb342f310202f57891319551d19b08",
+    "final-cli.log": "9fe213951524b573b0c346c72969bb9c72ff4320f78d767480bf90b3fdecbc2b",
+    "final-clippy.log": "c6573a467cfb96d32c68ba7e902fec5f1fe032cd08264816217b8c5dee55b114",
+    "final-codegen.log": "08089789f68bbdbcf7cac17974bed6847499e7a10d9fac3dbe53871af4ac006a",
+    "final-diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "final-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "final-size.log": "18bd9550222f14fbb3f69cfc8304f59c17a66dec78896c1c1c1dce46328dde4c",
+    "green1.log": "967f2cbbfefefcada756be8edc60d92187d9edef1ff8d0e20c82192915c54cb4",
+    "green2.log": "ff67b1b281cfcedce505a2a236c3849dc7961032ac67ea2887068fe8985969c3",
+    "green3.log": "8d696af74acbcd43a1409aa4416d2880e5fa0ec73f6d9b36aad9b2a8b95676e6",
+    "green4.log": "561d213df34e0d70653b74431e820d69a7f4d89722082c0251f5b8b69839360e",
+    "red.log": "3fa5c326ed17e22cee95e2a58c7cfa5aefe082e525ca8a4d98a9e71821335805",
+    "source-sha256.txt": "14c9e307163f1068ac401c6104c45b33abc1c6ea7f9adcea0acc748d92d888a4"
+  }
+}
