@@ -6,13 +6,13 @@ const KNOWN_BOUNDARY: &str = include_str!(
     "../../../../docs/development/evidence/map-word-frequency-0295/known-boundary/src/p/provider.ko"
 );
 
-fn run_single(source: &str, body: &str, expected: &str) {
+pub(super) fn run_single(source: &str, body: &str, expected: &str) {
     let source = format!("{source}\nfun main(): Unit {{ {body} }}");
     let run = emit_link_and_run("owned-null-cleanup.ko", &source, "main");
     assert_success(&run, expected.as_bytes());
 }
 
-fn run_units(source: &str, body: &str, expected: &str) {
+pub(super) fn run_units(source: &str, body: &str, expected: &str) {
     let provider = format!("package p\n{source}");
     let consumer = format!("package q\nfun entry(): Unit {{ {body} }}");
     for constants in [false, true] {

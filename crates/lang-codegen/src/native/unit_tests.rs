@@ -26,6 +26,8 @@ mod owned_null_cleanup_tests;
 mod receiver_two_phase_tests;
 #[path = "unit_string_clone_tests.rs"]
 mod string_clone_tests;
+#[path = "unit_temporary_null_cleanup_tests.rs"]
+mod temporary_null_cleanup_tests;
 
 use std::{fs, path::Path, process::Command};
 

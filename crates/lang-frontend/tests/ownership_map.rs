@@ -130,3 +130,119 @@ fn map_remove_borrows_string_key() {
     );
     assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
 }
+
+#[test]
+fn map_temporary_null_comparisons_publish_one_result_cleanup() {
+    use lang_frontend::ownership_checking::{DropPoint, DropTarget, UnitDropPoint, UnitDropTarget};
+    for (ty, value) in [
+        ("String", "\"text\".clone()"),
+        ("Text", "Text(\"text\".clone())"),
+        ("Resource", "Resource()"),
+    ] {
+        for condition in [
+            "m.remove(1) != null",
+            "null == m.remove(1)",
+            "((m.remove(1))) == null",
+            "null != ((m.remove(1)))",
+        ] {
+            let source = format!(
+                "value class Text(val text: String)\nclass Resource {{ deinit() {{ println(\"drop\") }} }}\nfun run(): Unit {{ var m = mutableMapOf<Int, {ty}>(); m.put(1, {value}); val present = {condition}; if (present) {{ println(\"yes\") }} }}"
+            );
+            let (single, unit) = checked(&source);
+            assert!(
+                single.diagnostics().is_empty(),
+                "{source}: {:?}",
+                single.diagnostics()
+            );
+            assert!(
+                unit.diagnostics().is_empty(),
+                "{source}: {:?}",
+                unit.diagnostics()
+            );
+            let single = single
+                .drops()
+                .iter()
+                .filter(|fact| matches!(fact.point(), DropPoint::AfterBinaryOperands(_)))
+                .collect::<Vec<_>>();
+            let unit = unit
+                .drops()
+                .iter()
+                .filter(|fact| matches!(fact.point(), UnitDropPoint::AfterBinaryOperands(_)))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                single.len(),
+                1,
+                "{source}: exactly the actual result, never the null literal"
+            );
+            assert_eq!(
+                unit.len(),
+                1,
+                "{source}: exactly the actual result, never the null literal"
+            );
+            assert!(matches!(single[0].target(), DropTarget::Temporary(_)));
+            assert!(matches!(unit[0].target(), UnitDropTarget::Temporary(_)));
+            assert_eq!(single[0].value_origin(), unit[0].value_origin());
+            let origin = single[0].value_origin();
+            assert_eq!(
+                &source[origin.start() as usize..origin.end() as usize],
+                "m.remove(1)"
+            );
+        }
+    }
+}
+
+#[test]
+fn map_temporary_null_cleanup_excludes_copyable_named_borrowed_and_incomplete_results() {
+    use lang_frontend::ownership_checking::{DropPoint, UnitDropPoint};
+    for source in [
+        "fun run() { var m = mutableMapOf<Int, Int>(); val present = m.remove(1) != null }",
+        "fun run() { var m = mutableMapOf<Int, String>(); val value = m.remove(1); val present = value != null }",
+        "class Resource {}\nfun view(source: Resource?): borrow Resource? from source = source\nfun run(source: Resource?) { borrow val value = view(source); val present = value != null }",
+        "fun run() { var m = mutableMapOf<Int, String>(); val present = m.remove(error(\"stop\")) != null }",
+    ] {
+        let (single, unit) = checked(source);
+        assert!(
+            single.diagnostics().is_empty(),
+            "{source}: {:?}",
+            single.diagnostics()
+        );
+        assert!(
+            unit.diagnostics().is_empty(),
+            "{source}: {:?}",
+            unit.diagnostics()
+        );
+        assert!(
+            !single
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), DropPoint::AfterBinaryOperands(_))),
+            "{source}"
+        );
+        assert!(
+            !unit
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), UnitDropPoint::AfterBinaryOperands(_))),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn map_temporary_null_direct_borrow_result_keeps_rejection() {
+    let source = "class Resource {}\nfun view(source: Resource?): borrow Resource? from source = source\nfun run(source: Resource?) { val present = view(source) != null }";
+    let (single, unit) = checked(source);
+    assert!(
+        single
+            .diagnostics()
+            .iter()
+            .any(|d| d.code().to_string() == "L0164")
+    );
+    assert!(
+        unit.diagnostics()
+            .iter()
+            .any(|d| d.code().to_string() == "L0164")
+    );
+    assert!(single.drops().is_empty());
+    assert!(unit.drops().is_empty());
+}
