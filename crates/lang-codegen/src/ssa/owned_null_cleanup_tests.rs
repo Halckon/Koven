@@ -112,7 +112,7 @@ fn single_nullable_factory_planning_boundary_precedes_any_comparison() {
     assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
     let origin = error.span.unwrap();
     assert_eq!(
-        &source[origin.start() as usize..origin.end() as usize],
+        &source[origin.start()..origin.end()],
         "fun make(): Resource? = Resource(\"plain nullable drop\")"
     );
     let program = unit(source).unwrap();

@@ -11,7 +11,7 @@
 | 批准依据 | 用户要求继续下一里程碑；本片修复既有 MoveOnly Map.remove 普通源码缺口，本地实现与验证已授权，发布另由父任务确认 |
 | 前置 Spec | SPEC-0288、SPEC-0295 |
 | 前置 ADR | ADR-0017 |
-| 影响范围 | 通用 nullable comparison 的两入口 lowering、普通源码回归、事实文档 |
+| 影响范围 | 两 frontend cleanup planner、通用 nullable comparison 两入口 lowering、普通源码回归、事实文档 |
 | 语言语义变更 | 否 |
 
 ## 1. Goal 与基线
@@ -26,7 +26,7 @@
 
 - presence 读取必须先于该读取对应的最后使用 drop；沿用前端 typed null descriptor、
   source-qualified ownership/drop facts 和已有 aggregate/pointer 表示，不重新猜测 liveness。
-- 纯内存 MoveOnly 遵循现行 ASAP；资源类型遵循词法退出逆序析构。消费交付后原绑定不能重复 drop。
+- 纯内存 MoveOnly 遵循现行 ASAP；具名资源遵循词法退出逆序析构，资源临时值在完整表达式末清理。消费交付后原绑定不能重复 drop。
 - 单文件、普通 unit 与常量 unit 使用同一不变量；循环回边保留必要 owner/loan，
   unit 循环的分支出口、判空、分组/交换操作数、显式消费及缺失结果均有正常源码覆盖；
   single for 的既有 guarded-owner 门独立记录。
@@ -38,7 +38,7 @@ Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借�
 完整 CFG/NLL 重构、通用 eager binary 或条件借用扩展、放松 verifier、性能宣称。云本机只跑正常源码、普通负例与静态检查；
 不跑故障注入、校准、malformed IR、LLVM/allocator counter、reducer 或聚合驱动。双宿主 CI 留远端。
 
-## 4. 验收账本
+## 4. 第一阶段验收账本
 
 | ID | 验收项 / 目标 | 实际结果 |
 |---|---|---|
@@ -100,9 +100,23 @@ carrier 缺口不扩入本片。第一阶段证据和当时边界保留，不追
 
 | ID | 第二阶段验收项 | 实际结果 |
 |---|---|---|
-| T1 | 单文件/unit真实facts：actual operand一次、AfterBinaryOperands、精确origin；Copyable/named/borrowed/未完成对照 | 待执行 |
-| T2 | direct/group、null左右、==/!=、String/Text/Resource、命中/Missing；Boolean和if，single与两unit native | 待执行 |
-| T3 | 第一阶段矩阵及直接消费者、相邻nullable/String ownership；frontend/codegen严格clippy与跨crate静态check | 待执行 |
-| T4 | 独立审查、最终本机证据；远端CI仍独立 | 待执行 |
+| T1 | 单文件/unit真实facts：actual operand一次、AfterBinaryOperands、精确origin；Copyable/named/borrowed/未完成对照 | 5/5；另锁key CallReturn与结果清理分离、inout receiver负例 |
+| T2 | direct/group、null左右、==/!=、String/Text/Resource、命中/Missing；Boolean和if，single与两unit native | 临时9/9；unit循环4退出与0/1/重复键；原项目/scalar/temporary合计6条公开build/run通过 |
+| T3 | 第一阶段矩阵及直接消费者、相邻nullable/String ownership；frontend/codegen严格clippy与跨crate静态check | cleanup22、直接消费者33、frontend107+6通过；clippy/workspace all-targets check及其余静态门禁通过 |
+| T4 | 独立审查、最终本机证据；远端CI仍独立 | 独立合同/实现/矩阵静态审查无阻塞；最终证据待复核，远端仍未执行 |
 
 先保存本合同与真实红测，再做最小事实和消费接线；每个逻辑切片独立提交。
+
+第二阶段合同先提交 `9c24a3ac`，真实红测 `d9f9f700`：frontend 正例缺结果 fact，
+两项排除对照通过；4 项 native 在单文件 InvalidSsa、unit Resource pointer UnsupportedNode。
+`ae65b2ce` 只补 frontend 结果事实和表示读取/消费接线，首轮 3+4 项转绿；
+`ad0ba270` 扩展为 9 项临时 SSA/native、5 项 frontend facts/普通负例，并保留单文件工厂规划边界。
+原[边界账本](../../development/evidence/owned-null-cleanup-0296/known-boundaries.json)保留第一阶段红数据并明确临时结果已闭合。
+单文件普通 Resource? 工厂无 Map/判空也在返回类型登记时报 UnsupportedNode，unit 对照通过；
+不从本片推定任意 nullable 工厂、grouped null literal 或临时 inout receiver 获得支持。
+
+[第二阶段最终本机证据](../../development/evidence/owned-null-cleanup-0296/phase-two-acceptance.json)
+记录全部命令、实际命中数、stdout/stderr、源码与编译器SHA256。22项cleanup含1项保留工厂边界；
+113项frontend为107项定向套件与6项String binary对照。首轮严格clippy只报新增测试冗余usize cast，
+最小删除后复跑受影响测试、22项cleanup和严格门禁通过；未加allow、未改变生产代码。
+原0295项目三文件逐字节对照main基线不变；远端CI、归档及合并尚未执行。

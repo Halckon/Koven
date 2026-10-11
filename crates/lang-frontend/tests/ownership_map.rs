@@ -195,10 +195,7 @@ fn map_temporary_null_comparisons_publish_one_result_cleanup() {
             assert_eq!(binary, qualified.expression());
             assert_eq!(single[0].value_origin(), unit[0].value_origin());
             let origin = single[0].value_origin();
-            assert_eq!(
-                &source[origin.start() as usize..origin.end() as usize],
-                "m.remove(1)"
-            );
+            assert_eq!(&source[origin.start()..origin.end()], "m.remove(1)");
         }
     }
 }
@@ -270,7 +267,7 @@ fn map_temporary_null_cleanup_keeps_key_call_return_separate() {
         .filter(|fact| matches!(fact.target(), DropTarget::Temporary(_)))
         .map(|fact| (fact.point(), fact.value_origin()))
     {
-        let spelling = &source[origin.start() as usize..origin.end() as usize];
+        let spelling = &source[origin.start()..origin.end()];
         if spelling == "m.remove(\"key\".clone())" {
             assert!(matches!(point, DropPoint::AfterBinaryOperands(_)));
         }
@@ -289,7 +286,7 @@ fn map_temporary_null_cleanup_keeps_key_call_return_separate() {
         .filter(|fact| {
             matches!(fact.point(), DropPoint::CallReturn(_))
                 && matches!(fact.target(), DropTarget::Temporary(_))
-                && &source[fact.value_origin().start() as usize..fact.value_origin().end() as usize]
+                && &source[fact.value_origin().start()..fact.value_origin().end()]
                     == "\"key\".clone()"
         })
         .count();
@@ -309,8 +306,7 @@ fn map_temporary_null_cleanup_keeps_key_call_return_separate() {
             .iter()
             .filter(|fact| matches!(fact.point(), UnitDropPoint::CallReturn(_))
                 && matches!(fact.target(), UnitDropTarget::Temporary(_))
-                && &source
-                    [fact.value_origin().start() as usize..fact.value_origin().end() as usize]
+                && &source[fact.value_origin().start()..fact.value_origin().end()]
                     == "\"key\".clone()")
             .count(),
         1
