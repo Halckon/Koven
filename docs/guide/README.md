@@ -1,10 +1,10 @@
-# Koven v0.42 语言规范
+# Koven v0.43 语言规范
 
-> **性质**：规范性语言规范入口 · **状态**：current（v0.42） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
+> **性质**：规范性语言规范入口 · **状态**：current（v0.43） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
 
-<!-- current-guide: v0.42 -->
+<!-- current-guide: v0.43 -->
 
-本规范定义 Koven v0.42。它不是教程，也不描述某项功能何时完成；当前实现事实见
+本规范定义 Koven v0.43。它不是教程，也不描述某项功能何时完成；当前实现事实见
 [Architecture](../architecture/README.md)，未来设计见 [Proposals](../proposals/README.md)。
 已分离的内部表示、算法与资源合同见 [Compiler Contracts](../compiler-specs/README.md)；
 本 Guide 继续作为 Language Reference，语言语义、诊断与强制 Phase 权威不变。
@@ -36,6 +36,12 @@ Spec归档或后继里程碑推进，只证明各自验收范围，不能视为�
 | 权威边界、Phase、门禁和明确非目标 | [一致性与实施边界](15-conformance-and-staging.md) |
 
 ## 版本与边界
+
+- 2026-10-08 用户批准 r3 小修后的 N1a 首片本地实施，并批准负数 Abort、超出 size 截边界。
+  v0.43 完整继承并取代 v0.42，仅启用[单来源连续范围 carrier](12-collections-destructuring.md#n1a-单来源连续范围-carrier)
+  的封闭类型、来源与交付合同；不启用 consume、通用 Clone 或 N1b。
+  [启用账本](../archive/migrations/v0.43-enablement.md)保全 v0.42 完整 16 页和批准依据。
+  未实现的类型/所有权/SSA/native 路径必须明确拒绝，规范启用不代表 SPEC-0289 已完成。
 
 - 2026-10-07 12:24 UTC，用户明确批准普通借用返回、显式 `borrow val` 和受检查的不可逃逸作用域访问；
   v0.42 完整继承并取代 v0.41，仅启用[普通借用结果合同](10-ownership-borrowing-drop.md#普通借用结果与显式局部绑定)与

@@ -286,7 +286,14 @@ subgraph Garchive["已完成（archive，275 份）"]
   S0288["S0288<br/>Map 键值容器原生执行基础（SSA 原语、LLVM IR 代码生成与 Native Runtime 哈希表）"]
 end
 subgraph Gactive["现行 active"]
+  S0289["S0289<br/>N1a 单来源范围描述符端到端交付"]
   S0290["S0290<br/>PR69 交付回归修复与验收边界一致"]
+end
+subgraph Gdrafts_v043["v0.43（draft）"]
+  S0292["S0292<br/>链内立即消费序列与 owned 结果"]
+end
+subgraph Gdrafts_v044["v0.44（draft）"]
+  S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1287,7 +1294,10 @@ S0284 --> S0285
 S0285 --> S0286
 S0286 --> S0287
 S0287 --> S0288
+S0287 --> S0289
 S0288 --> S0290
+S0288 --> S0291
+S0289 --> S0292
 ```
 
 ## 节点链接
@@ -1569,4 +1579,7 @@ S0288 --> S0290
 | SPEC-0286 | archive | [0286-unit-local-destructuring.md](0286-unit-local-destructuring.md) |
 | SPEC-0287 | archive | [0287-m2b-and-map-type-system.md](0287-m2b-and-map-type-system.md) |
 | SPEC-0288 | archive | [0288-map-native-execution.md](0288-map-native-execution.md) |
+| SPEC-0289 | active | [0289-n1a-range-carrier.md](../../specs/active/0289-n1a-range-carrier.md) |
 | SPEC-0290 | active | [0290-pr69-regression-repair.md](../../specs/active/0290-pr69-regression-repair.md) |
+| SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
+| SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

@@ -61,3 +61,5 @@
 - [M5 度量与分发](measurement-distribution-spec-draft.md)：成本协议、双宿主 preview 与安装验收
 - [Preview 候选包工具](preview-candidate.md)：release 来源、包内合同及独立消费命令；实际验收由0272维护
 - [M6 线程转移](thread-transfer-spec-draft.md)：v1 Transferable、启动/join/清理与未来共享边界
+
+- [N1a 合同与候选分支接收](n1a-contract-integration.md)：新推送合同、完整v0.42保全与本次验证边界。

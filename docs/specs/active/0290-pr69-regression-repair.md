@@ -7,12 +7,12 @@
 | 状态 | in-progress |
 | Goal ID | `KOV-P6-0290` |
 | 所属 Phase | Phase 3 所有权事实；Phase 4 typed SSA；Phase 5 LLVM；Phase 6 native 与交付验收 |
-| 语言规范 | 现行 [Guide v0.42](../../guide/README.md)，尤其所有权、集合及实施边界章节 |
-| 批准依据 | 2026-10-10 用户授权在云端对 PR69 审计六项发现分阶段计划与修复；未授权 push、创建 PR 或 merge |
+| 语言规范 | 现行 [Guide v0.43](../../guide/README.md)，尤其所有权、集合及实施边界章节 |
+| 批准依据 | 2026-10-10 用户授权云端分阶段修复，随后批准 push，已发布6提交；15:00 要求审查新推送0289/0291后继续里程碑；PR/merge 仍未授权 |
 | 前置 Spec | SPEC-0288 已归档且 PR69 已合入 main；原证据按需从 archive 追溯 |
 | 前置 ADR | [ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) 已 accepted |
 | 关联 ADR | 无新增长期架构决定 |
-| 阻塞项 | 本地修复、fmt/clippy 与 23 个遗漏 frontend targets 已验证并提交代码；最终 107 项整合复跑通过，最终文档/尺寸门禁与文档提交待复核；远端交付未授权；N1a 语义处置属于 decision gate，不是已批准实现 |
+| 阻塞项 | 本地有界修复与6提交发布已完成，push CI 通过其实际选择项；PR/merge 未授权。N1a 已批准 Guide v0.43 从0289分支补回，合同/门禁验证与0289后继实现仍独立验收 |
 | 影响范围 | `lang-codegen`、相关 frontend/CLI 回归、CI 测试选择与当前事实文档 |
 | 语言语义变更 | 否；不通过本 Spec 启用、禁用或改写 N1a 语义 |
 
@@ -215,3 +215,19 @@ N1a 方向保持待用户决定，本地代码修复通过不将 R6 或六项审
 - 本地 native C driver 实测为 `/usr/bin/cc`：Debian GCC 14.2.0-19（14.2.0）；LLVM IR
   编译使用恢复的匹配 Clang 21.1.8，不用系统 C driver 版本替代 LLVM 工具版本。
 - N1a 方向没有取得用户选择，A6 保持未勾选；远端未经授权，Spec 仍 active/in-progress。
+
+
+### 2026-10-10 发布与 N1a 合同接收补记
+
+上述各检查点的未授权/未发布及 N1a 待决定表述保留历史时点，不作为当前状态。
+随后用户批准 push，6个本地提交逐步树等价发布；最终远端 head
+`f50b48c87aa6de081eb12e1f7963887dfd1cf47e` 与本地 `c91fdcb` 的树均为
+`a441a6d97b5fba2f33aa05364167edc57aa590ff`。
+[push CI 38059800092](https://github.com/Halckon/Koven/actions/runs/38059800092) completed/success，
+docs、fmt、尺寸、依赖与 Tree-sitter 实际通过；跨平台 clippy/tests/preview 按 push
+规则 skipped，不能算双宿主验收。PR 与 merge 仍未获授权。
+
+15:00 用户要求审查刚推送0289/0291后继续实施。0289补回此前已批准的 N1a Guide
+v0.43/ADR-0030；此前的语义二选一源于缺失分支资料。现按正式合同延续 N1a，
+不回退代码，也不启用0291/0292消费草案。R6的合同/门禁接收见
+[整合记录](../../development/n1a-contract-integration.md)，A6仍不借此声明0289完成。
