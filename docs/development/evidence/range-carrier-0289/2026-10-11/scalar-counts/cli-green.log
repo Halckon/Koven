@@ -9,4 +9,3 @@ test scalar_counts::public_std_range_scalar_count_abort_precedes_consumer_withou
 test scalar_counts::public_std_range_scalar_counts_preserve_live_descriptors ... ok
 
 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 3.60s
-

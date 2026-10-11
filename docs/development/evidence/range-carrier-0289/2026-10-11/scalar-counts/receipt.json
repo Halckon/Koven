@@ -280,22 +280,49 @@
     "prior_section_20_unchanged": true
   },
   "sha256": {
-    "cli-green.log": "d58f0b149297d8a2eee8e4c1da3e57fee25716eba3384f92311196bc40150fb4",
+    "cli-green.log": "9ea6525a4f3d2e72e69ee0f1e4bbf83e034132e17bf3e095590a8638241494c9",
     "cli-red.log": "1d946c45d86d3ca22ce93bcb0e74de920272529394661f91f1c7a0bf62b2b170",
     "docs-diff-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "docs-final.log": "59de1d4ad67047e4fcfd8de3511aab39e97c34e31902daaf977d00f8bacaa3f6",
     "docs-first-size-rejection.log": "2f223e534d6fb5aae6454567efe3b161b5eb342f310202f57891319551d19b08",
-    "final-cli.log": "9fe213951524b573b0c346c72969bb9c72ff4320f78d767480bf90b3fdecbc2b",
+    "final-cli.log": "0718ab236eac3f5c9e176a8d7c03d42c152e3d53702e123e27427acb3385e59f",
     "final-clippy.log": "c6573a467cfb96d32c68ba7e902fec5f1fe032cd08264816217b8c5dee55b114",
-    "final-codegen.log": "08089789f68bbdbcf7cac17974bed6847499e7a10d9fac3dbe53871af4ac006a",
+    "final-codegen.log": "00fa76f4175f2247d42f5421e268ce85e3a5b2b0088957638dcb37951af624e9",
     "final-diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "final-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "final-size.log": "18bd9550222f14fbb3f69cfc8304f59c17a66dec78896c1c1c1dce46328dde4c",
     "green1.log": "967f2cbbfefefcada756be8edc60d92187d9edef1ff8d0e20c82192915c54cb4",
-    "green2.log": "ff67b1b281cfcedce505a2a236c3849dc7961032ac67ea2887068fe8985969c3",
+    "green2.log": "fdaf48c1be50b41313bc6eabc6109ef1ce128a4ed5a8b866ddbafc53ec717bf7",
     "green3.log": "8d696af74acbcd43a1409aa4416d2880e5fa0ec73f6d9b36aad9b2a8b95676e6",
-    "green4.log": "561d213df34e0d70653b74431e820d69a7f4d89722082c0251f5b8b69839360e",
+    "green4.log": "f8d4d8ebc42c2b6073ecba4247b1692e84120301673ef4ff3d72cb5a4aabc3a1",
     "red.log": "3fa5c326ed17e22cee95e2a58c7cfa5aefe082e525ca8a4d98a9e71821335805",
     "source-sha256.txt": "14c9e307163f1068ac401c6104c45b33abc1c6ea7f9adcea0acc748d92d888a4"
+  },
+  "log_normalization": {
+    "reason": "Full committed PR diff revealed trailing blank lines in newly added logs that the earlier tracked-working-tree diff check did not inspect. Only redundant final LF bytes are removed; restore them using the counts below to recover the exact original bytes. Source and test output lines are unchanged.",
+    "initial_pr_diff_check_exit": 2,
+    "original_artifacts": {
+      "cli-green.log": {
+        "original_sha256": "d58f0b149297d8a2eee8e4c1da3e57fee25716eba3384f92311196bc40150fb4",
+        "trailing_newline_bytes_removed": 1
+      },
+      "final-cli.log": {
+        "original_sha256": "9fe213951524b573b0c346c72969bb9c72ff4320f78d767480bf90b3fdecbc2b",
+        "trailing_newline_bytes_removed": 1
+      },
+      "final-codegen.log": {
+        "original_sha256": "08089789f68bbdbcf7cac17974bed6847499e7a10d9fac3dbe53871af4ac006a",
+        "trailing_newline_bytes_removed": 1
+      },
+      "green2.log": {
+        "original_sha256": "ff67b1b281cfcedce505a2a236c3849dc7961032ac67ea2887068fe8985969c3",
+        "trailing_newline_bytes_removed": 1
+      },
+      "green4.log": {
+        "original_sha256": "561d213df34e0d70653b74431e820d69a7f4d89722082c0251f5b8b69839360e",
+        "trailing_newline_bytes_removed": 1
+      }
+    },
+    "final_check_command": "git diff --cached --check origin/main"
   }
 }

@@ -9,4 +9,3 @@ test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_single_and_un
 test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_normal_source_arithmetic_and_negative_counts_abort ... ok
 
 test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 1218 filtered out; finished in 4.46s
-

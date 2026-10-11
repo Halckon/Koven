@@ -37,4 +37,3 @@ test drop_algorithms::public_std_drop_algorithms_negative_counts_abort_even_for_
 test scalar_counts::public_std_range_scalar_counts_preserve_live_descriptors ... ok
 
 test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.66s
-
