@@ -407,3 +407,13 @@ ABI与普通native路径；用户明确启用Guide v0.41 expected move literal�
 下一实现闭环仍为可信 List/View receiver 的实际来源与静态 ABI 交付，不横向铺新算法。
 0291只读Map转换与改号0292消费序列均保持draft，不随N1a启用。历史临时证据只作
 原时点记录，后继实现须独立验收；本轮不进行故障注入或校准。
+
+
+## 24. N1a receiver 本地闭环与待发布边界（2026-10-10）
+
+可信 receiver 静态 ABI、稳定根外层消费者续接与真实 std List/View.take 已分三片
+本地提交；[SPEC-0289 §19](../specs/active/0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)
+记录最终148项定向测试、29次新增 native 执行与工程门禁，不用旧全量替代本轮。
+更广 CFG、剩余范围算法及整个 N1a 仍开放；consume/Clone/N1b 不扩展。
+PR70增量CI已合入main，本开发分支尚未接入；本轮新代码尚未push、全量/双宿主CI未跑。
+用户现允许GitHub Actions故障注入/校准，云开发环境仍禁止；此前记录保留历史含义。

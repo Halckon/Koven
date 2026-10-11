@@ -1,0 +1,15 @@
+    Checking lang-frontend v0.1.0 (/workspace/scratch/e92619458311/koven-pr69-fixes/crates/lang-frontend)
+    Checking serde_core v1.0.229
+    Checking winnow v1.0.4
+    Checking memchr v2.8.3
+    Checking zmij v1.0.23
+    Checking itoa v1.0.18
+    Checking lang-std v0.1.0 (/workspace/scratch/e92619458311/koven-pr69-fixes/crates/lang-std)
+    Checking toml_parser v1.1.3+spec-1.1.0
+    Checking toml_datetime v1.1.1+spec-1.1.0
+    Checking serde_spanned v1.1.1
+    Checking serde_json v1.0.151
+    Checking toml v1.1.6+spec-1.1.0
+    Checking lang-codegen v0.1.0 (/workspace/scratch/e92619458311/koven-pr69-fixes/crates/lang-codegen)
+    Checking lang-cli v0.1.0 (/workspace/scratch/e92619458311/koven-pr69-fixes/crates/lang-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 33.40s

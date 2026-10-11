@@ -29,13 +29,13 @@ caller 用真实 receiver expression 建立 Shared source loan，View 派生续�
 新描述符保持 root-flat，既有 metadata 借用保留父依赖。结果 end 与元素/provider
 结束共同约束权限恢复，临时链只延续到实际立即消费者并在其返回后清理一次。
 
-可信扩展类型检查可以通过；成功的 ownership recovery 保存实际来源与续接/end，
-随后在后端能力门发布 L0164。single pipeline 停在 OwnershipChecking，unit owned
-validate 失败；语义错误或 Deferred 仍按既有原子门撤销事实。receiver SSA/native
-交付尚未实现，类型选择或前端事实不能替代后端证明。
-标准 ranges.ko 仍只有顶层 take 算法，未添加扩展 body。View 不是 owned sequential
-container；已接到 SSA descriptor/inline ABI 的仍是 parameter 来源，余项由 active
-SPEC-0289 维护。
+可信扩展的来源与续接已接到 single/unit 静态 RangeCall ABI。lowering 消费已绑定的
+合成 `this` symbol 与 receiver_type，receiver 为入口参数 0，显式参数后移，
+carrier_return=0；function.receiver 仍为 None，复用现有 verifier/LLVM，不从名称
+推断身份。仅移除已接通声明路径的 L0164；未证明 producer、来源错误与其他能力门保留。
+语义错误或 Deferred 仍按既有原子门撤销事实。
+真实 `ranges.ko` 已有 List/View Borrow receiver take wrapper，body 转发既有顶层
+`take(this, count)`；View 仍不是 owned sequential container。
 
 ## 已有 metadata 借用
 
@@ -65,7 +65,7 @@ callee identity 验证转发到声明参数；没有构造依据的递归环不�
 原子撤销返回和 continuation。RangeReturnOriginFact 与普通 borrow-return facts 分离，
 转发保留真实 source loan，caller 新 descriptor 绑定/root/end 复用已验证路径。
 
-`lang-std/koven/algorithms/ranges.ko` 实现通用 List<T>/View<T> 的顶层 take 重载；负数 error、非负
+`lang-std/koven/algorithms/ranges.ko` 实现通用 List<T>/View<T> 顶层 take 及转发它的 receiver wrapper；负数 error、非负
 clip 都由 Koven body 完成。CLI project 加载该固定资产并复用 import/alias 选择，
 不按 take 名称重推算法。公共 CLI 已实际编译并运行 String、MoveOnly 与 Resource
 实例，count 为负时 Abort，0/空来源、等长、超长与 Int 最大值均按真实标准库 body
@@ -129,10 +129,17 @@ return/正常耗尽各在规定边界结束；body-local Resource 先按逆序�
 释放身份都必须匹配。公共 CLI 加入来源只求值一次、连续构造、empty 及 local 清理回归。
 保存或错误返回临时范围仍 L0162，不把根寿命扩大到词法绑定或调用返回之外。
 
-当前边界是 List/View 来源的顶层 take、size、只读元素、具名 for 和以上同步临时来源。
-receiver 的前端来源已验证，extension SSA/native 及更广 CFG 能力仍未交付；普通 borrow binding
-跨控制流的旧能力门保留。本片没有新增 View 索引、更多算法、consume/Clone 或 N1b。
-当前前端 receiver 证据见 active SPEC-0289 §16，冻结全库终态见 §17。
+当前支持 List/View 的顶层与可信 receiver take、size、只读元素、具名 for 和以上
+同步临时来源。稳定 named root 的短期范围借用按已验证 Place origin 延续到外层
+消费者 CallReturn，避免内部 take 返回时提前 drop；消费者结束后仍遵守原 liveness /
+resource 清理规则。single pending call loans 与 unit argument frame 保存 receiver
+跨 count 条件 return 的当前 loan，正常/早退分支均有 native 清理证据。
+
+更广 CFG 保留精确门：producer count 分支缺来源证明仍 L0164；borrow val initializer
+内 return 仍 UnsupportedNode(return)；receiver count break 的 single/source binding
+与 unit/整个 for 仍 UnsupportedNode。未新增 View 索引、drop/dropLast、一般扩展、
+consume/Clone 或 N1b。当前定向验收与本地提交/未发布边界见 active SPEC-0289 §19；
+§§16–17 只记录此前前端与旧源码冻结结果。
 
 
 ## View 来源的新 descriptor 与转发
@@ -158,7 +165,7 @@ build/run 同一个 take 的两种来源。当前 View 阶段定向证据见 SPE
 
 本路径使用现有 SourceMap-owned SourceId 授权、compiler-bound View/原语 identity 和
 已选择 canonical callable。独立可信 receiver 宿主及其名称、类型、实际来源与续接事实
-已接通；receiver SSA/native 仍由 L0164 关闭。此处顶层 View 来源路径未新增通用框架、
+已接通，静态 receiver ABI 与实际 std wrapper 也已有正常 native 证据。该路径未新增通用框架、
 更多算法或更广借用 CFG 语义。
 
 ## 调用前缀的条件 return

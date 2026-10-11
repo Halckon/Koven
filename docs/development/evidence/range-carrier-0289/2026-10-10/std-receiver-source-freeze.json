@@ -1,0 +1,10 @@
+{
+  "crates/lang-cli/src/standard_sources/tests.rs": "4544d3826429d7218521dc81b7c066f3ecf5aad736b0b43edbc5181f2ba1dde9",
+  "crates/lang-cli/tests/range_project_cli.rs": "af5a59604b9356b335c64d3fb30d87f0c4fc9dd408aaf41123a849cdd56358fa",
+  "crates/lang-codegen/src/ssa/range_lowering_tests/receiver.rs": "00ece7897bd643c9d385bbfcd482aad2016726bea8d1d26d645d8f1ade8410c7",
+  "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/drop_planner.rs": "125cd7c9f85bf54b7ee9a19b54b7c1570edeac447f2ec622298a494f48d8d508",
+  "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/drop_planner/borrow_result.rs": "43aaee9b201d2de1b6b0e70700b74c65401a7ba6014c4ddaa8cbd7bd6027f7c2",
+  "crates/lang-frontend/tests/ownership_range_receiver.rs": "479555c06f90084bc47211addc927d41d921082454a35bb4139945102c6b4e59",
+  "crates/lang-std/koven/algorithms/ranges.ko": "cbe143e8109aaaa9ca8a23ec740b6c8ce13c4af0316aeed403f45ceef9aa7a64",
+  "crates/lang-cli/tests/range_project_cli/receiver.rs": "6060178acd10c06a581ef3e6ffeb9a241e77be1ae5fc564e225b6d98cb821c85"
+}

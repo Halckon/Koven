@@ -11,16 +11,16 @@
 | 批准依据 | 2026-10-08 12:15 UTC 用户明确同意 r3 小修后的 N1a 与立即消费首片本地实施 |
 | 前置 Spec | [SPEC-0287](../../archive/specs/0287-m2b-and-map-type-system.md) 的已发布来源合同 |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
-| 关联 ADR | [ADR-0030](../../adr/accepted/0030-range-carrier-source-facts.md)；List/View 终态见 §12–13，§15 授权与类型选择已落地，receiver 来源/后端待接通 |
-| 阻塞项 | receiver 实际 origin/continuation/end 与 SSA/verifier；§15 授权和类型选择首片已落地，§14 CFG 冻结全量终态保持 |
+| 关联 ADR | [ADR-0030](../../adr/accepted/0030-range-carrier-source-facts.md)；List/View 终态见 §12–13；receiver 前端见 §15–16，静态 ABI 与真实 std 接线见 §19 |
+| 阻塞项 | receiver/static ABI 与 std take 已本地提交；当前分支全量、跨平台 CI 与发布尚未完成，更广 CFG 仍拒绝；见 §19 |
 | 影响范围 | lang-frontend、lang-codegen、lang-std；必要 CLI 标准来源接线 |
 | 语言语义变更 | 是；已批准最小合同已启用，未实现能力保留精确拒绝 |
 
-此前声明检查点只交付 Phase 1 Parser/AST。当前已推进 Phase 2 类型、来源与构造合同，
-以及稳定根绑定、producer 返回/转发和真实 std caller 的 Phase 3 continuation/end。
-List 的 take/size/native、具名 for 与同步临时来源已接通；终态见 §12。View 来源
-构造/转发终态见 §13，调用前缀提前 return 的冻结全量终态见 §14；§15 交付可信扩展
-授权与类型选择，实际 receiver 来源和后端及更广 CFG 仍保留能力门。现行合同见 Guide/ADR-0030；计数批准记录于 §6。
+当前已接通 List/View 顶层 take、可信 Borrow receiver 的来源/续接、静态 RangeCall ABI
+与真实 std receiver take wrapper。稳定 named root 的短期范围借用在外层消费者返回后
+才清理；single/unit 与公共 CLI 的本轮定向证据见 §19。此前 §7–18 保留各时点记录，
+不将旧 Mac `/tmp` 全量或早期能力门当作当前分支的验证状态。更广 CFG 仍精确拒绝，
+未完成本分支全量/跨平台 CI 或远端发布，SPEC-0289 继续 in-progress。
 
 里程碑主线是 M3A 的单来源 take 首片，依赖 M2B 来源与 continuation/end 合同，
 并回归 SPEC-0288 的 B2/B7/B8；当前不扩至 consume、Clone、N1b 或更多算法。
@@ -58,7 +58,7 @@ LLVM 返回内联描述符而非 callee 局部对象地址。root-flat 只去掉
 
 ## 5. 唯一验收账本
 
-本节表格保留声明检查点的实际结果；后续阶段逐项证据在 §7–14，当前阶段结果以 §14 为准，前片全量终态见 §13。
+本节表格保留声明检查点的实际结果；后续逐项证据在 §7–19，当前阶段以 §19 为准。历史全量只证明各自冻结源码。
 
 | 验收项 / 目标 | 实际结果 | 未运行或未完成原因 |
 |---|---|---|
@@ -859,3 +859,60 @@ acceptance.status=partial、requirements_met=false。Spec 保持 in-progress，�
 in-progress。旧 consume 草案0290因与修复编号冲突改为0292，保持 draft；0291
 readonly Map consume 保留 v0.44 候选，均未启用或实施。v0.42保全与本次验证见
 [接收记录](../../development/n1a-contract-integration.md)。
+
+
+## 19. receiver 静态 ABI、真实 std take 与稳定根续接（2026-10-10）
+
+本轮在云端 `fix/spec-0290` 延续 Guide v0.43，不改语言合同。三片本地提交为
+`3ac650b`（可信 receiver 静态 ABI）、`2134c3a`（稳定根续接至外层消费者）与
+`65b6fc0`（真实 std receiver take）。前端已绑定的合成 `this` 与 receiver_type
+运输为 SSA 参数 0，显式参数后移且 carrier_return=0；复用既有 RangeCall/RangeReturn
+verifier 与 LLVM ABI，仅删除已接通路径的声明级 L0164，不放宽可信来源或来源证明。
+
+真实 `ranges.ko` 的 List<T>.take/View<T>.take 只转发 `take(this, count)`，继续复用
+顶层负数 Abort、0 与超 size clip。宿主只向真实加载的 SourceId 授予两种独立权限；
+应用或伪造 std 路径/package 的 receiver 仍 L0164，不发布 extension binding。
+接线暴露正常 `read(take(namedRoot, 1))` 原先在内部 CallReturn 提前发布 root drop；
+精确 frontend 红例定位内外调用差异。修复按已证明 Place origin 续接 pending root 至
+外层消费者结束，再按原 liveness/resource 规则清理，不修改 verifier/LLVM。
+
+本轮完整执行收据位于云工作区 `../repair-logs/range-receiver-summary.md` 与
+`../repair-logs/std-receiver-summary.md`；准确命令、红绿日志及 SHA-256 分别由同目录
+`range-receiver-source-freeze.json`、`std-receiver-source-freeze.json` 绑定。
+上述收据、源码冻结及最终日志已同步保存到仓库
+`docs/development/evidence/range-carrier-0289/2026-10-10/`（summary 以 `.txt` 保全），
+不依赖云工作区存续；原始收据保留生成时状态，当前提交/发布状态以本节为准。
+这是本轮实测收据，不引用历史 Mac `/tmp` 结果作为当前源码验收。
+
+| 定向集合 | 实际结果 | 日志（`../repair-logs/`） |
+|---|---|---|
+| receiver ABI 首片 codegen：receiver 10、call-prefix 6、exact 邻域 15 | 31 passed | `range-receiver-final-source3.log`、`range-receiver-final-prefix.log`、`range-receiver-final-regressions.log` |
+| ABI 首片 frontend 八套件 | 57 passed | `range-receiver-final-front.log` |
+| 最终 frontend 十套件 | 80 passed | `std-receiver-final-front.log` |
+| 最终 codegen receiver / call-prefix | 12 / 6 passed | `std-receiver-final-codegen.log`、`std-receiver-final-prefix.log` |
+| 最终 CLI range/project/native | 23 / 13 / 10 passed | `std-receiver-final-cli.log` |
+| 最终 std loader host / source asset | 3 / 1 passed | `std-receiver-final-host.log`、`std-receiver-final-assets.log` |
+
+最终集合共 **148 passed、0 failed、0 ignored**（80+18+46+3+1）；早期 31+57
+与最终148是不同选择、存在重叠，不能简单加总，也不是 frontend/codegen 全量。
+std/稳定根新增测试实际运行29次正常程序或规定负数 Abort：CLI 11次、codegen 18次。
+覆盖临时 String/MoveOnly/Resource 的一次求值/释放、非零 View offset、顶层兼容、
+实际读取与只输出消费者，以及后续参数条件 return 的精确释放身份/顺序。
+
+Rust 1.96.0 / LLVM 21.1.8 下，最终 CLI build、fmt check、受影响四 crate 的
+all-targets 严格 clippy、尺寸及 diff 均 exit 0；日志前缀 `std-receiver-final-`，
+尺寸为1025 handwritten Rust /38既有超限，无新增超限，drop_planner零净增长。
+本次文档同步的 `python3 scripts/check_docs.py` 通过（608 Markdown），
+`git diff --check` 通过；文档日志为 `receiver-docs-check.log`。
+
+保留的能力门：producer count-CFG 未获来源证明仍 L0164；borrow val initializer
+内 count return 的 single/unit 仍 UnsupportedNode(return)；receiver count break 的
+single/source binding 与 unit/整个 for 仍在旧 loop 汇合门拒绝。测试只证明精确拒绝，
+不宣称这些路径 native 成功。不扩 drop/dropLast、一般扩展、consume、Clone 或 N1b。
+
+本分支全量及跨平台 CI 未运行；旧 §§14/17 全量不覆盖本轮。用户现明确允许 GitHub
+Actions 故障注入/校准，云开发环境仍禁止；本轮未执行这些入口或聚合 driver，旧历史
+禁止记录保持原时点含义。PR70 已合并为 `56af80b`，增量 CI 已在 main，但本分支尚未
+合入该 main，不能声称本轮已受其验证。publication `815b1fb` 的树上传两次均取消，
+远端仍为 `f50b48c`，分批发布方案待用户确认；上述新代码仅本地提交，未 push。
+SPEC-0289 保持 in-progress，不归档。

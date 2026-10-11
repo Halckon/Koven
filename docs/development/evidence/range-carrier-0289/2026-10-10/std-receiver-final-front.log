@@ -1,0 +1,142 @@
+   Compiling lang-frontend v0.1.0 (/workspace/scratch/e92619458311/koven-pr69-fixes/crates/lang-frontend)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.76s
+     Running tests/ownership_borrow_continuation.rs (target/debug/deps/ownership_borrow_continuation-28ca352890d19e0a)
+
+running 14 tests
+test global_borrow_binding_is_rejected_by_parser_at_its_marker ... ok
+test loop_borrow_binding_remains_closed_in_ownership ... ok
+test nested_borrow_result_call_remains_closed_in_ownership ... ok
+test borrowed_result_capture_remains_closed_in_ownership ... ok
+test conditional_borrow_initializer_remains_closed_in_ownership ... ok
+test abandoned_initializer_ends_source_call_without_ending_an_unestablished_result ... ok
+test named_source_continues_only_its_loan_and_other_arguments_end_at_call_return ... ok
+test results_continue_original_source_loans_and_never_own_the_payload ... ok
+test temporary_borrow_source_is_rejected_in_ownership ... ok
+test children_end_before_parents_and_owner_cleanup_on_scope_and_return_edges ... ok
+test source_mutation_and_exclusive_reborrow_conflicts_keep_real_spans ... ok
+test nullable_generic_and_copyable_bindings_keep_shared_capability ... ok
+test live_results_and_children_block_source_move_on_every_branch ... ok
+test nested_reborrow_and_alias_scopes_restore_owner_permission ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/ownership_borrow_last_use.rs (target/debug/deps/ownership_borrow_last_use-dca8e473c9ca3233)
+
+running 8 tests
+test live_map_payload_keeps_invalidation_blocked ... ok
+test independent_results_have_distinct_last_use_points ... ok
+test last_use_ends_children_before_parents_and_source_cleanup ... ok
+test unused_result_ends_after_its_initializer ... ok
+test control_flow_keeps_the_scope_endpoint_conservative ... ok
+test call_inputs_remain_borrowed_until_the_call_returns ... ok
+test same_scope_operations_follow_the_last_borrow_use ... ok
+test future_alias_projection_and_child_uses_keep_the_source_borrowed ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/ownership_range_carrier.rs (target/debug/deps/ownership_range_carrier-28c81bf38b389b1b)
+
+running 2 tests
+test metadata_return_cannot_change_the_declared_source_to_a_sibling ... ok
+test existing_metadata_alias_keeps_parent_and_original_call_loan_until_its_end ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/ownership_range_construction.rs (target/debug/deps/ownership_range_construction-42061558d26ccce4)
+
+running 12 tests
+test nested_view_construction_continues_the_original_temporary_collection_root ... ok
+test immediate_range_borrow_keeps_named_root_protected_through_later_arguments ... ok
+test derived_descriptor_inherits_root_without_parent_metadata_and_alias_keeps_metadata ... ok
+test constructing_a_range_continues_the_real_root_loan_and_ends_before_move ... ok
+test conditional_call_does_not_enable_general_borrow_binding_last_use ... ok
+test range_descriptor_iteration_never_publishes_an_owned_metadata_drop ... ok
+test range_iteration_keeps_root_and_noncopyable_element_read_only_in_single_and_unit ... ok
+test immediate_range_use_and_loop_restore_named_root_permissions ... ok
+test live_range_or_sibling_keeps_the_root_protected ... ok
+test temporary_range_provider_continues_the_actual_root_in_single_and_unit ... ok
+test temporary_range_cannot_escape_into_binding_or_return ... ok
+test range_call_prefix_return_publishes_only_established_outer_argument_ends ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/ownership_range_producer.rs (target/debug/deps/ownership_range_producer-653a0b99c2ed98b6)
+
+running 6 tests
+test an_invalid_producer_body_atomically_revokes_caller_and_return_facts ... ok
+test declarations_and_recursive_forwarding_do_not_fabricate_construction_proof ... ok
+test qualified_unit_forwarding_preserves_origin_across_sources_and_input_order ... ok
+test producer_cannot_substitute_a_sibling_or_local_root ... ok
+test proven_forwarding_is_independent_of_declaration_order_and_keeps_root_live ... ok
+test direct_generic_producer_continues_root_and_releases_before_owner_move ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/ownership_range_receiver.rs (target/debug/deps/ownership_range_receiver-2ee1e415aef9ff55)
+
+running 11 tests
+test receiver_producer_with_count_branch_retains_unproven_delivery_frontier ... ok
+test temporary_receiver_cannot_escape_into_a_persistent_borrow_binding ... ok
+test extension_this_is_shared_and_cannot_be_moved_by_the_producer_body ... ok
+test trusted_list_receiver_return_publishes_an_actual_source_qualified_root ... ok
+test imported_receiver_and_producer_forwarding_preserve_each_actual_source_identity ... ok
+test stable_range_root_drop_is_published_at_the_outer_consumer ... ok
+test receiver_element_loans_protect_root_and_end_before_scope_restores_permission ... ok
+test named_receiver_continues_each_real_root_loan_until_dependent_bindings_end ... ok
+test temporary_receiver_chain_publishes_source_loans_for_the_actual_immediate_consumer ... ok
+test receiver_producer_cannot_substitute_a_sibling_local_or_temporary_root ... ok
+test each_live_parent_child_sibling_and_metadata_dependency_blocks_root_move ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/type_range_carrier.rs (target/debug/deps/type_range_carrier-e4747ecb6d51785f)
+
+running 7 tests
+test plain_result_cannot_deliver_a_range_as_an_owned_value ... ok
+test source_nominal_named_view_does_not_gain_carrier_restrictions ... ok
+test carrier_delivery_contract_preserves_real_from_and_named_source_mapping_under_guard ... ok
+test compiler_bound_view_is_available_as_a_non_owning_parameter ... ok
+test inferred_local_and_generic_argument_cannot_hide_a_range_carrier ... ok
+test range_type_cannot_be_optional_owned_or_stored_in_an_aggregate ... ok
+test new_carrier_source_contract_rejects_invalid_parameters_and_result_shapes ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/type_range_construction.rs (target/debug/deps/type_range_construction-02cbd57823fe29c6)
+
+running 3 tests
+test source_function_with_the_constructor_name_has_no_intrinsic_facts ... ok
+test unauthorized_source_cannot_call_the_bound_range_constructor ... ok
+test range_constructor_records_source_and_relative_bounds_without_fake_from ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/type_range_extension.rs (target/debug/deps/type_range_extension-44c6985dac886961)
+
+running 13 tests
+test receiver_authority_is_independent_owned_and_deduplicated ... ok
+test a_receiver_extension_cannot_be_called_as_an_unbound_top_level_function ... ok
+test extension_receiver_type_uses_the_callable_type_parameter_scope ... ok
+test explicit_type_arguments_must_agree_with_the_actual_receiver_element ... ok
+test duplicate_receiver_shapes_still_reject_alpha_equivalent_declarations ... ok
+test trusted_authority_does_not_spread_to_a_foreign_declaration_in_the_same_unit ... ok
+test trusted_receiver_analysis_observes_types_and_publishes_ownership_facts ... ok
+test trusted_binding_keeps_canonical_callable_receiver_and_contract_spans ... ok
+test list_and_view_select_distinct_canonical_bindings_and_infer_string_and_move_only ... ok
+test producer_authority_and_std_spelling_do_not_upgrade_to_receiver_authority ... ok
+test invisible_or_locally_shadowed_extensions_do_not_become_candidates ... ok
+test unit_import_alias_wildcard_and_same_package_reuse_existing_visibility ... ok
+test ordinary_invalid_receiver_declarations_never_publish_bindings ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/type_range_source_authority.rs (target/debug/deps/type_range_source_authority-2e2a4ce0417f31ab)
+
+running 4 tests
+test authority_rejects_foreign_map_and_does_not_spread_to_a_second_source ... ok
+test authorization_does_not_enable_extensions_or_invalid_carrier_contracts ... ok
+test std_path_package_and_type_spelling_do_not_authorize_a_source ... ok
+test authorized_source_can_declare_the_minimum_carrier_producer ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
