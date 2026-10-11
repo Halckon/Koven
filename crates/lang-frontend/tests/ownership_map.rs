@@ -179,8 +179,20 @@ fn map_temporary_null_comparisons_publish_one_result_cleanup() {
                 1,
                 "{source}: exactly the actual result, never the null literal"
             );
-            assert!(matches!(single[0].target(), DropTarget::Temporary(_)));
-            assert!(matches!(unit[0].target(), UnitDropTarget::Temporary(_)));
+            let DropTarget::Temporary(actual) = single[0].target() else {
+                panic!("actual owning result")
+            };
+            let UnitDropTarget::Temporary(qualified) = unit[0].target() else {
+                panic!("actual owning result")
+            };
+            assert_eq!(actual, qualified.expression());
+            let DropPoint::AfterBinaryOperands(binary) = single[0].point() else {
+                unreachable!()
+            };
+            let UnitDropPoint::AfterBinaryOperands(qualified) = unit[0].point() else {
+                unreachable!()
+            };
+            assert_eq!(binary, qualified.expression());
             assert_eq!(single[0].value_origin(), unit[0].value_origin());
             let origin = single[0].value_origin();
             assert_eq!(
@@ -242,6 +254,83 @@ fn map_temporary_null_direct_borrow_result_keeps_rejection() {
         unit.diagnostics()
             .iter()
             .any(|d| d.code().to_string() == "L0164")
+    );
+    assert!(single.drops().is_empty());
+    assert!(unit.drops().is_empty());
+}
+
+#[test]
+fn map_temporary_null_cleanup_keeps_key_call_return_separate() {
+    use lang_frontend::ownership_checking::{DropPoint, DropTarget, UnitDropPoint, UnitDropTarget};
+    let source = "fun run() { var m = mutableMapOf<String, String>(); val present = m.remove(\"key\".clone()) != null }";
+    let (single, unit) = checked(source);
+    for (point, origin) in single
+        .drops()
+        .iter()
+        .filter(|fact| matches!(fact.target(), DropTarget::Temporary(_)))
+        .map(|fact| (fact.point(), fact.value_origin()))
+    {
+        let spelling = &source[origin.start() as usize..origin.end() as usize];
+        if spelling == "m.remove(\"key\".clone())" {
+            assert!(matches!(point, DropPoint::AfterBinaryOperands(_)));
+        }
+        if spelling == "\"key\".clone()" {
+            assert!(matches!(point, DropPoint::CallReturn(_)));
+        }
+    }
+    let result_count = single
+        .drops()
+        .iter()
+        .filter(|fact| matches!(fact.point(), DropPoint::AfterBinaryOperands(_)))
+        .count();
+    let key_count = single
+        .drops()
+        .iter()
+        .filter(|fact| {
+            matches!(fact.point(), DropPoint::CallReturn(_))
+                && matches!(fact.target(), DropTarget::Temporary(_))
+                && &source[fact.value_origin().start() as usize..fact.value_origin().end() as usize]
+                    == "\"key\".clone()"
+        })
+        .count();
+    assert_eq!((result_count, key_count), (1, 1));
+    assert_eq!(
+        unit.drops()
+            .iter()
+            .filter(
+                |fact| matches!(fact.point(), UnitDropPoint::AfterBinaryOperands(_))
+                    && matches!(fact.target(), UnitDropTarget::Temporary(_))
+            )
+            .count(),
+        1
+    );
+    assert_eq!(
+        unit.drops()
+            .iter()
+            .filter(|fact| matches!(fact.point(), UnitDropPoint::CallReturn(_))
+                && matches!(fact.target(), UnitDropTarget::Temporary(_))
+                && &source
+                    [fact.value_origin().start() as usize..fact.value_origin().end() as usize]
+                    == "\"key\".clone()")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn map_temporary_null_comparison_keeps_inout_receiver_place_rejection() {
+    let (single, unit) =
+        checked("fun run() { val present = mutableMapOf<Int, String>().remove(1) != null }");
+    assert!(
+        single
+            .diagnostics()
+            .iter()
+            .any(|d| d.code().to_string() == "L0134")
+    );
+    assert!(
+        unit.diagnostics()
+            .iter()
+            .any(|d| d.code().to_string() == "L0134")
     );
     assert!(single.drops().is_empty());
     assert!(unit.drops().is_empty());

@@ -1,0 +1,3 @@
+class Resource(val text: String) { deinit() { println(this.text) } }
+fun make(): Resource? = Resource("plain nullable drop")
+fun entry() { val value = make() }
