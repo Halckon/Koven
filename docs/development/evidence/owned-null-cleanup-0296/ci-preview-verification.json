@@ -1,0 +1,543 @@
+{
+  "run_id": 38145836171,
+  "attempt": 1,
+  "note": "Only read producer/consumer result JSON; no downloaded executable was run locally. Preview tests do not substitute for owned-null cleanup tests.",
+  "hosts": {
+    "linux": {
+      "source_commit": "258aaa48ee274c24d4378406a38ef2cbf3034c7f",
+      "source_tree": "7137e50471efc896c8c6ba3ab748bd4385c2328e",
+      "target": "x86_64-unknown-linux-gnu",
+      "binary_sha256": "8f686fd483795ca07b2563535790e204736683fb5741c3b5174ab13bd27d233d",
+      "archive_sha256": "34b54c9c9d416377bd38a94f6effd3f213a77fa61d49950e99c901bb61568a21",
+      "producer_result_sha256": "911dcb693cf7fddd4e0a721b713fc406c455df324bafd85d45b2ca6f8b3e373b",
+      "consumer_result_sha256": "78cb1a989728aad829eaf1e6af5ba31b22d60a059d4ac947c7b2512a0d79f360",
+      "command_count": 12,
+      "commands": [
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/安装 中文 空格/koven-preview/bin/kovenc",
+            "build",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "-o",
+            "program"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 1",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": ""
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 1/program"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 1",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "cHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "processed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/安装 中文 空格/koven-preview/bin/kovenc",
+            "run",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "--"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 1",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "cHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "processed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/安装 中文 空格/koven-preview/bin/kovenc",
+            "build",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "-o",
+            "program"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 2",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": ""
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 2/program",
+            "alpha"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 2",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "YWxwaGEKcHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "alpha\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/安装 中文 空格/koven-preview/bin/kovenc",
+            "run",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "--",
+            "alpha"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 2",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "YWxwaGEKcHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "alpha\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/安装 中文 空格/koven-preview/bin/kovenc",
+            "build",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "-o",
+            "program"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 3",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": ""
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 3/program",
+            "alpha",
+            "你好",
+            "tail"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 3",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "YWxwaGEK5L2g5aW9CnRhaWwKcHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "alpha\n你好\ntail\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/安装 中文 空格/koven-preview/bin/kovenc",
+            "run",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "--",
+            "alpha",
+            "你好",
+            "tail"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 3",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "YWxwaGEK5L2g5aW9CnRhaWwKcHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "alpha\n你好\ntail\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/安装 中文 空格/koven-preview/bin/kovenc",
+            "build",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "-o",
+            "program"
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 4",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": ""
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 4/program",
+            ""
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 4",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "CnByb2Nlc3NlZApkb25lCg==",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/home/runner/work/_temp/koven-preview-4ysmnzij/安装 中文 空格/koven-preview/bin/kovenc",
+            "run",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "--",
+            ""
+          ],
+          "cwd": "/home/runner/work/_temp/koven-preview-4ysmnzij/项目 中文 空格 4",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "CnByb2Nlc3NlZApkb25lCg==",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "\nprocessed\ndone\n"
+          },
+          "success": true
+        }
+      ],
+      "cleanup_removed": true,
+      "sentinel_unchanged": true
+    },
+    "macos": {
+      "source_commit": "258aaa48ee274c24d4378406a38ef2cbf3034c7f",
+      "source_tree": "7137e50471efc896c8c6ba3ab748bd4385c2328e",
+      "target": "aarch64-apple-darwin",
+      "binary_sha256": "49216077a1f0faa46041e882d206b140557fce57bba9be3a4d5963946b8217a2",
+      "archive_sha256": "9386a8e4b9b82b376717efe498fc00ad2964f683cfc669f08cbc3b81a9cd1b80",
+      "producer_result_sha256": "813e7636a9147625257e21c6d312a875e406217e43d4ffdbf9e4e6f835d548ec",
+      "consumer_result_sha256": "e99d1442e6656de09222ad294e6461d53c3ba60deb9637cda65529224c351b3a",
+      "command_count": 12,
+      "commands": [
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/安装 中文 空格/koven-preview/bin/kovenc",
+            "build",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "-o",
+            "program"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 1",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": ""
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 1/program"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 1",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "cHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "processed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/安装 中文 空格/koven-preview/bin/kovenc",
+            "run",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "--"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 1",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "cHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "processed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/安装 中文 空格/koven-preview/bin/kovenc",
+            "build",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "-o",
+            "program"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 2",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": ""
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 2/program",
+            "alpha"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 2",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "YWxwaGEKcHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "alpha\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/安装 中文 空格/koven-preview/bin/kovenc",
+            "run",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "--",
+            "alpha"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 2",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "YWxwaGEKcHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "alpha\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/安装 中文 空格/koven-preview/bin/kovenc",
+            "build",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "-o",
+            "program"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 3",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": ""
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 3/program",
+            "alpha",
+            "你好",
+            "tail"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 3",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "YWxwaGEK5L2g5aW9CnRhaWwKcHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "alpha\n你好\ntail\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/安装 中文 空格/koven-preview/bin/kovenc",
+            "run",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "--",
+            "alpha",
+            "你好",
+            "tail"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 3",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "YWxwaGEK5L2g5aW9CnRhaWwKcHJvY2Vzc2VkCmRvbmUK",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "alpha\n你好\ntail\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/安装 中文 空格/koven-preview/bin/kovenc",
+            "build",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "-o",
+            "program"
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 4",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": ""
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 4/program",
+            ""
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 4",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "CnByb2Nlc3NlZApkb25lCg==",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "\nprocessed\ndone\n"
+          },
+          "success": true
+        },
+        {
+          "argv": [
+            "/Users/runner/work/_temp/koven-preview-zbu02fc0/安装 中文 空格/koven-preview/bin/kovenc",
+            "run",
+            "--project",
+            "project.toml",
+            "--entry",
+            "app.main",
+            "--",
+            ""
+          ],
+          "cwd": "/Users/runner/work/_temp/koven-preview-zbu02fc0/项目 中文 空格 4",
+          "exit": 0,
+          "timed_out": false,
+          "stdout_base64": "CnByb2Nlc3NlZApkb25lCg==",
+          "stderr_base64": "",
+          "expected": {
+            "exit": 0,
+            "stderr": "",
+            "stdout": "\nprocessed\ndone\n"
+          },
+          "success": true
+        }
+      ],
+      "cleanup_removed": true,
+      "sentinel_unchanged": true
+    }
+  }
+}

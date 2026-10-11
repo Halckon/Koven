@@ -4,6 +4,10 @@
 
 当前 0 份 active。
 
+0296 owned nullable具名/临时结果cleanup已按[PR75](https://github.com/Halckon/Koven/pull/75)实现head
+双宿主每host55项codegen与25项Map frontend有界验收归档；最终归档head/merge/main仍待交付，
+见[0296账本](../../development/evidence/owned-null-cleanup-0296/delivery.json)。保留single for与普通nullable工厂边界。
+
 0295 两遍 argv Map 词频应用已按 [PR74](https://github.com/Halckon/Koven/pull/74) 实现 head
 双宿主各 40 条公开命令及通用回归有界归档；最终归档 head CI、merge、main 待交付，见
 [交付账本](../../development/evidence/map-word-frequency-0295/delivery.json)。只关闭 M3B K-H 应用 Goal。

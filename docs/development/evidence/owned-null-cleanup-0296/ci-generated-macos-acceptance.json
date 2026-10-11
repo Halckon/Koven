@@ -1,0 +1,1632 @@
+{
+  "calibration": {
+    "records": [
+      {
+        "exit": 0,
+        "name": "clean-v1",
+        "status": "pass"
+      },
+      {
+        "exit": 0,
+        "name": "clean-v2",
+        "status": "pass"
+      },
+      {
+        "asan_skipped": "macos-counter-only",
+        "category": "address",
+        "detector_off_verified": true,
+        "name": "address",
+        "reason": "macos-asan-unsupported",
+        "status": "skipped"
+      },
+      {
+        "category": "leak",
+        "detected_by": "counter",
+        "exit": -6,
+        "lsan_skipped": "macos-counter-only",
+        "name": "leak",
+        "status": "rejected_as_expected"
+      },
+      {
+        "category": "missing_deinit",
+        "detected_by": "output_diff",
+        "name": "missing_deinit",
+        "status": "rejected_as_expected",
+        "witness": "drop:leaf_b7af"
+      },
+      {
+        "category": "premature_holder_free",
+        "detected_by": "counter_order",
+        "exit": -6,
+        "name": "premature_holder_free",
+        "status": "rejected_as_expected"
+      }
+    ],
+    "skipped_reasons": [
+      "address:macos-asan-unsupported",
+      "leak:macos-counter-only"
+    ],
+    "status": "partial"
+  },
+  "cases": [
+    {
+      "id": "v1-0-11",
+      "status": "pass"
+    },
+    {
+      "id": "v1-1-29",
+      "status": "pass"
+    },
+    {
+      "id": "v1-2-47",
+      "status": "pass"
+    },
+    {
+      "id": "v1-3-83",
+      "status": "pass"
+    },
+    {
+      "id": "v2-0-11",
+      "status": "pass"
+    },
+    {
+      "id": "v2-1-29",
+      "status": "pass"
+    },
+    {
+      "id": "v2-2-47",
+      "status": "pass"
+    },
+    {
+      "id": "v2-3-83",
+      "status": "pass"
+    },
+    {
+      "id": "i1-0-11",
+      "status": "pass"
+    },
+    {
+      "id": "i1-1-29",
+      "status": "pass"
+    },
+    {
+      "id": "i1-2-47",
+      "status": "pass"
+    },
+    {
+      "id": "i1-3-83",
+      "status": "pass"
+    },
+    {
+      "id": "i2-0-11",
+      "status": "pass"
+    },
+    {
+      "id": "i2-1-29",
+      "status": "pass"
+    },
+    {
+      "id": "i2-2-47",
+      "status": "pass"
+    },
+    {
+      "id": "i2-3-83",
+      "status": "pass"
+    }
+  ],
+  "checker_mutation": {
+    "green_verified": true,
+    "i1_case_id": "i1-0-11",
+    "isolated_worktree": "/var/folders/s6/5hzmn6lx4dz5nxs7k_0slzph0000gn/T/koven-checker-worktree-n_zi1uyy",
+    "mutant_killed": true,
+    "mutated_sha256": "175bea567a0500136ce1334500f8e8d48f1229e7ba87e72a159e929a7db9123a",
+    "original_sha256": "c07c0e2972fd38c223ce7e6b9b2e8aaaa40e42935a426b69cf783df0fdc7dc22",
+    "patch_sha256": "197edc46a44975bf8079d737503f394c9504e33cb3eb32745a13da67720c938c",
+    "phases": {
+      "green": {
+        "build_exit": 0,
+        "directory": "green",
+        "export_exit": 0,
+        "exporter_sha256": "aeb27bdbe6d9d6e92dd5b84e61f4fae76a8a2d7a74d924d2ef50d5a42a2f03a9"
+      },
+      "red": {
+        "build_exit": 0,
+        "directory": "red",
+        "export_exit": 0,
+        "exporter_sha256": "d188cf7b0458edaf12bed9d98dff735b06e8c599633f7b79d72103208d21a5b1"
+      }
+    },
+    "red_diagnostics_count": 0,
+    "restored_clean": true,
+    "restored_sha256": "c07c0e2972fd38c223ce7e6b9b2e8aaaa40e42935a426b69cf783df0fdc7dc22",
+    "status": "pass",
+    "target_file": "crates/lang-frontend/src/ownership_checking/checker.rs"
+  },
+  "partial_reasons": [
+    "address:macos-asan-unsupported",
+    "leak:macos-counter-only"
+  ],
+  "reduction": {
+    "attempts": [
+      {
+        "accepted": true,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "op": "create",
+              "resource": "local_8192",
+              "target": "local"
+            },
+            {
+              "op": "create",
+              "resource": "extra1_8192",
+              "target": "extra1"
+            },
+            {
+              "op": "move",
+              "source": "local",
+              "target": "local_moved"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        }
+      },
+      {
+        "accepted": true,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "op": "create",
+              "resource": "local_8192",
+              "target": "local"
+            },
+            {
+              "op": "move",
+              "source": "local",
+              "target": "local_moved"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        }
+      },
+      {
+        "accepted": true,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "op": "create",
+              "resource": "local_8192",
+              "target": "local"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        }
+      },
+      {
+        "accepted": true,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        }
+      },
+      {
+        "accepted": true,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "a",
+              "target": "holder"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        }
+      },
+      {
+        "accepted": true,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "a",
+              "target": "holder"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "b",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        }
+      }
+    ],
+    "causal_contrast": {
+      "minimal_clean": "pass",
+      "minimal_fault": {
+        "detail": "expected [b'drop:holder'], actual []",
+        "kind": "native_output_mismatch",
+        "stable_witness": true,
+        "stage": "native",
+        "witness": "drop:holder"
+      },
+      "original_clean": "pass",
+      "original_fault": {
+        "detail": "expected [b'drop:holder'], actual []",
+        "kind": "native_output_mismatch",
+        "stable_witness": true,
+        "stage": "native",
+        "witness": "drop:holder"
+      }
+    },
+    "confirmation_count": 3,
+    "detailed_attempts": [
+      {
+        "accepted": true,
+        "attempt": 0,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "op": "create",
+              "resource": "local_8192",
+              "target": "local"
+            },
+            {
+              "op": "create",
+              "resource": "extra0_8192",
+              "target": "extra0"
+            },
+            {
+              "op": "create",
+              "resource": "extra1_8192",
+              "target": "extra1"
+            },
+            {
+              "op": "move",
+              "source": "local",
+              "target": "local_moved"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 1,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "op": "create",
+              "resource": "local_8192",
+              "target": "local"
+            },
+            {
+              "op": "create",
+              "resource": "extra0_8192",
+              "target": "extra0"
+            },
+            {
+              "op": "create",
+              "resource": "extra1_8192",
+              "target": "extra1"
+            },
+            {
+              "op": "move",
+              "source": "local",
+              "target": "local_moved"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 2,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "op": "create",
+              "resource": "local_8192",
+              "target": "local"
+            },
+            {
+              "op": "create",
+              "resource": "extra0_8192",
+              "target": "extra0"
+            },
+            {
+              "op": "create",
+              "resource": "extra1_8192",
+              "target": "extra1"
+            },
+            {
+              "op": "move",
+              "source": "local",
+              "target": "local_moved"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 3,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "op": "create",
+              "resource": "local_8192",
+              "target": "local"
+            },
+            {
+              "op": "create",
+              "resource": "extra1_8192",
+              "target": "extra1"
+            },
+            {
+              "op": "move",
+              "source": "local",
+              "target": "local_moved"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 4,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "op": "create",
+              "resource": "local_8192",
+              "target": "local"
+            },
+            {
+              "op": "move",
+              "source": "local",
+              "target": "local_moved"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 5,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "op": "create",
+              "resource": "local_8192",
+              "target": "local"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 6,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "old_8192",
+              "target": "holder"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 7,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "a",
+              "target": "holder"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "new_8192",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 8,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "a",
+              "target": "holder"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "b",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 9,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "a",
+              "target": "holder"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "b",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 10,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "a",
+              "target": "holder"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "b",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      },
+      {
+        "accepted": true,
+        "attempt": 11,
+        "candidate": {
+          "case_index": 3,
+          "choices": [
+            {
+              "key": "extra_locals",
+              "modulus": 3,
+              "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+              "value": 2
+            },
+            {
+              "key": "move_count",
+              "modulus": 3,
+              "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+              "value": 2
+            },
+            {
+              "key": "name_suffix",
+              "modulus": 65536,
+              "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+              "value": 33170
+            }
+          ],
+          "generator_version": "generated-owners-v1",
+          "id": "v2-3-83",
+          "operations": [
+            {
+              "op": "holder",
+              "resource": "a",
+              "target": "holder"
+            },
+            {
+              "holder": "holder",
+              "op": "replace",
+              "resource": "b",
+              "target": "old"
+            },
+            {
+              "op": "inspect",
+              "source": "old"
+            },
+            {
+              "op": "return_if"
+            },
+            {
+              "op": "marker",
+              "text": "helper-done"
+            }
+          ],
+          "return_position": "after",
+          "seed": 83,
+          "shape": "V2",
+          "stop": true
+        },
+        "clean_status": "pass",
+        "failure": {
+          "detail": "expected [b'drop:holder'], actual []",
+          "kind": "native_output_mismatch",
+          "stable_witness": true,
+          "stage": "native",
+          "witness": "drop:holder"
+        },
+        "fault_status": "reproduced",
+        "reason": "same-cause preserved"
+      }
+    ],
+    "elapsed_seconds": 7.411098791999962,
+    "fault_target": {
+      "fault_kind": "missing_deinit",
+      "injection_location": "drop glue call to Holder.__deinit erased in LLVM IR",
+      "semantic_resource": "Holder",
+      "witness_event": "drop:holder"
+    },
+    "is_1_minimal": true,
+    "minimal": {
+      "case_index": 3,
+      "choices": [
+        {
+          "key": "extra_locals",
+          "modulus": 3,
+          "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+          "value": 2
+        },
+        {
+          "key": "move_count",
+          "modulus": 3,
+          "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+          "value": 2
+        },
+        {
+          "key": "name_suffix",
+          "modulus": 65536,
+          "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+          "value": 33170
+        }
+      ],
+      "generator_version": "generated-owners-v1",
+      "id": "v2-3-83",
+      "operations": [
+        {
+          "op": "holder",
+          "resource": "a",
+          "target": "holder"
+        },
+        {
+          "holder": "holder",
+          "op": "replace",
+          "resource": "b",
+          "target": "old"
+        },
+        {
+          "op": "inspect",
+          "source": "old"
+        },
+        {
+          "op": "return_if"
+        },
+        {
+          "op": "marker",
+          "text": "helper-done"
+        }
+      ],
+      "return_position": "after",
+      "seed": 83,
+      "shape": "V2",
+      "stop": true
+    },
+    "nature": "fault_injected_runtime_reduction_verification",
+    "nature_disclosure": "受控运行期资源故障注入的单调有界同因缩减能力验证（非现存编译器缺陷）",
+    "one_step_exhaustion": [],
+    "original": {
+      "case_index": 3,
+      "choices": [
+        {
+          "key": "extra_locals",
+          "modulus": 3,
+          "sha256": "b6b48fa8ad5e7ff59ddb15a0b600a52a93a78c6a82351321ec82e622619b3d2f",
+          "value": 2
+        },
+        {
+          "key": "move_count",
+          "modulus": 3,
+          "sha256": "33e339826eb2167c74b97a434044043750a5aaf5fac06842730640acc9dab0d7",
+          "value": 2
+        },
+        {
+          "key": "name_suffix",
+          "modulus": 65536,
+          "sha256": "0658f6d0d85c8d2e46395049a92cc80aa531d66e3bb6b72d6701e624e2ae8192",
+          "value": 33170
+        }
+      ],
+      "generator_version": "generated-owners-v1",
+      "id": "v2-3-83",
+      "operations": [
+        {
+          "op": "holder",
+          "resource": "old_8192",
+          "target": "holder"
+        },
+        {
+          "op": "create",
+          "resource": "local_8192",
+          "target": "local"
+        },
+        {
+          "op": "create",
+          "resource": "extra0_8192",
+          "target": "extra0"
+        },
+        {
+          "op": "create",
+          "resource": "extra1_8192",
+          "target": "extra1"
+        },
+        {
+          "op": "move",
+          "source": "local",
+          "target": "local_moved"
+        },
+        {
+          "holder": "holder",
+          "op": "replace",
+          "resource": "new_8192",
+          "target": "old"
+        },
+        {
+          "op": "inspect",
+          "source": "old"
+        },
+        {
+          "op": "return_if"
+        },
+        {
+          "op": "marker",
+          "text": "helper-done"
+        }
+      ],
+      "return_position": "after",
+      "seed": 83,
+      "shape": "V2",
+      "stop": true
+    },
+    "original_failure": {
+      "detail": "expected [b'drop:holder'], actual []",
+      "kind": "native_output_mismatch",
+      "stable_witness": true,
+      "stage": "native",
+      "witness": "drop:holder"
+    },
+    "source_delta": {
+      "minimal_bytes": 551,
+      "minimal_ops": 5,
+      "minimal_source": "// 资源程序：UTF-8 span witness\nclass Leaf(val name: String) { deinit() { println(this.name) } }\nfun inspect(item: Leaf): Unit { println(\"borrow\"); println(item.name) }\nfun consume(own item: Leaf): Unit { println(\"consume\") }\nclass Holder(var state: Leaf) { deinit() { println(\"drop:holder\") } }\nfun work(own stop: Boolean): Unit {\n    val holder = Holder(Leaf(\"drop:a\"))\n    val old = replace(&holder.state, Leaf(\"drop:b\"))\n    inspect(old)\n    if (stop) { return }\n    println(\"helper-done\")\n}\nfun entry(): Unit { work(true); println(\"done\") }\n",
+      "original_bytes": 717,
+      "original_ops": 9,
+      "original_source": "// 资源程序：UTF-8 span witness\nclass Leaf(val name: String) { deinit() { println(this.name) } }\nfun inspect(item: Leaf): Unit { println(\"borrow\"); println(item.name) }\nfun consume(own item: Leaf): Unit { println(\"consume\") }\nclass Holder(var state: Leaf) { deinit() { println(\"drop:holder\") } }\nfun work(own stop: Boolean): Unit {\n    val holder = Holder(Leaf(\"drop:old_8192\"))\n    val local = Leaf(\"drop:local_8192\")\n    val extra0 = Leaf(\"drop:extra0_8192\")\n    val extra1 = Leaf(\"drop:extra1_8192\")\n    val local_moved = local\n    val old = replace(&holder.state, Leaf(\"drop:new_8192\"))\n    inspect(old)\n    if (stop) { return }\n    println(\"helper-done\")\n}\nfun entry(): Unit { work(true); println(\"done\") }\n"
+    },
+    "status": "reproduced"
+  },
+  "replay": false,
+  "requirements_met": false,
+  "status": "partial"
+}

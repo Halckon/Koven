@@ -1,0 +1,7 @@
+fun main(): Unit {
+    var texts = mutableMapOf<Int, String>()
+    texts.put(1, "value".clone())
+    val value = texts.remove(1)
+    val present = value != null
+    if (present) { println("present") }
+}

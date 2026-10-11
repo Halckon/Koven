@@ -1,0 +1,40 @@
+{
+  "id": 38145836171,
+  "name": "CI pull_request PR 75",
+  "head_branch": "fix/spec-0296",
+  "head_sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f",
+  "event": "pull_request",
+  "status": "completed",
+  "conclusion": "success",
+  "run_attempt": 1,
+  "created_at": "2026-10-11T14:06:22Z",
+  "updated_at": "2026-10-11T14:21:39Z",
+  "run_started_at": "2026-10-11T14:06:22Z",
+  "html_url": "https://github.com/Halckon/Koven/actions/runs/38145836171",
+  "pull_requests": [
+    {
+      "url": "https://api.github.com/repos/Halckon/Koven/pulls/75",
+      "id": 4819639928,
+      "number": 75,
+      "head": {
+        "ref": "fix/spec-0296",
+        "sha": "258aaa48ee274c24d4378406a38ef2cbf3034c7f",
+        "repo": {
+          "id": 1351924634,
+          "url": "https://api.github.com/repos/Halckon/Koven",
+          "name": "Koven"
+        }
+      },
+      "base": {
+        "ref": "main",
+        "sha": "e168c485a5379764cf927433452f8b7059f7b334",
+        "repo": {
+          "id": 1351924634,
+          "url": "https://api.github.com/repos/Halckon/Koven",
+          "name": "Koven"
+        }
+      }
+    }
+  ],
+  "full_api_snapshot_sha256": "a12af78517be5b4e94e71f00e8933870603355b5a8722857e993af17a743defd"
+}

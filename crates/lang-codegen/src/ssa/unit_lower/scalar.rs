@@ -91,12 +91,12 @@ impl UnitExpressionLowerer<'_> {
         ) {
             return self.lower_short_circuit(left, operator, right, expression, span);
         }
+        if let Some(result) = self.lower_nullable_comparison(expression, span)? {
+            return Ok(result);
+        }
         if let Some(result) =
             self.lower_map_result_binary(left, operator, right, expression, span)?
         {
-            return Ok(result);
-        }
-        if let Some(result) = self.lower_nullable_comparison(expression, span)? {
             return Ok(result);
         }
         let operand_type = self.expression_builtin_type(left, span)?;

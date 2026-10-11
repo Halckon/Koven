@@ -10,6 +10,7 @@ mod iteration;
 mod lambda;
 mod liveness;
 mod map;
+mod nullable_comparison;
 mod origins;
 mod ownership_primitive;
 mod pending_call;
@@ -946,11 +947,19 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 right,
                 ..
             } => self.short_circuit(id, left, right, state),
-            Expression::Binary { left, right, .. } => {
-                if !self.expression(left, ExpressionUse::Read, state)? {
+            Expression::Binary {
+                left,
+                operator,
+                right,
+                ..
+            } => {
+                if !self.expression(left, ExpressionUse::Read, state)?
+                    || !self.expression(right, ExpressionUse::Read, state)?
+                {
                     return Ok(false);
                 }
-                self.expression(right, ExpressionUse::Read, state)
+                self.drop_nullable_comparison_temporary(id, left, operator, right)?;
+                Ok(true)
             }
             Expression::Assignment {
                 target,

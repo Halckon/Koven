@@ -164,3 +164,6 @@ pub(crate) use lower_frontend::orchestrate::validate_inputs as validate_frontend
 
 #[cfg(test)]
 mod range_lowering_tests;
+
+#[cfg(test)]
+mod owned_null_cleanup_tests;

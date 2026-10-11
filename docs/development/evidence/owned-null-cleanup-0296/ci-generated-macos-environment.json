@@ -1,0 +1,23 @@
+{
+  "exporter": "/Users/runner/work/Koven/Koven/target/debug/deps/lang_codegen-e92e275d935a5464",
+  "exporter_sha256": "34b740438d016c9791b9a3f6fe3012795990cec762a449fe3cf1e444c57dcea0",
+  "limits": {
+    "artifact_bytes": 67108864,
+    "artifact_root": "/Users/runner/work/_temp/koven-generated-owners",
+    "output_bytes": 1048576
+  },
+  "lock_sha256": "5d66391842becd2b46a1fbae79a73199b3a426640fef9226d68d478981ba2d60",
+  "machine": "arm64",
+  "rss_scope": "not monitored on macOS",
+  "source_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "system": "Darwin",
+  "versions": {
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+    "clang": "Homebrew clang version 21.1.8\nTarget: arm64-apple-darwin23.6.0\nThread model: posix\nInstalledDir: /opt/homebrew/Cellar/llvm@21/21.1.8/bin\nConfiguration file: /opt/homebrew/etc/clang/arm64-apple-darwin23.cfg",
+    "compiler-sha": "78cb64ac47de69538fce4825bc6b9304396c80a3",
+    "compiler-status": "",
+    "llvm": "21.1.8",
+    "python": "Python 3.14.7",
+    "rust": "rustc 1.96.0 (ac68faa20 2026-05-25)"
+  }
+}

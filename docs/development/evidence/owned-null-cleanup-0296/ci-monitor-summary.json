@@ -1,0 +1,999 @@
+{
+  "run_id": 38145836171,
+  "run_attempt": 1,
+  "event": "pull_request",
+  "url": "https://github.com/Halckon/Koven/actions/runs/38145836171",
+  "status": "completed",
+  "conclusion": "success",
+  "completion_updated_at": "2026-10-11T14:21:39Z",
+  "head": "258aaa48ee274c24d4378406a38ef2cbf3034c7f",
+  "base": "e168c485a5379764cf927433452f8b7059f7b334",
+  "synthetic_merge": "78cb64ac47de69538fce4825bc6b9304396c80a3",
+  "tree": "7137e50471efc896c8c6ba3ab748bd4385c2328e",
+  "reuse": false,
+  "fingerprint": "e7652e6669ac5c32d45a4988daf841d487eb2f98bda4b6b5dcb281a7d83b36a2",
+  "jobs": [
+    {
+      "id": 114488863539,
+      "name": "Direct Workspace Dependency Guard",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114488863539"
+    },
+    {
+      "id": 114488863779,
+      "name": "Rust Physical Line Guard",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114488863779"
+    },
+    {
+      "id": 114488863791,
+      "name": "Detect Changed Files",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114488863791"
+    },
+    {
+      "id": 114488909954,
+      "name": "Rust Code Formatting",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114488909954"
+    },
+    {
+      "id": 114488909992,
+      "name": "Docs & Spec Structural Gate",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114488909992"
+    },
+    {
+      "id": 114488910885,
+      "name": "Tree-sitter CLI Corpus",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114488910885"
+    },
+    {
+      "id": 114488990965,
+      "name": "Workspace Check & Clippy (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114488990965"
+    },
+    {
+      "id": 114488991024,
+      "name": "Workspace Check & Clippy (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114488991024"
+    },
+    {
+      "id": 114489357578,
+      "name": "Targeted Tests (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114489357578"
+    },
+    {
+      "id": 114489357627,
+      "name": "Targeted Tests (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114489357627"
+    },
+    {
+      "id": 114491191335,
+      "name": "Preview Producer (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114491191335"
+    },
+    {
+      "id": 114491191344,
+      "name": "Preview Producer (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114491191344"
+    },
+    {
+      "id": 114491601415,
+      "name": "Preview Independent Consumer (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114491601415"
+    },
+    {
+      "id": 114491769251,
+      "name": "Preview Independent Consumer (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114491769251"
+    },
+    {
+      "id": 114491895287,
+      "name": "Code CI Evidence v1 PR75 e168c485a5379764cf927433452f8b7059f7b334 258aaa48ee274c24d4378406a38ef2cbf3034c7f 78cb64ac47de69538fce4825bc6b9304396c80a3 e7652e6669ac5c32d45a4988daf841d487eb2f98bda4b6b5dcb281a7d83b36a2",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114491895287"
+    },
+    {
+      "id": 114491895310,
+      "name": "CI Passed",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Halckon/Koven/actions/runs/38145836171/job/114491895310"
+    }
+  ],
+  "host_evidence": {
+    "linux": {
+      "selected_codegen_55_exactly_once_ok": true,
+      "selected_codegen_line_matches": {
+        "native::unit_tests::map_word_frequency_tests::single_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove": [
+          1075
+        ],
+        "native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove": [
+          1076
+        ],
+        "native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_owner_carry_remains_generic": [
+          1077
+        ],
+        "native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_two_passes_keep_first_occurrence_order": [
+          1078
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_grouped_and_mirrored_reads": [
+          1092
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource": [
+          1089
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_scalar_last_read": [
+          1090
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_without_loop": [
+          1091
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_grouped_and_mirrored_reads": [
+          1095
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_known_loop_boundary": [
+          1094
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_loop_resource_exits": [
+          1101
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource": [
+          1097
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_scalar_last_read": [
+          1096
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_without_loop": [
+          1098
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_zero_and_one_iteration": [
+          1103
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_call_operands": [
+          1128
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_resource_precedes_body_named_stays_lexical": [
+          1129
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_scalar_and_if_matrix": [
+          1130
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_call_operands_and_plain_nullable": [
+          1131
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_loop_exits": [
+          1133
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_resource_precedes_body_named_stays_lexical": [
+          1132
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_scalar_and_if_matrix": [
+          1138
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_zero_one_and_repeated_string_loops": [
+          1134
+        ],
+        "ssa::borrow_call_lowering_tests::field_return_unit_preserves_projected_source_loan": [
+          1334
+        ],
+        "ssa::borrow_call_lowering_tests::grouped_binding_single_preserves_returned_loan": [
+          1336
+        ],
+        "ssa::borrow_call_lowering_tests::grouped_binding_unit_preserves_returned_loan": [
+          1338
+        ],
+        "ssa::borrow_call_lowering_tests::grouped_return_single_preserves_forwarded_loan": [
+          1337
+        ],
+        "ssa::borrow_call_lowering_tests::grouped_return_unit_preserves_forwarded_loan": [
+          1341
+        ],
+        "ssa::borrow_storage_contract_tests::borrowed_storage_single_and_unit_ordinary_nullable_comparison_uses_real_presence": [
+          1352
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_mutation_collects_drop_glue_before_abort": [
+          1534
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_nullable_value_owned_remove_remains_unsupported": [
+          1535
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_operands_follow_argument_control_flow": [
+          1541
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_both_return_key": [
+          1536
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_both_return_value": [
+          1537
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_direct_return_key": [
+          1538
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_direct_return_value": [
+          1539
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_key_then_value": [
+          1540
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_return_key": [
+          1542
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_return_value": [
+          1543
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_reversed_key": [
+          1544
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_reversed_value": [
+          1546
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_remove_single_for_guarded_owner_boundary_is_explicit": [
+          1545
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_remove_temporary_null_comparison_inspects_real_drop_facts": [
+          1548
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_cached_owned_results_cannot_enable_move_only_inline_storage": [
+          1612
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_cached_result_single_cannot_enable_inline_storage": [
+          1610
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_cached_result_unit_cannot_enable_inline_storage": [
+          1611
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_promotion_generic_storage_transfers_constructor_and_local_owners": [
+          1625
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_promotion_preserves_direct_inline_nullable_rejection": [
+          1613
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_promotion_single_direct_constructor": [
+          1614
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_promotion_unit_direct_constructor": [
+          1615
+        ],
+        "ssa::owned_null_cleanup_tests::owned_null_cleanup_presence_precedes_unique_asap_drop": [
+          1623
+        ],
+        "ssa::owned_null_cleanup_tests::single_nullable_factory_planning_boundary_precedes_any_comparison": [
+          1624
+        ],
+        "ssa::owned_null_cleanup_tests::temporary_null_cleanup_presence_precedes_unique_result_drop": [
+          1628
+        ],
+        "ssa::unit_lower_borrow_tests::inout_and_non_root_borrows_remain_atomic_boundaries": [
+          1809
+        ],
+        "ssa::unit_lower_borrow_tests::lowers_cross_file_shared_borrows_and_loan_forwarding_deterministically": [
+          1812
+        ]
+      },
+      "frontend_map_25_exactly_once_ok": true,
+      "frontend_map_line_matches": {
+        "map_remove_borrows_string_key": [
+          3388
+        ],
+        "map_subscript_releases_a_temporary_string_key_after_query": [
+          3391
+        ],
+        "map_temporary_null_cleanup_keeps_key_call_return_separate": [
+          3393
+        ],
+        "map_queries_borrow_string_keys_and_allow_reuse": [
+          3389
+        ],
+        "map_temporary_null_comparison_keeps_inout_receiver_place_rejection": [
+          3394
+        ],
+        "map_temporary_null_direct_borrow_result_keeps_rejection": [
+          3395
+        ],
+        "map_put_owns_string_key_and_move_only_value": [
+          3390
+        ],
+        "map_mutation_requires_mutable_receiver": [
+          3392
+        ],
+        "map_temporary_null_cleanup_excludes_copyable_named_borrowed_and_incomplete_results": [
+          3396
+        ],
+        "map_temporary_null_comparisons_publish_one_result_cleanup": [
+          3397
+        ],
+        "test_map_key_must_be_hashable": [
+          3832
+        ],
+        "test_map_and_mutable_map_construction_and_members": [
+          3829
+        ],
+        "test_map_key_and_value_type_mismatches": [
+          3830
+        ],
+        "test_map_method_must_be_called": [
+          3834
+        ],
+        "test_map_multifile_compilation_unit": [
+          3835
+        ],
+        "test_map_readonly_mutation_disallowed": [
+          3836
+        ],
+        "test_move_only_value_get_disallowed": [
+          3838
+        ],
+        "test_move_only_value_index_read_disallowed": [
+          3839
+        ],
+        "test_mutable_map_key_must_be_hashable": [
+          3840
+        ],
+        "test_string_value_map_get_is_move_only": [
+          3841
+        ],
+        "test_map_type_argument_arity_check": [
+          3837
+        ],
+        "map_nullable_value_queries_require_scoped_access_with_diagnostic_span": [
+          3831
+        ],
+        "map_nullable_borrow_argument_requires_a_non_null_proof": [
+          3833
+        ],
+        "unit_map_signatures_check_hashable_and_storable_arguments": [
+          3843
+        ],
+        "map_move_only_get_contract_stays_rejected_including_nullable_values": [
+          3842
+        ]
+      },
+      "cleanup_22_all_ok": true,
+      "cleanup_lines": [
+        {
+          "line": 1089,
+          "text": "2026-10-11T14:11:40.5498763Z test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource ... ok"
+        },
+        {
+          "line": 1090,
+          "text": "2026-10-11T14:11:40.6280853Z test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_scalar_last_read ... ok"
+        },
+        {
+          "line": 1091,
+          "text": "2026-10-11T14:11:40.7039526Z test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_without_loop ... ok"
+        },
+        {
+          "line": 1092,
+          "text": "2026-10-11T14:11:40.7799620Z test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_grouped_and_mirrored_reads ... ok"
+        },
+        {
+          "line": 1094,
+          "text": "2026-10-11T14:11:41.9689211Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_known_loop_boundary ... ok"
+        },
+        {
+          "line": 1095,
+          "text": "2026-10-11T14:11:42.0451763Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_grouped_and_mirrored_reads ... ok"
+        },
+        {
+          "line": 1096,
+          "text": "2026-10-11T14:11:42.3251726Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_scalar_last_read ... ok"
+        },
+        {
+          "line": 1097,
+          "text": "2026-10-11T14:11:42.5002454Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource ... ok"
+        },
+        {
+          "line": 1098,
+          "text": "2026-10-11T14:11:42.6040078Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_without_loop ... ok"
+        },
+        {
+          "line": 1101,
+          "text": "2026-10-11T14:11:43.0583477Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_loop_resource_exits ... ok"
+        },
+        {
+          "line": 1103,
+          "text": "2026-10-11T14:11:43.7769983Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_zero_and_one_iteration ... ok"
+        },
+        {
+          "line": 1128,
+          "text": "2026-10-11T14:11:47.3030918Z test native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_call_operands ... ok"
+        },
+        {
+          "line": 1129,
+          "text": "2026-10-11T14:11:47.4051620Z test native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_resource_precedes_body_named_stays_lexical ... ok"
+        },
+        {
+          "line": 1130,
+          "text": "2026-10-11T14:11:47.6369900Z test native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_scalar_and_if_matrix ... ok"
+        },
+        {
+          "line": 1131,
+          "text": "2026-10-11T14:11:48.0475023Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_call_operands_and_plain_nullable ... ok"
+        },
+        {
+          "line": 1132,
+          "text": "2026-10-11T14:11:48.3664253Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_resource_precedes_body_named_stays_lexical ... ok"
+        },
+        {
+          "line": 1133,
+          "text": "2026-10-11T14:11:49.7959203Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_loop_exits ... ok"
+        },
+        {
+          "line": 1134,
+          "text": "2026-10-11T14:11:50.1221780Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_zero_one_and_repeated_string_loops ... ok"
+        },
+        {
+          "line": 1138,
+          "text": "2026-10-11T14:11:50.3807095Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_scalar_and_if_matrix ... ok"
+        },
+        {
+          "line": 1623,
+          "text": "2026-10-11T14:12:17.8619194Z test ssa::owned_null_cleanup_tests::owned_null_cleanup_presence_precedes_unique_asap_drop ... ok"
+        },
+        {
+          "line": 1624,
+          "text": "2026-10-11T14:12:17.8641125Z test ssa::owned_null_cleanup_tests::single_nullable_factory_planning_boundary_precedes_any_comparison ... ok"
+        },
+        {
+          "line": 1628,
+          "text": "2026-10-11T14:12:17.9768848Z test ssa::owned_null_cleanup_tests::temporary_null_cleanup_presence_precedes_unique_result_drop ... ok"
+        }
+      ],
+      "ignored_lines": [],
+      "word_frequency_40_commands": true,
+      "generated": {
+        "status": "pass",
+        "requirements_met": true,
+        "cases": 16,
+        "all_cases_pass": true,
+        "partial_reasons": [],
+        "checker_mutation_status": "pass",
+        "reduction_status": "reproduced"
+      },
+      "preview": {
+        "producer_success": true,
+        "source_commit": "258aaa48ee274c24d4378406a38ef2cbf3034c7f",
+        "source_tree": "7137e50471efc896c8c6ba3ab748bd4385c2328e",
+        "target": "x86_64-unknown-linux-gnu",
+        "consumer_success": true,
+        "commands_count": 12,
+        "all_commands_exit_zero_and_byte_match": true,
+        "cleanup_removed": true,
+        "sentinel_unchanged": true,
+        "archive_sha256": "34b54c9c9d416377bd38a94f6effd3f213a77fa61d49950e99c901bb61568a21"
+      }
+    },
+    "macos": {
+      "selected_codegen_55_exactly_once_ok": true,
+      "selected_codegen_line_matches": {
+        "native::unit_tests::map_word_frequency_tests::single_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove": [
+          957
+        ],
+        "native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_narrowed_borrow_is_generic_for_get_and_remove": [
+          958
+        ],
+        "native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_owner_carry_remains_generic": [
+          959
+        ],
+        "native::unit_tests::map_word_frequency_tests::unit_map_word_frequency_two_passes_keep_first_occurrence_order": [
+          960
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_grouped_and_mirrored_reads": [
+          970
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource": [
+          972
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_scalar_last_read": [
+          973
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_without_loop": [
+          974
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_grouped_and_mirrored_reads": [
+          975
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_known_loop_boundary": [
+          976
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_loop_resource_exits": [
+          980
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource": [
+          977
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_scalar_last_read": [
+          978
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_without_loop": [
+          979
+        ],
+        "native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_zero_and_one_iteration": [
+          984
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_call_operands": [
+          1009
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_resource_precedes_body_named_stays_lexical": [
+          1010
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_scalar_and_if_matrix": [
+          1011
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_call_operands_and_plain_nullable": [
+          1012
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_loop_exits": [
+          1013
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_resource_precedes_body_named_stays_lexical": [
+          1014
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_scalar_and_if_matrix": [
+          1018
+        ],
+        "native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_zero_one_and_repeated_string_loops": [
+          1016
+        ],
+        "ssa::borrow_call_lowering_tests::field_return_unit_preserves_projected_source_loan": [
+          1216
+        ],
+        "ssa::borrow_call_lowering_tests::grouped_binding_single_preserves_returned_loan": [
+          1217
+        ],
+        "ssa::borrow_call_lowering_tests::grouped_binding_unit_preserves_returned_loan": [
+          1218
+        ],
+        "ssa::borrow_call_lowering_tests::grouped_return_single_preserves_forwarded_loan": [
+          1219
+        ],
+        "ssa::borrow_call_lowering_tests::grouped_return_unit_preserves_forwarded_loan": [
+          1220
+        ],
+        "ssa::borrow_storage_contract_tests::borrowed_storage_single_and_unit_ordinary_nullable_comparison_uses_real_presence": [
+          1234
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_mutation_collects_drop_glue_before_abort": [
+          1415
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_nullable_value_owned_remove_remains_unsupported": [
+          1416
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_operands_follow_argument_control_flow": [
+          1422
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_both_return_key": [
+          1418
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_both_return_value": [
+          1419
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_direct_return_key": [
+          1420
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_direct_return_value": [
+          1421
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_key_then_value": [
+          1424
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_return_key": [
+          1423
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_return_value": [
+          1426
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_reversed_key": [
+          1425
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_put_control_exit_mixed_reversed_value": [
+          1427
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_remove_single_for_guarded_owner_boundary_is_explicit": [
+          1428
+        ],
+        "ssa::lower_frontend_tests::map_result_tests::map_remove_temporary_null_comparison_inspects_real_drop_facts": [
+          1429
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_cached_owned_results_cannot_enable_move_only_inline_storage": [
+          1491
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_cached_result_single_cannot_enable_inline_storage": [
+          1493
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_cached_result_unit_cannot_enable_inline_storage": [
+          1494
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_promotion_generic_storage_transfers_constructor_and_local_owners": [
+          1504
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_promotion_preserves_direct_inline_nullable_rejection": [
+          1495
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_promotion_single_direct_constructor": [
+          1496
+        ],
+        "ssa::map_promotion_contract_tests::nullable_map_promotion_unit_direct_constructor": [
+          1497
+        ],
+        "ssa::owned_null_cleanup_tests::owned_null_cleanup_presence_precedes_unique_asap_drop": [
+          1506
+        ],
+        "ssa::owned_null_cleanup_tests::single_nullable_factory_planning_boundary_precedes_any_comparison": [
+          1505
+        ],
+        "ssa::owned_null_cleanup_tests::temporary_null_cleanup_presence_precedes_unique_result_drop": [
+          1508
+        ],
+        "ssa::unit_lower_borrow_tests::inout_and_non_root_borrows_remain_atomic_boundaries": [
+          1690
+        ],
+        "ssa::unit_lower_borrow_tests::lowers_cross_file_shared_borrows_and_loan_forwarding_deterministically": [
+          1693
+        ]
+      },
+      "frontend_map_25_exactly_once_ok": true,
+      "frontend_map_line_matches": {
+        "map_remove_borrows_string_key": [
+          3270
+        ],
+        "map_subscript_releases_a_temporary_string_key_after_query": [
+          3272
+        ],
+        "map_temporary_null_cleanup_keeps_key_call_return_separate": [
+          3273
+        ],
+        "map_queries_borrow_string_keys_and_allow_reuse": [
+          3268
+        ],
+        "map_temporary_null_comparison_keeps_inout_receiver_place_rejection": [
+          3274
+        ],
+        "map_temporary_null_direct_borrow_result_keeps_rejection": [
+          3275
+        ],
+        "map_put_owns_string_key_and_move_only_value": [
+          3269
+        ],
+        "map_mutation_requires_mutable_receiver": [
+          3271
+        ],
+        "map_temporary_null_cleanup_excludes_copyable_named_borrowed_and_incomplete_results": [
+          3276
+        ],
+        "map_temporary_null_comparisons_publish_one_result_cleanup": [
+          3278
+        ],
+        "test_map_key_must_be_hashable": [
+          3714
+        ],
+        "test_map_and_mutable_map_construction_and_members": [
+          3713
+        ],
+        "test_map_key_and_value_type_mismatches": [
+          3712
+        ],
+        "test_map_method_must_be_called": [
+          3715
+        ],
+        "test_map_multifile_compilation_unit": [
+          3716
+        ],
+        "test_map_readonly_mutation_disallowed": [
+          3718
+        ],
+        "test_move_only_value_get_disallowed": [
+          3721
+        ],
+        "test_move_only_value_index_read_disallowed": [
+          3720
+        ],
+        "test_mutable_map_key_must_be_hashable": [
+          3722
+        ],
+        "test_string_value_map_get_is_move_only": [
+          3723
+        ],
+        "test_map_type_argument_arity_check": [
+          3719
+        ],
+        "map_nullable_value_queries_require_scoped_access_with_diagnostic_span": [
+          3710
+        ],
+        "map_nullable_borrow_argument_requires_a_non_null_proof": [
+          3711
+        ],
+        "unit_map_signatures_check_hashable_and_storable_arguments": [
+          3724
+        ],
+        "map_move_only_get_contract_stays_rejected_including_nullable_values": [
+          3717
+        ]
+      },
+      "cleanup_22_all_ok": true,
+      "cleanup_lines": [
+        {
+          "line": 970,
+          "text": "2026-10-11T14:12:51.3972550Z test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_grouped_and_mirrored_reads ... ok"
+        },
+        {
+          "line": 972,
+          "text": "2026-10-11T14:12:51.4773150Z test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource ... ok"
+        },
+        {
+          "line": 973,
+          "text": "2026-10-11T14:12:51.4858940Z test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_scalar_last_read ... ok"
+        },
+        {
+          "line": 974,
+          "text": "2026-10-11T14:12:51.5255350Z test native::unit_tests::owned_null_cleanup_tests::single_owned_null_cleanup_without_loop ... ok"
+        },
+        {
+          "line": 975,
+          "text": "2026-10-11T14:12:51.9817920Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_grouped_and_mirrored_reads ... ok"
+        },
+        {
+          "line": 976,
+          "text": "2026-10-11T14:12:52.0390030Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_known_loop_boundary ... ok"
+        },
+        {
+          "line": 977,
+          "text": "2026-10-11T14:12:52.2296520Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_preserves_reuse_consumption_and_lexical_resource ... ok"
+        },
+        {
+          "line": 978,
+          "text": "2026-10-11T14:12:52.3681270Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_scalar_last_read ... ok"
+        },
+        {
+          "line": 979,
+          "text": "2026-10-11T14:12:52.5260320Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_without_loop ... ok"
+        },
+        {
+          "line": 980,
+          "text": "2026-10-11T14:12:52.7592400Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_loop_resource_exits ... ok"
+        },
+        {
+          "line": 984,
+          "text": "2026-10-11T14:12:53.0442650Z test native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_zero_and_one_iteration ... ok"
+        },
+        {
+          "line": 1009,
+          "text": "2026-10-11T14:12:57.5702480Z test native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_call_operands ... ok"
+        },
+        {
+          "line": 1010,
+          "text": "2026-10-11T14:12:57.6432610Z test native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_resource_precedes_body_named_stays_lexical ... ok"
+        },
+        {
+          "line": 1011,
+          "text": "2026-10-11T14:12:57.8390830Z test native::unit_tests::temporary_null_cleanup_tests::single_temporary_null_cleanup_scalar_and_if_matrix ... ok"
+        },
+        {
+          "line": 1012,
+          "text": "2026-10-11T14:12:58.0518090Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_call_operands_and_plain_nullable ... ok"
+        },
+        {
+          "line": 1013,
+          "text": "2026-10-11T14:12:59.1129050Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_loop_exits ... ok"
+        },
+        {
+          "line": 1014,
+          "text": "2026-10-11T14:12:59.3571640Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_resource_precedes_body_named_stays_lexical ... ok"
+        },
+        {
+          "line": 1016,
+          "text": "2026-10-11T14:13:00.0836090Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_zero_one_and_repeated_string_loops ... ok"
+        },
+        {
+          "line": 1018,
+          "text": "2026-10-11T14:13:00.2871450Z test native::unit_tests::temporary_null_cleanup_tests::unit_temporary_null_cleanup_scalar_and_if_matrix ... ok"
+        },
+        {
+          "line": 1505,
+          "text": "2026-10-11T14:13:33.5331760Z test ssa::owned_null_cleanup_tests::single_nullable_factory_planning_boundary_precedes_any_comparison ... ok"
+        },
+        {
+          "line": 1506,
+          "text": "2026-10-11T14:13:33.5464290Z test ssa::owned_null_cleanup_tests::owned_null_cleanup_presence_precedes_unique_asap_drop ... ok"
+        },
+        {
+          "line": 1508,
+          "text": "2026-10-11T14:13:33.5680200Z test ssa::owned_null_cleanup_tests::temporary_null_cleanup_presence_precedes_unique_result_drop ... ok"
+        }
+      ],
+      "ignored_lines": [
+        {
+          "line": 767,
+          "text": "2026-10-11T14:12:20.4462930Z test llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame ... ignored, requires debugserver task-port permission unavailable in ordinary sandbox or CI"
+        }
+      ],
+      "word_frequency_40_commands": true,
+      "generated": {
+        "status": "partial",
+        "requirements_met": false,
+        "cases": 16,
+        "all_cases_pass": true,
+        "partial_reasons": [
+          "address:macos-asan-unsupported",
+          "leak:macos-counter-only"
+        ],
+        "checker_mutation_status": "pass",
+        "reduction_status": "reproduced"
+      },
+      "preview": {
+        "producer_success": true,
+        "source_commit": "258aaa48ee274c24d4378406a38ef2cbf3034c7f",
+        "source_tree": "7137e50471efc896c8c6ba3ab748bd4385c2328e",
+        "target": "aarch64-apple-darwin",
+        "consumer_success": true,
+        "commands_count": 12,
+        "all_commands_exit_zero_and_byte_match": true,
+        "cleanup_removed": true,
+        "sentinel_unchanged": true,
+        "archive_sha256": "9386a8e4b9b82b376717efe498fc00ad2964f683cfc669f08cbc3b81a9cd1b80"
+      }
+    }
+  },
+  "logs": [
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-ci-passed.log",
+      "bytes": 25990,
+      "sha256": "9406a931264dcdf292369b39f5f101a4639dd8be5708abbe9ff1bfde78e10f11"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-clippy-linux.log",
+      "bytes": 58864,
+      "sha256": "4a9a09d2bd0d4706d87c5a6eb6528fc2f9630fc83689a589a6336fb00323ef4b"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-clippy-macos.log",
+      "bytes": 46604,
+      "sha256": "c684f08023232511b82a45938366e5e04cc3036a804143be979d04b63977a5f6"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-code-evidence.log",
+      "bytes": 16336,
+      "sha256": "fd023acbbaed9290b783c72e1b1ee2633586ed2290043b1ad060cf8d2ad4f085"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-dependencies.log",
+      "bytes": 31527,
+      "sha256": "7e069280acf5a2658d450d22b7222456a62ae1468364475d1a3730dd15e3080b"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-detect.log",
+      "bytes": 41173,
+      "sha256": "2ca1901e52b7407700dd1908fa3828eaf77238dacde2d5ee6710a5a0fc9abb8d"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-docs.log",
+      "bytes": 85898,
+      "sha256": "82de175eb6e6914930180c297c0e4a5492b9db42184cf7353b14d63b3d126ba8"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-fmt.log",
+      "bytes": 31737,
+      "sha256": "a3b62615da64e14419f640ba89a8d484f8127b854dfc4bb460ba7e1c7ef67582"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-preview-linux-consume.log",
+      "bytes": 8081,
+      "sha256": "0e65ff0b9c0c86fe6ae61ec19972e34f1d3a73495336eef43801bebba93c14b7"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-preview-linux-produce.log",
+      "bytes": 57970,
+      "sha256": "c4ff81a277716665d3a0722f49a5783ca5577782631ab3b80fb0b6be9cd690e4"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-preview-macos-consume.log",
+      "bytes": 10547,
+      "sha256": "ecf7164a6980359314f026d49df60e270ab8573a71b0d1652e56c78ce22a304c"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-preview-macos-produce.log",
+      "bytes": 57448,
+      "sha256": "71bd9c98c1bd350699477932d6bc7356849664266dc451482bba6f7d08f2b05f"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-rust-size.log",
+      "bytes": 43288,
+      "sha256": "322d2742ef1afc102684f28a22f0ed2dcd5c000e5de93f0d0678e29c66977734"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-targeted-linux.log",
+      "bytes": 524198,
+      "sha256": "4aadca09daf7eba4520c987c28e8b2d8250168b345fa1eed6bc1808c92e059a2"
+    },
+    {
+      "path": "/workspace/scratch/e92619458311/spec0296-ci-monitor/implementation-targeted-macos.log",
+      "bytes": 507659,
+      "sha256": "be790ad8b138eab37ed5e96fc375001b927d583eee5555d5d67987866061c6a8"
+    }
+  ],
+  "downloaded_artifacts": [
+    {
+      "id": 11705391792,
+      "name": "preview-linux-producer-evidence-38145836171-1",
+      "path": "/workspace/scratch/e92619458311/attachments/01411e6e-1eb1-4aba-9543-39356aaeb61a/github-actions-artifact-11705391792.zip",
+      "sha256": "318d835034ab55357055d282a299d1a043c03add0610c8e8e0ea29052db77a7a",
+      "matches_github_digest": true
+    },
+    {
+      "id": 11705246954,
+      "name": "generated-owners-Linux-78cb64ac47de69538fce4825bc6b9304396c80a3",
+      "path": "/workspace/scratch/e92619458311/attachments/05efadd4-ecb2-45c5-9048-e4db0d2b2ccf/github-actions-artifact-11705246954.zip",
+      "sha256": "2dbad46fcde784db13cbf766e4bddde2bbff70b6e10906cbf53ed26ecd65dc83",
+      "matches_github_digest": true
+    },
+    {
+      "id": 11705102448,
+      "name": "preview-macos-producer-evidence-38145836171-1",
+      "path": "/workspace/scratch/e92619458311/attachments/e0a30098-83c8-4213-9f61-71a9ea052621/github-actions-artifact-11705102448.zip",
+      "sha256": "82aad0d77fadda1e451d0c597b03c7f8888d4e8bc94542ce10718666dca16b2c",
+      "matches_github_digest": true
+    },
+    {
+      "id": 11705062585,
+      "name": "preview-macos-consumer-evidence-38145836171-1",
+      "path": "/workspace/scratch/e92619458311/attachments/4b5d6014-8bf8-4aac-b87f-79969dd5f4ac/github-actions-artifact-11705062585.zip",
+      "sha256": "cb1f0bb88a9d1b8d2f2d56a0681b2624e63227b06d47ce59bc0d9c55cf918208",
+      "matches_github_digest": true
+    },
+    {
+      "id": 11705027645,
+      "name": "preview-linux-consumer-evidence-38145836171-1",
+      "path": "/workspace/scratch/e92619458311/attachments/4fb3d493-b129-4cd1-8650-db584d5e51d8/github-actions-artifact-11705027645.zip",
+      "sha256": "6d58fad9c198953903c18a897aaab65113db2d4c481cbbf3f1ad0a43b8310719",
+      "matches_github_digest": true
+    },
+    {
+      "id": 11704842712,
+      "name": "generated-owners-macOS-78cb64ac47de69538fce4825bc6b9304396c80a3",
+      "path": "/workspace/scratch/e92619458311/attachments/9512bbbc-77f7-4148-8113-f0e595777d8f/github-actions-artifact-11704842712.zip",
+      "sha256": "f2f729e51a1d08e277f647182e47b14983f383dd789a46209d757a95cbb07c3a",
+      "matches_github_digest": true
+    },
+    {
+      "id": 11704517843,
+      "name": "native-sanitizers-Linux-78cb64ac47de69538fce4825bc6b9304396c80a3",
+      "path": "/workspace/scratch/e92619458311/attachments/34dd2a79-892c-49e7-9e41-3aebbe4b0980/github-actions-artifact-11704517843.zip",
+      "sha256": "ba972bfeed6bcdeef9efa84bebabc539f23ccde363616a3ee1f08e616ef7532f",
+      "matches_github_digest": true
+    }
+  ],
+  "limitations": [
+    "No local Cargo, injected programs, calibration, malformed IR, counter, reducer, or aggregate driver executed by this monitor. Only remote CI evidence downloaded/read.",
+    "macOS full codegen has one existing LLDB debugserver task-port permission ignore; the 22 selected cleanup tests and five temporary frontend tests are all actually ok.",
+    "macOS generated owners has acceptance partial/requirements_met=false: address:macos-asan-unsupported and leak:macos-counter-only. Its 16 cases pass; do not claim full sanitizer parity.",
+    "Linux sanitizer acceptance explicitly says UBSan on Koven LLVM IR NOT COVERED.",
+    "Preview is CI artifact only; not release/tag, signing/notarization, quarantine, universal OS/dependency compatibility, missing-dependency negative installation, package-manager distribution, automatic updates, or performance ranking.",
+    "Implementation head CI is distinct from final archive head and actual main CI, both pending at this checkpoint."
+  ]
+}

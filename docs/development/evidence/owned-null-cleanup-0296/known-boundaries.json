@@ -1,0 +1,51 @@
+{
+  "schema": "koven.owned-null-cleanup-boundaries.v1",
+  "baseline_commit": "e168c485a5379764cf927433452f8b7059f7b334",
+  "baseline_compiler_sha256": "798bc8f1b978008082306d354e00e6c78bd01da55b9b9a604cf42e4cb1e07fa9",
+  "status": "Current: temporary null result resolved locally by SPEC-0296 phase two; original red observations are retained as phase-one history. Single for and single ordinary nullable factory planning remain separate boundaries.",
+  "single_for": {
+    "source": "single-loop-boundary.ko",
+    "source_sha256": "758060ff624c9da6227ec5515170813d792dbed06bce0f8ebf1900c02fe25d43",
+    "public_build_exit": 2,
+    "error": "UnsupportedSource: frontend lowering failed with UnsupportedNode",
+    "gate": "ssa/lower_frontend/orchestrate.rs: guarded DropFact condition rejection before SSA planning",
+    "facts": "No closure/snapshot preliminary gate. First guarded Named(texts) owner is IterationPhi for that same symbol. It is neither a resource nor this iteration source, so constant_presence::constant_drop does not admit it. Error span equals fact.value_origin().",
+    "regression": "map_remove_single_for_guarded_owner_boundary_is_explicit",
+    "follow_up": "SPEC-0300 draft, no implementation approval"
+  },
+  "temporary_null": {
+    "source": "temporary-null-boundary.ko",
+    "source_sha256": "ee629a3f8ca442a60c90100f327e362ed2efbd8a0c611dacce07184aa152295e",
+    "public_build_exit": 2,
+    "stdout": "",
+    "stderr": "error: native build failed: native object InvalidModel: frontend lowering failed with InvalidSsa\n",
+    "facts": "Real single-file ownership facts contain zero DropTarget::Temporary(remove expression) drops. The generic binary planner visits operands but does not publish result cleanup. Named-result ordering fix cannot manufacture this missing fact. Unit native also remains InvalidSsa.",
+    "regression": "map_remove_temporary_null_comparison_inspects_real_drop_facts",
+    "phase_one_follow_up": "SPEC-0301 draft requested from audit task, no implementation approval",
+    "observation_phase": "phase one, before ae65b2ce",
+    "current_status": "resolved locally in SPEC-0296 phase two",
+    "current_evidence": [
+      "phase-two-first-green.json",
+      "phase-two-matrix-green.json",
+      "phase-two-acceptance.json"
+    ],
+    "follow_up": "Absorbed into SPEC-0296 after explicit user scope expansion; draft SPEC-0301 withdrawn.",
+    "current_public_result": {
+      "build_exit": 0,
+      "run_exit": 0,
+      "stdout": "present\n",
+      "stderr": ""
+    }
+  },
+  "probe_log": "   Compiling lang-codegen v0.1.0 (/workspace/scratch/e92619458311/koven-map-remove-loop/crates/lang-codegen)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.31s\n     Running unittests src/lib.rs (/workspace/scratch/e92619458311/koven-pr69-fixes/target/debug/deps/lang_codegen-ebf35c020d0bc183)\n\nrunning 4 tests\nremove expression: ExpressionId(12); result drops: []; all drops: [DropFact { owner: Some(CleanupOwnerValueId(1)), capture_slot: None, instance_address: None, condition: None, point: CallReturn(ExpressionId(7)), target: Temporary(ExpressionId(5)), value_origin: Span { source_id: SourceId(0), start: 60, end: 66 } }, DropFact { owner: Some(CleanupOwnerValueId(0)), capture_slot: None, instance_address: None, condition: None, point: CallReturn(ExpressionId(12)), target: Named(SymbolId(1)), value_origin: Span { source_id: SourceId(0), start: 18, end: 19 } }, DropFact { owner: Some(CleanupOwnerValueId(4)), capture_slot: None, instance_address: None, condition: None, point: CallReturn(ExpressionId(18)), target: Temporary(ExpressionId(17)), value_origin: Span { source_id: SourceId(0), start: 135, end: 144 } }]\ntest ssa::lower_frontend_tests::map_result_tests::map_remove_single_for_guarded_owner_boundary_is_explicit ... ok\ntest ssa::lower_frontend_tests::map_result_tests::map_remove_temporary_null_comparison_inspects_real_drop_facts ... ok\ntest native_tests::map_tests::native_mutable_map_remove_key ... ok\ntest native_tests::map_tests::native_map_remove_delivers_owned_value_and_preserves_colliding_entry ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 1259 filtered out; finished in 0.19s\n\n",
+  "single_nullable_factory": {
+    "source": "single-nullable-factory-boundary.ko",
+    "source_sha256": "ef1c0fdba29e2c9a59f6939c12c6d40fc52467a089b15d945f6666495abeb898",
+    "current_status": "retained boundary, outside Map result cleanup",
+    "error": "UnsupportedNode at the whole make function span before body lowering",
+    "gate": "lower_frontend/orchestrate.rs registers callable return type; nominal.rs validates non-map-result resource wrappers; resource_deinit::validate_type requires Nominal for a resource, but Resource? is Nullable.",
+    "regression": "single_nullable_factory_planning_boundary_precedes_any_comparison",
+    "unit_status": "same ordinary source verifies; separate unit native nullable factory result comparison also passes",
+    "follow_up": "parent task notified for explicit follow-up ownership"
+  }
+}

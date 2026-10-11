@@ -1,0 +1,15 @@
+ASan clean/asan: expected classification verified
+ASan clean/raw: expected classification verified
+ASan user/asan: expected classification verified
+ASan user/raw: expected classification verified
+ASan runtime/asan: expected classification verified
+ASan runtime/raw: expected classification verified
+ASan drop/asan: expected classification verified
+ASan drop/raw: expected classification verified
+LSan clean/enabled=True: expected classification verified
+LSan clean/enabled=False: expected classification verified
+LSan leak/enabled=True: expected classification verified
+LSan leak/enabled=False: expected classification verified
+ASan map: 7 Koven definitions instrumented; clean program, no sanitizer report
+LSan map: clean program, no leak report
+UBSan on Koven LLVM IR: NOT COVERED

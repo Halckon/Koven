@@ -794,12 +794,12 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(result) = self.lower_nullable_comparison(expression, span)? {
+            return Ok(result);
+        }
         if let Some(result) =
             self.lower_map_result_binary(left, operator, right, expression, span)?
         {
-            return Ok(result);
-        }
-        if let Some(result) = self.lower_nullable_comparison(expression, span)? {
             return Ok(result);
         }
         if matches!(

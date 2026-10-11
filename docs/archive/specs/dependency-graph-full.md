@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，280 份）"]
+subgraph Garchive["已完成（archive，281 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -289,6 +289,7 @@ subgraph Garchive["已完成（archive，280 份）"]
   S0293["S0293<br/>PR 普通文档追加提交复用真实代码 CI"]
   S0294["S0294<br/>Map.put 参数 return 提前退出的清理与 Diverged 传播"]
   S0295["S0295<br/>两遍 argv Map 词频应用"]
+  S0296["S0296<br/>owned nullable 最后判空与循环清理"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1301,9 +1302,11 @@ S0288 --> S0290
 S0288 --> S0291
 S0288 --> S0294
 S0288 --> S0295
+S0288 --> S0296
 S0289 --> S0292
 S0290 --> S0294
 S0294 --> S0295
+S0295 --> S0296
 ```
 
 ## 节点链接
@@ -1590,5 +1593,6 @@ S0294 --> S0295
 | SPEC-0293 | archive | [0293-pr-code-ci-reuse.md](0293-pr-code-ci-reuse.md) |
 | SPEC-0294 | archive | [0294-map-put-control-exit.md](0294-map-put-control-exit.md) |
 | SPEC-0295 | archive | [0295-map-argv-word-frequency.md](0295-map-argv-word-frequency.md) |
+| SPEC-0296 | archive | [0296-owned-null-comparison-cleanup.md](0296-owned-null-comparison-cleanup.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
