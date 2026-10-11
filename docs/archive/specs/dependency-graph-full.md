@@ -289,6 +289,7 @@ subgraph Garchive["已完成（archive，277 份）"]
 end
 subgraph Gactive["现行 active"]
   S0289["S0289<br/>N1a 单来源范围描述符端到端交付"]
+  S0294["S0294<br/>Map.put 参数 return 提前退出的清理与 Diverged 传播"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1298,7 +1299,9 @@ S0287 --> S0288
 S0287 --> S0289
 S0288 --> S0290
 S0288 --> S0291
+S0288 --> S0294
 S0289 --> S0292
+S0290 --> S0294
 ```
 
 ## 节点链接
@@ -1583,5 +1586,6 @@ S0289 --> S0292
 | SPEC-0290 | archive | [0290-pr69-regression-repair.md](0290-pr69-regression-repair.md) |
 | SPEC-0293 | archive | [0293-pr-code-ci-reuse.md](0293-pr-code-ci-reuse.md) |
 | SPEC-0289 | active | [0289-n1a-range-carrier.md](../../specs/active/0289-n1a-range-carrier.md) |
+| SPEC-0294 | active | [0294-map-put-control-exit.md](../../specs/active/0294-map-put-control-exit.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

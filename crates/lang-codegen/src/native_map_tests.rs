@@ -550,3 +550,133 @@ fn native_map_mutation_collects_drop_glue_before_abort() {
         }
     }
 }
+
+#[test]
+fn native_map_put_control_exit_single_runs_normal_sources() {
+    for (name, text, expected) in map_put_control_exit_cases() {
+        let run = emit_link_and_run(&name, &text, "entry");
+        assert!(run.status.success(), "{name}: {run:?}");
+        assert_eq!(run.stdout, expected.as_bytes(), "{name}");
+    }
+}
+
+#[test]
+fn native_map_put_control_exit_unit_runs_normal_sources() {
+    use lang_frontend::{
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        ownership_checking::check_compilation_unit_ownership,
+        type_checking::check_compilation_unit_types,
+    };
+
+    for (name, text, expected) in map_put_control_exit_cases() {
+        let mut sources = super::SourceMap::new();
+        let source = sources
+            .add_source("p/entry.ko", format!("package p\n{text}"))
+            .unwrap();
+        let parsed = super::parse_file(&sources, &super::lex(&sources, source).unwrap()).unwrap();
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{name}: {:?}",
+            parsed.diagnostics()
+        );
+        let inputs = [SourceUnitInput::new("root", "p/entry.ko", source, &parsed)];
+        let (environment, types) = super::standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|declaration| declaration.name() == "entry")
+            .unwrap()
+            .id();
+        let directory = super::TestDirectory::create();
+        let object = directory.join("map-put-exit.o");
+        let executable = directory.join("map-put-exit");
+        crate::emit_native_unit_object(
+            &sources, &inputs, &names, &types, &typed, &owned, entry, &object,
+        )
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let linked = super::Command::new(crate::test_support::clang())
+            .arg(&object)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .unwrap();
+        assert!(linked.status.success(), "{name}: {linked:?}");
+        let run = super::Command::new(&executable).output().unwrap();
+        assert!(run.status.success(), "{name}: {run:?}");
+        assert_eq!(run.stdout, expected.as_bytes(), "{name}");
+    }
+}
+
+fn map_put_control_exit_cases() -> Vec<(String, String, String)> {
+    let mut cases = Vec::new();
+    for (name, operand, completes) in [
+        ("mixed", "if (flag) { return } else { 8 }", true),
+        ("mixed_reversed", "if (flag) { 8 } else { return }", true),
+        ("both", "if (flag) { return } else { return }", false),
+        ("direct", "return", false),
+    ] {
+        for key_exits in [false, true] {
+            let operation = if key_exits {
+                format!("m.put({operand}, later())")
+            } else {
+                format!("m.put(8, {operand})")
+            };
+            let text = format!(
+                "fun later(): Int {{ println(\"later\"); return 8 }}\nfun inspect(own flag: Boolean): Unit {{\n var m = mutableMapOf<Int, Int>()\n {operation}\n if (m[8] != 8) {{ error(\"wrong entry\") }}\n println(\"after\")\n}}\nfun entry(): Unit {{ inspect(false); inspect(true); println(\"done\") }}"
+            );
+            let expected = if completes {
+                if key_exits {
+                    "later\nafter\ndone\n"
+                } else {
+                    "after\ndone\n"
+                }
+            } else {
+                "done\n"
+            };
+            cases.push((format!("{name}-key-{key_exits}"), text, expected.into()));
+        }
+    }
+    cases.push((
+        "key-then-value".into(),
+        "fun inspect(own flag: Boolean, own other: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(if (flag) { return } else { 8 }, if (other) { return } else { 8 })\n if (m[8] != 8) { error(\"wrong entry\") }\n println(\"after\")\n}\nfun entry(): Unit { inspect(false, false); inspect(false, true); inspect(true, false); inspect(true, true); println(\"done\") }".into(),
+        "after\ndone\n".into(),
+    ));
+    for operand in [
+        "if (flag) { 7 } else { 8 }",
+        "when (flag) { true -> 7; false -> 8 }",
+        "if (flag && (flag || false)) { 7 } else { 8 }",
+    ] {
+        let text = format!(
+            "fun inspect(own flag: Boolean): Unit {{\n var m = mutableMapOf<Int, Int>()\n m.put(1, {operand})\n if (m[1] == 7) {{ println(\"seven\") }} else {{ println(\"eight\") }}\n}}\nfun entry(): Unit {{ inspect(false); inspect(true) }}"
+        );
+        cases.push((operand.into(), text, "eight\nseven\n".into()));
+    }
+    for key in ["\"key\".clone()", "key"] {
+        let text = format!(
+            "class Resource(val label: String) {{ deinit() {{ println(label) }} }}\nfun inspect(own flag: Boolean): Unit {{\n var m = mutableMapOf<String, Resource>()\n m.put(\"key\".clone(), Resource(\"old\"))\n val key = \"key\".clone()\n m.put({key}, if (flag) {{ return }} else {{ Resource(\"new\") }})\n println(\"after\")\n}}\nfun entry(): Unit {{ inspect(false); inspect(true); println(\"done\") }}"
+        );
+        cases.push((
+            format!("resource-{key}"),
+            text,
+            "old\nafter\nnew\nold\ndone\n".into(),
+        ));
+    }
+    cases
+}
