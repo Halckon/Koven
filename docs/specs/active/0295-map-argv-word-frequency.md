@@ -53,11 +53,11 @@ Map 迭代 API、consume、通用 Clone、Option、新 String/IO API、语义或
 
 | ID | 验收目标与命令 | 实际结果 |
 |---|---|---|
-| H1 | 唯一三文件 Map 程序，现有 `scripts/check_word_frequency.py` 的 8 组原 byte oracle、decimal/非法 UTF-8，共 37 public commands | 待运行 |
-| H2 | 空表、交错重复、更多不同词的增长及首次顺序；新增普通源码/静态合同证明两遍 Map | 待运行 |
-| H3 | 实际缺口对应 frontend/SSA/native 红转绿及直接消费者；保留通用 String/MoveOnly Map | 待定位 |
-| H4 | `cargo fmt --all -- --check`、受影响 crate 严格 clippy、docs、diff、Rust 尺寸静态检查 | 待运行 |
-| H5 | 原教程、preview 消费者和双宿主完整必需 CI；独立审阅、证据、归档和精确 head 交付 | 待 CI；本机结果不替代 |
+| H1 | 唯一三文件 Map 程序，原 8 组 byte oracle、decimal/非法 UTF-8 的 37 命令 | Linux 全通过；下述 40 命令包含全部原合同 |
+| H2 | 空表、交错重复、32 distinct 增长及首次顺序；普通源码/静态合同证明两遍 Map | Linux 新旧共 40 public commands 通过；3 个纯静态 Python 合同通过 |
+| H3 | Copyable nullable→Borrow 红转绿与直接消费者；保留通用 String/MoveOnly Map | 4 个新 native、20 个 frontend、13 个相关 SSA/native 通过，0 ignored |
+| H4 | fmt、codegen/frontend 严格 clippy、docs、diff、Rust 尺寸静态检查 | 本机通过；docs 611 页，尺寸欠账按既有护栏报告，无新增例外 |
+| H5 | 原教程、preview 消费者和双宿主完整必需 CI；独立审阅、证据、归档和精确 head 交付 | Linux 教程 32 执行/1 planned；独立实现审阅通过；preview/双宿主/归档仍待 CI |
 
 ## 6. 实施与提交
 
@@ -85,3 +85,25 @@ LLVM 21.1.8。教程两遍实现通过类型/所有权后，在第一个空 argv
 公开 build 原始失败见[独立边界记录](../../development/evidence/map-word-frequency-0295/known-boundary.json)。
 它不是本次 Copyable Borrow 修复造成，且本片不扩成一般 MoveOnly CFG 清理工程；没有计为通过。
 现有通用 Map 合同继续保留，新增 String/Resource owner carry、覆盖及 loop 外移出另行验收。
+
+## 8. 本机验收 checkpoint（2026-10-11）
+
+[本机汇总与红绿原账本哈希](../../development/evidence/map-word-frequency-0295/local-summary.json)
+链接实际运行身份，完整 [red](../../development/evidence/map-word-frequency-0295/local-red.json) / [green](../../development/evidence/map-word-frequency-0295/local-green.json) 保留 argv/cwd、compiler/source SHA256、exit 和 stdout/stderr 原始字节。
+绿色账本 10 项目、40 条 public commands，新增正常增长项目占 3 条；原 37 条仍按原 argv 与项目辨识。
+两遍实现只新增 existing String.clone；没有修改 metadata 中原 8 组预期。
+
+| 命令 / 选择 | 实际结果 |
+|---|---|
+| `cargo test --locked -p lang-codegen --lib map_word_frequency_tests` | 4/4；single 与两 unit 入口、正逆 source 排列、完整 native stdout；无 counter |
+| `cargo test --locked -p lang-frontend --test type_map --test ownership_map --no-fail-fast` | 15+5；未判空 get/remove 的 L0084/Span 与原 Map 能力负例保留 |
+| codegen `--lib ssa::unit_lower_borrow_tests` / `borrow_call_lowering_tests` | 2+5；原 shared root/loan forwarding/grouped Borrow 消费者 |
+| codegen `--lib rejects_inline_nullable_lowering_without_panicking` / `nullable_map_promotion_preserves_direct_inline_nullable_rejection` | 1+1；普通 inline nullable 及 nullable Map storage 边界不扩张 |
+| codegen `--lib native_map_copyable_` / `string_clone_cross_file_borrow_container_and_return_reach_native` | 3+1；缺失/0/false/value-class 与原跨文件 clone |
+| `cargo build --locked -p lang-cli`；`check_word_frequency.py` / `check_tutorial.py` | CLI 成功；40 命令 / 32 执行病例，1 planned 明确未执行 |
+| `cargo clippy --locked -p lang-codegen --all-targets -- -D warnings`；frontend 同形命令；fmt | 通过 |
+| word-frequency Python reference / two-pass-growth / dual-host-wiring 三个指定 test | 3/3；未执行该文件 fault/timeout/signal 注入测试 |
+
+所有新增 Rust 文件低于1000行；两个既有超限 test 入口仍在既有精确例外内，未抬高baseline。
+未执行 macOS、完整 CI、preview、故障生成/缩减/注入/校准、LLVM 改写、counter 与 aggregate；
+本机通过不是这些项目通过。Spec 保持 in-progress，远端最终验收与归档由后续交付闭环完成。
