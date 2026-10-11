@@ -16,6 +16,9 @@ mod call_prefix;
 #[path = "range_lowering_tests/receiver.rs"]
 mod receiver;
 
+#[path = "range_lowering_tests/scalar_counts.rs"]
+mod scalar_counts;
+
 #[path = "range_lowering_tests/drop_algorithms.rs"]
 mod drop_algorithms;
 
