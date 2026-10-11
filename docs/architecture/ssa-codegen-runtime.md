@@ -157,7 +157,7 @@ implementation 和 delegation route，不重新按名称或 shape 选择；callb
 - source-qualified drop、loan、Value delivery 和 multi-file entry。
 
 lowerer 只接受它能证明的 concrete layout 和 runtime recipe。缺少 frontend fact、身份不一致或不支持的
-concrete 表示返回带 source origin 的 typed error，而不是生成猜测性 IR。借用 wrapper 核对外层 return-origin 后透过 Group 使用真实 Call；unit 保留 source-qualified 身份，以完整参数帧建立 owner.field 来源 loan 并延续到结果 loan 终止。[SPEC-0290](../specs/active/0290-pr69-regression-repair.md) 的有界回归不扩大复杂 CFG 或投影支持。
+concrete 表示返回带 source origin 的 typed error，而不是生成猜测性 IR。借用 wrapper 核对外层 return-origin 后透过 Group 使用真实 Call；unit 保留 source-qualified 身份，以完整参数帧建立 owner.field 来源 loan 并延续到结果 loan 终止。SPEC-0290 的有界回归（历史证据从 [Archive](../archive/README.md) 按需追溯）不扩大复杂 CFG 或投影支持。
 
 普通 `lower_owned_unit_with_entry` 消费[封闭 view](pipeline-and-workspace.md#普通-owned-unit-交接)，直接进入原私有 driver/planner，不再建立交接 index。
 旧 lower/planner adapter 保留原签名与受限可见性，各经一次 factory；私有 driver 只读取同链 types/ownership facts。
