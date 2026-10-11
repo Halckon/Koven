@@ -200,9 +200,28 @@ impl UnitExpressionLowerer<'_> {
         let pending_start = self.pending_operands.len();
         self.pending_operands.push(EntityId::Value(owner));
         let lowered_key = self.lower(descriptor.key().expression())?;
+        if matches!(lowered_key, LoweredValue::Diverged) {
+            self.pending_operands.truncate(pending_start);
+            return Ok(LoweredValue::Diverged);
+        }
         let key = require_lowered_value(lowered_key, span)?;
+        let key_type = super::resolve_concrete_type(
+            self.typed,
+            descriptor.key_type(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        if self.typed.copyability(key_type) == lang_frontend::type_checking::Copyability::MoveOnly {
+            // A delivered named key is also a pending argument owner on return paths.
+            self.temporaries.insert(descriptor.key(), key);
+        }
         self.pending_operands.push(EntityId::Value(key));
         let lowered_val = self.lower(descriptor.value().expression())?;
+        if matches!(lowered_val, LoweredValue::Diverged) {
+            self.pending_operands.truncate(pending_start);
+            return Ok(LoweredValue::Diverged);
+        }
         let val = require_lowered_value(lowered_val, span)?;
         let (val, _) = self.adapt_owned_value_to_expected(
             descriptor.value().expression(),

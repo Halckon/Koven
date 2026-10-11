@@ -15,6 +15,15 @@ SSA 的查询键是 Value 或 active Shared Loan，exclusive/失效 loan 被 ver
 `MapPut` 消费旧 owner、键和值，产生更新后的 owner；`MapRemove` 消费旧 owner，
 产生更新后的 owner 和 owned nullable 结果。调用交付后不再运输已消费的键和值 binding。
 
+Map.put 的 key/value 参数内 return 在 single/unit 中直接传播 Diverged，不在全退出后
+生成 MapPut 或求值后缀。single 以真实 receiver reservation identity 登记无 SSA loan 的
+pending 清理项，并由 frontend return 清理事实结束；正常路径严格退休该项。unit 将已求值
+MoveOnly key（含 named String）按参数 identity 保存在 temporary/carry 槽，使后续 value
+return 的前缀 drop 能找到 owner。mixed 分支的正常路径继续使用重绑定后的 operand。
+正常源码回归覆盖两个入口的动态真假分支、连续 key/value 分支、临时/命名 String key 和
+Resource 析构输出；本片不据此声称 break/continue、一般调用退出或堆内存全闭合。
+
+
 资源类型规划递归检查 Map 的 K/V，登记元素 drop glue。LLVM Map drop 遍历 Occupied 槽位，
 分别析构 MoveOnly 键和值，再释放 buffer。覆盖先析构旧键和值，再存入新条目。
 删除析构旧键并交付原值；原值由结果 owner 的清理事实负责，Map 不再析构它。
