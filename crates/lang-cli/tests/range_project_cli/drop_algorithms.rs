@@ -150,18 +150,16 @@ fn public_std_drop_algorithms_do_not_authorize_same_named_user_sources() {
     }
 }
 
+#[cfg(unix)]
 #[test]
-fn public_std_drop_algorithms_keep_existing_inline_binary_count_capability_gate() {
+fn public_std_drop_algorithms_inline_int_min_count_aborts() {
+    use std::os::unix::process::ExitStatusExt;
     for algorithm in ["take", "drop", "dropLast"] {
         let project = Project::new();
         let built = project.build(&format!("package app\nimport koven.algorithms.{algorithm}\nfun read(view:View<String>):Unit{{}}\nfun main():Unit{{val source=listOf(\"a\");borrow val parent={algorithm}(source,0);read({algorithm}(source,(-2147483647-1)))}}"));
-        assert!(!built.status.success(), "{built:?}");
-        assert!(
-            String::from_utf8_lossy(&built.stderr).contains(
-                "native object UnsupportedSource: frontend lowering failed with UnsupportedNode"
-            ),
-            "{built:?}"
-        );
-        assert!(!project.0.join("program").exists());
+        assert!(built.status.success(), "{built:?}");
+        let run = Command::new(project.0.join("program")).output().unwrap();
+        assert_eq!(run.status.signal(), Some(6), "{run:?}");
+        assert!(run.stdout.is_empty(), "{run:?}");
     }
 }

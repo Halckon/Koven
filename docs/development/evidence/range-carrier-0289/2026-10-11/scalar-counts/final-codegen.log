@@ -1,0 +1,28 @@
+   Compiling lang-codegen v0.1.0 (/workspace/scratch/e92619458311/koven-range-counts/crates/lang-codegen)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.08s
+     Running unittests src/lib.rs (/workspace/scratch/e92619458311/koven-pr69-fixes/target/debug/deps/lang_codegen-ebf35c020d0bc183)
+
+running 21 tests
+test ssa::borrow_result_boundary_tests::multi_parameter_borrow_return_single_lowering_remains_unsupported ... ok
+test ssa::borrow_result_boundary_tests::multi_parameter_borrow_return_unit_lowering_remains_unsupported ... ok
+test ssa::borrow_result_boundary_tests::stable_place_root_unit_lowering_preserves_real_storage ... ok
+test ssa::borrow_result_boundary_tests::stable_place_root_single_lowering_preserves_real_storage ... ok
+test ssa::borrow_result_contract_tests::borrowed_result_unit_ssa_uses_returned_loan_and_orders_end_before_move ... ok
+test ssa::borrow_result_contract_tests::borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa ... ok
+test ssa::borrow_result_contract_tests::borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported ... ok
+test ssa::borrow_result_contract_tests::borrowed_result_single_ssa_uses_returned_loan_and_orders_end_before_move ... ok
+test ssa::range_lowering_tests::receiver::range_receiver_source_retains_existing_binding_cfg_frontier ... ok
+test ssa::range_lowering_tests::receiver::range_receiver_source_count_break_retains_existing_loop_cfg_frontier ... ok
+test ssa::range_lowering_tests::range_metadata_borrow_is_separate_from_constructing_a_new_descriptor ... ok
+test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_do_not_widen_ordinary_borrow_or_metadata_alias_bindings ... ok
+test ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_reuse_arbitrary_named_dynamic_boundary_producers ... ok
+test ssa::range_lowering_tests::receiver::range_receiver_source_single_and_unit_keep_root_until_last_child ... ok
+test ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_single_and_unit_share_the_descriptor_abi ... ok
+test ssa::range_lowering_tests::range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans ... ok
+test ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_single_and_reversed_unit_run_unmodified_llvm_natively ... ok
+test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_keep_non_int_binary_and_wider_cfg_gates ... ok
+test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_pending_temporary_source_and_descriptor_evaluate_once ... ok
+test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_single_and_unit_transport_live_parent_child_roots ... ok
+test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_normal_source_arithmetic_and_negative_counts_abort ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 1202 filtered out; finished in 4.05s

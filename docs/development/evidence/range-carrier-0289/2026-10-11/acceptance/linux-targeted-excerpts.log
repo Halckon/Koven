@@ -1,0 +1,58 @@
+# Decoded GitHub job-log excerpts; original line numbers retained.
+# Job: https://github.com/Halckon/Koven/actions/runs/38108254997/job/114378640319
+# Complete decoded log SHA-256: d2acdbf215ff73664d7555c4aedc68cba8eda0ef346bce767582464294c51034
+
+133: 2026-10-11T03:26:40.9464061Z HEAD is now at a67967f Merge d3d6f3ccfb0ed7e1a0032fc16192231a61c41289 into 6667635bd9a22cdc2c2a039912aa2e7ffaf0ec1d
+621: 2026-10-11T03:27:07.0925214Z ##[group]Run bash scripts/check_integration.sh
+1587: 2026-10-11T03:29:49.3502483Z test ssa::range_lowering_tests::call_prefix::range_call_prefix_named_list_later_argument_return_is_legal ... ok
+1588: 2026-10-11T03:29:49.3771925Z test ssa::range_lowering_tests::call_prefix::range_call_prefix_named_view_later_argument_return_is_legal ... ok
+1589: 2026-10-11T03:29:49.4387616Z test ssa::range_lowering_tests::call_prefix::range_call_prefix_temporary_list_later_argument_return_is_legal ... ok
+1590: 2026-10-11T03:29:49.5091488Z test ssa::range_lowering_tests::call_prefix::range_call_prefix_temporary_view_later_argument_return_is_legal ... ok
+1591: 2026-10-11T03:29:49.5922704Z test ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_reuse_arbitrary_named_dynamic_boundary_producers ... ok
+1593: 2026-10-11T03:29:49.8181654Z test ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_single_and_unit_share_the_descriptor_abi ... ok
+1594: 2026-10-11T03:29:49.8331702Z test ssa::range_lowering_tests::drop_algorithms::range_drop_algorithms_single_and_reversed_unit_run_unmodified_llvm_natively ... ok
+1595: 2026-10-11T03:29:49.8481384Z test ssa::range_lowering_tests::range_list_producer_size_uses_metadata_and_source_loan ... ok
+1596: 2026-10-11T03:29:49.8854047Z test ssa::range_lowering_tests::range_metadata_borrow_is_separate_from_constructing_a_new_descriptor ... ok
+1597: 2026-10-11T03:29:49.9017244Z test ssa::range_lowering_tests::range_single_and_unit_for_deliver_only_shared_elements ... ok
+1598: 2026-10-11T03:29:49.9382287Z test ssa::range_lowering_tests::range_single_and_unit_keep_the_same_new_descriptor_abi ... ok
+1599: 2026-10-11T03:29:49.9889568Z test ssa::range_lowering_tests::range_temporary_call_single_and_unit_preserve_root_until_metadata_ends ... ok
+1600: 2026-10-11T03:29:50.0441521Z test ssa::range_lowering_tests::range_temporary_for_single_and_unit_preserve_root_until_metadata_ends ... ok
+1601: 2026-10-11T03:29:50.0907889Z test ssa::range_lowering_tests::range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans ... ok
+1602: 2026-10-11T03:29:50.1431334Z test ssa::range_lowering_tests::range_verifier_preserves_descriptor_root_pairing_through_loop_edges ... ok
+1603: 2026-10-11T03:29:50.1718379Z test ssa::range_lowering_tests::range_verifier_rejects_metadata_end_while_an_element_loan_is_active ... ok
+1604: 2026-10-11T03:29:50.2182610Z test ssa::range_lowering_tests::range_verifier_rejects_erasure_and_premature_source_end_without_emitting_ir ... ok
+1605: 2026-10-11T03:29:50.5021380Z test ssa::range_lowering_tests::receiver::range_receiver_source_borrow_parameter_rebinds_across_nonreturn_count_branch ... ok
+1606: 2026-10-11T03:29:50.5136674Z test ssa::range_lowering_tests::receiver::range_receiver_source_count_break_retains_existing_loop_cfg_frontier ... ok
+1607: 2026-10-11T03:29:50.7910215Z test ssa::range_lowering_tests::receiver::range_receiver_source_count_control_flow_ends_receiver_before_early_return ... ok
+1608: 2026-10-11T03:29:51.0661483Z test ssa::range_lowering_tests::receiver::range_receiver_source_forwarded_nonzero_view_preserves_absolute_offsets ... ok
+1609: 2026-10-11T03:29:52.3333476Z test ssa::range_lowering_tests::receiver::range_receiver_source_native_single_and_reversed_unit_clean_exactly_once ... ok
+1610: 2026-10-11T03:29:52.3451945Z test ssa::range_lowering_tests::receiver::range_receiver_source_retains_existing_binding_cfg_frontier ... ok
+1611: 2026-10-11T03:29:52.3981363Z test ssa::range_lowering_tests::receiver::range_receiver_named_root_short_borrow_cleans_after_consumer_and_return ... ok
+1612: 2026-10-11T03:29:52.4000699Z test ssa::range_lowering_tests::receiver::range_receiver_source_single_and_unit_keep_root_until_last_child ... ok
+1613: 2026-10-11T03:29:52.6706450Z test ssa::range_lowering_tests::receiver::range_receiver_source_temporary_chain_cleans_the_root_once ... ok
+1614: 2026-10-11T03:29:52.6740684Z test ssa::range_lowering_tests::receiver::range_receiver_source_temporary_for_cleans_the_root_after_elements ... ok
+1615: 2026-10-11T03:29:52.9247568Z test ssa::range_lowering_tests::receiver::range_receiver_source_this_size_and_group_size_preserve_actual_view_extent ... ok
+1616: 2026-10-11T03:29:52.9541714Z test ssa::range_lowering_tests::receiver::real_std_receiver_take_preserves_nonzero_view_offsets_and_top_level_compatibility ... ok
+1617: 2026-10-11T03:29:52.9662250Z test ssa::range_lowering_tests::call_prefix::range_call_prefix_native_restores_roots_and_releases_each_identity_on_both_branches ... ok
+1618: 2026-10-11T03:29:52.9843672Z test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_do_not_widen_ordinary_borrow_or_metadata_alias_bindings ... ok
+1619: 2026-10-11T03:29:53.1750517Z test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_keep_non_int_binary_and_wider_cfg_gates ... ok
+1620: 2026-10-11T03:29:53.2421493Z test ssa::range_lowering_tests::call_prefix::range_call_prefix_owned_arguments_transfer_only_after_the_later_argument_completes ... ok
+1621: 2026-10-11T03:29:53.8078261Z test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_pending_temporary_source_and_descriptor_evaluate_once ... ok
+1622: 2026-10-11T03:29:54.7855137Z test ssa::range_lowering_tests::temporary::range_temporary_sequential_uses_and_loop_exits_keep_correlated_ssa_facts ... ok
+1623: 2026-10-11T03:29:54.9211352Z test ssa::range_lowering_tests::temporary::range_temporary_verifier_rejects_premature_root_or_descriptor_end ... ok
+1624: 2026-10-11T03:29:56.8060433Z test ssa::range_lowering_tests::view_source::range_view_source_native_single_and_unit_preserve_collection_and_element_identities ... ok
+1625: 2026-10-11T03:29:56.8881112Z test ssa::range_lowering_tests::view_source::range_view_source_nested_temporary_chain_is_consumed_synchronously ... ok
+1626: 2026-10-11T03:29:58.3034479Z test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_single_and_unit_transport_live_parent_child_roots ... ok
+1627: 2026-10-11T03:29:59.8949146Z test ssa::range_lowering_tests::view_source::range_view_source_offsets_and_forwarded_return_preserve_absolute_root_coordinates ... ok
+1628: 2026-10-11T03:30:00.6967558Z test ssa::range_lowering_tests::view_source::range_view_source_parent_child_and_elements_coexist_until_their_own_last_uses ... ok
+1629: 2026-10-11T03:30:00.8095456Z test ssa::range_lowering_tests::view_source::range_view_source_take_single_and_unit_end_parent_before_child_use ... ok
+1630: 2026-10-11T03:30:00.9506158Z test ssa::range_lowering_tests::view_source::range_view_source_verifier_rejects_a_forwarded_sibling_root ... ok
+1631: 2026-10-11T03:30:01.0653465Z test ssa::range_lowering_tests::view_source::range_view_source_verifier_rejects_premature_collection_release_after_parent_end ... ok
+1698: 2026-10-11T03:30:04.0431400Z test ssa::range_lowering_tests::scalar_counts::range_scalar_counts_normal_source_arithmetic_and_negative_counts_abort ... ok
+1699: 2026-10-11T03:30:04.0781879Z test ssa::range_lowering_tests::temporary::range_temporary_native_single_and_unit_release_string_move_only_and_resource_identities ... ok
+1836: 2026-10-11T03:30:07.2846242Z test ssa::range_lowering_tests::view_source::range_view_source_nested_temporary_native_releases_each_original_collection_once ... ok
+2084: 2026-10-11T03:30:10.1015902Z test result: ok. 1223 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 89.19s
+2164: 2026-10-11T03:30:22.1651154Z test standard_sources::tests::a_forged_standard_receiver_cannot_inherit_loader_extension_authority ... ok
+2165: 2026-10-11T03:30:22.1652821Z test standard_sources::tests::a_user_std_path_and_package_do_not_receive_loader_authority ... ok
+2170: 2026-10-11T03:30:22.3783894Z test standard_sources::tests::loaded_std_ranges_prove_generic_return_caller_root_continuation_and_end ... ok
+2270: 2026-10-11T03:30:47.9913036Z test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 21.54s

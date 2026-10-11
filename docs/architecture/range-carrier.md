@@ -135,13 +135,16 @@ return/正常耗尽各在规定边界结束；body-local Resource 先按逆序�
 resource 清理规则。single pending call loans 与 unit argument frame 保存 receiver
 跨 count 条件 return 的当前 loan，正常/早退分支均有 native 清理证据。
 
-更广 CFG 保留精确门：producer count 分支缺来源证明仍 L0164；borrow val initializer
-内 return 仍 UnsupportedNode(return)；receiver count break 的 single/source binding
-与 unit/整个 for 仍 UnsupportedNode。新增对照中，含 carrier binding 的函数使用
-inline `(-2147483647-1)` count 仍 UnsupportedNode；Int MIN 的既有字面量实际
-验证 Abort。未新增
-View 索引、一般扩展、consume/Clone 或 N1b。当前 drop/dropLast 定向验收与本地
-提交/未发布边界见 active SPEC-0289 §20；§§16–19 保留此前源码冻结结果。
+含 `NewRangeDescriptor` binding 的函数保留全函数扫描，仅放行左/右/结果均为真实
+Builtin Int 的 `+ - * / %`；unit 依 binding SourceUnit 核对事实。`n-1`、size 算术和
+MIN 表达式已接通。既有 checked success/Abort CFG 复用 single linear slots 与 unit
+carried bindings/loans、pending operands、range-source 重绑定，运输 metadata、owner
+及祖先 loan；正常 SSA/native 验证活跃父子与临时来源的运输、求值和清理一次性。
+普通 borrow、metadata alias 混入同函数仍保守拒绝；非 Int Binary、比较、位运算、
+短路及更广 CFG 不放宽。producer count 分支缺来源证明仍 L0164；绑定 initializer
+内 return、receiver count break 仍在原门 UnsupportedNode。未新增 View 索引、
+一般扩展、consume/Clone 或 N1b。PR72 head `d3d6f3c` 的双宿主 CI 已重跑本片及旧 take
+身份/退出回归；验收范围与归档 head/merge/main 待交付状态见[交付账本](../development/evidence/range-carrier-0289/delivery.json)。
 
 
 ## View 来源的新 descriptor 与转发
@@ -193,4 +196,5 @@ String/MoveOnly/Resource 与根保护拒绝；旧 take 同套回归通过。来�
 六个 receiver canonical identity、12 个返回来源与伪标准来源授权隔离。
 single/unit 有 healthy source verifier/render；额外 single 和反序 unit 各有一次
 未改写 LLVM 的真实 native Resource 链。stdout 证明各根元素析构顺序及一次性，
-没有进行 allocation/free 身份统计。本片36项定向通过不代表全量或跨平台 CI。
+没有进行 allocation/free 身份统计。该标准库片原有36项本地定向证据由 PR72 双宿主
+CI 重跑确认；旧 take 的身份插桩不能扩称为所有 drop/dropLast/算术组合的指针身份覆盖。

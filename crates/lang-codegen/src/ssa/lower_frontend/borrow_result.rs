@@ -54,6 +54,14 @@ pub(super) fn validate(
             fact.storage()
                 == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
             &prefixes,
+            |expression| {
+                matches!(
+                    typed
+                        .expression_type(expression)
+                        .and_then(|ty| typed.types().get(ty)),
+                    Some(TypeKind::Builtin(BuiltinType::Int))
+                )
+            },
         )?;
         if !matches!(fact.origin(), LoanTarget::Place(place) if place.elements().is_empty()) {
             return Err(error(

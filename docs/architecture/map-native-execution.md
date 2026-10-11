@@ -194,7 +194,7 @@ Int/Boolean/Char 使用确定性标量哈希，String 使用 UTF-8 字节哈希�
   及缓存边界的红绿证据。普通源码已复现先缓存查询 result 再构造 inline nullable Map 的
   错误接受；Map V storage 现在独立要求已批准 NullableHandle，不能复用 result aggregate
   绕过 storage 边界。single/unit Int?/String?/MoveOnly Packet? 缓存组合负例均通过。
-- macOS 的正常计数不证明 ASan/LSan 动态检出；完整 Linux sanitizer 验收未运行。
+- Linux Map 专属 ASan/LSan 夹具已在 PR #69 run `37946407889` 通过并闭合 G5；
+  macOS 仍只有正常计数证据，不能据此宣称 ASan/LSan 动态检出通过。
 
-上述限制决定 SPEC0288 保持 in-progress；实际命令、平台限制与故障类检查的未运行范围
-由 Spec 逐项记录。
+SPEC0288 已有界验收归档并经 PR #69 合入 main，见[原验收 §7.1](../archive/specs/0288-map-native-execution.md#71-g5-远端证据2026-10-09)。

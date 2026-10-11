@@ -78,6 +78,17 @@ pub(super) fn validate(
             fact.storage()
                 == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
             &prefixes,
+            |expression| {
+                matches!(
+                    typed
+                        .expression_type(UnitExpressionId::new(
+                            fact.binding().source_unit(),
+                            expression
+                        ))
+                        .and_then(|ty| typed.types().get(ty)),
+                    Some(UnitTypeKind::Builtin(BuiltinType::Int))
+                )
+            },
         )?;
         if !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none()) {
             return Err(lowering_error(
