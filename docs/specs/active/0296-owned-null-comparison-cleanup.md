@@ -6,7 +6,7 @@
 |---|---|
 | 状态 | in-progress |
 | Goal ID | `KOV-P4-296` |
-| 所属 Phase | Phase 3 既有 drop 事实交接、Phase 4 SSA/native |
+| 所属 Phase | Phase 3 具名事实交接与临时结果清理事实、Phase 4 SSA/native |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[所有权与双轨析构](../../guide/10-ownership-borrowing-drop.md)、[空安全](../../guide/09-nullability-errors.md) |
 | 批准依据 | 用户要求继续下一里程碑；本片修复既有 MoveOnly Map.remove 普通源码缺口，本地实现与验证已授权，发布另由父任务确认 |
 | 前置 Spec | SPEC-0288、SPEC-0295 |
@@ -17,7 +17,7 @@
 ## 1. Goal 与基线
 
 从 main `e168c485a5379764cf927433452f8b7059f7b334` 新建 `fix/spec-0296`，
-修复具名 owned nullable 判空最后使用时提前消费 owner 的交接，使 MoveOnly Map.remove
+分阶段修复 owned nullable 最后判空：具名 owner 的读取/清理交接，以及临时结果缺失的清理事实，使 MoveOnly Map.remove
 结果在支持的普通源码循环与非循环判空中保持 owner 可用，并保全已有显式消费路径。
 0295 [原始边界源码与失败](../../development/evidence/map-word-frequency-0295/known-boundary.json)
 保留历史，不重写其当时结论。修复不得按 Map/String 名称、源码形状或循环特判。
@@ -35,7 +35,7 @@
 ## 3. 非目标
 
 Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借用能力、LLVM/runtime 改写、
-完整 CFG/NLL 重构、直接 temporary 二元判空的新前端清理事实、放松 verifier、性能宣称。云本机只跑正常源码、普通负例与静态检查；
+完整 CFG/NLL 重构、通用 eager binary 或条件借用扩展、放松 verifier、性能宣称。云本机只跑正常源码、普通负例与静态检查；
 不跑故障注入、校准、malformed IR、LLVM/allocator counter、reducer 或聚合驱动。双宿主 CI 留远端。
 
 ## 4. 验收账本
@@ -68,7 +68,7 @@ Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借�
 UnsupportedNode 门禁被拒绝，另存正常源码，暂不纳入本片能力扩展或通过计数。
 
 扩展探索另确认直接 `m.remove(1) != null` 不发布结果 Temporary drop，和 named 的提前
-drop 不同；两入口仍为 InvalidSsa。该 Phase 3 缺口已交后继独立认领，不纳入本片绿验收。
+drop 不同；两入口仍为 InvalidSsa。这是第一阶段明确保留的 Phase 3 缺口；用户随后要求并入本 Spec 第二阶段，不能将先前红测计入第一阶段绿验收。
 
 扩展[正常源码矩阵](../../development/evidence/owned-null-cleanup-0296/local-matrix-green.json)
 12/12：6 种相等/不等、左右/group 形态分别覆盖 String 与 MoveOnly Text 的 present/missing，
@@ -79,3 +79,30 @@ Resource 的消费通过既有显式 `!!` 交付，正常/continue/break/return 
 第一阶段完整[验收记录](../../development/evidence/owned-null-cleanup-0296/phase-one-acceptance.json)
 保留各命令完整输出及actual compiler哈希；12项新增矩阵、33项直接消费者、20项frontend，
 四条公开build/run及静态门禁通过。独立首轮审查未见阻塞；远端双宿主与生命周期仍未执行。
+
+## 7. 第二阶段：临时 nullable 结果（2026-10-11 追加授权）
+
+用户在第一阶段checkpoint后要求把先前直接 `m.remove(k) != null` 的清理缺口也并入0296。
+本阶段承接该候选；其他 key 提前 return、N1a 标量 CFG、窄化 MoveOnly Borrow 与 single for
+carrier 缺口不扩入本片。第一阶段证据和当时边界保留，不追改已执行结果。
+
+- 两 frontend planner 只在合法 `==`/`!=` nullable-vs-null 比较的实际 operand 完成后，
+  根据已有 type/category/ownership 事实为 MoveOnly temporary 发布显式 `AfterBinaryOperands`。
+- 另一侧必须是透明 Group 归一后的 null literal；它无副作用且不创建 payload owner。
+  实际 operand 也归一 Group 叶与 origin；复用既有 `is_move_only_temporary` 排除 borrowed
+  result/View 等非 owning 值，不从 AST 外观推定所有权，不泛化所有二元操作。
+- Operand 不继续或 Abort 时不发布正常结果 cleanup。没有第二个有作用的 operand，因此
+  不新增 pending frame，也不扩展任意 nullable closure/control temporary 的来源运输能力。
+- 后端只在 representation 对应的 presence 读取后消费上述 facts：aggregate 读取 presence，
+  pointer handle 使用 NullableIsNull；不改 verifier、ABI、runtime，不由后端自行造 drop。
+- 具名资源仍词法清理；Resource temporary 在本次比较完成后、if body 前析构。命中一次、
+  Missing 不产生 payload 析构；Group alias 不重复清理。
+
+| ID | 第二阶段验收项 | 实际结果 |
+|---|---|---|
+| T1 | 单文件/unit真实facts：actual operand一次、AfterBinaryOperands、精确origin；Copyable/named/borrowed/未完成对照 | 待执行 |
+| T2 | direct/group、null左右、==/!=、String/Text/Resource、命中/Missing；Boolean和if，single与两unit native | 待执行 |
+| T3 | 第一阶段矩阵及直接消费者、相邻nullable/String ownership；frontend/codegen严格clippy与跨crate静态check | 待执行 |
+| T4 | 独立审查、最终本机证据；远端CI仍独立 | 待执行 |
+
+先保存本合同与真实红测，再做最小事实和消费接线；每个逻辑切片独立提交。
