@@ -7,16 +7,22 @@ use lang_frontend::{
 };
 
 #[test]
-fn loaded_std_take_proves_generic_return_caller_root_continuation_and_end() {
-    for (element, value, receiver) in [
-        ("String", "\"kept\"", false),
-        ("String", "\"kept\"", true),
-        ("Item", "Item(7)", false),
-        ("Item", "Item(7)", true),
-    ] {
+fn loaded_std_ranges_prove_generic_return_caller_root_continuation_and_end() {
+    for (algorithm, (element, value, receiver)) in ["take", "drop", "dropLast"]
+        .into_iter()
+        .flat_map(|algorithm| {
+            [
+                ("String", "\"kept\"", false),
+                ("String", "\"kept\"", true),
+                ("Item", "Item(7)", false),
+                ("Item", "Item(7)", true),
+            ]
+            .map(|case| (algorithm, case))
+        })
+    {
         let mut sources = SourceMap::new();
         let text = format!(
-            "package app\nimport koven.algorithms.take as prefix\nclass Item(val number: Int) {{}}\nfun inspect(source: View<{element}>): Unit {{}}\nfun consume(own source: List<{element}>): Unit {{}}\nfun run(): Unit {{ val source = listOf({value}); borrow val part = prefix(source, 2147483647); borrow val child = prefix(part, 1); inspect(child); consume(source) }}"
+            "package app\nimport koven.algorithms.{algorithm} as prefix\nclass Item(val number: Int) {{}}\nfun inspect(source: View<{element}>): Unit {{}}\nfun consume(own source: List<{element}>): Unit {{}}\nfun run(): Unit {{ val source = listOf({value}); borrow val part = prefix(source, 2147483647); borrow val child = prefix(part, 1); inspect(child); consume(source) }}"
         );
         let text = if receiver {
             text.replace("prefix(source, 2147483647)", "source.prefix(2147483647)")
@@ -92,7 +98,7 @@ fn loaded_std_take_proves_generic_return_caller_root_continuation_and_end() {
             binding.binding()
         );
         let returned = owned.borrow_results().range_return_origins();
-        assert_eq!(returned.len(), 4);
+        assert_eq!(returned.len(), 12);
         let mut kinds = Vec::new();
         let mut forwarded = 0;
         for returned in returned {
@@ -124,10 +130,14 @@ fn loaded_std_take_proves_generic_return_caller_root_continuation_and_end() {
                 forwarded += 1;
             }
         }
-        assert_eq!(forwarded, 2);
+        assert_eq!(forwarded, 6);
         assert_eq!(
             kinds,
             [
+                lang_frontend::type_checking::RangeSourceKind::List,
+                lang_frontend::type_checking::RangeSourceKind::View,
+                lang_frontend::type_checking::RangeSourceKind::List,
+                lang_frontend::type_checking::RangeSourceKind::View,
                 lang_frontend::type_checking::RangeSourceKind::List,
                 lang_frontend::type_checking::RangeSourceKind::View
             ]
@@ -242,8 +252,39 @@ fn a_forged_standard_receiver_cannot_inherit_loader_extension_authority() {
         .declarations()
         .iter()
         .filter_map(|declaration| declaration.callable())
-        .filter_map(|callable| callable.range_extension())
+        .filter_map(|callable| {
+            callable
+                .range_extension()
+                .map(|binding| (callable.name(), binding))
+        })
         .collect::<Vec<_>>();
-    assert_eq!(bindings.len(), 2);
-    assert!(bindings.iter().all(|binding| binding.source() == standard));
+    assert_eq!(bindings.len(), 6);
+    let mut actual = Vec::new();
+    let mut identities = Vec::new();
+    for (name, binding) in bindings {
+        assert_eq!(binding.source(), standard);
+        assert_eq!(
+            snapshot.sources().slice(binding.from_span()).unwrap(),
+            "from"
+        );
+        assert_eq!(
+            snapshot.sources().slice(binding.source_span()).unwrap(),
+            "this"
+        );
+        assert!(!identities.contains(&binding.callable()));
+        identities.push(binding.callable());
+        actual.push((name, binding.source_kind()));
+    }
+    use lang_frontend::type_checking::RangeSourceKind::{List, View};
+    assert_eq!(
+        actual,
+        [
+            ("take", List),
+            ("take", View),
+            ("drop", List),
+            ("drop", View),
+            ("dropLast", List),
+            ("dropLast", View)
+        ]
+    );
 }

@@ -19,3 +19,39 @@ fun <T> take(source: View<T>, count: Int): View<T> from source {
 borrow fun <T> List<T>.take(count: Int): View<T> from this = take(this, count)
 
 borrow fun <T> View<T>.take(count: Int): View<T> from this = take(this, count)
+
+fun <T> drop(source: List<T>, count: Int): View<T> from source {
+    if (count < 0) { error("drop count must be non-negative") }
+    val size = source.size
+    val clipped = if (count > size) size else count
+    return rangeView(source, clipped, size)
+}
+
+fun <T> drop(source: View<T>, count: Int): View<T> from source {
+    if (count < 0) { error("drop count must be non-negative") }
+    val size = source.size
+    val clipped = if (count > size) size else count
+    return rangeView(source, clipped, size)
+}
+
+borrow fun <T> List<T>.drop(count: Int): View<T> from this = drop(this, count)
+
+borrow fun <T> View<T>.drop(count: Int): View<T> from this = drop(this, count)
+
+fun <T> dropLast(source: List<T>, count: Int): View<T> from source {
+    if (count < 0) { error("dropLast count must be non-negative") }
+    val size = source.size
+    val clipped = if (count > size) size else count
+    return rangeView(source, 0, size - clipped)
+}
+
+fun <T> dropLast(source: View<T>, count: Int): View<T> from source {
+    if (count < 0) { error("dropLast count must be non-negative") }
+    val size = source.size
+    val clipped = if (count > size) size else count
+    return rangeView(source, 0, size - clipped)
+}
+
+borrow fun <T> List<T>.dropLast(count: Int): View<T> from this = dropLast(this, count)
+
+borrow fun <T> View<T>.dropLast(count: Int): View<T> from this = dropLast(this, count)

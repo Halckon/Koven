@@ -16,6 +16,9 @@ mod call_prefix;
 #[path = "range_lowering_tests/receiver.rs"]
 mod receiver;
 
+#[path = "range_lowering_tests/drop_algorithms.rs"]
+mod drop_algorithms;
+
 fn unit(consumer: &str) -> Program {
     unit_with_entry(consumer).0
 }
