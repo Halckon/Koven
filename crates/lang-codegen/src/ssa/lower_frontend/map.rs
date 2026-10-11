@@ -192,16 +192,50 @@ impl ExpressionLowerer<'_> {
         })?;
         let span = self.expression_span(expression)?;
         let (owner, symbol) = self.map_owner_for_mutation(descriptor.receiver())?;
+        // MapPut carries the owner directly, but frontend still reserves its receiver.
+        // Track that exact source loan for return cleanup without inventing an SSA loan.
+        let reservation = self
+            .owned
+            .loan_begin(descriptor.receiver())
+            .filter(|fact| {
+                fact.call() == expression
+                    && fact.argument() == descriptor.receiver()
+                    && fact.is_receiver_reservation()
+            })
+            .map(|fact| (fact.call().index(), fact.argument().index()));
+        if let Some(key) = reservation
+            && self.pending_call_loans.insert(key, None).is_some()
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
         let owner = self.preserve_map_operand(
             expression,
             descriptor.receiver(),
             EntityId::Value(owner),
             span,
         )?;
-        let key = self.require_value(descriptor.key())?;
+        let key = match self.lower(descriptor.key())? {
+            LoweredValue::Value(value) => value,
+            LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+            LoweredValue::Unit => {
+                return Err(error(
+                    LoweringErrorKind::UnsupportedNode,
+                    self.expression_span(descriptor.key())?,
+                ));
+            }
+        };
         let key =
             self.preserve_map_operand(expression, descriptor.key(), EntityId::Value(key), span)?;
-        let val = self.require_value(descriptor.value())?;
+        let val = match self.lower(descriptor.value())? {
+            LoweredValue::Value(value) => value,
+            LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+            LoweredValue::Unit => {
+                return Err(error(
+                    LoweringErrorKind::UnsupportedNode,
+                    self.expression_span(descriptor.value())?,
+                ));
+            }
+        };
         let val = self.adapt_owned_value_to_expected(
             descriptor.value(),
             val,
@@ -214,6 +248,11 @@ impl ExpressionLowerer<'_> {
         let EntityId::Value(key) = self.restore_map_operand(key, span)? else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
+        if let Some(key) = reservation
+            && self.pending_call_loans.remove(&key) != Some(None)
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
         let container_type = self.expression_ssa_type(descriptor.receiver(), span)?;
         let (_, results) = self.append(
             Operation::MapPut {

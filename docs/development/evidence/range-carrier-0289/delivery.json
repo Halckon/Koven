@@ -1,11 +1,11 @@
 {
   "spec": "SPEC-0289",
-  "observed_at_utc": "2026-10-11T03:55:00Z",
+  "observed_at_utc": "2026-10-11T05:35:22Z",
   "scope": "§1–4 bounded N1a Goal: List/View carrier, take/drop/dropLast, trusted Borrow receivers, source/root/end/iteration/native cleanup and typed Int arithmetic counts",
   "pr_url": "https://github.com/Halckon/Koven/pull/72",
-  "pr_state": "open",
-  "pr_draft": true,
-  "merged": false,
+  "pr_state": "closed",
+  "pr_draft": false,
+  "merged": true,
   "implementation": {
     "remote_head": "d3d6f3ccfb0ed7e1a0032fc16192231a61c41289",
     "local_head": "c240e756c632d5079c6a99d6d4395322dd787afb",
@@ -212,10 +212,10 @@
     },
     "other_numbered_checkpoints": "§1–21 retained; only current header/summary and mechanical local links adjusted"
   },
-  "final_archive_head": null,
-  "final_archive_head_ci": "pending",
-  "merge_commit": null,
-  "actual_main_ci": "pending",
+  "final_archive_head": "814b61499e8b99145d6930354d267694d3ec9490",
+  "final_archive_head_ci": "success",
+  "merge_commit": "3f97679839a175088ba33163851e56dccc1dd860",
+  "actual_main_ci": "success",
   "local_governance_checks": {
     "status": "passed",
     "docs": {
@@ -248,5 +248,40 @@
       "local aggregate drivers"
     ],
     "commit_status": "Checks precede this local archive commit; final publication remains pending."
+  },
+  "final_archive_validation": {
+    "run_id": 38113246840,
+    "run_url": "https://github.com/Halckon/Koven/actions/runs/38113246840",
+    "head_sha": "814b61499e8b99145d6930354d267694d3ec9490",
+    "status": "completed",
+    "conclusion": "success",
+    "history_note": "Initial attempt had a generated-owners harness ESRCH failure; the failed job was retried once, with final success verified before merge. This does not rewrite the initial failure."
+  },
+  "actual_main_validation": {
+    "run_id": 38115027930,
+    "run_url": "https://github.com/Halckon/Koven/actions/runs/38115027930",
+    "head_sha": "3f97679839a175088ba33163851e56dccc1dd860",
+    "event": "push",
+    "branch": "main",
+    "observed_at_utc": "2026-10-11T05:35:22Z",
+    "status": "in_progress",
+    "conclusion": null,
+    "observation": "Eight initial jobs succeeded; both Targeted Tests jobs were in progress. No success claim is made."
+  },
+  "actual_main_validation_latest": {
+    "run_id": 38115027930,
+    "run_url": "https://github.com/Halckon/Koven/actions/runs/38115027930",
+    "head_sha": "3f97679839a175088ba33163851e56dccc1dd860",
+    "event": "push",
+    "branch": "main",
+    "observed_at_utc": "2026-10-11T05:49:50Z",
+    "completed_at_utc": "2026-10-11T05:47:08Z",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs_completed_success": 15,
+    "legitimate_skips": [
+      "Code CI Evidence: PR-only marker job is skipped for main push"
+    ],
+    "observation": "All 15 actual-main jobs succeeded, including Tree-sitter, both platforms Targeted Tests, preview producers and independent consumers, and CI Passed. The earlier 05:35:22 in-progress observation is preserved above."
   }
 }

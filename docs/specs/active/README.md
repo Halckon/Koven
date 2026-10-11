@@ -4,8 +4,12 @@
 
 当前 0 份 active。
 
+0294 的 Map.put key/value return 有界修复已按 [PR73](https://github.com/Halckon/Koven/pull/73)
+实现 head 双宿主 CI 归档；同步 main 后的最终归档 head/merge/main 仍待交付，见
+[交付账本](../../development/evidence/map-put-return-0294/delivery.json)。不扩大一般 CFG 或 loop 退出。
+
 0289 的 N1a 有界 Goal 已按 [PR72](https://github.com/Halckon/Koven/pull/72) 实现 head
-双宿主直接证据验收归档；最终归档 head CI、merge 与 actual main CI 尚待交付，见
+双宿主直接证据验收归档；最终归档 head CI 已通过并合为 `3f976798`，actual main CI 尚待完成，见
 [交付账本](../../development/evidence/range-carrier-0289/delivery.json)。归档不扩展既有 CFG
 能力门，也不启用 consume、通用 Clone 或 N1b。
 

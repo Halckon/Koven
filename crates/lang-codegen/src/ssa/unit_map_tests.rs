@@ -332,7 +332,97 @@ fn unit_map_mutation_collects_drop_glue_before_abort() {
     }
 }
 
-fn assert_map_unit_source_lowers(text: &str) {
+#[test]
+fn unit_map_put_control_exit_mixed_return_key() {
+    let source = "package p\nfun suffix(): Unit { println(\"suffix\") }\nfun inspect(own flag: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(if (flag) { return } else { 8 }, 8)\n suffix()\n m.size\n}\nfun entry(): Unit { inspect(false); inspect(true) }";
+    let program = assert_map_unit_source_lowers(source);
+    assert_map_put_count(&program, 1);
+}
+
+#[test]
+fn unit_map_put_control_exit_mixed_return_value() {
+    let source = "package p\nfun suffix(): Unit { println(\"suffix\") }\nfun inspect(own flag: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(1, if (flag) { return } else { 8 })\n suffix()\n m.size\n}\nfun entry(): Unit { inspect(false); inspect(true) }";
+    let program = assert_map_unit_source_lowers(source);
+    assert_map_put_count(&program, 1);
+}
+
+#[test]
+fn unit_map_put_control_exit_mixed_reversed_key() {
+    let source = "package p\nfun suffix(): Unit { println(\"suffix\") }\nfun inspect(own flag: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(if (flag) { 8 } else { return }, 8)\n suffix()\n m.size\n}\nfun entry(): Unit { inspect(false); inspect(true) }";
+    let program = assert_map_unit_source_lowers(source);
+    assert_map_put_count(&program, 1);
+}
+
+#[test]
+fn unit_map_put_control_exit_mixed_reversed_value() {
+    let source = "package p\nfun suffix(): Unit { println(\"suffix\") }\nfun inspect(own flag: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(1, if (flag) { 8 } else { return })\n suffix()\n m.size\n}\nfun entry(): Unit { inspect(false); inspect(true) }";
+    let program = assert_map_unit_source_lowers(source);
+    assert_map_put_count(&program, 1);
+}
+
+#[test]
+fn unit_map_put_control_exit_both_return_key() {
+    let source = "package p\nfun suffix(): Unit { println(\"suffix\") }\nfun inspect(own flag: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(if (flag) { return } else { return }, 8)\n suffix()\n m.size\n}\nfun entry(): Unit { inspect(false); inspect(true) }";
+    let program = assert_map_unit_source_lowers(source);
+    assert_map_put_count(&program, 0);
+}
+
+#[test]
+fn unit_map_put_control_exit_both_return_value() {
+    let source = "package p\nfun suffix(): Unit { println(\"suffix\") }\nfun inspect(own flag: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(1, if (flag) { return } else { return })\n suffix()\n m.size\n}\nfun entry(): Unit { inspect(false); inspect(true) }";
+    let program = assert_map_unit_source_lowers(source);
+    assert_map_put_count(&program, 0);
+}
+
+#[test]
+fn unit_map_put_control_exit_direct_return_key() {
+    let source = "package p\nfun suffix(): Unit { println(\"suffix\") }\nfun inspect(own flag: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(return, 8)\n suffix()\n m.size\n}\nfun entry(): Unit { inspect(false); inspect(true) }";
+    let program = assert_map_unit_source_lowers(source);
+    assert_map_put_count(&program, 0);
+}
+
+#[test]
+fn unit_map_put_control_exit_direct_return_value() {
+    let source = "package p\nfun suffix(): Unit { println(\"suffix\") }\nfun inspect(own flag: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(1, return)\n suffix()\n m.size\n}\nfun entry(): Unit { inspect(false); inspect(true) }";
+    let program = assert_map_unit_source_lowers(source);
+    assert_map_put_count(&program, 0);
+}
+
+#[test]
+fn unit_map_put_control_exit_key_then_value() {
+    let source = "package p\nfun inspect(own flag: Boolean, own other: Boolean): Unit {\n var m = mutableMapOf<Int, Int>()\n m.put(if (flag) { return } else { 8 }, if (other) { return } else { 8 })\n m.size\n}\nfun entry(): Unit { inspect(false, false); inspect(false, true); inspect(true, false); inspect(true, true) }";
+    let program = assert_map_unit_source_lowers(source);
+    assert_map_put_count(&program, 1);
+}
+
+fn assert_map_put_count(program: &crate::ssa::model::Program, expected: usize) {
+    use crate::ssa::model::Operation;
+    let function = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .find(|function| function.name.contains("inspect"))
+        .unwrap();
+    assert_eq!(
+        function
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::MapPut { .. }))
+            .count(),
+        expected
+    );
+    if expected == 0 {
+        assert!(
+            !function
+                .instructions
+                .iter()
+                .any(|instruction| matches!(instruction.operation, Operation::DirectCall { .. })),
+            "a fully diverged put must not lower the suffix call"
+        );
+    }
+}
+
+fn assert_map_unit_source_lowers(text: &str) -> crate::ssa::model::Program {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(&mut sources, "p/entry.ko", text);
     let inputs = [SourceUnitInput::new("root", "p/entry.ko", source, &file)];
@@ -350,4 +440,5 @@ fn assert_map_unit_source_lowers(text: &str) {
     .unwrap_or_else(|error| panic!("{text}: {error:?}"));
     crate::llvm::render_verified_program_with_entry(&program, entry)
         .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+    program
 }
