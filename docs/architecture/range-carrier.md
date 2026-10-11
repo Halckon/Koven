@@ -143,8 +143,8 @@ carried bindings/loans、pending operands、range-source 重绑定，运输 meta
 普通 borrow、metadata alias 混入同函数仍保守拒绝；非 Int Binary、比较、位运算、
 短路及更广 CFG 不放宽。producer count 分支缺来源证明仍 L0164；绑定 initializer
 内 return、receiver count break 仍在原门 UnsupportedNode。未新增 View 索引、
-一般扩展、consume/Clone 或 N1b。本地定向及未发布边界见 active SPEC-0289 §21；
-PR71 依赖的 CI 不证明本片；§§16–20 保留此前源码冻结结果。
+一般扩展、consume/Clone 或 N1b。PR72 head `d3d6f3c` 的双宿主 CI 已重跑本片及旧 take
+身份/退出回归；验收范围与归档 head/merge/main 待交付状态见[交付账本](../development/evidence/range-carrier-0289/delivery.json)。
 
 
 ## View 来源的新 descriptor 与转发
@@ -196,4 +196,5 @@ String/MoveOnly/Resource 与根保护拒绝；旧 take 同套回归通过。来�
 六个 receiver canonical identity、12 个返回来源与伪标准来源授权隔离。
 single/unit 有 healthy source verifier/render；额外 single 和反序 unit 各有一次
 未改写 LLVM 的真实 native Resource 链。stdout 证明各根元素析构顺序及一次性，
-没有进行 allocation/free 身份统计。该标准库片36项定向通过不代表全量或跨平台 CI。
+没有进行 allocation/free 身份统计。该标准库片原有36项本地定向证据由 PR72 双宿主
+CI 重跑确认；旧 take 的身份插桩不能扩称为所有 drop/dropLast/算术组合的指针身份覆盖。

@@ -157,7 +157,7 @@ T?? 继续非法；通用 Clone/Option 未启用，ConsumingSeq 链内限制是�
 本轮只维护候选与规划，不新增实施 Spec、不归档0288、不修改生产、Cargo 或 CI。
 
 2026-10-08 后续用户已批准 N1a 首片本地实施及负数 Abort/越 size 截边界，并再次要求
-以里程碑交付为主线。[SPEC-0289](../specs/active/0289-n1a-range-carrier.md)作为 M3A 最小
+以里程碑交付为主线。[SPEC-0289](../archive/specs/0289-n1a-range-carrier.md)作为 M3A 最小
 take 的有界后继，依赖 M2B 实际来源/延续/结束，并回归 0288 的 B2/B7/B8 共享合同。
 前端最小检查点后优先贯通同一 take 的 SSA/verifier、String/MoveOnly/Resource 正常 native
 与权限恢复，不横向铺新算法。consume、Clone、N1b 与用户通用扩展继续留后续独立验收。
@@ -412,8 +412,18 @@ ABI与普通native路径；用户明确启用Guide v0.41 expected move literal�
 ## 24. N1a receiver 本地闭环与待发布边界（2026-10-10）
 
 可信 receiver 静态 ABI、稳定根外层消费者续接与真实 std List/View.take 已分三片
-本地提交；[SPEC-0289 §19](../specs/active/0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)
+本地提交；[SPEC-0289 §19](../archive/specs/0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)
 记录最终148项定向测试、29次新增 native 执行与工程门禁，不用旧全量替代本轮。
 更广 CFG、剩余范围算法及整个 N1a 仍开放；consume/Clone/N1b 不扩展。
 PR70增量CI已合入main，本开发分支尚未接入；本轮新代码尚未push、全量/双宿主CI未跑。
 用户现允许GitHub Actions故障注入/校准，云开发环境仍禁止；此前记录保留历史含义。
+
+
+## 25. N1a 有界实现验收（2026-10-11）
+
+0289 的 List/View take/drop/dropLast、可信 Borrow receiver、最小访问/迭代及有界
+Builtin Int 计数已按 PR72 实现 head `d3d6f3c` 的双宿主直接证据验收归档，逐项 Goal
+核对见[原验收 §22](../archive/specs/0289-n1a-range-carrier.md#22-有界-goal-验收与归档2026-10-11)。
+[交付账本](evidence/range-carrier-0289/delivery.json)分别保留最终归档 head CI、merge
+与 actual main CI 的待交付状态。更广 CFG 按 Guide 12 结构化拒绝；consume、通用
+Clone、N1b 及其他候选不随归档启用。§23–24 与之前检查点仍保留原时点含义。

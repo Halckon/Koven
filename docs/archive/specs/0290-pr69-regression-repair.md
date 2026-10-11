@@ -242,7 +242,7 @@ v0.43/ADR-0030；此前的语义二选一源于缺失分支资料。现按正式
 R6已由真实Guide v0.43/ADR-0030与用户继续实施指令消除“启用或休眠”的二选一；
 不再把N1a方向列作待决定。后继receiver静态ABI、稳定root续接与std take已本地提交
 `3ac650b`、`2134c3a`、`65b6fc0`，准确验收与剩余CFG边界由
-[SPEC-0289 §19](../../specs/active/0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)维护。
+[SPEC-0289 §19](0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)维护。
 A6/A9仍不据此关闭完整交付。publication `815b1fb`树上传两次取消，远端仍`f50b48c`，
 分批方案待用户确认，新代码未push。PR70已合并`56af80b`，增量CI在main，本分支未合入；
 不能挪用其结果作为本分支全量或双宿主通过证据。当前用户允许GitHub Actions故障注入/

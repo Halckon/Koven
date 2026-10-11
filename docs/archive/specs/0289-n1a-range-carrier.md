@@ -1,10 +1,10 @@
 # SPEC-0289: N1a 单来源范围描述符端到端交付
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：准备或验收 N1a 范围 carrier 首片时 · **唯一真源**：本 Spec；语言语义以 [Guide](../../guide/README.md) 为准
+> **性质**：变更合同 · **状态**：done · **读取时机**：准备或验收 N1a 范围 carrier 首片时 · **唯一真源**：本 Spec；语言语义以 [Guide](../../guide/README.md) 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0289` |
 | 所属 Phase | Phase 1 声明；Phase 2 carrier 类型；Phase 3 来源与终止；Phase 4 SSA；Phase 5/6 std 与 native |
 | 语言规范 | 当前 v0.43；仅启用已批准 N1a 最小合同，完整旧版已冻结 |
@@ -12,16 +12,17 @@
 | 前置 Spec | [SPEC-0287](../../archive/specs/0287-m2b-and-map-type-system.md) 的已发布来源合同 |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | [ADR-0030](../../adr/accepted/0030-range-carrier-source-facts.md)；List/View 终态见 §12–13；receiver 前端见 §15–16，静态 ABI 与真实 std 接线见 §19 |
-| 阻塞项 | std take/drop/dropLast 与有界 typed Int 算术计数已本地提交；全量、跨平台 CI 与发布尚未完成，更广 CFG 仍拒绝；见 §21 |
+| 阻塞项 | §1–4 的有界 Goal 已按 PR72 实现 head 双宿主 CI 验收；最终归档 head CI、merge 与 actual main CI 尚待交付；更广 CFG 保持规定拒绝，见 §22 |
 | 影响范围 | lang-frontend、lang-codegen、lang-std；必要 CLI 标准来源接线 |
 | 语言语义变更 | 是；已批准最小合同已启用，未实现能力保留精确拒绝 |
 
 当前已接通 List/View 顶层及可信 Borrow receiver 的 take/drop/dropLast，复用同一
 来源/续接、静态 RangeCall ABI 与真实 std Koven body。稳定 named root 的短期范围
 借用在外层消费者返回后才清理。含新 descriptor 绑定的函数已接通有界 typed Int
-算术计数，复用既有 checked CFG 与根运输。本片定向证据见 §21；此前 §7–20 保留各时点记录，
-不将旧 Mac 全量或早期能力门当作当前验证状态。更广 CFG 仍精确拒绝，本片尚未完成
-全量/跨平台 CI 或远端发布，SPEC-0289 继续 in-progress。
+算术计数，复用既有 checked CFG 与根运输。§22 逐项核对 §1–4 Goal 与 PR72 双宿主
+实际结果，据此将本 Spec 归档为 done；归档不表示最终文档 head 已发布、PR 已合并或
+actual main CI 已完成。§5–21 保留各时点原始账本；旧“未运行／in-progress”只描述
+对应检查点，不用旧 Mac 全量替代当前证据。更广 CFG 仍按 Guide 12 精确拒绝。
 
 里程碑主线由 M3A 单来源 take 首片推进到 §2/§4 的 drop/dropLast，继续依赖 M2B
 来源与 continuation/end 合同；不扩至 consume、Clone、N1b 或更多算法。
@@ -1042,3 +1043,48 @@ MIN % -1 检查、负 count，以及 `(-2147483647-1)` 形成的 MIN count。
 Rust 1.96.0 / LLVM 21.1.8，Cargo 串行复用现有 target，未 clean。
 文档与 diff 检查的最终结果见 `docs-final.log` 和 `docs-diff-final.log`；
 SPEC-0289 保持 in-progress，不归档。
+
+
+## 22. 有界 Goal 验收与归档（2026-10-11）
+
+本节对照 §1–4 的交付合同作最终实现验收，不改写 §5 的声明检查点、§20 的 drop
+检查点或其他历史结果。[PR #72](https://github.com/Halckon/Koven/pull/72) 的实现 head 为
+`d3d6f3ccfb0ed7e1a0032fc16192231a61c41289`，与本地 `c240e756c632d5079c6a99d6d4395322dd787afb`
+具有同一 tree `3b69f9a028cabc6acc5c009ce14be9dba972039b`。CI 的实际 checkout 是
+base `6667635bd9a22cdc2c2a039912aa2e7ffaf0ec1d` 与该 head 的 synthetic merge
+`a67967fcb60bed87e6a61b47b5d1d16844da8e98`，不是已经合并到 main 的提交。
+
+[CI run 38108254997](https://github.com/Halckon/Koven/actions/runs/38108254997)
+已 completed/success；15 个 job success，Tree-sitter CLI Corpus 按改动过滤合法 skipped。
+双宿主 Workspace Check & Clippy、Targeted Tests、Preview Producer / Independent Consumer
+实际 success，Code CI Evidence 与 CI Passed 同样通过。各 job 状态、合法 step skips、日志摘录及
+完整下载日志的 SHA-256 见[交付账本](../../development/evidence/range-carrier-0289/delivery.json)。
+
+| §1–4 验收项 | 实际证据与结果 | 明确保留的边界 |
+|---|---|---|
+| single/unit carrier 类型、声明来源与可信 receiver | 双宿主实际运行 `parser_n1a_frontier`、`type_range_*`、`ownership_range_*`；标准宿主三个身份/授权测试全部通过 | AST/from 签名不能替代实际来源证明；伪 std 与用户扩展继续拒绝 |
+| 新描述符／既有 metadata 借用、唯一来源返回与 wrapper | 双宿主 `range_lowering_tests` 全47项通过，含 ABI、metadata alias、List/View producer、合法转发与错误 sibling 拒绝 | 只接可证明唯一 root 的路径，不开放多来源或 owning carrier |
+| 父子／兄弟／元素 loan 与根权限恢复 | construction/receiver ownership、View 父子/元素、提前结束拒绝及 native 恢复测试通过 | root-flat 不等于提前释放根；未证明流仍 L0164/UnsupportedNode |
+| 只读访问、for、临时来源与正常退出 | temporary、view_source、receiver、call_prefix 全部实际通过；旧 take 身份测试覆盖 String/MoveOnly/Resource、0/clip/full、break/continue/return 与立即 Borrow | 禁止临时 View 保存/逃逸；Abort 不展开，未承诺任意 CFG 的成功 lowering |
+| take/drop/dropLast 的真实 `.ko` 算法与 receiver | 双宿主公开 CLI `range_project_cli` 各32 passed；drop lowering 3项与 host identity 回归通过，含空源、非零 offset、0/size/超长/MAX/MIN、负数 Abort | drop/dropLast 的新 native 以未改写 LLVM 与 stdout/Abort 验证，不冒充指针身份插桩 |
+| 有界 typed Int 计数及 checked CFG 根运输 | 双宿主 scalar_counts 5项与公开 CLI 算术场景通过；§21 的 source/count 一次求值、父子/兄弟和 pending temporary、溢出/除余零/负数 Abort 重新命中 | 仅 NewRangeDescriptor 且左右/结果均为 Builtin Int；普通 borrow、metadata alias 与更广 Binary/CFG 门不放宽 |
+| 共享回归、工程门禁及双平台 native | 双宿主 check/clippy、fmt、尺寸、文档、bounded composition、preview 生产/独立安装消费全部实际 success | frontend 为 lib 与指定 stage/guide/tutorial 组合，不能称整仓所有测试；macOS 平台 skips 保留 |
+
+CI 的 `scripts/check_integration.sh` 调用 core、指定 stage、guide 与 tutorial 组合；其中
+codegen library 在 Ubuntu 为 **1223 passed / 0 failed / 0 ignored**，macOS 为
+**1222 passed / 0 failed / 1 ignored**，后者是既有 LLDB debugserver 权限限制，不是 N1a
+测试跳过。两宿主同一47项 range lowering 全部通过；其 temporary 3、view_source 8、
+receiver 12、call_prefix 6、drop 3、scalar 5 与其余10项均有独立 test-name 命中记录。
+这些集合与 CLI/历史定向选择重叠，不能把它们简单加总为新增用例数。
+
+Linux sanitizer job step 与 generated-resource step 实际通过；macOS 的 Linux-only
+sanitizer step 合法跳过。本 Spec 不将通用或 Map sanitizer 夹具当作 N1a 专属 sanitizer
+证明，不改变旧 Mac `partial` / `requirements_met=false` 合同。旧 take 的正常分配/释放
+身份回归在远端重跑，不推出 drop/dropLast/算术的所有组合也逐指针观测。本次文档对账
+没有本地 Cargo、LLVM 改写、故障生成/注入、校准或聚合 driver 执行。
+
+据已承诺有界 Goal 的直接证据，本 Spec 状态改为 done 并迁入 archive，同步索引、DAG
+和冻结 inventory。Guide 12 明确允许未证明流结构化拒绝，剩余更广 CFG、一般扩展、
+consume、通用 Clone、N1b 不属于本次实现验收；没有借归档启用它们。
+最终归档文档 head 的发布与 CI、用户决定后的合并及 actual main CI 尚未发生，必须由
+上述交付账本分别记录；本节只关闭实现验收，不预称这些交付动作完成。

@@ -9,10 +9,10 @@
 | 所属 Phase | Phase 2/3 owned 契约与清理；Phase 4 SSA；Phase 5/6 std 与 native |
 | 语言规范 | 当前 v0.43；首片具体合同须先形成并启用新 Guide |
 | 批准依据 | 2026-10-08 12:15 UTC 用户明确同意修订后首片本地实施 |
-| 前置 Spec | [SPEC-0289](../../active/0289-n1a-range-carrier.md) 的最小 std 声明接线；独立消费原语准备可先推进 |
+| 前置 Spec | [SPEC-0289](../../../archive/specs/0289-n1a-range-carrier.md) 的最小 std 声明接线；独立消费原语准备可先推进 |
 | 前置 ADR | [ADR-0008](../../../adr/accepted/0008-internal-value-and-allocation-abi.md)、[ADR-0016](../../../adr/accepted/0016-interprocedural-borrow-abi.md) |
 | 关联 ADR | 新消费序列与槽位移交 ABI 待形成独立决定 |
-| 阻塞项 | 新 Guide/ADR 与 std 声明；消费构造/有效槽位/清理原语；前置 0289 未完成 |
+| 阻塞项 | 新 Guide/ADR 与 std 声明；消费构造/有效槽位/清理原语；前置 0289 有界实现已验收，最终归档 head/merge/main 待交付 |
 | 影响范围 | lang-frontend、lang-codegen、lang-std |
 | 语言语义变更 | 是；范围已授权，合同冻结前保持 draft |
 
@@ -28,7 +28,7 @@ consume 成功求值立即使源 binding 失效；链中临时 owner 在下游 o
 与必要短路矩阵。编译器只提供可复用构造、完整槽位移出/丢弃与结果构造原语；
 算法 body 由 `.ko` 实现。普通借用 filter/N1b 不属于此路径。
 
-消费 take 的数量遵循 [0289 §6 已批准计数合同](../../active/0289-n1a-range-carrier.md#6-已批准计数边界与交付)：
+消费 take 的数量遵循 [0289 §6 已批准计数合同](../../../archive/specs/0289-n1a-range-carrier.md#6-已批准计数边界与交付)：
 2026-10-08 13:08 UTC 用户批准负数 Abort、超过 size 截边界；非负先 clip 后算，
 空源、零、size 与最大 Int 按同一规则。数量与 borrow 路径一致，owner/cleanup 仍按本
 Spec 独立验证；此批准不增加本 Spec 的 API 范围，也不表示消费或清理已实现。

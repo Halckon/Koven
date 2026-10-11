@@ -36,11 +36,12 @@ FunctionForm::Explicit {
 `type_ref`，不得把结果来源模式编码为可嵌套的 TypeRef。
 局部显式借用以 `VariableKind::BorrowVal(Span)` 保留声明 marker。
 
-`Carrier` 是首片声明前置的内部表示，保存真实 `from` 与来源，不伪造 `borrow` marker。
-函数 item 的 `extension_receiver: Option<ExtensionReceiverSyntax>` 同样只保存 receiver 的
-TypeRef ID 与分隔点 Span，显式 mode 复用 `DeclarationModifiers.receiver_mode`。
-这些字段不启用候选语言语义；carrier 与扩展声明在 single/unit 类型阶段必须明确拒绝，
-不能误交付为普通 owned callable。现行 Guide 与后续语义批准边界保持不变。
+`Carrier` 保存真实 `from` 与来源，不伪造 `borrow` marker。函数 item 的
+`extension_receiver: Option<ExtensionReceiverSyntax>` 只保存 receiver 的 TypeRef ID 与
+分隔点 Span，显式 mode 复用 `DeclarationModifiers.receiver_mode`。
+AST 字段本身不授予 carrier 或扩展身份；后续阶段必须按现行 Guide 和已发布的可信来源、
+canonical 选择及实际来源事实接线，不能误交付为普通 owned callable。未授权或未证明的
+路径继续结构化拒绝；已接通范围见[范围 carrier 架构](../architecture/range-carrier.md)。
 
 ## Statement Table 与函数 Body
 
