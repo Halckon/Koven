@@ -80,21 +80,21 @@ Linux成本、其余八组成本和用户明确接受预算仍未运行/闭合�
 
 ## 可发布证据与本批验证
 
-[固定条件](evidence/p2-multifile-ownership-mac-20261004/protocol.json)、
-[实际执行脚本](evidence/p2-multifile-ownership-mac-20261004/probe.py)、
-[校准](evidence/p2-multifile-ownership-mac-20261004/calibration.json)、
-[全部第三次样本](evidence/p2-multifile-ownership-mac-20261004/samples.json)、
-[身份](evidence/p2-multifile-ownership-mac-20261004/identities.json)、
-[逐阶段统计](evidence/p2-multifile-ownership-mac-20261004/summary.json)与
-[三次完整text raw](evidence/p2-multifile-ownership-mac-20261004/raw.tar.gz)一并保留。
+[固定条件](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/protocol.json)、
+[实际执行脚本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/probe.py)、
+[校准](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/calibration.json)、
+[全部第三次样本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/samples.json)、
+[身份](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/identities.json)、
+[逐阶段统计](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/summary.json)与
+[三次完整text raw](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/raw.tar.gz)一并保留。
 探针从仓库根调用、复制到新的独立临时目录执行；Darwin专用，不是通用benchmark框架。
 原先每次失败脚本只作归档，含路径token的历史配置需要提供实际目录后才能重现。
 第三次探针累计检查已知同级临时缓存及本次target，复核时仍需纳入其他已有缓存。
 
 438个归档成员全部UTF-8 text，不含源码快照、二进制或缓存；路径替换为明确token，
-[脱敏记录](evidence/p2-multifile-ownership-mac-20261004/redaction.json)保留归档SHA，
-[原始hash](evidence/p2-multifile-ownership-mac-20261004/original-sha256.json)与
-[发布hash](evidence/p2-multifile-ownership-mac-20261004/raw-sha256.json)逐项对应。
+[脱敏记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/redaction.json)保留归档SHA，
+[原始hash](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/original-sha256.json)与
+[发布hash](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-mac-20261004/raw-sha256.json)逐项对应。
 106份JSON数值/布尔字段脱敏前后完整相等，438个发布成员逐项摘要核验通过。
 448个发布text payload的私密路径/常见凭据模式扫描通过，该有界扫描不是通用秘密检测。
 `python3 scripts/check_docs.py`通过497页结构检查，`git diff --check`通过。
@@ -132,16 +132,16 @@ Darwin time及harness三个时钟，记录环境/负载背景；必要时把逐�
 
 本次新增约0.328GiB，结束累计6.513GiB、剩余约62.91GiB，仍未触两小时/累计12GiB/
 剩余40GiB硬线。未安装工具、改安全设置、推送、新建PR或重跑整个功能回归。
-[本次方法](evidence/p2-multifile-ownership-retest-mac-20261004/protocol.json)、
-[采样脚本](evidence/p2-multifile-ownership-retest-mac-20261004/probe.py)、
-[校准](evidence/p2-multifile-ownership-retest-mac-20261004/calibration.json)、
-[13条样本](evidence/p2-multifile-ownership-retest-mac-20261004/samples.json)、
-[停止原因](evidence/p2-multifile-ownership-retest-mac-20261004/outcome.json)、
-[三时钟与统计](evidence/p2-multifile-ownership-retest-mac-20261004/summary.json)和
-[全部70个raw成员](evidence/p2-multifile-ownership-retest-mac-20261004/raw.tar.gz)独立保存。
+[本次方法](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/protocol.json)、
+[采样脚本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/probe.py)、
+[校准](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/calibration.json)、
+[13条样本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/samples.json)、
+[停止原因](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/outcome.json)、
+[三时钟与统计](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/summary.json)和
+[全部70个raw成员](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/raw.tar.gz)独立保存。
 17份JSON数值/布尔字段脱敏前后相等，70个归档成员摘要全部通过；
-[脱敏与归档摘要](evidence/p2-multifile-ownership-retest-mac-20261004/redaction.json)、
-[原始摘要](evidence/p2-multifile-ownership-retest-mac-20261004/original-sha256.json)和
-[发布摘要](evidence/p2-multifile-ownership-retest-mac-20261004/raw-sha256.json)保留，不覆盖前批。
+[脱敏与归档摘要](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/redaction.json)、
+[原始摘要](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/original-sha256.json)和
+[发布摘要](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-multifile-ownership-retest-mac-20261004/raw-sha256.json)保留，不覆盖前批。
 79个发布text payload的私密路径/常见凭据模式扫描通过；文档结构497页与whitespace
 检查通过。没有新增产品行为、Spec或Rust实现修改。

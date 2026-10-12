@@ -124,7 +124,7 @@ receiver、算法或剩余 CFG 边界转成 0290 的未决语义，也不宣布�
 
 本次按根 AGENTS §4.7 及既有有界归档范式，先冻结实现验收，再验证归档提交与合并。
 最终归档 head、merge、actual main CI 尚无成功证据，状态见
-[交付账本](../../development/evidence/pr69-repair-0290/delivery.json)。
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/pr69-repair-0290/delivery.json)。
 
 ## 10. 验证记录
 

@@ -7,7 +7,7 @@
 本片未做可支持性能结论的耗时/RSS实验；probe附带计时不作性能证据，不能从次数减少
 声称提速、内存节约或性能等价。
 
-[完整计数与复现资料](evidence/const-owned-unit-handoff-measurement.json)保留两cohort的源码
+[完整计数与复现资料](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/const-owned-unit-handoff-measurement.json)保留两cohort的源码
 commit/tree、probe源码/hash、fixture完整字节/hash、精确符号/source region、计数、提取脚本、
 构建参数与object/link/run结果。大型binary/profraw/profdata/coverage export不进入仓库。
 本页不新增生产counter或长期benchmark框架，不替代[唯一验收账本](../archive/specs/0254-const-owned-unit-borrowed-handoff.md)。

@@ -3,7 +3,7 @@ use super::resource_exchange_tests::run_unit;
 use crate::native_tests::{boxed_enum_tests::assert_success, emit_link_and_run};
 
 const KNOWN_BOUNDARY: &str = include_str!(
-    "../../../../docs/development/evidence/map-word-frequency-0295/known-boundary/src/p/provider.ko"
+    "../../tests/fixtures/map-word-frequency-0295/known-boundary/src/p/provider.ko"
 );
 
 pub(super) fn run_single(source: &str, body: &str, expected: &str) {

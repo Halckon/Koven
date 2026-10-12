@@ -32,11 +32,11 @@ before `34189046319a8b727285d471596647d5de56996e`；after
 两个隔离源码目录，空target冷样本；不clean、不复制target、不改当前工作树编译器。
 `--locked --offline -j 2`、incremental0与linker计时wrapper两侧一致，Cargo串行。
 
-[原始样本](evidence/p2-lsp-mac-20261004/samples.json)、
-[方法与固定输入](evidence/p2-lsp-mac-20261004/protocol.json)、
-[全部原始日志](evidence/p2-lsp-mac-20261004/raw.tar.gz)、
-[逐文件SHA-256](evidence/p2-lsp-mac-20261004/raw-sha256.json)、
-[实际采样脚本](evidence/p2-lsp-mac-20261004/probe.py)保留；没有加入二进制或缓存。
+[原始样本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-lsp-mac-20261004/samples.json)、
+[方法与固定输入](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-lsp-mac-20261004/protocol.json)、
+[全部原始日志](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-lsp-mac-20261004/raw.tar.gz)、
+[逐文件SHA-256](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-lsp-mac-20261004/raw-sha256.json)、
+[实际采样脚本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-lsp-mac-20261004/probe.py)保留；没有加入二进制或缓存。
 复现脚本需复制到独立临时目录执行；它是本次Darwin探针，不是通用benchmark框架。
 首轮沙箱拒绝`time`的`kern.clockrate`只读探测，随后通过正常审批路径执行同一操作成功；
 失败原值也保留，未绕过被禁止的系统读取。
@@ -50,7 +50,7 @@ before `34189046319a8b727285d471596647d5de56996e`；after
 | 冷构建最大报告进程RSS | 3 | 1964.625MiB | 1954.031MiB | 不作为整个进程树峰值 |
 | 热构建最大报告进程RSS | 5 | 398.688MiB | 396.453MiB | 不作为整个进程树峰值 |
 
-完整统计及全部配对差额见[summary.json](evidence/p2-lsp-mac-20261004/summary.json)。
+完整统计及全部配对差额见[summary.json](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-lsp-mac-20261004/summary.json)。
 各rustc/linker进程单独保留计时；rustc非link区间以该进程耗时减去嵌套linker，包含rustc前后
 开销，不是exclusive CPU。多个rustc可能并行，进程时间之和不能冒充构建墙时。
 Darwin RSS以bytes归一MiB；保留原始time输出，不套用Linux的KiB口径。
@@ -72,7 +72,7 @@ OS缓存、机器负载未受控；冷样本只表示空构建产物缓存。三
 跨文件首次manifest名称不符合CLI协议，改为`project.toml`；未为教程扩展编译器能力。
 最终四个新增例的build/artifact/run完整输出通过；未重跑原七正例与两负例。
 六项提取/重复/遗漏/路径/selection合同通过；原始红、绿与CLI日志见
-[本批证据目录](evidence/tutorial-0262/input-sha256.json)。
+[本批证据目录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/tutorial-0262/input-sha256.json)。
 
 本轮实际检查：`python3 -m unittest discover -s scripts/tests -p 'test_tutorial_contracts.py' -v`
 六项通过；`python3 -m unittest discover -s scripts/tests -p 'test_check_docs.py' -v` 37项通过；
@@ -100,8 +100,8 @@ PR37第二父提交就是恢复head；本地`7ad9ed6`、`edac6c9`从同一恢复
 因此没有对应的内容合并冲突。没有执行merge/rebase/reset/fetch，后续提交仍只在本地main。
 不把同tree等价说成SHA相同，也不据此推断未来推送可以fast-forward。
 
-[可复现静态脚本](evidence/pr37-and-p2-static-review.py)与
-[逐项结果](evidence/pr37-and-p2-static-review.json)冻结十组完整before/after SHA与tree；
+[可复现静态脚本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/pr37-and-p2-static-review.py)与
+[逐项结果](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/pr37-and-p2-static-review.json)冻结十组完整before/after SHA与tree；
 每对Cargo/lock/toolchain输入diff为空。multifile type的120块、ownership的80块，
 用实际保留的合并历史提交逐块核对旧fidelity记录，前后共400个SHA-256匹配；
 另有iteration/planner九个完整生产文件hash匹配原记录。
@@ -110,9 +110,9 @@ PR37第二父提交就是恢复head；本地`7ad9ed6`、`edac6c9`从同一恢复
 只读`gh run list/view`确认[PR37精确CI 37185473350](https://github.com/Halckon/Koven/actions/runs/37185473350)
 为completed/success，10个jobs成功，Ubuntu24.04与macOS14的check/Clippy、
 bounded composition与required汇总步骤实际success，不是配置存在或合法skip。
-[原始job元数据](evidence/pr37-ci/run.json)、
-[Ubuntu摘要与raw hash](evidence/pr37-ci/ubuntu-summary.json)、
-[macOS摘要与raw hash](evidence/pr37-ci/macos-summary.json)及同目录压缩日志保留。
+[原始job元数据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/pr37-ci/run.json)、
+[Ubuntu摘要与raw hash](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/pr37-ci/ubuntu-summary.json)、
+[macOS摘要与raw hash](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/pr37-ci/macos-summary.json)及同目录压缩日志保留。
 Ubuntu库frontend192、codegen788零ignore；macOS frontend192、codegen787通过及既有LLDB ignore1。
 两侧组合均实际执行旧教程七正例/两负例，planned不执行。
 
@@ -144,8 +144,8 @@ Rust1.96/LLVM21 Linux执行环境。成本建议保持P2开放，先明确一个
 
 成本与红测日志的本机/CI用户路径替换为明确token，必要的工具链、指标、失败原因和
 逐项命中保留；没有上传target、rlib/object/executable或Cargo缓存。
-[脱敏审查记录](evidence/publication-redaction.json)记录原始/发布摘要与路径token；
-[成本原始摘要索引](evidence/p2-lsp-mac-20261004/publication-original-sha256.json)保留脱敏前hash。
+[脱敏审查记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/publication-redaction.json)记录原始/发布摘要与路径token；
+[成本原始摘要索引](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-lsp-mac-20261004/publication-original-sha256.json)保留脱敏前hash。
 发布版raw与CI日志的摘要重新核验；所有JSON数值字段及原始归档中的指标未改变。
 probe只把仓库位置改为调用者cwd，需从仓库根执行；原已执行脚本摘要保留，没有重测成本。
 
@@ -155,7 +155,7 @@ probe只把仓库位置改为调用者cwd，需从仓库根执行；原已执行
 完整P2成本接受和其余九组高成本实验仍开放，不因这次PR收口而宣称整体计划完成。
 
 静态复核脚本改以发布分支首提交`03395c6`核验关系，使完整克隆后的公开历史也可复现；
-原`edac6c9`关系JSON保留。新[发布关系](evidence/publication-relationship.json)的400块与
+原`edac6c9`关系JSON保留。新[发布关系](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/publication-relationship.json)的400块与
 九文件逐项结果与原记录完全相同；只更新发布分支父链，不重复行为测试或成本测量。
 
 ## PR38合并与P2成本后继

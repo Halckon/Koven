@@ -882,7 +882,7 @@ verifier 与 LLVM ABI，仅删除已接通路径的声明级 L0164，不放宽�
 `../repair-logs/std-receiver-summary.md`；准确命令、红绿日志及 SHA-256 分别由同目录
 `range-receiver-source-freeze.json`、`std-receiver-source-freeze.json` 绑定。
 上述收据、源码冻结及最终日志已同步保存到仓库
-`docs/development/evidence/range-carrier-0289/2026-10-10/`（summary 以 `.txt` 保全），
+[docs/development/evidence/range-carrier-0289/2026-10-10/](https://github.com/Halckon/Koven/tree/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/2026-10-10/)（summary 以 `.txt` 保全），
 不依赖云工作区存续；原始收据保留生成时状态，当前提交/发布状态以本节为准。
 这是本轮实测收据，不引用历史 Mac `/tmp` 结果作为当前源码验收。
 
@@ -954,7 +954,7 @@ consumer 仍遭既有 UnsupportedNode 能力门拒绝；take/drop/dropLast 三�
 已保留，未扩 lowering。MIN 本身由既有合法负整数字面量独立验证。
 
 红/绿与最终日志及 `drop-receipt.json` 均已保全至
-`docs/development/evidence/range-carrier-0289/2026-10-11/`，下表日志名相对此目录。
+[docs/development/evidence/range-carrier-0289/2026-10-11/](https://github.com/Halckon/Koven/tree/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/2026-10-11/)，下表日志名相对此目录。
 
 | 最终验收项 | 实际结果 | 命令选择 / 日志 |
 |---|---|---|
@@ -1014,7 +1014,7 @@ borrow val initializer count return 和普通 borrow-return 能力门回归保�
 误写）分别保留日志，修正后才计通过；未修改规范或放宽 lint 来取得绿色。
 
 证据保全于
-`docs/development/evidence/range-carrier-0289/2026-10-11/scalar-counts/`，与 §20
+[docs/development/evidence/range-carrier-0289/2026-10-11/scalar-counts/](https://github.com/Halckon/Koven/tree/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/2026-10-11/scalar-counts/)，与 §20
 的 drop 日志分开，未覆盖旧收据。`receipt.json` 保存精确 argv、结果、源码与日志 SHA256；
 以下日志均相对此目录。
 
@@ -1058,7 +1058,7 @@ base `6667635bd9a22cdc2c2a039912aa2e7ffaf0ec1d` 与该 head 的 synthetic merge
 已 completed/success；15 个 job success，Tree-sitter CLI Corpus 按改动过滤合法 skipped。
 双宿主 Workspace Check & Clippy、Targeted Tests、Preview Producer / Independent Consumer
 实际 success，Code CI Evidence 与 CI Passed 同样通过。各 job 状态、合法 step skips、日志摘录及
-完整下载日志的 SHA-256 见[交付账本](../../development/evidence/range-carrier-0289/delivery.json)。
+完整下载日志的 SHA-256 见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/delivery.json)。
 
 | §1–4 验收项 | 实际证据与结果 | 明确保留的边界 |
 |---|---|---|

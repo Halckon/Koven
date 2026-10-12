@@ -23,7 +23,7 @@
 不让当前合法签名的 `Borrow Int` factory 返回指向 entry loan 的 closure 并进入 LLVM。
 
 工作树 `feature/spec-0278` 从实际 main `54b36675481c15da8a1f31d9d3185e4b49c83096` 创建；
-前置交付见[0277账本](../../development/evidence/p2-linux-0277-delivery.json)。
+前置交付见[0277账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-0277-delivery.json)。
 代码审阅显示 ClosureLoans 当前仅记录本函数直接 Shared capture 与 CFG 运输，
 Return 在消费 closure 后隐式释放 entry loan；该缺口已由合法 fixture 的实际接受性确认和正式拒绝测试失败证明。
 独立 guard 已接入，Loan retain 与预创建inline投影误拒经独立审发现并真实修复，41个逃逸正反例实际通过；
@@ -97,28 +97,28 @@ concrete identity 和 resource 清理。共享 SSA 修复不替代该完整终�
 |---|---|
 | E1 原行为确认 | `cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_escape_old_verifier_accepts_all_three_fixtures`：1 passed/0 failed/0 ignored/874 filtered，一 test 逐项确认三 fixture 原 verifier 接受；exit0 |
 | E1 与 E2 entry 绕过红测 | `cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_escape_rejects_`：0 passed/3 failed/0 ignored/872 filtered，exit101；三次 expect_err 都收到 Ok，不是类型/所有权错误 |
-| 原始证据 | [红测账本](../../development/evidence/closure-escape-0278/red.json)保全源码指纹、原日志/临时 fixture；初次命令无效 libtest 参数失败独立保留，不作为行为红测 |
+| 原始证据 | [红测账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/red.json)保全源码指纹、原日志/临时 fixture；初次命令无效 libtest 参数失败独立保留，不作为行为红测 |
 | 文档合同与 inventory | `check_docs.py` 524页通过；checker 37测试通过，diff通过；新增值证明要求再同步后须复核 |
-| E3 原 verifier 正控 | `cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_escape_allows_`：3 passed/0 failed/0 ignored/874 filtered，十二个合法 empty/null/inactive variant 及实际包装/CFG fixture 通过，exit0；[原始账本](../../development/evidence/closure-escape-0278/known-clean-baseline.json)与测试bytes独立保全 |
+| E3 原 verifier 正控 | `cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_escape_allows_`：3 passed/0 failed/0 ignored/874 filtered，十二个合法 empty/null/inactive variant 及实际包装/CFG fixture 通过，exit0；[原始账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/known-clean-baseline.json)与测试bytes独立保全 |
 | E2 与 root 原行为确认 | `cargo test --locked --offline -j 2 -p lang-codegen --lib old_verifier_accepts`：2 passed/0 failed/0 ignored/901 filtered，18个 delivery 与10个 root 内容 fixture 全部通过，exit0；此前两次夹具类型失败独立保留，不计作行为红测 |
-| E1/E2 与 root 完整红测 | `cargo test --locked --offline -j 2 -p lang-codegen --lib closure_operation_tests::escape_tests`：8 passed/24 failed/0 ignored/871 filtered，exit101；24个正式负例均为 expect_err 收到 Ok，正控及临时确认通过；[原始账本](../../development/evidence/closure-escape-0278/matrix-red.json)保全四次实际命令和准确 pre-hook 源码bytes |
+| E1/E2 与 root 完整红测 | `cargo test --locked --offline -j 2 -p lang-codegen --lib closure_operation_tests::escape_tests`：8 passed/24 failed/0 ignored/871 filtered，exit101；24个正式负例均为 expect_err 收到 Ok，正控及临时确认通过；[原始账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/matrix-red.json)保全四次实际命令和准确 pre-hook 源码bytes |
 | E1/E2/E3修复后 | 相同正式 `closure_operation_tests::escape_tests` 选择：30 passed/0 failed/0 ignored/875 filtered，exit0；两个临时原行为确认测试在证据保全后移除，24个正式负例与6个正控保留 |
 | E4 类型图 | `cargo test --locked --offline -j 2 -p lang-codegen --lib capture_type_graph_`：4 passed/0 failed/0 ignored/901 filtered，exit0；2000层深链、256层共享DAG、dirty/clean合法owner递归及signature/reference leaf，实际节点/边计数固定 |
-| E5 初始完整消费者 | 初始 `cargo test --locked --offline -j 2 -p lang-codegen --lib` 因独立审发现需要修改共享proof而主动SIGINT中止，Cargo exit101，不能记作完整通过；[初始实现账本](../../development/evidence/closure-escape-0278/initial-hook.json)保全实际日志与实现bytes，修复后须完整重跑 |
+| E5 初始完整消费者 | 初始 `cargo test --locked --offline -j 2 -p lang-codegen --lib` 因独立审发现需要修改共享proof而主动SIGINT中止，Cargo exit101，不能记作完整通过；[初始实现账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/initial-hook.json)保全实际日志与实现bytes，修复后须完整重跑 |
 | 独立生产完整审阅 | 检查实际接线、类型图终止/leaf、CFG重绑定与合并、当前root内容、精确配对强更新、projected Mutate；发现 SharedRetain(Loan) 丢失 known-clean 内容证明，已真实复现并进入修复，修复及独立复审已完成，见后续记录 |
-| Loan retain 回归红测 | `cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_shared_retain_loan_`：1 passed/2 failed/0 ignored/905 filtered，exit101；direct/CFG已知空payload正控仅被新guard误拒，证明旧结构/类型/ownership均通过，unknown entry Loan负控精确诊断通过；[原始账本](../../development/evidence/closure-escape-0278/loan-retain-red.json)独立保全 |
+| Loan retain 回归红测 | `cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_shared_retain_loan_`：1 passed/2 failed/0 ignored/905 filtered，exit101；direct/CFG已知空payload正控仅被新guard误拒，证明旧结构/类型/ownership均通过，unknown entry Loan负控精确诊断通过；[原始账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/loan-retain-red.json)独立保全 |
 | Loan retain 修复与完整正反例 | 相同正式 `closure_operation_tests::escape_tests` 选择：35 passed/0 failed/0 ignored/875 filtered，exit0；原30项与新增Loan retain direct/CFG/unknown及root写后current clean/tainted五项全部通过 |
-| E5 格式/严格Clippy检查点 | `cargo fmt --all -- --check` 在两处新增格式差异修正后通过；`cargo clippy --locked --offline -j 2 -p lang-codegen --all-targets -- -D warnings` exit0；[Loan修复账本](../../development/evidence/closure-escape-0278/loan-repaired.json)保全实际35-test green、失败/修正fmt、严格Clippy及实现bytes |
-| 独立修复复审与第二红测 | 原Loan retain缺口闭合；`cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_projected_content_`：2 passed/1 failed/0 ignored/910 filtered，exit101；完整root清空后预先创建的inline FieldPlace被唯一新增escape诊断误拒，逆向taint和保留旧shared allocation负控精确通过；[原始账本](../../development/evidence/closure-escape-0278/projected-content-red.json)保全实际日志/fixture，已按真实inline路径修复并复审，禁止只凭alias overlap清空旧payload地址 |
+| E5 格式/严格Clippy检查点 | `cargo fmt --all -- --check` 在两处新增格式差异修正后通过；`cargo clippy --locked --offline -j 2 -p lang-codegen --all-targets -- -D warnings` exit0；[Loan修复账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/loan-repaired.json)保全实际35-test green、失败/修正fmt、严格Clippy及实现bytes |
+| 独立修复复审与第二红测 | 原Loan retain缺口闭合；`cargo test --locked --offline -j 2 -p lang-codegen --lib borrowed_closure_projected_content_`：2 passed/1 failed/0 ignored/910 filtered，exit101；完整root清空后预先创建的inline FieldPlace被唯一新增escape诊断误拒，逆向taint和保留旧shared allocation负控精确通过；[原始账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/projected-content-red.json)保全实际日志/fixture，已按真实inline路径修复并复审，禁止只凭alias overlap清空旧payload地址 |
 | 第二修复与最终定向green | 相同正式 `closure_operation_tests::escape_tests` 选择：41 passed/0 failed/0 ignored/875 filtered，exit0；包含六个inline direct/CFG清空和taint、保留旧allocation、alias集合相等但逐边owner/field配对相反的正反例 |
 | E5 最终静态/工程门禁 | 最终fmt与lang-codegen all-target严格Clippy exit0；尺寸门禁798个手写Rust文件、45项旧欠账报告、零新超限/未审增长，ownership仍1658行。独立完整复审核对全部生产改动及精确路径所有递归，两个finding闭合，无新增实质finding；不替代额外loop/nullable组合运行或深CFG成本测量 |
-| E5–E6 后继 | 修复后完整 `cargo test --locked --offline -j 2 -p lang-codegen --lib` exit0，915 passed/0 failed/1原有LLDB ignored/0 filtered；45个新测试全部通过，[最终本地账本](../../development/evidence/closure-escape-0278/final-local.json)保全源码指纹与原日志；PR精确head双宿主、归档后final head、merge与actual main CI及原始证据闭环待，无完成或归档声明 |
+| E5–E6 后继 | 修复后完整 `cargo test --locked --offline -j 2 -p lang-codegen --lib` exit0，915 passed/0 failed/1原有LLDB ignored/0 filtered；45个新测试全部通过，[最终本地账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/final-local.json)保全源码指纹与原日志；PR精确head双宿主、归档后final head、merge与actual main CI及原始证据闭环待，无完成或归档声明 |
 | 独立合同准备审阅 | 发现静态类型可能误拒绝空/null/inactive variant，及遗漏 projected Mutate；已纳入值证明、对应正反例，对应正反例运行与独立复审已完成，见上述记录 |
 | 前置 PR55 | final CI37265259330 与 main CI37266255625 15/15；实际产物独立核验，原成本材料冻结 |
 
 整合最新 main `55739cbd065ba0d8259069b31e53c19fe9f92572`（PR48）后，SSA生产文件与上述实现一致；
 41个逃逸及4个类型图测试、fmt、严格Clippy、799文件尺寸门禁、37个docs checker测试、526页文档检查实际通过。
-[整合账本](../../development/evidence/closure-escape-0278/main-integration.json)保全原始记录；完整消费者的915+1仅对应整合前输入，整合后完整双宿主消费者待远端CI。
+[整合账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/main-integration.json)保全原始记录；完整消费者的915+1仅对应整合前输入，整合后完整双宿主消费者待远端CI。
 用户明确允许主干已有远端CI，本地不运行真实故障校准；不扩大本Spec实现范围。
 
 ## 7. 未决问题
@@ -135,7 +135,7 @@ Tree-sitter因本片未改编辑器/CI政策而合法skipped，不能计作通�
 macOS921 passed/0 failed/1既有LLDB ignored/0 filtered。其它完整消费者及既有远端资源校准均实际执行，
 两Preview producer/independent consumer也实际成功；本地未运行真实故障校准。
 
-[交付账本](../../development/evidence/closure-escape-0278/delivery.json)保全完整run/job身份、原始双宿主
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/delivery.json)保全完整run/job身份、原始双宿主
 日志和独立逐名核验、source commit/tree及不同的synthetic PR checkout commit/tree/parents。
 E1–E5实现验收与E6实现head双宿主已完成，迁移done/archive并同步inventory/DAG；历史红绿记录
 原样保留。E6最终归档head、merge与actual main仍待实际交付，不提前记通过，后续进入live账本。

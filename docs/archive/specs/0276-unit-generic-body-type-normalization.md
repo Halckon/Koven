@@ -24,7 +24,7 @@
 
 基线为 PR53 合并后的 main `2be64066a2011bb07a31bd68f9ac7441ab5a4baf`，独立分支
 `feature/spec-0276`。实现/最终归档/main CI、完整原始产物和 source 身份闭环见
-[0275交付账本](../../development/evidence/generic-containers-0275-delivery.json)。
+[0275交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-containers-0275-delivery.json)。
 main CI37253329605已15/15终态成功；原main的6个未提交文件内容、状态和index已保全。
 本页承接[M3A草稿](../../development/sequential-collections-spec-draft.md) C07，未宣称全部M3A完成。
 
@@ -209,7 +209,7 @@ error-order回归，执行时新预算tests尚未加入；后者另在上述11�
 当前结果不宣称整个SPEC完成。
 
 实际红绿日志、命令、计数、内容SHA与复审Rust源码指纹已保存在
-[本地证据账本](../../development/evidence/generic-body-0276/local.json)。历史红日志保持对应
+[本地证据账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276/local.json)。历史红日志保持对应
 checkpoint含义，不能拿最终源码指纹冒充旧测试版本；完整codegen结果属于最终复审Rust快照。
 
 
@@ -252,7 +252,7 @@ LLDB权限ignore。完整frontlib206和multifile130实际通过，未将过滤/�
 双宿主各37条词频命令/9项目与12条独立preview命令/4项目完整bytes/source hash已独立核验。
 producer精确source head/tree、前后clean状态、release manifest与consumer一致，临时安装
 移除成功、sentinel不变；普通测试synthetic merge tree与此源码tree一致且含实现head父节点。
-job/artifact身份、raw log与JSON无损归档及SHA见[实现CI账本](../../development/evidence/generic-body-0276/initial-ci.json)。
+job/artifact身份、raw log与JSON无损归档及SHA见[实现CI账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276/initial-ci.json)。
 
 G1–G6和G7实现验收完成，本次按交付流程迁移done/archive并同步inventory/DAG。
 最终归档head全部必需CI、merge和actual main CI仍为交付前置，未提前记通过；后续实际

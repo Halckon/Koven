@@ -51,14 +51,16 @@ package=`lang-frontend`、target=`multifile_type_checking`、kind=`test`。120�
 literal按块hash再按名称排序的SHA-256 aggregate：
 `255eb559f89401b55a7480e6f0261ca5e40412cca2a17e15afd41904a4c06f5b`。
 
-[机器账本](evidence/multifile-type-test-migration.json)记录107个新旧完整身份、120块起止行/hash、
+[机器账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/multifile-type-test-migration.json)记录107个新旧完整身份、120块起止行/hash、
 literal/断言数量、全部尺寸、22个support与Cargo/CI输入hash、命令与测量原值。
 104个根级叶名改为`领域::叶名`，原3个baseline完整名不变；前后list逐项映射，无filter各107/107。
 完整Cargo metadata JSON前后相等，仍129 targets；当前frontend library187个完整身份逐项不变，
 并实际执行187 passed / 0 ignored / 0 filtered。数量相等不是保真的充分条件。
 
-[只读复核器](evidence/verify_multifile_type_migration.py)重建独立同版格式化参考并检查所有块、
+[只读复核器](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/verify_multifile_type_migration.py)重建独立同版格式化参考并检查所有块、
 入口声明、路径映射、literal/断言、support/Cargo/CI与唯一Rust变更范围，以及唯一policy退休：
+
+以下为历史快照的复核命令；须在对应历史工作树中使用配套脚本与侧车，不能在当前树直接运行。
 
 ```sh
 python3 docs/development/evidence/verify_multifile_type_migration.py

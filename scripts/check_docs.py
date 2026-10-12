@@ -71,7 +71,7 @@ EXPECTED_DRAFT_SPEC_IDS = {
     "v0.43": frozenset({"0292"}),
     "v0.44": frozenset({"0291"}),
 }
-EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset()
+EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0302"})
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
     {*(f"{number:04d}" for number in range(1, 25)), "0026", "0027", "0028", "0029", "0030"}
 )
@@ -284,6 +284,7 @@ class DocsChecker:
         self.check_stale_paths()
         self.check_migration_ledger()
         self.check_line_budgets()
+        self.check_evidence_retention()
         self.check_generated_graph()
         return sorted(set(self.errors))
 
@@ -837,6 +838,22 @@ class DocsChecker:
                     self.error(
                         f"{relative(ledger, self.root)}:{number}: 新归属不存在: {target}"
                     )
+
+    def check_evidence_retention(self) -> None:
+        """Historical output belongs in artifacts; this directory only navigates it."""
+        for path in sorted((self.docs / "development/evidence").rglob("*")):
+            if path.is_dir() and not path.is_symlink():
+                continue
+            label = relative(path, self.root)
+            if path.is_symlink() or path.name != "README.md":
+                self.error(f"{label}: evidence 仅保留短 README；输入 fixture 归属测试，输出归属 artifact")
+            else:
+                content = path.read_bytes()
+                lines = len(content.decode("utf-8").splitlines())
+                if lines > 120:
+                    self.error(f"{label}: {lines} 行，超过证据索引上限 120")
+                if len(content) > 16 * 1024:
+                    self.error(f"{label}: {len(content)} bytes，超过证据索引上限 16 KiB")
 
     def check_line_budgets(self) -> None:
         limits: dict[Path, int] = {

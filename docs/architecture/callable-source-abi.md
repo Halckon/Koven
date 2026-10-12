@@ -59,11 +59,11 @@ field symbol、field index 与 target 后建立 `SharedHeapFieldLoan`；child �
 另各六个用例验证升序 callback、逆序 element drop 与 CallReturn temporary Owned
 environment 清理。两入口各六个正常求值/语言级拒负用例核对 size→factory→callback 顺序；
 公共CLI两入口各六组build/artifact/独立run已通过；双宿主实现CI及最终PR/main交付
-见[0279交付账本](../development/evidence/runtime-constructor-0279/delivery.json)，不从源码通过外推。
+见[0279交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/delivery.json)，不从源码通过外推。
 
 helper 另各48个普通 native 用例覆盖 `Array<Int>`、`List<Int>`、Int 字段 value class 和
 泛型 `Holder<Int>`，组合两种外容器、三环境及显式/推断 T；核内层长度、实际末元素值、
-外层长度与回调次数。证据见[元素扩展收据](../development/evidence/runtime-constructor-0279/storable-helpers/receipt.json)，
+外层长度与回调次数。证据见[元素扩展收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/storable-helpers/receipt.json)，
 不外推所有可存储 T，也不把无析构日志解释为零 Drop 或 allocation/free。
 
 两入口另各四个语言级 Abort native 用例覆盖 Array/List 的 size/initializer `Nothing`：
@@ -72,7 +72,7 @@ helper 另各48个普通 native 用例覆盖 `Array<Int>`、`List<Int>`、Int �
 
 普通 unit 入口的 while 与未提交 temporary call operand 仍受既有 control-prefix 门禁；
 只读迭代/常量 view 的既有能力不外推为任意 CFG 支持。Source/native 原始失败、夹具/缓存
-错误与通过结果见[分层收据](../development/evidence/runtime-constructor-0279/source-abi/receipt.json)。
+错误与通过结果见[分层收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/source-abi/receipt.json)。
 single 静态容器预登记仍沿 typed descriptor，缺少通用已求值容器事实；不可达静态
 unsupported element storage 的边界未在本片扩展（原1aef99b已同样预登记静态 descriptor）。
 unit 不可达 Resource/deinit 需求、一般不可达 generic helper 和静态 unsupported storage

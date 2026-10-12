@@ -82,14 +82,14 @@ LLVM 21.1.8。教程两遍实现通过类型/所有权后，在第一个空 argv
 
 额外探索的 MoveOnly String remove + for-body null 比较在未改生产的 main CLI 同样失败：
 结果先 drop 后比较，verifier 报 ValueUnavailable。完整正常源码、基线 compiler/source 哈希和
-公开 build 原始失败见[独立边界记录](../../development/evidence/map-word-frequency-0295/known-boundary.json)。
+公开 build 原始失败见[独立边界记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/known-boundary.json)。
 它不是本次 Copyable Borrow 修复造成，且本片不扩成一般 MoveOnly CFG 清理工程；没有计为通过。
 现有通用 Map 合同继续保留，新增 String/Resource owner carry、覆盖及 loop 外移出另行验收。
 
 ## 8. 本机验收 checkpoint（2026-10-11）
 
-[本机汇总与红绿原账本哈希](../../development/evidence/map-word-frequency-0295/local-summary.json)
-链接实际运行身份，完整 [red](../../development/evidence/map-word-frequency-0295/local-red.json) / [green](../../development/evidence/map-word-frequency-0295/local-green.json) 保留 argv/cwd、compiler/source SHA256、exit 和 stdout/stderr 原始字节。
+[本机汇总与红绿原账本哈希](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/local-summary.json)
+链接实际运行身份，完整 [red](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/local-red.json) / [green](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/local-green.json) 保留 argv/cwd、compiler/source SHA256、exit 和 stdout/stderr 原始字节。
 绿色账本 10 项目、40 条 public commands，新增正常增长项目占 3 条；原 37 条仍按原 argv 与项目辨识。
 两遍实现只新增 existing String.clone；没有修改 metadata 中原 8 组预期。
 
@@ -124,11 +124,11 @@ Tree-sitter 因输入未变合法 skipped。CI Passed、Code CI Evidence 与双 
 | H4 | 实现 CI 的 fmt、严格 clippy、docs、尺寸及直接依赖门禁成功；本次归档静态结果单独记入交付账本 |
 | H5 | 每宿主教程 32 执行 / 1 planned；独立 preview 的 parameter-report 4 cases / 12 commands 成功；实现独立审阅通过，归档后的最终交付仍待闭环 |
 
-[交付账本](../../development/evidence/map-word-frequency-0295/delivery.json)固定逐 Goal、run/job/artifact 身份和摘要哈希；
-[macOS 原始 JSON](../../development/evidence/map-word-frequency-0295/ci-macos-word-results.json)、
-[Linux 原始 JSON](../../development/evidence/map-word-frequency-0295/ci-linux-word-results.json)未经改写保留 40 命令原字节。
-[逐名测试清单及日志摘要](../../development/evidence/map-word-frequency-0295/ci-test-selection.json)与
-[preview 身份收据](../../development/evidence/map-word-frequency-0295/ci-preview-verification.json)分开。
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/delivery.json)固定逐 Goal、run/job/artifact 身份和摘要哈希；
+[macOS 原始 JSON](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/ci-macos-word-results.json)、
+[Linux 原始 JSON](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/ci-linux-word-results.json)未经改写保留 40 命令原字节。
+[逐名测试清单及日志摘要](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/ci-test-selection.json)与
+[preview 身份收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/ci-preview-verification.json)分开。
 preview 只含 parameter-report，不能充当安装包内 Map 词频应用验收。
 
 Linux codegen 为 1247 passed / 0 ignored；macOS 为 1246 passed / 1 ignored，唯一 ignore 是

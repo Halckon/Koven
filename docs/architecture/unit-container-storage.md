@@ -74,7 +74,7 @@ CompilationUnit `for`、Inout/field source 与 MoveOnly ZST 完整析构仍不�
 `ContainerLength`，复用当前Borrow参数loan，只结束本次新建loan，再执行CallReturn清理。
 具名/Value/Borrow/group/temporary沿用同一header；unit Borrow String `==`/`!=`/`+`消费
 current binding，RHS CFG后使用重绑定loan，不隐式clone/消费源。前端replacement保护旧root
-至完整RHS完成；提前return仍按ControlTransfer清理。0274双宿主各37条公共命令及15项CI已通过；完整字节证据见[验收身份](../development/evidence/word-frequency-0274/ci.json)。
+至完整RHS完成；提前return仍按ControlTransfer清理。0274双宿主各37条公共命令及15项CI已通过；完整字节证据见[验收身份](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/word-frequency-0274/ci.json)。
 `||`不同路径容器last-use合流以及一般投影仍有既有拒绝边界。
 
 ## Unit 泛型函数直接容器签名
@@ -95,7 +95,7 @@ native沿用UnsupportedNode→UnsupportedSource、MissingFact→InvalidModel映�
 recursive-template拒绝覆盖新/旧object目标，保全目录全部文件名、bytes与邻居文件，
 不残留sibling temporary；上述实现边界不改变Guide允许的泛型语义。
 0275实现及最终归档双宿主CI、actual main门禁已闭环；完整证据见
-[0275交付账本](../development/evidence/generic-containers-0275-delivery.json)。
+[0275交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-containers-0275-delivery.json)。
 
 ## 普通泛型body的具体需求
 
@@ -113,4 +113,4 @@ SPEC0276本地新native7项通过，实际18个成功fixture执行object/link/ru
 Nullable<Int>已发布canonical但维持原null表达式的InvalidModel/MissingFact及输出保全。
 原body-only MissingFact测试已迁移到真实成功；recursive-template/缺substitution保护保留。
 预算及消费者的实现验收保留在[冻结记录](../archive/specs/0276-unit-generic-body-type-normalization.md)；
-最终head及actual main双宿主CI已闭环，见[交付账本](../development/evidence/generic-body-0276-delivery.json)。
+最终head及actual main双宿主CI已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276-delivery.json)。

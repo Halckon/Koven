@@ -38,7 +38,7 @@ M4c 为有明确范围的外审准备材料。三个子阶段各自验收，不�
 ## 3. M4b：有界、可复现的程序生成
 
 0269 选定两个固定资源程序形状的首片已验收归档；双宿主实现及 G3–G6 原始证据见
-[交付账本](evidence/generated-owners-0269-delivery.json)。以下未被选定的范围仍为候选，M4 未全部关闭。
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generated-owners-0269-delivery.json)。以下未被选定的范围仍为候选，M4 未全部关闭。
 
 生成器只覆盖已批准且实际支持的语义片；有效程序与故意非法程序分开生成和判断。
 初始候选为顺序控制流、MoveOnly owner、字段替换、容器迭代与提前退出，

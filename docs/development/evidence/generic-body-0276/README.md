@@ -1,0 +1,13 @@
+# 普通 unit 泛型体归一化与 initial/final/main CI：历史证据索引
+
+> **性质**：历史材料定位 · **状态**：current · **读取时机**：按需复核本族旧验收时 · **唯一真源**：下列固定提交中的原始材料
+
+原族共 335 文件 / 974,469 bytes。完整材料见
+[固定快照](https://github.com/Halckon/Koven/tree/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276)；快照中的原始字节、失败、噪声与未测项均未改写。
+
+本索引只迁移保存位置，不构成当前源码的新验收。历史结论仍以原 Spec/收据为准；
+CI artifact 有保留期，本次保全依赖既有 Git 提交，未承诺第三方产物永久可取。
+
+- [历史记录所指 CI 37260189209](https://github.com/Halckon/Koven/actions/runs/37260189209)
+
+返回[证据保留索引](../README.md)。

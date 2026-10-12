@@ -27,6 +27,23 @@ cargo test -p <affected-crate> --lib <module-or-test-filter>
 跨 crate 检查使用 `cargo check --workspace --all-targets`。不固定要求每个切片运行整个 `--lib`、
 workspace check 或 CLI build；每项追加检查必须对应实际影响。
 
+## 证据保留
+
+验收要求可追溯，不等于把全部运行产物提交 Git。Spec 中保留一份简要账本：
+目标、精确输入提交、命令或测试选择、实际结果、未运行项/失败/平台限制，以及 CI run/job
+或稳定来源链接。不要重复复制完整 job/artifact JSON、日志、全仓 source hash 表或教程源码。
+
+- 持续测试真正读取的 fixture/golden 是版本化输入，放在所属 crate/tool 的测试目录；
+  JSON 格式本身不是删除理由。最小独立复现源码可保留，避免依赖文档产物目录编译。
+- 原始 stdout/stderr、完整 JSON 投影、下载包和测量 raw 留在 CI artifact 或已明确的
+  长期存储；需要长期复核时记录保存位置、输入身份、摘要与保留期限，不能只留临时路径。
+- `docs/development/evidence/` 仅保留每族短 `README.md` 历史索引（每页至多 120 行、16 KiB）；
+  不以另建压缩包、扩展名或完整 Markdown dump 绕过。索引导航见[历史证据](evidence/README.md)。
+- CI artifact 可能过期。旧材料退出当前树时逐组核对消费者，并将原链接机械改为既有
+  固定提交的同路径；原字节仍在历史，失败、噪声及验收边界不得改写或伪称重跑。
+  这会缩小 checkout 和未来 diff，不会缩小既有 Git 历史；历史重写需单独授权。
+- 持久保留规则不放宽 CI 有效输入或复用判定；不要靠豁免 JSON/fixture 路径换取跳过测试。
+
 ## 规范示例的分阶段门禁
 
 `bash scripts/check_guide_litmus.sh` 执行文档结构检查及 Guide Litmus、两个相关 ownership

@@ -176,7 +176,7 @@ all-targets check、codegen strict Clippy 全过，日志 `final-native-and-gate
 该 exact head 的 [CI 37054717054](https://github.com/Halckon/Koven/actions/runs/37054717054)
 9/9 jobs completed/success：变更检测、尺寸、fmt、文档、两宿主 check/Clippy、两宿主
 core/targeted/stage/Guide 与最终汇总都实际通过。完整 jobs/steps 和逐名计数保留在
-[首轮 CI 核验 JSON](../../development/evidence/owned-unit-handoff-initial-ci.json)。
+[首轮 CI 核验 JSON](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-unit-handoff-initial-ci.json)。
 
 - [macOS 14](https://github.com/Halckon/Koven/actions/runs/37054717054/job/110997395860)：
   codegen 738 passed/0 failed/1 ignored/0 filtered；既有 LLDB 测试因 debugserver task-port

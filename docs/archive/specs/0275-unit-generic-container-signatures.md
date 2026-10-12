@@ -118,7 +118,7 @@ last-use合流、M4b真实故障校准、公开Release与性能不在本片。
 
 2026-10-05 基线门禁续记：main CI37248672159已15/15终态成功，root独立读取两宿主各37条
 词频完整bytes及候选各12命令/HEAD-tree-status三checkpoint/cleanup-sentinel通过；
-[0274最终PR与merge/main闭环证据](../../development/evidence/word-frequency-0274-delivery.json)
+[0274最终PR与merge/main闭环证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/word-frequency-0274-delivery.json)
 保留精确run/head/tree/artifact与原账本哈希，原archive初次验收历史未重写。生产实施前置已满足。
 native定向3函数实际命中，0passed/3failed/0ignored/843filtered；均在真实泛型参数Span
 返回NativeObjectError UnsupportedSource、detail UnsupportedNode，日志为本机临时0275-native-red.log。
@@ -140,7 +140,7 @@ temporary清理。仅收窄测试到容器loan/owner身份，current非entry blo
 `cargo test -p lang-codegen --lib unit_plan_tests`为53/53；同crate `--lib container`为68/68；
 `cargo test -p lang-cli --test native_cli --test project_cli`为9/9及12/12，全部0failed/0ignored。
 `cargo build -p lang-cli`重建后，三项目9条公共命令完整输出及源码/编译器SHA保留
-[public账本](../../development/evidence/generic-containers-0275-public.json)。
+[public账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-containers-0275-public.json)。
 `check_tutorial.py --example parameter-report`执行4组argv、12命令；
 `check_word_frequency.py`执行37命令，正常完整bytes、预期Abort及非法UTF-8出口均按原oracle通过。
 临时原始日志/词频账本位于`/private/tmp/0275-*.log`和`/private/tmp/spec0275-word-frequency/results.json`，
@@ -164,7 +164,7 @@ root独立读取原始word-frequency与preview artifact：每宿主37条词频�
 按独立参考验证，9个项目源码SHA来自真实教程；每宿主preview独立消费者12条命令完整bytes、
 4项目、cleanup与sentinel通过；producer三个HEAD/tree/status checkpoint与manifest相同且clean。
 默认测试checkout的synthetic commit/tree/parents及producer实际source head分别记录，
-不得把synthetic commit写成源码head。永久[CI身份与原始词频账本](../../development/evidence/generic-containers-0275/ci.json)
+不得把synthetic commit写成源码head。永久[CI身份与原始词频账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-containers-0275/ci.json)
 保留全部job ID、artifact ID、SHA和13项命中；G1–G4代码验收与G5实现head门禁已满足。
 
 按AGENTS分支交付规则迁移done至archive，以首轮精确head验收归档；PR仍OPEN，

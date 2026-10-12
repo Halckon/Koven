@@ -291,6 +291,9 @@ subgraph Garchive["已完成（archive，281 份）"]
   S0295["S0295<br/>两遍 argv Map 词频应用"]
   S0296["S0296<br/>owned nullable 最后判空与循环清理"]
 end
+subgraph Gactive["现行 active"]
+  S0302["S0302<br/>验收产物保留边界与文档精简"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
@@ -1594,5 +1597,6 @@ S0295 --> S0296
 | SPEC-0294 | archive | [0294-map-put-control-exit.md](0294-map-put-control-exit.md) |
 | SPEC-0295 | archive | [0295-map-argv-word-frequency.md](0295-map-argv-word-frequency.md) |
 | SPEC-0296 | archive | [0296-owned-null-comparison-cleanup.md](0296-owned-null-comparison-cleanup.md) |
+| SPEC-0302 | active | [0302-evidence-retention.md](../../specs/active/0302-evidence-retention.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

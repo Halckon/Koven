@@ -19,7 +19,7 @@
 从 main `e168c485a5379764cf927433452f8b7059f7b334` 新建 `fix/spec-0296`，
 分阶段修复 owned nullable 最后判空：具名 owner 的读取/清理交接，以及临时结果缺失的清理事实，使 MoveOnly Map.remove
 结果在支持的普通源码循环与非循环判空中保持 owner 可用，并保全已有显式消费路径。
-0295 [原始边界源码与失败](../../development/evidence/map-word-frequency-0295/known-boundary.json)
+0295 [原始边界源码与失败](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/known-boundary.json)
 保留历史，不重写其当时结论。修复不得按 Map/String 名称、源码形状或循环特判。
 
 ## 2. 合同与范围
@@ -63,20 +63,20 @@ Guide/Map API/nullable 语义修改、Map 迭代、consume、新布局或新借�
 基线 native CLI 构建成功，原项目 build exit 1 / InvalidSsa。进一步对照确认 unit 最后 if 判空
 也失败；single 直接 if 已有 NullableBranch 保护，但 Boolean 绑定判空同样失败。
 原样 7 项正常源码测试为 1 通过、6 InvalidSsa 失败；最小 descriptor/表示接线修复后 7/7 通过。
-原始命令、日志和 SHA256 见[本机 checkpoint](../../development/evidence/owned-null-cleanup-0296/local-checkpoint.json)。
+原始命令、日志和 SHA256 见[本机 checkpoint](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/local-checkpoint.json)。
 循环原项目由 unit/basic 与 const 原样验收；single 外层 Map owner 进入 for 在更早的既有
 UnsupportedNode 门禁被拒绝，另存正常源码，暂不纳入本片能力扩展或通过计数。
 
 扩展探索另确认直接 `m.remove(1) != null` 不发布结果 Temporary drop，和 named 的提前
 drop 不同；两入口仍为 InvalidSsa。这是第一阶段明确保留的 Phase 3 缺口；用户随后要求并入本 Spec 第二阶段，不能将先前红测计入第一阶段绿验收。
 
-扩展[正常源码矩阵](../../development/evidence/owned-null-cleanup-0296/local-matrix-green.json)
+扩展[正常源码矩阵](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/local-matrix-green.json)
 12/12：6 种相等/不等、左右/group 形态分别覆盖 String 与 MoveOnly Text 的 present/missing，
 SSA 精确核对 MapRemove 的第二个 owned result 先读取 presence 后唯一次 drop；不复制 owner。
 Resource 的消费通过既有显式 `!!` 交付，正常/continue/break/return 的词法次序由 stdout 验证。
 条件分支中的 Resource 消费仍受既有 ResourceLifetime 门限制，不从本片推定通用支持。
 
-第一阶段完整[验收记录](../../development/evidence/owned-null-cleanup-0296/phase-one-acceptance.json)
+第一阶段完整[验收记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/phase-one-acceptance.json)
 保留各命令完整输出及actual compiler哈希；12项新增矩阵、33项直接消费者、20项frontend，
 四条公开build/run及静态门禁通过。独立首轮审查未见阻塞；远端双宿主与生命周期仍未执行。
 
@@ -111,11 +111,11 @@ carrier 缺口不扩入本片。第一阶段证据和当时边界保留，不追
 两项排除对照通过；4 项 native 在单文件 InvalidSsa、unit Resource pointer UnsupportedNode。
 `ae65b2ce` 只补 frontend 结果事实和表示读取/消费接线，首轮 3+4 项转绿；
 `ad0ba270` 扩展为 9 项临时 SSA/native、5 项 frontend facts/普通负例，并保留单文件工厂规划边界。
-原[边界账本](../../development/evidence/owned-null-cleanup-0296/known-boundaries.json)保留第一阶段红数据并明确临时结果已闭合。
+原[边界账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/known-boundaries.json)保留第一阶段红数据并明确临时结果已闭合。
 单文件普通 Resource? 工厂无 Map/判空也在返回类型登记时报 UnsupportedNode，unit 对照通过；
 不从本片推定任意 nullable 工厂、grouped null literal 或临时 inout receiver 获得支持。
 
-[第二阶段最终本机证据](../../development/evidence/owned-null-cleanup-0296/phase-two-acceptance.json)
+[第二阶段最终本机证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/phase-two-acceptance.json)
 记录全部命令、实际命中数、stdout/stderr、源码与编译器SHA256。22项cleanup含1项保留工厂边界；
 113项frontend为107项定向套件与6项String binary对照。首轮严格clippy只报新增测试冗余usize cast，
 最小删除后复跑受影响测试、22项cleanup和严格门禁通过；未加allow、未改变生产代码。
@@ -140,7 +140,7 @@ carrier 缺口不扩入本片。第一阶段证据和当时边界保留，不追
 | R4/T3 | 双host workspace check/严格clippy、fmt、docs、尺寸、依赖与规定workflow通过；本机113项frontend与远端选择分别记录 |
 | R5/T4 | 本机实现及证据独立只读审查通过；实现CI与逐名远端日志核对完成；归档head/merge/main仍独立待闭环 |
 
-[交付账本](../../development/evidence/owned-null-cleanup-0296/delivery.json)固定run/job、选中清单、
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/delivery.json)固定run/job、选中清单、
 完整decoded日志SHA256与原行摘录；原本机红绿证据作为当时快照保留，不追改历史状态。
 Linux全codegen为1271 passed/0 ignored；macOS为1270/1，唯一ignore是既有LLDB debugserver
 无task-port权限，未混入本片55项codegen通过计数。

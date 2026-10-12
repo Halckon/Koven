@@ -6,7 +6,7 @@
 factory 为1，预建 view 的 native 与独立 lower 各为0。两个固定输入和两个精确 counter 结果一致。
 同期耗时样本噪声较大，不能据此宣称提速、回归或性能等价；不从 index 次数推导百分比收益。
 
-[完整计数与全部采样 JSON](evidence/owned-unit-handoff-measurement.json)保留 before/after native、
+[完整计数与全部采样 JSON](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-unit-handoff-measurement.json)保留 before/after native、
 独立 lower 的完整符号/计数、104 条原始进程样本、统计、核验结果、fixture manifest 与来源 hash。
 JSON 内原值逐字段保全，可独立复算计数差与采样统计；大型 profile/binary 不进入仓库，
 本页不建立长期 benchmark 框架，也不代替 [SPEC-0249](../archive/specs/0249-owned-unit-borrowed-handoff.md) 的行为/CI 验收。

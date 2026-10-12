@@ -176,4 +176,4 @@ clean 正常，再验证 fault 同因失败；目标不唯一或消失直接失�
 预算为 32 候选/120 秒；incomplete、flaky、工具/I/O 故障保留最佳候选与报告，不误报最小。
 该设施验证受控资源故障的缩减能力，不代表发现生产编译器缺陷；G3/G4 不能替代 G5。
 当前实现身份、原始报告、制品 hash 与验证局限见
-[有界资源生成交付证据](../development/evidence/generated-owners-0269-delivery.json)。
+[有界资源生成交付证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generated-owners-0269-delivery.json)。
