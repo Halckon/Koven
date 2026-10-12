@@ -20,6 +20,8 @@ mod container_size_tests;
 mod handoff_contracts;
 #[path = "unit_map_key_return_tests.rs"]
 mod map_key_return_tests;
+#[path = "unit_map_loop_owner_tests.rs"]
+mod map_loop_owner_tests;
 #[path = "unit_map_word_frequency_tests.rs"]
 mod map_word_frequency_tests;
 #[path = "unit_owned_null_cleanup_tests.rs"]

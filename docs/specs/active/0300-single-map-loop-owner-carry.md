@@ -76,8 +76,8 @@ Entry/Fallthrough/Exhaustion输入及可用性条件；具名Map必须由typed�
 | 验收项 | 测试选择/输入 | 实际结果 |
 |---|---|---|
 | 激活基线 | main `003f1299f817f6c903f3f450c73ba32e222ce5ba`，tree `ded7b20b99879031df7fa1e1ae62734dbe8c7d4e` | 已核真实Git对象；main CI pending，另行跟踪 |
-| 原fixture红测/同源unit | 0296普通fixture与真实facts/Span | 待运行 |
-| 正常耗尽运输 | 0/1/多轮、后续使用/不再使用、remove与put/contains、非Resource实例 | 待运行 |
+| 原fixture红测/同源unit | `cargo test --locked -p lang-codegen --lib map_loop_original -- --nocapture` | 1 single预期失败（UnsupportedNode，27..32），1同源unit SSA/LLVM通过；Header清理/Exit缺席facts已核 |
+| 正常耗尽运输 | `cargo test --locked -p lang-codegen --lib map_loop_`；原fixture及`normal-exhaustion.ko` | 实现前红测4 single失败/4 unit通过；unit basic/constant native均使用未改写LLVM；包括0/1/3轮×后续使用/不再使用、remove及put/contains |
 | 边界与回归 | snapshot/closure/退出、0296/0297、unit/provider | 待运行 |
 | 静态质量/独立审阅 | fmt、codegen clippy、docs、尺寸、diff及另一审阅者 | 待运行 |
 | 发布闭环 | PR/双宿主CI/归档/merge | 未执行；由授权发布流程另行处理 |

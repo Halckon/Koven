@@ -3,6 +3,9 @@
 mod map_key_return_tests;
 use super::{LoweringErrorKind, analyze, lower_scalar_file};
 
+#[path = "lower_frontend_map_loop_tests.rs"]
+mod loop_owner_tests;
+
 #[test]
 fn map_nullable_value_owned_remove_remains_unsupported() {
     let analysis = analyze(
