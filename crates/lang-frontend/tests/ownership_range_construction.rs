@@ -449,3 +449,104 @@ fn derived_descriptor_inherits_root_without_parent_metadata_and_alias_keeps_meta
         [parent.binding(), metadata.binding(), child.binding()]
     );
 }
+#[test]
+fn range_statement_if_preserves_lexical_borrow_ends() {
+    use lang_frontend::ownership_checking::{DropPoint, UnitDropPoint};
+
+    let (_, single, unit) = checked(
+        r#"
+fun run(flag:Boolean):Unit{
+    val source=listOf("kept")
+    borrow val part=rangeView(source,0,1)
+    if(flag){observe(part)}else{observe(part)}
+    observe(part)
+    consume(source)
+}
+"#,
+    );
+    for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code().to_string() == "L0135"),
+            "statement-if must not invent general last-use borrow ending: {diagnostics:?}"
+        );
+    }
+
+    let (_, single, unit) = checked(
+        r#"
+fun run(flag:Boolean):Unit{
+    val source=listOf("kept")
+    {
+        borrow val part=rangeView(source,0,1)
+        if(flag){observe(part)}else{observe(part)}
+        observe(part)
+    }
+    consume(source)
+}
+"#,
+    );
+    for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+    let [binding] = single.borrow_results().bindings() else {
+        panic!("one source-produced descriptor binding")
+    };
+    assert_eq!(binding.storage(), BorrowBindingStorage::NewRangeDescriptor);
+    assert!(binding.source_loan().is_some());
+    let [end] = single.borrow_results().ends() else {
+        panic!("the descriptor has one lexical-scope end, not arm or last-read ends")
+    };
+    assert_eq!(end.binding(), binding.binding());
+    assert!(
+        matches!(end.point(), DropPoint::AfterStatement(_)),
+        "{:?}",
+        end.point()
+    );
+
+    let [binding] = unit.borrow_results().bindings() else {
+        panic!("one source-qualified descriptor binding")
+    };
+    assert_eq!(binding.storage(), BorrowBindingStorage::NewRangeDescriptor);
+    assert!(binding.source_loan().is_some());
+    let [end] = unit.borrow_results().ends() else {
+        panic!("the unit descriptor has one lexical-scope end")
+    };
+    assert_eq!(end.binding(), binding.binding());
+    assert!(
+        matches!(end.point(), UnitDropPoint::AfterStatement(_)),
+        "{:?}",
+        end.point()
+    );
+    assert!(single.deferred().is_empty(), "{:?}", single.deferred());
+    assert!(unit.validate().is_ok());
+}
+
+#[test]
+fn ordinary_borrow_result_inside_range_statement_if_remains_unproven() {
+    let (sources, single, unit) = checked(
+        r#"
+fun scalar(source:Int):borrow Int from source=source
+fun readInt(value:Int):Unit{}
+fun run(flag:Boolean,n:Int):Unit{
+    val source=listOf("kept")
+    {
+        borrow val part=rangeView(source,0,1)
+        if(flag){readInt(scalar(n))}else{observe(part)}
+        observe(part)
+    }
+    consume(source)
+}
+"#,
+    );
+    for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code().to_string() == "L0164")
+            .expect("the caller continuation is not proved by a local if");
+        assert_eq!(
+            sources.slice(diagnostic.primary_span()).unwrap(),
+            "scalar(n)"
+        );
+    }
+}

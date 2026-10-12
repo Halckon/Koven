@@ -11,6 +11,12 @@ mod assertions;
 mod ownership;
 use support::{Pipeline, lower, run_unmodified};
 
+#[path = "local_control_boundary.rs"]
+mod boundary;
+
+#[path = "local_control_selection.rs"]
+mod selection;
+
 #[derive(Clone, Copy, Debug)]
 enum Position {
     BeforeBinding,

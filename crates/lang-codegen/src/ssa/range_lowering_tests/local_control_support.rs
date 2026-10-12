@@ -36,7 +36,7 @@ pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> Sourc
                 "range-local-control-single.ko",
                 &text,
             );
-            let expected_span = fragment_span(&sources, source, fragment);
+            let expected_span = fragment_span(&sources, source, consumer, fragment);
             let (environment, mut types) = standard_environments();
             types.authorize_range_source(&sources, source).unwrap();
             types
@@ -68,7 +68,7 @@ pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> Sourc
                 "range-local-control-unit.ko",
                 &text,
             );
-            let expected_span = fragment_span(&sources, source, fragment);
+            let expected_span = fragment_span(&sources, source, consumer, fragment);
             let mut inputs = [
                 SourceUnitInput::new(
                     "std",
@@ -108,9 +108,11 @@ pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> Sourc
     }
 }
 
-fn fragment_span(sources: &SourceMap, source: SourceId, fragment: &str) -> Span {
+fn fragment_span(sources: &SourceMap, source: SourceId, consumer: &str, fragment: &str) -> Span {
     let text = sources.source_text(source).unwrap();
-    let offsets = text
+    assert!(text.ends_with(consumer));
+    let consumer_start = text.len() - consumer.len();
+    let offsets = consumer
         .match_indices(fragment)
         .map(|(offset, _)| offset)
         .collect::<Vec<_>>();
@@ -120,7 +122,11 @@ fn fragment_span(sources: &SourceMap, source: SourceId, fragment: &str) -> Span 
         "the source probe must be unique: {fragment}"
     );
     sources
-        .span(source, offsets[0], offsets[0] + fragment.len())
+        .span(
+            source,
+            consumer_start + offsets[0],
+            consumer_start + offsets[0] + fragment.len(),
+        )
         .unwrap()
 }
 

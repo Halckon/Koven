@@ -153,6 +153,25 @@ fn carried(function: &Function, edge: &Edge, state: &Carriers) -> Carriers {
     }
 }
 
+fn read_end_position(function: &Function, block: BlockId, loan: LoanId) -> usize {
+    let ends = function.blocks[block.index()]
+        .instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(position, id)| {
+            matches!(function.instructions[id.index()].operation,
+                Operation::BorrowEnd { loan: actual } if actual == loan)
+            .then_some(position)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ends.len(),
+        1,
+        "each metadata/source loan must end exactly once: {loan:?}"
+    );
+    ends[0]
+}
+
 fn assert_reads(function: &Function, block: BlockId, state: &Carriers) {
     let instructions = &function.blocks[block.index()].instructions;
     for (view, _) in &state.descriptors {
@@ -175,10 +194,7 @@ fn assert_reads(function: &Function, block: BlockId, state: &Carriers) {
             "each descriptor must be read once in {block:?}"
         );
         let (call, loan) = calls[0];
-        let end = instructions.iter().map(|id| function.instruction(*id).unwrap()).find(|instruction| {
-            matches!(instruction.operation, Operation::BorrowEnd { loan: actual } if actual == loan)
-        }).expect("each short metadata read loan must end after its call");
-        assert!(instruction_position(function, call) < instruction_position(function, end));
+        assert!(instruction_position(function, call) < read_end_position(function, block, loan));
     }
 }
 
@@ -188,9 +204,7 @@ fn assert_cleanup(function: &Function, block: BlockId, state: &Carriers) {
         .iter()
         .map(|id| function.instruction(*id).unwrap())
         .collect::<Vec<_>>();
-    let source_end = instructions.iter().position(|instruction| {
-        matches!(instruction.operation, Operation::BorrowEnd { loan } if loan == state.root_loan)
-    }).expect("root source loan must end after descriptor cleanup");
+    let source_end = read_end_position(function, block, state.root_loan);
     let consume = instructions
         .iter()
         .position(|instruction| {
@@ -208,6 +222,30 @@ fn assert_cleanup(function: &Function, block: BlockId, state: &Carriers) {
             1,
             "the exact descriptor/root-continuation pair must end once"
         );
+        let reads = instructions
+            .iter()
+            .filter_map(|instruction| {
+                let Operation::DirectCall { arguments, .. } = &instruction.operation else {
+                    return None;
+                };
+                let [EntityId::Loan(loan)] = arguments.as_slice() else {
+                    return None;
+                };
+                (borrowed_owner(function, *loan) == *view).then_some((*instruction, *loan))
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            !reads.is_empty(),
+            "each descriptor is used before its scope ends"
+        );
+        for (read, loan) in reads {
+            let read_end = read_end_position(function, block, loan);
+            assert!(instruction_position(function, read) < read_end);
+            assert!(
+                read_end < ends[0],
+                "metadata read loan must end before its descriptor RangeEnd"
+            );
+        }
         assert!(
             ends[0] < consume,
             "every continuation protects the root until its own RangeEnd"
