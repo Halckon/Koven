@@ -1,6 +1,7 @@
 //! compilation-unit CFG 中跨 edge 携带 value/loan 与出口合流的共享基元。
 
 mod range;
+mod rebind;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -333,125 +334,6 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
-    }
-
-    pub(super) fn rebind_carried_control(
-        &mut self,
-        baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
-        block: BlockId,
-        bindings: &[CarriedBinding],
-        loans: &[CarriedAccess],
-        span: Span,
-    ) -> Result<BTreeMap<UnitSymbolId, LoweredValue>, LoweringError> {
-        let rebound = self.rebind_carried_prefix(
-            baseline,
-            block,
-            bindings,
-            bindings.len() + loans.len(),
-            span,
-        )?;
-        let parameters = &self
-            .function
-            .block(block)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-            .parameters;
-        let mut pending = BTreeMap::new();
-        for (indices, parameter) in bindings
-            .iter()
-            .map(|slot| &slot.pending)
-            .chain(loans.iter().map(|slot| &slot.pending))
-            .zip(parameters)
-        {
-            for index in indices {
-                pending.insert(*index, *parameter);
-            }
-        }
-        if pending.keys().copied().ne(0..pending.len()) {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        }
-        self.pending_operands = pending.into_values().collect();
-        self.temporaries.clear();
-        for (slot, parameter) in bindings.iter().zip(parameters) {
-            let EntityId::Value(value) = parameter else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            for expression in &slot.temporaries {
-                self.temporaries.insert(*expression, *value);
-            }
-        }
-        let source_parameters = parameters[bindings.len()..].to_vec();
-        self.rebind_range_sources(loans, &source_parameters, span)?;
-        Ok(rebound)
-    }
-
-    fn rebind_carried_prefix(
-        &mut self,
-        baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
-        block: BlockId,
-        carried: &[CarriedBinding],
-        expected_parameter_count: usize,
-        span: Span,
-    ) -> Result<BTreeMap<UnitSymbolId, LoweredValue>, LoweringError> {
-        let parameters = &self
-            .function
-            .block(block)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-            .parameters;
-        if parameters.len() != expected_parameter_count {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        }
-        let mut rebound = baseline.clone();
-        for (slot, parameter) in carried.iter().zip(parameters) {
-            let EntityId::Value(value) = parameter else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            if let Some(symbol) = slot.symbol {
-                rebound.insert(symbol, LoweredValue::Value(*value));
-            } else if let Some(mut receiver) = slot.receiver {
-                receiver.entity = EntityId::Value(*value);
-                self.current_receiver = Some(receiver);
-                self.consumed_receiver = None;
-            }
-        }
-        Ok(rebound)
-    }
-
-    pub(super) fn rebind_carried_loans(
-        &mut self,
-        block: BlockId,
-        binding_count: usize,
-        loans: &[CarriedAccess],
-        span: Span,
-    ) -> Result<BTreeMap<UnitSymbolId, LoanId>, LoweringError> {
-        let parameters = &self
-            .function
-            .block(block)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-            .parameters;
-        if parameters.len() != binding_count + loans.len() {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        }
-        let mut rebound = BTreeMap::new();
-        self.capture_loans.clear();
-        for (slot, parameter) in loans.iter().zip(parameters.iter().skip(binding_count)) {
-            if slot.symbol.is_none() && slot.receiver.is_none() && slot.captures.is_empty() {
-                continue;
-            }
-            let EntityId::Loan(loan) = parameter else {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            };
-            for key in &slot.captures {
-                self.capture_loans.insert(*key, *loan);
-            }
-            if let Some(symbol) = slot.symbol {
-                rebound.insert(symbol, *loan);
-            } else if let Some(mut receiver) = slot.receiver {
-                receiver.entity = EntityId::Loan(*loan);
-                self.current_receiver = Some(receiver);
-                self.consumed_receiver = None;
-            }
-        }
-        Ok(rebound)
     }
 
     pub(super) fn merge_unit_exits(

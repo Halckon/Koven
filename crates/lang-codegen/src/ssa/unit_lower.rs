@@ -24,6 +24,7 @@ mod handoff;
 mod integer;
 mod loop_control;
 mod map;
+mod map_borrow;
 mod map_require;
 mod map_result;
 mod map_with;
@@ -173,6 +174,8 @@ struct UnitExpressionLowerer<'a> {
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    map_borrow_guards:
+        BTreeMap<UnitSymbolId, lang_frontend::type_checking::UnitNullComparisonDescriptor>,
     result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
     temporary_range_slots: BTreeMap<UnitExpressionId, Vec<usize>>,
     short_range_ends: BTreeMap<LoanId, UnitExpressionId>,
