@@ -150,12 +150,30 @@ impl ExpressionLowerer<'_> {
         else_branch: Option<StatementId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        if let Some(descriptor) = self.typed.null_comparison(condition)
+        let mut proof_condition = condition;
+        while let Expression::Group { expression } = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(proof_condition)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+            .payload()
+        {
+            proof_condition = *expression;
+        }
+        if let Some(descriptor) = self.typed.null_comparison(proof_condition)
             && !self.borrow_bindings.contains_key(&descriptor.symbol())
             && self.typed.copyability(descriptor.nullable_type())
                 != Some(lang_frontend::type_checking::Copyability::Copyable)
         {
-            return self.lower_nullable_if(expression, descriptor, then_branch, else_branch, span);
+            return self.lower_nullable_if(
+                expression,
+                condition,
+                descriptor,
+                then_branch,
+                else_branch,
+                span,
+            );
         }
         let condition = self.require_value(condition)?;
         let baseline = self.bindings.clone();
@@ -209,6 +227,7 @@ impl ExpressionLowerer<'_> {
     fn lower_nullable_if(
         &mut self,
         expression: ExpressionId,
+        condition: ExpressionId,
         descriptor: lang_frontend::type_checking::NullComparisonDescriptor,
         then_branch: StatementId,
         else_branch: Option<StatementId>,
@@ -324,7 +343,7 @@ impl ExpressionLowerer<'_> {
             if proven {
                 self.non_null_bindings.insert(symbol, view);
             }
-            self.emit_null_condition_drops(descriptor.expression())?;
+            self.emit_null_condition_drops(condition)?;
             let result = match statement {
                 Some(statement) => self.lower_control_body(statement)?,
                 None => LoweredValue::Unit,

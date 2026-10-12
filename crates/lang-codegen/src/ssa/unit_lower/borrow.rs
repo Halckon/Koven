@@ -41,6 +41,11 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        if let Some(proof) =
+            self.lower_owned_map_borrow(call, argument, fact.target(), target, span)?
+        {
+            return Ok((proof, vec![proof], fact.end_span()));
+        }
         if matches!(
             self.ssa_types.get(target.index()),
             Some(SsaTypeKind::RangeView { .. })

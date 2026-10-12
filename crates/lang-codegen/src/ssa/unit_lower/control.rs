@@ -812,6 +812,8 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         let control = UnitExpressionId::new(self.source_unit, expression);
         let result_required = self.control_result_required(expression, span)?;
+        let guard = self.map_borrow_condition(condition, span)?;
+        let baseline_guards = self.map_borrow_guards.clone();
         let condition = self.require_expression_value(condition)?;
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
@@ -868,6 +870,9 @@ impl UnitExpressionLowerer<'_> {
         let else_receiver = self.current_receiver;
         let else_consumed_receiver = self.consumed_receiver;
         let mut exits = Vec::with_capacity(2);
+        if let Some(guard) = guard.filter(|guard| guard.non_null_when_true()) {
+            self.map_borrow_guards.insert(guard.symbol(), guard);
+        }
         if let Some(exit) = self.lower_if_branch(
             then_block,
             then_branch,
@@ -887,6 +892,10 @@ impl UnitExpressionLowerer<'_> {
             result_required,
         )? {
             exits.push(exit);
+        }
+        self.map_borrow_guards.clone_from(&baseline_guards);
+        if let Some(guard) = guard.filter(|guard| !guard.non_null_when_true()) {
+            self.map_borrow_guards.insert(guard.symbol(), guard);
         }
         if let Some(else_branch) = else_branch {
             if let Some(exit) = self.lower_if_branch(
@@ -941,6 +950,7 @@ impl UnitExpressionLowerer<'_> {
                 temporaries: self.temporaries.clone(),
             });
         }
+        self.map_borrow_guards = baseline_guards;
         self.merge_unit_exits(exits, span)
     }
 }

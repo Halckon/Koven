@@ -11,7 +11,8 @@ use super::{
 };
 use crate::llvm::entities::access_type;
 use crate::ssa::model::{
-    ComparisonOperator, EntityId, Instruction, Operation, PlaceAccess, SsaTypeId, ValueId,
+    ComparisonOperator, EntityId, Instruction, Operation, PlaceAccess, SsaTypeId, SsaTypeKind,
+    ValueId,
 };
 
 impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
@@ -44,32 +45,48 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         owner: ValueId,
     ) -> Result<inkwell::values::PointerValue<'ctx>, LlvmAdapterError> {
         let ty = value_type(self.function, owner)?;
-        if let Some(inner) = self.module.map_result_value(ty) {
-            // Stack storage backs the non-owning payload view for the existing branch proof.
-            // The proof aliases the SSA owner; only NullableTake can transfer that payload.
-            let payload =
+        let (inner, payload) = if let Some(inner) = self.module.map_result_value(ty) {
+            (
+                inner,
                 self.builder
-                    .build_extract_value(self.struct_value(owner)?, 1, "map.payload")?;
-            // One stack slot per SSA branch, including when that branch is inside a loop.
-            let entry = self.llvm_function.get_first_basic_block().ok_or_else(|| {
-                LlvmAdapterError::InvalidSsa("nullable view requires function entry".into())
-            })?;
-            let allocator = self.context.create_builder();
-            if let Some(instruction) = entry.get_first_instruction() {
-                allocator.position_before(&instruction);
-            } else {
-                allocator.position_at_end(entry);
+                    .build_extract_value(self.struct_value(owner)?, 1, "map.payload")?,
+            )
+        } else if let Some(SsaTypeKind::NullableHandle { inner }) = self.module.type_kind(ty) {
+            if !matches!(
+                self.module.type_kind(*inner),
+                Some(SsaTypeKind::HeapOwner { .. })
+            ) {
+                // Existing SharedOwner view consumers (retain/payload) use the
+                // handle directly. This slice only repairs HeapOwner call storage.
+                return self.pointer_value(owner);
             }
-            let pointer = allocator.build_alloca(
-                self.dependencies.type_map.basic_type(inner)?,
-                "map.payload.view",
-            )?;
-            self.builder.build_store(pointer, payload)?;
-            Ok(pointer)
+            // The existing Borrow ABI receives storage containing the handle, not
+            // the heap payload pointer itself (heap_field_pointer loads this slot).
+            (*inner, self.pointer_value(owner)?.into())
         } else {
-            self.pointer_value(owner)
+            return Err(LlvmAdapterError::InvalidSsa(
+                "nullable view requires a registered nullable owner".into(),
+            ));
+        };
+        // One entry slot per static proof, overwritten on each branch execution.
+        // This is a non-owning alias; only NullableTake transfers the payload.
+        let entry = self.llvm_function.get_first_basic_block().ok_or_else(|| {
+            LlvmAdapterError::InvalidSsa("nullable view requires function entry".into())
+        })?;
+        let allocator = self.context.create_builder();
+        if let Some(instruction) = entry.get_first_instruction() {
+            allocator.position_before(&instruction);
+        } else {
+            allocator.position_at_end(entry);
         }
+        let pointer = allocator.build_alloca(
+            self.dependencies.type_map.basic_type(inner)?,
+            "map.payload.view",
+        )?;
+        self.builder.build_store(pointer, payload)?;
+        Ok(pointer)
     }
+
     pub(super) fn lower_map_with_operation(
         &mut self,
         instruction: &Instruction,

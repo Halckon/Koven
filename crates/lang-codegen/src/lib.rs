@@ -39,3 +39,6 @@ mod bitwise_test_support;
 mod native_map_require_cases;
 #[cfg(test)]
 mod native_map_with_cases;
+
+#[cfg(test)]
+mod native_owned_map_borrow_cases;
