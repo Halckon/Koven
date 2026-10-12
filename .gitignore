@@ -22,3 +22,12 @@ __pycache__/
 
 # Node Modules & Tree-sitter Build Artifacts
 /editors/tree-sitter/node_modules/
+
+# Local execution output; durable results belong in CI artifacts or agreed storage.
+/.local-artifacts/
+
+# Historical evidence is navigated by short README indexes only.
+# Re-include directories so nested indexes remain addable; do not ignore test fixtures.
+/docs/development/evidence/**
+!/docs/development/evidence/**/
+!/docs/development/evidence/**/README.md

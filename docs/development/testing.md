@@ -35,10 +35,13 @@ workspace check 或 CLI build；每项追加检查必须对应实际影响。
 
 - 持续测试真正读取的 fixture/golden 是版本化输入，放在所属 crate/tool 的测试目录；
   JSON 格式本身不是删除理由。最小独立复现源码可保留，避免依赖文档产物目录编译。
+- 临时运行输出使用仓库外目录或 Git 忽略的 `.local-artifacts/`，不写入文档目录。
 - 原始 stdout/stderr、完整 JSON 投影、下载包和测量 raw 留在 CI artifact 或已明确的
   长期存储；需要长期复核时记录保存位置、输入身份、摘要与保留期限，不能只留临时路径。
 - `docs/development/evidence/` 仅保留每族短 `README.md` 历史索引（每页至多 120 行、16 KiB）；
   不以另建压缩包、扩展名或完整 Markdown dump 绕过。索引导航见[历史证据](evidence/README.md)。
+  `.gitignore` 忽略该树的产物并放行目录/README；docs checker 继续拒绝强制加入的 dump。
+  忽略规则不影响已跟踪文件，也不全局忽略 JSON 或测试 fixture。
 - CI artifact 可能过期。旧材料退出当前树时逐组核对消费者，并将原链接机械改为既有
   固定提交的同路径；原字节仍在历史，失败、噪声及验收边界不得改写或伪称重跑。
   这会缩小 checkout 和未来 diff，不会缩小既有 Git 历史；历史重写需单独授权。

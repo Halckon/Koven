@@ -36,7 +36,7 @@
 ## 3. 非目标
 
 编译器实现、语言规范、测试断言与源字节、CI 复用白名单、重新运行历史测量、故障注入、
-校准、聚合驱动、Cargo 验证、Git 历史重写、GitHub 发布或删除远端 artifact。
+校准、聚合驱动、超出两个 fixture 消费者的 Cargo 验证、Git 历史重写、GitHub 发布或删除远端 artifact。
 
 ## 4. 验收
 
@@ -46,8 +46,10 @@
 | 7 个迁移文件原字节相等，两个 `include_str!` 指向存在文件 | 7/7 Git blob 与 SHA-256 一致；2/2 相对路径解析存在 |
 | 固定历史链接目标在基线 Git 树真实存在，无悬空本地引用 | 160 个固定 blob/tree 目标逐项核实；48 页 200 处旧链接同路径迁移；19 份 archive 文本除链接外相等 |
 | docs checker、相关静态规则测试与 diff 检查 | `check_docs.py`、docs/DAG 42 项测试及 `git diff --check` 通过；4 条保留护栏测试先红后绿 |
-| 独立审查实际消费者、历史保全和 fixture 等价 | 待审查 |
-| Cargo/native/故障注入/校准/聚合验证 | 未运行；本片禁止，非通过 |
+| 独立审查实际消费者、历史保全和 fixture 等价 | 父任务已独立核对 7 个 fixture、160 个历史目标及 41+1 项静态测试；忽略规则增量待最终复核 |
+| 两个 fixture 消费者普通回归 | 父任务串行验证中；尚未报通过，禁止扩为 codegen 全量 |
+| 故障注入/校准/聚合验证 | 未运行；本片禁止，非通过 |
+| 根 AGENTS 与窄范围 Git 忽略规则 | 10/10 `git check-ignore --no-index` 检查通过：6 个产物忽略、4 个 README/fixture 放行；没有创建占位产物 |
 | PR、远端 CI 与合并 | 未执行；发布未授权 |
 
 本地静态验收后仍保持 in-progress，远端交付状态不得由旧 CI 推导。
@@ -61,3 +63,9 @@
 新增 docs 护栏只检查该索引目录的文件类型、120 行和 16 KiB 预算；测试目录的 JSON
 fixture 不受影响。保持 `pr_ci_reuse.py` 原白名单与 workflow 不变；本次路径/脚本变更的
 后续远端 CI 应按实际有效输入处理，不以文档精简名义豁免。
+
+允许的普通回归仅为 `unit_owned_null_cleanup_known_loop_boundary` 与
+`map_remove_single_for_guarded_owner_boundary_is_explicit` 两个完整测试名的 `--exact`
+选择；每项须实际执行 1 个测试，零命中不算通过。静态测试命令为
+`python3 -m unittest scripts.tests.test_check_docs scripts.tests.test_gen_spec_dag -q`，
+分别 41 与 1 项；不以错误 discovery pattern 的零测试结果计入验收。
