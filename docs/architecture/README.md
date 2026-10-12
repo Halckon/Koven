@@ -52,6 +52,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
 | N1a 连续范围的类型、来源与阶段能力门 | [范围 carrier](range-carrier.md) |
 | 通用 Map 的所有权、哈希表、析构与 native 边界 | [Map 原生执行](map-native-execution.md) |
+| Map receiver清理身份、key return与Group临时值 | [Map调用前缀](map-call-prefixes.md) |
 | borrowed closure owned 交付与 known-clean 值证明 | [Closure 逃逸检查](borrowed-closure-escape.md) |
 | 同步 Borrow 容器生成与 callable 当前捕获证明 | [Borrowed generator](borrowed-container-generation.md) |
 | lambda expected 类型与临时 owned capture 清理 | [move literal 前端事实](expected-move-literals.md) |

@@ -4,7 +4,7 @@
 
 当前 1 份 active。
 
-- [0297 Map key return清理](0297-map-key-return-cleanup.md)：三操作return传播与合法receiver/前缀清理，正在接收main后重验。
+- [0297 Map key return清理](0297-map-key-return-cleanup.md)：三操作return传播与合法receiver/前缀清理，接收main后的普通定向检查通过，待独立审查和远端交付。
 
 [SPEC-0303](../../archive/specs/0303-development-document-ownership.md)已按PR77有界归档并合入main `289a8ad9`；合并后CI [38219409371](https://github.com/Halckon/Koven/actions/runs/38219409371)待终态核验。
 

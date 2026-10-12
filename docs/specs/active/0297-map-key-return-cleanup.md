@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0294](../../archive/specs/0294-map-put-control-exit.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) |
 | 关联 ADR | 无新增；若需要改变 ABI，先形成独立决定 |
-| 阻塞项 | 接收当前main后重验；发布与生命周期另行闭环 |
+| 阻塞项 | 本地定向检查已通过；最终独立审查、远端发布与生命周期另行闭环 |
 | 影响范围 | `lang-codegen` Map lowering、直接测试与实现事实 |
 | 语言语义变更 | 否；不启用新 Guide |
 
@@ -64,14 +64,14 @@ owned named `MutableMap<Int, Int>` 的三操作在single中，mixed、反向mixe
 
 ## 4. 验收标准
 
-- [ ] 同一合法源码先通过 typed/ownership，再分别记录三操作 × 四种 return 的
+- [x] 同一合法源码先通过 typed/ownership，再分别记录三操作 × 四种 return 的
   single/unit 结果、错误 kind/Span 或健康 SSA；已有成功用例保留成功。
-- [ ] mixed 两种动态输入保持正常 Map 结果或提前返回；双/直接 return 无 Map 操作、
+- [x] mixed 两种动态输入保持正常 Map 结果或提前返回；双/直接 return 无 Map 操作、
   无后缀调用，verifier 与未改写 LLVM 均通过。
-- [ ] String/Resource 前缀正常 native 验证求值顺序、Borrow key 可复用、清理一次及
+- [x] String/Resource 前缀正常 native 验证求值顺序、Borrow key 可复用、清理一次及
   未执行后缀；普通输出不冒充逐指针计数、sanitizer 或完整内存证明。
-- [ ] 原 put-return 与无退出三操作回归保持；非法 borrowed move 的诊断不放宽。
-- [ ] 按实际改动运行 fmt、受影响 crate clippy、尺寸与文档检查，更新 Architecture。
+- [x] 原 put-return 与无退出三操作回归保持；非法 borrowed move 的诊断不放宽。
+- [x] 按实际改动运行 fmt、受影响 crate clippy、尺寸与文档检查，更新 Architecture。
 
 ## 5. 实施与提交
 
@@ -82,16 +82,41 @@ owned named `MutableMap<Int, Int>` 的三操作在single中，mixed、反向mixe
 只接入0297合同、既有回归与有界生产修复，保留0302 fixture及0303治理、归档和proposal。
 0298–0300继续draft；发布、PR、CI与合并按当时授权独立闭环。
 
-## 6. 验证记录
+## 6. 实施结果与集成验收
 
-原实现和恢复后普通定向验收为历史观察；接收新main后在本分支重新运行，结果待登记。
-起草阶段的冻结CLI结论见§2，不作为新集成树的功能验收。main基线CI
-[38219409371](https://github.com/Halckon/Koven/actions/runs/38219409371)仍待终态核验。
+2026-10-12 接收上述main后，生产修复仍只涉及single/unit两个Map lowering helper，
+与恢复冻结树逐字节相同。single将source `(call, argument)` cleanup obligation与SSA
+owner/loan运输分开，owner、Borrow receiver和put共用前缀登记；不制造SSA loan，
+不结束调用者的借用。两入口保留key的Value/Diverged区别，完整退出不生成目标操作。
+透明Group只穿透查找既有named/Borrow binding；temporary/control仍lower原始外层
+expression，保留其alias及AfterExpression/CallReturn身份。
 
-| 检查 | 实际结果 | 边界 |
+下表红测输入为 `2484d6c65ac05defe1207a50968c608a8a34fdc7`，生产/native与工程检查输入为
+`77b476facb80cb96ed7c4366be830308efb07b2f`；随后仅更新本账本与Architecture。
+两份普通源码回归分别保存在 `ssa/lower_frontend_map_key_return_tests.rs` 和
+`native/unit_map_key_return_tests.rs`。完整日志及恢复payload/bundle留仓外，不新增evidence dump。
+
+| 验收项 | 实际命令或目标 | 结果与边界 |
 |---|---|---|
-| 当前main普通源码红测与真实facts | 待运行 | 同一typed/ownership成功源码，分别核对single/unit及错误Span |
-| 两入口SSA、原始LLVM与普通native | 待运行 | 不注入或改写IR；覆盖三操作四形状和合法receiver/owner前缀 |
-| 直接相关回归、fmt/clippy/尺寸/docs | 待运行 | 不以全仓聚合代替定向检查 |
+| 新main真实facts与红测 | `cargo test --locked -p lang-codegen --lib map_key_return_tests -- --nocapture`，仅登记SSA回归时 | 24项：6通过、18失败、0 ignored；single三操作四形状在return Span报MissingFact，unit仅双/直接return在key Span报MissingFact；真实receiver LoanEnd/Begin身份相符 |
+| SSA、原始LLVM与普通native | 同一命令，接入生产修复和native回归后 | 42项通过、0失败/ignored、1271 filtered：24 SSA/LLVM + 18 native组；full exit目标get/contains/remove和后缀DirectCall为0，mixed为1；single精确receiver/reservation与unit contract/drop facts均通过 |
+| 正常结果与owner清理 | 上行native子集 | 两入口各42份源码，合计84次普通emit/link/run；Int/String、Resource value/prefix、Borrow/temporary/grouped receiver、key复用、missing/present-zero、无Map/无后缀对照；仅证明源码结果、求值及deinit顺序 |
+| 原put return回归 | `cargo test --locked -p lang-codegen --lib map_put_control_exit` | 20通过，0失败/ignored，1293 filtered；含两入口普通native |
+| 无退出CFG、既有Abort边界 | `cargo test --locked -p lang-codegen --lib map_operands_follow_argument_control_flow`；`cargo test --locked -p lang-codegen --lib map_mutation_collects_drop_glue_before_abort` | 各3通过，0失败/ignored，各1310 filtered；Abort只验证既有不展开行为 |
+| Borrow key/非法move诊断 | `cargo test --locked -p lang-frontend --test ownership_map` | 10通过，0失败/ignored/filtered；包含Borrow key复用与非法borrowed move的L0133；frontend生产无改动 |
+| 格式与静态检查 | `cargo fmt --all -- --check`；`cargo clippy --locked -p lang-codegen --all-targets -- -D warnings` | 均通过；Linux x86_64，Rust1.96.0、LLVM21.1.8，无cargo clean |
+| 尺寸与文档 | `python3 scripts/check_rust_sizes.py --base 289a8ad94d275f6ad497df2b12bdd134cebe4b81`；`python3 scripts/check_docs.py`；`python3 -m unittest scripts.tests.test_check_docs`；`git diff --check` | 尺寸通过，1037手写Rust文件、38项历史超限；native/unit_tests.rs只加2行注册至1935行，低于既有2030例外且无新职责；文档650页、checker 41项及diff通过 |
 
-本地不运行fault injection、校准、sanitizer、reducer或聚合驱动；远端CI尚未执行。
+准备阶段曾因测试模块登记位置发生编译错误，另一次过窄过滤器为零命中；均已纠正，
+未计作红测或成功验收，原始记录保留。原实现时期的Group临时值四组红绿和恢复复验仍为
+历史观察，不替代本表新main输入的检查。新增native/SSA文件分别476/305行，生产两文件
+分别486/438行；既有大文件仅保留模块注册职责。
+
+边界：get仍只取Copyable V，Resource不是Hashable key；Borrow receiver原生正例仅为
+MutableMap<String, Int>参数的get/contains；temporary/grouped receiver也只覆盖get/contains，
+Resource值覆盖owned contains/remove。以上不是完整笛卡尔积或逐指针/完整内存证明。
+未运行macOS、远端CI、全库/聚合驱动、fault injection、校准、损坏IR、reducer或sanitizer；
+不扩大普通调用、loop/Elvis及其他Guide能力。Spec保持active，发布、归档与合并未执行。
+
+代码head `77b476fa` 的独立静态审查未发现阻塞；最终文档复核待登记。接收基线main CI
+[38219409371](https://github.com/Halckon/Koven/actions/runs/38219409371)仍待终态核验，不算0297的CI。
