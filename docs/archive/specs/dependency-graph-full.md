@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，284 份）"]
+subgraph Garchive["已完成（archive，285 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -291,6 +291,7 @@ subgraph Garchive["已完成（archive，284 份）"]
   S0295["S0295<br/>两遍 argv Map 词频应用"]
   S0296["S0296<br/>owned nullable 最后判空与循环清理"]
   S0297["S0297<br/>Map 查询与删除的 key return 清理"]
+  S0300["S0300<br/>single for 中 Map guarded owner 运输"]
   S0302["S0302<br/>验收产物保留边界与文档精简"]
   S0303["S0303<br/>development 文档职责收敛与候选保全"]
 end
@@ -298,7 +299,6 @@ subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
   S0298["S0298<br/>N1a 范围绑定与有界局部控制流"]
   S0299["S0299<br/>owned Map 删除结果的非消费借用"]
-  S0300["S0300<br/>single for 中 Map guarded owner 运输"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
@@ -1319,6 +1319,7 @@ S0295 --> S0299
 S0295 --> S0300
 S0296 --> S0299
 S0296 --> S0300
+S0297 --> S0300
 ```
 
 ## 节点链接
@@ -1607,10 +1608,10 @@ S0296 --> S0300
 | SPEC-0295 | archive | [0295-map-argv-word-frequency.md](0295-map-argv-word-frequency.md) |
 | SPEC-0296 | archive | [0296-owned-null-comparison-cleanup.md](0296-owned-null-comparison-cleanup.md) |
 | SPEC-0297 | archive | [0297-map-key-return-cleanup.md](0297-map-key-return-cleanup.md) |
+| SPEC-0300 | archive | [0300-single-map-loop-owner-carry.md](0300-single-map-loop-owner-carry.md) |
 | SPEC-0302 | archive | [0302-evidence-retention.md](0302-evidence-retention.md) |
 | SPEC-0303 | archive | [0303-development-document-ownership.md](0303-development-document-ownership.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0298 | drafts/v0.43 | [0298-range-binding-local-control-flow.md](../../specs/drafts/v0.43/0298-range-binding-local-control-flow.md) |
 | SPEC-0299 | drafts/v0.43 | [0299-owned-map-result-borrow.md](../../specs/drafts/v0.43/0299-owned-map-result-borrow.md) |
-| SPEC-0300 | drafts/v0.43 | [0300-single-map-loop-owner-carry.md](../../specs/drafts/v0.43/0300-single-map-loop-owner-carry.md) |

@@ -90,7 +90,7 @@ pub(super) fn constant_drop(
     prove_graph(owned, owner, symbol, fact.condition())
 }
 
-fn prove_graph(
+pub(super) fn prove_graph(
     owned: &OwnershipCheckedFile,
     owner: lang_frontend::ownership_checking::CleanupOwnerValueId,
     symbol: lang_frontend::name_resolution::SymbolId,

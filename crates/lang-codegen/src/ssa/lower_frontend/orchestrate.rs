@@ -189,15 +189,7 @@ fn lower_scalar_file_product(
     {
         return Err(error(LoweringErrorKind::UnsupportedNode, origin));
     }
-    // Saved owner choices have no SSA carrier yet; reject before planning any bindings.
-    if let Some(fact) = owned.drops().iter().find(|fact| {
-        fact.condition().is_some() && !super::constant_presence::constant_drop(typed, owned, **fact)
-    }) {
-        return Err(error(
-            LoweringErrorKind::UnsupportedNode,
-            fact.value_origin(),
-        ));
-    }
+    super::map_loop_owner::validate_drops(typed, owned)?;
     let file_anchor = sources
         .span(parsed.source_id(), 0, 0)
         .map_err(|_| LoweringError {
@@ -677,6 +669,7 @@ fn lower_scalar_file_product(
             }
         }
         let mut lowerer = ExpressionLowerer {
+            map_loop_owners: super::map_loop_owner::Carriers::new(&bindings),
             parsed,
             names,
             typed,
@@ -713,12 +706,14 @@ fn lower_scalar_file_product(
                 return Err(error(LoweringErrorKind::UnsupportedNode, plan.span));
             };
             lowerer.lower_result_return(expression, plan.span)?;
+            lowerer.validate_map_loop_carriers()?;
             continue;
         }
         if lowerer.function.carrier_return.is_some()
             && let FunctionPlanBody::Expression(expression) = plan.body
         {
             lowerer.lower_range_return(expression, plan.span)?;
+            lowerer.validate_map_loop_carriers()?;
             continue;
         }
         let result = match plan.body {
@@ -736,6 +731,7 @@ fn lower_scalar_file_product(
                 )
                 .map_err(|_| error(LoweringErrorKind::InvalidModel, plan.span))?;
         }
+        lowerer.validate_map_loop_carriers()?;
     }
 
     for plan in source_closures.lambdas.values() {
@@ -745,6 +741,7 @@ fn lower_scalar_file_product(
             .expect("planned thunk exists");
         let entry = function.entry_block().expect("planned thunk entry exists");
         let mut lowerer = ExpressionLowerer {
+            map_loop_owners: super::map_loop_owner::Carriers::default(),
             parsed,
             names,
             typed,
@@ -789,6 +786,7 @@ fn lower_scalar_file_product(
                 )
                 .map_err(|_| error(LoweringErrorKind::InvalidModel, plan.span))?;
         }
+        lowerer.validate_map_loop_carriers()?;
     }
 
     verify_program(&program).map_err(|_| LoweringError {

@@ -1,0 +1,64 @@
+value class Text(val word: String)
+
+fun removeDead(keys: Array<Int>): Unit {
+    var cache = mutableMapOf<Int, String>()
+    cache.put(1, "value".clone())
+    for (key in keys) {
+        val removed = cache.remove(key)
+        val present = removed != null
+        if (present) { println("present") } else { println("missing") }
+    }
+    println("dead")
+}
+
+fun removeLive(keys: Array<Int>): Unit {
+    var cache = mutableMapOf<Int, String>()
+    cache.put(1, "value".clone())
+    for (key in keys) {
+        val removed = cache.remove(key)
+        val present = removed != null
+        if (present) { println("present") } else { println("missing") }
+    }
+    if (cache.contains(1)) { println("retained") } else { println("removed") }
+    cache.put(2, "tail".clone())
+    if (cache.contains(2)) { println("tail present") } else { println("tail missing") }
+    val tail = cache.remove(2)
+    if (tail != null) { println("tail removed") } else { println("tail missing") }
+    println("live")
+}
+
+fun putDead(keys: Array<Int>): Unit {
+    var words = mutableMapOf<String, Text>()
+    for (key in keys) {
+        words.put("key".clone(), Text("value".clone()))
+        if (words.contains("key")) { println("put") } else { println("missing put") }
+    }
+    println("dead")
+}
+
+fun putLive(keys: Array<Int>): Unit {
+    var words = mutableMapOf<String, Text>()
+    for (key in keys) {
+        words.put("key".clone(), Text("value".clone()))
+        if (words.contains("key")) { println("put") } else { println("missing put") }
+    }
+    if (words.contains("key")) { println("retained") } else { println("empty") }
+    words.put("tail".clone(), Text("tail".clone()))
+    if (words.contains("tail")) { println("tail present") } else { println("tail missing") }
+    println("live")
+}
+
+fun main(): Unit {
+    removeDead(arrayOf<Int>())
+    removeDead(arrayOf(1))
+    removeDead(arrayOf(1, 1, 1))
+    removeLive(arrayOf<Int>())
+    removeLive(arrayOf(1))
+    removeLive(arrayOf(1, 1, 1))
+    putDead(arrayOf<Int>())
+    putDead(arrayOf(1))
+    putDead(arrayOf(1, 1, 1))
+    putLive(arrayOf<Int>())
+    putLive(arrayOf(1))
+    putLive(arrayOf(1, 1, 1))
+}

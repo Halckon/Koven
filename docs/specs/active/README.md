@@ -4,6 +4,8 @@
 
 当前 0 份 active。
 
+[0300 single Map-for条件清理运输](../../archive/specs/0300-single-map-loop-owner-carry.md)已按PR79实现head双宿主各19项新增测试及完整CI有界归档；只覆盖正常耗尽，最终归档head CI、merge与actual main仍待验证。
+
 [0297 Map key return清理](../../archive/specs/0297-map-key-return-cleanup.md)已按PR78精确实现head双宿主各42项新增测试及完整CI有界归档；最终归档head CI、merge与actual main仍待验证。
 
 [SPEC-0303](../../archive/specs/0303-development-document-ownership.md)已按PR77有界归档并合入main `289a8ad9`；合并后CI [38219409371](https://github.com/Halckon/Koven/actions/runs/38219409371)已成功。

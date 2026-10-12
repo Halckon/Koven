@@ -18,7 +18,7 @@ impl ExpressionLowerer<'_> {
         for fact in facts {
             // Conditional cleanup needs its saved choice transported with the owner.
             if fact.condition().is_some()
-                && !super::constant_presence::constant_drop(self.typed, self.owned, fact)
+                && !super::map_loop_owner::supported_drop(self.typed, self.owned, fact)
             {
                 return Err(error(
                     LoweringErrorKind::UnsupportedNode,
@@ -30,6 +30,10 @@ impl ExpressionLowerer<'_> {
                     // Loop-exit facts include entry owners consumed on every actual exit.
                     if matches!(point, DropPoint::LoopExit(_))
                         && !self.bindings.contains_key(&symbol)
+                        && (fact.condition().is_none()
+                            || super::constant_presence::constant_drop(
+                                self.typed, self.owned, fact,
+                            ))
                     {
                         continue;
                     }
@@ -75,6 +79,7 @@ impl ExpressionLowerer<'_> {
                     ));
                 }
             };
+            self.record_map_loop_drop(fact, owner)?;
             self.append(Operation::Drop { owner }, Vec::new(), fact.value_origin())?;
             self.release_owner_capture_loans(owner, fact.value_origin())?;
         }
