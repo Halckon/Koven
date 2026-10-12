@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [SPEC-0303 development职责收敛](0303-development-document-ownership.md)：迁移历史、保全开放候选；本地归整中。
 
 [SPEC-0302](../../archive/specs/0302-evidence-retention.md) 已按 PR76 实现 head 完整 CI 有界归档；最终归档 head、merge 与 actual main 仍待验证。
 
