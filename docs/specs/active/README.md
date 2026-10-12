@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [0298 范围绑定与有界局部控制流](0298-range-binding-local-control-flow.md)：真实Int ==/<先行，随后同根双正常arm if；短路/String/循环广义后继保持开放。
 
 [0299 owned Map删除结果的非消费借用](../../archive/specs/0299-owned-map-result-borrow.md)已按PR80实现head双宿主各23项新增测试及完整CI有界归档，仅关闭冻结首片；嵌套调用等广义后继保持开放，最终归档head CI/merge/main仍待验证。
 

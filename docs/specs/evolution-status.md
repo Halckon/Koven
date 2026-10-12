@@ -16,7 +16,7 @@
 后继0287–0289已交付有界普通借用与范围carrier，0294/0295也有独立Map修复/应用证据；
 因此不能用旧表“仍为owned值与调用期loan”概括当前能力，其他Ref/unsafe等候选不自动启用。
 当前实现边界从[Architecture](../architecture/README.md)读取；PR72–74实际main交付和
-0297已按[有界合同](../archive/specs/0297-map-key-return-cleanup.md)归档；0300已按PR79有界归档合并，[0299冻结首片](../archive/specs/0299-owned-map-result-borrow.md)已按PR80实现head双宿主各23项新增测试及完整CI有界归档、广义后继开放，归档head CI/merge/main待验证；0298仍为候选，原分工见[本次核对](../archive/migrations/pr72-74-followup-audit.md)。原表与旧测试数字不改写。
+0297已按[有界合同](../archive/specs/0297-map-key-return-cleanup.md)归档；0300已按PR79有界归档合并，[0299冻结首片](../archive/specs/0299-owned-map-result-borrow.md)已按PR80实现head双宿主各23项新增测试及完整CI有界归档、广义后继开放，归档head CI/merge/main待验证；[0298冻结首片](active/0298-range-binding-local-control-flow.md)已从0299合并后的实际main独立激活，广义后继开放，原分工见[本次核对](../archive/migrations/pr72-74-followup-audit.md)。原表与旧测试数字不改写。
 
 ## 后继固定基线状态（2026-10-04）
 
