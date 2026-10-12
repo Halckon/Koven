@@ -124,7 +124,11 @@ impl UnitExpressionLowerer<'_> {
             .get(descriptor.key().expression())
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
             .span();
-        let (key, _) = self.map_owner_operand(descriptor.key().expression(), key_span)?;
+        let Some((key, _)) = self.lower_map_operand(descriptor.key().expression(), key_span)?
+        else {
+            self.pending_operands.truncate(pending_start);
+            return Ok(LoweredValue::Diverged);
+        };
         let owner = self.pending_operands.get(pending_start).copied();
         self.pending_operands.truncate(pending_start);
         let owner = owner.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
@@ -165,7 +169,11 @@ impl UnitExpressionLowerer<'_> {
             .get(descriptor.key().expression())
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
             .span();
-        let (key, _) = self.map_owner_operand(descriptor.key().expression(), key_span)?;
+        let Some((key, _)) = self.lower_map_operand(descriptor.key().expression(), key_span)?
+        else {
+            self.pending_operands.truncate(pending_start);
+            return Ok(LoweredValue::Diverged);
+        };
         let owner = self.pending_operands.get(pending_start).copied();
         self.pending_operands.truncate(pending_start);
         let owner = owner.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
@@ -307,7 +315,11 @@ impl UnitExpressionLowerer<'_> {
             .get(descriptor.key().expression())
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
             .span();
-        let (key, _) = self.map_owner_operand(descriptor.key().expression(), key_span)?;
+        let Some((key, _)) = self.lower_map_operand(descriptor.key().expression(), key_span)?
+        else {
+            self.pending_operands.truncate(pending_start);
+            return Ok(LoweredValue::Diverged);
+        };
         let owner = self.pending_operands.get(pending_start).copied();
         self.pending_operands.truncate(pending_start);
         let Some(EntityId::Value(owner)) = owner else {
@@ -368,14 +380,32 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<(EntityId, Option<UnitSymbolId>), LoweringError> {
-        let node = self
+        self.lower_map_operand(expression, span)?
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+    }
+
+    fn lower_map_operand(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<(EntityId, Option<UnitSymbolId>)>, LoweringError> {
+        let mut node = self
             .parsed
             .ast()
             .expressions()
             .get(expression)
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        // Locate named Borrow operands through Groups without discarding the outer
+        // identity when this is a temporary requiring its own published drop fact.
+        while let Expression::Group { expression } = node.payload() {
+            node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(*expression)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        }
         match node.payload() {
-            Expression::Group { expression } => self.map_owner_operand(*expression, span),
             Expression::Name => {
                 let symbol = self
                     .references
@@ -383,19 +413,25 @@ impl UnitExpressionLowerer<'_> {
                     .copied()
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
                 if let Some(LoweredValue::Value(v)) = self.bindings.get(&symbol).copied() {
-                    return Ok((EntityId::Value(v), Some(symbol)));
+                    return Ok(Some((EntityId::Value(v), Some(symbol))));
                 }
                 if let Some(&loan) = self.borrow_bindings.get(&symbol) {
-                    return Ok((EntityId::Loan(loan), Some(symbol)));
+                    return Ok(Some((EntityId::Loan(loan), Some(symbol))));
                 }
                 let lowered = self.lower(expression)?;
-                let val = require_lowered_value(lowered, span)?;
-                Ok((EntityId::Value(val), None))
+                match lowered {
+                    LoweredValue::Value(value) => Ok(Some((EntityId::Value(value), None))),
+                    LoweredValue::Diverged => Ok(None),
+                    LoweredValue::Unit => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+                }
             }
             _ => {
                 let lowered = self.lower(expression)?;
-                let val = require_lowered_value(lowered, span)?;
-                Ok((EntityId::Value(val), None))
+                match lowered {
+                    LoweredValue::Value(value) => Ok(Some((EntityId::Value(value), None))),
+                    LoweredValue::Diverged => Ok(None),
+                    LoweredValue::Unit => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+                }
             }
         }
     }
