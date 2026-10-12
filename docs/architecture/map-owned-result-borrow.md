@@ -1,8 +1,8 @@
 # owned Map结果的非消费借用
 
-> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改窄化 owned remove 的 Borrow 或 nullable view storage 时 · **唯一真源**：代码与测试；验收账本见 [SPEC-0299](../specs/active/0299-owned-map-result-borrow.md)
+> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改窄化 owned remove 的 Borrow 或 nullable view storage 时 · **唯一真源**：代码与测试；验收账本见 [SPEC-0299](../archive/specs/0299-owned-map-result-borrow.md)
 
-[SPEC-0299](../specs/active/0299-owned-map-result-borrow.md) 的首片支持具名 whole-root 删除结果，
+[SPEC-0299](../archive/specs/0299-owned-map-result-borrow.md) 的首片支持具名 whole-root 删除结果，
 在直接非空 if 分支（含透明括号、`== null` 的 else）同步只读调用。single 保留既有
 NullableBranch 分流，Group 只透明定位 typed descriptor，cleanup 仍从原完整 condition 回放。
 unit 核验 call/argument、Shared/end-span、non-null-use、symbol、声明/窄化类型、注册表示与

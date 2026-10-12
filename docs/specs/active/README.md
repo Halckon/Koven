@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [0299 owned Map删除结果的非消费借用](0299-owned-map-result-borrow.md)：直接/透明括号判空后的同步Borrow；plain/group两入口先独立红测。
+[0299 owned Map删除结果的非消费借用](../../archive/specs/0299-owned-map-result-borrow.md)已按PR80实现head双宿主各23项新增测试及完整CI有界归档，仅关闭冻结首片；嵌套调用等广义后继保持开放，最终归档head CI/merge/main仍待验证。
 
 [0300 single Map-for条件清理运输](../../archive/specs/0300-single-map-loop-owner-carry.md)已按PR79实现head双宿主各19项新增测试及完整CI有界归档；只覆盖正常耗尽，最终归档head CI、merge与actual main仍待验证。
 

@@ -432,6 +432,7 @@
 
 - [SPEC-0297](0297-map-key-return-cleanup.md)：get/contains/remove的key return传播、receiver清理身份与合法owner前缀；按PR78实现head双宿主各42项新增测试及完整CI有界验收，最终归档head CI/merge/main待验证。
 
+- [SPEC-0299](0299-owned-map-result-borrow.md)：owned Map.remove非消费Borrow及HeapOwner view storage冻结首片；PR80实现head双宿主各23项新增测试及完整CI通过后有界归档，广义后继开放，最终归档head CI/merge/main待验证。
 - [SPEC-0300](0300-single-map-loop-owner-carry.md)：非Resource具名Map在single顺序for正常耗尽中的精确IterationPhi/SSA owner运输；按PR79实现head双宿主各19项新增测试及完整CI有界验收，最终归档head CI/merge/main待验证。
 
 - [SPEC-0302](0302-evidence-retention.md)：历史原始验收产物退出当前树、7 个最小输入原字节迁移、短索引及保留护栏；PR76 实现 head 完整 CI 通过，最终归档 head/merge/main 待验证。

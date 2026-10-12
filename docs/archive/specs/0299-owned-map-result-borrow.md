@@ -1,10 +1,10 @@
 # SPEC-0299: owned Map 删除结果的非消费借用
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：准备窄化owned Map结果的只读Borrow时 · **唯一真源**：本页的有界实施范围；语义以Guide为准
+> **性质**：变更合同 · **状态**：done · **读取时机**：准备窄化owned Map结果的只读Borrow时 · **唯一真源**：本页的冻结首片有界交付；语义以Guide为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0299` |
 | 所属 Phase | Phase 3事实消费、Phase 4 nullable place/loan与native |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[Map](../../guide/12-collections-destructuring.md)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
@@ -129,3 +129,33 @@ unit 直接 `value.n` / `value.text` 与 single `value.number()` 的既有 calle
 附加非Map class字段回归使用两次Borrow后的显式`!!`，该普通源码确实通过。
 删去后续消费的另一非Map class候选在本轮仍止于lowering的`InvalidSsa`；没有将其归因于此次adapter、
 没有修改一般nullable最后使用路径，也没有把这个候选计入通过验收或宣称它已修复。
+
+## 8. PR80 实现验收与冻结首片有界归档
+
+除顶部生命周期状态外，§1–7保留本地实施检查点原文，包括当时未发布、待验证和广义后继未完成
+的记录；本节追加远端事实，不将历史观察改写成重跑。用户于2026-10-12批准PR80实施验收后的
+有界归档；`done`仅关闭§4/§7已冻结的首片，§6列出的嵌套调用、Borrow/Carrier返回、借用存储、
+一般nullable/loop及callee边界继续开放，未被改写为完成或语言禁止。
+
+| 项目 | 精确输入与实际结果 |
+|---|---|
+| PR / 实现head | [PR80](https://github.com/Halckon/Koven/pull/80)，`5a53bb15067ad0d9ecafd061111b436ced270501` |
+| tree / base | tree `ed561068dbe67bc4e8efecde88b687e048853aca`；base `08c6b8dcbb8e69f20a7dd82bbd0426b0df97c4c9` |
+| CI输入 | [run38269053352](https://github.com/Halckon/Koven/actions/runs/38269053352)，attempt1，pull_request；synthetic `bcc3f5fb7f14ebe19574f2b0e69864ba6ae524fa`的父为base/实现head，tree与实现head相同 |
+| 实现CI终态与时间 | completed/success；created/start为2026-10-12 15:16:42 UTC，最后job completed为15:30:41 UTC，run updated为15:30:42 UTC；run API没有completed_at字段，不把updated冒作完成时间 |
+| 实际job范围 | 15个job成功；唯一Tree-sitter因`editors=false`合法skip；`reuse=false`，双宿主代码及preview实际执行 |
+| Linux新增选择 | [Targeted Tests](https://github.com/Halckon/Koven/actions/runs/38269053352/job/114879572339)：23个完整新增测试名逐项在bounded composition步骤内实际ok；12核心SSA、2扩展SSA、2普通源码负例组及7native组 |
+| macOS新增选择 | [Targeted Tests](https://github.com/Halckon/Koven/actions/runs/38269053352/job/114879572462)：同23个完整名逐项实际ok，无0299 ignored或跨host汇总替代 |
+| 完整lang-codegen lib测试目标 | Linux 1355通过/0失败/0ignored/0filtered；macOS 1354通过/0失败/0filtered，1个既有LLDB权限ignored，不属于0299新增23项 |
+| 其他门禁 | 变更检测、直接依赖、尺寸、Docs/Fmt、双宿主Check/严格Clippy均成功；[Code CI Evidence](https://github.com/Halckon/Koven/actions/runs/38269053352/job/114884093006)与[CI Passed](https://github.com/Halckon/Koven/actions/runs/38269053352/job/114884093035)分别成功 |
+| preview链 | 双宿主producer针对上述实现head；Linux候选artifact `11756288354`及macOS候选`11756068699`分别与[Linux consumer](https://github.com/Halckon/Koven/actions/runs/38269053352/job/114883631100)/[macOS consumer](https://github.com/Halckon/Koven/actions/runs/38269053352/job/114883764331)实际下载ID一致，安装/命令验证成功 |
+
+Code CI Evidence v1绑定上述PR80、base、head及synthetic，代码输入摘要为
+`a98634d021e8547c87b330cb4390abf1a1f4e0086da6aa9e428777ac2671c480`。
+独立只读核对将11个artifact的ID/API digest与attempt1生产日志逐一匹配；原始收据和日志留在仓外，
+未另行下载ZIP内容作独立检查。macOS的Linux-only sanitizer步骤依平台条件合法跳过，
+不构成macOS动态检测通过。远端通用门禁成功也不是0299专属完整泄漏或内存安全证明；
+Resource字段/deinit事件、SSA owner/proof/drop断言及通用检测保持各自证据边界。
+
+本归档只迁移合同、更新索引/库存/DAG及真实验收摘要；不改Guide、生产代码、测试、verifier或runtime。
+最终归档head CI、正常merge和actual-main CI仍须分别验证，本节没有提前认领其通过。
