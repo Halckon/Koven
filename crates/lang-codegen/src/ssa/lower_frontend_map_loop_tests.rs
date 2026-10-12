@@ -228,6 +228,54 @@ fn single_map_loop_replaced_seed_remains_explicit() {
     assert_guarded_boundary(source);
 }
 
+#[test]
+fn single_map_loop_returned_map_seed_remains_explicit() {
+    assert_guarded_boundary(
+        "fun make(): MutableMap<Int, String> = mutableMapOf<Int, String>()\nfun main(): Unit { var cache = make(); for (key in arrayOf(1)) { cache.put(key, \"value\".clone()) }; cache.contains(1) }",
+    );
+}
+
+#[test]
+fn single_map_loop_range_provider_remains_explicit() {
+    use lang_frontend::{
+        lexer::lex,
+        name_resolution::resolve_names,
+        ownership_checking::check_ownership,
+        parser::parse_file,
+        source::SourceMap,
+        type_checking::{check_types, standard_environments},
+    };
+    let mut sources = SourceMap::new();
+    let text = format!(
+        "{}\nfun main(): Unit {{ var cache = mutableMapOf<Int, String>(); val keys = listOf(1, 2); for (key in take(keys, 1)) {{ cache.put(key, \"value\".clone()) }}; cache.contains(1) }}",
+        include_str!("../../../lang-std/koven/algorithms/ranges.ko")
+            .strip_prefix("package koven.algorithms\n")
+            .unwrap()
+    );
+    let source = sources.add_source("trusted.ko", text).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    let (environment, mut types) = standard_environments();
+    types.authorize_range_source(&sources, source).unwrap();
+    types
+        .authorize_range_extension_source(&sources, source)
+        .unwrap();
+    let names = resolve_names(&sources, &parsed, &environment).unwrap();
+    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let error = lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
+        .err()
+        .expect("RangeView source cleanup is outside the bounded carrier proof");
+    assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
+    assert!(
+        owned
+            .drops()
+            .iter()
+            .any(|fact| { fact.condition().is_some() && Some(fact.value_origin()) == error.span })
+    );
+}
+
 fn assert_guarded_boundary(source: &str) {
     let analysis = analyze(source);
     assert!(

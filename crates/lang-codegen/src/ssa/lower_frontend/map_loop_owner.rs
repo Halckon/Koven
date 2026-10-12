@@ -10,7 +10,7 @@ use lang_frontend::{
         IterationPhiBoundary, IterationPhiIncoming, IterationPhiIncomingBinding,
         IterationPhiIncomingKind, IterationPhiPresenceSource, LoanTarget, OwnershipCheckedFile,
     },
-    type_checking::{IntrinsicTypeConstructor, TypeKind, TypedFile},
+    type_checking::{IntrinsicTypeConstructor, IterationProvider, TypeKind, TypedFile},
 };
 
 pub(super) use carrier::Carriers;
@@ -60,6 +60,9 @@ fn owner_plan(
     let DropTarget::Named(symbol) = fact.target() else {
         return None;
     };
+    if fact.capture_slot().is_some() || fact.instance_address().is_some() {
+        return None;
+    }
     let ty = typed.symbol_type(symbol)?;
     if typed.is_resource_type(ty) != Some(false)
         || !matches!(
@@ -85,7 +88,10 @@ fn owner_plan(
         return None;
     }
     let plan = owned.iteration(*statement)?;
-    if matches!(plan.source(), LoanTarget::Place(place) if place.root() == symbol)
+    if !matches!(
+        plan.descriptor().provider(),
+        IterationProvider::Sequential(_)
+    ) || matches!(plan.source(), LoanTarget::Place(place) if place.root() == symbol)
         || plan.exits().len() != 2
         || plan.closure_phi_incomings().len() != 3
     {
