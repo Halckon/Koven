@@ -1,4 +1,6 @@
 //! Map 查询 runtime 合同尚未启用的源码边界。
+#[path = "lower_frontend_map_key_return_tests.rs"]
+mod map_key_return_tests;
 use super::{LoweringErrorKind, analyze, lower_scalar_file};
 
 #[test]

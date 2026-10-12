@@ -4,7 +4,9 @@
 
 当前 0 份 active。
 
-[SPEC-0303](../../archive/specs/0303-development-document-ownership.md)已按PR77精确实现head的CI有界归档；最终归档head、merge与actual main仍待验证。
+[0297 Map key return清理](../../archive/specs/0297-map-key-return-cleanup.md)已按PR78精确实现head双宿主各42项新增测试及完整CI有界归档；最终归档head CI、merge与actual main仍待验证。
+
+[SPEC-0303](../../archive/specs/0303-development-document-ownership.md)已按PR77有界归档并合入main `289a8ad9`；合并后CI [38219409371](https://github.com/Halckon/Koven/actions/runs/38219409371)已成功。
 
 [0302证据保留](../../archive/specs/0302-evidence-retention.md)已按PR76有界归档并合入main `8ef058f6`；合并后CI另行跟踪。
 

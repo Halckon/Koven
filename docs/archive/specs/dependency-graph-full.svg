@@ -6,7 +6,7 @@
   </defs>
   <rect width="8728" height="8722" fill="#ffffff"/>
   <rect x="40" y="30" width="7672" height="8464" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，283 份）</text>
+  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，284 份）</text>
   <rect x="7776" y="7920" width="544" height="730" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="8048" y="7940" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="8384" y="7920" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1021,7 +1021,7 @@
   <path d="M 564 7835 C 4312 7835, 4312 7991, 8060 7991" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8028 C 180 8060, 180 8078, 180 8110" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8202 C 180 8234, 180 8234, 180 8266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 300 8156 C 4048 8156, 4048 8303, 7796 8303" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 8202 C 180 8234, 444 8234, 444 8266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8340 C 180 8372, 180 8372, 180 8404" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 8303 C 4048 8303, 4048 8579, 7796 8579" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 8303 C 4180 8303, 4180 8588, 8060 8588" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2216,10 +2216,10 @@
   <text x="180" y="8427" text-anchor="middle" font-size="13">SPEC-0296</text>
   <text x="180" y="8445" text-anchor="middle" font-size="13">owned nullable</text>
   <text x="180" y="8463" text-anchor="middle" font-size="13"> 最后判空与循环清理</text>
-  <rect x="7796" y="8266" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7916" y="8289" text-anchor="middle" font-size="13" font-weight="600">SPEC-0297</text>
-  <text x="7916" y="8307" text-anchor="middle" font-size="13">Map 查询与删除的 key</text>
-  <text x="7916" y="8325" text-anchor="middle" font-size="13"> return 清理</text>
+  <rect x="324" y="8266" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="444" y="8289" text-anchor="middle" font-size="13">SPEC-0297</text>
+  <text x="444" y="8307" text-anchor="middle" font-size="13">Map 查询与删除的 key</text>
+  <text x="444" y="8325" text-anchor="middle" font-size="13"> return 清理</text>
   <rect x="8060" y="7954" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="8180" y="7977" text-anchor="middle" font-size="13" font-weight="600">SPEC-0298</text>
   <text x="8180" y="7995" text-anchor="middle" font-size="13">N1a 范围绑定与有界局部控</text>

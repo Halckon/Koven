@@ -16,7 +16,7 @@
 后继0287–0289已交付有界普通借用与范围carrier，0294/0295也有独立Map修复/应用证据；
 因此不能用旧表“仍为owned值与调用期loan”概括当前能力，其他Ref/unsafe等候选不自动启用。
 当前实现边界从[Architecture](../architecture/README.md)读取；PR72–74实际main交付和
-0297–0300候选分工见[本次核对](../archive/migrations/pr72-74-followup-audit.md)。原表与旧测试数字不改写。
+0297已按[有界合同](../archive/specs/0297-map-key-return-cleanup.md)归档；0298–0300仍为候选，原分工见[本次核对](../archive/migrations/pr72-74-followup-audit.md)。原表与旧测试数字不改写。
 
 ## 后继固定基线状态（2026-10-04）
 
