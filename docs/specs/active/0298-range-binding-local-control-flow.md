@@ -102,3 +102,41 @@ Boolean短路、String拼接及复杂RHS、循环等需独立冻结与证明。
 
 激活时的静态边界复核不作为功能验收；本片实跑记录仅采用§4输入与结果，不沿用0303
 恢复记录、历史649/42或0289的通过数字。禁止的注入/聚合不作为本次验收。
+
+## 6. PR81 首轮失败与公开CLI回归补齐
+
+本节追加实际远端失败及修复，不改写§4的本地检查点，不表示CI已绿或可归档。
+[PR81](https://github.com/Halckon/Koven/pull/81)首轮实现head为
+`acb306c357f526a071a771726b2adfcd80986e2c`，tree与本地冻结首片一致，为
+`657df5384964d027b54846895c552fab826c9e0f`；base仍为`4eb38d74`。
+[run38321740009](https://github.com/Halckon/Koven/actions/runs/38321740009) attempt1
+以synthetic `0944f68904e61d338247ac7dce0625e840cbdf4e`运行，父为上述base/实现head，
+tree相同，`reuse=false`，最终completed/failure。
+
+[Linux](https://github.com/Halckon/Koven/actions/runs/38321740009/job/115051846036)与
+[macOS](https://github.com/Halckon/Koven/actions/runs/38321740009/job/115051845987)各自命中全部
+52项codegen测试，但随后`range_project_cli`各31通过/1失败：旧
+`scalar_counts::public_std_range_scalar_counts_keep_other_binary_capability_gates`
+仍断言`n == 2`应拒绝，实际build成功，于`scalar_counts.rs:103`panic。后续`n < 3`
+未执行；两者均是已冻结Int比较的陈旧拒绝预期。stage中的8项last-use与14项range-construction
+尚未到达，不计为远端通过；后续缺少artifact上传失败是前序中断的结果，不作第二个产品根因。
+
+此前本地未选择该公开CLI目标。修复从真实remote head独立起步，仅改CLI测试，生产能力不变：
+将两比较改为独立接受测试，保留`val other=...`语法，在binding前/存活期间/显式scope结束后
+分别执行真/假结果；另以Resource普通源码核对条件一次、双arm、合流读及scope外consume/deinit。
+短路和String拼接继续拒绝，补全`!= <= > >=`及Boolean/Long比较拒绝；普通borrow/metadata
+alias的整函数门禁不改。独立只读审阅通过，未发现其他同类陈旧负例。
+
+修复测试输入`eaae05988de87cdab69476da41288a2f18d4d2fe`，tree
+`e354aeea548aaa29dbc82af43f552fbe65c93e84`；同一Linux工具链、独占target串行执行：
+
+| 选择 | 实际结果 |
+|---|---|
+| 原head精确选择旧失败测试（`--exact --nocapture`） | 0通过/1失败；原样复现`n == 2`的build成功与断言失败，后续`n < 3`未到达 |
+| `cargo test --locked --offline -p lang-cli --test range_project_cli scalar_counts::` | 修后6/6通过，含3项新增正常native与原五运算/定义Abort/拒绝边界 |
+| `cargo test --locked --offline -p lang-cli --test range_project_cli` | 35/35通过、无ignored/filtered；事先核对全部是正常源码build/native、定义Abort或源码拒绝，无注入 |
+| `cargo clippy --locked --offline -p lang-cli --test range_project_cli -- -D warnings`；`cargo build --locked --offline -p lang-cli`；fmt | 均通过 |
+| docs/尺寸/diff与文档合同 | 均通过：653篇Markdown、42项脚本合同；1054个手写Rust文件，38项旧超限债务未增，尺寸基线为真实remote head |
+
+原CI失败收据与本地红绿日志保留仓外；修复后的远端CI尚待实际运行，禁止将本地35项通过
+替换为双宿主CI通过。Spec继续active，广义后继不因修复关闭。
