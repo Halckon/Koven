@@ -18,5 +18,5 @@ unit 的临时 closure 收尾按 capture facts 逆序发布 Owned+Move 的 Captu
 提前 return 及 iteration 退出的 ordered actions/flat facts 一致性已由前端 intent tests 验证。
 
 独立复核及六个完整相关 suite 的482项实际结果见
-[验收收据](../development/evidence/runtime-constructor-0279/frontend/receipt.json)。
+[验收收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/frontend/receipt.json)。
 这些事实不证明源码 runtime constructor/helper 的具体 callable ABI 或 native 释放已经交付。

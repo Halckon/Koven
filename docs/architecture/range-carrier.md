@@ -144,7 +144,7 @@ carried bindings/loans、pending operands、range-source 重绑定，运输 meta
 短路及更广 CFG 不放宽。producer count 分支缺来源证明仍 L0164；绑定 initializer
 内 return、receiver count break 仍在原门 UnsupportedNode。未新增 View 索引、
 一般扩展、consume/Clone 或 N1b。PR72 head `d3d6f3c` 的双宿主 CI 已重跑本片及旧 take
-身份/退出回归；验收范围与归档 head/merge/main 待交付状态见[交付账本](../development/evidence/range-carrier-0289/delivery.json)。
+身份/退出回归；验收范围与归档 head/merge/main 待交付状态见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/delivery.json)。
 
 
 ## View 来源的新 descriptor 与转发

@@ -32,4 +32,4 @@ pointer factory 的摘要按具体 factory source memo，核对声明及调用�
 实现位于 `ssa/lowering_support/callable_instances.rs`、`lower_frontend/instances/` 与
 `unit_plan/callable_instances.rs`。本页描述 planner 事实；source runtime constructor、helper
 closure 参数/返回 ABI 与native事实见[源码ABI](callable-source-abi.md)，逐项验收及实际
-PR/main交付见[0279账本](../development/evidence/runtime-constructor-0279/delivery.json)。
+PR/main交付见[0279账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/delivery.json)。

@@ -1,6 +1,6 @@
 # P2 unit runtime layout 职责拆分验收
 
-> **性质**：有界生产职责迁移验收 · **状态**：PR35及真实merge主干双宿主验收通过，有界完成 · **读取时机**：复核或回退runtime layout拆分时 · **唯一真源**：本页与[逐项证据](evidence/unit-runtime-layout-migration.json)；范围从属[已批准计划](engineering-governance-plan.md)
+> **性质**：有界生产职责迁移验收 · **状态**：PR35及真实merge主干双宿主验收通过，有界完成 · **读取时机**：复核或回退runtime layout拆分时 · **唯一真源**：本页与[逐项证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/unit-runtime-layout-migration.json)；范围从属[已批准计划](engineering-governance-plan.md)
 
 ## 范围、基底与提交
 

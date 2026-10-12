@@ -39,7 +39,7 @@
 
 ## 逐项保真与身份
 
-[机器账本](evidence/multifile-ownership-test-migration.json)列72个package/target/full_name
+[机器账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/multifile-ownership-test-migration.json)列72个package/target/full_name
 新旧映射、全部80函数起止行与hash、全部文件尺寸、fixture literal/断言、工具与样本原值。
 80个函数块与固定Git原文逐字相等，也与同版Rust1.96.0独立rustfmt参考相等。
 963个字符串/字符literal、412处assert及72个test属性全保留；无platform cfg或ignore。
@@ -61,8 +61,10 @@ archive SPEC-0214历史命令与结果不改写；其现行exact名为
 `lambda_drop::lambda_value_parameters_publish_entry_read_and_transfer_drop_facts`，实际1/72通过。
 新增identity不表示新增行为覆盖；仅数量相等不足以证明保真。
 
-[只读复核器](evidence/verify_multifile_ownership_migration.py)重建原块及独立格式参考，检查
+[只读复核器](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/verify_multifile_ownership_migration.py)重建原块及独立格式参考，检查
 所有模块/私有入口、完整身份、literal/assert、support/Cargo/CI和唯一policy退休：
+
+以下为历史快照的复核命令；须在对应历史工作树中使用配套脚本与侧车，不能在当前树直接运行。
 
 ```sh
 python3 docs/development/evidence/verify_multifile_ownership_migration.py

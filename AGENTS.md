@@ -58,6 +58,9 @@
   `// SAFETY: ...`。
 - 库 crate 不直接打印日志；用户输出由 CLI/LSP 边界统一渲染。
 - 保留用户的未提交改动，不顺手重构、格式化或清理无关代码。
+- 验收只提交简要结论、输入身份与稳定来源；原始日志、完整 JSON dump 和重复源码不入库。
+  临时输出放仓库外或 `.local-artifacts/`，真实 fixture/golden 留所属测试目录；遵守
+  [文档治理](docs/AGENTS.md#5-archive-与迁移)与[证据保留](docs/development/testing.md#证据保留)。
 - 避免新增依赖，除非已按 [依赖治理](docs/development/dependencies.md)完成适配、兼容、安全、许可和成本审计。
 
 ## 3. 架构硬边界

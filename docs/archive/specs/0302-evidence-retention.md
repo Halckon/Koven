@@ -1,0 +1,100 @@
+# SPEC-0302: 验收产物保留边界与文档精简
+
+> **性质**：有界工程变更合同 · **状态**：done · **读取时机**：精简历史验收产物及核对引用时 · **唯一真源**：本页
+
+| 字段 | 值 |
+|---|---|
+| 状态 | done |
+| Goal ID | `KOV-ENG-302` |
+| 所属 Phase | 工程治理；不改变语言 Phase |
+| 语言规范 | [Guide v0.43](../../guide/README.md)；不变更语义 |
+| 批准依据 | 用户明确要求“删除不必要的evidence，精简文档”，后续批准归档、PR 闭环及 CI 后合并/main 验证 |
+| 前置 Spec | 无 |
+| 前置 ADR | 无 |
+| 影响范围 | 历史产物、文档引用、fixture 路径与保留规则 |
+| 语言语义变更 | 否 |
+
+## 1. Goal 与固定基线
+
+以 main `8c6907c238cc0e040bed4541203e450a5f53552b` 为基线，移除当前树中
+无持续消费者的验收 dump，保留历史复核入口和实际测试输入。减少 checkout 体积及 review
+噪声；不宣称缩小既有 Git pack，不改写历史、历史数字、失败或验收边界。
+
+基线 evidence 为 1,703 文件 / 25,792,590 bytes，占 docs 字节的 72.73%；
+裸 JSON 为 146 文件 / 95,583 行，另有 591 个 JSON gzip。清理依据是消费者与用途，
+不按扩展名推断所有 JSON 都无用。
+
+## 2. 保留与迁移边界
+
+- 两个 `include_str!` 的实际输入及同族最小复现源码原字节迁入 codegen fixtures。
+- 一次性日志、完整 JSON 投影、压缩 raw、冻结测量/迁移工具及其侧车按证据族退出当前树；
+  每族保留简短索引，旧链接机械指向固定提交的同一路径。
+- 历史失败、噪声、平台例外和尚未接受的 P2 预算保持原结论；清理不构成验收通过。
+- 后续提交保留最小验收结论、输入身份与可核来源；原始输出用 CI artifact 或明确的长期存储。
+  artifact 有保留期，不能声称旧产物永久可取；本次旧材料由既有 Git 提交原样恢复。
+
+## 3. 非目标
+
+编译器实现、语言规范、测试断言与源字节、CI 复用白名单、重新运行历史测量、故障注入、
+校准、聚合驱动、超出两个 fixture 消费者的 Cargo 验证、Git 历史重写或删除远端 artifact。
+
+## 4. 验收
+
+| 项目 | 结果 |
+|---|---|
+| 全仓持续消费者扫描、逐族分类和最小源码识别 | 已静态核对；23 子族与根族，移出 1,703 个原文件，其中 7 个源码/项目文件迁 fixture |
+| 7 个迁移文件原字节相等，两个 `include_str!` 指向存在文件 | 7/7 Git blob 与 SHA-256 一致；2/2 相对路径解析存在 |
+| 固定历史链接目标在基线 Git 树真实存在，无悬空本地引用 | 160 个固定 blob/tree 目标逐项核实；48 页 200 处旧链接同路径迁移；19 份 archive 文本除链接外相等 |
+| docs checker、相关静态规则测试与 diff 检查 | `check_docs.py`、docs/DAG 42 项测试及 `git diff --check` 通过；4 条保留护栏测试先红后绿 |
+| 独立审查实际消费者、历史保全和 fixture 等价 | 父任务已独立核对 7 个 fixture、160 个历史目标、41+1 项静态测试与 AGENTS/忽略规则增量；无阻塞 |
+| 两个 fixture 消费者普通回归 | 父任务串行执行下列两个完整名的 `--exact`，各 1 passed / 0 failed / 0 ignored / 1270 filtered；不代表全 codegen |
+| 故障注入/校准/聚合验证 | 未运行；本片禁止，非通过 |
+| 根 AGENTS 与窄范围 Git 忽略规则 | 10/10 `git check-ignore --no-index` 检查通过：6 个产物忽略、4 个 README/fixture 放行；没有创建占位产物 |
+| PR、远端 CI 与合并 | PR76 实现 head 完整 CI 已通过，见 §6；归档 head CI、merge 与 actual main 待验证 |
+
+本片按 §6 的远端实现 head 有界验收归档；归档提交、merge 和 actual main 不由实现 CI 代替。
+
+## 5. 本地结果与限制
+
+原 evidence 的 25,792,590 bytes 改为 24 份索引 / 33,176 bytes / 414 行；
+7 个输入另迁至测试目录，共 1,546 bytes，另有短 fixture 说明。裸 JSON、gzip、日志和
+一次性工具均可从固定历史提交按原路径恢复；没有抹除旧 Git 对象，也没有重新认证旧运行。
+
+新增 docs 护栏只检查该索引目录的文件类型、120 行和 16 KiB 预算；测试目录的 JSON
+fixture 不受影响。保持 `pr_ci_reuse.py` 原白名单与 workflow 不变；本次路径/脚本变更的
+后续远端 CI 应按实际有效输入处理，不以文档精简名义豁免。
+
+允许的普通回归仅为 `unit_owned_null_cleanup_known_loop_boundary` 与
+`map_remove_single_for_guarded_owner_boundary_is_explicit` 两个完整测试名的 `--exact`
+选择；每项须实际执行 1 个测试，零命中不算通过。静态测试命令为
+`python3 -m unittest scripts.tests.test_check_docs scripts.tests.test_gen_spec_dag -q`，
+分别 41 与 1 项；不以错误 discovery pattern 的零测试结果计入验收。
+
+2026-10-11 父任务仅执行 `cargo test --locked -p lang-codegen --lib <完整名> -- --exact`：
+
+- `native::unit_tests::owned_null_cleanup_tests::unit_owned_null_cleanup_known_loop_boundary`：
+  1 passed，测试运行 0.87s。
+- `ssa::lower_frontend_tests::map_result_tests::map_remove_single_for_guarded_owner_boundary_is_explicit`：
+  1 passed，测试运行 0.01s。
+
+两项共享 Cargo target 串行执行后已释放；没有运行全 lang-codegen、故障注入、校准或聚合驱动。
+本页保留这份简要结果，不新增原始 JSON、日志或 source hash 投影。
+
+## 6. 远端实现验收与待完成交付
+
+[PR76](https://github.com/Halckon/Koven/pull/76) 的实现验收只归属下列精确输入；
+不新增原始 JSON/日志，不将平台跳过或归档动作计为实跑。
+
+| 项目 | 实际结果 / 来源 |
+|---|---|
+| 实现 head | [93214c26ddd7eab3ab876da1fe43da966e9c1d0d](https://github.com/Halckon/Koven/commit/93214c26ddd7eab3ab876da1fe43da966e9c1d0d)，tree `8ddca89c609ae44909846da7e081e12d03ba8a15` |
+| CI 输入 | base `8c6907c238cc0e040bed4541203e450a5f53552b`；synthetic merge `100190319d6d537a7d4d388747c0afda7733a287` |
+| 首轮失败 | [38187749340 / attempt 1](https://github.com/Halckon/Koven/actions/runs/38187749340)：两处缩短后的 `include_str!` 需 rustfmt 布局；后继跳过不算通过，修复未改 fixture 字节 |
+| 实现完整 CI | [38188117021 / attempt 1](https://github.com/Halckon/Koven/actions/runs/38188117021)：success；15 jobs success，Tree-sitter 因相关输入未变合法 skipped；未复用旧代码 CI |
+| 迁移输入实际消费 | [Linux targeted](https://github.com/Halckon/Koven/actions/runs/38188117021/job/114615290381) 与 [macOS targeted](https://github.com/Halckon/Koven/actions/runs/38188117021/job/114615290365)：上列两项 fixture 完整测试名均 ok |
+| 归档 delta 本地静态验收与独立审查 | 本次 docs 638 页、docs/DAG 42 项测试、diff 检查通过；33 份保留文件与实现 head 原字节相同；父任务独立审查完整 delta，并复跑上述静态检查通过，无阻塞 |
+| 最终归档 head CI / merge / actual main | 待执行、待独立验证；当前实现 success 不替代它们 |
+
+Linux 专用 sanitizer 步骤实际成功；macOS 对应步骤 skipped，不代表 macOS 等价检测通过。
+两端 generated resource 步骤成功也不扩大原检测器/校准平台边界。历史失败、噪声、P2 预算
+待接受、7 个 fixture 原字节与已有测试断言均保持；本地归档不重跑 Cargo、注入、校准或聚合。

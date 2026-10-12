@@ -406,6 +406,34 @@ class DocsCheckerTests(unittest.TestCase):
         self.assertTrue(any("本地链接不存在" in error for error in errors), errors)
         self.assertTrue(any("fragment 不存在" in error for error in errors), errors)
 
+    def test_evidence_indexes_allow_short_readme_and_fixture_elsewhere(self) -> None:
+        self.write("docs/development/evidence/README.md", "# Index\n")
+        self.write("docs/development/evidence/family/README.md", "# Historical family\n")
+        self.write("crates/lang-codegen/tests/fixtures/sample.json", '{"input": true}\n')
+        checker = DocsChecker(self.root)
+        checker.check_evidence_retention()
+        self.assertEqual(checker.errors, [])
+
+    def test_evidence_indexes_reject_generated_payloads(self) -> None:
+        for name in ("raw.json", "raw.log", "raw.json.gz", "probe.py", "output.md"):
+            self.write("docs/development/evidence/family/" + name, "raw\n")
+        checker = DocsChecker(self.root)
+        checker.check_evidence_retention()
+        self.assertEqual(len(checker.errors), 5, checker.errors)
+        self.assertTrue(all("仅保留短 README" in error for error in checker.errors))
+
+    def test_evidence_indexes_have_a_line_budget(self) -> None:
+        self.write("docs/development/evidence/README.md", "line\n" * 121)
+        checker = DocsChecker(self.root)
+        checker.check_evidence_retention()
+        self.assertTrue(any("121 行" in error for error in checker.errors), checker.errors)
+
+    def test_evidence_indexes_have_a_byte_budget(self) -> None:
+        self.write("docs/development/evidence/README.md", "界" * 6000 + "\n")
+        checker = DocsChecker(self.root)
+        checker.check_evidence_retention()
+        self.assertTrue(any("18001 bytes" in error for error in checker.errors), checker.errors)
+
 
 if __name__ == "__main__":
     unittest.main()

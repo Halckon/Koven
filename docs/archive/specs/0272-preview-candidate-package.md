@@ -167,7 +167,7 @@ CI接线回归先失败后通过；真实双宿主重跑与归档闭环仍待验
 退出/输出字节全部符合oracle。精确移除自有目录且哨兵保持。
 
 原始生产/消费证据artifact ID及JSON摘要哈希、候选SHA、组成/宿主记录见
-[机器核对账本](../../development/evidence/preview-candidate-0272-ci.json)。
+[机器核对账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/preview-candidate-0272-ci.json)。
 两包各31个实际Cargo输入，18目标normal、13构建专属；Mac92文件、Linux93文件加manifest，
 差别来自宿主许可材料，不是忽略文件。Mac实际14.8.9/SDK14.5，完整已检加载闭包最低14.0；
 Linux实际Ubuntu24.04/glibc2.39；均LLVM21.1.8，保留外部依赖，不外推其它环境兼容性。

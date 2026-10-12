@@ -20,6 +20,6 @@ Abort、lambda 内层返回、多个正常返回、未知或 capturing 来源不
 两个公开表，loan、capture、drop 与已有 deferred 门禁仍由原 checker 决定。
 
 本片的实现、有效红测、复审修复及验收 raw 见
-[收据](../development/evidence/runtime-constructor-0279/callable-provenance/receipt.json)。
+[收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/callable-provenance/receipt.json)。
 这些来源事实不证明 capture loan 仍活跃，也不代表 source helper ABI、LLVM/native 或
 SPEC-0279 的 PR/main 验收已经完成。

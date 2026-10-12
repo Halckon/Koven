@@ -20,13 +20,13 @@ CFG 参数同时运输内容和捕获 LoanId，join 合并实际入边依赖。c
 module type/deinit 图失败时仍检查函数结构、CFG 与 dominance，跳过要求已验证类型图的
 ownership/content/escape 阶段。未引用的非法 container element ID 有真实先 panic 后结构化
 Err 的回归证据。新测试25项、旧消费者及独立审阅见
-[切片验收收据](../development/evidence/runtime-constructor-0279/borrowed-generator/receipt.json)。
+[切片验收收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/borrowed-generator/receipt.json)。
 
 `SharedReferenceFollow` 把 active Shared Loan(SharedReference<T>) 转成 Shared Loan(T)，
 读取 slot pointer 后交给既有 Read。父/祖先 loan、CFG 重绑定与 provider lineage 保持有效；
 引用槽无 capture 不等于其 callable target 无 capture，两个内容证明均采用 target 的保守默认。
 7 项定向及32项 borrowed 回归通过并经独立审阅，见
-[共享引用读取收据](../development/evidence/runtime-constructor-0279/shared-reference-follow/receipt.json)。
+[共享引用读取收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/shared-reference-follow/receipt.json)。
 
 本页维护 raw SSA / LLVM 工程事实；已接入的源码构造/helper及普通资源native范围见
 [源码ABI](callable-source-abi.md)。调用者在DirectCall/CallableInvoke处按当前capture contents

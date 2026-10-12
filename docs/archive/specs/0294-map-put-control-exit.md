@@ -131,8 +131,8 @@ preview producer/consumer、CI Passed 与 Code CI Evidence 均成功。Linux 日
 ASan/LSan Map clean 证据；它不是新增 return 专属 sanitizer 或逐指针计数矩阵。
 
 完整 Goal→证据映射、job 身份、29 个测试原文、解码日志 hash 与边界见
-[交付账本](../../development/evidence/map-put-return-0294/delivery.json) 和
-[实际测试 receipt](../../development/evidence/map-put-return-0294/implementation-ci-tests.json)。
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-put-return-0294/delivery.json) 和
+[实际测试 receipt](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-put-return-0294/implementation-ci-tests.json)。
 §10 的本地未运行条目保留历史时点，远端证据仅由本节与 receipt 追加。
 
 ## 12. 同步主干与最终交付边界

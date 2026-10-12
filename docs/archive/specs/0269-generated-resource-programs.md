@@ -253,7 +253,7 @@ CI接线使生成脚本变化触发Rust门禁、现有双宿主执行完整drive
 父提交为main `54b3667`与上述head；tree均为 `9b7a894b3a6b06433410fa82d9e1998faa7d8607`。
 不能把合成merge SHA误记为分支head，也不以另一次push跳过任务的绿灯代替本次验收。
 
-[审阅账本与原始压缩材料](../../development/evidence/generated-owners-0269-review-20261005/review.json)
+[审阅账本与原始压缩材料](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generated-owners-0269-review-20261005/review.json)
 保存API身份、artifact ID/归档与报告hash、日志、两宿主各157项输入hash核对结果及原验收矩阵快照。
 Linux artifact `11331331717` 的acceptance SHA256为
 `bee5923aa3fe51d1894d6c3139e077f9abd98b237eb5d3aef3bbff571e877cbd`（pass）；
@@ -289,7 +289,7 @@ G4保存 `red/` 与 `green/` 各自的case、build/export命令、cwd、预算�
 `acceptance.status=partial`、`requirements_met=false`并exit1，不能用平台允许partial来
 掩盖G5缺口。单案例replay不充当完整验收。此前受阻动作边界继续有效。
 
-[本地普通修复账本](../../development/evidence/generated-owners-0269-safe-fix-20261005/validation.json)
+[本地普通修复账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generated-owners-0269-safe-fix-20261005/validation.json)
 保存基线、被测文件指纹、纯模拟红/绿日志及验证范围。定向命令为
 `python3 -m unittest scripts.tests.test_generated_owner_acceptance scripts.tests.test_checker_evidence scripts.tests.test_check_generated_owner_checker scripts.tests.test_check_generated_owners`，
 21项通过，无skip。旧“partial且G5未验证仍exit0”单测由新平台边界/完整入口失败测试替代。
@@ -390,7 +390,7 @@ G4保存 `red/` 与 `green/` 各自的case、build/export命令、cwd、预算�
 ZIP SHA256 分别为 `894675262e93fc6c1549e3b5d57d7c53ea018d1dd16b5f221deeb7b3b79ba0f3`、
 `61b5a55278a9fc4a6af83f7e8f2a4bb9eda8a8bb2f413fc9263997c159895b6d`。
 报告、checker 原始命令/输出/退出/patch/源码、全部输入 hash、13 对真实 LLVM 因果对照的复核摘要
-保存在[交付证据](../../development/evidence/generated-owners-0269-delivery.json)，选定原始文本以 gzip 保全。
+保存在[交付证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generated-owners-0269-delivery.json)，选定原始文本以 gzip 保全。
 G4 exporter 二进制未在 ZIP 中，运行时记录的二进制 hash 不能在此次审阅中独立重算。
 
 G5 固定语义身份是 Holder 的唯一 `drop:holder` 析构见证，不改投其他资源。

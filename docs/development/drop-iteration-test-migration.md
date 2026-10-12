@@ -130,11 +130,13 @@ instance_replay合同前复查；未来若按形成/逐边回放/清理oracle提
 169条super路径逐项从旧tests作用域和新领域作用域解析，完整目标路径必须相同，
 并验证新文本恰多一个super；不是仅比较数量或忽略所有路径token。
 
-[机器账本](evidence/drop-iteration-test-migration.json)逐项保存51块原/新hash、字面量hash、
+[机器账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/drop-iteration-test-migration.json)逐项保存51块原/新hash、字面量hash、
 40项映射、169条原新路径及解析目标、13块42处格式token编辑与全部测量原值。
 其中token index是独立块的零基索引，format diff在路径调整之后比较，便于人工定位。
-[只读复核器](evidence/verify_drop_iteration_migration.py)从固定Git原文重建独立参考，
+[只读复核器](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/verify_drop_iteration_migration.py)从固定Git原文重建独立参考，
 不依赖工作目录外日志，不写Rust文件，不把语义token变化模糊归一化：
+
+以下为历史快照的复核命令；须在对应历史工作树中使用配套脚本与侧车，不能在当前树直接运行。
 
 ```sh
 # 使用项目固定Rust 1.96.0的rustfmt，在仓库根运行

@@ -61,13 +61,15 @@ package=`lang-frontend`、target=`ownership_iteration`、kind=`test`。191个完
 literal按块hash再按名称排序的SHA-256 aggregate：
 `4303197b8e0f79f4388e144d377a00678ca413b1aea32cc6adad2777e4783030`。
 
-[机器账本](evidence/ownership-iteration-test-migration.json)保存全部184项旧/新完整身份、
+[机器账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/ownership-iteration-test-migration.json)保存全部184项旧/新完整身份、
 191块起止行与原新hash、literal hashes、属性/ignore、全部文件尺寸、support/Cargo hashes、
 实测命令原值与test result；同一worktree的前后Cargo metadata完整JSON相等，共129 targets。
 不把保持数量当作保真的充分条件。完整原/新libtest list逐项对应，20个新文件不会生成test binaries。
 
-[只读复核器](evidence/verify_ownership_iteration_migration.py)从固定Git原文重建独立参考，
+[只读复核器](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/verify_ownership_iteration_migration.py)从固定Git原文重建独立参考，
 验证全部块、映射、literal/断言、support和Cargo输入、入口声明及唯一Rust变更范围：
+
+以下为历史快照的复核命令；须在对应历史工作树中使用配套脚本与侧车，不能在当前树直接运行。
 
 ```sh
 python3 docs/development/evidence/verify_ownership_iteration_migration.py

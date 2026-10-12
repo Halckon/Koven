@@ -13,5 +13,5 @@ mode 与 `move_only`。结果只查找 frontend 类型表已有的 exact canonic
 顺序容器返回类型沿各入口既有支持边界替换；unit 的 direct-element、nested nominal 拒绝、
 recipe/preflight 和实例预算机制保留。模式、move 标签、Array 返回及缺失 canonical 身份的
 直接测试与相关 planner/lowering 回归见
-[验收收据](../development/evidence/runtime-constructor-0279/canonical-callables/receipt.json)。
+[验收收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/canonical-callables/receipt.json)。
 这组事实不证明 helper concrete ABI、source 构造器或 native 链路已经完成。

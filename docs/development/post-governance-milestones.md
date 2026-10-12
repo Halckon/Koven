@@ -251,8 +251,8 @@ native lowering 返回 UnsupportedNode，后续实现验收见§14。并行实�
 
 在 `6cdaa2c` 对当前 editor 输入进行了独立复核；本记录从主干 `f0effcd` 发布。
 逐文件 SHA256 核对两提交的 editor 输入相同，证据见
-[审计清单](evidence/m0-editor-20261004/audit.json)和
-[重新生成后的原始失败日志](evidence/m0-editor-20261004/tree-sitter-regenerated.log.gz)。
+[审计清单](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/m0-editor-20261004/audit.json)和
+[重新生成后的原始失败日志](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/m0-editor-20261004/tree-sitter-regenerated.log.gz)。
 本次没有修改 grammar、scanner、parser、corpus 或任何预期。
 
 | 检查 | 结果 | 证据边界 |
@@ -316,12 +316,12 @@ M1B-b文本输入与新String API、性能、M3新增API、M4b真实故障校准
 [CI37253329605](https://github.com/Halckon/Koven/actions/runs/37253329605)15/15成功，含编辑器执行。
 两轮双宿主各13新增测试逐名ok、各37条词频与12条preview命令完整bytes已独立核验。
 精确head/tree、raw hashes、job/artifact身份与既有macOS LLDB ignore见
-[交付闭环账本](evidence/generic-containers-0275-delivery.json)，原archive验收历史未重写。
+[交付闭环账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-containers-0275-delivery.json)，原archive验收历史未重写。
 
 最新main的独立分支`feature/spec-0276`按[0276正式合同](../archive/specs/0276-unit-generic-body-type-normalization.md)补普通顶层泛型函数body-only具体类型需求，
 避免依赖签名或未使用声明补种canonical。有限类型归一化与现有
 Phase4实例预算/recipe错误优先级的兼容性准备审阅已通过，ADR0028已accepted；
-G1–G6与G7实现验收已通过本地门禁及PR54双宿主CI；最终归档head和actual main已闭环，见[交付账本](evidence/generic-body-0276-delivery.json)。
+G1–G6与G7实现验收已通过本地门禁及PR54双宿主CI；最终归档head和actual main已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276-delivery.json)。
 M1B-b、新API、泛型owner/member扩张、真实故障校准、性能及完整M5/M6仍按原前置推进。
 
 
@@ -343,7 +343,7 @@ PR54于04:08:15Z合并为`18b89e5ebce171f50680ba96fbc5a2e27025b6c9`。最终归�
 PR55已合并为`54b36675481c15da8a1f31d9d3185e4b49c83096`，原三个提交均保留。
 最终归档head CI37265259330及actual main CI37266255625各15/15实际成功；
 两轮双宿主修复5项无过滤/忽略、四接线政策及词频/preview实际产物字节经独立复核，
-[交付账本](evidence/p2-linux-0277-delivery.json)保全每轮105份raw记录；archive不重写。
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-0277-delivery.json)保全每轮105份raw记录；archive不重写。
 本地main已fast-forward到此merge，原六份未提交文件逐字节和index状态保全。
 整体P2预算仍未接受，本片不重采样、不启动M4b真实故障校准。
 
@@ -359,7 +359,7 @@ SPEC0269 的有限 V1/V2 与 I1/I2 首片已验收归档。实现 head `2fcd6c54
 Linux 完整 ASan/LSan 校准通过；Mac 仅按当前项目工具链约定的两项原因记录 partial，G4/G5 仍完整。
 G5 固定 Holder 缺失 deinit 的受控运行期故障，正常对照通过，717→551 字节严格缩减、
 三次确认与当前变换集内局部最小均已核验；不表述为发现生产编译器 Bug。
-实现身份、报告及制品核验见[交付账本](evidence/generated-owners-0269-delivery.json)；
+实现身份、报告及制品核验见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generated-owners-0269-delivery.json)；
 最终归档 head、合并及 main CI 由 [PR48](https://github.com/Halckon/Koven/pull/48)维护。
 此前 §14–18 的未完成表述保留历史时点，当前 M4b 首片状态以本节为准。
 
@@ -377,7 +377,7 @@ CI37316378722 为 14 项必需成功及 Tree-sitter 合法跳过；合并为
 实际 15/15 成功，无 job 跳过。两轮 Linux 完整 codegen 922 passed，macOS 921 passed
 及一项既有 LLDB 权限 ignore，均无失败、无过滤；双宿主 preview 消费者成功。
 源码、PR synthetic checkout 与 actual main 身份及原始日志见
-[交付账本](evidence/closure-escape-0278/delivery.json)，不改写归档验收正文。
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/delivery.json)，不改写归档验收正文。
 
 原本地 main 已安全快进，原六份未提交文件内容与 index 保全；后继
 `feature/spec-0279` 独立 worktree 基于上述 actual main。完整运行时长度源码构造
@@ -390,7 +390,7 @@ CI37316378722 为 14 项必需成功及 Tree-sitter 合法跳过；合并为
 SPEC0279从actual main `6575e906`实施两入口Array/List运行时长度构造、具体callable/helper
 ABI与普通native路径；用户明确启用Guide v0.41 expected move literal澄清。
 [PR57](https://github.com/Halckon/Koven/pull/57)实现head `a7faceaea97f5130a94689d65e0d97a497c653f6` 的[CI37455222241](https://github.com/Halckon/Koven/actions/runs/37455222241)
-15/15实际成功；新增测试逐项命中与source/synthetic身份见[交付账本](evidence/runtime-constructor-0279/delivery.json)。
+15/15实际成功；新增测试逐项命中与source/synthetic身份见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/delivery.json)。
 本片按用户排除本地安全/资源注入/校准与定向allocation/free观测的范围归档（旧对象路径Guard误运行例外见消费者收据），不代表这些验证通过。
 最终归档head、merge与actual main双宿主CI仍待交付，不能预先启动依赖其交付的新分支实施。
 
@@ -424,7 +424,7 @@ PR70增量CI已合入main，本开发分支尚未接入；本轮新代码尚未p
 0289 的 List/View take/drop/dropLast、可信 Borrow receiver、最小访问/迭代及有界
 Builtin Int 计数已按 PR72 实现 head `d3d6f3c` 的双宿主直接证据验收归档，逐项 Goal
 核对见[原验收 §22](../archive/specs/0289-n1a-range-carrier.md#22-有界-goal-验收与归档2026-10-11)。
-[交付账本](evidence/range-carrier-0289/delivery.json)分别保留最终归档 head CI、merge
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/delivery.json)分别保留最终归档 head CI、merge
 与 actual main CI 的待交付状态。更广 CFG 按 Guide 12 结构化拒绝；consume、通用
 Clone、N1b 及其他候选不随归档启用。§23–24 与之前检查点仍保留原时点含义。
 
@@ -435,7 +435,7 @@ Clone、N1b 及其他候选不随归档启用。§23–24 与之前检查点仍�
 原 8 组 byte oracle、decimal 与非法 UTF-8 合同不变。PR74 实现 head `6843ac7b` 的
 双宿主各40公开命令、4新 native +20 frontend +13直接回归通过，记录见
 [归档验收](../archive/specs/0295-map-argv-word-frequency.md#9-双宿主实现验收与有界归档2026-10-11)及
-[交付账本](evidence/map-word-frequency-0295/delivery.json)。preview 只验 parameter-report。
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/delivery.json)。preview 只验 parameter-report。
 本片只关闭 K-H 应用 Goal；不声称 M3B 全部完成。另行记录的 MoveOnly for-body 提前 drop
 基线缺口仍开放；不启用 consume、通用 Clone、Map 迭代或新 Guide 语义。最终归档 head CI、
 merge、actual main CI 仍待交付；此前草稿与 checkpoint 保持各自历史时点含义。

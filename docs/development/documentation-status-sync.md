@@ -22,7 +22,7 @@ Str/toString仍延期，clone-first不重开；没有启用新版本或候选语
 
 本机索引按四位编号的Spec正文计数：0 active、254 archive。先前只统计所有Markdown
 得到255，是误把非Spec生成文档算入；不据此修改冻结inventory或制造归档迁移。
-只读GitHub核对的[元数据](evidence/documentation-status-sync-20261004/ci.json)
+只读GitHub核对的[元数据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/documentation-status-sync-20261004/ci.json)
 保留head、jobs、关键步骤及skip，下面均是历史对应head，不是本次文档分支CI。
 
 | 范围 | 固定交付/验收依据 | 当前边界 |
@@ -71,7 +71,7 @@ Spec inventory及引用CI的固定head关系；不运行教程CLI、Rust、性�
 ## 本批本地验证与交付
 
 状态同步先提交为`1c30f0e`；随后独立核验并保留
-[一致性记录](evidence/documentation-status-sync-20261004/verification.json)。
+[一致性记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/documentation-status-sync-20261004/verification.json)。
 `python3 scripts/check_docs.py`通过511份Markdown结构/链接/inventory检查；
 `git diff --check`与staged whitespace检查通过。
 调用现有教程`load_examples`静态核验14份合同/15个唯一源码fence：11 executable、
@@ -110,7 +110,7 @@ CLI的source/project/entry/format/global options及prelude hello入口/输出全
 PR46归档head `fb4b849529ebdcec4e7063723a3a85a5c81e7fbb`已合并为`7c093bb6`；
 [最终PR CI37206347562](https://github.com/Halckon/Koven/actions/runs/37206347562)
 10项success、1 editor按路径合法skip，双宿主组合测试和Ubuntu动态sanitizer步骤实际success，
-macOS的Linux专属步骤skipped。只读[CI元数据](evidence/documentation-status-sync-20261004/merge-ci.json)
+macOS的Linux专属步骤skipped。只读[CI元数据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/documentation-status-sync-20261004/merge-ci.json)
 保留精确head和步骤，不将本轮文档合并称为新CI通过。
 
 当前0 active/255 archive；0268补齐M1A A5–A10、unit迭代native及完整参数报告程序的

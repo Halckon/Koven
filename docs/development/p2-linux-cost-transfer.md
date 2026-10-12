@@ -9,16 +9,16 @@
 
 ## 完整材料与复核
 
-[原样压缩包](evidence/p2-linux-20261005/koven-p2-transfer.tar.gz)共5,648,921 bytes，
+[原样压缩包](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/koven-p2-transfer.tar.gz)共5,648,921 bytes，
 SHA256 `bf712bb7c7f47176e5422dabbebe556f31c04af39d39a12c5f244309811f3eb6`。
-[接收记录](evidence/p2-linux-20261005/receipt.json)保留Library身份、云/Mac基线与校验范围。
+[接收记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/receipt.json)保留Library身份、云/Mac基线与校验范围。
 不将5269个文件直接铺入Git，也不删除噪声、失败、中断或冻结旧汇总。
 
 在仓库根选择一个新的空临时目录，再解包并验证：
 
 ```sh
 destination=$(mktemp -d /tmp/koven-p2-review.XXXXXX)
-tar -xzf docs/development/evidence/p2-linux-20261005/koven-p2-transfer.tar.gz -C "$destination"
+git show 8c6907c238cc0e040bed4541203e450a5f53552b:docs/development/evidence/p2-linux-20261005/koven-p2-transfer.tar.gz | tar -xz -C "$destination"
 python3 "$destination/koven-p2-linux-20261005/verify_transfer.py" "$destination/koven-p2-linux-20261005"
 ```
 
@@ -52,8 +52,8 @@ C observer child RSS各自独立；compile/link归属和最大报告RSS不是exc
 最新main在两测试上仍含旧预期；修改前2 passed/2 failed，修改后默认debug两目标5 passed/0 failed，
 没有ignored/filtered。两测试源字节与云修复manifest完全相同，测试diff摘要也相同；
 旧120库存片段全部保留，新127，长非法数字矩阵16→24并增加4种合法radix表达式对照。
-[Mac red日志](evidence/p2-linux-20261005/mac-red.log)、[green日志](evidence/p2-linux-20261005/mac-green.log)
-和[green命令/口径](evidence/p2-linux-20261005/mac-green.json)独立保存，不混用云结果。
+[Mac red日志](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/mac-red.log)、[green日志](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/mac-green.log)
+和[green命令/口径](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/mac-green.json)独立保存，不混用云结果。
 v2的20项Python回归在Mac实际通过，fmt/受影响严格Clippy/尺寸门禁亦通过；
 尺寸报告781手写Rust、45旧超限，两变更文件579/396行，未扩大既有policy。
 原接收阶段未执行Mac全量frontend、native/其他crate全回归或P2重采样；当时新分支CI未运行。
@@ -67,17 +67,17 @@ Mac包含后继0275及本批Spec/证据，不宣称恢复云commit SHA或整树�
 
 用户已授权在合适时合并本地0277；原三个提交保留，接入最新main和PR验收见正式Spec§9。
 独立审阅确认两测试与发布材料正确，但初次Mac v2及部分门禁只有receipt声明、缺原始输出。
-本次在`f18e039`重新复核并保全[实际Mac门禁账本](evidence/p2-linux-20261005/integration-preflight.json)，
+本次在`f18e039`重新复核并保全[实际Mac门禁账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/integration-preflight.json)，
 覆盖两测试5项、v2回归20项、5266payload验证、fmt/对应Clippy/尺寸/docs521页与37checker tests。
 工具身份、命令、exit和原始字节hash均关联，不把云端日志冒充Mac，也不重建初次0.009s记录。
 此补证不重跑十组成本采样，不接受预算；最新main/PR/最终归档/merge/main仍待真实交付。
 
 最新main `18b89e5`在实际15/15 CI及独立产物核验后合入0277，原三提交保留。
-[接入复验](evidence/p2-linux-20261005/main-integration.json)记录精确merge源码的Mac两目标5项、
+[接入复验](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/main-integration.json)记录精确merge源码的Mac两目标5项、
 严格Clippy/fmt及政策/文档/尺寸等九门禁实际成功；新PR head双宿主与最终交付仍待。
 
 0277精确实现head08e266b的PR55 CI37263936116实际15/15通过，两个修复binary在两宿主
-各完整2+3、无忽略/过滤，四项接线政策逐名ok；原始验收见[PR实现账本](evidence/p2-linux-20261005/pr-initial-ci.json)。
+各完整2+3、无忽略/过滤，四项接线政策逐名ok；原始验收见[PR实现账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/pr-initial-ci.json)。
 实现验收当时已归档、最终归档head与merge/main待；其后真实交付闭环如下。整体P2预算不在本片关闭。
 
 ## PR55 与实际 main 交付闭环（2026-10-05）
@@ -88,6 +88,6 @@ PR55于05:05:38Z合并为`54b36675481c15da8a1f31d9d3185e4b49c83096`，保留原�
 [CI37266255625](https://github.com/Halckon/Koven/actions/runs/37266255625)均15/15实际success，无skip。
 两轮双宿主各两个修复binary完整2+3测试、无ignored/filtered，四项接线政策逐名ok；
 各37条词频和12条preview命令、实际下载candidate所有manifest bytes及producer精确head/tree/clean
-输出已独立核验，见[完整交付账本](evidence/p2-linux-0277-delivery.json)及每轮105份原始字节压缩记录。
+输出已独立核验，见[完整交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-0277-delivery.json)及每轮105份原始字节压缩记录。
 继承0276的31项回归单独记录，macOS既有LLDB ignore仍未执行，不作为通过。
 原Spec与成本包保持冻结；未重采样、未接受预算，12噪声和首启单对调查及旧Mac限制仍开放。

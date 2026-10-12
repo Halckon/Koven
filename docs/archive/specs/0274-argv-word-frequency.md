@@ -163,9 +163,9 @@ M1B-b、M2/M3新增语义和完整M5保留原草稿前置，本片不关闭它�
 两个Targeted Tests实际执行原有bounded composition、31组tutorial合同及新增词频step；
 Linux选定ASan/LSan与双宿主Check/Clippy、两候选producer/独立consumer也成功。
 
-长期证据保存在[CI身份与账本哈希](../../development/evidence/word-frequency-0274/ci.json)、
-[Linux完整命令记录](../../development/evidence/word-frequency-0274/linux-results.json)及
-[macOS完整命令记录](../../development/evidence/word-frequency-0274/macos-results.json)。
+长期证据保存在[CI身份与账本哈希](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/word-frequency-0274/ci.json)、
+[Linux完整命令记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/word-frequency-0274/linux-results.json)及
+[macOS完整命令记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/word-frequency-0274/macos-results.json)。
 测试checkout为合成merge `62459600da9e2cba6f39dea087ab62e2ca62ecfa`，parents是main
 `7262232`与实现`3151690`；其tree `049acd9ed9a4806149b713d334d0ba11819489ba`
 与实现tree完全相同。artifact名称中的合成SHA不能误写成实现head。

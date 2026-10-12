@@ -20,7 +20,7 @@
 
 从 actual main `6575e9069506fbdddcbf7e8cd5e873de91eea5b7` 创建
 `feature/spec-0279`；前置精确 final/main 双宿主证据见
-[0278 交付账本](../../development/evidence/closure-escape-0278/delivery.json)。
+[0278 交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/delivery.json)。
 
 交付 `Array<T>(size, initializer)`、`List<T>(size, initializer)` 在单文件与普通
 compilation-unit 两入口的完整源码→类型/所有权→SSA verifier→LLVM verifier→object/link/run。
@@ -32,7 +32,7 @@ owned move closure。命名 initializer 不被构造消费，临时 initializer 
 `f08feb5af4ce934289f1660780aefb9a64d332bb`，不可改写为 final/main 身份。
 两入口 pointer/shared/helper/resource 等 corrected 用例在 lowering 返回 UnsupportedNode；
 普通 Fn expected 的 move literal 在两前端实际 L0084。初次夹具错误及 shared oracle 修正
-单独保全，见[公共 build 基线收据](../../development/evidence/runtime-constructor-0279/public-baseline/receipt.json)；
+单独保全，见[公共 build 基线收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/public-baseline/receipt.json)；
 这些 build 失败不替代正式分层红测或 native 成功证据。
 
 ## 2. 复用与非目标
@@ -156,7 +156,7 @@ Guide03 正文后登记语言前置冲突；此前“无语义阻塞”的判断
 
 规范迁移独立完整复核通过：16 页完整快照、32 SHA、机械链接及唯一语义变化符合用户决定；
 结构门禁 545 页及 37 项 checker 测试实际通过，原始输出见
-[v0.41 验证收据](../../development/evidence/runtime-constructor-0279/v041/receipt.json)。
+[v0.41 验证收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/v041/receipt.json)。
 规范改动单独提交后继续 E1 实现，不据此关闭 source/native 或 E8。
 
 前端切片：两 checker gate 已对齐已启用 v0.41，expected canonical 与 AST Owned/Move capture
@@ -167,7 +167,7 @@ Copy 不清理、Abort 不展开。两 String/Copy Int 与 iteration ordered/fla
 独立复核了生产 gate、ownership facts、root 修复及 Shared 顺序；额外测试复核后才提交。
 六个完整相关 suite 合计 482 passed、0 failed、0 ignored、0 filtered；
 源码起始 SHA、实际失败/夹具失败、最终 raw 和未关闭范围见
-[前端验收收据](../../development/evidence/runtime-constructor-0279/frontend/receipt.json)。
+[前端验收收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/frontend/receipt.json)。
 `expression.rs` 旧欠账1206→1207，仅 gate 注释增加1行，精确例外登记并独立审阅。
 源码生成、helper、LLVM/native、E8 仍在实施，不以本次前端验收关闭它们。
 
@@ -179,7 +179,7 @@ ConcreteClosure RootReplace/RootSwap 的 OperationContract 拒绝是旧边界，
 门禁后才进入 ownership/content，修后25项新测试通过；旧相关消费者实际通过并补门禁回归。
 尺寸例外锁定 model1349、verify_operation1169、verify_ownership1681、adapter1607、runtime1188，
 新增证明与测试单职责模块均小于1000行。完整 raw、夹具修正、各次选择数量与独立复审见
-[borrowed generator 收据](../../development/evidence/runtime-constructor-0279/borrowed-generator/receipt.json)。
+[borrowed generator 收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/borrowed-generator/receipt.json)。
 这是 E6 的工程子集；两 source/helper/factory 成功目标仍实际 UnsupportedNode，
 E2/E3/E4/E5/E7/E8 尚未关闭，不据此归档本 Spec。
 
@@ -188,14 +188,14 @@ MissingFact；单文件复用已有 canonical find 核心，unit 参数结构构
 4项直接测试涵盖6个正形与2个缺事实对照，实际先失败后通过；unit plan57、single lowering70
 相关回归实际通过，0failed/0ignored。独立未参与作者复核了类型身份、validated边界及旧
 recipe/预算/nested nominal拒绝；原始来源SHA与隔离范围见
-[canonical验收收据](../../development/evidence/runtime-constructor-0279/canonical-callables/receipt.json)。
+[canonical验收收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/canonical-callables/receipt.json)。
 helper concrete ABI和source/native仍未完成；E5保持待验收。
 
 共享引用读取切片：SharedReferenceFollow严格将active Shared Loan(SharedReference<T>)映射为
 Shared Loan(T)，LLVM只读取slot pointer。父/祖先、CFG与provider依赖复用既有合同；两个
 内容证明不从引用槽的空capture推断target闭包内容。7项正式有效红测修后通过，32项borrowed
 相关回归通过（包含这7项），0failed/0ignored；独立非作者复核通过，
-[原始收据](../../development/evidence/runtime-constructor-0279/shared-reference-follow/receipt.json)
+[原始收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/shared-reference-follow/receipt.json)
 保留API编译缺失与两处夹具错误，均不冒充行为红。source/shared/native与一般nested LoanId仍待。
 
 只读 callable 来源切片：两既有 sealed ownership 产物提供 Lambda/真实 Fn 参数/已选定函数/
@@ -205,7 +205,7 @@ FactoryResult 来源及唯一正常无捕获返回摘要；Deferred 不补来源
 31项正式合同与8项审阅边界均包含在374项完整相关回归中，不相加；0failed/0ignored/0filtered。
 专用 target 严格 clippy、全仓格式、尺寸及五crate全target编译检查通过；独立非作者完整复审
 和机械 lint 修正窄复审无未决 finding。共享 target 的缓存编译失败及0.02s缓存 lint不算行为
-或严格门禁通过，原始输出保留在[收据](../../development/evidence/runtime-constructor-0279/callable-provenance/receipt.json)。
+或严格门禁通过，原始输出保留在[收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/callable-provenance/receipt.json)。
 三项精确旧欠账例外锁checker1413、unit1149、dataflow1247，baseline未抬高；实现事实见
 [来源专页](../../architecture/callable-provenance.md)。本片不关闭helper ABI/source/native或PR/main；
 本地故障注入/校准按用户范围只登记未运行。
@@ -216,7 +216,7 @@ helper planner 首批正式旧 API 行为红：single13项5pass8fail、unit8项1
 shared arena使用双key-map与单append-only record Vec，source/callback token严格指向
 先前已reserve记录；3项普通合同通过，独立非作者窄审无finding，不增加预算或runtime值身份。
 两入口完整key/route正在实施，source ABI/native未关闭；原始输出见
-[planner收据](../../development/evidence/runtime-constructor-0279/helper-planner/receipt.json)。
+[planner收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/helper-planner/receipt.json)。
 
 helper planner 切片：两入口完整 callback 槽、owner-qualified 来源、Parameter 转发、pointer
 factory memo 与只读 call 路由已实现；unit driver/static call/thunk 保留并消费同一个 source plan。
@@ -240,7 +240,7 @@ unit lowering回归显式排除3项待实现source目标；6项两入口runtime/
 96个 pointer/Owned 组合已通过源码SSA/LLVM；48个Shared仍InvalidSsa，named CFG intent
 进一步实际定位LoanInactive。guard次序intent已通过，temporary Shared iteration intent仍失败。
 编译可见性错误、修正后all-targets编译成功与各实际失败原始输出均保留在
-[source ABI 收据](../../development/evidence/runtime-constructor-0279/source-abi/receipt.json)。
+[source ABI 收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/source-abi/receipt.json)。
 这仅是源码部分进展；unit D、Shared生命周期、真实native/public CLI及E8仍待，不归档、不提前PR。
 
 后续实际 checkpoint：独立冻结 single 快照的4项runtime均通过，其中144个源码组合SSA/LLVM
@@ -318,8 +318,8 @@ source ABI 逻辑切片最终本地检查点：冻结最新Rust后，8个normal 
 独立run通过；CLI已重新build。codegen/CLI all-targets严格clippy、workspace五crate
 all-targets check、格式、精确尺寸及47项政策测试通过。fresh全审发现和完整消费者回归的
 实际失败都已保全，修复后非作者交叉复审无未决finding；机器检查改动Rust SHA与最终
-门禁输入一致，并解压核对raw SHA。详细边界见[source ABI收据](../../development/evidence/runtime-constructor-0279/source-abi/receipt.json)
-及[独立审阅记录](../../development/evidence/runtime-constructor-0279/source-abi/review.json)。
+门禁输入一致，并解压核对raw SHA。详细边界见[source ABI收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/source-abi/receipt.json)
+及[独立审阅记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/source-abi/review.json)。
 
 本片可作为独立实现提交，Spec仍in-progress：E5已有其他可存储名义/嵌套容器T的更广
 源码native覆盖、最终跨宿主CI/归档/PR/main交付仍待；用户排除的本地安全/注入/校准与
@@ -333,13 +333,13 @@ Array/List、pointer/Shared/Owned 与显式/推断 T。两个测试实际全部�
 借用 verifier 核内层长度1、末元素2/9、外层长度3及callback恰3次；不宣称全部元素内容
 和顺序，也不把无 `leaf` 输出当成零SSA Drop或allocation/free证明。
 独立非作者复审无阻断finding；codegen all-targets严格clippy、格式和精确尺寸检查通过。
-原 source ABI 收据保持冻结，新证据见[E5元素扩展收据](../../development/evidence/runtime-constructor-0279/storable-helpers/receipt.json)。
+原 source ABI 收据保持冻结，新证据见[E5元素扩展收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/storable-helpers/receipt.json)。
 E6普通回归核对与E7/E8远端交付仍待；用户排除的本地检查继续仅登记未执行。
 
 
 2026-10-06 E6 与最终审阅检查点：clean `a65f85f` 上八项 ordinary regression 共82测试通过，
 涵盖旧 static generator、Unit/ZST SSA/LLVM、普通 owned String closure native、borrowed
-生成及0278 closure/type graph；[E6收据](../../development/evidence/runtime-constructor-0279/e6-regression/receipt.json)
+生成及0278 closure/type graph；[E6收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/e6-regression/receipt.json)
 保留精确当时head与原始输出，不升级为后续修复的最终生产证据。
 
 fresh frontend/SSA 与 source ABI 全审分别发现两项实际问题。helper callee entry Borrow
@@ -363,7 +363,7 @@ loan/origin 事实延迟 storage demand 与冻结布局；修复后全部6个不
 
 最终公共两个CLI targets、workspace格式也通过；各入口6组真实build/artifact/CLI run。
 所有最终门禁已核对同一13改动Rust的SHA，所有raw解压SHA一致，
-详见[最终审阅收据](../../development/evidence/runtime-constructor-0279/final-review/receipt.json)。
+详见[最终审阅收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/final-review/receipt.json)。
 E6历史八门禁与16raw经独立核对；CI静态链确认双宿主PR/main→integration→core完整
 选择codegen/CLI，注册的12个native和两个公共CLI child无ignore。但配置可选择仍不是
 远端实际通过，归档及精确final PR/actual main尚待。因最终共享verifier有变化，旧static、
@@ -380,7 +380,7 @@ loan 身份和普通 native 正控；最后一项对象负控改为可达 nested
 不据stdout宣称allocation/free或独立析构计数。严格clippy、fmt和修正尺寸门禁通过；
 native_tests旧欠账1300→1303仅真实拒绝夹具的rustfmt展开，baseline1297未抬高，
 精确例外经非作者复审。全部失败、0-test误选择、夹具失败与正确通过分开保全于
-[CI消费者修正收据](../../development/evidence/runtime-constructor-0279/ci-consumers/receipt.json)。
+[CI消费者修正收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/ci-consumers/receipt.json)。
 
 本地执行范围例外：精确复现旧自然捕获循环测试前漏查对象路径故障钩子，误运行既有
 `emission_failure::Guard`一次；该次注入Backend已记录且已告知用户，不能冒称本轮完全未运行注入。
@@ -404,7 +404,7 @@ E3本片专用overflow/allocation fail注入、E4逐指针allocation/free及本�
 静态unsupported storage、任意callable layout join与一般嵌套LoanId生命周期不自动关闭。
 用户范围调整不代表规范降低或完整M3A/M4完成。
 
-[交付账本](../../development/evidence/runtime-constructor-0279/delivery.json)保全actual source
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/delivery.json)保全actual source
 commit/tree、PR synthetic checkout/parents、逐名命中、完整raw日志及SHA；原本地收据
 继续保存当时head/status，不改写为后续提交。E1–E7批准实现范围与E8独立全审/实现head
 双宿主验收完成，迁移done/archive并同步inventory/DAG。最终归档head CI、合并及actual

@@ -12,7 +12,7 @@
 
 N1a 的 List/View take/drop/dropLast、可信 Borrow receiver 与有界 Int 计数已由 PR72
 实现 head 双宿主证据验收；最终归档 head CI、merge 与 actual main CI 待交付，见
-[0289交付账本](evidence/range-carrier-0289/delivery.json)。下一步先闭合这些交付状态，
+[0289交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/delivery.json)。下一步先闭合这些交付状态，
 再按现行 Guide 与独立合同选择后继；consume、通用 Clone、N1b 仍未启用。
 
 ## 2026-10-04 导航检查点（历史）

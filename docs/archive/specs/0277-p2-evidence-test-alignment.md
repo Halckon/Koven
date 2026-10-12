@@ -62,7 +62,7 @@ v2修复冻结汇总漏报两类首启，仅重算14组/attempt、917条记录�
 2. 应用两测试修复，实际green与定向门禁、事实/账本同步后提交。
 3. 记录第2提交精确SHA及最终验收，独立提交；保持active，未跑新分支CI不归档。
 
-云包原报告/脚本/发布hash的唯一保存处是 [完整证据归档](../../development/evidence/p2-linux-20261005/koven-p2-transfer.tar.gz)。
+云包原报告/脚本/发布hash的唯一保存处是 [完整证据归档](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/koven-p2-transfer.tar.gz)。
 接收、解包、复核入口见 [本机接收说明](../../development/p2-linux-cost-transfer.md)。
 云base精确CI37248672159及云全量1704 passed仅是原SHA/宿主证据，不冒充Mac全量或新分支CI。
 
@@ -75,7 +75,7 @@ v2修复冻结汇总漏报两类首启，仅重算14组/attempt、917条记录�
 | `git apply --check <云format-patch>` | passed；两文件在Mac/cloud基线间逐字节无变化 |
 | `cargo test --locked --offline -j 2 -p lang-frontend --test parser_long_invalid_number_boundaries --test parser_token_inventory --no-fail-fast`（修改前） | red：2 passed/2 failed，exit101，0 ignored/measured/filtered；默认unoptimized+debuginfo；编译13.03s |
 | `PYTHONDONTWRITEBYTECODE=1 python3 <归档解包根>/test_summarize_v2.py` | Mac passed：20项，0 failed/skip；0.009s；不写pycache、不重采样 |
-| 同两目标选择green（默认profile，进程内清除`CARGO_PROFILE_*`） | Mac passed：5 passed/0 failed/ignored/measured/filtered，exit0，编译0.83s；[实际日志](../../development/evidence/p2-linux-20261005/mac-green.log)、[命令与口径](../../development/evidence/p2-linux-20261005/mac-green.json) |
+| 同两目标选择green（默认profile，进程内清除`CARGO_PROFILE_*`） | Mac passed：5 passed/0 failed/ignored/measured/filtered，exit0，编译0.83s；[实际日志](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/mac-green.log)、[命令与口径](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/mac-green.json) |
 | `cargo fmt --all -- --check` | passed，exit0；未运行格式化写入 |
 | `cargo clippy --locked --offline -j 2 -p lang-frontend --test parser_long_invalid_number_boundaries --test parser_token_inventory -- -D warnings` | passed，exit0，4.37s；只选择受影响两个测试目标 |
 | `python3 scripts/check_rust_sizes.py --base 2be64066a2011bb07a31bd68f9ac7441ab5a4baf` | passed：781手写Rust/45历史超限/0生成登记；两文件504→579、380→396，未新增/修改例外或baseline |
@@ -103,7 +103,7 @@ v2修复冻结汇总漏报两类首启，仅重算14组/attempt、917条记录�
 | Mac材料/范围提交 | `9c08a666c97336b260a6382d0f6e3594e69e54e8` |
 | Mac修复/验收提交 | `550d540e27e1a174c7a5ba6917b383a186b136fa`；两测试文件及测试delta与云修复相同，不宣称整树或commit SHA相同 |
 
-[机器接收/映射记录](../../development/evidence/p2-linux-20261005/receipt.json)与本表一致。
+[机器接收/映射记录](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/receipt.json)与本表一致。
 最终账本提交独立保存本表及实际验证。所有本地提交作者halckon `<halckon0@hotmail.com>`。
 本机可复核材料与有界修复已交付；未合main、未push/PR；成本接受及新分支CI未执行，状态保持in-progress。
 
@@ -119,7 +119,7 @@ v2修复冻结汇总漏报两类首启，仅重算14组/attempt、917条记录�
 Clippy、尺寸和docs仅有receipt声明，分支内未保存其原始门禁输出；云日志不补作Mac原始记录。
 
 本次在精确`f18e0391a85ed60e75d48da5f56dc4103d96884c`重新验证，并保存
-[交付前Mac复核账本](../../development/evidence/p2-linux-20261005/integration-preflight.json)：
+[交付前Mac复核账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/integration-preflight.json)：
 两测试5passed/0failed/ignored/filtered、v2回归20passed/0failed/skip、transfer verifier5266payload、
 fmt及受影响严格Clippy、docs521页/37checker tests、尺寸护栏均实际通过。原始输出无损gzip，
 各项保存argv/cwd/exit/工具身份、压缩及原始SHA；Rust测试使用独立target、默认profile。
@@ -136,7 +136,7 @@ fmt及受影响严格Clippy、docs521页/37checker tests、尺寸护栏均实际
 
 实际接线绿测：`python3 -m unittest scripts.tests.test_check_ci_results scripts.tests.test_recovery_gates`
 初次33passed/0failed/skip；`bash -n scripts/check_stage_integration.sh`通过。红绿原始输出、exit、
-选择数和被测working diff指纹见[CI选择验收](../../development/evidence/p2-linux-20261005/ci-selection.json)。
+选择数和被测working diff指纹见[CI选择验收](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/ci-selection.json)。
 Python接线harness不冒充双宿主Rust运行，实际五项命中仍待PR CI。
 
 独立接线审阅发现仅排除` -- `不能阻止Cargo的裸`TESTNAME`过滤。新增反例先得到
@@ -151,7 +151,7 @@ Python接线harness不冒充双宿主Rust运行，实际五项命中仍待PR CI�
 六处冲突仅为索引/DAG，索引保留incoming最新事实及0277 active，图由脚本生成；
 独立窄审确认262份archive/ADR0028完整、两测试与CI接线字节不变，生产代码未增改。
 
-精确接入提交的[Mac复验账本](../../development/evidence/p2-linux-20261005/main-integration.json)
+精确接入提交的[Mac复验账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/main-integration.json)
 保存九项顺序运行的argv/cwd/exit与无损raw/hash。实际两目标2+3passed，0failed/ignored/filtered；
 对应严格Clippy、fmt、CI政策34项、docs checker37项、docs523页、尺寸及shell/diff检查均exit0。
 Rust沿独立target/default profile，清除`CARGO_PROFILE_*`；未进行成本采样或M4b实际校准。
@@ -169,7 +169,7 @@ Rust沿独立target/default profile，清除`CARGO_PROFILE_*`；未进行成本�
 继承0276回归15codegen+4private frontend+12integration继续逐全名通过；这是前置能力回归，
 不冒充本片新增生产代码。Linux codegen871/0ignore、macOS870/1既有LLDB权限ignore保留。
 各宿主实际候选全部manifest bytes、37词频/12preview完整命令输出、sourcehead/tree/clean
-checkpoints已独立核验，raw/hash及job/artifact身份见[精确PR验收](../../development/evidence/p2-linux-20261005/pr-initial-ci.json)。
+checkpoints已独立核验，raw/hash及job/artifact身份见[精确PR验收](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/pr-initial-ci.json)。
 
 证据、词法测试对齐与CI覆盖的实现验收完成，迁移done/archive并同步inventory/DAG；
 冻结§6–10的原始接收和后续复核历史。最终归档head CI及merge/main仍待实际交付，后续

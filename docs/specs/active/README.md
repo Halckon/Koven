@@ -4,24 +4,26 @@
 
 当前 0 份 active。
 
+[SPEC-0302](../../archive/specs/0302-evidence-retention.md) 已按 PR76 实现 head 完整 CI 有界归档；最终归档 head、merge 与 actual main 仍待验证。
+
 0296 owned nullable具名/临时结果cleanup已按[PR75](https://github.com/Halckon/Koven/pull/75)实现head
 双宿主每host55项codegen与25项Map frontend有界验收归档；最终归档head/merge/main仍待交付，
-见[0296账本](../../development/evidence/owned-null-cleanup-0296/delivery.json)。保留single for与普通nullable工厂边界。
+见[0296账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/delivery.json)。保留single for与普通nullable工厂边界。
 
 0295 两遍 argv Map 词频应用已按 [PR74](https://github.com/Halckon/Koven/pull/74) 实现 head
 双宿主各 40 条公开命令及通用回归有界归档；最终归档 head CI、merge、main 待交付，见
-[交付账本](../../development/evidence/map-word-frequency-0295/delivery.json)。只关闭 M3B K-H 应用 Goal。
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/delivery.json)。只关闭 M3B K-H 应用 Goal。
 
 0294 的 Map.put key/value return 有界修复已按 [PR73](https://github.com/Halckon/Koven/pull/73)
 实现 head 双宿主 CI 归档；同步 main 后的最终归档 head/merge/main 仍待交付，见
-[交付账本](../../development/evidence/map-put-return-0294/delivery.json)。不扩大一般 CFG 或 loop 退出。
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-put-return-0294/delivery.json)。不扩大一般 CFG 或 loop 退出。
 
 0289 的 N1a 有界 Goal 已按 [PR72](https://github.com/Halckon/Koven/pull/72) 实现 head
 双宿主直接证据验收归档；最终归档 head CI 已通过并合为 `3f976798`，actual main CI 尚待完成，见
-[交付账本](../../development/evidence/range-carrier-0289/delivery.json)。归档不扩展既有 CFG
+[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/delivery.json)。归档不扩展既有 CFG
 能力门，也不启用 consume、通用 Clone 或 N1b。
 
-0290（PR69 交付回归修复）已按 [PR71](https://github.com/Halckon/Koven/pull/71) 实现 head 双宿主 CI 验收归档；最终归档 head、合并 `6667635` 与 actual main CI 已验证，见[交付账本](../../development/evidence/pr69-repair-0290/delivery.json)。0289 的实现验收与最终交付独立记录。
+0290（PR69 交付回归修复）已按 [PR71](https://github.com/Halckon/Koven/pull/71) 实现 head 双宿主 CI 验收归档；最终归档 head、合并 `6667635` 与 actual main CI 已验证，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/pr69-repair-0290/delivery.json)。0289 的实现验收与最终交付独立记录。
 
 0293（PR 普通文档追加提交复用真实代码 CI）已按 [PR #70](https://github.com/Halckon/Koven/pull/70) 首轮真实完整 CI 与追加文档复用验收归档至 `docs/archive/specs/0293-pr-code-ci-reuse.md`；已合并为 `56af80b`，合并后 main CI 单独跟踪。
 
@@ -43,19 +45,19 @@
 
 0280（`MutableList.add` 顺序追加与动态扩容）已按双宿主实现验收归档至 `docs/archive/specs/0280-mutable-list-add.md` 并通过 PR #59 合入 main。
 
-0279按[PR57](https://github.com/Halckon/Koven/pull/57)双宿主实现验收与用户限定范围归档；最终归档head/merge/main待交付，见[账本](../../development/evidence/runtime-constructor-0279/delivery.json)。
+0279按[PR57](https://github.com/Halckon/Koven/pull/57)双宿主实现验收与用户限定范围归档；最终归档head/merge/main待交付，见[账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/delivery.json)。
 
-0278按[PR56](https://github.com/Halckon/Koven/pull/56)双宿主实现验收归档；最终归档head、merge及actual main CI已闭环，见[交付账本](../../development/evidence/closure-escape-0278/delivery.json)。
+0278按[PR56](https://github.com/Halckon/Koven/pull/56)双宿主实现验收归档；最终归档head、merge及actual main CI已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/delivery.json)。
 
-0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终归档head及actual main已闭环，见[交付账本](../../development/evidence/p2-linux-0277-delivery.json)。
+0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终归档head及actual main已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-0277-delivery.json)。
 
 0269 的 M4b 有界资源程序首片已验收归档；实现审阅与双宿主原始证据见
-[交付证据](../../development/evidence/generated-owners-0269-delivery.json)，
+[交付证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generated-owners-0269-delivery.json)，
 最终归档 head、merge 与 main CI 交付记录见 [PR48](https://github.com/Halckon/Koven/pull/48)。
 
-0276已按[PR54](https://github.com/Halckon/Koven/pull/54)归档并合并为18b89e5；最终head必需14job成功、编辑器合法skip，actual main实际15/15成功，见[交付闭环账本](../../development/evidence/generic-body-0276-delivery.json)。
+0276已按[PR54](https://github.com/Halckon/Koven/pull/54)归档并合并为18b89e5；最终head必需14job成功、编辑器合法skip，actual main实际15/15成功，见[交付闭环账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276-delivery.json)。
 
-0275已由[PR53](https://github.com/Halckon/Koven/pull/53)合并为2be6406；最终归档CI37252410423必需14job成功、编辑器合法skip，main CI37253329605实际15/15成功。双宿主新增测试命中、完整词频/preview原始证据与source身份见[交付闭环账本](../../development/evidence/generic-containers-0275-delivery.json)。
+0275已由[PR53](https://github.com/Halckon/Koven/pull/53)合并为2be6406；最终归档CI37252410423必需14job成功、编辑器合法skip，main CI37253329605实际15/15成功。双宿主新增测试命中、完整词频/preview原始证据与source身份见[交付闭环账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-containers-0275-delivery.json)。
 
 0274已按[PR52](https://github.com/Halckon/Koven/pull/52)双宿主实现证据归档；最终归档head cdb9cba的CI37247799491已15/15成功，并合并为c5c4a8d。
 

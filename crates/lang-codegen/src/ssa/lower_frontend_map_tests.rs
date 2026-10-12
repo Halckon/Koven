@@ -224,9 +224,8 @@ fn map_remove_single_for_guarded_owner_boundary_is_explicit() {
     use lang_frontend::ownership_checking::{
         CleanupOwnerValue, DropTarget, IterationCleanupAction, LoanTarget,
     };
-    let source = include_str!(
-        "../../../../docs/development/evidence/owned-null-cleanup-0296/single-loop-boundary.ko"
-    );
+    let source =
+        include_str!("../../tests/fixtures/owned-null-cleanup-0296/single-loop-boundary.ko");
     let analysis = analyze(source);
     assert!(analysis.typed.diagnostics().is_empty());
     assert!(analysis.owned.diagnostics().is_empty());

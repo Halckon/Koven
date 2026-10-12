@@ -81,10 +81,10 @@ iteration 生产 commit `c6a480e8eb4d1019494b7b01cac6a569f0c5bb79`；unit planne
 | iteration | 1876 → 275 | graph374、state527、incoming766 | 38函数正文逐字节相同；45完整item仅28项已枚举可见性及3签名末尾逗号变化；30测试/回放文件不变 |
 | unit planner | 2651 → 735 | routes798、concrete160、preflight408、validation649 | 35函数+1枚举逐字迁移；10保留顶层函数逐字相同；实际新根与子模块逆向重建原文件字节；215既有codegen文件不变 |
 
-[iteration 逐项证据](evidence/iteration-production-migration.json)与
-[只读复核器](evidence/check_iteration_production_migration.py)固定基底、逐项限制归一，
-不忽略路径或算法 token；独立完整函数体比较另锁全部正文。unit planner 的[逐项证据](evidence/unit-planner-responsibility-equivalence.json)
-与[只读复核器](evidence/unit-planner-responsibility-equivalence.py)核实际逆向重建及18项可见性变化。
+[iteration 逐项证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/iteration-production-migration.json)与
+[只读复核器](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/check_iteration_production_migration.py)固定基底、逐项限制归一，
+不忽略路径或算法 token；独立完整函数体比较另锁全部正文。unit planner 的[逐项证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/unit-planner-responsibility-equivalence.json)
+与[只读复核器](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/unit-planner-responsibility-equivalence.py)核实际逆向重建及18项可见性变化。
 737 个既有 Rust/Cargo/CI 文件 hash 保持，仅两原入口改变；新 Rust 文件恰为七个职责模块。
 完整 frontend library187、codegen library770 身份前后相同，metadata 完整 JSON 字节相同、142 targets。
 旧过滤器仍分别命中 iteration93 与 planner48，无新增 target、test、ignore 或依赖。
@@ -112,7 +112,7 @@ Cargo 严格串行，无 clean 或另建 target。Cargo 命令均 `--locked --of
 field_replace/nullable_when/primitives/rc/resource_deinit/structural/two_phase_borrows，
 multifile_type_checking/ownership_checking/constant_facts/constant_ownership/two_phase_borrows，
 owned_compilation_unit_view、const_owned_compilation_unit_view、basic_unit_ownership、guide_litmus。
-命令、34次完整target执行（1743 passed）及每项身份hash记录于[统一验收证据](evidence/ownership-planning-milestone.json)；该数不包含前后窄测。
+命令、34次完整target执行（1743 passed）及每项身份hash记录于[统一验收证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/ownership-planning-milestone.json)；该数不包含前后窄测。
 
 codegen 完整测试覆盖真实 native object/link/run、资源 drop/alloc/free、ELF/DWARF、输出原子性，
 0255 的实际递归依赖护栏也扫描新 unit_plan 子树。不是只检查编译或 planner 数量。

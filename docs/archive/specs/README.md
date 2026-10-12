@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 281 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 282 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -391,11 +391,11 @@
 
 - [SPEC-0276](0276-unit-generic-body-type-normalization.md)：普通泛型body具体类型发布、有限预算/DAG及native消费者适配经双宿主实现CI验收；最终归档/main闭环待。
 
-- [SPEC-0277](0277-p2-evidence-test-alignment.md)：完整Linux P2证据接收、现行词法测试对齐及79项CI组合，经双宿主实际实现CI验收；最终head及actual main已闭环，见[交付账本](../../development/evidence/p2-linux-0277-delivery.json)，整体P2成本预算未接受。
+- [SPEC-0277](0277-p2-evidence-test-alignment.md)：完整Linux P2证据接收、现行词法测试对齐及79项CI组合，经双宿主实际实现CI验收；最终head及actual main已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-0277-delivery.json)，整体P2成本预算未接受。
 
-- [SPEC-0278](0278-borrowed-closure-escape-verification.md)：typed SSA owned escape校验及当前内容证明，经PR56双宿主45项新增测试和完整消费者验收；最终归档head、merge及actual main CI已闭环，见[交付账本](../../development/evidence/closure-escape-0278/delivery.json)。完整M3A及嵌套LoanId生命周期未关闭。
+- [SPEC-0278](0278-borrowed-closure-escape-verification.md)：typed SSA owned escape校验及当前内容证明，经PR56双宿主45项新增测试和完整消费者验收；最终归档head、merge及actual main CI已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/delivery.json)。完整M3A及嵌套LoanId生命周期未关闭。
 
-- [SPEC-0279](0279-runtime-length-container-native.md)：运行时长度Array/List完整两源码入口、具体callable/helper与普通native路径；按PR57双宿主实现验收及用户限定范围归档，定向注入/计数未执行；最终归档head/merge/main见[交付账本](../../development/evidence/runtime-constructor-0279/delivery.json)。
+- [SPEC-0279](0279-runtime-length-container-native.md)：运行时长度Array/List完整两源码入口、具体callable/helper与普通native路径；按PR57双宿主实现验收及用户限定范围归档，定向注入/计数未执行；最终归档head/merge/main见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/delivery.json)。
  
 - [SPEC-0280](0280-mutable-list-add.md)：MutableList 顺序追加与动态扩容；在单文件与多文件编译单元两入口完整交付，通过前端类型/独占借用/ASAP drop 检查、SSA ContainerAppend 原语与 verifier、LLVM 动态缓冲区翻倍扩容与 MoveOnly 元素逆序析构 zero-leak 验证。
  
@@ -420,12 +420,14 @@
 
 - [SPEC-0293](0293-pr-code-ci-reuse.md)：同一 PR 的普通文档追加提交复用真实代码 CI；精确绑定身份、base 与 Git 输入，实际 required jobs 证据和最终独立复核已由 PR #70 验证。
 
-- [SPEC-0290](0290-pr69-regression-repair.md)：PR69 四项代码回归、CI 选择与 N1a 事实/批准边界按 PR71 实现 head 双宿主 CI 验收；0289 独立 active，最终归档 head/merge/main 见[交付账本](../../development/evidence/pr69-repair-0290/delivery.json)。
+- [SPEC-0290](0290-pr69-regression-repair.md)：PR69 四项代码回归、CI 选择与 N1a 事实/批准边界按 PR71 实现 head 双宿主 CI 验收；0289 独立 active，最终归档 head/merge/main 见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/pr69-repair-0290/delivery.json)。
 
-- [SPEC-0289](0289-n1a-range-carrier.md)：N1a 单来源范围 descriptor、List/View take/drop/dropLast、可信 Borrow receiver、有界 typed Int 计数与 native 清理；按 PR72 实现 head 双宿主证据验收，最终归档 head/merge/main 待交付，见[交付账本](../../development/evidence/range-carrier-0289/delivery.json)。
+- [SPEC-0289](0289-n1a-range-carrier.md)：N1a 单来源范围 descriptor、List/View take/drop/dropLast、可信 Borrow receiver、有界 typed Int 计数与 native 清理；按 PR72 实现 head 双宿主证据验收，最终归档 head/merge/main 待交付，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/delivery.json)。
 
-- [SPEC-0294](0294-map-put-control-exit.md)：Map.put key/value return 的 reservation、Diverged 与 MoveOnly key 前缀清理；按 PR73 实现 head 双宿主 20 新增+9既有测试验收，最终归档 head/merge/main 待交付，见[交付账本](../../development/evidence/map-put-return-0294/delivery.json)。
+- [SPEC-0294](0294-map-put-control-exit.md)：Map.put key/value return 的 reservation、Diverged 与 MoveOnly key 前缀清理；按 PR73 实现 head 双宿主 20 新增+9既有测试验收，最终归档 head/merge/main 待交付，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-put-return-0294/delivery.json)。
 
-- [SPEC-0295](0295-map-argv-word-frequency.md)：M3B K-H 两遍 argv Map 词频应用、通用 Copyable nullable→Borrow 交接；按 PR74 实现 head 双宿主各40公开命令及4+20+13定向回归验收，最终归档 head/merge/main 见[交付账本](../../development/evidence/map-word-frequency-0295/delivery.json)。
+- [SPEC-0295](0295-map-argv-word-frequency.md)：M3B K-H 两遍 argv Map 词频应用、通用 Copyable nullable→Borrow 交接；按 PR74 实现 head 双宿主各40公开命令及4+20+13定向回归验收，最终归档 head/merge/main 见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/delivery.json)。
 
-- [SPEC-0296](0296-owned-null-comparison-cleanup.md)：owned nullable具名最后判空与临时结果清理；按PR75实现head双宿主每host55项codegen与25项Map frontend有界归档，剩余平台/能力边界及最终交付见[0296账本](../../development/evidence/owned-null-cleanup-0296/delivery.json)。
+- [SPEC-0296](0296-owned-null-comparison-cleanup.md)：owned nullable具名最后判空与临时结果清理；按PR75实现head双宿主每host55项codegen与25项Map frontend有界归档，剩余平台/能力边界及最终交付见[0296账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/delivery.json)。
+
+- [SPEC-0302](0302-evidence-retention.md)：历史原始验收产物退出当前树、7 个最小输入原字节迁移、短索引及保留护栏；PR76 实现 head 完整 CI 通过，最终归档 head/merge/main 待验证。

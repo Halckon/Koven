@@ -14,6 +14,8 @@
 | 新增/修改诊断、错误码、Span、机器输出 | [诊断规范](diagnostics.md) |
 | 复用开源方案或新增/升级依赖 | [依赖治理](dependencies.md) |
 
+[历史证据索引](evidence/README.md)：按需追溯固定提交中的旧验收；原始产物保留规则见测试文档。
+
 ## 有界迁移验收
 
 - [手写 Rust 尺寸护栏](rust-size-policy.md)：真实base增长比较、历史baseline、例外与生成物登记
