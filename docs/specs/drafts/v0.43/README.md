@@ -25,14 +25,14 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 ## 2026-10-11 后继合同
 
-用户已确认实施顺序0297→0300→0299/0298；0297已按PR78有界归档，0298–0300
+用户已确认实施顺序0297→0300→0299/0298；0297已按PR78有界归档，0300已独立激活；0298/0299
 保留draft并由各自独立Spec分支维护，不继承上方2026-10-08首片授权，不启用范围外语义。
 原本地起草与普通源码结论见[核对摘要](../../../archive/migrations/pr72-74-followup-audit.md)。
 
 - [0297 Map key return清理](../../../archive/specs/0297-map-key-return-cleanup.md)：查询/删除的出口传播与前缀清理；break/continue仍在本片之外。
 - [0298 范围绑定局部条件组合](0298-range-binding-local-control-flow.md)：按对应有界Goal独立激活与验收。
 - [0299 owned Map result只读借用](0299-owned-map-result-borrow.md)：按对应有界Goal独立激活与验收。
-- [0300 single Map-for条件清理运输](0300-single-map-loop-owner-carry.md)：按对应有界Goal独立激活与验收。
+- [0300 single Map-for条件清理运输](../../active/0300-single-map-loop-owner-carry.md)：已从0297合并后的main独立激活，限定正常耗尽。
 
 ## 未编号的现行支持候选
 
