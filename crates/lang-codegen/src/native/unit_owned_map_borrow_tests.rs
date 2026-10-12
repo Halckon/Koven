@@ -40,8 +40,17 @@ fn owned_map_borrow_native_same_source_core() {
 #[test]
 fn owned_map_borrow_native_prefix_scopes_missing_and_resource_lifetime() {
     for unit in [false, true] {
+        for payload in ["String", "Text", "Resource"] {
+            run(&cases::missing(payload, false), b"missing\nend\n", unit);
+        }
+        run(
+            &cases::independent_map(),
+            b"value\nvalue\nvalue\nend\n",
+            unit,
+        );
         for (source, expected) in [
             (cases::PAIR, "prefix\nvalue\nvalue\nvalue\n"),
+            (cases::BORROWED_PREFIX, "prefix\nvalue\nvalue\nvalue\n"),
             (
                 cases::SCOPES,
                 "first\nsecond\nfirst\nsecond\nfirst\nsecond\n",
@@ -82,18 +91,21 @@ fn owned_map_borrow_native_last_use_and_separate_inline_read_helpers() {
 }
 #[test]
 fn owned_map_borrow_native_missing_assertion_has_defined_abort() {
-    let run = emit_link_and_run("owned-map-missing.ko", cases::ABORT, "entry");
-    assert!(!run.status.success());
-    assert!(run.stdout.is_empty());
-    let (provider, entry) = cases::ABORT.split_once("fun entry()").unwrap();
-    for constants in [false, true] {
-        let (run, _) = run_unit(
-            &format!("package p\n{provider}"),
-            &format!("package q\nimport p.*\nfun entry(){entry}"),
-            constants,
-        );
+    for payload in ["String", "Text", "Resource"] {
+        let source = cases::missing(payload, true);
+        let run = emit_link_and_run("owned-map-missing.ko", &source, "entry");
         assert!(!run.status.success());
         assert!(run.stdout.is_empty());
+        let (provider, entry) = source.split_once("fun entry()").unwrap();
+        for constants in [false, true] {
+            let (run, _) = run_unit(
+                &format!("package p\n{provider}"),
+                &format!("package q\nimport p.*\nfun entry(){entry}"),
+                constants,
+            );
+            assert!(!run.status.success());
+            assert!(run.stdout.is_empty());
+        }
     }
 }
 

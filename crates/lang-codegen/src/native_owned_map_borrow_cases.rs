@@ -108,3 +108,42 @@ pub(crate) fn inline_explicit_clone() -> String {
         "println(value.text.clone())",
     )
 }
+
+pub(crate) fn missing(payload: &str, assert_non_null: bool) -> String {
+    let source = if assert_non_null {
+        core(payload, true)
+    } else {
+        last_use(payload)
+    };
+    source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("values.put("))
+        .map(|line| {
+            if !assert_non_null && line.contains("observe((removed)) }") {
+                format!("{line} else {{ println(\"missing\") }}")
+            } else {
+                line.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub(crate) fn independent_map() -> String {
+    core("String", true).replace(
+        "val removed = values.remove(1)",
+        "val removed = values.remove(1)\n values.put(1, \"replacement\".clone())",
+    )
+}
+
+pub(crate) const BORROWED_PREFIX: &str = r#"
+fun pair(prefix: String, first: String, second: String) { println(prefix); println(first); println(second) }
+fun exercise(prefix: String) {
+ var values = mutableMapOf<Int, String>()
+ values.put(1, "value".clone())
+ val removed = values.remove(1)
+ if ((removed != null)) { pair(prefix, removed, (removed)) }
+ println(removed!!)
+}
+fun entry() { exercise("prefix") }
+"#;
