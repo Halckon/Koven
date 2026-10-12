@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [0300 single Map-for条件清理运输](0300-single-map-loop-owner-carry.md)：非Resource具名Map在顺序for正常耗尽下的有界owner运输；从0297合并后的main独立实施。
+[0300 single Map-for条件清理运输](../../archive/specs/0300-single-map-loop-owner-carry.md)已按PR79实现head双宿主各19项新增测试及完整CI有界归档；只覆盖正常耗尽，最终归档head CI、merge与actual main仍待验证。
 
 [0297 Map key return清理](../../archive/specs/0297-map-key-return-cleanup.md)已按PR78精确实现head双宿主各42项新增测试及完整CI有界归档；最终归档head CI、merge与actual main仍待验证。
 

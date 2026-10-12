@@ -1,10 +1,10 @@
 # SPEC-0300: single for 中 Map guarded owner 运输
 
-> **性质**：已批准变更合同 · **状态**：in-progress · **读取时机**：准备单文件for外层Map owner运输时 · **唯一真源**：本页的有界交付范围；语义以Guide为准
+> **性质**：已批准变更合同 · **状态**：done · **读取时机**：准备单文件for外层Map owner运输时 · **唯一真源**：本页的有界交付范围；语义以Guide为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0300` |
 | 所属 Phase | Phase 3 cleanup事实消费、Phase 4 single SSA/native |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[for生命周期](../../guide/12-collections-destructuring.md#373-source-loan退出清理与冲突) |
@@ -107,3 +107,41 @@ lineage；同symbol不是owner证明，缺binding或carrier必须报错。provid
 尺寸审阅：`lower_frontend.rs` 1481行、`native/unit_tests.rs` 1937行，各增加2行（记录字段/
 模块注册），另一审阅者已审查，均低于既有1525/2030上限；未提高cap或宣称旧尺寸债清零。
 新生产helper分别283/354行，orchestrate 995行。
+
+## 6. PR79 实现验收与有界归档
+
+§1–5保留本地实施检查点原文，包括当时未发布、未运行和待闭环的状态；本节追加后续事实，
+不将历史观察改写为重跑。2026-10-12，PR79实现CI成功后，仅按正常耗尽Goal有界归档。
+
+| 项目 | 精确输入与实际结果 |
+|---|---|
+| PR / 实现head | [PR79](https://github.com/Halckon/Koven/pull/79)，`e4839e9b8eee79c902d82c5c74a7a1f613ffc6c4` |
+| tree / base | tree `8ae8c40c5c6ba7755aa4b33deb9421e00a4f8f5e`；base `003f1299f817f6c903f3f450c73ba32e222ce5ba` |
+| CI输入 | [run38252847134](https://github.com/Halckon/Koven/actions/runs/38252847134)，attempt1，pull_request；synthetic `ac2be0f3e24de1e8cbf8449ccb37bbe95e84dcb7`的父为base/实现head，tree与实现head相同 |
+| 实现CI终态 | 2026-10-12 13:19:18 UTC completed/success；15实体job成功，唯一Tree-sitter因`editors=false`合法skip；`reuse=false`，代码与preview实际运行 |
+| Linux新增选择 | [Targeted Tests](https://github.com/Halckon/Koven/actions/runs/38252847134/job/114824878258)：19个新增测试逐名各一次ok，7普通native、6源码SSA正例、6静态边界；旧测`map_remove_single_for_guarded_owner_is_carried`也ok |
+| macOS新增选择 | [Targeted Tests](https://github.com/Halckon/Koven/actions/runs/38252847134/job/114824878418)：同19新+1旧逐名ok，无0300 ignored |
+| 完整codegen目标 | Linux 1332通过/0失败/0ignored；macOS 1331通过/0失败/1旧ignored，唯一LLDB断点测试因CI缺debugserver task-port权限；不是0300跳过 |
+| 其他门禁 | 直接依赖、变更检测、双宿主Check/严格Clippy、Docs/Fmt/尺寸均成功；[CI Passed](https://github.com/Halckon/Koven/actions/runs/38252847134/job/114830121283)及[Code CI Evidence](https://github.com/Halckon/Koven/actions/runs/38252847134/job/114830121295)独立确认必需jobs成功 |
+| preview链 | 双宿主producer均针对上述实现head；Linux artifact `11748734876`与macOS `11749585824`分别由[Linux consumer](https://github.com/Halckon/Koven/actions/runs/38252847134/job/114829237685)/[macOS consumer](https://github.com/Halckon/Koven/actions/runs/38252847134/job/114829738195)实际下载、安装并通过 |
+
+Code CI Evidence v1绑定上述PR/head/base/synthetic，代码输入摘要为
+`12b0992971ffa9c8a3d2c2e8796311595d417d8ae3d2eaaf7f42af3b295bb3b1`。
+macOS Targeted中的两条Linux-only sanitizer运行/保存步骤依平台条件合法跳过，
+不构成macOS动态检测通过。普通stdout与SSA/verifier的唯一消费、drop时序责任分开；
+远端通用检测通过也不自动成为0300专属分配计数或完整内存安全证明。
+
+每宿主19项来自`check_integration.sh`→`check_core.sh`的完整lang-codegen目标，
+本地99项定向回归存在SSA重叠，11项provider是另一次本地选择，不能相加为CI新增计数。
+远端六提交采用实际发布metadata；本地终点`ae69eb409351fc3160465638a9db408b088a55dd`
+与上述远端head的完整tree相同，本次归档直接续在真实远端head之后。
+完整原始日志、发布映射、payload/bundle和CI收据保留仓外，不把原始JSON/log加入仓库。
+
+§3全部未覆盖组合继续保留，Resource owner、一般snapshot/closure、额外Abort guard、
+break/continue/return、连续/嵌套seed、返回Map调用seed、RangeView均不因归档扩大支持，
+也不被改写为Guide禁令；0298/0299保持draft。
+本次归档只移动合同、更新两处状态、索引/inventory和生成DAG，并追加本节；生产、测试、
+fixture、Guide与原有实施正文保持原字节。本地归档只运行静态检查，不重跑Cargo或动态验证。
+归档静态验收通过：651页文档、docs/DAG 42项、DAG重复生成稳定与暂存diff检查；
+独立审阅核验CI身份、逐名命中、合法skip和原文保全，无阻塞。
+最终归档head CI、merge与actual-main CI仍待另验，本收据不提前声称它们已通过。
