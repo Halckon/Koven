@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0294](../../archive/specs/0294-map-put-control-exit.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) |
 | 关联 ADR | 无新增；若需要改变 ABI，先形成独立决定 |
-| 阻塞项 | 本地定向检查已通过；最终独立审查、远端发布与生命周期另行闭环 |
+| 阻塞项 | 本地定向检查与独立审查已通过；远端发布与生命周期另行闭环 |
 | 影响范围 | `lang-codegen` Map lowering、直接测试与实现事实 |
 | 语言语义变更 | 否；不启用新 Guide |
 
@@ -118,5 +118,8 @@ Resource值覆盖owned contains/remove。以上不是完整笛卡尔积或逐指
 未运行macOS、远端CI、全库/聚合驱动、fault injection、校准、损坏IR、reducer或sanitizer；
 不扩大普通调用、loop/Elvis及其他Guide能力。Spec保持active，发布、归档与合并未执行。
 
-代码head `77b476fa` 的独立静态审查未发现阻塞；最终文档复核待登记。接收基线main CI
+独立审查覆盖代码head `77b476fa` 和文档head `7b6f930aa109e831d341ef87e53421bd969dce68`，
+无阻塞；独立重跑文档650页、`python3 -m unittest scripts.tests.test_check_docs scripts.tests.test_gen_spec_dag -q`
+的42项（41 docs + 1 DAG）、尺寸及diff检查均通过。0302规则/fixture、0303归档/proposals、
+Guide/compiler contracts及0298–0300保持原字节；本轮仅追加此收据与索引状态。接收基线main CI
 [38219409371](https://github.com/Halckon/Koven/actions/runs/38219409371)仍待终态核验，不算0297的CI。
