@@ -118,6 +118,7 @@ impl ExpressionLowerer<'_> {
             }
         };
 
+        let preheader = self.block;
         let snapshot = crate::ssa::provider::snapshot(
             self.function,
             self.block,
@@ -306,6 +307,12 @@ impl ExpressionLowerer<'_> {
             _ => unreachable!(),
         };
 
+        self.record_map_loop_carriers(
+            statement,
+            [preheader, header_block, body_block, exit_block],
+            &carried,
+            span,
+        )?;
         self.block = body_block;
         self.bindings = self.rebind_linear_bindings(&baseline, body_block, &carried, span)?;
 
@@ -476,6 +483,7 @@ impl ExpressionLowerer<'_> {
             })
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         self.emit_iteration_exit_plan(exhaustion_exit, span)?;
+        self.finish_map_loop_carriers(statement, span)?;
 
         let context = self.loops.pop().expect("for loop context must be balanced");
         let mut exits = context.breaks;

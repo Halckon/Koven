@@ -19,15 +19,11 @@ fun removeLive(keys: Array<Int>): Unit {
         val present = removed != null
         if (present) { println("present") } else { println("missing") }
     }
-    if (keys.size == 0) {
-        if (!cache.contains(1)) { error("zero-iteration owner lost") }
-    } else {
-        if (cache.contains(1)) { error("removed entry returned") }
-    }
+    if (cache.contains(1)) { println("retained") } else { println("removed") }
     cache.put(2, "tail".clone())
-    if (!cache.contains(2)) { error("post-loop put lost") }
+    if (cache.contains(2)) { println("tail present") } else { println("tail missing") }
     val tail = cache.remove(2)
-    if (tail == null) { error("post-loop remove lost") }
+    if (tail != null) { println("tail removed") } else { println("tail missing") }
     println("live")
 }
 
@@ -35,8 +31,7 @@ fun putDead(keys: Array<Int>): Unit {
     var words = mutableMapOf<String, Text>()
     for (key in keys) {
         words.put("key".clone(), Text("value".clone()))
-        if (!words.contains("key")) { error("loop put lost") }
-        if (key == 1) { println("put") }
+        if (words.contains("key")) { println("put") } else { println("missing put") }
     }
     println("dead")
 }
@@ -45,16 +40,11 @@ fun putLive(keys: Array<Int>): Unit {
     var words = mutableMapOf<String, Text>()
     for (key in keys) {
         words.put("key".clone(), Text("value".clone()))
-        if (!words.contains("key")) { error("loop put lost") }
-        if (key == 1) { println("put") }
+        if (words.contains("key")) { println("put") } else { println("missing put") }
     }
-    if (keys.size == 0) {
-        if (words.contains("key")) { error("zero-iteration entry appeared") }
-    } else {
-        if (!words.contains("key")) { error("post-loop owner lost") }
-    }
+    if (words.contains("key")) { println("retained") } else { println("empty") }
     words.put("tail".clone(), Text("tail".clone()))
-    if (!words.contains("tail")) { error("post-loop put lost") }
+    if (words.contains("tail")) { println("tail present") } else { println("tail missing") }
     println("live")
 }
 

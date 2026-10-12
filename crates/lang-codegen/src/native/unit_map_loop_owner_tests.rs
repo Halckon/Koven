@@ -7,9 +7,9 @@ const ORIGINAL: &str =
 const NORMAL: &str = include_str!("../../tests/fixtures/map-loop-owner-0300/normal-exhaustion.ko");
 const EXPECTED: &str = concat!(
     "dead\npresent\ndead\npresent\nmissing\nmissing\ndead\n",
-    "live\npresent\nlive\npresent\nmissing\nmissing\nlive\n",
+    "retained\ntail present\ntail removed\nlive\npresent\nremoved\ntail present\ntail removed\nlive\npresent\nmissing\nmissing\nremoved\ntail present\ntail removed\nlive\n",
     "dead\nput\ndead\nput\nput\nput\ndead\n",
-    "live\nput\nlive\nput\nput\nput\nlive\n",
+    "empty\ntail present\nlive\nput\nretained\ntail present\nlive\nput\nput\nput\nretained\ntail present\nlive\n",
 );
 
 #[test]

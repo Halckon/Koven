@@ -1,0 +1,354 @@
+//! Check actual SSA owner provenance independently of the source binding name.
+use std::collections::{BTreeMap, BTreeSet};
+
+use super::super::{
+    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, control::LinearBindings,
+    error,
+};
+use super::{OwnerPlan, owner_plan, unique};
+use crate::ssa::model::{
+    BlockId, Definition, Edge, EntityId, Function, Operation, Origin, TerminatorKind, ValueId,
+};
+use lang_frontend::{
+    ast::StatementId,
+    name_resolution::SymbolId,
+    ownership_checking::{CleanupOwnerValue, DropFact},
+    source::Span,
+};
+
+struct Carrier {
+    plan: OwnerPlan,
+    preheader: BlockId,
+    header_block: BlockId,
+    body_block: BlockId,
+    exhaustion_block: BlockId,
+    slot: usize,
+    entry: ValueId,
+    header: ValueId,
+    body: ValueId,
+    exhaustion: ValueId,
+    exit_live_checked: bool,
+    drops: Vec<ValueId>,
+}
+
+#[derive(Default)]
+pub(in super::super) struct Carriers {
+    parameter_seeds: BTreeMap<SymbolId, ValueId>,
+    loops: Vec<Carrier>,
+}
+
+impl Carriers {
+    pub(in super::super) fn new(bindings: &BTreeMap<SymbolId, LoweredValue>) -> Self {
+        Self {
+            parameter_seeds: bindings
+                .iter()
+                .filter_map(|(&symbol, binding)| match binding {
+                    LoweredValue::Value(value) => Some((symbol, *value)),
+                    _ => None,
+                })
+                .collect(),
+            loops: Vec::new(),
+        }
+    }
+}
+
+impl ExpressionLowerer<'_> {
+    pub(in super::super) fn record_map_loop_carriers(
+        &mut self,
+        statement: StatementId,
+        blocks: [BlockId; 4],
+        carried: &LinearBindings,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for fact in self.owned.drops() {
+            let Some(plan) = owner_plan(self.typed, self.owned, *fact)
+                .filter(|plan| plan.statement == statement)
+            else {
+                continue;
+            };
+            if self.thunk_expression.is_some()
+                || self
+                    .map_loop_owners
+                    .loops
+                    .iter()
+                    .any(|carrier| carrier.plan.header == plan.header)
+            {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let (slot, binding) = unique(
+                carried
+                    .slots
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, slot)| slot.symbol == Some(plan.symbol)),
+            )
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let EntityId::Value(entry) = binding.source else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            let parameter = |block| {
+                self.function
+                    .block(block)
+                    .and_then(|block| block.parameters.get(slot))
+                    .and_then(|entity| match entity {
+                        EntityId::Value(value) => Some(*value),
+                        _ => None,
+                    })
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+            };
+            let [preheader, header_block, body_block, exhaustion_block] = blocks;
+            let [header, body, exhaustion] = [
+                parameter(header_block)?,
+                parameter(body_block)?,
+                parameter(exhaustion_block)?,
+            ];
+            if [header, body, exhaustion].into_iter().any(|value| {
+                self.function
+                    .entity(EntityId::Value(value))
+                    .map(|entity| entity.ty)
+                    != Some(binding.ty)
+            }) {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            self.map_loop_owners.loops.push(Carrier {
+                plan,
+                preheader,
+                header_block,
+                body_block,
+                exhaustion_block,
+                slot,
+                entry,
+                header,
+                body,
+                exhaustion,
+                exit_live_checked: false,
+                drops: Vec::new(),
+            });
+        }
+        Ok(())
+    }
+
+    pub(in super::super) fn finish_map_loop_carriers(
+        &mut self,
+        statement: StatementId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for carrier in self
+            .map_loop_owners
+            .loops
+            .iter_mut()
+            .filter(|carrier| carrier.plan.statement == statement)
+        {
+            // The SSA exhaustion parameter still denotes Header until the ordered cleanup ends.
+            let binding = self.bindings.get(&carrier.plan.symbol).copied();
+            let valid = if carrier.plan.exit_live {
+                binding == Some(LoweredValue::Value(carrier.exhaustion)) && carrier.drops.is_empty()
+            } else {
+                binding.is_none() && carrier.drops.as_slice() == [carrier.exhaustion]
+            };
+            if carrier.exit_live_checked || !valid {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            carrier.exit_live_checked = true;
+        }
+        Ok(())
+    }
+
+    pub(in super::super) fn record_map_loop_drop(
+        &mut self,
+        fact: DropFact,
+        value: ValueId,
+    ) -> Result<(), LoweringError> {
+        if fact.condition().is_none()
+            || super::super::constant_presence::constant_drop(self.typed, self.owned, fact)
+        {
+            return Ok(());
+        }
+        let plan = owner_plan(self.typed, self.owned, fact)
+            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, fact.value_origin()))?;
+        let carrier = self
+            .map_loop_owners
+            .loops
+            .iter_mut()
+            .find(|carrier| {
+                carrier.plan.header == plan.header
+                    && carrier.plan.exit == plan.exit
+                    && carrier.plan.drop == fact
+            })
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.value_origin()))?;
+        let valid_phase = if plan.exit_live {
+            carrier.exit_live_checked
+        } else {
+            !carrier.exit_live_checked
+                && self.block == carrier.exhaustion_block
+                && value == carrier.exhaustion
+        };
+        if !valid_phase || !carrier.drops.is_empty() {
+            return Err(error(LoweringErrorKind::MissingFact, fact.value_origin()));
+        }
+        carrier.drops.push(value);
+        Ok(())
+    }
+
+    pub(in super::super) fn validate_map_loop_carriers(&self) -> Result<(), LoweringError> {
+        for carrier in &self.map_loop_owners.loops {
+            let span = carrier.plan.drop.value_origin();
+            let fail = || error(LoweringErrorKind::MissingFact, span);
+            if !carrier.exit_live_checked || carrier.drops.len() != 1 {
+                return Err(fail());
+            }
+            let seed = match self
+                .owned
+                .cleanup_conditions()
+                .owner_value(carrier.plan.seed)
+            {
+                Some(CleanupOwnerValue::Expression { expression, origin }) => {
+                    // A constructor is a real owner definition; same-typed operands are not seeds.
+                    if self.typed.map_construction(*expression).is_none()
+                        || self.expression_span(*expression)? != *origin
+                    {
+                        return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                    }
+                    unique(self.function.instructions.iter().filter_map(|instruction| {
+                        if instruction.origin == Origin::Source(*origin)
+                            && matches!(instruction.operation, Operation::MapConstruct { .. })
+                        {
+                            match instruction.results.first() {
+                                Some(EntityId::Value(value)) => Some(*value),
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        }
+                    }))
+                    .ok_or_else(fail)?
+                }
+                Some(CleanupOwnerValue::Parameter { symbol, .. }) => *self
+                    .map_loop_owners
+                    .parameter_seeds
+                    .get(symbol)
+                    .ok_or_else(fail)?,
+                _ => return Err(fail()),
+            };
+            if !lineage(self.function, carrier.entry, seed) {
+                return Err(fail());
+            }
+            let header_inputs =
+                incoming(self.function, carrier.header_block, carrier.slot).ok_or_else(fail)?;
+            if header_inputs.len() != 2 {
+                return Err(fail());
+            }
+            let entry = unique(
+                header_inputs
+                    .iter()
+                    .filter(|(block, _)| *block == carrier.preheader),
+            )
+            .ok_or_else(fail)?;
+            let back = unique(
+                header_inputs
+                    .iter()
+                    .filter(|(block, _)| *block != carrier.preheader),
+            )
+            .ok_or_else(fail)?;
+            if entry.1 != carrier.entry
+                || !lineage(self.function, back.1, carrier.body)
+                || incoming(self.function, carrier.body_block, carrier.slot).ok_or_else(fail)?
+                    != [(carrier.header_block, carrier.header)]
+                || incoming(self.function, carrier.exhaustion_block, carrier.slot)
+                    .ok_or_else(fail)?
+                    != [(carrier.header_block, carrier.header)]
+                || !lineage(self.function, carrier.drops[0], carrier.exhaustion)
+            {
+                return Err(fail());
+            }
+        }
+        Ok(())
+    }
+}
+
+fn incoming(function: &Function, target: BlockId, index: usize) -> Option<Vec<(BlockId, ValueId)>> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            let edges: Vec<&Edge> = match block.terminator.as_ref().map(|term| &term.kind) {
+                Some(TerminatorKind::Branch(edge)) => vec![edge],
+                Some(TerminatorKind::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                }) => vec![when_true, when_false],
+                Some(TerminatorKind::NullableBranch {
+                    when_null,
+                    when_non_null,
+                    ..
+                }) => vec![when_null, when_non_null],
+                _ => Vec::new(),
+            };
+            edges
+                .into_iter()
+                .filter(move |edge| edge.target == target)
+                .map(move |edge| match edge.arguments.get(index) {
+                    Some(EntityId::Value(value)) => Some((block.id, *value)),
+                    _ => None,
+                })
+        })
+        .collect()
+}
+
+fn lineage(function: &Function, value: ValueId, seed: ValueId) -> bool {
+    fn visit(
+        function: &Function,
+        value: ValueId,
+        seed: ValueId,
+        visiting: &mut BTreeSet<ValueId>,
+        proven: &mut BTreeSet<ValueId>,
+    ) -> bool {
+        if value == seed || proven.contains(&value) {
+            return true;
+        }
+        // Unanchored cycles are not evidence. The expected loop is cut only at its checked carrier.
+        if !visiting.insert(value) {
+            return false;
+        }
+        let valid = match function
+            .entity(EntityId::Value(value))
+            .map(|entity| entity.definition)
+        {
+            Some(Definition::InstructionResult {
+                instruction,
+                index: 0,
+            }) => {
+                match function
+                    .instruction(instruction)
+                    .map(|instruction| &instruction.operation)
+                {
+                    Some(Operation::MapPut { owner, .. } | Operation::MapRemove { owner, .. }) => {
+                        visit(function, *owner, seed, visiting, proven)
+                    }
+                    _ => false,
+                }
+            }
+            Some(Definition::BlockParameter { block, index }) => incoming(function, block, index)
+                .is_some_and(|sources| {
+                    !sources.is_empty()
+                        && sources
+                            .into_iter()
+                            .all(|(_, value)| visit(function, value, seed, visiting, proven))
+                }),
+            _ => false,
+        };
+        visiting.remove(&value);
+        if valid {
+            proven.insert(value);
+        }
+        valid
+    }
+    visit(
+        function,
+        value,
+        seed,
+        &mut BTreeSet::new(),
+        &mut BTreeSet::new(),
+    )
+}

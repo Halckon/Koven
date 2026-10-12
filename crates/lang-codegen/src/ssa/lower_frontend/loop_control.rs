@@ -407,6 +407,14 @@ impl ExpressionLowerer<'_> {
         use lang_frontend::ownership_checking::{DropTarget, IterationCleanupAction as Action};
         match action {
             Action::Drop(fact) => {
+                if fact.condition().is_some()
+                    && !super::map_loop_owner::supported_drop(self.typed, self.owned, *fact)
+                {
+                    return Err(error(
+                        LoweringErrorKind::UnsupportedNode,
+                        fact.value_origin(),
+                    ));
+                }
                 let owner = match fact.target() {
                     DropTarget::Named(symbol) => {
                         if let Some(loan) = self.non_null_bindings.remove(&symbol) {
@@ -418,6 +426,16 @@ impl ExpressionLowerer<'_> {
                         }
                         match self.bindings.remove(&symbol) {
                             Some(LoweredValue::Value(value)) => value,
+                            _ if fact.condition().is_some()
+                                && !super::constant_presence::constant_drop(
+                                    self.typed, self.owned, *fact,
+                                ) =>
+                            {
+                                return Err(error(
+                                    LoweringErrorKind::MissingFact,
+                                    fact.value_origin(),
+                                ));
+                            }
                             _ => return Ok(()),
                         }
                     }
@@ -430,6 +448,7 @@ impl ExpressionLowerer<'_> {
                     },
                     _ => return Ok(()),
                 };
+                self.record_map_loop_drop(*fact, owner)?;
                 self.append(Operation::Drop { owner }, Vec::new(), fact.value_origin())?;
                 self.release_owner_capture_loans(owner, fact.value_origin())?;
             }

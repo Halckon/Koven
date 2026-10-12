@@ -16,6 +16,7 @@ mod instances;
 mod integer;
 mod loop_control;
 mod map;
+mod map_loop_owner;
 mod map_require;
 mod map_result;
 mod map_with;
@@ -93,6 +94,7 @@ fn return_values(
 }
 
 struct ExpressionLowerer<'a> {
+    map_loop_owners: map_loop_owner::Carriers,
     parsed: &'a ParsedFile,
     names: &'a NameResolution,
     typed: &'a TypedFile,

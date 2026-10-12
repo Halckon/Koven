@@ -225,7 +225,7 @@ fn map_remove_temporary_null_comparison_inspects_real_drop_facts() {
 }
 
 #[test]
-fn map_remove_single_for_guarded_owner_boundary_is_explicit() {
+fn map_remove_single_for_guarded_owner_is_carried() {
     use lang_frontend::ownership_checking::{
         CleanupOwnerValue, DropTarget, IterationCleanupAction, LoanTarget,
     };
@@ -279,15 +279,13 @@ fn map_remove_single_for_guarded_owner_boundary_is_explicit() {
             .is_resource_type(analysis.typed.symbol_type(symbol).unwrap()),
         Some(false)
     );
-    let error = lower_scalar_file(
+    let program = lower_scalar_file(
         &analysis.sources,
         &analysis.parsed,
         &analysis.names,
         &analysis.typed,
         &analysis.owned,
     )
-    .err()
-    .expect("guarded owner has no single-file carrier");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert_eq!(error.span, Some(guarded.value_origin()));
+    .expect("the guarded owner has a verified normal-exhaustion carrier");
+    crate::llvm::render_verified_program(&program).unwrap();
 }

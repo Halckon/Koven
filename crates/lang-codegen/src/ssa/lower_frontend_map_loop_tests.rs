@@ -93,13 +93,77 @@ fn single_map_loop_normal_exhaustion_preserves_dead_and_live_owners() {
         &analysis.typed,
         &analysis.owned,
     )
-    .unwrap();
+    .unwrap_or_else(|error| {
+        panic!(
+            "{error:?}; guarded={:?}; plans={:?}",
+            analysis
+                .owned
+                .drops()
+                .iter()
+                .filter(|fact| fact.condition().is_some())
+                .collect::<Vec<_>>(),
+            analysis.owned.iterations()
+        )
+    });
     crate::llvm::render_verified_program(&program).unwrap();
 }
 
 #[test]
 fn unit_map_loop_normal_source_is_an_independent_control() {
     assert_unit_lowers(NORMAL);
+}
+
+#[test]
+fn single_map_loop_abort_guard_combination_remains_explicit() {
+    let source = include_str!("../../tests/fixtures/map-loop-owner-0300/guarded-abort-boundary.ko");
+    assert_guarded_boundary(source);
+}
+
+#[test]
+fn single_map_loop_control_exits_remain_explicit() {
+    for exit in ["break", "continue", "return"] {
+        let source = format!(
+            "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ cache.put(key, \"value\".clone()); if (key == 1) {{ {exit} }} }}; cache.contains(1) }}"
+        );
+        assert_guarded_boundary(&source);
+    }
+}
+
+#[test]
+fn single_map_loop_replaced_seed_remains_explicit() {
+    let source = "fun main(): Unit { var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) { cache = mutableMapOf<Int, String>(); cache.put(key, \"value\".clone()) }; cache.contains(1) }";
+    assert_guarded_boundary(source);
+}
+
+fn assert_guarded_boundary(source: &str) {
+    let analysis = analyze(source);
+    assert!(
+        analysis.typed.diagnostics().is_empty(),
+        "{:?}",
+        analysis.typed.diagnostics()
+    );
+    assert!(
+        analysis.owned.diagnostics().is_empty(),
+        "{:?}",
+        analysis.owned.diagnostics()
+    );
+    let error = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .err()
+    .expect("unproved owner selection must remain explicit");
+    assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
+    assert!(
+        analysis
+            .owned
+            .drops()
+            .iter()
+            .any(|fact| fact.condition().is_some() && Some(fact.value_origin()) == error.span)
+    );
 }
 
 fn assert_unit_lowers(source: &str) {
