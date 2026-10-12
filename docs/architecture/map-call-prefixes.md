@@ -28,7 +28,7 @@ CallReturn事实。清理时沿用同一owner的alias退休规则，不留下已
 直接SSA测试核对真实receiver call/argument、reservation与return drop，检查完全退出
 时目标get/contains/remove指令和后缀调用为零，并生成未改写LLVM。普通native覆盖String key复用、
 Resource前缀/Map值、get/contains借用参数、temporary/grouped receiver一次求值与清理，
-以及存在零值、缺失和无Map对照。实际命令与结果见[0297账本](../specs/active/0297-map-key-return-cleanup.md)。
+以及存在零值、缺失和无Map对照。实际命令与结果见[0297账本](../archive/specs/0297-map-key-return-cleanup.md)。
 
 get仍只查询Copyable V；remove仍要求Inout权限。Resource没有因此成为Hashable key。
 Borrow receiver原生正例为MutableMap<String, Int>参数；temporary/grouped receiver只覆盖
