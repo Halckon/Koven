@@ -26,7 +26,7 @@ Copyable 非 nullable V 的查询/删除使用 Module 登记的 `{Boolean presen
 verifier 核对 presence、payload 所有权与注册身份，拒绝裸 V、未登记同形 aggregate 和 MoveOnly 复制。
 缺失返回 false 与零初始化 payload；已存 0/false 保持 true。null 比较读取 presence，等值比较同时
 检查 presence 和值；窄化与 `!!` 受检 Copy 提取，缺失才 Abort。unit 签名先登记 reachable 结果类型。
-两入口的窄化 Borrow 实参核对 typed non-null 的 source/root、声明/窄化类型、注册 payload 和
+两入口的 Copyable 窄化 Borrow 实参核对 typed non-null 的 source/root、声明/窄化类型、注册 payload 和
 Copyable 后复制 inner，建立短时 shared place/loan，保留原 nullable binding，不重解释 aggregate。
 不扩大 MoveOnly 提取、普通 inline nullable ABI 或 entry 借用。查询结束清理 receiver/key；前序 owner 的控制转移义务不变。
 
@@ -37,7 +37,7 @@ payload view 使用入口栈槽，不产生隐式 Box；verifier 封闭普通 ag
 field/place/loan 对 owned 结果的绕过。Resource class 仍使用现行 pointer-niche nullable ABI，
 删除结果保持 lexical 生命周期，并到达原隐藏 deinit。单文件只允许 typed Map 描述符
 已登记的 nullable 结果绕过普通 Resource 包装拒绝，未启用无 Map 的 Resource? 参数。两条 drop planner 与活跃性路径
-按 typed Map put 描述符消费下标赋值的 K/V，并保护 receiver 和已求值参数至交付点。
+按 typed Map put 描述符消费下标赋值的 K/V，并保护 receiver 和已求值参数至交付点。非消费 Borrow、owner/proof与storage首片见[owned Map结果借用](map-owned-result-borrow.md)。
 
 ## requireValue 的真实 receiver 与槽位借用
 

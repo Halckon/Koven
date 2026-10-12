@@ -11,7 +11,7 @@
 | 批准依据 | 2026-10-12按已确认0300→0299/0298顺序，从真实main `08c6b8dc` 在独立 `fix/spec-0299` 分支本地实施；发布与CI另行确认 |
 | 前置 Spec | [SPEC-0295](../../archive/specs/0295-map-argv-word-frequency.md)、[SPEC-0296](../../archive/specs/0296-owned-null-comparison-cleanup.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0017](../../adr/accepted/0017-nullable-handle-ssa-abi.md) |
-| 阻塞项 | 非消费payload place/proof、真实owner关联及调用期loan事实须先证明 |
+| 阻塞项 | 首片本地已验收；嵌套prefix等后继及发布/CI尚未完成 |
 | 影响范围 | 两入口窄化Map结果的Borrow实参、SSA/verifier直接消费者 |
 | 语言语义变更 | 否；不启用新nullable表示或借用语法 |
 
@@ -57,26 +57,48 @@ Copyable Int/Boolean/value class保留原桥。消费式 `!!` 只作借用完成
 
 ## 5. 最小验收与交付
 
-- [ ] single/unit分别建立具名remove结果窄化Borrow的普通源码红测，区分现有成功路径与真正缺口。
-- [ ] String、MoveOnly、Resource及Copyable对照的SSA/verifier、未改写LLVM和正常native验证；
+- [x] single/unit分别建立具名remove结果窄化Borrow的普通源码红测，区分现有成功路径与真正缺口。
+- [x] 冻结首片的String、MoveOnly、Resource及Copyable对照的SSA/verifier、未改写LLVM和正常native验证；
   新增MoveOnly payload的非消费Borrow路径不得出现Copy/Clone/retain或消费式NullableTake；
   Copyable对照保留既有合法复制桥，不要求重写为同一实现。
-- [ ] 同一非空结果连续两次Borrow后再合法消费或scope清理；独立可观察资源事件无提前/重复析构。
-- [ ] 缺失、错误窄化、借用期间冲突/逃逸及MoveOnly get保持拒绝；原Copyable桥和0296判空回归保持。
-- [ ] 独立分支按红测→最小实现→直接回归→Architecture/验收推进；正式发布和CI另行闭环。
+- [x] 同一非空结果连续两次Borrow后再合法消费或scope清理；独立可观察资源事件无提前/重复析构。
+- [x] 缺失、错误窄化、借用期间冲突/逃逸及MoveOnly get保持拒绝；原Copyable桥和0296判空回归保持。
+- [x] 独立分支按红测→最小实现→直接回归→Architecture/本地首片验收推进；正式发布和CI另行闭环。
 
 ## 6. 唯一验收账本
 
 基线 `08c6b8dcbb8e69f20a7dd82bbd0426b0df97c4c9`（tree `3b081d41227420bd61ca7751436d24147923d4aa`）。
 0300已由PR79合并；其actual-main CI [38259510177](https://github.com/Halckon/Koven/actions/runs/38259510177)
-启动时pending，不作为0299验收。本片尚未运行功能验证；以下逐项登记真实结果。
+启动时pending，不作为0299验收。以下是本地首片真实结果，正式发布及CI未在本片认领。
 
 | 验收项 | 测试目标/过滤器 | 实际结果 |
 |---|---|---|
-| plain/group single/unit普通源码基线 | 待建立定向测试 | 未运行 |
-| String/inline MoveOnly/Resource非消费proof与清理 | 待红测后确定 | 未运行 |
-| Copyable及0296/0297/0300直接回归 | 按受影响合同选择 | 未运行 |
-| 文档/格式/静态检查与独立审查 | 待实际执行 | 未运行 |
+| plain/group single/unit普通源码基线 | 初版 `owned_map_borrow_`，生产未改 | 12例：single plain三种表示3通过；其余9失败。String/inline为source-located UnsupportedNode，Resource为InvalidSsa；均先通过frontend |
+| 独立Resource native基线 | `owned_map_borrow_resource_plain_native_baseline_probe`，detached真实main仅加入测试 | 0/1；两借用输出空行、!!后value，见§7；修后同测通过 |
+| 首片正反与结构合同 | `cargo test --locked -p lang-codegen --lib owned_map_borrow_ -- --nocapture` | 23测试通过：12核心同源SSA、范围/缺失矩阵及根追溯/drop/pending断言、16项前端负例、3项unit边界源码、7个普通native测试组 |
+| 两入口真实读取/清理 | 同上；unit native普通与constant、SourceUnitInput源文件正反排列 | String/Resource真实字段，两借用后!!、三种表示missing与定义Abort、最后使用/Resource词法drop通过；inline核心与辅助读严格分列，见§7 |
+| 非Map nullable adapter旧路径 | `native_tests::nullable_class_box_and_rc_sources_link_run_and_release` exact | 1通过；包含Rc.share/value。新测试另含非Map class字段读后!!与single Resource loop静态proof槽重入 |
+| 0296/临时判空回归 | `owned_null_cleanup` / `temporary_null_cleanup` | 14 / 9通过 |
+| 0297/0300回归 | `map_key_return` / `map_loop` | 42 / 19通过 |
+| Copyable旧桥与词频应用 | `map_word_frequency` | 4通过；含single/unit通用get/remove窄化Borrow |
+| 文档/格式/静态检查 | `cargo fmt --all -- --check`；`cargo clippy --locked -p lang-codegen --all-targets -- -D warnings`；docs/size/diff | 全通过；docs 652页，size以真实main为基线并保留历史债务 |
+| 非作者审查 | 多轮定位result-source/裸receiver gate与SharedOwner分流；逐层核HeapOwner slot/loop结束点、完整production diff、测试oracle及范围 | 已修审查发现；最终只读复审无新增阻塞。审查者未运行测试，动态结果由实际日志独立登记 |
+
+前端负例区分阶段：MoveOnly get为type L0136；无proof、错误edge、作用域已结束及另一symbol为
+L0084；已消费owner为ownership L0131，先借后move为L0135，callee消费Borrow为L0133，
+两入口均有真实Span。unit合法源码但本片越界的Borrow-return、requireValue key、container index
+分别为source-located UnsupportedNode；不把它们写成语言禁止。
+
+single `control.rs` 1277→1296行是既有超限文件的19行有界接线（透明Group查询及原condition清理）；
+独立审阅保留原状态机，不为本片机械切片。unit CFG重绑按完整职责迁至`cfg/rebind.rs`，旧suffix=0
+合同不变，只有新proof入口接受经精确验证的单后缀。
+
+### 尚未完成，不由首片通过关闭
+
+- [ ] 特殊receiver的key/index/element等嵌套同步调用：先封闭所有裸局部prefix运输，再独立真实红绿验收。
+- [ ] Borrow/Carrier结果及borrow val、一般nullable来源/temporary/字段/loop等原草案广义候选按案例重新冻结。
+- [ ] inline unit显式receiver字段与single相应成员调用callee旧边界；本片辅助读取不表示这些旧缺口已修复。
+- [ ] 正式发布、双宿主CI和合并闭环。本地首片完成不等于SPEC0299广义目标全部完成或可归档。
 
 不运行fault injection、calibration、sanitizer、reducer、aggregate drivers或畸形IR/runtime注入。
 普通stdout不替代完整泄漏或内存安全证明；正式发布、双宿主CI及合并不在本地完成声明内。
@@ -103,3 +125,7 @@ inline 核心同源 callee 仅输出标签，验收仅证明真实 Shared call p
 不把标签宣称为借入 payload 读取。独立辅助读取分别核 single 显式 receiver 的 Int 字段、unit 的 `this` 方法；
 两入口另用源码显式 `value.text.clone()` 读取 String 字段，区分源码显式 clone 与桥隐式复制。
 unit 直接 `value.n` / `value.text` 与 single `value.number()` 的既有 callee lowering 缺口作为后继保留，未认领修复。
+
+附加非Map class字段回归使用两次Borrow后的显式`!!`，该普通源码确实通过。
+删去后续消费的另一非Map class候选在本轮仍止于lowering的`InvalidSsa`；没有将其归因于此次adapter、
+没有修改一般nullable最后使用路径，也没有把这个候选计入通过验收或宣称它已修复。
