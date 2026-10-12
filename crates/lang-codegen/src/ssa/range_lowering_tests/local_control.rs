@@ -3,6 +3,12 @@ use super::*;
 
 #[path = "local_control_support.rs"]
 mod support;
+
+#[path = "local_control_assertions.rs"]
+mod assertions;
+
+#[path = "local_control_ownership.rs"]
+mod ownership;
 use support::{Pipeline, lower, run_unmodified};
 
 #[derive(Clone, Copy, Debug)]
@@ -90,6 +96,7 @@ fun main():Unit{{scan(2);scan(4)}}
         panic!("comparison result must be a value")
     };
     assert_eq!(module.type_kind(ty), Some(&SsaTypeKind::Boolean));
+    assertions::comparison_lifetime(&program, comparison_span, position);
     run_unmodified(&program, entry, &label, expected);
 }
 
@@ -184,8 +191,10 @@ fun main():Unit{scan(true);scan(false)}
 
 fn if_case(pipeline: Pipeline) {
     let label = format!("{pipeline:?}-if-both-arms");
-    let (program, entry) =
-        lower(IF_SOURCE, "if(flag){read(part)}else{read(part)}", pipeline).require_success(&label);
+    let lowered = lower(IF_SOURCE, "if(flag){read(part)}else{read(part)}", pipeline);
+    let branch_span = lowered.expected_span;
+    let (program, entry) = lowered.require_success(&label);
+    assertions::if_transport(&program, branch_span, 1);
     run_unmodified(
         &program,
         entry,

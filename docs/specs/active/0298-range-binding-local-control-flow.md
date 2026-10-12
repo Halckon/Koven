@@ -34,7 +34,12 @@ Binary/If/When/Return和while/loop仍可被拒绝。因此binding前、存活期
 本次冻结首片先选择真实Int的`==`与`<`，分别核对双操作数Int、结果Boolean；
 其余比较运算符不批量开放。随后只接同根、两arm正常完成的statement-if：显式词法scope
 内保持描述符及来源loan，合流后继续读取，在scope结束后恢复root消费权限。
-不从最后一次read猜结束，不开放条件来源或跨branch一般NLL。若所选if需要新ABI或一般
+不从最后一次read猜结束，不开放条件来源或跨branch一般NLL。
+具体白名单为直接Block内完整if、显式双ControlBody，各arm仅Owned Unit调用语句；
+该scope每个直接borrow声明均须为同一精确origin的新descriptor、有source continuation、
+唯一`AfterStatement(scope)`结束事实，且先于if。if整个子树的调用仅接Owned
+Int/Boolean/Unit结果；Name、literal、Group、Prefix、普通Member及已批准Int Binary可用。
+nullable断言、传播、索引、cast、插值、lambda及嵌套CFG不在首片；循环内新if也不开放。若所选if需要新ABI或一般
 NLL，暂停请求独立决定。普通借用结果/借用已有metadata绑定的整函数门禁保持不变。
 
 实施基线为actual main `4eb38d74f85b36dbac09f4c947f4c1ee762adbaa`，tree
@@ -62,8 +67,8 @@ while/loop及更广循环组合继续作为后继候选；`break`/`continue`并�
 | 验收项 | 测试目标/选择 | 实际结果 |
 |---|---|---|
 | 两入口Int ==/<三位置、typed Int/Boolean与精确首拒绝 | `ssa::range_lowering_tests::local_control::`的18项比较 | 红测提交`fb6e8c67`的18/18均在精确Span拒绝；最小实现后同选择18/18通过SSA/verifier与未改写LLVM/native（每项运行真/假） |
-| 同根双正常arm if逐边descriptor/root/source-loan与scope终止 | 同模块3项`if_both_arms` | 真实红测3/3均在完整if精确Span返回UnsupportedNode；尚未实施 |
-| String/MoveOnly/Resource正常native与结束后权限恢复 | 待选择 | 未运行 |
+| 同根双正常arm if逐边descriptor/root/source-loan与scope终止 | 同模块3项`if_both_arms` | 红测提交`fb6e8c67`的3/3均在完整if精确Span拒绝；最小实现后3/3通过，另9项同根父子兄弟通过双边/合流identity与cleanup断言 |
+| String/MoveOnly/Resource正常native与结束后权限恢复 | `local_control::`30项（18比较+3 if+9 payload） | 30/30通过真实SSA/verifier、未改写LLVM/正常native；每例执行两个条件值 |
 | 0289五运算/前缀退出、普通borrow/alias边界、0299严格proof suffix与0300回归 | `scalar_counts::`5项普通源码 | 5/5通过（含定义Abort、其余比较及普通borrow/alias拒绝）；前缀/0299/0300待运行 |
 | fmt、codegen严格clippy、docs/尺寸/diff与独立review | 待执行 | 未运行 |
 

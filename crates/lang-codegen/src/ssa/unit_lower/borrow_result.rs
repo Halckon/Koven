@@ -72,12 +72,44 @@ pub(super) fn validate(
                 .flatten()
             })
             .collect::<Vec<_>>();
+        let scope = crate::ssa::borrow_result_support::range_scope(
+            file,
+            fact.marker_span(),
+            |marker, scope| {
+                let expected_end = UnitDropPoint::AfterStatement(
+                    lang_frontend::type_checking::UnitStatementId::new(
+                        fact.binding().source_unit(),
+                        scope,
+                    ),
+                );
+                let Some(other) = owned
+                    .borrow_results()
+                    .bindings()
+                    .iter()
+                    .find(|other| other.marker_span() == marker)
+                else {
+                    return false;
+                };
+                let mut ends = owned
+                    .borrow_results()
+                    .ends()
+                    .iter()
+                    .filter(|end| end.binding() == other.binding());
+                other.storage()
+                    == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor
+                    && other.origin() == fact.origin()
+                    && other.source_loan().is_some()
+                    && ends.next().is_some_and(|end| end.point() == expected_end)
+                    && ends.next().is_none()
+            },
+        );
         crate::ssa::borrow_result_support::binding(
             file,
             fact.marker_span(),
             fact.storage()
                 == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor,
             &prefixes,
+            scope,
             |expression| match typed
                 .expression_type(UnitExpressionId::new(
                     fact.binding().source_unit(),
@@ -87,6 +119,17 @@ pub(super) fn validate(
             {
                 Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
                 _ => None,
+            },
+            |expression| {
+                typed
+                    .call(UnitExpressionId::new(
+                        fact.binding().source_unit(),
+                        expression,
+                    ))
+                    .is_some_and(|call| {
+                        call.result_source()
+                            == lang_frontend::type_checking::CallableResultSource::Owned
+                    })
             },
         )?;
         if !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none()) {

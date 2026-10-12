@@ -1,11 +1,21 @@
 //! 首片 CFG 能力边界：不让尚未运输的结果/source loan 隐式跨块。
 use super::{LoweringError, LoweringErrorKind, lowering_support::error};
 use lang_frontend::{
-    ast::ExpressionId,
+    ast::{ExpressionId, StatementId},
     parser::{BinaryOperator, Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
     source::Span,
     type_checking::BuiltinType,
 };
+
+mod local_if;
+
+pub(super) fn range_scope(
+    parsed: &ParsedFile,
+    marker: Span,
+    proven: impl Fn(Span, StatementId) -> bool,
+) -> Option<StatementId> {
+    local_if::scope(parsed, marker, proven)
+}
 
 /// Only discard transparent syntax; callers still validate the published expression facts.
 pub(super) fn ungroup(
@@ -53,7 +63,9 @@ pub(super) fn binding(
     marker: Span,
     range: bool,
     range_prefixes: &[Span],
+    scope: Option<StatementId>,
     builtin: impl Fn(ExpressionId) -> Option<BuiltinType>,
+    owned_call: impl Fn(ExpressionId) -> bool,
 ) -> Result<(), LoweringError> {
     let function = parsed
         .ast()
@@ -103,6 +115,13 @@ pub(super) fn binding(
             && range_prefixes
                 .iter()
                 .any(|prefix| contains(*prefix, node.span()))
+        {
+            continue;
+        }
+        if range
+            && scope.is_some_and(|scope| {
+                local_if::allows(parsed, scope, expression, &builtin, &owned_call)
+            })
         {
             continue;
         }
