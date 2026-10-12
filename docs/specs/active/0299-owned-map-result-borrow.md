@@ -91,7 +91,7 @@ Resource single plain 的 native 另在未改生产代码的真实基线 `08c6b8
 
 最小已批准修复限定现有 `NullableHandle -> Shared view` LLVM adapter：
 其交付必须与既有 HeapOwner Borrow 参数相同，为**存放 handle 的 storage 地址**，不是裸 heap handle。
-使用函数 entry 的 stack slot，每次分支执行写入当前 handle；不改 ABI 定义、Guide、verifier 或 runtime，
+仅对 inner 为 HeapOwner（class/Box，包括Resource）的路径使用函数 entry stack slot，每次分支执行写入当前 handle；SharedOwner/Rc 的既有 retain/payload view 分流保持原样；不改 ABI 定义、Guide、verifier 或 runtime，
 不 clone/retain，也不扩大一般 nullable place 支持。需保留非 Map NullableHandle 与 aggregate 分流直接回归。
 
 unit 新 proof 首片进一步限于非嵌套直接表达式语句的同步 `Owned`-result 调用（`Unit` 是普通 owned 结果模式）。

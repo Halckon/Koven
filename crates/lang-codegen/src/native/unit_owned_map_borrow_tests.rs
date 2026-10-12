@@ -105,3 +105,33 @@ fn owned_map_borrow_resource_plain_native_baseline_probe() {
         false,
     );
 }
+
+#[test]
+fn owned_map_borrow_non_map_nullable_handle_storage_native_regression() {
+    let source = r#"
+class Node(val n: Int)
+fun observe(node: Node) { if (node.n == 7) { println("node") } else { error("bad node") } }
+fun entry() { val node: Node? = Node(7); if (node != null) { observe(node); observe(node) }; val taken = node!!; observe(taken) }
+"#;
+    // Existing single NullableHandle path, deliberately not the new unit Map bridge.
+    run(source, b"node\nnode\nnode\n", false);
+}
+
+#[test]
+fn owned_map_borrow_single_resource_loop_reuses_static_proof_slot() {
+    let source = r#"
+class Resource(val text: String) { deinit() { println("drop") } }
+fun observe(value: Resource) { println(value.text) }
+fun entry() {
+ var values = mutableMapOf<Int, Resource>()
+ values.put(1, Resource("first".clone())); values.put(2, Resource("second".clone()))
+ for (key in arrayOf(1, 2, 3)) {
+   val removed = values.remove(key)
+   if (removed != null) { observe(removed); observe(removed) } else { println("missing") }
+   println("iteration")
+ }
+ println("end")
+}
+"#;
+    run(source, b"first\nfirst\niteration\ndrop\nsecond\nsecond\niteration\ndrop\nmissing\niteration\nend\n", false);
+}

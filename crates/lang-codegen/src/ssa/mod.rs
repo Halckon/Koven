@@ -170,3 +170,6 @@ mod owned_null_cleanup_tests;
 
 #[cfg(test)]
 mod owned_map_borrow_tests;
+
+#[cfg(test)]
+mod owned_map_borrow_boundary_tests;

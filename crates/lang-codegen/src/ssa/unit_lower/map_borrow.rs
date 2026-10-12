@@ -3,7 +3,7 @@ use super::*;
 use crate::ssa::model::{Definition, Edge, InstructionId, SsaTypeKind};
 use lang_frontend::{
     ownership_checking::UnitLoanTarget,
-    type_checking::{Copyability, UnitNullComparisonDescriptor},
+    type_checking::{CallableResultSource, Copyability, UnitNullComparisonDescriptor},
 };
 use std::collections::BTreeSet;
 
@@ -26,6 +26,53 @@ impl UnitExpressionLowerer<'_> {
         Ok(self
             .typed
             .null_comparison(UnitExpressionId::new(self.source_unit, condition)))
+    }
+
+    // This only checks the frozen source-position boundary. All ownership and
+    // non-null meaning still comes from typed/loan facts below. In particular,
+    // a statement inside an argument block is not a top-level synchronous call:
+    // an enclosing adapter may hold an unregistered receiver in a Rust local.
+    fn is_direct_map_borrow_statement(
+        &self,
+        call: UnitExpressionId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        if call.source_unit() != self.source_unit {
+            return Ok(false);
+        }
+        let nodes = self.parsed.ast().expressions();
+        let call_span = nodes
+            .get(call.expression())
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
+            .span();
+        if nodes.iter().any(|(id, node)| {
+            id != call.expression()
+                && node.span().start() <= call_span.start()
+                && call_span.end() <= node.span().end()
+                && !matches!(
+                    node.payload(),
+                    Expression::Group { .. } | Expression::If { .. }
+                )
+        }) {
+            return Ok(false);
+        }
+        for (_, statement) in self.parsed.ast().statements().iter() {
+            let Statement::Expression { expression } = statement.payload() else {
+                continue;
+            };
+            let mut expression = *expression;
+            while let Expression::Group { expression: inner } = nodes
+                .get(expression)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
+                .payload()
+            {
+                expression = *inner;
+            }
+            if expression == call.expression() {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     pub(super) fn lower_owned_map_borrow(
@@ -107,11 +154,12 @@ impl UnitExpressionLowerer<'_> {
             .pending_call_frames
             .last()
             .is_some_and(|frame| frame.call == call && !frame.receiver)
-            || self
-                .typed
-                .call(call)
-                .is_none_or(|descriptor| descriptor.receiver().is_some())
+            || self.typed.call(call).is_none_or(|descriptor| {
+                descriptor.receiver().is_some()
+                    || descriptor.result_source() != CallableResultSource::Owned
+            })
             || !self.loops.is_empty()
+            || !self.is_direct_map_borrow_statement(call, span)?
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
