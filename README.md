@@ -10,7 +10,7 @@
 
 The runtime uses no tracing garbage collector. Memory and resources follow checked ownership facts: pure-memory values use ASAP drop, while resource values use lexical cleanup. Implementation and native support are bounded; design goals are not claims that every feature or memory-safety property has been verified.
 
-The current specification is [Guide v0.40](docs/guide/README.md); start with the [executable tutorial](docs/tutorials/README.md). This README incorporates the PR46 delivery on main `a83749f`: cross-file field mutability, direct field borrowing, unit native iteration, and the complete M1A parameter-report program have bounded dual-host acceptance. Native iteration over Inout, field, and captured Borrow sources retains its rejection boundary. Performance and cost acceptance is deferred. See the [roadmap](docs/development/roadmap.md) and [architecture](docs/architecture/README.md) for the support boundary.
+The current specification is [Guide v0.43](docs/guide/README.md); start with the [executable tutorial](docs/tutorials/README.md). This README incorporates the PR46 delivery on main `a83749f`: cross-file field mutability, direct field borrowing, unit native iteration, and the complete M1A parameter-report program have bounded dual-host acceptance. Native iteration over Inout, field, and captured Borrow sources retains its rejection boundary. Performance and cost acceptance is deferred. See the [Spec index](docs/specs/README.md) and [architecture](docs/architecture/README.md) for the support boundary.
 
 ---
 
@@ -215,9 +215,8 @@ Hello, World!
 The repository contains comprehensive documentation organized under [`docs/`](docs/):
 
 - [**Current executable tutorial**](docs/tutorials/README.md): Markdown source authority and real CLI contracts.
-- [**Current roadmap**](docs/development/roadmap.md): Delivered scope, deferred acceptance, and milestone navigation.
 - [**Specs and evolution status**](docs/specs/README.md): Bounded contracts, archive relationships, and capability gaps.
-- [**Language Specification (v0.40)**](docs/guide/README.md): The normative source of truth for Koven syntax, semantics, type rules, and ownership mechanics.
+- [**Language Specification (v0.43)**](docs/guide/README.md): The normative source of truth for Koven syntax, semantics, type rules, and ownership mechanics.
 - [**Compiler Architecture**](docs/architecture/README.md): Detailed snapshots of the compilation pipeline, typed SSA design, and codegen.
 - [**Development & Testing Guide**](docs/development/README.md): Guidelines for testing, layered verification, and code invariants.
 - [**Architecture Decision Records (ADRs)**](docs/adr/README.md): Records of long-term architectural designs and technical rationales.

@@ -860,7 +860,7 @@ acceptance.status=partial、requirements_met=false。Spec 保持 in-progress，�
 当前只接入文档与结构门禁；receiver SSA/native 后继验证仍须独立记账，Spec 保持
 in-progress。旧 consume 草案0290因与修复编号冲突改为0292，保持 draft；0291
 readonly Map consume 保留 v0.44 候选，均未启用或实施。v0.42保全与本次验证见
-[接收记录](../../development/n1a-contract-integration.md)。
+[接收记录](../development/n1a-contract-integration.md)。
 
 
 ## 19. receiver 静态 ABI、真实 std take 与稳定根续接（2026-10-10）

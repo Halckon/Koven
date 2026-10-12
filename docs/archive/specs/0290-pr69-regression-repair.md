@@ -234,7 +234,7 @@ docs、fmt、尺寸、依赖与 Tree-sitter 实际通过；跨平台 clippy/test
 15:00 用户要求审查刚推送0289/0291后继续实施。0289补回此前已批准的 N1a Guide
 v0.43/ADR-0030；此前的语义二选一源于缺失分支资料。现按正式合同延续 N1a，
 不回退代码，也不启用0291/0292消费草案。R6的合同/门禁接收见
-[整合记录](../../development/n1a-contract-integration.md)，A6仍不借此声明0289完成。
+[整合记录](../development/n1a-contract-integration.md)，A6仍不借此声明0289完成。
 
 
 ### 2026-10-10 R6 事实与后继交付边界检查点
@@ -267,7 +267,7 @@ Code CI Evidence 明确绑定 base `56af80ba92a544abf9c6531606a6340825f9a25f`、
 - R5：23 个遗漏 targets 本地实际 162 passed，选择 policy 与 PR 两宿主 bounded
   composition step 成功；frontend 仍为 lib/stage 有界组合，不称为 frontend 全量。
 - R6/A6：先前事实差异和决策请求已记录；接收的 Guide v0.43/ADR-0030 与
-  [合同接收证据](../../development/n1a-contract-integration.md)解除方向等待。
+  [合同接收证据](../development/n1a-contract-integration.md)解除方向等待。
   本项验收只关闭审计事实/批准边界，0289 保持 active；独立 Int 算术后继片不纳入本次归档。
 - A9：本地既有修复验收及此次实现 head CI 支持 done/archive；归档提交自身尚无 head
   身份或 CI，merge 与 actual main CI 继续开放。未来仅更新 live 交付账本，不改写本冻结时点。

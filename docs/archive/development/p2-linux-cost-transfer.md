@@ -5,7 +5,7 @@
 2026-10-05按用户授权，将云端材料通过Library支持的流程物化到Mac
 `/tmp/koven-p2-transfer-20261005/koven-p2-transfer.tar.gz`，核大小/SHA并安全解包。
 新worktree `/tmp/koven-spec0277`，分支 `feature/spec-0277`，基线main `2be64066`；
-范围、红绿、定向验收及剩余决定见 [SPEC-0277](../archive/specs/0277-p2-evidence-test-alignment.md)。
+范围、红绿、定向验收及剩余决定见 [SPEC-0277](../specs/0277-p2-evidence-test-alignment.md)。
 
 ## 完整材料与复核
 

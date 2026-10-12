@@ -16,7 +16,7 @@
 
 ## 1. Goal 与范围
 
-初始以 `11acf62` 为主干基线，补齐清理合同后整合至 `5fbc664`，承接[M1A](../../development/multifile-program-spec-draft.md) A4：
+初始以 `11acf62` 为主干基线，补齐清理合同后整合至 `5fbc664`，承接[M1A](../development/multifile-program-spec-draft.md) A4：
 unit `for` 发布同轮、source-qualified typed provider/binding/projection与ownership退出计划。
 Array/List/MutableList均支持Name、Discard及concrete value-class borrowed解构；
 owned、Borrow、Inout、field、temporary source均由前端按现行规则检查。

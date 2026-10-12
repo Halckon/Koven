@@ -15,8 +15,8 @@
 
 ## 1. Goal 与有界交付
 
-按获批[治理计划 P3b](../../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)
-及[执行账本剩余](../../development/engineering-governance-progress.md#p3b-有界剩余与退出条件)，
+按获批[治理计划 P3b](../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)
+及[执行账本剩余](../development/engineering-governance-progress.md#p3b-有界剩余与退出条件)，
 从 PR33 main `82610ab9d3d8148949f2a6f485e5a0b50d045ff1` 建立 `feature/spec-0253`。
 本分支保留已独立审阅的0252归档提交 `e6dfea4`，与本片合并在一份后继 Draft PR 中发布，
 减少重复 PR/CI；本地实现验收完整后才发布，不作中间 speculative push。

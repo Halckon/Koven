@@ -8,8 +8,8 @@ Goal：让实际生成代码中的选定内存错误能被检测、复现、缩�
 区分检查器、lowering、runtime、检测接线和测试 oracle 的责任。
 覆盖 Phase 2–5 产物与 Phase 6 验证设施，不新增语言语义。
 共同启动/调整规则见[计划](post-governance-milestones.md)。用户持续实施与满足前置的
-并行授权已由[0266](../archive/specs/0266-native-sanitizer-wiring.md)承接 M4a Linux 首片；
-[0269](../archive/specs/0269-generated-resource-programs.md)随后承接 M4b 的有限资源程序首片；
+并行授权已由[0266](../specs/0266-native-sanitizer-wiring.md)承接 M4a Linux 首片；
+[0269](../specs/0269-generated-resource-programs.md)随后承接 M4b 的有限资源程序首片；
 其正式合同与验收只在 Spec 维护，本页其余范围和 M4c 仍为候选。
 
 M4a 可从 [M1A](multifile-program-spec-draft.md)起按切片接入；M4b 扩展随机执行；
@@ -58,8 +58,8 @@ M4c 为有明确范围的外审准备材料。三个子阶段各自验收，不�
 
 正常无环路径验证每个 owner 的唯一释放、次序及仍存活的 loan；内容正确不能代替资源正确。
 现行 Rc 强环允许无法释放、Abort 不展开，分别按
-[runtime 规范](../guide/13-program-runtime-standard-library.md)和
-[所有权规范](../guide/10-ownership-borrowing-drop.md)分类。
+[runtime 规范](../../guide/13-program-runtime-standard-library.md)和
+[所有权规范](../../guide/10-ownership-borrowing-drop.md)分类。
 这不是统一抑制泄漏或 UAF 报告的理由：每条豁免必须能定位到对应语义和具体样例。
 
 失败先保全证据，再判断属于类型/所有权事实、SSA 交接/验证、runtime、检测设施或预期模型。

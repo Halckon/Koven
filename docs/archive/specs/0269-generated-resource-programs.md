@@ -19,7 +19,7 @@
 固定 seed 生成现行语义内的有限资源程序，由独立模型核验实际输出、资源计数与精确拒绝，
 Linux 对实际 Koven LLVM 运行地址/泄漏检测；失败保留源码与环境，可重放并在同一原因下有界缩小。
 基线：`origin/main 7c093bb6fbb8e4c0b590b18c7b167d2f094b4c1a`（PR46 合并）。实施分支 `feature/spec-0269`。
-本片承接 [M4 起草材料](../../development/memory-safety-validation-spec-draft.md)的选定 S01–S06，
+本片承接 [M4 起草材料](../development/memory-safety-validation-spec-draft.md)的选定 S01–S06，
 不关闭 M4 全部范围，也不声称完整内存安全证明。
 
 ## 2. 范围与固定生成域

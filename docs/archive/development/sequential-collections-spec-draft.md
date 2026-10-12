@@ -9,8 +9,8 @@ Goal：交付一个由真实程序驱动的最小顺序集合操作集，调用�
 Phase 2/3 发布操作与所有权事实，Phase 4 消费并执行，公共标准库逻辑属于 Phase 5。
 共同启动与调整规则见[计划](post-governance-milestones.md) G0–G3/§10。
 
-[集合规范](../guide/12-collections-destructuring.md)已有 Array/List/MutableList 的角色、
-size、构造、元素 place 与封闭迭代合同；实现事实见[容器存储](../architecture/unit-container-storage.md)。
+[集合规范](../../guide/12-collections-destructuring.md)已有 Array/List/MutableList 的角色、
+size、构造、元素 place 与封闭迭代合同；实现事实见[容器存储](../../architecture/unit-container-storage.md)。
 必须先核对现有能力。MutableList 可增长的类型角色不等于每个增长 API 都已有封闭表面或实现。
 M3A 可为[M1B](text-processing-spec-draft.md)先交付所需片段，不等待整个 M1B 完成。
 现行 `use(items[i])` 的直接 Borrow 不等于可局部绑定、包装转发或继续字段访问的借用结果。
@@ -71,8 +71,8 @@ owned removal 与 relocation 的语义层次，不继承 Rust lifetime/NLL 或�
 
 ## 5. 接口复用与实施顺序
 
-先读[单文件容器 lowering](../../crates/lang-codegen/src/ssa/lower_frontend/container.rs)、
-[unit 容器 lowering](../../crates/lang-codegen/src/ssa/unit_lower/container.rs)及现有 SSA/container ABI。
+先读[单文件容器 lowering](../../../crates/lang-codegen/src/ssa/lower_frontend/container.rs)、
+[unit 容器 lowering](../../../crates/lang-codegen/src/ssa/unit_lower/container.rs)及现有 SSA/container ABI。
 复用稳定 operation、布局和分配边界；新增 capability 必须由 frontend 发布，后端不猜来源权限。
 
 1. 从 M1B 或其他程序冻结最小需求，列已支持/缺口/未定义三类操作。
@@ -93,18 +93,18 @@ Map 实现、getOrNull、可逃逸迭代器、通用 clone、隐式容器转换�
 
 ## 7. C07 既有泛型容器签名首片
 
-[SPEC-0275](../archive/specs/0275-unit-generic-container-signatures.md)从PR52合并后的最新main
+[SPEC-0275](../specs/0275-unit-generic-container-signatures.md)从PR52合并后的最新main
 承接直接Array<T>/List<T>/MutableList<T>签名的native具体替换，现行Guide已封闭语义。
 新增API及其余C01–C08仍按原前置；body-only发布与递归模板没有自动启用。具体范围和验收只记Spec。
 
-后继[SPEC-0276](../archive/specs/0276-unit-generic-body-type-normalization.md)承接普通顶层函数
+后继[SPEC-0276](../specs/0276-unit-generic-body-type-normalization.md)承接普通顶层函数
 body-only具体需求发布及其既有native消费者适配，保持原recursive-template边界。
 该片已按双宿主实现CI验收归档，最终head及actual main交付门禁已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276-delivery.json)；两片不代表整个M3A操作集已完成。
 
 
 ## 8. 运行时长度构造承接
 
-[SPEC-0279](../archive/specs/0279-runtime-length-container-native.md)承接现行Array/List构造
+[SPEC-0279](../specs/0279-runtime-length-container-native.md)承接现行Array/List构造
 的两源码入口、具体callback/helper与普通native路径，按PR57双宿主及用户限定范围验收。
 本片未执行的定向注入/计数、后续交付状态见[0279账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/delivery.json)。
 本材料的增长/删除、新API及其它C01–C08仍未批准或验收，不建立第二张0279完成表。

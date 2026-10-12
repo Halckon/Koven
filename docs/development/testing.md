@@ -171,7 +171,7 @@ SPEC-0290 补齐 PR69 改动目标中的 23 个遗漏选择；stage policy 锁�
 CI 独立 editor job 固定 lockfile 中 CLI 0.26.12，按 editor/对应门禁/词法调用规范输入触发，
 main/manual 强制执行；失败或不合法 skip 均阻止 required summary。Rust fixture 交叉检查
 不能替代此 CLI 验收。
-本机结果见[恢复账本](recovery-local-delivery.md)，不能由接线推定实际CI通过。
+本机结果见[恢复账本](../archive/development/recovery-local-delivery.md)，不能由接线推定实际CI通过。
 
 ## M4a native 检测首片
 

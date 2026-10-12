@@ -33,7 +33,7 @@ helper、build script 和 fixture。统计 LF 分隔的物理行，包含空行�
 例外授权额度以内的后续变化，不代表可以继续塞入新职责；评审仍看理由与拆分计划是否成立。
 路径失效应删除或随迁移更新记录。未知字段、重复JSON key、空值与路径通配符均拒绝。
 初始护栏批次没有为历史欠账批量伪造负责人或永久例外。当时 `exceptions` 为空；
-后继[iteration测试迁移](drop-iteration-test-migration.md)登记三个完整场景的有限例外，
+后继[iteration测试迁移](../archive/development/drop-iteration-test-migration.md)登记三个完整场景的有限例外，
 各自锁实际尺寸并给出拆分方向/复查条件，不能回填成baseline。
 
 生成 Rust 仅允许在 `generated` 中逐文件列出精确路径、`inputs`（生成输入）、`generator`
@@ -74,4 +74,4 @@ PR的双宿主矩阵、feature/fix push成本策略均保留。新护栏本身�
 
 本批不改Rust源码、Cargo target、依赖、语言语义、测试断言或原有ignore。尺寸通过不证明
 职责划分合理、性能提升或测试完整。冷/热compile/link、RSS与重复样本仍未测；下一次有界
-拆分继续遵守[测试规则](testing.md)与[整体执行账本](engineering-governance-progress.md)。
+拆分继续遵守[测试规则](testing.md)；本页登记的历史例外不构成扩大范围的授权。

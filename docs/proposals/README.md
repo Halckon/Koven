@@ -5,6 +5,11 @@
 Proposal 本身不修改现行 v0.43、不批准 Spec，也不代表实现优先级。已选 String.clone 部分
 已移入 guide，剩余候选仍未启用；普通开发任务不要读取本目录。
 
+- [文本输入与 IO（M1B-b）](text-input-and-io.md)
+- [集合剩余 API 与迭代](collection-api-followups.md)
+- [检测扩展与定向外审（M4）](native-safety-validation.md)
+- [测量、分发与未接受P2预算（M5）](measurement-distribution.md)
+- [线程所有权转移（M6）](thread-transfer.md)
 - [通用借用访问结果（M2B）](general-borrow-access-results.md)
 - [借用结果声明与类型合同比较](borrow-access-contract-comparison.md)
 - [Map / MutableMap 所有权候选](map-ownership.md)
@@ -46,7 +51,7 @@ String Copyable、Map 转换与 v2 interface 值不由此获得启用
 对齐受限扩展声明，形成最小范围视图/消费矩阵；N1b/filter 后续验收。各独立设计可以先评审；
 语义实施前仍须明确启用，资源原语不能反向依赖尚未实现的 filter。
 完整验收维度见[collection §11](collection-algorithm-ownership-r3.md#11-phase-边界)，
-实施排序见[后续里程碑](../development/post-governance-milestones.md)。
+已选实施范围与顺序见[Spec索引](../specs/README.md)；未选范围由上列候选各自维护。
 
 对应阻塞 Spec 从 [Specs](../specs/README.md) 进入；长期架构候选仍遵循 ADR 生命周期。
 

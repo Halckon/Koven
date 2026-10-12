@@ -26,7 +26,7 @@
 
 ## 2. 证据与实施范围
 
-[M1A](../../development/multifile-program-spec-draft.md) 的 A2 已完成，本片承接 A3 与直接
+[M1A](../development/multifile-program-spec-draft.md) 的 A2 已完成，本片承接 A3 与直接
 相关的 A6/A7/A9/A10。A4/A5 unit for 及完整三文件程序 A8 继续开放，不以本片替代。
 实施前基线的 `lower_borrow_place` 接受 root、temporary、容器元素和 Rc 投影，但拒绝普通非根
 place；前端已发布 typed aggregate projection 与 source-qualified loan target。

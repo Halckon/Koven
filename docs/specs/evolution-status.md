@@ -3,12 +3,20 @@
 > **性质**：变更进度索引 · **状态**：current · **读取时机**：继续演进计划或核对交付范围时 · **唯一真源**：对应 Guide、Spec 与代码测试
 
 本页对照 2026-10-01 的 13 项计划记录截至 main `34189046319a8b727285d471596647d5de56996e` 的实现与交付事实；语言规则以唯一 current
-[Guide v0.41](../guide/README.md) 为准，不以 AST、类型名或文档启用代替端到端证据。
+[Guide v0.43](../guide/README.md) 为准，不以 AST、类型名或文档启用代替端到端证据。
 起点为 main `d3e64a4`；七阶段合并提交 `ed0727f` 形成真实 v0.39，随后整合 SPEC-0235。
-八个切片及整合合同保留各自验收账本。PR #7 已于 2026-10-01 合并，后继切片基于真实 main `e22e11b`；此前文档闭环逐项补最终证据后归档 0228–0235、0237–0242 与 0247；本批0236诊断Span新增断言双宿主通过后归档，0182当时保留active；本机恢复的有界归档与未覆盖项见[恢复验收](../development/recovery-local-delivery.md)。
+八个切片及整合合同保留各自验收账本。PR #7 已于 2026-10-01 合并，后继切片基于真实 main `e22e11b`；此前文档闭环逐项补最终证据后归档 0228–0235、0237–0242 与 0247；本批0236诊断Span新增断言双宿主通过后归档，0182当时保留active；本机恢复的有界归档与未覆盖项见[恢复验收](../archive/development/recovery-local-delivery.md)。
 后到的 main `3be83b5`（已合并 PR #6）另作[最小协调](../archive/migrations/v0.40-upstream-pr6-reconciliation.md)，
 整合 PR CI 后的独立核查与更正见 [SPEC-0238](../archive/specs/0238-guide-litmus-gate.md)及
 [当前更正账本](../architecture/guide-conformance.md)；不重写已冻结的真实 v0.39。
+
+## 当前阅读边界（2026-10-11）
+
+下方十三项表及固定基线检查点保留历史，不是截至最新main的全语言实现清单。
+后继0287–0289已交付有界普通借用与范围carrier，0294/0295也有独立Map修复/应用证据；
+因此不能用旧表“仍为owned值与调用期loan”概括当前能力，其他Ref/unsafe等候选不自动启用。
+当前实现边界从[Architecture](../architecture/README.md)读取；PR72–74实际main交付和
+0297–0300候选分工见[本次核对](../archive/migrations/pr72-74-followup-audit.md)。原表与旧测试数字不改写。
 
 ## 后继固定基线状态（2026-10-04）
 
@@ -19,7 +27,7 @@
 源native继续明确拒绝，不能扩成全部迭代/所有原十三项native完成。
 0267/PR45已修复五个历史editor corpus失败并接入真实CLI required门禁；
 0266/PR44有界Linux ASan/LSan通过，UBSan、macOS动态检测与完整安全证明不在其结果内。
-逐项精确head、旧Spec快照处理与并行工作边界见[本批核对](../development/documentation-status-sync.md)。
+逐项精确head、旧Spec快照处理与并行工作边界见[本批核对](../archive/development/documentation-status-sync.md)。
 P2成本继续延期，Str/toString继续延期；其他尚未闭合的Box、lambda、借用和unsafe合同不自动启用。
 
 ## 八阶段已整合范围

@@ -5,6 +5,7 @@
 Archive 不参与现行语言语义、实现授权或默认 Agent 路由。历史正文和证据保持原义，仅允许机械
 更新本地链接与锚点。
 
+- [开发批次与里程碑历史](development/README.md)
 - [完成 Specs](specs/README.md)
 - [历史 Guides](guides/README.md)
 - [冻结审计与路线材料](audits/README.md)
@@ -22,3 +23,5 @@ Archive 不参与现行语言语义、实现授权或默认 Agent 路由。历�
 - [v0.40 合入上游 PR #6 的协调来源](migrations/v0.40-upstream-pr6-reconciliation.md)
 
 - [v0.42 普通借用结果启用账本](migrations/v0.42-enablement.md)
+
+- [PR72–75有界交付与后继核对](migrations/pr72-74-followup-audit.md)

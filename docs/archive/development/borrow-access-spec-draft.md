@@ -15,13 +15,13 @@ Goal：根据用户新增方向设计可组合的通用借用访问结果，而�
 M1A、现行元素 place 的直接 Borrow 以及 M3A 的现行操作支持补齐均不因此阻塞。
 只有 M3A/M3B 选定的新增结果形态依赖 M2B；Map<String,String>/Resource、List<MoveOnly>、
 字段及 Map→List→字段必须共同复用其核心，不由不同库各自发明借用返回规则。
-候选合同、首版范围和来源矩阵见[通用借用访问结果 proposal](../proposals/general-borrow-access-results.md)。
+候选合同、首版范围和来源矩阵见[通用借用访问结果 proposal](../../proposals/general-borrow-access-results.md)。
 
 ## 2. 现行边界与比较方案
 
-[所有权规范](../guide/10-ownership-borrowing-drop.md)区分 owned copy/move 和调用期 loan；
+[所有权规范](../../guide/10-ownership-borrowing-drop.md)区分 owned copy/move 和调用期 loan；
 从 Borrow 参数返回 Copyable 值是 owned copy，不是借用返回。v1 没有 borrow-return 类型。
-[Closure 规范](../guide/07-calls-lambdas-closures.md)允许 borrowed closure 在 defining callable
+[Closure 规范](../../guide/07-calls-lambdas-closures.md)允许 borrowed closure 在 defining callable
 内按规则存活，不应被本设计误改成所有闭包仅有单次调用寿命。
 
 | 方案 | 需要比较的能力 | 必须公开的代价或边界 |
@@ -75,9 +75,9 @@ receiver/指定参数来源合同；集合及用户库 API/语法适配。首版
 | 决策 | 保留现状或最小新增范围及非目标 | 用户明确选择/启用需要的新语义；保存取舍 |
 | 仅在新增获批后 | 源码规则、typed 来源、ownership loan、SSA/verifier/ABI | 正反例、Span、source identity、native 生命周期和错误原子性 |
 
-候选研究只读入口为[type checking](../../crates/lang-frontend/src/type_checking/mod.rs)、
-[ownership](../../crates/lang-frontend/src/ownership_checking/mod.rs)及
-[SSA verifier](../../crates/lang-codegen/src/ssa/verify_ownership.rs)。不预定新公共类型或全局 context。
+候选研究只读入口为[type checking](../../../crates/lang-frontend/src/type_checking/mod.rs)、
+[ownership](../../../crates/lang-frontend/src/ownership_checking/mod.rs)及
+[SSA verifier](../../../crates/lang-codegen/src/ssa/verify_ownership.rs)。不预定新公共类型或全局 context。
 实验若有必要，须另定范围与资源预算；本次起草不运行实现原型。
 当前 single place 只能 fields 后接 indexes，unit 仅 terminal element，均不能再接 field；
 新核心须设计有序可组合 selector/reborrow 来源链。既有 LoanFact 是调用期产物，

@@ -4,9 +4,9 @@
 
 2026-09-19 用户明确启用 v0.37，temporary source 纳入首轮 native；ADR-0023 已 accepted。
 SPEC-0179/0211/0212/0182 均已按原有界合同完成归档。0182的精确集成证据补强与保留项
-见[恢复验收](../../../development/recovery-local-delivery.md)；0265发布unit迭代前端事实，
+见[恢复验收](../../../archive/development/recovery-local-delivery.md)；0265发布unit迭代前端事实，
 0268后继已交付有界unit native，Inout/field/captured Borrow源边界仍保留；
-最新关系见[合并核对](../../../development/documentation-status-sync.md#合入main时接收后继0268)。
+当时接收关系见[合并核对](../../../archive/development/documentation-status-sync.md#合入main时接收后继0268)。
 
 - [SPEC-0179](../../../archive/specs/0179-sequential-iteration-typed-plan.md)：typed iteration plan（done）
 - [SPEC-0211](../../../archive/specs/0211-sequential-iteration-ownership.md)：iteration ownership（done）

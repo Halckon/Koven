@@ -4,9 +4,9 @@
 
 ## 当前路线与下一批次
 
-1. 语言规则与强制 Phase 以 [Guide v0.43](../guide/README.md) 为准
-2. 原 13 项语言演进的已实现、延期、未启用与 native 边界，以[演进实施账本](../specs/evolution-status.md)为唯一摘要
-3. [Active Specs](../specs/active/README.md)给出当前有界合同；当前0 active / 278 archive，归档不表示全部语言能力完成
+1. 语言规则与强制 Phase 以 [Guide v0.43](../../guide/README.md) 为准
+2. 原 13 项语言演进的已实现、延期、未启用与 native 边界，以[演进实施账本](../../specs/evolution-status.md)为唯一摘要
+3. [Active Specs](../../specs/active/README.md)给出当前有界合同；当前0 active / 278 archive，归档不表示全部语言能力完成
 4. [整体架构与工程治理计划](engineering-governance-plan.md)保留获批 P0–P5 范围；实际交付及延期见[治理执行账本](engineering-governance-progress.md)
 5. [后继里程碑](post-governance-milestones.md)维护 M0–M6 候选顺序；正式实施及完成以各 Spec 为准
 
@@ -28,7 +28,7 @@ P2性能、噪声与预算接受依用户决定延期，暂停检查；历史尺
 
 P5当前教程与提取门禁随PR38交付，PR46再增加parameter-report：12正例、2诊断负例，
 四组argv共用该三文件源码，共17组执行合同；两宿主实际通过，1 planned不执行。
-独立 [0271](../archive/specs/0271-tour-combination-coverage.md) 增加5项Mac合同及一个保留失败的planned：
+独立 [0271](../specs/0271-tour-combination-coverage.md) 增加5项Mac合同及一个保留失败的planned：
 当前15正例、4负例、2 planned，共22执行合同；本批Linux/远端CI未运行，不将旧证据扩大到新增例。
 0271本地合入接收 `ed61d7d` 的0270/PR47双宿主归档；当前1 active/256 archive。
 旧编辑器corpus五失败已由0267/PR45修复，真实CLI门禁已进入required汇总。
@@ -43,11 +43,11 @@ P5当前教程与提取门禁随PR38交付，PR46再增加parameter-report：12�
 
 ## 当前入口与历史界限
 
-当前实现与支持边界见 [Architecture](../architecture/README.md)，使用/构建从仓库
-[中文 README](../../README_CN.md)开始。已交付的[当前教程](../tutorials/README.md)以Markdown为源码真源，示例状态与CLI合同由门禁核验。
+当前实现与支持边界见 [Architecture](../../architecture/README.md)，使用/构建从仓库
+[中文 README](../../../README_CN.md)开始。已交付的[当前教程](../../tutorials/README.md)以Markdown为源码真源，示例状态与CLI合同由门禁核验。
 
 旧 `06-roadmap.md` 保留在 v0.34 历史 Guide，旧 tour 保留 v0.28 内容；通过
-[Archive](../archive/README.md)追溯，不作当前开发或复制运行的默认入口。
+[Archive](../README.md)追溯，不作当前开发或复制运行的默认入口。
 旧 roadmap 在历史中曾混入后继状态更新，本批不抹去这段历史，也不继续更新其冻结正文。
 
 ## 交付边界

@@ -23,3 +23,14 @@ Boolean 判空、unit 最后 if 判空已有普通源码 SSA/native 证据；借
 AfterBinaryOperands 结果事实；Group 归一叶和 origin，借用结果与未完成值不产生 owning drop。
 两入口以精确结果事实和已登记的 aggregate/NullableHandle 表示读取 presence，再清理临时
 owner；Resource temporary 在 if body 前析构，具名 Resource 的词法清理不变。
+
+## 现存入口差异
+
+普通unit字段赋值与current receiver字段赋值不同：`unit_lower/assignment.rs`先处理后者，
+一般aggregate projection仍以目标Span拒绝；M1A通过字段replace更新，不证明普通
+`report.text = ...`已可执行。这里仅静态核对当前分流，未新增或执行源码回归。
+
+普通`Resource?`工厂即使没有Map或判空，single仍在函数返回类型登记时被resource nominal
+验证拒绝。现存`owned_null_cleanup_tests::single_nullable_factory_planning_boundary_precedes_any_comparison`
+固定完整函数Span的UnsupportedNode，并有unit同源verifier正例；该边界早于body，
+与0296的具名/临时判空清理无关。本次只读核对测试与分流，没有重跑。

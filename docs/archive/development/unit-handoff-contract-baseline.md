@@ -8,12 +8,12 @@
 这里只补已有普通 native 入口的身份/输出合同证据，没有实现封闭 view，没有改变 checker、
 公开 native 签名、能力边界、index 次数或 production visibility；不据本片宣称 P3a/P2 完成。
 
-实现位于 [unit_handoff_contract_tests.rs](../../crates/lang-codegen/src/native/unit_handoff_contract_tests.rs)，
+实现位于 [unit_handoff_contract_tests.rs](../../../crates/lang-codegen/src/native/unit_handoff_contract_tests.rs)，
 通过既有 `cfg(test)` 的 `native::unit_tests::handoff_contracts` 加载。普通 `SourceMap` 与
 `ParsedFile` 不实现 Clone；成功对照沿用相同借用，不把同文本的新来源当合法 clone。
 
 为不向超限入口堆正文，将原 `TestDirectory` 与其目录序列 counter 单独迁到
-[unit_test_directory.rs](../../crates/lang-codegen/src/native/unit_test_directory.rs)。函数体与初始化
+[unit_test_directory.rs](../../../crates/lang-codegen/src/native/unit_test_directory.rs)。函数体与初始化
 原样保留，仅添加 test-module 内 `pub(super)` 可见性；原有测试、fixture 和断言没有搬迁。
 入口 2074→2050 行，新 domain 525 行，目录 helper 31 行；policy 仅收紧原入口额度，无新例外。
 此私有 helper 的全部 `native::unit_tests` 消费者另行执行，不仅以新测试代替旧覆盖。

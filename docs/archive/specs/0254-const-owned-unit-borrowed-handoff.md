@@ -17,7 +17,7 @@
 
 从 PR34 真实 main `c6b84ecb46563b7de2bfeb9f481e75cf4a861323` 建立 `feature/spec-0254`，
 先确认远端无同编号分支或PR；独立审阅的0253归档本地提交随本片一份 Draft PR 发布。
-遵循[治理计划](../../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)：
+遵循[治理计划](../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)：
 只把 const unit 六输入封闭为受控只读借用，消除交接重复 index，保全所有来源与能力检查。
 只迁 CLI project const 分支；保留旧 const native/lower 签名与错误、副作用顺序。
 
@@ -76,7 +76,7 @@ factory→entry shape→lower/SSA verify→native entry plan→reserve→LLVM/la
 | A3 Into与reserve | 用户Into成功/失败恰一次且先identity；exact子进程读取既有counter，拒绝delta0/成功delta1 | 旧exact子进程reserve最终6；双路最终12，每次失败delta0/成功delta1；用户Into四格原顺序通过 |
 | A4 工厂完整facts | const_owned_compilation_unit_view：六getter原指针、物化/短路列表和查询、零常量loans0/1及owned来源保护 | 两新frontend target真实E0432红后最小实现；本target4/4通过，六原借用、物化/短路查询、零常量loans0/1及owned来源保护 |
 | A5 外部编译正负合同 | const_owned_unit_view_compile_contracts：全部private、basic/recovery/view互换、六产品/ParsedFile/root/path/temporary借用逃逸、只读getter，精确错误码及正控 | frontend compile10/10，E0451/E0616/E0308/E0597/E0716/E0624均配正控；实际公开native API另2/2，两类view及旧typed/owned分别隔离 |
-| A6 动态index | 固定两const fixtures；setup、显式index校准、native/lower、factory、预建view native/lower；函数入口和constructor双counter | 22 exact进程成功，双counter两fixture均native4→1、lower2→1、factory1、view下游0；原始计数/fixture/hash及6次object/link/run见[测量页](../../development/const-owned-unit-handoff-measurement.md)，未做可支持结论的耗时/RSS实验 |
+| A6 动态index | 固定两const fixtures；setup、显式index校准、native/lower、factory、预建view native/lower；函数入口和constructor双counter | 22 exact进程成功，双counter两fixture均native4→1、lower2→1、factory1、view下游0；原始计数/fixture/hash及6次object/link/run见[测量页](../development/const-owned-unit-handoff-measurement.md)，未做可支持结论的耗时/RSS实验 |
 | A7 能力与资源回归 | 原constant materialization、短路、String drop/alloc/free、native原子输出、完整CLI与LSP const无owned | 完整codegen748+新native compile2+docs4、CLI82、LSP45全部通过；const String资源计数/短路与原basic资源oracle、输出失败原子性及LSP const无owned均保留 |
 | A8 工程验收 | fmt、workspace all-targets check、受影响三crate strict clippy、frontend/codegen docs、定向frontend、完整codegen/CLI/LSP及CLI build | fmt、workspace check、三crate严格Clippy及CLI build通过；11个frontend完整targets267、frontend docs12通过；完整下游见A7，均0failed/ignored/filtered |
 | A9 文档/尺寸/CI接线 | docs、Python policy、固定main尺寸、diff；新增两target及multifile_constant_ownership在stage各恰一次完整token无filter，先红再绿 | docs478、Python102/102、固定main尺寸707手写/48旧超限/0生成通过，无额度变化；selection未接线0命中真红后绿，并补同命令重复token反例；diff通过 |

@@ -1,29 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1416" height="382" viewBox="0 0 1416 382" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="2472" height="382" viewBox="0 0 2472 382" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="1416" height="382" fill="#ffffff"/>
+  <rect width="2472" height="382" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，282 份）</text>
   <rect x="384" y="30" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="524" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
-  <rect x="728" y="168" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="868" y="188" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
-  <rect x="1072" y="168" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="1212" y="188" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
-  <path d="M 300 92 C 696 92, 696 248, 1092 248" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="728" y="168" width="1336" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="1396" y="188" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
+  <rect x="2128" y="168" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="2268" y="188" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
+  <path d="M 300 92 C 1224 92, 1224 248, 2148 248" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 524 92, 524 239, 748 239" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <rect x="1092" y="202" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="1212" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0291</text>
-  <text x="1212" y="243" text-anchor="middle" font-size="13">非空只读 Map 构造：Mu</text>
-  <text x="1212" y="261" text-anchor="middle" font-size="13">tableMap 立即消费式</text>
-  <text x="1212" y="279" text-anchor="middle" font-size="13">转换 consume()</text>
+  <path d="M 300 92 C 656 92, 656 239, 1012 239" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 92 C 788 92, 788 239, 1276 239" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 92 C 920 92, 920 239, 1540 239" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 92 C 1052 92, 1052 248, 1804 248" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="2148" y="202" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="2268" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0291</text>
+  <text x="2268" y="243" text-anchor="middle" font-size="13">非空只读 Map 构造：Mu</text>
+  <text x="2268" y="261" text-anchor="middle" font-size="13">tableMap 立即消费式</text>
+  <text x="2268" y="279" text-anchor="middle" font-size="13">转换 consume()</text>
   <rect x="748" y="202" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="868" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0292</text>
   <text x="868" y="243" text-anchor="middle" font-size="13">链内立即消费序列与 owne</text>
   <text x="868" y="261" text-anchor="middle" font-size="13">d 结果</text>
+  <rect x="1012" y="202" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="1132" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0297</text>
+  <text x="1132" y="243" text-anchor="middle" font-size="13">Map 查询与删除的 key</text>
+  <text x="1132" y="261" text-anchor="middle" font-size="13"> return 清理</text>
+  <rect x="1276" y="202" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="1396" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0298</text>
+  <text x="1396" y="243" text-anchor="middle" font-size="13">N1a 范围绑定与有界局部控</text>
+  <text x="1396" y="261" text-anchor="middle" font-size="13">制流</text>
+  <rect x="1540" y="202" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="1660" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0299</text>
+  <text x="1660" y="243" text-anchor="middle" font-size="13">owned Map 删除结果</text>
+  <text x="1660" y="261" text-anchor="middle" font-size="13">的非消费借用</text>
+  <rect x="1804" y="202" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="1924" y="225" text-anchor="middle" font-size="13" font-weight="600">SPEC-0300</text>
+  <text x="1924" y="243" text-anchor="middle" font-size="13">single for 中 M</text>
+  <text x="1924" y="261" text-anchor="middle" font-size="13">ap guarded own</text>
+  <text x="1924" y="279" text-anchor="middle" font-size="13">er 运输</text>
   <rect x="404" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="524" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0303</text>
   <text x="524" y="105" text-anchor="middle" font-size="13">development 文档</text>

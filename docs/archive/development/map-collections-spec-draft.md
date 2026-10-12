@@ -12,14 +12,14 @@ Goal：选定并交付一个所有权合同完整的键值集合切片，用于�
 前置为[M1B](text-processing-spec-draft.md)的固定需求和输出、Map 语义明确启用及必要 ABI。
 依赖[M2B（原 M2）](borrow-access-spec-draft.md)与否由查询接口决定，不预设所有 Map 都需要借用返回。
 用户新增方向要求非 Copyable 查询的候选覆盖 Map<String,String> 和 Map<String,Resource>，
-并与 List<MoveOnly>、字段及嵌套访问共用[通用来源/结果合同](../proposals/general-borrow-access-results.md)；
+并与 List<MoveOnly>、字段及嵌套访问共用[通用来源/结果合同](../../proposals/general-borrow-access-results.md)；
 Int-only owned 查询可作对照，不能替代此方向的设计验收。
 如果只选择某个更小独立应用，也需先固定可观察行为，不能同时移动应用和集合的预期。
 
 ## 2. 候选文本需先重基
 
-[现行集合规范](../guide/12-collections-destructuring.md)不授权 Map；
-[Map proposal](../proposals/map-ownership.md)只是历史候选。
+[现行集合规范](../../guide/12-collections-destructuring.md)不授权 Map；
+[Map proposal](../../proposals/map-ownership.md)只是历史候选。
 该页只读保留历史，不直接采用其签名、Hashable 决定或版本声明。候选仍有调用处 `borrow`
 marker 的示例，并把非 Copyable 查询连接到未定义的 getRef/借用返回；
 重基时必须逐项核对现行 v0.41，不能直接搬入实现或把它当作已批准签名。
@@ -74,7 +74,7 @@ K-C/K-D/K-E 同时覆盖 Int、String、Resource 与 List<Resource>/字段投影
 4. 完成 K-A–K-G，再改写固定应用并执行 K-H；独立评审最大的别名/清理风险。
 
 不预先指定新 crate、哈希库或数据结构；先核对代码/依赖/标准库，再按
-[依赖治理](dependencies.md)评估确需增加的组件。
+[依赖治理](../../development/dependencies.md)评估确需增加的组件。
 
 ## 5. 非目标、可调整项与记录
 

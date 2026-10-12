@@ -340,7 +340,7 @@ InvalidSsa 根因。临时定位 harness 捕获各 case 的 panic 以继续报�
 2026-10-02 P2 integration模块化后，上表历史根级exact名称映射为
 `control_exits::iteration_ownership_facts_are_deterministic_across_analyses`；当前复跑使用同一
 `--test ownership_iteration`与新完整名加`-- --exact`，本地实际1 passed / 183 filtered。
-旧命令与结果保留为当时执行记录；[迁移验收](../../development/ownership-iteration-test-migration.md)
+旧命令与结果保留为当时执行记录；[迁移验收](../development/ownership-iteration-test-migration.md)
 给出全部184项一对一映射，未改变此项确定性断言或关闭0182未决范围。
 
 执行宿主 x86_64 Linux，Rust/Cargo 1.96.0、LLVM/Clang 21.1.8；既有共享 Cargo target，
@@ -515,7 +515,7 @@ projection/cleanup 或 MoveOnly ZST 验收。0248 仍 in-progress、双宿主 CI
 0 filtered，554.15秒。该ignore属于调试器断点测试，不能表述为该项通过。
 frontend库190 passed；真实stage75 targets/994 passed、Guide23、教程7+2及最终严格Clippy通过；
 Return边界修复后5+3定向通过，
-最终结果由[本机恢复账本](../../development/recovery-local-delivery.md)登记。
+最终结果由[本机恢复账本](../development/recovery-local-delivery.md)登记。
 
 unit driver真实for仍为UnsupportedSource，未扩大其能力；独立unit正例不冒充unit-for成功。
 SyntheticZero仅在内部测试提供，不支持源码MoveOnly ZST，也不声称ZST逆序可观测。
@@ -526,7 +526,7 @@ SyntheticZero仅在内部测试提供，不支持源码MoveOnly ZST，也不声�
 ## 2026-10-04 本机恢复最终验收
 
 本轮仅按用户授权在本地main重建和交付，禁止推送/PR/远端更改。
-实际Mac验证见[本机恢复账本](../../development/recovery-local-delivery.md)：core、
+实际Mac验证见[本机恢复账本](../development/recovery-local-delivery.md)：core、
 ownership_iteration184、stage75个target/994项、Guide23、教程7正例+2完整JSON负例通过；
 Return只读自查修复5+3定向通过，最终workspace all-targets严格Clippy通过。
 既有LLDB权限ignore1保留；Linux/远端CI未运行，旧云端证据不替代本轮。

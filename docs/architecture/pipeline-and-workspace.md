@@ -88,15 +88,15 @@ LLVM/layout/object emission→atomic commit；旧 native 的用户 Into 在 fact
 N1保留commit失败清理；SPEC-0259新增test-only TLS路径选择，在lower/verify之后让真实
 LLVM `write_to_file`遇到ENOTDIR，覆盖普通/const、legacy/view及目标存在/不存在。
 guard内先检查旧文件和sibling清理，移除guard后再走正常object/link/run；本机验收状态见
-[恢复账本](../development/recovery-local-delivery.md)。H1/H2仍证明CLI邻层保护。
+[恢复账本](../archive/development/recovery-local-delivery.md)。H1/H2仍证明CLI邻层保护。
 
 `ssa::unit_source_query`集中按canonical index和SourceId first-match查询原ParsedFile借用；
 unit driver一次构建vector，同时借给planner和lower。standalone planner仍独立构建查询，
 两driver的能力边界保持。
 
-[原合同基线](../development/unit-handoff-contract-baseline.md)的八项身份已保留并扩双路，另加 Into 顺序测试；
+[原合同基线](../archive/development/unit-handoff-contract-baseline.md)的八项身份已保留并扩双路，另加 Into 顺序测试；
 实际通过范围、Display 逐字 oracle、reserve 与生命周期证据见[0249 账本](../archive/specs/0249-owned-unit-borrowed-handoff.md#6-唯一验收账本)。
-[动态计数与同期采样](../development/owned-unit-handoff-measurement.md)分别验收；次数减少已实测，耗时噪声不支持性能收益结论。
+[动态计数与同期采样](../archive/development/owned-unit-handoff-measurement.md)分别验收；次数减少已实测，耗时噪声不支持性能收益结论。
 
 ## 常量 owned-unit 交接
 

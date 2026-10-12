@@ -143,7 +143,7 @@ verifier 检查 owner 唯一消费。计数注入仅存在于测试 LLVM。
 `ssa::unit_plan` 从显式 entry 对 validated typed/ownership unit 做 reachability 和单态化，使用稳定的
 callable/type instance key。planner 消费 frontend 已选择的 declaration、member、effective interface
 implementation 和 delegation route，不重新按名称或 shape 选择；callback 槽与只读完整 call 路由见[实例规划边界](callable-instance-plans.md)。
-`unit_plan` 私有子模块分别处理 call routes、recipe preflight/validation、canonical type 与 runtime layout；原 resolver 生产路径保留，[组合边界](../development/ownership-planning-milestone.md#codegen-unit-planner)及[布局验收](../development/unit-runtime-layout-migration.md)记录保全合同。
+`unit_plan` 私有子模块分别处理 call routes、recipe preflight/validation、canonical type 与 runtime layout；原 resolver 生产路径保留，[组合边界](../archive/development/ownership-planning-milestone.md#codegen-unit-planner)及[布局验收](../archive/development/unit-runtime-layout-migration.md)记录保全合同。
 
 `ssa::unit_lower` 按 source-qualified facts 生成一个 SSA program。当前路径覆盖：
 
@@ -196,5 +196,5 @@ CLI 的 linker/runner 与链接产物清理留宿主层；标准库源码仍作�
 
 ## 测试覆盖位置
 
-SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../development/codegen-receiver-test-migration.md)。
-planner的48项保留私有cfg(test)入口与七域组织，见[plan验收](../development/codegen-plan-test-migration.md)；native公共路径另由 `lang-cli` integration tests 覆盖，命令与扩大范围见[开发测试指南](../development/testing.md)。
+SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../archive/development/codegen-receiver-test-migration.md)。
+planner的48项保留私有cfg(test)入口与七域组织，见[plan验收](../archive/development/codegen-plan-test-migration.md)；native公共路径另由 `lang-cli` integration tests 覆盖，命令与扩大范围见[开发测试指南](../development/testing.md)。

@@ -108,4 +108,4 @@ ownership 只消费 validated typed symbol/mode，不重新猜 expected contract
 2026-10-02 P2目录迁移后的当前复跑名为
 `lambdas::cross_file_lambdas_publish_expected_contract_and_callable_boundaries`；
 同一`--test multifile_type_checking`加`-- --exact`实际1 passed / 106 filtered。
-上表旧命令与当时结果保留原义，身份保全见[迁移验收](../../development/multifile-type-test-migration.md)。
+上表旧命令与当时结果保留原义，身份保全见[迁移验收](../development/multifile-type-test-migration.md)。

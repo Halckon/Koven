@@ -8,7 +8,7 @@
 | Goal ID | `KOV-P6-250` |
 | 所属 Phase | Phase 1→2 名称前缀与 Phase 6 CLI 编排；治理 P3b 首片 |
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
-| 批准依据 | 2026-10-02 已批准[整体治理计划 §7](../../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)及首片设计独立评审后的实施授权 |
+| 批准依据 | 2026-10-02 已批准[整体治理计划 §7](../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)及首片设计独立评审后的实施授权 |
 | 基线 / 分支 | main `64ace382c2a634ebf19bab66da928242120930cd` / `feature/spec-0250` |
 | 前置 Spec | SPEC-0025、0249 `done` |
 | 前置 ADR | [ADR-0020](../../adr/accepted/0020-multifile-compilation-unit.md)、[ADR-0022](../../adr/accepted/0022-minimal-project-manifest-source-discovery.md) `accepted` |

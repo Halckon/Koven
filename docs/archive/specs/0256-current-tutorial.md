@@ -25,13 +25,13 @@ editors与教程输入触发Rust矩阵，core包含lang-std。
 中间执行按授权跳过；本机集中执行`python3 scripts/check_tutorial.py`退出0：
 七个真实build/artifact/run正例、两个完整JSON负例exit2且无artifact通过，一例planned不执行。
 CLI六组82项全部通过，包含logical root别名及nested root；stage中的编辑器契约与std/core通过。
-实际结果见[恢复账本](../../development/recovery-local-delivery.md)，未执行Linux/远端CI。
+实际结果见[恢复账本](../development/recovery-local-delivery.md)，未执行Linux/远端CI。
 
 
 ## 2026-10-04 本机恢复最终验收
 
 本轮仅按用户授权在本地main重建和交付，禁止推送/PR/远端更改。
-实际Mac验证见[本机恢复账本](../../development/recovery-local-delivery.md)：core、
+实际Mac验证见[本机恢复账本](../development/recovery-local-delivery.md)：core、
 ownership_iteration184、stage75个target/994项、Guide23、教程7正例+2完整JSON负例通过；
 Return只读自查修复5+3定向通过，最终workspace all-targets严格Clippy通过。
 既有LLDB权限ignore1保留；Linux/远端CI未运行，旧云端证据不替代本轮。

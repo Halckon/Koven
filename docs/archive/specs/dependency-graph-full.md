@@ -297,6 +297,10 @@ subgraph Gactive["现行 active"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
+  S0297["S0297<br/>Map 查询与删除的 key return 清理"]
+  S0298["S0298<br/>N1a 范围绑定与有界局部控制流"]
+  S0299["S0299<br/>owned Map 删除结果的非消费借用"]
+  S0300["S0300<br/>single for 中 Map guarded owner 运输"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
@@ -1308,9 +1312,15 @@ S0288 --> S0294
 S0288 --> S0295
 S0288 --> S0296
 S0289 --> S0292
+S0289 --> S0298
 S0290 --> S0294
 S0294 --> S0295
+S0294 --> S0297
 S0295 --> S0296
+S0295 --> S0299
+S0295 --> S0300
+S0296 --> S0299
+S0296 --> S0300
 ```
 
 ## 节点链接
@@ -1602,3 +1612,7 @@ S0295 --> S0296
 | SPEC-0303 | active | [0303-development-document-ownership.md](../../specs/active/0303-development-document-ownership.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
+| SPEC-0297 | drafts/v0.43 | [0297-map-key-return-cleanup.md](../../specs/drafts/v0.43/0297-map-key-return-cleanup.md) |
+| SPEC-0298 | drafts/v0.43 | [0298-range-binding-local-control-flow.md](../../specs/drafts/v0.43/0298-range-binding-local-control-flow.md) |
+| SPEC-0299 | drafts/v0.43 | [0299-owned-map-result-borrow.md](../../specs/drafts/v0.43/0299-owned-map-result-borrow.md) |
+| SPEC-0300 | drafts/v0.43 | [0300-single-map-loop-owner-carry.md](../../specs/drafts/v0.43/0300-single-map-loop-owner-carry.md) |

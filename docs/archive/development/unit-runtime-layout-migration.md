@@ -136,7 +136,7 @@ release运行成本或完整benchmark，不能把本地重编次数或尺寸下�
 `9ac49f3ad3b1c8b0e5c762413f56bde719bf11d0` 的tree与本地已审组合head一致。
 每host完整core中planner48身份均恰一次ok；native inherited owner recipe roundtrip另在core核验，
 const资源60项亦通过。精确tree/checkout、平台ignored差额和main复核统一见
-[0254最终验收](../archive/specs/0254-const-owned-unit-borrowed-handoff.md#6-pr35-精确head双宿主与归档收尾2026-10-03)。
+[0254最终验收](../specs/0254-const-owned-unit-borrowed-handoff.md#6-pr35-精确head双宿主与归档收尾2026-10-03)。
 主干run37124524536另有双raw独立执行证据，两平台planner48及const资源60再次齐全通过。
 以上本地阶段的“未发布、未跑CI”保留为历史快照，不扩大当时执行范围。P2只有本职责片完成，
 成本样本限制和其余历史尺寸欠账保持。

@@ -65,7 +65,7 @@ super       this        true
 > `package` 只在完整文件头产生式中有特殊含义；`module` 是普通 `Identifier`。Koven 不接受
 > Rust 风格的 `mod` / `use`，也不把 `module` 作为它们的同义词。
 
-> `unsafe` 同样是硬关键字，但 v0.40 没有使用它的产生式。
+> `unsafe` 同样是硬关键字，但现行版本没有使用它的产生式。
 
 ## 上下文关键字与软关键字
 

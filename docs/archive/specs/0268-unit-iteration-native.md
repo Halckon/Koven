@@ -17,7 +17,7 @@
 
 ## 1. Goal 与范围
 
-承接 [M1A 起草材料](../../development/multifile-program-spec-draft.md) A5–A10：消费已完成的
+承接 [M1A 起草材料](../development/multifile-program-spec-draft.md) A5–A10：消费已完成的
 unit typed/ownership 计划，使三文件参数报告程序通过真实 project build、artifact 和 run，
 保留跨文件 class、字段直接 Borrow 与 unit for。A2–A4 验收仅按各已归档合同追溯。
 
