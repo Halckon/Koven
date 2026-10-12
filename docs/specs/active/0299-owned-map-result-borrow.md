@@ -1,16 +1,16 @@
 # SPEC-0299: owned Map 删除结果的非消费借用
 
-> **性质**：候选变更合同 · **状态**：draft · **读取时机**：准备窄化owned Map结果的只读Borrow时 · **唯一真源**：本页的有界候选范围；语义以Guide为准
+> **性质**：变更合同 · **状态**：in-progress · **读取时机**：准备窄化owned Map结果的只读Borrow时 · **唯一真源**：本页的有界实施范围；语义以Guide为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P4-0299` |
 | 所属 Phase | Phase 3事实消费、Phase 4 nullable place/loan与native |
-| 语言规范 | [Guide v0.43](../../../guide/README.md)、[Map](../../../guide/12-collections-destructuring.md)、[所有权](../../../guide/10-ownership-borrowing-drop.md) |
-| 批准依据 | 2026-10-11确认0297→0300→0299/0298顺序；本页保持draft，由独立实施分支激活 |
-| 前置 Spec | [SPEC-0295](../../../archive/specs/0295-map-argv-word-frequency.md)、[SPEC-0296](../../../archive/specs/0296-owned-null-comparison-cleanup.md) |
-| 前置 ADR | [ADR-0016](../../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0017](../../../adr/accepted/0017-nullable-handle-ssa-abi.md) |
+| 语言规范 | [Guide v0.43](../../guide/README.md)、[Map](../../guide/12-collections-destructuring.md)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
+| 批准依据 | 2026-10-12按已确认0300→0299/0298顺序，从真实main `08c6b8dc` 在独立 `fix/spec-0299` 分支本地实施；发布与CI另行确认 |
+| 前置 Spec | [SPEC-0295](../../archive/specs/0295-map-argv-word-frequency.md)、[SPEC-0296](../../archive/specs/0296-owned-null-comparison-cleanup.md) |
+| 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0017](../../adr/accepted/0017-nullable-handle-ssa-abi.md) |
 | 阻塞项 | 非消费payload place/proof、真实owner关联及调用期loan事实须先证明 |
 | 影响范围 | 两入口窄化Map结果的Borrow实参、SSA/verifier直接消费者 |
 | 语言语义变更 | 否；不启用新nullable表示或借用语法 |
@@ -22,7 +22,7 @@
 原事实存活、可再次合法使用并恰一次清理。
 
 2026-10-12原未发布草案丢失，本页依据已核边界重新起草，不是原稿恢复。原审计见
-[历史摘要](../../../archive/migrations/pr72-74-followup-audit.md)；本页不重用其旧静态数字作为新验收。
+[历史摘要](../../archive/migrations/pr72-74-followup-audit.md)；本页不重用其旧静态数字作为新验收。
 
 ## 2. 起点与范围
 
@@ -47,7 +47,15 @@ String、现有可存储MoveOnly值及Resource分别核范围；原已支持分�
 `break`/`continue`及其他实参提前退出仍是独立后继候选，非本片验收；
 后继必须先证明精确loop目标、未求值后缀、前缀owner/loan及provider逐边清理，不由普通调用成功推定。
 
-## 4. 最小验收与交付
+## 4. 冻结首片与最小验收
+
+首片只选直接 `if (result != null)` / `if (result == null) ... else ...` 与透明括号条件，
+不扩大短路条件、任意when、循环、borrow val或其他实参提前退出。single现有直接条件proof分流
+与unit普通条件分别先跑同源红测；不能由两处Copyable门推定两入口全部失败。
+类型先分String、含String的MoveOnly value class、Resource class三种既有表示，
+Copyable Int/Boolean/value class保留原桥。消费式 `!!` 只作借用完成后的独立对照。
+
+## 5. 最小验收与交付
 
 - [ ] single/unit分别建立具名remove结果窄化Borrow的普通源码红测，区分现有成功路径与真正缺口。
 - [ ] String、MoveOnly、Resource及Copyable对照的SSA/verifier、未改写LLVM和正常native验证；
@@ -57,5 +65,18 @@ String、现有可存储MoveOnly值及Resource分别核范围；原已支持分�
 - [ ] 缺失、错误窄化、借用期间冲突/逃逸及MoveOnly get保持拒绝；原Copyable桥和0296判空回归保持。
 - [ ] 独立分支按红测→最小实现→直接回归→Architecture/验收推进；正式发布和CI另行闭环。
 
-本页功能验证尚未运行；仅在本次0303恢复中做静态文档审查，不声明完整内存安全或所有nullable
-Borrow能力完成。具体失败kind/Span和支持形状由普通源码验收记录，不凭静态门推定全部失败。
+## 6. 唯一验收账本
+
+基线 `08c6b8dcbb8e69f20a7dd82bbd0426b0df97c4c9`（tree `3b081d41227420bd61ca7751436d24147923d4aa`）。
+0300已由PR79合并；其actual-main CI [38259510177](https://github.com/Halckon/Koven/actions/runs/38259510177)
+启动时pending，不作为0299验收。本片尚未运行功能验证；以下逐项登记真实结果。
+
+| 验收项 | 测试目标/过滤器 | 实际结果 |
+|---|---|---|
+| plain/group single/unit普通源码基线 | 待建立定向测试 | 未运行 |
+| String/inline MoveOnly/Resource非消费proof与清理 | 待红测后确定 | 未运行 |
+| Copyable及0296/0297/0300直接回归 | 按受影响合同选择 | 未运行 |
+| 文档/格式/静态检查与独立审查 | 待实际执行 | 未运行 |
+
+不运行fault injection、calibration、sanitizer、reducer、aggregate drivers或畸形IR/runtime注入。
+普通stdout不替代完整泄漏或内存安全证明；正式发布、双宿主CI及合并不在本地完成声明内。
