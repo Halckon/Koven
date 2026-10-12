@@ -80,3 +80,26 @@ Copyable Int/Boolean/value class保留原桥。消费式 `!!` 只作借用完成
 
 不运行fault injection、calibration、sanitizer、reducer、aggregate drivers或畸形IR/runtime注入。
 普通stdout不替代完整泄漏或内存安全证明；正式发布、双宿主CI及合并不在本地完成声明内。
+
+## 7. 实施中已确认的独立边界
+
+2026-10-12 普通源码同源红测：single plain 三种表示的 SSA/verifier/LLVM 已成功，
+single grouped 和 unit plain/group 合计九例失败；因此没有将全部十二例标为 lowering 红测。
+Resource single plain 的 native 另在未改生产代码的真实基线 `08c6b8dc` 重现错误：
+两次 `observe(removed)` 读取 String 字段只输出空行，而后续 `removed!!` 的同字段读取输出 `value`。
+这是真实 native 红测，不能由先前 SSA 验证成功覆盖。
+
+最小已批准修复限定现有 `NullableHandle -> Shared view` LLVM adapter：
+其交付必须与既有 HeapOwner Borrow 参数相同，为**存放 handle 的 storage 地址**，不是裸 heap handle。
+使用函数 entry 的 stack slot，每次分支执行写入当前 handle；不改 ABI 定义、Guide、verifier 或 runtime，
+不 clone/retain，也不扩大一般 nullable place 支持。需保留非 Map NullableHandle 与 aggregate 分流直接回归。
+
+unit 新 proof 首片进一步限于非嵌套直接表达式语句的同步 `Owned`-result 调用（`Unit` 是普通 owned 结果模式）。
+同一调用多个 Borrow operand 及已登记 prefix 仍须通过。Borrow/Carrier 结果与特殊 receiver 的
+key/index/element 嵌套调用不在首片内；它们的未登记 Rust 局部 receiver 运输仍是0299后继未完成项，
+不能以此位置 gate 宣称原草案广义目标已全部完成。此 gate 只约束新增 unit proof，不改变旧 single 或 Copyable 路径。
+
+inline 核心同源 callee 仅输出标签，验收仅证明真实 Shared call proof 与后续 `!!` 后字段值；
+不把标签宣称为借入 payload 读取。独立辅助读取分别核 single 显式 receiver 的 Int 字段、unit 的 `this` 方法；
+两入口另用源码显式 `value.text.clone()` 读取 String 字段，区分源码显式 clone 与桥隐式复制。
+unit 直接 `value.n` / `value.text` 与 single `value.number()` 的既有 callee lowering 缺口作为后继保留，未认领修复。
