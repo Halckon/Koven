@@ -42,3 +42,32 @@ fn assert_units(source: &str, expected: &str) {
         assert_success(&run, expected.as_bytes());
     }
 }
+
+const DISTINCT: &str = include_str!("../../tests/fixtures/map-loop-owner-0300/distinct-owners.ko");
+const DISTINCT_EXPECTED: &str = concat!(
+    "parameter empty\nparameter missing\n",
+    "parameter present\nparameter removed\nparameter present\nparameter removed\n",
+    "first present\nsecond present\nfirst tail\nsecond tail\n",
+    "second removed\nfirst present\nsecond empty\nfirst tail\nsecond tail\n",
+    "second removed\nsecond missing\nsecond missing\nfirst present\nsecond empty\nfirst tail\nsecond tail\n",
+);
+
+#[test]
+fn single_map_loop_native_parameters_and_distinct_owners() {
+    let run = emit_link_and_run("map-loop-distinct.ko", DISTINCT, "main");
+    assert_success(&run, DISTINCT_EXPECTED.as_bytes());
+}
+
+#[test]
+fn unit_map_loop_native_parameters_and_distinct_owners() {
+    assert_units(DISTINCT, DISTINCT_EXPECTED);
+}
+
+#[test]
+fn single_map_loop_native_other_sequential_providers() {
+    for provider in ["listOf", "mutableListOf"] {
+        let source = ORIGINAL.replace("arrayOf", provider);
+        let run = emit_link_and_run("map-loop-provider.ko", &source, "main");
+        assert_success(&run, b"present\nmissing\n");
+    }
+}
