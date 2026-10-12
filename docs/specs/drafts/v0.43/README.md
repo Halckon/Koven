@@ -1,11 +1,11 @@
-# v0.43 首片实施合同准备
+# v0.43 首片与后继合同
 
-> **性质**：候选变更索引 · **状态**：draft · **读取时机**：准备已获范围授权的 N1a 与立即消费首片时 · **唯一真源**：本目录各 Spec；现行语义仍见 [Guide](../../../guide/README.md)
+> **性质**：候选变更索引 · **状态**：draft · **读取时机**：区分原N1a交付、未启用consume与后继实施顺序时 · **唯一真源**：本目录各 Spec；现行语义仍见 [Guide](../../../guide/README.md)
 
 2026-10-08 12:15 UTC，用户 `Sentinel_f249680deca4819196e97322bdc24963` 明确同意开始
 r3 小修后的首片实施。授权覆盖本地合同准备、实现与验证，不包含提交、push、PR 或合并。
 以上为2026-10-08准备时的授权记录。0289 的已批准 N1a 合同随 v0.43/ADR-0030
-启用，现已按 PR72 实现 head 双宿主证据有界归档；最终交付见其 §22。本目录的
+启用，现已按 PR72 实现 head 双宿主证据有界归档；最终交付见[核对摘要](../../../archive/migrations/pr72-74-followup-audit.md)。本目录的
 0292 仍是未启用 consume 合同，不随 N1a 自动启用。
 
 - [0289 N1a 范围 carrier](../../../archive/specs/0289-n1a-range-carrier.md)：新内联描述符、根来源与单文件/unit 端到端交付。
@@ -22,3 +22,20 @@ N1b/filter 借用视图、Option、多来源与惰性链不进入本图的首片
 
 0289 的声明、来源、SSA/native 与计数证据分阶段保留，最终有界验收见其 §22；
 consume 不由这些证据自动启用，0292 仍须独立满足规范和实施前置。
+
+## 2026-10-11 后继合同
+
+用户已确认实施顺序0297→0300→0299/0298；本分支保留draft，激活与实施由对应独立
+Spec分支维护，不继承上方2026-10-08首片授权，不启用范围外语义。
+原本地起草与普通源码结论见[核对摘要](../../../archive/migrations/pr72-74-followup-audit.md)。
+
+- [0297 Map key return清理](0297-map-key-return-cleanup.md)：查询/删除的出口传播与前缀清理；break/continue仍在本片之外。
+- [0298 范围绑定局部条件组合](0298-range-binding-local-control-flow.md)：按对应有界Goal独立激活与验收。
+- [0299 owned Map result只读借用](0299-owned-map-result-borrow.md)：按对应有界Goal独立激活与验收。
+- [0300 single Map-for条件清理运输](0300-single-map-loop-owner-carry.md)：按对应有界Goal独立激活与验收。
+
+## 未编号的现行支持候选
+
+[普通unit字段赋值与single nullable Resource工厂](../../../architecture/lowering-support.md#现存入口差异)
+各自保留独立后继：字段更新须验证旧owner恰一次清理；工厂须验证nullable返回映射/ABI与
+恰一次清理。它们尚未选定Goal或编号，不并入0296，也不因本次文档归整获得实现验收。

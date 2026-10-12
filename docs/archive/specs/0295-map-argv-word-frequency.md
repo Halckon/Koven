@@ -18,7 +18,7 @@
 
 从 main `4321e99e401a3d8b9099f087c577840822a64512` 的独立分支 `feature/spec-0295`
 交付两遍 argv 的 MutableMap 词频实现，保持已经验收的输入、输出、首次次序及错误合同。
-这只完成 [M3B 起草材料](../../development/map-collections-spec-draft.md) 的 K-H 应用替换，
+这只完成 [M3B 起草材料](../development/map-collections-spec-draft.md) 的 K-H 应用替换，
 不把历史草稿视作现行语言规则，也不重新声称全部 K-A–K-G 或后继借用能力完成。
 
 ## 2. 应用与所有权合同

@@ -23,13 +23,13 @@ ordinary/const × legacy/view × 目标存在/不存在共八格，分别证明�
 
 八格真实失败与随后TLS恢复的object/link/run，在本机修后完整codegen库内通过。
 完整库为787 passed / 0 failed / 1既有LLDB权限ignored / 0 filtered，554.15秒。
-本机集中门禁其余项由[恢复账本](../../development/recovery-local-delivery.md)记录；Linux/远端CI未运行。
+本机集中门禁其余项由[恢复账本](../development/recovery-local-delivery.md)记录；Linux/远端CI未运行。
 
 
 ## 2026-10-04 本机恢复最终验收
 
 本轮仅按用户授权在本地main重建和交付，禁止推送/PR/远端更改。
-实际Mac验证见[本机恢复账本](../../development/recovery-local-delivery.md)：core、
+实际Mac验证见[本机恢复账本](../development/recovery-local-delivery.md)：core、
 ownership_iteration184、stage75个target/994项、Guide23、教程7正例+2完整JSON负例通过；
 Return只读自查修复5+3定向通过，最终workspace all-targets严格Clippy通过。
 既有LLDB权限ignore1保留；Linux/远端CI未运行，旧云端证据不替代本轮。

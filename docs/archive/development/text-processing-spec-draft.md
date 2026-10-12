@@ -11,7 +11,7 @@ Goal：一个多文件词频工具能够在两个受支持宿主处理固定输�
 
 前置为[M1A](multifile-program-spec-draft.md)、实际需要的[M3A](sequential-collections-spec-draft.md)
 能力和新增文本/错误 API 的语义决定。M2、Map、Str、通用格式化均不是首版的当然前置。
-用户允许实施时根据实际情况调整本稿；[SPEC-0274](../archive/specs/0274-argv-word-frequency.md)承接仅argv的首片。
+用户允许实施时根据实际情况调整本稿；[SPEC-0274](../specs/0274-argv-word-frequency.md)承接仅argv的首片。
 普通应用decimal与重扫argv保持现行语义；本页不复制其合同/验收。文本输入b及新增API仍待各自前置。
 
 ## 2. 两个可独立验收的交付候选
@@ -46,14 +46,14 @@ Goal：一个多文件词频工具能够在两个受支持宿主处理固定输�
 | T4 文本输入 | 输入源、UTF-8/换行/分词、长度限制、文件/流 owner、短读/读取失败 | 已启用 API 合同、目标 ABI 决策与正反输入 |
 | T5 标准库边界 | 哪部分用 Koven 源码，哪部分属于最小 runtime 桥接；底层能力是否真正可用 | 公开入口、权限与 ABI 审计；不以 Rust shim 替代目标语言公共库逻辑 |
 
-[String/IO/entry 规范](../guide/13-program-runtime-standard-library.md)只封闭当前最小 String 表面，
+[String/IO/entry 规范](../../guide/13-program-runtime-standard-library.md)只封闭当前最小 String 表面，
 length、索引、slice、分词、整数转换或格式化不能由现有 concat/clone 推导。
 新增表面转到 proposal，必要的 Guide 增量经明确启用后才能实施；本稿不确定新 API 拼写。
 当前 `error()` 不保证 stderr 文本；不能把应用精确错误协议直接委托给它。
 
-已有 Result 声明见[prelude](../../crates/lang-std/koven/prelude.ko)；构造/匹配、泛型具体布局、
+已有 Result 声明见[prelude](../../../crates/lang-std/koven/prelude.ko)；构造/匹配、泛型具体布局、
 后缀 `?` 的 typed/ownership/native 需要分别核验。当前
-[unit lower](../../crates/lang-codegen/src/ssa/unit_lower.rs)中的通用拒绝边界不是 `?` 已支持的证据。
+[unit lower](../../../crates/lang-codegen/src/ssa/unit_lower.rs)中的通用拒绝边界不是 `?` 已支持的证据。
 已有 generic/closure 能力只补具体实例缺口，保留 borrowed 与 move closure 的不同规则。
 
 ## 4. 验收与红测安排

@@ -15,7 +15,7 @@
 
 ## 1. Goal、批准与范围
 
-2026-10-02 按获批[治理计划 P3b](../../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)，
+2026-10-02 按获批[治理计划 P3b](../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)，
 批准一个有界 PR 同时迁 CLI project 和 LSP unit，CLI 先、LSP 后。从 PR32 merge
 `15dfb13a6d771f66fbcfa21ca8db2fed92e77868` 建立 `feature/spec-0252`；编号在 specs 与远端
 heads 未占用。前置 SPEC-0249/0250/0251 已 done，ADR-0020/0021 accepted；现行 v0.40 不变。

@@ -49,11 +49,11 @@ G0 的判断依据为[治理执行账本](engineering-governance-progress.md)及
 | 全部旧测试失败均已清零 | Rust editor fixture 检查不等于 Tree-sitter 完整 corpus；历史 corpus 失败在本次起草中未重跑 |
 | 没有安全测试 | 已有资源计数、拒绝、变异和压力测试；尚需验证 sanitizer 与随机执行的覆盖，不据此宣称完整安全证明 |
 
-直接入口：[跨文件字段可变性查询](../../crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/places.rs)、
-[unit for 类型检查](../../crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/control.rs)、
-[unit lowering](../../crates/lang-codegen/src/ssa/unit_lower.rs)。
-阶段边界见[流水线](../architecture/pipeline-and-workspace.md)、[字段交付](../architecture/direct-field-replace.md)
-与[顺序迭代](../architecture/finite-sequential-iteration.md)。
+直接入口：[跨文件字段可变性查询](../../../crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/places.rs)、
+[unit for 类型检查](../../../crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/control.rs)、
+[unit lowering](../../../crates/lang-codegen/src/ssa/unit_lower.rs)。
+阶段边界见[流水线](../../architecture/pipeline-and-workspace.md)、[字段交付](../../architecture/direct-field-replace.md)
+与[顺序迭代](../../architecture/finite-sequential-iteration.md)。
 
 ## 4. 里程碑与依赖
 
@@ -69,7 +69,7 @@ G0 的判断依据为[治理执行账本](engineering-governance-progress.md)及
 | [M3B Map 合同与实现](map-collections-spec-draft.md) | 键、查询、更新、扩容与迭代的完整有界合同，覆盖 String/Resource 借用需求 | M1B 需求、Map 语义批准；新增借用结果依赖 M2B | L | 与 List/字段共用来源核心；正反例与 native 通过，词频程序可用 Map 改写 |
 | [M4 安全验证](memory-safety-validation-spec-draft.md) | 检测接线、可复现随机执行、定向外审 | M1A 起逐步接入；外审另有范围与授权 | M–L | 检测覆盖实际生效，失败可定位、回归，审计意见有处置 |
 | [M5 度量与分发](measurement-distribution-spec-draft.md) | 新成本基线、双宿主 preview 与使用材料 | preview 依赖 M1A 和选定 M4 门槛；实用版本依赖 M1B | M | 新环境安装运行通过，原始测量与限制公开 |
-| [M6 线程与共享演进](thread-transfer-spec-draft.md) | 先 v1 所有权转移线程，另评估跨线程共享 | 稳定 runtime、M4 证据与真实需求 | L | 转移/join/错误/清理合同闭合；共享与新目标分别决策 |
+| [M6 线程与共享演进](../../proposals/thread-transfer.md) | 先 v1 所有权转移线程，另评估跨线程共享 | 稳定 runtime、M4 证据与真实需求 | L | 转移/join/错误/清理合同闭合；共享与新目标分别决策 |
 
 推进主线为 `治理交接 → M0 → M1A → M1B → 实用版本`。
 M3A 所需 API 可以先于 M1B 交付，避免“M3 必须等整个 M1”的循环依赖。
@@ -93,8 +93,8 @@ M0 完成不意味着剩余历史尺寸欠账、所有语言能力或 P2 原始�
 
 ## 6. M1A 与 M1B：从固定程序到实用程序
 
-M1A 的唯一源码在[教程 parameter-report](../tutorials/koven-tour.md#parameter-report)，
-输出合同由教程 metadata 保存；后端与总验收由[SPEC-0268](../archive/specs/0268-unit-iteration-native.md)维护。
+M1A 的唯一源码在[教程 parameter-report](../../tutorials/koven-tour.md#parameter-report)，
+输出合同由教程 metadata 保存；后端与总验收由[SPEC-0268](../specs/0268-unit-iteration-native.md)维护。
 [起草记录](multifile-program-spec-draft.md)保留原要求与承接映射，本页不复制源码或执行账本。
 实现顺序为跨文件可变性、直接字段 Borrow、unit 迭代事实/清理、SSA/native、CLI project。
 程序通过现行字段 replace 更新值，普通字段赋值 lowering 留作独立后继；迭代 Inout/字段
@@ -116,7 +116,7 @@ Result 构造/匹配与后缀 `?` 分别核验，重点验证 Err 提前返回�
 
 M2B（原 M2）先以现行元素 place 直接 Borrow 作对照，设计可局部绑定、包装函数转发、
 继续字段投影的新结果；不以 Map<String,Int> 或隐式 clone 限缩通用能力。
-[候选 proposal](../proposals/general-borrow-access-results.md)按三层封闭：
+[候选 proposal](../../proposals/general-borrow-access-results.md)按三层封闭：
 来源/Shared/Exclusive/reborrow/失效核心；receiver 或指定参数来源的函数/静态接口合同；
 集合与用户库 API/语法复用。首版单一明确来源、局部只读结果、受控跨函数转发、结构化独占修改。
 不预定 Rust lifetime 语法，不启用 v2 动态派发；普通对象/容器长期存借用、多来源、
@@ -128,7 +128,7 @@ proposal、语法审查与用户明确启用 Guide 先于相应 ADR/Spec 实施�
 
 M3A 使用现行 Array/List/MutableList 名称，不默认增加 Vec、Option 或条件成员。
 新增操作逐项定义 move/borrow、长度/大小溢出、relocation、别名和资源清理。
-M3B 将[旧 Map 候选](../proposals/map-ownership.md)作为只读历史核对后形成新决定，不能直接采用
+M3B 将[旧 Map 候选](../../proposals/map-ownership.md)作为只读历史核对后形成新决定，不能直接采用
 其过时 marker/getRef/借用返回规则；至少封闭 Hash/Equal 一致性、
 MoveOnly key 查询、覆盖旧值归属、删除、扩容失效与迭代/输出顺序；候选正文仍为非规范。
 String/Resource 查询及嵌套访问共用 M2B 核心，不由 Map、List 和用户库分别增加来源规则。
@@ -138,7 +138,7 @@ Set、开放 Iterator/Iterable 与借用视图按各自需求评审，不作为 
 ### 7.1 集合算法 r3.1 的受审后继路线
 
 2026-10-08，用户要求评审 collection 修订并在可接受时整合后续开发。
-[r3.1](../proposals/collection-algorithm-ownership-r3.md)接受显式物化、consume 立即取得 owner、
+[r3.1](../../proposals/collection-algorithm-ownership-r3.md)接受显式物化、consume 立即取得 owner、
 首片立即产出与 metadata 成本透明的候选方向；不是 Guide/ADR/Spec 启用或新实现授权。
 当前 v0.42 已批准的 M2B/Map 合同和 SPEC0288 范围不变，先闭合其已批准欠项。
 
@@ -153,11 +153,11 @@ caller loan continuation 和权限恢复；根保护覆盖全部父子、兄弟�
 正常退出清理，Resource 规则不改。N1b 的自有索引、filter.take 非连续表示与返回交付是后续
 验收条件，不阻塞 N1a。复用 borrowed-closure 基础设施不改变既有 closure 合同。
 T?? 继续非法；通用 Clone/Option 未启用，ConsumingSeq 链内限制是候选首片选择。
-详细依赖和验收见[collection §11](../proposals/collection-algorithm-ownership-r3.md#11-phase-边界)。
+详细依赖和验收见[collection §11](../../proposals/collection-algorithm-ownership-r3.md#11-phase-边界)。
 本轮只维护候选与规划，不新增实施 Spec、不归档0288、不修改生产、Cargo 或 CI。
 
 2026-10-08 后续用户已批准 N1a 首片本地实施及负数 Abort/越 size 截边界，并再次要求
-以里程碑交付为主线。[SPEC-0289](../archive/specs/0289-n1a-range-carrier.md)作为 M3A 最小
+以里程碑交付为主线。[SPEC-0289](../specs/0289-n1a-range-carrier.md)作为 M3A 最小
 take 的有界后继，依赖 M2B 实际来源/延续/结束，并回归 0288 的 B2/B7/B8 共享合同。
 前端最小检查点后优先贯通同一 take 的 SSA/verifier、String/MoveOnly/Resource 正常 native
 与权限恢复，不横向铺新算法。consume、Clone、N1b 与用户通用扩展继续留后续独立验收。
@@ -205,7 +205,7 @@ M6 分开对待已实现的非原子 Rc、v1 Transferable 所有权转移线程 
 - 一个正式 Spec 对应一个用户能力、正确性问题或可独立验证合同；本页不替代各 Spec 验收账本。
 - 连续三个 PR 若没有增加用户可见能力或验收证据，暂停该拆分方式并复盘范围和收益。
 - 每项先复用代码、已有依赖和标准库；没有合适实现时说明缺口再增加代码或依赖。
-- 层次遵循[测试与分层验收](testing.md)；passed、filtered、ignored、未运行和失败分别记录。
+- 层次遵循[测试与分层验收](../../development/testing.md)；passed、filtered、ignored、未运行和失败分别记录。
 - 当前按用户新授权推进 M1A 的有界切片；后续新语义、外部发布和实验预算仍按各自前置执行。
 
 本页状态保持 draft。G0–G3、M0–M6 均不因文档写入或结构检查通过而被勾选完成。
@@ -234,15 +234,15 @@ Rust job 按纯文档规则跳过；merge 为 `b92593d6f5c8d11c64bac6d0a84811b6b
 M0 本次完成基线、Spec 编号及首片入口接收；历史尺寸欠账、成本接受和外审仍按原计划保留。
 完整三文件程序的真实 CLI 红测返回 native `UnsupportedNode`，不能据此推定其它缺口通过。
 独立字段样例确认跨文件 var 误报 L0134，故拆出
-[SPEC-0263](../archive/specs/0263-unit-field-mutability.md)先承接 A2。
+[SPEC-0263](../specs/0263-unit-field-mutability.md)先承接 A2。
 选择、结果和未覆盖范围只记该 Spec；M1A 总验收、字段直接 Borrow 和 unit for 继续开放。
 
 后续从 PR40 merge `11acf62` 启动
-[SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)实施 A3。该 merge 的主干
+[SPEC-0264](../specs/0264-unit-direct-field-borrow.md)实施 A3。该 merge 的主干
 [CI37193746866](https://github.com/Halckon/Koven/actions/runs/37193746866)10个任务全部成功。
 该调查发现的 unit typed descriptor、provider/source loan 与有序清理事实，现已由
-[SPEC-0265](../archive/specs/0265-unit-iteration-facts.md)补齐 conditional receiver 内外/嵌套清理后通过双宿主 CI，已完成 A4 有界验收归档。
-PR43 已合并为 `6377f2b`，后继 [SPEC-0268](../archive/specs/0268-unit-iteration-native.md)
+[SPEC-0265](../specs/0265-unit-iteration-facts.md)补齐 conditional receiver 内外/嵌套清理后通过双宿主 CI，已完成 A4 有界验收归档。
+PR43 已合并为 `6377f2b`，后继 [SPEC-0268](../specs/0268-unit-iteration-native.md)
 承接 A5–A10，保持 Guide §37.4 的前端与 native 范围区分；启动时的完整程序基线在
 native lowering 返回 UnsupportedNode，后续实现验收见§14。并行实施使用独立分支/worktree，本地 Cargo 串行，
 切换工作树后须确保实际源码重新编译；M1A 总退出条件保持。
@@ -267,7 +267,7 @@ Control flow、Reserved words are not identifiers。日志中的树差异仍需�
 后继应独立修复并将完整 corpus 接入必需门禁。当前 CI 的 Rust editor fixture 检查继续有用，
 但不执行此 Tree-sitter CLI corpus；本次复核不关闭编辑器交付，也不声明 M0 所有保留项完成。
 
-后继 [SPEC-0267](../archive/specs/0267-editor-corpus-gate.md) 已在隔离分支修复参数模式、
+后继 [SPEC-0267](../specs/0267-editor-corpus-gate.md) 已在隔离分支修复参数模式、
 上下文词与词运算符边界，明确命名参数优先级，逐项审阅两份恢复 golden。
 本地真实 corpus 为 10/10，新增 CLI 树合同为 9/9，frontend editor 交叉合同为 9/9；
 PR #45 实现 head `236625b` 的 run `37198642821` 已通过全部11项检查，
@@ -281,13 +281,13 @@ PR #45 实现 head `236625b` 的 run `37198642821` 已通过全部11项检查，
 
 0268实现head `e091408` 的[PR46双宿主CI](https://github.com/Halckon/Koven/actions/runs/37205512961)
 已经通过，原三文件教程四组argv及资源/拒绝/原子性有实际证据，唯一账本见
-[SPEC-0268](../archive/specs/0268-unit-iteration-native.md)。按实现证据归档，归档提交仍须最终CI与合并。
+[SPEC-0268](../specs/0268-unit-iteration-native.md)。按实现证据归档，归档提交仍须最终CI与合并。
 0266的Linux ASan/LSan首片已由PR44合并为`44cb312`，PR及主干CI成功；其余M4范围保持开放。
 M1B与新增标准库API仍需各自语义决定，M4b仅在准备有界生成候选，不从这些结果推出后续里程碑完成。
 
 ## 15. M5b 候选包首片启动
 
-[0272](../archive/specs/0272-preview-candidate-package.md) 原合同从 PR47 主干起草，
+[0272](../specs/0272-preview-candidate-package.md) 原合同从 PR47 主干起草，
 当前在 PR49/PR50 合并后的最新主干 `80b1c3b` 独立 worktree 继续实施，
 复用 M1A 与选定 M4a 前置，限定双宿主 release tar 和独立 runner 正常安装。
 不启用新语义，不公开 Release/tag；性能、实用文本、安装负向与宿主信任体验仍开放。
@@ -296,7 +296,7 @@ M1B与新增标准库API仍需各自语义决定，M4b仅在准备有界生成�
 
 ## 16. M1B-a 现行语义参数词频首片验收（2026-10-05）
 
-[SPEC-0274](../archive/specs/0274-argv-word-frequency.md)在最新PR51 main `7262232`
+[SPEC-0274](../specs/0274-argv-word-frequency.md)在最新PR51 main `7262232`
 新worktree完成size/同步读取交接与unit Borrow String binary，三文件词频程序不新增语言/API。
 [PR52实现head CI](https://github.com/Halckon/Koven/actions/runs/37246195048)已15项全部成功，
 每宿主37条实际build/artifact/run及decimal/非法UTF-8命令的完整字节账本已独立复核并保存。
@@ -318,7 +318,7 @@ M1B-b文本输入与新String API、性能、M3新增API、M4b真实故障校准
 精确head/tree、raw hashes、job/artifact身份与既有macOS LLDB ignore见
 [交付闭环账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-containers-0275-delivery.json)，原archive验收历史未重写。
 
-最新main的独立分支`feature/spec-0276`按[0276正式合同](../archive/specs/0276-unit-generic-body-type-normalization.md)补普通顶层泛型函数body-only具体类型需求，
+最新main的独立分支`feature/spec-0276`按[0276正式合同](../specs/0276-unit-generic-body-type-normalization.md)补普通顶层泛型函数body-only具体类型需求，
 避免依赖签名或未使用声明补种canonical。有限类型归一化与现有
 Phase4实例预算/recipe错误优先级的兼容性准备审阅已通过，ADR0028已accepted；
 G1–G6与G7实现验收已通过本地门禁及PR54双宿主CI；最终归档head和actual main已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276-delivery.json)。
@@ -334,7 +334,7 @@ PR54于04:08:15Z合并为`18b89e5ebce171f50680ba96fbc5a2e27025b6c9`。最终归�
 精确head/tree/clean输出均已独立核验，完整raw及hash见上述live交付账本；冻结archive未改写。
 
 按用户本地分支接入要求，0277保留三个原提交并合入此main；实际接入复验与新head PR CI
-见[0277合同](../archive/specs/0277-p2-evidence-test-alignment.md)。P2成本预算仍未接受，不作为本片交付完成条件。
+见[0277合同](../specs/0277-p2-evidence-test-alignment.md)。P2成本预算仍未接受，不作为本片交付完成条件。
 后继运行时长度构造尚需正式Spec/共享表示ADR及失败测试；0277编号已占用，不复用。
 
 
@@ -412,7 +412,7 @@ ABI与普通native路径；用户明确启用Guide v0.41 expected move literal�
 ## 24. N1a receiver 本地闭环与待发布边界（2026-10-10）
 
 可信 receiver 静态 ABI、稳定根外层消费者续接与真实 std List/View.take 已分三片
-本地提交；[SPEC-0289 §19](../archive/specs/0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)
+本地提交；[SPEC-0289 §19](../specs/0289-n1a-range-carrier.md#19-receiver-静态-abi真实-std-take-与稳定根续接2026-10-10)
 记录最终148项定向测试、29次新增 native 执行与工程门禁，不用旧全量替代本轮。
 更广 CFG、剩余范围算法及整个 N1a 仍开放；consume/Clone/N1b 不扩展。
 PR70增量CI已合入main，本开发分支尚未接入；本轮新代码尚未push、全量/双宿主CI未跑。
@@ -423,7 +423,7 @@ PR70增量CI已合入main，本开发分支尚未接入；本轮新代码尚未p
 
 0289 的 List/View take/drop/dropLast、可信 Borrow receiver、最小访问/迭代及有界
 Builtin Int 计数已按 PR72 实现 head `d3d6f3c` 的双宿主直接证据验收归档，逐项 Goal
-核对见[原验收 §22](../archive/specs/0289-n1a-range-carrier.md#22-有界-goal-验收与归档2026-10-11)。
+核对见[原验收 §22](../specs/0289-n1a-range-carrier.md#22-有界-goal-验收与归档2026-10-11)。
 [交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/delivery.json)分别保留最终归档 head CI、merge
 与 actual main CI 的待交付状态。更广 CFG 按 Guide 12 结构化拒绝；consume、通用
 Clone、N1b 及其他候选不随归档启用。§23–24 与之前检查点仍保留原时点含义。
@@ -434,7 +434,7 @@ Clone、N1b 及其他候选不随归档启用。§23–24 与之前检查点仍�
 现行 Guide v0.43 下，0295 将真实三文件 argv 词频改为两遍 MutableMap；首次出现顺序、
 原 8 组 byte oracle、decimal 与非法 UTF-8 合同不变。PR74 实现 head `6843ac7b` 的
 双宿主各40公开命令、4新 native +20 frontend +13直接回归通过，记录见
-[归档验收](../archive/specs/0295-map-argv-word-frequency.md#9-双宿主实现验收与有界归档2026-10-11)及
+[归档验收](../specs/0295-map-argv-word-frequency.md#9-双宿主实现验收与有界归档2026-10-11)及
 [交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/delivery.json)。preview 只验 parameter-report。
 本片只关闭 K-H 应用 Goal；不声称 M3B 全部完成。另行记录的 MoveOnly for-body 提前 drop
 基线缺口仍开放；不启用 consume、通用 Clone、Map 迭代或新 Guide 语义。最终归档 head CI、

@@ -113,7 +113,7 @@ Lexer 的 LexedFile 字段封闭，Parser 有函数门面和私有 engine；unit
 | docs/architecture/ | 已实现事实与支持矩阵 | 随实现更新；目标设计不冒充现状 |
 | docs/specs/ 与 docs/adr/ | 有界交付验收与长期决策 | 关闭完成 Spec；accepted ADR 继续保留 |
 | docs/specs/evolution-status.md | 原 13 项演进状态真源 | 修正待发布、Draft、CI 等过时摘要 |
-| docs/development/roadmap.md | 新 current 导航与下一批次入口 | 引用状态真源，不复制第二张状态表 |
+| docs/archive/development/roadmap.md | 新 current 导航与下一批次入口 | 引用状态真源，不复制第二张状态表 |
 | docs/tutorials/ | 新 current 教程和受测示例 | 新建 README.md 与 koven-tour.md，可按预算拆章 |
 | docs/archive/ | 冻结规范、旧教程与验收历史 | 保存原文，只作允许的机械链接更新 |
 

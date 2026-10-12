@@ -26,7 +26,7 @@
 `feature/spec-0276`。实现/最终归档/main CI、完整原始产物和 source 身份闭环见
 [0275交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-containers-0275-delivery.json)。
 main CI37253329605已15/15终态成功；原main的6个未提交文件内容、状态和index已保全。
-本页承接[M3A草稿](../../development/sequential-collections-spec-draft.md) C07，未宣称全部M3A完成。
+本页承接[M3A草稿](../development/sequential-collections-spec-draft.md) C07，未宣称全部M3A完成。
 
 ## 2. 实际缺口与复用接口
 

@@ -22,7 +22,7 @@ Linux x86_64 上，实际 Koven 生成的用户函数、runtime 初始化和 dro
 起始基线为 `origin/main 11acf62`，后整合已归档0264的 `f0effcd`
 及纯文档交接 `8408d7`；实施分支
 `feature/spec-0266`。这是 M4a 独立首片，
-不关闭 [M4 起草材料](../../development/memory-safety-validation-spec-draft.md)其余范围。
+不关闭 [M4 起草材料](../development/memory-safety-validation-spec-draft.md)其余范围。
 现行 class/字段/native 分配和 drop 已足够构成 fixture，不依赖尚未完成的 M1A unit for。
 
 ## 2. 范围与边界

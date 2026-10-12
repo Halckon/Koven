@@ -1,14 +1,14 @@
-# M6 线程所有权转移：Spec 起草材料
+# M6 线程所有权转移（候选）
 
-> **性质**：待编号 Spec 起草材料 · **状态**：draft / 等待 runtime 基线及线程合同补齐 · **读取时机**：评审 v1 线程转移首片及未来共享边界时 · **唯一真源**：本页维护待决问题和候选验收；现行线程语义以 Guide 为准
+> **性质**：非规范候选设计 · **状态**：未启用 / 等待 runtime 基线及线程合同补齐 · **读取时机**：评审 v1 线程转移首片及未来共享边界时 · **唯一真源**：本页维护待决问题和候选验收；现行线程语义以 Guide 为准
 
 ## 1. Goal 与阶段
 
 Goal：在 v1 已规定的所有权转移模型下，交付可验证的线程启动、完成和资源清理切片。
 先完成合同缺口决策，再实施 Phase 2–5 与 Phase 6 宿主验证。
-共同启动/调整规则见[计划](post-governance-milestones.md)，用户本轮授权仅为起草。
+启动与调整遵守[工作流](../development/workflow-and-phases.md)；本页只保留候选，不授权实施。
 
-前置为稳定的 closure/runtime 交付边界、[M4](memory-safety-validation-spec-draft.md)适用证据
+前置为稳定的 closure/runtime 交付边界、[M4候选](native-safety-validation.md)所选范围的适用证据
 与实际并行工作需求；不因计划排序就把全部 Map 或发行能力作为硬前置。
 首片具体平台、任务输入和结果观察方式在正式 Spec 中固定。
 
@@ -78,4 +78,4 @@ Windows、musl、交叉编译是各自目标平台工作。async/await、Future�
 需求不成立时可推迟整个 M6，并记录原因及对其他里程碑的影响。
 
 H1–H6、正式编号、首片源码和 H-A–H-H 均未完成或未运行。
-文档验证统一见[计划 §11](post-governance-milestones.md#11-文档起草记录)。
+文档验证遵守[测试规则](../development/testing.md)；原起草检查点见[历史 §11](../archive/development/post-governance-milestones.md#11-文档起草记录)。

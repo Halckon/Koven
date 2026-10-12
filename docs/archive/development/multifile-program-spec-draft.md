@@ -10,26 +10,26 @@
 | 关联计划 | [治理完成后的开发里程碑](post-governance-milestones.md)的 M1A |
 | 所属 Phase | Phase 2–4 的事实/执行及 Phase 6 的 project 验收 |
 | 起草依据 | 用户于 2026-10-04 要求文档起草，代码开发等待另一位 agent 完成治理计划 |
-| 规范入口 | [Guide v0.41](../guide/README.md)、[名称与文件](../guide/02-names-files-packages.md)、[所有权](../guide/10-ownership-borrowing-drop.md)、[顺序集合](../guide/12-collections-destructuring.md) |
+| 规范入口 | [Guide v0.41](../../guide/README.md)、[名称与文件](../../guide/02-names-files-packages.md)、[所有权](../../guide/10-ownership-borrowing-drop.md)、[顺序集合](../../guide/12-collections-destructuring.md) |
 | 阻塞项 | A1 已取得 native UnsupportedNode 红测；A2–A10 实现已交付，最终PR交付按0268账本及PR记录核对 |
 | 语义变更 | 目标限于现行语义；若复核发现需要新规则，停止对应实施并另行决策 |
 | 文档落点 | 源码在教程，实施验收在正式 Spec；本页保留原始总退出要求与承接记录 |
 
 Goal：一个三文件参数报告工具通过真实 CLI project 入口编译并运行，直接消费跨文件 class
 可变字段、字段 Borrow 实参及 unit 顺序迭代，输出与清理符合现行规范。
-A5–A10 已由 [SPEC-0268](../archive/specs/0268-unit-iteration-native.md) 正式承接，
+A5–A10 已由 [SPEC-0268](../specs/0268-unit-iteration-native.md) 正式承接，
 唯一候选源码已迁入教程，本页保留总验收路径与用户可观察输出。
 本页不复制正式Spec的验收账本。链接的教程源码是完整 M1A 验收输入，首轮实际结果见下文。
 
 2026-10-04 用户要求合并草稿后进入里程碑。现已从 `b92593d` 启动
-[SPEC-0263](../archive/specs/0263-unit-field-mutability.md)承接 A2；该项合同与结果仅在正式 Spec
+[SPEC-0263](../specs/0263-unit-field-mutability.md)承接 A2；该项合同与结果仅在正式 Spec
 维护。以下起草表格和首批记录保留其时间边界；A1 已实测为 native UnsupportedNode，
 其余完整应用验收尚未通过，不能用 A2 首片替代。后续从 PR40 merge `11acf62` 启动
-[SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)承接 A3；实际验收只记该合同。
+[SPEC-0264](../specs/0264-unit-direct-field-borrow.md)承接 A3；实际验收只记该合同。
 
 ## 2. 候选源码与项目形态
 
-源码已唯一迁入[当前教程 parameter-report](../tutorials/koven-tour.md#parameter-report)，
+源码已唯一迁入[当前教程 parameter-report](../../tutorials/koven-tour.md#parameter-report)，
 三个文件路径与Koven源码保持原样，project manifest沿用教程现有形态；metadata中只存输出合同。
 本页不再复制源代码，SPEC-0268通过真实CLI执行该同一教程输入。
 
@@ -73,11 +73,11 @@ kovenc run --project project.toml --entry app.main -- alpha 你好 tail
 
 起草基线中的代码入口：
 
-- 可变性：[收集](../../crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/traversal.rs)
-  与[查询](../../crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/places.rs)。
-- unit for：[类型](../../crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/control.rs)、
-  [ownership](../../crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/traversal.rs)、
-  [lowering](../../crates/lang-codegen/src/ssa/unit_lower.rs)。
+- 可变性：[收集](../../../crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/traversal.rs)
+  与[查询](../../../crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/places.rs)。
+- unit for：[类型](../../../crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/control.rs)、
+  [ownership](../../../crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/traversal.rs)、
+  [lowering](../../../crates/lang-codegen/src/ssa/unit_lower.rs)。
 
 这些是复核入口，不预定未来 helper 或公共 API。复用 source-qualified declaration/field facts，
 优先补同轮事实查询与消费者；不通过放宽能力 gate 或复制整套 checker 达到运行目标。
@@ -96,7 +96,7 @@ kovenc run --project project.toml --entry app.main -- alpha 你好 tail
 
 下表保留原 A1–A10 要求与起草时的候选接入点，不再维护第二份实施账本。
 A2–A4 的实际结果分别见 SPEC-0263/0264/0265；A5–A10 统一由
-[SPEC-0268 单一验收账本](../archive/specs/0268-unit-iteration-native.md#5-单一验收账本)维护，映射如下：
+[SPEC-0268 单一验收账本](../specs/0268-unit-iteration-native.md#5-单一验收账本)维护，映射如下：
 
 | 原要求 | 正式验收项 |
 |---|---|
@@ -110,9 +110,9 @@ A2–A4 的实际结果分别见 SPEC-0263/0264/0265；A5–A10 统一由
 | ID | 要证明的合同 | 候选测试位置 / 执行入口 | 验收要求 |
 |---|---|---|---|
 | A1 | 源码真实性与首轮红测 | 上述三文件，经 CLI project；各缺口另用最小输入定位 | 记录失败阶段、code/kind、source/Span；不能把首个错误当成其他路径已验证 |
-| A2 | 跨文件字段可变性 | 已由[SPEC-0263](../archive/specs/0263-unit-field-mutability.md)承接 | 正反例、身份、诊断及实际结果只维护在正式 Spec |
-| A3 | 字段直接 Borrow 与父 owner | 由[SPEC-0264](../archive/specs/0264-unit-direct-field-borrow.md)承接 | 具体范围、callee 读取/父 owner/冲突与实际结果只维护在正式 Spec |
-| A4 | unit 迭代 typed/ownership 事实 | [SPEC-0265](../archive/specs/0265-unit-iteration-facts.md)已完成有界验收 | source 求值一次、binding/projection 身份、loan/provider/清理顺序和最近 callable 边界；包含 Inout/字段 source 的前端正反例；实际结果只维护在正式 Spec |
+| A2 | 跨文件字段可变性 | 已由[SPEC-0263](../specs/0263-unit-field-mutability.md)承接 | 正反例、身份、诊断及实际结果只维护在正式 Spec |
+| A3 | 字段直接 Borrow 与父 owner | 由[SPEC-0264](../specs/0264-unit-direct-field-borrow.md)承接 | 具体范围、callee 读取/父 owner/冲突与实际结果只维护在正式 Spec |
+| A4 | unit 迭代 typed/ownership 事实 | [SPEC-0265](../specs/0265-unit-iteration-facts.md)已完成有界验收 | source 求值一次、binding/projection 身份、loan/provider/清理顺序和最近 callable 边界；包含 Inout/字段 source 的前端正反例；实际结果只维护在正式 Spec |
 | A5 | unit 迭代 SSA/native | codegen 相应 unit lowering/verifier/native suite | 三种现行容器；owned/Borrow 源、temporary；0/1/多元素；继续、break、continue、return及 Abort；Inout/字段 source 按首轮 Phase 4 边界明确拒绝 |
 | A6 | 精确资源与控制流 | A3/A5 的动态计数用例 | 按 owner/指针核唯一释放与顺序；结束 provider 后才能结束 source loan；Abort 不 unwind；必须检查循环后或 caller 输出 |
 | A7 | 能力/身份 gate 与失败原子性 | ordinary/const native 交接合同和 project CLI | 源与 facts 混轮/混 source 拒绝；失败保留旧产物和目录状态；成功路径确实发射/链接/运行 |

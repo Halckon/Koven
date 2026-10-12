@@ -14,7 +14,7 @@
 `cac928487edf32f59cc868fa69b997f254a364bc` 增量实施；不为每个文件另发 PR。
 分支承接从真实 main `9ac49f3` 建立的 SPEC-0255，并保留原完整提交历史。
 
-一个最终 PR 包含已完成本地验收的 0254 归档、[0255 中立支撑边界](../archive/specs/0255-neutral-lowering-support.md)、
+一个最终 PR 包含已完成本地验收的 0254 归档、[0255 中立支撑边界](../specs/0255-neutral-lowering-support.md)、
 [multifile ownership 十二测试域](multifile-ownership-test-migration.md)，以及本页两项生产责任迁移。
 生产迁移分别提交，可独立回退；统一最终验收、独立 review 与 exact-head 双宿主 CI 后才交付。
 SPEC-0255 继续 active；本地通过不替代远端 CI，也不把整个 P2/P4 或治理计划标为完成。

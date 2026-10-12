@@ -67,7 +67,7 @@ OS缓存、机器负载未受控；冷样本只表示空构建产物缓存。三
 
 ## P5 本轮验收与停止条件
 
-[SPEC0262](../archive/specs/0262-current-tutorial-plan-coverage.md)补齐四个明确教程空缺。
+[SPEC0262](../specs/0262-current-tutorial-plan-coverage.md)补齐四个明确教程空缺。
 首次deinit夹具使用已有UnsupportedNode边界，改为既有concrete scope/deinit能力；
 跨文件首次manifest名称不符合CLI协议，改为`project.toml`；未为教程扩展编译器能力。
 最终四个新增例的build/artifact/run完整输出通过；未重跑原七正例与两负例。

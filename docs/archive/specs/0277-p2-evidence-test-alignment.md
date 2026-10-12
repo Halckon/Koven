@@ -63,7 +63,7 @@ v2修复冻结汇总漏报两类首启，仅重算14组/attempt、917条记录�
 3. 记录第2提交精确SHA及最终验收，独立提交；保持active，未跑新分支CI不归档。
 
 云包原报告/脚本/发布hash的唯一保存处是 [完整证据归档](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-20261005/koven-p2-transfer.tar.gz)。
-接收、解包、复核入口见 [本机接收说明](../../development/p2-linux-cost-transfer.md)。
+接收、解包、复核入口见 [本机接收说明](../development/p2-linux-cost-transfer.md)。
 云base精确CI37248672159及云全量1704 passed仅是原SHA/宿主证据，不冒充Mac全量或新分支CI。
 
 ## 6. 验证记录

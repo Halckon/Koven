@@ -4,22 +4,26 @@
 
 当前 0 份 active。
 
-[SPEC-0302](../../archive/specs/0302-evidence-retention.md) 已按 PR76 实现 head 完整 CI 有界归档；最终归档 head、merge 与 actual main 仍待验证。
+[SPEC-0303](../../archive/specs/0303-development-document-ownership.md)已按PR77精确实现head的CI有界归档；最终归档head、merge与actual main仍待验证。
+
+[0302证据保留](../../archive/specs/0302-evidence-retention.md)已按PR76有界归档并合入main `8ef058f6`；合并后CI另行跟踪。
 
 0296 owned nullable具名/临时结果cleanup已按[PR75](https://github.com/Halckon/Koven/pull/75)实现head
-双宿主每host55项codegen与25项Map frontend有界验收归档；最终归档head/merge/main仍待交付，
-见[0296账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/delivery.json)。保留single for与普通nullable工厂边界。
+双宿主每host55项codegen与25项Map frontend有界验收归档，已合为main `8c6907c2`；
+actual-main CI [38150175528](https://github.com/Halckon/Koven/actions/runs/38150175528)已成功。
+[0296原账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/delivery.json)保留当时检查点，
+[最新整合记录](../../archive/migrations/pr72-74-followup-audit.md#基线与交付)不扩大single for或普通nullable工厂边界。
 
 0295 两遍 argv Map 词频应用已按 [PR74](https://github.com/Halckon/Koven/pull/74) 实现 head
-双宿主各 40 条公开命令及通用回归有界归档；最终归档 head CI、merge、main 待交付，见
-[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/delivery.json)。只关闭 M3B K-H 应用 Goal。
+双宿主各 40 条公开命令及通用回归有界归档；已合为main `e168c485`，actual-main CI成功，见[最终核对](../../archive/migrations/pr72-74-followup-audit.md)。
+[原交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/delivery.json)保留当时检查点；只关闭 M3B K-H 应用 Goal。
 
 0294 的 Map.put key/value return 有界修复已按 [PR73](https://github.com/Halckon/Koven/pull/73)
-实现 head 双宿主 CI 归档；同步 main 后的最终归档 head/merge/main 仍待交付，见
-[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-put-return-0294/delivery.json)。不扩大一般 CFG 或 loop 退出。
+实现 head 双宿主 CI 归档；已合为main `4321e99e`，actual-main CI成功，见[最终核对](../../archive/migrations/pr72-74-followup-audit.md)。
+[原交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-put-return-0294/delivery.json)保留当时检查点；不扩大一般 CFG 或 loop 退出。
 
 0289 的 N1a 有界 Goal 已按 [PR72](https://github.com/Halckon/Koven/pull/72) 实现 head
-双宿主直接证据验收归档；最终归档 head CI 已通过并合为 `3f976798`，actual main CI 尚待完成，见
+双宿主直接证据验收归档；最终归档 head CI 已通过并合为 `3f976798`，actual main CI 已成功，见
 [交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/delivery.json)。归档不扩展既有 CFG
 能力门，也不启用 consume、通用 Clone 或 N1b。
 
@@ -73,10 +77,10 @@
 0263/0264/0265 已分别完成 M1A A2–A4 有界验收归档；
 0266 检测接线与0267编辑器修复已分别通过PR44/PR45合并。0268补齐unit native for与完整应用实现验收。
 0182、0255–0261按用户授权的本机恢复验收完成本地归档，
-实际结果与未覆盖范围见[本机恢复账本](../../development/recovery-local-delivery.md)。
+实际结果与未覆盖范围见[本机恢复账本](../../archive/development/recovery-local-delivery.md)。
 [0262教程补齐](../../archive/specs/0262-current-tutorial-plan-coverage.md)已随PR38交付并具备精确head双宿主证据。
 0266/PR44完成Linux ASan/LSan有界接线，不表示macOS动态检测或UBSan完成。
-当前状态以[本次固定基线核对](../../development/documentation-status-sync.md)为准；旧Spec正文保留交付时快照。
+当时状态见[固定基线核对](../../archive/development/documentation-status-sync.md)；当前状态由本目录合同维护，旧Spec正文保留交付时快照。
 原P2成本证据/预算接受仍延期，不能从归档或CI成功推定全部治理验收完成。
 
 - [演进实施账本](../evolution-status.md)：语言能力与独立缺口

@@ -23,7 +23,7 @@
 本片在该最新main新建worktree，分支`feature/spec-0274-current`接收合同与在途实现。
 M1A 已验收，PR51未改Rust生产语义；M5b候选包不是本片启动前置，精确main push CI 37243777369已15/15成功，两候选消费者各12命令通过。
 
-本片承接 [M1B 起草材料](../../development/text-processing-spec-draft.md) 的 a，
+本片承接 [M1B 起草材料](../development/text-processing-spec-draft.md) 的 a，
 只修复程序实际触发的既有语义交接；文本输入 b、新公共标准库 API 仍待各自前置。
 
 ## 2. 基线事实与需求调整

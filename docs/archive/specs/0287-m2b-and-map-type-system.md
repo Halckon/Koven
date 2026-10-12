@@ -31,7 +31,7 @@
 
 ## 2. 背景与需求
 
-根据里程碑规划（`docs/development/post-governance-milestones.md`）：
+根据里程碑规划（`docs/archive/development/post-governance-milestones.md`）：
 - M2B 目标在于解决容器元素/字段非 owning 借用查询的局部绑定与受控转发问题，消除不必要的隐式 clone 与 move；
 - M3B Map 集合要求建立完整的键值集合语义，以服务于词频统计等实用程序（M1B）；
 - 现行 Guide 中曾将 `Map` / `MutableMap` 列为未启用语义，导致类型系统缺少内建 Map 识别。

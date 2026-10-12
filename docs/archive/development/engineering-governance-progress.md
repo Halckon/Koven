@@ -1,6 +1,6 @@
 # 整体架构与工程治理执行账本
 
-> **性质**：分阶段执行账本 · **状态**：current · **读取时机**：继续已批准计划、选择下一批次或核验实际交付时 · **唯一真源**：本页维护治理批次状态；语言演进见[演进实施账本](../specs/evolution-status.md)
+> **性质**：分阶段执行账本 · **状态**：current · **读取时机**：继续已批准计划、选择下一批次或核验实际交付时 · **唯一真源**：本页维护治理批次状态；语言演进见[演进实施账本](../../specs/evolution-status.md)
 
 2026-10-02 用户批准[整体计划](engineering-governance-plan.md)。目标设计不代表已实现；
 新行为仍按 Spec、长期架构变化按 ADR、语言变化按 Guide 的既有门禁执行。
@@ -28,7 +28,7 @@ Linux十组917记录已完成，12噪声及plan-tests首启一个单对调查保
 文档创建基线为main `adb51d6`，合入时接收main `a83749f`的0268/PR46交付；
 [本批核对](documentation-status-sync.md)记录Guide/旧Spec状态、实际CI及未接收的并行内容。
 0271按用户授权合入本地main，接收 `ed61d7d` 的0270/PR47归档，为1 active/256 archive；
-新增有界教程及固定 `4ce0eb8` 基线的native失败证据见[验收账本](../archive/specs/0271-tour-combination-coverage.md)。
+新增有界教程及固定 `4ce0eb8` 基线的native失败证据见[验收账本](../specs/0271-tour-combination-coverage.md)。
 原有有界工程实施与功能门禁已有交付；用户决定跳过噪声检查，
 P2性能/成本验收延期，保留原始样本和未接受预算，不标全部治理验收通过。
 
@@ -88,14 +88,14 @@ P2下一小批固定multifile ownership前后SHA，保留两次停止校准和59
 
 ## 0182 的保留边界
 
-[0182](../archive/specs/0182-sequential-for-lowering.md) 已有实现与 7 SSA / 8 native 专项执行证据。
+[0182](../specs/0182-sequential-for-lowering.md) 已有实现与 7 SSA / 8 native 专项执行证据。
 其原勾选不能单独证明 empty/single/source-call-once、逐 CFG 清理、ZST/精确资源次数、
 malformed/mixed products 与确定性已具备完整集成 oracle。前端已有事实测试可复用，
 但不替代真实 for→lowering/native 的证据。独立批次先建立逐项映射，再补缺口；当前未证明生产 bug。
 
 ## 0236 的验收缺口与后继补齐
 
-[0236](../archive/specs/0236-explicit-string-clone.md) 原 §5 第4项要求诊断与 Span 回归。
+[0236](../specs/0236-explicit-string-clone.md) 原 §5 第4项要求诊断与 Span 回归。
 直接 `string_clone` suite 的双入口 helper 精确比较诊断 code，但没有 span/primary 断言；
 生产 checker 使用 `name_span` 只是静态实现证据，不能替代回归 oracle。
 因此不按批准计划中的候选数量机械关闭；本批保持 `in-progress`，后继单独补定向测试。
@@ -125,7 +125,7 @@ malformed/mixed products 与确定性已具备完整集成 oracle。前端已有
   [首片验收](lsp-test-migration.md)。首片结构/正确性完成，不代表P2整体或性能采样完成
 - 本尺寸护栏独立分支基于上述最新main，实际扫描596个手写Rust文件、49个超千行，
   `exceptions` 与 `generated` 均空；不机械继承旧50项，不拆任何Rust源码。
-  [政策](rust-size-policy.md)涵盖生产/tests/helpers、baseline防增额、base真实尺寸收紧、
+  [政策](../../development/rust-size-policy.md)涵盖生产/tests/helpers、baseline防增额、base真实尺寸收紧、
   rename/copy、明确例外与生成物登记，并将护栏接入每次CI与最终汇总
 - 冷/热compile/link、RSS、重复性能样本、退化预算仍未测；没有以脚本耗时或旧CI执行时间替代。
   0182、0236的独立补强也不因本护栏自动视为完成
@@ -200,7 +200,7 @@ Draft PR exact-head双宿主CI仍需核验，终态留在PR；不沿用基底CI�
   `5e9a2954536055e674eed515709d34a65b354e21`。最终归档head
   `83e4693c88793bccf9b0358973c334837d149681` 的
   [CI 37026403861](https://github.com/Halckon/Koven/actions/runs/37026403861)为9/9 success；
-  [0248](../archive/specs/0248-unit-container-storage.md)仅按其有界Unit存储合同完成，当前1 active/234 archive。
+  [0248](../specs/0248-unit-container-storage.md)仅按其有界Unit存储合同完成，当前1 active/234 archive。
   0182的完整合同仍active；不可由Copyable Unit子集推定MoveOnly ZST等未决能力已完成
 - 本片固定上述新main，`unit_plan_tests.rs` 3091→140行，48项拆成七私有领域模块，最大742行。
   730项libtest中48项一对一迁移、682项身份不变；原filter前后实际48/48，129 targets完整metadata相等。
@@ -320,7 +320,7 @@ P2仍待其余大integration与独立生产职责；P3/P4/P5未自动完成，01
 
 [PR29](https://github.com/Halckon/Koven/pull/29)已合并为
 `7b3ac11fe1770339f2c5170981839477dae8cbf5`；本片从该main建立 `feature/spec-0249`。
-[0249](../archive/specs/0249-owned-unit-borrowed-handoff.md)限定普通 owned-unit 的封闭六借用工厂、
+[0249](../specs/0249-owned-unit-borrowed-handoff.md)限定普通 owned-unit 的封闭六借用工厂、
 旧API转接与CLI ordinary消费者；const、ABI、语言语义和长期架构决定不变，不新建ADR。
 本片验收只记入该Spec唯一账本；当前为in-progress，最小工厂与普通消费者已实现，
 直接工厂1项、compile-contract7项及双路native9项通过；native/factory 和独立 lower 动态 index
@@ -356,7 +356,7 @@ Draft PR尚未发布，exact-head双宿主CI未开始，不提前标完成。
 不是以不同 SHA 的假定等价替代核验。双宿主17项合同＋7项关键回归逐名各恰1次 ok；
 这一24项集合与 PR29 的原24基线不同。macOS codegen738＋既有LLDB1 ignored、CLI65；
 Ubuntu codegen739、CLI66；两宿主 frontend lib187、LSP26、ownership iteration184及
-stage/Guide实际通过，完整映射见[归档0249后继账本](../archive/specs/0249-owned-unit-borrowed-handoff.md#8-首轮-exact-head-双宿主验收与归档2026-10-02)。
+stage/Guide实际通过，完整映射见[归档0249后继账本](../specs/0249-owned-unit-borrowed-handoff.md#8-首轮-exact-head-双宿主验收与归档2026-10-02)。
 
 0249 仅完成普通 owned-unit 封闭借用交接，当前1 active/235 archive；上节in-progress、
 未发布和CI未开始文字保留为当时历史。0182继续active，P2其余职责、P3b/P4/P5及整体计划
@@ -369,7 +369,7 @@ stage/Guide实际通过，完整映射见[归档0249后继账本](../archive/spe
 
 本片固定 PR30 merge `64ace382c2a634ebf19bab66da928242120930cd`，从刷新后的 main 建立
 `feature/spec-0250`；0250 在 active/drafts/archive 与本地/远端分支均未占用。
-[有界合同与唯一验收账本](../archive/specs/0250-unit-name-snapshot.md)限定 frontend 无 IO 的
+[有界合同与唯一验收账本](../specs/0250-unit-name-snapshot.md)限定 frontend 无 IO 的
 UnitNameSnapshot 与 CLI project 首迁；原 SourceMap 身份、canonical 语法/metadata 配对、
 同次 name/type environment、names首gate及basic/const/ownership/native后段保持。
 
@@ -389,7 +389,7 @@ P3b完整driver/bootstrap/LSP迁移仍未完成；LSP const/recovery和legacy协
 两宿主新snapshot7/compile4及完整project_cli9逐名各恰一次ok；原core、stage、Guide实际成功。
 测试使用合成merge2ae137f，已fetch核实其tree1767f193与head完全相同，未将它描述为真实merge。
 详细父链、提交映射、原日志链接、macOS既有LLDB1 ignored和有界结论见
-[0250最终首轮账本](../archive/specs/0250-unit-name-snapshot.md#6-首轮精确-head-双宿主验收与有界归档2026-10-02)。
+[0250最终首轮账本](../specs/0250-unit-name-snapshot.md#6-首轮精确-head-双宿主验收与有界归档2026-10-02)。
 
 0250归档后当前1 active/236 archive；本节此前“待review/CI”保留为实施时快照。
 只完成CLI project名称前缀，完整P3b/bootstrap/LSP与其余治理未完成；最终归档head另行窄review/CI，
@@ -399,7 +399,7 @@ P3b完整driver/bootstrap/LSP迁移仍未完成；LSP const/recovery和legacy协
 ## SPEC-0251 LSP unit 名称前缀消费（2026-10-02）
 
 从 PR31 merge `08c7b0966115f2f709cbd8a9257a6e8b2d704429` 建立 `feature/spec-0251`。
-[有界合同与唯一验收账本](../archive/specs/0251-lsp-unit-name-snapshot.md)限定 unit_session 组合
+[有界合同与唯一验收账本](../specs/0251-lsp-unit-name-snapshot.md)限定 unit_session 组合
 唯一 UnitNameSnapshot，保持 names validation、typed recovery、const 无 owned、URI/UTF16、
 overlay/version/last-good 与全部 send 后 commit；不改变 legacy、CLI 或 frontend API。
 
@@ -418,7 +418,7 @@ overlay/version/last-good 与全部 send 后 commit；不改变 legacy、CLI 或
 [CI37068719547](https://github.com/Halckon/Koven/actions/runs/37068719547)9/9成功。
 两宿主原26＋新增11共37个LSP身份各恰一次ok，0 ignored/filtered；双宿主check/Clippy、
 core/stage/Guide实际成功。合成merge c62393e7已fetch核实tree9794ca21与head完全相同。
-完整提交映射、父链、日志链接与有界结论见[0251唯一账本](../archive/specs/0251-lsp-unit-name-snapshot.md#6-首轮精确-head-双宿主验收与有界归档2026-10-02)。
+完整提交映射、父链、日志链接与有界结论见[0251唯一账本](../specs/0251-lsp-unit-name-snapshot.md#6-首轮精确-head-双宿主验收与有界归档2026-10-02)。
 
 当前1 active/237 archive；前节未发布、待评审/CI及尚未归档文字保留实施时快照。
 归档新head另行窄review和最终CI，不由首轮替代；终态留PR，合并遵循既有授权与门禁。
@@ -428,7 +428,7 @@ P3b整体和bootstrap/legacy/const后继、其余治理、0182及延期外部审
 ## SPEC-0252 unit 基础所有权共享推进（2026-10-02）
 
 从 PR32 merge `15dfb13a6d771f66fbcfa21ca8db2fed92e77868` 建立 `feature/spec-0252`。
-[唯一合同与验收账本](../archive/specs/0252-basic-unit-ownership-driver.md)限定一个有界PR：
+[唯一合同与验收账本](../specs/0252-basic-unit-ownership-driver.md)限定一个有界PR：
 CLI project先迁、LSP unit后迁，共享typed basic validation→普通ownership；无IO、const或
 宿主诊断策略。Outcome按值，不是完整owner或额外身份证明；LSP消费式恢复typed去除大clone。
 
@@ -455,7 +455,7 @@ NotBasic/const分流、raw诊断/deferred、entry优先级及last-good。真实�
 两宿主新API6/compile4、新CLI9/原project9与完整LSP40各身份恰一次ok，完整targets
 0 failed/ignored/filtered；core、iteration、stage、Guide及check/严格Clippy均实际成功。
 合成merge b562cfb8已核父链base15dfb13＋head9b872bc3及完整tree08ac5566相同。
-完整映射、日志与有界结论见[0252唯一账本](../archive/specs/0252-basic-unit-ownership-driver.md#7-首轮精确-head-双宿主验收与有界归档2026-10-02)。
+完整映射、日志与有界结论见[0252唯一账本](../specs/0252-basic-unit-ownership-driver.md#7-首轮精确-head-双宿主验收与有界归档2026-10-02)。
 
 当前1 active/238 archive；前节待review/未发布/CI为实施时快照。归档新head另行窄review和
 最终CI，终态留PR并由维护者决定merge后核main。P3b单文件bootstrap/legacy、P3a const
@@ -465,7 +465,7 @@ owned交接、0182及其余治理仍保留；外部审计继续排在整个计�
 ## SPEC-0253 单文件阶段门面（2026-10-03）
 
 从PR33 main `82610ab9` 建立 `feature/spec-0253`，先保留独立审阅的0252归档提交，
-与[0253有界合同](../archive/specs/0253-single-file-analysis-facade.md)合并为一份后继Draft PR，
+与[0253有界合同](../specs/0253-single-file-analysis-facade.md)合并为一份后继Draft PR，
 本地验收完成后才发布，避免中间push与独立归档PR重复触发CI。
 
 独立设计评审批准固定纯runner加五阶段diagnostic gate和typed observer两个接缝；
@@ -487,7 +487,7 @@ P3a const owned交接、0182、其余P2/P4/P5与整体计划后的外部审计�
 与本地95862ed、远端head及合成merge7c92af03均一致。主干
 [CI37083070686](https://github.com/Halckon/Koven/actions/runs/37083070686)亦9/9成功，双host
 实际checkout该真实merge，109/22身份再次逐项通过。完整映射、保留的macOS LLDB ignore
-及平台差额见[0253唯一账本](../archive/specs/0253-single-file-analysis-facade.md#6-精确head双宿主验收与有界归档2026-10-03)。
+及平台差额见[0253唯一账本](../specs/0253-single-file-analysis-facade.md#6-精确head双宿主验收与有界归档2026-10-03)。
 
 前段未发布/待CI为本地实施时快照；本次按减少PR/CI频率要求，仅本地准备归档，随下一
 相关批次发布，不另发文档PR。P3b的四宿主parity与公开身份/能力退出证据闭合；const
@@ -497,7 +497,7 @@ owned交接仍属P3a，0182、其余P2/P4/P5与后续外部审计继续保持。
 ## SPEC-0254 const owned-unit 封闭交接（2026-10-03）
 
 从PR34真实main `c6b84ecb`建立`feature/spec-0254`，先携带独立审核的0253归档，
-与[本片有界合同](../archive/specs/0254-const-owned-unit-borrowed-handoff.md)一起本地完成后发布一份Draft PR。
+与[本片有界合同](../specs/0254-const-owned-unit-borrowed-handoff.md)一起本地完成后发布一份Draft PR。
 独立const六借用工厂、旧native/lower转接与CLI project const消费已实现；空常量仍保留专用
 短路/ownership能力，LSP const无owned不变。旧生产oracle先锁，再做新API编译红与最小实现。
 
@@ -535,7 +535,7 @@ runtime layout纯移动，已合并为 `9ac49f3ad3b1c8b0e5c762413f56bde719bf11d0
 77/77已记录steps success。每host新增25、const ownership20、planner48及const资源60按
 phase/package/target/full_name独立核验，无异常；Ubuntu2446 passed，macOS2444 passed与
 既有LLDB ignored1明确分开。完整平台差额与未执行范围只见
-[0254最终验收](../archive/specs/0254-const-owned-unit-borrowed-handoff.md#6-pr35-精确head双宿主与归档收尾2026-10-03)。
+[0254最终验收](../specs/0254-const-owned-unit-borrowed-handoff.md#6-pr35-精确head双宿主与归档收尾2026-10-03)。
 
 真实merge的[main CI37124524536](https://github.com/Halckon/Koven/actions/runs/37124524536)
 另有9/9 jobs、77/77steps success与双raw逐身份通过证据，平台计数及有界选集与PR一致。
@@ -557,7 +557,7 @@ receiver原UnsupportedNode/unit成功差异保留，不强行合并driver。
 既有decoder逐字迁移2089bytes，错误种类/字段及原crate-private re-export路径不变；三个同形
 Some(span)构造由neutral私有helper承接，None span构造与原validation顺序保持。
 依赖真实反向导入编译后判红、恢复绿均成立；完整codegen770+2+4、workspace check、严格Clippy、
-fmt、102项policy、docs与尺寸通过；独立最终review已Approve，远端精确CI仍待。实际结果只记[0255唯一账本](../archive/specs/0255-neutral-lowering-support.md)。
+fmt、102项policy、docs与尺寸通过；独立最终review已Approve，远端精确CI仍待。实际结果只记[0255唯一账本](../specs/0255-neutral-lowering-support.md)。
 不声称性能改善、全部P4或整体治理完成；0182、其余P2/P5与整体计划后外部审计继续保留。
 
 

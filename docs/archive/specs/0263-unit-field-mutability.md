@@ -27,7 +27,7 @@ val 字段和 Borrow receiver 仍拒绝。字段身份保留 source，不能被�
 
 ## 2. 起草假设与本片范围
 
-[M1A 起草材料](../../development/multifile-program-spec-draft.md)包含字段可变性、直接 Borrow、
+[M1A 起草材料](../development/multifile-program-spec-draft.md)包含字段可变性、直接 Borrow、
 unit for 三条缺口。本片只承接 A2 及其直接消费者；M1A 总退出仍保持原合同。
 修复前 `Checker` 按使用 source 收集字段可变性，而 projection 使用跨 source 的字段身份，
 导致其它文件声明的 var 缺席。现有 typed field signature 不含可变性；不为此新增公共产物。

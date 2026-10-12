@@ -8,7 +8,7 @@
 | Goal ID | `KOV-P6-251` |
 | 所属 Phase | Phase 1→2 名称前缀与 Phase 6 LSP 编排；治理 P3b 有界后片 |
 | 语言规范 | [现行 v0.40](../../guide/README.md) |
-| 批准依据 | 2026-10-02 已批准[整体计划 §7](../../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)，名称快照首片后的 LSP 最小消费设计已独立只读评审 |
+| 批准依据 | 2026-10-02 已批准[整体计划 §7](../development/engineering-governance-plan.md#p3-封闭交接与共享编排-l-分两片)，名称快照首片后的 LSP 最小消费设计已独立只读评审 |
 | 基线 / 分支 | main `08c7b0966115f2f709cbd8a9257a6e8b2d704429` / `feature/spec-0251` |
 | 前置 Spec | SPEC-0187、0250 `done` |
 | 前置 ADR | [ADR-0021](../../adr/accepted/0021-lsp-explicit-source-set-protocol.md) `accepted` |

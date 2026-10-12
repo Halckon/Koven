@@ -20,7 +20,7 @@
 独立 runner 仅消费包和其依赖说明，正常安装后实际编译运行包内的三文件参数报告。
 基线为 main `80b1c3ba5ae3dbce9e6bae7000c0a235e2d2f24d`，分支 `feature/spec-0272-current`。
 
-本片承接 [M5 起草材料](../../development/measurement-distribution-spec-draft.md) D03–D05、
+本片承接 [M5 起草材料](../development/measurement-distribution-spec-draft.md) D03–D05、
 候选阶段 D07 及已有 M4a 前置。M4b、M1B、性能测量不是本片前置。
 D06 缺失依赖负向安装、浏览器下载隔离与签名体验保持开放；本片不关闭整个 M5b。
 

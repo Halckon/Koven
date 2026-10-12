@@ -29,13 +29,13 @@ executable对应的Cargo 1.96 fingerprint，只选择实际直接依赖的rlib�
 stage三组75个target/994项全部通过，Guide23与教程7+2通过。六项Python接线/metadata合同通过，
 包括77唯一target、10次Cargo调用、各阶段失败37传播，以及无条件required job断言。
 失败后按原序续跑，不将重试次数或分段通过写作一次完整脚本退出0；最终记录见
-[恢复账本](../../development/recovery-local-delivery.md)。
+[恢复账本](../development/recovery-local-delivery.md)。
 
 
 ## 2026-10-04 本机恢复最终验收
 
 本轮仅按用户授权在本地main重建和交付，禁止推送/PR/远端更改。
-实际Mac验证见[本机恢复账本](../../development/recovery-local-delivery.md)：core、
+实际Mac验证见[本机恢复账本](../development/recovery-local-delivery.md)：core、
 ownership_iteration184、stage75个target/994项、Guide23、教程7正例+2完整JSON负例通过；
 Return只读自查修复5+3定向通过，最终workspace all-targets严格Clippy通过。
 既有LLDB权限ignore1保留；Linux/远端CI未运行，旧云端证据不替代本轮。

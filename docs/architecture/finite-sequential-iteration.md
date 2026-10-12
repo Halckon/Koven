@@ -25,7 +25,7 @@ provider lifetime另用独立path-correlated provenance状态，沿实际edge并
 原SharedFieldLoan全局alias配对的误报边界保持，不宣称通用verifier重写。
 test-only SyntheticZero仅供内部SSA的MoveOnly ZST计数夹具；实际container drop loop保持，
 插桩区分logical element/container drop与storage malloc/free，不提供源码ZST能力。
-本次本机通过范围见[恢复账本](../development/recovery-local-delivery.md)。
+本次本机通过范围见[恢复账本](../archive/development/recovery-local-delivery.md)。
 
 ## 实现入口
 

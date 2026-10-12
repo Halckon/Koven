@@ -10,7 +10,7 @@
 
 运行时不使用追踪式垃圾回收。内存与资源按已验证的所有权事实确定性清理：纯内存类型使用 ASAP，资源类型采用词法作用域清理。当前实现和原生支持是有界的，不将语言设计目标视为全部功能或内存安全已完成验证。
 
-当前规范为 [Guide v0.40](docs/guide/README.md)，可执行入门示例见[当前教程](docs/tutorials/README.md)。本README合入时已接收main `a83749f`的PR46交付：跨文件字段可变性、直接字段Borrow、unit顺序迭代native及完整M1A参数报告程序已通过有界双宿主验收；Inout/字段/captured Borrow源的native迭代仍保持拒绝边界。性能/成本验收延期，当前不作比较性能承诺；详细范围见[路线图](docs/development/roadmap.md)和[架构快照](docs/architecture/README.md)。
+当前规范为 [Guide v0.43](docs/guide/README.md)，可执行入门示例见[当前教程](docs/tutorials/README.md)。本README合入时已接收main `a83749f`的PR46交付：跨文件字段可变性、直接字段Borrow、unit顺序迭代native及完整M1A参数报告程序已通过有界双宿主验收；Inout/字段/captured Borrow源的native迭代仍保持拒绝边界。性能/成本验收延期，当前不作比较性能承诺；详细范围见[Spec索引](docs/specs/README.md)和[架构快照](docs/architecture/README.md)。
 
 ---
 
@@ -215,9 +215,8 @@ Hello, World!
 仓库内包含组织在 [`docs/`](docs/) 下的完整文档体系：
 
 - [**当前可执行教程**](docs/tutorials/README.md)：从Markdown单一源码运行真实CLI合同。
-- [**当前路线图**](docs/development/roadmap.md)：当前交付、延期与后继里程碑入口。
 - [**Spec与演进账本**](docs/specs/README.md)：有界合同、归档关系与能力缺口。
-- [**语言规范 (v0.40)**](docs/guide/README.md)：Koven 语法、语义、类型规则与所有权机制的权威真源。
+- [**语言规范 (v0.43)**](docs/guide/README.md)：Koven 语法、语义、类型规则与所有权机制的权威真源。
 - [**编译器架构快照**](docs/architecture/README.md)：编译流水线、Typed SSA 与代码生成的当前事实说明。
 - [**开发与测试指南**](docs/development/README.md)：分层验证、测试门禁与代码不变式规范。
 - [**架构决策记录 (ADR)**](docs/adr/README.md)：重大架构决策的历史背景、长期考量与技术设计记录。

@@ -52,7 +52,7 @@ capture_graph；跨循环父环境的六个参数化case和其唯一helper集中
 ## 三个新有界例外与剩余欠账
 
 三个新文件是手写完整fixture，不是生成物，也不借原iteration的baseline继承新路径额度。
-[scripts/rust-size-policy.json](../../scripts/rust-size-policy.json) 为每项登记负责人、理由、
+[scripts/rust-size-policy.json](../../../scripts/rust-size-policy.json) 为每项登记负责人、理由、
 实际上限、后续拆分方向和复查条件；owner为lang-frontend ownership/drop tests（Halckon）。
 
 - conditional_leaf 上限1155：原6行case＋1159行helper完整保留条件形成、presence和三种tail矩阵

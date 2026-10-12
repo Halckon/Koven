@@ -19,7 +19,7 @@
 普通 compilation-unit 泛型函数签名中的直接 `Array<T>`、`List<T>`、`MutableList<T>`
 能够消费前端已发布的 concrete identity 实例化，既有 `.size` 和 owner 参数/返回可执行到 native。
 不新增语言规则、公共 API、表示或 runtime ABI；本片承接
-[M3A 草稿](../../development/sequential-collections-spec-draft.md) C07 的既有支持补齐。
+[M3A 草稿](../development/sequential-collections-spec-draft.md) C07 的既有支持补齐。
 
 前置0274实现head `3151690` 的 PR CI37246195048、最终归档head
 `cdb9cba803c401c3f6d246459ad8a5e10a50dd1f` 的

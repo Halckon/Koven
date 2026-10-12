@@ -8,7 +8,7 @@
 | Goal ID | `KOV-P4-255` |
 | 所属 Phase | Phase 4 SSA lowering；治理 P4 首个有界责任 |
 | 语言规范 | 现行 [Guide](../../guide/README.md)，[String](../../guide/13-program-runtime-standard-library.md#string) |
-| 批准依据 | 已批准[治理计划 P4](../../development/engineering-governance-plan.md#p4-共享纯内核与双轨收敛-l-条件阶段)及持续执行授权；2026-10-03 独立设计 review Approve |
+| 批准依据 | 已批准[治理计划 P4](../development/engineering-governance-plan.md#p4-共享纯内核与双轨收敛-l-条件阶段)及持续执行授权；2026-10-03 独立设计 review Approve |
 | 前置 Spec | SPEC-0254 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无；责任迁移属于获批实现细节，不新增长期架构决策 |
@@ -123,7 +123,7 @@ decoder SHA-256：`6f1f50e49754ea4937f21f938e2abcfcec2a85f0798a936b0c6e1203b09ce
 ## 2026-10-04 本机恢复最终验收
 
 本轮仅按用户授权在本地main重建和交付，禁止推送/PR/远端更改。
-实际Mac验证见[本机恢复账本](../../development/recovery-local-delivery.md)：core、
+实际Mac验证见[本机恢复账本](../development/recovery-local-delivery.md)：core、
 ownership_iteration184、stage75个target/994项、Guide23、教程7正例+2完整JSON负例通过；
 Return只读自查修复5+3定向通过，最终workspace all-targets严格Clippy通过。
 既有LLDB权限ignore1保留；Linux/远端CI未运行，旧云端证据不替代本轮。
