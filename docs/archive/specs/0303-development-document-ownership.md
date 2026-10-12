@@ -1,10 +1,10 @@
 # SPEC-0303: development 文档职责收敛与候选保全
 
-> **性质**：有界文档治理合同 · **状态**：in-progress · **读取时机**：迁移开发资料、核对开放候选与历史保全时 · **唯一真源**：本页的归整范围和验收
+> **性质**：有界文档治理合同 · **状态**：done · **读取时机**：迁移开发资料、核对开放候选与历史保全时 · **唯一真源**：本页的归整范围和验收
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-ENG-303` |
 | 所属 Phase | 工程文档治理；不改变语言 Phase |
 | 语言规范 | [Guide v0.43](../../guide/README.md)；不变更语义 |
@@ -157,3 +157,23 @@ H1–H6/H-A–H-H正文不变。保留工程页与新候选不维护另一张实
 | 文档、静态测试与diff | 新跑649 Markdown、42项docs/DAG静态测试、diff检查通过；有限凭据模式扫描无命中，不等于完整秘密审计 |
 | 独立审查 | 非作者核对actual main集成差异、历史保全、四draft与开放候选，独立重跑649/42静态门及diff检查，无剩余阻塞；不代表远端CI或交付完成 |
 | Cargo/native、注入/聚合、远端写入 | 未运行 |
+
+## 8. PR77 实现验收与待完成交付
+
+本片按[PR77](https://github.com/Halckon/Koven/pull/77)下列精确实现输入有界验收归档。
+此前本地与恢复检查点原样保留；本段不将归档提交、merge或actual main计为已完成。
+
+| 项目 | 实际结果 / 来源 |
+|---|---|
+| 实现 head | [dcbc175ff4f6bb9eb847e6bd2123e7e43f6ad8bb](https://github.com/Halckon/Koven/commit/dcbc175ff4f6bb9eb847e6bd2123e7e43f6ad8bb)，tree `f4811b69e88c10d96fb2053c735dcdb7d0930e45`；与本地260ef338同tree，不复制不同metadata祖先 |
+| CI输入 | base `8ef058f6f7a41e1b43f4ff74826ac16e47866299`；synthetic merge `420ea3eb56061551e0e121e57e9944dc9c1d7a59` |
+| 实现CI | [38215316914 / attempt 1](https://github.com/Halckon/Koven/actions/runs/38215316914)：2026-10-12 07:12:28 UTC completed/success；12个job实体success，包含双平台Targeted、CI Passed及Code CI Evidence；`reuse=false`，未复用旧代码CI |
+| 汇总门核验 | [CI Passed](https://github.com/Halckon/Koven/actions/runs/38215316914/job/114702187907)与[Code CI Evidence](https://github.com/Halckon/Koven/actions/runs/38215316914/job/114702188003)均确认required jobs成功，skip满足event/path规则 |
+| 平台结果边界 | [Ubuntu Targeted](https://github.com/Halckon/Koven/actions/runs/38215316914/job/114699255730)与[macOS Targeted](https://github.com/Halckon/Koven/actions/runs/38215316914/job/114699255764)成功；Linux sanitizer及上传成功，macOS对应两步按OS条件skipped，不计为macOS等价检测 |
+| 合法跳过 | 4个preview job因`preview=false`合法skipped；不计为preview实跑或通过 |
+| 归档delta本地静态验收与独立审查 | 新跑649篇Markdown、42项docs/DAG静态测试及diff检查通过；旧正文除2处lifecycle字段外不变，四draft/候选/Guide/0302/生产无改动；非作者独立复核及重跑同门通过，无剩余阻塞 |
+| 最终归档head CI / merge / actual main | 待执行、待独立验证；实现success不替代它们 |
+
+本次只关闭development职责归整、历史保全与候选导航Goal。0297–0300保持draft，P2预算
+仍未接受，未启用候选不因本片归档完成。归档delta不运行Cargo/native、故障注入、校准或
+聚合驱动；不新增原始日志、完整JSON dump或重复源码。

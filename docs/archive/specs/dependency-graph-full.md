@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，282 份）"]
+subgraph Garchive["已完成（archive，283 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -291,8 +291,6 @@ subgraph Garchive["已完成（archive，282 份）"]
   S0295["S0295<br/>两遍 argv Map 词频应用"]
   S0296["S0296<br/>owned nullable 最后判空与循环清理"]
   S0302["S0302<br/>验收产物保留边界与文档精简"]
-end
-subgraph Gactive["现行 active"]
   S0303["S0303<br/>development 文档职责收敛与候选保全"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -1609,7 +1607,7 @@ S0296 --> S0300
 | SPEC-0295 | archive | [0295-map-argv-word-frequency.md](0295-map-argv-word-frequency.md) |
 | SPEC-0296 | archive | [0296-owned-null-comparison-cleanup.md](0296-owned-null-comparison-cleanup.md) |
 | SPEC-0302 | archive | [0302-evidence-retention.md](0302-evidence-retention.md) |
-| SPEC-0303 | active | [0303-development-document-ownership.md](../../specs/active/0303-development-document-ownership.md) |
+| SPEC-0303 | archive | [0303-development-document-ownership.md](0303-development-document-ownership.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0297 | drafts/v0.43 | [0297-map-key-return-cleanup.md](../../specs/drafts/v0.43/0297-map-key-return-cleanup.md) |
