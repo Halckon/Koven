@@ -61,8 +61,8 @@ while/loop及更广循环组合继续作为后继候选；`break`/`continue`并�
 
 | 验收项 | 测试目标/选择 | 实际结果 |
 |---|---|---|
-| 两入口Int ==/<三位置、typed Int/Boolean与精确首拒绝 | 待普通源码红测冻结 | 未运行 |
-| 同根双正常arm if逐边descriptor/root/source-loan与scope终止 | 待普通源码红测冻结 | 未运行 |
+| 两入口Int ==/<三位置、typed Int/Boolean与精确首拒绝 | `ssa::range_lowering_tests::local_control::`的18项比较 | 真实红测18/18均在`n==2`/`n<3`精确Span返回UnsupportedNode；尚未实施 |
+| 同根双正常arm if逐边descriptor/root/source-loan与scope终止 | 同模块3项`if_both_arms` | 真实红测3/3均在完整if精确Span返回UnsupportedNode；尚未实施 |
 | String/MoveOnly/Resource正常native与结束后权限恢复 | 待选择 | 未运行 |
 | 0289五运算/前缀退出、普通borrow/alias边界、0299严格proof suffix与0300回归 | 待选择 | 未运行 |
 | fmt、codegen严格clippy、docs/尺寸/diff与独立review | 待执行 | 未运行 |

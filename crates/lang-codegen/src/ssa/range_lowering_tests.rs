@@ -19,6 +19,9 @@ mod receiver;
 #[path = "range_lowering_tests/scalar_counts.rs"]
 mod scalar_counts;
 
+#[path = "range_lowering_tests/local_control.rs"]
+mod local_control;
+
 #[path = "range_lowering_tests/drop_algorithms.rs"]
 mod drop_algorithms;
 
