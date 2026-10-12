@@ -1,18 +1,18 @@
 # SPEC-0297: Map 查询与删除的 key return 清理
 
-> **性质**：候选变更合同 · **状态**：draft · **读取时机**：准备 Map key 提前返回修复时 · **唯一真源**：本 Spec 的候选范围与验收账本
+> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收 Map key 提前返回修复时 · **唯一真源**：本 Spec 的范围与验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P4-0297` |
 | 所属 Phase | Phase 3 事实消费、Phase 4 SSA/native |
-| 语言规范 | 现行 [Guide v0.43](../../../guide/README.md)、[所有权](../../../guide/10-ownership-borrowing-drop.md) |
-| 批准依据 | 2026-10-11 已确认实施顺序0297→0300→0299/0298；本页保持draft，由对应独立实现分支激活 |
-| 前置 Spec | [SPEC-0294](../../../archive/specs/0294-map-put-control-exit.md) |
-| 前置 ADR | [ADR-0016](../../../adr/accepted/0016-interprocedural-borrow-abi.md) |
+| 语言规范 | 现行 [Guide v0.43](../../guide/README.md)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
+| 批准依据 | 2026-10-11 已确认0297优先；2026-10-12 PR77合并后独立分支集成，只激活0297 |
+| 前置 Spec | [SPEC-0294](../../archive/specs/0294-map-put-control-exit.md) |
+| 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) |
 | 关联 ADR | 无新增；若需要改变 ABI，先形成独立决定 |
-| 阻塞项 | 更广 receiver/key 清理边界与精确事实核实；独立实现分支激活 |
+| 阻塞项 | 接收当前main后重验；发布与生命周期另行闭环 |
 | 影响范围 | `lang-codegen` Map lowering、直接测试与实现事实 |
 | 语言语义变更 | 否；不启用新 Guide |
 
@@ -23,7 +23,7 @@
 
 ## 2. 基线与已核实边界
 
-静态基线为 main `e168c485a5379764cf927433452f8b7059f7b334`。
+起草时静态基线为 main `e168c485a5379764cf927433452f8b7059f7b334`。
 `ssa/lower_frontend/map.rs` 的三操作通过 `lower_map_owner` 要求 key 为 Value；
 `lower_frontend.rs::require_value` 将 Diverged 转为 UnsupportedNode。unit 对应
 `unit_lower/map.rs::map_owner_operand` / `require_lowered_value` 将其转为 MissingFact。
@@ -40,7 +40,7 @@ unit mixed 不能仅凭代码缺少显式 Diverged 分支就判失败；single/u
 SPEC-0294 明确只修 put，本片不重写其有界归档。
 
 后续使用冻结的0296 CLI（生产实现 `ae65b2ce`，非上述main二进制）执行
-[普通源码矩阵](../../../archive/migrations/pr72-74-followup-audit.md#冻结cli的map-key-return矩阵)：
+[普通源码矩阵](../../archive/migrations/pr72-74-followup-audit.md#冻结cli的map-key-return矩阵)：
 owned named `MutableMap<Int, Int>` 的三操作在single中，mixed、反向mixed、双return
 均以MissingFact拒绝；unit两种mixed均编译运行成功，双return为MissingFact。
 六个无return对照均成功。CLI未提供错误Span或内部事实，不能从该输出单独定位
@@ -75,18 +75,23 @@ owned named `MutableMap<Int, Int>` 的三操作在single中，mixed、反向mixe
 
 ## 5. 实施与提交
 
-按已确认顺序启动时从届时 main 新建 `fix/spec-0297`，顺序为普通源码红绿边界、最小修复、直接
-SSA/native 回归、当前事实与验收账本。每步验证上一节对应项，单独提交并包含
-`SPEC-0297`；发布、PR、CI 与合并按当时授权独立闭环。
+本次从 actual main `289a8ad94d275f6ad497df2b12bdd134cebe4b81` 新建
+`fix/spec-0297`；接收树为 `1e485f4cf59bb315d4294704cf9277ff53b68c1b`。
+原实现基于 `8c6907c2`，恢复冻结树 `f880ce36d341bfe92e3757b83d3f8d42939c1012`
+已逐字节复核；原七提交对象未恢复，本分支采用新的逻辑提交，不冒充原提交历史。
+只接入0297合同、既有回归与有界生产修复，保留0302 fixture及0303治理、归档和proposal。
+0298–0300继续draft；发布、PR、CI与合并按当时授权独立闭环。
 
-## 6. 未决问题与验证记录
+## 6. 验证记录
 
-已取得上述有界普通源码红绿结果；直接return、String/Resource前缀及其他receiver
-仍未执行。具体修复只在红测与已发布事实支持后确定，不把unit mixed已有成功列为待修。
+原实现和恢复后普通定向验收为历史观察；接收新main后在本分支重新运行，结果待登记。
+起草阶段的冻结CLI结论见§2，不作为新集成树的功能验收。main基线CI
+[38219409371](https://github.com/Halckon/Koven/actions/runs/38219409371)仍待终态核验。
 
-| 检查 | 结果 | 边界 |
+| 检查 | 实际结果 | 边界 |
 |---|---|---|
-| 静态源码、Guide 与原测试核对 | 已完成 | 只证明上述接线差异，不证明每个 mixed 都失败 |
-| 冻结0296 CLI普通源码 | 18个return格：6成功、12拒绝；6个无return对照成功 | 版本、命令和有界结果见审计摘要；原始记录留原本地链；无分配计数或完整内存证明 |
-| 起草检查点的 `check_docs.py`、checker 单测、DAG 与 diff | 612 Markdown、37 tests 通过；diff clean | 后续静态复查见审计账本；不作为功能验收 |
-| Cargo、内部SSA事实查询、注入/校准/聚合驱动 | 本分支未运行 | 普通native仅限上述CLI矩阵；本草案尚未激活 |
+| 当前main普通源码红测与真实facts | 待运行 | 同一typed/ownership成功源码，分别核对single/unit及错误Span |
+| 两入口SSA、原始LLVM与普通native | 待运行 | 不注入或改写IR；覆盖三操作四形状和合法receiver/owner前缀 |
+| 直接相关回归、fmt/clippy/尺寸/docs | 待运行 | 不以全仓聚合代替定向检查 |
+
+本地不运行fault injection、校准、sanitizer、reducer或聚合驱动；远端CI尚未执行。

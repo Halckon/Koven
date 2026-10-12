@@ -293,9 +293,11 @@ subgraph Garchive["已完成（archive，283 份）"]
   S0302["S0302<br/>验收产物保留边界与文档精简"]
   S0303["S0303<br/>development 文档职责收敛与候选保全"]
 end
+subgraph Gactive["现行 active"]
+  S0297["S0297<br/>Map 查询与删除的 key return 清理"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
-  S0297["S0297<br/>Map 查询与删除的 key return 清理"]
   S0298["S0298<br/>N1a 范围绑定与有界局部控制流"]
   S0299["S0299<br/>owned Map 删除结果的非消费借用"]
   S0300["S0300<br/>single for 中 Map guarded owner 运输"]
@@ -1608,9 +1610,9 @@ S0296 --> S0300
 | SPEC-0296 | archive | [0296-owned-null-comparison-cleanup.md](0296-owned-null-comparison-cleanup.md) |
 | SPEC-0302 | archive | [0302-evidence-retention.md](0302-evidence-retention.md) |
 | SPEC-0303 | archive | [0303-development-document-ownership.md](0303-development-document-ownership.md) |
+| SPEC-0297 | active | [0297-map-key-return-cleanup.md](../../specs/active/0297-map-key-return-cleanup.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| SPEC-0297 | drafts/v0.43 | [0297-map-key-return-cleanup.md](../../specs/drafts/v0.43/0297-map-key-return-cleanup.md) |
 | SPEC-0298 | drafts/v0.43 | [0298-range-binding-local-control-flow.md](../../specs/drafts/v0.43/0298-range-binding-local-control-flow.md) |
 | SPEC-0299 | drafts/v0.43 | [0299-owned-map-result-borrow.md](../../specs/drafts/v0.43/0299-owned-map-result-borrow.md) |
 | SPEC-0300 | drafts/v0.43 | [0300-single-map-loop-owner-carry.md](../../specs/drafts/v0.43/0300-single-map-loop-owner-carry.md) |
