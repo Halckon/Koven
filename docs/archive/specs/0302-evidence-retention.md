@@ -1,14 +1,14 @@
 # SPEC-0302: 验收产物保留边界与文档精简
 
-> **性质**：有界工程变更合同 · **状态**：in-progress · **读取时机**：精简历史验收产物及核对引用时 · **唯一真源**：本页
+> **性质**：有界工程变更合同 · **状态**：done · **读取时机**：精简历史验收产物及核对引用时 · **唯一真源**：本页
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-ENG-302` |
 | 所属 Phase | 工程治理；不改变语言 Phase |
 | 语言规范 | [Guide v0.43](../../guide/README.md)；不变更语义 |
-| 批准依据 | 用户明确要求“删除不必要的evidence，精简文档”；仅本地修改，发布另行确认 |
+| 批准依据 | 用户明确要求“删除不必要的evidence，精简文档”，后续批准归档、PR 闭环及 CI 后合并/main 验证 |
 | 前置 Spec | 无 |
 | 前置 ADR | 无 |
 | 影响范围 | 历史产物、文档引用、fixture 路径与保留规则 |
@@ -36,7 +36,7 @@
 ## 3. 非目标
 
 编译器实现、语言规范、测试断言与源字节、CI 复用白名单、重新运行历史测量、故障注入、
-校准、聚合驱动、超出两个 fixture 消费者的 Cargo 验证、Git 历史重写、GitHub 发布或删除远端 artifact。
+校准、聚合驱动、超出两个 fixture 消费者的 Cargo 验证、Git 历史重写或删除远端 artifact。
 
 ## 4. 验收
 
@@ -50,9 +50,9 @@
 | 两个 fixture 消费者普通回归 | 父任务串行执行下列两个完整名的 `--exact`，各 1 passed / 0 failed / 0 ignored / 1270 filtered；不代表全 codegen |
 | 故障注入/校准/聚合验证 | 未运行；本片禁止，非通过 |
 | 根 AGENTS 与窄范围 Git 忽略规则 | 10/10 `git check-ignore --no-index` 检查通过：6 个产物忽略、4 个 README/fixture 放行；没有创建占位产物 |
-| PR、远端 CI 与合并 | 未执行；发布未授权 |
+| PR、远端 CI 与合并 | PR76 实现 head 完整 CI 已通过，见 §6；归档 head CI、merge 与 actual main 待验证 |
 
-本地验收后仍保持 in-progress，远端交付状态不得由旧 CI 推导。
+本片按 §6 的远端实现 head 有界验收归档；归档提交、merge 和 actual main 不由实现 CI 代替。
 
 ## 5. 本地结果与限制
 
@@ -79,3 +79,22 @@ fixture 不受影响。保持 `pr_ci_reuse.py` 原白名单与 workflow 不变�
 
 两项共享 Cargo target 串行执行后已释放；没有运行全 lang-codegen、故障注入、校准或聚合驱动。
 本页保留这份简要结果，不新增原始 JSON、日志或 source hash 投影。
+
+## 6. 远端实现验收与待完成交付
+
+[PR76](https://github.com/Halckon/Koven/pull/76) 的实现验收只归属下列精确输入；
+不新增原始 JSON/日志，不将平台跳过或归档动作计为实跑。
+
+| 项目 | 实际结果 / 来源 |
+|---|---|
+| 实现 head | [93214c26ddd7eab3ab876da1fe43da966e9c1d0d](https://github.com/Halckon/Koven/commit/93214c26ddd7eab3ab876da1fe43da966e9c1d0d)，tree `8ddca89c609ae44909846da7e081e12d03ba8a15` |
+| CI 输入 | base `8c6907c238cc0e040bed4541203e450a5f53552b`；synthetic merge `100190319d6d537a7d4d388747c0afda7733a287` |
+| 首轮失败 | [38187749340 / attempt 1](https://github.com/Halckon/Koven/actions/runs/38187749340)：两处缩短后的 `include_str!` 需 rustfmt 布局；后继跳过不算通过，修复未改 fixture 字节 |
+| 实现完整 CI | [38188117021 / attempt 1](https://github.com/Halckon/Koven/actions/runs/38188117021)：success；15 jobs success，Tree-sitter 因相关输入未变合法 skipped；未复用旧代码 CI |
+| 迁移输入实际消费 | [Linux targeted](https://github.com/Halckon/Koven/actions/runs/38188117021/job/114615290381) 与 [macOS targeted](https://github.com/Halckon/Koven/actions/runs/38188117021/job/114615290365)：上列两项 fixture 完整测试名均 ok |
+| 归档 delta 本地静态验收与独立审查 | 本次 docs 638 页、docs/DAG 42 项测试、diff 检查通过；33 份保留文件与实现 head 原字节相同；父任务独立审查完整 delta，并复跑上述静态检查通过，无阻塞 |
+| 最终归档 head CI / merge / actual main | 待执行、待独立验证；当前实现 success 不替代它们 |
+
+Linux 专用 sanitizer 步骤实际成功；macOS 对应步骤 skipped，不代表 macOS 等价检测通过。
+两端 generated resource 步骤成功也不扩大原检测器/校准平台边界。历史失败、噪声、P2 预算
+待接受、7 个 fixture 原字节与已有测试断言均保持；本地归档不重跑 Cargo、注入、校准或聚合。

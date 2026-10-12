@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 281 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 282 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -429,3 +429,5 @@
 - [SPEC-0295](0295-map-argv-word-frequency.md)：M3B K-H 两遍 argv Map 词频应用、通用 Copyable nullable→Borrow 交接；按 PR74 实现 head 双宿主各40公开命令及4+20+13定向回归验收，最终归档 head/merge/main 见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/map-word-frequency-0295/delivery.json)。
 
 - [SPEC-0296](0296-owned-null-comparison-cleanup.md)：owned nullable具名最后判空与临时结果清理；按PR75实现head双宿主每host55项codegen与25项Map frontend有界归档，剩余平台/能力边界及最终交付见[0296账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/delivery.json)。
+
+- [SPEC-0302](0302-evidence-retention.md)：历史原始验收产物退出当前树、7 个最小输入原字节迁移、短索引及保留护栏；PR76 实现 head 完整 CI 通过，最终归档 head/merge/main 待验证。

@@ -8,10 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 281 份"))
-subgraph Gactive["现行 active"]
-  S0302["S0302<br/>验收产物保留边界与文档精简"]
-end
+ARCH(("已完成<br/>archive 282 份"))
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
@@ -26,7 +23,6 @@ ARCH --> S0292
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0302 | active | [0302-evidence-retention.md](active/0302-evidence-retention.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| 已完成 Spec（281 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（282 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

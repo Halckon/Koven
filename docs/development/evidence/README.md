@@ -3,7 +3,7 @@
 > **性质**：历史证据导航 · **状态**：current · **读取时机**：复核旧验收或决定新产物是否入库时 · **唯一真源**：保留规则见测试文档；旧事实见固定快照
 
 当前目录只保留短索引。规则见[证据保留](../testing.md#证据保留)，本次范围见
-[SPEC-0302](../../specs/active/0302-evidence-retention.md)。测试输入迁至所属 crate，
+[SPEC-0302](../../archive/specs/0302-evidence-retention.md)。测试输入迁至所属 crate，
 生成日志、完整 JSON 投影、重复源码/CI 下载包与一次性冻结工具退出当前树。
 
 全部旧材料原样保留在[清理前提交 `8c6907c238`](https://github.com/Halckon/Koven/tree/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/)。

@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [SPEC-0302 验收产物保留边界](0302-evidence-retention.md)：按用户要求精简无持续消费者的历史产物；fixture 原字节迁移、历史链接与静态验收进行中。
+[SPEC-0302](../../archive/specs/0302-evidence-retention.md) 已按 PR76 实现 head 完整 CI 有界归档；最终归档 head、merge 与 actual main 仍待验证。
 
 0296 owned nullable具名/临时结果cleanup已按[PR75](https://github.com/Halckon/Koven/pull/75)实现head
 双宿主每host55项codegen与25项Map frontend有界验收归档；最终归档head/merge/main仍待交付，
