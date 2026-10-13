@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [0310 single Map owner 条件 break 运输](0310-single-map-conditional-break.md)：有界 live/dead 出口运输实施中。
 
 [0309 普通 Borrow value-class 字段](../../archive/specs/0309-borrow-value-class-fields.md)已按[PR88 新 base 物理 CI](https://github.com/Halckon/Koven/actions/runs/38397786167)双宿主 11 项逐名证据有界归档；仅关闭直接字段首片，原失败与后继边界保留，归档 head CI/merge/main 待验收。
 
