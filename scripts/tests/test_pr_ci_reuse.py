@@ -1,6 +1,7 @@
 """Ordinary metadata fixtures for conservative PR code-CI reuse."""
 import copy
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -257,6 +258,146 @@ class GitInputTests(unittest.TestCase):
                 mode_head = git('rev-parse', 'HEAD')
                 mode_merge = git('commit-tree', git('rev-parse', 'HEAD^{tree}'), '-p', base, '-p', mode_head, input='merge mode\n')
                 self.assertNotEqual(before, CI.fingerprint(mode_head, mode_merge, base))
+
+
+class ArchiveGitInputTests(unittest.TestCase):
+    """Real Git trees keep the inventory exemption bounded to ordinary documents."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.git('init', '-q')
+        self.git('config', 'user.email', 'fixture@example.invalid')
+        self.git('config', 'user.name', 'Fixture')
+        self.git('config', 'commit.gpgsign', 'false')
+        self.write('source.rs', 'fn main() {}\n')
+        self.write('scripts/check_docs.py', '# Fixed inventory validation logic.\n')
+        self.write('docs/archive/specs/0293-pr-code-ci-reuse.md',
+                   '# SPEC-0293: PR code CI reuse\n\n| 状态 | done |\n')
+        self.write_lifecycle(archived=False)
+        self.base = self.commit('base')
+        self.write('source.rs', 'fn main() { println!("ready"); }\n')
+        self.head = self.commit('code')
+        self.merge = self.merge_commit(self.head)
+        redirect = patch.object(CI, 'git', side_effect=lambda *args: subprocess.check_output(
+            ['git', '-C', str(self.root), *args], stderr=subprocess.PIPE))
+        redirect.start()
+        self.addCleanup(redirect.stop)
+        self.before = CI.fingerprint(self.head, self.merge, self.base)
+        self.write_lifecycle(archived=True)
+        self.archived_head = self.commit('archive Spec and declared inventory')
+        self.archived_merge = self.merge_commit(self.archived_head)
+
+    def git(self, *args, input=None):
+        return subprocess.check_output(['git', '-C', str(self.root), *args],
+                                       text=True, input=input, stderr=subprocess.PIPE).strip()
+
+    def write(self, path, text):
+        target = self.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding='utf-8')
+
+    def commit(self, message):
+        self.git('add', '-A')
+        self.git('commit', '-qm', message)
+        return self.git('rev-parse', 'HEAD')
+
+    def merge_commit(self, head, *, base=None, tree=None):
+        return self.git('commit-tree', tree or self.git('rev-parse', f'{head}^{{tree}}'),
+                        '-p', base or self.base, '-p', head, input='synthetic PR merge\n')
+
+    def write_lifecycle(self, *, archived):
+        filename = '0304-spec-archive-inventory.md'
+        active = self.root / 'docs/specs/active' / filename
+        if archived:
+            active.unlink()
+        target = ('docs/archive/specs/' if archived else 'docs/specs/active/') + filename
+        status = 'done' if archived else 'in-progress'
+        self.write(target, '# SPEC-0304: Spec archive inventory\n\n'
+                   f'| 状态 | {status} |\n| 前置 Spec | SPEC-0293 |\n')
+        inventory = {'active': [] if archived else ['0304'],
+                     'archived': ['0293', '0304'] if archived else ['0293']}
+        self.write('docs/specs/inventory.md', '# Spec inventory\n\n```json\n'
+                   + json.dumps(inventory, indent=2) + '\n```\n')
+        link = ('../archive/specs/' if archived else 'active/') + filename
+        self.write('docs/specs/README.md', f'# Specs\n\n[SPEC-0304: {status}]({link})\n')
+        self.write('docs/archive/README.md', '# Archive\n\n'
+                   + (f'[SPEC-0304](specs/{filename})\n' if archived else 'SPEC-0304 is active.\n'))
+        partition = 'archive' if archived else 'active'
+        for path in ('docs/specs/dependency-graph', 'docs/archive/specs/dependency-graph-full'):
+            self.write(path + '.md', f'# Spec dependencies\n\nSPEC-0293 → SPEC-0304 ({partition})\n')
+            self.write(path + '.svg', '<svg xmlns="http://www.w3.org/2000/svg">'
+                       f'<text>0293 → 0304 ({partition})</text></svg>\n')
+
+    def test_archive_inventory_indexes_and_graphs_preserve_both_code_trees(self):
+        changed = set(self.git('diff', '--name-only', '--no-renames',
+                               self.head, self.archived_head).splitlines())
+        self.assertEqual({
+            'docs/specs/active/0304-spec-archive-inventory.md',
+            'docs/archive/specs/0304-spec-archive-inventory.md',
+            'docs/specs/inventory.md', 'docs/specs/README.md', 'docs/archive/README.md',
+            'docs/specs/dependency-graph.md', 'docs/specs/dependency-graph.svg',
+            'docs/archive/specs/dependency-graph-full.md',
+            'docs/archive/specs/dependency-graph-full.svg',
+        }, changed)
+        self.assertTrue(self.git('ls-tree', self.archived_head, 'docs/specs/inventory.md')
+                        .startswith('100644 blob '))
+        self.assertNotEqual(self.head, self.archived_head)
+        self.assertNotEqual(self.merge, self.archived_merge)
+        self.assertEqual(CI.tree_inputs(self.head), CI.tree_inputs(self.archived_head))
+        self.assertEqual(CI.tree_inputs(self.merge), CI.tree_inputs(self.archived_merge))
+        self.assertEqual(self.before, CI.fingerprint(
+            self.archived_head, self.archived_merge, self.base))
+
+    def test_inventory_executable_and_symlink_modes_are_code_inputs(self):
+        path = 'docs/specs/inventory.md'
+        for mode in ('100755', '120000'):
+            with self.subTest(mode=mode):
+                self.git('reset', '--hard', self.archived_head)
+                if mode == '100755':
+                    self.git('update-index', '--chmod=+x', path)
+                else:
+                    blob = self.git('hash-object', '-w', '--stdin', input='README.md\n')
+                    self.git('update-index', '--cacheinfo', mode, blob, path)
+                self.git('commit', '-qm', f'inventory mode {mode}')
+                head = self.git('rev-parse', 'HEAD')
+                self.assertTrue(self.git('ls-tree', head, path).startswith(f'{mode} blob '))
+                self.assertNotEqual(self.before, CI.fingerprint(
+                    head, self.merge_commit(head), self.base))
+
+    def test_checker_unknown_extensions_and_guide_remain_code_inputs(self):
+        for path, content in (
+            ('scripts/check_docs.py', '# Only an inventory-maintenance comment changed.\n'),
+            ('scripts/check_docs.py', 'EXPECTED_ACTIVE_SPEC_IDS = frozenset()\n'),
+            ('docs/specs/inventory.json', '{"active": [], "archived": ["0293", "0304"]}\n'),
+            ('docs/specs/inventory.py', 'active = []\n'),
+            ('docs/guide/01-lexical.md', '# Guide semantics\n'),
+        ):
+            with self.subTest(path=path, content=content):
+                self.git('reset', '--hard', self.archived_head)
+                self.write(path, content)
+                head = self.commit('non-exempt input')
+                self.assertNotEqual(self.before, CI.fingerprint(
+                    head, self.merge_commit(head), self.base))
+
+    def test_changed_base_requires_code_ci_even_with_identical_code_trees(self):
+        base = self.git('commit-tree', self.git('rev-parse', f'{self.base}^{{tree}}'),
+                        '-p', self.base, input='new base identity\n')
+        merge = self.merge_commit(self.archived_head, base=base)
+        self.assertEqual(CI.tree_inputs(self.archived_merge), CI.tree_inputs(merge))
+        self.assertNotEqual(self.before, CI.fingerprint(self.archived_head, merge, base))
+        with self.assertRaises(ValueError):
+            CI.fingerprint(self.archived_head, self.archived_merge, base)
+
+    def test_merge_only_code_change_cannot_reuse_the_head_fingerprint(self):
+        self.write('source.rs', 'fn main() { println!("merge-only change"); }\n')
+        self.git('add', 'source.rs')
+        merge = self.merge_commit(self.archived_head, tree=self.git('write-tree'))
+        self.assertEqual(self.archived_head, self.git('rev-parse', 'HEAD'))
+        self.assertEqual(CI.tree_inputs(self.head), CI.tree_inputs(self.archived_head))
+        self.assertNotEqual(CI.tree_inputs(self.archived_merge), CI.tree_inputs(merge))
+        self.assertNotEqual(self.before, CI.fingerprint(self.archived_head, merge, self.base))
 
 
 if __name__ == '__main__':

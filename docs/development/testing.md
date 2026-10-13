@@ -91,7 +91,11 @@ Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 安装 LLVM 官
 PR 的普通文档变更保留路径豁免；全部 Guide、compiler-specs、scripts、workflow/LLVM action
 变更触发 Rust 门禁。代码门禁成功后追加普通文档，可按 [SPEC-0293](../archive/specs/0293-pr-code-ci-reuse.md)
 复用同 PR、同 base、同 head/merge 有效输入的真实 job 证据；汇总独立重验，不能只凭 workflow success。
-证据不可用保守重跑，docs 每次 PR 运行，跳过不表示本 head 再次执行或生成新 preview 包。main 与 workflow_dispatch 强制执行全部配置，feature/fix push 保持
+证据不可用保守重跑，docs 每次 PR 运行，跳过不表示本 head 再次执行或生成新 preview 包。
+active/archive 的编号真源为 [Spec 冻结库存](../specs/inventory.md)；纯归档同步声明、正文与索引，
+不再为编号修改 checker。严格解析器与生命周期检查仍在每次 PR 的 docs 门禁执行；无效声明使
+docs 和最终汇总失败。parser/脚本、base 或其他代码输入变化仍按原证据规则保守重跑。
+main 与 workflow_dispatch 强制执行全部配置，feature/fix push 保持
 仅文档/fmt 的现有成本策略；完整矩阵在 PR 执行。最终汇总拒绝 changes 失败或必需 job 跳过。
 
 独立的[手写 Rust 尺寸护栏](rust-size-policy.md)在所有上述事件运行，包含policy测试和基于

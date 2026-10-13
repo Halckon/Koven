@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，287 份）"]
+subgraph Garchive["已完成（archive，288 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -296,6 +296,7 @@ subgraph Garchive["已完成（archive，287 份）"]
   S0300["S0300<br/>single for 中 Map guarded owner 运输"]
   S0302["S0302<br/>验收产物保留边界与文档精简"]
   S0303["S0303<br/>development 文档职责收敛与候选保全"]
+  S0304["S0304<br/>Spec 归档库存声明化"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1312,6 +1313,7 @@ S0288 --> S0296
 S0289 --> S0292
 S0289 --> S0298
 S0290 --> S0294
+S0293 --> S0304
 S0294 --> S0295
 S0294 --> S0297
 S0295 --> S0296
@@ -1613,5 +1615,6 @@ S0297 --> S0300
 | SPEC-0300 | archive | [0300-single-map-loop-owner-carry.md](0300-single-map-loop-owner-carry.md) |
 | SPEC-0302 | archive | [0302-evidence-retention.md](0302-evidence-retention.md) |
 | SPEC-0303 | archive | [0303-development-document-ownership.md](0303-development-document-ownership.md) |
+| SPEC-0304 | archive | [0304-spec-archive-inventory.md](0304-spec-archive-inventory.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

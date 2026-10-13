@@ -9,7 +9,7 @@
 3. 行为变化先建立能失败的测试，再在分支内实施最小改动。
 4. 按影响面运行窄测试、共享契约和必要下游检查。
 5. 同步 Architecture、Spec 状态和实际验证记录。
-6. 完成 Spec 验收并归档（迁移至 archive 并同步 `scripts/check_docs.py`），通过向 `main` 提 PR 触发 CI 全量门禁并完成合并；用户要求提交时保持单一 Goal 边界。
+6. 完成 Spec 验收并归档（迁移至 archive 并同步 `docs/specs/inventory.md`），通过向 `main` 提 PR 触发 CI 全量门禁并完成合并；用户要求提交时保持单一 Goal 边界。
 
 ## Phase 职责
 

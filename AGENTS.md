@@ -83,7 +83,7 @@
 4. 按 [测试与分层验收](docs/development/testing.md)选择直接行为、共享契约和下游检查；不以无关全量测试代替定向证据。
 5. 禁止并发运行争用同一 Cargo target 的本地门禁；不以 `cargo clean` 作为普通步骤。
 6. 同步当前事实到 Architecture、验收到 Spec；未运行的检查必须明确报告。
-7. **分支交付与 PR 闭环**：分支开发完成后，通过向 `main` 发起 Pull Request 触发全套 CI 门禁（包含改动文件过滤判定与合并前自动化测试）；完成 Spec 验收账本，将 Spec 状态由 active 归档至 archive 并同步 `scripts/check_docs.py`，确认 CI 全绿且无未决状态后再合并回主干。
+7. **分支交付与 PR 闭环**：分支开发完成后，通过向 `main` 发起 Pull Request 触发全套 CI 门禁（包含改动文件过滤判定与合并前自动化测试）；完成 Spec 验收账本，将 Spec 状态由 active 归档至 archive 并同步 `docs/specs/inventory.md`，确认 CI 全绿且无未决状态后再合并回主干。
 8. 语言语义变化必须先形成并明确启用新 guide；新功能需要 Spec，长期架构变化需要 ADR。
 
 纯文案、链接和历史归档不需要 Spec。完成的 Spec、被取代的记录和旧规范进入 archive；它们不再
