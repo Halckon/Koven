@@ -436,3 +436,6 @@ fn assert_map_drop_counts(program: &crate::ssa::model::Program, expected: &[(&st
         );
     }
 }
+
+#[path = "lower_frontend_map_break_tests.rs"]
+mod conditional_break;
