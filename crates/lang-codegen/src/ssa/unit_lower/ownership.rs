@@ -282,6 +282,28 @@ impl UnitExpressionLowerer<'_> {
         &mut self,
         fact: lang_frontend::ownership_checking::UnitDropFact,
     ) -> Result<(), LoweringError> {
+        // Drop facts describe the generic body. Specialize their obligation before
+        // removing a binding, temporary, or its aliases from this concrete instance.
+        let template = match fact.target() {
+            UnitDropTarget::Named(symbol) => Some(self.typed.symbol_type(symbol)),
+            UnitDropTarget::Temporary(expression) => Some(self.typed.expression_type(expression)),
+            _ => None,
+        };
+        if let Some(template) = template {
+            let template = template.ok_or_else(|| {
+                lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
+            })?;
+            let concrete = super::resolve_concrete_type(
+                self.typed,
+                template,
+                self.substitutions,
+                self.static_self,
+                fact.value_origin(),
+            )?;
+            if concrete != template && self.typed.copyability(concrete) == Copyability::Copyable {
+                return Ok(());
+            }
+        }
         let owner = match fact.target() {
             UnitDropTarget::This(owner) => match self.current_receiver.take() {
                 Some(receiver)
