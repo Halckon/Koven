@@ -142,3 +142,13 @@ fn borrow_call_lowering_single_groups_and_field_forwarding_run_without_owner_lea
         super::boxed_enum_tests::assert_success(&counted, expected);
     }
 }
+
+#[test]
+fn multi_parameter_borrow_single_native_matrix() {
+    for case in crate::native_multi_borrow_cases::cases() {
+        let run = emit_link_and_run(case.name, case.source, "entry");
+        assert!(run.status.success(), "{}: {run:?}", case.name);
+        assert_eq!(run.stdout, case.stdout, "{}", case.name);
+        assert!(run.stderr.is_empty(), "{}: {run:?}", case.name);
+    }
+}

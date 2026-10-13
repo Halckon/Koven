@@ -155,3 +155,34 @@ fn contains(outer: Span, inner: Span) -> bool {
         && outer.start() <= inner.start()
         && inner.end() <= outer.end()
 }
+
+/// Declared parameter identity; receivers remain outside the ordinary result slice.
+pub(super) fn source_index(
+    origin: lang_frontend::type_checking::BorrowReturnOrigin,
+    span: Span,
+) -> Result<usize, LoweringError> {
+    match origin {
+        lang_frontend::type_checking::BorrowReturnOrigin::Parameter(index) => Ok(index),
+        _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
+    }
+}
+
+/// An ordinary result call does not transport its source chain through argument CFG.
+/// Restrict only this argument subtree; unrelated earlier straight-line work is unchanged.
+pub(super) fn argument(parsed: &ParsedFile, span: Span) -> Result<(), LoweringError> {
+    for (_, node) in parsed.ast().expressions().iter() {
+        if contains(span, node.span())
+            && matches!(
+                node.payload(),
+                Expression::NonNullAssert { .. }
+                    | Expression::Prefix {
+                        operator: lang_frontend::parser::PrefixOperator::Minus,
+                        ..
+                    }
+            )
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
+        }
+    }
+    Ok(())
+}

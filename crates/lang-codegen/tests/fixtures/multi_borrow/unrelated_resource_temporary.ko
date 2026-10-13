@@ -1,0 +1,3 @@
+class Resource { deinit() { println("other-drop") } }
+fun view(other: Resource, source: String): borrow String from source = source
+fun entry() { val source = "kept".clone(); borrow val item = view(Resource(), source); println(item) }

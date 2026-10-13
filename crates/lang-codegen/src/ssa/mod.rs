@@ -173,3 +173,8 @@ mod owned_map_borrow_tests;
 
 #[cfg(test)]
 mod owned_map_borrow_boundary_tests;
+
+#[cfg(test)]
+mod multi_borrow_range_boundary_tests;
+#[cfg(test)]
+mod multi_borrow_tests;

@@ -61,10 +61,10 @@ receiver/Inout来源、混合Value参数、block返回、caller CFG/loop运输�
 | 验收项 | 命令/选择 | 实际结果 |
 |---|---|---|
 | 精确main与独立纠错 | raw commit SHA、tree、双父核验；docs checker/diff | main精确恢复；三路径纠错无冲突；655 Markdown通过 |
-| 正常源码红测 | multi_parameter_borrow | 待执行 |
-| 来源/参数/终止SSA证明 | single/unit正常Program断言及原版LLVM验证 | 待执行 |
-| native真实输出与deinit | single/unit普通object/link/run | 待执行 |
-| 原单参数与拒绝边界 | 对应borrow定向正常测试 | 待执行 |
+| 正常源码红测 | `cargo test --locked --offline -p lang-codegen --lib multi_parameter_borrow -- --nocapture` | 初轮4个新测试失败于真实UnsupportedNode；已有2项旧边界通过 |
+| 来源/参数/终止SSA证明 | 同一精确filter，正常Program断言及原版LLVM验证 | 13组×single/unit已通过；来源、全部operand活性、wrapper与结果终止有正常trace断言 |
+| native真实输出与deinit | 同一filter中的两个native矩阵 | 13组×single/unit原版native通过，stdout精确、stderr空、exit0 |
+| 原单参数与拒绝边界 | 29项精确普通source回归；随后同filter10项 | 全通过；wrapper -n边界先记录真实失败再修复，!!/短range/具体callable保留拒绝 |
 | Rust与文档静态检查 | fmt、lang-codegen严格clippy、docs/尺寸policy/diff | 待执行 |
 | 双宿主CI、归档与合并 | 精确PR head/merge/main | 未发布、未运行 |
 
@@ -76,3 +76,18 @@ receiver/Inout来源、混合Value参数、block返回、caller CFG/loop运输�
 
 只有本片明确的多Borrow参数形状可关闭；其余M2B入口逐项留后继，不以文档归档宣称完成。
 没有现行Guide歧义；若实际实现需要新语义或ABI决定，暂停报告，不从语言经验补规则。
+
+## 7. 本地实现检查点
+
+首轮新增4个测试均在第一个真实source失败；既有boundary 2项证明旧拒绝。实现后发现
+MoveOnly用例的普通unit observer读取字段属于既有未接通路径，将该observer改成已有
+Packet marker读取；Resource字段借用返回仍独立真实验收。没有以此宣称普通unit字段参数
+读取已支持。新增wrapper负号正向穿过旧门的红测后，以实参局部预检及block不变检查封闭。
+单参数/字段/Group、unit普通call/CFG消费者等29项通过；最终10项新filter含13组两入口SSA
+和13组两入口native，并保留错误来源/活跃来源移动及辅助CFG/range/callable边界。
+
+源码、target、工具链及原始日志在仓库外保留；没有修改IR/allocator或执行任何故障负载。
+fmt、Rust尺寸guard（actual-main为base）与diff通过；single orchestrate为998行，旧大文件
+verify_ownership从1827降至1823行，没有新增尺寸例外。严格clippy及最终门禁继续进行，
+完整frontend/workspace/codegen、macOS、远端CI均未运行。当前仍in-progress，等待独立审查
+和发布；不把本地范围扩大为完整M2B。

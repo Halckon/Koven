@@ -247,11 +247,14 @@ pub(super) fn lower_unit_from_facts(
             .expect("new unit function must exist")
             .add_block(parameter_types, Origin::Source(instance.span()))
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
-        if callable.borrow_return().is_some() {
+        if let Some(contract) = callable.borrow_return() {
             module
                 .function_mut(id)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?
-                .borrow_return = Some(0);
+                .borrow_return = Some(crate::ssa::borrow_result_support::source_index(
+                contract.origin(),
+                instance.span(),
+            )?);
         }
         if let lang_frontend::type_checking::CallableResultSource::Carrier(contract) =
             callable.result_source()

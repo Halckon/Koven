@@ -124,7 +124,8 @@ AfterStatement 的真实 end facts，checker 同步撤销该结果 continuation�
 按子到父顺序发布 ends，再按原 owned/Resource 规则决定来源清理。新 native 矩阵证明
 same-scope owned 交付、Map 覆盖权限恢复和 Resource 词法析构顺序，见 SPEC0288 §2.10。
 
-后端已接通单 Borrow 参数的表达式返回、普通包装调用和具体泛型实例。来源与结果分别
+后端已接通无 receiver、全部形参 Borrow 的表达式返回、直接具名包装调用和具体泛型实例。
+唯一来源可位于任意参数下标；来源与结果分别
 保存 semantic target，返回字段允许与来源根对象类型不同。函数签名记录
 唯一参数来源；`BorrowCall` 产生 shared 子 loan，`BorrowReturn` 交接指定入口来源链。
 verifier 对齐参数、target 与结果 delivery，校验 active source、storage alias、父子依赖和
@@ -147,7 +148,7 @@ Resource 源在借用 scope 后仍可 owned 交付，并且原 deinit 只执行�
 owned root/字段直接 initializer 已消费真实 origin/parent/projection 与结束事实，创建 root
 及字段 loan 并保存新祖先，按叶到根清理；parent 的实际 payload 与 canonical source lease
 分别验证，不能由 lease 猜测字段地址。single/unit 五组正常 native 与精确清理回归通过。
-更多参数、索引投影、block 返回和 caller CFG 运输仍在 SSA 前带实际 Span 拒绝。类型能力受现有 storage mapper 限制，未启用通用 inline nullable 或新的
+混合 Value/Inout 参数、索引投影、block 返回和 caller CFG 运输仍以实际 Span 结构化拒绝。类型能力受现有 storage mapper 限制，未启用通用 inline nullable 或新的
 Resource wrapper。现行 pointer-like nullable 的 owned null 比较复用 NullableIsNull；Borrow 参数的 null 比较
 使用 NullableLoanIsNull，verifier 要求 active Shared nullable storage loan，LLVM 仅加载
 该 storage 的 pointer bits 并比较 null，不创建 payload owner、复制、retain 或 unwrap。
@@ -155,6 +156,7 @@ Resource wrapper。现行 pointer-like nullable 的 owned null 比较复用 Null
 窄化 view 或 `!!`。实际三态 callback native 和原 unit 比较源码均有回归；验收状态见
 [SPEC0288](../archive/specs/0288-map-native-execution.md)。
 
+多参数的实参映射、来源分流、验收与保留边界见[普通多参数借用](multi-parameter-borrow-results.md)。
 ## 哈希表与执行证据
 
 header 是 `{buffer, size, capacity, tombstones}`；槽位为 `{state, K, V}`，有 Empty/Occupied/Deleted 状态。
@@ -167,7 +169,6 @@ Int/Boolean/Char 使用确定性标量哈希，String 使用 UTF-8 字节哈希�
 物化入口；这些证据不扩大普通 Char literal 的 lowering 边界。
 正常 malloc/free 计数逐指针核对释放；多文件 Map<String, Resource> 验证正逆输入顺序的
 确定 SSA、跨文件构造、覆写、键借用复用与两次用户 deinit。
-
 ## 尚未闭合的边界
 
 - nullable V 的 requireValue 已区分 missing Abort 与 found-null/found-value 的槽位借用；
@@ -196,5 +197,4 @@ Int/Boolean/Char 使用确定性标量哈希，String 使用 UTF-8 字节哈希�
   绕过 storage 边界。single/unit Int?/String?/MoveOnly Packet? 缓存组合负例均通过。
 - Linux Map 专属 ASan/LSan 夹具已在 PR #69 run `37946407889` 通过并闭合 G5；
   macOS 仍只有正常计数证据，不能据此宣称 ASan/LSan 动态检出通过。
-
 SPEC0288 已有界验收归档并经 PR #69 合入 main，见[原验收 §7.1](../archive/specs/0288-map-native-execution.md#71-g5-远端证据2026-10-09)。

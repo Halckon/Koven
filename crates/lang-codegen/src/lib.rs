@@ -42,3 +42,6 @@ mod native_map_with_cases;
 
 #[cfg(test)]
 mod native_owned_map_borrow_cases;
+
+#[cfg(test)]
+mod native_multi_borrow_cases;

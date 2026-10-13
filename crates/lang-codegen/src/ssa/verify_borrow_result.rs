@@ -9,7 +9,15 @@ pub(super) fn parameter(function: &Function) -> Option<(LoanId, SsaTypeId)> {
         return None;
     }
     let index = function.borrow_return?;
-    if index != 0 || function.blocks.first()?.parameters.len() != 1 {
+    if !function.blocks.first()?.parameters.iter().all(|entity| {
+        matches!(
+            function.entity(*entity).map(|data| data.ty),
+            Some(EntityType::Loan {
+                kind: LoanKind::Shared,
+                ..
+            })
+        )
+    }) {
         return None;
     }
     let [target] = function.return_types.as_slice() else {

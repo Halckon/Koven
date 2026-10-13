@@ -1,0 +1,5 @@
+class Resource(val text: String) { deinit() { println("drop") } }
+fun view(other: String, source: String): borrow String from source = source
+fun wrap(source: Resource, other: Resource): borrow String from source = view(other.text, source.text)
+fun consume(own source: Resource) { println("owned") }
+fun entry() { val source = Resource("field".clone()); val other = Resource("other".clone()); borrow val item = wrap(source, other); consume(other); println(item); consume(source) }

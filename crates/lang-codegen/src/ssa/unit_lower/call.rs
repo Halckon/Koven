@@ -10,6 +10,7 @@ use lang_frontend::{
         UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId,
     },
 };
+use std::collections::BTreeMap;
 
 use super::{
     LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value,
@@ -23,6 +24,7 @@ use crate::ssa::{
 pub(super) struct LoweredCallArguments {
     pub(super) arguments: Vec<EntityId>,
     pub(super) created_loans: Vec<(LoanId, Span)>,
+    pub(super) argument_loans: BTreeMap<UnitExpressionId, Vec<LoanId>>,
     pub(super) abi_owners: Vec<crate::ssa::model::ValueId>,
 }
 
@@ -134,6 +136,7 @@ impl UnitExpressionLowerer<'_> {
                 arguments: lowered,
                 created_loans,
                 abi_owners,
+                ..
             }) = self.lower_call_arguments(call, arguments, descriptor, span)?
             else {
                 return Ok(LoweredValue::Diverged);
@@ -289,6 +292,7 @@ impl UnitExpressionLowerer<'_> {
             arguments,
             created_loans,
             abi_owners,
+            ..
         }) = lowered_arguments?
         else {
             self.pending_operands.truncate(receiver_start);
@@ -703,11 +707,29 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .map(|(owner, _)| require_value(self.pending_operands[*owner], span))
             .collect::<Result<Vec<_>, _>>()?;
+        let argument_loans = self
+            .pending_call_frames
+            .last()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+            .loan_arguments
+            .iter()
+            .map(|(argument, slots)| {
+                let loans = slots
+                    .iter()
+                    .map(|slot| match self.pending_operands.get(*slot) {
+                        Some(EntityId::Loan(loan)) => Ok(*loan),
+                        _ => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok((*argument, loans))
+            })
+            .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
         self.preserve_short_range_ends();
         self.pending_operands.truncate(pending_start);
         Ok(Some(LoweredCallArguments {
             arguments,
             created_loans,
+            argument_loans,
             abi_owners,
         }))
     }

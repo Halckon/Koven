@@ -1,4 +1,4 @@
-//! source-qualified 普通单参数 shared 结果；与 single 保持相同事实边界。
+//! source-qualified 普通多 Borrow 参数 shared 结果；与 single 保持相同事实边界。
 use super::*;
 use lang_frontend::{
     ownership_checking::{BorrowSourceLoan, UnitLoanTarget},
@@ -30,10 +30,9 @@ pub(super) fn validate(
                     lowering_error(LoweringErrorKind::MissingFact, contract.marker_span())
                 })?;
             crate::ssa::borrow_result_support::declaration(file, contract.marker_span())?;
-            if contract.origin() != BorrowReturnOrigin::Parameter(0)
+            if !matches!(contract.origin(), BorrowReturnOrigin::Parameter(index) if index < callable.parameters().len())
                 || callable.receiver().is_some()
-                || callable.parameters().len() != 1
-                || callable.parameters()[0].mode() != ParameterMode::Borrow
+                || callable.parameters().iter().any(|parameter| parameter.mode() != ParameterMode::Borrow)
                 || !owned.borrow_return_origins().iter().any(|fact| {
                     fact.declaration_span() == contract.marker_span()
                         && matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none())
@@ -430,19 +429,60 @@ impl UnitExpressionLowerer<'_> {
                 node.span(),
             ));
         };
-        let [argument] = arguments.as_slice() else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        };
         let descriptor = self
             .typed
             .call(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if descriptor.borrow_return().map(|contract| contract.origin())
-            != Some(BorrowReturnOrigin::Parameter(0))
-            || UnitExpressionId::new(self.source_unit, argument.value) != source.argument()
-            || descriptor.receiver().is_some()
+        let index = crate::ssa::borrow_result_support::source_index(
+            descriptor
+                .borrow_return()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+                .origin(),
+            span,
+        )?;
+        if descriptor.receiver().is_some()
+            || descriptor
+                .arguments()
+                .iter()
+                .any(|mapping| mapping.mode() != ParameterMode::Borrow)
+            || self.owned.borrow_results().range_uses().iter().any(|fact| {
+                fact.site() == lang_frontend::ownership_checking::RangeUseSite::Call(id)
+            })
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        crate::ssa::borrow_result_support::binding(
+            self.parsed,
+            node.span(),
+            false,
+            &[],
+            None,
+            |_| None,
+            |_| false,
+        )?;
+        for mapping in descriptor.arguments() {
+            let concrete = resolve_concrete_type(
+                self.typed,
+                mapping.parameter_type(),
+                self.substitutions,
+                self.static_self,
+                span,
+            )?;
+            if matches!(
+                self.typed.types().get(concrete),
+                Some(UnitTypeKind::Function { .. })
+            ) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+        }
+        let selected = descriptor
+            .arguments()
+            .iter()
+            .find(|mapping| mapping.parameter_index() == index)
+            .and_then(|mapping| arguments.get(mapping.argument_index()))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if UnitExpressionId::new(self.source_unit, selected.value) != source.argument() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let route = self
             .source_plan
@@ -455,16 +495,24 @@ impl UnitExpressionLowerer<'_> {
         let target = self.expression_ssa_type(expression, span)?;
         // Reuse the ordinary call frame for projected arguments, but extend its loans
         // with the borrowed result instead of ending them at the synchronous call boundary.
-        let lowered = self
+        for argument in arguments {
+            crate::ssa::borrow_result_support::argument(self.parsed, argument.span)?;
+        }
+        let blocks = self.function.blocks.len();
+        let mut lowered = self
             .lower_call_arguments(id, arguments, descriptor, node.span())?
             .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        if !lowered.abi_owners.is_empty() {
+        if self.function.blocks.len() != blocks || !lowered.abi_owners.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let [EntityId::Loan(source_loan)] = lowered.arguments.as_slice() else {
+        let Some(EntityId::Loan(source_loan)) = lowered.arguments.get(index) else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
         let source_loan = *source_loan;
+        let continued = lowered
+            .argument_loans
+            .remove(&source.argument())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let (_, results) = self
             .function
             .append_instruction(
@@ -484,14 +532,16 @@ impl UnitExpressionLowerer<'_> {
         let [EntityId::Loan(result)] = results.as_slice() else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        Ok((
-            *result,
-            lowered
-                .created_loans
-                .into_iter()
-                .map(|(loan, _)| loan)
-                .collect(),
-        ))
+        let result = *result;
+        // End every unrelated created chain before executing any owner drop.
+        for (loan, end_span) in lowered.created_loans.into_iter().rev() {
+            if !continued.contains(&loan) {
+                self.end_short_call_loan(loan, end_span)?;
+            }
+        }
+        self.emit_borrow_argument_expression_drops(id)?;
+        self.emit_drops(UnitDropPoint::CallReturn(id))?;
+        Ok((result, continued))
     }
 
     pub(super) fn end_result_bindings(
