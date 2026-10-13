@@ -77,3 +77,6 @@ mod conditional_break;
 
 #[path = "unit_map_continue_tests.rs"]
 mod conditional_continue;
+
+#[path = "unit_map_return_tests.rs"]
+mod conditional_return;
