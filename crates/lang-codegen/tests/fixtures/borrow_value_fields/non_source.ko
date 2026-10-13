@@ -1,0 +1,9 @@
+value class Packet(val text: String)
+fun select(source: String, other: String): borrow String from source = source
+fun observe(value: Packet) {
+    val source = "kept".clone()
+    borrow val alias = select(other = value.text, source = source)
+    println(alias)
+}
+fun finish(own value: Packet) { observe(value); println("consumed") }
+fun entry() { val owner = Packet("payload".clone()); observe(owner); observe(owner); finish(owner) }

@@ -1,0 +1,8 @@
+class Holder(val n: Int, val text: String)
+fun show(text: String) { println(text) }
+fun entry() {
+    val holder = Holder(7, "class-field".clone())
+    val action: () -> Unit = { -> show(holder.text); if (holder.n == 7) { println("seven") } else { error("wrong") } }
+    action()
+    action()
+}

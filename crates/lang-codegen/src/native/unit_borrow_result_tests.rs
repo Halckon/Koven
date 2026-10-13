@@ -521,7 +521,10 @@ fn nested_borrow_argument_unit_native_matrix() {
 
 #[test]
 fn borrow_value_field_unit_native_matrix() {
-    for (name, source, stdout) in crate::native_borrow_value_field_cases::cases() {
+    for (name, source, stdout) in crate::native_borrow_value_field_cases::cases()
+        .into_iter()
+        .chain(crate::native_borrow_value_field_cases::unit_controls())
+    {
         let (provider, body) = source.split_once("fun entry()").unwrap();
         let analysis = analyze_sources(
             &format!("package p\n{provider}"),
