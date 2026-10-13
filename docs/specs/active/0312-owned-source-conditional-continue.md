@@ -11,7 +11,7 @@
 | 批准依据 | 2026-10-13 用户要求审核/CI 等待时继续实施独立工作 |
 | 前置 Spec | [SPEC-0300](../../archive/specs/0300-single-map-loop-owner-carry.md)、[SPEC-0310](../../archive/specs/0310-single-map-conditional-break.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 有界实现与 actual-main 整合已完成；最终本地门禁/独立终审/PR CI 待验收 |
+| 阻塞项 | 本地定向门禁完成；最终独立审阅与 PR CI/归档/合并尚待交付 |
 | 影响范围 | 非 Resource owned Array/List/MutableList source 的有界条件 continue |
 | 语言语义变更 | 否 |
 
@@ -78,8 +78,41 @@ Guide、frontend、SSA model/verifier、LLVM 不变；如需扩域先停止报�
 
 | 验收项 | 输入与选择 | 实际结果 |
 |---|---|---|
-| 基线身份/合同 | §1 actual main | 已核；合同提交时无生产变更 |
-| 普通 source 红测 | owned_source_continue_ | 待运行 |
-| 最小证明、结构与 native | 同源矩阵 | 待实施/运行 |
-| unit 对照/边界回归 | ordinary/constant 与受影响调用方 | 待运行 |
-| 静态门禁/独立审阅/CI | 精确最终输入 | 待运行 |
+| 基线身份/合同 | `1362f25d`，§1 actual main | 库存、commit/tree核验；独立合同先于红测/生产 |
+| 最小原红 | tests-only `4d72ca18`，`owned_source_continue_` | 2项Array live/dead frontend全过，single精确UnsupportedNode keys23..27；循环首失败不冒称已运行List/MutableList |
+| 完整红/两入口基线 | tests-only `1452d937`，同选择，生产仍614原字节 | 6项三容器×live/dead分别红；unit basic/constant×live/dead4项原SSA/LLVM成功，无新增unit能力 |
+| 独立最小实现 | `2b797ffe`，同10项 | 10/10绿；后续`2ee1b02c`明确收紧local声明seed身份；Resource/global implies原算法保持 |
+| 完整最终source | `0ade10cd51fff9ae6191b982242665ff054e3f7b`，`owned_source_continue_` | 32/32通过、0 ignored；真实frontend/SSA/verifier/原LLVM，含源边界及以下native代表集合 |
+| native轮数/路径 | 上述选择内provider矩阵 | 3容器×0/1/3×never/all/mixed×live/dead54格真实object/link/run；factory每格一次输出；var source；stdout不是free count |
+| 载荷/清理/能力恢复 | 同选择内模式、解构、body cleanup、Resource旧路 | String own参数/Borrow/temporary、MoveOnly value-class借用解构、discard均绿；两body Resource逆序；own交付、MutableList add/remove、source临时保留；Resource无条件旧路词法清理保持 |
+| 精确SSA oracle | `lower_frontend_owned_source_structure_tests.rs`，6格及decoy/fresh-inner调用 | frontend seed ExpressionId定位真实Construct；仅透明block-parameter转送跟踪owner/sourceLoan；initial loan的length快照恰1、零cursor、两回边+1、elementEnd/sourceEnd与唯一源Drop；live post-use关联实际owner；同型decoy不混淆 |
+| nested/seed边界 | baseline `7bdc6352` 对 candidate `6bc89679`；最终32项 | 原4例均拒；仅独立fresh inner转绿；不同outer payload的inner live/dead native及结构通过。其余跨loop/连续source稳定拒绝；replacement原意外接受已按2ee1收紧，Group/未替换var/own parameter保留，alias拒绝 |
+| 原能力对照 | baseline `b3bc1519`、RangeView baseline `711e6c4e`；最终32项 | Resource conditional、multiple continue、break/return、Inout、field、replacement及无Map conditional RangeView逐例比对；field保持MissingFact，其余精确UnsupportedNode。非法body move/替换/增删仅frontend L0135；borrowed元素own交付L0133 |
+| 0311真实整合/组合 | `81f62711` merge actual-main8e0ce49d；最终32项与Map source回归 | 原providers-cleanup.ko字节不变并恢复single native正例；source live/dead×双同型Map live/dead4格全绿；原0311 source probes保留owner/Header/Exit检查并转正，不复制未合并生产 |
+| 独立unit native | 最终32项中basic/constant×live/dead各test，另Array替换test | 4格真实object/link/run；循环后Array替换两视图通过。single Array替换无循环baseline仍Unsupported keys[0]48..55，不纳入本片修复 |
+| 共享source/Resource回归 | 生产同2ee1；`7815f471`，`ssa::lower_frontend_tests::map_result_tests` / `resource_deinit_tests` | 75/15通过；Map组含原0311/0310/0300普通source、RangeView与carrier边界 |
+| 共享普通native回归 | `7815f471`，`native::unit_tests::{map_loop_owner_tests,map_key_return_tests,owned_null_cleanup_tests,temporary_null_cleanup_tests}`逐模块 | 分别19/18/11/8通过；普通未改写LLVM/object/link/run，无计数插桩 |
+| provider/旧source/capture | `4b57202f`，顶层provider11个逐exact、owned_source_tests前3普通目标、两条capture拒绝逐exact | 16个目标各命中1并通过；old-owned/Borrow矩阵72格、factory/借用字段保持；未运行含计数的resource/source聚合目标 |
+| CLI公开入口 | `4b57202f`，`cargo build --locked --offline -p lang-cli --bin kovenc`；`kovenc run fresh-inner.ko` / `run --project project.toml --entry main` | 文件与project目录source-roots读取同fixture原字节，均exit0/stdout精确/stderr空；与unit API四格独立 |
+| 静态门禁 | `0ade10cd` clippy all-targets -D warnings；fmt、docs、sizes、diff；Python size policy指定模块 | clippy通过；fmt/docs/sizes/diff通过；size policy47项通过。仅tests入口模块注册3行显式例外2004→2007，已独立逐行审阅并获准；生产1520上限不提高 |
+| 独立终审/远端 | 最终docs冻结提交 | 待终审；本地未运行macOS；PR、远端双宿主CI、归档及合并均未由此宣称完成 |
+
+Cargo test命令共同前缀为 `cargo test --locked --offline -p lang-codegen --lib`；
+provider/source旧路只逐exact执行静审过的普通目标，未跑full discover或注入driver。
+日志逐次冻结commit；最终门禁另保留before/after source哈希、CWD和仓外target身份并核相等。
+baseline独立worktree/target，不交叉复用二进制身份。原始日志、详细facts和JSON保留在仓外
+交付包，由PR/CI artifact承接；不把本地临时路径当持久链接。
+
+### 保留失败与未覆盖范围
+
+- 最初Array单项红、3容器红、nested与replacement差分、原源码非法声明分隔符L0047都保留。
+- 结构oracle首次误假设body/header同槽，后按真实edge槽和source LoanId修正；inner首次误选
+  外层ElementPlace也修为精确source loan。没有改生产或伪造IR迎合测试。
+- 载荷组合曾把前一source带入后继loop而拒；改为独立owner生命周期正例，同时跨loop拒绝保留。
+  原裸花括号是未调用closure capture，不将其误称普通block shadow成功。
+- Map首次无标签矩阵失败不能证明每个先前格失败；分格确认dead无后put可通过，真正的
+  `first.contains && second.contains`外部owner条件清理仍精确拒second，保留独立普通源码负例。
+- Resource旧路最初stdout期望误用ASAP；Guide10规定Resource词法清理，改为done后逆序
+  deinit；生产Resource路径未改。测试编译类型错误与clippy嵌套format错误均保留并修正。
+- 不证明通用nested/多continue/break/return、跨loop owner、动态capture或Resource新条件能力；
+  不提供分配计数、free次数、sanitizer或通用内存安全结论。
