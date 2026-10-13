@@ -180,6 +180,14 @@ mod tests {
     use lang_frontend::source::SourceMap;
 
     fn fixture(copyable: bool, drop_parameters: bool) -> Program {
+        fixture_with_prefix(copyable, drop_parameters, |_| {})
+    }
+
+    fn fixture_with_prefix(
+        copyable: bool,
+        drop_parameters: bool,
+        prefix: impl FnOnce(&mut Function),
+    ) -> Program {
         let mut sources = SourceMap::new();
         let source = sources.add_source("call-contract.ko", "view").unwrap();
         let origin = Origin::Source(sources.span(source, 0, 4).unwrap());
@@ -256,6 +264,8 @@ mod tests {
         function
             .append_instruction(entry, Operation::BorrowEnd { loan }, vec![], origin.clone())
             .unwrap();
+        // Prefix operations must be assembled before the Builder seals the block.
+        prefix(function);
         function
             .set_terminator(entry, TerminatorKind::Return { values: vec![] }, origin)
             .unwrap();
@@ -328,66 +338,74 @@ mod tests {
 
     #[test]
     fn verify_mixed_call_ci_only_consumed_value_is_rejected() {
-        let mut program = fixture(false, true);
+        let mut program = fixture_with_prefix(false, true, |function| {
+            let owner = owner(function);
+            before_call(function, Operation::Drop { owner }, vec![]);
+        });
         let function = caller(&mut program);
         let owner = owner(function);
-        before_call(function, Operation::Drop { owner }, vec![]);
-        assert!(
-            errors(&program)
-                .iter()
-                .any(|error| { error.kind == VerifyErrorKind::ValueUnavailable { value: owner } })
-        );
+        let call = function.instructions[0].id;
+        assert!(errors(&program).iter().any(|error| {
+            error.kind == VerifyErrorKind::ValueUnavailable { value: owner }
+                && error.location == VerifyLocation::Instruction(call)
+        }));
     }
 
     #[test]
     fn verify_mixed_call_ci_only_inactive_auxiliary_loan_is_rejected() {
-        let mut program = fixture(false, true);
+        let mut program = fixture_with_prefix(false, true, |function| {
+            let EntityId::Loan(loan) = function.blocks[0].parameters[3] else {
+                unreachable!()
+            };
+            before_call(function, Operation::BorrowEnd { loan }, vec![]);
+        });
         let function = caller(&mut program);
         let EntityId::Loan(loan) = function.blocks[0].parameters[3] else {
             unreachable!()
         };
-        before_call(function, Operation::BorrowEnd { loan }, vec![]);
-        assert!(
-            errors(&program)
-                .iter()
-                .any(|error| { error.kind == VerifyErrorKind::LoanInactive { loan } })
-        );
+        let call = function.instructions[0].id;
+        assert!(errors(&program).iter().any(|error| {
+            error.kind == VerifyErrorKind::LoanInactive { loan }
+                && error.location == VerifyLocation::Instruction(call)
+        }));
     }
 
     #[test]
     fn verify_mixed_call_ci_only_borrowed_owner_cannot_be_consumed() {
-        let mut program = fixture(false, true);
+        let mut program = fixture_with_prefix(false, true, |function| {
+            let owner = owner(function);
+            let target = function
+                .entity(EntityId::Value(owner))
+                .unwrap()
+                .ty
+                .semantic_type();
+            let places = before_call(
+                function,
+                Operation::RootPlace { owner },
+                vec![EntityType::Place(target)],
+            );
+            let EntityId::Place(place) = places[0] else {
+                unreachable!()
+            };
+            before_call(
+                function,
+                Operation::BorrowBegin {
+                    place,
+                    kind: LoanKind::Shared,
+                },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target,
+                }],
+            );
+        });
         let function = caller(&mut program);
         let owner = owner(function);
-        let target = function
-            .entity(EntityId::Value(owner))
-            .unwrap()
-            .ty
-            .semantic_type();
-        let places = before_call(
-            function,
-            Operation::RootPlace { owner },
-            vec![EntityType::Place(target)],
-        );
-        let EntityId::Place(place) = places[0] else {
-            unreachable!()
-        };
-        before_call(
-            function,
-            Operation::BorrowBegin {
-                place,
-                kind: LoanKind::Shared,
-            },
-            vec![EntityType::Loan {
-                kind: LoanKind::Shared,
-                target,
-            }],
-        );
-        assert!(
-            errors(&program)
-                .iter()
-                .any(|error| { error.kind == VerifyErrorKind::OwnerLoanConflict { value: owner } })
-        );
+        let call = function.instructions[0].id;
+        assert!(errors(&program).iter().any(|error| {
+            error.kind == VerifyErrorKind::OwnerLoanConflict { value: owner }
+                && error.location == VerifyLocation::Instruction(call)
+        }));
     }
 
     #[test]
@@ -404,25 +422,25 @@ mod tests {
 
     #[test]
     fn verify_mixed_call_ci_only_raw_place_argument_is_rejected() {
-        let mut program = fixture(false, true);
-        let function = caller(&mut program);
-        let owner = owner(function);
-        let target = function
-            .entity(EntityId::Value(owner))
-            .unwrap()
-            .ty
-            .semantic_type();
-        let places = before_call(
-            function,
-            Operation::RootPlace { owner },
-            vec![EntityType::Place(target)],
-        );
-        arguments(function)[0] = places[0];
-        assert!(
-            errors(&program)
-                .iter()
-                .any(|error| { matches!(error.kind, VerifyErrorKind::OperationContract { .. }) })
-        );
+        let mut program = fixture_with_prefix(false, true, |function| {
+            let owner = owner(function);
+            let target = function
+                .entity(EntityId::Value(owner))
+                .unwrap()
+                .ty
+                .semantic_type();
+            let places = before_call(
+                function,
+                Operation::RootPlace { owner },
+                vec![EntityType::Place(target)],
+            );
+            arguments(function)[0] = places[0];
+        });
+        let call = caller(&mut program).instructions[0].id;
+        assert!(errors(&program).iter().any(|error| {
+            matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+                && error.location == VerifyLocation::Instruction(call)
+        }));
     }
 
     #[test]
