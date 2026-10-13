@@ -300,6 +300,9 @@ subgraph Garchive["已完成（archive，290 份）"]
   S0305["S0305<br/>多 Borrow 参数的唯一来源直接返回"]
   S0306["S0306<br/>混合 Value 参数的唯一来源借用返回"]
 end
+subgraph Gactive["现行 active"]
+  S0307["S0307<br/>普通借用结果的同步 Borrow 实参消费"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
@@ -1326,6 +1329,7 @@ S0296 --> S0299
 S0296 --> S0300
 S0297 --> S0300
 S0305 --> S0306
+S0306 --> S0307
 ```
 
 ## 节点链接
@@ -1622,5 +1626,6 @@ S0305 --> S0306
 | SPEC-0304 | archive | [0304-spec-archive-inventory.md](0304-spec-archive-inventory.md) |
 | SPEC-0305 | archive | [0305-multi-parameter-borrow-result.md](0305-multi-parameter-borrow-result.md) |
 | SPEC-0306 | archive | [0306-mixed-value-borrow-result.md](0306-mixed-value-borrow-result.md) |
+| SPEC-0307 | active | [0307-synchronous-borrow-result-arguments.md](../../specs/active/0307-synchronous-borrow-result-arguments.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

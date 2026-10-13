@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [0307 普通借用结果的同步 Borrow 实参消费](0307-synchronous-borrow-result-arguments.md)：现行M2B直线DirectCall片进行中，不扩大outer结果继续转发/temporary来源/CFG等边界。
 
 [0306 混合 Value 参数的唯一来源借用返回](../../archive/specs/0306-mixed-value-borrow-result.md)已按PR84修复后完整物理CI及双宿主各15项正常/10项verifier测试有界归档；首失败保留，最终归档head复用、merge和actual-main CI待独立验收。Inout、receiver、同步嵌套实参等M2B后继继续开放。
 
