@@ -6,6 +6,8 @@
 
 - [0313 single Map owner 条件 return](0313-single-map-conditional-return.md)：独立 actual-main 基线红测已冻结。
 
+[0312 owned Sequential source 条件 continue](../../archive/specs/0312-owned-source-conditional-continue.md)已按[PR91 实现 CI](https://github.com/Halckon/Koven/actions/runs/38433956651)双宿主32项新增及3项改名旧回归逐名证据有界归档；原失败与3行尺寸例外保留，归档 head CI/merge/main 待验收。
+
 [0311 single Map owner 条件 continue](../../archive/specs/0311-single-map-conditional-continue.md)已按 PR90 实现 CI 双宿主24项逐名证据有界归档；owned source 后继优先修复，归档 head CI/merge/main 待验收。
 
 [0310 single Map owner 条件 break](../../archive/specs/0310-single-map-conditional-break.md)已按[PR89 实现 CI](https://github.com/Halckon/Koven/actions/runs/38407747517)双宿主 13 项逐名证据有界归档；原红测/纠正、unit dead 与其他非目标保留，归档 head CI/merge/main 待验收。

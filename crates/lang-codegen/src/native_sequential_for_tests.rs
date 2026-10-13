@@ -299,3 +299,6 @@ fn temporary_mutable_list_source_boundaries_run_natively() {
         ],
     );
 }
+
+#[path = "native_sequential_for_tests/conditional_owned_source_tests.rs"]
+mod conditional_owned_source_tests;

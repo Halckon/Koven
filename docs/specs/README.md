@@ -9,11 +9,13 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 1 份；[0313](active/0313-single-map-conditional-return.md) 独立 actual-main 基线实施，0312 尚未纳入此树。
-- 0312 owned source 条件continue正在独立交付；本树的0313从实际main `8e0ce49d`实施temporary/Borrow Map return，不复制未合入代码。owned source return四格仍为独立旧缺口。
+- [Active 合同](active/README.md)：当前 1 份；[0313](active/0313-single-map-conditional-return.md) 已正常整合0312真实main，组合回归进行中。
+- owned source Continue已由0312有界修复；Return四格仍为独立缺口。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
 ### 近期交付
+
+- [0312 owned Sequential source 条件 continue](../archive/specs/0312-owned-source-conditional-continue.md)：[PR91 实现 CI](https://github.com/Halckon/Koven/actions/runs/38433956651)双宿主32项新增及3项改名旧回归验收后有界归档；保留source单owner单loop、fresh独立实例及原失败边界，归档 head CI/merge/main 待验收。
 
 - [0311 single Map 条件 continue](../archive/specs/0311-single-map-conditional-continue.md)：[PR90 实现 CI](https://github.com/Halckon/Koven/actions/runs/38420920418)双宿主24项逐名验收后有界归档；保留 source 范围修订、原红测与隔离纠正，归档 head CI/merge/main 待验收。
 

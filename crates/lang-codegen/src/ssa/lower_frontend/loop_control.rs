@@ -415,7 +415,13 @@ impl ExpressionLowerer<'_> {
         match action {
             Action::Drop(fact) => {
                 if fact.condition().is_some()
-                    && !super::map_loop_owner::supported_drop(self.typed, self.owned, *fact)
+                    && !super::map_loop_owner::supported_drop(
+                        self.parsed,
+                        self.names,
+                        self.typed,
+                        self.owned,
+                        *fact,
+                    )
                 {
                     return Err(error(
                         LoweringErrorKind::UnsupportedNode,
@@ -435,7 +441,11 @@ impl ExpressionLowerer<'_> {
                             Some(LoweredValue::Value(value)) => value,
                             _ if fact.condition().is_some()
                                 && !super::constant_presence::constant_drop(
-                                    self.typed, self.owned, *fact,
+                                    self.parsed,
+                                    self.names,
+                                    self.typed,
+                                    self.owned,
+                                    *fact,
                                 ) =>
                             {
                                 return Err(error(

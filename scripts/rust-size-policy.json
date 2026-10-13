@@ -235,11 +235,11 @@
       "review": "SPEC-0288 independent full review核对模块注册有界增长；超过1310行或扩张职责前重新审阅。"
     },
     "crates/lang-codegen/src/ssa/lower_frontend_tests.rs": {
-      "reason": " SPEC-0288 第二轮：仅登记独立 Map 查询边界测试子模块；新案例不塞入原超限测试文件。",
+      "reason": " SPEC-0288 第二轮：仅登记独立 Map 查询边界测试子模块；新案例不塞入原超限测试文件。 SPEC-0312：仅新增3行独立source条件continue测试模块注册，全部用例和结构oracle在专用短文件。",
       "owner": "lang-codegen Map",
       "split_plan": "后续按完整领域职责拆分，不机械搬迁状态机。",
-      "review": "SPEC-0288 第二轮自审逐行核对上述有限接线与独立领域模块，锁定 2004 行；超出或增加职责前重新审阅。",
-      "max_lines": 2004
+      "review": "SPEC-0312 独立审阅核对3行注册及独立测试职责，有限上限2007；再次增长或扩职责须复审。",
+      "max_lines": 2007
     }
   },
   "generated": {}

@@ -38,7 +38,8 @@ break、更多 IterationPhi/call seed、RangeView 仍保持明确边界，不是
 ## 条件 return 的独立终止路径
 
 [0313](../specs/active/0313-single-map-conditional-return.md)在实际 main `8e0ce49d` 上独立实施，
-仅增加 temporary/Borrow source 的单条件 Return；没有借用未合入0312的source证明。
+仅增加 temporary/Borrow source 的单条件 Return；随后正常整合0312真实main `51f30090`，
+组合回归进行中，原独立基线不变。
 Return无phi incoming；Header仍恰Entry/Fallthrough。return Header drop与正常live Exit或dead
 Header drop构成精确集合，不能把正常出口live解释为return仍存活。
 operand求值完成后保存当前binding；清理只能通过透明block参数转发该精确值。记录Drop所在
@@ -55,13 +56,16 @@ unit basic/constant×Map尾部live/dead四格原已成功，独立native保持�
 
 ## owned source 的独立缺口
 
-owned local source 的 conditional continue 在没有 Map 时也会被旧 source presence proof
-拒绝；loop 后再用 source 与只在 LoopExit 清理两种路径均复现。原 `providers-cleanup.ko`
-完整输入保持不变；`lower_frontend_map_continue_source_tests` 核 source root、DropFact、
-Header/Exit owner 与实际 Span。新 Borrow fixture 是另一种能力，不能替代该 owned 失败。
-0312 source-proof正在独立交付，尚未在此基线中；不由Map return证明推断已合入。
-owned source return在去掉Map后，local/own seed×source live/dead四格也都旧拒绝，仍需
-独立后继；本片不扩大通用source/Resource proof。
+此独立缺口已由 [SPEC-0312](../archive/specs/0312-owned-source-conditional-continue.md)
+的 single source-only presence 证明有界修复。原无 Map live/dead、三种 Sequential source
+及 `providers-cleanup.ko` 原字节均经真实 frontend→SSA/LLVM/native 验收；
+`lower_frontend_map_continue_source_tests` 保留精确 source root/Header/Exit 断言并转为正例。
+Map live/dead × source live/dead 的双同型 Map 普通 native 对照通过；分别查询两 Map，
+不把尚未支持的跨 owner 短路条件清理混作本片能力。原 Resource/global implies 与 Map
+carrier 算法保持；当前 source seed、nested/跨 loop 边界见[provider](finite-sequential-iteration.md)。
+
+owned source return在去掉Map后，local/own seed×source live/dead四格仍为独立旧拒绝；
+0313不扩大通用source/Resource proof，Continue证明不自动覆盖Return终止路径。
 
 [0311 合同](../archive/specs/0311-single-map-conditional-continue.md)记录原始红测、范围修订、
 隔离 target 复核与待发布事项；[0310](../archive/specs/0310-single-map-conditional-break.md)

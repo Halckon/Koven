@@ -1,4 +1,4 @@
-//! Ordinary-source regression for the independent owned provider presence gap.
+//! Original SPEC-0311 source probes, now accepted after SPEC-0312 actual-main integration.
 use super::{analyze, lower_scalar_file};
 use lang_frontend::ownership_checking::{
     CleanupOwnerValue, DropPoint, DropTarget, IterationPhiBoundary, LoanTarget,
@@ -18,17 +18,17 @@ fn check(text: &str, source_gap: Option<IterationPhiBoundary>) {
         &analysis.owned,
     );
     if let Some(boundary) = source_gap {
-        let error = result
-            .err()
-            .expect("owned provider presence remains an independent gap");
-        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-        let span = error.span.unwrap();
-        assert_eq!(analysis.sources.slice(span).unwrap(), "keys");
+        let symbol = analysis
+            .names
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "keys")
+            .unwrap();
         let fact = analysis
             .owned
             .drops()
             .iter()
-            .find(|fact| fact.value_origin() == span)
+            .find(|fact| fact.target() == DropTarget::Named(symbol.id()))
             .unwrap();
         let DropTarget::Named(symbol) = fact.target() else {
             panic!("named source")
@@ -57,13 +57,12 @@ fn check(text: &str, source_gap: Option<IterationPhiBoundary>) {
         } else {
             assert_ne!(fact.point(), DropPoint::LoopExit(*statement));
         }
-    } else {
-        crate::llvm::render_verified_program(&result.unwrap()).unwrap();
     }
+    crate::llvm::render_verified_program(&result.unwrap()).unwrap();
 }
 
 #[test]
-fn map_continue_source_owned_after_use_without_map_remains_explicit() {
+fn map_continue_source_owned_after_use_without_map_now_lowers() {
     check(
         "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 2) { continue } }; keys.size }",
         Some(IterationPhiBoundary::Exit),
@@ -71,7 +70,7 @@ fn map_continue_source_owned_after_use_without_map_remains_explicit() {
 }
 
 #[test]
-fn map_continue_source_owned_without_after_use_with_map_remains_explicit() {
+fn map_continue_source_owned_without_after_use_with_map_now_lowers() {
     check(
         "fun main(): Unit { val keys = arrayOf(1, 2, 3); var cache = mutableMapOf<Int, String>(); for (key in keys) { cache.put(key, \"head\".clone()); if (key == 2) { continue }; cache.put(9, \"tail\".clone()) }; cache.contains(9) }",
         Some(IterationPhiBoundary::Header),
@@ -87,7 +86,7 @@ fn map_continue_source_temporary_with_map_lowers() {
 }
 
 #[test]
-fn map_continue_source_original_owned_fixture_remains_explicit() {
+fn map_continue_source_original_owned_fixture_now_lowers() {
     check(
         include_str!("../../tests/fixtures/map-conditional-continue-0311/providers-cleanup.ko"),
         Some(IterationPhiBoundary::Exit),
