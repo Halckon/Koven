@@ -1,0 +1,82 @@
+value class Text(val word: String)
+
+fun namedArray(): Unit {
+    val keys = arrayOf(1, 2, 3)
+    var cache = mutableMapOf<Int, Text>()
+    for (key in keys) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { continue }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("namedArray") } else { println("lost last") }
+    if (keys.size == 3) { println("source kept") } else { println("source changed") }
+}
+
+fun temporaryArray(): Unit {
+    var cache = mutableMapOf<Int, Text>()
+    for (key in arrayOf(1, 2, 3)) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { continue }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("temporaryArray") } else { println("lost last") }
+}
+
+fun namedList(): Unit {
+    val keys = listOf(1, 2, 3)
+    var cache = mutableMapOf<Int, Text>()
+    for (key in keys) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { continue }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("namedList") } else { println("lost last") }
+    if (keys.size == 3) { println("source kept") } else { println("source changed") }
+}
+
+fun temporaryList(): Unit {
+    var cache = mutableMapOf<Int, Text>()
+    for (key in listOf(1, 2, 3)) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { continue }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("temporaryList") } else { println("lost last") }
+}
+
+fun namedMutableList(): Unit {
+    val keys = mutableListOf(1, 2, 3)
+    var cache = mutableMapOf<Int, Text>()
+    for (key in keys) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { continue }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("namedMutableList") } else { println("lost last") }
+    if (keys.size == 3) { println("source kept") } else { println("source changed") }
+}
+
+fun temporaryMutableList(): Unit {
+    var cache = mutableMapOf<Int, Text>()
+    for (key in mutableListOf(1, 2, 3)) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { continue }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("temporaryMutableList") } else { println("lost last") }
+}
+
+fun main(): Unit {
+    namedArray()
+    temporaryArray()
+    namedList()
+    temporaryList()
+    namedMutableList()
+    temporaryMutableList()
+}

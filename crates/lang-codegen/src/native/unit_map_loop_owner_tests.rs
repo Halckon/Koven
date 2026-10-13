@@ -74,3 +74,6 @@ fn single_map_loop_native_other_sequential_providers() {
 
 #[path = "unit_map_break_tests.rs"]
 mod conditional_break;
+
+#[path = "unit_map_continue_tests.rs"]
+mod conditional_continue;

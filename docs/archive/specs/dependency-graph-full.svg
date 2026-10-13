@@ -5,8 +5,8 @@
     </marker>
   </defs>
   <rect width="8808" height="9052" fill="#ffffff"/>
-  <rect x="40" y="30" width="7672" height="8794" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，294 份）</text>
+  <rect x="40" y="30" width="7672" height="8950" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，295 份）</text>
   <rect x="7776" y="8838" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="7916" y="8858" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="8120" y="7956" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1038,6 +1038,7 @@
   <path d="M 708 8064 C 708 8096, 444 8114, 444 8146" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 8220 C 444 8252, 708 8270, 708 8302" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 8220 C 444 8252, 972 8270, 972 8302" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 8808 C 180 8840, 180 8840, 180 8872" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 8771 C 4048 8771, 4048 8918, 7796 8918" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
@@ -2280,6 +2281,11 @@
   <text x="180" y="8757" text-anchor="middle" font-size="13">SPEC-0310</text>
   <text x="180" y="8775" text-anchor="middle" font-size="13">single Map own</text>
   <text x="180" y="8793" text-anchor="middle" font-size="13">er 条件 break 运输</text>
+  <rect x="60" y="8872" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="180" y="8895" text-anchor="middle" font-size="13">SPEC-0311</text>
+  <text x="180" y="8913" text-anchor="middle" font-size="13">single Map own</text>
+  <text x="180" y="8931" text-anchor="middle" font-size="13">er 条件 continue</text>
+  <text x="180" y="8949" text-anchor="middle" font-size="13"> 运输</text>
   <rect x="7796" y="8872" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="7916" y="8895" text-anchor="middle" font-size="13" font-weight="600">SPEC-0312</text>
   <text x="7916" y="8913" text-anchor="middle" font-size="13">owned Sequenti</text>

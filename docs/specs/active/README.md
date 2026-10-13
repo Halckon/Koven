@@ -6,6 +6,8 @@
 
 - [0312 owned Sequential source 条件 continue](0312-owned-source-conditional-continue.md)：独立 source proof 实施中，Map 组合待 PR90 实际合入。
 
+[0311 single Map owner 条件 continue](../../archive/specs/0311-single-map-conditional-continue.md)已按 PR90 实现 CI 双宿主24项逐名证据有界归档；owned source 后继优先修复，归档 head CI/merge/main 待验收。
+
 [0310 single Map owner 条件 break](../../archive/specs/0310-single-map-conditional-break.md)已按[PR89 实现 CI](https://github.com/Halckon/Koven/actions/runs/38407747517)双宿主 13 项逐名证据有界归档；原红测/纠正、unit dead 与其他非目标保留，归档 head CI/merge/main 待验收。
 
 [0309 普通 Borrow value-class 字段](../../archive/specs/0309-borrow-value-class-fields.md)已按[PR88 新 base 物理 CI](https://github.com/Halckon/Koven/actions/runs/38397786167)双宿主 11 项逐名证据有界归档；仅关闭直接字段首片，原失败与后继边界保留，归档 head CI/merge/main 待验收。

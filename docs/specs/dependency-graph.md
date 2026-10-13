@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 294 份"))
+ARCH(("已完成<br/>archive 295 份"))
 subgraph Gactive["现行 active"]
   S0312["S0312<br/>owned Sequential source 条件 continue 证明"]
 end
@@ -30,4 +30,4 @@ ARCH --> S0312
 | SPEC-0312 | active | [0312-owned-source-conditional-continue.md](active/0312-owned-source-conditional-continue.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| 已完成 Spec（294 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（295 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

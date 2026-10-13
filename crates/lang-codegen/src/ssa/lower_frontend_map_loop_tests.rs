@@ -220,8 +220,35 @@ fn assert_control_exit_boundary(exit: &str) {
 }
 
 #[test]
-fn single_map_loop_continue_remains_explicit() {
-    assert_control_exit_boundary("continue");
+fn single_map_continue_with_break_remains_explicit() {
+    assert_control_exit_boundary("if (key == 2) { break }; continue");
+}
+
+#[test]
+fn single_map_continue_unconditional_and_multiple_remain_explicit() {
+    for exit in [
+        "continue",
+        "if (key == 1) { continue }; if (key == 2) { continue }",
+    ] {
+        let source = format!(
+            "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ cache.put(key, \"value\".clone()); {exit} }}; cache.contains(1) }}"
+        );
+        assert_guarded_boundary(&source);
+    }
+}
+
+#[test]
+fn single_map_continue_return_replacement_and_abort_remain_explicit() {
+    assert_control_exit_boundary("if (key == 2) { return }; continue");
+    for prefix in [
+        "cache = mutableMapOf<Int, String>();",
+        "if (key == 2) { error(\"stop\") };",
+    ] {
+        let source = format!(
+            "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ {prefix} cache.put(key, \"value\".clone()); if (key == 1) {{ continue }} }}; cache.contains(1) }}"
+        );
+        assert_guarded_boundary(&source);
+    }
 }
 
 #[test]
@@ -446,3 +473,6 @@ fn assert_map_drop_counts(program: &crate::ssa::model::Program, expected: &[(&st
 
 #[path = "lower_frontend_map_break_tests.rs"]
 mod conditional_break;
+
+#[path = "lower_frontend_map_continue_tests.rs"]
+mod conditional_continue;

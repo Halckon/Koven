@@ -9,10 +9,13 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 0 份；后继须从实际 main 独立冻结合同。
+- [Active 合同](active/README.md)：当前 0 份；0311 已有界归档。
+- 0311 之后优先修复 owned sequential source 的 conditional-continue presence，先于 Map return；[0311 诊断与明确后继](../archive/specs/0311-single-map-conditional-continue.md#owned-named-source-的既有独立缺口与范围修订)保留无 Map 也拒绝的普通源码证据，尚未分配后继 Spec。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
 ### 近期交付
+
+- [0311 single Map 条件 continue](../archive/specs/0311-single-map-conditional-continue.md)：[PR90 实现 CI](https://github.com/Halckon/Koven/actions/runs/38420920418)双宿主24项逐名验收后有界归档；保留 source 范围修订、原红测与隔离纠正，归档 head CI/merge/main 待验收。
 
 - [0310 single Map 条件 break](../archive/specs/0310-single-map-conditional-break.md)：[PR89 实现 CI](https://github.com/Halckon/Koven/actions/runs/38407747517)双宿主 13 项逐名验收后有界归档；保留 unit dead 与扩展退出/seed 边界，归档 head CI/merge/main 待验收。
 
@@ -41,7 +44,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：294 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：295 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

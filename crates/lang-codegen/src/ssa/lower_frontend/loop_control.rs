@@ -378,6 +378,12 @@ impl ExpressionLowerer<'_> {
             target: header_block,
             arguments: backedge_args,
         };
+        self.record_map_loop_backedge(
+            plan.descriptor().statement(),
+            lang_frontend::ownership_checking::IterationPhiIncomingKind::Continue(expression),
+            &backedge,
+            span,
+        )?;
         self.function
             .set_terminator(
                 self.block,
