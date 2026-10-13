@@ -43,6 +43,7 @@ struct OwnerPlan {
     exit_live: bool,
     drop: DropFact,
     break_expression: Option<ExpressionId>,
+    continue_expression: Option<ExpressionId>,
     break_drop: Option<DropFact>,
 }
 
@@ -98,8 +99,8 @@ fn owner_plan(
     {
         return None;
     }
-    // Only one conditional break in addition to Entry/Fallthrough/Exhaustion.
-    // In particular, Continue and Return never acquire this owner proof.
+    // Only one conditional break OR continue, with a real complementary fallthrough.
+    // Mixed exits and Return do not acquire this bounded owner proof.
     let breaks = plan
         .exits()
         .iter()
@@ -108,9 +109,18 @@ fn owner_plan(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if breaks.len() > 1
-        || plan.exits().len() != 2 + breaks.len()
-        || plan.closure_phi_incomings().len() != 3 + breaks.len()
+    let continues = plan
+        .exits()
+        .iter()
+        .filter_map(|exit| match exit.kind() {
+            IterationExitKind::Continue(expression) => Some((expression, exit)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let extra = breaks.len() + continues.len();
+    if extra > 1
+        || plan.exits().len() != 2 + extra
+        || plan.closure_phi_incomings().len() != 3 + extra
     {
         return None;
     }
@@ -196,14 +206,39 @@ fn owner_plan(
         }
         Some((expression, break_exit, edge))
     } else {
-        if !matches!(
-            conditions.get(back_edge.condition()),
-            Some(CleanupCondition::Always)
-        ) {
-            return None;
-        }
         None
     };
+    let continue_pair = if let Some(&(expression, continue_exit)) = continues.first() {
+        let edge = unique(
+            plan.closure_phi_incomings()
+                .iter()
+                .filter(|edge| edge.kind() == IterationPhiIncomingKind::Continue(expression)),
+        )?;
+        if edge.point() != DropPoint::ControlTransfer(expression)
+            || continue_exit.point() != edge.point()
+            || continue_exit.condition() != edge.condition()
+            || !complementary_paths(conditions, edge.condition(), back_edge.condition())
+            || !carried_value(
+                conditions,
+                incoming(owned, edge, header)?,
+                header,
+                edge.condition(),
+            )
+        {
+            return None;
+        }
+        Some(expression)
+    } else {
+        None
+    };
+    if extra == 0
+        && !matches!(
+            conditions.get(back_edge.condition()),
+            Some(CleanupCondition::Always)
+        )
+    {
+        return None;
+    }
     let entry = incoming(owned, entry_edge, header)?;
     let back = incoming(owned, back_edge, header)?;
     let exhausted = incoming(owned, exhausted_edge, exit)?;
@@ -221,8 +256,8 @@ fn owner_plan(
     {
         return None;
     }
-    // The exact Always Entry and sole presence-and-path self-backedge establish
-    // Header presence inductively. Do not widen the old Resource/source proof.
+    // Always Entry and every complementary presence-and-path self-backedge
+    // establish Header presence inductively. Keep the Resource/source proof narrow.
     for phi in [header, exit] {
         if !presence_on_path(
             conditions,
@@ -320,6 +355,7 @@ fn owner_plan(
         exit_live,
         drop,
         break_expression: break_pair.map(|(expression, _, _)| expression),
+        continue_expression: continue_pair,
         break_drop,
     })
 }
