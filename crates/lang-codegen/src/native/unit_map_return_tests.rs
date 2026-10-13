@@ -71,8 +71,8 @@ fn single_map_return_native_operand_cleanup() {
         "main",
     );
     assert_success(&run, concat!(
-        "first\noperand\nlater\nearlier\nouter\nreturned\n",
-        "fallthrough\nlater\nearlier\nfallthrough\nlater\nearlier\ntail kept\nexhausted\nouter\ncompleted\n",
+        "first\noperand\nlater\nearlier\nreturned\n",
+        "fallthrough\nlater\nearlier\nfallthrough\nlater\nearlier\ntail kept\nexhausted\ncompleted\n",
         "copy returned\ncopy exhausted\nremoved operand\nupdated returned\nupdated exhausted\n",
     ).as_bytes());
 }

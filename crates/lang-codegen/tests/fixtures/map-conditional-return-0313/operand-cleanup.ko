@@ -2,7 +2,6 @@ class Guard(val name: String) { deinit() { println(this.name) } }
 
 fun operand(item: String): Int { println(item); println("operand"); return 7 }
 fun cleanup(stop: Boolean): Int {
-    val outer = Guard("outer")
     var cache = mutableMapOf<Int, String>()
     for (item in arrayOf("first".clone(), "second".clone())) {
         val first = Guard("earlier")

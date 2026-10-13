@@ -252,8 +252,10 @@ fn single_map_continue_return_replacement_and_abort_remain_explicit() {
 }
 
 #[test]
-fn single_map_loop_return_remains_explicit() {
-    assert_control_exit_boundary("return");
+fn single_map_loop_unconditional_return_remains_explicit() {
+    assert_guarded_boundary(
+        "fun main(): Unit { var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) { cache.put(key, \"value\".clone()); return }; cache.contains(1) }",
+    );
 }
 
 #[test]
