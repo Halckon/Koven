@@ -76,6 +76,7 @@ lowering。稳定snapshot即送独立审查，不等最终收尾才review。小�
 | 共享消费者 | 既有0305/0306、普通Borrow调用、父绑定与cleanup相关正常source测试 | codegen精确44项通过（连新4项共48）；新增之外frontend既有31项加共享136项、跨文件30项普通source通过 |
 | 静态门禁 | fmt、frontend/codegen严格clippy、跨crate check、docs/尺寸/diff | 1377e744测试输入上全部通过；1065手写Rust、38旧超限，无新豁免；文档提交后复验docs/diff |
 | 独立审查 | 稳定snapshot、最终变化复查 | d532b926生产审查无已确认阻断并独立重跑10+4项（每矩阵38组）；1377e744纯测试增量静态复审通过，未冒充独立重跑40组 |
+| CI目标选择 | stage仅一次、无filter选择新frontend target；双宿主composition | 发布预检发现漏项；Python policy先红（0次），8666eeb4独立记录；最小接线后policy33/33与bash语法检查通过，未本地执行aggregate |
 | 远端双宿主/交付 | root统一publisher、精确head/merge CI | 未发布、未执行；待综合review核验后再发布，merge另需具体批准 |
 
 最终公开API探针以1377e744源码重新构建：54组×两入口108次，80次原版native精确成功、
