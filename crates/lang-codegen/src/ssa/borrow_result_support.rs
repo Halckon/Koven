@@ -1,10 +1,21 @@
 //! 首片 CFG 能力边界：不让尚未运输的结果/source loan 隐式跨块。
 use super::{LoweringError, LoweringErrorKind, lowering_support::error};
 use lang_frontend::{
-    ast::ExpressionId,
+    ast::{ExpressionId, StatementId},
     parser::{BinaryOperator, Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
     source::Span,
+    type_checking::BuiltinType,
 };
+
+mod local_if;
+
+pub(super) fn range_scope(
+    parsed: &ParsedFile,
+    marker: Span,
+    proven: impl Fn(Span, StatementId) -> bool,
+) -> Option<StatementId> {
+    local_if::scope(parsed, marker, proven)
+}
 
 /// Only discard transparent syntax; callers still validate the published expression facts.
 pub(super) fn ungroup(
@@ -52,7 +63,9 @@ pub(super) fn binding(
     marker: Span,
     range: bool,
     range_prefixes: &[Span],
-    is_int: impl Fn(ExpressionId) -> bool,
+    scope: Option<StatementId>,
+    builtin: impl Fn(ExpressionId) -> Option<BuiltinType>,
+    owned_call: impl Fn(ExpressionId) -> bool,
 ) -> Result<(), LoweringError> {
     let function = parsed
         .ast()
@@ -75,15 +88,22 @@ pub(super) fn binding(
                 right,
                 ..
             } = node.payload()
-            && matches!(
-                operator,
+            && [*left, *right]
+                .into_iter()
+                .all(|operand| builtin(operand) == Some(BuiltinType::Int))
+            && match operator {
                 BinaryOperator::Add
-                    | BinaryOperator::Subtract
-                    | BinaryOperator::Multiply
-                    | BinaryOperator::Divide
-                    | BinaryOperator::Remainder
-            )
-            && [expression, *left, *right].into_iter().all(&is_int)
+                | BinaryOperator::Subtract
+                | BinaryOperator::Multiply
+                | BinaryOperator::Divide
+                | BinaryOperator::Remainder => builtin(expression) == Some(BuiltinType::Int),
+                // Comparisons do not create CFG edges. Both operand types and
+                // the distinct Boolean result must come from typed facts.
+                BinaryOperator::Equal | BinaryOperator::Less => {
+                    builtin(expression) == Some(BuiltinType::Boolean)
+                }
+                _ => false,
+            }
         {
             continue;
         }
@@ -95,6 +115,13 @@ pub(super) fn binding(
             && range_prefixes
                 .iter()
                 .any(|prefix| contains(*prefix, node.span()))
+        {
+            continue;
+        }
+        if range
+            && scope.is_some_and(|scope| {
+                local_if::allows(parsed, scope, expression, &builtin, &owned_call)
+            })
         {
             continue;
         }

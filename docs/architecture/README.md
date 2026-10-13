@@ -70,6 +70,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 - [Owned root 原子所有权置换](root-ownership-primitives.md)：replace / swap 的正常 commit、SSA 与 native 边界
 - [Owned local 一级字段 replace](direct-field-replace.md)：独立 field facts、显式字段交换与有界直接验证
 
+- [范围绑定与有界局部控制流](range-local-control-flow.md)：新描述符的Int比较与同根scope-proven statement-if
 - [Unit 容器存储](unit-container-storage.md)：列表式物化、container-only 零大小布局与 void ABI 边界
 
 - [顺序迭代事实与provider](finite-sequential-iteration.md)：只读schema、有限presence、资源元素与路径关联provenance

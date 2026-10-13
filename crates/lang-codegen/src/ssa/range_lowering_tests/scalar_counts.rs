@@ -166,7 +166,12 @@ fn range_scalar_counts_keep_non_int_binary_and_wider_cfg_gates() {
     for (statement, fragment) in [
         ("val other=1L+2L", "1L+2L"),
         ("val other=\"a\"+\"b\"", "\"a\"+\"b\""),
-        ("val other=n==1", "n==1"),
+        ("val other=n!=1", "n!=1"),
+        ("val other=n<=1", "n<=1"),
+        ("val other=n>1", "n>1"),
+        ("val other=n>=1", "n>=1"),
+        ("val other=true==false", "true==false"),
+        ("val other=1L==2L", "1L==2L"),
         ("val other=n shl 1", "n shl 1"),
         ("val other=true && false", "true && false"),
         ("if(true){read(part)}", "if(true){read(part)}"),

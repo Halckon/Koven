@@ -135,13 +135,13 @@ return/正常耗尽各在规定边界结束；body-local Resource 先按逆序�
 resource 清理规则。single pending call loans 与 unit argument frame 保存 receiver
 跨 count 条件 return 的当前 loan，正常/早退分支均有 native 清理证据。
 
-含 `NewRangeDescriptor` binding 的函数保留全函数扫描，仅放行左/右/结果均为真实
+含 `NewRangeDescriptor` binding 的函数保留全函数扫描。原0289接通左/右/结果均为真实
 Builtin Int 的 `+ - * / %`；unit 依 binding SourceUnit 核对事实。`n-1`、size 算术和
 MIN 表达式已接通。既有 checked success/Abort CFG 复用 single linear slots 与 unit
 carried bindings/loans、pending operands、range-source 重绑定，运输 metadata、owner
 及祖先 loan；正常 SSA/native 验证活跃父子与临时来源的运输、求值和清理一次性。
-普通 borrow、metadata alias 混入同函数仍保守拒绝；非 Int Binary、比较、位运算、
-短路及更广 CFG 不放宽。producer count 分支缺来源证明仍 L0164；绑定 initializer
+0298的新增比较/if能力及保留门禁见[范围局部控制流](range-local-control-flow.md)；
+历史0289验收不扩写为新能力证据。producer count分支缺来源证明仍L0164；绑定initializer
 内 return、receiver count break 仍在原门 UnsupportedNode。未新增 View 索引、
 一般扩展、consume/Clone 或 N1b。PR72 head `d3d6f3c` 的双宿主 CI 已重跑本片及旧 take
 身份/退出回归；验收范围与归档 head/merge/main 待交付状态见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/range-carrier-0289/delivery.json)。

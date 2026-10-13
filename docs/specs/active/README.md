@@ -4,6 +4,8 @@
 
 当前 0 份 active。
 
+[0298 范围绑定与有界局部控制流](../../archive/specs/0298-range-binding-local-control-flow.md)已按PR81修复后实现head双宿主52/8/14/35逐目标证据及完整CI有界归档；只关闭Int ==/<与同根词法if首片，[广义后继](../drafts/v0.43/README.md#0298首片之外的开放后继)继续开放，最终归档head CI/merge/main待验证。
+
 [0299 owned Map删除结果的非消费借用](../../archive/specs/0299-owned-map-result-borrow.md)已按PR80实现head双宿主各23项新增测试及完整CI有界归档，仅关闭冻结首片；嵌套调用等广义后继保持开放，最终归档head CI/merge/main仍待验证。
 
 [0300 single Map-for条件清理运输](../../archive/specs/0300-single-map-loop-owner-carry.md)已按PR79实现head双宿主各19项新增测试及完整CI有界归档；只覆盖正常耗尽，最终归档head CI、merge与actual main仍待验证。

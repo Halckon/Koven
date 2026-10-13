@@ -95,8 +95,12 @@ fn public_std_range_scalar_counts_keep_other_binary_capability_gates() {
         ("", "true && false"),
         ("", "true || false"),
         ("", "\"a\"+\"b\""),
-        ("", "n == 2"),
-        ("", "n < 3"),
+        ("", "n != 2"),
+        ("", "n <= 3"),
+        ("", "n > 2"),
+        ("", "n >= 3"),
+        ("", "true == false"),
+        ("", "1L == 2L"),
     ] {
         let project = Project::new();
         let built = project.build(&format!("package app\nimport koven.algorithms.take\n{declaration}\nfun read(view:View<String>):Unit{{}}\nfun scan(n:Int):Unit{{val root=listOf(\"a\");borrow val parent=take(root,1);val other={expression};read(parent)}}\nfun main():Unit{{scan(2)}}"));
@@ -108,5 +112,92 @@ fn public_std_range_scalar_counts_keep_other_binary_capability_gates() {
             "{expression}: {built:?}"
         );
         assert!(!project.0.join("program").exists());
+    }
+}
+
+fn check_int_comparison_at_binding_positions(expression: &str) {
+    let comparison = format!("val other={expression};show(other)");
+    for (position, body, expected) in [
+        (
+            "before",
+            format!("{comparison};{{borrow val parent=take(root,1);read(parent)}}"),
+            "true\nkept\nconsume\nfalse\nkept\nconsume\n",
+        ),
+        (
+            "live",
+            format!("{{borrow val parent=take(root,1);read(parent);{comparison};read(parent)}}"),
+            "kept\ntrue\nkept\nconsume\nkept\nfalse\nkept\nconsume\n",
+        ),
+        (
+            "after",
+            format!("{{borrow val parent=take(root,1);read(parent)}};{comparison}"),
+            "kept\ntrue\nconsume\nkept\nfalse\nconsume\n",
+        ),
+    ] {
+        let project = Project::new();
+        // show has no borrow binding; its branch does not exercise scan's if gate.
+        // The local Boolean preserves the exact initializer form of the old negative.
+        let built = project.build(&format!(
+            r#"package app
+import koven.algorithms.take
+fun show(flag:Boolean):Unit{{if(flag){{println("true")}}else{{println("false")}}}}
+fun read(view:View<String>):Unit{{for(item in view){{println(item)}}}}
+fun consume(own root:List<String>):Unit{{println("consume")}}
+fun scan(n:Int):Unit{{val root=listOf("kept","excluded");{body};consume(root)}}
+fun main():Unit{{scan(2);scan(4)}}"#
+        ));
+        assert!(built.status.success(), "{expression}/{position}: {built:?}");
+        assert!(built.stdout.is_empty(), "{built:?}");
+        assert!(built.stderr.is_empty(), "{built:?}");
+        let run = Command::new(project.0.join("program")).output().unwrap();
+        assert_eq!(run.status.code(), Some(0), "{run:?}");
+        assert_eq!(run.stdout, expected.as_bytes(), "{expression}/{position}");
+        assert!(run.stderr.is_empty(), "{run:?}");
+    }
+}
+
+#[test]
+fn public_std_range_scalar_counts_allow_int_equality_at_all_binding_positions() {
+    check_int_comparison_at_binding_positions("n == 2");
+}
+
+#[test]
+fn public_std_range_scalar_counts_allow_int_less_than_at_all_binding_positions() {
+    check_int_comparison_at_binding_positions("n < 3");
+}
+
+#[test]
+fn public_std_range_scalar_counts_select_scoped_if_before_resource_consume() {
+    for condition in ["mark(n) == 2", "mark(n) < 3"] {
+        let project = Project::new();
+        let built = project.build(&format!(
+            r#"package app
+import koven.algorithms.take
+class Item(val text:String){{deinit(){{println("drop");println(this.text)}}}}
+fun mark(n:Int):Int{{println("condition");return n}}
+fun read(view:View<Item>):Unit{{for(item in view){{println(item.text)}}}}
+fun consume(own root:List<Item>):Unit{{println("consume")}}
+fun scan(n:Int):Unit{{
+    val root=listOf(Item("kept"),Item("excluded"))
+    {{
+        borrow val parent=take(root,1)
+        if({condition}){{println("then");read(parent)}}else{{println("else");read(parent)}}
+        read(parent)
+    }}
+    consume(root)
+}}
+fun main():Unit{{scan(2);scan(4)}}"#
+        ));
+        assert!(built.status.success(), "{condition}: {built:?}");
+        assert!(built.stdout.is_empty(), "{built:?}");
+        assert!(built.stderr.is_empty(), "{built:?}");
+        let run = Command::new(project.0.join("program")).output().unwrap();
+        assert_eq!(run.status.code(), Some(0), "{run:?}");
+        assert_eq!(
+            run.stdout,
+            b"condition\nthen\nkept\nkept\nconsume\ndrop\nexcluded\ndrop\nkept\ncondition\nelse\nkept\nkept\nconsume\ndrop\nexcluded\ndrop\nkept\n",
+            "{condition}: {run:?}"
+        );
+        assert!(run.stderr.is_empty(), "{run:?}");
     }
 }
