@@ -85,6 +85,14 @@ class SpecInventoryTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     check_docs.read_spec_inventory(self.root)
 
+    def test_deeply_nested_json_reports_a_structural_error(self):
+        self.write_inventory('{"active":' + '[' * 2000 + '[]' + ']' * 2000 + ',"archived":[]}')
+        errors = check_docs.DocsChecker(self.root).run()
+        self.assertEqual(1, len(errors))
+        # Decoder depth limits vary; either decoding or the fixed schema must
+        # reject this input through one structural error, never a traceback.
+        self.assertIn('docs/specs/inventory.md', errors[0])
+
     def test_exact_single_fence_is_required(self):
         valid = self.inventory.read_text()
         for text in ('# No declaration\n', valid + valid,

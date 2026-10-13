@@ -112,8 +112,8 @@ def read_spec_inventory(root: Path) -> tuple[frozenset[str], frozenset[str]]:
     try:
         data = json.loads("\n".join(lines[fences[0][0] + 1:fences[1][0]]),
                           object_pairs_hook=unique_object, parse_constant=reject_constant)
-    except json.JSONDecodeError as error:
-        raise ValueError("声明必须是有效 JSON") from error
+    except (json.JSONDecodeError, RecursionError) as error:
+        raise ValueError("声明必须是有效且可解析的 JSON") from error
     if not isinstance(data, dict) or set(data) != {"active", "archived"}:
         raise ValueError("声明字段必须恰为 active 和 archived")
     for label in ("active", "archived"):
