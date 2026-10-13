@@ -11,7 +11,7 @@
 | 批准依据 | 2026-10-13 用户持续里程碑开发、合并后继续推进；PR89 实际合并后激活 |
 | 前置 Spec | [SPEC-0310](../../archive/specs/0310-single-map-conditional-break.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 本地有界验证已完成；独立终审、远端 CI 与发布闭环待完成 |
+| 阻塞项 | 本地有界验证与独立终审已完成；远端 CI 与发布闭环待完成 |
 | 影响范围 | single 外部具名非 Resource Map 的一个条件 continue；unit 独立对照 |
 | 语言语义变更 | 否 |
 
@@ -99,7 +99,7 @@ stdout 只证明输出，不宣称动态分配计数或完整内存安全。
 | nullable回归 | `null_cleanup_tests` | 22通过：19普通native+3普通source SSA；没有注入或改写IR |
 | provider/snapshot | 顶层11个`native_tests::sequential_for_tests::<name>`逐exact；两个`ssa::lower_frontend_tests::rejects_*`逐exact | 每项实际1通过；只选择普通source，不运行provider注入子模块 |
 | 静态质量 | fmt；codegen all-targets clippy `-D warnings`；docs/尺寸/diff | 全部通过；docs 664；1074手写Rust文件、38历史超限，无新增豁免 |
-| 独立审阅 | c36生产与c2范围修订静审 | 无阻断；终稿收据待记录，审阅者未运行测试 |
+| 独立审阅 | c36生产、c2范围修订及3103276c终稿 | 代码/证据无阻断；按最后建议在SSA总览明确无Map也有owned source缺口。审阅者未运行测试 |
 | 发布闭环 | PR/CI/归档/merge | 未执行 |
 
 
