@@ -51,8 +51,9 @@
 | 静态与文档 | fmt、codegen 严格 clippy、docs、diff、尺寸 | 全通过；docs 661；1065 个手写 Rust 文件、38 项旧尺寸债务无新增例外 |
 | 独立审查/双宿主 CI | 精确最终 head 与 PR 输入 | 待运行 |
 
-本地仅执行已审普通 source 路径；不运行构造坏 IR、故障注入、校准、sanitizer、aggregate
-或全部 scripts/tests discover。未运行项保持可见，macOS 留 CI。
+本地运行范围本应仅为已审普通 source 路径；构造坏 IR、故障注入、校准、sanitizer、
+aggregate 与全部 scripts/tests discover 留 CI。实际发生一次越出该边界的 stub 选择检查，
+其 aggregate shell 调用与未执行的真实测试严格区分，见 §6；macOS 留 CI。
 
 ## 4. CI 消费者与提交顺序
 
@@ -81,8 +82,29 @@ readThenReturn 返回 payload 逐字节输出，其余无可观察返回值的�
 `cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`；
 尺寸检查显式 base 为 046ee221。已静审的
 `python3 -m unittest scripts.tests.test_recovery_gates.CompositionContracts.test_selection_is_unique_and_bounded -v`
-1/1 通过，103 frontend targets / 10 次 Cargo 调用保持；该 policy 仅 stub 记录选择，
-不运行其余 Rust、故障注入或校准。没有执行全部 Python discover。
+1/1 通过，103 frontend targets / 10 次 Cargo 命令选择保持。该检查实际调用 aggregate
+shell，而 Cargo/Python 子调用由 stub 替代；这是本应留 CI 的检查误执行，详见 §6，
+不能视作完整 CI 验收。没有执行全部 Python discover。
 
 原始日志及真实 commit 恢复材料保存于交付恢复包，不入库。下一步为精确最终快照的
 独立审查与 root 统一发布；本地成功不代替双宿主 PR CI、归档、merge 或 actual-main CI。
+
+## 6. 本地执行范围纠正
+
+2026-10-13 11:10:55 UTC 实际执行了一次 §5 所列 exact Python selection 测试，
+结果为 1/1、0.030s。该项本应留 CI，却被误判为允许的普通 policy 检查。之前的
+“aggregate 未运行”笼统交付表述不准确，本节纠正事实，不删除原始日志或掩盖执行。
+
+实际调用链为 Python exact test → `invoke(fail="")` →
+`bash scripts/check_integration.sh` → `check_core.sh` / `check_stage_integration.sh`。
+这些 aggregate shell 确实执行；临时 PATH 中的 `cargo`、`python3` 是记录参数的 shell
+stub，`FAIL_MATCH` 为空，未触发 stub 的 exit 37 故障分支。没有选择另一个
+`test_each_phase_propagates_failure_and_stops_following_phases` 测试。
+
+该调用链没有运行真实 Cargo suite、tutorial Python、故障注入、校准、sanitizer 或
+bad IR；其结果仅描述 stub 下的命令选择，不作为合规本地验收依据，也不证明完整 CI 或这些真实
+测试通过。真实
+source/SSA/native 与静态门禁结果仍分别按 §3–5 的实际执行登记。临时 calls 文件随
+TemporaryDirectory 清理，保存的原始 unittest 日志证明 exact 测试执行/通过，调用
+边界由该提交未改变的脚本源码核实。本次只修账本并做 docs/hash/Git 恢复核验，
+不重跑该检查或其他测试。
