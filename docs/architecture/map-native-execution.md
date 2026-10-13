@@ -7,7 +7,6 @@ Map 的实现按具体 K/V 实例建立布局，不以 `Map<String, Int>` 特例
 值的结构化存储约束；查询结果对已 nullable 的 V 保持归一化，不制造嵌套 nullable。
 
 ## 所有权与 SSA
-
 `contains`、`get`、`requireValue`、`withValue`、`remove` 按 Borrow 使用键；`put` 和下标赋值按 Value 交付键和值。
 交付只退休 MoveOnly 的源 binding，Copyable 标量与 value class binding 仍可复用。
 变异要求 mutable receiver 的 Inout 权限；普通调用事实和下标赋值遍历都执行检查。

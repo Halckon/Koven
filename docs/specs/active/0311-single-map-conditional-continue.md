@@ -119,7 +119,7 @@ stdout 只证明输出，不宣称动态分配计数或完整内存安全。
 正式0b5的20项在任何production前已提交且实跑。补充对照切换worktree后，共享target曾
 错误复用旧baseline binary；该疑似复用run不计当前验收。曾仅touch当前lib.rs触发重编译，
 前后字节相同，但最终仍不用该run作收据，改用上述两份全新隔离target。没有cargo clean、
-删缓存或修改已冻结输入来取得绿；原始失败日志均保留。
+删缓存或修改已冻结输入来取得绿；原始失败日志均保留。文档场景页新增条目曾超过200行入口上限，删除冗余空行后重跑结构门禁；没有改脚本或提高上限。
 
 最终本地没有运行full discover、无filter全lib、全量workspace/frontend、aggregate driver、
 fault/calibration/sanitizer/badIR/mock/stub或计数插桩；stdout不证明动态精确free次数。
