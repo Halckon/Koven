@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 0 份；后继须从实际 main 独立冻结合同。
+- [Active 合同](active/README.md)：当前 1 份；[0309](active/0309-borrow-value-class-fields.md) 普通 Borrow value-class 字段有界修复实施中。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
 ### 近期交付

@@ -301,6 +301,9 @@ subgraph Garchive["已完成（archive，291 份）"]
   S0306["S0306<br/>混合 Value 参数的唯一来源借用返回"]
   S0307["S0307<br/>普通借用结果的同步 Borrow 实参消费"]
 end
+subgraph Gactive["现行 active"]
+  S0309["S0309<br/>普通 Borrow value-class 参数的直接字段读取"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
@@ -1270,6 +1273,7 @@ S0263 --> S0264
 S0263 --> S0265
 S0263 --> S0268
 S0264 --> S0268
+S0264 --> S0309
 S0265 --> S0268
 S0266 --> S0269
 S0266 --> S0272
@@ -1625,5 +1629,6 @@ S0306 --> S0307
 | SPEC-0305 | archive | [0305-multi-parameter-borrow-result.md](0305-multi-parameter-borrow-result.md) |
 | SPEC-0306 | archive | [0306-mixed-value-borrow-result.md](0306-mixed-value-borrow-result.md) |
 | SPEC-0307 | archive | [0307-synchronous-borrow-result-arguments.md](0307-synchronous-borrow-result-arguments.md) |
+| SPEC-0309 | active | [0309-borrow-value-class-fields.md](../../specs/active/0309-borrow-value-class-fields.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

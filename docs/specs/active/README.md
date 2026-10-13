@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [0309 普通 Borrow value-class 参数的直接字段读取](0309-borrow-value-class-fields.md)：有界 unit lowering 修复实施中，红绿与双宿主 CI 待验收。
 
 [0307 普通借用结果的同步 Borrow 实参消费](../../archive/specs/0307-synchronous-borrow-result-arguments.md)已按[PR85修复后物理CI](https://github.com/Halckon/Koven/actions/runs/38378462482)16/16 jobs、双宿主新frontend10及普通source codegen48逐名证据有界归档；首失败保留，归档head CI/merge/main待验证。outer继续借用返回、temporary来源、receiver/Inout与CFG等后继开放。
 
