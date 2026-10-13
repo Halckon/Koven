@@ -37,7 +37,7 @@ fn observe(name: &str, text: &str, supported: bool) {
         }
         Err(error) => {
             assert!(!supported, "{name}: {error:?}");
-            assert_eq!(error.kind, super::super::LoweringErrorKind::UnsupportedNode);
+            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
             assert!(error.span.is_some());
             println!("CONTROL {name}: {error:?}");
         }
