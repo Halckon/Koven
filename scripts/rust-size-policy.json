@@ -131,10 +131,10 @@
     },
     "crates/lang-codegen/src/ssa/lower_frontend.rs": {
       "max_lines": 1525,
-      "reason": "SPEC-0279 source ABI：在1480基础净增25行，为source plan/type query/capture状态及清理接线，另恢复既有source member的精确UnsupportedNode边界；具体formation、signature、runtime生成在自然子模块，不为单个driver接线搬迁旧lower状态机。 SPEC-0288接手本轮：Map intrinsic 分发与独立 lower_frontend/map 模块注册；不搬迁旧 driver 状态机。 SPEC-0288 第二轮：Copyable Map 查询的只读类型事实、比较路由、窄化读取与局部 nullable promotion 接线；算法在 map_result 子模块。 SPEC-0288 第三轮：Map nullable promotion 按 Copyable/MoveOnly 路由，owned 路径复用 NullableWrap。",
+      "reason": "SPEC-0279 source ABI：在1480基础净增25行，为source plan/type query/capture状态及清理接线，另恢复既有source member的精确UnsupportedNode边界；具体formation、signature、runtime生成在自然子模块，不为单个driver接线搬迁旧lower状态机。 SPEC-0288接手本轮：Map intrinsic 分发与独立 lower_frontend/map 模块注册；不搬迁旧 driver 状态机。 SPEC-0288 第二轮：Copyable Map 查询的只读类型事实、比较路由、窄化读取与局部 nullable promotion 接线；算法在 map_result 子模块。 SPEC-0288 第三轮：Map nullable promotion 按 Copyable/MoveOnly 路由，owned 路径复用 NullableWrap。 SPEC-0313：在实际main 1427行上增加2行，分别在operand后与真实Return终结后接线独立Map carrier证明；算法仍封闭在map_loop_owner子模块。",
       "owner": "lang-codegen single-file lowering",
       "split_plan": "后续按局部交付与intrinsic分发完整职责拆分，保持source plan和expression lowerer的显式输入。",
-      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1525 行；不声称独立评审。再次增长或职责增加前重新审阅。"
+      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1525 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0313非作者静审核对两行有界接线，旧1525行上限不增加。"
     },
     "crates/lang-codegen/src/ssa/lower_frontend/control.rs": {
       "max_lines": 1520,
