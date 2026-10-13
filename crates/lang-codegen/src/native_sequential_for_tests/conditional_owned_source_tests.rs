@@ -64,7 +64,6 @@ fun main(): Unit {
         if (key == 2) { continue }
         println("tail")
     }
-    keys[0] = 9
     consume(keys)
     var list = mutableListOf(1, 2, 3)
     for (key in list) { if (key == 2) { continue } }

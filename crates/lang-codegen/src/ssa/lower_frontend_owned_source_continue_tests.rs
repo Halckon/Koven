@@ -127,3 +127,49 @@ fn owned_source_continue_unit_constant_dead() {
 fn owned_source_continue_unit_constant_live() {
     assert_unit_boundary(true, true);
 }
+
+// A normal-source observation used on the frozen baseline and candidate separately.
+// It prints each entry's actual outcome; success here is not claimed as lowering acceptance.
+#[test]
+fn owned_source_continue_nested_scope_observations() {
+    for (label, text) in [
+        (
+            "inner_fresh",
+            "fun main(): Unit { for (outer in arrayOf(1, 2)) { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
+        ),
+        (
+            "outer_independent_inner",
+            "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { for (other in arrayOf(3)) { other }; if (key == 2) { continue } }; keys.size }",
+        ),
+        (
+            "same_source_nested",
+            "fun main(): Unit { val keys = arrayOf(1, 2); for (outer in keys) { for (key in keys) { if (key == 2) { continue } } }; keys.size }",
+        ),
+        (
+            "sequential_same_source",
+            "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; for (key in keys) { if (key == 2) { continue } }; keys.size }",
+        ),
+    ] {
+        let analysis = analyze(text);
+        assert!(analysis.parsed.diagnostics().is_empty());
+        assert!(analysis.names.diagnostics().is_empty());
+        assert!(analysis.typed.diagnostics().is_empty());
+        assert!(analysis.owned.diagnostics().is_empty());
+        let result = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        );
+        eprintln!(
+            "NESTED {label} result={:?} plans={:?} conditions={:?}",
+            result.as_ref().map(|_| ()),
+            analysis.owned.iterations(),
+            analysis.owned.cleanup_conditions()
+        );
+        if let Ok(program) = result {
+            crate::llvm::render_verified_program(&program).unwrap();
+        }
+    }
+}
