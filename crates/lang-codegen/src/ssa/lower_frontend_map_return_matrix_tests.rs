@@ -58,3 +58,10 @@ fn single_map_return_operand_cleanup_matrix() {
         "../../tests/fixtures/map-conditional-return-0313/operand-cleanup.ko"
     ));
 }
+
+#[test]
+fn single_map_return_owned_results_matrix() {
+    check(include_str!(
+        "../../tests/fixtures/map-conditional-return-0313/owned-results.ko"
+    ));
+}

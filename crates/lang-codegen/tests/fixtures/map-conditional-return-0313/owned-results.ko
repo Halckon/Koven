@@ -1,0 +1,55 @@
+value class Text(val word: String)
+fun stringDirect(stop: Int): String {
+    var cache = mutableMapOf<Int, String>()
+    for (key in arrayOf(1, 2, 3)) {
+        cache.put(key, "head".clone())
+        val result = "returned".clone()
+        if (key == stop) { return result }
+        println("tail")
+    }
+    return "fallback".clone()
+}
+fun stringGroup(stop: Int): String {
+    var cache = mutableMapOf<Int, String>()
+    for (key in arrayOf(1, 2, 3)) {
+        cache.put(key, "head".clone())
+        val result = "returned".clone()
+        if (key == stop) { return (result) }
+        println("tail")
+    }
+    return "fallback".clone()
+}
+fun valueDirect(stop: Int): Text {
+    var cache = mutableMapOf<Int, String>()
+    for (key in arrayOf(1, 2, 3)) {
+        cache.put(key, "head".clone())
+        val result = Text("returned".clone())
+        if (key == stop) { return result }
+        println("tail")
+    }
+    return Text("fallback".clone())
+}
+fun valueGroup(stop: Int): Text {
+    var cache = mutableMapOf<Int, String>()
+    for (key in arrayOf(1, 2, 3)) {
+        cache.put(key, "head".clone())
+        val result = Text("returned".clone())
+        if (key == stop) { return (result) }
+        println("tail")
+    }
+    return Text("fallback".clone())
+}
+fun main(): Unit {
+    println(stringDirect(1))
+    println(stringDirect(3))
+    println(stringDirect(9))
+    println(stringGroup(1))
+    println(stringGroup(3))
+    println(stringGroup(9))
+    println(valueDirect(1) .word)
+    println(valueDirect(3) .word)
+    println(valueDirect(9) .word)
+    println(valueGroup(1) .word)
+    println(valueGroup(3) .word)
+    println(valueGroup(9) .word)
+}

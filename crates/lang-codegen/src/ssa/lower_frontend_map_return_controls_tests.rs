@@ -33,12 +33,36 @@ fn observe(name: &str, text: &str, supported: bool) {
         Ok(program) => {
             assert!(supported, "{name}: unexpectedly accepted");
             crate::llvm::render_verified_program(&program).unwrap();
+            use crate::ssa::model::{Operation, TerminatorKind};
+            for function in program.modules.iter().flat_map(|m| &m.functions) {
+                for block in &function.blocks {
+                    if let TerminatorKind::Return { values } =
+                        &block.terminator.as_ref().unwrap().kind
+                    {
+                        for value in values {
+                            assert!(!function.instructions.iter().any(|i| matches!(i.operation, Operation::Drop { owner } if owner == *value)), "returned owner is never also dropped");
+                        }
+                    }
+                }
+            }
             println!("CONTROL {name}: VERIFIED_LLVM");
         }
         Err(error) => {
             assert!(!supported, "{name}: {error:?}");
             assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-            assert!(error.span.is_some());
+            let span = error.span.unwrap();
+            let expected = if name.starts_with("owned-source") {
+                "keys"
+            } else if name.starts_with("outer-resource") {
+                "outer"
+            } else {
+                "cache"
+            };
+            assert_eq!(
+                &text[span.start()..span.end()],
+                expected,
+                "{name}: precise rejected owner"
+            );
             println!("CONTROL {name}: {error:?}");
         }
     }
@@ -154,4 +178,63 @@ fn ordinary_source_controls_outer_resource_and_updating_operand() {
         ),
         false,
     );
+}
+
+#[test]
+fn ordinary_source_controls_return_shapes_remain_bounded() {
+    for exit in [
+        "return",
+        "if (key == 1) { return }; if (key == 2) { return }",
+        "if (key == 1) { return }; if (key == 2) { break }",
+        "if (key == 1) { return }; if (key == 2) { continue }",
+    ] {
+        let text = format!(
+            "fun work(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2, 3)) {{ cache.put(key, \"head\".clone()); {exit} }}; cache.contains(1) }}"
+        );
+        observe("unsupported-return-shape", &text, false);
+    }
+}
+
+#[test]
+fn ordinary_source_controls_active_source_and_element_diagnostics() {
+    for (text, code) in [
+        (
+            "fun work(own keys: Array<Int>): Array<Int> { for (key in keys) { if (key == 1) { return keys } }; return keys }",
+            "L0135",
+        ),
+        (
+            "fun work(keys: Array<String>): String { for (key in keys) { if (key == \"stop\") { return key } }; return \"fallback\".clone() }",
+            "L0133",
+        ),
+        (
+            "fun work(own keys: MutableList<Int>): Unit { for (key in keys) { if (key == 1) { keys.add(2); return } } }",
+            "L0135",
+        ),
+    ] {
+        let analysis = analyze(text);
+        assert!(
+            analysis.parsed.diagnostics().is_empty(),
+            "{:?}",
+            analysis.parsed.diagnostics()
+        );
+        assert!(
+            analysis.names.diagnostics().is_empty(),
+            "{:?}",
+            analysis.names.diagnostics()
+        );
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis
+                .owned
+                .diagnostics()
+                .iter()
+                .any(|d| d.code().to_string() == code),
+            "{:?}",
+            analysis.owned.diagnostics()
+        );
+    }
 }

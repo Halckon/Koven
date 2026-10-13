@@ -122,3 +122,18 @@ fn unit_map_return_native_constant_live() {
 fn unit_map_return_native_constant_dead() {
     unit_source(false, true);
 }
+
+#[test]
+fn single_map_return_native_independent_owned_results() {
+    let run = emit_link_and_run(
+        "map-return-owned-results.ko",
+        include_str!("../../tests/fixtures/map-conditional-return-0313/owned-results.ko"),
+        "main",
+    );
+    assert_success(
+        &run,
+        "returned\ntail\ntail\nreturned\ntail\ntail\ntail\nfallback\n"
+            .repeat(4)
+            .as_bytes(),
+    );
+}
