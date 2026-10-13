@@ -456,3 +456,57 @@ fn owned_source_continue_declaration_identity_and_groups() {
     .expect("alias is not a fresh initializer seed");
     assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
 }
+
+#[test]
+fn owned_source_continue_borrowed_element_cannot_be_owned() {
+    let text = "fun consume(own text: String): Unit {}\nfun main(): Unit { val keys = arrayOf(\"one\", \"two\"); for (key in keys) { consume(key); if (key == \"two\") { continue } } }";
+    let analysis = analyze(text);
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(
+        analysis
+            .owned
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code().to_string() == "L0133")
+    );
+}
+
+#[test]
+fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
+    for (expected, text) in [
+        (
+            "keys",
+            "fun main(): Unit { val keys = arrayOf(9); keys.size; { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
+        ),
+        (
+            "second",
+            "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; println(\"tail\") } }",
+        ),
+        (
+            "second",
+            "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; first.put(9, \"tail one\".clone()); second.put(9, \"tail two\".clone()) }; if (first.contains(3) && second.contains(3)) { println(\"maps\") } }",
+        ),
+    ] {
+        let analysis = analyze(text);
+        assert!(analysis.parsed.diagnostics().is_empty());
+        assert!(analysis.names.diagnostics().is_empty());
+        assert!(analysis.typed.diagnostics().is_empty());
+        assert!(analysis.owned.diagnostics().is_empty());
+        let error = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .err()
+        .expect("unrelated conditional owner remains a boundary");
+        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+        assert_eq!(
+            analysis.sources.slice(error.span.unwrap()).unwrap(),
+            expected
+        );
+    }
+}
