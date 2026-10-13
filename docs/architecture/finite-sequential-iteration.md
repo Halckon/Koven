@@ -45,7 +45,7 @@ pending 槽，conditional receiver 按具体 Copyable/MoveOnly 类型执行。re
 再清理局部 owner、element、source 与临时源；Abort 不展开，source 中转移不清理尚未 Acquire 的 provider。
 
 single 的 owned local source + conditional continue 存在独立 presence 证明缺口，
-即使没有 Map 也拒绝；source live/dead 普通对照与优先后继见[loop owner](map-loop-owner-carry.md#owned-source-的下一修复项)。这不否认上述 unit 证据或 temporary/Borrow source 的 single 有界路径。
+即使没有 Map 也拒绝；source live/dead 普通对照与优先后继见[loop owner](map-loop-owner-carry.md#owned-source-的独立缺口)。这不否认上述 unit 证据或 temporary/Borrow source 的 single 有界路径。
 
 field source（包括 Field symbol root）与 Inout source 的 native 表示仍明确 Unsupported。
 自然循环内 captured Borrow closure 的0/1/3元素在普通/常量两视图已通过正常object/link/run；
