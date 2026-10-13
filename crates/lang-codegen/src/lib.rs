@@ -51,3 +51,6 @@ mod native_mixed_borrow_cases;
 
 #[cfg(test)]
 mod native_nested_borrow_cases;
+
+#[cfg(test)]
+mod native_borrow_value_field_cases;

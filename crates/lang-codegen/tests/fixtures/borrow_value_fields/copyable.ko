@@ -1,0 +1,10 @@
+value class Packet(val n: Int, val text: String)
+fun show(own n: Int) { if (n == 7) { println("seven") } else { error("wrong number") } }
+fun observe(value: Packet) { show(value.n); show((value.n)) }
+fun finish(own value: Packet) { observe(value); println("consumed") }
+fun entry() {
+    val owner = Packet(7, "payload".clone())
+    observe(owner)
+    observe(owner)
+    finish(owner)
+}

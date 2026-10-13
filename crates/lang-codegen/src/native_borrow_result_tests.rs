@@ -175,3 +175,13 @@ fn nested_borrow_argument_single_native_matrix() {
         assert!(run.stderr.is_empty(), "{}: {run:?}", case.name);
     }
 }
+
+#[test]
+fn borrow_value_field_single_native_matrix() {
+    for (name, source, stdout) in crate::native_borrow_value_field_cases::cases() {
+        let run = emit_link_and_run(name, source, "entry");
+        assert!(run.status.success(), "{name}: {run:?}");
+        assert_eq!(run.stdout, stdout, "{name}");
+        assert!(run.stderr.is_empty(), "{name}: {run:?}");
+    }
+}
