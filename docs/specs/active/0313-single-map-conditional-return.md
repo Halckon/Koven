@@ -11,7 +11,7 @@
 | 批准依据 | 2026-10-13 用户持续里程碑实施，并要求审核/CI 等待时推进独立工作 |
 | 前置 Spec | [SPEC-0311](../../archive/specs/0311-single-map-conditional-continue.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 红测已冻结；最小实现、定向验收、独立审阅与远端交付待完成 |
+| 阻塞项 | 本地定向验收完成；PR CI/归档合并、0312真实main整合与回归待完成 |
 | 影响范围 | single 外部具名非 Resource Map 的一个条件 return；temporary/Borrow Sequential source |
 | 语言语义变更 | 否 |
 
@@ -46,11 +46,14 @@ RangeView 或一般 Resource/presence/ABI。
 | tests-only 基线 | `9ae5d86b`；`cargo test --offline --locked -p lang-codegen --lib 'loop_owner_tests::conditional_return::' -- --nocapture` | 6命中，single Map live/dead 2红：UnsupportedNode，Span23..28；unit basic/constant × Map live/dead 4绿，verified LLVM成功 |
 | 前端真实事实 | 同上 ordinary source | 无诊断；3 exits/3 incoming，Return无incoming |
 | 扩展tests-only基线 | `15776b1c`，`loop_owner_tests::conditional_return::source_matrix::` | 与最终fixture字节相同的5矩阵全红，准确Map名UnsupportedNode；生产仍与actual-main相同 |
-| 0/早/晚/never、put/remove、双Map/own seed/三provider、两body Resource、独立owned结果 | `::conditional_return::`（SSA/LLVM及原版native） | `365911d2` 25项全绿；后续精确String loan oracle新增后待重跑，不能复用旧结果覆盖新断言 |
+| 0/早/晚/never、put/remove、双Map/own seed/三provider、两body Resource、独立owned结果 | `::conditional_return::`（SSA/LLVM及原版native） | 最终代码`9ea74f21`以`loop_owner_tests::`实际81/81通过（含新增25项、normal/break/continue共享回归）；String loan/Resource/返回值与双Map独立oracle通过 |
 | owned source/返回值独立对照 | tests-only `82e0bd02`、current普通controls | owned source local/own×live/dead无Map四格全旧拒绝；Map组合current仍在keys精确Span拒绝。无Map String/value×Group四格与直接Map返回两格原成功；Map+独立owned四格转绿，removed两格仍红 |
 | 前端非法source/element | ordinary source controls | active source return与mutable source变异L0135，MoveOnly element return L0133；未进入SSA |
-| fmt/clippy/docs/diff、共享调用方回归 | 待最小实现后执行 | 未运行 |
-| 独立审阅、PR双宿主CI、归档合并/actual-main | 远端唯一publisher交付 | 未运行 |
+| 返回operand共享调用方 | `map_key_return`、`map_put_control_exit`；同`9ea74f21`代码 | 42/42与20/20通过，含原版single/unit native，既有pending receiver/argument/Group保持 |
+| fmt/clippy | `cargo fmt --all -- --check`；`cargo clippy --offline --locked -p lang-codegen --all-targets -- -D warnings` | 同`9ea74f21`通过；只编译所需targets，不执行全量/故障测试 |
+| docs/diff/尺寸 | `python3 scripts/check_docs.py`、`git diff --check`、`python3 scripts/check_rust_sizes.py --base 8e0ce49d` | docs665页通过；尺寸通过，38项旧债保留；最终账本变更再核 |
+| 独立审阅 | 非作者只读审阅`9ea74f21`生产diff、81项日志与完整oracle | 无阻断发现；driver2行增长获审阅，最终账本/调用方日志另复核 |
+| PR双宿主CI、归档合并/actual-main | 远端唯一publisher交付 | 未运行；本地未push/PR/merge |
 
 首轮过滤器 `conditional_return` 额外命中一个现有普通unit native源码测试（成功，未插桩）；
 随后以上完整模块路径重跑隔离6格。原始日志/源码恢复材料在仓库外保留，不以stdout代替
@@ -67,3 +70,7 @@ UnsupportedNode，改为已支持的消费式解构读取返回payload；不修�
 随后正确模块过滤实际5红。初版未冻结运行只作探索，不计最终验收。
 返回proof支持cleanup block变化的静态闭合检查；当前成功fixture的cleanup是直线SSA，
 不宣称有多块cleanup实例的动态覆盖。尺寸门禁保留38项历史债；driver仅增2行接线，旧上限不变。
+
+本地宿主Linux x86_64；Rust/Cargo1.96.0、LLVM/Clang21.1.8，baseline/current使用两个绝对独立
+target串行运行。workspace全量、sanitizer、故障注入、计数插桩和其他未选目标均未运行。
+SSA/model/verifier接口无变更，因此不额外运行workspace check；跨平台交付依赖后续真实PR CI。
