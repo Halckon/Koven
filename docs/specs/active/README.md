@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [SPEC-0305](0305-multi-parameter-borrow-result.md)：多Borrow参数的唯一来源直接返回；当前M2B有界实现，未宣称完整里程碑完成。
 
 [0304 Spec 归档库存声明化](../../archive/specs/0304-spec-archive-inventory.md)已按PR82首次物理CI 16/16 jobs成功归档；严格声明、docs每次门禁与原代码证据边界保持，最终归档head真实复用、merge及actual-main CI待验证。
 
