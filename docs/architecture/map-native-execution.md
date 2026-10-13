@@ -124,7 +124,7 @@ AfterStatement 的真实 end facts，checker 同步撤销该结果 continuation�
 按子到父顺序发布 ends，再按原 owned/Resource 规则决定来源清理。新 native 矩阵证明
 same-scope owned 交付、Map 覆盖权限恢复和 Resource 词法析构顺序，见 SPEC0288 §2.10。
 
-后端已接通无 receiver、唯一 Borrow 来源及其余 Borrow/Value 形参的表达式返回、直接具名包装调用和具体泛型实例；Value 映射、唯一消费及 concrete drop 特化见 [SPEC-0306](../specs/active/0306-mixed-value-borrow-result.md)，结果 pointer ABI 不变。
+后端已接通无 receiver、唯一 Borrow 来源及其余 Borrow/Value 形参的表达式返回、直接具名包装调用和具体泛型实例；Value 映射、唯一消费及 concrete drop 特化见 [SPEC-0306](../archive/specs/0306-mixed-value-borrow-result.md)，结果 pointer ABI 不变。
 唯一来源可位于任意参数下标；来源与结果分别
 保存 semantic target，返回字段允许与来源根对象类型不同。函数签名记录
 唯一参数来源；`BorrowCall` 产生 shared 子 loan，`BorrowReturn` 交接指定入口来源链。

@@ -1,10 +1,10 @@
 # SPEC-0306: 混合 Value 参数的唯一来源借用返回
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收混合 Value/Borrow 参数的普通借用返回时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收混合 Value/Borrow 参数的普通借用返回时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0306` |
 | 所属 Phase | Phase 4 |
 | 语言规范 | [Guide10](../../guide/10-ownership-borrowing-drop.md#普通借用结果与显式局部绑定)、[Guide05](../../guide/05-declarations-callables.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0305](../../archive/specs/0305-multi-parameter-borrow-result.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | 无新结果 ABI 或语言决定 |
-| 阻塞项 | 首次PR双宿主CI有4项fixture装配失败；本地修复通过，待新head CI复验，见§7 |
+| 阻塞项 | 修复后完整物理PR CI已验收；最终归档head复用、merge与actual-main CI待独立验收 |
 | 影响范围 | lang-codegen single/unit lowering、verifier、LLVM call adapter、正常 source/native 测试 |
 | 语言语义变更 | 否 |
 
@@ -59,7 +59,7 @@ Abort 不属于故障注入；坏 IR verifier 负例仅静态编写交 CI，不�
 
 ## 4. 实施与验收账本
 
-本表保留首轮本地冻结时的实际状态；后续发布与CI检查点见§7，不将未运行项回填为通过。
+本表保留首轮本地冻结时的实际状态；后续发布与CI检查点见§7–8，不将未运行项回填为通过。
 
 先移植仓库外15组已复现 Value 源码红测，扩唯一来源、参数顺序、owner/loan/drop 正反例；
 再最小接线两入口、verifier 与 LLVM，按同一选择转绿，最后验证直接消费者和既有0305回归。
@@ -80,7 +80,7 @@ Abort 不属于故障注入；坏 IR verifier 负例仅静态编写交 CI，不�
 拒绝；6次native对照和4项正常source SSA/LLVM测试成功。它们仅是准备证据，不能冒充本片
 实现或本基线新测试通过。原始源码、stdout/stderr与恢复材料保留在仓库外。
 
-## 5. 交付边界
+## 5. 首轮本地交付边界
 
 最终代码/测试输入为 `928c82f4467a76e761350e2f6f3c79358eb3dba2`、tree
 `3dd1e48f4b579eed3f38e961d10605bb36ed855a`；生产修复与b8c0f279一致。
@@ -131,3 +131,42 @@ concrete类型后，仅为具体化Copyable跳过义务，且在任何binding/te
 15/15通过（26组源码双入口、52次native）；docs658、尺寸及diff通过，独立静态审查无阻断。
 4项必须由新head CI实际证明抵达verifier并拒绝，不能以本地编译或首轮6项通过替代；
 修后CI尚未运行，Spec继续in-progress，不归档/合并。
+
+## 8. 修复后完整物理 PR CI 与有界归档
+
+修复后的[run38359857349 attempt1](https://github.com/Halckon/Koven/actions/runs/38359857349)
+已为success、`reuse=false`，不是旧失败head的重跑。run的API `updated_at`为
+2026-10-13 07:14:46Z，最后job `completed_at`为07:14:45Z；独立验收时间为
+07:17:18.813219Z。§7首次失败、6过4装配失败及其本地修复检查点仍保留。
+
+- 真实remote head为`a501337a9f5bc2a3c9ef722cc86f31fc4038e2cf`，tree为
+  `8039d46c9c02fb85b2404672c0233a52cef76561`；base仍为
+  `bfdb00bd455d6847a7f14cf7391a198664ee6f1e`。真实synthetic merge为
+  `2b7b652a67aa5075224c28a5a6d28a8175c001df`，有序双父为base、head，tree同上。
+- 共15个job实际success；Tree-sitter由`editors=false`合法skip，不算执行通过。
+  双宿主各15项正常source测试与10项CI-only verifier测试逐名通过；旧4项装配panic
+  已实际抵达并通过原错误kind加BorrowCall位置断言。10项只由远端CI执行，本地仍未运行。
+- 两宿主check/clippy、完整TargetedTests、word-frequency、generated contracts与preview
+  通过；Linux sanitizer实际成功，macOS对应Linux-only步骤跳过，原LLDB ignored不算通过。
+  docs实际检查658份Markdown及336项Python测试；Code CI Evidence和CI Passed真实成功。
+- 两宿主preview producer、API artifact摘要、consumer实际下载及独立安装链逐项核验；
+  未另行下载ZIP检查包内字节，不把普通native成功或preview当成完整内存安全证明。
+- 固定base下独立重算的代码输入fingerprint为
+  `800964b3c8d018e99d5fe5f0ec5fe98a91c6200c3d3bfd76125f46005549a84f`。
+  独立成功收据SHA256为`b3054ac2970c7a859c94b428a6c3004cb8d630060a89006753d7a0f06a2f6c98`。
+  首失败与新成功的原始API、job日志、逐名匹配及摘要保留仓库外，不复制到当前文档树。
+
+据此只关闭唯一Borrow来源及其余Borrow/Value参数的已冻结实现片，库存更新为
+0 active / 290 archive。Inout、receiver、同步nested-use、CFG/loop、间接/callable、
+条件/多来源、新carrier与完整NLL等M2B后继仍开放。归档仅改Markdown/SVG和库存声明，
+代码、测试、脚本、workflow及Guide保持修复head原字节。最终归档head是否真实复用、
+该head的docs门禁、merge及actual-main完整CI仍pending，不提前写成成功。
+
+## 9. 纯文档归档本地检查点
+
+基于精确a501337a恢复对象后，仅迁移Spec并同步库存、当前索引、架构链接和DAG。
+658份Markdown门禁通过；五个精确普通Python文件共124项通过：inventory24、docs41、
+DAG1、PR reuse26、CI结果合同32；两遍DAG四产物逐字节一致，diff whitespace通过。
+代码输入过滤结果与真实实现head及synthetic merge逐字节相同，重算§8 fingerprint一致。
+本轮未调用Cargo、故障/校准/sanitizer或aggregate；0 active / 290 archive，draft仍为2份。
+该本地证明不代替最终归档head的远端复用/docs门禁，archive/merge/main验收仍pending。

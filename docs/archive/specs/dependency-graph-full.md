@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，289 份）"]
+subgraph Garchive["已完成（archive，290 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -298,8 +298,6 @@ subgraph Garchive["已完成（archive，289 份）"]
   S0303["S0303<br/>development 文档职责收敛与候选保全"]
   S0304["S0304<br/>Spec 归档库存声明化"]
   S0305["S0305<br/>多 Borrow 参数的唯一来源直接返回"]
-end
-subgraph Gactive["现行 active"]
   S0306["S0306<br/>混合 Value 参数的唯一来源借用返回"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -1623,6 +1621,6 @@ S0305 --> S0306
 | SPEC-0303 | archive | [0303-development-document-ownership.md](0303-development-document-ownership.md) |
 | SPEC-0304 | archive | [0304-spec-archive-inventory.md](0304-spec-archive-inventory.md) |
 | SPEC-0305 | archive | [0305-multi-parameter-borrow-result.md](0305-multi-parameter-borrow-result.md) |
-| SPEC-0306 | active | [0306-mixed-value-borrow-result.md](../../specs/active/0306-mixed-value-borrow-result.md) |
+| SPEC-0306 | archive | [0306-mixed-value-borrow-result.md](0306-mixed-value-borrow-result.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

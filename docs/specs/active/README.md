@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [0306 混合 Value 参数的唯一来源借用返回](0306-mixed-value-borrow-result.md)：实施中，来源仍为唯一 Borrow，复用既有 Value/Loan ABI；Inout、receiver、同步嵌套实参等保持开放。
+[0306 混合 Value 参数的唯一来源借用返回](../../archive/specs/0306-mixed-value-borrow-result.md)已按PR84修复后完整物理CI及双宿主各15项正常/10项verifier测试有界归档；首失败保留，最终归档head复用、merge和actual-main CI待独立验收。Inout、receiver、同步嵌套实参等M2B后继继续开放。
 
 [0305 多Borrow参数的唯一来源直接返回](../../archive/specs/0305-multi-parameter-borrow-result.md)已按PR83首次物理CI及双宿主34项普通测试有界归档；最终归档head复用已验收并由[PR83](https://github.com/Halckon/Koven/pull/83)合入main `bfdb00bd`；[main CI](https://github.com/Halckon/Koven/actions/runs/38350665268)已成功，其余M2B后继开放。
 
