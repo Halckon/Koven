@@ -104,5 +104,15 @@ commit 不提前执行 deinit，正常与控制退出按实际 owner 唯一清�
 
 SPEC-0279 的实际完整CI推动修正了旧Borrow参数字段拒绝断言：普通非泛型class
 Borrow参数的一级String字段现在通过SharedHeapFieldLoan只读交付；两视图均核child结束、
-parent保留且无whole-owner Read，并以普通LLVM链接执行输出核验。nested/generic/value-class、
+parent保留且无whole-owner Read，并以普通LLVM链接执行输出核验。nested/generic/owned-local value-class、
 own参数与pending replacement的原六项负控保留；不据此开放通用借用返回或全部字段形态。
+
+## 普通 Borrow inline 参数字段
+
+普通 Borrow 非泛型 value-class 参数的直接字段现在由真实 entry shared loan 派生
+`SharedFieldLoan`：Copyable Read 后结束 child，同步字段 Borrow 在 call 后结束，entry parent
+不显式结束；不物化整个 MoveOnly owner。一级 Copyable 字段复制后可继续用既有 owned
+AggregateProject，不产生多级 loan。新路径拒绝 capture/结果绑定根，以及字段 child 成为
+Borrow/Carrier 结果来源的情况；非来源参数仍同步结束，来源判断保留 named/Group/receiver
+真实身份。owned inline direct-field、generic 与 MoveOnly 多级投影边界不扩。
+[0309 合同](../archive/specs/0309-borrow-value-class-fields.md)记录两入口普通源码回归与交付状态。

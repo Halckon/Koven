@@ -1,0 +1,8 @@
+value class Point(val n: Int)
+fun show(own n: Int) { if (n == 7) { println("seven") } else { error("wrong") } }
+fun entry() {
+    val point = Point(7)
+    val action: () -> Unit = { -> show(point.n) }
+    action()
+    action()
+}

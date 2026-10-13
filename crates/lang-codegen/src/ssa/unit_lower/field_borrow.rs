@@ -1,19 +1,22 @@
-//! Class field views consume validated projection identity and retain their parent owner loan.
+//! Field views consume validated projection identity and retain their parent owner loan.
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::SymbolKind,
     ownership_checking::{UnitLoanTarget, UnitOwnershipPlace},
     source::Span,
     type_checking::{
-        NominalKind, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
-        UnitExpressionId, UnitTypeKind,
+        BorrowReturnOrigin, CallableResultSource, NominalKind, UnitAggregateProjectionKind,
+        UnitAggregateProjectionReceiver, UnitCallReceiverOrigin, UnitExpressionId, UnitTypeKind,
     },
 };
 
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceId, SsaTypeId},
+    model::{
+        Definition, EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceAccess,
+        PlaceId, SsaTypeId,
+    },
 };
 
 impl UnitExpressionLowerer<'_> {
@@ -48,8 +51,9 @@ impl UnitExpressionLowerer<'_> {
 
     /// Only a published single-field LoanFact can form this child. The caller retains the
     /// parent parameter/capture loan and ends the returned child at this synchronous call.
-    pub(super) fn lower_borrowed_heap_field_loan(
+    pub(super) fn lower_borrowed_field_loan(
         &mut self,
+        call: UnitExpressionId,
         expression: ExpressionId,
         loan_target: &UnitLoanTarget,
         target: SsaTypeId,
@@ -62,7 +66,7 @@ impl UnitExpressionLowerer<'_> {
             .get(expression)
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if let lang_frontend::parser::Expression::Group { expression } = node.payload() {
-            return self.lower_borrowed_heap_field_loan(*expression, loan_target, target, span);
+            return self.lower_borrowed_field_loan(call, *expression, loan_target, target, span);
         }
         let id = UnitExpressionId::new(self.source_unit, expression);
         let Some(projection) = self.typed.aggregate_projection(id) else {
@@ -107,12 +111,22 @@ impl UnitExpressionLowerer<'_> {
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if nominal.kind() != NominalKind::Class
-            || !arguments.is_empty()
-            || !nominal.type_parameters().is_empty()
-        {
+        if !arguments.is_empty() || !nominal.type_parameters().is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let inline = match nominal.kind() {
+            NominalKind::Class => false,
+            NominalKind::ValueClass => {
+                // This slice only creates call-scoped children, not a borrowed-result source.
+                if self.field_is_result_source(call, expression, span)?
+                    || self.borrowed_inline_parameter(receiver, span)? != Some(base)
+                {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+                true
+            }
+            _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+        };
         let field = self
             .field_indices
             .get(&(owner_type, *symbol))
@@ -129,7 +143,11 @@ impl UnitExpressionLowerer<'_> {
             .function
             .append_instruction(
                 self.block,
-                Operation::SharedHeapFieldLoan { base, field },
+                if inline {
+                    Operation::SharedFieldLoan { base, field }
+                } else {
+                    Operation::SharedHeapFieldLoan { base, field }
+                },
                 vec![EntityType::Loan {
                     kind: LoanKind::Shared,
                     target,
@@ -146,6 +164,145 @@ impl UnitExpressionLowerer<'_> {
             .shared_field_roots
             .push(place.root());
         Ok(Some(loan))
+    }
+
+    fn field_is_result_source(
+        &self,
+        call: UnitExpressionId,
+        field_expression: ExpressionId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        let descriptor = self
+            .typed
+            .call(call)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let origin = match descriptor.result_source() {
+            CallableResultSource::Owned => return Ok(false),
+            CallableResultSource::Borrow(contract) => contract.origin(),
+            CallableResultSource::Carrier(contract) => contract.origin(),
+        };
+        if call.source_unit() != self.source_unit {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let source = match origin {
+            BorrowReturnOrigin::Parameter(index) => {
+                let node = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(call.expression())
+                    .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                let lang_frontend::parser::Expression::Call { arguments, .. } = node.payload()
+                else {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                };
+                descriptor
+                    .arguments()
+                    .iter()
+                    .find(|mapping| mapping.parameter_index() == index)
+                    .and_then(|mapping| arguments.get(mapping.argument_index()))
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+                    .value
+            }
+            BorrowReturnOrigin::Receiver => {
+                let receiver = descriptor
+                    .receiver()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                let UnitCallReceiverOrigin::Expression(source) = receiver.origin() else {
+                    return Ok(false);
+                };
+                if source.source_unit() != self.source_unit {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
+                source.expression()
+            }
+        };
+        Ok(
+            crate::ssa::borrow_result_support::ungroup(self.parsed, source, span)?
+                == field_expression,
+        )
+    }
+
+    /// The aggregate caller has checked the concrete field and Copyable result. Only
+    /// an ordinary entry parameter is enabled here; other shared bindings retain their gates.
+    pub(super) fn read_borrowed_inline_field(
+        &mut self,
+        receiver: UnitExpressionId,
+        field: usize,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<Option<LoweredValue>, LoweringError> {
+        let Some(base) = self.borrowed_inline_parameter(receiver, span)? else {
+            return Ok(None);
+        };
+        let (_, loans) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::SharedFieldLoan { base, field },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target,
+                }],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let EntityId::Loan(loan) = loans[0] else {
+            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+        };
+        let (_, values) = self
+            .function
+            .append_instruction(
+                self.block,
+                Operation::Read {
+                    source: PlaceAccess::Loan(loan),
+                },
+                vec![EntityType::Value(target)],
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        self.function
+            .append_instruction(
+                self.block,
+                Operation::BorrowEnd { loan },
+                Vec::new(),
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        Ok(Some(LoweredValue::Value(super::require_value(
+            values[0], span,
+        )?)))
+    }
+
+    fn borrowed_inline_parameter(
+        &self,
+        receiver: UnitExpressionId,
+        span: Span,
+    ) -> Result<Option<LoanId>, LoweringError> {
+        let Some(base) = self.borrowed_heap_receiver(receiver, span)? else {
+            return Ok(None);
+        };
+        let symbol = self
+            .direct_name_symbol(receiver.expression(), span)?
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let binding = self.names.names().source_units()[symbol.source_unit().index()]
+            .resolution()
+            .symbols()
+            .get(symbol.symbol().index())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let entity = self
+            .function
+            .entity(EntityId::Loan(base))
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if binding.kind() != SymbolKind::ValueParameter
+            || !matches!(entity.definition, Definition::BlockParameter { block, .. }
+                if Some(block) == self.function.entry_block())
+        {
+            // A Copyable aggregate may already be readable through the existing Value
+            // fallback. Do not replace that path or admit this binding as a new field loan.
+            return Ok(None);
+        }
+        Ok(Some(base))
     }
 
     fn borrowed_heap_receiver(

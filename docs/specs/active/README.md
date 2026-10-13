@@ -4,6 +4,8 @@
 
 当前 0 份 active。
 
+[0309 普通 Borrow value-class 字段](../../archive/specs/0309-borrow-value-class-fields.md)已按[PR88 新 base 物理 CI](https://github.com/Halckon/Koven/actions/runs/38397786167)双宿主 11 项逐名证据有界归档；仅关闭直接字段首片，原失败与后继边界保留，归档 head CI/merge/main 待验收。
+
 
 [0307 普通借用结果的同步 Borrow 实参消费](../../archive/specs/0307-synchronous-borrow-result-arguments.md)已按[PR85修复后物理CI](https://github.com/Halckon/Koven/actions/runs/38378462482)16/16 jobs、双宿主新frontend10及普通source codegen48逐名证据有界归档；首失败保留，归档head CI/merge/main待验证。outer继续借用返回、temporary来源、receiver/Inout与CFG等后继开放。
 

@@ -518,3 +518,42 @@ fn nested_borrow_argument_unit_native_matrix() {
         assert!(run.stderr.is_empty(), "{}: {run:?}", case.name);
     }
 }
+
+#[test]
+fn borrow_value_field_unit_native_matrix() {
+    for (name, source, stdout) in crate::native_borrow_value_field_cases::cases()
+        .into_iter()
+        .chain(crate::native_borrow_value_field_cases::unit_controls())
+    {
+        let (provider, body) = source.split_once("fun entry()").unwrap();
+        let analysis = analyze_sources(
+            &format!("package p\n{provider}"),
+            &format!("package q\nimport p.*\nfun entry(){body}"),
+        );
+        let directory = TestDirectory::create();
+        let object = directory.join("borrow-value-field.o");
+        let executable = directory.join("borrow-value-field");
+        emit_native_unit_object(
+            &analysis.sources,
+            &analysis.inputs(),
+            &analysis.names,
+            &analysis.environment,
+            &analysis.typed,
+            &analysis.owned,
+            analysis.declaration("q", "entry"),
+            &object,
+        )
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let linked = Command::new(crate::test_support::clang())
+            .arg(&object)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .unwrap();
+        assert!(linked.status.success(), "{name}: {linked:?}");
+        let run = Command::new(&executable).output().unwrap();
+        assert!(run.status.success(), "{name}: {run:?}");
+        assert_eq!(run.stdout, stdout, "{name}");
+        assert!(run.stderr.is_empty(), "{name}: {run:?}");
+    }
+}

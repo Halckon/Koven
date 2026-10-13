@@ -1,0 +1,10 @@
+value class Packet(val n: Int, val text: String)
+fun show(text: String) { println(text) }
+fun observe(value: Packet) { show(value.text); show(value.text) }
+fun finish(own value: Packet) { observe(value); println("consumed") }
+fun entry() {
+    val owner = Packet(7, "payload".clone())
+    observe(owner)
+    observe(owner)
+    finish(owner)
+}

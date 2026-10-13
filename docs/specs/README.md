@@ -14,6 +14,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### 近期交付
 
+- [0309 普通 Borrow value-class 字段](../archive/specs/0309-borrow-value-class-fields.md)：[PR88 新 base CI](https://github.com/Halckon/Koven/actions/runs/38397786167)双宿主有界验收归档；保留字段读取、同步 child loan 与相邻拒绝边界，归档 head CI/merge/main 待验收。
+
 - [0308 普通泛型 String 回归](../archive/specs/0308-generic-string-consumer-regression.md)：[PR87 物理 CI](https://github.com/Halckon/Koven/actions/runs/38390525995) 双宿主验收后有界归档；生产零改，本地 stub 误执行纠正保留，归档 head CI/merge/main 待验收。
 
 - [0307 同步 Borrow 实参消费](../archive/specs/0307-synchronous-borrow-result-arguments.md)：[PR85](https://github.com/Halckon/Koven/pull/85) 已有界归档并合入 main `557e3684`；[actual-main CI](https://github.com/Halckon/Koven/actions/runs/38382922981) 成功，首轮失败保留。
@@ -37,7 +39,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：292 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：293 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

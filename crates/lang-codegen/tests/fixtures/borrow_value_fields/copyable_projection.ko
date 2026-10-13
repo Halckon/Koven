@@ -1,0 +1,6 @@
+value class Inner(val n: Int)
+value class Packet(val inner: Inner, val text: String)
+fun show(own n: Int) { if (n == 7) { println("seven") } else { error("wrong") } }
+fun observe(value: Packet) { show(value.inner.n) }
+fun finish(own value: Packet) { observe(value); println("consumed") }
+fun entry() { val owner = Packet(Inner(7), "payload".clone()); observe(owner); observe(owner); finish(owner) }

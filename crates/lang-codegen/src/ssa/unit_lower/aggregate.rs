@@ -315,6 +315,11 @@ impl UnitExpressionLowerer<'_> {
                 return self.lower_this_value_field(field, result_type, span);
             }
             let receiver = explicit_receiver.expect("explicit receiver was checked");
+            if let Some(value) =
+                self.read_borrowed_inline_field(receiver, field, result_type, span)?
+            {
+                return Ok(value);
+            }
             let receiver_value = self.require_expression_value(receiver.expression())?;
             let (_, results) = self
                 .function

@@ -186,3 +186,6 @@ mod mixed_borrow_tests;
 
 #[cfg(test)]
 mod nested_borrow_tests;
+
+#[cfg(test)]
+mod borrow_value_field_tests;
