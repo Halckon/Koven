@@ -153,7 +153,7 @@ fn owned_source_continue_native_map_and_source_liveness() {
             let text = format!(
                 "fun main(): Unit {{ val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) {{ first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) {{ continue }}; first.put(9, \"tail one\".clone()); second.put(9, \"tail two\".clone()); println(\"tail\") }}; {}; {} }}",
                 if map_live {
-                    "if (first.contains(3) && second.contains(3)) { println(\"maps\") }"
+                    "if (first.contains(3)) { println(\"first map\") }; if (second.contains(3)) { println(\"second map\") }"
                 } else {
                     ""
                 },
@@ -165,7 +165,11 @@ fn owned_source_continue_native_map_and_source_liveness() {
             );
             let expected = format!(
                 "tail\ntail\n{}{}",
-                if map_live { "maps\n" } else { "" },
+                if map_live {
+                    "first map\nsecond map\n"
+                } else {
+                    ""
+                },
                 if source_live { "source\n" } else { "" }
             );
             assert_success(
