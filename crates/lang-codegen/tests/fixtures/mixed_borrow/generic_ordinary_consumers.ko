@@ -16,5 +16,9 @@ fun entry() {
     forward(Resource("forwarded-resource".clone()))
     unused(readThenReturn(Resource("returned-resource".clone())))
     readTwice(Resource("read-twice-resource".clone()))
+    unused("unused-string".clone())
+    forward("forwarded-string".clone())
+    println(readThenReturn("returned-string".clone()))
+    readTwice("read-twice-string".clone())
     println("ordinary-complete")
 }
