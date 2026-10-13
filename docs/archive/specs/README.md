@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 293 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 294 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -452,3 +452,5 @@
 - [SPEC-0308](0308-generic-string-consumer-regression.md)：普通 own 泛型直接 String 持久回归，生产零改；PR87 实现 head 双宿主物理 CI 有界验收，stub 误执行纠正保留，归档 head CI/merge/main 待验收。
 
 - [SPEC-0309](0309-borrow-value-class-fields.md)：普通 Borrow value-class 直接字段 Read 与同步 Borrow；PR88 新 base 双宿主 11 项普通测试有界验收，真实失败及后继边界保留，归档 head CI/merge/main 待验收。
+
+- [SPEC-0310](0310-single-map-conditional-break.md)：single Map owner 有界条件 break，live/dead 路径运输；PR89 双宿主 13 项逐名物理 CI 验收，unit 既有四格及真实失败保留，归档 head CI/merge/main 待验收。

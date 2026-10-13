@@ -212,14 +212,21 @@ fn single_map_loop_abort_guard_combination_remains_explicit() {
     assert_guarded_boundary(source);
 }
 
+fn assert_control_exit_boundary(exit: &str) {
+    let source = format!(
+        "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ cache.put(key, \"value\".clone()); if (key == 1) {{ {exit} }} }}; cache.contains(1) }}"
+    );
+    assert_guarded_boundary(&source);
+}
+
 #[test]
-fn single_map_loop_control_exits_remain_explicit() {
-    for exit in ["break", "continue", "return"] {
-        let source = format!(
-            "fun main(): Unit {{ var cache = mutableMapOf<Int, String>(); for (key in arrayOf(1, 2)) {{ cache.put(key, \"value\".clone()); if (key == 1) {{ {exit} }} }}; cache.contains(1) }}"
-        );
-        assert_guarded_boundary(&source);
-    }
+fn single_map_loop_continue_remains_explicit() {
+    assert_control_exit_boundary("continue");
+}
+
+#[test]
+fn single_map_loop_return_remains_explicit() {
+    assert_control_exit_boundary("return");
 }
 
 #[test]
@@ -432,7 +439,10 @@ fn assert_map_drop_counts(program: &crate::ssa::model::Program, expected: &[(&st
             .count();
         assert_eq!(
             drops, *count,
-            "{name}: one terminal drop per actual Map owner"
+            "{name}: expected static Map drops for the selected exits"
         );
     }
 }
+
+#[path = "lower_frontend_map_break_tests.rs"]
+mod conditional_break;

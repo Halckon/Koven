@@ -71,3 +71,6 @@ fn single_map_loop_native_other_sequential_providers() {
         assert_success(&run, b"present\nmissing\n");
     }
 }
+
+#[path = "unit_map_break_tests.rs"]
+mod conditional_break;

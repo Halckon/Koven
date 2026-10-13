@@ -1,0 +1,35 @@
+fun parameterOwner(own initial: MutableMap<Int, String>, keys: Array<Int>): Unit {
+    var input = initial
+    for (key in keys) { input.put(key, "parameter".clone()); if (key == 1) { break } }
+    if (input.contains(1)) { println("parameter present") } else { println("parameter empty") }
+    val removed = input.remove(1)
+    if (removed != null) { println("parameter removed") } else { println("parameter missing") }
+}
+
+fun separateOwners(keys: Array<Int>): Unit {
+    var first = mutableMapOf<Int, String>()
+    var second = mutableMapOf<Int, String>()
+    first.put(1, "first".clone())
+    second.put(9, "second".clone())
+    for (key in keys) {
+        first.put(key, "new first".clone())
+        val removed = second.remove(9)
+        if (removed != null) { println("second removed") } else { println("second missing") }
+        if (key == 1) { break }
+    }
+    if (first.contains(1)) { println("first present") } else { println("first lost") }
+    if (second.contains(9)) { println("second present") } else { println("second empty") }
+    first.put(3, "first tail".clone())
+    second.put(4, "second tail".clone())
+    if (first.contains(3)) { println("first tail") } else { println("first tail lost") }
+    if (second.contains(4)) { println("second tail") } else { println("second tail lost") }
+}
+
+fun main(): Unit {
+    parameterOwner(mutableMapOf<Int, String>(), arrayOf<Int>())
+    parameterOwner(mutableMapOf<Int, String>(), arrayOf(1))
+    parameterOwner(mutableMapOf<Int, String>(), arrayOf(2, 1, 3))
+    separateOwners(arrayOf<Int>())
+    separateOwners(arrayOf(1))
+    separateOwners(arrayOf(2, 1, 3))
+}
