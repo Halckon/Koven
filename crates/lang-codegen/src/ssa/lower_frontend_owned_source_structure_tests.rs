@@ -42,7 +42,16 @@ fn forwards(function: &Function, value: EntityId, expected: EntityId, depth: usi
             .all(|(_, edge)| forwards(function, edge.arguments[index], expected, depth + 1))
 }
 pub(super) fn check(program: &Program, live: bool, seed_span: lang_frontend::source::Span) {
-    let f = &program.modules[0].functions[0];
+    let f = program.modules[0]
+        .functions
+        .iter()
+        .find(|f| {
+            f.instructions.iter().any(|i| {
+                i.origin == Origin::Source(seed_span)
+                    && matches!(i.operation, Operation::ContainerConstruct { .. })
+            })
+        })
+        .unwrap();
     let seeds = f
         .instructions
         .iter()

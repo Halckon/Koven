@@ -128,3 +128,11 @@ fun main(): Unit { destructured(); discarded() }
         b"one\ntail\ntwo\nthree\ntail\nretained\ndone\n",
     );
 }
+
+#[test]
+fn owned_source_continue_native_fresh_inner_dynamic_instances() {
+    assert_success(
+        &emit_link_and_run("fresh-inner.ko", include_str!("../../tests/fixtures/owned-source-continue-0312/fresh-inner.ko"), "main"),
+        b"first\nbody\ntail\nlive\nsecond\nbody\ntail\nlive\nthird\nbody\ntail\nfourth\nbody\ntail\n",
+    );
+}
