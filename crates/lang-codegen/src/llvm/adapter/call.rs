@@ -61,18 +61,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             *self.dependencies.functions.get(&callee).ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("direct call target 不存在".to_owned())
             })?;
-        let arguments = arguments
-            .iter()
-            .map(|argument| match argument {
-                EntityId::Value(value) => self.value(*value).map(BasicMetadataValueEnum::from),
-                EntityId::Loan(loan) => self
-                    .access(PlaceAccess::Loan(*loan))
-                    .map(BasicMetadataValueEnum::from),
-                EntityId::Place(_) => Err(LlvmAdapterError::InvalidSsa(
-                    "direct call 不接受裸 place argument".to_owned(),
-                )),
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let arguments = self.lower_call_arguments(arguments)?;
         let call_name = results.first().map_or("", |result| {
             // LLVM 的 void call 不能有名称；非空 result 已由 SSA verifier 对齐 callee 签名。
             // 临时 String 只存活到本次 build_call。
@@ -120,16 +109,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             .functions
             .get(&callee)
             .ok_or_else(|| unsupported("borrow call target missing"))?;
-        let arguments = arguments
-            .iter()
-            .map(|argument| {
-                let EntityId::Loan(loan) = argument else {
-                    return Err(unsupported("borrow result slice requires loan argument"));
-                };
-                self.access(PlaceAccess::Loan(*loan))
-                    .map(BasicMetadataValueEnum::from)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let arguments = self.lower_call_arguments(arguments)?;
         let call = self.builder.build_call(target, &arguments, "borrow.call")?;
         let ValueKind::Basic(value) = call.try_as_basic_value() else {
             return Err(unsupported("borrow call returned void"));
@@ -137,5 +117,23 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         self.loans.insert(*result, value.into_pointer_value());
 
         Ok(())
+    }
+
+    fn lower_call_arguments(
+        &self,
+        arguments: &[EntityId],
+    ) -> Result<Vec<BasicMetadataValueEnum<'ctx>>, LlvmAdapterError> {
+        arguments
+            .iter()
+            .map(|argument| match argument {
+                EntityId::Value(value) => self.value(*value).map(BasicMetadataValueEnum::from),
+                EntityId::Loan(loan) => self
+                    .access(PlaceAccess::Loan(*loan))
+                    .map(BasicMetadataValueEnum::from),
+                EntityId::Place(_) => Err(LlvmAdapterError::InvalidSsa(
+                    "direct call 不接受裸 place argument".to_owned(),
+                )),
+            })
+            .collect()
     }
 }

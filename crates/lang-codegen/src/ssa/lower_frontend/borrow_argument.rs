@@ -1,13 +1,75 @@
-//! Borrow argument evaluation and temporary-place carriers.
+//! Value/Borrow argument evaluation and temporary-place carriers.
 use super::{
     EntityId, EntityType, ExpressionLowerer, LoanId, LoanKind, LoweredValue, LoweringError,
-    LoweringErrorKind, Operation, PlaceId, error, place,
+    LoweringErrorKind, Operation, PlaceId, ValueId, error, place, span_key,
 };
 use lang_frontend::{
-    ast::ExpressionId, ownership_checking::LoanTarget, parser::Expression, source::Span,
-    type_checking::RcOperationKind,
+    ast::ExpressionId,
+    ownership_checking::LoanTarget,
+    parser::Expression,
+    source::Span,
+    type_checking::{Copyability, RcOperationKind},
 };
 impl ExpressionLowerer<'_> {
+    /// MoveOnly values are detached immediately and carried until all operands are ready.
+    pub(super) fn lower_value_argument(
+        &mut self,
+        argument: ExpressionId,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let value = self.require_value(argument)?;
+        if self
+            .typed
+            .expression_type(argument)
+            .and_then(|ty| self.typed.copyability(ty))
+            == Some(Copyability::MoveOnly)
+        {
+            let mut source = argument;
+            loop {
+                self.temporaries.remove(&source.index());
+                let node = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(source)
+                    .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+                match node.payload() {
+                    Expression::Group { expression } => source = *expression,
+                    Expression::Name => {
+                        let symbol = self
+                            .references
+                            .get(&span_key(node.span()))
+                            .ok_or_else(|| error(LoweringErrorKind::MissingFact, node.span()))?;
+                        self.bindings.remove(symbol);
+                        break;
+                    }
+                    _ => break,
+                }
+            }
+            self.temporaries.insert(argument.index(), value);
+        }
+        Ok(value)
+    }
+
+    pub(super) fn take_pending_value_argument(
+        &mut self,
+        argument: ExpressionId,
+        span: Span,
+    ) -> Result<Option<ValueId>, LoweringError> {
+        if self
+            .typed
+            .expression_type(argument)
+            .and_then(|ty| self.typed.copyability(ty))
+            != Some(Copyability::MoveOnly)
+        {
+            return Ok(None);
+        }
+        self.temporaries
+            .remove(&argument.index())
+            .map(Some)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+    }
+
     pub(super) fn lower_borrow_argument(
         &mut self,
         call: ExpressionId,

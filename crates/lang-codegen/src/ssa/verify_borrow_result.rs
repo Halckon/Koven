@@ -1,4 +1,4 @@
-//! 普通 shared 结果的签名与来源 identity 合同，不运输 owned value。
+//! 普通 shared 结果的签名与唯一来源合同；非来源参数保留 Value/Shared Loan identity。
 use super::{
     model::*,
     verify::{VerifyError, VerifyErrorKind, VerifyLocation},
@@ -12,10 +12,13 @@ pub(super) fn parameter(function: &Function) -> Option<(LoanId, SsaTypeId)> {
     if !function.blocks.first()?.parameters.iter().all(|entity| {
         matches!(
             function.entity(*entity).map(|data| data.ty),
-            Some(EntityType::Loan {
-                kind: LoanKind::Shared,
-                ..
-            })
+            Some(
+                EntityType::Value(_)
+                    | EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        ..
+                    }
+            )
         )
     }) {
         return None;
@@ -60,8 +63,13 @@ pub(super) fn call_contract(
     arguments.len() == entry.parameters.len()
         && arguments.get(index) == Some(&EntityId::Loan(source))
         && arguments.iter().zip(&entry.parameters).all(|(arg, param)| {
-            function.entity(*arg).map(|data| data.ty) == callee.entity(*param).map(|data| data.ty)
+            !matches!(arg, EntityId::Place(_))
+                && callee.entity(*param).is_some_and(|parameter| {
+                    super::verify_operation::is_first_class(module, parameter.ty.semantic_type())
+                        && function.entity(*arg).map(|data| data.ty) == Some(parameter.ty)
+                })
         })
+        && super::verify_operation::is_first_class(module, target)
         && results
             == [EntityType::Loan {
                 kind: LoanKind::Shared,

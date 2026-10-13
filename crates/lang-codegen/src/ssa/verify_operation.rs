@@ -1068,7 +1068,7 @@ fn is_first_class_value(module: &Module, ty: EntityType) -> bool {
     matches!(ty, EntityType::Value(ty) if is_first_class(module, ty))
 }
 
-fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
+pub(super) fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
     matches!(
         module.type_kind(ty),
         Some(

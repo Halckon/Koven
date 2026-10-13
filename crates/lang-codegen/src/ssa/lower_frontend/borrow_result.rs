@@ -1,4 +1,4 @@
-//! 普通多 Borrow 参数 shared 结果；只消费已验证的 origin/continuation/end facts。
+//! 普通 Borrow/Value 参数 shared 结果；只消费已验证的 origin/continuation/end facts。
 use super::*;
 use lang_frontend::{ownership_checking::BorrowSourceLoan, type_checking::BorrowReturnOrigin};
 
@@ -10,9 +10,9 @@ pub(super) fn validate(
     for callable in typed.callables() {
         if let Some(contract) = callable.borrow_return() {
             crate::ssa::borrow_result_support::declaration(parsed, contract.marker_span())?;
-            if !matches!(contract.origin(), BorrowReturnOrigin::Parameter(index) if index < callable.parameters().len())
+            if !matches!(contract.origin(), BorrowReturnOrigin::Parameter(index) if callable.parameters().get(index).is_some_and(|parameter| parameter.mode == ParameterMode::Borrow))
                 || callable.receiver().is_some()
-                || callable.parameters().iter().any(|parameter| parameter.mode != ParameterMode::Borrow)
+                || callable.parameters().iter().any(|parameter| parameter.mode == ParameterMode::Inout)
                 || !owned.borrow_return_origins().iter().any(|fact| {
                     fact.declaration_span() == contract.marker_span()
                         && matches!(fact.origin(), LoanTarget::Place(place) if place.elements().is_empty())
@@ -265,6 +265,7 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        let return_expression = expression;
         // The return-origin fact belongs to the outer expression; forwarding belongs to its call.
         let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
         let node = self
@@ -292,6 +293,7 @@ impl ExpressionLowerer<'_> {
             }
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, node.span())),
         };
+        self.emit_drops(DropPoint::ControlTransfer(return_expression))?;
         self.function
             .set_terminator(
                 self.block,
@@ -377,7 +379,7 @@ impl ExpressionLowerer<'_> {
             || descriptor
                 .arguments()
                 .iter()
-                .any(|mapping| mapping.mode() != ParameterMode::Borrow)
+                .any(|mapping| mapping.mode() == ParameterMode::Inout)
             || self.owned.borrow_results().range_uses().iter().any(|fact| {
                 fact.site() == lang_frontend::ownership_checking::RangeUseSite::Call(expression)
             })
@@ -434,26 +436,46 @@ impl ExpressionLowerer<'_> {
             }
             crate::ssa::borrow_result_support::argument(self.parsed, argument.span)?;
             let blocks = self.function.blocks.len();
-            let (loan, created) =
-                self.lower_borrow_argument(expression, argument.value, argument.span)?;
+            let operand = match mapping.mode() {
+                ParameterMode::Value => {
+                    EntityId::Value(self.lower_value_argument(argument.value, argument.span)?)
+                }
+                ParameterMode::Borrow => {
+                    let (loan, created) =
+                        self.lower_borrow_argument(expression, argument.value, argument.span)?;
+                    if argument.value == source.argument() {
+                        if created {
+                            continued.push(loan);
+                        }
+                    } else {
+                        self.pending_call_loans.insert(
+                            (expression.index(), argument.value.index()),
+                            created.then_some(loan),
+                        );
+                    }
+                    EntityId::Loan(loan)
+                }
+                ParameterMode::Inout => {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, argument.span));
+                }
+            };
             if self.function.blocks.len() != blocks {
                 return Err(error(LoweringErrorKind::UnsupportedNode, argument.span));
             }
             let slot = ordered
                 .get_mut(mapping.parameter_index())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
-            if slot.replace(EntityId::Loan(loan)).is_some() {
+            if slot.replace(operand).is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, argument.span));
             }
-            if argument.value == source.argument() {
-                if created {
-                    continued.push(loan);
-                }
-            } else {
-                self.pending_call_loans.insert(
-                    (expression.index(), argument.value.index()),
-                    created.then_some(loan),
-                );
+        }
+        for mapping in descriptor.arguments() {
+            let argument = &arguments[mapping.argument_index()];
+            if mapping.mode() == ParameterMode::Value
+                && let Some(value) =
+                    self.take_pending_value_argument(argument.value, argument.span)?
+            {
+                ordered[mapping.parameter_index()] = Some(EntityId::Value(value));
             }
         }
         let ordered = ordered

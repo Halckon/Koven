@@ -1142,38 +1142,7 @@ impl ExpressionLowerer<'_> {
             }
             let operand = match mapping.mode() {
                 ParameterMode::Value => {
-                    let value = self.require_value(argument.value)?;
-                    if self
-                        .typed
-                        .expression_type(argument.value)
-                        .and_then(|ty| self.typed.copyability(ty))
-                        == Some(Copyability::MoveOnly)
-                    {
-                        // The source is moved now, but SSA delivers it only when the call runs.
-                        // Keep the pending argument in the existing temporary carry/rebind map.
-                        let mut source = argument.value;
-                        loop {
-                            self.temporaries.remove(&source.index());
-                            let node =
-                                self.parsed.ast().expressions().get(source).map_err(|_| {
-                                    error(LoweringErrorKind::MissingFact, argument.span)
-                                })?;
-                            match node.payload() {
-                                Expression::Group { expression } => source = *expression,
-                                Expression::Name => {
-                                    let symbol =
-                                        self.references.get(&span_key(node.span())).ok_or_else(
-                                            || error(LoweringErrorKind::MissingFact, node.span()),
-                                        )?;
-                                    self.bindings.remove(symbol);
-                                    break;
-                                }
-                                _ => break,
-                            }
-                        }
-                        self.temporaries.insert(argument.value.index(), value);
-                    }
-                    EntityId::Value(value)
+                    EntityId::Value(self.lower_value_argument(argument.value, argument.span)?)
                 }
                 ParameterMode::Borrow => {
                     let (loan, ends_after_call) =
@@ -1194,16 +1163,9 @@ impl ExpressionLowerer<'_> {
         for mapping in descriptor.arguments() {
             let argument = &arguments[mapping.argument_index()];
             if mapping.mode() == ParameterMode::Value
-                && self
-                    .typed
-                    .expression_type(argument.value)
-                    .and_then(|ty| self.typed.copyability(ty))
-                    == Some(Copyability::MoveOnly)
+                && let Some(value) =
+                    self.take_pending_value_argument(argument.value, argument.span)?
             {
-                let value = self
-                    .temporaries
-                    .remove(&argument.value.index())
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
                 ordered[mapping.parameter_index()] = Some(EntityId::Value(value));
             }
             if let Some(Some(loan)) = self
