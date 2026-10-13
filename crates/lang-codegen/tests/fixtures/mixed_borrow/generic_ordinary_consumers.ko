@@ -1,0 +1,20 @@
+class Resource(val text: String) { deinit() { println(this.text) } }
+fun <T> unused(own other: T) {}
+fun <T> forward(own other: T) { unused(other) }
+fun <T> observe(other: T) {}
+fun <T> readThenReturn(own other: T): T { observe(other); return other }
+fun <T> readTwice(own other: T) { observe(other); observe(other) }
+fun requireValue(value: Int, expected: Int) { if (value == expected) { println("value-kept") } else { println("wrong-value") } }
+fun entry() {
+    unused(13)
+    forward(29)
+    requireValue(readThenReturn(41), 41)
+    val kept = 53
+    readTwice(kept)
+    requireValue(kept, 53)
+    unused(Resource("unused-resource".clone()))
+    forward(Resource("forwarded-resource".clone()))
+    unused(readThenReturn(Resource("returned-resource".clone())))
+    readTwice(Resource("read-twice-resource".clone()))
+    println("ordinary-complete")
+}

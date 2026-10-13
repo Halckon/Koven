@@ -16,6 +16,24 @@ impl ExpressionLowerer<'_> {
             .filter(|fact| fact.point() == point)
             .collect::<Vec<_>>();
         for fact in facts {
+            // Generic ownership facts precede monomorphization. A concrete Copyable
+            // instance has no drop obligation; keep its binding/aliases intact.
+            let template = match fact.target() {
+                DropTarget::Named(symbol) => Some(self.typed.symbol_type(symbol)),
+                DropTarget::Temporary(expression) => Some(self.typed.expression_type(expression)),
+                _ => None,
+            };
+            if let Some(template) = template {
+                let template = template
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.value_origin()))?;
+                let concrete = self.resolve_type(template, fact.value_origin())?;
+                if concrete != template
+                    && self.typed.copyability(concrete)
+                        == Some(lang_frontend::type_checking::Copyability::Copyable)
+                {
+                    continue;
+                }
+            }
             // Conditional cleanup needs its saved choice transported with the owner.
             if fact.condition().is_some()
                 && !super::map_loop_owner::supported_drop(self.typed, self.owned, fact)

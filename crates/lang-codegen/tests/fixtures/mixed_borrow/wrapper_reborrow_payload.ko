@@ -1,0 +1,5 @@
+class Resource(val text: String) { deinit() { println(this.text) } }
+fun leaf(other: Resource, source: String, own spent: Resource): borrow String from source = source
+fun wrap(own other: Resource, source: String, own spent: Resource): borrow String from source = ((leaf(other, source, spent)))
+fun consume(own source: String) { println(source) }
+fun entry() { val source = "source-payload".clone(); borrow val item = wrap(Resource("wrapper-owned".clone()), source, Resource("leaf-owned".clone())); println(item); consume(source) }

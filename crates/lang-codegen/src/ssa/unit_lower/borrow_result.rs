@@ -1,4 +1,4 @@
-//! source-qualified 普通多 Borrow 参数 shared 结果；与 single 保持相同事实边界。
+//! source-qualified 普通 Borrow/Value 参数 shared 结果；与 single 保持相同事实边界。
 use super::*;
 use lang_frontend::{
     ownership_checking::{BorrowSourceLoan, UnitLoanTarget},
@@ -30,9 +30,9 @@ pub(super) fn validate(
                     lowering_error(LoweringErrorKind::MissingFact, contract.marker_span())
                 })?;
             crate::ssa::borrow_result_support::declaration(file, contract.marker_span())?;
-            if !matches!(contract.origin(), BorrowReturnOrigin::Parameter(index) if index < callable.parameters().len())
+            if !matches!(contract.origin(), BorrowReturnOrigin::Parameter(index) if callable.parameters().get(index).is_some_and(|parameter| parameter.mode() == ParameterMode::Borrow))
                 || callable.receiver().is_some()
-                || callable.parameters().iter().any(|parameter| parameter.mode() != ParameterMode::Borrow)
+                || callable.parameters().iter().any(|parameter| parameter.mode() == ParameterMode::Inout)
                 || !owned.borrow_return_origins().iter().any(|fact| {
                     fact.declaration_span() == contract.marker_span()
                         && matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none())
@@ -321,6 +321,7 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        let return_id = id;
         // The return-origin fact belongs to the outer expression; forwarding belongs to its call.
         let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
         let id = UnitExpressionId::new(self.source_unit, expression);
@@ -354,6 +355,7 @@ impl UnitExpressionLowerer<'_> {
                 ));
             }
         };
+        self.emit_drops(UnitDropPoint::ControlTransfer(return_id))?;
         self.function
             .set_terminator(
                 self.block,
@@ -444,7 +446,7 @@ impl UnitExpressionLowerer<'_> {
             || descriptor
                 .arguments()
                 .iter()
-                .any(|mapping| mapping.mode() != ParameterMode::Borrow)
+                .any(|mapping| mapping.mode() == ParameterMode::Inout)
             || self.owned.borrow_results().range_uses().iter().any(|fact| {
                 fact.site() == lang_frontend::ownership_checking::RangeUseSite::Call(id)
             })

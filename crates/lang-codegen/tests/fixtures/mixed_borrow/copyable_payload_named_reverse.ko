@@ -1,0 +1,6 @@
+fun checkLeft(own value: Int): Int { if (value != 3) { error("wrong-left") }; println("left-3"); return value }
+fun checkRight(own value: Int): Int { if (value != 9) { error("wrong-right") }; println("right-9"); return value }
+fun leaf(own left: Int, source: String, own right: Int): borrow String from source = source
+fun wrap(own left: Int, source: String, own right: Int): borrow String from source = leaf(checkLeft(left), source, checkRight(right))
+fun consume(own source: String) { println(source) }
+fun entry() { val source = "kept".clone(); borrow val item = wrap(right = 9, source = source, left = 3); println(item); consume(source) }

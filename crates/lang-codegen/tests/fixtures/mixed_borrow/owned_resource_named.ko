@@ -1,0 +1,5 @@
+class OwnedResource { deinit() { println("drop-owned") } }
+class BorrowedResource { deinit() { println("drop-borrowed") } }
+fun view(own other: OwnedResource, source: String): borrow String from source = source
+fun consume(own source: String) { println(source) }
+fun entry() { val other = OwnedResource(); val source = "kept".clone(); borrow val item = view(other, source); println(item); consume(source) }

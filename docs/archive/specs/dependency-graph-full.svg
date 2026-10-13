@@ -6,7 +6,7 @@
   </defs>
   <rect width="8464" height="8722" fill="#ffffff"/>
   <rect x="40" y="30" width="7672" height="8620" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，289 份）</text>
+  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，290 份）</text>
   <rect x="7776" y="7920" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="7916" y="7940" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="8120" y="7920" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1030,6 +1030,7 @@
   <path d="M 180 8478 C 180 8510, 180 8510, 180 8542" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8478 C 180 8510, 444 8510, 444 8542" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 8340 C 444 8372, 444 8510, 444 8542" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 8028 C 708 8060, 444 8078, 444 8110" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2250,4 +2251,8 @@
   <text x="708" y="7977" text-anchor="middle" font-size="13">SPEC-0305</text>
   <text x="708" y="7995" text-anchor="middle" font-size="13">多 Borrow 参数的唯一</text>
   <text x="708" y="8013" text-anchor="middle" font-size="13">来源直接返回</text>
+  <rect x="324" y="8110" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="444" y="8133" text-anchor="middle" font-size="13">SPEC-0306</text>
+  <text x="444" y="8151" text-anchor="middle" font-size="13">混合 Value 参数的唯一</text>
+  <text x="444" y="8169" text-anchor="middle" font-size="13">来源借用返回</text>
 </svg>

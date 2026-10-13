@@ -403,62 +403,17 @@ fn apply_operation(
             receiver,
             arguments,
             ..
-        } => {
-            for argument in receiver.iter().chain(arguments) {
-                match argument {
-                    EntityId::Value(value) => {
-                        consume_value(
-                            module,
-                            function,
-                            *value,
-                            aliases,
-                            state,
-                            &BTreeSet::new(),
-                            &BTreeSet::new(),
-                            location.clone(),
-                            origin,
-                            errors,
-                        );
-                    }
-                    EntityId::Loan(loan) => {
-                        let VerifyLocation::Instruction(instruction) = location else {
-                            unreachable!("direct call is an instruction");
-                        };
-                        closure::check_borrowed_contents(
-                            *loan,
-                            closure_loans,
-                            state,
-                            instruction,
-                            origin,
-                            errors,
-                            "helper Borrow requires proved current callable capture contents",
-                        );
-                        if !state.loans.contains(loan) {
-                            errors.push(error(
-                                VerifyErrorKind::LoanInactive { loan: *loan },
-                                location.clone(),
-                                origin,
-                            ));
-                        } else if loan_kind(function, *loan) == LoanKind::Exclusive
-                            && let Some(dependent) =
-                                reborrows.active_descendant(*loan, aliases, state)
-                        {
-                            errors.push(error(
-                                VerifyErrorKind::LoanDependencyActive {
-                                    parent: *loan,
-                                    dependent,
-                                },
-                                location.clone(),
-                                origin,
-                            ));
-                        }
-                    }
-                    EntityId::Place(place) => {
-                        require_place(*place, state, location.clone(), origin, errors);
-                    }
-                }
-            }
-        }
+        } => borrow_result::verify_call_arguments(
+            module,
+            function,
+            instruction,
+            receiver.iter().chain(arguments).copied(),
+            aliases,
+            closure_loans,
+            reborrows,
+            state,
+            errors,
+        ),
         Operation::FunctionAddress { .. } => {}
         Operation::RangeConstruct { .. }
         | Operation::RangeCall { .. }
@@ -474,11 +429,16 @@ fn apply_operation(
             state,
             errors,
         ),
-        Operation::BorrowCall {
-            arguments, source, ..
-        } => {
-            borrow_result::verify_call(arguments, *source, state, location, origin, errors);
-        }
+        Operation::BorrowCall { .. } => borrow_result::verify_call(
+            module,
+            function,
+            instruction,
+            aliases,
+            closure_loans,
+            reborrows,
+            state,
+            errors,
+        ),
         Operation::ClosureConstruct { captures, .. } => {
             closure::apply_construct(
                 module, function, captures, aliases, state, location, origin, errors,

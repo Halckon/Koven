@@ -1,0 +1,172 @@
+# SPEC-0306: 混合 Value 参数的唯一来源借用返回
+
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收混合 Value/Borrow 参数的普通借用返回时 · **唯一真源**：本 Spec
+
+| 字段 | 值 |
+|---|---|
+| 状态 | done |
+| Goal ID | `KOV-P4-0306` |
+| 所属 Phase | Phase 4 |
+| 语言规范 | [Guide10](../../guide/10-ownership-borrowing-drop.md#普通借用结果与显式局部绑定)、[Guide05](../../guide/05-declarations-callables.md) |
+| 批准依据 | 2026-10-13 用户要求先收尾现行里程碑；在 M2B 已启用合同内继续实现，不转新集合 API |
+| 前置 Spec | [SPEC-0305](../../archive/specs/0305-multi-parameter-borrow-result.md) |
+| 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
+| 关联 ADR | 无新结果 ABI 或语言决定 |
+| 阻塞项 | 修复后完整物理PR CI已验收；最终归档head复用、merge与actual-main CI待独立验收 |
+| 影响范围 | lang-codegen single/unit lowering、verifier、LLVM call adapter、正常 source/native 测试 |
+| 语言语义变更 | 否 |
+
+## 1. Goal 与输入
+
+唯一来源仍是 Borrow 参数，其余形参可为 Borrow 或显式 own 所映射的 Value；在已有直接
+具名调用、表达式体、受限 wrapper 与直线 borrow val 范围内，正确运输 Copyable 与既有
+MoveOnly/Resource 参数。不是完整 M2B 完成，不引入新的参数或结果表示。
+
+基于 actual main `bfdb00bd455d6847a7f14cf7391a198664ee6f1e`、tree
+`795ac4346dce3c098a0acfd0ebcf198001b11341` 建立 `feature/spec-0306`。
+两个 parent 为 `f7a4d15cecfa71b2fb8a4e9d4648d56e53702c05` 与
+`b7a269d2e5589260cc7bc26fb3cfc28ca3fa5808`；完整 API commit JSON 恢复后逐对象核 SHA。
+0305 已由 PR83 实际合并；[actual-main CI](https://github.com/Halckon/Koven/actions/runs/38350665268)
+已由独立监视确认 success，不代替本片未来远端 CI。
+
+## 2. 有界合同
+
+- source 必须由 typed Parameter(i) 和 ownership origin 证明为唯一 Borrow 参数；真实 source
+  storage 可为已支持字段，保留已有泛型与 Group。其余参数为已支持的 Borrow/Value。
+- 按源码顺序仅求值每个 operand 一次，立即应用 typed 参数契约，按 parameter_index 装配
+  ABI。Value 按现行 Copyability copy/move，不伪造 loan，也不强制 Copyable 新 SSA ID/glue。
+- BorrowCall verifier 验证 Value 活性与 MoveOnly 唯一消费、全部 Loan 活性；结果 alias/parent
+  仅延续真正 source。共享源码产生的 Program 必须通过原有 normal-exit 检查，不放宽 verifier。
+- CallReturn 只结束非来源本次新建 loan，清理其 Borrow temporary；复用外部 loan 不提前结束。
+  Value temporary 转交后 caller 不重复清理；source/result 继续到已验证终止点。
+- callee 使用既有 FunctionEntry、CallReturn、ControlTransfer drop facts，保持纯内存 ASAP
+  与 Resource 逆声明顺序；先得到返回 loan，再按事实清理非来源 owner，最后 BorrowReturn。
+  ControlTransfer 使用原外层 expression-body ID，不用 ungroup 后的内层 ID代替。
+- wrapper 可转交 Value owner 或对它作辅助 shared reborrow；后者在嵌套调用后终止，前者只由
+  新 owner 负责清理。返回 source 链始终存活；source/result 终止先于其 owner drop。
+- single 与真正跨文件 unit 一致，缺失事实结构化拒绝；LLVM 实参复用既有 Value/Loan 映射，
+  结果继续返回真实 storage pointer，不复制/retain borrowed payload。
+
+## 3. 非目标
+
+Inout 参数/来源、receiver、block 返回、caller CFG/loop 运输、间接/callable 参数、同步嵌套
+borrow-result 实参、短 range/新 carrier ABI、条件借用、多来源、完整 NLL 或 std 新 API。
+保持当前 structured rejection 与真实 Span。需要新语义或长期 ABI 决定时暂停报告。
+
+本地禁止故障注入/校准、sanitizer、坏 IR/allocator/LLVM 重写和 aggregate 驱动；只运行审阅过的
+正常 source→frontend→真实 SSA/verifier→原版 LLVM/object/link/run。语言定义的非法源码与
+Abort 不属于故障注入；坏 IR verifier 负例仅静态编写交 CI，不能在云上执行。
+
+## 4. 实施与验收账本
+
+本表保留首轮本地冻结时的实际状态；后续发布与CI检查点见§7–8，不将未运行项回填为通过。
+
+先移植仓库外15组已复现 Value 源码红测，扩唯一来源、参数顺序、owner/loan/drop 正反例；
+再最小接线两入口、verifier 与 LLVM，按同一选择转绿，最后验证直接消费者和既有0305回归。
+
+| 验收项 | 命令/选择 | 实际结果 |
+|---|---|---|
+| actual main / Spec 冻结 | 精确 commit/tree/双parent、库存/docs/diff | 精确对象已恢复，0306未占用；冻结时docs658通过 |
+| 正常 source 红测 | 保存的精确actual-main与659ba4d9 public API探针 | 25组Borrow源码在main双入口UnsupportedNode；普通generic对照在main已InvalidSsa；三组Copyable泛型在初轮实现双入口InvalidSsa |
+| SSA/Loan/Value/drop | `cargo test --locked --offline -p lang-codegen --lib mixed_value_borrow -- --nocapture` | 15/15；25组Borrow与1组ordinary generic双入口真实Program、SSA/原版LLVM通过，含精确Group事实和正常错误源码 |
+| native stdout/deinit | 上行的两个native矩阵 | 26组×single/跨文件unit共52次原版native成功，完整stdout与空stderr逐字节核对 |
+| 错误来源/冲突/保留边界 | 新矩阵7项正常源码边界；`multi_parameter_borrow`及旧Inout精确选择 | 错误owner、存活来源move、own后复用、重叠实参顺序拒绝；Inout/nested-use/callable/CFG等保留边界通过 |
+| 共享消费者 | `multi_parameter_borrow` 10项、`ssa::borrow_call_lowering_tests` 5项、`ssa::unit_lower_borrow_tests` 2项；普通Value/nullable前缀/借用结果与storage精确19项 | 36/36通过；覆盖pending owner分支、提前transfer、Group临时、字段与generic nullable native |
+| 静态门禁 | `cargo fmt --all -- --check`；`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`；docs/尺寸/diff | fmt/严格clippy通过；docs658通过；Rust尺寸1060文件、38项旧欠账、无新增例外；diff通过 |
+| 独立审查 | 生产b8c0f279；最终测试928c82f4 | 11组独立正常source×两入口22次native通过；928c82f4独立15/15回归通过，无未决阻断 |
+| 双宿主CI/归档/合并 | 精确远端head/merge/main | 未发布、未运行 |
+
+准备阶段在0305冻结树已完成33组双入口正常探针，其中15组Value均前端接受而在真实lowering
+拒绝；6次native对照和4项正常source SSA/LLVM测试成功。它们仅是准备证据，不能冒充本片
+实现或本基线新测试通过。原始源码、stdout/stderr与恢复材料保留在仓库外。
+
+## 5. 首轮本地交付边界
+
+最终代码/测试输入为 `928c82f4467a76e761350e2f6f3c79358eb3dba2`、tree
+`3dd1e48f4b579eed3f38e961d10605bb36ed855a`；生产修复与b8c0f279一致。
+本地Linux、Rust1.96.0/LLVM21.1.8验证；10项构造SSA的verifier合同测试仅静态编写和编译，
+未在云上执行，交后续CI。没有运行全workspace、aggregate、故障/校准或sanitizer。
+
+本地分步提交并保留仓库外恢复包与原始红绿日志，发布交接继续保留；Spec 保持 in-progress，
+独立审查后另请求具体发布授权。macOS/双宿主CI、远端发布/归档/合并未运行；本片不关闭
+Inout、同步 nested-use 等其他 M2B 缺口。
+
+## 6. 独立审查中的泛型修复
+
+初轮20组通过后，独立审查补出无上界own T在T=Int的正常源码失败：frontend接受，
+ControlTransfer的参数drop事实在具体化后仍生成Drop Int，真实SSA verifier以InvalidSsa拒绝。
+同类型命名值、Copyable value class Pair及Int/Resource同generic并存形成补充回归；没有把
+泛型Copyable缩成不支持边界，也没有放宽verifier。两入口共享drop消费者在取得typed模板与
+concrete类型后，仅为具体化Copyable跳过义务，且在任何binding/temporary移除之前判断。
+
+不含borrow-return的普通generic unused/forward在保存的actual-main探针中同样双入口失败，
+是原有共享drop消费者缺口，不是本片新引入回归。本次同一最小修复自然覆盖它，增加普通
+消费者对照，不改前端所有权语义或参数/结果ABI。生产修复提交b8c0f279；保存初轮659ba4d9
+精确红测、修复后双入口绿测及独立22次native复验，最终固定回归包含未用、转交、读取后
+返回与多次读取的Int/Resource实例，验收见上表。
+
+## 7. PR84 首次 CI 失败检查点
+
+[PR84](https://github.com/Halckon/Koven/pull/84)发布head为
+`228091d35ebd40c03f713ea4dca84b9bb5ca0dc3`、tree
+`5e68cf7b124e6ae3cfba14beb3ab1e4933da31ac`，base仍为bfdb00bd。
+[CI38357435353 attempt1](https://github.com/Halckon/Koven/actions/runs/38357435353)
+的Ubuntu/macOS TargetedTests均失败：每机15项新增正常源码测试通过；10项CI-only
+构造SSA测试中6项通过，4项在装配时发生`BlockAlreadyTerminated`，尚未抵达verifier断言。
+失败分别为`verify_mixed_call_ci_only_`前缀下的`consumed_value_is_rejected`、
+`inactive_auxiliary_loan_is_rejected`、`borrowed_owner_cannot_be_consumed`和
+`raw_place_argument_is_rejected`。word-frequency等后继步骤及相应产物未执行/生成，
+不能由缺失产物另推导生产缺陷，也不能把本次CI记为成功。
+
+根因为测试fixture先封闭caller，再经`before_call`调用禁止向已终止block追加指令的Builder。
+修复只调整cfg(test)装配顺序：在BorrowCall/BorrowEnd建成后、安装Return终止符前执行
+前缀构造，保持现有block指令顺序和实体身份；4项断言保留原错误kind，并锁定原BorrowCall
+指令位置。生产lowering、Builder和verifier未变，不改变负例意图或放宽验证。
+
+该修复基于完整远端commit JSON恢复的精确228091d3，独立fix分支保全首轮工作树。
+修复代码提交`f400bbbb2db6cac21c2ede503747179a4419a0d9`、tree
+`3ed7205daadf9d880ae961a904f175c47b3c6926`。本地仅静态审查/编译这10项构造SSA测试；
+`cargo fmt --all -- --check`、`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`
+通过；`cargo test --locked --offline -p lang-codegen --lib mixed_value_borrow -- --nocapture`
+15/15通过（26组源码双入口、52次native）；docs658、尺寸及diff通过，独立静态审查无阻断。
+4项必须由新head CI实际证明抵达verifier并拒绝，不能以本地编译或首轮6项通过替代；
+修后CI尚未运行，Spec继续in-progress，不归档/合并。
+
+## 8. 修复后完整物理 PR CI 与有界归档
+
+修复后的[run38359857349 attempt1](https://github.com/Halckon/Koven/actions/runs/38359857349)
+已为success、`reuse=false`，不是旧失败head的重跑。run的API `updated_at`为
+2026-10-13 07:14:46Z，最后job `completed_at`为07:14:45Z；独立验收时间为
+07:17:18.813219Z。§7首次失败、6过4装配失败及其本地修复检查点仍保留。
+
+- 真实remote head为`a501337a9f5bc2a3c9ef722cc86f31fc4038e2cf`，tree为
+  `8039d46c9c02fb85b2404672c0233a52cef76561`；base仍为
+  `bfdb00bd455d6847a7f14cf7391a198664ee6f1e`。真实synthetic merge为
+  `2b7b652a67aa5075224c28a5a6d28a8175c001df`，有序双父为base、head，tree同上。
+- 共15个job实际success；Tree-sitter由`editors=false`合法skip，不算执行通过。
+  双宿主各15项正常source测试与10项CI-only verifier测试逐名通过；旧4项装配panic
+  已实际抵达并通过原错误kind加BorrowCall位置断言。10项只由远端CI执行，本地仍未运行。
+- 两宿主check/clippy、完整TargetedTests、word-frequency、generated contracts与preview
+  通过；Linux sanitizer实际成功，macOS对应Linux-only步骤跳过，原LLDB ignored不算通过。
+  docs实际检查658份Markdown及336项Python测试；Code CI Evidence和CI Passed真实成功。
+- 两宿主preview producer、API artifact摘要、consumer实际下载及独立安装链逐项核验；
+  未另行下载ZIP检查包内字节，不把普通native成功或preview当成完整内存安全证明。
+- 固定base下独立重算的代码输入fingerprint为
+  `800964b3c8d018e99d5fe5f0ec5fe98a91c6200c3d3bfd76125f46005549a84f`。
+  独立成功收据SHA256为`b3054ac2970c7a859c94b428a6c3004cb8d630060a89006753d7a0f06a2f6c98`。
+  首失败与新成功的原始API、job日志、逐名匹配及摘要保留仓库外，不复制到当前文档树。
+
+据此只关闭唯一Borrow来源及其余Borrow/Value参数的已冻结实现片，库存更新为
+0 active / 290 archive。Inout、receiver、同步nested-use、CFG/loop、间接/callable、
+条件/多来源、新carrier与完整NLL等M2B后继仍开放。归档仅改Markdown/SVG和库存声明，
+代码、测试、脚本、workflow及Guide保持修复head原字节。最终归档head是否真实复用、
+该head的docs门禁、merge及actual-main完整CI仍pending，不提前写成成功。
+
+## 9. 纯文档归档本地检查点
+
+基于精确a501337a恢复对象后，仅迁移Spec并同步库存、当前索引、架构链接和DAG。
+658份Markdown门禁通过；五个精确普通Python文件共124项通过：inventory24、docs41、
+DAG1、PR reuse26、CI结果合同32；两遍DAG四产物逐字节一致，diff whitespace通过。
+代码输入过滤结果与真实实现head及synthetic merge逐字节相同，重算§8 fingerprint一致。
+本轮未调用Cargo、故障/校准/sanitizer或aggregate；0 active / 290 archive，draft仍为2份。
+该本地证明不代替最终归档head的远端复用/docs门禁，archive/merge/main验收仍pending。

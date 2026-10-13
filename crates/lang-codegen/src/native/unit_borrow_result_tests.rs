@@ -443,3 +443,42 @@ fn multi_parameter_borrow_unit_native_matrix() {
         assert!(run.stderr.is_empty(), "{}: {run:?}", case.name);
     }
 }
+
+#[test]
+fn mixed_value_borrow_unit_native_matrix() {
+    for case in crate::native_mixed_borrow_cases::cases()
+        .into_iter()
+        .chain([crate::native_mixed_borrow_cases::generic_consumers()])
+    {
+        let (provider, body) = case.source.split_once("fun entry()").unwrap();
+        let analysis = analyze_sources(
+            &format!("package p\n{provider}"),
+            &format!("package q\nimport p.*\nfun entry(){body}"),
+        );
+        let directory = TestDirectory::create();
+        let object = directory.join("mixed-borrow.o");
+        let executable = directory.join("mixed-borrow");
+        emit_native_unit_object(
+            &analysis.sources,
+            &analysis.inputs(),
+            &analysis.names,
+            &analysis.environment,
+            &analysis.typed,
+            &analysis.owned,
+            analysis.declaration("q", "entry"),
+            &object,
+        )
+        .unwrap_or_else(|error| panic!("{}: {error:?}", case.name));
+        let linked = Command::new(crate::test_support::clang())
+            .arg(&object)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .unwrap();
+        assert!(linked.status.success(), "{}: {linked:?}", case.name);
+        let run = Command::new(&executable).output().unwrap();
+        assert!(run.status.success(), "{}: {run:?}", case.name);
+        assert_eq!(run.stdout, case.stdout, "{}", case.name);
+        assert!(run.stderr.is_empty(), "{}: {run:?}", case.name);
+    }
+}

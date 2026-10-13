@@ -1,0 +1,420 @@
+//! SPEC-0306: ordinary source shared by SSA and unmodified object/link/run tests.
+pub(crate) struct Contract {
+    pub name: &'static str,
+    pub instances: usize,
+    pub source_index: usize,
+    pub parameter_count: usize,
+    pub value_indices: &'static [usize],
+    // Declaration cleanup order; a concrete Copyable instantiation has no Drop.
+    pub dropped_indices: &'static [usize],
+}
+pub(crate) struct Case {
+    pub name: &'static str,
+    pub source: &'static str,
+    pub stdout: &'static [u8],
+    pub contracts: &'static [Contract],
+}
+pub(crate) fn cases() -> Vec<Case> {
+    vec![
+        Case {
+            name: "copyable_value_first",
+            source: include_str!("../tests/fixtures/mixed_borrow/copyable_value_first.ko"),
+            stdout: b"kept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 2,
+                value_indices: &[0],
+                dropped_indices: &[],
+            }],
+        },
+        Case {
+            name: "copyable_value_last",
+            source: include_str!("../tests/fixtures/mixed_borrow/copyable_value_last.ko"),
+            stdout: b"kept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 0,
+                parameter_count: 2,
+                value_indices: &[1],
+                dropped_indices: &[],
+            }],
+        },
+        Case {
+            name: "copyable_same_root",
+            source: include_str!("../tests/fixtures/mixed_borrow/copyable_same_root.ko"),
+            stdout: b"seven\nseven\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 0,
+                parameter_count: 2,
+                value_indices: &[1],
+                dropped_indices: &[],
+            }],
+        },
+        Case {
+            name: "named_reverse_value_middle",
+            source: include_str!("../tests/fixtures/mixed_borrow/named_reverse_value_middle.ko"),
+            stdout: b"eval-right\neval-left\nkept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 3,
+                value_indices: &[0, 2],
+                dropped_indices: &[],
+            }],
+        },
+        Case {
+            name: "owned_string_named",
+            source: include_str!("../tests/fixtures/mixed_borrow/owned_string_named.ko"),
+            stdout: b"kept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 2,
+                value_indices: &[0],
+                dropped_indices: &[0],
+            }],
+        },
+        Case {
+            name: "owned_resource_named",
+            source: include_str!("../tests/fixtures/mixed_borrow/owned_resource_named.ko"),
+            stdout: b"drop-owned\nkept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 2,
+                value_indices: &[0],
+                dropped_indices: &[0],
+            }],
+        },
+        Case {
+            name: "owned_resource_temporary",
+            source: include_str!("../tests/fixtures/mixed_borrow/owned_resource_temporary.ko"),
+            stdout: b"drop-owned\nkept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 0,
+                parameter_count: 2,
+                value_indices: &[1],
+                dropped_indices: &[1],
+            }],
+        },
+        Case {
+            name: "owned_and_borrowed_temporary",
+            source: include_str!("../tests/fixtures/mixed_borrow/owned_and_borrowed_temporary.ko"),
+            stdout: b"drop-owned\ndrop-borrowed\nkept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 3,
+                value_indices: &[2],
+                dropped_indices: &[2],
+            }],
+        },
+        Case {
+            name: "owned_wrapper",
+            source: include_str!("../tests/fixtures/mixed_borrow/owned_wrapper.ko"),
+            stdout: b"drop-owned\nkept\nkept\n",
+            contracts: &[
+                Contract {
+                    name: "view",
+                    instances: 1,
+                    source_index: 1,
+                    parameter_count: 2,
+                    value_indices: &[0],
+                    dropped_indices: &[0],
+                },
+                Contract {
+                    name: "wrap",
+                    instances: 1,
+                    source_index: 0,
+                    parameter_count: 2,
+                    value_indices: &[1],
+                    dropped_indices: &[],
+                },
+            ],
+        },
+        Case {
+            name: "generic_owned_value",
+            source: include_str!("../tests/fixtures/mixed_borrow/generic_owned_value.ko"),
+            stdout: b"drop-owned\nkept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 0,
+                parameter_count: 2,
+                value_indices: &[1],
+                dropped_indices: &[1],
+            }],
+        },
+        Case {
+            name: "owned_resource_reverse_order",
+            source: include_str!("../tests/fixtures/mixed_borrow/owned_resource_reverse_order.ko"),
+            stdout: b"eval-right\neval-left\ndrop-right\ndrop-left\nkept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 3,
+                value_indices: &[0, 2],
+                dropped_indices: &[2, 0],
+            }],
+        },
+        Case {
+            name: "owned_aux_field_source",
+            source: include_str!("../tests/fixtures/mixed_borrow/owned_aux_field_source.ko"),
+            stdout: b"drop-owned\nfield\nowned-source\ndrop-source\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 0,
+                parameter_count: 2,
+                value_indices: &[1],
+                dropped_indices: &[1],
+            }],
+        },
+        Case {
+            name: "owned_aux_reborrow_wrapper",
+            source: include_str!("../tests/fixtures/mixed_borrow/owned_aux_reborrow_wrapper.ko"),
+            stdout: b"drop-owned\nkept\nkept\n",
+            contracts: &[
+                Contract {
+                    name: "view",
+                    instances: 1,
+                    source_index: 1,
+                    parameter_count: 2,
+                    value_indices: &[],
+                    dropped_indices: &[],
+                },
+                Contract {
+                    name: "wrap",
+                    instances: 1,
+                    source_index: 1,
+                    parameter_count: 2,
+                    value_indices: &[0],
+                    dropped_indices: &[0],
+                },
+            ],
+        },
+        Case {
+            name: "owned_resource_grouped_return",
+            source: include_str!("../tests/fixtures/mixed_borrow/owned_resource_grouped_return.ko"),
+            stdout: b"drop-owned\nkept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 2,
+                value_indices: &[0],
+                dropped_indices: &[0],
+            }],
+        },
+        Case {
+            name: "owned_resource_grouped_wrapper",
+            source: include_str!(
+                "../tests/fixtures/mixed_borrow/owned_resource_grouped_wrapper.ko"
+            ),
+            stdout: b"drop-owned\nkept\nkept\n",
+            contracts: &[
+                Contract {
+                    name: "view",
+                    instances: 1,
+                    source_index: 1,
+                    parameter_count: 2,
+                    value_indices: &[],
+                    dropped_indices: &[],
+                },
+                Contract {
+                    name: "wrap",
+                    instances: 1,
+                    source_index: 1,
+                    parameter_count: 2,
+                    value_indices: &[0],
+                    dropped_indices: &[0],
+                },
+            ],
+        },
+        Case {
+            name: "same_type_different_roots",
+            source: include_str!("../tests/fixtures/mixed_borrow/same_type_different_roots.ko"),
+            stdout: b"kept\nother\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 3,
+                value_indices: &[2],
+                dropped_indices: &[2],
+            }],
+        },
+        Case {
+            name: "source_last_three",
+            source: include_str!("../tests/fixtures/mixed_borrow/source_last_three.ko"),
+            stdout: b"drop-owned\nkept\nother\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 2,
+                parameter_count: 3,
+                value_indices: &[0],
+                dropped_indices: &[0],
+            }],
+        },
+        Case {
+            name: "caller_result_alias",
+            source: include_str!("../tests/fixtures/mixed_borrow/caller_result_alias.ko"),
+            stdout: b"drop-owned\nkept\nkept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 0,
+                parameter_count: 2,
+                value_indices: &[1],
+                dropped_indices: &[1],
+            }],
+        },
+        Case {
+            name: "copyable_payload_named_reverse",
+            source: include_str!(
+                "../tests/fixtures/mixed_borrow/copyable_payload_named_reverse.ko"
+            ),
+            stdout: b"left-3\nright-9\nkept\nkept\n",
+            contracts: &[
+                Contract {
+                    name: "leaf",
+                    instances: 1,
+                    source_index: 1,
+                    parameter_count: 3,
+                    value_indices: &[0, 2],
+                    dropped_indices: &[],
+                },
+                Contract {
+                    name: "wrap",
+                    instances: 1,
+                    source_index: 1,
+                    parameter_count: 3,
+                    value_indices: &[0, 2],
+                    dropped_indices: &[],
+                },
+            ],
+        },
+        Case {
+            name: "resource_payload_named_reverse",
+            source: include_str!(
+                "../tests/fixtures/mixed_borrow/resource_payload_named_reverse.ko"
+            ),
+            stdout: b"right\nleft\nkept\nkept\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 3,
+                value_indices: &[0, 2],
+                dropped_indices: &[2, 0],
+            }],
+        },
+        Case {
+            name: "external_loans",
+            source: include_str!("../tests/fixtures/mixed_borrow/external_loans.ko"),
+            stdout: b"spent\nother-payload\nsource-payload\nsource-payload\nother-payload\nsource-payload\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 2,
+                parameter_count: 3,
+                value_indices: &[0],
+                dropped_indices: &[0],
+            }],
+        },
+        Case {
+            name: "wrapper_reborrow_payload",
+            source: include_str!("../tests/fixtures/mixed_borrow/wrapper_reborrow_payload.ko"),
+            stdout: b"leaf-owned\nwrapper-owned\nsource-payload\nsource-payload\n",
+            contracts: &[
+                Contract {
+                    name: "leaf",
+                    instances: 1,
+                    source_index: 1,
+                    parameter_count: 3,
+                    value_indices: &[2],
+                    dropped_indices: &[2],
+                },
+                Contract {
+                    name: "wrap",
+                    instances: 1,
+                    source_index: 1,
+                    parameter_count: 3,
+                    value_indices: &[0, 2],
+                    dropped_indices: &[0],
+                },
+            ],
+        },
+        Case {
+            name: "generic_copyable",
+            source: include_str!("../tests/fixtures/mixed_borrow/generic_copyable.ko"),
+            stdout: b"source-payload\nsource-payload\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 2,
+                value_indices: &[0],
+                dropped_indices: &[],
+            }],
+        },
+        Case {
+            name: "generic_payload",
+            source: include_str!("../tests/fixtures/mixed_borrow/generic_payload.ko"),
+            stdout: b"copy-kept\ncopy-kept\nsource-payload\nright\nleft\nsource-payload\nsource-payload\n",
+            contracts: &[
+                Contract {
+                    name: "leaf",
+                    instances: 2,
+                    source_index: 1,
+                    parameter_count: 3,
+                    value_indices: &[0, 2],
+                    dropped_indices: &[2, 0],
+                },
+                Contract {
+                    name: "wrap",
+                    instances: 2,
+                    source_index: 1,
+                    parameter_count: 3,
+                    value_indices: &[0, 2],
+                    dropped_indices: &[],
+                },
+            ],
+        },
+        Case {
+            name: "generic_copyable_aggregate",
+            source: include_str!("../tests/fixtures/mixed_borrow/generic_copyable_aggregate.ko"),
+            stdout: b"left-kept\nright-kept\nsource-payload\nleft-kept\nright-kept\nsource-payload\n",
+            contracts: &[Contract {
+                name: "view",
+                instances: 1,
+                source_index: 1,
+                parameter_count: 2,
+                value_indices: &[0],
+                dropped_indices: &[],
+            }],
+        },
+    ]
+}
+
+pub(crate) fn generic_consumers() -> Case {
+    Case {
+        name: "generic_ordinary_consumers",
+        source: include_str!("../tests/fixtures/mixed_borrow/generic_ordinary_consumers.ko"),
+        stdout: b"value-kept\nvalue-kept\nunused-resource\nforwarded-resource\nreturned-resource\nread-twice-resource\nordinary-complete\n",
+        contracts: &[],
+    }
+}

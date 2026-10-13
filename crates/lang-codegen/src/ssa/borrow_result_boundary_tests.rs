@@ -2,7 +2,7 @@
 use super::{LoweringErrorKind, lower_frontend::orchestrate::lower_scalar_file};
 
 #[test]
-fn mixed_parameter_borrow_return_single_lowering_remains_unsupported() {
+fn non_source_inout_borrow_return_single_lowering_remains_unsupported() {
     use lang_frontend::{
         lexer::lex,
         name_resolution::resolve_names,
@@ -15,7 +15,7 @@ fn mixed_parameter_borrow_return_single_lowering_remains_unsupported() {
     let source = sources
         .add_source(
             "borrow_result.ko",
-            "fun view(source: Int, own other: Int): borrow Int from source = source\nfun entry() {}",
+            "fun view(source: Int, inout other: Int): borrow Int from source = source\nfun entry() {}",
         )
         .unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -33,7 +33,7 @@ fn mixed_parameter_borrow_return_single_lowering_remains_unsupported() {
 }
 
 #[test]
-fn mixed_parameter_borrow_return_unit_lowering_remains_unsupported() {
+fn non_source_inout_borrow_return_unit_lowering_remains_unsupported() {
     use super::{
         unit_lower::lower_scalar_unit_with_entry,
         unit_lower_test_support::{analyze as unit_analysis, declaration, parsed},
@@ -45,7 +45,7 @@ fn mixed_parameter_borrow_return_unit_lowering_remains_unsupported() {
     let (source, file) = parsed(
         &mut sources,
         "entry.ko",
-        "package app\nfun view(source: Int, own other: Int): borrow Int from source = source\nfun entry() {}",
+        "package app\nfun view(source: Int, inout other: Int): borrow Int from source = source\nfun entry() {}",
     );
     let inputs = [SourceUnitInput::new("root", "app/entry.ko", source, &file)];
     let (environment, types) = standard_environments();

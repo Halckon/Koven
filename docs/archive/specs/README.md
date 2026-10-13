@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 289 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 290 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -443,4 +443,6 @@
 
 - [SPEC-0304](0304-spec-archive-inventory.md)：active/archive纯编号库存迁为严格文档声明；PR82首次物理CI 16/16 jobs成功，原CI信任与fail-closed边界保留，最终归档head真实复用/merge/main待验证。
 
-- [SPEC-0305](0305-multi-parameter-borrow-result.md)：多Borrow参数的唯一来源直接返回；PR83首次物理CI及双宿主34项普通测试有界验收，其余M2B后继开放，最终归档head复用/merge/main待独立验证。
+- [SPEC-0305](0305-multi-parameter-borrow-result.md)：多Borrow参数的唯一来源直接返回；PR83首次物理CI及双宿主34项普通测试有界验收，其余M2B后继开放；最终归档head复用已验收，由[PR83](https://github.com/Halckon/Koven/pull/83)合入main `bfdb00bd`，[main CI38350665268](https://github.com/Halckon/Koven/actions/runs/38350665268)已独立验收成功。
+
+- [SPEC-0306](0306-mixed-value-borrow-result.md)：唯一Borrow来源、其余Borrow/Value参数的直接返回；PR84修复后完整物理CI及双宿主各15项正常/10项verifier测试有界验收，首失败保留，M2B后继开放；最终归档head复用/merge/main待独立验证。
