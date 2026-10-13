@@ -80,10 +80,20 @@ pub(super) fn check(program: &Program, live: bool, seed_span: lang_frontend::sou
         .iter()
         .filter(|i| matches!(i.operation, Operation::ContainerLength { .. }))
         .collect::<Vec<_>>();
-    let snapshot = lengths.iter().find(|i| i.block == preheader).unwrap();
-    let Operation::ContainerLength { owner: source } = snapshot.operation else {
-        unreachable!()
-    };
+    let root_place = f.instructions.iter().find(|i| matches!(i.operation, Operation::RootPlace { owner } if EntityId::Value(owner) == seed)).unwrap();
+    let source_begin = f.instructions.iter().find(|i| matches!(i.operation, Operation::BorrowBegin { place, .. } if EntityId::Place(place) == root_place.results[0])).unwrap();
+    let source = source_begin.results[0];
+    let snapshots = lengths
+        .iter()
+        .filter(|i| matches!(i.operation, Operation::ContainerLength { owner } if owner == source))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        snapshots.len(),
+        1,
+        "one length snapshot for the actual initial source loan"
+    );
+    let snapshot = snapshots[0];
+    assert_eq!(snapshot.block, preheader);
     let source_slot = entry
         .arguments
         .iter()
@@ -155,7 +165,7 @@ pub(super) fn check(program: &Program, live: bool, seed_span: lang_frontend::sou
     let place = f
         .instructions
         .iter()
-        .find(|i| matches!(i.operation, Operation::ContainerElementPlace { .. }))
+        .find(|i| matches!(i.operation, Operation::ContainerElementPlace { owner, .. } if owner == body_source))
         .unwrap();
     assert!(
         matches!(place.operation, Operation::ContainerElementPlace { owner, index } if owner == body_source && EntityId::Value(index) == body_cursor)
