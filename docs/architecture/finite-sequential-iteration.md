@@ -44,8 +44,16 @@ Array/List/MutableList 的 named owned、Borrow 参数与 temporary source 均�
 pending 槽，conditional receiver 按具体 Copyable/MoveOnly 类型执行。return 的 owner/copy 先交付，
 再清理局部 owner、element、source 与临时源；Abort 不展开，source 中转移不清理尚未 Acquire 的 provider。
 
-single 的 owned local source + conditional continue 存在独立 presence 证明缺口，
-即使没有 Map 也拒绝；source live/dead 普通对照与优先后继见[loop owner](map-loop-owner-carry.md#owned-source-的下一修复项)。这不否认上述 unit 证据或 temporary/Borrow source 的 single 有界路径。
+single 的非 Resource owned Array/List/MutableList source 已有单 owner/单 loop 条件 continue
+证明：唯一声明 initializer（仅透明 Group）或 own 参数 Always Entry 建立 Header；在精确
+Header selector=present 的局部 cofactor 下逐条证明 Continue/Fallthrough，再独立证明 live
+Exit；dead source 允许 absent Exit，在 EndSource 后消费 Header。原 Resource/global
+implies 不变，不新建运行时条件。replacement/alias、跨 loop phi seed、field/Inout/RangeView
+不由新 helper 放行；外层每轮 fresh seed 的独立 inner 实例有普通源码结构/native 对照。
+真实 owner、source loan、单次 snapshot 和 cursor 沿实际 edge 核验，Map 组合见
+[loop owner](map-loop-owner-carry.md#owned-source-的下一修复项)，本次验收见
+[SPEC-0312](../specs/active/0312-owned-source-conditional-continue.md)。unit 两视图独立四格原已通过，
+这里的生产修复仅作用于 single；temporary/Borrow 路径保持原实现。
 
 field source（包括 Field symbol root）与 Inout source 的 native 表示仍明确 Unsupported。
 自然循环内 captured Borrow closure 的0/1/3元素在普通/常量两视图已通过正常object/link/run；

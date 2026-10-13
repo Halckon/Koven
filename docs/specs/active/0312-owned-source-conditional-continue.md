@@ -11,7 +11,7 @@
 | 批准依据 | 2026-10-13 用户要求审核/CI 等待时继续实施独立工作 |
 | 前置 Spec | [SPEC-0300](../../archive/specs/0300-single-map-loop-owner-carry.md)、[SPEC-0310](../../archive/specs/0310-single-map-conditional-break.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 独立实现与验收进行中；Map continue 组合待 PR90 actual-main 后整合 |
+| 阻塞项 | 有界实现与 actual-main 整合已完成；最终本地门禁/独立终审/PR CI 待验收 |
 | 影响范围 | 非 Resource owned Array/List/MutableList source 的有界条件 continue |
 | 语言语义变更 | 否 |
 
@@ -22,12 +22,18 @@
 已核本地文件/refs 与远端分支 0312 未占用。
 基线没有 [PR90 / SPEC-0311](https://github.com/Halckon/Koven/pull/90)，不能称 Map continue 已合入。
 核心普通源码不含 Map，先独立红测、最小实现；组合只有真实合入后正常整合并重新验收。
+随后正常 merge actual-main `8e0ce49daea9c17960669aea6d467342508021f6`（tree
+`68e6fc8b44930c709a9dac5faf5da6b09790c25a`），整合提交 `81f62711` 的真实父链保留；
+从核验 Git bundle 导入对象，四份生成 DAG 冲突用联合库存重生成，没有 cherry-pick/fake parent。
 
 ## 2. 有界证明
 
 保留旧 constant presence 与 Resource 路径/global implies。旧证明失败后，
 仅精确 Sequential source root、非 Resource、本地 owning binding 或 own 参数获得新证明资格。
 名字 kind、类型、source identity、同轮 ownership 与 iteration schema 均由已验证事实取得；
+本地 seed 还以 names marker 精确找到唯一同轮 Item::Variable initializer，与 Entry ExpressionId
+按既有透明 Group 归一后相等；不按类型或 span 包含猜。pre-loop replacement/alias 不获新资格。
+曾观察到 replacement 自然满足原宽 seed 门槛，`2ee1b02c` 收紧后原普通源恢复精确拒绝；
 field/this/projection、Borrow/Inout、RangeView 不获得此资格。
 
 仅同 source symbol 的 Header/Exit，无 capture/snapshot/replacement/跨 loop seed。

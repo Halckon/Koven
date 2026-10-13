@@ -118,11 +118,8 @@ fn assert_unit_boundary(live: bool, constants: bool) {
         type_checking::{check_compilation_unit_types, standard_environments},
     };
     let text = format!(
-        "package p\n{}",
-        format!(
-            "fun main(): Unit {{ val keys = arrayOf(1, 2, 3); for (key in keys) {{ if (key == 2) {{ continue }} }}; {} }}",
-            if live { "keys.size" } else { "" }
-        )
+        "package p\nfun main(): Unit {{ val keys = arrayOf(1, 2, 3); for (key in keys) {{ if (key == 2) {{ continue }} }}; {} }}",
+        if live { "keys.size" } else { "" }
     );
     let mut sources = SourceMap::new();
     let (source_id, file) = parsed(&mut sources, "p/main.ko", &text);

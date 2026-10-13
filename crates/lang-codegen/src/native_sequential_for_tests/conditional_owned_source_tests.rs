@@ -192,6 +192,6 @@ fun main(): Unit {
 "#;
     assert_success(
         &emit_link_and_run("resource-source-old-path.ko", source, "main"),
-        b"visit\nvisit\nsecond\nfirst\ndone\n",
+        b"visit\nvisit\ndone\nsecond\nfirst\n",
     );
 }

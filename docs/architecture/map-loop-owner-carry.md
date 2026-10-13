@@ -37,12 +37,13 @@ break、更多 IterationPhi/call seed、RangeView 仍保持明确边界，不是
 
 ## owned source 的下一修复项
 
-owned local source 的 conditional continue 在没有 Map 时也会被旧 source presence proof
-拒绝；loop 后再用 source 与只在 LoopExit 清理两种路径均复现。原 `providers-cleanup.ko`
-完整输入保持不变；`lower_frontend_map_continue_source_tests` 核 source root、DropFact、
-Header/Exit owner 与实际 Span。新 Borrow fixture 是另一种能力，不能替代该 owned 失败。
-下一独立 source-proof 修复优先于 Map return，必须关闭这两条路径及实际 carrier/cleanup
-义务；本片不扩大通用 source/Resource proof，也不预占后继 Spec 编号。
+此独立缺口已由 [SPEC-0312](../specs/active/0312-owned-source-conditional-continue.md)
+的 single source-only presence 证明有界修复。原无 Map live/dead、三种 Sequential source
+及 `providers-cleanup.ko` 原字节均经真实 frontend→SSA/LLVM/native 验收；
+`lower_frontend_map_continue_source_tests` 保留精确 source root/Header/Exit 断言并转为正例。
+Map live/dead × source live/dead 的双同型 Map 普通 native 对照通过；分别查询两 Map，
+不把尚未支持的跨 owner 短路条件清理混作本片能力。原 Resource/global implies 与 Map
+carrier 算法保持；当前 source seed、nested/跨 loop 边界见[provider](finite-sequential-iteration.md)。
 
 [0311 合同](../archive/specs/0311-single-map-conditional-continue.md)记录原始红测、范围修订、
 隔离 target 复核与待发布事项；[0310](../archive/specs/0310-single-map-conditional-break.md)
