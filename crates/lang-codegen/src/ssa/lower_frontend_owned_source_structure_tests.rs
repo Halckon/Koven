@@ -98,6 +98,7 @@ pub(super) fn check(program: &Program, live: bool) {
         .iter()
         .find(|i| {
             i.block == preheader
+                && i.id.index() > snapshot.id.index()
                 && matches!(i.operation, Operation::Constant(ScalarConstant::Integer(1)))
         })
         .unwrap()
@@ -121,17 +122,32 @@ pub(super) fn check(program: &Program, live: bool) {
     };
     let body = f.block(when_true.target).unwrap();
     let exhausted = f.block(when_false.target).unwrap();
-    for slot in [owner_slot, source_slot, length_slot, cursor_slot] {
-        assert_eq!(when_true.arguments[slot], header.parameters[slot]);
-        assert_eq!(when_false.arguments[slot], header.parameters[slot]);
-    }
+    let body_slot = |slot| {
+        when_true
+            .arguments
+            .iter()
+            .position(|arg| *arg == header.parameters[slot])
+            .unwrap()
+    };
+    let exhausted_slot = |slot| {
+        when_false
+            .arguments
+            .iter()
+            .position(|arg| *arg == header.parameters[slot])
+            .unwrap()
+    };
+    let body_owner = body.parameters[body_slot(owner_slot)];
+    let body_source = body.parameters[body_slot(source_slot)];
+    let body_cursor = body.parameters[body_slot(cursor_slot)];
+    let exhausted_owner = exhausted.parameters[exhausted_slot(owner_slot)];
+    let exhausted_source = exhausted.parameters[exhausted_slot(source_slot)];
     let place = f
         .instructions
         .iter()
         .find(|i| matches!(i.operation, Operation::ContainerElementPlace { .. }))
         .unwrap();
     assert!(
-        matches!(place.operation, Operation::ContainerElementPlace { owner, index } if owner == body.parameters[source_slot] && EntityId::Value(index) == body.parameters[cursor_slot])
+        matches!(place.operation, Operation::ContainerElementPlace { owner, index } if owner == body_source && EntityId::Value(index) == body_cursor)
     );
     let element = f.instructions.iter().find(|i| matches!(i.operation, Operation::BorrowBegin { place: p, .. } if EntityId::Place(p) == place.results[0])).unwrap().results[0];
     let back = all_edges
@@ -144,8 +160,8 @@ pub(super) fn check(program: &Program, live: bool) {
         "continue and normal fallthrough both transport"
     );
     for (block, edge) in back {
-        for slot in [owner_slot, source_slot] {
-            assert!(forwards(f, edge.arguments[slot], body.parameters[slot], 0));
+        for (slot, expected) in [(owner_slot, body_owner), (source_slot, body_source)] {
+            assert!(forwards(f, edge.arguments[slot], expected, 0));
         }
         assert_eq!(
             edge.arguments[length_slot], header.parameters[length_slot],
@@ -159,7 +175,7 @@ pub(super) fn check(program: &Program, live: bool) {
         assert_eq!(advance.block, *block);
         assert!(
             matches!(advance.operation, Operation::Binary { operator: BinaryOperator::Add, left, right }
-            if forwards(f, EntityId::Value(left), body.parameters[cursor_slot], 0) && EntityId::Value(right) == one)
+            if forwards(f, EntityId::Value(left), body_cursor, 0) && EntityId::Value(right) == one)
         );
         let ends = f
             .instructions
@@ -176,12 +192,31 @@ pub(super) fn check(program: &Program, live: bool) {
                 < ids.iter().position(|id| *id == advance.id).unwrap()
         );
     }
-    let source_end = f.instructions.iter().filter(|i| i.block == exhausted.id && matches!(i.operation, Operation::BorrowEnd { loan } if EntityId::Loan(loan) == exhausted.parameters[source_slot])).collect::<Vec<_>>();
+    let source_end = f.instructions.iter().filter(|i| i.block == exhausted.id && matches!(i.operation, Operation::BorrowEnd { loan } if EntityId::Loan(loan) == exhausted_source)).collect::<Vec<_>>();
     assert_eq!(source_end.len(), 1);
-    let drops = f.instructions.iter().filter(|i| matches!(i.operation, Operation::Drop { owner } if forwards(f, EntityId::Value(owner), exhausted.parameters[owner_slot], 0))).collect::<Vec<_>>();
+    let drops = f.instructions.iter().filter(|i| matches!(i.operation, Operation::Drop { owner } if forwards(f, EntityId::Value(owner), exhausted_owner, 0))).collect::<Vec<_>>();
     assert_eq!(drops.len(), 1, "exact exhausted source owner consumed once");
     if live {
         let post = lengths.iter().find(|i| i.block != preheader).unwrap();
+        let Operation::ContainerLength { owner: post_loan } = post.operation else {
+            unreachable!()
+        };
+        let begin = f
+            .instructions
+            .iter()
+            .find(|i| i.results.contains(&post_loan))
+            .unwrap();
+        let Operation::BorrowBegin { place, .. } = begin.operation else {
+            panic!("post-use source loan")
+        };
+        let root = f
+            .instructions
+            .iter()
+            .find(|i| i.results.contains(&EntityId::Place(place)))
+            .unwrap();
+        assert!(
+            matches!(root.operation, Operation::RootPlace { owner } if forwards(f, EntityId::Value(owner), exhausted_owner, 0))
+        );
         assert_eq!(post.block, drops[0].block);
         let ids = &f.block(post.block).unwrap().instructions;
         assert!(

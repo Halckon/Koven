@@ -33,7 +33,6 @@ fn check(live: bool, factory: &str) {
     }
     let program = result.unwrap_or_else(|error| panic!("{factory} live={live}: {error:?}"));
     crate::llvm::render_verified_program(&program).unwrap();
-    eprintln!("{}", crate::ssa::render::render_program(&program));
     structure::check(&program, live);
 }
 
