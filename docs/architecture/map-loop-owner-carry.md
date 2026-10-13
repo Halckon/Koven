@@ -28,4 +28,4 @@ unit basic/constant 同源 live SSA 与普通 native 是独立既有成功对照
 loop Span 显式拒绝，基线及本片分别验证，不由 single 成功外推。一般 snapshot/closure、
 额外 Abort-survival guard、continue/return、无 Fallthrough 的 break、多 break、连续/嵌套
 IterationPhi seed、返回 Map 调用 seed 与 RangeView source 保留边界；不是语言禁止。
-[0310 合同](../specs/active/0310-single-map-conditional-break.md)记录有界验收与待交付项。
+[0310 合同](../archive/specs/0310-single-map-conditional-break.md)记录有界验收与待交付项。

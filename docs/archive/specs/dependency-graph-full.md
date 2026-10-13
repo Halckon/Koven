@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，293 份）"]
+subgraph Garchive["已完成（archive，294 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -302,8 +302,6 @@ subgraph Garchive["已完成（archive，293 份）"]
   S0307["S0307<br/>普通借用结果的同步 Borrow 实参消费"]
   S0308["S0308<br/>普通 own 泛型直接 String 消费者持久回归"]
   S0309["S0309<br/>普通 Borrow value-class 参数的直接字段读取"]
-end
-subgraph Gactive["现行 active"]
   S0310["S0310<br/>single Map owner 条件 break 运输"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -1635,6 +1633,6 @@ S0306 --> S0308
 | SPEC-0307 | archive | [0307-synchronous-borrow-result-arguments.md](0307-synchronous-borrow-result-arguments.md) |
 | SPEC-0308 | archive | [0308-generic-string-consumer-regression.md](0308-generic-string-consumer-regression.md) |
 | SPEC-0309 | archive | [0309-borrow-value-class-fields.md](0309-borrow-value-class-fields.md) |
-| SPEC-0310 | active | [0310-single-map-conditional-break.md](../../specs/active/0310-single-map-conditional-break.md) |
+| SPEC-0310 | archive | [0310-single-map-conditional-break.md](0310-single-map-conditional-break.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

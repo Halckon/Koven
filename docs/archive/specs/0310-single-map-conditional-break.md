@@ -1,17 +1,17 @@
 # SPEC-0310: single Map owner 条件 break 运输
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收 single Map 条件 break 时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收 single Map 条件 break 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0310` |
 | 所属 Phase | Phase 3 事实消费、Phase 4 single SSA/native |
 | 语言规范 | [Guide10](../../guide/10-ownership-borrowing-drop.md)、[Guide12](../../guide/12-collections-destructuring.md) |
 | 批准依据 | 2026-10-13 用户“合并后继续推进”；PR88 合并后从 actual main 激活 |
 | 前置 Spec | [SPEC-0300](../../archive/specs/0300-single-map-loop-owner-carry.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 本地普通路径、静态验收与独立终审已完成；PR 双宿主 CI 与发布尚待完成 |
+| 阻塞项 | 有界实现已验收；归档 head CI、合并与 actual-main CI 尚待后续交付 |
 | 影响范围 | single 外部具名非 Resource Map 的有界 for break；unit 独立对照 |
 | 语言语义变更 | 否 |
 
@@ -95,3 +95,45 @@ Header 自回边按路径携带当前 owner，构成有界归纳，不修改 Res
 
 未执行本地故障注入、校准、sanitizer、bad IR、mock/stub aggregate、计数插桩、full discover
 或全量 frontend/workspace 测试。远端 CI、发布、归档、合并仍待授权流程完成。
+
+
+## 5. PR89 双宿主实现验收与有界归档
+
+§1–4 保留原冻结合同、本地账本与当时待验收状态，包括 7 绿/6 红基线、unit 四格澄清、
+编译/证明失败及 provider 零命中纠正；它们不是本次重跑。本节追加实际远端完成证据。
+2026-10-13，[PR89](https://github.com/Halckon/Koven/pull/89) 的
+[run38407747517](https://github.com/Halckon/Koven/actions/runs/38407747517) attempt 1
+以 pull_request 事件完成 success，`reuse=false`，不把证据复用视为物理执行。
+
+| 输入 | 精确身份 |
+|---|---|
+| 实现 remote head | `61c50ec118913b506297ecaa26727b17dd46b6e9` |
+| 实际 base | `162e8e5dd75436b80571b5a30637923d2a0cc24a` |
+| 实现 tree | `a746603b41461abf4a195e2e3f89d326db9bb8dd` |
+| synthetic merge | `030ddf7945c2ef2ead223013be6c37021fb39ba3`，有序 parents 为 base、head，tree 同实现 head |
+| 本地对应终点 | `48ebc65849affc786be93c1644c8ffe489b731da`；六个 remote commits 的真实 parent 链及各 tree 映射均核验 |
+
+本次 15 个实体 job 物理成功；唯一 Tree-sitter job 因 `editors=false` 合法跳过，不计执行。
+精确 head 的 Actions checks 与 attempt-1 jobs 逐 ID/名称/结论匹配，
+[CI Passed](https://github.com/Halckon/Koven/actions/runs/38407747517/job/115339558851) 与
+[Code CI Evidence](https://github.com/Halckon/Koven/actions/runs/38407747517/job/115339558667)
+均独立成功。未用其他 run 的同 head check 或笼统 workflow 状态替代逐项核验。
+
+- [Linux Targeted](https://github.com/Halckon/Koven/actions/runs/38407747517/job/115333124959)：完整 codegen 1471 passed、0 failed、0 ignored。
+- [macOS Targeted](https://github.com/Halckon/Koven/actions/runs/38407747517/job/115333124632)：完整 codegen 1470 passed、0 failed、1 原有 LLDB ignored；原因是 debugserver task-port 权限，未扩大 ignore。
+- 每宿主 13 个新增测试逐名 `ok`：8 个真实源码 SSA/边界项及 5 个普通 native 项。
+  unit basic/constant 的 live 成功原已存在，dead 两入口仍以 UnsupportedNode 拒绝；绿色负例
+  不表示该组合实现。single 的 live/dead、当前 owner 与退出清理依旧按 §2 的有界合同。
+- fmt、docs、尺寸、直接依赖与双宿主 check/clippy/test 均成功；OS 条件不执行的 steps
+  仍是合法跳过，不外推为该宿主动态检测通过。普通 stdout 不证明动态精确 free 次数。
+- Linux preview artifact `11820631930`、macOS artifact `11821160404`：两宿主 producer
+  上传、GitHub artifact API 与 consumer 下载的 ID/digest 一致，独立安装均通过。
+  [Linux consumer](https://github.com/Halckon/Koven/actions/runs/38407747517/job/115338389210) / [macOS consumer](https://github.com/Halckon/Koven/actions/runs/38407747517/job/115339110552)
+  消费上述精确实现 head 的产物；未声称另行下载归档独立复算 digest。
+
+最终实现收据 SHA256 为 `5859b1709fdef5af6b083cc5cf62412ec8971d75922a2aab8e764a8fa8b89552`；
+raw logs、job/check/artifact JSON 与恢复材料留仓外，只在本页保留短账本和稳定链接。
+本次归档续在真实 remote head 后，仅迁移 Spec、更新生命周期/索引/库存/生成 DAG 与机械链接。
+生产、测试、fixture、Guide、脚本原字节保持；云上没有 Cargo、聚合 driver 或动态验收运行。
+§2 的所有未覆盖组合与 unit dead 边界保留，不因 done 状态扩大支持。
+归档 head CI、PR 合并与随后 actual-main CI 尚待后续核验，不能由实现验收提前声称完成。
