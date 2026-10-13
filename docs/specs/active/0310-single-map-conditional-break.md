@@ -11,7 +11,7 @@
 | 批准依据 | 2026-10-13 用户“合并后继续推进”；PR88 合并后从 actual main 激活 |
 | 前置 Spec | [SPEC-0300](../../archive/specs/0300-single-map-loop-owner-carry.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 本地普通路径与静态验收已完成；独立终审、PR 双宿主 CI 与发布尚待完成 |
+| 阻塞项 | 本地普通路径、静态验收与独立终审已完成；PR 双宿主 CI 与发布尚待完成 |
 | 影响范围 | single 外部具名非 Resource Map 的有界 for break；unit 独立对照 |
 | 语言语义变更 | 否 |
 
@@ -74,7 +74,7 @@ unit 独立对照实测：live 在 basic/constant 已成功，dead 两入口仍�
 | nullable cleanup 普通 native | `native::unit_tests::owned_null_cleanup_tests`、`temporary_null_cleanup_tests` | 11/8 通过；无计数或插桩运行 |
 | provider/snapshot 边界 | `native_tests::sequential_for_tests::<test>` 顶层 11 项逐 exact；两个 source snapshot/closure exact | 11 项逐名各 1 通过；snapshot/closure 各 1 通过 |
 | 静态检查 | fmt；`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`；docs、尺寸、diff | 全通过；663 Markdown；1070 手写 Rust 文件、38 历史超限，无新增增长豁免 |
-| 独立审阅/双宿主 CI | 最终精确提交 | 审阅进行中；PR/远端与 macOS 本地未运行 |
+| 独立审阅/双宿主 CI | 候选 `1d41d60ee141d13d37ebe400ca98222d8f66d178`；生产同 `a5ed1a72` | 独立静态终审无阻断；核 facts/carrier、结构 oracle、四格基线及账本；审阅者未运行测试。PR/远端与 macOS 本地未运行 |
 
 命令前缀为 `cargo test --locked --offline -p lang-codegen --lib`，上述模块名为实际过滤器；
 provider 只逐项 `--exact` 执行顶层普通测试，不运行注入子模块或聚合 driver。
