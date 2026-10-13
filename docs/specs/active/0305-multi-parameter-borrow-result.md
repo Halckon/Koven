@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0288](../../archive/specs/0288-map-native-execution.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | 无新 ABI 或长期架构决定 |
-| 阻塞项 | 独立审查与远端交付待完成 |
+| 阻塞项 | 外部发布授权、双宿主CI与远端交付待完成 |
 | 影响范围 | lang-codegen single/unit lowering、verifier、正常源码/native测试及实现快照 |
 | 语言语义变更 | 否 |
 
@@ -66,6 +66,7 @@ receiver/Inout来源、混合Value参数、block返回、caller CFG/loop运输�
 | native真实输出与deinit | 同一filter中的两个native矩阵 | 16组×single/unit原版native通过，stdout精确、stderr空、exit0 |
 | 原单参数与拒绝边界 | 最终34项精确普通source回归；包含同filter10项 | 全通过；wrapper -n边界先记录真实失败再修复，!!/短range/具体callable保留拒绝 |
 | Rust与文档静态检查 | fmt、lang-codegen严格clippy、docs/尺寸policy/diff | fmt、严格clippy通过；docs657与尺寸guard/diff通过 |
+| 独立审查及复验 | 代码/来源/清理审查；精确filter10项及5项普通共享消费者 | 无未解决阻断；15项实际通过，见下方输入身份 |
 | 双宿主CI、归档与合并 | 精确PR head/merge/main | 未发布、未运行 |
 
 基线准备在相同Rust生产树上实际运行：boundary 2项通过（证明尚未支持）、frontend相关
@@ -92,5 +93,17 @@ Packet固定marker观察；Resource字段借用返回仍独立真实验收。没
 源码、target、工具链及原始日志在仓库外保留；没有修改IR/allocator或执行任何故障负载。
 fmt、Rust尺寸guard（actual-main为base）与diff通过；single orchestrate为998行，旧大文件
 verify_ownership从1827降至1823行，没有新增尺寸例外。lang-codegen all-targets严格clippy通过；
-完整frontend/workspace/codegen、macOS、远端CI均未运行。当前仍in-progress，等待独立审查
-和发布；不把本地范围扩大为完整M2B。
+完整frontend/workspace/codegen、macOS、远端CI均未运行。当前仍in-progress，等待授权发布、
+实际CI与交付；首次CI前不标done，不把本地范围扩大为完整M2B。
+
+## 8. 独立审查与冻结输入
+
+最终实现测试提交为`d2a3bcf2e1e98df6ae0f8c76edf94ada06f1ee03`，tree为
+`17fbd9662407836b9202e111eb258aa3be2f04d3`。独立审查核对具名mapping、真实Loan/source、
+unit逐实参清理、同owner/既有loan复用与wrapper CFG，未留阻断项。该精确提交实际复跑
+新filter10项及5项正常消费者：临时range call、命名range call后续实参return、原版LLVM
+range drop算法native、single/unit Map泛型native，全部通过。无计数helper或故障负载。
+
+后续本地末提交只更新本Spec验收账本，Rust/fixture/工具链输入与上述测试提交相同。
+恢复包保留完整Git bundle、源码、补丁、提交原文、输入散列及作者/独立复验日志；不含target。
+Cargo target已释放；未执行GitHub推送、PR或任何远端状态写入。
