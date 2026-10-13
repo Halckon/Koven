@@ -136,3 +136,41 @@ fn owned_source_continue_native_fresh_inner_dynamic_instances() {
         b"first\nbody\ntail\nlive\nsecond\nbody\ntail\nlive\nthird\nbody\ntail\nfourth\nbody\ntail\n",
     );
 }
+
+#[test]
+fn owned_source_continue_native_original_map_fixture() {
+    assert_success(
+        &emit_link_and_run("providers-cleanup.ko", include_str!("../../tests/fixtures/map-conditional-continue-0311/providers-cleanup.ko"), "main"),
+        b"tail\ntail\nnamedArray\nsource kept\ntail\ntail\ntemporaryArray\ntail\ntail\nnamedList\nsource kept\ntail\ntail\ntemporaryList\ntail\ntail\nnamedMutableList\nsource kept\ntail\ntail\ntemporaryMutableList\n",
+    );
+}
+
+#[test]
+fn owned_source_continue_native_map_and_source_liveness() {
+    for map_live in [false, true] {
+        for source_live in [false, true] {
+            let text = format!(
+                "fun main(): Unit {{ val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) {{ first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) {{ continue }}; println(\"tail\") }}; {}; {} }}",
+                if map_live {
+                    "if (first.contains(3) && second.contains(3)) { println(\"maps\") }"
+                } else {
+                    ""
+                },
+                if source_live {
+                    "if (keys.size == 3) { println(\"source\") }"
+                } else {
+                    ""
+                },
+            );
+            let expected = format!(
+                "tail\ntail\n{}{}",
+                if map_live { "maps\n" } else { "" },
+                if source_live { "source\n" } else { "" }
+            );
+            assert_success(
+                &emit_link_and_run("map-source-liveness.ko", &text, "main"),
+                expected.as_bytes(),
+            );
+        }
+    }
+}

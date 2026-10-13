@@ -422,7 +422,7 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
 fn owned_source_continue_declaration_identity_and_groups() {
     for text in [
         "fun main(): Unit { var keys = ((arrayOf(1, 2))); for (key in keys) { if (key == 2) { continue } }; keys.size }",
-        "fun main(): Unit { val keys = arrayOf(9); keys.size; { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
+        "fun first(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size }\nfun main(): Unit { val keys = listOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size; first() }",
     ] {
         let analysis = analyze(text);
         assert!(analysis.parsed.diagnostics().is_empty());
