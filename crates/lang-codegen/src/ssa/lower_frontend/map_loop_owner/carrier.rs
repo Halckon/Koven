@@ -278,7 +278,9 @@ impl ExpressionLowerer<'_> {
         value: ValueId,
     ) -> Result<(), LoweringError> {
         if fact.condition().is_none()
-            || super::super::constant_presence::constant_drop(self.typed, self.owned, fact)
+            || super::super::constant_presence::constant_drop(
+                self.names, self.typed, self.owned, fact,
+            )
         {
             return Ok(());
         }

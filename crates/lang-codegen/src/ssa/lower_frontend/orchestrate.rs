@@ -189,7 +189,7 @@ fn lower_scalar_file_product(
     {
         return Err(error(LoweringErrorKind::UnsupportedNode, origin));
     }
-    super::map_loop_owner::validate_drops(typed, owned)?;
+    super::map_loop_owner::validate_drops(names, typed, owned)?;
     let file_anchor = sources
         .span(parsed.source_id(), 0, 0)
         .map_err(|_| LoweringError {

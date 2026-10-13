@@ -36,7 +36,7 @@ impl ExpressionLowerer<'_> {
             }
             // Conditional cleanup needs its saved choice transported with the owner.
             if fact.condition().is_some()
-                && !super::map_loop_owner::supported_drop(self.typed, self.owned, fact)
+                && !super::map_loop_owner::supported_drop(self.names, self.typed, self.owned, fact)
             {
                 return Err(error(
                     LoweringErrorKind::UnsupportedNode,
@@ -50,7 +50,7 @@ impl ExpressionLowerer<'_> {
                         && !self.bindings.contains_key(&symbol)
                         && (fact.condition().is_none()
                             || super::constant_presence::constant_drop(
-                                self.typed, self.owned, fact,
+                                self.names, self.typed, self.owned, fact,
                             ))
                     {
                         continue;

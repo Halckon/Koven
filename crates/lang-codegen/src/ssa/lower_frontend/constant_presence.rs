@@ -1,4 +1,6 @@
 //! Bounded presence proof from published incoming edges and a unique real entry owner.
+mod source;
+
 use lang_frontend::ownership_checking::{
     CleanupCondition, CleanupConditionId, CleanupConditions, CleanupOwnerValue, DropFact,
     DropTarget, IterationPhiBoundary, IterationPhiIncomingKind, IterationPhiPresenceSource,
@@ -54,6 +56,7 @@ fn implies(
 }
 
 pub(super) fn constant_drop(
+    names: &lang_frontend::name_resolution::NameResolution,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
     fact: DropFact,
@@ -88,6 +91,7 @@ pub(super) fn constant_drop(
         return false;
     }
     prove_graph(owned, owner, symbol, fact.condition())
+        || source::prove(names, typed, owned, fact).is_some()
 }
 
 pub(super) fn prove_graph(

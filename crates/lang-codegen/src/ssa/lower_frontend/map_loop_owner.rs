@@ -17,13 +17,14 @@ use lang_frontend::{
 pub(super) use carrier::Carriers;
 
 pub(super) fn validate_drops(
+    names: &lang_frontend::name_resolution::NameResolution,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
 ) -> Result<(), super::LoweringError> {
     if let Some(fact) = owned
         .drops()
         .iter()
-        .find(|fact| fact.condition().is_some() && !supported_drop(typed, owned, **fact))
+        .find(|fact| fact.condition().is_some() && !supported_drop(names, typed, owned, **fact))
     {
         return Err(super::error(
             super::LoweringErrorKind::UnsupportedNode,
@@ -47,11 +48,12 @@ struct OwnerPlan {
 }
 
 pub(super) fn supported_drop(
+    names: &lang_frontend::name_resolution::NameResolution,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
     fact: DropFact,
 ) -> bool {
-    super::constant_presence::constant_drop(typed, owned, fact)
+    super::constant_presence::constant_drop(names, typed, owned, fact)
         || owner_plan(typed, owned, fact).is_some()
 }
 
