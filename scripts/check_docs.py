@@ -90,7 +90,9 @@ def read_spec_inventory(root: Path) -> tuple[frozenset[str], frozenset[str]]:
     except UnicodeError as error:
         raise ValueError("必须使用有效 UTF-8 编码") from error
 
-    lines = text.splitlines()
+    # Split only actual line endings; splitlines() would turn invalid JSON
+    # whitespace such as vertical tab or U+2028 into an accepted newline.
+    lines = text.split("\n")
     fences = [(index, line) for index, line in enumerate(lines)
               if line.lstrip().startswith(("```", "~~~"))]
     if len(fences) != 2 or [line for _, line in fences] != ["```json", "```"]:
@@ -285,7 +287,8 @@ class DocsChecker:
         # Reject an invalid declaration before generic Markdown reads can follow
         # its symlink, decode bad bytes, or block on a non-regular file.
         self.files = [path for path in markdown_files(self.root)
-                      if self.inventory_error is None or path != self.root / SPEC_INVENTORY_PATH]
+                      if self.inventory_error is None
+                      or not path.is_relative_to(self.root / SPEC_INVENTORY_PATH)]
         self.links: dict[Path, list[MarkdownLink]] = {path: iter_links(path) for path in self.files}
         self.graph: dict[Path, set[Path]] = defaultdict(set)
         self._anchors: dict[Path, set[str]] = {}

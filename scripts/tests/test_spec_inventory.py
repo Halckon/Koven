@@ -96,6 +96,13 @@ class SpecInventoryTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     check_docs.read_spec_inventory(self.root)
 
+    def test_non_json_whitespace_is_not_normalized_into_valid_json(self):
+        for whitespace in ('\v', '\f', '\x85', '\u2028', '\u2029', '\x1c'):
+            with self.subTest(whitespace=repr(whitespace)):
+                self.write_inventory('{"active": [],' + whitespace + '"archived": []}')
+                with self.assertRaises(ValueError):
+                    check_docs.read_spec_inventory(self.root)
+
     def test_missing_file_does_not_fall_back_to_directory_contents(self):
         self.inventory.unlink()
         errors = self.lifecycle_errors()
@@ -144,6 +151,12 @@ class SpecInventoryTests(unittest.TestCase):
         self.inventory.mkdir()
         self.assertEqual(1, len(check_docs.DocsChecker(self.root).run()))
 
+    def test_invalid_inventory_directory_contents_are_not_read_as_markdown(self):
+        self.inventory.unlink()
+        self.inventory.mkdir()
+        (self.inventory / 'invalid.md').write_bytes(b'\xff')
+        self.assertEqual(1, len(check_docs.DocsChecker(self.root).run()))
+
     @unittest.skipIf(os.geteuid() == 0, 'root bypasses unreadable-file permission fixture')
     def test_unreadable_inventory_is_a_structural_error(self):
         self.inventory.chmod(0)
@@ -163,6 +176,17 @@ class SpecInventoryTests(unittest.TestCase):
                                 text=True, capture_output=True, timeout=5)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn('docs/specs/inventory.md', result.stdout)
+
+    def test_fifo_inside_invalid_inventory_directory_is_never_opened(self):
+        self.inventory.unlink()
+        self.inventory.mkdir()
+        os.mkfifo(self.inventory / 'nested.md')
+        program = ('import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); '
+                   'from check_docs import DocsChecker; '
+                   'assert len(DocsChecker(Path(sys.argv[2])).run()) == 1')
+        result = subprocess.run([sys.executable, '-c', program, str(SCRIPTS), str(self.root)],
+                                text=True, capture_output=True, timeout=5)
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_archive_transition_requires_document_and_inventory_updates(self):
         source = self.root / 'docs/specs/active/4001-example.md'
