@@ -245,3 +245,6 @@ fn single_map_continue_own_seed_and_same_type_owners() {
 fn single_map_continue_named_and_temporary_providers() {
     assert_source_lowers(PROVIDERS);
 }
+
+#[path = "lower_frontend_map_continue_source_tests.rs"]
+mod source_presence;
