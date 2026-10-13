@@ -1,0 +1,5 @@
+fun overwrite(inout other: String): Int { other = "changed".clone(); return 0 }
+fun choose(other: Int, source: String): borrow String from source = source
+fun view(inout other: String, source: String): borrow String from source = choose(overwrite(&other), source)
+fun consume(own source: String) { println(source) }
+fun entry() { var other = "other".clone(); val source = "kept".clone(); borrow val item = view(&other, source); consume(other); println(item); consume(source) }

@@ -1,0 +1,6 @@
+value class Pair(val left: Int, val right: Int)
+fun <T> view(own other: T, source: String): borrow String from source = source
+fun <T> discard(own other: T) {}
+fun check(pair: Pair) { if (pair.left == 13) { println("left-kept") } else { error("left changed") }; if (pair.right == 29) { println("right-kept") } else { error("right changed") } }
+fun consume(own source: String) { println(source) }
+fun entry() { val source = "source-payload".clone(); val pair = Pair(13, 29); borrow val item = view(pair, source); check(pair); println(item); discard(pair); check(pair); consume(source) }

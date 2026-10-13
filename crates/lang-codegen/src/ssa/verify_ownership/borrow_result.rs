@@ -214,8 +214,8 @@ mod tests {
             .add_block(parameters.clone(), origin.clone())
             .unwrap();
         if !copyable && drop_parameters {
-            for parameter in function.blocks[0].parameters[..2].to_vec() {
-                let EntityId::Value(owner) = parameter else {
+            for index in 0..2 {
+                let EntityId::Value(owner) = function.blocks[0].parameters[index] else {
                     unreachable!()
                 };
                 function

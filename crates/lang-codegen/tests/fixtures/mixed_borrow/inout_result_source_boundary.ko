@@ -1,0 +1,2 @@
+fun view(own other: Int, inout source: String): borrow String from source = source
+fun entry() {  }

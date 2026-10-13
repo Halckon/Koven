@@ -1,0 +1,2 @@
+fun view(own other: String, source: String): borrow String from source = source
+fun entry() { val source = "kept"; borrow val item = view(source, source); println(item) }
