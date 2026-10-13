@@ -1,17 +1,17 @@
 # SPEC-0309: 普通 Borrow value-class 参数的直接字段读取
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收普通 Borrow inline 参数字段时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收普通 Borrow inline 参数字段时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P3-0309` |
 | 所属 Phase | Phase 3 lowering，Phase 4 native 验收 |
 | 语言规范 | [Guide08](../../guide/08-class-family-members.md)、[Guide10](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 2026-10-13 用户“继续实施”；普通 Borrow value-class 字段的有界实现缺口 |
 | 前置 Spec | [SPEC-0264](../../archive/specs/0264-unit-direct-field-borrow.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md) |
-| 阻塞项 | 本地红绿验收、独立审查、双宿主 PR CI 与发布待验收 |
+| 阻塞项 | 有界实现已验收；归档 head CI、PR 合并与 actual-main CI 仍待后续交付 |
 | 影响范围 | unit lowering 与普通 source/codegen 回归 |
 | 语言语义变更 | 否 |
 
@@ -57,7 +57,9 @@ SSA 检查真实未改写产物与 verifier；native 只经原版 LLVM/object/li
 stderr 与退出状态。stdout 不宣称动态精确 free 次数。普通源码外的故障注入、校准、
 sanitizer、bad IR、aggregate（含 mock/stub 驱动）及 full discover 留 CI，不在云上运行。
 
-## 5. 唯一验收账本
+## 5. 本地验收账本
+
+本节保留本地阶段的冻结输入与当时未运行项；后续实际双宿主 CI 见 §8，不追改旧结果。
 
 合同提交 `89462713`；首轮 tests-only `2bd1cd09`；边界与既有能力对照追加 tests-only
 `4ff912c8`。三份提交均先于生产实现提交。首轮真实红为 5/8 通过、3/8 失败；
@@ -101,3 +103,43 @@ Linux x86_64、Rust 1.96.0、LLVM 21.1.8；macOS 与远端 CI 未运行。native
 这些均为未提交生产草稿的正常源码检查，不曾手造、改写或执行坏 IR；完整失败日志保留。
 另外两次测试端编译错误（Program 的 Debug 要求、测试操作名拼写）及一次控制 fixture 的
 缺少 else 解析错误已修正并保留日志；不把它们冒作语义红。
+
+## 8. 新 base 双宿主验收与有界归档
+
+2026-10-13 按 [PR88](https://github.com/Halckon/Koven/pull/88) 的新 base
+[物理 CI run 38397786167](https://github.com/Halckon/Koven/actions/runs/38397786167)
+attempt 1 完成有界验收。归档基于真实远端整合 head，保留正常 merge 的双父历史：
+
+| 输入 | 精确身份 |
+|---|---|
+| 实现 head | `9dff975bbca18aa704691d60ef5acd6de814dde1` |
+| 实际 base | `cf7f8ede857f50041d5d91b3175a039555571171` |
+| 实现 tree | `a2bd123774023dbff990d4c5d164b32a94eb284a` |
+| head 有序 parents | `8a5229a79b4f85a532dcaf8636de02da66b3b06b`、`cf7f8ede857f50041d5d91b3175a039555571171` |
+| PR synthetic merge | `49335e86a250ab469697ee6641a8477cc23ec586`，parents 为 base、head |
+
+本次 `reuse=false`，15 个 job 物理成功；另一个 Tree-sitter job 按 `editors=false`
+路径条件跳过，不说成执行通过。精准 head 的 16 个 Actions check 与 attempt-1 jobs
+逐 ID、名称、状态与结论对应；排除同 head 其他 run 的 checks，不以总汇状态替代逐项验收。
+
+- Linux codegen lib：1457 passed、0 failed、0 ignored、0 filtered。
+- macOS codegen lib：1456 passed、0 failed、1 ignored、0 filtered；仅原有 LLDB 权限限制，未扩大 ignore。
+- 新增 11 项测试在两宿主日志均逐名 `ok`；single 5、unit 7 个 native 子例由固定源码列表、
+  无跳过 harness 与矩阵测试成功共同证明，不冒称日志逐子例打印。
+- fmt、docs、尺寸、直接依赖、双宿主 check/clippy/test、preview 构建与安装及最终汇总通过。
+  Linux-only sanitizer 的 macOS step 与平台安装分支按 OS 条件不执行；不把这些算作 macOS 测试通过。
+- preview Linux artifact `11814092381`、macOS artifact `11813168653` 的生产上传、GitHub
+  artifact API 与消费下载 digest 一致，消费 ID 与安装成功已核；未声称独立下载归档复算 digest。
+  未读取 branch-protection/required-check 配置，精确 Actions 验收不冒充该权限检查。
+
+旧 base 的 [run 38393580664](https://github.com/Halckon/Koven/actions/runs/38393580664)
+attempt 1 也已成功，但其 head `8a5229a7`、base `046ee221`、tree `420dfb44` 只作为历史，
+不替代本次新输入。整合引入的 SPEC-0308 三个测试文件保持 actual-main 原字节；0309
+生产与测试保持先前实施字节，两批 `crates` 改动路径无交集。归档只迁移本 Spec 并同步导航、
+库存、生成 DAG 和链接，不改代码、Guide、脚本或 fixture，不在云上重跑 Cargo/aggregate。
+
+最终新 base 回执 SHA-256 为
+`8fbcdaeb5fc0a94bd7d60f6809e051c4a4a75822a1a0d0f0e29a61853771ca35`；原始 logs、
+check/artifact JSON 与恢复材料保存在仓库外交付包，仓库仅保留本节短账本与稳定 CI 链接。
+本归档只关闭 §1–4 的有界实现；§3、§6、§7 的边界与真实失败保留。
+归档 head 的 CI、PR 合并与随后 actual-main CI 尚待独立验收，不因 done 状态提前宣称成功。
