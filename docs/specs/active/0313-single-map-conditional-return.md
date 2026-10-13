@@ -11,7 +11,7 @@
 | 批准依据 | 2026-10-13 用户持续里程碑实施，并要求审核/CI 等待时推进独立工作 |
 | 前置 Spec | [SPEC-0311](../../archive/specs/0311-single-map-conditional-continue.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 本地定向验收完成；PR CI/归档合并、0312真实main整合与回归待完成 |
+| 阻塞项 | 0312真实main整合及本地回归完成；新base PR CI、归档与合并待完成 |
 | 影响范围 | single 外部具名非 Resource Map 的一个条件 return；temporary/Borrow Sequential source |
 | 语言语义变更 | 否 |
 
@@ -20,7 +20,8 @@
 从真实 main `8e0ce49daea9c17960669aea6d467342508021f6`（tree
 `68e6fc8b44930c709a9dac5faf5da6b09790c25a`）建立 `feature/spec-0313`。
 本地库存/refs、远端 branch search 与 main 库存均未占用 0313。
-0312 尚未合入此基线，不复制其 source proof；等真实合入后正常 merge 与定向回归。
+原冻结基线不含0312。随后从真实remote head `21df0056` 正常merge actual-main
+`51f300906e9f95d6937996fadf7de496f83bc1e0`，形成双父 `91fcfa90`；不复制或改写父链。
 本片不修改 Guide、frontend facts、SSA model/verifier、LLVM、unit 生产代码。
 
 一个条件 Return、真实互补 Fallthrough、唯一 Exhaustion。Return 是完整终止出口，
@@ -53,7 +54,11 @@ RangeView 或一般 Resource/presence/ABI。
 | fmt/clippy | `cargo fmt --all -- --check`；`cargo clippy --offline --locked -p lang-codegen --all-targets -- -D warnings` | 同`9ea74f21`通过；只编译所需targets，不执行全量/故障测试 |
 | docs/diff/尺寸 | `python3 scripts/check_docs.py`、`git diff --check`、`python3 scripts/check_rust_sizes.py --base 8e0ce49d` | docs665页通过；尺寸通过，38项旧债保留；最终账本变更再核 |
 | 独立审阅 | 非作者只读审阅`9ea74f21`生产diff、81项日志与完整oracle | 无阻断发现；driver2行增长获审阅，最终账本/调用方日志另复核 |
-| PR双宿主CI、归档合并/actual-main | 远端唯一publisher交付 | 未运行；本地未push/PR/merge |
+| 原基线PR CI | [PR92 run38436577573/a1](https://github.com/Halckon/Koven/actions/runs/38436577573)，head `21df0056`、base `8e0ce49d` | success；恢复后重读远端metadata核实，不作为0312组合证据 |
+| 0312真实main整合/直接测试 | `3b1abe0cf34f85c34622fa15faa5b2d8b27581ea`（生产同merge `91fcfa90`）；`loop_owner_tests::` / `owned_source_continue_` / `map_key_return` / `map_put_control_exit` | 81/32/42/20全过；Continue seed/Group/nested边界保持，owned-source Return local/own×live/dead×有无Map八格仍精确keys拒绝 |
+| 新base共享调用方 | 同输入，`ssa::lower_frontend_tests::{map_result_tests,resource_deinit_tests}`，`native::unit_tests::{map_loop_owner_tests,owned_null_cleanup_tests,temporary_null_cleanup_tests}`；普通provider11/source3/capture2逐exact | 91/15、28/11/8及16个单项全过；与上行有重叠，共344次执行、完整名称去重230项，0 ignored；未执行含计数的source聚合模块 |
+| 新baseCLI/静态门禁 | 同输入；`cargo build --offline --locked -p lang-cli --bin kovenc`后fresh-inner原fixture文件/project两入口；fmt、codegen all-targets clippy -D warnings、docs/diff/尺寸base `51f30090` | 两入口exit0、stdout精确、stderr空；所有门禁通过，docs666页、38项历史尺寸债。运行前后全部源码SHA相同 |
+| 新basePR CI/归档合并 | 远端唯一publisher交付 | 待运行；旧base CI不跨base复用，作者未远端写 |
 
 首轮过滤器 `conditional_return` 额外命中一个现有普通unit native源码测试（成功，未插桩）；
 随后以上完整模块路径重跑隔离6格。原始日志/源码恢复材料在仓库外保留，不以stdout代替
@@ -74,3 +79,7 @@ UnsupportedNode，改为已支持的消费式解构读取返回payload；不修�
 本地宿主Linux x86_64；Rust/Cargo1.96.0、LLVM/Clang21.1.8，baseline/current使用两个绝对独立
 target串行运行。workspace全量、sanitizer、故障注入、计数插桩和其他未选目标均未运行。
 SSA/model/verifier接口无变更，因此不额外运行workspace check；跨平台交付依赖后续真实PR CI。
+
+整合恢复时旧本地原始日志包未在当前环境出现；历史结论保留其原提交/CI来源，不伪称已恢复。
+本次真实对象经官方git fetch恢复；首次offline检查在编译前因inkwell缓存缺失失败，保留日志，
+随后cargo fetch --locked补齐锁定依赖，全部测试仍offline执行。新日志与前后source hash在仓外冻结。
