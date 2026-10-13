@@ -1,17 +1,17 @@
 # SPEC-0308: 普通 own 泛型直接 String 消费者持久回归
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：验收普通 own 泛型 String 消费者回归时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：验收普通 own 泛型 String 消费者回归时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0308` |
 | 所属 Phase | Phase 4 测试覆盖 |
 | 语言规范 | [Guide10](../../guide/10-ownership-borrowing-drop.md)、[Guide13](../../guide/13-program-runtime-standard-library.md) |
 | 批准依据 | 2026-10-13 持续现行里程碑；独立补齐直接 String 的已有普通泛型消费者回归 |
 | 前置 Spec | [SPEC-0306](../../archive/specs/0306-mixed-value-borrow-result.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0018](../../adr/accepted/0018-string-owner-runtime-abi.md) |
-| 阻塞项 | 本片独立审查、远端双宿主 CI 与发布待验收 |
+| 阻塞项 | 实现 head 物理 PR CI 已验收；归档 head CI、merge 与 actual-main CI 待验收 |
 | 影响范围 | 既有普通 source fixture、SSA 断言与 native stdout oracle；生产代码零改 |
 | 语言语义变更 | 否；无新表示、ABI 或 verifier 行为 |
 
@@ -49,7 +49,7 @@
 | single native | `native_tests::borrow_result_tests::mixed_value_borrow_single_native_matrix` exact | 1/1 通过，1445 filtered；26 个普通源码子例 |
 | unit native | `native::unit_tests::borrow_result_tests::mixed_value_borrow_unit_native_matrix` exact | 1/1 通过，1445 filtered；26 个普通源码子例 |
 | 静态与文档 | fmt、codegen 严格 clippy、docs、diff、尺寸 | 全通过；docs 661；1065 个手写 Rust 文件、38 项旧尺寸债务无新增例外 |
-| 独立审查/双宿主 CI | 精确最终 head 与 PR 输入 | 待运行 |
+| 独立审查/双宿主 CI | 精确最终 head 与 PR 输入 | 实现 head 独立审查通过；PR87 物理 CI 成功，见 §7；归档 head 后续待验收 |
 
 本地运行范围本应仅为已审普通 source 路径；构造坏 IR、故障注入、校准、sanitizer、
 aggregate 与全部 scripts/tests discover 留 CI。实际发生一次越出该边界的 stub 选择检查，
@@ -108,3 +108,35 @@ source/SSA/native 与静态门禁结果仍分别按 §3–5 的实际执行登�
 TemporaryDirectory 清理，保存的原始 unittest 日志证明 exact 测试执行/通过，调用
 边界由该提交未改变的脚本源码核实。本次只修账本并做 docs/hash/Git 恢复核验，
 不重跑该检查或其他测试。
+
+## 7. 物理 PR CI 与有界归档
+
+[PR87](https://github.com/Halckon/Koven/pull/87) 的
+[run 38390525995 attempt 1](https://github.com/Halckon/Koven/actions/runs/38390525995)
+已为 success，`reuse=false`；独立验收于 2026-10-13 11:49:31 UTC 完成。
+
+- 真实 remote head 为 `628dc7c6bf6919995cca8054d6504eb0dfa0e79d`，tree
+  `3f624b21e55d53515668c3bdb391868ccf77ea34`；base 为 `046ee221`。
+  synthetic merge 为 `774891ceaa8508b1db9df2cf27fb2f49fb67c274`，有序双父为
+  actual base、remote head，tree 同上；四个远端提交已按真实 API 字节核 SHA 恢复。
+- 15 个 job 实际 success；Tree-sitter 因 `editors=false` 合法路径 skip，不计执行通过。
+  两宿主 check/clippy、Targeted Tests、word-frequency、generated contracts 与 preview
+  链均实际成功；Linux sanitizer 成功，macOS 对应 Linux-only 步骤合法跳过。
+- Ubuntu codegen 为 1446 passed / 0 failed / 0 ignored；macOS 为 1445 passed /
+  0 failed / 1 ignored。既有 LLDB 测试因 debugserver task-port 权限不可用而 ignored，
+  不计为 pass。两宿主各 103 个 frontend integration target 均观察到实际运行。
+- 两宿主的本片两项 SSA 与两个 native 矩阵均逐名通过；每矩阵 26 子例由精确 head
+  源码和循环证明，不伪称 job 日志逐子例打印 stdout。返回 String 的 expected bytes
+  与实际矩阵断言一致，仍不据此声称完整 allocation/free 计数证明。
+- 双平台 preview producer、API artifact digest、独立 consumer 下载/安装链一致并成功；
+  不另称已下载审计 ZIP 内字节。Docs 检查 661 份 Markdown、337 项 policy，最终
+  Code CI Evidence 与 CI Passed 成功。远端 CI 包含的故障/坏 IR/sanitizer 等测试不冒充本地执行。
+
+独立收据 SHA256 为 `4221547e3158e6ee0dfde9fd1a13b7c066d2fed8d14571939fbf3d83b32644b6`；
+原始 API/log/receipt 留仓库外恢复材料，不复制到当前文档树。§6 本地 stub aggregate
+误执行及不计合规验收的事实完整保留；后续远端成功不追认该本地操作合规。
+
+据此仅将普通 own 泛型直接 String 持久回归有界归档，库存为 0 active / 292 archive。
+unit Borrow value-class 字段与 single 普通 method 继续独立后继；生产能力未扩张。
+本次归档只改普通文档，代码、测试及其他非文档输入逐字节不变；归档 head 的远端 CI
+或有效复用、最终 merge 与 actual-main CI 尚待验收，不由实现 head 的成功替代。
