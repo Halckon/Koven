@@ -37,7 +37,8 @@ created_loans调用帧，按每条依赖链子先父的偏序清理。独立链�
 
 源码测试覆盖single与真正跨文件unit，包括named反排的同类型Resource实参值/析构顺序、
 source与payload类型不同的实际字段loan、两层wrapper、同root多结果、ASAP最后使用、Resource
-词法析构、Borrow entry与已存在借用作来源/辅助参数。验证读取正常source产生的原样Program，
+词法析构、Borrow entry与已存在借用作来源/辅助参数；同root在不同outer生命周期中复用时，
+较早consumer清理不结束较晚consumer的loan或owner。验证读取正常source产生的原样Program，
 随后使用原版LLVM/object/link/run；实际命令和运行范围见[SPEC-0307](../specs/active/0307-synchronous-borrow-result-arguments.md)。
 
 ## 保持的边界

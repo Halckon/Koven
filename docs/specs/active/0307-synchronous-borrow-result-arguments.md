@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0306](../../archive/specs/0306-mixed-value-borrow-result.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | 无新结果 ABI 或语言决定 |
-| 阻塞项 | 无语义阻塞；实现及验收进行中 |
+| 阻塞项 | 本地有界验收通过；新综合静态review由协调方核验，外部发布暂缓 |
 | 影响范围 | lang-frontend single/unit ownership facts、lang-codegen lowering、正常source/SSA/native测试 |
 | 语言语义变更 | 否 |
 
@@ -69,14 +69,21 @@ lowering。稳定snapshot即送独立审查，不等最终收尾才review。小�
 | 验收项 | 目标/选择 | 实际结果 |
 |---|---|---|
 | actual-main/Spec冻结 | commit/tree/parents、库存、docs/diff | 精确对象恢复与编号核验通过；docs659通过，Spec冻结125a9671 |
-| 正常source红测 | 准备45组×single/真正跨文件unit在actual-main重跑；新正常测试 | actualmain45组×两入口90次：16 native对照精确成功、74 ownership拒绝；新增frontend4项及SSA/native4项均按预期L0164/冲突缺失失败 |
+| 正常source红测 | 准备45组×single/真正跨文件unit在actual-main重跑；新正常测试 | actualmain45组×两入口90次：16 native对照精确成功、74 ownership拒绝；追加9组×两入口均L0164；新增frontend4项及SSA/native4项均按预期失败 |
 | frontend事实与拒绝 | `ownership_nested_borrow_arguments`与四个borrow回归suite | 首轮fixture误用println(Int)已修；第二轮10新增+31既有，共41/41通过；普通参数快速否定提前后新10项复验通过 |
-| SSA/Loan/来源/清理 | `nested_borrow_argument_{single,unit}_source_matrix` | 两入口38组正常source的真实SSA/原版LLVM通过，含真实field与Borrow entry身份 |
-| native行为 | `nested_borrow_argument_{single,unit}_native_matrix` | 38组×两入口76次原版native通过，完整stdout/空stderr精确核对 |
-| 共享消费者 | 既有0305/0306、普通Borrow调用、父绑定与cleanup相关正常source测试 | 未执行 |
-| 静态门禁 | fmt、frontend/codegen严格clippy、跨crate check、docs/尺寸/diff | 未执行 |
-| 独立审查 | 稳定snapshot、最终变化复查 | 早审已补named实参真实值、field payload、Borrow entry及不返回前缀边界；完整生产审查待执行 |
-| 远端双宿主/交付 | root统一publisher、精确head/merge CI | 未发布、未执行；merge另需具体批准 |
+| SSA/Loan/来源/清理 | `nested_borrow_argument_{single,unit}_source_matrix` | 两入口40组正常source的真实SSA/原版LLVM通过，含真实field、Borrow entry及不同outer生命周期身份 |
+| native行为 | `nested_borrow_argument_{single,unit}_native_matrix` | 40组×两入口80次原版native通过，完整stdout/空stderr精确核对 |
+| 共享消费者 | 既有0305/0306、普通Borrow调用、父绑定与cleanup相关正常source测试 | codegen精确44项通过（连新4项共48）；新增之外frontend既有31项加共享136项、跨文件30项普通source通过 |
+| 静态门禁 | fmt、frontend/codegen严格clippy、跨crate check、docs/尺寸/diff | 1377e744测试输入上全部通过；1065手写Rust、38旧超限，无新豁免；文档提交后复验docs/diff |
+| 独立审查 | 稳定snapshot、最终变化复查 | d532b926生产审查无已确认阻断并独立重跑10+4项（每矩阵38组）；1377e744纯测试增量静态复审通过，未冒充独立重跑40组 |
+| 远端双宿主/交付 | root统一publisher、精确head/merge CI | 未发布、未执行；待综合review核验后再发布，merge另需具体批准 |
+
+最终公开API探针以1377e744源码重新构建：54组×两入口108次，80次原版native精确成功、
+28次在ownership以预期单一L0135/L0131/L0163/L0164/L0162拒绝且无object；四个前置阶段无诊断。
+frontend普通source去重207项（新10、旧borrow31、共享136、跨文件30）；另一次误选的既有
+`ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs` API身份错配测试也已
+执行并通过，单独记录且不计入正常source验收；未进入SSA/LLVM，不扩大后续允许执行范围。
+原始失败（包括环境配置失败）、命令、二进制与输入身份在仓库外恢复材料中保留。
 
 验收必须覆盖来源首/中/末、内外named反排、同root多次借用、不同root、混合Borrow/Value辅助、
 内外层临时Resource、wrapper/泛型/字段/Group、已有borrow parent后续使用、outer后显式move，
