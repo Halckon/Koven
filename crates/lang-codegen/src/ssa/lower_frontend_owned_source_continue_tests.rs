@@ -1,4 +1,6 @@
 //! SPEC-0312: real ordinary source, no Map and no synthetic facts.
+#[path = "lower_frontend_owned_source_structure_tests.rs"]
+mod structure;
 use super::{analyze, lower_scalar_file};
 use lang_frontend::ownership_checking::{CleanupOwnerValue, IterationPhiBoundary};
 
@@ -31,6 +33,7 @@ fn check(live: bool, factory: &str) {
     }
     let program = result.unwrap_or_else(|error| panic!("{factory} live={live}: {error:?}"));
     crate::llvm::render_verified_program(&program).unwrap();
+    structure::check(&program, live);
 }
 
 #[test]
