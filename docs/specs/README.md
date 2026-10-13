@@ -9,8 +9,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 0 份；0311 已有界归档。
-- 0311 之后优先修复 owned sequential source 的 conditional-continue presence，先于 Map return；[0311 诊断与明确后继](../archive/specs/0311-single-map-conditional-continue.md#owned-named-source-的既有独立缺口与范围修订)保留无 Map 也拒绝的普通源码证据，尚未分配后继 Spec。
+- [Active 合同](active/README.md)：当前 1 份；0312 single owned source 条件 continue 证明。
+- [0312](active/0312-owned-source-conditional-continue.md) 已从独立 source 红测推进至 single 有界实现，并正常整合 PR90 actual main；[0311 原诊断](../archive/specs/0311-single-map-conditional-continue.md#owned-named-source-的既有独立缺口与范围修订)保持历史事实，Map return 等后继仍开放。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
 ### 近期交付
