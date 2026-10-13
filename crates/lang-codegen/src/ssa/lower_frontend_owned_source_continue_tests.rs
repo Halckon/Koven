@@ -481,7 +481,7 @@ fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
             "fun main(): Unit { val keys = arrayOf(9); keys.size; { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
         ),
         (
-            "second",
+            "",
             "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; println(\"tail\") } }",
         ),
         (
@@ -494,15 +494,23 @@ fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
         assert!(analysis.names.diagnostics().is_empty());
         assert!(analysis.typed.diagnostics().is_empty());
         assert!(analysis.owned.diagnostics().is_empty());
-        let error = lower_scalar_file(
+        let result = lower_scalar_file(
             &analysis.sources,
             &analysis.parsed,
             &analysis.names,
             &analysis.typed,
             &analysis.owned,
-        )
-        .err()
-        .expect("unrelated conditional owner remains a boundary");
+        );
+        if expected.is_empty() {
+            crate::llvm::render_verified_program(
+                &result.expect("dead Map without post-control use stays supported"),
+            )
+            .unwrap();
+            continue;
+        }
+        let error = result
+            .err()
+            .expect("unrelated conditional owner remains a boundary");
         assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
         assert_eq!(
             analysis.sources.slice(error.span.unwrap()).unwrap(),

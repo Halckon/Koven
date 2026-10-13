@@ -179,3 +179,19 @@ fn owned_source_continue_native_map_and_source_liveness() {
         }
     }
 }
+
+#[test]
+fn owned_source_continue_native_resource_source_old_unconditional_path() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println(this.name) } }
+fun main(): Unit {
+    val keys = arrayOf(Leaf("first"), Leaf("second"))
+    for (key in keys) { println("visit"); continue }
+    println("done")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("resource-source-old-path.ko", source, "main"),
+        b"visit\nvisit\nsecond\nfirst\ndone\n",
+    );
+}
