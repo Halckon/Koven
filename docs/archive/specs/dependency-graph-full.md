@@ -304,6 +304,9 @@ subgraph Garchive["已完成（archive，294 份）"]
   S0309["S0309<br/>普通 Borrow value-class 参数的直接字段读取"]
   S0310["S0310<br/>single Map owner 条件 break 运输"]
 end
+subgraph Gactive["现行 active"]
+  S0311["S0311<br/>single Map owner 条件 continue 运输"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
@@ -1334,6 +1337,7 @@ S0300 --> S0310
 S0305 --> S0306
 S0306 --> S0307
 S0306 --> S0308
+S0310 --> S0311
 ```
 
 ## 节点链接
@@ -1634,5 +1638,6 @@ S0306 --> S0308
 | SPEC-0308 | archive | [0308-generic-string-consumer-regression.md](0308-generic-string-consumer-regression.md) |
 | SPEC-0309 | archive | [0309-borrow-value-class-fields.md](0309-borrow-value-class-fields.md) |
 | SPEC-0310 | archive | [0310-single-map-conditional-break.md](0310-single-map-conditional-break.md) |
+| SPEC-0311 | active | [0311-single-map-conditional-continue.md](../../specs/active/0311-single-map-conditional-continue.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
