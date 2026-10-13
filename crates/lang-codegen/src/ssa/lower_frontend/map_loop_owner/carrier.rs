@@ -30,6 +30,8 @@ struct Carrier {
     exit_live_checked: bool,
     drops: Vec<(DropFact, BlockId, ValueId)>,
     break_exit: Option<(BlockId, ValueId)>,
+    return_current: Option<(BlockId, ValueId)>,
+    return_exit: Option<BlockId>,
     backedges: Vec<(IterationPhiIncomingKind, BlockId, ValueId)>,
     merged: Option<ValueId>,
     merge_checked: bool,
@@ -128,6 +130,8 @@ impl ExpressionLowerer<'_> {
                 exit_live_checked: false,
                 drops: Vec::new(),
                 break_exit: None,
+                return_current: None,
+                return_exit: None,
                 backedges: Vec::new(),
                 merged: None,
                 merge_checked: false,
@@ -196,7 +200,11 @@ impl ExpressionLowerer<'_> {
             // The SSA exhaustion parameter still denotes Header until the ordered cleanup ends.
             let binding = self.bindings.get(&carrier.plan.symbol).copied();
             let valid = if carrier.plan.exit_live {
-                binding == Some(LoweredValue::Value(carrier.exhaustion)) && carrier.drops.is_empty()
+                binding == Some(LoweredValue::Value(carrier.exhaustion))
+                    && carrier
+                        .drops
+                        .iter()
+                        .all(|(fact, _, _)| Some(*fact) == carrier.plan.return_drop)
             } else {
                 binding.is_none()
                     && carrier
@@ -320,6 +328,76 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
+    // Snapshot after the return operand has completed: it may itself update the Map.
+    pub(in super::super) fn prepare_map_loop_return(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for carrier in self
+            .map_loop_owners
+            .loops
+            .iter_mut()
+            .filter(|carrier| carrier.plan.return_expression == Some(expression))
+        {
+            let fail = || error(LoweringErrorKind::MissingFact, span);
+            let Some(LoweredValue::Value(current)) = self.bindings.get(&carrier.plan.symbol) else {
+                return Err(fail());
+            };
+            if carrier.return_current.is_some()
+                || carrier.return_exit.is_some()
+                || carrier.exit_live_checked
+                || carrier.merge_checked
+            {
+                return Err(fail());
+            }
+            carrier.return_current = Some((self.block, *current));
+        }
+        Ok(())
+    }
+
+    // Ordered cleanup can change the current block; record the actual Return terminator.
+    pub(in super::super) fn finish_map_loop_return(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for carrier in self
+            .map_loop_owners
+            .loops
+            .iter_mut()
+            .filter(|carrier| carrier.plan.return_expression == Some(expression))
+        {
+            let fail = || error(LoweringErrorKind::MissingFact, span);
+            let (_, _, value) = *unique(
+                carrier
+                    .drops
+                    .iter()
+                    .filter(|(fact, _, _)| Some(*fact) == carrier.plan.return_drop),
+            )
+            .ok_or_else(fail)?;
+            if carrier.return_exit.is_some()
+                || self.bindings.contains_key(&carrier.plan.symbol)
+                || !lineage(
+                    self.function,
+                    value,
+                    carrier.return_current.ok_or_else(fail)?,
+                )
+                || !matches!(
+                    self.function
+                        .block(self.block)
+                        .and_then(|block| block.terminator.as_ref())
+                        .map(|term| &term.kind),
+                    Some(TerminatorKind::Return { .. })
+                )
+            {
+                return Err(fail());
+            }
+            carrier.return_exit = Some(self.block);
+        }
+        Ok(())
+    }
+
     pub(in super::super) fn record_map_loop_drop(
         &mut self,
         fact: DropFact,
@@ -339,10 +417,18 @@ impl ExpressionLowerer<'_> {
             .find(|carrier| {
                 carrier.plan.header == plan.header
                     && carrier.plan.exit == plan.exit
-                    && (carrier.plan.drop == fact || carrier.plan.break_drop == Some(fact))
+                    && (carrier.plan.drop == fact
+                        || carrier.plan.break_drop == Some(fact)
+                        || carrier.plan.return_drop == Some(fact))
             })
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.value_origin()))?;
-        let valid_phase = if plan.exit_live {
+        let valid_phase = if Some(fact) == carrier.plan.return_drop {
+            !carrier.exit_live_checked
+                && carrier.return_exit.is_none()
+                && carrier
+                    .return_current
+                    .is_some_and(|(_, current)| forwarded(self.function, value, current))
+        } else if plan.exit_live {
             carrier.merge_checked && fact == carrier.plan.drop
         } else if Some(fact) == carrier.plan.break_drop {
             carrier.break_exit.is_none() && !carrier.exit_live_checked
@@ -368,7 +454,10 @@ impl ExpressionLowerer<'_> {
             let span = carrier.plan.drop.value_origin();
             let fail = || error(LoweringErrorKind::MissingFact, span);
             if !carrier.merge_checked
-                || carrier.drops.len() != 1 + usize::from(carrier.plan.break_drop.is_some())
+                || carrier.drops.len()
+                    != 1 + usize::from(carrier.plan.break_drop.is_some())
+                        + usize::from(carrier.plan.return_drop.is_some())
+                || carrier.return_exit.is_some() != carrier.plan.return_expression.is_some()
             {
                 return Err(fail());
             }
@@ -450,7 +539,25 @@ impl ExpressionLowerer<'_> {
                 return Err(fail());
             }
             for (fact, block, value) in &carrier.drops {
-                if carrier.plan.exit_live {
+                if Some(*fact) == carrier.plan.return_drop {
+                    let (prepared, current) = carrier.return_current.ok_or_else(fail)?;
+                    let terminal = carrier.return_exit.ok_or_else(fail)?;
+                    if !lineage(self.function, current, carrier.body)
+                        || !forwarded(self.function, *value, current)
+                        || !cleanup_reaches(self.function, prepared, *block)
+                        || !cleanup_reaches(self.function, *block, terminal)
+                        || !matches!(self.function.block(terminal).and_then(|block| block.terminator.as_ref()),
+                            Some(term) if term.origin == Origin::Source(self.expression_span(carrier.plan.return_expression.ok_or_else(fail)?)?)
+                                && matches!(&term.kind, TerminatorKind::Return { values } if !values.contains(value)))
+                        || self.function.instructions.iter().filter(|instruction| {
+                            instruction.block == *block
+                                && instruction.origin == Origin::Source(fact.value_origin())
+                                && matches!(instruction.operation, Operation::Drop { owner } if owner == *value)
+                        }).count() != 1
+                    {
+                        return Err(fail());
+                    }
+                } else if carrier.plan.exit_live {
                     if !lineage(self.function, *value, carrier.merged.ok_or_else(fail)?) {
                         return Err(fail());
                     }
@@ -552,4 +659,75 @@ fn lineage(function: &Function, value: ValueId, seed: ValueId) -> bool {
         &mut BTreeSet::new(),
         &mut BTreeSet::new(),
     )
+}
+
+// Cleanup may forward an owner through block parameters, but must not substitute
+// an older or newer Map update for the exact value captured after the operand.
+fn forwarded(function: &Function, value: ValueId, expected: ValueId) -> bool {
+    fn visit(function: &Function, value: ValueId, expected: ValueId, depth: usize) -> bool {
+        if value == expected {
+            return true;
+        }
+        if depth > function.blocks.len() {
+            return false;
+        }
+        let Some(Definition::BlockParameter { block, index }) = function
+            .entity(EntityId::Value(value))
+            .map(|entity| entity.definition)
+        else {
+            return false;
+        };
+        incoming(function, block, index).is_some_and(|inputs| {
+            !inputs.is_empty()
+                && inputs
+                    .into_iter()
+                    .all(|(_, source)| visit(function, source, expected, depth + 1))
+        })
+    }
+    visit(function, value, expected, 0)
+}
+
+// Every cleanup successor must converge to the recorded point without a cycle or
+// another terminal. No return record can be borrowed from an unrelated CFG path.
+fn cleanup_reaches(function: &Function, start: BlockId, target: BlockId) -> bool {
+    fn visit(
+        function: &Function,
+        block: BlockId,
+        target: BlockId,
+        seen: &mut BTreeSet<BlockId>,
+    ) -> bool {
+        if block == target {
+            return true;
+        }
+        if !seen.insert(block) {
+            return false;
+        }
+        let valid = match function
+            .block(block)
+            .and_then(|block| block.terminator.as_ref())
+            .map(|term| &term.kind)
+        {
+            Some(TerminatorKind::Branch(edge)) => visit(function, edge.target, target, seen),
+            Some(TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            }) => {
+                visit(function, when_true.target, target, seen)
+                    && visit(function, when_false.target, target, seen)
+            }
+            Some(TerminatorKind::NullableBranch {
+                when_null,
+                when_non_null,
+                ..
+            }) => {
+                visit(function, when_null.target, target, seen)
+                    && visit(function, when_non_null.target, target, seen)
+            }
+            _ => false,
+        };
+        seen.remove(&block);
+        valid
+    }
+    visit(function, start, target, &mut BTreeSet::new())
 }
