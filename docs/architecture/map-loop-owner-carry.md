@@ -4,7 +4,7 @@
 
 `lower_frontend/map_loop_owner` 消费非 Resource 具名 Map 的精确 IterationPhi 图：唯一
 Header/Exit、Entry/Fallthrough/Exhaustion，以及至多一个保留 Fallthrough 的条件 Break
-或条件 Continue，两者不能混合。source 限于 Array/List/MutableList，Map 与 source 不同
+、条件 Continue 或条件 Return，三者不能混合。source 限于 Array/List/MutableList，Map 与 source 不同
 root；seed 是真实 Map 构造或拥有型参数。同类型多个 Map 按独立 owner identity 配对。
 
 单条件 jump 与 fallthrough 必须是同一个已发布普通 Control selector 的互补路径；carry
@@ -32,10 +32,29 @@ own seed 和两个同类型 Map、三个顺序 provider。独立 SSA oracle 核�
 
 unit basic/constant 的 continue live/dead 四格，及各自普通 native，基线就已成功；不是本片
 新增 unit 能力。原 break live 两格成功、dead 两格拒绝的独立边界保留。snapshot/closure、
-额外 Abort-survival、break+continue、多个/无条件 continue、return、无 Fallthrough 或多
+额外 Abort-survival、混合退出、多个/无条件 jump、无 Fallthrough 或多
 break、更多 IterationPhi/call seed、RangeView 仍保持明确边界，不是语言禁止。
 
-## owned source 的下一修复项
+## 条件 return 的独立终止路径
+
+[0313](../archive/specs/0313-single-map-conditional-return.md)在实际 main `8e0ce49d` 上独立实施，
+仅增加 temporary/Borrow source 的单条件 Return；随后正常整合0312真实main `51f30090`，
+组合回归及新base双宿主CI已通过，原独立基线不变。
+Return无phi incoming；Header仍恰Entry/Fallthrough。return Header drop与正常live Exit或dead
+Header drop构成精确集合，不能把正常出口live解释为return仍存活。
+operand求值完成后保存当前binding；清理只能通过透明block参数转发该精确值。记录Drop所在
+block与真正Return终结block，所有cleanup后继必须无环汇至对应点；校验Drop指令、返回
+expression origin与返回值不再包含已drop的Map。正常exhaustion、merge和Header完整入边仍检查。
+
+普通源码与原版native覆盖0/早/晚/never、put/remove、own seed、双同型Map及三provider；
+独立SSA oracle另按两套construct/slot追踪各自最新owner。body-local String/MoveOnly value-class
+返回与Group自然复用已有交付，无Map对照原成功；与Map组合新增成功，不改变transfer/ABI。
+直接返回Map含Group的冻结普通源码原就成功，不算新drop-carrier证明。owned nullable remove
+返回、return operand中更新Map、外围Resource跨条件return保持精确拒绝；最后一项去掉Map也拒绝。
+两个body Resource、String temporary source与Copyable返回有普通native输出证据；不冒充内存计数。
+unit basic/constant×Map尾部live/dead四格原已成功，独立native保持；不是新增unit能力。
+
+## owned source 的独立缺口
 
 此独立缺口已由 [SPEC-0312](../archive/specs/0312-owned-source-conditional-continue.md)
 的 single source-only presence 证明有界修复。原无 Map live/dead、三种 Sequential source
@@ -44,6 +63,9 @@ break、更多 IterationPhi/call seed、RangeView 仍保持明确边界，不是
 Map live/dead × source live/dead 的双同型 Map 普通 native 对照通过；分别查询两 Map，
 不把尚未支持的跨 owner 短路条件清理混作本片能力。原 Resource/global implies 与 Map
 carrier 算法保持；当前 source seed、nested/跨 loop 边界见[provider](finite-sequential-iteration.md)。
+
+owned source return在去掉Map后，local/own seed×source live/dead四格仍为独立旧拒绝；
+0313不扩大通用source/Resource proof，Continue证明不自动覆盖Return终止路径。
 
 [0311 合同](../archive/specs/0311-single-map-conditional-continue.md)记录原始红测、范围修订、
 隔离 target 复核与待发布事项；[0310](../archive/specs/0310-single-map-conditional-break.md)

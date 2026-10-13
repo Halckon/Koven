@@ -1,0 +1,79 @@
+value class Text(val word: String)
+
+fun borrowedArray(keys: Array<Int>): Unit {
+    var cache = mutableMapOf<Int, Text>()
+    for (key in keys) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { println("return"); return }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("borrowedArray") } else { println("lost last") }
+    if (keys.size == 3) { println("source kept") } else { println("source changed") }
+}
+
+fun temporaryArray(): Unit {
+    var cache = mutableMapOf<Int, Text>()
+    for (key in arrayOf(1, 2, 3)) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { println("return"); return }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("temporaryArray") } else { println("lost last") }
+}
+
+fun borrowedList(keys: List<Int>): Unit {
+    var cache = mutableMapOf<Int, Text>()
+    for (key in keys) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { println("return"); return }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("borrowedList") } else { println("lost last") }
+    if (keys.size == 3) { println("source kept") } else { println("source changed") }
+}
+
+fun temporaryList(): Unit {
+    var cache = mutableMapOf<Int, Text>()
+    for (key in listOf(1, 2, 3)) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { println("return"); return }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("temporaryList") } else { println("lost last") }
+}
+
+fun borrowedMutableList(keys: MutableList<Int>): Unit {
+    var cache = mutableMapOf<Int, Text>()
+    for (key in keys) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { println("return"); return }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("borrowedMutableList") } else { println("lost last") }
+    if (keys.size == 3) { println("source kept") } else { println("source changed") }
+}
+
+fun temporaryMutableList(): Unit {
+    var cache = mutableMapOf<Int, Text>()
+    for (key in mutableListOf(1, 2, 3)) {
+        cache.put(key, Text("head".clone()))
+        if (key == 2) { println("return"); return }
+        cache.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (cache.contains(3)) { println("temporaryMutableList") } else { println("lost last") }
+}
+
+fun main(): Unit {
+    borrowedArray(arrayOf(1, 2, 3))
+    temporaryArray()
+    borrowedList(listOf(1, 2, 3))
+    temporaryList()
+    borrowedMutableList(mutableListOf(1, 2, 3))
+    temporaryMutableList()
+}

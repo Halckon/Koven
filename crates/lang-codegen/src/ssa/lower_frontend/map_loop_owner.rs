@@ -45,6 +45,8 @@ struct OwnerPlan {
     break_expression: Option<ExpressionId>,
     continue_expression: Option<ExpressionId>,
     break_drop: Option<DropFact>,
+    return_expression: Option<ExpressionId>,
+    return_drop: Option<DropFact>,
 }
 
 pub(super) fn supported_drop(
@@ -101,8 +103,8 @@ fn owner_plan(
     {
         return None;
     }
-    // Only one conditional break OR continue, with a real complementary fallthrough.
-    // Mixed exits and Return do not acquire this bounded owner proof.
+    // One conditional break, continue OR return, with a real complementary fallthrough.
+    // Return terminates; it never contributes a phi incoming.
     let breaks = plan
         .exits()
         .iter()
@@ -119,10 +121,18 @@ fn owner_plan(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let extra = breaks.len() + continues.len();
+    let returns = plan
+        .exits()
+        .iter()
+        .filter_map(|exit| match exit.kind() {
+            IterationExitKind::Return(expression) => Some((expression, exit)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let extra = breaks.len() + continues.len() + returns.len();
     if extra > 1
         || plan.exits().len() != 2 + extra
-        || plan.closure_phi_incomings().len() != 3 + extra
+        || plan.closure_phi_incomings().len() != 3 + breaks.len() + continues.len()
     {
         return None;
     }
@@ -233,6 +243,17 @@ fn owner_plan(
     } else {
         None
     };
+    let return_pair = if let Some(&(expression, return_exit)) = returns.first() {
+        if return_exit.point() != DropPoint::ControlTransfer(expression)
+            || !complementary_paths(conditions, return_exit.condition(), back_edge.condition())
+        {
+            return None;
+        }
+        Some((expression, exit_drop(conditions, return_exit, header)?))
+    } else {
+        None
+    };
+    let return_drop = return_pair.map(|(_, drop)| drop);
     if extra == 0
         && !matches!(
             conditions.get(back_edge.condition()),
@@ -325,24 +346,26 @@ fn owner_plan(
             candidate.owner() == Some(header.owner()) || candidate.owner() == Some(exit.owner())
         })
         .collect::<Vec<_>>();
-    if drops.len() != 1 + usize::from(break_drop.is_some())
+    if drops.len() != 1 + usize::from(break_drop.is_some()) + usize::from(return_drop.is_some())
         || !drops.contains(&&drop)
         || break_drop.is_some_and(|drop| !drops.contains(&&drop))
+        || return_drop.is_some_and(|drop| !drops.contains(&&drop))
         || drops
             .iter()
             .any(|drop| drop.capture_slot().is_some() || drop.instance_address().is_some())
-        || (fact != drop && Some(fact) != break_drop)
+        || (fact != drop && Some(fact) != break_drop && Some(fact) != return_drop)
     {
         return None;
     }
-    // A live owner is not consumed by either exit cleanup.
+    // A normally live owner is consumed only by the exact terminating return cleanup.
     if exit_live
         && plan.exits().iter().any(|exit_plan| {
             exit_plan.actions().iter().any(|action| {
                 let IterationCleanupAction::Drop(drop) = action else {
                     return false;
                 };
-                drop.owner() == Some(header.owner()) || drop.owner() == Some(exit.owner())
+                (drop.owner() == Some(header.owner()) || drop.owner() == Some(exit.owner()))
+                    && Some(*drop) != return_drop
             })
         })
     {
@@ -359,6 +382,8 @@ fn owner_plan(
         break_expression: break_pair.map(|(expression, _, _)| expression),
         continue_expression: continue_pair,
         break_drop,
+        return_expression: return_pair.map(|(expression, _)| expression),
+        return_drop,
     })
 }
 

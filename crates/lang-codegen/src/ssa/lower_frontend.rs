@@ -999,6 +999,7 @@ impl ExpressionLowerer<'_> {
         if matches!(result, LoweredValue::Diverged) {
             return Ok(result);
         }
+        self.prepare_map_loop_return(return_expression, span)?;
         let for_return_exit = self.loops.iter().rev().find_map(|c| {
             c.for_loop.as_ref().and_then(|f| {
                 f.plan
@@ -1027,6 +1028,7 @@ impl ExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        self.finish_map_loop_return(return_expression, span)?;
         Ok(LoweredValue::Diverged)
     }
 
