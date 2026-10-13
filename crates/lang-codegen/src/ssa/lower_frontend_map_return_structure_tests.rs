@@ -626,3 +626,65 @@ pub(super) fn assert_distinct_return_owners(program: &Program) {
         Operation::Drop { owner } if function.entity(EntityId::Value(owner)).unwrap().ty == map_type))
         .count(), 4, "two distinct Map owners on each terminal path");
 }
+
+// The real operand call returns a Copyable value before the two body Resources
+// are destroyed in reverse declaration order; it is the value handed to Return.
+pub(super) fn assert_operand_before_body_cleanup(program: &Program, source: &str) {
+    let module = program
+        .modules
+        .iter()
+        .find(|module| {
+            module
+                .functions
+                .iter()
+                .any(|function| function.name == "cleanup")
+        })
+        .unwrap();
+    let function = module
+        .functions
+        .iter()
+        .find(|function| function.name == "cleanup")
+        .unwrap();
+    let operand = module
+        .functions
+        .iter()
+        .find(|function| function.name == "operand")
+        .unwrap();
+    let call = only(
+        function,
+        |instruction| matches!(instruction.operation, Operation::DirectCall { callee, .. } if callee == operand.id),
+    );
+    let returned = function.block(call.block).unwrap();
+    let TerminatorKind::Return { values } = &returned.terminator.as_ref().unwrap().kind else {
+        panic!("operand terminates through the actual return")
+    };
+    assert_eq!(values.len(), 1);
+    assert_eq!(call.results, [EntityId::Value(values[0])]);
+    let named_drop = |name: &str| {
+        only(function, |instruction| {
+            instruction.block == returned.id
+                && matches!(instruction.operation, Operation::Drop { .. })
+                && source.get(instruction.origin.span().start()..instruction.origin.span().end())
+                    == Some(name)
+        })
+    };
+    let second = named_drop("second");
+    let first = named_drop("first");
+    let map = named_drop("cache");
+    before(function, call, second);
+    before(function, second, first);
+    before(function, first, map);
+    // At least the element and source loan ends occur between body and Map cleanup.
+    let ends = function
+        .instructions
+        .iter()
+        .filter(|instruction| {
+            instruction.block == returned.id
+                && matches!(instruction.operation, Operation::BorrowEnd { .. })
+                && position(function, instruction) > position(function, first)
+                && position(function, instruction) < position(function, map)
+        })
+        .collect::<Vec<_>>();
+    assert!(ends.len() >= 2);
+    assert!(!function.instructions.iter().any(|instruction| matches!(instruction.operation, Operation::Drop { owner } if owner == values[0])));
+}

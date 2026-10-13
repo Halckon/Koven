@@ -32,6 +32,32 @@ fn check(source: &str) -> crate::ssa::model::Program {
     )
     .unwrap();
     crate::llvm::render_verified_program(&program).unwrap();
+    use lang_frontend::ownership_checking::{DropPoint, DropTarget};
+    for fact in analysis.owned.drops() {
+        if let (DropPoint::ControlTransfer(_), DropTarget::Named(symbol)) =
+            (fact.point(), fact.target())
+        {
+            assert!(
+                !analysis
+                    .names
+                    .symbols()
+                    .iter()
+                    .any(|candidate| candidate.id() == symbol && candidate.name() == "result"),
+                "the owned return result must be excluded from transfer cleanup"
+            );
+        }
+    }
+    for function in program.modules.iter().flat_map(|module| &module.functions) {
+        for block in &function.blocks {
+            if let crate::ssa::model::TerminatorKind::Return { values } =
+                &block.terminator.as_ref().unwrap().kind
+            {
+                for value in values {
+                    assert!(!function.instructions.iter().any(|instruction| matches!(instruction.operation, crate::ssa::model::Operation::Drop { owner } if owner == *value)), "returned value has a single consuming Return");
+                }
+            }
+        }
+    }
     program
 }
 
@@ -56,9 +82,10 @@ fn single_map_return_provider_matrix() {
 }
 #[test]
 fn single_map_return_operand_cleanup_matrix() {
-    check(include_str!(
-        "../../tests/fixtures/map-conditional-return-0313/operand-cleanup.ko"
-    ));
+    let source =
+        include_str!("../../tests/fixtures/map-conditional-return-0313/operand-cleanup.ko");
+    let program = check(source);
+    super::structure::assert_operand_before_body_cleanup(&program, source);
 }
 
 #[test]
