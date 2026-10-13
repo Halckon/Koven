@@ -2002,3 +2002,6 @@ mod root_primitive_tests;
 
 #[path = "field_replace_lower_tests.rs"]
 mod field_replace_tests;
+
+#[path = "lower_frontend_owned_source_continue_tests.rs"]
+mod owned_source_continue_tests;
