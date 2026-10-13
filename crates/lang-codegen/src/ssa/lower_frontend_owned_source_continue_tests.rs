@@ -197,7 +197,7 @@ fn owned_source_continue_frontend_source_loan_blocks_move_replace_and_mutation()
                 .owned
                 .diagnostics()
                 .iter()
-                .any(|diagnostic| diagnostic.code() == "L0135"),
+                .any(|diagnostic| diagnostic.code().to_string() == "L0135"),
             "{:?}",
             analysis.owned.diagnostics()
         );
