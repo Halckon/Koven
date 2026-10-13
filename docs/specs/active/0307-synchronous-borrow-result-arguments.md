@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0306](../../archive/specs/0306-mixed-value-borrow-result.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | 无新结果 ABI 或语言决定 |
-| 阻塞项 | 本地有界验收通过；新综合静态review由协调方核验，外部发布暂缓 |
+| 阻塞项 | PR85首次CI的目标计数断言失败已最小修正；等待修订head远端验收 |
 | 影响范围 | lang-frontend single/unit ownership facts、lang-codegen lowering、正常source/SSA/native测试 |
 | 语言语义变更 | 否 |
 
@@ -77,7 +77,7 @@ lowering。稳定snapshot即送独立审查，不等最终收尾才review。小�
 | 静态门禁 | fmt、frontend/codegen严格clippy、跨crate check、docs/尺寸/diff | 1377e744测试输入上全部通过；1065手写Rust、38旧超限，无新豁免；文档提交后复验docs/diff |
 | 独立审查 | 稳定snapshot、最终变化复查 | d532b926生产审查无已确认阻断并独立重跑10+4项（每矩阵38组）；1377e744纯测试增量静态复审通过，未冒充独立重跑40组 |
 | CI目标选择 | stage仅一次、无filter选择新frontend target；双宿主composition | 发布预检发现漏项；Python policy先红（0次），8666eeb4独立记录；最小接线后policy33/33与bash语法检查通过，未本地执行aggregate |
-| 远端双宿主/交付 | root统一publisher、精确head/merge CI | 未发布、未执行；待综合review核验后再发布，merge另需具体批准 |
+| 远端双宿主/交付 | root统一publisher、精确head/merge CI | [PR85](https://github.com/Halckon/Koven/pull/85)首次[run38377014718](https://github.com/Halckon/Koven/actions/runs/38377014718)在0f0312f4上docs660通过、Python337项仅计数102≠103失败；Targeted/preview跳过不算通过。仅改期望103保留unique/bounded断言，本地静态计数与安全policy33项通过；两Composition/完整337留CI，修订待重跑 |
 
 最终公开API探针以1377e744源码重新构建：54组×两入口108次，80次原版native精确成功、
 28次在ownership以预期单一L0135/L0131/L0163/L0164/L0162拒绝且无object；四个前置阶段无诊断。
