@@ -652,39 +652,133 @@ pub(super) fn assert_operand_before_body_cleanup(program: &Program, source: &str
         .unwrap();
     let call = only(
         function,
-        |instruction| matches!(instruction.operation, Operation::DirectCall { callee, .. } if callee == operand.id),
+        |i| matches!(i.operation, Operation::DirectCall { callee, .. } if callee == operand.id),
     );
     let returned = function.block(call.block).unwrap();
     let TerminatorKind::Return { values } = &returned.terminator.as_ref().unwrap().kind else {
-        panic!("operand terminates through the actual return")
+        panic!("the evaluated operand reaches the actual Return")
     };
     assert_eq!(values.len(), 1);
     assert_eq!(call.results, [EntityId::Value(values[0])]);
-    let named_drop = |name: &str| {
-        only(function, |instruction| {
-            instruction.block == returned.id
-                && matches!(instruction.operation, Operation::Drop { .. })
-                && source.get(instruction.origin.span().start()..instruction.origin.span().end())
-                    == Some(name)
+
+    let length = only(function, |i| {
+        matches!(i.operation, Operation::ContainerLength { .. })
+    });
+    let Operation::ContainerLength { owner: source_loan } = length.operation else {
+        unreachable!()
+    };
+    let source_borrow = definition(function, source_loan);
+    let Operation::BorrowBegin {
+        place,
+        kind: LoanKind::Shared,
+    } = source_borrow.operation
+    else {
+        panic!("the provider holds a shared source loan")
+    };
+    let Operation::RootPlace { owner } = definition(function, EntityId::Place(place)).operation
+    else {
+        panic!("the source loan is rooted in the hidden source owner")
+    };
+    let source_owner = EntityId::Value(owner);
+    let source_construct = definition(function, source_owner);
+    assert!(matches!(
+        source_construct.operation,
+        Operation::ContainerConstruct { .. }
+    ));
+    let enter = branch(function.block(length.block).unwrap());
+    let header = function.block(enter.target).unwrap();
+    let source_slot = slot(&enter.arguments, source_owner);
+    let loan_slot = slot(&enter.arguments, source_loan);
+    let TerminatorKind::Conditional { when_true, .. } = &header.terminator.as_ref().unwrap().kind
+    else {
+        panic!("the provider's true edge enters the body")
+    };
+    let body_source = transport(function, when_true, header.parameters[source_slot]);
+    let body_loan = transport(function, when_true, header.parameters[loan_slot]);
+    let element = only(
+        function,
+        |i| matches!(i.operation, Operation::ContainerElementPlace { owner, .. } if owner == body_loan),
+    );
+    assert_eq!(element.block, when_true.target);
+    let element_borrow = only(function, |i| {
+        matches!(i.operation, Operation::BorrowBegin { place, kind: LoanKind::Shared }
+            if EntityId::Place(place) == element.results[0])
+    });
+    before(function, element, element_borrow);
+    let element_loan = element_borrow.results[0];
+    assert!(matches!(
+        module.type_kind(function.entity(element_loan).unwrap().ty.semantic_type()),
+        Some(crate::ssa::model::SsaTypeKind::StringOwner)
+    ));
+    let Operation::DirectCall { arguments, .. } = &call.operation else {
+        unreachable!()
+    };
+    assert_eq!(arguments.len(), 1);
+    assert!(forwards(function, arguments[0], element_loan));
+
+    // Source text selects each construction; the Drop must consume that exact owner.
+    let guard_drop = |construction: &str| {
+        let allocation = only(function, |i| {
+            matches!(i.operation, Operation::HeapAllocate { .. })
+                && source.get(i.origin.span().start()..i.origin.span().end()) == Some(construction)
+        });
+        only(function, |i| {
+            i.block == returned.id
+                && matches!(i.operation, Operation::Drop { owner }
+                    if forwards(function, EntityId::Value(owner), allocation.results[0]))
         })
     };
-    let second = named_drop("second");
-    let first = named_drop("first");
-    let map = named_drop("cache");
-    before(function, call, second);
-    before(function, second, first);
-    before(function, first, map);
-    // At least the element and source loan ends occur between body and Map cleanup.
-    let ends = function
-        .instructions
-        .iter()
-        .filter(|instruction| {
-            instruction.block == returned.id
-                && matches!(instruction.operation, Operation::BorrowEnd { .. })
-                && position(function, instruction) > position(function, first)
-                && position(function, instruction) < position(function, map)
-        })
-        .collect::<Vec<_>>();
-    assert!(ends.len() >= 2);
-    assert!(!function.instructions.iter().any(|instruction| matches!(instruction.operation, Operation::Drop { owner } if owner == values[0])));
+    let second = guard_drop("Guard(\"later\")");
+    let first = guard_drop("Guard(\"earlier\")");
+    assert_ne!(first.id, second.id);
+    let element_end = only(function, |i| {
+        i.block == returned.id
+            && matches!(i.operation, Operation::BorrowEnd { loan }
+                if forwards(function, EntityId::Loan(loan), element_loan))
+    });
+    let source_end = only(function, |i| {
+        i.block == returned.id
+            && matches!(i.operation, Operation::BorrowEnd { loan }
+                if forwards(function, EntityId::Loan(loan), body_loan))
+    });
+    assert_ne!(element_end.id, source_end.id);
+    let source_drop = only(function, |i| {
+        i.block == returned.id
+            && matches!(i.operation, Operation::Drop { owner }
+                if forwards(function, EntityId::Value(owner), body_source))
+    });
+    assert_eq!(source_drop.origin, source_construct.origin);
+    let map_seed = only(function, |i| {
+        matches!(i.operation, Operation::MapConstruct { .. })
+    });
+    let map_slot = slot(&enter.arguments, map_seed.results[0]);
+    let body_map = transport(function, when_true, header.parameters[map_slot]);
+    let head = only(function, |i| {
+        matches!(i.operation, Operation::MapPut { owner, .. }
+            if forwards(function, EntityId::Value(owner), body_map))
+    });
+    let map_drop = only(function, |i| {
+        i.block == returned.id
+            && matches!(i.operation, Operation::Drop { owner }
+                if forwards(function, EntityId::Value(owner), head.results[0]))
+    });
+
+    let ordered = [
+        call,
+        second,
+        first,
+        element_end,
+        source_end,
+        source_drop,
+        map_drop,
+    ];
+    for pair in ordered.windows(2) {
+        before(function, pair[0], pair[1]);
+    }
+    assert!(
+        !function
+            .instructions
+            .iter()
+            .any(|i| { matches!(i.operation, Operation::Drop { owner } if owner == values[0]) })
+    );
 }
