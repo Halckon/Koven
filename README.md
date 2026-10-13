@@ -21,7 +21,7 @@ The current specification is [Guide v0.43](docs/guide/README.md); start with the
 - **Deterministic Ownership Management (No Tracing GC)**
   Memory follows move semantics, single-owner tracking, and call-site loans. Zero overhead and performance equivalence are not accepted claims.
 - **Fearless Borrowing Without Lifetime Annotations**
-  Call-site loans (`Borrow` and `Inout`) are strictly bounded to the synchronous call stack. Borrows cannot be returned or stored into heap structures, avoiding user lifetime parameters; implementation validation remains scoped to specific capabilities.
+  `Borrow` and `Inout` use checked call-site loans. The Guide permits restricted ordinary borrow results with a unique `from` source and explicit `borrow val` local bindings, without storable reference types or user lifetime parameters. See [Architecture](docs/architecture/README.md) for implemented support.
 - **Dual-Track Deterministic Drop**
   Pure-memory MoveOnly values use ASAP drop at the earliest safe boundary. Types with deinit or recursively held resources use reverse lexical cleanup, without dropping early merely after their last use.
 - **Structurally Derived Capabilities**
@@ -41,7 +41,7 @@ The current specification is [Guide v0.43](docs/guide/README.md); start with the
 
 ## 🔍 Language Tour
 
-Executable sources and complete CLI output contracts live in the [current Koven tour](docs/tutorials/koven-tour.md). The tutorial contains 16 executable examples, four diagnostic examples, and one planned thread example. Four parameter-report argument sets share three source files, bringing execution contracts to 23. The [coverage ledger](docs/archive/specs/0271-tour-combination-coverage.md) records the original 22-contract dual-host evidence; [SPEC-0273](docs/archive/specs/0273-control-body-resource-cleanup.md) tracks the branch-resource fix and its added CLI contract.
+Executable sources and complete CLI output contracts live in the [current Koven tour](docs/tutorials/koven-tour.md). The [static inventory](docs/tutorials/examples.json) contains 17 executable examples, four diagnostic examples, and one planned thread example; expanding argument cases yields 32 non-planned contracts (28 runtime cases and four diagnostic cases). Recorded execution evidence is linked from the [tutorial index](docs/tutorials/README.md).
 
 | Topic | Canonical source examples |
 |---|---|
