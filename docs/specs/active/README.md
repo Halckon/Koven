@@ -4,6 +4,7 @@
 
 当前 0 份 active。
 
+
 [0307 普通借用结果的同步 Borrow 实参消费](../../archive/specs/0307-synchronous-borrow-result-arguments.md)已按[PR85修复后物理CI](https://github.com/Halckon/Koven/actions/runs/38378462482)16/16 jobs、双宿主新frontend10及普通source codegen48逐名证据有界归档；首失败保留，归档head CI/merge/main待验证。outer继续借用返回、temporary来源、receiver/Inout与CFG等后继开放。
 
 [0306 混合 Value 参数的唯一来源借用返回](../../archive/specs/0306-mixed-value-borrow-result.md)已按PR84修复后完整物理CI及双宿主各15项正常/10项verifier测试有界归档；首失败保留，已由[PR84](https://github.com/Halckon/Koven/pull/84)合为actual-main `967bf98e`，其[main CI](https://github.com/Halckon/Koven/actions/runs/38368833991)成功；普通同步Borrow实参由0307关闭，其他M2B后继继续开放。
