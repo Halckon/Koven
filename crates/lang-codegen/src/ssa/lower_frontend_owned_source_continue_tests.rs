@@ -515,3 +515,39 @@ fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
         );
     }
 }
+
+#[test]
+fn owned_source_continue_range_view_remains_explicit() {
+    use lang_frontend::{
+        lexer::lex,
+        name_resolution::resolve_names,
+        ownership_checking::check_ownership,
+        parser::parse_file,
+        source::SourceMap,
+        type_checking::{check_types, standard_environments},
+    };
+    let mut sources = SourceMap::new();
+    let text = format!(
+        "{}\nfun main(): Unit {{ val keys = listOf(1, 2); for (key in take(keys, 1)) {{ if (key == 2) {{ continue }} }}; keys.size }}",
+        include_str!("../../../lang-std/koven/algorithms/ranges.ko")
+            .strip_prefix("package koven.algorithms\n")
+            .unwrap()
+    );
+    let source = sources.add_source("trusted.ko", text).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    let (environment, mut types) = standard_environments();
+    types.authorize_range_source(&sources, source).unwrap();
+    types
+        .authorize_range_extension_source(&sources, source)
+        .unwrap();
+    let names = resolve_names(&sources, &parsed, &environment).unwrap();
+    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let error = lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
+        .err()
+        .expect("RangeView is not a Sequential source proof");
+    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+    assert_eq!(sources.slice(error.span.unwrap()).unwrap(), "keys");
+}
