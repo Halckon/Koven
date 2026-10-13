@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 290 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 291 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -445,4 +445,6 @@
 
 - [SPEC-0305](0305-multi-parameter-borrow-result.md)：多Borrow参数的唯一来源直接返回；PR83首次物理CI及双宿主34项普通测试有界验收，其余M2B后继开放；最终归档head复用已验收，由[PR83](https://github.com/Halckon/Koven/pull/83)合入main `bfdb00bd`，[main CI38350665268](https://github.com/Halckon/Koven/actions/runs/38350665268)已独立验收成功。
 
-- [SPEC-0306](0306-mixed-value-borrow-result.md)：唯一Borrow来源、其余Borrow/Value参数的直接返回；PR84修复后完整物理CI及双宿主各15项正常/10项verifier测试有界验收，首失败保留，M2B后继开放；最终归档head复用/merge/main待独立验证。
+- [SPEC-0306](0306-mixed-value-borrow-result.md)：唯一Borrow来源、其余Borrow/Value参数的直接返回；PR84修复后完整物理CI及双宿主各15项正常/10项verifier测试有界验收，首失败保留，M2B后继开放；已由PR84合为actual-main `967bf98e`，[main CI](https://github.com/Halckon/Koven/actions/runs/38368833991)成功。
+
+- [SPEC-0307](0307-synchronous-borrow-result-arguments.md)：普通借用结果同步交付具名DirectCall的Borrow实参；PR85修复后16/16物理CI及双宿主frontend10、普通source codegen48逐名通过，CI-only10单列；首失败保留，归档head CI/merge/main待验证，不代表完整M2B。

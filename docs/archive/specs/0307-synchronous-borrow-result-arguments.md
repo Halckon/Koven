@@ -1,10 +1,10 @@
 # SPEC-0307: 普通借用结果的同步 Borrow 实参消费
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收普通借用结果的同步实参时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收普通借用结果的同步实参时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P3-0307` |
 | 所属 Phase | Phase 3 来源/使用/终止事实；Phase 4 SSA/native |
 | 语言规范 | [Guide10](../../guide/10-ownership-borrowing-drop.md#普通借用结果与显式局部绑定) |
@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0306](../../archive/specs/0306-mixed-value-borrow-result.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | 无新结果 ABI 或语言决定 |
-| 阻塞项 | PR85首次CI的目标计数断言失败已最小修正；等待修订head远端验收 |
+| 阻塞项 | 冻结范围无实现阻塞；归档head CI及未来merge/main交付另行验收 |
 | 影响范围 | lang-frontend single/unit ownership facts、lang-codegen lowering、正常source/SSA/native测试 |
 | 语言语义变更 | 否 |
 
@@ -28,7 +28,7 @@
 `bfdb00bd455d6847a7f14cf7391a198664ee6f1e` 与 `c2142a9f1bf03cf572f6958f8d403fc768d6a775`。
 0306 已由 [PR84](https://github.com/Halckon/Koven/pull/84) 合并；其
 [actual-main CI](https://github.com/Halckon/Koven/actions/runs/38368833991)独立跟踪，冻结时仍运行中。
-0307 在 active/draft/archive 库存与文件中未占用；本片保持 in-progress，不提前归档。
+0307 冻结时在 active/draft/archive 库存与文件中未占用；实施期间保持 in-progress，现按下述实际证据有界归档。
 
 ## 2. 有界合同
 
@@ -77,7 +77,16 @@ lowering。稳定snapshot即送独立审查，不等最终收尾才review。小�
 | 静态门禁 | fmt、frontend/codegen严格clippy、跨crate check、docs/尺寸/diff | 1377e744测试输入上全部通过；1065手写Rust、38旧超限，无新豁免；文档提交后复验docs/diff |
 | 独立审查 | 稳定snapshot、最终变化复查 | d532b926生产审查无已确认阻断并独立重跑10+4项（每矩阵38组）；1377e744纯测试增量静态复审通过，未冒充独立重跑40组 |
 | CI目标选择 | stage仅一次、无filter选择新frontend target；双宿主composition | 发布预检发现漏项；Python policy先红（0次），8666eeb4独立记录；最小接线后policy33/33与bash语法检查通过，未本地执行aggregate |
-| 远端双宿主/交付 | root统一publisher、精确head/merge CI | [PR85](https://github.com/Halckon/Koven/pull/85)首次[run38377014718](https://github.com/Halckon/Koven/actions/runs/38377014718)在0f0312f4上docs660通过、Python337项仅计数102≠103失败；Targeted/preview跳过不算通过。仅改期望103保留unique/bounded断言，本地静态计数与安全policy33项通过；两Composition/完整337留CI，修订待重跑 |
+| 远端双宿主/交付 | [PR85](https://github.com/Halckon/Koven/pull/85)、精确head/merge CI | 首次[run38377014718](https://github.com/Halckon/Koven/actions/runs/38377014718)在0f0312f4上docs660通过、Python337项仅计数102≠103失败；Targeted/preview跳过不算通过。仅修期望103后，[run38378462482](https://github.com/Halckon/Koven/actions/runs/38378462482) attempt1于2026-10-13 10:00:18Z成功，16/16物理jobs；docs660与完整Python337通过，旧失败项明确通过 |
+| 远端逐名验收 | macOS14与Ubuntu24.04 Targeted、preview双宿主链 | 每host新frontend10与普通source codegen48逐名通过（含新4矩阵）；既有10项CI-only构造SSA verifier单列，非云端执行。两preview producer/API/无checkout consumer的zip hash、安装链核对通过 |
+
+远端成功输入为head `a449ca9d9a1aa87ec0baf74608eb65f10cb6a1e6`、tree
+`5bb8d7d8df305bd9b5cf9edeaee6a35ff53dc03f`；synthetic merge
+`be35747436a3219ac0c43afd1b80c49432816166`同tree，ordered parents为actual-main `967bf98e`与该head。
+code-input fingerprint为`0b7cea5f7da9d876abed9b23c5076d0ed529e9470a9d38a0e9f9bd1ad5ac281f`，
+本轮为实际运行，非复用。4个矩阵各遍历40个fixture由固定head源码证明；日志只输出4个矩阵test名，
+不把它说成每host逐个输出160条子case记录。macOS既有LLDB ignore与Linux-only步骤跳过不计通过。
+完整原始receipt/日志保留仓库外；preview核的是实际producer/API/consumer链，未另解包审计内部。
 
 最终公开API探针以1377e744源码重新构建：54组×两入口108次，80次原版native精确成功、
 28次在ownership以预期单一L0135/L0131/L0163/L0164/L0162拒绝且无object；四个前置阶段无诊断。
@@ -95,5 +104,6 @@ drop，每个资源deinit一次且顺序精确。只记录实际运行结果，�
 ## 5. 交付边界
 
 先批准范围内本地红绿/回归与独立审查，再由root协调分支push与Draft PR；本worker不GitHub写。
-Spec保持in-progress，归档及未来合并按具体交付授权与实际CI证据处理。原始日志、源码探针、
-二进制与恢复bundle置于仓库外；库内只保留真正持续测试fixture及本简要账本。
+本Spec仅关闭§2冻结范围，标为done并同步库存/索引/DAG；不表示完整M2B或所有内存安全已证明。
+本次归档只改普通文档，代码输入必须与已成功head恒等；归档head CI/复用仍须实际验收，未来
+merge须具体批准，actual-main CI另验。原始日志、源码探针、二进制与恢复bundle置于仓库外。
