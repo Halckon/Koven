@@ -10,7 +10,7 @@ use crate::ssa::model::{
     BlockId, Definition, Edge, EntityId, Function, Operation, Origin, TerminatorKind, ValueId,
 };
 use lang_frontend::{
-    ast::StatementId,
+    ast::{ExpressionId, StatementId},
     name_resolution::SymbolId,
     ownership_checking::{CleanupOwnerValue, DropFact},
     source::Span,
@@ -28,7 +28,10 @@ struct Carrier {
     body: ValueId,
     exhaustion: ValueId,
     exit_live_checked: bool,
-    drops: Vec<ValueId>,
+    drops: Vec<(DropFact, BlockId, ValueId)>,
+    break_exit: Option<(BlockId, ValueId)>,
+    merged: Option<ValueId>,
+    merge_checked: bool,
 }
 
 #[derive(Default)]
@@ -62,7 +65,7 @@ impl ExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         for fact in self.owned.drops() {
             let Some(plan) = owner_plan(self.typed, self.owned, *fact)
-                .filter(|plan| plan.statement == statement)
+                .filter(|plan| plan.statement == statement && plan.drop == *fact)
             else {
                 continue;
             };
@@ -123,6 +126,9 @@ impl ExpressionLowerer<'_> {
                 exhaustion,
                 exit_live_checked: false,
                 drops: Vec::new(),
+                break_exit: None,
+                merged: None,
+                merge_checked: false,
             });
         }
         Ok(())
@@ -144,12 +150,124 @@ impl ExpressionLowerer<'_> {
             let valid = if carrier.plan.exit_live {
                 binding == Some(LoweredValue::Value(carrier.exhaustion)) && carrier.drops.is_empty()
             } else {
-                binding.is_none() && carrier.drops.as_slice() == [carrier.exhaustion]
+                binding.is_none()
+                    && carrier
+                        .drops
+                        .iter()
+                        .filter(|(fact, _, _)| *fact == carrier.plan.drop)
+                        .copied()
+                        .collect::<Vec<_>>()
+                        == [(
+                            carrier.plan.drop,
+                            carrier.exhaustion_block,
+                            carrier.exhaustion,
+                        )]
             };
             if carrier.exit_live_checked || !valid {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
             carrier.exit_live_checked = true;
+        }
+        Ok(())
+    }
+
+    pub(in super::super) fn finish_map_loop_break(
+        &mut self,
+        statement: StatementId,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for carrier in self
+            .map_loop_owners
+            .loops
+            .iter_mut()
+            .filter(|carrier| carrier.plan.statement == statement)
+        {
+            let fail = || error(LoweringErrorKind::MissingFact, span);
+            if carrier.plan.break_expression != Some(expression)
+                || carrier.break_exit.is_some()
+                || carrier.exit_live_checked
+            {
+                return Err(fail());
+            }
+            let value = if carrier.plan.exit_live {
+                if !carrier.drops.is_empty() {
+                    return Err(fail());
+                }
+                match self.bindings.get(&carrier.plan.symbol) {
+                    Some(LoweredValue::Value(value)) => *value,
+                    _ => return Err(fail()),
+                }
+            } else {
+                if self.bindings.contains_key(&carrier.plan.symbol) {
+                    return Err(fail());
+                }
+                let (_, block, value) = *unique(
+                    carrier
+                        .drops
+                        .iter()
+                        .filter(|(fact, _, _)| Some(*fact) == carrier.plan.break_drop),
+                )
+                .ok_or_else(fail)?;
+                if block != self.block {
+                    return Err(fail());
+                }
+                value
+            };
+            carrier.break_exit = Some((self.block, value));
+        }
+        Ok(())
+    }
+
+    pub(in super::super) fn finish_map_loop_merge(
+        &mut self,
+        statement: StatementId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for carrier in self
+            .map_loop_owners
+            .loops
+            .iter_mut()
+            .filter(|carrier| carrier.plan.statement == statement)
+        {
+            let fail = || error(LoweringErrorKind::MissingFact, span);
+            if !carrier.exit_live_checked
+                || carrier.merge_checked
+                || carrier.break_exit.is_some() != carrier.plan.break_expression.is_some()
+            {
+                return Err(fail());
+            }
+            if carrier.plan.exit_live {
+                let Some(LoweredValue::Value(value)) = self.bindings.get(&carrier.plan.symbol)
+                else {
+                    return Err(fail());
+                };
+                if let Some((break_block, break_value)) = carrier.break_exit {
+                    let Some(Definition::BlockParameter { block, index }) = self
+                        .function
+                        .entity(EntityId::Value(*value))
+                        .map(|entity| entity.definition)
+                    else {
+                        return Err(fail());
+                    };
+                    let mut inputs = incoming(self.function, block, index).ok_or_else(fail)?;
+                    let mut expected = vec![
+                        (break_block, break_value),
+                        (carrier.exhaustion_block, carrier.exhaustion),
+                    ];
+                    inputs.sort();
+                    expected.sort();
+                    if block != self.block || inputs != expected {
+                        return Err(fail());
+                    }
+                } else if *value != carrier.exhaustion {
+                    return Err(fail());
+                }
+                carrier.merged = Some(*value);
+            } else if self.bindings.contains_key(&carrier.plan.symbol) {
+                return Err(fail());
+            }
+            carrier.merge_checked = true;
         }
         Ok(())
     }
@@ -173,20 +291,27 @@ impl ExpressionLowerer<'_> {
             .find(|carrier| {
                 carrier.plan.header == plan.header
                     && carrier.plan.exit == plan.exit
-                    && carrier.plan.drop == fact
+                    && (carrier.plan.drop == fact || carrier.plan.break_drop == Some(fact))
             })
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.value_origin()))?;
         let valid_phase = if plan.exit_live {
-            carrier.exit_live_checked
+            carrier.merge_checked && fact == carrier.plan.drop
+        } else if Some(fact) == carrier.plan.break_drop {
+            carrier.break_exit.is_none() && !carrier.exit_live_checked
         } else {
             !carrier.exit_live_checked
                 && self.block == carrier.exhaustion_block
                 && value == carrier.exhaustion
         };
-        if !valid_phase || !carrier.drops.is_empty() {
+        if !valid_phase
+            || carrier
+                .drops
+                .iter()
+                .any(|(recorded, _, _)| *recorded == fact)
+        {
             return Err(error(LoweringErrorKind::MissingFact, fact.value_origin()));
         }
-        carrier.drops.push(value);
+        carrier.drops.push((fact, self.block, value));
         Ok(())
     }
 
@@ -194,7 +319,9 @@ impl ExpressionLowerer<'_> {
         for carrier in &self.map_loop_owners.loops {
             let span = carrier.plan.drop.value_origin();
             let fail = || error(LoweringErrorKind::MissingFact, span);
-            if !carrier.exit_live_checked || carrier.drops.len() != 1 {
+            if !carrier.merge_checked
+                || carrier.drops.len() != 1 + usize::from(carrier.plan.break_drop.is_some())
+            {
                 return Err(fail());
             }
             let seed = match self
@@ -257,9 +384,26 @@ impl ExpressionLowerer<'_> {
                 || incoming(self.function, carrier.exhaustion_block, carrier.slot)
                     .ok_or_else(fail)?
                     != [(carrier.header_block, carrier.header)]
-                || !lineage(self.function, carrier.drops[0], carrier.exhaustion)
             {
                 return Err(fail());
+            }
+            if let Some((_, value)) = carrier.break_exit
+                && !lineage(self.function, value, carrier.body)
+            {
+                return Err(fail());
+            }
+            for (fact, block, value) in &carrier.drops {
+                if carrier.plan.exit_live {
+                    if !lineage(self.function, *value, carrier.merged.ok_or_else(fail)?) {
+                        return Err(fail());
+                    }
+                } else if Some(*fact) == carrier.plan.break_drop {
+                    if carrier.break_exit != Some((*block, *value)) {
+                        return Err(fail());
+                    }
+                } else if (*block, *value) != (carrier.exhaustion_block, carrier.exhaustion) {
+                    return Err(fail());
+                }
             }
         }
         Ok(())

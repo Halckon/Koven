@@ -490,6 +490,8 @@ impl ExpressionLowerer<'_> {
         let false_exit = self.loop_exit();
         exits.push(false_exit);
 
-        self.merge_exits(exits, &baseline, span)
+        let result = self.merge_exits(exits, &baseline, span)?;
+        self.finish_map_loop_merge(statement, span)?;
+        Ok(result)
     }
 }

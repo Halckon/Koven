@@ -292,6 +292,7 @@ impl ExpressionLowerer<'_> {
             })
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         self.emit_iteration_exit_plan(break_exit, span)?;
+        self.finish_map_loop_break(statement, expression, span)?;
         let mut exit = self.loop_exit();
         exit.for_sources.remove(&statement.index());
         exit.for_elements.remove(&statement.index());

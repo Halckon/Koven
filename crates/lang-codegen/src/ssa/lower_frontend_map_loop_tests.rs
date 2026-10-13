@@ -439,7 +439,7 @@ fn assert_map_drop_counts(program: &crate::ssa::model::Program, expected: &[(&st
             .count();
         assert_eq!(
             drops, *count,
-            "{name}: one terminal drop per actual Map owner"
+            "{name}: expected static Map drops for the selected exits"
         );
     }
 }
