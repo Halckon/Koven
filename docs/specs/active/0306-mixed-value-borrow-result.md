@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0305](../../archive/specs/0305-multi-parameter-borrow-result.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | 无新结果 ABI 或语言决定 |
-| 阻塞项 | 本地验证与独立审查通过；外部发布另等具体授权 |
+| 阻塞项 | 首次PR双宿主CI有4项fixture装配失败；本地修复通过，待新head CI复验，见§7 |
 | 影响范围 | lang-codegen single/unit lowering、verifier、LLVM call adapter、正常 source/native 测试 |
 | 语言语义变更 | 否 |
 
@@ -59,6 +59,8 @@ Abort 不属于故障注入；坏 IR verifier 负例仅静态编写交 CI，不�
 
 ## 4. 实施与验收账本
 
+本表保留首轮本地冻结时的实际状态；后续发布与CI检查点见§7，不将未运行项回填为通过。
+
 先移植仓库外15组已复现 Value 源码红测，扩唯一来源、参数顺序、owner/loan/drop 正反例；
 再最小接线两入口、verifier 与 LLVM，按同一选择转绿，最后验证直接消费者和既有0305回归。
 
@@ -102,3 +104,30 @@ concrete类型后，仅为具体化Copyable跳过义务，且在任何binding/te
 消费者对照，不改前端所有权语义或参数/结果ABI。生产修复提交b8c0f279；保存初轮659ba4d9
 精确红测、修复后双入口绿测及独立22次native复验，最终固定回归包含未用、转交、读取后
 返回与多次读取的Int/Resource实例，验收见上表。
+
+## 7. PR84 首次 CI 失败检查点
+
+[PR84](https://github.com/Halckon/Koven/pull/84)发布head为
+`228091d35ebd40c03f713ea4dca84b9bb5ca0dc3`、tree
+`5e68cf7b124e6ae3cfba14beb3ab1e4933da31ac`，base仍为bfdb00bd。
+[CI38357435353 attempt1](https://github.com/Halckon/Koven/actions/runs/38357435353)
+的Ubuntu/macOS TargetedTests均失败：每机15项新增正常源码测试通过；10项CI-only
+构造SSA测试中6项通过，4项在装配时发生`BlockAlreadyTerminated`，尚未抵达verifier断言。
+失败分别为`verify_mixed_call_ci_only_`前缀下的`consumed_value_is_rejected`、
+`inactive_auxiliary_loan_is_rejected`、`borrowed_owner_cannot_be_consumed`和
+`raw_place_argument_is_rejected`。word-frequency等后继步骤及相应产物未执行/生成，
+不能由缺失产物另推导生产缺陷，也不能把本次CI记为成功。
+
+根因为测试fixture先封闭caller，再经`before_call`调用禁止向已终止block追加指令的Builder。
+修复只调整cfg(test)装配顺序：在BorrowCall/BorrowEnd建成后、安装Return终止符前执行
+前缀构造，保持现有block指令顺序和实体身份；4项断言保留原错误kind，并锁定原BorrowCall
+指令位置。生产lowering、Builder和verifier未变，不改变负例意图或放宽验证。
+
+该修复基于完整远端commit JSON恢复的精确228091d3，独立fix分支保全首轮工作树。
+修复代码提交`f400bbbb2db6cac21c2ede503747179a4419a0d9`、tree
+`3ed7205daadf9d880ae961a904f175c47b3c6926`。本地仅静态审查/编译这10项构造SSA测试；
+`cargo fmt --all -- --check`、`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`
+通过；`cargo test --locked --offline -p lang-codegen --lib mixed_value_borrow -- --nocapture`
+15/15通过（26组源码双入口、52次native）；docs658、尺寸及diff通过，独立静态审查无阻断。
+4项必须由新head CI实际证明抵达verifier并拒绝，不能以本地编译或首轮6项通过替代；
+修后CI尚未运行，Spec继续in-progress，不归档/合并。
