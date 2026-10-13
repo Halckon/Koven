@@ -125,6 +125,10 @@ fn later_move_and_exclusive_access_conflict_before_outer_return() {
             "L0135",
         ),
         (
+            "fun pair(first: String, own n: Int) {}\nfun take(own source: String): Int = 1\nfun run() { val source = \"kept\"; pair(view(source), take(source)) }",
+            "L0135",
+        ),
+        (
             "fun pair(own first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(source, view(source)) }",
             "L0131",
         ),

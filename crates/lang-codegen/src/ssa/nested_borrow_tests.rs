@@ -57,6 +57,109 @@ fn owner(function: &Function, mut loan: LoanId) -> Option<ValueId> {
     }
 }
 
+fn check_different_outer_lifetimes(module: &Module, entry: &Function, asap: bool) {
+    let borrowed = entry
+        .instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, instruction)| {
+            let Operation::BorrowCall { source, .. } = instruction.operation else {
+                return None;
+            };
+            let [EntityId::Loan(result)] = instruction.results.as_slice() else {
+                unreachable!()
+            };
+            Some((index, *result, source))
+        })
+        .collect::<Vec<_>>();
+    let [first, second] = borrowed.as_slice() else {
+        panic!("two borrowed results")
+    };
+    let direct = |name: &str| {
+        let calls = entry
+            .instructions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, instruction)| {
+                let Operation::DirectCall {
+                    callee,
+                    ref arguments,
+                    ..
+                } = instruction.operation
+                else {
+                    return None;
+                };
+                module
+                    .function(callee)
+                    .unwrap()
+                    .name
+                    .contains(name)
+                    .then_some((index, arguments))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 1, "exactly one {name} consumer");
+        calls[0]
+    };
+    let (count_index, count_arguments) = direct("count");
+    let (pair_index, pair_arguments) = direct("pair");
+    assert_eq!(count_arguments.as_slice(), [EntityId::Loan(second.1)]);
+    assert_eq!(pair_arguments[0], EntityId::Loan(first.1));
+    assert!(
+        first.0 < second.0 && second.0 < count_index && count_index < pair_index,
+        "source evaluation order is independent of the two consumer lifetimes"
+    );
+    assert!(count_index < end(entry, second.1) && end(entry, second.1) < pair_index);
+    assert!(pair_index < end(entry, first.1));
+    for (result, source, consumer, next_consumer) in [
+        (second.1, second.2, count_index, Some(pair_index)),
+        (first.1, first.2, pair_index, None),
+    ] {
+        let mut child = result;
+        let mut ancestor = Some(source);
+        while let Some(source) = ancestor {
+            assert!(
+                producer(entry, EntityId::Loan(source)).is_some(),
+                "these source chains are newly created"
+            );
+            assert!(consumer < end(entry, child) && end(entry, child) < end(entry, source));
+            if let Some(next) = next_consumer {
+                assert!(
+                    end(entry, source) < next,
+                    "count's source chain ends before pair consumes its own result"
+                );
+            }
+            child = source;
+            ancestor = parent(entry, source);
+        }
+    }
+    let root = owner(entry, first.1).unwrap();
+    assert_eq!(
+        owner(entry, second.1),
+        Some(root),
+        "both results protect the same owner"
+    );
+    if asap {
+        let drops = entry
+            .instructions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, instruction)| {
+                matches!(instruction.operation, Operation::Drop { owner } if owner == root)
+                    .then_some(index)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(drops.len(), 1, "the last shared owner is cleaned once");
+        assert!(
+            end(entry, first.2) < drops[0] && end(entry, second.2) < drops[0],
+            "the earlier count boundary cannot drop the owner retained by pair"
+        );
+    } else {
+        let (consume_index, arguments) = direct("consume");
+        assert_eq!(arguments.as_slice(), [EntityId::Value(root)]);
+        assert!(end(entry, first.2) < consume_index && end(entry, second.2) < consume_index);
+    }
+}
+
 fn check(program: &Program, case: &Case) {
     verify_program(program).unwrap();
     crate::llvm::render_verified_program(program).unwrap();
@@ -146,6 +249,12 @@ fn check(program: &Program, case: &Case) {
         "{}: nested result reaches its DirectCall without an owned conversion",
         case.name
     );
+    if matches!(
+        case.name,
+        "different_outer_lifetimes" | "different_outer_lifetimes_asap"
+    ) {
+        check_different_outer_lifetimes(module, entry, case.name.ends_with("_asap"));
+    }
     if case.name == "borrow_entry_source" {
         let [EntityId::Loan(parameter)] = entry.blocks[0].parameters.as_slice() else {
             panic!("inspect receives a Borrow entry parameter");

@@ -250,5 +250,19 @@ pub(crate) fn cases() -> Vec<Case> {
             stdout: b"field\nconsume-source\ndrop-source\n",
             nested: true,
         },
+        Case {
+            name: "different_outer_lifetimes",
+            source: include_str!("../tests/fixtures/nested_borrow/different_outer_lifetimes.ko"),
+            stdout: b"kept\nkept\nkept\n",
+            nested: true,
+        },
+        Case {
+            name: "different_outer_lifetimes_asap",
+            source: include_str!(
+                "../tests/fixtures/nested_borrow/different_outer_lifetimes_asap.ko"
+            ),
+            stdout: b"kept\nkept\n",
+            nested: true,
+        },
     ]
 }

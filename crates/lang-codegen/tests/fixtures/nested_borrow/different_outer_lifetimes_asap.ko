@@ -1,0 +1,5 @@
+fun view(source: String): borrow String from source = source
+fun count(item: String): Int { println(item); return 1 }
+fun pair(item: String, own n: Int) { println(item) }
+fun consume(own source: String) { println(source) }
+fun entry() { val source = "kept".clone(); pair(view(source), count(view(source))); }
