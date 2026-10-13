@@ -112,9 +112,13 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok((loan, Vec::new(), fact.end_span()));
         }
-        if let Some(loan) =
-            self.lower_borrowed_heap_field_loan(argument, fact.target(), target, fact.begin_span())?
-        {
+        if let Some(loan) = self.lower_borrowed_field_loan(
+            call,
+            argument,
+            fact.target(),
+            target,
+            fact.begin_span(),
+        )? {
             return Ok((loan, vec![loan], fact.end_span()));
         }
         if let Some((loan, created)) =
