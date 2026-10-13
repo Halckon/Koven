@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 295 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 296 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -456,3 +456,5 @@
 - [SPEC-0310](0310-single-map-conditional-break.md)：single Map owner 有界条件 break，live/dead 路径运输；PR89 双宿主 13 项逐名物理 CI 验收，unit 既有四格及真实失败保留，归档 head CI/merge/main 待验收。
 
 - [SPEC-0311](0311-single-map-conditional-continue.md)：single Map owner 有界条件 continue；PR90 双宿主24项逐名验收，source范围修订、原红测与隔离重编译保留，归档 head CI/merge/main 待验收。
+
+- [SPEC-0312](0312-owned-source-conditional-continue.md)：owned Sequential source 条件 continue 的单 owner/单 loop 证明与双宿主验收。

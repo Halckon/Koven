@@ -1,0 +1,22 @@
+fun freshLive(): Unit {
+    for (outer in arrayOf("first", "second")) {
+        val keys = arrayOf(outer.clone(), "tail")
+        for (key in keys) {
+            println(key)
+            if (key == "tail") { continue }
+            println("body")
+        }
+        if (keys.size == 2) { println("live") }
+    }
+}
+fun freshDead(): Unit {
+    for (outer in arrayOf("third", "fourth")) {
+        val keys = arrayOf(outer.clone(), "tail")
+        for (key in keys) {
+            println(key)
+            if (key == "tail") { continue }
+            println("body")
+        }
+    }
+}
+fun main(): Unit { freshLive(); freshDead() }

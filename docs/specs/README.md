@@ -9,11 +9,12 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 0 份；0311 已有界归档。
-- 0311 之后优先修复 owned sequential source 的 conditional-continue presence，先于 Map return；[0311 诊断与明确后继](../archive/specs/0311-single-map-conditional-continue.md#owned-named-source-的既有独立缺口与范围修订)保留无 Map 也拒绝的普通源码证据，尚未分配后继 Spec。
+- [Active 合同](active/README.md)：当前 0 份。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
 ### 近期交付
+
+- [0312 owned Sequential source 条件 continue](../archive/specs/0312-owned-source-conditional-continue.md)：[PR91 实现 CI](https://github.com/Halckon/Koven/actions/runs/38433956651)双宿主32项新增及3项改名旧回归验收后有界归档；保留source单owner单loop、fresh独立实例及原失败边界，归档 head CI/merge/main 待验收。
 
 - [0311 single Map 条件 continue](../archive/specs/0311-single-map-conditional-continue.md)：[PR90 实现 CI](https://github.com/Halckon/Koven/actions/runs/38420920418)双宿主24项逐名验收后有界归档；保留 source 范围修订、原红测与隔离纠正，归档 head CI/merge/main 待验收。
 
