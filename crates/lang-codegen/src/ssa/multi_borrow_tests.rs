@@ -4,7 +4,7 @@ use super::{
     verify::verify_program,
 };
 
-fn check(program: &Program, source_index: usize) {
+fn check(program: &Program, source_index: usize, reused_arguments: bool) {
     verify_program(program).unwrap();
     crate::llvm::render_verified_program(program).unwrap();
     let module = &program.modules[0];
@@ -92,10 +92,17 @@ fn check(program: &Program, source_index: usize) {
                 };
                 if loan != source {
                     assert!(instruction.id.index() < end(*loan));
-                    assert!(
-                        end(*loan) < end(*result),
-                        "unrelated call loan ends before result"
-                    );
+                    if reused_arguments {
+                        assert!(
+                            end(*result) < end(*loan),
+                            "external auxiliary loan survives result"
+                        );
+                    } else {
+                        assert!(
+                            end(*loan) < end(*result),
+                            "unrelated call loan ends before result"
+                        );
+                    }
                 }
             }
         }
@@ -107,14 +114,14 @@ fn multi_parameter_borrow_single_source_matrix() {
     for case in crate::native_multi_borrow_cases::cases() {
         let program =
             single(case.source).unwrap_or_else(|error| panic!("{}: {error:?}", case.name));
-        check(&program, case.source_index);
+        check(&program, case.source_index, case.reused_arguments);
     }
 }
 #[test]
 fn multi_parameter_borrow_unit_source_matrix() {
     for case in crate::native_multi_borrow_cases::cases() {
         let program = unit(case.source).unwrap_or_else(|error| panic!("{}: {error:?}", case.name));
-        check(&program, case.source_index);
+        check(&program, case.source_index, case.reused_arguments);
     }
 }
 

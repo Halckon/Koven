@@ -6,8 +6,8 @@
 BorrowSourceLoan 的 argument identity 对齐。unit call frame 保留每实参新建 loan 的 pending
 槽位来源，只有来源组延续到结果；不能把 loans_ending_at 的全部枚举当成非来源终止事实。
 两入口先结束全部无关新建 loan，再消费 AfterExpression/CallReturn drop；同 owner 多次
-Borrow 不合并实参身份，复用入口 loan 不会由内部调用结束。BorrowCall verifier检查所有
-Loan operands的活性，结果alias与依赖仍只连接唯一source。13组普通源码已通过两入口
+Borrow 不合并实参身份，复用入口或外部 borrow val loan 不会由内部调用结束。BorrowCall verifier检查所有
+Loan operands的活性，结果alias与依赖仍只连接唯一source。16组普通源码已通过两入口
 SSA/原版LLVM及object/link/run，覆盖来源首/中/末、命名反排、同root/不同root、wrapper、
 Resource临时与字段、Copyable和MoveOnly泛型；有界账本见
 [SPEC-0305](../specs/active/0305-multi-parameter-borrow-result.md)。

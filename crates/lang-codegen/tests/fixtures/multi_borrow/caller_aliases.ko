@@ -1,0 +1,2 @@
+fun view(other: String, source: String): borrow String from source = source
+fun entry() { val other = "other".clone(); val source = "kept".clone(); borrow val otherAlias = other; borrow val sourceAlias = source; borrow val item = view(otherAlias, sourceAlias); println(item); println(otherAlias); println(sourceAlias) }

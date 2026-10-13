@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0288](../../archive/specs/0288-map-native-execution.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | 无新 ABI 或长期架构决定 |
-| 阻塞项 | 实现、定向本地验证与远端交付待完成 |
+| 阻塞项 | 独立审查与远端交付待完成 |
 | 影响范围 | lang-codegen single/unit lowering、verifier、正常源码/native测试及实现快照 |
 | 语言语义变更 | 否 |
 
@@ -62,10 +62,10 @@ receiver/Inout来源、混合Value参数、block返回、caller CFG/loop运输�
 |---|---|---|
 | 精确main与独立纠错 | raw commit SHA、tree、双父核验；docs checker/diff | main精确恢复；三路径纠错无冲突；655 Markdown通过 |
 | 正常源码红测 | `cargo test --locked --offline -p lang-codegen --lib multi_parameter_borrow -- --nocapture` | 初轮4个新测试失败于真实UnsupportedNode；已有2项旧边界通过 |
-| 来源/参数/终止SSA证明 | 同一精确filter，正常Program断言及原版LLVM验证 | 13组×single/unit已通过；来源、全部operand活性、wrapper与结果终止有正常trace断言 |
-| native真实输出与deinit | 同一filter中的两个native矩阵 | 13组×single/unit原版native通过，stdout精确、stderr空、exit0 |
-| 原单参数与拒绝边界 | 29项精确普通source回归；随后同filter10项 | 全通过；wrapper -n边界先记录真实失败再修复，!!/短range/具体callable保留拒绝 |
-| Rust与文档静态检查 | fmt、lang-codegen严格clippy、docs/尺寸policy/diff | 待执行 |
+| 来源/参数/终止SSA证明 | 同一精确filter，正常Program断言及原版LLVM验证 | 16组×single/unit已通过；来源、全部operand活性、wrapper与结果终止有正常trace断言 |
+| native真实输出与deinit | 同一filter中的两个native矩阵 | 16组×single/unit原版native通过，stdout精确、stderr空、exit0 |
+| 原单参数与拒绝边界 | 最终34项精确普通source回归；包含同filter10项 | 全通过；wrapper -n边界先记录真实失败再修复，!!/短range/具体callable保留拒绝 |
+| Rust与文档静态检查 | fmt、lang-codegen严格clippy、docs/尺寸policy/diff | fmt、严格clippy通过；docs657与尺寸guard/diff通过 |
 | 双宿主CI、归档与合并 | 精确PR head/merge/main | 未发布、未运行 |
 
 基线准备在相同Rust生产树上实际运行：boundary 2项通过（证明尚未支持）、frontend相关
@@ -81,13 +81,16 @@ receiver/Inout来源、混合Value参数、block返回、caller CFG/loop运输�
 
 首轮新增4个测试均在第一个真实source失败；既有boundary 2项证明旧拒绝。实现后发现
 MoveOnly用例的普通unit observer读取字段属于既有未接通路径，将该observer改成已有
-Packet marker读取；Resource字段借用返回仍独立真实验收。没有以此宣称普通unit字段参数
+Packet固定marker观察；Resource字段借用返回仍独立真实验收。没有以此宣称普通unit字段参数
 读取已支持。新增wrapper负号正向穿过旧门的红测后，以实参局部预检及block不变检查封闭。
-单参数/字段/Group、unit普通call/CFG消费者等29项通过；最终10项新filter含13组两入口SSA
-和13组两入口native，并保留错误来源/活跃来源移动及辅助CFG/range/callable边界。
+单参数/字段/Group、unit普通call/CFG及稳定View metadata消费者等最终34项通过；10项新filter含16组两入口SSA
+和16组两入口native，并保留错误来源/活跃来源移动及辅助CFG/range/callable边界。
+
+独立审查建议增加caller已有borrow val两实参复用、既有结果重复借用与泛型String实际payload，
+三组均已通过；SSA断言区分本次新建loan和需继续使用的外部辅助loan，native读真实payload。
 
 源码、target、工具链及原始日志在仓库外保留；没有修改IR/allocator或执行任何故障负载。
 fmt、Rust尺寸guard（actual-main为base）与diff通过；single orchestrate为998行，旧大文件
-verify_ownership从1827降至1823行，没有新增尺寸例外。严格clippy及最终门禁继续进行，
+verify_ownership从1827降至1823行，没有新增尺寸例外。lang-codegen all-targets严格clippy通过；
 完整frontend/workspace/codegen、macOS、远端CI均未运行。当前仍in-progress，等待独立审查
 和发布；不把本地范围扩大为完整M2B。
