@@ -45,6 +45,12 @@ EndSource 后 drop Header，允许 Exit absent。DropFact owner/condition 必须
 source shared loan 在整个 body/backedge 禁止 move/drop/替换或 exclusive mutation 的事实
 来自 frontend；证明不能替代实际 SSA owner/loan/length/cursor 运输与 verifier。
 
+单 owner 单 loop 是证明域，不是 AST 禁止嵌套。2026-10-13 普通源码差分后获准澄清：
+外层控制每次新建的 Expression seed/Always Entry 可独立满足本证明；不授予跨 loop owner。
+原 baseline 四例均拒绝；candidate 只有 fresh inner 独立实例新增接受，outer 包含 inner、
+同 source nested、同 source 连续 loop 仍拒绝。先前笼统 nested 非目标措辞由此有界细化，
+不改 Guide，也不证明通用 nested。动态实例 native 与精确 owner/loan 结构分别验收。
+
 ## 3. 验收与非目标
 
 普通源码先红后绿，Array/List/MutableList、0/1/3 元素、continue never/all/mixed、
@@ -54,7 +60,7 @@ source live/dead、local/own seed、temporary/Borrow 对照、var source 与 loo
 cursor 初始零/回边加一、element cleanup 与 exhaustion/drop 次序。
 single verified LLVM 与原版 object/link/run；unit ordinary/constant 独立四格，不推定 unit 修复。
 源码非法 move/变异只核原 frontend 诊断。Resource、非 source owner、field/Inout/RangeView、
-多 continue/break/return/nested/replacement 等保持旧能力，不将拒绝改为宽泛接受。
+多 continue/break/return/跨 loop phi seed 等保持旧能力，不将拒绝改为宽泛接受。
 Map 组合后验收；不复制未合入 0311 代码，不造父提交。
 Guide、frontend、SSA model/verifier、LLVM 不变；如需扩域先停止报告。
 

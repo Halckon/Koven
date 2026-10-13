@@ -176,10 +176,9 @@ fn owned_source_continue_unit_constant_live() {
     assert_unit_boundary(true, true);
 }
 
-// A normal-source observation used on the frozen baseline and candidate separately.
-// It prints each entry's actual outcome; success here is not claimed as lowering acceptance.
+// Exact outcomes; the original baseline observations remain outside the repository.
 #[test]
-fn owned_source_continue_nested_scope_observations() {
+fn owned_source_continue_nested_scope_boundaries() {
     for (label, text) in [
         (
             "inner_fresh",
@@ -210,14 +209,15 @@ fn owned_source_continue_nested_scope_observations() {
             &analysis.typed,
             &analysis.owned,
         );
-        eprintln!(
-            "NESTED {label} result={:?} plans={:?} conditions={:?}",
-            result.as_ref().map(|_| ()),
-            analysis.owned.iterations(),
-            analysis.owned.cleanup_conditions()
-        );
-        if let Ok(program) = result {
-            crate::llvm::render_verified_program(&program).unwrap();
+        if label == "inner_fresh" {
+            crate::llvm::render_verified_program(&result.expect("independent fresh inner owner"))
+                .unwrap();
+        } else {
+            let error = result
+                .err()
+                .expect("cross-loop owner proof remains unsupported");
+            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+            assert_eq!(analysis.sources.slice(error.span.unwrap()).unwrap(), "keys");
         }
     }
 }
@@ -253,4 +253,153 @@ fn owned_source_continue_frontend_source_loan_blocks_move_replace_and_mutation()
 fn owned_source_continue_same_type_decoy_has_distinct_owner_lineage() {
     check_with_decoy(true, "arrayOf", true);
     check_with_decoy(false, "arrayOf", true);
+}
+
+#[test]
+fn owned_source_continue_fresh_inner_owner_structure() {
+    use lang_frontend::ownership_checking::{DropTarget, IterationPhiIncomingKind, LoanTarget};
+    let text = include_str!("../../tests/fixtures/owned-source-continue-0312/fresh-inner.ko");
+    let analysis = analyze(text);
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let program = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .unwrap();
+    crate::llvm::render_verified_program(&program).unwrap();
+    let mut count = 0;
+    for plan in analysis.owned.iterations() {
+        let LoanTarget::Place(place) = plan.source() else {
+            continue;
+        };
+        let symbol = place.root();
+        if analysis.names.symbols()[symbol.index()].name() != "keys" {
+            continue;
+        }
+        count += 1;
+        let header = plan
+            .closure_phis()
+            .iter()
+            .find(|phi| phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header)
+            .unwrap();
+        let entry = plan
+            .closure_phi_incomings()
+            .iter()
+            .find(|edge| edge.kind() == IterationPhiIncomingKind::Entry)
+            .unwrap();
+        let seed = entry
+            .bindings()
+            .iter()
+            .find(|binding| binding.target() == header.owner())
+            .unwrap()
+            .values()[0]
+            .source();
+        let Some(CleanupOwnerValue::Expression { expression, .. }) =
+            analysis.owned.cleanup_conditions().owner_value(seed)
+        else {
+            panic!("fresh expression seed, never outer phi")
+        };
+        let span = analysis
+            .parsed
+            .ast()
+            .expressions()
+            .get(*expression)
+            .unwrap()
+            .span();
+        let fact = analysis
+            .owned
+            .drops()
+            .iter()
+            .find(|fact| fact.target() == DropTarget::Named(symbol))
+            .unwrap();
+        let live = matches!(
+            analysis
+                .owned
+                .cleanup_conditions()
+                .owner_value(fact.owner().unwrap()),
+            Some(CleanupOwnerValue::IterationPhi {
+                boundary: IterationPhiBoundary::Exit,
+                ..
+            })
+        );
+        structure::check(&program, live, span);
+    }
+    assert_eq!(count, 2);
+}
+
+#[test]
+fn owned_source_continue_existing_boundary_observations() {
+    for (label, text) in [
+        (
+            "index_without_loop",
+            "fun main(): Unit { var keys = arrayOf(1, 2, 3); keys[0] = 9 }",
+        ),
+        (
+            "resource_source",
+            "class Item(val id: Int) { deinit() {} }\nfun main(): Unit { val keys = arrayOf(Item(1), Item(2)); for (key in keys) { if (key.id == 2) { continue } }; keys.size }",
+        ),
+        (
+            "two_continue",
+            "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 1) { continue }; if (key == 2) { continue } }; keys.size }",
+        ),
+        (
+            "break",
+            "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 2) { break } }; keys.size }",
+        ),
+        (
+            "return",
+            "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 2) { return } }; keys.size }",
+        ),
+        (
+            "inout",
+            "fun scan(inout keys: Array<Int>): Unit { for (key in keys) { if (key == 2) { continue } }; keys.size }",
+        ),
+        (
+            "field",
+            "class Holder(val keys: Array<Int>) { fun scan(): Unit { for (key in this.keys) { if (key == 2) { continue } } } }",
+        ),
+        (
+            "replacement_seed",
+            "fun main(): Unit { var keys = arrayOf(1, 2); keys = arrayOf(2, 3); for (key in keys) { if (key == 2) { continue } }; keys.size }",
+        ),
+    ] {
+        let analysis = analyze(text);
+        assert!(
+            analysis.parsed.diagnostics().is_empty(),
+            "{label}: {:?}",
+            analysis.parsed.diagnostics()
+        );
+        assert!(
+            analysis.names.diagnostics().is_empty(),
+            "{label}: {:?}",
+            analysis.names.diagnostics()
+        );
+        assert!(
+            analysis.typed.diagnostics().is_empty(),
+            "{label}: {:?}",
+            analysis.typed.diagnostics()
+        );
+        assert!(
+            analysis.owned.diagnostics().is_empty(),
+            "{label}: {:?}",
+            analysis.owned.diagnostics()
+        );
+        let result = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        );
+        eprintln!("BOUNDARY {label} result={:?}", result.as_ref().map(|_| ()));
+        if let Ok(program) = result {
+            crate::llvm::render_verified_program(&program).unwrap();
+        }
+    }
 }
