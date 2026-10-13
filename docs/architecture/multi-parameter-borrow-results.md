@@ -10,7 +10,7 @@ Borrow 不合并实参身份，复用入口或外部 borrow val loan 不会由�
 Loan operands的活性，结果alias与依赖仍只连接唯一source。16组普通源码已通过两入口
 SSA/原版LLVM及object/link/run，覆盖来源首/中/末、命名反排、同root/不同root、wrapper、
 Resource临时与字段、Copyable和MoveOnly泛型；有界账本见
-[SPEC-0305](../specs/active/0305-multi-parameter-borrow-result.md)。
+[SPEC-0305](../archive/specs/0305-multi-parameter-borrow-result.md)。
 
 普通借用包装调用的实参不接通CFG运输：除原控制流门外，实参子树中的checked负号和
 非空断言明确拒绝，并核对实参lowering未新增caller block。辅助实参的即时range producer、

@@ -2,23 +2,23 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [SPEC-0305](0305-multi-parameter-borrow-result.md)：多Borrow参数的唯一来源直接返回；当前M2B有界实现，未宣称完整里程碑完成。
+[0305 多Borrow参数的唯一来源直接返回](../../archive/specs/0305-multi-parameter-borrow-result.md)已按PR83首次物理CI及双宿主34项普通测试有界归档；其余M2B后继开放，最终归档head复用/merge/main待独立验收。
 
-[0304 Spec 归档库存声明化](../../archive/specs/0304-spec-archive-inventory.md)已按PR82首次物理CI 16/16 jobs成功归档；严格声明、docs每次门禁与原代码证据边界保持，最终归档head真实复用、merge及actual-main CI待验证。
+[0304 Spec 归档库存声明化](../../archive/specs/0304-spec-archive-inventory.md)已按PR82首次物理CI 16/16 jobs成功归档；严格声明、docs每次门禁与原代码证据边界保持，已由[PR82](https://github.com/Halckon/Koven/pull/82)合入main `f7a4d15c`，[main CI](https://github.com/Halckon/Koven/actions/runs/38338171407)成功。
 
-[0298 范围绑定与有界局部控制流](../../archive/specs/0298-range-binding-local-control-flow.md)已按PR81修复后实现head双宿主52/8/14/35逐目标证据及完整CI有界归档；只关闭Int ==/<与同根词法if首片，[广义后继](../drafts/v0.43/README.md#0298首片之外的开放后继)继续开放，最终归档head CI/merge/main待验证。
+[0298 范围绑定与有界局部控制流](../../archive/specs/0298-range-binding-local-control-flow.md)已按PR81修复后实现head双宿主52/8/14/35逐目标证据及完整CI有界归档；只关闭Int ==/<与同根词法if首片，[广义后继](../drafts/v0.43/README.md#0298首片之外的开放后继)继续开放；已由[PR81](https://github.com/Halckon/Koven/pull/81)合入main `b63ec6a1`，[main CI](https://github.com/Halckon/Koven/actions/runs/38327500616)成功。
 
-[0299 owned Map删除结果的非消费借用](../../archive/specs/0299-owned-map-result-borrow.md)已按PR80实现head双宿主各23项新增测试及完整CI有界归档，仅关闭冻结首片；嵌套调用等广义后继保持开放，最终归档head CI/merge/main仍待验证。
+[0299 owned Map删除结果的非消费借用](../../archive/specs/0299-owned-map-result-borrow.md)已按PR80实现head双宿主各23项新增测试及完整CI有界归档，仅关闭冻结首片；嵌套调用等广义后继保持开放；已由[PR80](https://github.com/Halckon/Koven/pull/80)合入main `4eb38d74`，[main CI](https://github.com/Halckon/Koven/actions/runs/38275520368)成功。
 
-[0300 single Map-for条件清理运输](../../archive/specs/0300-single-map-loop-owner-carry.md)已按PR79实现head双宿主各19项新增测试及完整CI有界归档；只覆盖正常耗尽，最终归档head CI、merge与actual main仍待验证。
+[0300 single Map-for条件清理运输](../../archive/specs/0300-single-map-loop-owner-carry.md)已按PR79实现head双宿主各19项新增测试及完整CI有界归档；只覆盖正常耗尽；已由[PR79](https://github.com/Halckon/Koven/pull/79)合入main `08c6b8dc`，[main CI](https://github.com/Halckon/Koven/actions/runs/38259510177)成功。
 
-[0297 Map key return清理](../../archive/specs/0297-map-key-return-cleanup.md)已按PR78精确实现head双宿主各42项新增测试及完整CI有界归档；最终归档head CI、merge与actual main仍待验证。
+[0297 Map key return清理](../../archive/specs/0297-map-key-return-cleanup.md)已按PR78精确实现head双宿主各42项新增测试及完整CI有界归档；已由[PR78](https://github.com/Halckon/Koven/pull/78)合入main `003f1299`，[main CI](https://github.com/Halckon/Koven/actions/runs/38228159089)成功。
 
 [SPEC-0303](../../archive/specs/0303-development-document-ownership.md)已按PR77有界归档并合入main `289a8ad9`；合并后CI [38219409371](https://github.com/Halckon/Koven/actions/runs/38219409371)已成功。
 
-[0302证据保留](../../archive/specs/0302-evidence-retention.md)已按PR76有界归档并合入main `8ef058f6`；合并后CI另行跟踪。
+[0302证据保留](../../archive/specs/0302-evidence-retention.md)已按[PR76](https://github.com/Halckon/Koven/pull/76)有界归档并合入main `8ef058f6`，[main CI](https://github.com/Halckon/Koven/actions/runs/38191208630)成功。
 
 0296 owned nullable具名/临时结果cleanup已按[PR75](https://github.com/Halckon/Koven/pull/75)实现head
 双宿主每host55项codegen与25项Map frontend有界验收归档，已合为main `8c6907c2`；
