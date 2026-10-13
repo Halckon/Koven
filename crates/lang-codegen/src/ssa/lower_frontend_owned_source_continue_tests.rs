@@ -5,9 +5,18 @@ use super::{analyze, lower_scalar_file};
 use lang_frontend::ownership_checking::{CleanupOwnerValue, IterationPhiBoundary};
 
 fn check(live: bool, factory: &str) {
+    check_with_decoy(live, factory, false);
+}
+
+fn check_with_decoy(live: bool, factory: &str, decoy: bool) {
     let text = format!(
-        "fun main(): Unit {{ val keys = {factory}(1, 2, 3); for (key in keys) {{ if (key == 2) {{ continue }} }}; {} }}",
-        if live { "keys.size" } else { "" }
+        "fun main(): Unit {{ val keys = {factory}(1, 2, 3); for (key in keys) {{ {decoy_body}if (key == 2) {{ continue }} }}; {} }}",
+        if live { "keys.size" } else { "" },
+        decoy_body = if decoy {
+            format!("val other = {factory}(9); other.size; ")
+        } else {
+            String::new()
+        }
     );
     let analysis = analyze(&text);
     assert!(analysis.parsed.diagnostics().is_empty());
@@ -33,7 +42,43 @@ fn check(live: bool, factory: &str) {
     }
     let program = result.unwrap_or_else(|error| panic!("{factory} live={live}: {error:?}"));
     crate::llvm::render_verified_program(&program).unwrap();
-    structure::check(&program, live);
+    let plan = &analysis.owned.iterations()[0];
+    let entry = plan
+        .closure_phi_incomings()
+        .iter()
+        .find(|edge| {
+            edge.kind() == lang_frontend::ownership_checking::IterationPhiIncomingKind::Entry
+        })
+        .unwrap();
+    let source_symbol = match plan.source() {
+        lang_frontend::ownership_checking::LoanTarget::Place(place) => place.root(),
+        _ => unreachable!(),
+    };
+    let header = plan
+        .closure_phis()
+        .iter()
+        .find(|phi| phi.symbol() == source_symbol && phi.boundary() == IterationPhiBoundary::Header)
+        .unwrap();
+    let seed = entry
+        .bindings()
+        .iter()
+        .find(|binding| binding.target() == header.owner())
+        .unwrap()
+        .values()[0]
+        .source();
+    let Some(CleanupOwnerValue::Expression { expression, .. }) =
+        analysis.owned.cleanup_conditions().owner_value(seed)
+    else {
+        panic!("real source seed")
+    };
+    let seed_span = analysis
+        .parsed
+        .ast()
+        .expressions()
+        .get(*expression)
+        .unwrap()
+        .span();
+    structure::check(&program, live, seed_span);
 }
 
 #[test]
@@ -202,4 +247,10 @@ fn owned_source_continue_frontend_source_loan_blocks_move_replace_and_mutation()
             analysis.owned.diagnostics()
         );
     }
+}
+
+#[test]
+fn owned_source_continue_same_type_decoy_has_distinct_owner_lineage() {
+    check_with_decoy(true, "arrayOf", true);
+    check_with_decoy(false, "arrayOf", true);
 }

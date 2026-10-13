@@ -1,6 +1,6 @@
 //! Exact ordinary-source SSA lineage; only transparent block parameters are followed.
 use crate::ssa::model::{
-    BinaryOperator, BlockId, Definition, Edge, EntityId, Function, Operation, Program,
+    BinaryOperator, BlockId, Definition, Edge, EntityId, Function, Operation, Origin, Program,
     ScalarConstant, TerminatorKind,
 };
 fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
@@ -41,12 +41,15 @@ fn forwards(function: &Function, value: EntityId, expected: EntityId, depth: usi
             .iter()
             .all(|(_, edge)| forwards(function, edge.arguments[index], expected, depth + 1))
 }
-pub(super) fn check(program: &Program, live: bool) {
+pub(super) fn check(program: &Program, live: bool, seed_span: lang_frontend::source::Span) {
     let f = &program.modules[0].functions[0];
     let seeds = f
         .instructions
         .iter()
-        .filter(|i| matches!(i.operation, Operation::ContainerConstruct { .. }))
+        .filter(|i| {
+            i.origin == Origin::Source(seed_span)
+                && matches!(i.operation, Operation::ContainerConstruct { .. })
+        })
         .collect::<Vec<_>>();
     assert_eq!(seeds.len(), 1);
     let seed = seeds[0].results[0];
@@ -68,7 +71,6 @@ pub(super) fn check(program: &Program, live: bool) {
         .iter()
         .filter(|i| matches!(i.operation, Operation::ContainerLength { .. }))
         .collect::<Vec<_>>();
-    assert_eq!(lengths.len(), if live { 2 } else { 1 });
     let snapshot = lengths.iter().find(|i| i.block == preheader).unwrap();
     let Operation::ContainerLength { owner: source } = snapshot.operation else {
         unreachable!()
@@ -182,9 +184,12 @@ pub(super) fn check(program: &Program, live: bool) {
             .iter()
             .filter(|i| i.block == *block && matches!(i.operation, Operation::BorrowEnd { .. }))
             .collect::<Vec<_>>();
-        assert_eq!(ends.len(), 1, "only element ends on each iteration path");
-        assert!(
-            matches!(ends[0].operation, Operation::BorrowEnd { loan } if forwards(f, EntityId::Loan(loan), element, 0))
+        assert!(!ends.iter().any(|i| matches!(i.operation, Operation::BorrowEnd { loan } if forwards(f, EntityId::Loan(loan), body_source, 0))), "source loan survives both backedges");
+        let ends = ends.into_iter().filter(|i| matches!(i.operation, Operation::BorrowEnd { loan } if forwards(f, EntityId::Loan(loan), element, 0))).collect::<Vec<_>>();
+        assert_eq!(
+            ends.len(),
+            1,
+            "the actual element ends once on each iteration path"
         );
         let ids = &f.block(*block).unwrap().instructions;
         assert!(
@@ -197,7 +202,7 @@ pub(super) fn check(program: &Program, live: bool) {
     let drops = f.instructions.iter().filter(|i| matches!(i.operation, Operation::Drop { owner } if forwards(f, EntityId::Value(owner), exhausted_owner, 0))).collect::<Vec<_>>();
     assert_eq!(drops.len(), 1, "exact exhausted source owner consumed once");
     if live {
-        let post = lengths.iter().find(|i| i.block != preheader).unwrap();
+        let post = lengths.iter().find(|i| i.block == drops[0].block).unwrap();
         let Operation::ContainerLength { owner: post_loan } = post.operation else {
             unreachable!()
         };
