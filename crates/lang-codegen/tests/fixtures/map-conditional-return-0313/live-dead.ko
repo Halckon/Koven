@@ -1,0 +1,76 @@
+value class Text(val word: String)
+
+fun putDead(keys: Array<Int>, skip: Int): Unit {
+    var words = mutableMapOf<Int, Text>()
+    for (key in keys) {
+        words.put(key, Text("head".clone()))
+        println("head")
+        if (key == skip) { println("return"); return }
+        words.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    println("dead")
+}
+
+fun putLive(keys: Array<Int>, skip: Int): Unit {
+    var words = mutableMapOf<Int, Text>()
+    for (key in keys) {
+        words.put(key, Text("head".clone()))
+        println("head")
+        if (key == skip) { println("return"); return }
+        words.put(9, Text("tail".clone()))
+        println("tail")
+    }
+    if (words.contains(9)) { println("tail present") } else { println("tail absent") }
+    words.put(8, Text("after".clone()))
+    if (words.contains(8)) { println("after present") } else { println("after absent") }
+    println("live")
+}
+
+fun removeDead(keys: Array<Int>, skip: Int): Unit {
+    var cache = mutableMapOf<Int, String>()
+    cache.put(1, "initial".clone())
+    for (key in keys) {
+        cache.put(9, "head".clone())
+        val removed = cache.remove(1)
+        if (removed != null) { println("present") } else { println("missing") }
+        if (key == skip) { println("return"); return }
+        val tail = cache.remove(9)
+        if (tail != null) { println("tail removed") } else { println("tail missing") }
+    }
+    println("dead")
+}
+
+fun removeLive(keys: Array<Int>, skip: Int): Unit {
+    var cache = mutableMapOf<Int, String>()
+    cache.put(1, "initial".clone())
+    for (key in keys) {
+        cache.put(9, "head".clone())
+        val removed = cache.remove(1)
+        if (removed != null) { println("present") } else { println("missing") }
+        if (key == skip) { println("return"); return }
+        val tail = cache.remove(9)
+        if (tail != null) { println("tail removed") } else { println("tail missing") }
+    }
+    if (cache.contains(9)) { println("head retained") } else { println("head absent") }
+    val after = cache.remove(9)
+    if (after != null) { println("after removed") } else { println("after missing") }
+    println("live")
+}
+
+fun main(): Unit {
+    putDead(arrayOf(1, 2, 3), 3)
+    putDead(arrayOf<Int>(), 2)
+    putDead(arrayOf(2), 2)
+    putDead(arrayOf(1, 2, 3), 9)
+    putLive(arrayOf<Int>(), 2)
+    putLive(arrayOf(1), 2)
+    putLive(arrayOf(2, 2, 2), 2)
+    putLive(arrayOf(1, 2, 3), 2)
+    removeDead(arrayOf<Int>(), 2)
+    removeDead(arrayOf(2), 2)
+    removeDead(arrayOf(1, 2, 3), 2)
+    removeLive(arrayOf<Int>(), 2)
+    removeLive(arrayOf(2, 2, 2), 2)
+    removeLive(arrayOf(1, 2, 3), 9)
+}
