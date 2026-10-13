@@ -2,6 +2,27 @@
 use super::*;
 use crate::ownership_checking::BorrowBindingEndFact;
 impl DropPlanner<'_, '_> {
+    pub(super) fn continue_borrow_call_source(&self, id: ExpressionId, state: &mut ValueState) {
+        for fact in self
+            .checker
+            .borrow_results
+            .call_uses
+            .iter()
+            .filter(|fact| fact.expression() == self.checker.unit_expression(id))
+        {
+            if let crate::ownership_checking::UnitLoanTarget::Place(place) = fact.origin()
+                && state.position(place.root()).is_some()
+                && !state
+                    .pending_borrows
+                    .contains(&(fact.call().expression(), place.root()))
+            {
+                state
+                    .pending_borrows
+                    .push((fact.call().expression(), place.root()));
+            }
+        }
+    }
+
     pub(super) fn continue_range_source(&self, id: ExpressionId, state: &mut ValueState) {
         if let Some(fact) = self.checker.range_use(id) {
             match fact.site() {

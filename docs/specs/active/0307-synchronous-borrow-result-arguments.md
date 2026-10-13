@@ -70,12 +70,12 @@ lowering。稳定snapshot即送独立审查，不等最终收尾才review。小�
 |---|---|---|
 | actual-main/Spec冻结 | commit/tree/parents、库存、docs/diff | 精确对象恢复与编号核验通过；docs659通过，Spec冻结125a9671 |
 | 正常source红测 | 准备45组×single/真正跨文件unit在actual-main重跑；新正常测试 | actualmain45组×两入口90次：16 native对照精确成功、74 ownership拒绝；新增frontend4项及SSA/native4项均按预期L0164/冲突缺失失败 |
-| frontend事实与拒绝 | 定向新suite；borrow origins/continuation相关source测试 | 未执行 |
-| SSA/Loan/来源/清理 | 正常source两入口矩阵，检查未改写Program及原版LLVM | 未执行 |
-| native行为 | 同源single/unit object/link/run、逐字节stdout/空stderr/deinit | 未执行 |
+| frontend事实与拒绝 | `ownership_nested_borrow_arguments`与四个borrow回归suite | 首轮fixture误用println(Int)已修；第二轮10新增+31既有，共41/41通过；普通参数快速否定提前后新10项复验通过 |
+| SSA/Loan/来源/清理 | `nested_borrow_argument_{single,unit}_source_matrix` | 两入口38组正常source的真实SSA/原版LLVM通过，含真实field与Borrow entry身份 |
+| native行为 | `nested_borrow_argument_{single,unit}_native_matrix` | 38组×两入口76次原版native通过，完整stdout/空stderr精确核对 |
 | 共享消费者 | 既有0305/0306、普通Borrow调用、父绑定与cleanup相关正常source测试 | 未执行 |
 | 静态门禁 | fmt、frontend/codegen严格clippy、跨crate check、docs/尺寸/diff | 未执行 |
-| 独立审查 | 稳定snapshot、最终变化复查 | 未执行 |
+| 独立审查 | 稳定snapshot、最终变化复查 | 早审已补named实参真实值、field payload、Borrow entry及不返回前缀边界；完整生产审查待执行 |
 | 远端双宿主/交付 | root统一publisher、精确head/merge CI | 未发布、未执行；merge另需具体批准 |
 
 验收必须覆盖来源首/中/末、内外named反排、同root多次借用、不同root、混合Borrow/Value辅助、

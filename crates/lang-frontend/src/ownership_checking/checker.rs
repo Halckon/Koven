@@ -2,6 +2,7 @@ mod declaration;
 use std::collections::BTreeMap;
 
 mod borrow_binding;
+mod borrow_call_use;
 mod borrow_result;
 mod call;
 mod callable_provenance;

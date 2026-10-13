@@ -142,6 +142,75 @@ pub(super) fn validate(
 }
 
 impl UnitExpressionLowerer<'_> {
+    /// Keep created ancestors in the existing call carrier, without owning the payload.
+    pub(super) fn lower_nested_borrow_argument(
+        &mut self,
+        call: UnitExpressionId,
+        argument: ExpressionId,
+        span: Span,
+    ) -> Result<Option<(LoanId, Vec<LoanId>)>, LoweringError> {
+        let argument_id = UnitExpressionId::new(self.source_unit, argument);
+        let mut uses = self
+            .owned
+            .borrow_results()
+            .call_uses()
+            .iter()
+            .filter(|fact| fact.call() == call && fact.argument() == argument_id);
+        let Some(fact) = uses.next() else {
+            return Ok(None);
+        };
+        let source = fact.source_loan();
+        let actual = crate::ssa::borrow_result_support::ungroup(self.parsed, argument, span)?;
+        if uses.next().is_some()
+            || call.source_unit() != self.source_unit
+            || fact.expression() != UnitExpressionId::new(self.source_unit, actual)
+            || source.call() != fact.expression()
+            || fact.end_point() != UnitDropPoint::CallReturn(call)
+            || fact
+                .parent()
+                .is_some_and(|parent| !self.borrow_bindings.contains_key(&parent))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        for (owner_call, operand) in [(call, argument_id), (source.call(), source.argument())] {
+            let mut loans = self
+                .owned
+                .loans()
+                .iter()
+                .filter(|loan| loan.call() == owner_call && loan.argument() == operand);
+            if !loans.next().is_some_and(|loan| {
+                loan.target() == fact.origin()
+                    && loan.kind() == lang_frontend::ownership_checking::LoanKind::Shared
+            }) || loans.next().is_some()
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+        }
+        let descriptor = self
+            .typed
+            .call(call)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.borrow_return().is_some()
+            || descriptor.receiver().is_some()
+            || !matches!(
+                descriptor.target(),
+                lang_frontend::type_checking::UnitCallTarget::Declaration(_)
+                    | lang_frontend::type_checking::UnitCallTarget::Symbol(_)
+            )
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let call_span = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(call.expression())
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
+            .span();
+        crate::ssa::borrow_result_support::argument(self.parsed, call_span)?;
+        self.lower_result_call(actual, source, span).map(Some)
+    }
+
     pub(super) fn lower_result_binding(
         &mut self,
         symbol: UnitSymbolId,

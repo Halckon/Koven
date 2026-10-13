@@ -183,3 +183,6 @@ mod multi_borrow_tests;
 mod mixed_borrow_boundary_tests;
 #[cfg(test)]
 mod mixed_borrow_tests;
+
+#[cfg(test)]
+mod nested_borrow_tests;

@@ -787,7 +787,15 @@ impl Checker<'_> {
             let range = contract.is_some_and(|c| {
                 c.kind() == UnitCallArgumentOwnershipKind::SharedLoan && !c.crosses_thread()
             }) && self.range_expression_is_proven(argument.value);
-            if range {
+            let borrow_call = contract
+                .filter(|contract| {
+                    contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
+                        && !contract.crosses_thread()
+                })
+                .and_then(|_| self.borrow_call_argument(id, argument.value));
+            if let Some(expression) = borrow_call {
+                self.allowed_borrow_call = Some(expression);
+            } else if range {
                 self.allowed_borrow_call = Some(argument.value);
             }
             flows = self.chain_expression(flows, argument.value, usage)?;
@@ -802,6 +810,11 @@ impl Checker<'_> {
                     super::ActiveLoanOwner::Call(self.unit_expression(id)),
                     &mut flows,
                 );
+            }
+            if self.diagnostics.len() == diagnostic_count
+                && let Some(expression) = borrow_call
+            {
+                self.record_borrow_call_use(id, argument.value, expression, &mut flows)?;
             }
             if self.is_nothing_expression(self.unit_expression(argument.value)) {
                 flows.next = None;

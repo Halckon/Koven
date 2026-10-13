@@ -310,6 +310,11 @@ impl Checker<'_> {
             || self.borrow_results.forwarded.contains(&source)
             || self
                 .borrow_results
+                .call_uses
+                .iter()
+                .any(|fact| fact.source_loan() == source)
+            || self
+                .borrow_results
                 .range_uses
                 .iter()
                 .any(|fact| fact.source_loan() == source)

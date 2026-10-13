@@ -1194,6 +1194,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                     }
                 }
+                self.continue_borrow_call_source(id, state);
                 self.finish_call_borrows(id, &mut borrowed_roots, state);
                 state.pending_loans.retain(|(action, _)| match action {
                     crate::ownership_checking::UnitIterationCleanupAction::EndCallLoan(loan) => {

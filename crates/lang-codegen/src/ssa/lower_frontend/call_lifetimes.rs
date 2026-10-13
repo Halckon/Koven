@@ -4,7 +4,7 @@ use lang_frontend::{
     ownership_checking::{DropPoint, LoanEndPoint},
 };
 
-use super::{ExpressionLowerer, LoweringError, LoweringErrorKind, Operation, error};
+use super::{ExpressionLowerer, LoanId, LoweringError, LoweringErrorKind, Operation, error};
 
 impl ExpressionLowerer<'_> {
     /// End only the committed frontend call loans, then execute its existing ASAP facts.
@@ -12,6 +12,16 @@ impl ExpressionLowerer<'_> {
         &mut self,
         expression: ExpressionId,
         span: lang_frontend::source::Span,
+    ) -> Result<(), LoweringError> {
+        self.finish_borrowed_call_with_sources(expression, span, Vec::new())
+    }
+
+    /// Short result operands end before their newly created source chains and owner cleanup.
+    pub(super) fn finish_borrowed_call_with_sources(
+        &mut self,
+        expression: ExpressionId,
+        span: lang_frontend::source::Span,
+        sources: Vec<LoanId>,
     ) -> Result<(), LoweringError> {
         let ending_loans = self.owned.loans_ending_at(expression).collect::<Vec<_>>();
         for fact in &ending_loans {
@@ -29,6 +39,9 @@ impl ExpressionLowerer<'_> {
             .any(|(call, _)| *call == expression.index())
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        for loan in sources.into_iter().rev() {
+            self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
         }
         self.finish_short_call_ranges(expression, span)?;
         for fact in ending_loans {
