@@ -1,17 +1,17 @@
 # SPEC-0313: single Map owner 条件 return 清理
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收 single Map 条件 return 时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收 single Map 条件 return 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0313` |
 | 所属 Phase | Phase 3 事实消费、Phase 4 single SSA/native |
 | 语言规范 | [Guide12](../../guide/12-collections-destructuring.md) |
 | 批准依据 | 2026-10-13 用户持续里程碑实施，并要求审核/CI 等待时推进独立工作 |
-| 前置 Spec | [SPEC-0311](../../archive/specs/0311-single-map-conditional-continue.md) |
+| 前置 Spec | [SPEC-0311](0311-single-map-conditional-continue.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 0312真实main整合及本地回归完成；新base PR CI、归档与合并待完成 |
+| 阻塞项 | 实现及新base PR CI已通过；归档head CI、合并与actual-main CI待验证 |
 | 影响范围 | single 外部具名非 Resource Map 的一个条件 return；temporary/Borrow Sequential source |
 | 语言语义变更 | 否 |
 
@@ -58,7 +58,8 @@ RangeView 或一般 Resource/presence/ABI。
 | 0312真实main整合/直接测试 | `3b1abe0cf34f85c34622fa15faa5b2d8b27581ea`（生产同merge `91fcfa90`）；`loop_owner_tests::` / `owned_source_continue_` / `map_key_return` / `map_put_control_exit` | 81/32/42/20全过；Continue seed/Group/nested边界保持，owned-source Return local/own×live/dead×有无Map八格仍精确keys拒绝 |
 | 新base共享调用方 | 同输入，`ssa::lower_frontend_tests::{map_result_tests,resource_deinit_tests}`，`native::unit_tests::{map_loop_owner_tests,owned_null_cleanup_tests,temporary_null_cleanup_tests}`；普通provider11/source3/capture2逐exact | 91/15、28/11/8及16个单项全过；与上行有重叠，共344次执行、完整名称去重230项，0 ignored；未执行含计数的source聚合模块 |
 | 新baseCLI/静态门禁 | 同输入；`cargo build --offline --locked -p lang-cli --bin kovenc`后fresh-inner原fixture文件/project两入口；fmt、codegen all-targets clippy -D warnings、docs/diff/尺寸base `51f30090` | 两入口exit0、stdout精确、stderr空；所有门禁通过，docs666页、38项历史尺寸债。运行前后全部源码SHA相同 |
-| 新basePR CI/归档合并 | 远端唯一publisher交付 | 待运行；旧base CI不跨base复用，作者未远端写 |
+| 新base权威PR CI | [PR92 run38483423039/a1](https://github.com/Halckon/Koven/actions/runs/38483423039)，head `7a81c2581cab62bf4086ad783a226f1a6efa7033`、base `51f30090`、synthetic `700c63aa` / tree `207b8321` | success、reuse=false；15 jobs成功、1 Editors按分类skip。230联合目标双宿主逐名通过，含0312新增32及3项改名旧回归、0313新增25；Linux1551、macOS1550通过并1旧LLDB ignored；双preview producer/API/consumer摘要及独立安装完整匹配 |
+| 归档后门槛 | 本次仅docs迁移 | 归档head CI、PR92合并授权及actual-main CI仍待验证；新base实现CI不替代这些结果 |
 
 首轮过滤器 `conditional_return` 额外命中一个现有普通unit native源码测试（成功，未插桩）；
 随后以上完整模块路径重跑隔离6格。原始日志/源码恢复材料在仓库外保留，不以stdout代替

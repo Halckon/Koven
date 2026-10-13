@@ -37,9 +37,9 @@ break、更多 IterationPhi/call seed、RangeView 仍保持明确边界，不是
 
 ## 条件 return 的独立终止路径
 
-[0313](../specs/active/0313-single-map-conditional-return.md)在实际 main `8e0ce49d` 上独立实施，
+[0313](../archive/specs/0313-single-map-conditional-return.md)在实际 main `8e0ce49d` 上独立实施，
 仅增加 temporary/Borrow source 的单条件 Return；随后正常整合0312真实main `51f30090`，
-组合回归进行中，原独立基线不变。
+组合回归及新base双宿主CI已通过，原独立基线不变。
 Return无phi incoming；Header仍恰Entry/Fallthrough。return Header drop与正常live Exit或dead
 Header drop构成精确集合，不能把正常出口live解释为return仍存活。
 operand求值完成后保存当前binding；清理只能通过透明block参数转发该精确值。记录Drop所在
