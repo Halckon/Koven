@@ -68,8 +68,8 @@ lowering。稳定snapshot即送独立审查，不等最终收尾才review。小�
 
 | 验收项 | 目标/选择 | 实际结果 |
 |---|---|---|
-| actual-main/Spec冻结 | commit/tree/parents、库存、docs/diff | 精确对象恢复与编号核验通过；文档检查待执行 |
-| 正常source红测 | 准备45组×single/真正跨文件unit在actual-main重跑；新正常测试 | 进行中；旧0306本地准备证据不冒充本基线 |
+| actual-main/Spec冻结 | commit/tree/parents、库存、docs/diff | 精确对象恢复与编号核验通过；docs659通过，Spec冻结125a9671 |
+| 正常source红测 | 准备45组×single/真正跨文件unit在actual-main重跑；新正常测试 | actualmain45组×两入口90次：16 native对照精确成功、74 ownership拒绝；新增frontend4项及SSA/native4项均按预期L0164/冲突缺失失败 |
 | frontend事实与拒绝 | 定向新suite；borrow origins/continuation相关source测试 | 未执行 |
 | SSA/Loan/来源/清理 | 正常source两入口矩阵，检查未改写Program及原版LLVM | 未执行 |
 | native行为 | 同源single/unit object/link/run、逐字节stdout/空stderr/deinit | 未执行 |
