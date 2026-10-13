@@ -1,10 +1,10 @@
 # SPEC-0304: Spec 归档库存声明化
 
-> **性质**：变更合同 · **状态**：approved · **读取时机**：实现或验收归档库存声明时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实现或验收归档库存声明时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | approved |
+| 状态 | in-progress |
 | Goal ID | `KOV-P6-0304` |
 | 所属 Phase | Phase 6 交付门禁 |
 | 语言规范 | 现行 [Guide](../../guide/README.md)，不改变语言行为 |
@@ -62,7 +62,7 @@ checks 设置，不跨 PR 复用，不增加依赖，不改 Rust/Guide/ABI。此
 | `test_check_ci_results.py`：docs/尺寸/依赖必需与复用独立验证 | 未运行 | 普通 metadata/静态接线 fixture |
 | `test_gen_spec_dag.py`、`python3 scripts/check_docs.py`、`git diff --check` | 未运行 | 当前状态、DAG、索引与链接 |
 | 首次 PR 物理代码 CI | 待远端验收 | 必需双宿主与适用 preview jobs 实际成功，不以本地 Python 代替 |
-| 同 PR 纯归档 head 复用 | 待远端验收 | source run/attempt/base/head/merge 指纹逐项核，docs 必須成功 |
+| 同 PR 纯归档 head 复用 | 待远端验收 | source run/attempt/base/head/merge 指纹逐项核，docs 必须成功 |
 | 最终 PR checks / merge / actual-main CI | 待远端验收 | 无 required pending；main 必需代码 jobs实际运行 |
 
 ## 5. 实施与交付

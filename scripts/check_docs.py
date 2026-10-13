@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 import os
 import re
+import stat
 import sys
 from collections import defaultdict, deque
 from dataclasses import dataclass
@@ -43,27 +45,7 @@ SCOPED_AGENT_DIRS = (
     "lang-lsp",
     "lang-std",
 )
-EXPECTED_ARCHIVED_SPEC_IDS = frozenset(
-    f"{number:04d}"
-    for number in (
-        set(range(1, 24))
-        | {25, 26}
-        | set(range(27, 31))
-        | set(range(32, 37))
-        | set(range(38, 41))
-        | set(range(42, 46))
-        | {52}
-        | set(range(54, 61))
-        | set(range(62, 180))
-        | {180, 181}
-        | set(range(183, 200))
-        | {201, 202, 203, 204, 205, 206, 207, 208, 209, 210}
-        | set(range(213, 228))
-        | {211, 212}
-        | set(range(228, 270))
-        | {182, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 293, 294, 295, 296, 297, 298, 299, 300, 302, 303}
-    )
-)
+SPEC_INVENTORY_PATH = Path("docs/specs/inventory.md")
 EXPECTED_DRAFT_SPEC_IDS = {
     "v0.36": frozenset(),
     "v0.37": frozenset(),
@@ -71,7 +53,6 @@ EXPECTED_DRAFT_SPEC_IDS = {
     "v0.43": frozenset({"0292"}),
     "v0.44": frozenset({"0291"}),
 }
-EXPECTED_ACTIVE_SPEC_IDS: frozenset[str] = frozenset({"0304"})
 EXPECTED_ACCEPTED_ADR_IDS = frozenset(
     {*(f"{number:04d}" for number in range(1, 25)), "0026", "0027", "0028", "0029", "0030"}
 )
@@ -91,6 +72,61 @@ class MarkdownLink:
     source: Path
     line: int
     raw_target: str
+
+
+def read_spec_inventory(root: Path) -> tuple[frozenset[str], frozenset[str]]:
+    """Read only the fixed, non-executable declaration; never infer survivors."""
+    path = root / SPEC_INVENTORY_PATH
+    try:
+        for directory in (root / "docs", root / "docs/specs"):
+            if not stat.S_ISDIR(directory.lstat().st_mode):
+                raise ValueError("父路径必须是普通目录，不能使用符号链接")
+        mode = path.lstat().st_mode
+        if not stat.S_ISREG(mode) or mode & 0o111:
+            raise ValueError("必须是无执行位的普通文件，不能使用符号链接")
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ValueError("文件缺失或无法读取") from error
+    except UnicodeError as error:
+        raise ValueError("必须使用有效 UTF-8 编码") from error
+
+    lines = text.splitlines()
+    fences = [(index, line) for index, line in enumerate(lines)
+              if line.lstrip().startswith(("```", "~~~"))]
+    if len(fences) != 2 or [line for _, line in fences] != ["```json", "```"]:
+        raise ValueError("必须恰好一个完整的 JSON fenced block")
+
+    def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("JSON 对象字段不得重复")
+            result[key] = value
+        return result
+
+    def reject_constant(value: str) -> None:
+        raise ValueError("不得使用非标准 JSON 常量")
+
+    try:
+        data = json.loads("\n".join(lines[fences[0][0] + 1:fences[1][0]]),
+                          object_pairs_hook=unique_object, parse_constant=reject_constant)
+    except json.JSONDecodeError as error:
+        raise ValueError("声明必须是有效 JSON") from error
+    if not isinstance(data, dict) or set(data) != {"active", "archived"}:
+        raise ValueError("声明字段必须恰为 active 和 archived")
+    for label in ("active", "archived"):
+        values = data[label]
+        if not isinstance(values, list) or any(
+            not isinstance(value, str) or re.fullmatch(r"[0-9]{4}", value) is None
+            for value in values
+        ):
+            raise ValueError(f"{label} 必须是四位 ASCII 编号的字符串数组")
+        if len(values) != len(set(values)):
+            raise ValueError(f"{label} 编号不得重复")
+    active, archived = frozenset(data["active"]), frozenset(data["archived"])
+    if active & archived:
+        raise ValueError("active 与 archived 编号不得相交")
+    return active, archived
 
 
 def relative(path: Path, root: Path) -> str:
@@ -240,7 +276,16 @@ class DocsChecker:
         self.root = root.resolve()
         self.docs = self.root / "docs"
         self.errors: list[str] = []
-        self.files = markdown_files(self.root)
+        self.spec_inventory: tuple[frozenset[str], frozenset[str]] | None = None
+        self.inventory_error: str | None = None
+        try:
+            self.spec_inventory = read_spec_inventory(self.root)
+        except ValueError as error:
+            self.inventory_error = f"{SPEC_INVENTORY_PATH.as_posix()}: {error}"
+        # Reject an invalid declaration before generic Markdown reads can follow
+        # its symlink, decode bad bytes, or block on a non-regular file.
+        self.files = [path for path in markdown_files(self.root)
+                      if self.inventory_error is None or path != self.root / SPEC_INVENTORY_PATH]
         self.links: dict[Path, list[MarkdownLink]] = {path: iter_links(path) for path in self.files}
         self.graph: dict[Path, set[Path]] = defaultdict(set)
         self._anchors: dict[Path, set[str]] = {}
@@ -271,6 +316,8 @@ class DocsChecker:
             )
 
     def run(self) -> list[str]:
+        if self.inventory_error is not None:
+            return [self.inventory_error]
         self.check_links()
         self.check_spec_lifecycle()
         self.check_adr_lifecycle()
@@ -325,6 +372,10 @@ class DocsChecker:
                             )
 
     def check_spec_lifecycle(self) -> None:
+        if self.spec_inventory is None:
+            self.error(self.inventory_error or f"{SPEC_INVENTORY_PATH}: 缺少有效声明")
+            return
+        expected_active, expected_archived = self.spec_inventory
         candidates = list((self.docs / "specs").rglob("*.md")) + list(
             (self.docs / "archive/specs").glob("*.md")
         )
@@ -359,7 +410,7 @@ class DocsChecker:
                 self.error(f"{rel}: 状态 {status} 与目录不一致，应位于 {expected}")
             if rel.startswith("docs/archive/specs/"):
                 archived.add(spec_id)
-                if spec_id in EXPECTED_ARCHIVED_SPEC_IDS and status != "done":
+                if spec_id in expected_archived and status != "done":
                     self.error(
                         f"{rel}: 冻结 inventory 中的 SPEC-{spec_id} 状态必须保持 done"
                     )
@@ -374,10 +425,10 @@ class DocsChecker:
                 names = ", ".join(relative(path, self.root) for path in sorted(paths))
                 self.error(f"SPEC-{spec_id}: 编号重复: {names}")
         self.check_inventory(
-            "归档 Spec inventory", archived, EXPECTED_ARCHIVED_SPEC_IDS, "SPEC"
+            "归档 Spec inventory", archived, expected_archived, "SPEC"
         )
         self.check_inventory(
-            "Active Spec inventory", active, EXPECTED_ACTIVE_SPEC_IDS, "SPEC"
+            "Active Spec inventory", active, expected_active, "SPEC"
         )
         for version, expected_ids in EXPECTED_DRAFT_SPEC_IDS.items():
             self.check_inventory(

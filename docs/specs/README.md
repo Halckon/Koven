@@ -18,6 +18,7 @@ P2成本继续延期，后续候选能力不因M1A交付自动关闭。原[恢�
 - [演进实施账本](evolution-status.md)：十三项计划的固定基线、后继阅读边界与交付历史
 - [工程方法](../development/README.md)：开发、验证与交付入口
 - [候选入口](../proposals/README.md)：尚未选定的范围；P2预算继续延期/未接受
+- [冻结库存](inventory.md)：active/archive 编号的独立声明，draft/ADR 保持原 checker 真源
 - [Spec 依赖图](dependency-graph.md) / [SVG](dependency-graph.svg)：由 `scripts/gen_spec_dag.py` 生成的当前拓扑
 
 ## 版本与历史导航

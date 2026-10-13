@@ -3,8 +3,13 @@
 import importlib.util
 import re
 import shlex
+import sys
+import tempfile
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from check_docs import DocsChecker  # noqa: E402
 
 SPEC = importlib.util.spec_from_file_location(
     "check_ci_results", Path(__file__).resolve().parents[1] / "check_ci_results.py"
@@ -115,6 +120,25 @@ class CheckCiResultsTests(unittest.TestCase):
         jobs = needs("true", "true", docs="success")
         jobs["changes"]["outputs"]["reuse"] = "false"
         self.assertTrue(CI.check_results(jobs, "pull_request", "refs/pull/1/merge"))
+
+    def test_malformed_inventory_docs_failure_blocks_verified_code_reuse(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inventory = root / "docs/specs/inventory.md"
+            inventory.parent.mkdir(parents=True)
+            inventory.write_text('# Inventory\n\n```json\n{"active": []}\n```\n',
+                                 encoding="utf-8")
+            errors = DocsChecker(root).run()
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn("docs/specs/inventory.md", errors[0])
+        jobs = needs("true", "true", "true", "true",
+                     docs="failure" if errors else "success")
+        jobs["changes"]["outputs"].update(reuse="true", reuse_run="10", fingerprint="a" * 64)
+        self.assertEqual(["docs: expected success, got failure"], CI.check_results(
+            jobs, "pull_request", "refs/pull/1/merge", reuse_verified=True))
+        jobs["docs"]["result"] = "success"
+        self.assertEqual([], CI.check_results(
+            jobs, "pull_request", "refs/pull/1/merge", reuse_verified=True))
 
     def test_docs_only_pr_can_skip_rust(self):
         self.assertEqual([], CI.check_results(

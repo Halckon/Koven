@@ -52,7 +52,8 @@ done/superseded    → archive/specs/
 - Spec 完成前逐条记录实际验收；状态迁移与路径迁移在同一变更中完成。
 - accepted ADR 放入 `adr/accepted/`，proposed 放入 `adr/proposed/`；rejected/superseded 进入 archive。
 - accepted ADR 不改写原决定；改变方案时新增 ADR 并建立双向取代关系。
-- 增删或迁移 Spec/ADR 时同步更新 `scripts/check_docs.py` 的冻结 inventory；否则结构门禁应失败。
+- active/archive Spec 的增删或迁移同步更新 [冻结库存](specs/inventory.md)；draft 按版本库存与 ADR
+  库存仍同步 `scripts/check_docs.py`。声明与实际文件双向核对，缺失、未登记或无效声明必须失败。
 
 ## 5. Archive 与迁移
 

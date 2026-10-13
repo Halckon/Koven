@@ -16,6 +16,11 @@ class DocsCheckerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
+        self.write(
+            "docs/specs/inventory.md",
+            '# Inventory\n\n> **性质**：库存 · **状态**：current · **读取时机**：测试 · **唯一真源**：本页\n'
+            '\n```json\n{"active": [], "archived": ["0001", "0002"]}\n```\n',
+        )
 
     def tearDown(self) -> None:
         self.temporary.cleanup()

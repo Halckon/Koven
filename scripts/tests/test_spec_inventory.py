@@ -182,6 +182,39 @@ class SpecInventoryTests(unittest.TestCase):
         self.assertTrue(any('缺少 1 项: SPEC-4002' in error for error in errors), errors)
         self.assertTrue(any('未登记项: SPEC-4003' in error for error in errors), errors)
 
+    def test_valid_inventory_does_not_replace_spec_index_coverage(self):
+        for area in ('docs/specs/active', 'docs/archive/specs'):
+            (self.root / area / 'README.md').write_text('# Index\n')
+        checker = check_docs.DocsChecker(self.root)
+        checker.check_indexes()
+        self.assertTrue(any('active Spec 索引遗漏' in error for error in checker.errors))
+        self.assertTrue(any('archived Spec 索引遗漏' in error for error in checker.errors))
+        for area, spec_id in (('docs/specs/active', '4001'), ('docs/archive/specs', '4002')):
+            (self.root / area / 'README.md').write_text(f'# Index\n\n[Spec]({spec_id}-example.md)\n')
+        checker = check_docs.DocsChecker(self.root)
+        checker.check_indexes()
+        self.assertFalse(any('active Spec' in error or 'archived Spec' in error
+                             for error in checker.errors), checker.errors)
+
+    def test_valid_lifecycle_transition_still_requires_fresh_graphs(self):
+        from gen_spec_dag import render_targets
+
+        for path, text in render_targets(self.root).items():
+            path.write_text(text, encoding='utf-8')
+        checker = check_docs.DocsChecker(self.root)
+        checker.check_generated_graph()
+        self.assertEqual([], checker.errors)
+        source = self.root / 'docs/specs/active/4001-example.md'
+        target = self.root / 'docs/archive/specs/4001-example.md'
+        source.rename(target)
+        target.write_text(target.read_text().replace('in-progress', 'done'))
+        self.write_inventory({'active': [], 'archived': ['4001', '4002']})
+        self.assertEqual([], self.lifecycle_errors())
+        checker = check_docs.DocsChecker(self.root)
+        checker.check_generated_graph()
+        self.assertEqual(4, len(checker.errors), checker.errors)
+        self.assertTrue(all('生成物过期' in error for error in checker.errors))
+
     def test_frozen_done_title_status_and_global_id_guards_remain(self):
         path = self.root / 'docs/archive/specs/4002-example.md'
         original = path.read_text()
