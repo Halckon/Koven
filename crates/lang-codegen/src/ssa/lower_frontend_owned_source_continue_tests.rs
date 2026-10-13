@@ -176,3 +176,30 @@ fn owned_source_continue_nested_scope_observations() {
         }
     }
 }
+
+#[test]
+fn owned_source_continue_frontend_source_loan_blocks_move_replace_and_mutation() {
+    for (factory, operation) in [
+        ("arrayOf", "consume(keys)"),
+        ("arrayOf", "keys[0] = 9"),
+        ("mutableListOf", "keys.add(4)"),
+        ("mutableListOf", "keys.removeLast()"),
+    ] {
+        let text = format!(
+            "fun consume(own keys: Array<Int>): Unit {{}}\nfun main(): Unit {{ var keys = {factory}(1, 2, 3); for (key in keys) {{ {operation}; if (key == 2) {{ continue }} }} }}"
+        );
+        let analysis = analyze(&text);
+        assert!(analysis.parsed.diagnostics().is_empty());
+        assert!(analysis.names.diagnostics().is_empty());
+        assert!(analysis.typed.diagnostics().is_empty());
+        assert!(
+            analysis
+                .owned
+                .diagnostics()
+                .iter()
+                .any(|diagnostic| diagnostic.code() == "L0135"),
+            "{:?}",
+            analysis.owned.diagnostics()
+        );
+    }
+}

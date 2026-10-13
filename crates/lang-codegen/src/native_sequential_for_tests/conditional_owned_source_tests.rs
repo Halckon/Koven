@@ -77,3 +77,49 @@ fun main(): Unit {
         b"tail\nsecond\nfirst\nsecond\nfirst\ntail\nsecond\nfirst\nmoved\nmutated\n",
     );
 }
+
+#[test]
+fn owned_source_continue_native_owned_parameter_string_and_borrow_controls() {
+    let text = r#"
+fun owned(own keys: List<String>): Unit {
+    for (key in keys) { println(key); if (key == "two") { continue }; println("tail") }
+    if (keys.size == 3) { println("owned") }
+}
+fun borrowed(keys: Array<String>): Unit {
+    for (key in keys) { println(key); if (key == "two") { continue }; println("tail") }
+}
+fun main(): Unit {
+    owned(listOf("one", "two", "three"))
+    val keys = arrayOf("one", "two", "three")
+    borrowed(keys)
+    if (keys.size == 3) { println("borrowed") }
+    for (key in arrayOf("one", "two", "three")) {
+        println(key)
+        if (key == "two") { continue }
+        println("tail")
+    }
+    println("temporary")
+}
+"#;
+    assert_success(&emit_link_and_run("owned-source-modes.ko", text, "main"),
+        b"one\ntail\ntwo\nthree\ntail\nowned\none\ntail\ntwo\nthree\ntail\nborrowed\none\ntail\ntwo\nthree\ntail\ntemporary\n");
+}
+
+#[test]
+fn owned_source_continue_native_moveonly_destructure_and_discard() {
+    let text = r#"
+value class Item(val id: Int, val name: String)
+fun main(): Unit {
+    val items = listOf(Item(1, "one"), Item(2, "two"), Item(3, "three"))
+    for ((id, name) in items) { println(name); if (id == 2) { continue }; println("tail") }
+    if (items.size == 3) { println("retained") }
+    val keys = arrayOf(1, 2, 3)
+    for (_ in keys) { if (keys.size == 3) { continue }; println("wrong") }
+    println("done")
+}
+"#;
+    assert_success(
+        &emit_link_and_run("owned-source-destructure.ko", text, "main"),
+        b"one\ntail\ntwo\nthree\ntail\nretained\ndone\n",
+    );
+}
