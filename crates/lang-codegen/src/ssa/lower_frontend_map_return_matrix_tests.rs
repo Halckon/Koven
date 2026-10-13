@@ -1,7 +1,7 @@
 //! Frozen ordinary sources shared by SSA and unmodified object/link/run.
 use super::{analyze, lower_scalar_file};
 
-fn check(source: &str) {
+fn check(source: &str) -> crate::ssa::model::Program {
     let analysis = analyze(source);
     assert!(
         analysis.parsed.diagnostics().is_empty(),
@@ -32,6 +32,7 @@ fn check(source: &str) {
     )
     .unwrap();
     crate::llvm::render_verified_program(&program).unwrap();
+    program
 }
 
 #[test]
@@ -42,9 +43,10 @@ fn single_map_return_cardinality_matrix() {
 }
 #[test]
 fn single_map_return_distinct_owner_matrix() {
-    check(include_str!(
+    let program = check(include_str!(
         "../../tests/fixtures/map-conditional-return-0313/distinct-owners.ko"
     ));
+    super::structure::assert_distinct_return_owners(&program);
 }
 #[test]
 fn single_map_return_provider_matrix() {

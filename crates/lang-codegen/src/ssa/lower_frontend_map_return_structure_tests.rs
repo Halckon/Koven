@@ -465,3 +465,164 @@ pub(super) fn assert_return_structure(
         );
     }
 }
+
+// Append beside the existing oracle helpers; inspect ordinary, unmodified fixture SSA only.
+pub(super) fn assert_distinct_return_owners(program: &Program) {
+    let function = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .find(|function| function.name == "separateOwners")
+        .unwrap();
+    let mut seeds = function
+        .instructions
+        .iter()
+        .filter(|i| matches!(i.operation, Operation::MapConstruct { .. }))
+        .collect::<Vec<_>>();
+    assert_eq!(seeds.len(), 2);
+    seeds.sort_by_key(|i| i.origin.span().start());
+    let map_type = function.entity(seeds[0].results[0]).unwrap().ty;
+    assert_eq!(map_type, function.entity(seeds[1].results[0]).unwrap().ty);
+    assert_ne!(seeds[0].results[0], seeds[1].results[0]);
+    let initial_second = only(function, |i| {
+        matches!(i.operation, Operation::MapPut { owner, .. }
+        if forwards(function, EntityId::Value(owner), seeds[1].results[0]))
+    });
+    let length = only(function, |i| {
+        matches!(i.operation, Operation::ContainerLength { .. })
+    });
+    let preheader = function.block(length.block).unwrap();
+    let enter = branch(preheader);
+    let header = function.block(enter.target).unwrap();
+    assert_eq!(initial_second.block, preheader.id);
+    let first_slot = slot(&enter.arguments, seeds[0].results[0]);
+    let second_slot = slot(&enter.arguments, initial_second.results[0]);
+    assert_ne!(first_slot, second_slot);
+    let TerminatorKind::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &header.terminator.as_ref().unwrap().kind
+    else {
+        panic!("real provider header")
+    };
+    let body_first = transport(function, when_true, header.parameters[first_slot]);
+    let body_second = transport(function, when_true, header.parameters[second_slot]);
+    let exit_first = transport(function, when_false, header.parameters[first_slot]);
+    let exit_second = transport(function, when_false, header.parameters[second_slot]);
+    assert_ne!(body_first, body_second);
+    assert_ne!(exit_first, exit_second);
+    let head_first = only(function, |i| {
+        matches!(i.operation, Operation::MapPut { owner, .. }
+        if forwards(function, EntityId::Value(owner), body_first))
+    });
+    let head_second = only(function, |i| {
+        matches!(i.operation, Operation::MapRemove { owner, .. }
+        if forwards(function, EntityId::Value(owner), body_second))
+    });
+    let tail_first = only(function, |i| {
+        matches!(i.operation, Operation::MapPut { owner, .. }
+        if forwards(function, EntityId::Value(owner), head_first.results[0]))
+    });
+    let tail_second = only(function, |i| {
+        matches!(i.operation, Operation::MapPut { owner, .. }
+        if forwards(function, EntityId::Value(owner), head_second.results[0]))
+    });
+    let return_first = only(function, |i| {
+        matches!(i.operation, Operation::Drop { owner }
+        if forwards(function, EntityId::Value(owner), head_first.results[0]))
+    });
+    let return_second = only(function, |i| {
+        matches!(i.operation, Operation::Drop { owner }
+        if forwards(function, EntityId::Value(owner), head_second.results[0]))
+    });
+    assert_ne!(return_first.id, return_second.id);
+    assert_eq!(return_first.block, return_second.block);
+    let returned = function.block(return_first.block).unwrap();
+    assert!(matches!(&returned.terminator.as_ref().unwrap().kind,
+        TerminatorKind::Return { values } if values.is_empty()));
+    for (drop, current, other, stale) in [
+        (
+            return_first,
+            head_first.results[0],
+            head_second.results[0],
+            body_first,
+        ),
+        (
+            return_second,
+            head_second.results[0],
+            head_first.results[0],
+            body_second,
+        ),
+    ] {
+        let Operation::Drop { owner } = drop.operation else {
+            unreachable!()
+        };
+        let owner = EntityId::Value(owner);
+        assert!(forwards(function, owner, current));
+        assert!(!forwards(function, owner, other));
+        assert!(!forwards(function, owner, stale));
+    }
+    let all_edges = edges(function);
+    assert!(all_edges.iter().all(|(block, _)| *block != returned.id));
+    let incoming = all_edges
+        .iter()
+        .copied()
+        .filter(|(_, edge)| edge.target == header.id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        incoming.len(),
+        2,
+        "exactly entry plus the real fallthrough backedge"
+    );
+    let (fallthrough, edge) = *incoming
+        .iter()
+        .find(|(block, _)| *block != preheader.id)
+        .unwrap();
+    assert_eq!(branch(function.block(fallthrough).unwrap()), edge);
+    for (owner_slot, current, other, stale) in [
+        (
+            first_slot,
+            tail_first.results[0],
+            tail_second.results[0],
+            head_first.results[0],
+        ),
+        (
+            second_slot,
+            tail_second.results[0],
+            tail_first.results[0],
+            head_second.results[0],
+        ),
+    ] {
+        assert!(forwards(function, edge.arguments[owner_slot], current));
+        assert!(!forwards(function, edge.arguments[owner_slot], other));
+        assert!(!forwards(function, edge.arguments[owner_slot], stale));
+    }
+    for tail in [tail_first, tail_second] {
+        assert!(reaches(function, tail.block, fallthrough, header.id));
+        assert!(!reaches(function, returned.id, tail.block, header.id));
+    }
+    let after_first = only(function, |i| {
+        matches!(i.operation, Operation::MapPut { owner, .. }
+        if forwards(function, EntityId::Value(owner), exit_first))
+    });
+    let after_second = only(function, |i| {
+        matches!(i.operation, Operation::MapRemove { owner, .. }
+        if forwards(function, EntityId::Value(owner), exit_second))
+    });
+    for (current, other) in [
+        (after_first.results[0], after_second.results[0]),
+        (after_second.results[0], after_first.results[0]),
+    ] {
+        let drop = only(function, |i| {
+            matches!(i.operation, Operation::Drop { owner }
+            if forwards(function, EntityId::Value(owner), current))
+        });
+        assert_ne!(drop.block, returned.id);
+        assert!(matches!(drop.operation, Operation::Drop { owner }
+            if !forwards(function, EntityId::Value(owner), other)));
+    }
+    assert_eq!(function.instructions.iter().filter(|i| matches!(i.operation,
+        Operation::Drop { owner } if function.entity(EntityId::Value(owner)).unwrap().ty == map_type))
+        .count(), 4, "two distinct Map owners on each terminal path");
+}

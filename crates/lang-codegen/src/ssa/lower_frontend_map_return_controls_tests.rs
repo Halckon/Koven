@@ -207,7 +207,7 @@ fn ordinary_source_controls_active_source_and_element_diagnostics() {
             "L0133",
         ),
         (
-            "fun work(own keys: MutableList<Int>): Unit { for (key in keys) { if (key == 1) { keys.add(2); return } } }",
+            "fun work(): Unit { var keys = mutableListOf(1, 2); for (key in keys) { if (key == 1) { keys.add(2); return } } }",
             "L0135",
         ),
     ] {
