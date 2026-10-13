@@ -45,10 +45,10 @@
 
 | 验收项 | 精确选择 | 当前结果 |
 |---|---|---|
-| single/unit SSA | `cargo test --locked --offline -p lang-codegen --lib mixed_value_borrow_generic_ordinary_consumers -- --nocapture` | 草稿 2/2 通过；最终提交身份与复核待登记 |
-| single native | `native_tests::borrow_result_tests::mixed_value_borrow_single_native_matrix` exact | 待运行 |
-| unit native | `native::unit_tests::borrow_result_tests::mixed_value_borrow_unit_native_matrix` exact | 待运行 |
-| 静态与文档 | fmt、codegen 严格 clippy、docs、diff、尺寸 | 待运行 |
+| single/unit SSA | `cargo test --locked --offline -p lang-codegen --lib mixed_value_borrow_generic_ordinary_consumers -- --nocapture` | 2/2 通过，1444 filtered；fixture/测试字节与 a510c5be 完全相同 |
+| single native | `native_tests::borrow_result_tests::mixed_value_borrow_single_native_matrix` exact | 1/1 通过，1445 filtered；26 个普通源码子例 |
+| unit native | `native::unit_tests::borrow_result_tests::mixed_value_borrow_unit_native_matrix` exact | 1/1 通过，1445 filtered；26 个普通源码子例 |
+| 静态与文档 | fmt、codegen 严格 clippy、docs、diff、尺寸 | 全通过；docs 661；1065 个手写 Rust 文件、38 项旧尺寸债务无新增例外 |
 | 独立审查/双宿主 CI | 精确最终 head 与 PR 输入 | 待运行 |
 
 本地仅执行已审普通 source 路径；不运行构造坏 IR、故障注入、校准、sanitizer、aggregate
@@ -63,3 +63,26 @@ frontend 目标计数继续是 103，本片无需调整脚本或固定 count。
 
 先单独提交本合同和库存/导航，再提交三文件测试变更；最后按实际证据更新账本。
 原始日志/恢复材料留仓库外，远端 CI、归档和合并另行验收。
+
+## 5. 本地测试交付检查点
+
+测试提交 `a510c5be9f45bd0a9e706d70859bb010edd1b3f1`，tree
+`a1ec81199f532c4298e508a18aaf85d7a8a863da`；前一独立合同提交 `5e958c28`。
+仅三处测试输入/断言变化，生产源码、Guide、ABI、verifier 和 CI 脚本字节均未改变。
+既有 `native_mixed_borrow_cases` 只经 `#[cfg(test)]` 模块编译，不新增生产数据。
+
+Linux x86_64、Rust 1.96.0 / LLVM 21.1.8、普通 `/usr/bin/cc` 链接；两 native
+矩阵各 26 子例，共 52 次真实 object/link/run。日志只逐名显示两个矩阵测试成功，
+26 子例来自被执行循环及固定 case 列表，不冒称日志逐子例输出。直接 String 的
+readThenReturn 返回 payload 逐字节输出，其余无可观察返回值的函数由 SSA owner/loan
+断言覆盖，不把空输出说成释放计数证据。
+
+静态命令：`cargo fmt --all -- --check` 与
+`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`；
+尺寸检查显式 base 为 046ee221。已静审的
+`python3 -m unittest scripts.tests.test_recovery_gates.CompositionContracts.test_selection_is_unique_and_bounded -v`
+1/1 通过，103 frontend targets / 10 次 Cargo 调用保持；该 policy 仅 stub 记录选择，
+不运行其余 Rust、故障注入或校准。没有执行全部 Python discover。
+
+原始日志及真实 commit 恢复材料保存于交付恢复包，不入库。下一步为精确最终快照的
+独立审查与 root 统一发布；本地成功不代替双宿主 PR CI、归档、merge 或 actual-main CI。
