@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，291 份）"]
+subgraph Garchive["已完成（archive，292 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -300,6 +300,7 @@ subgraph Garchive["已完成（archive，291 份）"]
   S0305["S0305<br/>多 Borrow 参数的唯一来源直接返回"]
   S0306["S0306<br/>混合 Value 参数的唯一来源借用返回"]
   S0307["S0307<br/>普通借用结果的同步 Borrow 实参消费"]
+  S0308["S0308<br/>普通 own 泛型直接 String 消费者持久回归"]
 end
 subgraph Gactive["现行 active"]
   S0309["S0309<br/>普通 Borrow value-class 参数的直接字段读取"]
@@ -1332,6 +1333,7 @@ S0296 --> S0300
 S0297 --> S0300
 S0305 --> S0306
 S0306 --> S0307
+S0306 --> S0308
 ```
 
 ## 节点链接
@@ -1629,6 +1631,7 @@ S0306 --> S0307
 | SPEC-0305 | archive | [0305-multi-parameter-borrow-result.md](0305-multi-parameter-borrow-result.md) |
 | SPEC-0306 | archive | [0306-mixed-value-borrow-result.md](0306-mixed-value-borrow-result.md) |
 | SPEC-0307 | archive | [0307-synchronous-borrow-result-arguments.md](0307-synchronous-borrow-result-arguments.md) |
+| SPEC-0308 | archive | [0308-generic-string-consumer-regression.md](0308-generic-string-consumer-regression.md) |
 | SPEC-0309 | active | [0309-borrow-value-class-fields.md](../../specs/active/0309-borrow-value-class-fields.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

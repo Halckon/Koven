@@ -14,6 +14,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### 近期交付
 
+- [0308 普通泛型 String 回归](../archive/specs/0308-generic-string-consumer-regression.md)：[PR87 物理 CI](https://github.com/Halckon/Koven/actions/runs/38390525995) 双宿主验收后有界归档；生产零改，本地 stub 误执行纠正保留，归档 head CI/merge/main 待验收。
+
 - [0307 同步 Borrow 实参消费](../archive/specs/0307-synchronous-borrow-result-arguments.md)：[PR85](https://github.com/Halckon/Koven/pull/85) 已有界归档并合入 main `557e3684`；[actual-main CI](https://github.com/Halckon/Koven/actions/runs/38382922981) 成功，首轮失败保留。
 - [0306 混合 Value 借用返回](../archive/specs/0306-mixed-value-borrow-result.md)：[PR84](https://github.com/Halckon/Koven/pull/84) 已合入 main `967bf98e`，[actual-main CI](https://github.com/Halckon/Koven/actions/runs/38368833991) 成功；首轮失败保留，M2B 后继开放。
 - [0305 多 Borrow 参数](../archive/specs/0305-multi-parameter-borrow-result.md)、[0304 库存声明](../archive/specs/0304-spec-archive-inventory.md)：已完成各自有界交付；历史追溯从 [Archive](../archive/README.md) 进入。
@@ -35,7 +37,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：291 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：292 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

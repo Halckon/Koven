@@ -414,7 +414,7 @@ pub(crate) fn generic_consumers() -> Case {
     Case {
         name: "generic_ordinary_consumers",
         source: include_str!("../tests/fixtures/mixed_borrow/generic_ordinary_consumers.ko"),
-        stdout: b"value-kept\nvalue-kept\nunused-resource\nforwarded-resource\nreturned-resource\nread-twice-resource\nordinary-complete\n",
+        stdout: b"value-kept\nvalue-kept\nunused-resource\nforwarded-resource\nreturned-resource\nread-twice-resource\nreturned-string\nordinary-complete\n",
         contracts: &[],
     }
 }

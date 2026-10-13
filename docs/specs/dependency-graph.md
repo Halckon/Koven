@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 291 份"))
+ARCH(("已完成<br/>archive 292 份"))
 subgraph Gactive["现行 active"]
   S0309["S0309<br/>普通 Borrow value-class 参数的直接字段读取"]
 end
@@ -30,4 +30,4 @@ ARCH --> S0309
 | SPEC-0309 | active | [0309-borrow-value-class-fields.md](active/0309-borrow-value-class-fields.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| 已完成 Spec（291 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（292 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

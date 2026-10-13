@@ -501,10 +501,11 @@ fn check_generic_consumers(program: &Program) {
             .collect::<Vec<_>>();
         assert_eq!(
             functions.len(),
-            2,
-            "{name}: both Int and Resource instances"
+            3,
+            "{name}: Int, Resource and direct String instances"
         );
         let mut ownerships = Vec::new();
+        let mut string_instances = 0;
         for function in functions {
             let [EntityId::Value(parameter)] = function.blocks[0].parameters.as_slice() else {
                 panic!("ordinary own T parameter retains Value delivery");
@@ -516,6 +517,10 @@ fn check_generic_consumers(program: &Program) {
                 .semantic_type();
             let ownership = module.type_ownership(ty).unwrap();
             ownerships.push(ownership);
+            string_instances += usize::from(matches!(
+                module.type_kind(ty),
+                Some(SsaTypeKind::StringOwner)
+            ));
             let drops = function.instructions.iter().filter(|instruction| {
                 matches!(instruction.operation, Operation::Drop { owner } if owner == *parameter)
             }).count();
@@ -574,6 +579,7 @@ fn check_generic_consumers(program: &Program) {
                 assert_eq!(transfers, 1, "ordinary generic forwarding happens once");
             }
         }
+        assert_eq!(string_instances, 1, "{name}: direct String specialization");
         assert!(ownerships.contains(&Ownership::Copyable));
         assert!(ownerships.contains(&Ownership::MoveOnly));
     }
