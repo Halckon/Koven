@@ -1,17 +1,17 @@
 # SPEC-0311: single Map owner 条件 continue 运输
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收 single Map 条件 continue 时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收 single Map 条件 continue 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0311` |
 | 所属 Phase | Phase 3 事实消费、Phase 4 single SSA/native |
 | 语言规范 | [Guide10](../../guide/10-ownership-borrowing-drop.md)、[Guide12](../../guide/12-collections-destructuring.md) |
 | 批准依据 | 2026-10-13 用户持续里程碑开发、合并后继续推进；PR89 实际合并后激活 |
-| 前置 Spec | [SPEC-0310](../../archive/specs/0310-single-map-conditional-break.md) |
+| 前置 Spec | [SPEC-0310](0310-single-map-conditional-break.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 本地有界验证与独立终审已完成；远端 CI 与发布闭环待完成 |
+| 阻塞项 | 有界实现与 PR90 实现 CI 已验收；归档 head CI、merge 与 actual-main CI 待验证 |
 | 影响范围 | single 外部具名非 Resource Map 的一个条件 continue；unit 独立对照 |
 | 语言语义变更 | 否 |
 
@@ -100,7 +100,10 @@ stdout 只证明输出，不宣称动态分配计数或完整内存安全。
 | provider/snapshot | 顶层11个`native_tests::sequential_for_tests::<name>`逐exact；两个`ssa::lower_frontend_tests::rejects_*`逐exact | 每项实际1通过；只选择普通source，不运行provider注入子模块 |
 | 静态质量 | fmt；codegen all-targets clippy `-D warnings`；docs/尺寸/diff | 全部通过；docs 664；1074手写Rust文件、38历史超限，无新增豁免 |
 | 独立审阅 | c36生产、c2范围修订及3103276c终稿 | 代码/证据无阻断；按最后建议在SSA总览明确无Map也有owned source缺口。审阅者未运行测试 |
-| 发布闭环 | PR/CI/归档/merge | 未执行 |
+| PR90 实现 CI | remote `7a5daea7`、run `38420920418` attempt 1 | success；16个checks/jobs精确对应，15物理成功、1 editors=false 跳过；reuse=false |
+| 双宿主直接验收 | Linux/macOS `map_continue_` 逐名24项 | 每宿主24通过、0 ignored；10新增正例/8既有unit/6边界，层级与本地相同 |
+| codegen 与 preview | 既有 CI 全lib及三条安装链 | Linux1494通过；macOS1493通过+1既有LLDB权限ignored；三条preview安装链通过，不改写本地云安全测试范围 |
+| 发布闭环 | PR90 docs归档 | 有界归档；归档head CI、merge、actual-main CI仍待验证 |
 
 
 命令前缀为 `cargo test --locked --offline -p lang-codegen --lib`，表中均是实际过滤器。
@@ -123,4 +126,10 @@ stdout 只证明输出，不宣称动态分配计数或完整内存安全。
 
 最终本地没有运行full discover、无filter全lib、全量workspace/frontend、aggregate driver、
 fault/calibration/sanitizer/badIR/mock/stub或计数插桩；stdout不证明动态精确free次数。
-远端CI、发布、归档与merge尚未执行。owned source下一修复项保持§2明确优先顺序。
+[PR90](https://github.com/Halckon/Koven/pull/90) 的[实现 CI](https://github.com/Halckon/Koven/actions/runs/38420920418)已验收；
+实现远端 head `7a5daea7aec9486b474223d527244dfbbab6a359`，tree
+`cc2f83095fc872e189c702151eb7e8e6cdd2f493`；本地原9提交与远端9提交逐树一致，
+真实远端 parent 链与原 Git 字节 SHA 已核。最终 CI 收据 SHA256
+`e4944160e0aab00f7d6835a3c9e5beb5d9314e662ee114d10646cf80ee8bac49`，raw 仓外保留。
+此次只关闭有界合同；归档 head CI、merge、actual-main CI 尚待验证，未宣称分支保护已核。
+owned source 下一修复项保持§2明确优先顺序。

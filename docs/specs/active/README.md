@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [0311 single Map owner 条件 continue](0311-single-map-conditional-continue.md)：从 PR89 合并后的实际 main 开始，普通源码红测与有界回边证明待验收。
+[0311 single Map owner 条件 continue](../../archive/specs/0311-single-map-conditional-continue.md)已按 PR90 实现 CI 双宿主24项逐名证据有界归档；owned source 后继优先修复，归档 head CI/merge/main 待验收。
 
 [0310 single Map owner 条件 break](../../archive/specs/0310-single-map-conditional-break.md)已按[PR89 实现 CI](https://github.com/Halckon/Koven/actions/runs/38407747517)双宿主 13 项逐名证据有界归档；原红测/纠正、unit dead 与其他非目标保留，归档 head CI/merge/main 待验收。
 

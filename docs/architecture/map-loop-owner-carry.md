@@ -44,6 +44,6 @@ Header/Exit owner 与实际 Span。新 Borrow fixture 是另一种能力，不�
 下一独立 source-proof 修复优先于 Map return，必须关闭这两条路径及实际 carrier/cleanup
 义务；本片不扩大通用 source/Resource proof，也不预占后继 Spec 编号。
 
-[0311 合同](../specs/active/0311-single-map-conditional-continue.md)记录原始红测、范围修订、
+[0311 合同](../archive/specs/0311-single-map-conditional-continue.md)记录原始红测、范围修订、
 隔离 target 复核与待发布事项；[0310](../archive/specs/0310-single-map-conditional-break.md)
 保留 break 的有界历史。
