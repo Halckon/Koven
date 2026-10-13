@@ -476,3 +476,6 @@ mod conditional_break;
 
 #[path = "lower_frontend_map_continue_tests.rs"]
 mod conditional_continue;
+
+#[path = "lower_frontend_map_return_tests.rs"]
+mod conditional_return;
