@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [0308 普通 own 泛型直接 String 消费者持久回归](0308-generic-string-consumer-regression.md)：生产零改的独立测试片；本地与 CI 验收进行中。
 
 [0307 普通借用结果的同步 Borrow 实参消费](../../archive/specs/0307-synchronous-borrow-result-arguments.md)已按[PR85修复后物理CI](https://github.com/Halckon/Koven/actions/runs/38378462482)16/16 jobs、双宿主新frontend10及普通source codegen48逐名证据有界归档；首失败保留，归档head CI/merge/main待验证。outer继续借用返回、temporary来源、receiver/Inout与CFG等后继开放。
 
