@@ -26,8 +26,10 @@
 一个条件 Return、真实互补 Fallthrough、唯一 Exhaustion。Return 是完整终止出口，
 没有 Header/Exit phi incoming；Header 恰 Entry/Fallthrough。初始 Map 只接受原 constructor
 或 own 参数 seed；同型 Map 按 symbol/owner/slot 身份分别证明。
-返回 Unit/Copyable 值；返回当前 Map、active source、借用 MoveOnly element 不获新证明。
-独立 owned 返回与 owned named source 返回先普通源码对照，保持原有能力或明确拒绝。
+返回Unit/Copyable值，并自然复用独立body-local String/MoveOnly value-class的已有返回交付，
+含透明Group；不改transfer/ABI。当前Map直返含Group两格基线原成功，不算新增drop-carrier
+证明；active source/借用MoveOnly element保留L0135/L0133。owned nullable remove返回及
+在return operand里更新Map的更宽形状仍明确拒绝，不由本片顺手扩大。
 不扩多 return、混合 break/continue、无 fallthrough、capture、替换 seed、跨 loop phi、
 RangeView 或一般 Resource/presence/ABI。
 
@@ -43,11 +45,25 @@ RangeView 或一般 Resource/presence/ABI。
 |---|---|---|
 | tests-only 基线 | `9ae5d86b`；`cargo test --offline --locked -p lang-codegen --lib 'loop_owner_tests::conditional_return::' -- --nocapture` | 6命中，single Map live/dead 2红：UnsupportedNode，Span23..28；unit basic/constant × Map live/dead 4绿，verified LLVM成功 |
 | 前端真实事实 | 同上 ordinary source | 无诊断；3 exits/3 incoming，Return无incoming |
-| 0/早/晚退出与尾部可达、最新 owner/双Map、provider/seed | 待选定普通源码/结构/native | 未运行 |
-| owned source 与独立 owned 返回对照、非法源诊断 | 待选定普通源码 | 未运行 |
+| 扩展tests-only基线 | `15776b1c`，`loop_owner_tests::conditional_return::source_matrix::` | 与最终fixture字节相同的5矩阵全红，准确Map名UnsupportedNode；生产仍与actual-main相同 |
+| 0/早/晚/never、put/remove、双Map/own seed/三provider、两body Resource、独立owned结果 | `::conditional_return::`（SSA/LLVM及原版native） | `365911d2` 25项全绿；后续精确String loan oracle新增后待重跑，不能复用旧结果覆盖新断言 |
+| owned source/返回值独立对照 | tests-only `82e0bd02`、current普通controls | owned source local/own×live/dead无Map四格全旧拒绝；Map组合current仍在keys精确Span拒绝。无Map String/value×Group四格与直接Map返回两格原成功；Map+独立owned四格转绿，removed两格仍红 |
+| 前端非法source/element | ordinary source controls | active source return与mutable source变异L0135，MoveOnly element return L0133；未进入SSA |
 | fmt/clippy/docs/diff、共享调用方回归 | 待最小实现后执行 | 未运行 |
 | 独立审阅、PR双宿主CI、归档合并/actual-main | 远端唯一publisher交付 | 未运行 |
 
 首轮过滤器 `conditional_return` 额外命中一个现有普通unit native源码测试（成功，未插桩）；
 随后以上完整模块路径重跑隔离6格。原始日志/源码恢复材料在仓库外保留，不以stdout代替
 唯一owner、loan与终结CFG证明。云禁止故障注入、计数插桩、sanitizer、mock和全量discover。
+
+## 3. 保留的修正与限制
+
+首批cleanup fixture把外围Resource也混入；它在有/无Map两格均旧UnsupportedNode，已保存
+独立boundary源码。return operand更新Map的nullable控制表达式仍在cache Span拒绝。
+核心cleanup只去掉这两个独立边界，保留两个body Resource、String source与Copyable结果。
+owned结果native最初用temporary/具名MoveOnly字段读取，分别遇到既有BlockingDeferred/
+UnsupportedNode，改为已支持的消费式解构读取返回payload；不修改字段lowering。
+编译过程E0308、E0433、E0425与上述失败日志均保留；一个不完整exact过滤器零命中不计通过，
+随后正确模块过滤实际5红。初版未冻结运行只作探索，不计最终验收。
+返回proof支持cleanup block变化的静态闭合检查；当前成功fixture的cleanup是直线SSA，
+不宣称有多块cleanup实例的动态覆盖。尺寸门禁保留38项历史债；driver仅增2行接线，旧上限不变。
