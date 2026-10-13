@@ -378,10 +378,10 @@ impl ExpressionLowerer<'_> {
             .ok_or_else(fail)?;
             if carrier.return_exit.is_some()
                 || self.bindings.contains_key(&carrier.plan.symbol)
-                || !lineage(
+                || !forwarded(
                     self.function,
                     value,
-                    carrier.return_current.ok_or_else(fail)?,
+                    carrier.return_current.ok_or_else(fail)?.1,
                 )
                 || !matches!(
                     self.function
