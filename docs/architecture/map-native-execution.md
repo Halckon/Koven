@@ -124,7 +124,7 @@ AfterStatement 的真实 end facts，checker 同步撤销该结果 continuation�
 按子到父顺序发布 ends，再按原 owned/Resource 规则决定来源清理。新 native 矩阵证明
 same-scope owned 交付、Map 覆盖权限恢复和 Resource 词法析构顺序，见 SPEC0288 §2.10。
 
-后端已接通无 receiver、全部形参 Borrow 的表达式返回、直接具名包装调用和具体泛型实例。
+后端已接通无 receiver、唯一 Borrow 来源及其余 Borrow/Value 形参的表达式返回、直接具名包装调用和具体泛型实例；Value 映射、唯一消费及 concrete drop 特化见 [SPEC-0306](../specs/active/0306-mixed-value-borrow-result.md)，结果 pointer ABI 不变。
 唯一来源可位于任意参数下标；来源与结果分别
 保存 semantic target，返回字段允许与来源根对象类型不同。函数签名记录
 唯一参数来源；`BorrowCall` 产生 shared 子 loan，`BorrowReturn` 交接指定入口来源链。
@@ -148,7 +148,7 @@ Resource 源在借用 scope 后仍可 owned 交付，并且原 deinit 只执行�
 owned root/字段直接 initializer 已消费真实 origin/parent/projection 与结束事实，创建 root
 及字段 loan 并保存新祖先，按叶到根清理；parent 的实际 payload 与 canonical source lease
 分别验证，不能由 lease 猜测字段地址。single/unit 五组正常 native 与精确清理回归通过。
-混合 Value/Inout 参数、索引投影、block 返回和 caller CFG 运输仍以实际 Span 结构化拒绝。类型能力受现有 storage mapper 限制，未启用通用 inline nullable 或新的
+Inout 参数、索引投影、block 返回和 caller CFG 运输仍以实际 Span 结构化拒绝。类型能力受现有 storage mapper 限制，未启用通用 inline nullable 或新的
 Resource wrapper。现行 pointer-like nullable 的 owned null 比较复用 NullableIsNull；Borrow 参数的 null 比较
 使用 NullableLoanIsNull，verifier 要求 active Shared nullable storage loan，LLVM 仅加载
 该 storage 的 pointer bits 并比较 null，不创建 payload owner、复制、retain 或 unwrap。

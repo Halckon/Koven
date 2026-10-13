@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0305](../../archive/specs/0305-multi-parameter-borrow-result.md) |
 | 前置 ADR | [ADR-0016](../../adr/accepted/0016-interprocedural-borrow-abi.md)、[ADR-0029](../../adr/accepted/0029-ordinary-borrow-result-continuation.md) |
 | 关联 ADR | 无新结果 ABI 或语言决定 |
-| 阻塞项 | 本地实施/验证未完成；外部发布另等具体授权 |
+| 阻塞项 | 本地验证与独立审查通过；外部发布另等具体授权 |
 | 影响范围 | lang-codegen single/unit lowering、verifier、LLVM call adapter、正常 source/native 测试 |
 | 语言语义变更 | 否 |
 
@@ -26,7 +26,8 @@ MoveOnly/Resource 参数。不是完整 M2B 完成，不引入新的参数或结
 `795ac4346dce3c098a0acfd0ebcf198001b11341` 建立 `feature/spec-0306`。
 两个 parent 为 `f7a4d15cecfa71b2fb8a4e9d4648d56e53702c05` 与
 `b7a269d2e5589260cc7bc26fb3cfc28ca3fa5808`；完整 API commit JSON 恢复后逐对象核 SHA。
-0305 已由 PR83 实际合并；本片不把尚在独立监视的 main CI 写成通过。
+0305 已由 PR83 实际合并；[actual-main CI](https://github.com/Halckon/Koven/actions/runs/38350665268)
+已由独立监视确认 success，不代替本片未来远端 CI。
 
 ## 2. 有界合同
 
@@ -63,14 +64,14 @@ Abort 不属于故障注入；坏 IR verifier 负例仅静态编写交 CI，不�
 
 | 验收项 | 命令/选择 | 实际结果 |
 |---|---|---|
-| actual main / Spec 冻结 | 精确 commit/tree/双parent、库存/docs/diff | 精确对象已恢复，0306未占用；文档门禁待运行 |
-| 正常 source 红测 | mixed_value_borrow 定向矩阵，single/unit | 待移植并在本基线运行 |
-| SSA/Loan/Value/drop | 同一 source 矩阵与原版 LLVM verifier | 未实现、未运行 |
-| native stdout/deinit | 同一正常 source 两入口 object/link/run | 未实现、未运行 |
-| 错误来源/冲突/保留边界 | 普通负源码与既有0305 source矩阵 | 待运行 |
-| 共享消费者 | 普通 Value 参数与原借用返回/字段/Group定向 | 待按实际影响选择 |
-| 静态门禁 | fmt、codegen严格clippy、docs/尺寸/diff | 待运行 |
-| 独立审查 | 最终精确输入 | 待安排 |
+| actual main / Spec 冻结 | 精确 commit/tree/双parent、库存/docs/diff | 精确对象已恢复，0306未占用；冻结时docs658通过 |
+| 正常 source 红测 | 保存的精确actual-main与659ba4d9 public API探针 | 25组Borrow源码在main双入口UnsupportedNode；普通generic对照在main已InvalidSsa；三组Copyable泛型在初轮实现双入口InvalidSsa |
+| SSA/Loan/Value/drop | `cargo test --locked --offline -p lang-codegen --lib mixed_value_borrow -- --nocapture` | 15/15；25组Borrow与1组ordinary generic双入口真实Program、SSA/原版LLVM通过，含精确Group事实和正常错误源码 |
+| native stdout/deinit | 上行的两个native矩阵 | 26组×single/跨文件unit共52次原版native成功，完整stdout与空stderr逐字节核对 |
+| 错误来源/冲突/保留边界 | 新矩阵7项正常源码边界；`multi_parameter_borrow`及旧Inout精确选择 | 错误owner、存活来源move、own后复用、重叠实参顺序拒绝；Inout/nested-use/callable/CFG等保留边界通过 |
+| 共享消费者 | `multi_parameter_borrow` 10项、`ssa::borrow_call_lowering_tests` 5项、`ssa::unit_lower_borrow_tests` 2项；普通Value/nullable前缀/借用结果与storage精确19项 | 36/36通过；覆盖pending owner分支、提前transfer、Group临时、字段与generic nullable native |
+| 静态门禁 | `cargo fmt --all -- --check`；`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`；docs/尺寸/diff | fmt/严格clippy通过；docs658通过；Rust尺寸1060文件、38项旧欠账、无新增例外；diff通过 |
+| 独立审查 | 生产b8c0f279；最终测试928c82f4 | 11组独立正常source×两入口22次native通过；928c82f4独立15/15回归通过，无未决阻断 |
 | 双宿主CI/归档/合并 | 精确远端head/merge/main | 未发布、未运行 |
 
 准备阶段在0305冻结树已完成33组双入口正常探针，其中15组Value均前端接受而在真实lowering
@@ -79,5 +80,25 @@ Abort 不属于故障注入；坏 IR verifier 负例仅静态编写交 CI，不�
 
 ## 5. 交付边界
 
-本地分步提交并保留恢复包；Spec 保持 in-progress，独立审查后另请求具体发布授权。
-不因本片成功关闭 Inout、同步 nested-use 等其他 M2B 缺口；未运行项按实际账本保留。
+最终代码/测试输入为 `928c82f4467a76e761350e2f6f3c79358eb3dba2`、tree
+`3dd1e48f4b579eed3f38e961d10605bb36ed855a`；生产修复与b8c0f279一致。
+本地Linux、Rust1.96.0/LLVM21.1.8验证；10项构造SSA的verifier合同测试仅静态编写和编译，
+未在云上执行，交后续CI。没有运行全workspace、aggregate、故障/校准或sanitizer。
+
+本地分步提交并保留仓库外恢复包与原始红绿日志，发布交接继续保留；Spec 保持 in-progress，
+独立审查后另请求具体发布授权。macOS/双宿主CI、远端发布/归档/合并未运行；本片不关闭
+Inout、同步 nested-use 等其他 M2B 缺口。
+
+## 6. 独立审查中的泛型修复
+
+初轮20组通过后，独立审查补出无上界own T在T=Int的正常源码失败：frontend接受，
+ControlTransfer的参数drop事实在具体化后仍生成Drop Int，真实SSA verifier以InvalidSsa拒绝。
+同类型命名值、Copyable value class Pair及Int/Resource同generic并存形成补充回归；没有把
+泛型Copyable缩成不支持边界，也没有放宽verifier。两入口共享drop消费者在取得typed模板与
+concrete类型后，仅为具体化Copyable跳过义务，且在任何binding/temporary移除之前判断。
+
+不含borrow-return的普通generic unused/forward在保存的actual-main探针中同样双入口失败，
+是原有共享drop消费者缺口，不是本片新引入回归。本次同一最小修复自然覆盖它，增加普通
+消费者对照，不改前端所有权语义或参数/结果ABI。生产修复提交b8c0f279；保存初轮659ba4d9
+精确红测、修复后双入口绿测及独立22次native复验，最终固定回归包含未用、转交、读取后
+返回与多次读取的Int/Resource实例，验收见上表。

@@ -6,7 +6,7 @@
 
 - [0306 混合 Value 参数的唯一来源借用返回](0306-mixed-value-borrow-result.md)：实施中，来源仍为唯一 Borrow，复用既有 Value/Loan ABI；Inout、receiver、同步嵌套实参等保持开放。
 
-[0305 多Borrow参数的唯一来源直接返回](../../archive/specs/0305-multi-parameter-borrow-result.md)已按PR83首次物理CI及双宿主34项普通测试有界归档；最终归档head复用已验收并由[PR83](https://github.com/Halckon/Koven/pull/83)合入main `bfdb00bd`；[main CI](https://github.com/Halckon/Koven/actions/runs/38350665268)独立监视中，其余M2B后继开放。
+[0305 多Borrow参数的唯一来源直接返回](../../archive/specs/0305-multi-parameter-borrow-result.md)已按PR83首次物理CI及双宿主34项普通测试有界归档；最终归档head复用已验收并由[PR83](https://github.com/Halckon/Koven/pull/83)合入main `bfdb00bd`；[main CI](https://github.com/Halckon/Koven/actions/runs/38350665268)已成功，其余M2B后继开放。
 
 [0304 Spec 归档库存声明化](../../archive/specs/0304-spec-archive-inventory.md)已按PR82首次物理CI 16/16 jobs成功归档；严格声明、docs每次门禁与原代码证据边界保持，已由[PR82](https://github.com/Halckon/Koven/pull/82)合入main `f7a4d15c`，[main CI](https://github.com/Halckon/Koven/actions/runs/38338171407)成功。
 
