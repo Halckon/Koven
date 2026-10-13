@@ -1,4 +1,6 @@
-//! SPEC-0311: ordinary frontend facts, verified SSA and unmodified LLVM.
+#[path = "lower_frontend_map_continue_structure_tests.rs"]
+mod structure;
+// SPEC-0311: ordinary frontend facts, verified SSA and unmodified LLVM.
 use super::{analyze, lower_scalar_file};
 use lang_frontend::ownership_checking::{
     CleanupOwnerValue, IterationExitKind, IterationPhiBoundary, IterationPhiIncomingKind,
@@ -100,6 +102,24 @@ fn check(live: bool) {
         )
     });
     crate::llvm::render_verified_program(&program).unwrap();
+    structure::assert_continue_structure(
+        &program,
+        analysis
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .unwrap()
+            .span(),
+        analysis
+            .parsed
+            .ast()
+            .expressions()
+            .get(plan.descriptor().source())
+            .unwrap()
+            .span(),
+        live,
+    );
 }
 
 #[test]
@@ -158,8 +178,8 @@ fn assert_unit_lowers(live: bool, constants: bool) {
             &sources, &inputs, &names, &types, &typed, &owned, entry,
         )
     };
-    let (program, entry) = result
-        .unwrap_or_else(|error| panic!("unit constants={constants}, live={live}: {error:?}"));
+    let (program, entry) =
+        result.unwrap_or_else(|error| panic!("unit constants={constants}, live={live}: {error:?}"));
     crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
 }
 
@@ -206,6 +226,9 @@ fn assert_source_lowers(text: &str) {
     )
     .unwrap();
     crate::llvm::render_verified_program(&program).unwrap();
+    if text == DISTINCT {
+        structure::assert_distinct_owner_backedges(&program);
+    }
 }
 
 #[test]
