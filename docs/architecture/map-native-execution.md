@@ -112,8 +112,8 @@ callee 的 payload 投影仍由 actual-return origin 描述，来源 lease 不�
 借用绑定和调用结果不生成 payload owner/drop，父结果在子 scope 退出后继续有效。
 single/unit 使用各自封闭 ID，诊断或 deferred 时原子清空新结果事实。
 
-未显式绑定的 caller 调用结果、嵌套结果实参、控制 initializer、closure capture、循环
-动态实例及 receiver/Inout 返回来源仍以 L0164 拒绝。
+具名DirectCall同步Borrow实参已接通，事实与清理见[同步Borrow实参](synchronous-borrow-result-arguments.md)。
+outer结果继续绑定/转发、控制initializer、closure、循环及receiver/Inout来源等仍保持未支持边界。
 
 直线局部序列另使用独立的未来使用证明，不复用 owned ASAP liveness。证明按真实 name
 symbol 收集剩余表达式中的访问，并沿 binding 的实际 parent 链保留全部存活祖先；多个

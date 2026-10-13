@@ -86,7 +86,6 @@ fn direct_projected_nullable_and_named_wrapper_returns_publish_actual_origins() 
 fn unproved_caller_bodyless_and_conditional_paths_remain_closed() {
     for text in [
         "fun view(source: String): borrow String from source = source\nfun run(source: String) { view(source) }",
-        "fun view(source: String): borrow String from source = source\nfun observe(item: String) {}\nfun run(source: String) { observe(view(source)) }",
         "fun view(source: String): borrow String from source",
         "fun view(source: String, flag: Boolean): borrow String from source = if (flag) { source } else { source }",
     ] {

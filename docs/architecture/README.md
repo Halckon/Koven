@@ -51,6 +51,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
 | N1a 连续范围的类型、来源与阶段能力门 | [范围 carrier](range-carrier.md) |
+| 普通借用结果的短期同步实参消费与source终止 | [同步Borrow实参](synchronous-borrow-result-arguments.md) |
 | 普通多参数唯一来源 Borrow 返回与调用分流 | [多参数借用返回](multi-parameter-borrow-results.md) |
 | 通用 Map 的所有权、哈希表、析构与 native 边界 | [Map 原生执行](map-native-execution.md) |
 | owned Map删除结果的非消费proof、调用运输与storage边界 | [owned Map结果借用](map-owned-result-borrow.md) |

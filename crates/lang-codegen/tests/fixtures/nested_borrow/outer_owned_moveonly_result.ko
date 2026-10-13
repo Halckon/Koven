@@ -1,0 +1,4 @@
+fun view(source: String): borrow String from source = source
+fun observe(source: String): String { println(source); return "owned".clone() }
+fun consume(own source: String) { println(source) }
+fun entry() { val source = "kept".clone(); val result = observe(view(source)); consume(source); println(result) }

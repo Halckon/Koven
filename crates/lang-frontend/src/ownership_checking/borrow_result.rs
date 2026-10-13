@@ -254,6 +254,48 @@ impl<S: Copy, P: Copy> BorrowBindingEndFact<S, P> {
     }
 }
 
+/// 普通借用结果在一次具名同步调用中的非逃逸使用；不创造局部 binding 或 owner。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BorrowCallUseFact<E, S, T, P> {
+    pub(crate) expression: E,
+    pub(crate) call: E,
+    pub(crate) argument: E,
+    pub(crate) source_loan: BorrowSourceLoan<E>,
+    pub(crate) origin: T,
+    pub(crate) parent: Option<S>,
+    pub(crate) end_point: P,
+}
+impl<E: Copy, S: Copy, T, P: Copy> BorrowCallUseFact<E, S, T, P> {
+    /// 去除透明 Group 后的实际借用结果调用。
+    pub const fn expression(&self) -> E {
+        self.expression
+    }
+    /// 同步消费结果的外层调用。
+    pub const fn call(&self) -> E {
+        self.call
+    }
+    /// 外层调用的原始源码 operand，保留 Group identity。
+    pub const fn argument(&self) -> E {
+        self.argument
+    }
+    /// 被结果继续持有的原始来源 loan。
+    pub const fn source_loan(&self) -> BorrowSourceLoan<E> {
+        self.source_loan
+    }
+    /// 来源的 canonical lease；不是结果 payload 的存储地址或类型。
+    pub const fn origin(&self) -> &T {
+        &self.origin
+    }
+    /// 若来源是已有显式借用绑定，保留其依赖且不提前终止它。
+    pub const fn parent(&self) -> Option<S> {
+        self.parent
+    }
+    /// 结果及本次来源链的正常终止边，只能是外层 CallReturn。
+    pub const fn end_point(&self) -> P {
+        self.end_point
+    }
+}
+
 /// 只读、原子发布的 caller continuation 与转发合同。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BorrowResultFacts<E, S, T, P> {
@@ -262,6 +304,7 @@ pub struct BorrowResultFacts<E, S, T, P> {
     pub(crate) forwarded: Vec<BorrowSourceLoan<E>>,
     pub(crate) range_returns: Vec<RangeReturnOriginFact<E, T>>,
     pub(crate) range_uses: Vec<RangeUseFact<E, T>>,
+    pub(crate) call_uses: Vec<BorrowCallUseFact<E, S, T, P>>,
 }
 impl<E, S, T, P> Default for BorrowResultFacts<E, S, T, P> {
     fn default() -> Self {
@@ -271,10 +314,15 @@ impl<E, S, T, P> Default for BorrowResultFacts<E, S, T, P> {
             forwarded: Vec::new(),
             range_returns: Vec::new(),
             range_uses: Vec::new(),
+            call_uses: Vec::new(),
         }
     }
 }
 impl<E, S, T, P> BorrowResultFacts<E, S, T, P> {
+    /// 源码求值顺序的普通借用结果同步消费及明确终止证明。
+    pub fn call_uses(&self) -> &[BorrowCallUseFact<E, S, T, P>] {
+        &self.call_uses
+    }
     /// 源码顺序的 shared 结果绑定。
     pub fn bindings(&self) -> &[BorrowBindingFact<E, S, T>] {
         &self.bindings
@@ -321,4 +369,55 @@ impl super::CompilationUnitOwnership {
     pub fn borrow_results(&self) -> &UnitBorrowResults {
         &self.borrow_results
     }
+}
+
+/// 本片只发布直线 caller 事实，不将短期结果/source 链推送到未证明 CFG。
+pub(crate) fn call_use_is_straight_line(parsed: &ParsedFile, call: ExpressionId) -> bool {
+    use crate::parser::{Item, PrefixOperator, Statement};
+    let Ok(call_node) = parsed.ast().expressions().get(call) else {
+        return false;
+    };
+    let contains = |outer: Span, inner: Span| {
+        outer.source_id() == inner.source_id()
+            && outer.start() <= inner.start()
+            && inner.end() <= outer.end()
+    };
+    let Some(function) = parsed
+        .ast()
+        .items()
+        .iter()
+        .filter(|(_, node)| {
+            matches!(node.payload(), Item::Function { .. })
+                && contains(node.span(), call_node.span())
+        })
+        .map(|(_, node)| node.span())
+        .min_by_key(|span| span.end() - span.start())
+    else {
+        return false;
+    };
+    !parsed.ast().expressions().iter().any(|(_, node)| {
+        contains(function, node.span())
+            && matches!(
+                node.payload(),
+                Expression::If { .. }
+                    | Expression::When { .. }
+                    | Expression::Return { .. }
+                    | Expression::Binary { .. }
+            )
+            || contains(call_node.span(), node.span())
+                && matches!(
+                    node.payload(),
+                    Expression::NonNullAssert { .. }
+                        | Expression::Prefix {
+                            operator: PrefixOperator::Minus,
+                            ..
+                        }
+                )
+    }) && !parsed.ast().statements().iter().any(|(_, node)| {
+        contains(function, node.span())
+            && matches!(
+                node.payload(),
+                Statement::While { .. } | Statement::For { .. } | Statement::Loop { .. }
+            )
+    })
 }

@@ -122,7 +122,12 @@ impl Checker<'_> {
             let range = mode == Some(ParameterMode::Borrow)
                 && !crosses_thread
                 && self.range_expression_is_proven(argument.value);
-            if range {
+            let borrow_call = (mode == Some(ParameterMode::Borrow) && !crosses_thread)
+                .then(|| self.borrow_call_argument(id, argument.value))
+                .flatten();
+            if let Some(expression) = borrow_call {
+                self.allowed_borrow_call = Some(expression);
+            } else if range {
                 self.allowed_borrow_call = Some(argument.value);
             }
             flows = if mode == Some(ParameterMode::Value) && !crosses_thread {
@@ -141,6 +146,11 @@ impl Checker<'_> {
                     loan::ActiveLoanOwner::Call(id),
                     &mut flows,
                 );
+            }
+            if self.diagnostics.len() == argument_diagnostics
+                && let Some(expression) = borrow_call
+            {
+                self.record_borrow_call_use(id, argument.value, expression, &mut flows)?;
             }
             self.hold_call_closures(id, argument.value, &mut flows)?;
             if crosses_thread

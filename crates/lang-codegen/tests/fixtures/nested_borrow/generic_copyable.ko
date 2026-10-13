@@ -1,0 +1,3 @@
+fun <T> view(source: T): borrow T from source = source
+fun observe(source: Int) { if (source == 7) { println("seven") } else { error("wrong") } }
+fun entry() { val source = 7; observe(view(source)); observe(source) }

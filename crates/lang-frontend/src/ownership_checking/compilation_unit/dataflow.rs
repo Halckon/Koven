@@ -1,6 +1,7 @@
 //! Source-qualified body-local call ownership dataflow.
 
 mod borrow_binding;
+mod borrow_call_use;
 mod borrow_result;
 mod call_contract;
 mod callable_provenance;
@@ -284,6 +285,9 @@ pub(super) fn analyze(
         borrow_results
             .range_uses
             .extend(checker.borrow_results.range_uses);
+        borrow_results
+            .call_uses
+            .extend(checker.borrow_results.call_uses);
         borrow_results
             .bindings
             .extend(checker.borrow_results.bindings);

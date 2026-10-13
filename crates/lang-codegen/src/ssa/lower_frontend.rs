@@ -1129,7 +1129,7 @@ impl ExpressionLowerer<'_> {
             .get(&instance)
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
         let mut ordered = vec![None; descriptor.arguments().len()];
-        let mut call_loans = BTreeMap::new();
+        let mut source_loans = Vec::new();
         for (argument_index, argument) in arguments.iter().enumerate() {
             let mapping = descriptor
                 .arguments()
@@ -1145,9 +1145,14 @@ impl ExpressionLowerer<'_> {
                     EntityId::Value(self.lower_value_argument(argument.value, argument.span)?)
                 }
                 ParameterMode::Borrow => {
-                    let (loan, ends_after_call) =
-                        self.lower_borrow_argument(expression, argument.value, argument.span)?;
-                    call_loans.insert(argument.value.index(), ends_after_call.then_some(loan));
+                    let (loan, ends_after_call) = if let Some((loan, sources)) = self
+                        .lower_nested_borrow_argument(expression, argument.value, argument.span)?
+                    {
+                        source_loans.extend(sources);
+                        (loan, true)
+                    } else {
+                        self.lower_borrow_argument(expression, argument.value, argument.span)?
+                    };
                     self.pending_call_loans.insert(
                         (expression.index(), argument.value.index()),
                         ends_after_call.then_some(loan),
@@ -1209,28 +1214,7 @@ impl ExpressionLowerer<'_> {
             result_types,
             span,
         )?;
-        let ending_loans = self.owned.loans_ending_at(expression).collect::<Vec<_>>();
-        for fact in &ending_loans {
-            call_loans.remove(&fact.argument().index());
-            let loan = self
-                .pending_call_loans
-                .remove(&(expression.index(), fact.argument().index()))
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.end_span()))?;
-            if let Some(loan) = loan {
-                self.append(Operation::BorrowEnd { loan }, Vec::new(), fact.end_span())?;
-            }
-        }
-        if !call_loans.is_empty() {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        }
-        self.finish_short_call_ranges(expression, span)?;
-        // Borrow argument lowering may form a place directly (for example `Rc.value`) without
-        // recursively lowering the argument expression. Emit its expression-local ASAP drops
-        // only after every call loan has ended, so two arguments may safely view the same owner.
-        for fact in ending_loans {
-            self.emit_drops(DropPoint::AfterExpression(fact.argument()))?;
-        }
-        self.emit_drops(DropPoint::CallReturn(expression))?;
+        self.finish_borrowed_call_with_sources(expression, span, source_loans)?;
         match results.as_slice() {
             [] => Ok(LoweredValue::Unit),
             [entity] => Ok(LoweredValue::Value(value(*entity))),

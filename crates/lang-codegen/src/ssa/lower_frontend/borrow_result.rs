@@ -105,6 +105,71 @@ pub(super) fn validate(
 }
 
 impl ExpressionLowerer<'_> {
+    /// The canonical lease proves permission; the BorrowCall result supplies actual storage.
+    pub(super) fn lower_nested_borrow_argument(
+        &mut self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        span: Span,
+    ) -> Result<Option<(LoanId, Vec<LoanId>)>, LoweringError> {
+        let mut uses = self
+            .owned
+            .borrow_results()
+            .call_uses()
+            .iter()
+            .filter(|fact| fact.call() == call && fact.argument() == argument);
+        let Some(fact) = uses.next() else {
+            return Ok(None);
+        };
+        let source = fact.source_loan();
+        if uses.next().is_some()
+            || fact.expression()
+                != crate::ssa::borrow_result_support::ungroup(self.parsed, argument, span)?
+            || source.call() != fact.expression()
+            || fact.end_point() != DropPoint::CallReturn(call)
+            || fact
+                .parent()
+                .is_some_and(|parent| !self.borrow_bindings.contains_key(&parent))
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        for (owner_call, operand) in [(call, argument), (source.call(), source.argument())] {
+            if !self.owned.loan_begin(operand).is_some_and(|loan| {
+                loan.call() == owner_call
+                    && loan.target() == fact.origin()
+                    && loan.kind() == lang_frontend::ownership_checking::LoanKind::Shared
+            }) {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+        }
+        let mut ends = self
+            .owned
+            .loan_ends()
+            .iter()
+            .filter(|end| end.call() == source.call() && end.argument() == source.argument());
+        if !ends.next().is_some_and(|end| {
+            end.point() == lang_frontend::ownership_checking::LoanEndPoint::CallReturn(call)
+        }) || ends.next().is_some()
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let descriptor = self
+            .typed
+            .call(call)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if descriptor.borrow_return().is_some()
+            || descriptor.receiver().is_some()
+            || !matches!(descriptor.target(), CallableTarget::Source(_))
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let call_span = self.expression_span(call)?;
+        // This local carrier does not cross argument CFG or transfer edges.
+        crate::ssa::borrow_result_support::argument(self.parsed, call_span)?;
+        self.lower_result_call(fact.expression(), source, span)
+            .map(Some)
+    }
+
     pub(super) fn lower_result_binding(
         &mut self,
         symbol: SymbolId,

@@ -14,6 +14,23 @@ impl UnitExpressionLowerer<'_> {
         call_span: Span,
     ) -> Result<(LoanId, Vec<LoanId>, Span), LoweringError> {
         let argument_id = UnitExpressionId::new(self.source_unit, argument);
+        if let Some((loan, mut sources)) =
+            self.lower_nested_borrow_argument(call, argument, span)?
+        {
+            if self
+                .function
+                .entity(EntityId::Loan(loan))
+                .map(|data| data.ty)
+                != Some(EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target,
+                })
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            sources.push(loan);
+            return Ok((loan, sources, call_span));
+        }
         if self.owned.borrow_results().range_uses().iter().any(|fact| {
             fact.expression() == argument_id
                 && fact.site() == lang_frontend::ownership_checking::RangeUseSite::Call(call)

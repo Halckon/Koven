@@ -434,8 +434,12 @@ impl Checker<'_> {
             ParameterMode::Value => {}
             ParameterMode::Borrow => {
                 if let Some(target) = self
-                    .range_use(argument.value)
+                    .borrow_call_use(call, argument.value)
                     .map(|fact| fact.origin().clone())
+                    .or_else(|| {
+                        self.range_use(argument.value)
+                            .map(|fact| fact.origin().clone())
+                    })
                 {
                     if let LoanTarget::Place(place) = &target {
                         if !self.access_place(

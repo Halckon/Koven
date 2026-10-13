@@ -1,0 +1,6 @@
+class Aux { deinit() { println("drop-aux") } }
+class Temp { deinit() { println("drop-temp") } }
+fun view(source: String): borrow String from source = source
+fun observe(source: String, own aux: Aux) { println(source) }
+fun consume(own source: String) { println(source) }
+fun entry() { val source = "kept".clone(); observe(view(source), Aux()); println("after"); consume(source) }

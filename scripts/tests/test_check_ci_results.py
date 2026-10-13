@@ -89,6 +89,24 @@ class CheckCiResultsTests(unittest.TestCase):
                                 "contract targets must not be filtered")
                 self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
 
+    def test_nested_borrow_argument_contract_runs_once_without_filters_on_both_hosts(self):
+        root = Path(__file__).resolve().parents[2]
+        target = "ownership_nested_borrow_arguments"
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        selected = stage_target_occurrences(stage, target)
+        self.assertEqual(1, len(selected), f"{target} must execute exactly once")
+        self.assertTrue(selected[0].startswith(
+            "run cargo test --locked -p lang-frontend --no-fail-fast "))
+        self.assertTrue(stage_command_is_unfiltered(selected[0]),
+                        "the entire nested Borrow argument contract must execute")
+        self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+        composition = (root / "scripts/check_integration.sh").read_text()
+        self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
+        self.assertIn("os: [macos-14, ubuntu-24.04]", job)
+        self.assertIn("run: bash scripts/check_integration.sh", job)
+
     def test_lexical_alignment_targets_are_selected_once_without_filters(self):
         # The repaired parser matrices must execute on both CI hosts.
         root = Path(__file__).resolve().parents[2]

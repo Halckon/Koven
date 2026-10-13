@@ -16,6 +16,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test diagnostic_model \
   --test ownership_borrow_continuation --test ownership_borrow_last_use \
   --test ownership_borrow_origins --test ownership_borrow_result \
+  --test ownership_nested_borrow_arguments \
   --test ownership_map --test ownership_map_require --test ownership_map_with \
   --test ownership_range_carrier --test ownership_range_construction \
   --test ownership_range_producer --test ownership_range_receiver \

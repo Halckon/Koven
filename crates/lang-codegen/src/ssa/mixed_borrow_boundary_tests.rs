@@ -142,8 +142,8 @@ fn mixed_value_borrow_non_source_inout_remains_lowering_unsupported() {
 }
 
 #[test]
-fn mixed_value_borrow_nested_use_remains_frontend_deferred() {
-    let source = "fun view(source: String, own other: Int): borrow String from source = source\nfun observe(source: String) { println(source) }\nfun entry() { val source = \"kept\".clone(); observe(view(source, 7)) }";
+fn mixed_value_borrow_nested_result_binding_remains_frontend_deferred() {
+    let source = "fun view(source: String, own other: Int): borrow String from source = source\nfun entry() { val source = \"kept\".clone(); borrow val item = view(view(source, 7), 8); println(item) }";
     assert_frontend_rejection(source, "L0164", "view(source, 7)");
 }
 

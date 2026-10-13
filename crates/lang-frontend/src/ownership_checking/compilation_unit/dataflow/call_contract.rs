@@ -51,8 +51,15 @@ impl Checker<'_> {
                 }
                 let range_root = (kind == LoanKind::Shared)
                     .then(|| {
-                        self.range_use(contract.argument().expression())
-                            .map(|fact| fact.origin().clone())
+                        self.borrow_call_use(
+                            contract.call().expression(),
+                            contract.argument().expression(),
+                        )
+                        .map(|fact| fact.origin().clone())
+                        .or_else(|| {
+                            self.range_use(contract.argument().expression())
+                                .map(|fact| fact.origin().clone())
+                        })
                     })
                     .flatten();
                 let target = if let Some(target) = range_root {

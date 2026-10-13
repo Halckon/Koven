@@ -27,8 +27,9 @@ use crate::{
 };
 
 pub use borrow_result::{
-    BorrowBindingEndFact, BorrowBindingFact, BorrowBindingStorage, BorrowResultFacts,
-    BorrowReturnOriginFact, BorrowSourceLoan, RangeReturnOriginFact, RangeUseFact, RangeUseSite,
+    BorrowBindingEndFact, BorrowBindingFact, BorrowBindingStorage, BorrowCallUseFact,
+    BorrowResultFacts, BorrowReturnOriginFact, BorrowSourceLoan, RangeReturnOriginFact,
+    RangeUseFact, RangeUseSite,
 };
 pub use callable_provenance::{
     CallableOrigin, CallableOriginFact, PointerCallableReturnOrigin, PointerCallableReturnSummary,

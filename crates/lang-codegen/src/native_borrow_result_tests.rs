@@ -165,3 +165,13 @@ fn mixed_value_borrow_single_native_matrix() {
         assert!(run.stderr.is_empty(), "{}: {run:?}", case.name);
     }
 }
+
+#[test]
+fn nested_borrow_argument_single_native_matrix() {
+    for case in crate::native_nested_borrow_cases::cases() {
+        let run = emit_link_and_run(case.name, case.source, "entry");
+        assert!(run.status.success(), "{}: {run:?}", case.name);
+        assert_eq!(run.stdout, case.stdout, "{}", case.name);
+        assert!(run.stderr.is_empty(), "{}: {run:?}", case.name);
+    }
+}
