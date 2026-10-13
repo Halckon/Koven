@@ -141,3 +141,6 @@ fn unit_map_return_constant_live_source_red() {
 fn unit_map_return_constant_dead_source_red() {
     assert_unit_lowers(false, true);
 }
+
+#[path = "lower_frontend_map_return_controls_tests.rs"]
+mod ordinary_controls;
