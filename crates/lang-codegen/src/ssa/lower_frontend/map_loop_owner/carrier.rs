@@ -12,7 +12,7 @@ use crate::ssa::model::{
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::SymbolId,
-    ownership_checking::{CleanupOwnerValue, DropFact},
+    ownership_checking::{CleanupOwnerValue, DropFact, IterationPhiIncomingKind},
     source::Span,
 };
 
@@ -30,6 +30,7 @@ struct Carrier {
     exit_live_checked: bool,
     drops: Vec<(DropFact, BlockId, ValueId)>,
     break_exit: Option<(BlockId, ValueId)>,
+    backedges: Vec<(IterationPhiIncomingKind, BlockId, ValueId)>,
     merged: Option<ValueId>,
     merge_checked: bool,
 }
@@ -127,9 +128,56 @@ impl ExpressionLowerer<'_> {
                 exit_live_checked: false,
                 drops: Vec::new(),
                 break_exit: None,
+                backedges: Vec::new(),
                 merged: None,
                 merge_checked: false,
             });
+        }
+        Ok(())
+    }
+
+    // Called after ordered cleanup and argument assembly, while bindings still
+    // identify the actual current owner in this exact predecessor block.
+    pub(in super::super) fn record_map_loop_backedge(
+        &mut self,
+        statement: StatementId,
+        kind: IterationPhiIncomingKind,
+        edge: &Edge,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for carrier in self
+            .map_loop_owners
+            .loops
+            .iter_mut()
+            .filter(|carrier| carrier.plan.statement == statement)
+        {
+            let fail = || error(LoweringErrorKind::MissingFact, span);
+            let expected = match kind {
+                IterationPhiIncomingKind::Fallthrough => true,
+                IterationPhiIncomingKind::Continue(expression) => {
+                    carrier.plan.continue_expression == Some(expression)
+                }
+                _ => false,
+            };
+            let Some(LoweredValue::Value(current)) = self.bindings.get(&carrier.plan.symbol) else {
+                return Err(fail());
+            };
+            if !expected
+                || carrier.exit_live_checked
+                || edge.target != carrier.header_block
+                || edge.arguments.get(carrier.slot) != Some(&EntityId::Value(*current))
+                || carrier
+                    .backedges
+                    .iter()
+                    .any(|(recorded, block, _)| *recorded == kind || *block == self.block)
+                || carrier
+                    .drops
+                    .iter()
+                    .any(|(_, block, _)| *block == self.block)
+            {
+                return Err(fail());
+            }
+            carrier.backedges.push((kind, self.block, *current));
         }
         Ok(())
     }
@@ -360,25 +408,34 @@ impl ExpressionLowerer<'_> {
             if !lineage(self.function, carrier.entry, seed) {
                 return Err(fail());
             }
-            let header_inputs =
+            let mut header_inputs =
                 incoming(self.function, carrier.header_block, carrier.slot).ok_or_else(fail)?;
-            if header_inputs.len() != 2 {
+            let mut expected = vec![(carrier.preheader, carrier.entry)];
+            let fallthrough = unique(
+                carrier
+                    .backedges
+                    .iter()
+                    .filter(|(kind, _, _)| *kind == IterationPhiIncomingKind::Fallthrough),
+            )
+            .ok_or_else(fail)?;
+            expected.push((fallthrough.1, fallthrough.2));
+            if let Some(expression) = carrier.plan.continue_expression {
+                let continued = unique(carrier.backedges.iter().filter(|(kind, _, _)| {
+                    *kind == IterationPhiIncomingKind::Continue(expression)
+                }))
+                .ok_or_else(fail)?;
+                expected.push((continued.1, continued.2));
+            }
+            if carrier.backedges.len() + 1 != expected.len()
+                || carrier.backedges.iter().any(|(_, block, value)| {
+                    *block == carrier.preheader || !lineage(self.function, *value, carrier.body)
+                })
+            {
                 return Err(fail());
             }
-            let entry = unique(
-                header_inputs
-                    .iter()
-                    .filter(|(block, _)| *block == carrier.preheader),
-            )
-            .ok_or_else(fail)?;
-            let back = unique(
-                header_inputs
-                    .iter()
-                    .filter(|(block, _)| *block != carrier.preheader),
-            )
-            .ok_or_else(fail)?;
-            if entry.1 != carrier.entry
-                || !lineage(self.function, back.1, carrier.body)
+            header_inputs.sort();
+            expected.sort();
+            if header_inputs != expected
                 || incoming(self.function, carrier.body_block, carrier.slot).ok_or_else(fail)?
                     != [(carrier.header_block, carrier.header)]
                 || incoming(self.function, carrier.exhaustion_block, carrier.slot)
