@@ -1,4 +1,6 @@
-//! SPEC-0313: ordinary source conditional return, independent single/unit baseline.
+#[path = "lower_frontend_map_return_structure_tests.rs"]
+mod structure;
+// SPEC-0313: ordinary source conditional return, independent single/unit baseline.
 use super::{analyze, lower_scalar_file};
 use lang_frontend::ownership_checking::{IterationExitKind, IterationPhiIncomingKind};
 
@@ -62,6 +64,32 @@ fn check(live: bool) {
         )
     });
     crate::llvm::render_verified_program(&program).unwrap();
+    let expression = plan
+        .exits()
+        .iter()
+        .find_map(|exit| match exit.kind() {
+            IterationExitKind::Return(expression) => Some(expression),
+            _ => None,
+        })
+        .unwrap();
+    structure::assert_return_structure(
+        &program,
+        analysis
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression)
+            .unwrap()
+            .span(),
+        analysis
+            .parsed
+            .ast()
+            .expressions()
+            .get(plan.descriptor().source())
+            .unwrap()
+            .span(),
+        live,
+    );
 }
 
 #[test]

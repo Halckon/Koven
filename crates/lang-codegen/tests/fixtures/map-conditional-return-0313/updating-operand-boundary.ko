@@ -1,0 +1,10 @@
+fun updatingOperand(stop: Int): Int {
+    var cache = mutableMapOf<Int, String>()
+    for (item in arrayOf(1, 2, 3)) {
+        cache.put(item, "head".clone())
+        if (item == stop) { return if (cache.remove(item) != null) { println("removed operand"); item } else { 0 } }
+        cache.put(9, "tail".clone())
+    }
+    cache.contains(9)
+    return 0
+}

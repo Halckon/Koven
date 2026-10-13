@@ -1,7 +1,7 @@
 //! Ordinary source observations isolating source and returned-owner boundaries.
 use super::{analyze, lower_scalar_file};
 
-fn observe(name: &str, text: &str) {
+fn observe(name: &str, text: &str, supported: bool) {
     let analysis = analyze(text);
     assert!(
         analysis.parsed.diagnostics().is_empty(),
@@ -31,10 +31,16 @@ fn observe(name: &str, text: &str) {
         &analysis.owned,
     ) {
         Ok(program) => {
+            assert!(supported, "{name}: unexpectedly accepted");
             crate::llvm::render_verified_program(&program).unwrap();
             println!("CONTROL {name}: VERIFIED_LLVM");
         }
-        Err(error) => println!("CONTROL {name}: {error:?}"),
+        Err(error) => {
+            assert!(!supported, "{name}: {error:?}");
+            assert_eq!(error.kind, super::super::LoweringErrorKind::UnsupportedNode);
+            assert!(error.span.is_some());
+            println!("CONTROL {name}: {error:?}");
+        }
     }
 }
 
@@ -67,6 +73,7 @@ fn ordinary_source_controls_owned_source_return() {
                 observe(
                     &format!("owned-source-own={own}-live={live}-map={map}"),
                     &text,
+                    false,
                 );
             }
         }
@@ -119,8 +126,32 @@ fn ordinary_source_controls_owned_return_operand() {
                 observe(
                     &format!("operand-{kind}-map={map}-grouped={grouped}"),
                     &text,
+                    kind != "removed",
                 );
             }
         }
     }
+}
+
+#[test]
+fn ordinary_source_controls_outer_resource_and_updating_operand() {
+    let outer =
+        include_str!("../../tests/fixtures/map-conditional-return-0313/outer-resource-boundary.ko");
+    observe("outer-resource-map", outer, false);
+    let without_map = outer
+        .replace("    var cache = mutableMapOf<Int, String>()\n", "")
+        .replace("        cache.put(1, \"head\".clone())\n", "")
+        .replace("        cache.put(9, \"tail\".clone())\n", "")
+        .replace(
+            "    if (cache.contains(9)) { println(\"tail kept\") }\n",
+            "",
+        );
+    observe("outer-resource-no-map", &without_map, false);
+    observe(
+        "updating-return-operand",
+        include_str!(
+            "../../tests/fixtures/map-conditional-return-0313/updating-operand-boundary.ko"
+        ),
+        false,
+    );
 }

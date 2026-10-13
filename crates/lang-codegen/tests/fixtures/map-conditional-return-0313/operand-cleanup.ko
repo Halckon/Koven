@@ -25,21 +25,9 @@ fun copyElement(stop: Int): Int {
     cache.contains(9)
     return 0
 }
-fun updatingOperand(stop: Int): Int {
-    var cache = mutableMapOf<Int, String>()
-    for (item in arrayOf(1, 2, 3)) {
-        cache.put(item, "head".clone())
-        if (item == stop) { return if (cache.remove(item) != null) { println("removed operand"); item } else { 0 } }
-        cache.put(9, "tail".clone())
-    }
-    cache.contains(9)
-    return 0
-}
 fun main(): Unit {
     if (cleanup(true) == 7) { println("returned") }
     if (cleanup(false) == 0) { println("completed") }
     if (copyElement(3) == 3) { println("copy returned") }
     if (copyElement(9) == 0) { println("copy exhausted") }
-    if (updatingOperand(2) == 2) { println("updated returned") }
-    if (updatingOperand(9) == 0) { println("updated exhausted") }
 }
