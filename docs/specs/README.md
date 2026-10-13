@@ -1,30 +1,36 @@
 # Koven Specs
 
-> **性质**：变更合同索引 · **状态**：current · **读取时机**：计划、实施或验收一项具体变更时 · **唯一真源**：各 Spec 正文；语言演进进度见演进实施账本
+> **性质**：变更合同索引 · **状态**：current · **读取时机**：计划、实施或验收一项具体变更时 · **唯一真源**：各 Spec 正文；当前交付见本页，演进实施账本仅保留历史基线
 
 Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批准 Spec。
-此前文档批次已按各合同最终证据关闭 0228–0235、0237–0242 与 0247；本批补齐0236诊断Span双宿主验收并归档，0182当时继续active；0248 的 Unit 容器存储已按双宿主证据完成归档；0249 普通 owned-unit 交接已按其有界合同与首轮双宿主证据归档；0250共享名称前缀首片已按PR31首轮双宿主证据归档；0251 LSP unit消费按PR32首轮双宿主证据有界归档；0252基础ownership共享推进与CLI/LSP消费按PR33首轮双宿主证据有界归档；0253单文件阶段门面按PR34最终精确head双宿主证据有界归档；0254 const封闭交接按PR35及真实merge主干双宿主证据有界归档，本地状态随下一相关实施批次发布。
-文档归档不代表原 13 项语言演进全部完成，也不扩大已验收的支持范围。
-
-以上是各次归档的历史顺序。文档合入接收main `a83749f`，已有0 active / 255 archive；0182已归档，
-0262教程经PR38双宿主验收，0263–0265闭合M1A A2–A4，0266/0267交付有界检测/编辑器门禁，
-0268/PR46闭合unit native迭代及M1A有界总验收。
-具体状态及精确head依据见[本批核对](../archive/development/documentation-status-sync.md#合入main时接收后继0268)；
-P2成本继续延期，后续候选能力不因M1A交付自动关闭。原[恢复验收](../archive/development/recovery-local-delivery.md)保留当时本机结果。
+文档归档只关闭各 Spec 的有界合同，不代表全部语言演进或候选能力完成。
 
 ## 当前入口
 
-- [Active](active/README.md)：当前0份，[0307同步Borrow实参消费](../archive/specs/0307-synchronous-borrow-result-arguments.md)已按PR85修复后16/16物理CI及双宿主逐名证据有界归档，首失败保留，归档head CI/merge/main待验证；[0306混合Value借用返回](../archive/specs/0306-mixed-value-borrow-result.md)已按PR84修复后完整物理CI及双宿主各15项正常/10项verifier测试有界归档；首失败保留，已由PR84合为actual-main `967bf98e`，[main CI](https://github.com/Halckon/Koven/actions/runs/38368833991)成功，M2B后继开放。[0305多Borrow参数返回](../archive/specs/0305-multi-parameter-borrow-result.md)已按PR83首次物理CI及双宿主34项普通测试有界归档，最终归档head复用已验收并由[PR83](https://github.com/Halckon/Koven/pull/83)合入main `bfdb00bd`，[main CI](https://github.com/Halckon/Koven/actions/runs/38350665268)已成功，其余M2B后继开放；[0304归档库存声明化](../archive/specs/0304-spec-archive-inventory.md)已按PR82首次物理CI成功归档，已由[PR82](https://github.com/Halckon/Koven/pull/82)合入main `f7a4d15c`，[main CI](https://github.com/Halckon/Koven/actions/runs/38338171407)成功；[0298](../archive/specs/0298-range-binding-local-control-flow.md)已按PR81修复后实现head双宿主52/8/14/35逐目标证据及完整CI有界归档，[广义后继](drafts/v0.43/README.md#0298首片之外的开放后继)继续开放；已由[PR81](https://github.com/Halckon/Koven/pull/81)合入main `b63ec6a1`，[main CI](https://github.com/Halckon/Koven/actions/runs/38327500616)成功；[0299 owned Map结果借用](../archive/specs/0299-owned-map-result-borrow.md)已按PR80实现head双宿主各23项新增测试及完整CI有界归档，仅关闭冻结首片、广义后继开放；已由[PR80](https://github.com/Halckon/Koven/pull/80)合入main `4eb38d74`，[main CI](https://github.com/Halckon/Koven/actions/runs/38275520368)成功；[0300 single Map-for owner运输](../archive/specs/0300-single-map-loop-owner-carry.md)已按PR79实现head双宿主各19项新增测试及完整CI有界归档；已由[PR79](https://github.com/Halckon/Koven/pull/79)合入main `08c6b8dc`，[main CI](https://github.com/Halckon/Koven/actions/runs/38259510177)成功；[0297 Map key return清理](../archive/specs/0297-map-key-return-cleanup.md)已按PR78实现head双宿主各42项新增测试及完整CI有界归档；已由[PR78](https://github.com/Halckon/Koven/pull/78)合入main `003f1299`，[main CI](https://github.com/Halckon/Koven/actions/runs/38228159089)成功；[0303文档职责收敛](../archive/specs/0303-development-document-ownership.md)已按PR77有界归档并合入main `289a8ad9`，合并后CI已成功；[0302证据保留](../archive/specs/0302-evidence-retention.md)已归档并由[PR76](https://github.com/Halckon/Koven/pull/76)合入main `8ef058f6`，[main CI](https://github.com/Halckon/Koven/actions/runs/38191208630)成功。0289/0294/0295/0296已分别按PR72–75有界归档并合入main，对应actual-main CI已成功，固定交付核对见[历史摘要](../archive/migrations/pr72-74-followup-audit.md#基线与交付)；0290 已按 PR71 双宿主 CI 有界归档，最终归档 head、合并 `6667635` 与 actual main CI 已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/pr69-repair-0290/delivery.json)；N1a 已批准合同经新推送分支补回，当前 Guide 为 v0.43；实现验收保持独立。历史交付：0293 已按 [PR #70](https://github.com/Halckon/Koven/pull/70) 完整 CI / 文档复用 / 输入改变回退验收归档并合并为 `56af80b`；0279按[PR57](https://github.com/Halckon/Koven/pull/57)双宿主限定范围归档，最终归档head/merge/main待交付，见[账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/delivery.json)；0278按[PR56](https://github.com/Halckon/Koven/pull/56)双宿主实现验收归档，最终归档head、merge及actual main CI已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/closure-escape-0278/delivery.json)；0269 的 M4b 首片已验收归档，实现证据见[账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generated-owners-0269-delivery.json)，最终归档/merge/main 见[PR48](https://github.com/Halckon/Koven/pull/48)；0277按[PR55](https://github.com/Halckon/Koven/pull/55)双宿主实现验收归档，最终归档head及actual main已闭环，见[交付账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/p2-linux-0277-delivery.json)；0276按[PR54](https://github.com/Halckon/Koven/pull/54)归档并合并，最终head及actual main CI闭环见[交付证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-body-0276-delivery.json)；0275按[PR53](https://github.com/Halckon/Koven/pull/53)归档并合并，最终归档CI及main CI已闭环，见[交付证据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/generic-containers-0275-delivery.json)；0274按[PR52](https://github.com/Halckon/Koven/pull/52)双宿主实现验收归档；0272按[PR51](https://github.com/Halckon/Koven/pull/51)双宿主实现验收归档；0273已按[PR50](https://github.com/Halckon/Koven/pull/50)双宿主实现证据归档；0271已按[PR49](https://github.com/Halckon/Koven/pull/49)双宿主实现证据归档；0270双宿主归档见[PR47](https://github.com/Halckon/Koven/pull/47)；0263–0268及M1A双宿主交付见[PR46](https://github.com/Halckon/Koven/pull/46)
-- [演进实施账本](evolution-status.md)：十三项计划的固定基线、后继阅读边界与交付历史
-- [工程方法](../development/README.md)：开发、验证与交付入口
-- [候选入口](../proposals/README.md)：尚未选定的范围；P2预算继续延期/未接受
-- [冻结库存](inventory.md)：active/archive 编号的独立声明，draft/ADR 保持原 checker 真源
-- [Spec 依赖图](dependency-graph.md) / [SVG](dependency-graph.svg)：由 `scripts/gen_spec_dag.py` 生成的当前拓扑
+### Active
+
+- [Active 合同](active/README.md)：当前 0 份；后继须从实际 main 独立冻结合同。
+- [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
+
+### 近期交付
+
+- [0307 同步 Borrow 实参消费](../archive/specs/0307-synchronous-borrow-result-arguments.md)：[PR85](https://github.com/Halckon/Koven/pull/85) 已有界归档并合入 main `557e3684`；[actual-main CI](https://github.com/Halckon/Koven/actions/runs/38382922981) 成功，首轮失败保留。
+- [0306 混合 Value 借用返回](../archive/specs/0306-mixed-value-borrow-result.md)：[PR84](https://github.com/Halckon/Koven/pull/84) 已合入 main `967bf98e`，[actual-main CI](https://github.com/Halckon/Koven/actions/runs/38368833991) 成功；首轮失败保留，M2B 后继开放。
+- [0305 多 Borrow 参数](../archive/specs/0305-multi-parameter-borrow-result.md)、[0304 库存声明](../archive/specs/0304-spec-archive-inventory.md)：已完成各自有界交付；历史追溯从 [Archive](../archive/README.md) 进入。
+- 0297/0300/0299/0298 首片均已合入并通过各自 actual-main CI：[PR78](https://github.com/Halckon/Koven/pull/78) / [38228159089](https://github.com/Halckon/Koven/actions/runs/38228159089)、[PR79](https://github.com/Halckon/Koven/pull/79) / [38259510177](https://github.com/Halckon/Koven/actions/runs/38259510177)、[PR80](https://github.com/Halckon/Koven/pull/80) / [38275520368](https://github.com/Halckon/Koven/actions/runs/38275520368)、[PR81](https://github.com/Halckon/Koven/pull/81) / [38327500616](https://github.com/Halckon/Koven/actions/runs/38327500616)。广义范围未随首片关闭。
+
+### 候选与导航
+
+- [v0.43 广义后继](drafts/v0.43/README.md#0298首片之外的开放后继)：0298 更广表达式/控制流/循环仍为候选；0292 consume 保持原 draft。
+- [v0.44 候选](drafts/v0.44/README.md)：0291 只读 Map 消费式转换保持原 draft；[Proposals](../proposals/README.md) 不自动批准实施，P2 预算继续延期。
+- [演进历史基线](evolution-status.md) / [工程方法](../development/README.md)：前者保留历史检查点，当前交付只在本节维护。
+- [冻结库存](inventory.md)：active/archive 的独立声明与漏项检测，不由目录扫描自动生成。
+- [依赖图](dependency-graph.md) / [SVG](dependency-graph.svg)：由 `scripts/gen_spec_dag.py` 生成拓扑，不承载验收状态。
 
 ## 版本与历史导航
 
-- [v0.43首片与后继候选](drafts/v0.43/README.md)：0292 consume未启用；0297已按PR78有界归档，0300已按PR79有界归档，0298冻结首片已按PR81有界归档、广义后继开放，0299冻结首片已按PR80有界归档、广义后继开放；顺序0297→0300→0299/0298保持
-- [v0.44 候选](drafts/v0.44/README.md)：0291 只读 Map 消费式转换保持 draft
+- [v0.43 首片与后继合同](drafts/v0.43/README.md)
+- [v0.44 候选合同](drafts/v0.44/README.md)
 
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成

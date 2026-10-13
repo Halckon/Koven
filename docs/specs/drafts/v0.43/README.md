@@ -30,8 +30,8 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 - [0297 Map key return清理](../../../archive/specs/0297-map-key-return-cleanup.md)：查询/删除的出口传播与前缀清理；break/continue仍在本片之外。
 - [0298 范围绑定局部条件组合](../../../archive/specs/0298-range-binding-local-control-flow.md)：仅关闭Int ==/<与同根词法双正常arm if；首轮CI失败及修复保留，原广义后继见下节。
-- [0299 owned Map result只读借用](../../../archive/specs/0299-owned-map-result-borrow.md)：按PR80实现head双宿主各23项新增测试有界归档；仅关闭冻结首片，嵌套调用等后继开放，归档head CI/merge/main待验证。
-- [0300 single Map-for条件清理运输](../../../archive/specs/0300-single-map-loop-owner-carry.md)：按PR79实现head双宿主验收有界归档，限定正常耗尽；归档head CI/merge/main待验证。
+- [0299 owned Map result只读借用](../../../archive/specs/0299-owned-map-result-borrow.md)：按PR80实现head双宿主各23项新增测试有界归档；仅关闭冻结首片，嵌套调用等后继开放；当前交付状态见[唯一入口](../../README.md#近期交付)。
+- [0300 single Map-for条件清理运输](../../../archive/specs/0300-single-map-loop-owner-carry.md)：按PR79实现head双宿主验收有界归档，限定正常耗尽；当前交付状态见[唯一入口](../../README.md#近期交付)。
 
 ## 0298首片之外的开放后继
 

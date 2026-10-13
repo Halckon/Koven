@@ -13,7 +13,7 @@ Map 的实现按具体 K/V 实例建立布局，不以 `Map<String, Int>` 特例
 变异要求 mutable receiver 的 Inout 权限；普通调用事实和下标赋值遍历都执行检查。
 SSA 的查询键是 Value 或 active Shared Loan，exclusive/失效 loan 被 verifier 拒绝。
 `MapPut` 消费旧 owner、键和值，产生更新后的 owner；`MapRemove` 消费旧 owner，
-产生更新后的 owner 和 owned nullable 结果。非 Resource 外层具名 Map 在 single 顺序容器 for 正常耗尽时的图证明、SSA carrier 与保留边界见[Map loop owner](map-loop-owner-carry.md)。调用交付后不再运输已消费的键和值 binding；两入口 Map.put key/value 与 get/contains/remove key 的 return 清理、CFG身份及正常native边界见[Map调用前缀](map-call-prefixes.md)。
+产生更新后的 owner 和 owned nullable 结果。for owner 运输见[Map loop owner](map-loop-owner-carry.md)；调用前缀/return 清理见[Map调用前缀](map-call-prefixes.md)。
 
 资源类型规划递归检查 Map 的 K/V，登记元素 drop glue。LLVM Map drop 遍历 Occupied 槽位，
 分别析构 MoveOnly 键和值，再释放 buffer。覆盖先析构旧键和值，再存入新条目。
@@ -169,32 +169,31 @@ Int/Boolean/Char 使用确定性标量哈希，String 使用 UTF-8 字节哈希�
 物化入口；这些证据不扩大普通 Char literal 的 lowering 边界。
 正常 malloc/free 计数逐指针核对释放；多文件 Map<String, Resource> 验证正逆输入顺序的
 确定 SSA、跨文件构造、覆写、键借用复用与两次用户 deinit。
-## 尚未闭合的边界
+## 编号场景与保留边界
 
-- nullable V 的 requireValue 已区分 missing Abort 与 found-null/found-value 的槽位借用；
-  withValue 三态 callback 已由 single/unit 正常 native 证明。Copyable nullable V 的旧 get/下标
-  在前端报 L0130/Span，提示 withValue；MoveOnly 保持 L0136，非 nullable Copyable 查询
-  仍按值返回。nullable owned remove 保持后端 UnsupportedNode/Span，不增添 owned 三态表示。
-- owned remove 已有 String、含 String 的 MoveOnly value class 和 Resource class 的
-  单文件/unit 条件析构、消费提取与缺失结果回归。该证据不启用通用 inline nullable。
-- 普通 Borrow 参数 origin、显式绑定的 caller continuation 与词法 scope-end 已有 single/unit
-  证明；单参数现行 storage 类型的泛型实例与只读字段投影已接通 SSA verifier/LLVM ABI，
-  requireValue 的真实 receiver slot 和 withValue 同步 callback 已接通；直线局部 last-use
-  有独立 frontend ends 与调用派生结果的 SSA/native 证据，复杂 CFG/NLL 未实现。
-  非空 readonly Map 没有现行构造/转换入口，只有空 readonly Missing
-  和已填充 MutableMap 的命中 native 证据，不能由此宣称 readonly 非空命中已验证。
-  parser 已保存结果/绑定 marker；single/unit 的签名及调用 descriptor 携带声明来源，
-  Phase 3 另发布实际返回来源，不能混同于 caller result loan；正式启用依据由 Spec 保存。
-  尚未证明的复杂路径保留 L0164，后端在 SSA 前封闭未接通的 ABI 形状。条件借用不属于当前批准范围。
-- MapPut 已按 typed V 适配直接 constructor 与 owned local 的 T→T?，原 owner 在 wrap 前
-  交付，exact-type verifier 保持；single/unit 的 Resource class、MoveOnly Packet class/Box
-  与 String class 字段的覆盖/写 null/native 精确清理通过。Resource? 的 Map V storage
-  只复用已有 pointer niche，非 Map resource wrapper guard 保留。直接 String?/Packet?/Int?
-  的 Map storage 不扩展 inline ABI，single/unit 均带 Span UnsupportedNode。
-  §2.12 的 alias/promotion 与旧全库结果属于其冻结片；§2.13 另记录稳定 place、查询诊断
-  及缓存边界的红绿证据。普通源码已复现先缓存查询 result 再构造 inline nullable Map 的
-  错误接受；Map V storage 现在独立要求已批准 NullableHandle，不能复用 result aggregate
-  绕过 storage 边界。single/unit Int?/String?/MoveOnly Packet? 缓存组合负例均通过。
-- Linux Map 专属 ASan/LSan 夹具已在 PR #69 run `37946407889` 通过并闭合 G5；
-  macOS 仍只有正常计数证据，不能据此宣称 ASan/LSan 动态检出通过。
-SPEC0288 已有界验收归档并经 PR #69 合入 main，见[原验收 §7.1](../archive/specs/0288-map-native-execution.md#71-g5-远端证据2026-10-09)。
+这是代表场景，不是全组合。provider 是真实迭代源，“无”表示无迭代；Map 的 owned/Borrow/Inout、Resource 分类与 K/V 的 Copyable/MoveOnly 分列，payload 可复制不等于 Map owner 可复制。
+“正例”限所引源码及证据层；“拒绝”有测试断言；“未评估”不推定成功或语言禁止。细节与未选后继沿原专页追溯，不在此批准或排期。
+
+| 场景 | 入口 / 操作与退出 / provider | Map / K、V及结果 | 证据与边界导航 |
+|---|---|---|---|
+| M01 | single / put、get、remove / 无 | owned、变异Inout / 标量或String键；Copyable V | native正例：T1；各K/V非全组合，Char限const |
+| M02 | single/unit / key return各分支 / 无 | owned或Borrow / String→Int；Resource V限owned contains/remove | native正例：T2；临时receiver限get/contains；[调用前缀](map-call-prefixes.md) |
+| M03 | single/unit / put key/value return / 无 | owned、Inout / 依fixture | native正例：T1；其他退出未评估，边界同M02 |
+| M04 | single/unit / for正常耗尽 / Array（两入口）；List/MutableList（single） | 非Resource owned / String、MoveOnly V | native正例：T3；unit独立对照；[loop owner](map-loop-owner-carry.md) |
+| M05 | single / guarded break/continue/return及扩展seed / Array；另测RangeView | 非Resource owned；Int→String | 拒绝：T4；不推定unit；后继同M04 |
+| M06 | single / Resource分类对照 / Array | Resource Map / Resource V | SSA/LLVM正例：T4；更广退出native未评估；后继同M04 |
+| M07 | single/unit / remove后窄化、Borrow、!! / 无 | Map Inout；独立结果owner / String、MoveOnly、Resource V | native正例：T5；single重入不外推unit；[结果借用](map-owned-result-borrow.md) |
+| M08 | unit / M07结果Borrow返回、key内嵌调用、下标 / 无 | 独立结果owner，不是entry loan | 拒绝：T6；0299后继仍开放，0307不自动关闭 |
+| M09 | single/unit / requireValue、withValue命中/缺失 / 无 | Shared receiver/slot / MoveOnly、Resource、pointer-like nullable V | native正例：T7；非空readonly命中未评估，无现行构造/转换入口；0291仍[draft](../specs/drafts/v0.44/README.md) |
+| M10 | single/unit / nullable旧查询、remove / 无 | get的Copyable nullable或MoveOnly V；remove的nullable V | 拒绝：T8；L0130/L0136或UnsupportedNode/Span；后继未选，不开放owned三态 |
+| M11 | single/unit / put T→T?、覆盖/null / 无 | owned、Inout / 现行pointer-niche V，含Resource | native正例：T7；非Map wrapper guard保留，不扩inline nullable |
+| M12 | single/unit / 缓存result再建Map / 无 | Int?/String?/MoveOnly Packet? storage | 拒绝：T9；aggregate不授权storage；后继未选 |
+| M13 | unit：`value.n`/`value.text`；single：`value.number()` / 无 | M07独立结果的inline Borrow callee | [0299已记录缺口](../archive/specs/0299-owned-map-result-borrow.md#7-实施中已确认的独立边界)；callee lowering未接通、后继待认领；已在与main `557e3684`相同crates源码复现；非持久测试或main重跑，显式clone正例独立 |
+
+测试位于 [`lang-codegen/src`](../../crates/lang-codegen/src/)；下列为其相对路径，T8前端例外明确列出。
+T1 `native_map_tests.rs`；T2 `native/unit_map_key_return_tests.rs`；T3 `native/unit_map_loop_owner_tests.rs`；T4 `ssa/lower_frontend_map_loop_tests.rs`。
+T5 `native/unit_owned_map_borrow_tests.rs`；T6 `ssa/owned_map_borrow_boundary_tests.rs`；T7 `native_borrow_result_tests.rs` / `native/unit_borrow_result_tests.rs`。
+T8 [`frontend/type_map.rs`](../../crates/lang-frontend/tests/type_map.rs)、`ssa/lower_frontend_map_tests.rs` / `ssa/unit_map_tests.rs`；T9 `ssa/map_promotion_contract_tests.rs`。
+M13实现gate见 `ssa/unit_lower/aggregate.rs` 与 `ssa/lower_frontend.rs`；借入结果合同见[结果借用页](map-owned-result-borrow.md)，不从桥接正例推定callee已接通。
+复杂CFG/NLL仍保留L0164，未接通ABI在SSA前拒绝；条件借用未批准。storage须独立满足NullableHandle；历史0288 §2.12/§2.13分片证据不算本次重跑。
+Linux Map ASan/LSan曾在PR69 run `37946407889`闭合G5；macOS仅正常计数，不宣称动态检出；[历史验收](../archive/specs/0288-map-native-execution.md#71-g5-远端证据2026-10-09)。
