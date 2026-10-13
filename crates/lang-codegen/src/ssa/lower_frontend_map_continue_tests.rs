@@ -10,8 +10,9 @@ pub(super) const LIVE_DEAD: &str =
     include_str!("../../tests/fixtures/map-conditional-continue-0311/live-dead.ko");
 pub(super) const DISTINCT: &str =
     include_str!("../../tests/fixtures/map-conditional-continue-0311/distinct-owners.ko");
-pub(super) const PROVIDERS: &str =
-    include_str!("../../tests/fixtures/map-conditional-continue-0311/providers-cleanup.ko");
+pub(super) const PROVIDERS: &str = include_str!(
+    "../../tests/fixtures/map-conditional-continue-0311/borrowed-temporary-providers.ko"
+);
 
 // Keep two distinct updates: each re-entry must carry its own latest owner.
 pub(super) fn source(live: bool) -> String {
@@ -242,7 +243,7 @@ fn single_map_continue_own_seed_and_same_type_owners() {
 }
 
 #[test]
-fn single_map_continue_named_and_temporary_providers() {
+fn single_map_continue_borrowed_and_temporary_providers() {
     assert_source_lowers(PROVIDERS);
 }
 

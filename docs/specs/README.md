@@ -10,6 +10,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 ### Active
 
 - [Active 合同](active/README.md)：当前 1 份；0311 从实际 main 独立冻结条件 continue 合同。
+- 0311 之后优先修复 owned sequential source 的 conditional-continue presence，先于 Map return；[0311 诊断与明确后继](active/0311-single-map-conditional-continue.md#owned-named-source-的既有独立缺口与范围修订)保留无 Map 也拒绝的普通源码证据，尚未分配后继 Spec。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
 ### 近期交付

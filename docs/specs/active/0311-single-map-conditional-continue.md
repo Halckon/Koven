@@ -24,7 +24,8 @@ actual main `614a7a7f5ff77fecb337c3b6d18118e687d73c52`，tree
 查询确认编号未用后，从实际 main 建立 `feature/spec-0311`。
 [actual-main CI](https://github.com/Halckon/Koven/actions/runs/38412890083) 激活时 pending，独立跟踪。
 
-在既有 Array/List/MutableList 顺序 for 中，外部具名非 Resource Map 在一个条件 continue
+在既有 Array/List/MutableList 顺序 for 中，以 temporary 或现行可用 Borrow 参数为 source，
+外部具名非 Resource Map 在一个条件 continue
 与唯一 Fallthrough 上运输当前 owner；零轮与多轮耗尽后按真实 live/dead 事实清理。
 保留 0300 正常耗尽与 0310 单条件 break，不把多个独立证明自动组合。
 
@@ -46,11 +47,33 @@ actual main `614a7a7f5ff77fecb337c3b6d18118e687d73c52`，tree
 - 不修改 Guide、frontend、SSA model/verifier、LLVM 或语言语义，不按名称或 payload 特化。
   unit basic/constant × live/dead 逐独立测试确认 baseline，不能从其他组合推断成功或拒绝。
 
+### owned named source 的既有独立缺口与范围修订
+
+2026-10-13 首轮实现后，原 `providers-cleanup.ko` 的 owned local `keys` 在 single 仍拒绝；
+不是 Map owner 运输失败。冻结三项普通源码对照（`lower_frontend_map_continue_source_tests`）
+分别运行在 actual-main 生产字节的 tests-only `e2f9f1e9` 与本片 `eb38a7c4`：
+
+- 去掉 Map、保留 owned keys + conditional continue + loop 后 keys.size：两者均在 keys
+  Span 23..27 UnsupportedNode；source Exit owner 的 DropFact 在 keys.size 的 CallReturn。
+- 保留 Map、不再读取 keys：两者同样拒绝 keys；source Header owner 的 DropFact 位于 LoopExit。
+- temporary source + Map：基线拒绝 Map Span 23..28，本片真实 SSA/LLVM 成功。
+
+source 回边 available_when 是 Header presence selector 的 `[Never, path]`。旧
+`constant_presence::prove_graph` 只把完整 presence condition ID 作为已证条件，不能处理该
+新合取；不通过修改 Map proof、frontend 或 verifier 掩盖它。
+root 在上述实证后明确修订本片验收：只承诺 temporary 与 Borrow 参数 source，owned local
+source 保持稳定拒绝；原 fixture 原字节和红日志保留，新增 Borrow fixture 不冒称覆盖原 owned
+名义。将预期改为拒绝的绿色不是 Map 行为修复。
+
+此缺口是紧接 0311 的优先修复项，先于 Map return：下一独立 source-proof Spec 应关闭
+source live/dead 条件回边证明并核实际 owner/source loan/cursor 与 cleanup；本片不占后继编号、
+不新增 source/Resource 通用证明。原输入、probe 和精确事实是后继起点，不仅登记 known boundary。
+
 ## 3. 验证与实施顺序
 
 先独立提交真实源码测试，再实测红点与 unit 四格；production 必须晚于红测提交与实际执行。
 按 live/dead、0/1/多轮、runtime never/all/mixed、continue 前 put 与尾部 put/remove、
-重复 remove present/missing、三个 provider、named/temporary、MoveOnly payload、own seed
+重复 remove present/missing、三个 provider、Borrow 参数/temporary、MoveOnly payload、own seed
 与两个同类型 Map 选代表矩阵，不做全排列。
 
 独立结构 oracle 核真实 operation result、逐回边当前 owner、source/element loan、length、
@@ -65,7 +88,10 @@ stdout 只证明输出，不宣称动态分配计数或完整内存安全。
 | 验收项 | 精确输入/选择 | 实际结果 |
 |---|---|---|
 | 冻结基线 | §1 actual main、原始 Git 字节及库存 | 已核；未运行测试 |
-| 源码红测及 unit 四格 | 待 tests-only 提交 | 未运行 |
+| 完整原始 baseline | tests-only `0b5ef63b`，`map_continue_` | 20项11绿/9红；4 SSA+4普通native unit四格成功，3边界绿；single 6 SSA与3native拒绝，native未到object/run |
+| 首次生产 | `c36aac5b`，同20项 | 18绿/2红；原owned provider组合仍拒source，不冒称全通过 |
+| source独立对照 | §2 `e2f9f1e9` / `eb38a7c4`，`map_continue_source_probe_` | 基线0绿3红；本片1绿2红；具名source既有缺口确认 |
+| 修订范围最终红绿 | 待冻结新Borrow fixture、原owned拒绝回归 | 未运行 |
 | single 直接 SSA/native | 待普通源码选择 | 未运行 |
 | 结构与回归 | 待定向选择 | 未运行 |
 | 静态与独立审阅 | fmt/clippy/docs/尺寸/diff | 未运行 |

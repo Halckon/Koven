@@ -5,8 +5,9 @@ const LIVE_DEAD: &str =
     include_str!("../../tests/fixtures/map-conditional-continue-0311/live-dead.ko");
 const DISTINCT: &str =
     include_str!("../../tests/fixtures/map-conditional-continue-0311/distinct-owners.ko");
-const PROVIDERS: &str =
-    include_str!("../../tests/fixtures/map-conditional-continue-0311/providers-cleanup.ko");
+const PROVIDERS: &str = include_str!(
+    "../../tests/fixtures/map-conditional-continue-0311/borrowed-temporary-providers.ko"
+);
 
 #[test]
 fn single_map_continue_native_zero_one_many_never_all_mixed() {
@@ -52,14 +53,14 @@ fn single_map_continue_native_own_seed_and_same_type_owners() {
 }
 
 #[test]
-fn single_map_continue_native_named_and_temporary_providers() {
+fn single_map_continue_native_borrowed_and_temporary_providers() {
     let run = emit_link_and_run("map-continue-providers.ko", PROVIDERS, "main");
     let expected = concat!(
-        "tail\ntail\nnamedArray\nsource kept\n",
+        "tail\ntail\nborrowedArray\nsource kept\n",
         "tail\ntail\ntemporaryArray\n",
-        "tail\ntail\nnamedList\nsource kept\n",
+        "tail\ntail\nborrowedList\nsource kept\n",
         "tail\ntail\ntemporaryList\n",
-        "tail\ntail\nnamedMutableList\nsource kept\n",
+        "tail\ntail\nborrowedMutableList\nsource kept\n",
         "tail\ntail\ntemporaryMutableList\n",
     );
     assert_success(&run, expected.as_bytes());
