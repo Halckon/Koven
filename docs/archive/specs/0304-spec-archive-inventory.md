@@ -1,10 +1,10 @@
 # SPEC-0304: Spec 归档库存声明化
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实现或验收归档库存声明时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实现或验收归档库存声明时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-0304` |
 | 所属 Phase | Phase 6 交付门禁 |
 | 语言规范 | 现行 [Guide](../../guide/README.md)，不改变语言行为 |
@@ -12,7 +12,7 @@
 | 前置 Spec | [SPEC-0293](../../archive/specs/0293-pr-code-ci-reuse.md) |
 | 前置 ADR | 无 |
 | 关联 ADR | 无新增长期架构决定；沿用既有文档门禁与 CI 证据合同 |
-| 阻塞项 | 首次物理 PR CI、纯归档复用、最终 PR checks 与 actual-main CI 待远端验收 |
+| 阻塞项 | 实现与首次物理 PR CI 已验收；最终归档 head 复用、merge 与 actual-main CI 待独立验收 |
 | 影响范围 | docs checker、普通 Python fixture、Spec 库存与当前开发指令 |
 | 语言语义变更 | 否 |
 
@@ -61,7 +61,7 @@ checks 设置，不跨 PR 复用，不增加依赖，不改 Rust/Guide/ABI。此
 | `test_pr_ci_reuse.py`：真实 Git 归档/库存输入与拒绝边界 | 26/26 通过 | 归档保 head/merge 指纹；checker、mode、扩展名、Guide、base、merge-only 代码变化不复用 |
 | `test_check_ci_results.py`：docs/尺寸/依赖必需与复用独立验证 | 32/32 通过 | 无效声明→真实 docs error→已验证 reuse 仍因 docs failure 失败 |
 | `test_gen_spec_dag.py`、`python3 scripts/check_docs.py`、`git diff --check` | 1/1、655 Markdown、完整 base diff 通过 | 两次重建 DAG 四产物字节不变，Python 编译检查通过 |
-| 首次 PR 物理代码 CI | 待远端验收 | 必需双宿主与适用 preview jobs 实际成功，不以本地 Python 代替 |
+| 首次 PR 物理代码 CI | 通过：PR82 [run 38335290623](https://github.com/Halckon/Koven/actions/runs/38335290623) attempt 1，16/16 jobs实际成功 | `reuse=false`；精确远端身份与平台边界见§7 |
 | 同 PR 纯归档 head 复用 | 待远端验收 | source run/attempt/base/head/merge 指纹逐项核，docs 必须成功 |
 | 最终 PR checks / merge / actual-main CI | 待远端验收 | 无 required pending；main 必需代码 jobs实际运行 |
 
@@ -93,3 +93,47 @@ docs655和diff通过。此后的验收记录追加只改本 Spec 文档。
 
 本地提交按合同、失败测试、最小实现、验收记录分开；所有提交保持单一 Goal。
 后续是否具备复用条件由原算法判定，不承诺固定省时或保证每次归档均复用。
+
+## 7. 首次物理 PR CI 与纯文档归档
+
+[PR82](https://github.com/Halckon/Koven/pull/82) 的首次物理 CI
+[38335290623 attempt 1](https://github.com/Halckon/Koven/actions/runs/38335290623)
+已 completed/success：2026-10-13 02:21:00 UTC 为 run updated，最后 job 完成为
+02:20:59 UTC；run API 未提供 completed_at。16 个 PR jobs 均实际 success，`reuse=false`。
+
+- 实现 head：`913bb057118ce323db8f256f931f5ac13c47141d`；tree
+  `ff9848269498586532941a0034417d73d137a583`，与本地交付 `f1f3c590` tree 完全相同。
+- 精确 base：`b63ec6a1254c561e4dacae510a9769cc99b304ba`；synthetic merge：
+  `57e25f42d0ec37be4f5b667d6cf8cc1988f0ae23`，有序双父为该 base 与实现 head，tree 同上。
+- 真实 Code CI Evidence 指纹为
+  `16c0916d77088e36b0ee61508cd093fce746a95b5a931fdcac145479a4c01085`，由远端 Git tree
+  与精确 base 独立重算一致；物理证据 job 与最终 CI Passed 均成功。
+- docs 实跑655 Markdown、336项 scripts 测试全部通过，其中24项 inventory 测试逐项通过；
+  不可读文件 fixture 本轮实际执行。双宿主 check/clippy/targeted、fmt、Tree-sitter及适用
+  preview producer/independent consumer 均通过。
+- 两宿主 preview artifact ID 与 producer上传/API/consumer预期及实际下载digest对应，独立安装成功；
+  未另行下载ZIP复核包内字节。macOS既有LLDB测试ignored、Linux-only sanitizer步骤按平台跳过，
+  不扩大这些平台边界，也不把普通输出或preview成功称为完整内存安全证明。
+- 实现 head 的30个当前check runs均completed，无未决check；其中单独feature push suite的
+  重任务合法skipped不计入上述16个物理PR证据。旧status API的total_count=0/pending表示没有
+  legacy status条目，并非存在待完成status；管理级branch protection读取403，不声称读到完整保护配置。
+
+在此真实实现 head 上进行本次归档：移动本 Spec、更新active/archive索引与固定库存，并重建
+Markdown/SVG依赖图。库存变为0 active、288 archive；所有脚本、CI、代码、测试与Guide保持
+原字节。§5保留当时本地交付检查点；本节追加远端首次物理结果，不改写原红测与未测边界。
+
+本次归档的目标是继续引用上述真实物理 run，并使当前 docs门禁实际成功；本地输入相等检查
+不能代替远端 `reuse=true` 验收。最终归档head CI、精确来源复核、PR终态、merge及actual-main
+全物理CI均仍待独立验证。归档不会把这些pending项变成通过。
+
+## 8. 归档本地检查点
+
+基于上述真实远端实现 head，归档候选的655 Markdown结构门禁及五个精确普通Python文件
+再次通过：inventory24、既有docs41、PR reuse26、汇总32、DAG1，共124项；完整diff whitespace
+通过，DAG四产物重复生成两次字节不变。只运行这些普通解析/结构/Git fixture，未运行本地
+Cargo或故障驱动器；原始日志保留仓库外。
+
+10个Git路径操作（含旧active路径删除）全部属于原白名单的普通100644 Markdown/SVG。
+真实实现head/synthetic merge与本地归档候选的两种checkout过滤输入分别完全相同；固定
+base下指纹均为§7的 `16c0916d…`。该本地Git对象对照仅证明输入未变；远端事件身份、
+历史物理证据读取和最终独立复核仍以随后真实归档CI结果为准，当前不写 `reuse=true` 已通过。

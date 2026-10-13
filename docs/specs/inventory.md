@@ -15,13 +15,11 @@
 `scripts/check_docs.py` 强制校验。已登记 archived 项保持 `done`；声明不能放宽此规则。
 draft 按版本库存与 ADR 库存仍在 checker 中，本次不迁移。该文档不会为 Spec 提供实施授权。
 
-实现合同见 [SPEC-0304](active/0304-spec-archive-inventory.md)。
+实现合同见 [SPEC-0304](../archive/specs/0304-spec-archive-inventory.md)。
 
 ```json
 {
-  "active": [
-    "0304"
-  ],
+  "active": [],
   "archived": [
     "0001",
     "0002",
@@ -309,7 +307,8 @@ draft 按版本库存与 ADR 库存仍在 checker 中，本次不迁移。该文
     "0299",
     "0300",
     "0302",
-    "0303"
+    "0303",
+    "0304"
   ]
 }
 ```

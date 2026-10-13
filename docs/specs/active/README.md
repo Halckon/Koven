@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [0304 Spec 归档库存声明化](0304-spec-archive-inventory.md)：已批准；保留现有 CI 证据边界，将 active/archive 编号抽为严格文档声明。
+[0304 Spec 归档库存声明化](../../archive/specs/0304-spec-archive-inventory.md)已按PR82首次物理CI 16/16 jobs成功归档；严格声明、docs每次门禁与原代码证据边界保持，最终归档head真实复用、merge及actual-main CI待验证。
 
 [0298 范围绑定与有界局部控制流](../../archive/specs/0298-range-binding-local-control-flow.md)已按PR81修复后实现head双宿主52/8/14/35逐目标证据及完整CI有界归档；只关闭Int ==/<与同根词法if首片，[广义后继](../drafts/v0.43/README.md#0298首片之外的开放后继)继续开放，最终归档head CI/merge/main待验证。
 
