@@ -1,4 +1,4 @@
-//! 普通单参数 shared 结果；只消费已验证的 origin/continuation/end facts。
+//! 普通多 Borrow 参数 shared 结果；只消费已验证的 origin/continuation/end facts。
 use super::*;
 use lang_frontend::{ownership_checking::BorrowSourceLoan, type_checking::BorrowReturnOrigin};
 
@@ -10,10 +10,9 @@ pub(super) fn validate(
     for callable in typed.callables() {
         if let Some(contract) = callable.borrow_return() {
             crate::ssa::borrow_result_support::declaration(parsed, contract.marker_span())?;
-            if contract.origin() != BorrowReturnOrigin::Parameter(0)
+            if !matches!(contract.origin(), BorrowReturnOrigin::Parameter(index) if index < callable.parameters().len())
                 || callable.receiver().is_some()
-                || callable.parameters().len() != 1
-                || callable.parameters()[0].mode != ParameterMode::Borrow
+                || callable.parameters().iter().any(|parameter| parameter.mode != ParameterMode::Borrow)
                 || !owned.borrow_return_origins().iter().any(|fact| {
                     fact.declaration_span() == contract.marker_span()
                         && matches!(fact.origin(), LoanTarget::Place(place) if place.elements().is_empty())
@@ -363,19 +362,48 @@ impl ExpressionLowerer<'_> {
         let Expression::Call { arguments, .. } = node.payload() else {
             return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
         };
-        let [argument] = arguments.as_slice() else {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        };
         let descriptor = self
             .typed
             .call(expression)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        if descriptor.borrow_return().map(|contract| contract.origin())
-            != Some(BorrowReturnOrigin::Parameter(0))
-            || argument.value != source.argument()
-            || descriptor.receiver().is_some()
+        let index = crate::ssa::borrow_result_support::source_index(
+            descriptor
+                .borrow_return()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                .origin(),
+            span,
+        )?;
+        if descriptor.receiver().is_some()
+            || descriptor
+                .arguments()
+                .iter()
+                .any(|mapping| mapping.mode() != ParameterMode::Borrow)
+            || self.owned.borrow_results().range_uses().iter().any(|fact| {
+                fact.site() == lang_frontend::ownership_checking::RangeUseSite::Call(expression)
+            })
         {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        crate::ssa::borrow_result_support::binding(
+            self.parsed,
+            node.span(),
+            false,
+            &[],
+            None,
+            |_| None,
+            |_| false,
+        )?;
+        if arguments.len() != descriptor.arguments().len() {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let selected = descriptor
+            .arguments()
+            .iter()
+            .find(|mapping| mapping.parameter_index() == index)
+            .and_then(|mapping| arguments.get(mapping.argument_index()))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if selected.value != source.argument() {
+            return Err(error(LoweringErrorKind::MissingFact, span));
         }
         let source_token = self
             .source_token
@@ -388,13 +416,58 @@ impl ExpressionLowerer<'_> {
             .function_ids
             .get(instance)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let (source_loan, created) =
-            self.lower_borrow_argument(expression, argument.value, argument.span)?;
+        let mut ordered = vec![None; arguments.len()];
+        let mut continued = Vec::new();
+        for (actual, argument) in arguments.iter().enumerate() {
+            let mapping = descriptor
+                .arguments()
+                .iter()
+                .find(|mapping| mapping.argument_index() == actual)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
+            if matches!(
+                self.typed
+                    .types()
+                    .get(self.resolve_type(mapping.parameter_type(), argument.span)?),
+                Some(TypeKind::Function { .. })
+            ) {
+                return Err(error(LoweringErrorKind::UnsupportedNode, argument.span));
+            }
+            crate::ssa::borrow_result_support::argument(self.parsed, argument.span)?;
+            let blocks = self.function.blocks.len();
+            let (loan, created) =
+                self.lower_borrow_argument(expression, argument.value, argument.span)?;
+            if self.function.blocks.len() != blocks {
+                return Err(error(LoweringErrorKind::UnsupportedNode, argument.span));
+            }
+            let slot = ordered
+                .get_mut(mapping.parameter_index())
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
+            if slot.replace(EntityId::Loan(loan)).is_some() {
+                return Err(error(LoweringErrorKind::MissingFact, argument.span));
+            }
+            if argument.value == source.argument() {
+                if created {
+                    continued.push(loan);
+                }
+            } else {
+                self.pending_call_loans.insert(
+                    (expression.index(), argument.value.index()),
+                    created.then_some(loan),
+                );
+            }
+        }
+        let ordered = ordered
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let Some(EntityId::Loan(source_loan)) = ordered.get(index).copied() else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
         let target = self.expression_ssa_type(expression, span)?;
         let (_, results) = self.append(
             Operation::BorrowCall {
                 callee,
-                arguments: vec![EntityId::Loan(source_loan)],
+                arguments: ordered,
                 source: source_loan,
             },
             vec![EntityType::Loan {
@@ -406,14 +479,9 @@ impl ExpressionLowerer<'_> {
         let [EntityId::Loan(result)] = results.as_slice() else {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         };
-        Ok((
-            *result,
-            if created {
-                vec![source_loan]
-            } else {
-                Vec::new()
-            },
-        ))
+        let result = *result;
+        self.finish_borrowed_call(expression, span)?;
+        Ok((result, continued))
     }
 
     pub(super) fn end_result_bindings(&mut self, point: DropPoint) -> Result<(), LoweringError> {

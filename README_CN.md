@@ -21,7 +21,7 @@
 - **确定性所有权管理（无追踪式 GC）**
   通过单所有者跟踪、移动与调用期借用管理内存；没有经过验收的零开销或性能等价承诺。
 - **免生命周期标注的无畏借用**
-  调用期借用（`Borrow` 与 `Inout`）严格受限于同步调用栈。借用绝不脱离栈帧返回，也无法存储进长生命周期的堆结构中，现有模型无需用户生命周期参数；实现验证仍按具体能力与测试范围推进。
+  `Borrow` 与 `Inout` 使用受检查的调用期借用。Guide 允许具有唯一 `from` 来源的受限普通借用结果，局部绑定显式使用 `borrow val`，不引入可存储引用类型或用户生命周期参数；已实现范围见[架构快照](docs/architecture/README.md)。
 - **双轨确定性析构**
   纯内存MoveOnly值在最早安全边界ASAP释放；有deinit或递归持有资源的类型按词法作用域逆序清理，不能因最后使用提前析构。
 - **编译器结构化推导的类型能力**
@@ -41,7 +41,7 @@
 
 ## 🔍 语法与特性巡礼
 
-示例源码与完整CLI输出合同统一维护在[当前Koven tour](docs/tutorials/koven-tour.md)。教程包含16个执行正例、4个诊断负例和1个未执行的线程planned例；parameter-report四组argv共用三文件源码，总计23组执行合同。[覆盖账本](docs/archive/specs/0271-tour-combination-coverage.md)保留原22项的双宿主证据；[SPEC-0273](docs/archive/specs/0273-control-body-resource-cleanup.md)记录分支资源修复及新增CLI合同验收。
+示例源码与完整 CLI 输出合同统一维护在[当前 Koven tour](docs/tutorials/koven-tour.md)。[静态库存](docs/tutorials/examples.json)包含 17 个执行正例、4 个诊断负例和 1 个 planned 线程例；展开实参用例后共有 32 组非 planned 合同（28 组正常运行用例和 4 组诊断用例）。已有执行证据见[教程索引](docs/tutorials/README.md)。
 
 | 入门内容 | 单一源码示例 |
 |---|---|

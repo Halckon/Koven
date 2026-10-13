@@ -566,11 +566,14 @@ fn lower_scalar_file_product(
             .expect("new function must exist")
             .add_block(parameter_types, Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        if callable.borrow_return().is_some() {
+        if let Some(contract) = callable.borrow_return() {
             module
                 .function_mut(id)
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-                .borrow_return = Some(0);
+                .borrow_return = Some(crate::ssa::borrow_result_support::source_index(
+                contract.origin(),
+                span,
+            )?);
         }
         if let lang_frontend::type_checking::CallableResultSource::Carrier(contract) =
             callable.result_source()

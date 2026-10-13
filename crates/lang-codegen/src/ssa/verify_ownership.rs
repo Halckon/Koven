@@ -474,14 +474,10 @@ fn apply_operation(
             state,
             errors,
         ),
-        Operation::BorrowCall { source, .. } => {
-            if !state.loans.contains(source) {
-                errors.push(error(
-                    VerifyErrorKind::LoanInactive { loan: *source },
-                    location,
-                    origin,
-                ));
-            }
+        Operation::BorrowCall {
+            arguments, source, ..
+        } => {
+            borrow_result::verify_call(arguments, *source, state, location, origin, errors);
         }
         Operation::ClosureConstruct { captures, .. } => {
             closure::apply_construct(

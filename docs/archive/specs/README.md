@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 288 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 289 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -442,3 +442,5 @@
 - [SPEC-0303](0303-development-document-ownership.md)：development职责收敛、历史正文与开放候选保全；PR77实现head CI有界验收，最终归档head/merge/main待验证。
 
 - [SPEC-0304](0304-spec-archive-inventory.md)：active/archive纯编号库存迁为严格文档声明；PR82首次物理CI 16/16 jobs成功，原CI信任与fail-closed边界保留，最终归档head真实复用/merge/main待验证。
+
+- [SPEC-0305](0305-multi-parameter-borrow-result.md)：多Borrow参数的唯一来源直接返回；PR83首次物理CI及双宿主34项普通测试有界验收，其余M2B后继开放，最终归档head复用/merge/main待独立验证。

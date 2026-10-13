@@ -1,0 +1,5 @@
+value class Packet(val text: String)
+fun <T> view(other: String, source: T): borrow T from source = source
+fun observe(source: Packet) { println("packet") }
+fun consume(own source: Packet) { println("owned") }
+fun entry() { val other = "other".clone(); val source = Packet("payload".clone()); borrow val item = view(other, source); observe(item); consume(source) }

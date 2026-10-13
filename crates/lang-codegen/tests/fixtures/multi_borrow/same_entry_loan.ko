@@ -1,0 +1,4 @@
+fun view(other: String, source: String): borrow String from source = source
+fun wrap(source: String): borrow String from source = view(source, source)
+fun consume(own source: String) { println(source) }
+fun entry() { val source = "kept".clone(); borrow val item = wrap(source); println(item); consume(source) }

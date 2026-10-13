@@ -1,0 +1,5 @@
+fun view(left: String, source: String, right: String): borrow String from source = source
+fun left(): String { println("eval-left"); return "left".clone() }
+fun right(): String { println("eval-right"); return "right".clone() }
+fun consume(own source: String) { println(source) }
+fun entry() { val source = "kept".clone(); borrow val item = view(right = right(), source = source, left = left()); println(item); consume(source) }

@@ -293,6 +293,7 @@ impl UnitExpressionLowerer<'_> {
             arguments,
             created_loans,
             abi_owners,
+            ..
         }) = lowered_arguments?
         else {
             self.pending_operands.truncate(callable_index);

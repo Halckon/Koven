@@ -61,3 +61,31 @@ pub(super) fn verify_return(
         origin,
     ));
 }
+
+/// Every synchronous Borrow operand must remain active, including unrelated arguments.
+pub(super) fn verify_call(
+    arguments: &[EntityId],
+    source: LoanId,
+    state: &BlockState,
+    location: VerifyLocation,
+    origin: &super::super::model::Origin,
+    errors: &mut Vec<VerifyError>,
+) {
+    let loans = arguments
+        .iter()
+        .filter_map(|argument| match argument {
+            EntityId::Loan(loan) => Some(*loan),
+            _ => None, // The operation contract independently requires shared loans.
+        })
+        .chain([source])
+        .collect::<BTreeSet<_>>();
+    for loan in loans {
+        if !state.loans.contains(&loan) {
+            errors.push(error(
+                VerifyErrorKind::LoanInactive { loan },
+                location.clone(),
+                origin,
+            ));
+        }
+    }
+}

@@ -247,7 +247,8 @@ L0131 use-after-move 与 L0132 partial-move 的含义不变；同一根因先产
 loan end 与 drop facts，并保留 owner/place identity、loan kind 和来源 `Span`。
 
 本节定义 call argument/receiver loan、参数体内 reborrow 与 owned-value drop point。index element
-place、closure capture 和 receiver 都必须发布各自稳定 identity 后再复用这些规则。借用返回、用户
-生命周期语法、可存储借用、条件借用、完整 NLL 和普通字段部分移动不进入 v1；本节不新增 LLVM 类型。
+place、closure capture 和 receiver 都必须发布各自稳定 identity 后再复用这些规则。受限普通借用结果
+及其跨调用延续见上节[普通借用结果与显式局部绑定](#普通借用结果与显式局部绑定)。用户生命周期语法、
+可存储借用、条件借用、完整 NLL 和普通字段部分移动不进入 v1；本节不新增 LLVM 类型。
 
 ---
