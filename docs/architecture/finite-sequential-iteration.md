@@ -52,7 +52,7 @@ implies 不变，不新建运行时条件。replacement/alias、跨 loop phi see
 不由新 helper 放行；外层每轮 fresh seed 的独立 inner 实例有普通源码结构/native 对照。
 真实 owner、source loan、单次 snapshot 和 cursor 沿实际 edge 核验，Map 组合见
 [loop owner](map-loop-owner-carry.md#owned-source-的下一修复项)，本次验收见
-[SPEC-0312](../specs/active/0312-owned-source-conditional-continue.md)。unit 两视图独立四格原已通过，
+[SPEC-0312](../archive/specs/0312-owned-source-conditional-continue.md)。unit 两视图独立四格原已通过，
 这里的生产修复仅作用于 single；temporary/Borrow 路径保持原实现。
 
 field source（包括 Field symbol root）与 Inout source 的 native 表示仍明确 Unsupported。

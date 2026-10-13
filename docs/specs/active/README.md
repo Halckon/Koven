@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [0312 owned Sequential source 条件 continue](0312-owned-source-conditional-continue.md)：single 有界实现与 PR90 actual-main 整合已验收本地代表路径，最终独立审阅/PR CI 待完成。
+[0312 owned Sequential source 条件 continue](../../archive/specs/0312-owned-source-conditional-continue.md)已按[PR91 实现 CI](https://github.com/Halckon/Koven/actions/runs/38433956651)双宿主32项新增及3项改名旧回归逐名证据有界归档；原失败与3行尺寸例外保留，归档 head CI/merge/main 待验收。
 
 [0311 single Map owner 条件 continue](../../archive/specs/0311-single-map-conditional-continue.md)已按 PR90 实现 CI 双宿主24项逐名证据有界归档；owned source 后继优先修复，归档 head CI/merge/main 待验收。
 

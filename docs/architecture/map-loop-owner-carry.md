@@ -37,7 +37,7 @@ break、更多 IterationPhi/call seed、RangeView 仍保持明确边界，不是
 
 ## owned source 的下一修复项
 
-此独立缺口已由 [SPEC-0312](../specs/active/0312-owned-source-conditional-continue.md)
+此独立缺口已由 [SPEC-0312](../archive/specs/0312-owned-source-conditional-continue.md)
 的 single source-only presence 证明有界修复。原无 Map live/dead、三种 Sequential source
 及 `providers-cleanup.ko` 原字节均经真实 frontend→SSA/LLVM/native 验收；
 `lower_frontend_map_continue_source_tests` 保留精确 source root/Header/Exit 断言并转为正例。

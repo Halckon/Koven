@@ -1,17 +1,17 @@
 # SPEC-0312: owned Sequential source 条件 continue 证明
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收 owned source 条件 continue 时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收 owned source 条件 continue 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0312` |
 | 所属 Phase | Phase 3 事实消费、Phase 4 single SSA/native |
 | 语言规范 | [Guide12](../../guide/12-collections-destructuring.md) |
 | 批准依据 | 2026-10-13 用户要求审核/CI 等待时继续实施独立工作 |
-| 前置 Spec | [SPEC-0300](../../archive/specs/0300-single-map-loop-owner-carry.md)、[SPEC-0310](../../archive/specs/0310-single-map-conditional-break.md) |
+| 前置 Spec | [SPEC-0300](0300-single-map-loop-owner-carry.md)、[SPEC-0310](0310-single-map-conditional-break.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 本地定向门禁完成；最终独立审阅与 PR CI/归档/合并尚待交付 |
+| 阻塞项 | 有界实现、独立终审与 PR91 实现 CI 已验收；归档 head CI、merge 与 actual-main CI 待验证 |
 | 影响范围 | 非 Resource owned Array/List/MutableList source 的有界条件 continue |
 | 语言语义变更 | 否 |
 
@@ -72,7 +72,7 @@ Guide、frontend、SSA model/verifier、LLVM 不变；如需扩域先停止报�
 
 云上不运行 fault/calibration/sanitizer/bad IR/mock/stub aggregate、计数插桩或 full discover。
 原日志/JSON 放仓库外，每次运行冻结提交并记录身份，独立 target；stdout 不证明 free count。
-最终还需定向调用方回归、fmt/clippy/docs/尺寸、独立审阅、PR CI/归档闭环。
+定向调用方回归、fmt/clippy/docs/尺寸、独立审阅及实现 PR CI 已验收；归档 head CI/合并闭环仍待验证。
 
 ## 4. 唯一验收账本
 
@@ -95,7 +95,9 @@ Guide、frontend、SSA model/verifier、LLVM 不变；如需扩域先停止报�
 | provider/旧source/capture | `4b57202f`，顶层provider11个逐exact、owned_source_tests前3普通目标、两条capture拒绝逐exact | 16个目标各命中1并通过；old-owned/Borrow矩阵72格、factory/借用字段保持；未运行含计数的resource/source聚合目标 |
 | CLI公开入口 | `4b57202f`，`cargo build --locked --offline -p lang-cli --bin kovenc`；`kovenc run fresh-inner.ko` / `run --project project.toml --entry main` | 文件与project目录source-roots读取同fixture原字节，均exit0/stdout精确/stderr空；与unit API四格独立 |
 | 静态门禁 | `0ade10cd` clippy all-targets -D warnings；fmt、docs、sizes、diff；Python size policy指定模块 | clippy通过；fmt/docs/sizes/diff通过；size policy47项通过。仅tests入口模块注册3行显式例外2004→2007，已独立逐行审阅并获准；生产1520上限不提高 |
-| 独立终审/远端 | 最终docs冻结提交 | 待终审；本地未运行macOS；PR、远端双宿主CI、归档及合并均未由此宣称完成 |
+| 独立终审 | 本地 `aca470da` / tree `7f4b6516` | 独立只读终审通过；生产证明、身份 gate、实际边界及验收账本无剩余阻断 |
+| 远端实现 CI | [PR91](https://github.com/Halckon/Koven/pull/91)，[run38433956651/a1](https://github.com/Halckon/Koven/actions/runs/38433956651)，head `6af4a4bf96d072ed439362c4daede56667130ee4` / tree `7f4b651617c14dd0da3919908b361236ab910779` | 完整 success，reuse=false；16 checks/jobs中15 success、1 Editors按分类skip。32新增及3改名旧回归逐名两宿主执行通过；Targeted Linux1526、macOS1525通过并1旧LLDB ignored；双宿主Clippy通过。两份preview producer/API/consumer摘要及各自独立安装链完整匹配 |
+| 归档后门槛 | 本次仅文档迁移 | 归档 head CI、merge、actual-main CI待验证；实现CI不替代这些结果 |
 
 Cargo test命令共同前缀为 `cargo test --locked --offline -p lang-codegen --lib`；
 provider/source旧路只逐exact执行静审过的普通目标，未跑full discover或注入driver。
