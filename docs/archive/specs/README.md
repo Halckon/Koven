@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 285 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 287 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -431,6 +431,8 @@
 - [SPEC-0296](0296-owned-null-comparison-cleanup.md)：owned nullable具名最后判空与临时结果清理；按PR75实现head双宿主每host55项codegen与25项Map frontend有界归档，剩余平台/能力边界及最终交付见[0296账本](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/owned-null-cleanup-0296/delivery.json)。
 
 - [SPEC-0297](0297-map-key-return-cleanup.md)：get/contains/remove的key return传播、receiver清理身份与合法owner前缀；按PR78实现head双宿主各42项新增测试及完整CI有界验收，最终归档head CI/merge/main待验证。
+
+- [SPEC-0298](0298-range-binding-local-control-flow.md)：真实Int ==/<与同根词法statement-if冻结首片；PR81修复后实现head双宿主各52/8/14/35逐目标及完整CI有界验收，首轮CLI失败保留、广义后继开放，最终归档head CI/merge/main待验证。
 
 - [SPEC-0299](0299-owned-map-result-borrow.md)：owned Map.remove非消费Borrow及HeapOwner view storage冻结首片；PR80实现head双宿主各23项新增测试及完整CI通过后有界归档，广义后继开放，最终归档head CI/merge/main待验证。
 - [SPEC-0300](0300-single-map-loop-owner-carry.md)：非Resource具名Map在single顺序for正常耗尽中的精确IterationPhi/SSA owner运输；按PR79实现head双宿主各19项新增测试及完整CI有界验收，最终归档head CI/merge/main待验证。

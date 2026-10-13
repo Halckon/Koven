@@ -2,7 +2,7 @@
 
 > **性质**：当前实现事实 · **状态**：current · **读取时机**：修改新范围描述符的比较/局部if能力门时 · **唯一真源**：`ssa/borrow_result_support`、两入口borrow-result与普通源码测试
 
-[SPEC-0298](../specs/active/0298-range-binding-local-control-flow.md)冻结首片只新增真实Int
+[SPEC-0298](../archive/specs/0298-range-binding-local-control-flow.md)冻结首片只新增真实Int
 `==`/`<`与有界statement-if。两操作数必须由typed facts证明为Int，比较结果另核Boolean；
 五种既有Int算术保持原合同。gate仍扫描包含显式binding的最小完整函数，不限loan活跃区间；
 普通borrow与借用既有metadata不随NewRangeDescriptor放宽。

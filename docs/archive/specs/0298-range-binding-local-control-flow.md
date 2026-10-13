@@ -1,15 +1,15 @@
 # SPEC-0298: N1a 范围绑定与有界局部控制流
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：准备范围绑定与标量条件组合时 · **唯一真源**：本页的冻结首片与开放后继；语义以Guide为准
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：准备范围绑定与标量条件组合时 · **唯一真源**：本页的冻结首片与开放后继；语义以Guide为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0298` |
 | 所属 Phase | Phase 3来源/终止事实消费、Phase 4 SSA/native |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[N1a](../../guide/12-collections-destructuring.md#n1a-单来源连续范围-carrier) |
 | 批准依据 | 2026-10-12按用户持续主线授权，在0299合并后从实际main新建`fix/spec-0298`；只实施本页冻结首片，不授权发布 |
-| 前置 Spec | [SPEC-0289](../../archive/specs/0289-n1a-range-carrier.md) |
+| 前置 Spec | [SPEC-0289](0289-n1a-range-carrier.md) |
 | 前置 ADR | [ADR-0030](../../adr/accepted/0030-range-carrier-source-facts.md) |
 | 阻塞项 | 冻结首片已完成本地验证；发布待独立批准，原广义目标继续开放 |
 | 影响范围 | 两入口borrow-result能力门与直接测试；复用既有CFG lowering |
@@ -21,7 +21,7 @@
 origin、loan continuation/end和SSA运输证明的路径，不直接删除全函数能力门。
 
 2026-10-12原未发布草案文件丢失，本页依据已核Goal/非目标、现行Guide与源码重新起草，
-不是原文件的逐字恢复。原审计固定事实见[历史摘要](../../archive/migrations/pr72-74-followup-audit.md)；
+不是原文件的逐字恢复。原审计固定事实见[历史摘要](../migrations/pr72-74-followup-audit.md)；
 摘要中的旧静态检查不能作为本页或功能验收。
 
 ## 2. 起点与选择边界
@@ -140,3 +140,35 @@ alias的整函数门禁不改。独立只读审阅通过，未发现其他同类
 
 原CI失败收据与本地红绿日志保留仓外；修复后的远端CI尚待实际运行，禁止将本地35项通过
 替换为双宿主CI通过。Spec继续active，广义后继不因修复关闭。
+
+
+## 7. PR81 修复后实现验收与冻结首片有界归档
+
+除顶部生命周期状态及迁移必需链接外，§1–6保留本地与首轮CI检查点原文；首轮
+`38321740009`失败、CLI中断后frontend目标未到达及后续修复均不覆盖。用户已批准实施CI
+通过后的有界归档，`done`仅关闭§2/§4的真实Int `==`/`<`与同根词法statement-if首片。
+§5广义目标仍开放，当前候选入口见[v0.43后继](../../specs/drafts/v0.43/README.md#0298首片之外的开放后继)，
+不因本次归档获得语义启用或实施授权。
+
+| 项目 | 精确输入与实际结果 |
+|---|---|
+| PR / 修复后实现head | [PR81](https://github.com/Halckon/Koven/pull/81)，`0aaa544a950d0be979841d9a61fb534f83ab7f54`；直接parent为CLI修复`e45d60b3261e5b488cc3841a5b291bfada221fa6`，再前为首轮失败head `acb306c3` |
+| tree / base | tree `f2d3deb8f4914febf5cd99e6f50f118156c1784f`；base `4eb38d74f85b36dbac09f4c947f4c1ee762adbaa` |
+| CI输入 | [run38323477725](https://github.com/Halckon/Koven/actions/runs/38323477725)，attempt1，pull_request；synthetic `5df93629bc0a829e529ef931d04883086a115364`的父为base/实现head，tree相同；`reuse=false` |
+| 实现CI终态与时间 | completed/success；最后job的completed_at为2026-10-12 23:57:21 UTC，run updated_at也为该时间；API无run completed_at，不将updated_at冒作完成字段 |
+| 实际job范围 | 15个job成功；唯一Tree-sitter因`editors=false`合法skip；代码与preview实际执行 |
+| Linux逐目标 | [Targeted Tests](https://github.com/Halckon/Koven/actions/runs/38323477725/job/115057472440)：在bounded composition步骤内，52个local_control完整名各唯一ok；last-use完整8、range-construction完整14、range_project_cli完整35各自全通过，无ignored/filtered |
+| macOS逐目标 | [Targeted Tests](https://github.com/Halckon/Koven/actions/runs/38323477725/job/115057472513)：同52/8/14/35分别逐名唯一ok，不跨host汇总或沿用首轮结果，无本片ignored/filtered |
+| 完整codegen lib目标 | Linux 1407通过/0失败/0ignored/0filtered；macOS 1406通过/0失败/0filtered，1项既有LLDB task-port权限ignored，与本片52项无关 |
+| 其他门禁 | 变更检测、依赖、尺寸、Docs/Fmt、双宿主Check/严格Clippy通过；[Code CI Evidence](https://github.com/Halckon/Koven/actions/runs/38323477725/job/115060842851)与[CI Passed](https://github.com/Halckon/Koven/actions/runs/38323477725/job/115060842867)均成功 |
+| preview链 | Linux候选artifact `11779629691`与[Linux consumer](https://github.com/Halckon/Koven/actions/runs/38323477725/job/115060409018)、macOS候选`11780750270`与[macOS consumer](https://github.com/Halckon/Koven/actions/runs/38323477725/job/115060573591)实际指定下载ID一致，producer package和consumer install均通过 |
+
+Code CI Evidence绑定上述head/base/synthetic，代码输入指纹为
+`80ae1c61b1782ece086735d612085f4799bd26a4d62c07d151a217026d46db60`。
+两条preview的上传收据、artifact API及consumer预期/实际下载ZIP digest相符；核验对象是
+GitHub artifact ZIP，未另行下载并独立核包内manifest。原始API/日志和逐名匹配结果留仓外。
+macOS的Linux-only检测步骤依平台条件合法skip，不构成macOS动态检测通过。
+完整CI成功、普通native的值/清理断言与通用检测各守证据边界，均不宣称完整内存安全证明。
+
+本归档只迁移合同、同步索引/库存/DAG、机械修正链接并追加真实验收；不改Guide、生产或测试。
+最终归档head CI、正常merge和actual-main CI仍待分别核验，本节不提前认领其通过。

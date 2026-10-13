@@ -25,13 +25,24 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 ## 2026-10-11 后继合同
 
-用户已确认实施顺序0297→0300→0299/0298；0297已按PR78有界归档，0300已按PR79有界归档；0298冻结首片已从0299合并后的实际main独立激活，0299冻结首片已按PR80实现head双宿主验收有界归档，广义后继保持开放；各自Spec分支维护，不继承上方2026-10-08首片授权，不启用范围外语义。
+用户已确认实施顺序0297→0300→0299/0298；0297已按PR78有界归档，0300已按PR79有界归档；0298冻结首片已按PR81修复后实现head双宿主及完整CI有界归档，0299冻结首片已按PR80实现head双宿主验收有界归档，广义后继保持开放；各自Spec分支维护，不继承上方2026-10-08首片授权，不启用范围外语义。
 原本地起草与普通源码结论见[核对摘要](../../../archive/migrations/pr72-74-followup-audit.md)。
 
 - [0297 Map key return清理](../../../archive/specs/0297-map-key-return-cleanup.md)：查询/删除的出口传播与前缀清理；break/continue仍在本片之外。
-- [0298 范围绑定局部条件组合](../../active/0298-range-binding-local-control-flow.md)：仅激活Int ==/<与同根双正常arm if；原广义后继仍开放。
+- [0298 范围绑定局部条件组合](../../../archive/specs/0298-range-binding-local-control-flow.md)：仅关闭Int ==/<与同根词法双正常arm if；首轮CI失败及修复保留，原广义后继见下节。
 - [0299 owned Map result只读借用](../../../archive/specs/0299-owned-map-result-borrow.md)：按PR80实现head双宿主各23项新增测试有界归档；仅关闭冻结首片，嵌套调用等后继开放，归档head CI/merge/main待验证。
 - [0300 single Map-for条件清理运输](../../../archive/specs/0300-single-map-loop-owner-carry.md)：按PR79实现head双宿主验收有界归档，限定正常耗尽；归档head CI/merge/main待验证。
+
+## 0298首片之外的开放后继
+
+这是原0298广义目标的当前候选入口；[原验收清单](../../../archive/specs/0298-range-binding-local-control-flow.md#5-原广义目标后继仍开放)保留历史。
+以下均未选定下一片或实施，不因首片done变为完成，也不放入development历史账本代替工作入口：
+
+- Boolean短路、String拼接与复杂RHS：分别封闭求值一次、未选后缀不执行及根/loan/清理证明。
+- 更广局部控制流、条件/多来源及普通借用结果运输：先冻结具体源码和已发布事实，不删除整函数能力门，不默认一般NLL。
+- while/loop及更广循环组合：先证明目标loop、fixed-point/owner版本、backedge和break/continue的逐边依赖与清理。
+
+下一片须从实际main独立冻结合同并获得相应批准；不自动启用consume、optional borrow、借用存储/逃逸、N1b或泛型std扩展。
 
 ## 未编号的现行支持候选
 
