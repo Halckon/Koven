@@ -11,7 +11,7 @@
 | 批准依据 | 2026-10-13 用户持续里程碑开发、合并后继续推进；PR89 实际合并后激活 |
 | 前置 Spec | [SPEC-0310](../../archive/specs/0310-single-map-conditional-break.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 本地红绿、独立审阅、远端 CI 与交付尚待执行 |
+| 阻塞项 | 本地有界验证已完成；独立终审、远端 CI 与发布闭环待完成 |
 | 影响范围 | single 外部具名非 Resource Map 的一个条件 continue；unit 独立对照 |
 | 语言语义变更 | 否 |
 
@@ -91,8 +91,36 @@ stdout 只证明输出，不宣称动态分配计数或完整内存安全。
 | 完整原始 baseline | tests-only `0b5ef63b`，`map_continue_` | 20项11绿/9红；4 SSA+4普通native unit四格成功，3边界绿；single 6 SSA与3native拒绝，native未到object/run |
 | 首次生产 | `c36aac5b`，同20项 | 18绿/2红；原owned provider组合仍拒source，不冒称全通过 |
 | source独立对照 | §2 `e2f9f1e9` / `eb38a7c4`，`map_continue_source_probe_` | 基线0绿3红；本片1绿2红；具名source既有缺口确认 |
-| 修订范围最终红绿 | 待冻结新Borrow fixture、原owned拒绝回归 | 未运行 |
-| single 直接 SSA/native | 待普通源码选择 | 未运行 |
-| 结构与回归 | 待定向选择 | 未运行 |
-| 静态与独立审阅 | fmt/clippy/docs/尺寸/diff | 未运行 |
+| 修订后补充基线 | tests-only `86144f96`，生产与 actual main 原字节相同，独立空 target，`map_continue_` | 24项13绿/11红；这是 c36 实施后的补充对照，不冒充原始先行红测 |
+| 当前隔离验收 | `c2be34de`，另一独立空 target，同24项 | 24/24通过，0 ignored；10个新single正例（7 SSA/LLVM+3普通native）、8个既有unit控制、6个边界回归；不是24个新增能力 |
+| source拒绝位置 | 原完整owned fixture，基线先拒Map cache；本片再拒source keys | 精确source边界oracle由红变绿仅是拒绝位置推进，不是source能力修复；其余两个无Map/无后用source拒绝基线即绿 |
+| 独立结构oracle | 两基本source、双Map与local/派生loan专例 | 逐边最新MapPut/MapRemove结果、slot/target、source/length/cursor、element/local次序通过；local专例仅SSA/verifier/LLVM |
+| Map相邻回归 | 当前隔离target，`ssa::lower_frontend_tests::map_result_tests`、`native::unit_tests::map_loop_owner_tests`、`native::unit_tests::map_key_return_tests` | 75/19/18通过；含直接24中的重复项，不相加成独立总数；保留0300/0310 |
+| nullable回归 | `null_cleanup_tests` | 22通过：19普通native+3普通source SSA；没有注入或改写IR |
+| provider/snapshot | 顶层11个`native_tests::sequential_for_tests::<name>`逐exact；两个`ssa::lower_frontend_tests::rejects_*`逐exact | 每项实际1通过；只选择普通source，不运行provider注入子模块 |
+| 静态质量 | fmt；codegen all-targets clippy `-D warnings`；docs/尺寸/diff | 全部通过；docs 664；1074手写Rust文件、38历史超限，无新增豁免 |
+| 独立审阅 | c36生产与c2范围修订静审 | 无阻断；终稿收据待记录，审阅者未运行测试 |
 | 发布闭环 | PR/CI/归档/merge | 未执行 |
+
+
+命令前缀为 `cargo test --locked --offline -p lang-codegen --lib`，表中均是实际过滤器。
+精确provider加`-- --exact --nocapture`；其余加`-- --nocapture`。clippy仅编译all-targets，
+没有执行其中注入测试。本地Linux x86_64、Rust1.96.0、LLVM21.1.8；外部900秒OS timeout
+保护普通运行，既有native helper自身没有timeout，不修改其公共行为。
+
+隔离证据：baseline/current各自全新target，串行实际rustc编译54.92/54.11秒，
+`CARGO_INCREMENTAL=0`，无代码/IR插桩。两份输入清单的Rust/fixture/Cargo差异恰是4个生产
+文件，所有测试输入相同；逐run前后HEAD、状态、全源码SHA清单相等。测试binary SHA256
+分别为`9f2554f04c5e7b48231629ae436e5367e4459297e7eb700963b0318f4cb259ae`与
+`a20b8bc4fde9d33f7472311cf3ab20b52edc3a8b8f017eb38d4b0e94bff03e96`。
+原日志、完整输入hash、实际rustc manifest/cwd、绝对target、dep-info与恢复包保留仓外。
+
+失败与纠正历史：第一轮11项观察时有新测试写入尚未冻结，不绑定该轮为精确输入证据；
+正式0b5的20项在任何production前已提交且实跑。补充对照切换worktree后，共享target曾
+错误复用旧baseline binary；该疑似复用run不计当前验收。曾仅touch当前lib.rs触发重编译，
+前后字节相同，但最终仍不用该run作收据，改用上述两份全新隔离target。没有cargo clean、
+删缓存或修改已冻结输入来取得绿；原始失败日志均保留。
+
+最终本地没有运行full discover、无filter全lib、全量workspace/frontend、aggregate driver、
+fault/calibration/sanitizer/badIR/mock/stub或计数插桩；stdout不证明动态精确free次数。
+远端CI、发布、归档与merge尚未执行。owned source下一修复项保持§2明确优先顺序。
