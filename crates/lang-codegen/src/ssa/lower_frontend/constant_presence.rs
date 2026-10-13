@@ -56,6 +56,7 @@ fn implies(
 }
 
 pub(super) fn constant_drop(
+    parsed: &lang_frontend::parser::ParsedFile,
     names: &lang_frontend::name_resolution::NameResolution,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
@@ -91,7 +92,7 @@ pub(super) fn constant_drop(
         return false;
     }
     prove_graph(owned, owner, symbol, fact.condition())
-        || source::prove(names, typed, owned, fact).is_some()
+        || source::prove(parsed, names, typed, owned, fact).is_some()
 }
 
 pub(super) fn prove_graph(

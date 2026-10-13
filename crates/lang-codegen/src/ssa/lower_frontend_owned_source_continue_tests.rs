@@ -334,7 +334,7 @@ fn owned_source_continue_fresh_inner_owner_structure() {
 }
 
 #[test]
-fn owned_source_continue_existing_boundary_observations() {
+fn owned_source_continue_existing_boundaries_remain_explicit() {
     for (label, text) in [
         (
             "index_without_loop",
@@ -397,9 +397,62 @@ fn owned_source_continue_existing_boundary_observations() {
             &analysis.typed,
             &analysis.owned,
         );
-        eprintln!("BOUNDARY {label} result={:?}", result.as_ref().map(|_| ()));
-        if let Ok(program) = result {
-            crate::llvm::render_verified_program(&program).unwrap();
+        let error = result
+            .err()
+            .unwrap_or_else(|| panic!("{label} remains outside the source proof"));
+        assert_eq!(
+            error.kind,
+            if label == "field" {
+                crate::ssa::LoweringErrorKind::MissingFact
+            } else {
+                crate::ssa::LoweringErrorKind::UnsupportedNode
+            }
+        );
+        let actual = analysis.sources.slice(error.span.unwrap()).unwrap();
+        match label {
+            "index_without_loop" => assert_eq!(actual, "keys[0]"),
+            "inout" => assert_eq!(actual, text),
+            "field" => assert!(actual.starts_with("for (key in this.keys)")),
+            _ => assert_eq!(actual, "keys"),
         }
     }
+}
+
+#[test]
+fn owned_source_continue_declaration_identity_and_groups() {
+    for text in [
+        "fun main(): Unit { var keys = ((arrayOf(1, 2))); for (key in keys) { if (key == 2) { continue } }; keys.size }",
+        "fun main(): Unit { val keys = arrayOf(9); keys.size; { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
+    ] {
+        let analysis = analyze(text);
+        assert!(analysis.parsed.diagnostics().is_empty());
+        assert!(analysis.names.diagnostics().is_empty());
+        assert!(analysis.typed.diagnostics().is_empty());
+        assert!(analysis.owned.diagnostics().is_empty());
+        let program = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .unwrap();
+        crate::llvm::render_verified_program(&program).unwrap();
+    }
+    let text = "fun main(): Unit { val original = arrayOf(1, 2); val keys = original; for (key in keys) { if (key == 2) { continue } }; keys.size }";
+    let analysis = analyze(text);
+    assert!(analysis.parsed.diagnostics().is_empty());
+    assert!(analysis.names.diagnostics().is_empty());
+    assert!(analysis.typed.diagnostics().is_empty());
+    assert!(analysis.owned.diagnostics().is_empty());
+    let error = lower_scalar_file(
+        &analysis.sources,
+        &analysis.parsed,
+        &analysis.names,
+        &analysis.typed,
+        &analysis.owned,
+    )
+    .err()
+    .expect("alias is not a fresh initializer seed");
+    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
 }

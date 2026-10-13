@@ -327,7 +327,11 @@ impl ExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         if fact.condition().is_none()
             || super::super::constant_presence::constant_drop(
-                self.names, self.typed, self.owned, fact,
+                self.parsed,
+                self.names,
+                self.typed,
+                self.owned,
+                fact,
             )
         {
             return Ok(());

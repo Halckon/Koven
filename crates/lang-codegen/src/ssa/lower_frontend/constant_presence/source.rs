@@ -14,6 +14,7 @@ use lang_frontend::{
 use std::collections::BTreeSet;
 
 pub(super) fn prove(
+    parsed: &lang_frontend::parser::ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
@@ -135,7 +136,25 @@ pub(super) fn prove(
         return None;
     }
     match conditions.owner_value(seed.source())? {
-        CleanupOwnerValue::Expression { .. } if local => {}
+        CleanupOwnerValue::Expression { expression, .. } if local => {
+            let initializer = unique(parsed.ast().items().iter().filter_map(|(_, item)| {
+                let lang_frontend::parser::Item::Variable {
+                    name, initializer, ..
+                } = item.payload()
+                else {
+                    return None;
+                };
+                (super::super::present_name(*name) == Some(named.span())).then_some(*initializer)
+            }))?;
+            // Only the existing transparent Group normalization is used. An assignment
+            // or alias seed cannot pretend to be this declaration's initializer.
+            let initializer =
+                crate::ssa::borrow_result_support::ungroup(parsed, initializer, named.span())
+                    .ok()?;
+            if initializer != *expression {
+                return None;
+            }
+        }
         CleanupOwnerValue::Parameter {
             symbol: seed_symbol,
             ..

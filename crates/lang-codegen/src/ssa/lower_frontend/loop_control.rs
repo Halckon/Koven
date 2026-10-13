@@ -416,7 +416,11 @@ impl ExpressionLowerer<'_> {
             Action::Drop(fact) => {
                 if fact.condition().is_some()
                     && !super::map_loop_owner::supported_drop(
-                        self.names, self.typed, self.owned, *fact,
+                        self.parsed,
+                        self.names,
+                        self.typed,
+                        self.owned,
+                        *fact,
                     )
                 {
                     return Err(error(
@@ -437,7 +441,11 @@ impl ExpressionLowerer<'_> {
                             Some(LoweredValue::Value(value)) => value,
                             _ if fact.condition().is_some()
                                 && !super::constant_presence::constant_drop(
-                                    self.names, self.typed, self.owned, *fact,
+                                    self.parsed,
+                                    self.names,
+                                    self.typed,
+                                    self.owned,
+                                    *fact,
                                 ) =>
                             {
                                 return Err(error(
