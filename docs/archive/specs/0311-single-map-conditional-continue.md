@@ -102,7 +102,7 @@ stdout 只证明输出，不宣称动态分配计数或完整内存安全。
 | 独立审阅 | c36生产、c2范围修订及3103276c终稿 | 代码/证据无阻断；按最后建议在SSA总览明确无Map也有owned source缺口。审阅者未运行测试 |
 | PR90 实现 CI | remote `7a5daea7`、run `38420920418` attempt 1 | success；16个checks/jobs精确对应，15物理成功、1 editors=false 跳过；reuse=false |
 | 双宿主直接验收 | Linux/macOS `map_continue_` 逐名24项 | 每宿主24通过、0 ignored；10新增正例/8既有unit/6边界，层级与本地相同 |
-| codegen 与 preview | 既有 CI 全lib及三条安装链 | Linux1494通过；macOS1493通过+1既有LLDB权限ignored；三条preview安装链通过，不改写本地云安全测试范围 |
+| codegen 与 preview | 既有 CI 全lib及双宿主preview安装验证 | Linux1494通过；macOS1493通过+1既有LLDB权限ignored；两个宿主各自 producer/API/consumer 三段摘要一致，独立安装验证通过，不改写本地云安全测试范围 |
 | 发布闭环 | PR90 docs归档 | 有界归档；归档head CI、merge、actual-main CI仍待验证 |
 
 
