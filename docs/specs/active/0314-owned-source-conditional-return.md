@@ -59,7 +59,10 @@ break/continue混合、无fallthrough、跨loop/capture、RangeView等保持原�
 | 验收项 | 输入与选择 | 实际结果 |
 |---|---|---|
 | 基线/合同 | §1 actual-main | 远端commit/tree与编号空闲已核；生产未改 |
-| single无Map/Map矩阵 | 24格 | 未运行；已有0313仅Array8格旧拒绝，不推定其余 |
-| unit basic/constant | 24格 | 未运行 |
+| single无Map/Map矩阵 | tests-only `246e263b`，`owned_source_return_tests::` | 24项均红，frontend通过、精确UnsupportedNode keys；source前后hash相等 |
+| unit basic/constant | 同tests-only输入/选择 | 24/24通过SSA/verifier/原LLVM，0 ignored；不是新增unit能力 |
 | SSA/native及共享回归 | 待冻结具体目标 | 未运行 |
 | 静态门禁、审阅与CI | 本分支 | 未运行 |
+
+首轮offline在编译前缺inkwell缓存；随后`cargo fetch --locked`补齐原锁定依赖，
+再于独立baseline工作树与绝对target执行48项。日志与完整source hash留仓外。
