@@ -189,4 +189,3 @@ FE共32组源码分析（28single+32unit）均完成分采；每目标首个断�
 | Preview独立交付 | Linux consumer job116002029609日志85行、macOS consumer job116002095282日志108行分别明确`preview install passed`；两宿主producer/consumer产物上传成功 |
 | 固定来源 | 仓外`spec0320-ci-run-38605435497-a1/RECEIPT.md` SHA256 `d2b4eff37486f3fe0463dbf4f51f49aa2b3898e1310a57a085427c86810fffb4`；16原始job日志的`LOGS.sha256`摘要 `762d7360af25c8febd2b612b100c89dd4cf597a091f9b15e429df398cc7ae14f`；未以push run38605373596替代PR证据 |
 | 有界归档与待交付 | 直接从上述实际远端head建立docs-only归档，active1→0、archive303→304，索引/库存/四份DAG同步；代码、测试、Guide字节不变。只关闭本片分类/loan及精确qualifier，不关闭enum when、generic enum native或C的元素交付；归档head CI、[PR102](https://github.com/Halckon/Koven/pull/102)合并授权、实际main CI仍待，不将本实现证据冒充后续head成功 |
-
