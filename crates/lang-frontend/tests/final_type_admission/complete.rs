@@ -256,6 +256,15 @@ fn selected_outer_calls_do_not_hide_illegal_argument_subtrees() {
 
 #[test]
 fn cross_file_references_reuse_the_defining_root_diagnostic() {
+    for paths in [
+        ["p/a-definition.ko", "p/b-uses.ko", "p/c-independent.ko"],
+        ["p/z-definition.ko", "p/a-uses.ko", "p/m-independent.ko"],
+    ] {
+        assert_shared_root_diagnostics(paths);
+    }
+}
+
+fn assert_shared_root_diagnostics(paths: [&str; 3]) {
     let mut sources = SourceMap::new();
     let definition = "package p\nval receiver: Int = 1\nval broken = receiver.fooBar()";
     let (a, af) = parsed(&mut sources, "definition.ko", definition);
@@ -267,9 +276,9 @@ fn cross_file_references_reuse_the_defining_root_diagnostic() {
     let independent = "package p\nval otherReceiver: Int = 2\nval unrelated = otherReceiver.baz()";
     let (c, cf) = parsed(&mut sources, "independent.ko", independent);
     let inputs = [
-        SourceUnitInput::new("root", "p/a-definition.ko", a, &af),
-        SourceUnitInput::new("root", "p/b-uses.ko", b, &bf),
-        SourceUnitInput::new("root", "p/c-independent.ko", c, &cf),
+        SourceUnitInput::new("root", paths[0], a, &af),
+        SourceUnitInput::new("root", paths[1], b, &bf),
+        SourceUnitInput::new("root", paths[2], c, &cf),
     ];
     let (environment, types) = standard_environments();
     let mut results = Vec::new();
@@ -319,10 +328,19 @@ fn cross_file_references_reuse_the_defining_root_diagnostic() {
         );
         let result = complete_compilation_unit_types(&sources, &selected, &names, &types, &typed)
             .map(|_| ());
-        eprintln!("cross-file shared root: {result:?}");
+        eprintln!("cross-file shared root {paths:?}: {result:?}");
         results.push(result);
     }
     let start = definition.find("fooBar").unwrap();
+    let other_start = independent.find("baz").unwrap();
+    let mut expected = [
+        (paths[0], sources.span(a, start, start + 6).unwrap()),
+        (
+            paths[2],
+            sources.span(c, other_start, other_start + 3).unwrap(),
+        ),
+    ];
+    expected.sort_by_key(|(path, _)| *path);
     let mut snapshots = Vec::new();
     for result in results {
         let diagnostics = diagnostics(result);
@@ -331,17 +349,10 @@ fn cross_file_references_reuse_the_defining_root_diagnostic() {
             2,
             "derived references must not add L0165: {diagnostics:?}"
         );
-        assert_eq!(diagnostics[0].code().to_string(), "L0080");
-        assert_eq!(
-            diagnostics[0].primary_span(),
-            sources.span(a, start, start + 6).unwrap()
-        );
-        let other_start = independent.find("baz").unwrap();
-        assert_eq!(diagnostics[1].code().to_string(), "L0080");
-        assert_eq!(
-            diagnostics[1].primary_span(),
-            sources.span(c, other_start, other_start + 3).unwrap()
-        );
+        for (diagnostic, (_, span)) in diagnostics.iter().zip(expected) {
+            assert_eq!(diagnostic.code().to_string(), "L0080");
+            assert_eq!(diagnostic.primary_span(), span);
+        }
         snapshots.push(diagnostics);
     }
     assert_eq!(snapshots[0], snapshots[1]);
