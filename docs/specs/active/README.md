@@ -4,22 +4,11 @@
 
 当前 0 份 active。
 
-[0315 范围绑定函数内剩余 Int 比较](../../archive/specs/0315-range-int-comparisons.md)已按[PR94新base物理CI](https://github.com/Halckon/Koven/actions/runs/38506286229)双宿主562项逐名证据有界归档；保留CLI漏选/首轮失败与last-use修正，归档head CI、合并授权及main待验证。
+0316 single 普通 Borrow value-class 只读方法正在独立准备，尚未在本目录建立合同。
 
-[0314 owned Sequential source 条件 return](../../archive/specs/0314-owned-source-conditional-return.md)已按[PR93实现CI](https://github.com/Halckon/Koven/actions/runs/38501870863)双宿主逐名验收后有界归档；117新增及241共享去重（交集27）通过，原红测/失败修复/3行尺寸例外保留；已由PR93合入main `cedbe73e`，该main CI待验证。
-
-[0313 single Map owner 条件 return](../../archive/specs/0313-single-map-conditional-return.md)已按[PR92新base物理CI](https://github.com/Halckon/Koven/actions/runs/38483423039)双宿主230项联合逐名证据有界归档；保留原基线/拒绝边界，归档head CI/merge/main待验证。
-
-[0312 owned Sequential source 条件 continue](../../archive/specs/0312-owned-source-conditional-continue.md)已按[PR91 实现 CI](https://github.com/Halckon/Koven/actions/runs/38433956651)双宿主32项新增及3项改名旧回归逐名证据有界归档；原失败与3行尺寸例外保留，归档 head CI/merge/main 待验收。
-
-[0311 single Map owner 条件 continue](../../archive/specs/0311-single-map-conditional-continue.md)已按 PR90 实现 CI 双宿主24项逐名证据有界归档；owned source 后继优先修复，归档 head CI/merge/main 待验收。
-
-[0310 single Map owner 条件 break](../../archive/specs/0310-single-map-conditional-break.md)已按[PR89 实现 CI](https://github.com/Halckon/Koven/actions/runs/38407747517)双宿主 13 项逐名证据有界归档；原红测/纠正、unit dead 与其他非目标保留，归档 head CI/merge/main 待验收。
-
-[0309 普通 Borrow value-class 字段](../../archive/specs/0309-borrow-value-class-fields.md)已按[PR88 新 base 物理 CI](https://github.com/Halckon/Koven/actions/runs/38397786167)双宿主 11 项逐名证据有界归档；仅关闭直接字段首片，原失败与后继边界保留，归档 head CI/merge/main 待验收。
-
-
-[0307 普通借用结果的同步 Borrow 实参消费](../../archive/specs/0307-synchronous-borrow-result-arguments.md)已按[PR85修复后物理CI](https://github.com/Halckon/Koven/actions/runs/38378462482)16/16 jobs、双宿主新frontend10及普通source codegen48逐名证据有界归档；首失败保留，归档head CI/merge/main待验证。outer继续借用返回、temporary来源、receiver/Inout与CFG等后继开放。
+0308–0315及0307的当前归档、PR合并与main CI状态统一见[近期交付](../README.md#近期交付)；
+本页不再维护重复的待验清单。原验收、失败与非目标仍保留在各历史Spec中。
+本轮剩余范围与终验条件见[本轮 M2B 实用化收尾](../README.md#本轮-m2b-实用化收尾)。
 
 [0306 混合 Value 参数的唯一来源借用返回](../../archive/specs/0306-mixed-value-borrow-result.md)已按PR84修复后完整物理CI及双宿主各15项正常/10项verifier测试有界归档；首失败保留，已由[PR84](https://github.com/Halckon/Koven/pull/84)合为actual-main `967bf98e`，其[main CI](https://github.com/Halckon/Koven/actions/runs/38368833991)成功；普通同步Borrow实参由0307关闭，其他M2B后继继续开放。
 
