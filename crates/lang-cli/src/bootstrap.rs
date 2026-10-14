@@ -18,8 +18,9 @@ use lang_frontend::{
     parser::ParserInternalError,
     source::{SourceError, SourceMap},
     type_checking::{
-        BuiltinType, IntrinsicTypeConstructor, ParameterMode, TypeCheckingError, TypeKind,
-        TypedFile, standard_environments,
+        BuiltinType, FinalTypeAdmissionError, FinalTypeAdmissionInternalError,
+        IntrinsicTypeConstructor, ParameterMode, TypeCheckingError, TypeKind, TypedFile,
+        complete_file_types, standard_environments,
     },
 };
 
@@ -62,6 +63,7 @@ pub(crate) enum BootstrapError {
     Parser(ParserInternalError),
     NameResolution(NameResolutionError),
     TypeChecking(TypeCheckingError),
+    TypeAdmission(FinalTypeAdmissionInternalError),
     OwnershipChecking(OwnershipCheckingError),
     FrontendDiagnostics {
         stage: FrontendStage,
@@ -115,6 +117,9 @@ impl fmt::Display for BootstrapError {
             Self::Parser(error) => write!(formatter, "parser failed: {error}"),
             Self::NameResolution(error) => write!(formatter, "name resolution failed: {error}"),
             Self::TypeChecking(error) => write!(formatter, "type checking failed: {error}"),
+            Self::TypeAdmission(error) => {
+                write!(formatter, "final type admission failed: {error}")
+            }
             Self::OwnershipChecking(error) => {
                 write!(formatter, "ownership checking failed: {error}")
             }
@@ -179,7 +184,21 @@ pub(crate) fn bootstrap_build(target: BootstrapTarget<'_>) -> Result<(), Bootstr
         &name_environment,
         &type_environment,
         |stage, diagnostics| reject_diagnostics(stage, &sources, diagnostics),
-        |_| Ok(()),
+        |view| match complete_file_types(
+            &sources,
+            view.parsed(),
+            view.names(),
+            &type_environment,
+            view.typed(),
+        ) {
+            Ok(_) => Ok(()),
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                reject_diagnostics(FrontendStage::TypeChecking, &sources, &diagnostics)
+            }
+            Err(FinalTypeAdmissionError::Internal(error)) => {
+                Err(BootstrapError::TypeAdmission(error))
+            }
+        },
     )
     .map_err(|error| match error {
         SingleFileAnalysisError::Lexer(error) => BootstrapError::Lexer(error),

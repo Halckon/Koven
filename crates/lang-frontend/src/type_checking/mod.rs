@@ -17,6 +17,8 @@ mod container;
 mod declaration_frontier;
 mod error;
 mod expression_use;
+mod final_admission;
+pub use final_admission::{complete_file_types, complete_compilation_unit_types, FinalTypedFile, FinalCompilationUnitTypes, FinalTypeAdmissionError, FinalTypeAdmissionInternalError};
 mod integer;
 mod iteration;
 mod literal_value;
