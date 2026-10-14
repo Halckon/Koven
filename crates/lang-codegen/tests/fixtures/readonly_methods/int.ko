@@ -1,0 +1,7 @@
+value class Reading(val number: Int) {
+    fun readNumber(): Int = this.number
+}
+fun entry() {
+    val reading = Reading(7)
+    if (reading.readNumber() == 7) { println("seven") } else { error("wrong field") }
+}

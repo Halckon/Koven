@@ -51,7 +51,11 @@ pub(super) fn plan(
     let signatures = typed
         .callables()
         .iter()
-        .filter(|signature| signature.owner().is_none())
+        .filter(|signature| {
+            templates
+                .iter()
+                .any(|template| template.symbol == signature.symbol())
+        })
         .map(|signature| (signature.symbol(), signature))
         .collect();
     let mut planner = Planner {
@@ -79,7 +83,8 @@ pub(super) fn plan(
     for template in templates {
         let signature = planner.signature(template.symbol, template.span)?;
         // A Fn parameter has no concrete environment until an actual caller supplies its origin.
-        if template.type_parameters.is_empty()
+        if signature.owner().is_none()
+            && template.type_parameters.is_empty()
             && !signature.parameters().iter().any(|parameter| {
                 matches!(
                     typed.types().get(parameter.ty),

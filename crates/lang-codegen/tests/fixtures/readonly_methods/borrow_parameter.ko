@@ -1,0 +1,3 @@
+value class Reading(val number:Int) { fun readNumber():Int = this.number }
+fun inspect(reading:Reading):Int = reading.readNumber()
+fun entry() { val reading=Reading(7); if(inspect(reading)==7) { println("seven") }; if(inspect(reading)==7) { println("seven") } }
