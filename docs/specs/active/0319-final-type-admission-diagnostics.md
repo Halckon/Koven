@@ -25,7 +25,7 @@
 一个 Spec 分三组有界验收：冻结四个根因与 CLI 红测；共享最终资格与不误杀对照；两入口
 诊断/退出闭环。B 的 enum构造实参类别和 C 的 List MoveOnly交付不得夹入本 Goal。
 
-## 2. 真实输入与待复现基线
+## 2. 真实输入与基线
 
 附件四份普通源码逐字审过，原字节与作者矩阵留仓外，完整stderr尚未核验；测试落地时放单一 fixture 真源，
 两入口消费同字节。下表 byte Span 均相对原 UTF-8 文件，不含额外 package/const 前缀。
@@ -109,10 +109,10 @@ single CLI在typed_observer内调用frontend最终检查，unit CLI在basic/cons
   `each_gate_and_observer_stop_before_every_following_callback`的raw顺序、身份与callback合同不变。
   后者含主动停止callback，仅静态保留合同，不自动纳入云执行白名单。
 
-## 5. 红测与安全 helper 计划（均未运行）
+## 5. 精确测试与安全 helper
 
 先固定 tests-only 输入与仓外完整manifest，再由独立review核精确helper链，按下列目标逐名
-`--exact`执行；不使用全suite/discover。下列7目标已落地、尚未编译或运行；不将导入或fixture错误当行为红测。
+`--exact`执行；不使用全suite/discover。下列7目标已落地；首批真实结果见§7，不将导入或fixture错误当行为红测。
 
 | 测试target / 计划精确函数名 | 普通源码与断言 | helper链/运行边界 |
 |---|---|---|
@@ -144,14 +144,19 @@ strict失败不得进入ownership的证明随真实接线补齐，不用forced o
 
 - [x] 官方fetch新main、核全局0319空闲；原probe静读及Guide/旧recovery合同审查。
 - [x] 合同独审；有限收尾main CI通过，批准推进本片tests-only红测。
-- [ ] 固定实际测试/helper后独审并开测；接口新增与生产实现保持后继小提交。
-- [ ] tests-only提交与真实失败基线；既有绿、预期红、编译接线失败分别记账。
+- [x] tests-only实际测试/helper独审后获准逐名执行；接口新增与生产实现保持后继小提交。
+- [x] tests-only提交与真实失败基线：4个raw/base保护通过、3个CLI行为红；无编译接线失败。
 - [ ] 最小frontend准入及CLI接线；准确诊断、不级联、raw对照和成功能力保护。
 - [ ] 影响面共享回归、Architecture事实、双宿主CI与有界归档；不引用旧CI当本片成功。
 
 | 本轮检查 | 实际状态 |
 |---|---|
-| 源码/Guide/附件静态审查 | 已读；未运行原probe，不将作者矩阵写作独立复现 |
-| Cargo / CLI / native | 未执行；当前tests-only准备，等待精确helper审阅和开测许可 |
+| 源码/Guide/附件静态审查 | 原附件作者矩阵仍单独记账；本轮独立执行以如下固定输入为准 |
+| 首批输入/工具链 | `305ae6049d5a19c56ce4c990d45e7ddab6fb7963` / tree `d9b426ac0eb4fbacdea269c1fcb63e953c70e082`；Rust/Cargo1.96.0、LLVM/Clang21.1.8 |
+| frontend 4个精确目标 | 全部各1/1通过；仅raw/base保护，不计final资格成功 |
+| CLI 3个精确目标 | 全部真实行为红；每个先采集16次普通build/run human/JSON输出，共48次。各函数的oracle在首个r01失败，其后case不计独立断言执行 |
+| 首批实际根因 | single：r01/r02 BlockingDeferred、p34 MissingFact、s04 UnsupportedNode；project basic/constant：r01 MissingFact、r02 UnsupportedNode、p34/s04 ownership invalid argument type。human/JSON均未返回预期源级诊断，stdout均空 |
+| 输入冻结 | 1420个源码/配置文件前后NUL摘要同为`6b989d0170c88c266bf45e7cf6dff103083f07d355d8a39ca33041d38a68113b`；每目标argv/status/原日志与48次输出留仓外，未改oracle取绿 |
+| 未运行 | 新final API、生产修复、共享回归及本片CI尚未执行；没有故障/插桩或全量云测试 |
 | 草案阶段 docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；当时active0/archive302、draft新增0319 |
 | active迁移 | 0319迁入active，archive302不变；draft库存移除0319，四份DAG随生命周期重建 |
