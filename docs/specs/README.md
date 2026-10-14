@@ -9,8 +9,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 0 份。
-- owned source Continue已由0312有界修复；Return四格仍为独立缺口。
+- [Active 合同](active/README.md)：当前 1 份。
+- [0314 owned source 条件 return](active/0314-owned-source-conditional-return.md)：独立修复实施中，尚未验收。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
 ### 近期交付
