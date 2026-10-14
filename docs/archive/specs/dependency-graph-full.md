@@ -309,6 +309,9 @@ subgraph Garchive["已完成（archive，299 份）"]
   S0314["S0314<br/>owned Sequential source 条件 return 证明"]
   S0315["S0315<br/>范围绑定函数内剩余 Int 比较"]
 end
+subgraph Gactive["现行 active"]
+  S0318["S0318<br/>Map 条件 return operand 的最后使用清理"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
@@ -1346,6 +1349,8 @@ S0310 --> S0312
 S0311 --> S0313
 S0312 --> S0314
 S0313 --> S0314
+S0313 --> S0318
+S0314 --> S0318
 ```
 
 ## 节点链接
@@ -1651,5 +1656,6 @@ S0313 --> S0314
 | SPEC-0313 | archive | [0313-single-map-conditional-return.md](0313-single-map-conditional-return.md) |
 | SPEC-0314 | archive | [0314-owned-source-conditional-return.md](0314-owned-source-conditional-return.md) |
 | SPEC-0315 | archive | [0315-range-int-comparisons.md](0315-range-int-comparisons.md) |
+| SPEC-0318 | active | [0318-map-return-operand-last-use.md](../../specs/active/0318-map-return-operand-last-use.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

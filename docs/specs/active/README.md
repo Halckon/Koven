@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [0318 Map return operand 最后使用清理](0318-map-return-operand-last-use.md)：先冻结真实事实与三入口基线，再有界实现。
 
 0316 single 普通 Borrow value-class 只读方法正在独立准备，尚未在本目录建立合同。
 
