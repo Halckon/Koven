@@ -1,19 +1,19 @@
 # SPEC-0319: 最终类型消费准入与源级诊断
 
-> **性质**：有界修复合同 · **状态**：draft · **读取时机**：准备严格 frontend 消费准入与原始 probe 红测时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
+> **性质**：有界修复合同 · **状态**：in-progress · **读取时机**：准备严格 frontend 消费准入与原始 probe 红测时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-0319` |
 | 所属 Phase | Phase 2 最终类型资格；Phase 3 前置准入；Phase 6 CLI 诊断 |
-| 语言规范 | [Guide v0.43](../../../guide/README.md)、[类型阶段边界](../../../guide/03-types-generics.md#基础类型检查与局部推导)、[Result](../../../guide/09-nullability-errors.md)、[迭代](../../../guide/12-collections-destructuring.md#371-compiler-bound-provider-与执行顺序) |
-| 批准依据 | 2026-10-14 用户确认有限收尾后按 A诊断阶段封闭→B enum实参分类→C List MoveOnly转移追踪推进；当前只准备draft与红测设计，尚未准许本片生产实施 |
-| 前置 Spec | [SPEC-0252](../../../archive/specs/0252-basic-unit-ownership-driver.md)、[SPEC-0253](../../../archive/specs/0253-single-file-analysis-facade.md)；保留其 raw/recovery 合同 |
+| 语言规范 | [Guide v0.43](../../guide/README.md)、[类型阶段边界](../../guide/03-types-generics.md#基础类型检查与局部推导)、[Result](../../guide/09-nullability-errors.md)、[迭代](../../guide/12-collections-destructuring.md#371-compiler-bound-provider-与执行顺序) |
+| 批准依据 | 2026-10-14 用户确认有限收尾后按 A诊断阶段封闭→B enum实参分类→C List MoveOnly转移追踪推进；有限收尾main CI已通过，按已审合同推进tests-only红测；真实helper独审与开测许可分别确认 |
+| 前置 Spec | [SPEC-0252](../../archive/specs/0252-basic-unit-ownership-driver.md)、[SPEC-0253](../../archive/specs/0253-single-file-analysis-facade.md)；保留其 raw/recovery 合同 |
 | 基线 | official fetch main `188654603edde5ece3edab114458116c61510371`，tree `ad1e85b00e64aabd832b00218cb17385e1c8ac29`；独立 `fix/spec-0319` |
 | 影响范围 | frontend 最终消费资格与诊断；普通 single/project CLI；仅必要的事实与回归测试 |
 | 语言语义变更 | 否；修复现行 Guide 已要求的阶段隔离，不启用新语言能力 |
-| 阻塞项 | 下述新诊断类别、最终资格接口细节与helper名单待独审；真实红测未运行；有限收尾main CI另核，当前不生产/Cargo |
+| 阻塞项 | 合同已独审；真实红测及helper名单尚待固定后开测；当前tests-only，不先改生产 |
 
 ## 1. 单一 Goal 与验收边界
 
@@ -69,7 +69,7 @@ p34 不被改写为受支持的 range provider，也不宣称整个 for 在现�
    不是“不存在”的证据。保留现有容器 L0130 等更精确诊断，不做通用成员解析重写。
 6. L0085 只承接本片已确定非 Result operand 的非法 `?`，primary取AST question_span。
    不顺带封闭全部 Result 返回/E匹配规则；无法证明身份时不得据拼写放行或臆造该诊断。
-7. 拟新增 L0165（尚待审定，当前注册表到L0164）：**最终类型分析未完成**。
+7. 拟新增 L0165（合同已审，尚未注册；当前注册表到L0164）：**最终类型分析未完成**。
    表达实现边界而非语言非法，消息保留具体构造/DeferredReason责任及最小根因Span。
    不复用L0083（不能用于后续阶段deferred）、L0015（parser）或L0164（borrow flow）。
    仅真实DeferredReason或已登记未实现责任可用此码；成功descriptor缺必需事实、分析身份
@@ -141,7 +141,8 @@ target名不是`--exact`过滤器的一部分。首个可编译行为红测先�
 ## 7. 实施与验证记录
 
 - [x] 官方fetch新main、核全局0319空闲；原probe静读及Guide/旧recovery合同审查。
-- [ ] 冻结final接口、新码意义、红测及helper白名单；main收尾门禁与生产许可另确认。
+- [x] 合同独审；有限收尾main CI通过，批准推进本片tests-only红测。
+- [ ] 固定实际测试/helper后独审并开测；接口新增与生产实现保持后继小提交。
 - [ ] tests-only提交与真实失败基线；既有绿、预期红、编译接线失败分别记账。
 - [ ] 最小frontend准入及CLI接线；准确诊断、不级联、raw对照和成功能力保护。
 - [ ] 影响面共享回归、Architecture事实、双宿主CI与有界归档；不引用旧CI当本片成功。
@@ -149,5 +150,6 @@ target名不是`--exact`过滤器的一部分。首个可编译行为红测先�
 | 本轮检查 | 实际状态 |
 |---|---|
 | 源码/Guide/附件静态审查 | 已读；未运行原probe，不将作者矩阵写作独立复现 |
-| Cargo / CLI / native | 未执行；当前仅draft/红测设计，工具链恢复由独立任务负责 |
-| docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；active0/archive302不变、draft新增0319，四份DAG按原生成器更新 |
+| Cargo / CLI / native | 未执行；当前tests-only准备，等待精确helper审阅和开测许可 |
+| 草案阶段 docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；当时active0/archive302、draft新增0319 |
+| active迁移 | 0319迁入active，archive302不变；draft库存移除0319，四份DAG随生命周期重建 |

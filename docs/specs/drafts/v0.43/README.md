@@ -44,9 +44,9 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 下一片须从实际main独立冻结合同并获得相应批准；不自动启用consume、optional borrow、借用存储/逃逸、N1b或泛型std扩展。
 
-## 现行语义的诊断修复草案
+## 现行语义的诊断修复
 
-- [0319 最终类型消费准入](0319-final-type-admission-diagnostics.md)：基于main18865460，准备最终消费前的源级诊断与single/project红测；保留中间Deferred/recovery，不实现新语言能力。当前draft，接口与诊断分类待审，不与0292的未启用consume前置混同。
+- [0319 最终类型消费准入](../../active/0319-final-type-admission-diagnostics.md)已获准迁入active：当前tests-only红测准备，保留中间Deferred/recovery；不与0292的未启用consume前置混同。
 
 ## 未编号的现行支持候选
 
