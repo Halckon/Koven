@@ -124,6 +124,7 @@ fn run_case(
     }
     let (program, entry) = result.unwrap();
     verify_program(&program).unwrap();
+    assert_receiver_abi(&program);
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
     let directory = std::env::temp_dir().join(format!(
         "koven-readonly-method-{}-{name}",
@@ -341,4 +342,250 @@ case!(
     false,
     Unit,
     b"entry\n"
+);
+
+fn assert_receiver_abi(program: &Program) {
+    let module = &program.modules[0];
+    for function in &module.functions {
+        if let Some(receiver_type) = function.receiver() {
+            assert!(matches!(
+                receiver_type,
+                EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    ..
+                }
+            ));
+            let parent = function.blocks[0].parameters[0];
+            assert_eq!(function.entity(parent).unwrap().ty, receiver_type);
+            assert!(function.instructions.iter().all(|i| {
+                !matches!(i.operation, Operation::BorrowEnd { loan } if EntityId::Loan(loan) == parent)
+                    && !matches!(i.operation, Operation::Read { source: PlaceAccess::Loan(loan) } if EntityId::Loan(loan) == parent)
+                    && !matches!(i.operation, Operation::AggregateProject { .. })
+            }));
+            for instruction in &function.instructions {
+                if let Operation::SharedFieldLoan { base, .. } = instruction.operation {
+                    assert_eq!(EntityId::Loan(base), parent);
+                    let child = instruction.results[0];
+                    let ends = function
+                        .instructions
+                        .iter()
+                        .filter(|i| {
+                            matches!(i.operation,
+                        Operation::BorrowEnd { loan } if EntityId::Loan(loan) == child)
+                        })
+                        .collect::<Vec<_>>();
+                    assert_eq!(ends.len(), 1);
+                    assert!(ends[0].id.index() > instruction.id.index());
+                    assert!(function.instructions.iter().any(|i| matches!(i.operation,
+                        Operation::Read { source: PlaceAccess::Loan(loan) } if EntityId::Loan(loan) == child)
+                        && instruction.id.index() < i.id.index() && i.id.index() < ends[0].id.index()));
+                }
+            }
+        }
+        for instruction in &function.instructions {
+            if let Operation::DirectCall {
+                callee,
+                receiver: Some(receiver),
+                arguments,
+            } = &instruction.operation
+            {
+                let target = module.function(*callee).unwrap();
+                assert_eq!(
+                    target.receiver(),
+                    Some(function.entity(*receiver).unwrap().ty)
+                );
+                assert_eq!(target.blocks[0].parameters.len(), arguments.len() + 1);
+                assert!(matches!(target.blocks[0].parameters[0], EntityId::Loan(_)));
+                if function.blocks[0].parameters.contains(receiver) {
+                    assert!(!function.instructions.iter().any(|i| matches!(i.operation,
+                        Operation::BorrowEnd { loan } if EntityId::Loan(loan) == *receiver)));
+                } else {
+                    let ends = function
+                        .instructions
+                        .iter()
+                        .filter(|i| {
+                            matches!(i.operation,
+                        Operation::BorrowEnd { loan } if EntityId::Loan(loan) == *receiver)
+                        })
+                        .collect::<Vec<_>>();
+                    assert_eq!(ends.len(), 1);
+                    assert!(ends[0].id.index() > instruction.id.index());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn readonly_map_0299_single_same_method_source() {
+    let text = crate::native_owned_map_borrow_cases::inline_field(true);
+    run_case(
+        "map-0299-single",
+        &text,
+        "value.number()",
+        false,
+        Pipeline::Single,
+        b"borrowed inline\nborrowed inline\nowned inline\nend\n",
+    );
+}
+
+#[test]
+fn readonly_map_0299_unit_same_method_source() {
+    let text = crate::native_owned_map_borrow_cases::inline_field(true);
+    run_case(
+        "map-0299-unit",
+        &text,
+        "value.number()",
+        false,
+        Pipeline::Unit,
+        b"borrowed inline\nborrowed inline\nowned inline\nend\n",
+    );
+}
+case!(
+    readonly_borrow_parameter_single_constant,
+    "borrow_parameter",
+    "reading.readNumber()",
+    true,
+    Single,
+    b"seven\nseven\n"
+);
+case!(
+    readonly_borrow_parameter_unit_constant,
+    "borrow_parameter",
+    "reading.readNumber()",
+    true,
+    ConstantUnit,
+    b"seven\nseven\n"
+);
+case!(
+    readonly_temporary_single_constant,
+    "temporary",
+    "Reading(7).readNumber()",
+    true,
+    Single,
+    b"seven\n"
+);
+case!(
+    readonly_temporary_unit_constant,
+    "temporary",
+    "Reading(7).readNumber()",
+    true,
+    ConstantUnit,
+    b"seven\n"
+);
+case!(
+    readonly_implicit_single_constant,
+    "implicit",
+    "reading.relay()",
+    true,
+    Single,
+    b"seven\n"
+);
+case!(
+    readonly_implicit_unit_constant,
+    "implicit",
+    "reading.relay()",
+    true,
+    ConstantUnit,
+    b"seven\n"
+);
+case!(
+    readonly_identities_single_constant,
+    "identities",
+    "reading.readNumber()",
+    true,
+    Single,
+    b"seven\neight\nnine\n"
+);
+case!(
+    readonly_identities_unit_constant,
+    "identities",
+    "reading.readNumber()",
+    true,
+    ConstantUnit,
+    b"seven\neight\nnine\n"
+);
+case!(
+    readonly_order_single_constant,
+    "order",
+    "makeReading().readNumber(argument())",
+    true,
+    Single,
+    b"receiver\nargument\nseven\n"
+);
+case!(
+    readonly_order_unit_constant,
+    "order",
+    "makeReading().readNumber(argument())",
+    true,
+    ConstantUnit,
+    b"receiver\nargument\nseven\n"
+);
+case!(
+    readonly_moveonly_single_constant,
+    "moveonly",
+    "reading.readNumber()",
+    true,
+    Single,
+    b"seven\nseven\nseven\n"
+);
+case!(
+    readonly_moveonly_unit_constant,
+    "moveonly",
+    "reading.readNumber()",
+    true,
+    ConstantUnit,
+    b"seven\nseven\nseven\n"
+);
+case!(
+    readonly_named_single,
+    "named",
+    "makeReading().readNumber(second=second(), first=first())",
+    false,
+    Single,
+    b"receiver\nsecond\nfirst\nfourteen\n"
+);
+case!(
+    readonly_named_unit,
+    "named",
+    "makeReading().readNumber(second=second(), first=first())",
+    false,
+    Unit,
+    b"receiver\nsecond\nfirst\nfourteen\n"
+);
+case!(
+    readonly_named_single_constant,
+    "named",
+    "makeReading().readNumber(second=second(), first=first())",
+    true,
+    Single,
+    b"receiver\nsecond\nfirst\nfourteen\n"
+);
+case!(
+    readonly_named_unit_constant,
+    "named",
+    "makeReading().readNumber(second=second(), first=first())",
+    true,
+    ConstantUnit,
+    b"receiver\nsecond\nfirst\nfourteen\n"
+);
+
+#[path = "single_readonly_method_boundaries.rs"]
+mod boundaries;
+
+case!(
+    readonly_moveonly_temporary_single,
+    "moveonly_temporary",
+    "Reading(7,\"payload\".clone()).readNumber()",
+    false,
+    Single,
+    b"seven\n"
+);
+case!(
+    readonly_moveonly_temporary_unit,
+    "moveonly_temporary",
+    "Reading(7,\"payload\".clone()).readNumber()",
+    false,
+    Unit,
+    b"seven\n"
 );
