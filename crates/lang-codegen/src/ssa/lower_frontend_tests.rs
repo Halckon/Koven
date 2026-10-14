@@ -2005,3 +2005,6 @@ mod field_replace_tests;
 
 #[path = "lower_frontend_owned_source_continue_tests.rs"]
 mod owned_source_continue_tests;
+
+#[path = "lower_frontend_owned_source_return_tests.rs"]
+mod owned_source_return_tests;

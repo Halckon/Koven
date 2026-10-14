@@ -4,6 +4,8 @@
 
 当前 0 份 active。
 
+[0314 owned Sequential source 条件 return](../../archive/specs/0314-owned-source-conditional-return.md)已按[PR93实现CI](https://github.com/Halckon/Koven/actions/runs/38501870863)双宿主逐名验收后有界归档；117新增及241共享去重（交集27）通过，原红测/失败修复/3行尺寸例外保留；归档head CI、merge及main待验证。
+
 [0313 single Map owner 条件 return](../../archive/specs/0313-single-map-conditional-return.md)已按[PR92新base物理CI](https://github.com/Halckon/Koven/actions/runs/38483423039)双宿主230项联合逐名证据有界归档；保留原基线/拒绝边界，归档head CI/merge/main待验证。
 
 [0312 owned Sequential source 条件 continue](../../archive/specs/0312-owned-source-conditional-continue.md)已按[PR91 实现 CI](https://github.com/Halckon/Koven/actions/runs/38433956651)双宿主32项新增及3项改名旧回归逐名证据有界归档；原失败与3行尺寸例外保留，归档 head CI/merge/main 待验收。

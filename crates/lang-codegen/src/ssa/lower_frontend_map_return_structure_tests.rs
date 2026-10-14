@@ -630,6 +630,14 @@ pub(super) fn assert_distinct_return_owners(program: &Program) {
 // The real operand call returns a Copyable value before the two body Resources
 // are destroyed in reverse declaration order; it is the value handed to Return.
 pub(super) fn assert_operand_before_body_cleanup(program: &Program, source: &str) {
+    operand_before_body_cleanup(program, source, false);
+}
+
+pub(super) fn assert_owned_operand_before_body_cleanup(program: &Program, source: &str) {
+    operand_before_body_cleanup(program, source, true);
+}
+
+fn operand_before_body_cleanup(program: &Program, source: &str, named_source: bool) {
     let module = program
         .modules
         .iter()
@@ -747,7 +755,12 @@ pub(super) fn assert_operand_before_body_cleanup(program: &Program, source: &str
             && matches!(i.operation, Operation::Drop { owner }
                 if forwards(function, EntityId::Value(owner), body_source))
     });
-    assert_eq!(source_drop.origin, source_construct.origin);
+    if named_source {
+        let span = source_drop.origin.span();
+        assert_eq!(source.get(span.start()..span.end()), Some("keys"));
+    } else {
+        assert_eq!(source_drop.origin, source_construct.origin);
+    }
     let map_seed = only(function, |i| {
         matches!(i.operation, Operation::MapConstruct { .. })
     });

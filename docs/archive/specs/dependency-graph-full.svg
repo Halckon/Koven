@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="8464" height="9208" viewBox="0 0 8464 9208" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="8464" height="9364" viewBox="0 0 8464 9364" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="8464" height="9208" fill="#ffffff"/>
-  <rect x="40" y="30" width="7672" height="9106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，297 份）</text>
+  <rect width="8464" height="9364" fill="#ffffff"/>
+  <rect x="40" y="30" width="7672" height="9262" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，298 份）</text>
   <rect x="7776" y="7956" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="7916" y="7976" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="8120" y="7956" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1039,6 +1039,8 @@
   <path d="M 180 8808 C 180 8840, 180 8840, 180 8872" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8808 C 180 8840, 444 8840, 444 8872" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8964 C 180 8996, 180 8996, 180 9028" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 444 8964 C 444 8996, 180 9152, 180 9184" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 180 9120 C 180 9152, 180 9152, 180 9184" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2295,4 +2297,9 @@
   <text x="180" y="9069" text-anchor="middle" font-size="13">single Map own</text>
   <text x="180" y="9087" text-anchor="middle" font-size="13">er 条件 return 清</text>
   <text x="180" y="9105" text-anchor="middle" font-size="13">理</text>
+  <rect x="60" y="9184" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="180" y="9207" text-anchor="middle" font-size="13">SPEC-0314</text>
+  <text x="180" y="9225" text-anchor="middle" font-size="13">owned Sequenti</text>
+  <text x="180" y="9243" text-anchor="middle" font-size="13">al source 条件 r</text>
+  <text x="180" y="9261" text-anchor="middle" font-size="13">eturn 证明</text>
 </svg>
