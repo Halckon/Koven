@@ -112,19 +112,21 @@ single CLI在typed_observer内调用frontend最终检查，unit CLI在basic/cons
 ## 5. 红测与安全 helper 计划（均未运行）
 
 先固定 tests-only 输入与仓外完整manifest，再由独立review核精确helper链，按下列目标逐名
-`--exact`执行；不使用全suite/discover。新目标是计划名，写入后复核编译接线，不将导入错误当行为红测。
+`--exact`执行；不使用全suite/discover。下列7目标已落地、尚未编译或运行；不将导入或fixture错误当行为红测。
 
 | 测试target / 计划精确函数名 | 普通源码与断言 | helper链/运行边界 |
 |---|---|---|
 | `native_cli` / `final_type_admission::single_probe_roots_reject_before_codegen` | 原四probe × build/run × human/JSON；single保持既有exit2，stdout空，根因code/Span准确；无内部错误字样、无新产物 | 复用`native_cli.rs::run`→原版`CARGO_BIN_EXE_kovenc`；不直接launch输出程序 |
 | `project_cli` / `final_type_admission::project_probe_roots_reject_before_codegen` | 同四probe同字节放project × build/run × human/JSON；project保持既有exit1，schema v1/位置完整，零额外诊断 | `TestProject`/`project_build`/`run`→原版CLI；标准loader仍只ranges |
 | `project_cli` / `final_type_admission::project_const_fallback_keeps_type_admission` | 独立const前缀版本，重新核Span；typed未完成不得穿透constant fallback | 同一原版helper，编译拒例；不改facts/IR或runtime |
-| `final_type_admission` / `frozen_roots_and_raw_recovery_remain_distinct` | 四probe raw状态与final诊断分账；适用basic/constant、unit源顺序分别验证 | `SourceMap→lex→parse_file→resolve/check_types`；unit用index/resolve/check_compilation_unit_types；仅frontend |
-| `final_type_admission` / `resolved_roles_and_symbolic_types_keep_admission` | 合法constructor/callee、String.clone、已选receiver、List.size、Function值callee、generic TypeParameter及statement效果不误杀 | 同前端链；核真实descriptor与type root，不合成缺失facts |
-| `final_type_admission` / `root_diagnostics_are_unique_and_source_ordered` | 已有L0080/L0085 Error不派生L0159；同根传递与跨文件独立错误、Unicode位置稳定 | 同前端链及原diagnostic renderer；无执行产物 |
-| `final_type_admission` / `strict_consumers_stop_before_ownership` | final失败不进入后续ownership/entry/codegen；两入口及const能力同门 | 正常入口/阶段结果观察；不注入假facts、篡改owned或伪造IR |
+| `final_type_admission` / `frozen_probe_roots_preserve_raw_deferred_recovery` | 四probe × 无/有const：raw精确Deferred原因，旧basic/constant资格保持 | 普通SourceMap→lex→parse→names→types；仅读事实与既有validate |
+| 同target / `resolved_roles_and_symbolic_types_keep_raw_value_facts` | constructor/callee、String.clone、inv、List.size、Function值、TypeParameter/Any约束和assignment | 两入口真实描述符及值类型；没有final资格API时不声称最终通过 |
+| 同target / `existing_root_errors_do_not_cascade_through_calls_or_iteration` | 既有L0085穿过外层call/iteration不级联；UTF-8精确Span及独立Long事实 | 两入口原类型分析；不进入ownership |
+| 同target / `selected_source_order_and_forward_types_keep_basic_qualification` | 未选文件隔离、双文件正逆序、ForwardValueType与旧validate成功保持 | 只对真实selected source-set重新分析，无facts注入 |
 
-target名不是`--exact`过滤器的一部分。首个可编译行为红测先使用现有公开CLI；新增API测试随接口细节冻结再落地。
+target名不是`--exact`过滤器的一部分。首个可编译行为红测使用现有公开CLI；4个frontend目标保护raw/base事实，不冒充final准入验收。
+新增final资格接口后再补同源码拒绝/正例接受、跨文件稳定诊断及有效外层call中非法member/nullable ?的递归检查；
+strict失败不得进入ownership的证明随真实接线补齐，不用forced observer制造停机。
 保留既有`diagnostic_model::production_catalog_contains_exactly_the_published_frontend_codes`
 与上述raw/recovery目标，注册新码时只更新真实目录预期。LSP现有recovery相关精确目标另核后列入共享回归。
 合法正常源码的native对照仅在后续名单审定后运行原版LLVM/native，不继承旧批次测试数。

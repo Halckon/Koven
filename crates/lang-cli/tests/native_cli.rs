@@ -1,5 +1,8 @@
 //! SPEC-0190 真实 `kovenc build/run` 单文件进程验收。
 
+#[path = "native_cli/final_type_admission.rs"]
+mod final_type_admission;
+
 #[path = "native_cli/runtime_constructor.rs"]
 mod runtime_constructor;
 
