@@ -4,7 +4,7 @@
 
 当前 1 份 active。
 
-- [0317 同根范围绑定内的有界正常短路](0317-range-normal-short-circuit.md)：真实红测后有界接入；本地302 codegen/46 CLI通过，双宿主CI与交付待核。
+- [0317 同根范围绑定内的有界正常短路](0317-range-normal-short-circuit.md)：真实红测后有界接入；旧base本地302 codegen/46 CLI及双宿主CI通过；正常合入0316后联合429 codegen/50 CLI/22 frontend本地通过，新base CI与交付待核。
 
 0308–0316及0307的当前归档、PR合并与main CI状态统一见[近期交付](../README.md#近期交付)；
 本页不再维护重复的待验清单。原验收、失败与非目标仍保留在各历史Spec中。

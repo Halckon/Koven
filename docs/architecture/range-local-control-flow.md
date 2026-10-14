@@ -44,6 +44,11 @@ Boolean name/literal/Group/`!`、简单Int比较与正常Boolean call可用；�
 own MoveOnly、Inout、cross-thread、borrow/carrier result、FunctionValue和直接Nothing；
 此“只读”指借用/交付效果，不限制正常println等IO。只读普通receiver仍受入口既有能力门：
 single普通class方法保持UnsupportedNode，unit代表源码另验，不由0317补齐。
+与已归档0316正常整合后，非泛型value-class Borrow receiver的owned Boolean方法可组合；
+真实命名Copyable/MoveOnly receiver在LHS/RHS、三位置和五入口均有原版LLVM/native对照。
+receiver独立Loan操作数只在所属调用边建立并在call-return结束，skip不建RHS loan；
+owner按原Copyable支配值或逐边carrier规则保留，合流后唯一交付。原field/iteration/alias
+receiver边界不由此扩大，Inout/own MoveOnly在短路能力门仍精确拒绝。
 
 复用原CFG而非新增清理算法；RHS仅在选择边执行，metadata临时read loan在call-return结束，
 继承Boolean Borrow参数保持原来源且不由callee return结束。更早同步Borrow View实参的

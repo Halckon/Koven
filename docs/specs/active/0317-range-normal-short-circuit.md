@@ -10,7 +10,7 @@
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[Boolean 类型](../../guide/03-types-generics.md)、[N1a](../../guide/12-collections-destructuring.md#n1a-单来源连续范围-carrier) |
 | 批准依据 | 用户“按建议顺序继续实施”的主线及小阶段提交授权；先 Spec/真实红测审阅，合并仍单独确认 |
 | 前置 Spec | [SPEC-0298](../../archive/specs/0298-range-binding-local-control-flow.md)、[SPEC-0315](../../archive/specs/0315-range-int-comparisons.md) |
-| 基线 | official fetch 确认 actual main `b1165b0f430b5e8c3bcd669d5129fce6b4a9e1a2`；独立 `feature/spec-0317`，不依赖0316 |
+| 基线 | 首片 official fetch 确认 main `b1165b0f430b5e8c3bcd669d5129fce6b4a9e1a2`，独立 `feature/spec-0317`；后续以 PR97 真 head 正常合并已归档0316的 actual main `3661d682`，见整合账本 |
 | 影响范围 | range binding 能力门、两入口 typed call effects 验证、普通源码及公开 project CLI 测试 |
 | 语言语义变更 | 否 |
 
@@ -53,7 +53,8 @@ Nothing 仍明确拒绝。它们留独立后继，因为当前合同仅证明既
 | 公开 CLI basic/constant 与旧拒绝迁移 | `cargo test --locked --offline -p lang-cli --test range_project_cli -- --nocapture` | 完整46/46通过，0 filtered/ignored；含7项新增目标和旧scalar拒例迁移 |
 | 共享回归与总数 | codegen lib `ssa::range_lowering_tests::local_control::` 280；`scalar_counts::` 7；原single/unit/constant短路6，普通borrow call/boundary 9 | 去重302/302通过，0 ignored；新增57项是其中子集，非全codegen/全frontend |
 | 工程与文档 | fmt；`cargo clippy --locked --offline -p lang-codegen -p lang-cli --all-targets -- -D warnings`；CLI build；docs/diff/size | 全通过；669 Markdown；1098 Rust文件、38历史超限未增长，未改尺寸cap |
-| 双宿主交付 | 独立 Draft PR 精确 head CI 与最终归档 | 待发布/CI；本地仅Linux x86_64，macOS未运行；未跑云fault/calibration/sanitizer/aggregate或frontend全量 |
+| actual-main 联合验收 | 0316既有122 + 0317既有302，无重名；新增receiver交集5；公开CLI3+1+46；frontend18+2+2 | `e0fc96a2` 去重429 codegen、50 CLI、22 frontend全通过；13阶段status0，含clippy/build/fmt/docs670/size/diff |
+| 双宿主交付 | Draft PR97 精确 head CI 与最终归档 | 旧base [CI38531927614](https://github.com/Halckon/Koven/actions/runs/38531927614) 双宿主success，单独记证；新整合head尚待发布/CI；本地仅Linux x86_64，未跑云fault/calibration/sanitizer/aggregate或frontend全量 |
 
 ## 4. 实施与证据
 
@@ -108,3 +109,31 @@ prefix拒绝也通过。旧50fda生产另用无短路receiver源码实际验证1
 `be2afa50eecfc6c84672c68782c1254886131a8bec581c433cedacd824853035`。
 随后只更新本页验收与索引，不改变已验Rust/fixture/依赖/feature输入。仓外原日志、完整
 源码清单、逐名名单和机器摘要已随恢复检查点交付；远端CI必须另核精确PR head。
+
+
+### actual-main 正常整合（2026-10-14）
+
+以 PR97 真远端 head `79e0d875cc75b687704a0894e314e4b8ddf10a6d` 为第一父，
+正常 merge 已合0316的 main `3661d682b2fe8cb0737d55641e32966033db42e6` 为第二父，
+得 `e9828d969588426db0824dfe939d7286fe23db00`。仅索引/生成依赖图发生文本冲突；
+0316归档原文及26个crates变更blob、0317原15个crates变更blob均精确保留对应真父。
+没有重写历史或新增生产逻辑；旧base证据仍只对应其原输入。旧base CI38531927614
+已核双宿主success及逐名302 codegen/46 CLI；base b1165、head79e0的证据不代替新base CI。
+
+另补 `local_short_circuit_receiver.rs` 五个目标：single、unit basic/validated constant及
+provider正逆序，循环覆盖三位置、两op、Copyable/MoveOnly命名value-class receiver，共60份
+正常源码，每份执行四组动态真值。真实Boolean字段值决定结果，LHS一次/RHS选中一次或
+跳过零次；receiver独立Loan操作数核真实owner、目标签名与call后恰一次BorrowEnd。
+Copyable支配值可按原入口规则直接复用；需运输的owner逐边核identity，合流唯一交付后结束。
+借用scope仍核同根父/子/兄弟精确carriers、合流读取与逆序RangeEnd。新增value-class
+Inout/own MoveOnly合法拒例纳入原boundary目标；原single普通class拒例保持。
+该交集不放宽field/iteration/alias receiver、nullable或嵌套CFG。
+
+初次新helper将DirectCall.receiver误作arguments[0]，修正后又暴露Copyable不必跨边重绑、
+其它owner可为BlockParameter的错误假设；均只修测试并保留失败日志，不计成功。
+最终测试输入 `e0fc96a294888cff125918d2e201fbf2e7445f43`，tree
+`eafb6803f0e85afa077c9a92804b500d99918936`。联合选择逐名核对429/50/22目标，无缺项、
+额外命中或重复；0 ignored。clippy codegen/CLI all-targets、CLI build、fmt、docs670、
+size/diff全过；1104手写Rust文件、38项历史超限无增长，不改cap。执行前后完整源码清单
+SHA256均为 `ee98a70168d46f661cc8da9a7628e534e92d22af67f22d58d76088cb388be965`。
+随后仅更新本页、Architecture与索引；新base远端CI、最终归档与合并另核。
