@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 297 份"))
+ARCH(("已完成<br/>archive 298 份"))
 subgraph Gactive["现行 active"]
   S0315["S0315<br/>范围绑定函数内剩余 Int 比较"]
 end
@@ -30,4 +30,4 @@ ARCH --> S0315
 | SPEC-0315 | active | [0315-range-int-comparisons.md](active/0315-range-int-comparisons.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| 已完成 Spec（297 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（298 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

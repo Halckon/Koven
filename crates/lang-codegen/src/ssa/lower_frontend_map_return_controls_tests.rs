@@ -97,7 +97,7 @@ fn ordinary_source_controls_owned_source_return() {
                 observe(
                     &format!("owned-source-own={own}-live={live}-map={map}"),
                     &text,
-                    false,
+                    true,
                 );
             }
         }

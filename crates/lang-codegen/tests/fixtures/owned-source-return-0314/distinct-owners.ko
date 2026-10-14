@@ -1,0 +1,42 @@
+fun parameterOwner(own initial: MutableMap<Int, String>, own keys: Array<Int>, skip: Int): Unit {
+    var input = initial
+    for (key in keys) {
+        input.put(key, "head".clone())
+        if (key == skip) { println("return"); return }
+        input.put(9, "tail".clone())
+    }
+    if (input.contains(1)) { println("parameter present") } else { println("parameter empty") }
+    if (input.contains(9)) { println("parameter tail") } else { println("parameter no tail") }
+    val removed = input.remove(9)
+    if (removed != null) { println("parameter removed") } else { println("parameter missing") }
+}
+
+fun separateOwners(own keys: Array<Int>, skip: Int): Unit {
+    var first = mutableMapOf<Int, String>()
+    var second = mutableMapOf<Int, String>()
+    second.put(9, "initial".clone())
+    for (key in keys) {
+        first.put(key, "head".clone())
+        val removed = second.remove(9)
+        if (removed != null) { println("second removed") } else { println("second missing") }
+        if (key == skip) { println("return"); return }
+        first.put(8, "first tail".clone())
+        second.put(9, "second tail".clone())
+    }
+    if (first.contains(3)) { println("first last") } else { println("first no last") }
+    if (first.contains(8)) { println("first tail") } else { println("first no tail") }
+    if (second.contains(9)) { println("second tail") } else { println("second no tail") }
+    first.put(7, "after".clone())
+    if (first.contains(7)) { println("first after") } else { println("first lost") }
+    val after = second.remove(9)
+    if (after != null) { println("second after removed") } else { println("second after missing") }
+}
+
+fun main(): Unit {
+    parameterOwner(mutableMapOf<Int, String>(), arrayOf<Int>(), 2)
+    parameterOwner(mutableMapOf<Int, String>(), arrayOf(1), 1)
+    parameterOwner(mutableMapOf<Int, String>(), arrayOf(1, 2, 3), 2)
+    separateOwners(arrayOf<Int>(), 2)
+    separateOwners(arrayOf(1), 1)
+    separateOwners(arrayOf(1, 2, 3), 3)
+}

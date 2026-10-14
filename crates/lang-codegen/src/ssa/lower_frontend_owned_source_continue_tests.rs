@@ -394,6 +394,13 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
             &analysis.typed,
             &analysis.owned,
         );
+        if label == "return" {
+            crate::llvm::render_verified_program(
+                &result.expect("SPEC-0314 independent return proof"),
+            )
+            .unwrap();
+            continue;
+        }
         let error = result
             .err()
             .unwrap_or_else(|| panic!("{label} remains outside the source proof"));

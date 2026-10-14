@@ -1,0 +1,35 @@
+class Guard(val name: String) { deinit() { println(this.name) } }
+
+fun operand(item: String): Int { println(item); println("operand"); return 7 }
+fun cleanup(stop: Boolean): Int {
+    var cache = mutableMapOf<Int, String>()
+    val keys = arrayOf("first".clone(), "second".clone())
+    for (item in keys) {
+        val first = Guard("earlier")
+        val second = Guard("later")
+        cache.put(1, "head".clone())
+        if (stop) { return operand(item) }
+        cache.put(9, "tail".clone())
+        println("fallthrough")
+    }
+    if (cache.contains(9)) { println("tail kept") }
+    println("exhausted")
+    return 0
+}
+fun copyElement(stop: Int): Int {
+    var cache = mutableMapOf<Int, String>()
+    val keys = arrayOf(1, 2, 3)
+    for (item in keys) {
+        cache.put(item, "head".clone())
+        if (item == stop) { return item }
+        cache.put(9, "tail".clone())
+    }
+    cache.contains(9)
+    return 0
+}
+fun main(): Unit {
+    if (cleanup(true) == 7) { println("returned") }
+    if (cleanup(false) == 0) { println("completed") }
+    if (copyElement(3) == 3) { println("copy returned") }
+    if (copyElement(9) == 0) { println("copy exhausted") }
+}
