@@ -57,6 +57,8 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 它们不是上述代表拒例的全域推论。需要 Guide 变化的候选须另形成版本并取得明确启用确认。
 List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 file IO 留后续 v1 独立里程碑，
 尚未据此建立新 Spec；已有顺序迭代及 take/drop/dropLast 不重新列待做，原有 draft/candidate 状态不变。
+后继优先处理[结构化诊断与阶段准入](../development/diagnostics.md)，再建立 single/project、basic/constant
+同源码差异矩阵（[现存入口差异](../architecture/lowering-support.md#现存入口差异)）；尚未编号，本轮仅登记，未实施修复。
 
 ### 近期交付
 

@@ -16,8 +16,10 @@ The current specification is [Guide v0.43](docs/guide/README.md); start with the
 
 ## ⚡ Highlights
 
+These highlights cover [Guide-defined language features](docs/guide/README.md) alongside implemented capabilities, not a complete native support checklist. Native support depends on the compilation entry, types, and control-flow combinations. See the [tutorial](docs/tutorials/README.md) and [architecture](docs/architecture/README.md) for the delivered subsets.
+
 - **Kotlin-Inspired Syntax & Expressiveness**
-  Clean, readable, expression-oriented syntax with powerful type inference, first-class functions, lambdas, and pattern matching.
+  The Guide defines expression-oriented syntax, local type inference, first-class functions, lambdas, and `when` pattern matching. Native callable and matching support is limited to documented forms.
 - **Deterministic Ownership Management (No Tracing GC)**
   Memory follows move semantics, single-owner tracking, and call-site loans. Zero overhead and performance equivalence are not accepted claims.
 - **Fearless Borrowing Without Lifetime Annotations**
@@ -27,11 +29,11 @@ The current specification is [Guide v0.43](docs/guide/README.md); start with the
 - **Structurally Derived Capabilities**
   The compiler automatically derives type capabilities like `Copyable` (bitwise or structural duplication) and `Transferable` (a structural ownership-transfer capability, not evidence that thread APIs are delivered).
 - **First-Class Null Safety & Flow Typing**
-  Non-nullable by default. Explicit nullable types (`T?`), safe navigation (`?.`), Elvis operator (`?:`), and control-flow-aware smart casts.
+  The Guide defines non-nullable defaults, explicit nullable types (`T?`), safe calls (`?.`), Elvis (`?:`), and control-flow-aware smart casts. Native support covers only bounded combinations.
 - **Algebraic Data Types & Expressive Class Family**
   `value class` for flat value layouts; `class` for heap-allocated exclusive reference types; and `enum class` for typed algebraic data types (ADTs) with variant payloads.
 - **Explicit Error Handling**
-  No hidden exception unwinding or `try`/`catch` overhead. Recoverable errors are represented as `Result<T, E>` with ergonomic `?` propagation, while unrecoverable invariant violations trigger an immediate `error(...)` abort.
+  No hidden exception unwinding or `try`/`catch` overhead. The Guide defines `Result<T, E>` and postfix `?` propagation for recoverable errors. The ordinary single-file and project CLI do not yet automatically load the prelude declarations for `Pair`/`Result`; the Guide’s propagation rules do not establish complete `Result` propagation support in those public entries. Unrecoverable invariant violations trigger an immediate `error(...)` abort.
 - **Native LLVM Compilation**
   Emits verified LLVM IR and native executables for AArch64 macOS (Mach-O) and x86_64 Linux with glibc (ELF64).
 - **First-Class Developer Tooling**
