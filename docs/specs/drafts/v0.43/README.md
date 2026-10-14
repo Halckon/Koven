@@ -50,7 +50,7 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 - [0320 Enum case Borrow实参分类](../../active/0320-enum-case-borrow-categories.md)合同已审并迁active，已正常合入0319实际main；有界修复与本地46唯一普通目标及工程门禁已通过，双宿主CI/归档待完成，不扩when能力。
 
-- [0321 single MutableList.add元素交付记账](0321-mutable-list-element-delivery.md)：独立草案，依赖尚未合main的0320；仅静态根因与普通源码测试候选，设计独审、tests-only及逐名运行授权尚待。
+- [0321 single MutableList.add元素交付记账](../../active/0321-mutable-list-element-delivery.md)：设计独审通过并迁active，依赖尚未合main的0320；tests-only准备已批准，helper独审、实际main同步及逐名运行授权尚待。
 
 ## 未编号的现行支持候选
 

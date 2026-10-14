@@ -1,19 +1,19 @@
 # SPEC-0321: single MutableList.add 元素所有权交付记账
 
-> **性质**：有界修复草案 · **状态**：draft · **读取时机**：审查 add 元素交付与后继 CFG owner 运输时 · **唯一真源**：本合同；语言规则仍以现行 Guide 为准
+> **性质**：有界修复合同 · **状态**：in-progress · **读取时机**：审查 add 元素交付与后继 CFG owner 运输时 · **唯一真源**：本合同；语言规则仍以现行 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P4-0321` |
 | 所属 Phase | Phase 4 消费既有 Phase 3 Value delivery；Phase 6 两入口对照 |
-| 语言规范 | [集合元素交付](../../../guide/12-collections-destructuring.md)、[String owner](../../../guide/13-program-runtime-standard-library.md#string)、[所有权](../../../guide/10-ownership-borrowing-drop.md) |
-| 批准依据 | 原A→B→C顺序中的C“List MoveOnly追踪”；2026-10-14批准独立静态调查、预留0321及草案/测试候选；未批准生产实现或测试执行 |
-| 前置 Spec | [SPEC-0320 Enum case Borrow分类](../../active/0320-enum-case-borrow-categories.md)，当前未合main；本片不得混入其PR102 |
+| 语言规范 | [集合元素交付](../../guide/12-collections-destructuring.md)、[String owner](../../guide/13-program-runtime-standard-library.md#string)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
+| 批准依据 | 原A→B→C顺序中的C“List MoveOnly追踪”；2026-10-14草案独审通过，批准迁active及tests-only准备；未批准生产实现或测试执行 |
+| 前置 Spec | [SPEC-0320 Enum case Borrow分类](0320-enum-case-borrow-categories.md)，当前未合main；本片不得混入其PR102 |
 | 分支基线 | `fix/spec-0321`依赖0320本地最终`da03e0f84f6f3fdd2d4a3572117a511dfa8ce608` / tree`f0abc5e03035f9911a26fa44a026bfc281c25f92`；远端0320`7a305bd7bcead62921827ca8a24eba5fed8504ef`同tree，尚未主干交付 |
 | 官方编号核验 | 2026-10-14官方main`a0f5f8ac`全树最大0319；上述0320完整树最大0320；93分支及2个开放PR未见更新编号，保留0321；实施前重核并正常同步实际main |
 | 语言语义变更 | 否；add已取得Value元素，Copyable复制、MoveOnly转移；不能放宽verifier或新增循环能力 |
-| 阻塞项 | 设计独审、0320交付/实际main同步、tests-only与helper独审、逐名运行授权及真实红测均待；本片仅静态草案 |
+| 阻塞项 | 设计独审已通过；0320交付/实际main同步、tests-only与helper独审、逐名运行授权及真实红测待完成 |
 
 ## 1. 单一 Goal
 
@@ -42,11 +42,11 @@ fun main(): Unit {
 
 ## 3. 静态根因候选
 
-- [single lower](../../../../crates/lang-codegen/src/ssa/lower_frontend.rs)按Temporary+MoveOnly登记`temporaries`；Group可为相同ValueId保留多个表达式key。
-- [single append](../../../../crates/lang-codegen/src/ssa/lower_frontend/container/access.rs)仅取receiver/element、发`ContainerAppend`、更新list binding及消费drop；没有移除已交付element的binding/temporary。
-- [verifier](../../../../crates/lang-codegen/src/ssa/verify_ownership.rs)的`ContainerAppend`消费元素；[carried slots](../../../../crates/lang-codegen/src/ssa/lower_frontend/control/carried.rs)却遍历所有MoveOnly binding及temporary，[for入口](../../../../crates/lang-codegen/src/ssa/lower_frontend/loop_control/iteration.rs)据此构造header实参。
+- [single lower](../../../crates/lang-codegen/src/ssa/lower_frontend.rs)按Temporary+MoveOnly登记`temporaries`；Group可为相同ValueId保留多个表达式key。
+- [single append](../../../crates/lang-codegen/src/ssa/lower_frontend/container/access.rs)仅取receiver/element、发`ContainerAppend`、更新list binding及消费drop；没有移除已交付element的binding/temporary。
+- [verifier](../../../crates/lang-codegen/src/ssa/verify_ownership.rs)的`ContainerAppend`消费元素；[carried slots](../../../crates/lang-codegen/src/ssa/lower_frontend/control/carried.rs)却遍历所有MoveOnly binding及temporary，[for入口](../../../crates/lang-codegen/src/ssa/lower_frontend/loop_control/iteration.rs)据此构造header实参。
 - 因而已消费元素仍可能跨for边运输；这是源码支持的强根因候选，不能代替真实baseline。
-- [unit append](../../../../crates/lang-codegen/src/ssa/unit_lower/container.rs)已有`consume_container_delivery`：核唯一call/argument、category/copyability及真实root/Temporary source，再移除owner记录；本片以此事实合同对齐single，不能照抄source-qualified ID或删除整个temporary表。
+- [unit append](../../../crates/lang-codegen/src/ssa/unit_lower/container.rs)已有`consume_container_delivery`：核唯一call/argument、category/copyability及真实root/Temporary source，再移除owner记录；本片以此事实合同对齐single，不能照抄source-qualified ID或删除整个temporary表。
 - single的`forget_delivered_owners`已有按真实ValueId移除binding及temporary别名的窄机制；是否直接复用须在核对P3事实后决定。不得遗漏named root或只删除Group外层key。
 
 ## 4. 支持、待核与非目标
@@ -89,7 +89,7 @@ SSA只消费正常源码产物与标准verifier，可断言真实owner/delivery/
 ## 6. 验收与停止条件
 
 - [x] 官方库存/编号、原p38字节与历史矩阵、single/unit静态链核对。
-- [ ] 草案独审、冻结有界支持矩阵，确认正式实施授权。
+- [x] 草案独审通过，批准迁active及tests-only；生产实现与测试运行仍未授权。
 - [ ] 正常同步0320实际main；tests-only及helper独审、逐名运行授权。
 - [ ] 当前输入真实expected-positive红与已有绿/拒绝边界分采。
 - [ ] 只对精确已交付owner作最小修复，普通源码回归及工程门禁。

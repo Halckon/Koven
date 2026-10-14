@@ -11,10 +11,10 @@ flowchart TD
 ARCH(("已完成<br/>archive 303 份"))
 subgraph Gactive["现行 active"]
   S0320["S0320<br/>Enum case 构造值的 Borrow 实参分类"]
+  S0321["S0321<br/>single MutableList.add 元素所有权交付记账"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
-  S0321["S0321<br/>single MutableList.add 元素所有权交付记账"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
@@ -30,7 +30,7 @@ ARCH --> S0320
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0320 | active | [0320-enum-case-borrow-categories.md](active/0320-enum-case-borrow-categories.md) |
+| SPEC-0321 | active | [0321-mutable-list-element-delivery.md](active/0321-mutable-list-element-delivery.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| SPEC-0321 | drafts/v0.43 | [0321-mutable-list-element-delivery.md](drafts/v0.43/0321-mutable-list-element-delivery.md) |
 | 已完成 Spec（303 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

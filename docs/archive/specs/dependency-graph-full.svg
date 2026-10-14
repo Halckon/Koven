@@ -7,10 +7,10 @@
   <rect width="8808" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="7672" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，303 份）</text>
-  <rect x="7776" y="6570" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="7776" y="6570" width="280" height="298" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="7916" y="6590" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
-  <rect x="8120" y="6726" width="280" height="1372" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="8260" y="6746" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
+  <rect x="8120" y="7974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="8260" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="8464" y="7974" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="8604" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1052,7 +1052,7 @@
   <path d="M 180 9294 C 180 9326, 180 9326, 180 9358" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 8238 C 708 8270, 1236 8288, 1236 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1620 6476 C 4708 6476, 4708 6641, 7796 6641" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 8036 6641 C 8088 6641, 8088 6806, 8140 6806" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 7916 6678 C 7916 6710, 7916 6728, 7916 6760" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2338,9 +2338,9 @@
   <text x="7916" y="6627" text-anchor="middle" font-size="13" font-weight="600">SPEC-0320</text>
   <text x="7916" y="6645" text-anchor="middle" font-size="13">Enum case 构造值的</text>
   <text x="7916" y="6663" text-anchor="middle" font-size="13"> Borrow 实参分类</text>
-  <rect x="8140" y="6760" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="8260" y="6783" text-anchor="middle" font-size="13" font-weight="600">SPEC-0321</text>
-  <text x="8260" y="6801" text-anchor="middle" font-size="13">single Mutable</text>
-  <text x="8260" y="6819" text-anchor="middle" font-size="13">List.add 元素所有权</text>
-  <text x="8260" y="6837" text-anchor="middle" font-size="13">交付记账</text>
+  <rect x="7796" y="6760" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="7916" y="6783" text-anchor="middle" font-size="13" font-weight="600">SPEC-0321</text>
+  <text x="7916" y="6801" text-anchor="middle" font-size="13">single Mutable</text>
+  <text x="7916" y="6819" text-anchor="middle" font-size="13">List.add 元素所有权</text>
+  <text x="7916" y="6837" text-anchor="middle" font-size="13">交付记账</text>
 </svg>
