@@ -141,7 +141,17 @@ fun main():Unit{{{CALLS}}}
     let span = lowered.expected_span;
     let (program, entry) = lowered.require_success(&label);
     assert_comparison(&program, span, operator);
-    assertions::comparison_lifetime(&program, span, position);
+    // With no later descriptor use, the published last-use facts end the
+    // descriptor and its source before this comparison, even inside the block.
+    assertions::comparison_lifetime(
+        &program,
+        span,
+        if after_last_read {
+            Position::AfterEnds
+        } else {
+            position
+        },
+    );
     if after_last_read {
         let function = program.modules[0]
             .functions
@@ -383,7 +393,7 @@ comparisons!(
     GreaterThanOrEqual
 );
 
-// The final metadata read loan ends, but the explicit descriptor remains scoped.
+// Last-use facts end metadata and source before the comparison inside the block.
 #[test]
 fn range_comparisons_ne_last_read_single() {
     comparison_with_use(

@@ -161,10 +161,6 @@ fn range_local_control_keeps_ordinary_and_metadata_alias_whole_function_gates() 
 #[test]
 fn range_local_control_keeps_unselected_binary_gates() {
     for (label, statement, fragment) in [
-        ("not-equal", "check(n!=2)", "n!=2"),
-        ("less-equal", "check(n<=3)", "n<=3"),
-        ("greater", "check(n>3)", "n>3"),
-        ("greater-equal", "check(n>=3)", "n>=3"),
         ("and", "check(flag && flag)", "flag && flag"),
         ("or", "check(flag || flag)", "flag || flag"),
         ("string-concat", "println(\"a\"+\"b\")", "\"a\"+\"b\""),

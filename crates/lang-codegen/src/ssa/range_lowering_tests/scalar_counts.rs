@@ -166,10 +166,6 @@ fn range_scalar_counts_keep_non_int_binary_and_wider_cfg_gates() {
     for (statement, fragment) in [
         ("val other=1L+2L", "1L+2L"),
         ("val other=\"a\"+\"b\"", "\"a\"+\"b\""),
-        ("val other=n!=1", "n!=1"),
-        ("val other=n<=1", "n<=1"),
-        ("val other=n>1", "n>1"),
-        ("val other=n>=1", "n>=1"),
         ("val other=true==false", "true==false"),
         ("val other=1L==2L", "1L==2L"),
         ("val other=n shl 1", "n shl 1"),
@@ -284,5 +280,31 @@ fun main():Unit{scan(2)}
         assert_eq!(run.status.code(), Some(0), "{run:?}");
         assert_eq!(run.stdout, b"source\ncount\ncount\nread\na\nb\na\nsource\ncount\ncount\nread\na\nb\na\ncount\nread\nroot\ndone\nroot\n");
         assert!(run.stderr.is_empty(), "{run:?}");
+    }
+}
+
+// The four former UnsupportedNode fixtures now bind a genuine Boolean result.
+#[test]
+fn range_scalar_counts_selected_int_comparisons_bind_boolean_locals() {
+    for (expression, expected) in [
+        ("n!=1", "true\na\nfalse\na\ntrue\na\n"),
+        ("n<=1", "true\na\ntrue\na\nfalse\na\n"),
+        ("n>1", "false\na\nfalse\na\ntrue\na\n"),
+        ("n>=1", "false\na\ntrue\na\ntrue\na\n"),
+    ] {
+        let consumer = format!(
+            r#"
+fun check(value:Boolean):Unit{{if(value){{println("true")}}else{{println("false")}}}}
+fun read(view:View<String>):Unit{{for(item in view){{println(item)}}}}
+fun scan(n:Int):Unit{{val root=listOf("a");borrow val part=take(root,1);val other={expression};check(other);read(part)}}
+fun main():Unit{{scan(0);scan(1);scan(2)}}
+"#
+        );
+        for (index, (program, entry)) in programs(&consumer).into_iter().enumerate() {
+            let run = run_unmodified(&program, entry, &format!("selected-{expression}-{index}"));
+            assert_eq!(run.status.code(), Some(0), "{run:?}");
+            assert_eq!(run.stdout, expected.as_bytes(), "{run:?}");
+            assert!(run.stderr.is_empty(), "{run:?}");
+        }
     }
 }
