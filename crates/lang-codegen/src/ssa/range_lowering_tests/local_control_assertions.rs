@@ -733,13 +733,32 @@ pub(super) fn short_circuit_receiver_transport(program: &Program, span: Span, an
         "skip creates no RHS receiver loan or call"
     );
     // Trace the RHS owner back across the conditional edge rather than matching types.
-    let right_parameter = function.blocks[rhs.target.index()]
+    let right = if let Some(parameter) = function.blocks[rhs.target.index()]
         .parameters
         .iter()
         .position(|entity| *entity == EntityId::Value(owners[1]))
-        .unwrap();
-    let EntityId::Value(right) = rhs.arguments[right_parameter] else {
-        panic!("owned receiver carrier");
+    {
+        let EntityId::Value(value) = rhs.arguments[parameter] else {
+            panic!("owned receiver carrier");
+        };
+        value
+    } else {
+        assert_eq!(
+            module.type_ownership(
+                function
+                    .entity(EntityId::Value(owners[1]))
+                    .unwrap()
+                    .ty
+                    .semantic_type()
+            ),
+            Some(Ownership::Copyable)
+        );
+        assert_eq!(
+            defining_instruction(function, EntityId::Value(owners[1])).block,
+            branch.id,
+            "only a dominating Copyable owner can bypass rebinding"
+        );
+        owners[1]
     };
     assert_ne!(
         owners[0], right,
@@ -765,7 +784,11 @@ pub(super) fn short_circuit_receiver_transport(program: &Program, span: Span, an
                 let transfers=node.instructions.iter().enumerate().filter_map(|(index,id)| {
                     let Operation::DirectCall {receiver:None,arguments,..}=&function.instruction(*id).unwrap().operation else {return None;};
                     let [EntityId::Value(actual)]=arguments.as_slice() else {return None;};
-                    let delivered=*actual==owner || matches!(defining_instruction(function,EntityId::Value(*actual)).operation,Operation::Copy {source} if source==owner);
+                    let copied=match function.entity(EntityId::Value(*actual)).unwrap().definition {
+                        Definition::InstructionResult {instruction,..}=>matches!(function.instruction(instruction).unwrap().operation,Operation::Copy {source} if source==owner),
+                        _=>false,
+                    };
+                    let delivered=*actual==owner || copied;
                     delivered.then_some(index)
                 }).collect::<Vec<_>>();
                 assert_eq!(
@@ -789,11 +812,26 @@ pub(super) fn short_circuit_receiver_transport(program: &Program, span: Span, an
         };
         for edge in edges {
             let rebound = owners.map(|owner| {
-                let EntityId::Value(value) = carried_entity(function, edge, EntityId::Value(owner))
-                else {
-                    panic!("owner carrier");
-                };
-                value
+                if edge.arguments.contains(&EntityId::Value(owner)) {
+                    let EntityId::Value(value) =
+                        carried_entity(function, edge, EntityId::Value(owner))
+                    else {
+                        panic!("owner carrier");
+                    };
+                    value
+                } else {
+                    assert_eq!(
+                        module.type_ownership(
+                            function
+                                .entity(EntityId::Value(owner))
+                                .unwrap()
+                                .ty
+                                .semantic_type()
+                        ),
+                        Some(Ownership::Copyable)
+                    );
+                    owner
+                }
             });
             pending.push((edge.target, rebound));
         }
