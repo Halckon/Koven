@@ -20,8 +20,8 @@ reservation 与既有 place overlap、borrow temporary 和 owner liveness 共用
 unit 分支合流保留任一可达入边仍有效的 loan，不能丢掉条件闭包的 shared capture。
 直接作为外层 Borrow 实参的 capture 继续阻止激活；嵌套同步调用已返回时，只释放该次
 结果中的匿名 If/When/Lambda temporary capture，不提前释放具名闭包 owner 的借用。
-字段/index 的所有权正反例不等于对应 native 投影路径已实现；single instance receiver
-native 仍是既有明确边界。
+字段/index 的所有权正反例不等于对应 native 投影路径已实现；single Inout receiver
+native 仍是既有明确边界，普通 Borrow 的有限接入见下文。
 
 ## Receiver reservation 的直接消费
 
@@ -35,6 +35,26 @@ pending receiver place 与必要的 Copyable writeback binding 共同跨参数�
 arithmetic success edge 运输；地址和旧值身份继续严格校验。return/break/continue 放弃
 预留时没有尚未建立的 BorrowEnd；已完成参数的 loan/temporary 仍按 pending-call facts
 清理，abort 不展开。class/value class 的源码顺序、单次求值及控制边由
-`receiver_two_phase` 定向 SSA/native 回归验证。single instance receiver native、unit
+`receiver_two_phase` 定向 SSA/native 回归验证。single Inout receiver native、unit
 非根字段/index receiver native 的既有不支持范围没有因此解除。
 
+## Single 普通 Borrow value-class 方法
+
+[SPEC-0316](../specs/active/0316-single-readonly-value-methods.md) 接通非泛型 value class 的
+默认/显式 Borrow 方法，owned 返回 Int/Boolean。方法模板来自已验证 callable SymbolId；
+只有既有顶层 roots 的真实已选 call 可达时才建实例，同名不同 owner 与顶层函数不串路。
+隐藏 receiver 是首个 shared entry loan，独立于显式参数；裸字段与 `this.field` 消费真实
+projection.field，只对直接 Int/Boolean 字段创建 child loan、Read 后结束，不复制整个 receiver。
+
+named owner、普通 Borrow 参数、Copyable/MoveOnly temporary 和同一 receiver 的隐式调用
+已由普通源码验证。receiver 先于显式参数且只求值一次，named 参数仍按源码求值、按声明槽
+交付。新建 caller loan 经 pending 槽读取重绑定身份并在返回后结束，借入 entry loan 不结束；
+MoveOnly temporary 的同一 owner 在 receiver loan 结束后唯一 drop。基础/常量同源、两入口
+及真实 CLI build/run 有本地证据；不把本机成功替代双宿主 CI。
+
+single 的泛型、Value/Inout、普通 class、borrow-result receiver、field/nested receiver 和
+String 字段读取/clone 不由本片放行。non-null receiver（含多层 Group）按 typed fact 拒绝；
+复用 receiver loan 必须实际定义于函数 entry，for 元素等派生 view 仍明确拒绝。Class deinit、
+unit 既有能力不回退。0299 组合只证明
+删除结果借给普通 Borrow 参数后，该参数内部调用本片方法，不证明任意 nullable receiver
+或参数退出 CFG。现有一般 CFG/条件借用边界保持。

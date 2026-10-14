@@ -31,10 +31,10 @@ unit 既有成功不回退。MoveOnly 字段不复制，本片仅读取可复制
 | 验收项 | 目标/过滤器 | 实际结果 |
 |---|---|---|
 | 独立无Map红测/同源unit正控 | codegen lib `ssa::single_readonly_method_tests::`；Int/Bool × literal/constant × single/unit | 实际8项：single4项精确call Span UnsupportedNode红测；unit basic/constant4项原版LLVM/native正控通过，0 ignored，生产零改 |
-| source receiver/entry及字段Loan identity、结束顺序 | 同模块普通Program只读断言 | 待实施 |
-| named/Borrow参数/temporary、参数顺序和owner复用 | 普通源码源矩阵 | 待实施 |
-| 原诊断与unit边界、0299后继组合 | 按实际gate反查codegen/frontend/CLI目标 | 待选择 |
-| 静态门禁 | fmt、codegen strict clippy、docs/diff、尺寸base16b4464f | 待运行 |
+| source receiver/entry及字段Loan identity、结束顺序 | 同模块普通Program只读断言 | 52项定向全部通过：receiver-first/独立显式槽、field Symbol/slot、child loan、MoveOnly temporary同root结束后唯一drop |
+| named/Borrow参数/temporary、参数顺序和owner复用 | 普通源码源矩阵 | single/unit、literal/真正替换常量、implicit this、同名不同owner/顶层、逆序named实参、未调用非目标method通过；52项中含同源0299组合 |
+| 原诊断与unit边界、0299后继组合 | planner、deinit、0309字段、0299及unit Borrow | 最终窄门后共享70项通过；frontend ownership/receiver/call映射22项通过；CLI native3+project1项通过（新single2项覆盖7个真实build/run变体） |
+| 静态门禁 | fmt、codegen+CLI strict clippy、docs/diff、尺寸base16b4464f | strict clippy两crate all-targets、fmt、docs669页、diff与尺寸通过；1099个Rust文件，旧欠账38个，不提高任何cap |
 | 双宿主CI与交付 | Draft PR、归档、具体合并授权及actual-main核对 | 未运行 |
 
 single literal/constant使用既有同一constant-aware分析入口；unit basic与validated constant
@@ -43,3 +43,27 @@ unit分别验证，不把一个入口成功冒充另一个。native仅静审的�
 本机Linux结果不替代macOS CI，失败/未运行/零命中不记通过。
 
 首次三轮保留：single每轮4项均为预期exact红测；unit正控先因空package lookup、第二轮文本替换未命中、第三轮package/logical path不匹配失败。修正测试helper为显式package app与app/readonly-method.ko后，第四轮4红/4绿；非生产修复，不把先前oracle失败改称产品红测。四轮源码前后hash均核对一致。
+
+## 3. 实现与冻结证据
+
+方法收集从 typed callable 的 SymbolId 找回对应 AST，只有真实可达 Source call 入实例队列；
+顶层/closure既有roots保持。方法显示名加入 callable身份仅防LLVM名字碰撞，不以名字重选路由。
+普通receiver独立进入entry和DirectCall，借入entry loan不结束，新建loan使用既有pending运输/清理。
+复用receiver只接受实际SSA entry BlockParameter；non-null事实、迭代借用、field receiver、
+borrow-result alias不在本片。ValueClass this字段限typed Int/Boolean；Class deinit原有路径保持。
+
+- local `40503e84` tests-only保留首8项exact红绿；`6566a0b0`只搬声明收集；
+  `55898f9d`扩展真实源码矩阵；`a4c09265`接线；`a0ddf45f`锁Loan/边界；
+  `464da0a8`收紧receiver来源；`1a60c864`补field identity、temporary drop和CLI。
+- nullable直接/多层Group以及for元素3个真实source在初版接线后意外lower成功，保留失败红测；
+  窄门后同源码精确call Span `UnsupportedNode`，actual main16b同3例也为同诊断。
+  此证据说明范围越界已收紧，不声称复现内存错误或验证一般CFG。
+- original main16b另4个边界测试（12个source）及新CLI2项实际运行：边界通过、CLI按预期
+  exit2 UnsupportedSource/UnsupportedNode失败。String字段两例旧版在外层call拒绝，
+  新版在实际this.text投影拒绝；不把不同Span写成完全相同诊断。
+- order/MoveOnly常量对照最初仅附加未使用常量，已改为真实替换receiver构造输入并断言替换命中；
+  首8项的Int/Boolean常量红绿本来即为真实常量输入，不受此测试补强影响。
+- 最终生产输入：52项本片 + 70项共享 = 122项codegen，全部0 ignored；frontend22项与CLI4项
+  另列，均不是全crate验收。仓外每轮日志与source SHA256前后核对，失败日志保留。
+
+macOS/完整CI、故障注入/校准、sanitizer及聚合门禁未在cloud执行；本地验证不冒充这些结果。

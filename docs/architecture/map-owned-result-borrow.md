@@ -29,3 +29,8 @@ stdout 只证明字段/析构事件，完整泄漏或内存安全不由本片声
 
 非Map class字段回归保留两借用后`!!`；删去后续消费的另一个一般nullable候选仍在lowering
 返回`InvalidSsa`，未在本片定位/修复。已通过的class/Box/Rc回归不代表一般nullable最后使用已闭合。
+
+0316 的同源普通方法对照进一步证明：非空删除结果借给 `observe(value: Text)` 后，single
+与 unit 的该 Borrow 参数均可调用读取 Int 字段的只读 value-class 方法；两次只读调用后
+仍能 `!!` 取得整个 owner。它使用0299的原unit方法源码，不再以single占位输出替代实际读取；
+[receiver边界](receiver-borrows.md#single-普通-borrow-value-class-方法)仍不包含一般借用返回receiver。
