@@ -314,6 +314,7 @@ subgraph Garchive["已完成（archive，302 份）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
+  S0319["S0319<br/>最终类型消费准入与源级诊断"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
@@ -1274,7 +1275,9 @@ S0251 --> S0252
 S0251 --> S0253
 S0252 --> S0253
 S0252 --> S0254
+S0252 --> S0319
 S0253 --> S0254
+S0253 --> S0319
 S0254 --> S0255
 S0262 --> S0271
 S0263 --> S0264
@@ -1664,3 +1667,4 @@ S0315 --> S0317
 | SPEC-0318 | archive | [0318-map-return-operand-last-use.md](0318-map-return-operand-last-use.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
+| SPEC-0319 | drafts/v0.43 | [0319-final-type-admission-diagnostics.md](../../specs/drafts/v0.43/0319-final-type-admission-diagnostics.md) |

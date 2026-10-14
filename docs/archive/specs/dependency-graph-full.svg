@@ -7,8 +7,8 @@
   <rect width="8464" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="7672" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，302 份）</text>
-  <rect x="7776" y="7974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="7916" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
+  <rect x="7776" y="6414" width="280" height="1684" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="7916" y="6434" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="8120" y="7974" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="8260" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -967,7 +967,9 @@
   <path d="M 444 6054 C 444 6086, 444 6260, 444 6292" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6192 C 972 6224, 444 6260, 444 6292" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6192 C 972 6224, 972 6416, 972 6448" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1092 6164 C 4444 6164, 4444 6476, 7796 6476" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 6348 C 444 6380, 972 6416, 972 6448" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 564 6320 C 4180 6320, 4180 6476, 7796 6476" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6522 C 972 6554, 1764 6572, 1764 6604" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 708 5948, 708 5980" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 444 482, 444 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2325,4 +2327,7 @@
   <text x="180" y="9399" text-anchor="middle" font-size="13">Map 条件 return </text>
   <text x="180" y="9417" text-anchor="middle" font-size="13">operand 的最后使用清</text>
   <text x="180" y="9435" text-anchor="middle" font-size="13">理</text>
+  <rect x="7796" y="6448" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="7916" y="6471" text-anchor="middle" font-size="13" font-weight="600">SPEC-0319</text>
+  <text x="7916" y="6489" text-anchor="middle" font-size="13">最终类型消费准入与源级诊断</text>
 </svg>
