@@ -182,6 +182,7 @@ target名不是`--exact`过滤器的一部分。首个可编译行为红测使�
 | 最终工程门禁 | 同984b：fmt check、workspace check --all-targets、frontend+CLI clippy --all-targets -D warnings、CLI build全部exit0；check/clippy/build均--locked、独占绝对target，工程check不计测试执行 |
 | 最终输入冻结 | 上述两批1424源码/配置前后NUL摘要均`ef4f01f4b79a756530f28033e7371ea06e920614dfa224d6a788aaeebec5095a`；81名单/逐项argv/原日志及四门结果保留仓外。后继`85b55e91`仅CI接线，13个新frontend测试全部已在81中，无生产或fixture变化 |
 | CI接线静态检查 | stage显式加入`final_type_admission`，只读Python精确选择断言1/1通过；双宿主实际执行尚待。脚本进入代码fingerprint，不按docs-only复用；云未运行stage/aggregate或故障/插桩 |
+| 首轮远端CI阻塞 | [PR101 CI38587442021](https://github.com/Halckon/Koven/actions/runs/38587442021) 的Docs Structural因组合选择断言仍期待103、实际104而失败；双宿主Targeted Tests skipped，不计远端验收。`53953df8`按静态完整名单证据修为104并锁新增`final_type_admission`恰1次，原103项和10次Cargo调用保持；真实组合回归只交远端CI，云仅复跑已审只读接线exact 1/1 |
 | 待完成 | 本片远端CI、独立验收、归档与主干交付；B/C继续独立。历史行为红、fixture前置失败和格式失败均保留，不改golden取绿 |
 | 草案阶段 docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；当时active0/archive302、draft新增0319 |
 | active迁移 | 0319迁入active，archive302不变；draft库存移除0319，四份DAG随生命周期重建 |
