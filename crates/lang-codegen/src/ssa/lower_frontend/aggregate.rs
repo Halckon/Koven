@@ -32,7 +32,7 @@ impl ExpressionLowerer<'_> {
                 span: None,
             })?
             .span();
-        if let Some((loan, created)) = self.deinit_view(expression)? {
+        if let Some((loan, created)) = self.readonly_view(expression)? {
             if self.typed.copyability(projection.ty())
                 != Some(lang_frontend::type_checking::Copyability::Copyable)
             {

@@ -78,5 +78,36 @@ pub(super) fn collect_functions(
             span,
         });
     }
+    // Member templates are indexed by their selected callable identity, but are not roots.
+    // Only a real source call will enqueue one in the instance planner.
+    for callable in typed.callables() {
+        if super::readonly_receiver::admitted(typed, callable).is_none() {
+            continue;
+        }
+        let symbol = names
+            .symbols()
+            .get(callable.symbol().index())
+            .ok_or(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let (item_id, node) = parsed
+            .ast()
+            .items()
+            .iter()
+            .find(|(_, node)| {
+                matches!(node.payload(), Item::Function { name, .. }
+                if present_name(*name) == Some(symbol.span()))
+            })
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, symbol.span()))?;
+        functions.push(FunctionDeclaration {
+            item_id,
+            item: node.payload().clone(),
+            symbol: callable.symbol(),
+            callable: callable.clone(),
+            span: node.span(),
+        });
+    }
+    functions.sort_by_key(|declaration| declaration.span.start());
     Ok(functions)
 }

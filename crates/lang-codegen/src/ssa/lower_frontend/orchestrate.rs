@@ -519,6 +519,20 @@ fn lower_scalar_file_product(
             parameter_symbols.insert(0, symbol);
             parameter_types.insert(0, receiver);
         }
+        let receiver = super::readonly_receiver::admitted(typed, callable);
+        let receiver_abi = receiver
+            .map(|(_, ty)| {
+                type_mapper
+                    .intern(module, names, typed, ty, span)
+                    .map(|target| EntityType::Loan {
+                        kind: crate::ssa::model::LoanKind::Shared,
+                        target,
+                    })
+            })
+            .transpose()?;
+        if let Some(receiver) = receiver_abi {
+            parameter_types.insert(0, receiver);
+        }
         let return_type =
             resolve_concrete_type(typed, callable.return_type(), &instance.substitutions, span)?;
         let return_types = if builtin_type(typed, return_type) == Some(BuiltinType::Unit) {
@@ -552,9 +566,14 @@ fn lower_scalar_file_product(
         if !source_key.callable_arguments().is_empty() {
             name.push_str(&format!(".c{ordinal}"));
         }
-        let id = module
-            .add_function(name, return_types, Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        let declared = if let Some(receiver) = receiver_abi {
+            // Names are presentation only; all routes retain the original symbol identity.
+            name.push_str(&format!(".receiver.s{}", callable.symbol().index()));
+            module.add_instance_function(name, receiver, return_types, Origin::Source(span))
+        } else {
+            module.add_function(name, return_types, Origin::Source(span))
+        };
+        let id = declared.map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         module
             .function_mut(id)
             .expect("new function must exist")
@@ -598,7 +617,7 @@ fn lower_scalar_file_product(
             parameter_symbols,
             return_type,
             substitutions: instance.substitutions.clone(),
-            receiver: None,
+            receiver,
             span,
             source: Some(instance.source),
         });
@@ -645,7 +664,7 @@ fn lower_scalar_file_product(
             .expect("entry block must exist")
             .parameters
             .clone();
-        let deinit_receiver = plan
+        let readonly_receiver = plan
             .receiver
             .map(|(owner, ty)| match parameters.first() {
                 Some(EntityId::Loan(loan)) => Ok((owner, ty, *loan)),
@@ -654,7 +673,11 @@ fn lower_scalar_file_product(
             .transpose()?;
         let mut bindings = BTreeMap::new();
         let mut borrow_bindings = BTreeMap::new();
-        for (symbol, entity) in plan.parameter_symbols.into_iter().zip(parameters) {
+        for (symbol, entity) in plan.parameter_symbols.into_iter().zip(
+            parameters
+                .into_iter()
+                .skip(usize::from(plan.receiver.is_some())),
+        ) {
             match entity {
                 EntityId::Value(value) => {
                     bindings.insert(symbol, LoweredValue::Value(value));
@@ -694,7 +717,7 @@ fn lower_scalar_file_product(
             pending_call_loans: BTreeMap::new(),
             temporaries: BTreeMap::new(),
             return_type: plan.return_type,
-            deinit_receiver,
+            readonly_receiver,
             loops: Vec::new(),
         };
         lowerer.emit_drops(DropPoint::FunctionEntry(plan.item_id))?;
@@ -766,7 +789,7 @@ fn lower_scalar_file_product(
             pending_call_loans: BTreeMap::new(),
             temporaries: BTreeMap::new(),
             return_type: plan.return_type,
-            deinit_receiver: None,
+            readonly_receiver: None,
             loops: Vec::new(),
         };
         lowerer.bind_capture_views(plan)?;

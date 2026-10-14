@@ -28,6 +28,7 @@ mod nullable_when;
 pub(super) mod orchestrate;
 mod ownership_primitive;
 mod range;
+mod readonly_receiver;
 mod resource_deinit;
 mod source_closure;
 mod string_clone;
@@ -123,7 +124,7 @@ struct ExpressionLowerer<'a> {
     temporaries: BTreeMap<usize, ValueId>,
     pending_call_loans: BTreeMap<(usize, usize), Option<LoanId>>,
     return_type: TypeId,
-    deinit_receiver: Option<(lang_frontend::type_checking::NominalId, TypeId, LoanId)>,
+    readonly_receiver: Option<(lang_frontend::type_checking::NominalId, TypeId, LoanId)>,
     loops: Vec<loop_control::LoopContext>,
 }
 
@@ -1109,9 +1110,8 @@ impl ExpressionLowerer<'_> {
         let CallableTarget::Source(symbol) = descriptor.target() else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
-        if descriptor.receiver().is_some() {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
+        let receiver =
+            self.lower_readonly_call_receiver(expression, callee_expression, descriptor, span)?;
         let instance = if let Some(source) = self.source_token {
             self.instance_plan
                 .call_site(source, expression)
@@ -1211,7 +1211,7 @@ impl ExpressionLowerer<'_> {
         let (_, results) = self.append(
             Operation::DirectCall {
                 callee,
-                receiver: None,
+                receiver: self.current_readonly_call_receiver(expression, receiver, span)?,
                 arguments,
             },
             result_types,
