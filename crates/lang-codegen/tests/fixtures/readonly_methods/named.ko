@@ -1,0 +1,7 @@
+value class Reading(val number:Int) {
+    fun readNumber(own first:Int, own second:Int):Int = this.number + first - second
+}
+fun first():Int { println("first"); return 10 }
+fun second():Int { println("second"); return 3 }
+fun makeReading():Reading { println("receiver"); return Reading(7) }
+fun entry() { if(makeReading().readNumber(second=second(), first=first())==14) { println("fourteen") } }

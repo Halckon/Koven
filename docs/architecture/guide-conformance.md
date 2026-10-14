@@ -33,8 +33,9 @@ loan 的 call identity、种类和 end span。
 已将两条前端路径改为 receiver reservation、正常 CallEntry activation；规范允许的
 `worker.update(worker.read())` 已转为正向断言，普通 `&` 实参仍立即独占。新的定向 suite
 另验证 this、字段/index overlap、控制转移、phase facts 与 borrow temporary 清理。
-unit SSA/native 已覆盖 class/value class receiver 与源码顺序；single instance receiver
-native 和 unit 非根字段/index native 仍不在已完成范围。不引入 NLL 或借用返回类型。
+unit SSA/native 已覆盖 class/value class receiver 与源码顺序；single非泛型value class普通
+Borrow方法的有界字段读取见[当前接入](receiver-borrows.md#single-普通-borrow-value-class-方法)。
+single Inout与unit非根字段/index native仍不在已完成范围，不引入一般NLL或条件借用。
 
 ## 直接提取 Guide 的门禁
 

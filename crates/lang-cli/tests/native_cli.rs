@@ -3,6 +3,9 @@
 #[path = "native_cli/runtime_constructor.rs"]
 mod runtime_constructor;
 
+#[path = "native_cli/readonly_methods.rs"]
+mod readonly_methods;
+
 use std::{
     ffi::OsStr,
     fs,

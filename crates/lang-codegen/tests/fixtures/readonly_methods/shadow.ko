@@ -1,0 +1,11 @@
+value class Reading(val decoy:Int, val number:Int, val enabled:Boolean) {
+    fun readNumber(own number:Int):Int = this.number - number
+    fun readEnabled():Boolean = enabled
+    fun shadow(own number:Int):Int = number
+}
+fun entry() {
+    val reading=Reading(99,8,true)
+    if(reading.readNumber(1)==7) { println("field") }
+    if(reading.readEnabled()) { println("third") }
+    if(reading.shadow(3)==3) { println("parameter") }
+}
