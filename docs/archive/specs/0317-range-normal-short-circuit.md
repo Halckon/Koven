@@ -1,15 +1,15 @@
 # SPEC-0317: 同根范围绑定内的有界正常短路
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施范围绑定与正常短路组合时 · **唯一真源**：本页合同与验收；语言语义以 Guide 为准
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：追溯同根范围正常短路有界验收时 · **唯一真源**：本页合同与验收；语言语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0317` |
 | 所属 Phase | Phase 4 typed SSA 能力门与 Phase 5/6 正常 native 验收 |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[Boolean 类型](../../guide/03-types-generics.md)、[N1a](../../guide/12-collections-destructuring.md#n1a-单来源连续范围-carrier) |
 | 批准依据 | 用户“按建议顺序继续实施”的主线及小阶段提交授权；先 Spec/真实红测审阅，合并仍单独确认 |
-| 前置 Spec | [SPEC-0298](../../archive/specs/0298-range-binding-local-control-flow.md)、[SPEC-0315](../../archive/specs/0315-range-int-comparisons.md) |
+| 前置 Spec | [SPEC-0298](0298-range-binding-local-control-flow.md)、[SPEC-0315](0315-range-int-comparisons.md) |
 | 基线 | 首片 official fetch 确认 main `b1165b0f430b5e8c3bcd669d5129fce6b4a9e1a2`，独立 `feature/spec-0317`；后续以 PR97 真 head 正常合并已归档0316的 actual main `3661d682`，见整合账本 |
 | 影响范围 | range binding 能力门、两入口 typed call effects 验证、普通源码及公开 project CLI 测试 |
 | 语言语义变更 | 否 |
@@ -54,7 +54,7 @@ Nothing 仍明确拒绝。它们留独立后继，因为当前合同仅证明既
 | 共享回归与总数 | codegen lib `ssa::range_lowering_tests::local_control::` 280；`scalar_counts::` 7；原single/unit/constant短路6，普通borrow call/boundary 9 | 去重302/302通过，0 ignored；新增57项是其中子集，非全codegen/全frontend |
 | 工程与文档 | fmt；`cargo clippy --locked --offline -p lang-codegen -p lang-cli --all-targets -- -D warnings`；CLI build；docs/diff/size | 全通过；669 Markdown；1098 Rust文件、38历史超限未增长，未改尺寸cap |
 | actual-main 联合验收 | 0316既有122 + 0317既有302，无重名；新增receiver交集5；公开CLI3+1+46；frontend18+2+2 | `e0fc96a2` 去重429 codegen、50 CLI、22 frontend全通过；13阶段status0，含clippy/build/fmt/docs670/size/diff |
-| 双宿主交付 | Draft PR97 精确 head CI 与最终归档 | 旧base [CI38531927614](https://github.com/Halckon/Koven/actions/runs/38531927614) 双宿主success，单独记证；新整合head尚待发布/CI；本地仅Linux x86_64，未跑云fault/calibration/sanitizer/aggregate或frontend全量 |
+| 双宿主CI与归档 | PR97新base精确实现head物理CI | [CI38535052886](https://github.com/Halckon/Koven/actions/runs/38535052886) attempt 1 success，双宿主429/50/22及双preview独立安装均通过，详见§5；归档head检查与具体合并另核 |
 
 ## 4. 实施与证据
 
@@ -137,3 +137,30 @@ Inout/own MoveOnly合法拒例纳入原boundary目标；原single普通class拒�
 size/diff全过；1104手写Rust文件、38项历史超限无增长，不改cap。执行前后完整源码清单
 SHA256均为 `ee98a70168d46f661cc8da9a7628e534e92d22af67f22d58d76088cb388be965`。
 随后仅更新本页、Architecture与索引；新base远端CI、最终归档与合并另核。
+
+
+## 5. 新基线物理 CI 与有界归档
+
+2026-10-14，[PR97](https://github.com/Halckon/Koven/pull/97)实现 head
+`5445f38b6a6a703d836df4545b0fbe102f7188bb`，base
+`3661d682b2fe8cb0737d55641e32966033db42e6`，tree
+`1551ff4a391b33c6e26bdb92ae9b36da0065ca77`，真实 synthetic merge
+`e60abbae8c48638674c78afc4b7396fa0f88c0d1`；两个源码树一致。
+[CI38535052886](https://github.com/Halckon/Koven/actions/runs/38535052886) attempt 1
+已完成success，15 jobs成功、1个未选editor job skipped；本轮不复用旧代码CI。
+Linux/macOS物理checkout均为该synthetic merge，逐名核对每host429 codegen、50 CLI、
+22 frontend通过，新增receiver5项包含在429中；选定目标0失败、0 ignored、0缺项。
+macOS既有 `llvm::debug_tests::lldb_hits_a_koven_source_breakpoint_and_reports_the_frame`
+位于本片选择之外，仍为ignored，单独保留，不记通过。
+
+Linux/macOS preview producer与独立consumer均成功：source commit/tree、包及sidecar、
+manifest、Linux93/macOS92个文件的hash/size/mode、binary/bootstrap链全部吻合；每host12条真实安装后
+外部project命令的exit/stdout/stderr精确匹配，含中文/空格路径、空实参与多参数，
+sentinel未变且清理成功。此为远端产物静态核验，未在云工作区重跑故障注入、校准或sanitizer。
+完整日志/产物核验仍留仓外；对应receipt SHA256为
+`d64ee4be279e736aa309c31cbbd64b12c7cfc90d3ad2a7e651297e92d96e7bbe`。
+
+旧base CI38531927614及首轮失败/修正账本完整保留，只证明各自旧输入。此归档仅关闭
+冻结正常短路合同，§2后继继续开放。归档提交仅文档，Guide及全部非docs输入不变；
+归档head的远端检查、PR合并批准及actual-main CI尚未完成，不提前记作main交付。
+当前交付状态唯一维护于[Specs近期交付](../../specs/README.md#近期交付)。

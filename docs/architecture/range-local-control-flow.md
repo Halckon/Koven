@@ -36,7 +36,7 @@ verifier逐边核对精确descriptor/source配对和实际root能力；不存在
 相等/正负极值的真实build/run。单文件CLI不加载range std，不以single codegen证据宣称
 该CLI入口已支持同一导入源码。
 
-[SPEC-0317](../specs/active/0317-range-normal-short-circuit.md)另接通上述同根词法scope中
+[SPEC-0317](../archive/specs/0317-range-normal-short-circuit.md)另接通上述同根词法scope中
 已建立描述符后的单层`&&`/`||`：两operand与结果均核typed Boolean；只选直接Boolean
 局部initializer、直接statement-call的Boolean实参或既有bounded statement-if完整条件。
 Boolean name/literal/Group/`!`、简单Int比较与正常Boolean call可用；比较内的checked

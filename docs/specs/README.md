@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 1 份。
+- [Active 合同](active/README.md)：当前 0 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -20,7 +20,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 这是收尾范围与完成条件，不表示 M2B 全部能力完成，也不自动批准新语义或未建立的 Spec。
 
 - [ ] single 普通 Borrow 非泛型 value-class 的只读方法：[0316](../archive/specs/0316-single-readonly-value-methods.md)已完成独立真实红测、有界修复及双宿主实现head CI，已按有界合同归档并经PR96合为main `3661d682`；actual-main CI另核。首片限 owned Int/Boolean 结果，不扩通用 receiver 借用返回。unit 直接字段已由0309接通，不能再列为同一实现缺口。
-- [ ] 范围绑定函数内的 `&&`/`||`：[0317](active/0317-range-normal-short-circuit.md) 冻结同根词法 scope、单层正常短路，先真实红测后最小接入，独立旧base本地302 codegen/46公开CLI目标已通过；正常合入0316后的联合429 codegen/50 CLI/22 frontend本地通过，新base CI与归档待核，更宽组合在合同内明确留后继。
+- [ ] 范围绑定函数内的 `&&`/`||`：[0317](../archive/specs/0317-range-normal-short-circuit.md)已按同根词法scope、单层正常短路有界验收归档；当前交付状态统一见[近期交付](#近期交付)，更宽组合在合同内明确留后继。
 - [ ] return operand 内更新 Map：与前项分别定位、冻结当前 owner 和终止路径清理合同；最终收尾前同样必须落实独立 Spec 或明确延期条目及理由。不能从0313/0314的条件 return 成功推定该组合已支持。
 - [ ] 最终联合验收：在选定切片整合后的精确 SHA 上，覆盖 single、unit（含适用的 basic/constant 及 provider 输入顺序）、公开 CLI 的代表源码；逐项记录输入 SHA、入口、真实 fixture/测试名、正例与精确诊断负例、命令/CI链接及实际执行状态。分别核 owner/loan 身份、清理次序与正常执行，不把 stdout 当动态释放计数；CLI 不继承 codegen 入口能力。
 - [ ] 边界逐项有去向：以[Map矩阵](../architecture/map-native-execution.md#编号场景与保留边界)、[范围能力门](../architecture/range-local-control-flow.md)及[普通借用后继](../architecture/synchronous-borrow-result-arguments.md)为入口，将已知边界逐项标明本轮关闭证据或独立后继/延期理由。未评估、未运行、失败、filtered、ignored 不计通过；代表场景不是全部笛卡尔积。
@@ -32,6 +32,8 @@ List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 f
 已有顺序迭代及 take/drop/dropLast 不重新列待做，候选继续遵守现行 Guide 与各自前置。
 
 ### 近期交付
+
+- [0317 同根范围正常短路](../archive/specs/0317-range-normal-short-circuit.md)：[新base物理CI](https://github.com/Halckon/Koven/actions/runs/38535052886)在base `3661d682` / head `5445f38b` 双宿主逐名429 codegen、50 CLI、22 frontend及preview独立安装通过，已按有界合同归档；[PR97](https://github.com/Halckon/Koven/pull/97)归档head检查、具体合并批准与actual-main CI待核。旧baseCI38531927614仅保留历史证据。
 
 - [0316 single value-class 只读方法](../archive/specs/0316-single-readonly-value-methods.md)：[实现CI](https://github.com/Halckon/Koven/actions/runs/38528485581)双宿主逐名核验本片52、共享70、CLI4与frontend22项通过；[PR96](https://github.com/Halckon/Koven/pull/96)按有界合同归档，原失败/receiver来源边界保留；已合为main `3661d682`，actual-main CI另核。
 
