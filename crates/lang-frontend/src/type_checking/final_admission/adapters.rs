@@ -2,6 +2,7 @@
 use super::super::*;
 use crate::{
     ast::{ExpressionId, ItemId, TypeRefId},
+    diagnostic::{DiagnosticCode, Severity},
     name_resolution::{
         NameResolution, Namespace, ReferenceTarget, SourceUnitId, SymbolId, SymbolKind,
         UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
@@ -34,6 +35,12 @@ pub(super) trait Facts {
     fn selection(&self, expression: ExpressionId) -> Option<Selection>;
     fn static_qualifier(&self, span: Span) -> bool;
     fn static_candidate(&self, span: Span) -> bool;
+    fn rejected_bare_enum_case(
+        &self,
+        expression: ExpressionId,
+        name_span: Span,
+        inference_code: DiagnosticCode,
+    ) -> bool;
     fn declaration(&self, span: Span) -> Option<(Self::Symbol, usize)>;
     fn referenced_symbol(&self, span: Span) -> Option<Self::Symbol>;
     fn statement_assignment(&self) -> bool {
@@ -102,7 +109,7 @@ impl LocalExpression for UnitExpressionId {
 
 // 两套事实表具有相同的已发布 descriptor 合同；仅 identity 适配不同。
 macro_rules! selected {
-    ($typed:expr, $id:expr, $function_value:path, $receiver:path) => {{
+    ($typed:expr, $id:expr, $function_value:path, $receiver:path, $enum_case:pat) => {{
         let typed = $typed;
         let id = $id;
         let mut result = Selection::default();
@@ -129,6 +136,7 @@ macro_rules! selected {
         if let Some(construction) = typed.construction(id) {
             selected = true;
             result.static_callee = true;
+            result.qualifier = matches!(construction.target(), $enum_case);
             result.types.push(construction.result_type().index());
             result.types.extend(
                 construction
@@ -259,7 +267,8 @@ impl Facts for Single<'_> {
             self.typed,
             expression,
             CallableTarget::FunctionValue,
-            CallReceiverOrigin::Expression
+            CallReceiverOrigin::Expression,
+            ConstructionTarget::EnumCase(_)
         );
         if let Some(constant) = self
             .typed
@@ -271,6 +280,33 @@ impl Facts for Single<'_> {
             selection.types.push(constant.ty().index());
         }
         selection
+    }
+    fn rejected_bare_enum_case(
+        &self,
+        expression: ExpressionId,
+        name_span: Span,
+        inference_code: DiagnosticCode,
+    ) -> bool {
+        if self.typed.construction(expression).is_some()
+            || !self.typed.diagnostics().iter().any(|diagnostic| {
+                diagnostic.severity() == Severity::Error
+                    && diagnostic.code() == inference_code
+                    && diagnostic.primary_span() == name_span
+            })
+        {
+            return false;
+        }
+        let Some(symbol) = self.referenced_symbol(name_span) else {
+            return false;
+        };
+        self.typed.enum_cases().iter().any(|case| {
+            case.value_symbol() == symbol
+                && case.payloads().is_empty()
+                && self.typed.expression_type(expression) == Some(case.root_type())
+                && matches!(self.typed.types().get(case.root_type()),
+                    Some(TypeKind::Nominal { nominal, arguments })
+                        if *nominal == case.root() && !arguments.is_empty())
+        })
     }
     fn static_qualifier(&self, span: Span) -> bool {
         self.names.references().iter().any(|r| {
@@ -361,7 +397,8 @@ impl Facts for Unit<'_> {
             self.typed,
             id,
             UnitCallTarget::FunctionValue,
-            UnitCallReceiverOrigin::Expression
+            UnitCallReceiverOrigin::Expression,
+            UnitConstructionTarget::EnumCase(_)
         );
         if let Some(constant) = self
             .typed
@@ -373,6 +410,38 @@ impl Facts for Unit<'_> {
             selection.types.push(constant.ty().index());
         }
         selection
+    }
+    fn rejected_bare_enum_case(
+        &self,
+        expression: ExpressionId,
+        name_span: Span,
+        inference_code: DiagnosticCode,
+    ) -> bool {
+        let id = UnitExpressionId::new(self.source, expression);
+        if self.typed.construction(id).is_some()
+            || self
+                .typed
+                .expression_type(id)
+                .and_then(|ty| self.typed.types().get(ty))
+                != Some(&UnitTypeKind::Error)
+            || !self.typed.diagnostics().iter().any(|diagnostic| {
+                diagnostic.severity() == Severity::Error
+                    && diagnostic.code() == inference_code
+                    && diagnostic.primary_span() == name_span
+            })
+        {
+            return false;
+        }
+        let Some(symbol) = self.referenced_symbol(name_span) else {
+            return false;
+        };
+        self.typed
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|declaration| declaration.nominal())
+            .flat_map(|nominal| nominal.enum_cases())
+            .any(|case| case.value_symbol() == symbol && case.payloads().is_empty())
     }
     fn static_qualifier(&self, span: Span) -> bool {
         self.names.names().references().iter().any(|r| {

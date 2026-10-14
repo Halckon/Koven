@@ -438,6 +438,14 @@ impl<F: Facts> Checker<'_, F> {
             _ => self.expression(id, false),
         }
     }
+    fn rejected_bare_enum_case(&self, expression: ExpressionId, name_span: Span) -> Result<bool> {
+        let code = codes::catalog()
+            .and_then(|catalog| catalog.resolve(codes::CONSTRUCTION_INFERENCE))
+            .map_err(TypeCheckingError::from)?;
+        Ok(self
+            .facts
+            .rejected_bare_enum_case(expression, name_span, code))
+    }
     fn rejected_type_arguments(&self, call: ExpressionId, callee: ExpressionId) -> Result<bool> {
         if self.facts.selection(call).is_some()
             || !matches!(
@@ -620,7 +628,12 @@ impl<F: Facts> Checker<'_, F> {
                     Expression::Member { name_span, .. } => *name_span,
                     _ => receiver_node.span(),
                 };
-                if selection.as_ref().is_some_and(|s| s.qualifier)
+                // 本 Member 的原 L0144 只恢复静态壳；complete 仍为 false，
+                // 没有成功 descriptor，也不压制其他 runtime 子树或声明的诊断。
+                let rejected_case = !complete
+                    && selection.is_none()
+                    && self.rejected_bare_enum_case(id, *name_span)?;
+                if (selection.as_ref().is_some_and(|s| s.qualifier) || rejected_case)
                     && self.facts.static_qualifier(qualifier_span)
                 {
                     complete &= self.selector(*receiver)?;
