@@ -4,7 +4,7 @@
 
 当前 1 份 active。
 
-- [0317 同根范围绑定内的有界正常短路](0317-range-normal-short-circuit.md)：先真实源码红测与审阅，再最小接入正常合流。
+- [0317 同根范围绑定内的有界正常短路](0317-range-normal-short-circuit.md)：真实红测后有界接入；本地302 codegen/46 CLI通过，双宿主CI与交付待核。
 
 0316 single 普通 Borrow value-class 只读方法正在独立准备，尚未在本目录建立合同。
 

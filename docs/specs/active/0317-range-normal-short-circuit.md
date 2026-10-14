@@ -45,15 +45,15 @@ Nothing 仍明确拒绝。它们留独立后继，因为当前合同仅证明既
 
 | 验收项 | 精确目标/过滤器 | 实际状态 |
 |---|---|---|
-| 新真实源码红测：2 op × 3 用法 × 5 入口；动态四组 LHS/RHS | codegen lib `range_short_circuit_`，single、unit basic/constant、provider 正逆序；String/MoveOnly/Resource 同根父子兄弟 | 待运行；不因既有 CFG 推定成功 |
-| literal/const Never/Always、纯 Boolean/!Group/Int 比较 | 同过滤器 `fixed_`、`scalar_`；single constant 是同一入口的 fixture，不另算独立入口 | 待运行 |
-| SSA identity/cleanup 与原版 LLVM/native | `short_circuit_transport` 随动态正例；合流 read、逆序析构 stdout | 待运行；stdout 不称为动态释放计数 |
-| 合法源码保留边界及精确 UnsupportedNode/Span | 同模块 `boundary::`；nested、scope/roots、owning/Inout、alias、新范围、loop/lambda/隐藏退出 | 待运行 |
-| 旧拒绝逐例迁移 | `local_control_boundary`、`local_comparison_boundary` 删除选定 &&/|| 拒例，转入新真实正例；`scalar_counts` 原 initializer 独立正例 | 待运行 |
-| 公开 CLI basic/constant 与旧拒绝迁移 | `cargo test --locked -p lang-cli --test range_project_cli` 选新增短路及相关旧范围控制/比较目标 | 待运行；明确选择公共入口 |
-| 共享回归 | range local-control/comparisons/scalar；single 与 unit 原短路、constant unit 短路 | 待运行；如修改 transport 再扩大对应 pending/call-prefix 目标 |
-| 工程与文档 | fmt、受影响 crate strict clippy、docs、diff、Rust size growth | 待运行 |
-| 双宿主交付 | 独立 Draft PR 精确 head CI 与最终归档 | 待发布；本地只 Linux x86_64，macOS 未运行 |
+| 新真实源码红测：2 op × 3 用法 × 5 入口；动态四组 LHS/RHS | codegen lib `range_short_circuit_`，single、unit basic/constant、provider 正逆序；String/MoveOnly/Resource 同根父子兄弟 | tests-only `50fda166`：43目标精确UnsupportedNode/Span红；循环首例阻断后续fixture的边界见下文。最终1976通过 |
+| literal/const Never/Always、纯 Boolean/!Group/简单 Int 比较 | 同过滤器 `fixed_`、`scalar_`；single constant 是同一入口的 fixture | 11目标通过，包含在新增57项目标；不另算single入口 |
+| SSA identity/cleanup 与原版 LLVM/native | `short_circuit_transport` 与 `short_circuit_prefix_transport`；正常合流read、逆序析构stdout | 35动态/前缀目标通过；精确root/descriptor/source/参数loan，stdout不称动态释放计数 |
+| 保留边界与精确诊断 | `boundary::`：nested、scope/roots、owning/Inout、alias、新范围、loop/lambda、比较内部额外CFG | 7项合法源码backend边界通过；另1项frontend精确L0085/L0164，不冒充backend拒绝 |
+| 旧拒绝逐例迁移 | `local_control_boundary`、`local_comparison_boundary`原flag &&/|| Bool实参；`scalar_counts`原initializer | plain operand正例及scalar initializer正例通过；其余拒绝保留并随完整受影响模块复验 |
+| 公开 CLI basic/constant 与旧拒绝迁移 | `cargo test --locked --offline -p lang-cli --test range_project_cli -- --nocapture` | 完整46/46通过，0 filtered/ignored；含7项新增目标和旧scalar拒例迁移 |
+| 共享回归与总数 | codegen lib `ssa::range_lowering_tests::local_control::` 280；`scalar_counts::` 7；原single/unit/constant短路6，普通borrow call/boundary 9 | 去重302/302通过，0 ignored；新增57项是其中子集，非全codegen/全frontend |
+| 工程与文档 | fmt；`cargo clippy --locked --offline -p lang-codegen -p lang-cli --all-targets -- -D warnings`；CLI build；docs/diff/size | 全通过；669 Markdown；1098 Rust文件、38历史超限未增长，未改尺寸cap |
+| 双宿主交付 | 独立 Draft PR 精确 head CI 与最终归档 | 待发布/CI；本地仅Linux x86_64，macOS未运行；未跑云fault/calibration/sanitizer/aggregate或frontend全量 |
 
 ## 4. 实施与证据
 
@@ -101,7 +101,10 @@ call-return早于RangeEnd结束断言；RHS缺省Boolean实参另核shared Boole
 prefix拒绝也通过。旧50fda生产另用无短路receiver源码实际验证1/1精确UnsupportedNode；首次
 短名`--exact`零命中不计通过。错误新增Boolean loan结束断言已修正并保留失败记录。
 
-当前已验完整local_control 280/280、scalar_counts 7/7、公开range_project_cli 46/46（零filtered），
-共享原short-circuit及ordinary-borrow 15/15；strict clippy两crate all-targets与CLI build通过。
-补两条简单Int比较内部算术/负号拒例后，将在最终输入提交重跑同一选择并更新唯一验收表。
-所有日志与源码清单留仓外，源码输入前后一致，最终逐名去重名单随检查点交付。
+最终输入为 `1976cc2bd386759df32627f332709842903e7de2`，tree
+`7d6bfd4fe12a83340c4dea2b7fba46306df8b202`；两条比较内部算术/负号合法边界已纳入。
+在此精确snapshot重跑上表全部选择，302 codegen与46 CLI逐名去重、所有工程门禁通过，
+0 ignored；选外测试均未执行，不据定向通过推定全仓完成。前后完整源码清单SHA256同为
+`be2afa50eecfc6c84672c68782c1254886131a8bec581c433cedacd824853035`。
+随后只更新本页验收与索引，不改变已验Rust/fixture/依赖/feature输入。仓外原日志、完整
+源码清单、逐名名单和机器摘要已随恢复检查点交付；远端CI必须另核精确PR head。
