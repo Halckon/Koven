@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [0315 范围绑定函数内剩余 Int 比较](0315-range-int-comparisons.md)：typed Int/Boolean门，先独立红测。
 
 [0313 single Map owner 条件 return](../../archive/specs/0313-single-map-conditional-return.md)已按[PR92新base物理CI](https://github.com/Halckon/Koven/actions/runs/38483423039)双宿主230项联合逐名证据有界归档；保留原基线/拒绝边界，归档head CI/merge/main待验证。
 

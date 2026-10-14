@@ -17,6 +17,9 @@ mod boundary;
 #[path = "local_control_selection.rs"]
 mod selection;
 
+#[path = "local_comparisons.rs"]
+mod comparisons;
+
 #[derive(Clone, Copy, Debug)]
 enum Position {
     BeforeBinding,

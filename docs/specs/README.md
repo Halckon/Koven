@@ -9,7 +9,9 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 0 份。
+- [0315 范围绑定 Int 比较](active/0315-range-int-comparisons.md)：仅补剩余四比较，原版源码红测先行。
+
+- [Active 合同](active/README.md)：当前 1 份。
 - owned source Continue已由0312有界修复；Return四格仍为独立缺口。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
