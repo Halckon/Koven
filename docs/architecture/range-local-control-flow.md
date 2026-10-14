@@ -32,6 +32,10 @@ verifier逐边核对精确descriptor/source配对和实际root能力；不存在
 词法块，已有受限last-use事实也可先结束descriptor及source；0315只消费该事实，不新增
 终止规则，也不把statement-if所需的scope-end证明套给所有比较。
 
+公共project CLI另覆盖六种Int比较；0315四比较各有basic/validated constant路径、三位置与
+相等/正负极值的真实build/run。单文件CLI不加载range std，不以single codegen证据宣称
+该CLI入口已支持同一导入源码。
+
 短路、String拼接及复杂RHS、value-if、分支新binding、条件/多来源、一般NLL、借用存储/
 逃逸和更广循环组合仍是开放后继。0299专用nullable proof suffix、0300 Map owner carrier与
 frontend/LLVM ABI未改；冻结首片不宣称整个0298广义目标完成。

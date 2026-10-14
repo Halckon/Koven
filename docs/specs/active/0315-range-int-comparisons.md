@@ -83,4 +83,28 @@ verifier→native object→系统linker→执行，覆盖literal/basic与常量/
 project CLI覆盖公共stdlib加载，single codegen测试覆盖其已授权真实分析链，两者分账。
 修复后必须选完整静审的 `cargo test --locked -p lang-cli --test range_project_cli`，
 该完整目标已实际39/39通过，0 filtered/ignored（原35+新4），新四测试内部24次真实build/run
-及144个输入输出对照；源码前后hash相同。CLI严格clippy、fmt/docs/diff/尺寸待追加。
+及144个输入输出对照；源码前后hash相同。CLI严格clippy、fmt/docs/diff/尺寸也通过；38项历史尺寸债无增长。
+
+
+### 真实新 main 整合与联合复验
+
+用户批准PR93后，官方fetch确认actual main `cedbe73ef3f30c9cf8ac5f0f067e77bb101c4b45`，
+tree `3c61aee01286b803b6a8fdbc6f45a83e8bd6bab6`。保留CLI修复`b571b485`，正常merge为
+`df3975e73479bde3bfed1c5433f2166149595900` / tree `35a1c8a4d6eb2662d2083a7d2d5ee950d6b33ac6`；
+真实有序双父为`b571b485`、`cedbe73e`。仅索引/DAG有冲突，保留0314归档与0315 active并
+重新生成图；生产相对新main仍只增加四个比较枚举，没有复制未合入实现或伪造父链。
+
+| 新输入验收 | 精确选择 | 实际结果 |
+|---|---|---|
+| 0314 direct及共享Continue | codegen lib `owned_source_return_` / `owned_source_continue_` | 117/117、32/32 |
+| Map source/return共享 | codegen lib `ssa::lower_frontend_tests::map_result_tests::` / `native::unit_tests::map_loop_owner_tests::` | 94/94、52/52，均原版普通源码链 |
+| 0315及普通borrow边界 | codegen lib `ssa::range_lowering_tests::local_control::`、`ssa::range_lowering_tests::scalar_counts::`、`ssa::borrow_result_boundary_tests::` | 223/223、6/6、4/4 |
+| CLI公共范围入口 | 完整 `range_project_cli` integration target | 39/39，0 filtered/ignored；旧负表和新增四op均逐名通过 |
+| frontend既有事实 | `ownership_borrow_last_use` / `ownership_range_construction` | 8/8、14/14，0 filtered/ignored；是新输入实际执行，非沿用首轮CI |
+| 静态门禁 | `cargo clippy --locked -p lang-codegen -p lang-cli --all-targets -- -D warnings`、fmt、docs/diff、尺寸base `cedbe73e` | 全通过；docs668页，38项历史尺寸债保留 |
+
+合计589次执行，逐完整测试名去重562项；重复27项为0314结构3项与unit native24项，
+不重复报功。所有选择0 ignored。前后及clippy后源码SHA均为
+`7fadd767ad7e3976304d8685496e44dfb0f0b308fdb9cd97b2439ab353797d83`；精确命令、逐名清单、
+日志摘要与恢复bundle留仓外。新base/head改变CI输入，必须重新取得双宿主物理CI证据，
+不能复用首轮失败run或此前本地绿；尚未归档/合并0315。main CI由独立闭环跟踪。

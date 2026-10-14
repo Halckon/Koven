@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [0315 范围绑定 Int 比较](active/0315-range-int-comparisons.md)：四比较已本地验收，PR94首轮CLI漏选正在修正。
+- [0315 范围绑定 Int 比较](active/0315-range-int-comparisons.md)：四比较及PR94首轮CLI漏选已本地修正，新main联合562项通过；新输入CI待验收。
 
 - [Active 合同](active/README.md)：当前 1 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。

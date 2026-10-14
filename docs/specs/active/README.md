@@ -4,7 +4,7 @@
 
 当前 1 份 active。
 
-- [0315 范围绑定函数内剩余 Int 比较](0315-range-int-comparisons.md)：typed Int/Boolean门，先独立红测。
+- [0315 范围绑定函数内剩余 Int 比较](0315-range-int-comparisons.md)：typed Int/Boolean门及CLI旧负表迁移，新main联合验收通过；CI待验收。
 
 [0314 owned Sequential source 条件 return](../../archive/specs/0314-owned-source-conditional-return.md)已按[PR93实现CI](https://github.com/Halckon/Koven/actions/runs/38501870863)双宿主逐名验收后有界归档；117新增及241共享去重（交集27）通过，原红测/失败修复/3行尺寸例外保留；已由PR93合入main `cedbe73e`，该main CI待验证。
 
