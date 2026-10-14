@@ -1,5 +1,7 @@
 //! SPEC-0314: independently named ordinary-source baseline cells.
 use super::{analyze, lower_scalar_file};
+#[path = "lower_frontend_owned_source_return_structure_tests.rs"]
+mod structure;
 
 fn source(factory: &str, ty: &str, own: bool, live: bool, map: bool) -> String {
     let parameter = if own {
@@ -77,6 +79,61 @@ fn single(factory: &str, ty: &str, own: bool, live: bool, map: bool) {
     }
     let program = lowered.unwrap();
     crate::llvm::render_verified_program(&program).unwrap();
+    use lang_frontend::ownership_checking::{CleanupOwnerValue, IterationPhiBoundary, LoanTarget};
+    let symbol = match plan.source() {
+        LoanTarget::Place(place) => place.root(),
+        _ => panic!("owned source root"),
+    };
+    let header = plan
+        .closure_phis()
+        .iter()
+        .find(|phi| phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header)
+        .unwrap();
+    let entry = plan
+        .closure_phi_incomings()
+        .iter()
+        .find(|edge| edge.kind() == IterationPhiIncomingKind::Entry)
+        .unwrap();
+    let seed = entry
+        .bindings()
+        .iter()
+        .find(|binding| binding.target() == header.owner())
+        .unwrap()
+        .values()[0]
+        .source();
+    let seed_span = match a.owned.cleanup_conditions().owner_value(seed).unwrap() {
+        CleanupOwnerValue::Expression { expression, .. } => Some(
+            a.parsed
+                .ast()
+                .expressions()
+                .get(*expression)
+                .unwrap()
+                .span(),
+        ),
+        CleanupOwnerValue::Parameter {
+            symbol: identity, ..
+        } => {
+            assert_eq!(*identity, symbol);
+            None
+        }
+        other => panic!("unexpected real seed: {other:?}"),
+    };
+    let return_expression = plan
+        .exits()
+        .iter()
+        .find_map(|exit| match exit.kind() {
+            IterationExitKind::Return(expression) => Some(expression),
+            _ => None,
+        })
+        .unwrap();
+    let return_span = a
+        .parsed
+        .ast()
+        .expressions()
+        .get(return_expression)
+        .unwrap()
+        .span();
+    structure::check(&program, live, seed_span, return_span, map);
 }
 fn unit(factory: &str, ty: &str, own: bool, live: bool, constants: bool) {
     use crate::ssa::unit_lower_test_support::{declaration, parsed};
