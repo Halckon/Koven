@@ -429,3 +429,6 @@ fn owned_source_return_unit_mutable_list_own_live_basic() {
 fn owned_source_return_unit_mutable_list_own_live_constant() {
     unit("mutableListOf", "MutableList", true, true, true);
 }
+
+#[path = "lower_frontend_owned_source_return_native_tests.rs"]
+mod native;
