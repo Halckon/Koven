@@ -133,9 +133,9 @@ Boolean结果为cache50..55；均锁真实声明Span，不把拒绝说成语言�
 `ac643c41…d487`、oracle1 `1ba0c222…78c3`、oracle3/native1/shared1 `8c2fbe7b…a22c7`、
 oracle4 `895407b2…2351b`、final1 `3c6aeb8a…2561`。完整值与命令在仓外固定manifest，不把后续修改归属到旧运行。
 
-### 官方主干联合验证
+### 0316主干阶段联合验证
 
-官方fetch仍为 `3661d682b2fe8cb0737d55641e32966033db42e6`（含已合并0316，不含0317）。
+该批官方fetch为 `3661d682b2fe8cb0737d55641e32966033db42e6`（含已合并0316，不含0317）。
 正常双parent merge `20ad79618466388af120060cf57ec3b1581de9cf` 的生产自动合并；相对该main
 lower_return仍仅原位置增加一个hook，Map proof与d763输入相同。文档冲突保留两片当前事实，
 四个DAG按真实库存重生成，未拷入未合并能力。
@@ -147,4 +147,24 @@ readonly52+共享70=122、frontend22、CLI4均逐名命中且0 ignored。共享7
 所有Cargo命令带`--locked`，独立target串行；每批前后manifest一致。
 codegen全目标check、codegen/CLI全目标严格clippy以及docs/fmt/diff/尺寸通过；未提高cap。
 
-独立最终审阅与双宿主PR CI待完成；此前保持in-progress，不提前归档或宣称可合并。
+### 0317合并后的新主干联合验证
+
+后续官方fetch确认PR97已合为 `878801a31ca94757a4e6445cf063eec2f8438034`；正常双parent
+merge `43299e3d1c2eba275c24c9548edfc4e5aa99b5e2`，tree
+`ac4061af2bebcf2b9630f6270ece57ae45f8dd55`。生产无冲突，Map proof未改；Spec入口保留两片
+当前状态，DAG重生成。源manifest
+`751b03294432bb5bad985d23f0a8a4b55bdbd36d106a1aa48e3b0d11a8ee1638`在全部批次前后相同。
+
+最初计划的556是0317的429与本片249去重并集，尚未执行就发现继承名单含
+`ssa::unit_lower_short_circuit_tests::rhs_only_move_uses_published_short_circuit_cleanup_on_both_exits`：
+该目标调用`run_counted_allocations`改写LLVM allocator并链接counter，不属本轮云原版执行范围。
+仅从本轮仓外名单排除，原测试/远端CI合同不改；不把旧0317历史执行与本轮未执行混写。
+安全名单SHA-256 `e348d8c34e86ae49b9c822cac65bdcea80680f64b8f02c95155a5e212f6f5496`，
+按完整名`--exact`执行555 codegen、50 CLI、22 frontend，全部通过、0 ignored。
+第一次仓外逐名解析因FACTS交错仅识别554条完整ok行，但Cargo实际555/555；被打断的
+contains_dead_red另行exact 1/1补证，不额外计数。原日志及解析停止记录保留，绝不称556通过。
+相关普通conditional_move SSA/LLVM对照仍在名单，但不称上述计数目标的同源码native替代。
+
+同输入双crate全目标check、严格clippy和CLI build通过，命令均`--locked --offline`；
+docs/fmt/diff/尺寸通过，cap不变。独立最终审阅与双宿主PR CI、交付状态仍需分别完成；
+此前保持in-progress，不提前归档或宣称可合并。
