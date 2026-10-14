@@ -119,14 +119,22 @@ fn assert_single(text: &str, name: &str, supported: bool) {
             assert!(!supported, "{name}: {error:?}");
             assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
             let span = error.span.unwrap();
-            assert_eq!(&text[span.start()..span.end()], "cache");
-            assert!(
-                a.owned
-                    .drops()
-                    .iter()
-                    .any(|fact| matches!(fact.target(), DropTarget::Named(_))
-                        && fact.value_origin() == span)
-            );
+            if name.starts_with("no-map") {
+                assert_eq!(span.start(), 0);
+                assert_eq!(
+                    &text[span.start()..span.end()],
+                    text.lines().next().unwrap()
+                );
+            } else {
+                assert_eq!(&text[span.start()..span.end()], "cache");
+                assert!(
+                    a.owned
+                        .drops()
+                        .iter()
+                        .any(|fact| matches!(fact.target(), DropTarget::Named(_))
+                            && fact.value_origin() == span)
+                );
+            }
         }
     }
 }
