@@ -25,7 +25,7 @@ pub(super) fn scope(
     })
 }
 
-fn binding_marker(parsed: &ParsedFile, statement: StatementId) -> Option<Span> {
+pub(super) fn binding_marker(parsed: &ParsedFile, statement: StatementId) -> Option<Span> {
     let Statement::LocalVariable { declaration } =
         parsed.ast().statements().get(statement).ok()?.payload()
     else {

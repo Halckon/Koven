@@ -91,13 +91,8 @@ fn public_std_range_scalar_count_abort_precedes_consumer_without_unwind() {
 
 #[test]
 fn public_std_range_scalar_counts_keep_other_binary_capability_gates() {
-    for (declaration, expression) in [
-        ("", "true && false"),
-        ("", "true || false"),
-        ("", "\"a\"+\"b\""),
-        ("", "true == false"),
-        ("", "1L == 2L"),
-    ] {
+    for (declaration, expression) in [("", "\"a\"+\"b\""), ("", "true == false"), ("", "1L == 2L")]
+    {
         let project = Project::new();
         let built = project.build(&format!("package app\nimport koven.algorithms.take\n{declaration}\nfun read(view:View<String>):Unit{{}}\nfun scan(n:Int):Unit{{val root=listOf(\"a\");borrow val parent=take(root,1);val other={expression};read(parent)}}\nfun main():Unit{{scan(2)}}"));
         assert!(!built.status.success(), "{expression}: {built:?}");
@@ -108,6 +103,37 @@ fn public_std_range_scalar_counts_keep_other_binary_capability_gates() {
             "{expression}: {built:?}"
         );
         assert!(!project.0.join("program").exists());
+    }
+}
+
+#[test]
+fn public_std_range_scalar_counts_allow_literal_boolean_short_circuit() {
+    for (expression, expected) in [("true && false", "false"), ("true || false", "true")] {
+        let project = Project::new();
+        // Preserve the two former negative expressions as local initializers.
+        let built = project.build(&format!(
+            r#"package app
+import koven.algorithms.take
+fun read(view:View<String>):Unit{{for(item in view){{println(item)}}}}
+fun show(value:Boolean):Unit{{if(value){{println("true")}}else{{println("false")}}}}
+fun consume(own root:List<String>):Unit{{println("consume")}}
+fun scan(n:Int):Unit{{
+    val root=listOf("kept")
+    {{borrow val parent=take(root,1);val other={expression};show(other);read(parent)}}
+    consume(root)
+}}
+fun main():Unit{{scan(2)}}"#
+        ));
+        assert!(built.status.success(), "{expression}: {built:?}");
+        assert!(built.stdout.is_empty(), "{built:?}");
+        assert!(built.stderr.is_empty(), "{built:?}");
+        let run = Command::new(project.0.join("program")).output().unwrap();
+        assert_eq!(run.status.code(), Some(0), "{run:?}");
+        assert_eq!(
+            run.stdout,
+            format!("{expected}\nkept\nconsume\n").as_bytes()
+        );
+        assert!(run.stderr.is_empty(), "{run:?}");
     }
 }
 

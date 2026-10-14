@@ -224,3 +224,6 @@ fn range_local_control_if_both_arms_unit() {
 fn range_local_control_if_both_arms_unit_reversed() {
     if_case(Pipeline::UnitReversed);
 }
+
+#[path = "local_short_circuit.rs"]
+mod short_circuit;

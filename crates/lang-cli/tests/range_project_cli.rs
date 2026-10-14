@@ -17,6 +17,9 @@ mod scalar_counts;
 #[path = "range_project_cli/int_comparisons.rs"]
 mod int_comparisons;
 
+#[path = "range_project_cli/boolean_short_circuit.rs"]
+mod boolean_short_circuit;
+
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 struct Project(PathBuf);
 impl Project {

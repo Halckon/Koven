@@ -169,7 +169,6 @@ fn range_scalar_counts_keep_non_int_binary_and_wider_cfg_gates() {
         ("val other=true==false", "true==false"),
         ("val other=1L==2L", "1L==2L"),
         ("val other=n shl 1", "n shl 1"),
-        ("val other=true && false", "true && false"),
         ("if(true){read(part)}", "if(true){read(part)}"),
         ("while(false){read(part)}", "while(false){read(part)}"),
         ("return", "return"),
@@ -306,5 +305,17 @@ fun main():Unit{{scan(0);scan(1);scan(2)}}
             assert_eq!(run.stdout, expected.as_bytes(), "{run:?}");
             assert!(run.stderr.is_empty(), "{run:?}");
         }
+    }
+}
+
+// SPEC-0317 keeps the precise local-initializer form of the former refusal.
+#[test]
+fn range_scalar_counts_selected_boolean_short_circuit_local() {
+    let consumer = "fun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun scan(n:Int):Unit{val root=listOf(\"a\");borrow val part=take(root,1);val other=true && false;read(part)}\nfun main():Unit{scan(1)}";
+    for (index, (program, entry)) in programs(consumer).into_iter().enumerate() {
+        let run = run_unmodified(&program, entry, &format!("short-circuit-selected-{index}"));
+        assert_eq!(run.status.code(), Some(0), "{run:?}");
+        assert_eq!(run.stdout, b"a\n");
+        assert!(run.stderr.is_empty(), "{run:?}");
     }
 }

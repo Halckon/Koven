@@ -8,6 +8,13 @@ use lang_frontend::{
 };
 
 mod local_if;
+mod short_circuit;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum CallAccess {
+    OwnedResult,
+    ReadOnly,
+}
 
 pub(super) fn range_scope(
     parsed: &ParsedFile,
@@ -65,7 +72,7 @@ pub(super) fn binding(
     range_prefixes: &[Span],
     scope: Option<StatementId>,
     builtin: impl Fn(ExpressionId) -> Option<BuiltinType>,
-    owned_call: impl Fn(ExpressionId) -> bool,
+    call_allowed: impl Fn(ExpressionId, CallAccess) -> bool,
 ) -> Result<(), LoweringError> {
     let function = parsed
         .ast()
@@ -123,7 +130,9 @@ pub(super) fn binding(
         }
         if range
             && scope.is_some_and(|scope| {
-                local_if::allows(parsed, scope, expression, &builtin, &owned_call)
+                local_if::allows(parsed, scope, expression, &builtin, &|id| {
+                    call_allowed(id, CallAccess::OwnedResult)
+                }) || short_circuit::allows(parsed, scope, expression, &builtin, &call_allowed)
             })
         {
             continue;
