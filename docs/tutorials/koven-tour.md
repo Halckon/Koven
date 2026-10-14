@@ -2,7 +2,8 @@
 
 > **性质**：当前教程 · **状态**：current · **读取时机**：运行最小示例时 · **唯一真源**：本页源码，Guide 定义语义
 
-本页依据现行 [Guide v0.43](../guide/README.md)，每个具名 Koven fence 都有库存中的输出合同。
+本页依据现行 [Guide v0.43](../guide/README.md)，每个具名 Koven fence 都已在库存登记。
+可执行与诊断示例有输出合同；`planned-thread` 仅登记状态和原因，尚无输出合同，不计通过。
 单文件例使用 `kovenc build source.ko -o program`，运行生成产物，再使用 `kovenc run source.ko`。
 输出合同见 `examples.json`；尚未执行的恢复验收不会标为通过。
 
@@ -63,12 +64,15 @@ fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
 ## collections-and-borrow-results
 
 以下说明帮助选择已有能力；不会把任意组合或未列出的标准库 API 当作可用。
-具名 fence 的可执行库存不因此增加，源码与完整输出合同仍分别保存在本页和 `examples.json`。
+具名 fence 的可执行库存不因此增加，源码保存在本页，已登记的输出合同保存在 `examples.json`。
 
 ### List 和 Map 从哪里开始
 
 - 顺序迭代先看 [iteration](#iteration) 的 Array 和 [unit-loop-cleanup](#unit-loop-cleanup) 的
-  MutableList；List 也有顺序迭代，来源和退出路径的具体限制见[当前集合实现](../architecture/ssa-codegen-runtime.md)。
+  MutableList。List 可用 `val items = listOf(1, 2, 3)` 初始化，再用 `for (item in items)` 顺序借用元素；
+  [已有 List 源码](../../crates/lang-codegen/src/native_sequential_for_tests.rs)展示构造后传给 Borrow 参数并迭代。
+  具名 owner、Borrow 参数和临时来源有 native 支持；字段和 Inout 参数作为迭代来源仍明确拒绝。
+  具体来源与退出限制见[顺序迭代边界](../architecture/finite-sequential-iteration.md)。
 - [argv-word-frequency](#argv-word-frequency) 是可运行的 Map 应用：`mutableMapOf<String, Int>()`
   建表，`get` 得到可空计数，`put` 更新，`remove` 移出计数。两次 `for` 都遍历 argv，
   第二遍只在首次成功删除时输出，因此保持首次出现顺序，不依赖 Map 的内部顺序。
