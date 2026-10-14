@@ -32,7 +32,7 @@ Resource 合同、LLVM 和 M13 文档陈旧问题均不在本片。
 | 原拒绝复现 | codegen lib 精确 `ssa::range_lowering_tests::local_control::boundary::range_local_control_keeps_unselected_binary_gates` | main源码实际1/1通过；8表达式×3入口，共24次精确UnsupportedNode/Span；新四比较12次拒绝；前后源码hash一致 |
 | 新四比较红测 | codegen lib `ssa::range_lowering_tests::local_control::comparisons::` | 实际72/72红；均frontend成功后在比较精确Span以UnsupportedNode拒绝；四op×三位置×literal/constant与single/unit正逆序，0 ignored；生产未改、源码冻结一致 |
 | 新四比较真实执行 | 同上 | 待实现；每项负极值/负数/相等/正数/正极值五次输出，SSA核opcode/Int/Boolean/Span与RangeEnd→BorrowEnd→consume |
-| statement-if 与同root父子/兄弟 | 普通源码新比较选择矩阵 | 待补；两arm及合流再读，String/MoveOnly/Resource真实内容与析构输出 |
+| statement-if 与同root父子/兄弟 | `comparisons::selection::` | tests-only实际72/72红，四op×String/MoveOnly/Resource×六fixture入口；均frontend通过，在比较精确Span UnsupportedNode；两arm/合流及析构oracle待转绿 |
 | 旧能力与拒绝 | `ssa::range_lowering_tests::local_control::` 中静审过的普通源码目标 | 待运行；旧==/<18项保持，短路/非Int与其他能力门保持 |
 | 静态门禁 | fmt、codegen all-targets严格clippy、docs/diff与尺寸 | 待运行 |
 | 远端交付 | Draft PR与双宿主CI、归档、具体合并授权 | 未运行；阶段commit/push不表示完成 |

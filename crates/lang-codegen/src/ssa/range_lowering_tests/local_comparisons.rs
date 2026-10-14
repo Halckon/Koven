@@ -2,6 +2,12 @@
 use super::*;
 use lang_frontend::source::Span;
 
+#[path = "local_comparison_selection.rs"]
+mod selection;
+
+#[path = "local_comparison_boundary.rs"]
+mod boundary;
+
 // Literal and constant single-file cases use the same constant-aware public
 // analysis chain. Unit constant cases use the distinct validated constant view.
 fn expression(pipeline: Pipeline, operator: ComparisonOperator) -> (&'static str, String) {
