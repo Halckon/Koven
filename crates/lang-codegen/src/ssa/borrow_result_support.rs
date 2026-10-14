@@ -99,9 +99,12 @@ pub(super) fn binding(
                 | BinaryOperator::Remainder => builtin(expression) == Some(BuiltinType::Int),
                 // Comparisons do not create CFG edges. Both operand types and
                 // the distinct Boolean result must come from typed facts.
-                BinaryOperator::Equal | BinaryOperator::Less => {
-                    builtin(expression) == Some(BuiltinType::Boolean)
-                }
+                BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterEqual => builtin(expression) == Some(BuiltinType::Boolean),
                 _ => false,
             }
         {

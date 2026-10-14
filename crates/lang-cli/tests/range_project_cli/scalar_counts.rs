@@ -95,10 +95,6 @@ fn public_std_range_scalar_counts_keep_other_binary_capability_gates() {
         ("", "true && false"),
         ("", "true || false"),
         ("", "\"a\"+\"b\""),
-        ("", "n != 2"),
-        ("", "n <= 3"),
-        ("", "n > 2"),
-        ("", "n >= 3"),
         ("", "true == false"),
         ("", "1L == 2L"),
     ] {

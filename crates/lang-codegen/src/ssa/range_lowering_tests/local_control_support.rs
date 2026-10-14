@@ -8,6 +8,9 @@ pub(super) enum Pipeline {
     Single,
     Unit,
     UnitReversed,
+    SingleConstant,
+    UnitConstant,
+    UnitConstantReversed,
 }
 
 pub(super) struct SourceLowering {
@@ -22,7 +25,7 @@ pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> Sourc
     let mut sources = SourceMap::new();
     let provider = include_str!("../../../../lang-std/koven/algorithms/ranges.ko");
     let (expected_span, result) = match pipeline {
-        Pipeline::Single => {
+        Pipeline::Single | Pipeline::SingleConstant => {
             use lang_frontend::{
                 name_resolution::resolve_names, ownership_checking::check_ownership,
                 type_checking::check_types,
@@ -59,7 +62,10 @@ pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> Sourc
             );
             (expected_span, result)
         }
-        Pipeline::Unit | Pipeline::UnitReversed => {
+        Pipeline::Unit
+        | Pipeline::UnitReversed
+        | Pipeline::UnitConstant
+        | Pipeline::UnitConstantReversed => {
             let (provider_source, provider) =
                 crate::ssa::unit_lower_test_support::parsed(&mut sources, "ranges.ko", provider);
             let text = format!("package app\nimport koven.algorithms.take\n{consumer}");
@@ -78,7 +84,10 @@ pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> Sourc
                 ),
                 SourceUnitInput::new("app", "app/main.ko", source, &parsed),
             ];
-            if matches!(pipeline, Pipeline::UnitReversed) {
+            if matches!(
+                pipeline,
+                Pipeline::UnitReversed | Pipeline::UnitConstantReversed
+            ) {
                 inputs.reverse();
             }
             let (environment, mut types) = standard_environments();
@@ -88,16 +97,46 @@ pub(super) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> Sourc
             types
                 .authorize_range_extension_source(&sources, provider_source)
                 .unwrap();
-            let (names, typed, owned) = crate::ssa::unit_lower_test_support::analyze(
-                &sources,
-                &inputs,
-                &environment,
-                &types,
-            );
-            let entry = crate::ssa::unit_lower_test_support::declaration(&names, "app", "main");
-            let result = crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                &sources, &inputs, &names, &types, &typed, &owned, entry,
-            );
+            let result = if matches!(
+                pipeline,
+                Pipeline::UnitConstant | Pipeline::UnitConstantReversed
+            ) {
+                use lang_frontend::{
+                    name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
+                    ownership_checking::check_compilation_unit_constant_ownership,
+                    type_checking::check_compilation_unit_types,
+                };
+                let index = index_compilation_unit(&sources, &inputs).unwrap();
+                let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+                let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                    .unwrap()
+                    .validate_constants()
+                    .unwrap();
+                let owned = check_compilation_unit_constant_ownership(
+                    &sources, &inputs, &names, &types, &typed,
+                )
+                .unwrap()
+                .validate()
+                .unwrap();
+                let entry = crate::ssa::unit_lower_test_support::declaration(&names, "app", "main");
+                crate::ssa::unit_lower::constant::lower_constant_unit_with_entry(
+                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+                )
+            } else {
+                let (names, typed, owned) = crate::ssa::unit_lower_test_support::analyze(
+                    &sources,
+                    &inputs,
+                    &environment,
+                    &types,
+                );
+                let entry = crate::ssa::unit_lower_test_support::declaration(&names, "app", "main");
+                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+                )
+            };
             (expected_span, result)
         }
     };

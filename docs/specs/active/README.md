@@ -4,7 +4,9 @@
 
 当前 0 份 active。
 
-[0314 owned Sequential source 条件 return](../../archive/specs/0314-owned-source-conditional-return.md)已按[PR93实现CI](https://github.com/Halckon/Koven/actions/runs/38501870863)双宿主逐名验收后有界归档；117新增及241共享去重（交集27）通过，原红测/失败修复/3行尺寸例外保留；归档head CI、merge及main待验证。
+[0315 范围绑定函数内剩余 Int 比较](../../archive/specs/0315-range-int-comparisons.md)已按[PR94新base物理CI](https://github.com/Halckon/Koven/actions/runs/38506286229)双宿主562项逐名证据有界归档；保留CLI漏选/首轮失败与last-use修正，归档head CI、合并授权及main待验证。
+
+[0314 owned Sequential source 条件 return](../../archive/specs/0314-owned-source-conditional-return.md)已按[PR93实现CI](https://github.com/Halckon/Koven/actions/runs/38501870863)双宿主逐名验收后有界归档；117新增及241共享去重（交集27）通过，原红测/失败修复/3行尺寸例外保留；已由PR93合入main `cedbe73e`，该main CI待验证。
 
 [0313 single Map owner 条件 return](../../archive/specs/0313-single-map-conditional-return.md)已按[PR92新base物理CI](https://github.com/Halckon/Koven/actions/runs/38483423039)双宿主230项联合逐名证据有界归档；保留原基线/拒绝边界，归档head CI/merge/main待验证。
 
