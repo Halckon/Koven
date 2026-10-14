@@ -87,7 +87,7 @@ snapshot。Return actions只有provider/source清理，没有Map drop。remove n
 
 | 固定输入 / 批次 | 实际结果 |
 |---|---|
-| `dac3a240` 首检查点 / baseline2 | 三测试因独立nullable factory预期错误失败；原始源码manifest可重建，失败保留，不算行为红测 |
+| `dac3a240` 首检查点收录 / baseline2预期整理前输入 | 三测试因独立nullable factory预期错误失败；原始输入由仓外manifest重建，不是dac原树执行；失败保留，不算行为红测 |
 | `220fb047` / baseline3 | SSA 3 passed / 5 failed；remove/contains×live/dead四正式goal均UnsupportedNode(cache46..51)；第五是no-map nullable factory旧拒绝，后锁精确声明Span |
 | baseline3 独立绿对照 | unit basic/constant×remove/contains/item×live/dead十二格verified LLVM；single item两格成功，不称新增能力 |
 | `dc1dccd3` / implementation1 | 同一SSA模块8/8通过；四goal转绿；原unit/item绿及独立nullable边界保持 |
@@ -110,7 +110,7 @@ snapshot。Return actions只有provider/source清理，没有Map drop。remove n
 ### 结构、执行与边界
 
 独立SSA oracle按真实call/Return origin核最新Map唯一drop、remove独立result1 presence读取后
-唯一drop、与hidden source owner互异、element/source顺序、正常tail最新回边及Return无incoming。
+唯一drop、与hidden source owner互异、element/source顺序、正常tail最新回边及Return不贡献循环phi incoming。
 同guard拒例另从真实P3独立锁唯一Map Symbol/Header、CallReturn contains receiver loan、
 精确Header presence∧Return path、互补Fallthrough与operand外位置，不调用生产owner_plan自证。
 
@@ -133,5 +133,18 @@ Boolean结果为cache50..55；均锁真实声明Span，不把拒绝说成语言�
 `ac643c41…d487`、oracle1 `1ba0c222…78c3`、oracle3/native1/shared1 `8c2fbe7b…a22c7`、
 oracle4 `895407b2…2351b`、final1 `3c6aeb8a…2561`。完整值与命令在仓外固定manifest，不把后续修改归属到旧运行。
 
-主干正常整合后的联合回归、独立最终审阅与双宿主PR CI待完成；
-在这些完成前保持in-progress，不提前归档或宣称可合并。
+### 官方主干联合验证
+
+官方fetch仍为 `3661d682b2fe8cb0737d55641e32966033db42e6`（含已合并0316，不含0317）。
+正常双parent merge `20ad79618466388af120060cf57ec3b1581de9cf` 的生产自动合并；相对该main
+lower_return仍仅原位置增加一个hook，Map proof与d763输入相同。文档冲突保留两片当前事实，
+四个DAG按真实库存重生成，未拷入未合并能力。
+
+同一源码manifest `d25d808b10c73cc1c79c0790455ff8f67e20f9aa2d4a3f7c94511fac28967768`
+联合通过Map loop-owner SSA69、nullable3、last-use native3、旧正常Map native52；0316完整
+readonly52+共享70=122、frontend22、CLI4均逐名命中且0 ignored。共享70/CLI4/frontend22按
+已静审白名单`--exact`执行，不扩大到相邻故障测试；合计249个不重复codegen目标，其他crate另列。
+所有Cargo命令带`--locked`，独立target串行；每批前后manifest一致。
+codegen全目标check、codegen/CLI全目标严格clippy以及docs/fmt/diff/尺寸通过；未提高cap。
+
+独立最终审阅与双宿主PR CI待完成；此前保持in-progress，不提前归档或宣称可合并。
