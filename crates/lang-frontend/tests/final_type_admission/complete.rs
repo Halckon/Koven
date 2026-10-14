@@ -154,6 +154,14 @@ fn resolved_roles_acquire_only_their_original_analysis_qualification() {
     let (_, single, unit) = complete_both(VALID_ROLES, true);
     single.expect("resolved single value obligations");
     unit.expect("resolved unit value obligations");
+    for text in [
+        "fun iterate(xs: List<Int>): Int { var sum = 0; for (_ in xs) {}; for (n in xs) { sum = sum + n }; return sum }",
+        "value class Pair(val n: Int, val flag: Boolean)\nfun inspect(xs: List<Pair>): Unit { for ((_, flag) in xs) {} }",
+    ] {
+        let (_, single, unit) = complete_both(text, false);
+        single.expect("ordinary iteration/discard single qualification");
+        unit.expect("ordinary iteration/discard unit qualification");
+    }
 }
 
 #[test]
@@ -241,6 +249,89 @@ fn selected_outer_calls_do_not_hide_illegal_argument_subtrees() {
         let token = if code == "L0085" { "?" } else { marker };
         let (sources, single, unit) = complete_both(&text, false);
         let expected = [(code, start, start + token.len(), token)];
+        assert_exact(&sources, "main.ko", single, &expected);
+        assert_exact(&sources, "main.ko", unit, &expected);
+    }
+}
+
+#[test]
+fn cross_file_references_reuse_the_defining_root_diagnostic() {
+    let mut sources = SourceMap::new();
+    let definition = "package p\nval receiver: Int = 1\nval broken = receiver.fooBar()";
+    let (a, af) = parsed(&mut sources, "definition.ko", definition);
+    let (b, bf) = parsed(
+        &mut sources,
+        "uses.ko",
+        "package p\nfun first(): Int = broken\nfun second(): Int = broken",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "p/a-definition.ko", a, &af),
+        SourceUnitInput::new("root", "p/z-uses.ko", b, &bf),
+    ];
+    let (environment, types) = standard_environments();
+    let mut results = Vec::new();
+    for selected in [inputs, [inputs[1], inputs[0]]] {
+        let index = index_compilation_unit(&sources, &selected).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &selected, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &selected, &names, &types).unwrap();
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert!(
+            typed.clone().validate().is_ok(),
+            "the old base contract is unchanged"
+        );
+        let result = complete_compilation_unit_types(&sources, &selected, &names, &types, &typed)
+            .map(|_| ());
+        eprintln!("cross-file shared root: {result:?}");
+        results.push(result);
+    }
+    let start = definition.find("fooBar").unwrap();
+    let mut snapshots = Vec::new();
+    for result in results {
+        let diagnostics = diagnostics(result);
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "derived references must not add L0165: {diagnostics:?}"
+        );
+        assert_eq!(diagnostics[0].code().to_string(), "L0080");
+        assert_eq!(
+            diagnostics[0].primary_span(),
+            sources.span(a, start, start + 6).unwrap()
+        );
+        snapshots.push(diagnostics);
+    }
+    assert_eq!(snapshots[0], snapshots[1]);
+}
+
+#[test]
+fn early_call_diagnostics_preserve_unvisited_type_arguments() {
+    let cases = [
+        (
+            "fun inspect(text: String): String = text.clone<Int>()",
+            "clone",
+        ),
+        ("fun inspect(value: Int): Int = value.inv<Int>()", "inv"),
+    ];
+    let mut results = Vec::new();
+    for (text, member) in cases {
+        with_types(text, |_, _, single, unit, _| {
+            for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+                assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+                assert_eq!(diagnostics[0].code().to_string(), "L0091");
+            }
+            assert!(single.calls().is_empty());
+            assert!(unit.calls().is_empty());
+        });
+        let (sources, single, unit) = complete_both(text, false);
+        eprintln!("early {member} source error: single={single:?}; unit={unit:?}");
+        results.push((text, member, sources, single, unit));
+    }
+    for (text, member, sources, single, unit) in results {
+        let start = text.find(member).unwrap();
+        let expected = [("L0091", start, start + member.len(), member)];
         assert_exact(&sources, "main.ko", single, &expected);
         assert_exact(&sources, "main.ko", unit, &expected);
     }
