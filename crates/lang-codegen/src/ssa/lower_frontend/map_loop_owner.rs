@@ -1,5 +1,6 @@
 //! Bounded non-Resource Map phi proof. Presence alone does not prove an SSA carrier.
 mod carrier;
+mod return_operand;
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
@@ -47,6 +48,7 @@ struct OwnerPlan {
     break_drop: Option<DropFact>,
     return_expression: Option<ExpressionId>,
     return_drop: Option<DropFact>,
+    return_call: Option<ExpressionId>,
 }
 
 pub(super) fn supported_drop(
@@ -57,10 +59,11 @@ pub(super) fn supported_drop(
     fact: DropFact,
 ) -> bool {
     super::constant_presence::constant_drop(parsed, names, typed, owned, fact)
-        || owner_plan(typed, owned, fact).is_some()
+        || owner_plan(parsed, typed, owned, fact).is_some()
 }
 
 fn owner_plan(
+    parsed: &lang_frontend::parser::ParsedFile,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
     fact: DropFact,
@@ -249,7 +252,9 @@ fn owner_plan(
         {
             return None;
         }
-        Some((expression, exit_drop(conditions, return_exit, header)?))
+        let drop = exit_drop(conditions, return_exit, header)
+            .or_else(|| return_operand::drop(parsed, typed, owned, plan, return_exit, header))?;
+        Some((expression, drop))
     } else {
         None
     };
@@ -384,6 +389,10 @@ fn owner_plan(
         break_drop,
         return_expression: return_pair.map(|(expression, _)| expression),
         return_drop,
+        return_call: return_drop.and_then(|drop| match drop.point() {
+            DropPoint::CallReturn(call) => Some(call),
+            _ => None,
+        }),
     })
 }
 

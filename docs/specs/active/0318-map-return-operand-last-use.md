@@ -139,3 +139,16 @@ unit basic/constant 的remove/contains/item × live/dead共12格verified LLVM，
 该批逐文件`.rs`/`.ko` manifest在前后完全一致，汇总SHA-256
 `3bdbe361cfc771e7933fd20dba08bfcc0ab817473b8bf2a7f774cdc7a06f1316`。
 此后的no-map预期修正尚未运行；生产仍零改。尺寸检查`--base b1165b0f`通过，policy未改。
+
+### 最小实现首轮回归
+
+同一完整SSA模块filter执行8/8 passed、1843 filtered、0 ignored，退出0；四正式目标均转为
+verified LLVM。unit原有12格、single普通item两格保持成功，独立nullable factory与
+BranchExit Map边界精确拒绝。批次前后逐文件源码manifest完全一致。
+
+新候选只接受temporary Array<Int>、单Header/Exit Map、typed Int返回；Map receiver的真实
+loan/call/end与Symbol及guard全部核对。实际lower_return在operand前登记活动Return ID，
+原CallReturn drop当场锚定MapRemove result0或MapContains owner；operand完成后须已消费，
+最后核开始点→drop→真实Return全后继无环汇合。旧ControlTransfer分支与普通回边保持。
+未改frontend liveness、ASAP点、global presence、SSA verifier或LLVM/runtime。
+此轮只证明已选源码SSA/LLVM；结构oracle、normal native、共享回归及独立最终审阅仍待完成。

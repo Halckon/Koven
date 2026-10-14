@@ -176,7 +176,7 @@ fn ordinary_source_controls_outer_resource_and_updating_operand() {
         include_str!(
             "../../tests/fixtures/map-conditional-return-0313/updating-operand-boundary.ko"
         ),
-        false,
+        true,
     );
 }
 

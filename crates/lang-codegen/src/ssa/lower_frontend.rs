@@ -992,6 +992,7 @@ impl ExpressionLowerer<'_> {
                 span,
             );
         }
+        self.begin_map_loop_return(return_expression, span)?;
         let result = match expression {
             Some(expression) => self.lower(expression)?,
             None => LoweredValue::Unit,

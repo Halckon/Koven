@@ -220,7 +220,7 @@ fn map_operand_last_use_single_baseline() {
             assert_single(
                 &source(kind, live),
                 &format!("{kind}-live={live}"),
-                kind == "item",
+                kind != "independent-nullable",
             );
         }
     }
