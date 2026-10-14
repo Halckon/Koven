@@ -13,7 +13,7 @@ run() { "$@" || status=$?; }
 run cargo test --locked -p lang-frontend --no-fail-fast \
   --test numeric_literals --test bitwise_constants --test integer_inv --test type_ownership_primitives --test ownership_primitives --test ownership_field_replace \
   --test string_clone --test clone_primitive_integration \
-  --test diagnostic_model --test final_type_admission \
+  --test diagnostic_model --test final_type_admission --test enum_case_borrow_categories \
   --test ownership_borrow_continuation --test ownership_borrow_last_use \
   --test ownership_borrow_origins --test ownership_borrow_result \
   --test ownership_nested_borrow_arguments \
