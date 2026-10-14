@@ -4,6 +4,9 @@ use super::*;
 #[path = "local_short_circuit_boundary.rs"]
 mod boundary;
 
+#[path = "local_short_circuit_receiver.rs"]
+mod receiver;
+
 #[derive(Clone, Copy, Debug)]
 enum Use {
     Local,

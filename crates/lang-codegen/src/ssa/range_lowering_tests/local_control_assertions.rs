@@ -474,10 +474,14 @@ pub(super) fn short_circuit_transport(program: &Program, span: Span, and: bool) 
             )),
         "skip cannot execute the RHS or create its loan"
     );
+    short_circuit_cleanup(function, rhs, skip, &state);
+}
+
+fn short_circuit_cleanup(function: &Function, rhs: &Edge, skip: &Edge, state: &Carriers) {
     let mut seen = std::collections::BTreeMap::<BlockId, Carriers>::new();
     let mut pending = vec![
-        (rhs.target, rhs_state),
-        (skip.target, carried(function, skip, &state)),
+        (rhs.target, carried(function, rhs, state)),
+        (skip.target, carried(function, skip, state)),
     ];
     let mut cleanups = 0;
     while let Some((block, state)) = pending.pop() {
@@ -609,4 +613,191 @@ pub(super) fn short_circuit_prefix_transport(program: &Program, span: Span) {
         }
     }
     assert_eq!(ended, 1);
+}
+
+/// Named ordinary receivers create separate, call-scoped loans on selected paths.
+pub(super) fn short_circuit_receiver_transport(program: &Program, span: Span, and: bool) {
+    let module = &program.modules[0];
+    let function = module
+        .functions
+        .iter()
+        .find(|function| {
+            function.blocks.iter().any(|block| {
+                block
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|term| term.origin.span() == span)
+            })
+        })
+        .unwrap();
+    let branch = function
+        .blocks
+        .iter()
+        .find(|block| {
+            block
+                .terminator
+                .as_ref()
+                .is_some_and(|term| term.origin.span() == span)
+        })
+        .unwrap();
+    let TerminatorKind::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &branch.terminator.as_ref().unwrap().kind
+    else {
+        panic!("source short circuit");
+    };
+    let (rhs, skip) = if and {
+        (when_true, when_false)
+    } else {
+        (when_false, when_true)
+    };
+    let calls = function
+        .instructions
+        .iter()
+        .filter(|instruction| {
+            let origin = instruction.origin.span();
+            origin.source_id() == span.source_id()
+                && origin.start() >= span.start()
+                && origin.end() <= span.end()
+                && matches!(instruction.operation, Operation::DirectCall { .. })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        calls.len(),
+        2,
+        "LHS and RHS each have one source method call"
+    );
+    let mut owners = Vec::new();
+    for (call, block) in calls.iter().zip([branch.id, rhs.target]) {
+        assert_eq!(call.block, block);
+        let Operation::DirectCall {
+            callee,
+            receiver: Some(EntityId::Loan(loan)),
+            arguments,
+        } = &call.operation
+        else {
+            panic!("readonly receiver uses its own Loan operand");
+        };
+        assert!(arguments.is_empty());
+        let target = module.function(*callee).unwrap();
+        assert_eq!(
+            target.receiver(),
+            Some(function.entity(EntityId::Loan(*loan)).unwrap().ty)
+        );
+        assert_eq!(target.blocks[0].parameters.len(), 1);
+        let owner = borrowed_owner(function, *loan);
+        assert_eq!(
+            function.entity(EntityId::Loan(*loan)).unwrap().ty,
+            EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: function
+                    .entity(EntityId::Value(owner))
+                    .unwrap()
+                    .ty
+                    .semantic_type()
+            }
+        );
+        let begin = defining_instruction(function, EntityId::Loan(*loan));
+        assert_eq!(
+            begin.block, block,
+            "receiver loan starts only on its call path"
+        );
+        assert!(instruction_position(function, begin) < instruction_position(function, call));
+        assert!(instruction_position(function, call) < read_end_position(function, block, *loan));
+        assert_eq!(function.instructions.iter().filter(|instruction| matches!(instruction.operation,Operation::BorrowEnd {loan:ended} if ended==*loan)).count(),1);
+        let [EntityId::Value(result)] = call.results.as_slice() else {
+            panic!("owned Boolean result");
+        };
+        assert_eq!(
+            module.type_kind(
+                function
+                    .entity(EntityId::Value(*result))
+                    .unwrap()
+                    .ty
+                    .semantic_type()
+            ),
+            Some(&SsaTypeKind::Boolean)
+        );
+        owners.push(owner);
+    }
+    assert!(
+        !function.blocks[skip.target.index()]
+            .instructions
+            .iter()
+            .any(|id| matches!(
+                function.instruction(*id).unwrap().operation,
+                Operation::DirectCall { .. } | Operation::BorrowBegin { .. }
+            )),
+        "skip creates no RHS receiver loan or call"
+    );
+    // Trace the RHS owner back across the conditional edge rather than matching types.
+    let right_parameter = function.blocks[rhs.target.index()]
+        .parameters
+        .iter()
+        .position(|entity| *entity == EntityId::Value(owners[1]))
+        .unwrap();
+    let EntityId::Value(right) = rhs.arguments[right_parameter] else {
+        panic!("owned receiver carrier");
+    };
+    assert_ne!(
+        owners[0], right,
+        "the two named receiver owners remain distinct"
+    );
+    let mut pending = vec![(branch.id, [owners[0], right])];
+    let mut seen = std::collections::BTreeMap::new();
+    let mut finishes = 0;
+    while let Some((block, owners)) = pending.pop() {
+        if let Some(prior) = seen.insert(block, owners) {
+            assert_eq!(prior, owners);
+            continue;
+        }
+        let node = &function.blocks[block.index()];
+        assert!(!node.instructions.iter().any(|id| matches!(function.instruction(*id).unwrap().operation,Operation::Drop {owner} if owners.contains(&owner))),"receiver owners remain live until explicit finish");
+        if let Some(last_end) = node.instructions.iter().rposition(|id| {
+            matches!(
+                function.instruction(*id).unwrap().operation,
+                Operation::RangeEnd { .. }
+            )
+        }) {
+            for owner in owners {
+                let transfers=node.instructions.iter().enumerate().filter_map(|(index,id)| {
+                    let Operation::DirectCall {receiver:None,arguments,..}=&function.instruction(*id).unwrap().operation else {return None;};
+                    let [EntityId::Value(actual)]=arguments.as_slice() else {return None;};
+                    let delivered=*actual==owner || matches!(defining_instruction(function,EntityId::Value(*actual)).operation,Operation::Copy {source} if source==owner);
+                    delivered.then_some(index)
+                }).collect::<Vec<_>>();
+                assert_eq!(
+                    transfers.len(),
+                    1,
+                    "each receiver owner transfers exactly once after the join"
+                );
+                assert!(last_end < transfers[0]);
+            }
+            finishes += 1;
+            continue;
+        }
+        let edges = match &node.terminator.as_ref().unwrap().kind {
+            TerminatorKind::Branch(edge) => vec![edge],
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            other => panic!("normal receiver continuation: {other:?}"),
+        };
+        for edge in edges {
+            let rebound = owners.map(|owner| {
+                let EntityId::Value(value) = carried_entity(function, edge, EntityId::Value(owner))
+                else {
+                    panic!("owner carrier");
+                };
+                value
+            });
+            pending.push((edge.target, rebound));
+        }
+    }
+    assert_eq!(finishes, 1);
+    short_circuit_cleanup(function, rhs, skip, &initial_carriers(function, 3));
 }

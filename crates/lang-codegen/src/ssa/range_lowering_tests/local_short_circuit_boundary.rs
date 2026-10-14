@@ -140,6 +140,16 @@ fn range_short_circuit_boundary_receiver_effects() {
             "flag && gate.test()",
         ),
         (
+            "value class Gate(var n:Int){inout fun test():Boolean{n=2;return true}}",
+            "var gate=Gate(1)",
+            "flag && gate.test()",
+        ),
+        (
+            "value class Gate(val text:String){own fun test():Boolean{return true}}",
+            "val gate=Gate(\"owned\")",
+            "flag || gate.test()",
+        ),
+        (
             "class Gate(val text:String){own fun test():Boolean{return true}}",
             "val gate=Gate(\"owned\")",
             "flag || gate.test()",
