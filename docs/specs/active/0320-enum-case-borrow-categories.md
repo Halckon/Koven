@@ -131,6 +131,8 @@ Rust/Cargo1.96.0、LLVM/Clang21.1.8；独占绝对target、`--locked`及完整`-
 
 FE共32组源码分析（28single+32unit）均完成分采；每目标首个断言后的oracle未执行，不能把采集数当通过数。
 原始10日志、完整argv/结果/manifest与收据保留仓外`spec0320-tests-evidence/baseline1/`，不把作者矩阵倒写成本轮结果。
+同qualifier目标随后两次观察复跑仍为1/1红（唯一目标数仍10）：确认single失败Member保留case.root_type模板、unit为Error，两者无descriptor。
+`907974a8`加入同source独立`n.fooBar`及同名String receiver对照，9组双入口已采、raw表示断言已过；原L0144 final先失败，混合三诊断oracle未执行。
 
 ## 7. 状态与停止条件
 
