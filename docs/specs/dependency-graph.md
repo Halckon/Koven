@@ -8,10 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 303 份"))
-subgraph Gactive["现行 active"]
-  S0320["S0320<br/>Enum case 构造值的 Borrow 实参分类"]
-end
+ARCH(("已完成<br/>archive 304 份"))
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
@@ -20,14 +17,12 @@ subgraph Gdrafts_v044["v0.44（draft）"]
 end
 ARCH --> S0291
 ARCH --> S0292
-ARCH --> S0320
 ```
 
 ## 节点链接
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
-| SPEC-0320 | active | [0320-enum-case-borrow-categories.md](active/0320-enum-case-borrow-categories.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| 已完成 Spec（303 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（304 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
