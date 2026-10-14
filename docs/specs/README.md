@@ -16,28 +16,55 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 ### 本轮 M2B 实用化收尾
 
 2026-10-14 从 actual-main `16b4464f4d012eb4813e264b480de4198520aeee`
-（tree `45ab7de3c9dee1996a108ff9d3d1b748e7c84621`）冻结以下有界清单。
-这是收尾范围与完成条件，不表示 M2B 全部能力完成，也不自动批准新语义或未建立的 Spec。
+（tree `45ab7de3c9dee1996a108ff9d3d1b748e7c84621`）冻结的三片现已完成有界交付。
+最终整合输入为 actual-main `b43a475b46c677295254f77d640051dd8edae828`
+（tree `57a237d13b1deeab0d5d82ff7bf84800828e2a29`）。以下只关闭本轮有限清单，
+不表示广义 M2B、v1 标准库或全部 Guide 能力完成，也不自动批准后继语义或 Spec。
 
-- [ ] single 普通 Borrow 非泛型 value-class 的只读方法：[0316](../archive/specs/0316-single-readonly-value-methods.md)已完成独立真实红测、有界修复及双宿主实现head CI，已按有界合同归档并经PR96合为main `3661d682`；actual-main CI另核。首片限 owned Int/Boolean 结果，不扩通用 receiver 借用返回。unit 直接字段已由0309接通，不能再列为同一实现缺口。
-- [ ] 范围绑定函数内的 `&&`/`||`：[0317](../archive/specs/0317-range-normal-short-circuit.md)已按同根词法scope、单层正常短路有界验收归档；当前交付状态统一见[近期交付](#近期交付)，更宽组合在合同内明确留后继。
-- [ ] return operand 内 Map 最后使用：[0318](../archive/specs/0318-map-return-operand-last-use.md)已按temporary Array<Int>单Map/owned Int有界合同实现并双宿主验收归档；归档head CI及实际main交付仍待核。更广provider/owner/返回类型与ASAP关联边界不由此推定支持。
-- [ ] 最终联合验收：在选定切片整合后的精确 SHA 上，覆盖 single、unit（含适用的 basic/constant 及 provider 输入顺序）、公开 CLI 的代表源码；逐项记录输入 SHA、入口、真实 fixture/测试名、正例与精确诊断负例、命令/CI链接及实际执行状态。分别核 owner/loan 身份、清理次序与正常执行，不把 stdout 当动态释放计数；CLI 不继承 codegen 入口能力。
-- [ ] 边界逐项有去向：以[Map矩阵](../architecture/map-native-execution.md#编号场景与保留边界)、[范围能力门](../architecture/range-local-control-flow.md)及[普通借用后继](../architecture/synchronous-borrow-result-arguments.md)为入口，将已知边界逐项标明本轮关闭证据或独立后继/延期理由。未评估、未运行、失败、filtered、ignored 不计通过；代表场景不是全部笛卡尔积。
+- [x] single 普通 Borrow 非泛型 value-class 只读方法：[0316](../archive/specs/0316-single-readonly-value-methods.md)已完成真实红测、有界修复、归档及 main 交付。首片限 owned Int/Boolean 结果；unit 直接字段由0309既有支持，不算新增能力。
+- [x] 范围绑定函数内的 `&&`/`||`：[0317](../archive/specs/0317-range-normal-short-circuit.md)已完成同根词法 scope、已建立描述符后的单层正常短路，并与0316只读 receiver 联合验收；归档及 main 交付完成。
+- [x] return operand 内 Map 最后使用：[0318](../archive/specs/0318-map-return-operand-last-use.md)已完成 temporary Array<Int>、单 Map、单条件 Return 与互补 Fallthrough、owned Int 的有界提前清理，保留原 CallReturn ASAP 点；归档及 main 交付完成。
+- [x] 最终代表联合验收：上述精确 main 的 [CI38547506105](https://github.com/Halckon/Koven/actions/runs/38547506105) attempt 1 完整 success，reuse=false，15 jobs 实际成功、1 个 PR 专属 marker 合法 skipped；双宿主逐名555 codegen、50 CLI、22 frontend通过，双 preview 包摘要/manifest/成员与每宿主12条独立安装命令已核验。各入口及正反例范围仍以对应合同和下表为限。
+- [x] 已知边界有明确去向：下表将当前拒绝与本轮延期分开记录；“已决定延期”只关闭范围决定，不表示功能已实现。未评估、未运行、失败、filtered、ignored 不计通过，代表场景不等于全部笛卡尔积。
 
-完成本轮须上述每项满足自己的完成条件；“已决定延期”只关闭范围决定，不表示功能已实现。
-需要 Guide 变化的候选必须另行形成版本并取得明确启用确认，不在实现中补写语义。
-广义 CFG/NLL、Inout 来源、N1b、Option、consume、通用 Clone、条件/多来源及借用存储/逃逸不捆入本轮。
-List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 file IO 放到后续 v1 独立里程碑；
-已有顺序迭代及 take/drop/dropLast 不重新列待做，候选继续遵守现行 Guide 与各自前置。
+联合验收包含 single、unit basic/constant 及0317适用的 provider 正逆序。0318的
+[cardinality fixture](../../crates/lang-codegen/tests/fixtures/map-return-last-use-0318/cardinality.ko)
+仅由[三个 native 测试入口](../../crates/lang-codegen/src/native/unit_map_operand_last_use_tests.rs)分别执行；
+没有同 fixture 的公开 CLI 验收。50 CLI 是范围/只读方法代表，不向 Map fixture 或所有组合外推。
+独立 SSA oracle 核 owner/loan 身份、清理次序和正常回边；stdout 不当动态释放计数。
+0317三轮历史云验收误跑 counted 的[更正](../archive/specs/0317-range-normal-short-circuit.md#6-云验收范围更正2026-10-14)
+已由[PR99](https://github.com/Halckon/Koven/pull/99)合入；原日志和原计数保留，不伪造扣减后验收。
+0318云端555名单精确排除该1项，远端 CI 额外执行的 counted 单列，不混入555；macOS既有 LLDB ignored 不计通过。
+
+#### 保留边界与去向
+
+下列拒例均来自正常源码，测试锁定真实诊断及对应 Span；只描述列出的入口与组合。
+这些实现扩展尚无新编号合同，须另立有界 Spec 后实施，不因本清单取得实施授权。
+
+| 保留范围 | 当前拒绝点与测试 | 去向/理由 |
+|---|---|---|
+| 0316 single 的 own/Inout、泛型或普通 class receiver、非 Int/Boolean owned 结果 | [readonly_receiver.rs](../../crates/lang-codegen/src/ssa/lower_frontend/readonly_receiver.rs) `admitted`；[边界测试](../../crates/lang-codegen/src/ssa/single_readonly_method_boundaries.rs) `readonly_keeps_receiver_and_result_boundaries` 锁调用处 `UnsupportedNode` | 延期；不同 receiver/返回 ABI 不从本片继承 |
+| 0316 single 的借用返回别名、字段/nullable/iteration receiver 与 this.String 字段操作 | 同一 receiver/view gate；同份边界测试的 borrow-result、grouped-field、nullable、iteration、String-field 各例锁调用或 `this.text` | 延期；需独立派生 loan/CFG 与字段合同，不能按同类型猜来源 |
+| 0317 嵌套/hidden CFG、binding 前后、多根、新 binding、循环/lambda/control exit | [short_circuit.rs](../../crates/lang-codegen/src/ssa/borrow_result_support/short_circuit.rs) `allows`/`normal_tree`；[边界测试](../../crates/lang-codegen/src/ssa/range_lowering_tests/local_short_circuit_boundary.rs) `nested_and_hidden_cfg`、`scope_and_roots`、`loop_lambda_and_control_exit` 对应 `range_short_circuit_boundary_*` | 延期；当前仅既有同根词法 scope 内的单层正常表达式，不泛化 NLL/CFG |
+| 0317 own MoveOnly/Inout 调用、receiver 效果、外层实参或 RHS 新 range metadata | 同份短路边界测试 `owning_and_inout_calls`、`receiver_effects`、`range_creation_and_aliases`、`outer_call_effects_and_new_metadata_prefix`；`call_allowed`/整树准入保持 `UnsupportedNode` | 延期；新条件交付/metadata 需单独证明。Nothing/借用结果非法例另锁 frontend `L0085`/`L0164`，不冒充 backend gate |
+| 0318 新 ASAP 分支的 List、owned/Borrow Array、两个 Map 或 Boolean 返回 | [return_operand.rs](../../crates/lang-codegen/src/ssa/lower_frontend/map_loop_owner/return_operand.rs) 的 provider/source/type/phi 候选门；[边界测试](../../crates/lang-codegen/src/ssa/lower_frontend_map_operand_last_use_tests.rs) `extended_provider_and_result_shapes_are_rejected`、`two_maps_and_borrowed_array_are_rejected`（均带 `map_operand_last_use_` 前缀）锁 `UnsupportedNode(cache)` | 延期；仅限制新提前清理分支，不撤回旧普通 Return 已支持的 provider/多 Map 场景 |
+| 0318 相同 guard 但 call 在 operand 外、operand 内 checked 算术 Abort | [carrier.rs](../../crates/lang-codegen/src/ssa/lower_frontend/map_loop_owner/carrier.rs) 活动 Return 身份及完整 start→drop→Return CFG；同份测试 `same_guard_outside_return_is_rejected` / `checked_operand_abort_path_is_rejected` 分别锁 `UnsupportedNode(cache)` / `MissingFact(cache)` | 延期；前者真实 P3 候选不能替代活动身份，后者 Abort 路径不满足全部后继到达 Return；不延迟 ASAP 或放松 gate |
+| 直接 owned nullable remove 返回、独立 nullable factory、外围 Resource、多/混合退出 | [Return controls](../../crates/lang-codegen/src/ssa/lower_frontend_map_return_controls_tests.rs) 与上述 operand tests 的 `map_operand_last_use_no_map_nullable_control` 保留独立拒例；分别锁 cache、factory 声明或 outer 的原诊断 | 延期；前两者非一般 nullable 工厂/返回能力，Resource 去掉 Map 仍拒；各自需独立 owner/退出证明 |
+
+更广处置仍从[Map矩阵](../architecture/map-native-execution.md#编号场景与保留边界)、
+[范围能力门](../architecture/range-local-control-flow.md)与[普通借用后继](../architecture/synchronous-borrow-result-arguments.md)查询。
+广义 CFG/NLL、Inout 来源、N1b、Option、consume、通用 Clone、条件/多来源及借用存储/逃逸不捆入本轮；
+它们不是上述代表拒例的全域推论。需要 Guide 变化的候选须另形成版本并取得明确启用确认。
+List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 file IO 留后续 v1 独立里程碑，
+尚未据此建立新 Spec；已有顺序迭代及 take/drop/dropLast 不重新列待做，原有 draft/candidate 状态不变。
 
 ### 近期交付
 
-- [0318 Map return operand 最后使用](../archive/specs/0318-map-return-operand-last-use.md)：[实现CI a2](https://github.com/Halckon/Koven/actions/runs/38541560041/attempts/2)在head `f89d466c` / base `878801a3` 双宿主555 codegen、50 CLI、22 frontend与preview验收通过；7前置继承a1、8项a2实际执行，a1基础设施取消保留；[PR98](https://github.com/Halckon/Koven/pull/98)按有界合同归档，归档head CI/合并/main待核，PR99更正独立待合入。
+- [0318 Map return operand 最后使用](../archive/specs/0318-map-return-operand-last-use.md)：[实现CI a2](https://github.com/Halckon/Koven/actions/runs/38541560041/attempts/2)在head `f89d466c` / base `878801a3` 双宿主555 codegen、50 CLI、22 frontend与preview验收通过；7前置继承a1、8项a2实际执行，a1基础设施取消保留；[归档CI](https://github.com/Halckon/Koven/actions/runs/38545555262)成功，[PR98](https://github.com/Halckon/Koven/pull/98)合为main `10e41fb6`。其[main CI38546079533](https://github.com/Halckon/Koven/actions/runs/38546079533)仍为 cancelled：15个实际 jobs 成功，仅 PR marker 占位被 main 并发取消；后续 `b43a475b` 的完整 success 见上方联合验收，不倒写前一 run。
 
-- [0317 同根范围正常短路](../archive/specs/0317-range-normal-short-circuit.md)：[新base物理CI](https://github.com/Halckon/Koven/actions/runs/38535052886)在base `3661d682` / head `5445f38b` 双宿主逐名429 codegen、50 CLI、22 frontend及preview独立安装通过，已按有界合同归档；[PR97](https://github.com/Halckon/Koven/pull/97)归档head已验收并合为main `878801a3`，[main CI](https://github.com/Halckon/Koven/actions/runs/38539127724)成功。旧baseCI38531927614仅保留历史证据。
+- [0317 同根范围正常短路](../archive/specs/0317-range-normal-short-circuit.md)：[新base物理CI](https://github.com/Halckon/Koven/actions/runs/38535052886)在base `3661d682` / head `5445f38b` 双宿主逐名429 codegen、50 CLI、22 frontend及preview独立安装通过，已按有界合同归档；[PR97](https://github.com/Halckon/Koven/pull/97)归档head已验收并合为main `878801a3`，[main CI](https://github.com/Halckon/Koven/actions/runs/38539127724)成功。旧baseCI38531927614仅保留历史证据。云端三轮 counted 误执行与[PR99更正](https://github.com/Halckon/Koven/pull/99)已随main `b43a475b`交付，不将原302/429整批称为合规普通云验收。
 
-- [0316 single value-class 只读方法](../archive/specs/0316-single-readonly-value-methods.md)：[实现CI](https://github.com/Halckon/Koven/actions/runs/38528485581)双宿主逐名核验本片52、共享70、CLI4与frontend22项通过；[PR96](https://github.com/Halckon/Koven/pull/96)按有界合同归档，原失败/receiver来源边界保留；已合为main `3661d682`，actual-main CI另核。
+- [0316 single value-class 只读方法](../archive/specs/0316-single-readonly-value-methods.md)：[实现CI](https://github.com/Halckon/Koven/actions/runs/38528485581)双宿主逐名核验本片52、共享70、CLI4与frontend22项通过；[PR96](https://github.com/Halckon/Koven/pull/96)按有界合同归档，原失败/receiver来源边界保留；已合为main `3661d682`，[main CI38532630912](https://github.com/Halckon/Koven/actions/runs/38532630912)成功。
 
 以下0308–0315于2026-10-14按 GitHub 的 merged 状态、精确归档 head 与各自 merge SHA 的 run 重新核对。
 归档 CI 与 actual-main push CI 均已成功；实现物理测试、归档复用和 main 执行仍是不同证据层。
