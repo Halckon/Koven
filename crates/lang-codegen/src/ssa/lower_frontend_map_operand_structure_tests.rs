@@ -289,6 +289,12 @@ fn check(function: &Function, return_span: Span, call_span: Span) {
         returned.id,
         &mut Vec::new()
     ));
+    assert!(all_paths_return(
+        function,
+        selected.target,
+        map_drop.block,
+        &mut Vec::new()
+    ));
     assert!(!reaches(function, selected.target, tail.block, header.id));
     assert!(!reaches(
         function,

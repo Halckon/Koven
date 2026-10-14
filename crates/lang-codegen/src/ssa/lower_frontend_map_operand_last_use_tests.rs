@@ -335,19 +335,202 @@ fn assert_boundary(text: &str, kind: crate::ssa::LoweringErrorKind, expected: &s
     assert_eq!(error.kind, kind);
     let span = error.span.unwrap();
     assert_eq!(&text[span.start()..span.end()], expected);
+    let symbols = a
+        .names
+        .symbols()
+        .iter()
+        .filter(|symbol| symbol.name() == expected)
+        .collect::<Vec<_>>();
+    let [symbol] = symbols.as_slice() else {
+        panic!("unique rejected declaration")
+    };
+    assert_eq!(span, symbol.span());
 }
 
 #[test]
 fn map_operand_last_use_same_guard_outside_return_is_rejected() {
+    use lang_frontend::{
+        ownership_checking::{
+            CleanupCondition, CleanupOwnerValue, CleanupSelection, IterationCleanupAction,
+            IterationPhiBoundary, IterationPhiIncomingKind, LoanTarget,
+        },
+        parser::Expression,
+    };
     let text = ORIGINAL.replace(
         "return if (cache.remove(item) != null) { println(\"removed operand\"); item } else { 0 }",
         "cache.contains(item); return item",
     );
-    assert_boundary(
-        &text,
-        crate::ssa::LoweringErrorKind::UnsupportedNode,
-        "cache",
+    let a = analyze(&text);
+    assert!(a.parsed.diagnostics().is_empty());
+    assert!(a.names.diagnostics().is_empty());
+    assert!(a.typed.diagnostics().is_empty());
+    assert!(a.owned.diagnostics().is_empty());
+    let symbols = a
+        .names
+        .symbols()
+        .iter()
+        .filter(|s| s.name() == "cache")
+        .collect::<Vec<_>>();
+    let [symbol] = symbols.as_slice() else {
+        panic!("unique cache symbol")
+    };
+    let [plan] = a.owned.iterations() else {
+        panic!("one loop")
+    };
+    assert_eq!(plan.closure_phis().len(), 2);
+    let headers = plan
+        .closure_phis()
+        .iter()
+        .filter(|phi| phi.boundary() == IterationPhiBoundary::Header)
+        .collect::<Vec<_>>();
+    let [header] = headers.as_slice() else {
+        panic!("unique Header owner")
+    };
+    assert_eq!(header.symbol(), symbol.id());
+    let conditions = a.owned.cleanup_conditions();
+    assert!(
+        matches!(conditions.owner_value(header.owner()), Some(CleanupOwnerValue::IterationPhi { statement, symbol: identity, boundary: IterationPhiBoundary::Header, .. })
+        if *statement == plan.descriptor().statement() && *identity == symbol.id())
     );
+    let returns = plan
+        .exits()
+        .iter()
+        .filter(|exit| matches!(exit.kind(), IterationExitKind::Return(_)))
+        .collect::<Vec<_>>();
+    let [returned] = returns.as_slice() else {
+        panic!("one conditional Return")
+    };
+    let fallthrough = plan
+        .exits()
+        .iter()
+        .find(|exit| exit.kind() == IterationExitKind::Fallthrough)
+        .unwrap();
+    assert_eq!(plan.exits().len(), 3);
+    assert_eq!(plan.closure_phi_incomings().len(), 3);
+    for kind in [
+        IterationPhiIncomingKind::Entry,
+        IterationPhiIncomingKind::Fallthrough,
+        IterationPhiIncomingKind::Exhaustion,
+    ] {
+        assert_eq!(
+            plan.closure_phi_incomings()
+                .iter()
+                .filter(|edge| edge.kind() == kind)
+                .count(),
+            1
+        );
+    }
+    let (
+        Some(CleanupCondition::Choice {
+            selector: return_selector,
+            branches: return_branches,
+        }),
+        Some(CleanupCondition::Choice {
+            selector: fallthrough_selector,
+            branches: fallthrough_branches,
+        }),
+    ) = (
+        conditions.get(returned.condition()),
+        conditions.get(fallthrough.condition()),
+    )
+    else {
+        panic!("conditional exit guards")
+    };
+    assert_eq!(return_selector, fallthrough_selector);
+    let selector = conditions.selector(*return_selector).unwrap();
+    assert!(selector.control().is_some());
+    assert_eq!(selector.selection(), CleanupSelection::Branch);
+    assert_eq!(selector.branch_count(), 2);
+    assert_eq!(return_branches.len(), 2);
+    assert_eq!(fallthrough_branches.len(), 2);
+    assert_eq!(
+        conditions.get(return_branches[0]),
+        Some(&CleanupCondition::Always)
+    );
+    assert_eq!(
+        conditions.get(return_branches[1]),
+        Some(&CleanupCondition::Never)
+    );
+    assert_eq!(
+        conditions.get(fallthrough_branches[0]),
+        Some(&CleanupCondition::Never)
+    );
+    assert_eq!(
+        conditions.get(fallthrough_branches[1]),
+        Some(&CleanupCondition::Always)
+    );
+    let drops = a
+        .owned
+        .drops()
+        .iter()
+        .filter(|drop| {
+            drop.owner() == Some(header.owner()) && matches!(drop.point(), DropPoint::CallReturn(_))
+        })
+        .collect::<Vec<_>>();
+    let [drop] = drops.as_slice() else {
+        panic!("unique Header CallReturn drop")
+    };
+    assert_eq!(drop.target(), DropTarget::Named(symbol.id()));
+    let Some(CleanupCondition::Choice { selector, branches }) =
+        conditions.get(drop.condition().unwrap())
+    else {
+        panic!("presence-guarded drop")
+    };
+    assert_eq!(*selector, header.availability_selector());
+    assert_eq!(branches.len(), 2);
+    assert_eq!(conditions.get(branches[0]), Some(&CleanupCondition::Never));
+    assert_eq!(branches[1], returned.condition());
+    assert!(!returned.actions().iter().any(|action| matches!(action, IterationCleanupAction::Drop(fact) if fact.owner() == Some(header.owner()))));
+    let DropPoint::CallReturn(call) = drop.point() else {
+        unreachable!()
+    };
+    let descriptor = a.typed.map_contains(call).unwrap();
+    assert!(a.typed.map_remove(call).is_none());
+    let loans = a
+        .owned
+        .loans_ending_at(call)
+        .filter(|loan| loan.call() == call && loan.argument() == descriptor.receiver())
+        .collect::<Vec<_>>();
+    let [loan] = loans.as_slice() else {
+        panic!("unique contains receiver loan")
+    };
+    assert!(
+        matches!(loan.target(), LoanTarget::Place(place) if place.is_root() && place.root() == symbol.id())
+    );
+    let IterationExitKind::Return(return_id) = returned.kind() else {
+        unreachable!()
+    };
+    let return_node = a.parsed.ast().expressions().get(return_id).unwrap();
+    let Expression::Return {
+        value: Some(operand),
+        ..
+    } = return_node.payload()
+    else {
+        panic!("owned item Return")
+    };
+    assert!(matches!(
+        a.parsed
+            .ast()
+            .expressions()
+            .get(*operand)
+            .unwrap()
+            .payload(),
+        Expression::Name
+    ));
+    assert_ne!(*operand, call);
+    let call_span = a.parsed.ast().expressions().get(call).unwrap().span();
+    assert!(
+        call_span.end() < return_node.span().start(),
+        "call is before the Return, outside its operand"
+    );
+    let error = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned)
+        .err()
+        .unwrap();
+    println!(
+        "SAME GUARD: symbol={symbol:?}; header={header:?}; drop={drop:?}; return={return_id:?}; result={error:?}"
+    );
+    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+    assert_eq!(error.span, Some(symbol.span()));
 }
 
 #[test]
@@ -372,6 +555,37 @@ fn map_operand_last_use_extended_provider_and_result_shapes_are_rejected() {
             .replace("; item } else { 0 }", "; true } else { false }")
             .replace("return 0", "return false"),
     ] {
+        assert_boundary(
+            &text,
+            crate::ssa::LoweringErrorKind::UnsupportedNode,
+            "cache",
+        );
+    }
+}
+
+#[test]
+fn map_operand_last_use_two_maps_and_borrowed_array_are_rejected() {
+    let two_maps = ORIGINAL
+        .replace(
+            "    for (item",
+            "    var spare = mutableMapOf<Int, String>()\n    for (item",
+        )
+        .replace(
+            "        cache.put(item",
+            "        spare.put(item, \"spare\".clone())\n        cache.put(item",
+        )
+        .replace(
+            "        cache.put(9",
+            "        spare.put(9, \"spare-tail\".clone())\n        cache.put(9",
+        )
+        .replace(
+            "    cache.contains(9)",
+            "    spare.contains(9)\n    cache.contains(9)",
+        );
+    let borrowed = ORIGINAL
+        .replace("stop: Int", "stop: Int, keys: Array<Int>")
+        .replace("arrayOf(1, 2, 3)", "keys");
+    for text in [two_maps, borrowed] {
         assert_boundary(
             &text,
             crate::ssa::LoweringErrorKind::UnsupportedNode,

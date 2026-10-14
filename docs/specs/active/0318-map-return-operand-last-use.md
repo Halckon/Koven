@@ -60,12 +60,12 @@
 
 ## 5. 验收标准
 
-- [ ] 精确源码基线、三入口实际结果与 Map/nullable/drop/return facts 已冻结并独立审阅。
-- [ ] 同一正常源码红测先失败，最小实现后转绿；原 fixture 原字节不改。
-- [ ] SSA oracle 验证第3节的真实身份、最新 owner、nullable consumption 与完整 CFG。
-- [ ] 原版 object/link/run 覆盖第2节矩阵，stdout 不冒充动态释放计数。
-- [ ] 原 Map return、正常 Map loop、独立 nullable 及边界诊断回归通过；命中数明确。
-- [ ] Architecture 更新、docs/diff/fmt/尺寸及选定 check/clippy 通过。
+- [x] 精确源码基线、三入口实际结果与 Map/nullable/drop/return facts 已冻结并独立审阅。
+- [x] 同一正常源码红测先失败，最小实现后转绿；原 fixture 原字节不改。
+- [x] SSA oracle 验证第3节的真实身份、最新 owner、nullable consumption 与完整 CFG。
+- [x] 原版 object/link/run 覆盖第2节矩阵，stdout 不冒充动态释放计数。
+- [x] 原 Map return、正常 Map loop、独立 nullable 及边界诊断回归通过；命中数明确。
+- [x] Architecture 更新、docs/diff/fmt/尺寸及选定 check/clippy 通过。
 - [ ] 精确 head 双宿主 PR CI 与独立审阅完成后再归档；未运行不能标通过。
 
 ## 6. 实施与提交
@@ -77,111 +77,61 @@
 
 ## 7. 验证记录
 
-初始静审：原 carrier 已在 operand 求值后保存 current binding；因此不能预先归因为缺
-snapshot。旧 owner_plan 要求 Return 的 Header Drop 位于 `ControlTransfer(Return)`；
-其是否与实际 ASAP facts 冲突，须由本片真实运行确认。
+### 真实基线与最小修复
 
-| 项目 | 实际结果 |
+原fixture SHA-256 `a03f52e03177ed9ebdb9267683bad14bfd611216e1ad98174c3355ca9d7ba344`
+保持不变。真实facts：cache Symbol2/Header owner2，remove CallReturn20 的condition5为
+Header selector0 presence与Return29 exit.condition4的合取；operand28求值后原carrier已有
+snapshot。Return actions只有provider/source清理，没有Map drop。remove nullable Temporary20
+另在AfterBinaryOperands22消费。contains CallReturn20/Return27同形，问题是last-use而非仅变异。
+
+| 固定输入 / 批次 | 实际结果 |
 |---|---|
-| 官方基线 / 工具链 | `b1165b0f`；Rust 1.96.0 / LLVM 21.1.8 已核 |
-| 首轮 harness 编译 | `Program` 未实现 Debug，测试报错格式修正后重新编译；不是行为红测 |
-| baseline2 / `--lib map_operand_last_use -- --nocapture` | 实际3测试均因预估的独立 nullable factory 对照支持性不符而失败；原日志保留，不计通过 |
-| single dead：remove / contains / item | 前两者 P2/P3无诊断，均 `UnsupportedNode` 精确 `cache` 46..51；item verified LLVM成功 |
-| unit basic、constant dead：remove / contains / item | 六格分别实际 verified LLVM成功，是原有能力 |
-| 独立 nullable factory + Map dead | single在`cache`144..149拒绝；两个unit在factory声明10..107拒绝，单列既有边界 |
-| 测试预期整理 | 首批断言按上述实际观测固定，整理后尚未重跑；live、no-map与正式正例红测待补 |
-| 源码 hash | baseline2批次前后相同 `e3f90ced6a3bef40028b12fb81bb3d3cf3c851d5aa44bb80a0112d9ced393136` |
-| 最小实现 / 后验 / CI | 未执行 |
+| `dac3a240` 首检查点 / baseline2 | 三测试因独立nullable factory预期错误失败；原始源码manifest可重建，失败保留，不算行为红测 |
+| `220fb047` / baseline3 | SSA 3 passed / 5 failed；remove/contains×live/dead四正式goal均UnsupportedNode(cache46..51)；第五是no-map nullable factory旧拒绝，后锁精确声明Span |
+| baseline3 独立绿对照 | unit basic/constant×remove/contains/item×live/dead十二格verified LLVM；single item两格成功，不称新增能力 |
+| `dc1dccd3` / implementation1 | 同一SSA模块8/8通过；四goal转绿；原unit/item绿及独立nullable边界保持 |
+| `ae113bc0` / oracle1 | conditional-return SSA 30/31；唯一失败是native scaffold的named initializer被既有callback gate拒绝；未进入native |
+| `5ad58365` / oracle3、native1 | 改既有inline lambda，独立seed oracle只允许透明block参数；SSA31/31、三入口原版native3/3通过 |
+| `5ad58365` / shared1 | Map loop-owner SSA68/68、nullable cleanup3/3、旧正常Map loop-owner native52/52；全目标check与严格clippy通过 |
+| oracle4 | SSA32/32；新增P3同guard但operand外反例、selected→Map drop完整CFG断言及两Map/Borrow Array拒例通过 |
+| final1 | 声明Span断言补强后SSA32/32、三入口native3/3、严格clippy通过；docs/fmt/diff/尺寸通过，未提高cap |
 
-### 首批真实事实
+首轮harness曾因Program缺Debug、native helper导入路径、fmt注册排序失败；均单独修复，
+不冒称目标行为红测。inline initializer首轮还暴露测试oracle错误要求construct与preheader同block，
+已改为独立逐edge透明转发校验，生产不变。上述失败输入、原日志和逐文件manifest均仓外留存，
+恢复点保留在各固定提交；Spec只保留结论，不复制日志。
 
-原 remove dead 用例：Map `SymbolId(2)`，Header owner `CleanupOwnerValueId(2)`；
-`DropFact` 在 `CallReturn(ExpressionId(20))`（真实 remove call），condition为5。
-Return 是 `ExpressionId(29)`，operand为28，Return exit condition为4；对应 Header
-presence selector为0，drop guard为Header presence与同一Return path相交。
-Return action列表只包含provider清理及hidden Array drop，没有再次Map drop。
-remove独立nullable结果在 `AfterBinaryOperands(ExpressionId(22))` 析构，目标Temporary20。
-contains对照同样在CallReturn20清理Map，Return27/operand26；证明疑点是last-use，非变异特有。
-正常dead exhaustion仍在LoopExit12消费Header owner，Return不贡献phi incoming。
-这些身份是真实事实记录；尚未证明从CallReturn到Return的唯一动态运输，不能据此宣布修复。
+生产只增加精确活动Return身份：lower_return在operand前登记实际Return ID；原CallReturn
+清理当场核MapRemove result0或MapContains owner与当前binding，原点消费。operand完成时
+须已消费，最终核开始点→drop→对应真实Return全后继无环汇合。旧ControlTransfer路径优先，
+正常owner/phi检查保留；frontend ASAP/liveness、global presence、SSA verifier、LLVM/runtime不改。
 
-### 第二检查点：待运行的测试输入
+### 结构、执行与边界
 
-已补四个正式期望成功的测试 `map_operand_last_use_{remove,contains}_{live,dead}_red`，
-以及 live、no-map nullable 对照和 unit factory 精确 `UnsupportedNode`/声明 Span。
-这些新增/调整后的测试尚未执行；名字含 red 只表示预期的行为改动目标，不是已复现失败。
+独立SSA oracle按真实call/Return origin核最新Map唯一drop、remove独立result1 presence读取后
+唯一drop、与hidden source owner互异、element/source顺序、正常tail最新回边及Return无incoming。
+同guard拒例另从真实P3独立锁唯一Map Symbol/Header、CallReturn contains receiver loan、
+精确Header presence∧Return path、互补Fallthrough与operand外位置，不调用生产owner_plan自证。
 
-新增 `tests/fixtures/map-return-last-use-0318/cardinality.ko` 与对应 `.stdout` golden，
-17个普通调用覆盖temporary `Array<Int>(count, sourceIndex)` 的0/1/3长度、first/last/never，
-remove的offset0命中与offset100缺失分开调用，contains独立对照；正常出口live/dead均有实例。
-`sourceIndex`打印验证每个源元素只初始化一次，不作为释放计数。
-三个 `*_map_operand_last_use_native_*cardinality` 使用原版object/link/run；尚未执行。
-新native须先完成对应SSA/LLVM验收，不能把源码准备计为正常执行通过。
+native fixture有17个调用（remove12、contains5）：0/1/3长度、first/last/never、live/dead代表格，
+不是笛卡尔全集。实际发生return的remove present3次、missing3次；never不计missing。
+每入口stdout逐字匹配105行，source initializer共32次；这不是动态释放计数。
+lookup直接传Int，原operand内item+offset的checked Abort形态单列MissingFact(cache46..51)，
+不放宽全部后继必须达到cleanup/Return的gate。
 
-baseline2的精确测试输入、逐文件manifest、命令与原始日志保存在仓外；替换首检查点测试文件
-即可重建该批次输入，反算manifest汇总等于已记录的`e3f90ced…3136`，没有更改原结果。
+保留并验证的边界：独立nullable factory single无Map声明0..97、有Map cache144..149，
+unit有无Map均factory声明10..107；外围Resource、直接owned nullable返回、多/混退出；
+新提前清理分支的List、owned/Borrow Array、两Map、Boolean结果。普通旧Map return成功不回退。
+同guard operand外和两Map均UnsupportedNode(cache46..51)，Borrow Array为cache64..69，
+Boolean结果为cache50..55；均锁真实声明Span，不把拒绝说成语言禁止。
 
-独立静审发现第二检查点新 native module 的两处导入沿用了旧嵌套模块路径；已按真实
-`native::unit_tests` 挂载位置更正 helper 路径。尚未编译或运行，不能作为目标行为红测。
+### 输入身份与剩余验收
 
-### 正式行为红测（baseline3）
+源码manifest范围为全部crates的`.rs`/`.ko`，路径按字节排序逐文件SHA-256再取汇总；每批前后相同。
+关键汇总：baseline2 `e3f90ced…3136`、baseline3 `3bdbe361…316`、implementation1
+`ac643c41…d487`、oracle1 `1ba0c222…78c3`、oracle3/native1/shared1 `8c2fbe7b…a22c7`、
+oracle4 `895407b2…2351b`、final1 `3c6aeb8a…2561`。完整值与命令在仓外固定manifest，不把后续修改归属到旧运行。
 
-输入commit `220fb04735c7cd0e308972a542550a0814cfda32`，原fixture SHA-256
-`a03f52e03177ed9ebdb9267683bad14bfd611216e1ad98174c3355ca9d7ba344`未变。
-命令使用完整SSA模块filter
-`ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::operand_last_use`，
-执行8个目标：3 passed、5 failed、1843 filtered、0 ignored，退出101；没有选择native。
-四条正式goal（remove/contains × live/dead）分别真实失败为`UnsupportedNode(cache)`46..51。
-第五失败是独立no-map nullable factory在声明0..97被拒；已将它锁为精确旧边界，非本片修复。
-unit basic/constant 的remove/contains/item × live/dead共12格verified LLVM，single item两格成功。
-独立nullable+Map在single仍于cache144..149拒绝；unit有无Map均于factory声明10..107拒绝。
-
-该批逐文件`.rs`/`.ko` manifest在前后完全一致，汇总SHA-256
-`3bdbe361cfc771e7933fd20dba08bfcc0ab817473b8bf2a7f774cdc7a06f1316`。
-此后的no-map预期修正尚未运行；生产仍零改。尺寸检查`--base b1165b0f`通过，policy未改。
-
-### 最小实现首轮回归
-
-同一完整SSA模块filter执行8/8 passed、1843 filtered、0 ignored，退出0；四正式目标均转为
-verified LLVM。unit原有12格、single普通item两格保持成功，独立nullable factory与
-BranchExit Map边界精确拒绝。批次前后逐文件源码manifest完全一致。
-
-新候选只接受temporary Array<Int>、单Header/Exit Map、typed Int返回；Map receiver的真实
-loan/call/end与Symbol及guard全部核对。实际lower_return在operand前登记活动Return ID，
-原CallReturn drop当场锚定MapRemove result0或MapContains owner；operand完成后须已消费，
-最后核开始点→drop→真实Return全后继无环汇合。旧ControlTransfer分支与普通回边保持。
-未改frontend liveness、ASAP点、global presence、SSA verifier或LLVM/runtime。
-此轮只证明已选源码SSA/LLVM；结构oracle、normal native、共享回归及独立最终审阅仍待完成。
-
-最小实现首轮对应commit `dc1dccd3b5a2847977e214fa9add8eec6b854d0e` 的Rust/Ko输入，
-manifest汇总 `ac643c4173e52491ec8a51959093cebf0f11a9cc6e6ab55fb214446f9904d487`。
-首次fmt检查指出native测试模块注册排序，已仅按rustfmt调整两组注册顺序；没有生产变化。
-docs/diff/尺寸通过，fmt修正后通过；原fmt失败与该次8/8输入分别保留。
-
-### 独立 oracle 与边界首轮（oracle1）
-
-完整 `conditional_return` SSA 模块执行31目标：30 passed、1 failed、1824 filtered、0 ignored。
-新独立oracle逐三入口核真实Return/Map call origin、remove result0最新Map唯一drop、result1
-presence读取后唯一drop、与provider hidden owner互异、element/source顺序及正常tail最新回边。
-同guard但CallReturn位于Return operand外的正常源码精确`UnsupportedNode(cache)`；operand内
-checked算术的Abort后继精确`MissingFact(cache)`；List、owned source、Boolean结果保持拒绝。
-旧0313/0314普通return、独立owned结果及Resource边界全部在该模块真实通过。
-
-唯一失败是新native scaffold的named `sourceIndex` initializer：single在339..350精确
-`UnsupportedNode`，尚未进入原版native。它不是本片Map清理回退；不扩大callback gate。
-源码manifest前后一致，汇总`1ba0c2220a12fb0a663925a5ec5e6767ab1ef2207422fc9034cea831d6d878c3`。
-
-静审同时发现原fixture中的`item + offset`会引入operand内checked Abort。已改为直接lookup
-参数，present三次实际返回分别传1/3，missing三次传100；never不算missing；golden105行
-不变。旧算术形态已成为上述精确拒例，不放宽所有后继至Return的证明取绿。
-
-### 三入口与共享回归（oracle3 / native1 / shared1）
-
-临时 Array initializer 改用既有 inline lambda 合同。独立 oracle 允许 construct seed 经
-透明 block parameter 到达 preheader，仍按精确 ValueId/edge 校验，不按类型猜 owner。
-完整 conditional-return SSA 31/31、三入口原版 native 3/3 通过；各入口 golden 105 行一致。
-共享 Map loop-owner SSA 68/68、nullable cleanup 3/3、旧正常 Map loop-owner native 52/52
-通过；`cargo check -p lang-codegen --all-targets` 与严格 clippy 通过。
-三批前后源码 manifest 一致，汇总
-`8c2fbe7bdd675f55befaa513d65805012657497e11366a2c42044888f4ba22c7`。
-同 guard 反例的额外 P3 身份断言及外围边界补充、独立最终审阅与主干联合回归尚待完成。
+主干正常整合后的联合回归、独立最终审阅与双宿主PR CI待完成；
+在这些完成前保持in-progress，不提前归档或宣称可合并。

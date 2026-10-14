@@ -50,9 +50,25 @@ expression origin与返回值不再包含已drop的Map。正常exhaustion、merg
 独立SSA oracle另按两套construct/slot追踪各自最新owner。body-local String/MoveOnly value-class
 返回与Group自然复用已有交付，无Map对照原成功；与Map组合新增成功，不改变transfer/ABI。
 直接返回Map含Group的冻结普通源码原就成功，不算新drop-carrier证明。owned nullable remove
-返回、return operand中更新Map、外围Resource跨条件return保持精确拒绝；最后一项去掉Map也拒绝。
+返回、外围Resource跨条件return保持精确拒绝；最后一项去掉Map也拒绝。
+operand最后使用的提前清理仅在下一节有界接通。
 两个body Resource、String temporary source与Copyable返回有普通native输出证据；不冒充内存计数。
 unit basic/constant×Map尾部live/dead四格原已成功，独立native保持；不是新增unit能力。
+
+## return operand 最后使用的提前清理
+
+单Map、temporary Array<Int>、单条件Return+互补Fallthrough、owned Int返回可在operand最后一次
+remove/contains的原CallReturn点清理Map。真实Header owner/Symbol、receiver loan与presence∧path
+只筛选候选；实际lower_return建立精确活动Return ID，消费点核当时最新MapRemove result0或
+MapContains owner，求值完成后核binding已消费。完整CFG须从operand开始经该drop无环汇至
+同一真实Return。不能仅凭相同guard、Span包含、同类型或lineage绑定Return；不延迟ASAP。
+旧ControlTransfer返回分支优先保留，正常回边/Exhaustion及独立nullable结果清理不变。
+
+single四格remove/contains×live/dead由真实红测转绿，unit basic/constant十二对照格原已成功。
+三入口普通SSA/LLVM与原版native分别验证0/1/3、first/last/never、live/dead及实际remove
+present/missing，独立oracle核result0/1/hidden source分离、presence后唯一drop与正常latest-owner回边。
+同guard但call在operand外、operand内checked Abort、List/owned/Borrow source、两Map及Boolean
+返回仍精确拒绝；独立nullable factory与直接owned nullable返回不由此获得一般能力。
 
 ## owned source 的独立证明
 
@@ -69,7 +85,7 @@ carrier 算法保持；当前 source seed、nested/跨 loop 边界见[provider](
 Continue证明未直接放行Return；新source-only proof先建Header归纳，再独立核终止Drop与
 exhaustion两种去向。Map carrier算法未改，双同型Map与返回operand使用各自最新owner。
 source permissions、完整body Resource顺序与独立owned结果由普通SSA/native核验；
-一般Resource/跨loop/多jump与operand更新边界保持，不由source修复继承通用Return能力。
+一般Resource/跨loop/多jump与本节owned source的operand更新边界保持，不由source修复继承通用Return能力。
 
 [0311 合同](../archive/specs/0311-single-map-conditional-continue.md)记录原始红测、范围修订、
 隔离 target 复核与待发布事项；[0310](../archive/specs/0310-single-map-conditional-break.md)
