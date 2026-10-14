@@ -1,6 +1,6 @@
 # SPEC-0319: 最终类型消费准入与源级诊断
 
-> **性质**：有界修复合同 · **状态**：in-progress · **读取时机**：准备严格 frontend 消费准入与原始 probe 红测时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
+> **性质**：有界修复合同 · **状态**：in-progress · **读取时机**：修改或验收严格 frontend 消费准入时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
 
 | 字段 | 值 |
 |---|---|
@@ -8,12 +8,12 @@
 | Goal ID | `KOV-P2-0319` |
 | 所属 Phase | Phase 2 最终类型资格；Phase 3 前置准入；Phase 6 CLI 诊断 |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[类型阶段边界](../../guide/03-types-generics.md#基础类型检查与局部推导)、[Result](../../guide/09-nullability-errors.md)、[迭代](../../guide/12-collections-destructuring.md#371-compiler-bound-provider-与执行顺序) |
-| 批准依据 | 2026-10-14 用户确认有限收尾后按 A诊断阶段封闭→B enum实参分类→C List MoveOnly转移追踪推进；有限收尾main CI已通过，按已审合同推进tests-only红测；真实helper独审与开测许可分别确认 |
+| 批准依据 | 2026-10-14 用户确认有限收尾后按 A诊断阶段封闭→B enum实参分类→C List MoveOnly转移追踪推进；有限收尾main CI已通过，按已审合同推进红测与最小修复；真实helper独审与逐名开测许可分别确认 |
 | 前置 Spec | [SPEC-0252](../../archive/specs/0252-basic-unit-ownership-driver.md)、[SPEC-0253](../../archive/specs/0253-single-file-analysis-facade.md)；保留其 raw/recovery 合同 |
 | 基线 | official fetch main `188654603edde5ece3edab114458116c61510371`，tree `ad1e85b00e64aabd832b00218cb17385e1c8ac29`；独立 `fix/spec-0319` |
 | 影响范围 | frontend 最终消费资格与诊断；普通 single/project CLI；仅必要的事实与回归测试 |
 | 语言语义变更 | 否；修复现行 Guide 已要求的阶段隔离，不启用新语言能力 |
-| 阻塞项 | 合同已独审；真实红测及helper名单尚待固定后开测；当前tests-only，不先改生产 |
+| 阻塞项 | 本地有界实现与验证已通过；远端双宿主CI、验收归档及主干交付待完成 |
 
 ## 1. 单一 Goal 与验收边界
 
@@ -33,11 +33,11 @@
 其中原matrix.tsv记614a7a7f/rust1.97，增量另附matrix-b43a475b.tsv。下表引用后者的作者报告，
 不是18865460的本轮执行证据，不合并两个基线的计数。
 
-| 原 probe | 本片根因分类 | 计划唯一主诊断与 Span | 作者 single / project 结果 |
+| 原 probe | 本片根因分类 | 冻结主诊断与 Span | 作者 single / project 结果 |
 |---|---|---|---|
 | `r01_bogus_member.ko` | 已知 Int 的不存在成员调用；须先核真实选择事实及成员规则 | L0080，`fooBar` `[40,46)` | BlockingDeferred / MissingFact |
 | `r02_bogus_member_str.ko` | String 未发布 `length`；不能从 Kotlin 补能力 | L0080，`length` `[44,50)` | BlockingDeferred / UnsupportedNode |
-| `p34_for_range.ko` | `0..<5` 类型仍为 Deferred(Call)，provider 前置未完成 | 候选 L0165，完整 `0..<5` `[40,45)`；保留 range 根因，不追加 L0159 | MissingFact / ownership 内部错误 |
+| `p34_for_range.ko` | `0..<5` 类型仍为 Deferred(Call)，provider 前置未完成 | L0165，完整 `0..<5` `[40,45)`；保留 range 根因，不追加 L0159 | MissingFact / ownership 内部错误 |
 | `s04_question_on_nullable.ko` | 已知 Int? operand 不符合 Result-only `?` 规则 | L0085，真实 question_span `?` `[32,33)` | UnsupportedNode / ownership 内部错误 |
 
 p34 不被改写为受支持的 range provider，也不宣称整个 for 在现行首轮合同中合法；
@@ -114,19 +114,19 @@ single CLI在typed_observer内调用frontend最终检查，unit CLI在basic/cons
 先固定 tests-only 输入与仓外完整manifest，再由独立review核精确helper链，按下列目标逐名
 `--exact`执行；不使用全suite/discover。下列7目标已落地；首批真实结果见§7，不将导入或fixture错误当行为红测。
 
-| 测试target / 计划精确函数名 | 普通源码与断言 | helper链/运行边界 |
+| 测试target / 精确函数名 | 普通源码与断言 | helper链/运行边界 |
 |---|---|---|
 | `native_cli` / `final_type_admission::single_probe_roots_reject_before_codegen` | 原四probe × build/run × human/JSON；single保持既有exit2，stdout空，根因code/Span准确；无内部错误字样、无新产物 | 复用`native_cli.rs::run`→原版`CARGO_BIN_EXE_kovenc`；不直接launch输出程序 |
 | `project_cli` / `final_type_admission::project_probe_roots_reject_before_codegen` | 同四probe同字节放project × build/run × human/JSON；project保持既有exit1，schema v1/位置完整，零额外诊断 | `TestProject`/`project_build`/`run`→原版CLI；标准loader仍只ranges |
 | `project_cli` / `final_type_admission::project_const_fallback_keeps_type_admission` | 独立const前缀版本，重新核Span；typed未完成不得穿透constant fallback | 同一原版helper，编译拒例；不改facts/IR或runtime |
 | `final_type_admission` / `frozen_probe_roots_preserve_raw_deferred_recovery` | 四probe × 无/有const：raw精确Deferred原因，旧basic/constant资格保持 | 普通SourceMap→lex→parse→names→types；仅读事实与既有validate |
-| 同target / `resolved_roles_and_symbolic_types_keep_raw_value_facts` | constructor/callee、String.clone、inv、List.size、Function值、TypeParameter/Any约束和assignment | 两入口真实描述符及值类型；没有final资格API时不声称最终通过 |
+| 同target / `resolved_roles_and_symbolic_types_keep_raw_value_facts` | constructor/callee、String.clone、inv、List.size、Function值、TypeParameter/Any约束和assignment | 两入口真实描述符及值类型；此目标只保护raw事实 |
 | 同target / `existing_root_errors_do_not_cascade_through_calls_or_iteration` | 既有L0085穿过外层call/iteration不级联；UTF-8精确Span及独立Long事实 | 两入口原类型分析；不进入ownership |
 | 同target / `selected_source_order_and_forward_types_keep_basic_qualification` | 未选文件隔离、双文件正逆序、ForwardValueType与旧validate成功保持 | 只对真实selected source-set重新分析，无facts注入 |
 
 target名不是`--exact`过滤器的一部分。首个可编译行为红测使用现有公开CLI；4个frontend目标保护raw/base事实，不冒充final准入验收。
-新增final资格接口后再补同源码拒绝/正例接受、跨文件稳定诊断及有效外层call中非法member/nullable ?的递归检查；
-strict失败不得进入ownership的证明随真实接线补齐，不用forced observer制造停机。
+新增final资格接口的同源码拒绝/正例接受、跨文件稳定诊断及有效外层call中非法member/nullable ?递归检查
+均已落地；严格CLI在ownership前调用该资格，不用forced observer制造停机。
 保留既有`diagnostic_model::production_catalog_contains_exactly_the_published_frontend_codes`
 与上述raw/recovery目标，注册新码时只更新真实目录预期。LSP现有recovery相关精确目标另核后列入共享回归。
 合法正常源码的native对照仅在后续名单审定后运行原版LLVM/native，不继承旧批次测试数。
@@ -146,8 +146,9 @@ strict失败不得进入ownership的证明随真实接线补齐，不用forced o
 - [x] 合同独审；有限收尾main CI通过，批准推进本片tests-only红测。
 - [x] tests-only实际测试/helper独审后获准逐名执行；接口新增与生产实现保持后继小提交。
 - [x] tests-only提交与真实失败基线：4个raw/base保护通过、3个CLI行为红；无编译接线失败。
-- [ ] 最小frontend准入及CLI接线；准确诊断、不级联、raw对照和成功能力保护。
-- [ ] 影响面共享回归、Architecture事实、双宿主CI与有界归档；不引用旧CI当本片成功。
+- [x] 最小frontend准入及CLI接线；准确诊断、不级联、raw对照和成功能力保护。
+- [x] 已审共享回归、工程门禁与Architecture事实更新；新增frontend target显式接入CI。
+- [ ] 双宿主CI与有界归档、主干交付；不引用旧CI或本地结果当本片远端成功。
 
 | 本轮检查 | 实际状态 |
 |---|---|
@@ -175,6 +176,12 @@ strict失败不得进入ownership的证明随真实接线补齐，不用forced o
 | 横向原oracle回归 | 同b974的已审78exact实际77绿/1红；与定向2去重共80，79通过。原`project_constants_build_run_and_preserve_outputs_on_invalid_constants`首个build被final gate误拒，落在`lib.Labels.TEXT`的`lib` `[89,92)`缺类型；后续native/产物保留断言未执行，原success oracle未改 |
 | 联合输入冻结 | 定向2与联合78两批1424源前后摘要均`64d6e896660d259a5cf1f8345e2bfe458db60955db4963a1535f5d8b10d69f5b`；其余CLI readonly/range/短路/阶段输出、frontend及LSP逐exact原断言通过。CLI名单没有Map fixture，不宣称Map公开入口覆盖 |
 | 常量限定符近邻红测 | `2eb567d1a13ee75c02cd9814a505cbe95eccef62`：3普通源码case×两输入序，6组均核真实constant-use/Package/Type及局部同名lib的Value/Symbol，实际均误报Internal；oracle止于首个成功例。早先未分组反例在names前置失败另存原日志，不计本目标行为红；1424源前后摘要`7577f5b1e5085b0b898560eeffb6beb7d81475fe9134f7f09299a1b462fa6cd3` |
-| 待完成 | 修复已选常量的package/type限定符识别，复跑原成功oracle/联合及工程门禁、本片CI；没有故障/插桩或全量云测试 |
+| 常量限定符修复 | `cb6be1fcd332738a0ff4c8135c33ba8b0dead3c3` 仅修正已选constant qualifier的真实name_span查询；6组API与原constants CLI全部原oracle通过，连同其余79exact共81唯一全绿 |
+| 首次工程门禁失败 | cb6的fmt首门exit1，仅public re-export格式；后续三门当时未执行。`984b4233897edbfedd1200d3710b025a4558ca4a`仅修正格式，原失败日志保留 |
+| 最终有界回归 | 984b / tree `2d6ee3b5e67b4d04d358ca8c558bc6534a59f730` 复跑同81exact均各1/1绿：frontend25普通源码+1只读catalog、CLI52公开integration+1显式prelude bootstrap、LSP2正常recovery。原四probe共48次CLI及全部oracle通过；不等同全目标/native或Map公开CLI覆盖 |
+| 最终工程门禁 | 同984b：fmt check、workspace check --all-targets、frontend+CLI clippy --all-targets -D warnings、CLI build全部exit0；check/clippy/build均--locked、独占绝对target，工程check不计测试执行 |
+| 最终输入冻结 | 上述两批1424源码/配置前后NUL摘要均`ef4f01f4b79a756530f28033e7371ea06e920614dfa224d6a788aaeebec5095a`；81名单/逐项argv/原日志及四门结果保留仓外。后继`85b55e91`仅CI接线，13个新frontend测试全部已在81中，无生产或fixture变化 |
+| CI接线静态检查 | stage显式加入`final_type_admission`，只读Python精确选择断言1/1通过；双宿主实际执行尚待。脚本进入代码fingerprint，不按docs-only复用；云未运行stage/aggregate或故障/插桩 |
+| 待完成 | 本片远端CI、独立验收、归档与主干交付；B/C继续独立。历史行为红、fixture前置失败和格式失败均保留，不改golden取绿 |
 | 草案阶段 docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；当时active0/archive302、draft新增0319 |
 | active迁移 | 0319迁入active，archive302不变；draft库存移除0319，四份DAG随生命周期重建 |

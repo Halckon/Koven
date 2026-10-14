@@ -57,7 +57,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 它们不是上述代表拒例的全域推论。需要 Guide 变化的候选须另形成版本并取得明确启用确认。
 List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 file IO 留后续 v1 独立里程碑，
 尚未据此建立新 Spec；已有顺序迭代及 take/drop/dropLast 不重新列待做，原有 draft/candidate 状态不变。
-后继A的[0319 最终类型消费准入](active/0319-final-type-admission-diagnostics.md)合同已审，当前准备真实源级诊断红测；
+后继A的[0319 最终类型消费准入](active/0319-final-type-admission-diagnostics.md)已完成有界实现、本地81项精确回归与工程门禁，仍待远端CI和归档；
 随后B enum实参分类、C List MoveOnly转移追踪保持独立，尚未编号。single/project、basic/constant同源码差异矩阵仍需逐项建立，
 不以[现存入口差异](../architecture/lowering-support.md#现存入口差异)或本轮有限收尾宣称这些修复已完成。
 

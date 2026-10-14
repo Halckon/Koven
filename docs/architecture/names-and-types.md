@@ -10,12 +10,12 @@
 单文件解析使用类型/值双命名空间。顶层和成员先收集后解析，block local 在 initializer 完成后可见，
 嵌套作用域允许遮蔽。引用结果保留声明身份和源码 Span，未解析与歧义形成结构化诊断。
 
-`type_checking::check_types` 消费名称产物和显式 `TypeEnvironment`，返回 `TypedFile`。类型事实按 AST ID
-索引，包含表达式类型、类别、call/receiver/argument mapping、nominal projection、container、Rc、
-copyability、destructuring 和 flow facts。错误输入保留 recovery 事实；后端不能消费未验证产物。
-
-对应覆盖位于 `name_resolution`、`type_checking`、`type_callable` 和 `type_copyability` integration
-suites；lambda expected 与 capture 保全见 [move literal 前端事实](expected-move-literals.md)。
+`type_checking::check_types` 消费名称产物与显式 `TypeEnvironment`，返回按 AST ID 索引的 `TypedFile`：
+表达式类型/类别、call/receiver/argument mapping、nominal projection、container/Rc、copyability、destructuring 与 flow。
+raw检查保留recovery，旧validate边界不变；`complete_file_types` / `complete_compilation_unit_types`另授绑定原分析的
+[最终消费资格](tooling.md#最终类型消费准入)，不把它等同ownership/native能力。
+对应覆盖位于 `name_resolution`、`type_checking`、`type_callable`、`type_copyability` 与 `final_type_admission`；
+lambda expected 与 capture 保全见 [move literal 前端事实](expected-move-literals.md)。
 
 ## 数值字面量解码
 

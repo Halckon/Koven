@@ -4,7 +4,7 @@
 
 当前 1 份 active。
 
-- [0319 最终类型消费准入与源级诊断](0319-final-type-admission-diagnostics.md)：保留raw/recovery，严格消费前封闭类型资格；当前tests-only红测准备，尚无实现验收。
+- [0319 最终类型消费准入与源级诊断](0319-final-type-admission-diagnostics.md)：保留raw/recovery，严格消费前封闭类型资格；本地81项精确回归与工程门禁通过，远端CI及归档待完成。
 
 0316–0318已按各自有界合同归档并合入main；当前交付与CI状态见[近期交付](../README.md#近期交付)。
 
