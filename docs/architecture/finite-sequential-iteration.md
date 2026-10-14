@@ -51,9 +51,18 @@ Exit；dead source 允许 absent Exit，在 EndSource 后消费 Header。原 Res
 implies 不变，不新建运行时条件。replacement/alias、跨 loop phi seed、field/Inout/RangeView
 不由新 helper 放行；外层每轮 fresh seed 的独立 inner 实例有普通源码结构/native 对照。
 真实 owner、source loan、单次 snapshot 和 cursor 沿实际 edge 核验，Map 组合见
-[loop owner](map-loop-owner-carry.md#owned-source-的独立缺口)，本次验收见
+[loop owner](map-loop-owner-carry.md#owned-source-的独立证明)，本次验收见
 [SPEC-0312](../archive/specs/0312-owned-source-conditional-continue.md)。unit 两视图独立四格原已通过，
 这里的生产修复仅作用于 single；temporary/Borrow 路径保持原实现。
+
+single owned source的单条件Return现由[0314](../specs/active/0314-owned-source-conditional-return.md)
+独立证明：3 exits/3 incoming，Return不入phi；真实Entry和唯一Fallthrough先建立Header，
+再分别核Return path∧Header presence精确Drop、正常live Exit运输或dead absent Exit。
+Continue helper的专属gate、全局implies、Resource与frontend/model/verifier/LLVM保持原义。
+三个容器×local/own×live/dead、无Map/Map的24single格经精确SSA与原版native验收；
+unit basic/constant24格原SSA能力及独立native单列，未改unit生产。
+两body Resource/borrowed String operand、独立owned结果、同型decoy、fresh inner真实实例、
+耗尽后权限恢复有有界证据；多return、替换/alias、跨loop及Resource新条件能力不由此扩大。
 
 field source（包括 Field symbol root）与 Inout source 的 native 表示仍明确 Unsupported。
 自然循环内 captured Borrow closure 的0/1/3元素在普通/常量两视图已通过正常object/link/run；

@@ -4,7 +4,7 @@
 
 当前 1 份 active。
 
-- [0314 owned Sequential source 条件 return](0314-owned-source-conditional-return.md)：合同已建立，红测与实现待执行。
+- [0314 owned Sequential source 条件 return](0314-owned-source-conditional-return.md)：本地红→绿、117新增及共享回归、严格clippy已通过；终审/PR完整CI与合并闭环待验证。
 
 [0313 single Map owner 条件 return](../../archive/specs/0313-single-map-conditional-return.md)已按[PR92新base物理CI](https://github.com/Halckon/Koven/actions/runs/38483423039)双宿主230项联合逐名证据有界归档；保留原基线/拒绝边界，归档head CI/merge/main待验证。
 

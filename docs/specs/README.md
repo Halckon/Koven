@@ -10,12 +10,12 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 ### Active
 
 - [Active 合同](active/README.md)：当前 1 份。
-- [0314 owned source 条件 return](active/0314-owned-source-conditional-return.md)：独立修复实施中，尚未验收。
+- [0314 owned source 条件 return](active/0314-owned-source-conditional-return.md)：本地有界修复及117新增/共享回归已验收，PR完整CI及合并闭环待执行。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
 ### 近期交付
 
-- [0313 single Map 条件 return](../archive/specs/0313-single-map-conditional-return.md)：[PR92新base物理CI](https://github.com/Halckon/Koven/actions/runs/38483423039)双宿主230联合目标逐名通过后有界归档；Return无phi incoming，owned-source Return仍独立旧拒；归档head CI/merge/main待验证。
+- [0313 single Map 条件 return](../archive/specs/0313-single-map-conditional-return.md)：[PR92新base物理CI](https://github.com/Halckon/Koven/actions/runs/38483423039)双宿主230联合目标逐名通过后有界归档；Return无phi incoming，交付时的owned-source Return旧拒由当前0314独立修复；归档head CI/merge/main待验证。
 
 - [0312 owned Sequential source 条件 continue](../archive/specs/0312-owned-source-conditional-continue.md)：[PR91 实现 CI](https://github.com/Halckon/Koven/actions/runs/38433956651)双宿主32项新增及3项改名旧回归验收后有界归档；保留source单owner单loop、fresh独立实例及原失败边界，归档 head CI/merge/main 待验收。
 
