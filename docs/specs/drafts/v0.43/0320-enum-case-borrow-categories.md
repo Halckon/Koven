@@ -47,6 +47,9 @@ case 名称或同类型比较；已绑定 enum local、参数和字段仍是 pla
 - unit `ownership_checking/compilation_unit/dataflow/call_contract.rs::apply_contract` 对SharedLoan
   的Place分支必须找回真实place或temporary projection，否则返回内部错误。single
   `checker/loan.rs` 无place且category非Temporary时可能不发布临时loan，故不能只断言API返回Ok。
+- 0319前置还有独立待确认风险：`final_admission/adapters.rs`的construction选择只标static_callee，
+  未标Member qualifier；`walk.rs`可能继续把`Flag.On`的静态`Flag`当值检查，而bare构造成功
+  未为该receiver发布值类型。因此公开入口可能先被final缺事实阻断，尚无本轮动态证明。
 - 以上是静态疑点；先用真实facts锁descriptor、category、call参数与loan，再最小修复。
   不预先把作者矩阵或尚未执行的候选写成本轮红测。
 
@@ -64,11 +67,15 @@ case 名称或同类型比较；已绑定 enum local、参数和字段仍是 pla
    payload copy/move与普通constant category保持。不新建诊断码，不改变raw recovery或type trial回滚。
 6. unit basic/constant、正逆source inputs按同一身份规则验证；泛型case仅做已有类型/ownership对照，
    不因前端修复宣称generic enum native已交付。single/project源级失败沿原exit/JSON协议。
+7. raw descriptor/category与原ownership结果、0319 final资格必须分开采集，不能先expect final成功
+   而丢失分类/loan证据。若真实红测确认静态qualifier缺口，已获准在本片修相同construction角色的
+   窄接缝：必须同时绑定已选EnumCase construction与真实Package/Type qualifier身份；仍检查
+   runtime receiver和所有值operand，不绕final门、不豁免整条Member链、不改0319已发布验收范围。
 
 ## 4. 代表源码与后续 when 边界
 
 首个公开正例去掉when，用`Flag.On`直接交付普通Borrow参数并返回Int，main只比较Int后打印
-固定String；相同源码分别build/run，不通过修改callee为own或先存local绕开直接临时借用。
+固定String；相同源码分别build/run，记录每入口实际首个失败阶段，不通过修改callee为own或先存local绕开直接临时借用。
 MoveOnly空case与payload调用另作前端loan/owner对照，原p49/q08仍原字节独立记录。
 
 原probe不以“全文编译成功”为目标：unit `unit_lower/control.rs::lower_when_condition` 明确拒绝
@@ -85,7 +92,8 @@ UnsupportedNode及`Shape.Point -> 0` Span，`move_only_enum_when_waits_for_branc
 
 | 拟target / 精确函数 | 要锁的合同与helper |
 |---|---|
-| frontend `enum_case_borrow_categories` / `selected_case_values_are_temporary_but_bindings_and_fields_are_places` | 普通lex/parse→single/unit names/types→0319 final；零operand EnumCase descriptor、root类型、表达式与外层Borrow实参category；直接/Group/短名及place反例 |
+| frontend `enum_case_borrow_categories` / `selected_case_values_are_temporary_but_bindings_and_fields_are_places` | 普通lex/parse→single/unit names/types；先采raw、不以前置final成功为条件；零operand EnumCase descriptor、root类型、表达式与外层Borrow实参category；直接/Group/短名及place反例 |
+| 同target / `selected_case_qualifiers_keep_final_admission_precise` | 独立调用0319 final，采真实结果；已选case与Package/Type qualifier、runtime同名String/field对照，防全链或同类型豁免；与raw分类红分账 |
 | 同target / `borrowed_case_values_publish_call_scoped_temporary_loans` | 原check_ownership/check_compilation_unit_ownership；Copyable与MoveOnly空case、payload对照；精确临时loan、call Span/结束点及唯一owner消费，不只看无诊断 |
 | 同target / `cross_file_case_aliases_preserve_source_qualified_identity` | 两文件普通unit、真实正逆inputs、qualified/import alias、basic/constant；不按同类型合并目标 |
 | 同target / `inout_case_temporaries_keep_l0122_and_mutable_places_stay_valid` | 普通非法`&E.C`/Group与合法mutable local；精确诊断码、marker与parameter label，成功case不得提前错误 |
