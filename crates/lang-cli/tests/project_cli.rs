@@ -3,6 +3,9 @@
 #[path = "project_cli/enum_case_borrow.rs"]
 mod enum_case_borrow;
 
+#[path = "project_cli/mutable_list_delivery.rs"]
+mod mutable_list_delivery;
+
 #[path = "project_cli/final_type_admission.rs"]
 mod final_type_admission;
 

@@ -19,7 +19,8 @@
 
 single lowering提交`MutableList.add`后，不再把已经交给容器的MoveOnly元素owner留作caller的
 binding或temporary并运入后继CFG；只移除真实已交付owner的记录，未交付和Copyable来源保持。
-消费现有P3的精确call/argument/source事实，不凭名字、语法拼写、同类型或循环特判猜交付。
+依据既有typed call/argument/source身份及P3验证，unit以公开delivery事实对照；single不虚构同名表。
+不凭名字、语法拼写、同类型或循环特判猜交付。
 不新增drop来替代转移，不改运行时布局、扩容算法、Guide或SSA verifier所有权合同。
 
 ## 2. 原probe与证据边界
@@ -47,7 +48,7 @@ fun main(): Unit {
 - [verifier](../../../crates/lang-codegen/src/ssa/verify_ownership.rs)的`ContainerAppend`消费元素；[carried slots](../../../crates/lang-codegen/src/ssa/lower_frontend/control/carried.rs)却遍历所有MoveOnly binding及temporary，[for入口](../../../crates/lang-codegen/src/ssa/lower_frontend/loop_control/iteration.rs)据此构造header实参。
 - 因而已消费元素仍可能跨for边运输；这是源码支持的强根因候选，不能代替真实baseline。
 - [unit append](../../../crates/lang-codegen/src/ssa/unit_lower/container.rs)已有`consume_container_delivery`：核唯一call/argument、category/copyability及真实root/Temporary source，再移除owner记录；本片以此事实合同对齐single，不能照抄source-qualified ID或删除整个temporary表。
-- single的`forget_delivered_owners`已有按真实ValueId移除binding及temporary别名的窄机制；是否直接复用须在核对P3事实后决定。不得遗漏named root或只删除Group外层key。
+- single没有unit式公开`ValueDeliveryFact`表；须核typed append/operand身份、类别与已验证ownership，不能假称已有该表。已有`lower_value_argument`/`take_pending_value_argument`与`forget_delivered_owners`分别管理调用期交付及真实ValueId别名；是否复用须独审，不按语法猜所有权。
 
 ## 4. 支持、待核与非目标
 
@@ -65,7 +66,7 @@ fun main(): Unit {
 
 空列表不能制造元素drop；String literal虽可引用静态字节，其MoveOnly SSA义务仍成立。
 Resource只核普通源码可观察的访问与deinit顺序，不以allocator计数或改写IR证明。
-当前未确证的拒绝边界须按真实前置失败单列，不将它们改成新的预期成功，也不把旧拒例重命名成通过。
+Resource和出口未进入首批tests-only；当前未确证的拒绝边界须按真实前置失败单列，不将它们改成新的预期成功，也不把旧拒例重命名成通过。
 
 ## 5. 最小普通源码测试候选
 
@@ -86,7 +87,24 @@ Resource只核普通源码可观察的访问与deinit顺序，不以allocator计
 SSA只消费正常源码产物与标准verifier，可断言真实owner/delivery/edge身份，不修改产物做反例。
 若要新增unit constant或CLI覆盖，必须明示它是对照，不以unit绿替代single修复。
 
-## 6. 验收与停止条件
+## 6. 首批 tests-only 准备
+
+首批6份普通源码fixture在`crates/lang-codegen/tests/fixtures/mutable-list-delivery-0321/`；
+原p38逐字保留，另有Group、named-root、空列表、Copyable保留与独立live owner。没有Resource/出口扩展。
+`ssa::mutable_list_delivery_tests`的每个目标先收齐single/basic/constant三入口结果再断言成功，
+单入口前置或SSA失败均带阶段记录；unit锁真实call/operand delivery，single锁typed身份与ownership合法。
+CLI三个目标独立记录原p38的build/run/普通artifact，constant marker另存文件，不改主源码字节。
+
+| package / target | exact候选（均未执行） |
+|---|---|
+| lang-codegen / lib；前缀`ssa::mutable_list_delivery_tests::` | `p38_original_append_then_for_has_verified_delivery`、`grouped_append_operand_has_verified_delivery`、`named_root_append_operand_has_verified_delivery`、`empty_list_iteration_remains_valid`、`copyable_append_preserves_original_binding`、`append_preserves_unrelated_live_owner` |
+| lang-cli / native_cli；前缀`mutable_list_delivery::` | `single_p38_string_add_then_for_builds_and_runs` |
+| lang-cli / project_cli；同前缀 | `project_basic_p38_string_add_then_for_builds_and_runs`、`project_constant_p38_string_add_then_for_builds_and_runs` |
+
+这9个exact只是待审名单；未编译、未运行，不声称当前红/绿。0320实际main正常同步后重新固定
+源码/argv与基线，helper独审及root逐名授权后才开测；原L0131/L0135测试与oracle未改。
+
+## 7. 验收与停止条件
 
 - [x] 官方库存/编号、原p38字节与历史矩阵、single/unit静态链核对。
 - [x] 草案独审通过，批准迁active及tests-only；生产实现与测试运行仍未授权。
