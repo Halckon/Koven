@@ -8,12 +8,12 @@
 | Goal ID | `KOV-P2P3-0320` |
 | 所属 Phase | Phase 2 expression/call argument category；Phase 3 调用期 loan；Phase 6 两入口结果 |
 | 语言规范 | [构造身份与参数](../../guide/11-copyability-layout-construction.md#可构造目标与唯一身份)、[调用期loan](../../guide/10-ownership-borrowing-drop.md#所有者参数绑定与调用期-loan) |
-| 批准依据 | 2026-10-14 用户批准A诊断封闭→B enum构造实参分类→C List MoveOnly追踪；合同独审通过，获准迁active并准备tests-only；新目标须独审后逐名授权，实际main同步前不运行 |
+| 批准依据 | 2026-10-14 用户批准A诊断封闭→B enum构造实参分类→C List MoveOnly追踪；合同与最小实现独审通过；在实际main正常同步后，按逐名授权完成普通源码本地验证；远端CI仍待 |
 | 前置 Spec | [SPEC-0319](../../archive/specs/0319-final-type-admission-diagnostics.md)；最终类型准入保持，不混入其PR |
 | 分支基线 | `fix/spec-0320` 显式依赖0319本地最终 `6c1a11ca87b642849c6ba7c3be008a7aebece759` / tree `e2d1a5179c7102336154570c95cbd6e6774b5799`；初始依赖；随后保留真实双父正常合入0319实际main `a0f5f8ac46a33dc291b814a8bdeae4dae5eed64b` / tree `d28e30ad91e2f02d6bc04cb7ffb0605e8798630b` |
 | 官方核验 | 初次只读fetch main `18865460`时全局最大编号0319，0320按批准保留；本次官方fetch与正常merge确认上述actualmain，未改写已发布历史 |
 | 语言语义变更 | 否；既有Guide已规定无payload case为构造值、Borrow temporary合法、Inout temporary非法 |
-| 阻塞项 | 10 exact基线已实跑：FE5+CLI2行为红、旧codegen3拒绝合同绿；最小生产修复与回归待完成，本片未验收 |
+| 阻塞项 | 最小实现与46唯一普通Rust目标、四工程门禁已在固定输入通过；双宿主物理CI、归档与主干交付待完成 |
 
 ## 1. 单一 Goal
 
@@ -37,7 +37,7 @@ case 名称或同类型比较；已绑定 enum local、参数和字段仍是 pla
 | `p49_when_enum_no_payload.ko` | `5679bacd7fe7b110811b816f75352b0bc7538c9c9cbf688e3d483c543fc96cb6` | MissingFact / ownership内部错误 | Borrow实参`Color.Green` `[177,188)`；后续unit enum表达式条件另受限 |
 | `q08_enum_string_payload.ko` | `4a9c35ed04b945fd9dc0b144ca8c8e90aa5c0174b194a0d22827fa5fb984f12e` | UnsupportedNode / ownership内部错误 | Borrow实参`Msg.Quit` `[187,195)`；String使root enum为MoveOnly，when另受限 |
 
-当前6c源码只读链：
+实现前6c源码只读疑点（后由§6真实基线分别确认）：
 
 - single `checker/construction.rs::check_bare_enum_construction` 和 unit同名方法已在真实
   Name/Member expression上发布零operand descriptor，结果为root enum类型。
@@ -67,7 +67,7 @@ case 名称或同类型比较；已绑定 enum local、参数和字段仍是 pla
 4. 明确`&E.C`交付Inout应在类型阶段使用既有L0122，primary为真实`&` marker、label为参数声明；
    不以ownership内部失败或更晚不可变place诊断代替。合法`var value = E.C; touch(&value)`保持原成功合同。
 5. 失败/未完成构造不得伪造descriptor或取得0319 final资格；原L0144推导边界、显式参数/Value模式、
-   payload copy/move与普通constant category保持。不新建诊断码，不改变raw recovery或type trial回滚。
+   payload copy/move与普通constant category保持。不新建诊断码，不改变raw recovery接口与失败表示或type trial回滚。
 6. unit basic/constant、正逆source inputs按同一身份规则验证；泛型case仅做已有类型/ownership对照，
    不因前端修复宣称generic enum native已交付。single/project源级失败沿原exit/JSON协议。
 7. raw descriptor/category与原ownership结果、0319 final资格必须分开采集，不能先expect final成功
@@ -134,17 +134,44 @@ FE共32组源码分析（28single+32unit）均完成分采；每目标首个断�
 同qualifier目标随后两次观察复跑仍为1/1红（唯一目标数仍10）：确认single失败Member保留case.root_type模板、unit为Error，两者无descriptor。
 `907974a8`加入同source独立`n.fooBar`及同名String receiver对照，9组双入口已采、raw表示断言已过；原L0144 final先失败，混合三诊断oracle未执行。
 
-## 7. 状态与停止条件
+## 7. 最小实现与本地验证
+
+固定实现/测试输入`e26e203cc2a05de4f9818ec3417d9daf12003cec` / tree`6f974652`，
+1434源文件四批运行及工程门禁前后NUL摘要均为
+`29bdf70c5db671726493e0da5d255f8cba015241eb777c4300473cdd024d9fa6`。
+
+- 两入口只把同expression的真实EnumCase descriptor归为Temporary；single place查询排除同一构造，
+  Group沿原传播，真实binding/field保持Place。已有Borrow loan与CallReturn清理复用，Inout沿既有L0122拒绝。
+- final仅为真实EnumCase选择开放静态qualifier；失败bare case须本Member的原typed L0144、
+  精确name_span、真实case Value引用、零payload及已观测raw表示共同成立。unit再锁同source/Symbol；
+  原失败保持不完整，独立`fooBar`与同名runtime receiver仍各自诊断。
+- category方法完整迁至专责文件，旧分支原字节保留后作上述窄修；未提高尺寸cap，未改变when或Guide。
+
+| 验证 | 真实结果 |
+|---|---|
+| 新FE5 | 33组（29single+33unit）全部oracle通过；含MoveOnly Group内construction/外operand的loan与drop、精确place/case身份、L0144混合独立根及Inout对照 |
+| 新CLI2 | single/basic/constant共6次kovenc build/run及3次普通产物运行通过，输出`enum-borrow`；原基线0产物运行记录不变 |
+| codegen3 | 原`take(Shape.Point)`同源码已迁`direct_enum_case_call_argument_has_temporary_loan_and_verified_ssa`并通过真实Temporary loan、CallReturn与原SSA/LLVM验证；两个unit when拒绝边界保持 |
+| 共享36 | 0319 final13、原CLI3（48诊断进程输出）、原enum native2、原邻项SSA2、构造/loan16逐exact原oracle通过；与首10零交集，总46唯一＝FE34、公开CLI5、SSA5、原版native2 |
+| 工程/静态 | fmt；workspace all-targets check；frontend/codegen/CLI all-targets strict clippy；CLI build全部exit0。纯只读CI选择Python exact1/1、Rust尺寸与diff检查通过；不以编译all-targets声称测试全量执行 |
+
+新增FE target显式进入双宿主stage；静态完整选择104→105唯一frontend integration，唯一增量为
+`enum_case_borrow_categories`，Cargo调用仍10。Composition故障/聚合合同只交远端CI，本轮云端未执行；
+脚本进入代码CI指纹，未声称docs-only复用。原始红/观察/绿日志、固定名单与完整argv保留仓外
+`spec0320-tests-evidence/`，本片仍active；本地通过不能替代双宿主新增FE5实际执行与完整CI验收。
+
+## 8. 状态与停止条件
 
 - [x] 官方main/编号静核，保留0320；新worktree基6c，0319依赖显式记录。
 - [x] Guide构造身份、Borrow temporary与Inout限制核对；原两probe字节与作者矩阵分账。
 - [x] 草案独审，批准迁active并准备tests-only。
-- [x] 实际main正常merge与tests-only固定；无生产改动。
+- [x] 实际main正常merge与tests-only固定；该阶段未改生产。
 - [x] frontend5、CLI2与旧codegen3安全逐名独审，固定10 exact真实基线完成。
 - [x] 真实expected-positive及诊断保护红测，前置final/短名loan根因分账。
-- [ ] 最小分类/loan/构造qualifier修复及不误杀、旧oracle迁移和原when边界回归。
-- [ ] 工程门禁、双宿主CI、Architecture/验收归档及主干交付。
+- [x] 最小分类/loan/构造qualifier修复及不误杀、旧oracle迁移和原when边界回归。
+- [x] 本地46唯一普通Rust目标、四工程门禁与Architecture事实同步。
+- [ ] 双宿主物理CI、验收归档及主干交付。
 
 若必须修改Guide、重写通用place解析、放宽所有权或扩展when才能达成目标，停止并报告。
-任何fixture前置失败、已绿对照、未执行后续oracle与真正行为红分账；C的List MoveOnly追踪独立，
+任何fixture前置失败、已绿对照、未执行后续oracle与真正行为红分账；C保留原“List MoveOnly追踪”授权名，当前待查为p38的`MutableList<String>.add`后`for`临时owner清理，独立于本片，
 不得借本片编号或后端拒例夹入实现。

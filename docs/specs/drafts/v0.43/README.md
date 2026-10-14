@@ -46,9 +46,9 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 ## 现行语义的诊断修复
 
-- [0319 最终类型消费准入](../../../archive/specs/0319-final-type-admission-diagnostics.md)已按PR101实现head双宿主物理CI有界验收归档，保留中间Deferred/recovery；归档head CI已通过并合入main，main CI待核，不与0292的未启用consume前置混同。
+- [0319 最终类型消费准入](../../../archive/specs/0319-final-type-admission-diagnostics.md)已按PR101实现head双宿主物理CI有界验收归档，保留中间Deferred/recovery；归档head CI已通过并合入main，[main CI](https://github.com/Halckon/Koven/actions/runs/38592817579/attempts/1)已成功（15实际成功、1 PR-only证据job跳过），不与0292的未启用consume前置混同。
 
-- [0320 Enum case Borrow实参分类](../../active/0320-enum-case-borrow-categories.md)合同已审并迁active，已正常合入0319实际main；tests-only已固定、真实红测尚待，不扩when能力。
+- [0320 Enum case Borrow实参分类](../../active/0320-enum-case-borrow-categories.md)合同已审并迁active，已正常合入0319实际main；有界修复与本地46唯一普通目标及工程门禁已通过，双宿主CI/归档待完成，不扩when能力。
 
 ## 未编号的现行支持候选
 

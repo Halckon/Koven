@@ -4,8 +4,7 @@
 
 ## 分析入口与产物
 
-`ownership_checking::check_ownership` 提供单文件入口；
-`check_compilation_unit_ownership` 消费 validated typed unit 并返回 source-qualified
+单文件入口为 `ownership_checking::check_ownership`；`check_compilation_unit_ownership` 消费 validated typed unit，返回 source-qualified
 `CompilationUnitOwnership`。两条路径共享所有权语义，但使用各自产物的 ID，不能混用；[receiver 两阶段借用](receiver-borrows.md)记录预留与激活的直接合同；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的提交与边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
 
 公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
@@ -24,9 +23,8 @@ deferred 时整体不可用。初始化器依赖、return/Abort 后读取不登�
 owned。表达式/控制流清理矩阵的实际证据记录于 SPEC-0226；此为 Phase 3 capability，
 专用 native 已消费，六借用封闭交接见[流水线](pipeline-and-workspace.md#常量-owned-unit-交接)。
 
-unit 常量的 Group 只透传值：loan、Value delivery 和 temporary drop 的 owner 统一指向
-内部实际常量读取，drop 来源 Span 同步归一；原实参 identity、调用和清理位置保留。普通
-literal/variable/其他 temporary 不通过该常量归一路径。
+unit 常量 Group 将 loan、Value delivery、temporary drop owner 与 drop Span 归一至实际常量读取，保留实参 identity、调用及清理位置。
+此归一不适用于普通 literal/variable/其他 temporary。
 
 unit String 插值将已完成求值的 MoveOnly temporary 保存到与调用共用的 pending 状态，
 按插值 expression 隔离。正常完成在 `AfterExpression` 逆序释放输入；返回的外层 String 与
@@ -94,6 +92,8 @@ binding 能力由声明和参数 mode 决定：Owned、Shared 或 Exclusive。pl
 Borrow 与 Inout 调用分别建立 shared/exclusive loan。loan 在调用或 capture 生命周期的确定边界结束；
 派生 field/reborrow loan 活跃时不能提前结束父 loan。字段赋值同时检查可变性、receiver 能力和 active
 loan，普通源码违规形成所有权诊断。
+已选EnumCase构造按实际operand建立Temporary loan；single place查询排除真实construction，真实同名binding/field仍为Place。
+MoveOnly Group保留内层构造owner与外层operand的调用期loan/CallReturn清理；`&E.C`沿类型类别报既有L0122，缺失descriptor不授予借用成功。
 
 ## Value delivery 与构造
 
