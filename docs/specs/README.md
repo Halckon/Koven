@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 1 份。
+- [Active 合同](active/README.md)：当前 0 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -21,7 +21,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 - [ ] single 普通 Borrow 非泛型 value-class 的只读方法：[0316](../archive/specs/0316-single-readonly-value-methods.md)已完成独立真实红测、有界修复及双宿主实现head CI，已按有界合同归档并经PR96合为main `3661d682`；actual-main CI另核。首片限 owned Int/Boolean 结果，不扩通用 receiver 借用返回。unit 直接字段已由0309接通，不能再列为同一实现缺口。
 - [ ] 范围绑定函数内的 `&&`/`||`：[0317](../archive/specs/0317-range-normal-short-circuit.md)已按同根词法scope、单层正常短路有界验收归档；当前交付状态统一见[近期交付](#近期交付)，更宽组合在合同内明确留后继。
-- [ ] return operand 内 Map 最后使用：[0318](active/0318-map-return-operand-last-use.md)独立冻结更新与只读对照、当前 owner 和终止路径清理合同；无法由事实唯一绑定时明确延期。不能从0313/0314的条件 return 成功推定该组合已支持。
+- [ ] return operand 内 Map 最后使用：[0318](../archive/specs/0318-map-return-operand-last-use.md)已按temporary Array<Int>单Map/owned Int有界合同实现并双宿主验收归档；归档head CI及实际main交付仍待核。更广provider/owner/返回类型与ASAP关联边界不由此推定支持。
 - [ ] 最终联合验收：在选定切片整合后的精确 SHA 上，覆盖 single、unit（含适用的 basic/constant 及 provider 输入顺序）、公开 CLI 的代表源码；逐项记录输入 SHA、入口、真实 fixture/测试名、正例与精确诊断负例、命令/CI链接及实际执行状态。分别核 owner/loan 身份、清理次序与正常执行，不把 stdout 当动态释放计数；CLI 不继承 codegen 入口能力。
 - [ ] 边界逐项有去向：以[Map矩阵](../architecture/map-native-execution.md#编号场景与保留边界)、[范围能力门](../architecture/range-local-control-flow.md)及[普通借用后继](../architecture/synchronous-borrow-result-arguments.md)为入口，将已知边界逐项标明本轮关闭证据或独立后继/延期理由。未评估、未运行、失败、filtered、ignored 不计通过；代表场景不是全部笛卡尔积。
 
@@ -33,7 +33,9 @@ List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 f
 
 ### 近期交付
 
-- [0317 同根范围正常短路](../archive/specs/0317-range-normal-short-circuit.md)：[新base物理CI](https://github.com/Halckon/Koven/actions/runs/38535052886)在base `3661d682` / head `5445f38b` 双宿主逐名429 codegen、50 CLI、22 frontend及preview独立安装通过，已按有界合同归档；[PR97](https://github.com/Halckon/Koven/pull/97)归档head检查、具体合并批准与actual-main CI待核。旧baseCI38531927614仅保留历史证据。
+- [0318 Map return operand 最后使用](../archive/specs/0318-map-return-operand-last-use.md)：[实现CI a2](https://github.com/Halckon/Koven/actions/runs/38541560041/attempts/2)在head `f89d466c` / base `878801a3` 双宿主555 codegen、50 CLI、22 frontend与preview验收通过；7前置继承a1、8项a2实际执行，a1基础设施取消保留；[PR98](https://github.com/Halckon/Koven/pull/98)按有界合同归档，归档head CI/合并/main待核，PR99更正独立待合入。
+
+- [0317 同根范围正常短路](../archive/specs/0317-range-normal-short-circuit.md)：[新base物理CI](https://github.com/Halckon/Koven/actions/runs/38535052886)在base `3661d682` / head `5445f38b` 双宿主逐名429 codegen、50 CLI、22 frontend及preview独立安装通过，已按有界合同归档；[PR97](https://github.com/Halckon/Koven/pull/97)归档head已验收并合为main `878801a3`，[main CI](https://github.com/Halckon/Koven/actions/runs/38539127724)成功。旧baseCI38531927614仅保留历史证据。
 
 - [0316 single value-class 只读方法](../archive/specs/0316-single-readonly-value-methods.md)：[实现CI](https://github.com/Halckon/Koven/actions/runs/38528485581)双宿主逐名核验本片52、共享70、CLI4与frontend22项通过；[PR96](https://github.com/Halckon/Koven/pull/96)按有界合同归档，原失败/receiver来源边界保留；已合为main `3661d682`，actual-main CI另核。
 
@@ -78,7 +80,7 @@ List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 f
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：300 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：302 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

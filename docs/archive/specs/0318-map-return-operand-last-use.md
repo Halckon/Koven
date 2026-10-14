@@ -1,10 +1,10 @@
 # SPEC-0318: Map 条件 return operand 的最后使用清理
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实现或验收 Map return operand 内的最后使用清理时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：追溯 Map return operand 内的最后使用清理验收时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-MAP-RETURN-LAST-USE` |
 | 所属 Phase | Phase 4，保留 Phase 2/3 事实并以 Phase 5/6 验证 |
 | 语言规范 | [v0.43](../../guide/README.md)、[ASAP](../../guide/10-ownership-borrowing-drop.md#asap-析构)、[顺序 provider](../../guide/12-collections-destructuring.md#373-source-loan退出清理与冲突) |
@@ -12,7 +12,7 @@
 | 前置 Spec | SPEC-0313、SPEC-0314（均 done） |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 先取得正常源码真实 facts 与红测；若不能唯一绑定提前清理与 Return，登记延期而不推测 |
+| 阻塞项 | 有界实现无剩余阻塞；归档 head CI、合并与 actual-main CI 分别待核 |
 | 影响范围 | `lang-codegen` 的 single Map carrier、普通源码测试及实现事实文档 |
 | 语言语义变更 | 否 |
 
@@ -66,7 +66,7 @@
 - [x] 原版 object/link/run 覆盖第2节矩阵，stdout 不冒充动态释放计数。
 - [x] 原 Map return、正常 Map loop、独立 nullable 及边界诊断回归通过；命中数明确。
 - [x] Architecture 更新、docs/diff/fmt/尺寸及选定 check/clippy 通过。
-- [ ] 精确 head 双宿主 PR CI 与独立审阅完成后再归档；未运行不能标通过。
+- [x] 精确实现 head 双宿主 PR CI 与独立审阅完成；按有界合同归档，归档 head 与 main 验收另列。
 
 ## 6. 实施与提交
 
@@ -166,5 +166,35 @@ contains_dead_red另行exact 1/1补证，不额外计数。原日志及解析停
 相关普通conditional_move SSA/LLVM对照仍在名单，但不称上述计数目标的同源码native替代。
 
 同输入双crate全目标check、严格clippy和CLI build通过，命令均`--locked --offline`；
-docs/fmt/diff/尺寸通过，cap不变。独立最终审阅与双宿主PR CI、交付状态仍需分别完成；
-此前保持in-progress，不提前归档或宣称可合并。
+docs/fmt/diff/尺寸通过，cap不变。实现独立终审通过；远端实现验收见下节，归档head与main另验。
+
+## 8. 双宿主实现验收与归档边界
+
+[PR98](https://github.com/Halckon/Koven/pull/98) 的实际实现 head
+`f89d466c92a431ce2c7635105c69ae87e1fe14a2`、tree
+`ccf6b7384fa8550208e52a6ea7e55cf6da7f6289`，base
+`878801a31ca94757a4e6445cf063eec2f8438034`，由
+[CI run 38541560041 / attempt 2](https://github.com/Halckon/Koven/actions/runs/38541560041/attempts/2)
+完成独立物理验收，`reuse=false`；16项身份与同head/suite/job对应。
+15项success中7项前置继承a1，执行起止时间、steps、runner与日志字节一致；8项为a2实际执行的
+双宿主测试、四个preview job与两个汇总job。editors未变的Tree-sitter合法skip不算执行通过，
+不声称全部15项都是a2新跑。
+
+[a1](https://github.com/Halckon/Koven/actions/runs/38541560041/attempts/1)因GitHub internal error，
+双Targeted Tests在runner分配前取消，runner_id=0、无steps；当次测试/preview没有执行。
+未因该取消改源码；失败receipt SHA-256
+`303911824ab4c521014ae677682ec0cd27922cb7b3bce04d7aa5613f2e10621b`保留，不改称通过。
+
+双宿主555 codegen、50 CLI、22 frontend逐名实际ok；完整codegen Linux1971 passed，macOS1970
+passed+既有LLDB权限1 ignored，后者不算通过。被云白名单排除的counted目标只在本轮远端CI
+额外核两宿主ok，不混入安全555。50 CLI是既有范围/receiver代表组，不声称新增Map最后使用
+全部CLI组合已覆盖，也不把本片done扩大为完整M2B完成。
+
+双preview producer→artifact API→独立consumer身份及digest匹配；包内全部成员SHA/size/mode、
+producer/package/consumer三方manifest核对。每宿主无checkout安装后12条命令的stdout/stderr/exit、
+cleanup与sentinel均通过；宿主预装Cargo/Rust存在，但consumer命令未源码构建。
+独立成功receipt SHA-256
+`53c02124c77e0e8c63cc053da19cfbd0a768c3afa48d907ff5c42ce3b7b6751b`，归档前全部引用文件hash复核。
+
+本次为上述实际远端head的单父docs-only后继，按有界实现标done并迁移；归档head CI、
+PR98合并及actual-main CI仍待核，不继承实现head结论。PR99历史验收措辞更正独立待合入。
