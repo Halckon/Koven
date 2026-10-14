@@ -470,8 +470,8 @@ fn selected_constant_qualifiers_do_not_hide_runtime_member_roots() {
             vec!["fooBar", "fooBar"],
         ),
         (
-            "package app\nfun bad(): String { val text = \"x\"; return text.TEXT }\nfun value(): String = lib.Labels.TEXT",
-            vec!["text.TEXT"],
+            "package app\nfun bad(): String { val lib = \"x\"; return lib.TEXT }\nfun value(): String = lib.Labels.TEXT",
+            vec!["lib.TEXT"],
         ),
     ];
     let mut results = Vec::new();
@@ -540,6 +540,18 @@ fn selected_constant_qualifiers_do_not_hide_runtime_member_roots() {
                             UnitReferenceTarget::Declaration(_) | UnitReferenceTarget::Symbol(_)
                         ))
             );
+            if let Some(start) = text.find("lib.TEXT") {
+                let runtime = sources.span(app, start, start + 3).unwrap();
+                assert!(
+                    names
+                        .names()
+                        .references()
+                        .iter()
+                        .any(|r| r.span() == runtime
+                            && r.namespace() == Some(Namespace::Value)
+                            && matches!(r.target(), UnitReferenceTarget::Symbol(_)))
+                );
+            }
             let result =
                 complete_compilation_unit_types(&sources, &selected, &names, &types, &typed)
                     .map(|_| ());
@@ -557,8 +569,8 @@ fn selected_constant_qualifiers_do_not_hide_runtime_member_roots() {
         let mut search = 0;
         for (diagnostic, context) in diagnostics.iter().zip(roots) {
             let start = search + text[search..].find(context).unwrap();
-            let (start, width) = if context == "text.TEXT" {
-                (start + 5, 4)
+            let (start, width) = if context == "lib.TEXT" {
+                (start + 4, 4)
             } else {
                 (start, 6)
             };
