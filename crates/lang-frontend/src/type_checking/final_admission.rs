@@ -143,7 +143,11 @@ pub fn complete_file_types<'a>(
     walk::check(
         sources,
         parsed,
-        &adapters::Single { typed, names },
+        &adapters::Single {
+            typed,
+            names,
+            environment,
+        },
         &mut diagnostics,
     )?;
     let ordered = ordered_diagnostics(sources, &diagnostics)
@@ -182,6 +186,7 @@ pub fn complete_compilation_unit_types<'a>(
             &adapters::Unit {
                 typed,
                 names,
+                environment,
                 source: source.id(),
             },
             &mut diagnostics,

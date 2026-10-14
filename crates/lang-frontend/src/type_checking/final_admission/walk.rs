@@ -15,11 +15,29 @@ use crate::{
         BuiltinType, DeferredReason, ExpressionUse, TypeCheckingError, collect_expression_uses,
     },
 };
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, thread};
 
 type Result<T> = std::result::Result<T, Internal>;
 
 pub(super) fn check(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    facts: &(impl Facts + Sync),
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<()> {
+    // 与 raw 类型检查使用相同的显式工作栈；不在宿主 CLI/LSP 栈上递归 AST。
+    thread::scope(|scope| {
+        thread::Builder::new()
+            .name("koven-final-type-admission".to_owned())
+            .stack_size(32 * 1024 * 1024)
+            .spawn_scoped(scope, || check_roots(sources, parsed, facts, diagnostics))
+            .map_err(|error| TypeCheckingError::CheckerThread(error.kind()))?
+            .join()
+            .map_err(|_| TypeCheckingError::CheckerThreadPanicked)?
+    })
+}
+
+fn check_roots(
     sources: &SourceMap,
     parsed: &ParsedFile,
     facts: &impl Facts,
@@ -150,6 +168,10 @@ impl<F: Facts> Checker<'_, F> {
         let NameMarker::Present(span) = marker else {
             return Ok(false);
         };
+        // 与既有 destructuring/iteration checker 相同：真 discard 没有 symbol/value root。
+        if self.sources.slice(span).map_err(TypeCheckingError::from)? == "_" {
+            return Ok(complete);
+        }
         let Some((symbol, ty)) = self.facts.declaration(span) else {
             return if !complete || self.existing_error(span) {
                 Ok(false)
@@ -307,15 +329,12 @@ impl<F: Facts> Checker<'_, F> {
                 ..
             } => {
                 complete &= self.expression(*source, false)?;
-                if !complete {
-                    match binding {
-                        ForBinding::Name(name) => {
-                            self.binding(*name, false)?;
-                        }
-                        ForBinding::Destructuring { names, .. } => {
-                            for name in names {
-                                self.binding(*name, false)?;
-                            }
+                match binding {
+                    ForBinding::Name(name) => complete &= self.binding(*name, complete)?,
+                    ForBinding::Destructuring { names, .. } => {
+                        let source_complete = complete;
+                        for name in names {
+                            complete &= self.binding(*name, source_complete)?;
                         }
                     }
                 }
@@ -356,6 +375,20 @@ impl<F: Facts> Checker<'_, F> {
             _ => self.expression(id, false),
         }
     }
+    fn static_candidate(&self, id: ExpressionId) -> Result<bool> {
+        let node = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(id)
+            .map_err(TypeCheckingError::from)?;
+        match node.payload() {
+            Expression::Name => Ok(self.facts.static_candidate(node.span())),
+            Expression::Group { expression } => self.static_candidate(*expression),
+            _ => Ok(false),
+        }
+    }
+    // recovery 仅由失败 Call 传入其 callee 壳；不会传播到 receiver 或其他运行时子节点。
     fn expression(&mut self, id: ExpressionId, recovery: bool) -> Result<bool> {
         if let Some(complete) = self.expressions[id.index()] {
             return Ok(complete);
@@ -368,6 +401,7 @@ impl<F: Facts> Checker<'_, F> {
             .map_err(TypeCheckingError::from)?;
         let span = node.span();
         let selection = self.facts.selection(id);
+        let has_selection = selection.is_some();
         let mut complete = !self.existing_error(span);
         match node.payload() {
             Expression::Error => complete = false,
@@ -478,7 +512,7 @@ impl<F: Facts> Checker<'_, F> {
                 {
                     complete &= self.selector(*receiver)?;
                 } else {
-                    complete &= self.expression(*receiver, recovery)?;
+                    complete &= self.expression(*receiver, false)?;
                 }
                 if complete && selection.is_none() {
                     let receiver_kind = self
@@ -524,7 +558,11 @@ impl<F: Facts> Checker<'_, F> {
                             .and_then(|ty| self.facts.shape(ty)),
                         Some(Shape::Deferred(_))
                     );
-                    complete &= self.expression(*callee, !complete || deferred_call)?;
+                    // 已选 FunctionValue callee 必须具有自己的值事实。失败候选的缺值
+                    // 只在已有 child 根因，或具名静态候选对应真实 Deferred 时抑制级联。
+                    let failed_callee = selection.is_none()
+                        && (!complete || (deferred_call && self.static_candidate(*callee)?));
+                    complete &= self.expression(*callee, failed_callee)?;
                 }
             }
             Expression::Propagate {
@@ -532,14 +570,17 @@ impl<F: Facts> Checker<'_, F> {
                 question_span,
             } => {
                 complete &= self.expression(*value, false)?;
-                if complete
-                    && matches!(
-                        self.facts
-                            .expression_type(*value)
-                            .and_then(|ty| self.facts.shape(ty)),
-                        Some(Shape::Builtin(_) | Shape::Nullable(_))
-                    )
+                let proven_non_result = match self
+                    .facts
+                    .expression_type(*value)
+                    .and_then(|ty| self.facts.shape(ty))
                 {
+                    // Nothing 的 bottom/传播组合不在本片非法用法闭合范围内。
+                    Some(Shape::Builtin(BuiltinType::Nothing)) => false,
+                    Some(Shape::Builtin(_) | Shape::Nullable(_)) => true,
+                    _ => false,
+                };
+                if complete && proven_non_result {
                     complete = self.emit(
                         codes::INVALID_OPERAND_TYPES,
                         "error propagation requires a Result operand".to_owned(),
@@ -569,6 +610,14 @@ impl<F: Facts> Checker<'_, F> {
         if complete {
             let ty = self.facts.expression_type(id);
             let shape = ty.and_then(|ty| self.facts.shape(ty));
+            if matches!(node.payload(), Expression::Call { .. })
+                && !has_selection
+                && !matches!(shape, Some(Shape::Deferred(_) | Shape::Error) | None)
+            {
+                return Err(
+                    self.missing(span, "selected call, construction or intrinsic descriptor")
+                );
+            }
             let statement_assignment = self.facts.statement_assignment()
                 && self.uses[id.index()] == ExpressionUse::Statement
                 && matches!(node.payload(), Expression::Assignment { .. })

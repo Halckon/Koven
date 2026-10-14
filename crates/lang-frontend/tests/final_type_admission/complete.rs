@@ -140,6 +140,13 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
             other => panic!("source root must stop before ownership: {other:?}"),
         }
     }
+    // Nothing is bottom, so this slice does not invent a new illegal-operand rule for it.
+    let text = "fun stop(): Nothing = error(\"stop\")\nfun inspect(): Int? = stop()?";
+    let (sources, single, unit) = complete_both(text, false);
+    let start = text.rfind("stop()?").unwrap();
+    let expected = [("L0165", start, start + "stop()?".len(), "stop()?")];
+    assert_exact(&sources, "main.ko", single, &expected);
+    assert_exact(&sources, "main.ko", unit, &expected);
 }
 
 #[test]

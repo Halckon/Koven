@@ -3,7 +3,7 @@ use super::super::*;
 use crate::{
     ast::{ExpressionId, TypeRefId},
     name_resolution::{
-        NameResolution, Namespace, ReferenceTarget, SourceUnitId, UnitReferenceTarget,
+        NameResolution, Namespace, ReferenceTarget, SourceUnitId, SymbolKind, UnitReferenceTarget,
         UnitSymbolId, ValidatedCompilationUnitNames,
     },
     source::Span,
@@ -31,6 +31,7 @@ pub(super) trait Facts {
     fn shape(&self, ty: usize) -> Option<Shape>;
     fn selection(&self, expression: ExpressionId) -> Option<Selection>;
     fn static_qualifier(&self, span: Span) -> bool;
+    fn static_candidate(&self, span: Span) -> bool;
     fn declaration(&self, span: Span) -> Option<(usize, usize)>;
     fn referenced_symbol(&self, span: Span) -> Option<usize>;
     fn statement_assignment(&self) -> bool {
@@ -40,11 +41,33 @@ pub(super) trait Facts {
 pub(super) struct Single<'a> {
     pub typed: &'a TypedFile,
     pub names: &'a NameResolution,
+    pub environment: &'a TypeEnvironment,
 }
 pub(super) struct Unit<'a> {
     pub typed: &'a CompilationUnitTypes,
     pub names: &'a ValidatedCompilationUnitNames,
+    pub environment: &'a TypeEnvironment,
     pub source: SourceUnitId,
+}
+
+fn static_symbol(kind: SymbolKind) -> bool {
+    matches!(
+        kind,
+        SymbolKind::Function | SymbolKind::Classifier | SymbolKind::EnumVariant
+    )
+}
+fn static_external(
+    environment: &TypeEnvironment,
+    symbol: crate::name_resolution::ExternalSymbolId,
+) -> bool {
+    matches!(
+        environment.binding(symbol),
+        Some(
+            ExternalTypeBinding::Function(_)
+                | ExternalTypeBinding::IntrinsicCallable(_)
+                | ExternalTypeBinding::Intrinsic(_)
+        )
+    )
 }
 
 trait ParameterTypeIndex {
@@ -256,6 +279,36 @@ impl Facts for Single<'_> {
                 )
         })
     }
+    fn static_candidate(&self, span: Span) -> bool {
+        self.names
+            .references()
+            .iter()
+            .filter(|reference| reference.span() == span)
+            .any(|reference| match reference.target() {
+                ReferenceTarget::Symbol(symbol) => self
+                    .names
+                    .symbols()
+                    .get(symbol.index())
+                    .is_some_and(|symbol| static_symbol(symbol.kind())),
+                ReferenceTarget::OverloadSet(symbols) => {
+                    !symbols.is_empty()
+                        && symbols.iter().all(|symbol| {
+                            self.names
+                                .symbols()
+                                .get(symbol.index())
+                                .is_some_and(|symbol| static_symbol(symbol.kind()))
+                        })
+                }
+                ReferenceTarget::External(symbol) => static_external(self.environment, *symbol),
+                ReferenceTarget::ExternalOverloadSet(symbols) => {
+                    !symbols.is_empty()
+                        && symbols
+                            .iter()
+                            .all(|symbol| static_external(self.environment, *symbol))
+                }
+                _ => false,
+            })
+    }
     fn declaration(&self, span: Span) -> Option<(usize, usize)> {
         let symbol = self
             .names
@@ -333,6 +386,46 @@ impl Facts for Unit<'_> {
                                 | UnitReferenceTarget::External(_)
                         )))
         })
+    }
+    fn static_candidate(&self, span: Span) -> bool {
+        let declaration = |id| {
+            self.names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|declaration| declaration.id() == id)
+                .is_some_and(|declaration| static_symbol(declaration.kind()))
+        };
+        let symbol = |id: UnitSymbolId| {
+            self.names
+                .names()
+                .source_units()
+                .iter()
+                .find(|source| source.source_unit() == id.source_unit())
+                .and_then(|source| source.resolution().symbols().get(id.symbol().index()))
+                .is_some_and(|symbol| static_symbol(symbol.kind()))
+        };
+        self.names
+            .names()
+            .references()
+            .iter()
+            .filter(|reference| reference.span() == span && reference.source_unit() == self.source)
+            .any(|reference| match reference.target() {
+                UnitReferenceTarget::Declaration(id) => declaration(*id),
+                UnitReferenceTarget::OverloadSet(ids) => {
+                    !ids.is_empty() && ids.iter().all(|id| declaration(*id))
+                }
+                UnitReferenceTarget::Symbol(id) => symbol(*id),
+                UnitReferenceTarget::Symbols(ids) => {
+                    !ids.is_empty() && ids.iter().all(|id| symbol(*id))
+                }
+                UnitReferenceTarget::External(id) => static_external(self.environment, *id),
+                UnitReferenceTarget::ExternalOverloadSet(ids) => {
+                    !ids.is_empty() && ids.iter().all(|id| static_external(self.environment, *id))
+                }
+                _ => false,
+            })
     }
     fn declaration(&self, span: Span) -> Option<(usize, usize)> {
         let names = self
