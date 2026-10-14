@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 0 份。
+- [Active 合同](active/README.md)：当前 1 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -20,7 +20,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 这是收尾范围与完成条件，不表示 M2B 全部能力完成，也不自动批准新语义或未建立的 Spec。
 
 - [ ] single 普通 Borrow 非泛型 value-class 的只读方法：0316 承接准备中，先独立真实红测，再做最小修复；首片拟限 owned Int/Boolean 结果，不扩通用 receiver 借用返回。unit 直接字段已由0309接通，不能再列为同一实现缺口。
-- [ ] 范围绑定函数内的 `&&`/`||`：独立定位并冻结最小合同，核求值一次、未选后缀不执行与 root/loan/cleanup。最终收尾前必须落实独立 Spec 或本节的明确延期条目及理由；当前待选，不计实现。
+- [ ] 范围绑定函数内的 `&&`/`||`：[0317](active/0317-range-normal-short-circuit.md) 冻结同根词法 scope、单层正常短路，先真实红测后最小接入；更宽组合在合同内明确留后继，当前尚未验收，不计实现。
 - [ ] return operand 内更新 Map：与前项分别定位、冻结当前 owner 和终止路径清理合同；最终收尾前同样必须落实独立 Spec 或明确延期条目及理由。不能从0313/0314的条件 return 成功推定该组合已支持。
 - [ ] 最终联合验收：在选定切片整合后的精确 SHA 上，覆盖 single、unit（含适用的 basic/constant 及 provider 输入顺序）、公开 CLI 的代表源码；逐项记录输入 SHA、入口、真实 fixture/测试名、正例与精确诊断负例、命令/CI链接及实际执行状态。分别核 owner/loan 身份、清理次序与正常执行，不把 stdout 当动态释放计数；CLI 不继承 codegen 入口能力。
 - [ ] 边界逐项有去向：以[Map矩阵](../architecture/map-native-execution.md#编号场景与保留边界)、[范围能力门](../architecture/range-local-control-flow.md)及[普通借用后继](../architecture/synchronous-borrow-result-arguments.md)为入口，将已知边界逐项标明本轮关闭证据或独立后继/延期理由。未评估、未运行、失败、filtered、ignored 不计通过；代表场景不是全部笛卡尔积。

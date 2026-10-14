@@ -1,4 +1,4 @@
-//! Ordinary source keeps the non-Int, short-circuit and alias gates closed.
+//! Ordinary source keeps the non-Int, concat and alias gates closed.
 use super::*;
 use crate::ssa::LoweringErrorKind;
 
@@ -61,10 +61,7 @@ fn range_comparison_boundary_non_int() {
 }
 
 #[test]
-fn range_comparison_boundary_short_circuit_and_concat() {
-    for expression in ["flag && flag", "flag || flag"] {
-        reject(&format!("check({expression})"), expression);
-    }
+fn range_comparison_boundary_concat() {
     reject("println(\"a\"+\"b\")", "\"a\"+\"b\"");
 }
 

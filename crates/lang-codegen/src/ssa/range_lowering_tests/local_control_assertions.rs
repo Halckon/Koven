@@ -367,3 +367,135 @@ pub(super) fn if_transport(program: &Program, span: Span, count: usize) {
     assert_reads(function, *merge, state);
     assert_cleanup(function, *merge, state);
 }
+
+/// Both short-circuit edges and every later statement-if edge retain the exact
+/// root/descriptor/source tuple; the RHS read loan ends only on the chosen edge.
+pub(super) fn short_circuit_transport(program: &Program, span: Span, and: bool) {
+    let function = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| {
+            function.blocks.iter().any(|block| {
+                block
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|term| term.origin.span() == span)
+            })
+        })
+        .expect("the dynamic source short circuit must emit its own conditional");
+    let branch = function
+        .blocks
+        .iter()
+        .find(|block| {
+            block
+                .terminator
+                .as_ref()
+                .is_some_and(|term| term.origin.span() == span)
+        })
+        .unwrap();
+    let TerminatorKind::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &branch.terminator.as_ref().unwrap().kind
+    else {
+        panic!("short circuit condition")
+    };
+    let state = initial_carriers(function, 3);
+    let (rhs, skip) = if and {
+        (when_true, when_false)
+    } else {
+        (when_false, when_true)
+    };
+    let rhs_state = carried(function, rhs, &state);
+    let rhs_block = &function.blocks[rhs.target.index()];
+    let calls = rhs_block
+        .instructions
+        .iter()
+        .filter_map(|id| {
+            let instruction = function.instruction(*id).unwrap();
+            let Operation::DirectCall { arguments, .. } = &instruction.operation else {
+                return None;
+            };
+            let [EntityId::Loan(loan), EntityId::Value(_)] = arguments.as_slice() else {
+                return None;
+            };
+            Some((instruction, *loan))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1, "exactly one RHS reader invocation");
+    let (call, loan) = calls[0];
+    assert_eq!(
+        borrowed_owner(function, loan),
+        rhs_state.descriptors[1].0,
+        "RHS reads the rebound child metadata"
+    );
+    assert!(instruction_position(function, call) < read_end_position(function, rhs.target, loan));
+    assert!(
+        !function.blocks[skip.target.index()]
+            .instructions
+            .iter()
+            .any(|id| matches!(
+                function.instruction(*id).unwrap().operation,
+                Operation::DirectCall { .. } | Operation::BorrowBegin { .. }
+            )),
+        "skip cannot execute the RHS or create its loan"
+    );
+    let mut seen = std::collections::BTreeMap::<BlockId, Carriers>::new();
+    let mut pending = vec![
+        (rhs.target, rhs_state),
+        (skip.target, carried(function, skip, &state)),
+    ];
+    let mut cleanups = 0;
+    while let Some((block, state)) = pending.pop() {
+        if let Some(prior) = seen.insert(block, state.clone()) {
+            assert_eq!(
+                prior, state,
+                "each incoming edge rebinds the same exact carrier tuple"
+            );
+            continue;
+        }
+        let block_node = &function.blocks[block.index()];
+        if block_node.instructions.iter().any(|id| {
+            matches!(
+                function.instruction(*id).unwrap().operation,
+                Operation::RangeEnd { .. }
+            )
+        }) {
+            assert_reads(function, block, &state);
+            assert_cleanup(function, block, &state);
+            let ends = block_node
+                .instructions
+                .iter()
+                .filter_map(|id| match function.instruction(*id).unwrap().operation {
+                    Operation::RangeEnd { view, source } => Some((view, source)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                ends,
+                state.descriptors.iter().rev().copied().collect::<Vec<_>>(),
+                "sibling then child then parent cleanup"
+            );
+            cleanups += 1;
+            continue;
+        }
+        assert!(!block_node.instructions.iter().any(|id| matches!(function.instruction(*id).unwrap().operation,Operation::Drop {owner} if owner==state.root)),"root cannot drop on an intermediate edge");
+        let edges = match &block_node.terminator.as_ref().unwrap().kind {
+            TerminatorKind::Branch(edge) => vec![edge],
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            other => panic!("normal expression must reach its cleanup: {other:?}"),
+        };
+        for edge in edges {
+            pending.push((edge.target, carried(function, edge, &state)));
+        }
+    }
+    assert_eq!(
+        cleanups, 1,
+        "both short-circuit paths reach the one lexical cleanup"
+    );
+}
