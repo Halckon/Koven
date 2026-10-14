@@ -104,3 +104,19 @@ remove独立nullable结果在 `AfterBinaryOperands(ExpressionId(22))` 析构，�
 contains对照同样在CallReturn20清理Map，Return27/operand26；证明疑点是last-use，非变异特有。
 正常dead exhaustion仍在LoopExit12消费Header owner，Return不贡献phi incoming。
 这些身份是真实事实记录；尚未证明从CallReturn到Return的唯一动态运输，不能据此宣布修复。
+
+### 第二检查点：待运行的测试输入
+
+已补四个正式期望成功的测试 `map_operand_last_use_{remove,contains}_{live,dead}_red`，
+以及 live、no-map nullable 对照和 unit factory 精确 `UnsupportedNode`/声明 Span。
+这些新增/调整后的测试尚未执行；名字含 red 只表示预期的行为改动目标，不是已复现失败。
+
+新增 `tests/fixtures/map-return-last-use-0318/cardinality.ko` 与对应 `.stdout` golden，
+17个普通调用覆盖temporary `Array<Int>(count, sourceIndex)` 的0/1/3长度、first/last/never，
+remove的offset0命中与offset100缺失分开调用，contains独立对照；正常出口live/dead均有实例。
+`sourceIndex`打印验证每个源元素只初始化一次，不作为释放计数。
+三个 `*_map_operand_last_use_native_*cardinality` 使用原版object/link/run；尚未执行。
+新native须先完成对应SSA/LLVM验收，不能把源码准备计为正常执行通过。
+
+baseline2的精确测试输入、逐文件manifest、命令与原始日志保存在仓外；替换首检查点测试文件
+即可重建该批次输入，反算manifest汇总等于已记录的`e3f90ced…3136`，没有更改原结果。

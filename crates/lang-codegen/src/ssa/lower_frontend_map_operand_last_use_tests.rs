@@ -62,11 +62,20 @@ fn assert_single(text: &str, name: &str, supported: bool) {
     );
     let plan = &a.owned.iterations()[0];
     assert_eq!(plan.exits().len(), 3);
-    assert_eq!(
-        plan.closure_phi_incomings().len(),
-        3,
-        "Return never feeds phi"
-    );
+    if name.starts_with("no-map") {
+        assert!(plan.closure_phis().is_empty());
+        assert!(
+            plan.closure_phi_incomings()
+                .iter()
+                .all(|edge| edge.bindings().is_empty())
+        );
+    } else {
+        assert_eq!(
+            plan.closure_phi_incomings().len(),
+            3,
+            "Return never feeds phi"
+        );
+    }
     let exit = plan
         .exits()
         .iter()
@@ -178,35 +187,95 @@ fn assert_unit(text: &str, constants: bool, supported: bool) {
         "RESULT unit constants={constants}: {:?}",
         result.as_ref().map(|_| "VERIFIED")
     );
-    assert_eq!(result.is_ok(), supported, "{:?}", result.as_ref().err());
-    if let Ok((program, entry)) = result {
-        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    match result {
+        Ok((program, entry)) => {
+            assert!(supported);
+            crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        }
+        Err(error) => {
+            assert!(!supported, "{error:?}");
+            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+            let span = error.span.unwrap();
+            assert_eq!(span.start(), "package p\n".len());
+            assert_eq!(
+                &text[span.start()..span.end()],
+                text.lines().nth(1).unwrap()
+            );
+        }
     }
 }
 
 #[test]
 fn map_operand_last_use_single_baseline() {
-    for kind in ["remove", "contains", "item", "independent-nullable"] {
-        assert_single(
-            &source(kind, false),
-            &format!("{kind}-live=false"),
-            kind == "item",
-        );
+    for live in [false, true] {
+        for kind in ["remove", "contains", "item", "independent-nullable"] {
+            assert_single(
+                &source(kind, live),
+                &format!("{kind}-live={live}"),
+                kind == "item",
+            );
+        }
     }
 }
 
 #[test]
 fn map_operand_last_use_unit_basic_baseline() {
-    for kind in ["remove", "contains", "item", "independent-nullable"] {
-        println!("CASE unit-basic {kind}-live=false");
-        assert_unit(&source(kind, false), false, kind != "independent-nullable");
+    for live in [false, true] {
+        for kind in [
+            "remove",
+            "contains",
+            "item",
+            "independent-nullable",
+            "no-map",
+        ] {
+            println!("CASE unit-basic {kind}-live={live}");
+            assert_unit(
+                &source(kind, live),
+                false,
+                !matches!(kind, "independent-nullable" | "no-map"),
+            );
+        }
     }
 }
 
 #[test]
 fn map_operand_last_use_unit_constant_baseline() {
-    for kind in ["remove", "contains", "item", "independent-nullable"] {
-        println!("CASE unit-constant {kind}-live=false");
-        assert_unit(&source(kind, false), true, kind != "independent-nullable");
+    for live in [false, true] {
+        for kind in [
+            "remove",
+            "contains",
+            "item",
+            "independent-nullable",
+            "no-map",
+        ] {
+            println!("CASE unit-constant {kind}-live={live}");
+            assert_unit(
+                &source(kind, live),
+                true,
+                !matches!(kind, "independent-nullable" | "no-map"),
+            );
+        }
     }
+}
+
+#[test]
+fn map_operand_last_use_no_map_nullable_control() {
+    assert_single(&source("no-map", false), "no-map-nullable", true);
+}
+
+#[test]
+fn map_operand_last_use_remove_live_red() {
+    assert_single(ORIGINAL, "remove-live-goal", true);
+}
+#[test]
+fn map_operand_last_use_remove_dead_red() {
+    assert_single(&source("remove", false), "remove-dead-goal", true);
+}
+#[test]
+fn map_operand_last_use_contains_live_red() {
+    assert_single(&source("contains", true), "contains-live-goal", true);
+}
+#[test]
+fn map_operand_last_use_contains_dead_red() {
+    assert_single(&source("contains", false), "contains-dead-goal", true);
 }

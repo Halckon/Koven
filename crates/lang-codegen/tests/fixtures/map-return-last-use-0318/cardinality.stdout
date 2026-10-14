@@ -1,0 +1,105 @@
+case 1
+live empty
+exhausted
+ok
+case 2
+exhausted
+ok
+case 3
+source
+present
+ok
+case 4
+source
+missing
+ok
+case 5
+source
+tail
+live tail
+exhausted
+ok
+case 6
+source
+tail
+exhausted
+ok
+case 7
+source
+source
+source
+present
+ok
+case 8
+source
+source
+source
+tail
+tail
+present
+ok
+case 9
+source
+source
+source
+tail
+tail
+missing
+ok
+case 10
+source
+source
+source
+missing
+ok
+case 11
+source
+source
+source
+tail
+tail
+tail
+live tail
+exhausted
+ok
+case 12
+source
+source
+source
+tail
+tail
+tail
+exhausted
+ok
+case 13
+live empty
+exhausted
+ok
+case 14
+source
+present
+ok
+case 15
+source
+source
+source
+present
+ok
+case 16
+source
+source
+source
+tail
+tail
+present
+ok
+case 17
+source
+source
+source
+tail
+tail
+tail
+live tail
+exhausted
+ok

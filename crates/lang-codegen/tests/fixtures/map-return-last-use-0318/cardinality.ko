@@ -1,0 +1,92 @@
+fun sourceIndex(index: Int): Int { println("source"); return index + 1 }
+
+fun confirm(actual: Int, expected: Int): Unit {
+    if (actual == expected) { println("ok") } else { println("bad result") }
+}
+
+fun removeLive(count: Int, stop: Int, offset: Int): Int {
+    var cache = mutableMapOf<Int, String>()
+    for (item in Array<Int>(count, sourceIndex)) {
+        cache.put(item, "head".clone())
+        if (item == stop) { return if (cache.remove(item + offset) != null) { println("present"); item } else { println("missing"); 0 } }
+        cache.put(9, "tail".clone())
+        println("tail")
+    }
+    if (cache.contains(9)) { println("live tail") } else { println("live empty") }
+    println("exhausted")
+    return 0
+}
+
+fun removeDead(count: Int, stop: Int, offset: Int): Int {
+    var cache = mutableMapOf<Int, String>()
+    for (item in Array<Int>(count, sourceIndex)) {
+        cache.put(item, "head".clone())
+        if (item == stop) { return if (cache.remove(item + offset) != null) { println("present"); item } else { println("missing"); 0 } }
+        cache.put(9, "tail".clone())
+        println("tail")
+    }
+    println("exhausted")
+    return 0
+}
+
+fun containsLive(count: Int, stop: Int): Int {
+    var cache = mutableMapOf<Int, String>()
+    for (item in Array<Int>(count, sourceIndex)) {
+        cache.put(item, "head".clone())
+        if (item == stop) { return if (cache.contains(item)) { println("present"); item } else { println("missing"); 0 } }
+        cache.put(9, "tail".clone())
+        println("tail")
+    }
+    if (cache.contains(9)) { println("live tail") } else { println("live empty") }
+    println("exhausted")
+    return 0
+}
+
+fun containsDead(count: Int, stop: Int): Int {
+    var cache = mutableMapOf<Int, String>()
+    for (item in Array<Int>(count, sourceIndex)) {
+        cache.put(item, "head".clone())
+        if (item == stop) { return if (cache.contains(item)) { println("present"); item } else { println("missing"); 0 } }
+        cache.put(9, "tail".clone())
+        println("tail")
+    }
+    println("exhausted")
+    return 0
+}
+
+fun main(): Unit {
+    println("case 1")
+    confirm(removeLive(0, 9, 0), 0)
+    println("case 2")
+    confirm(removeDead(0, 9, 0), 0)
+    println("case 3")
+    confirm(removeLive(1, 1, 0), 1)
+    println("case 4")
+    confirm(removeDead(1, 1, 100), 0)
+    println("case 5")
+    confirm(removeLive(1, 9, 0), 0)
+    println("case 6")
+    confirm(removeDead(1, 9, 100), 0)
+    println("case 7")
+    confirm(removeLive(3, 1, 0), 1)
+    println("case 8")
+    confirm(removeDead(3, 3, 0), 3)
+    println("case 9")
+    confirm(removeLive(3, 3, 100), 0)
+    println("case 10")
+    confirm(removeDead(3, 1, 100), 0)
+    println("case 11")
+    confirm(removeLive(3, 9, 0), 0)
+    println("case 12")
+    confirm(removeDead(3, 9, 100), 0)
+    println("case 13")
+    confirm(containsLive(0, 9), 0)
+    println("case 14")
+    confirm(containsDead(1, 1), 1)
+    println("case 15")
+    confirm(containsLive(3, 1), 1)
+    println("case 16")
+    confirm(containsDead(3, 3), 3)
+    println("case 17")
+    confirm(containsLive(3, 9), 0)
+}

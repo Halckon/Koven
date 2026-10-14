@@ -1941,3 +1941,5 @@ mod owned_map_borrow_tests;
 
 #[path = "unit_owned_source_continue_tests.rs"]
 mod owned_source_continue_tests;
+#[path = "unit_map_operand_last_use_tests.rs"]
+mod map_operand_last_use_tests;
