@@ -175,3 +175,9 @@ mod ordinary_controls;
 
 #[path = "lower_frontend_map_return_matrix_tests.rs"]
 mod source_matrix;
+
+#[path = "lower_frontend_map_operand_last_use_tests.rs"]
+mod operand_last_use;
+
+#[path = "lower_frontend_map_operand_structure_tests.rs"]
+mod operand_structure;
