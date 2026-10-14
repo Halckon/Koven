@@ -217,15 +217,21 @@ impl<F: Facts> Checker<'_, F> {
             .ok_or_else(|| self.missing(node.span(), "type-reference type"))?;
         self.type_root(ty, node.span(), bound)
     }
-    fn binding(&mut self, marker: NameMarker, complete: bool) -> Result<bool> {
+    fn binding(
+        &mut self,
+        marker: NameMarker,
+        complete: bool,
+        discard_allowed: bool,
+    ) -> Result<bool> {
         let NameMarker::Present(span) = marker else {
             return Ok(false);
         };
-        // 与既有 destructuring/iteration checker 相同：真 discard 没有 symbol/value root。
-        if self.sources.slice(span).map_err(TypeCheckingError::from)? == "_" {
-            return Ok(complete);
-        }
         let Some((symbol, ty)) = self.facts.declaration(span) else {
+            // 只有 for/解构的无 binding discard 可免除值事实；普通 val _ 仍是真 symbol。
+            if discard_allowed && self.sources.slice(span).map_err(TypeCheckingError::from)? == "_"
+            {
+                return Ok(complete);
+            }
             return if !complete || self.existing_error(span) {
                 Ok(false)
             } else {
@@ -272,7 +278,7 @@ impl<F: Facts> Checker<'_, F> {
                 if let Some(type_ref) = type_ref {
                     complete &= self.type_ref(*type_ref, false)?;
                 }
-                complete &= self.binding(*name, complete)?;
+                complete &= self.binding(*name, complete, false)?;
             }
             Item::Function {
                 type_parameters,
@@ -367,7 +373,7 @@ impl<F: Facts> Checker<'_, F> {
             } => {
                 complete &= self.expression(*initializer, false)?;
                 for binding in bindings {
-                    complete &= self.binding(*binding, complete)?;
+                    complete &= self.binding(*binding, complete, true)?;
                 }
             }
             Statement::Expression { expression } => {
@@ -387,11 +393,11 @@ impl<F: Facts> Checker<'_, F> {
             } => {
                 complete &= self.expression(*source, false)?;
                 match binding {
-                    ForBinding::Name(name) => complete &= self.binding(*name, complete)?,
+                    ForBinding::Name(name) => complete &= self.binding(*name, complete, true)?,
                     ForBinding::Destructuring { names, .. } => {
                         let source_complete = complete;
                         for name in names {
-                            complete &= self.binding(*name, source_complete)?;
+                            complete &= self.binding(*name, source_complete, true)?;
                         }
                     }
                 }
