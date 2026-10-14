@@ -11,7 +11,7 @@
 | 批准依据 | 2026-10-14 用户对 owned-source return 下一里程碑明确继续实施 |
 | 前置 Spec | [SPEC-0312](../../archive/specs/0312-owned-source-conditional-continue.md)、[SPEC-0313](../../archive/specs/0313-single-map-conditional-return.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 本地有界实现及验收通过；文档终审、PR完整CI及合并闭环待验证 |
+| 阻塞项 | 本地有界实现、验收与独立终审通过；PR完整CI及合并闭环待验证 |
 | 影响范围 | 非 Resource owned Array/List/MutableList source 的单条件 return |
 | 语言语义变更 | 否 |
 
@@ -74,8 +74,8 @@ break/continue混合、无fallthrough、跨loop/capture、RangeView等保持原�
 | Map共享与返回operand | 同输入，`ssa::lower_frontend_tests::map_result_tests::` / `map_put_control_exit` | 94/20通过；94含原0313 owned-source8格转正，及新增3项结构；各选择有重叠，不相加声称唯一目标数 |
 | 共享普通native | 同输入，`native::unit_tests::{map_loop_owner_tests,map_key_return_tests,owned_null_cleanup_tests,temporary_null_cleanup_tests}`分别执行 | 52/18/11/8通过；52包含本片24unit native。原版LLVM/object/link/run，无计数插桩；source前后hash相等 |
 | 静态门禁 | 3dad；fmt、`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`、sizes、size-policy | 全通过；Python指定size-policy模块47通过。38项历史尺寸债保留；测试入口仅3行注册2007→2010有限例外获独立审阅，生产尺寸额度不变 |
-| 独立代码审查 | 3dad及真实日志 | Return独立proof、Continue原body、117新增/共享实际计数及source hash无阻断；文档终审待完成 |
-| 文档/远端门槛 | 本地最终账本与分支checkpoint | docs/diff待最终冻结复验；PR完整CI、归档、merge及actual-main CI尚未执行，不以分支备份替代 |
+| 独立代码审查 | 3dad及真实日志 | Return独立proof、Continue原body、117新增/共享实际计数及source hash无阻断；d04677c5文档终审通过 |
+| 文档/远端门槛 | 本地最终账本与分支checkpoint | d04677c5最终docs667篇、diff、sizes复验通过且source hash相同；PR完整CI、归档、merge及actual-main CI尚未执行，不以分支备份替代 |
 
 首轮offline在编译前缺inkwell缓存；随后`cargo fetch --locked`补齐原锁定依赖，
 再于独立baseline工作树与绝对target执行48项。日志与完整source hash留仓外。
@@ -90,6 +90,8 @@ baseline/current target身份、前后全source SHA、stdout/stderr均留仓外�
 
 - 旧仓外计划与前轮日志未在本执行器恢复；只使用官方Git对象和本轮新证据。
 - tests-only依赖缓存失败、首生产E0425及独立修复历史均保留，不改写成首次即绿。
+- cf864970首次文档检查因场景入口203行超过200行失败；d04677c5改为扩展原M16，
+  去掉重复场景/索引后通过，没有放宽门禁。
 - 新helper只显式核FinishProvider→EndSource→Drop；完整EndElement及body/外围动作合同
   来自frontend已验证事实，执行仍沿完整actions。普通fixture另有精确SSA与native顺序证据。
 - mixed break、无Fallthrough、field/Inout/RangeView等由原0312/0313边界回归与未改变的
