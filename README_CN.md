@@ -10,28 +10,30 @@
 
 运行时不使用追踪式垃圾回收。内存与资源按已验证的所有权事实确定性清理：纯内存类型使用 ASAP，资源类型采用词法作用域清理。当前实现和原生支持是有界的，不将语言设计目标视为全部功能或内存安全已完成验证。
 
-当前规范为 [Guide v0.43](docs/guide/README.md)，可执行入门示例见[当前教程](docs/tutorials/README.md)。本README合入时已接收main `a83749f`的PR46交付：跨文件字段可变性、直接字段Borrow、unit顺序迭代native及完整M1A参数报告程序已通过有界双宿主验收；Inout/字段/captured Borrow源的native迭代仍保持拒绝边界。性能/成本验收延期，当前不作比较性能承诺；详细范围见[Spec索引](docs/specs/README.md)和[架构快照](docs/architecture/README.md)。
+当前规范为 [Guide v0.43](docs/guide/README.md)，可执行入门示例见[当前教程](docs/tutorials/README.md)。当前原生子集包括顺序集合、Map 查询/更新/删除、普通借用返回，以及带有界局部控制流的 List/View 范围借用。这些是具体组合的支持，不代表任意集合 API 或控制流均已实现；使用方式和限制见[tour 当前能力说明](docs/tutorials/koven-tour.md#collections-and-borrow-results)、[Spec索引](docs/specs/README.md)与[架构快照](docs/architecture/README.md)。性能/成本验收仍延期，不作比较性能承诺。
 
 ---
 
 ## ⚡ 核心亮点
 
+以下亮点同时介绍[Guide定义的语言特性](docs/guide/README.md)与已实现能力，不是完整原生支持清单。原生支持取决于编译入口、类型和控制流组合；已交付子集见[教程](docs/tutorials/README.md)与[架构快照](docs/architecture/README.md)。
+
 - **Kotlin 风格的优雅语法与表现力**
-  清晰、现代、以表达式为导向的语法，具备强大的局部类型推断、一等函数、闭包与模式匹配能力。
+  Guide 定义以表达式为导向的语法、局部类型推断、一等函数、闭包和 `when` 模式匹配；当前 callable 与匹配的原生支持限于已记录的形式。
 - **确定性所有权管理（无追踪式 GC）**
   通过单所有者跟踪、移动与调用期借用管理内存；没有经过验收的零开销或性能等价承诺。
 - **免生命周期标注的无畏借用**
-  `Borrow` 与 `Inout` 使用受检查的调用期借用。Guide 允许具有唯一 `from` 来源的受限普通借用结果，局部绑定显式使用 `borrow val`，不引入可存储引用类型或用户生命周期参数；已实现范围见[架构快照](docs/architecture/README.md)。
+  `Borrow` 与 `Inout` 使用受检查的调用期借用。已支持的直接具名函数可以从唯一 `from` 来源返回借用，调用方可在已实现范围内用 `borrow val` 保留结果，或直接传给同步 Borrow 参数；这不引入可存储引用类型、用户生命周期参数或任意控制流间的借用运输。见[tour 当前能力说明](docs/tutorials/koven-tour.md#collections-and-borrow-results)。
 - **双轨确定性析构**
   纯内存MoveOnly值在最早安全边界ASAP释放；有deinit或递归持有资源的类型按词法作用域逆序清理，不能因最后使用提前析构。
 - **编译器结构化推导的类型能力**
   由编译器自动递归推导类型能力：`Copyable`（按值位拷贝或结构浅拷贝）与 `Transferable`（所有权转移的结构能力；不代表线程API已交付）。
 - **一等公民的空安全与 Flow Typing**
-  默认不可为空。通过 `T?` 明确表示可空，配合安全调用运算符（`?.`）、Elvis 运算符（`?:`）以及基于控制流分析的自动智能类型转换（Smart Casts）。
+  Guide 定义默认非空、显式可空类型（`T?`）、安全调用（`?.`）、Elvis（`?:`）及基于控制流的智能类型转换；当前原生支持仅覆盖有界组合。
 - **代数数据类型与完备的类型家族**
   提供用于扁平值布局的 `value class`；用于独占引用堆分配对象的普通 `class`；以及带关联负载的代数数据类型（ADT）`enum class`。
 - **显式无异常错误处理**
-  没有隐式的异常栈展开与 `try`/`catch` 运行时包袱。可预期失败通过 `Result<T, E>` 搭配后缀 `?` 运算符优雅传播；不可恢复的不变量破坏直接触发 `error(...)` abort。
+  没有隐式的异常栈展开与 `try`/`catch` 运行时包袱。Guide 定义了可预期失败的 `Result<T, E>` 与后缀 `?` 传播规则；当前普通单文件和 project CLI 尚不自动加载 prelude 中的 `Pair`/`Result` 声明，传播规则不代表这些公开入口已经完整支持 `Result` 传播。不可恢复的不变量破坏直接触发 `error(...)` abort。
 - **LLVM 原生编译**
   生成经过验证的 typed SSA 与 LLVM IR，支持 AArch64 macOS（Mach-O）和 x86_64 Linux + glibc（ELF64）本机可执行文件。
 - **开箱即用的工程化工具链**
@@ -47,12 +49,14 @@
 |---|---|
 | Hello、函数、分支、常量 | [hello](docs/tutorials/koven-tour.md#hello)、[function](docs/tutorials/koven-tour.md#function)、[branch](docs/tutorials/koven-tour.md#branch)、[constant](docs/tutorials/koven-tour.md#constant) |
 | String.clone与调用自动借用 | [strings](docs/tutorials/koven-tour.md#strings)、[borrowing](docs/tutorials/koven-tour.md#borrowing) |
+| 集合、借用返回与范围边界 | [当前能力说明](docs/tutorials/koven-tour.md#collections-and-borrow-results) |
+| 使用 Map 的参数词频 | [argv-word-frequency](docs/tutorials/koven-tour.md#argv-word-frequency) |
 | 顺序迭代、root replace/swap、资源deinit | [iteration](docs/tutorials/koven-tour.md#iteration)、[root-replace-swap](docs/tutorials/koven-tour.md#root-replace-swap)、[deinit](docs/tutorials/koven-tour.md#deinit) |
 | 参数与多文件工程 | [arguments](docs/tutorials/koven-tour.md#arguments)、[cross-file](docs/tutorials/koven-tour.md#cross-file)  [parameter-report](docs/tutorials/koven-tour.md#parameter-report) |
 | 数字字面量、资源清理及迭代退出 | [numbers-bitwise](docs/tutorials/koven-tour.md#numbers-bitwise)、[scope-cleanup](docs/tutorials/koven-tour.md#scope-cleanup)、[unit-loop-cleanup](docs/tutorials/koven-tour.md#unit-loop-cleanup) |
 | 可变place与迭代借用诊断 | [reject-immutable-place](docs/tutorials/koven-tour.md#reject-immutable-place)、[reject-iteration-move](docs/tutorials/koven-tour.md#reject-iteration-move) |
 
-函数声明以`own param: T`表达所有权交付，默认或`borrow param: T`表达共享借用，`inout param: T`表达可变借用；调用点的可变place交付使用`&place`，Borrow不写调用marker。类家族、nullable与Result等语义见[Guide](docs/guide/README.md)，具体native表示与未支持组合以[Architecture](docs/architecture/README.md)为准。String操作不能从Kotlin经验外推为length、分词或通用整数格式化。
+函数声明以`own param: T`表达所有权交付，默认或`borrow param: T`表达共享借用，`inout param: T`表达可变借用；调用点的可变place交付使用`&place`，Borrow不写调用marker。类家族、nullable与Result等语义见[Guide](docs/guide/README.md)，具体native表示与未支持组合以[Architecture](docs/architecture/README.md)为准。词频示例借用参数数组两遍，使用 Map 的 `get`/`put`/`remove`，并不遍历 Map。List/View 的 `take`/`drop`/`dropLast` 通过 project CLI 导入 `koven.algorithms`；单文件 CLI 不加载这些标准库源码。Map 遍历、`forEach`/`map`/`filter`、未列出的集合 API、String 分词和通用整数格式化都不能从 Kotlin 经验外推。
 
 ---
 

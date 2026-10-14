@@ -4,11 +4,11 @@
 
 当前 0 份 active。
 
-0318已按有界合同归档；归档head与main交付状态见[近期交付](../README.md#近期交付)。
+0316–0318已按各自有界合同归档并合入main；当前交付与CI状态见[近期交付](../README.md#近期交付)。
 
 0308–0318及0307的当前归档、PR合并与main CI状态统一见[近期交付](../README.md#近期交付)；
 本页不再维护重复的待验清单。原验收、失败与非目标仍保留在各历史Spec中。
-本轮剩余范围与终验条件见[本轮 M2B 实用化收尾](../README.md#本轮-m2b-实用化收尾)。
+本轮有限三片完成清单、联合证据范围与延期去向见[本轮 M2B 实用化收尾](../README.md#本轮-m2b-实用化收尾)。
 
 [0306 混合 Value 参数的唯一来源借用返回](../../archive/specs/0306-mixed-value-borrow-result.md)已按PR84修复后完整物理CI及双宿主各15项正常/10项verifier测试有界归档；首失败保留，已由[PR84](https://github.com/Halckon/Koven/pull/84)合为actual-main `967bf98e`，其[main CI](https://github.com/Halckon/Koven/actions/runs/38368833991)成功；普通同步Borrow实参由0307关闭，其他M2B后继继续开放。
 

@@ -1,7 +1,9 @@
-# Koven v0.40 可执行 tour
+# 当前 Koven 可执行 tour
 
 > **性质**：当前教程 · **状态**：current · **读取时机**：运行最小示例时 · **唯一真源**：本页源码，Guide 定义语义
 
+本页依据现行 [Guide v0.43](../guide/README.md)，每个具名 Koven fence 都已在库存登记。
+可执行与诊断示例有输出合同；`planned-thread` 仅登记状态和原因，尚无输出合同，不计通过。
 单文件例使用 `kovenc build source.ko -o program`，运行生成产物，再使用 `kovenc run source.ko`。
 输出合同见 `examples.json`；尚未执行的恢复验收不会标为通过。
 
@@ -59,6 +61,71 @@ fun inspect(cell: Cell): Unit { println(cell.text) }
 fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
 ```
 
+## collections-and-borrow-results
+
+以下说明帮助选择已有能力；不会把任意组合或未列出的标准库 API 当作可用。
+具名 fence 的可执行库存不因此增加，源码保存在本页，已登记的输出合同保存在 `examples.json`。
+
+### List 和 Map 从哪里开始
+
+- 顺序迭代先看 [iteration](#iteration) 的 Array 和 [unit-loop-cleanup](#unit-loop-cleanup) 的
+  MutableList。List 可用 `val items = listOf(1, 2, 3)` 初始化，再用 `for (item in items)` 顺序借用元素；
+  [已有 List 源码](../../crates/lang-codegen/src/native_sequential_for_tests.rs)展示构造后传给 Borrow 参数并迭代。
+  具名 owner、Borrow 参数和临时来源有 native 支持；字段和 Inout 参数作为迭代来源仍明确拒绝。
+  具体来源与退出限制见[顺序迭代边界](../architecture/finite-sequential-iteration.md)。
+- [argv-word-frequency](#argv-word-frequency) 是可运行的 Map 应用：`mutableMapOf<String, Int>()`
+  建表，`get` 得到可空计数，`put` 更新，`remove` 移出计数。两次 `for` 都遍历 argv，
+  第二遍只在首次成功删除时输出，因此保持首次出现顺序，不依赖 Map 的内部顺序。
+- 借用已有槽位另有 `requireValue` 与同步 `withValue`；前者缺失时 abort，后者在命中时调用
+  Borrow callback。它们的值类型和清理边界见[Map 访问说明](../architecture/map-native-execution.md)，
+  不能把返回借用当成取出一个 owned 值。
+- 当前不要使用未交付的 Map 遍历或集合 `forEach`/`map`/`filter`，也不要假设存在 Kotlin 的
+  其他集合/格式化 API。词频里的 `decimal` 是本页实现的普通函数，不是标准库格式化接口。
+
+### 普通返回与借用返回不同
+
+[function](#function) 的 `greeting(): String` 返回由调用方接收的普通值；
+[borrowing](#borrowing) 则只在函数调用期间借用参数，不取走 owner。
+若函数要把现有对象的借用交给调用方，声明中须明确结果和唯一来源，例如
+`fun view(source: String): borrow String from source = source`。
+调用方可用 `borrow val item = view(source)` 保留借用；结果不是独立 owner，来源必须存活，
+借用结束前不能移动或冲突修改来源。直线序列的已证明最后使用可结束借用，不能由读者任意猜测。
+已有[多参数来源示例](../../crates/lang-codegen/tests/fixtures/multi_borrow/first_parameter.ko)
+展示保留结果后继续使用，以及借用结束后再交付来源。
+
+在支持的直接具名同步调用中，也可写 `observe(view(source))`，不必先建局部借用绑定；
+见[已有源码](../../crates/lang-codegen/tests/fixtures/nested_borrow/single_direct.ko)与
+[同步实参边界](../architecture/synchronous-borrow-result-arguments.md)。这些后端回归源码不等于
+本页新增的 CLI 合同；普通借用返回仍限已接通的表达式体、具名包装及具体泛型实例，
+不提供可存储引用、任意条件来源、Inout 来源、闭包逃逸或一般跨控制流借用。
+
+普通 Borrow 的非泛型 value-class 方法已能返回 owned Int/Boolean；
+[Boolean 字段示例](../../crates/lang-codegen/tests/fixtures/readonly_methods/bool.ko)在公开单文件
+CLI 测试中使用 `--entry entry` build/run。此能力不表示单文件入口的普通 class 方法、
+任意 receiver 来源或借用返回方法已全部支持。
+
+### List/View 范围与正常短路
+
+project CLI 会加载真实标准库范围源码，可导入 `koven.algorithms.take`、`drop`、`dropLast`。
+例如 `borrow val part = take(items, 2)` 建立 List/View 的借用范围，不复制元素；
+非负 count 超出长度时截到边界，负数会 abort。View 不是新的 owned List，不能作为 owned 值放入字段/容器或逃逸。
+单文件 `kovenc build source.ko` 不加载这些范围标准源码；应使用 [cross-file](#cross-file)
+介绍的 project manifest/命令，而不是把单文件后端测试当成该 CLI 入口已支持。
+
+已建立的同根范围可在受限词法块里比较 Int、执行语句 `if`，并使用单层 Boolean `&&`/`||`：
+该块的范围绑定须全部在前，短路仅作为直接 Boolean 局部初始化、直接同步调用的 Boolean
+实参，或已支持语句 `if` 的完整条件。左侧执行一次，右侧只在选中时执行；合流后可继续读取范围。
+这里的调用必须满足只读交付限制，不允许 owning MoveOnly 实参/receiver 或 Inout/mutating 调用。
+嵌套短路、循环体内短路、多 root、新分支绑定、nullable/索引等复杂操作仍不属于这个子集。
+真实公开 project 来源见[范围短路测试](../../crates/lang-cli/tests/range_project_cli/boolean_short_circuit.rs)，
+完整限制见[范围局部控制流](../architecture/range-local-control-flow.md)。
+
+Map 的返回表达式也有窄范围支持：[已有回归源码](../../crates/lang-codegen/tests/fixtures/map-return-last-use-0318/cardinality.ko)
+验证单一局部 Map<Int, String> 配合临时 Array<Int> 顺序循环，在 Int return 操作数中
+`remove`/`contains` 后正常返回并清理。
+这是 single/unit 后端 native 的代表源码，不是 Map 遍历，也不是本页新增的公开 CLI 合同；
+不能外推所有容器、嵌套循环或任意返回表达式。具体范围见[Map owner 与循环](../architecture/map-loop-owner-carry.md)。
+
 ## root-replace-swap
 
 这里只对完整 `var` root 做原地置换，不推导字段或容器 element place 的支持范围。
@@ -98,7 +165,7 @@ source-roots = ["src"]
 
 使用 `kovenc build --project project.toml --entry app.start -o program`，
 或 `kovenc run --project project.toml --entry app.start`。
-这里只调用当前 unit 已支持的普通函数，不含 unit-for。
+本例集中展示跨文件普通函数调用；跨文件顺序迭代及退出另见 [unit-loop-cleanup](#unit-loop-cleanup)。
 
 ```koven cross-file
 package app

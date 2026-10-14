@@ -10,28 +10,30 @@
 
 The runtime uses no tracing garbage collector. Memory and resources follow checked ownership facts: pure-memory values use ASAP drop, while resource values use lexical cleanup. Implementation and native support are bounded; design goals are not claims that every feature or memory-safety property has been verified.
 
-The current specification is [Guide v0.43](docs/guide/README.md); start with the [executable tutorial](docs/tutorials/README.md). This README incorporates the PR46 delivery on main `a83749f`: cross-file field mutability, direct field borrowing, unit native iteration, and the complete M1A parameter-report program have bounded dual-host acceptance. Native iteration over Inout, field, and captured Borrow sources retains its rejection boundary. Performance and cost acceptance is deferred. See the [Spec index](docs/specs/README.md) and [architecture](docs/architecture/README.md) for the support boundary.
+The current specification is [Guide v0.43](docs/guide/README.md); start with the [executable tutorial](docs/tutorials/README.md). The native subset includes sequential collections, Map lookup/update/removal, ordinary borrow results, and borrowed List/View ranges with bounded local control flow. These are specific supported combinations, not a promise of arbitrary collection APIs or control flow. See the [current tour notes](docs/tutorials/koven-tour.md#collections-and-borrow-results), [Spec index](docs/specs/README.md), and [architecture](docs/architecture/README.md) for the boundaries. Performance and cost acceptance remains deferred.
 
 ---
 
 ## ⚡ Highlights
 
+These highlights cover [Guide-defined language features](docs/guide/README.md) alongside implemented capabilities, not a complete native support checklist. Native support depends on the compilation entry, types, and control-flow combinations. See the [tutorial](docs/tutorials/README.md) and [architecture](docs/architecture/README.md) for the delivered subsets.
+
 - **Kotlin-Inspired Syntax & Expressiveness**
-  Clean, readable, expression-oriented syntax with powerful type inference, first-class functions, lambdas, and pattern matching.
+  The Guide defines expression-oriented syntax, local type inference, first-class functions, lambdas, and `when` pattern matching. Native callable and matching support is limited to documented forms.
 - **Deterministic Ownership Management (No Tracing GC)**
   Memory follows move semantics, single-owner tracking, and call-site loans. Zero overhead and performance equivalence are not accepted claims.
 - **Fearless Borrowing Without Lifetime Annotations**
-  `Borrow` and `Inout` use checked call-site loans. The Guide permits restricted ordinary borrow results with a unique `from` source and explicit `borrow val` local bindings, without storable reference types or user lifetime parameters. See [Architecture](docs/architecture/README.md) for implemented support.
+  `Borrow` and `Inout` use checked call-site loans. Supported direct named functions can return a borrow with one `from` source; callers can keep it with `borrow val` or pass it to a synchronous Borrow parameter within the implemented subset. This does not introduce storable reference types, user lifetime parameters, or general borrow transport across control flow. See the [tour notes](docs/tutorials/koven-tour.md#collections-and-borrow-results).
 - **Dual-Track Deterministic Drop**
   Pure-memory MoveOnly values use ASAP drop at the earliest safe boundary. Types with deinit or recursively held resources use reverse lexical cleanup, without dropping early merely after their last use.
 - **Structurally Derived Capabilities**
   The compiler automatically derives type capabilities like `Copyable` (bitwise or structural duplication) and `Transferable` (a structural ownership-transfer capability, not evidence that thread APIs are delivered).
 - **First-Class Null Safety & Flow Typing**
-  Non-nullable by default. Explicit nullable types (`T?`), safe navigation (`?.`), Elvis operator (`?:`), and control-flow-aware smart casts.
+  The Guide defines non-nullable defaults, explicit nullable types (`T?`), safe calls (`?.`), Elvis (`?:`), and control-flow-aware smart casts. Native support covers only bounded combinations.
 - **Algebraic Data Types & Expressive Class Family**
   `value class` for flat value layouts; `class` for heap-allocated exclusive reference types; and `enum class` for typed algebraic data types (ADTs) with variant payloads.
 - **Explicit Error Handling**
-  No hidden exception unwinding or `try`/`catch` overhead. Recoverable errors are represented as `Result<T, E>` with ergonomic `?` propagation, while unrecoverable invariant violations trigger an immediate `error(...)` abort.
+  No hidden exception unwinding or `try`/`catch` overhead. The Guide defines `Result<T, E>` and postfix `?` propagation for recoverable errors. The ordinary single-file and project CLI do not yet automatically load the prelude declarations for `Pair`/`Result`; the Guide’s propagation rules do not establish complete `Result` propagation support in those public entries. Unrecoverable invariant violations trigger an immediate `error(...)` abort.
 - **Native LLVM Compilation**
   Emits verified LLVM IR and native executables for AArch64 macOS (Mach-O) and x86_64 Linux with glibc (ELF64).
 - **First-Class Developer Tooling**
@@ -47,12 +49,14 @@ Executable sources and complete CLI output contracts live in the [current Koven 
 |---|---|
 | Hello, functions, branches, constants | [hello](docs/tutorials/koven-tour.md#hello), [function](docs/tutorials/koven-tour.md#function), [branch](docs/tutorials/koven-tour.md#branch), [constant](docs/tutorials/koven-tour.md#constant) |
 | String.clone and automatic borrowing | [strings](docs/tutorials/koven-tour.md#strings), [borrowing](docs/tutorials/koven-tour.md#borrowing) |
+| Collections, borrow results, and range boundaries | [current capability notes](docs/tutorials/koven-tour.md#collections-and-borrow-results) |
+| Map-based argument word counts | [argv-word-frequency](docs/tutorials/koven-tour.md#argv-word-frequency) |
 | Sequential iteration, root replace/swap, resource deinit | [iteration](docs/tutorials/koven-tour.md#iteration), [root-replace-swap](docs/tutorials/koven-tour.md#root-replace-swap), [deinit](docs/tutorials/koven-tour.md#deinit) |
 | Program arguments and multi-file projects | [arguments](docs/tutorials/koven-tour.md#arguments), [cross-file](docs/tutorials/koven-tour.md#cross-file)  [parameter-report](docs/tutorials/koven-tour.md#parameter-report) |
 | Numeric literals, cleanup, and iteration exits | [numbers-bitwise](docs/tutorials/koven-tour.md#numbers-bitwise), [scope-cleanup](docs/tutorials/koven-tour.md#scope-cleanup), [unit-loop-cleanup](docs/tutorials/koven-tour.md#unit-loop-cleanup) |
 | Mutable place and iteration loan diagnostics | [reject-immutable-place](docs/tutorials/koven-tour.md#reject-immutable-place), [reject-iteration-move](docs/tutorials/koven-tour.md#reject-iteration-move) |
 
-Declarations use `own param: T` for ownership transfer, default or `borrow param: T` for shared loans, and `inout param: T` for mutable loans. Mutable place arguments use `&place`; shared arguments have no call-site Borrow marker. Class families, nullable values, and Result are specified in the [Guide](docs/guide/README.md), while native representations and unsupported combinations are recorded in [Architecture](docs/architecture/README.md). Kotlin APIs such as String length, tokenization, or general integer formatting cannot be assumed.
+Declarations use `own param: T` for ownership transfer, default or `borrow param: T` for shared loans, and `inout param: T` for mutable loans. Mutable place arguments use `&place`; shared arguments have no call-site Borrow marker. Class families, nullable values, and Result are specified in the [Guide](docs/guide/README.md), while native representations and unsupported combinations are recorded in [Architecture](docs/architecture/README.md). The word-frequency example traverses the argument array twice and uses Map `get`/`put`/`remove`; it does not iterate a Map. List/View `take`/`drop`/`dropLast` use the project CLI with `koven.algorithms` imports; the single-file CLI does not load those standard-library sources. Map iteration, `forEach`/`map`/`filter`, unlisted collection APIs, String tokenization, and general integer formatting must not be inferred from Kotlin.
 
 ---
 

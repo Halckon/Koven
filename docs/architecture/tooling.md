@@ -104,7 +104,8 @@ in/is/as 与 identifier 使用同一整词扫描，避免 input 等名称在运�
 独立 editor job 对 editor/相关门禁与词法调用规则修改运行锁定的 Tree-sitter 0.26.12，
 检查重新生成的产物无漂移并执行完整 corpus 与实际树回归；main/manual 强制运行，
 required summary 拒绝该运行时却跳过的结果。
-当前教程以Markdown fence为源码真源，16正例、4完整JSON负例与1 planned分开，四组argv使执行合同共23项；
+当前教程以Markdown fence为源码真源，17正例、4完整JSON负例与1 planned分开；
+parameter-report四组argv与argv-word-frequency九组argv展开后，共32组非planned合同（28正常、4诊断）；
 跨文件合同只引用fence ID，沿现行project.toml/entry协议运行，定向选择不改变CI默认完整选集。
 PR49双宿主实际运行原22项，证据见 [SPEC-0271](../archive/specs/0271-tour-combination-coverage.md)。
 后继 [SPEC-0273](../archive/specs/0273-control-body-resource-cleanup.md) 补齐控制体正常出口的资源清理，

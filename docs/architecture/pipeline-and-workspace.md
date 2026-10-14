@@ -127,8 +127,11 @@ LLVM 21.1.x / Inkwell 0.10.0 启用 AArch64 与 X86 backend feature。LLVM adapt
 object 和 executable 使用同目录临时文件并在成功后原子发布；失败不覆盖旧目标。
 支持范围的长期决定见 [ADR-0026](../adr/accepted/0026-linux-x86-64-native-host.md)。
 
-标准库公共源码位于 `crates/lang-std/koven/`。CLI 将 prelude 与用户 source-set 作为显式编译输入，
-而不是让 frontend 隐式读取文件系统。
+标准库公共源码位于 `crates/lang-std/koven/`。当前 project CLI 通过
+[`standard_sources.rs`](../../crates/lang-cli/src/standard_sources.rs)显式追加并授权
+`koven/algorithms/ranges.ko`；单文件 CLI 不加载该标准源码。普通 CLI 入口尚不自动注入
+`prelude.ko` 中的 `Pair`/`Result`；该文件的声明及 bootstrap 验证入口不等于普通 CLI 默认导入或完整传播已接通。
+frontend 只消费宿主明确提供的输入，不隐式读取文件系统。
 
 ## 不变量
 
