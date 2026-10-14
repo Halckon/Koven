@@ -29,7 +29,8 @@
 
 附件四份普通源码逐字审过，原字节与作者矩阵留仓外，完整stderr尚未核验；测试落地时放单一 fixture 真源，
 两入口消费同字节。下表 byte Span 均相对原 UTF-8 文件，不含额外 package/const 前缀。
-附件原matrix.tsv记614a7a7f/rust1.97；增量另附matrix-b43a475b.tsv。下表引用后者的作者报告，
+输入取最新95-probe双矩阵包（tar SHA256 `a2eed0228ac3b43aa41eceb17f71f96d173d29560762fcc2867f3031e5df1bd3`）。
+其中原matrix.tsv记614a7a7f/rust1.97，增量另附matrix-b43a475b.tsv。下表引用后者的作者报告，
 不是18865460的本轮执行证据，不合并两个基线的计数。
 
 | 原 probe | 本片根因分类 | 计划唯一主诊断与 Span | 作者 single / project 结果 |
