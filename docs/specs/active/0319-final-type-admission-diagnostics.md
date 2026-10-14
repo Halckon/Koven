@@ -69,7 +69,7 @@ p34 不被改写为受支持的 range provider，也不宣称整个 for 在现�
    不是“不存在”的证据。保留现有容器 L0130 等更精确诊断，不做通用成员解析重写。
 6. L0085 只承接本片已确定非 Result operand 的非法 `?`，primary取AST question_span。
    不顺带封闭全部 Result 返回/E匹配规则；无法证明身份时不得据拼写放行或臆造该诊断。
-7. 拟新增 L0165（合同已审，尚未注册；当前注册表到L0164）：**最终类型分析未完成**。
+7. 新增 L0165（合同已审，已注册并通过目录精确断言）：**最终类型分析未完成**。
    表达实现边界而非语言非法，消息保留具体构造/DeferredReason责任及最小根因Span。
    不复用L0083（不能用于后续阶段deferred）、L0015（parser）或L0164（borrow flow）。
    仅真实DeferredReason或已登记未实现责任可用此码；成功descriptor缺必需事实、分析身份
@@ -82,7 +82,7 @@ p34 不被改写为受支持的 range provider，也不宣称整个 for 在现�
 
 ## 4. 最终接缝与必须保留的对照
 
-候选接缝是frontend私有共享 admission分类器，加single/unit身份适配与显式final completion
+实现接缝是frontend私有共享 admission分类器，加single/unit身份适配与显式final completion
 诊断/资格；严格CLI先通过该资格，再调用既有ownership链。不得在CLI重新推导语言语义。
 保留`analysis/single_file.rs`原façade及`analysis/unit_basic_ownership.rs`的raw/base合同：
 single CLI在typed_observer内调用frontend最终检查，unit CLI在basic/const分流前通过同门。
@@ -157,6 +157,10 @@ strict失败不得进入ownership的证明随真实接线补齐，不用forced o
 | CLI 3个精确目标 | 全部真实行为红；每个先采集16次普通build/run human/JSON输出，共48次。各函数的oracle在首个r01失败，其后case不计独立断言执行 |
 | 首批实际根因 | single：r01/r02 BlockingDeferred、p34 MissingFact、s04 UnsupportedNode；project basic/constant：r01 MissingFact、r02 UnsupportedNode、p34/s04 ownership invalid argument type。human/JSON均未返回预期源级诊断，stdout均空 |
 | 输入冻结 | 1420个源码/配置文件前后NUL摘要同为`6b989d0170c88c266bf45e7cf6dff103083f07d355d8a39ca33041d38a68113b`；每目标argv/status/原日志与48次输出留仓外，未改oracle取绿 |
-| 未运行 | 新final API、生产修复、共享回归及本片CI尚未执行；没有故障/插桩或全量云测试 |
+| 首次修复输入 | `db3c6001c9b0c6be2f014b265edf142d6c095655` / tree `ec6a660fc61de57025ed1a6507ca2d2a150d6869`；原7exact全过，48次CLI及其全部oracle断言已执行通过 |
+| final API与旧边界 | 4个`complete::*`新目标、旧expression_tails/forward-use两个目标全部各1/1通过；raw与旧validate成功保留，final准确拒绝；同analysis资格、独立错误及成功外call的非法子树已核 |
+| 只读目录门禁 | `diagnostic_model::production_catalog_contains_exactly_the_published_frontend_codes` 1/1通过；与6个普通源码API目标分账 |
+| 修复输入冻结 | 1424个源码/配置文件，两批前后NUL摘要同为`16b1a189e2d6f5741ca655a42d0bfba0a87e4efbca97404276239366a9c5f481`；原失败日志不覆盖 |
+| 待完成 | 跨文件同根传播及早拒call恢复补充对照、共享回归、工程门禁及本片CI；没有故障/插桩或全量云测试 |
 | 草案阶段 docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；当时active0/archive302、draft新增0319 |
 | active迁移 | 0319迁入active，archive302不变；draft库存移除0319，四份DAG随生命周期重建 |
