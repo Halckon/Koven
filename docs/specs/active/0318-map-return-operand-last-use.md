@@ -152,3 +152,8 @@ loan/call/end与Symbol及guard全部核对。实际lower_return在operand前登�
 最后核开始点→drop→真实Return全后继无环汇合。旧ControlTransfer分支与普通回边保持。
 未改frontend liveness、ASAP点、global presence、SSA verifier或LLVM/runtime。
 此轮只证明已选源码SSA/LLVM；结构oracle、normal native、共享回归及独立最终审阅仍待完成。
+
+最小实现首轮对应commit `dc1dccd3b5a2847977e214fa9add8eec6b854d0e` 的Rust/Ko输入，
+manifest汇总 `ac643c4173e52491ec8a51959093cebf0f11a9cc6e6ab55fb214446f9904d487`。
+首次fmt检查指出native测试模块注册排序，已仅按rustfmt调整两组注册顺序；没有生产变化。
+docs/diff/尺寸通过，fmt修正后通过；原fmt失败与该次8/8输入分别保留。
