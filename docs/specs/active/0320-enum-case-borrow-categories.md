@@ -1,19 +1,19 @@
 # SPEC-0320: Enum case 构造值的 Borrow 实参分类
 
-> **性质**：有界修复草案 · **状态**：draft · **读取时机**：审查 enum case 值与真实 place 的调用期借用分类时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
+> **性质**：有界修复合同 · **状态**：in-progress · **读取时机**：审查 enum case 值与真实 place 的调用期借用分类时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2P3-0320` |
 | 所属 Phase | Phase 2 expression/call argument category；Phase 3 调用期 loan；Phase 6 两入口结果 |
-| 语言规范 | [构造身份与参数](../../../guide/11-copyability-layout-construction.md#可构造目标与唯一身份)、[调用期loan](../../../guide/10-ownership-borrowing-drop.md#所有者参数绑定与调用期-loan) |
-| 批准依据 | 2026-10-14 用户批准A诊断封闭→B enum构造实参分类→C List MoveOnly追踪；本阶段仅B合同与普通源码红测设计，未执行新目标或修改生产 |
-| 前置 Spec | [SPEC-0319](../../active/0319-final-type-admission-diagnostics.md)；最终类型准入保持，不混入其PR |
+| 语言规范 | [构造身份与参数](../../guide/11-copyability-layout-construction.md#可构造目标与唯一身份)、[调用期loan](../../guide/10-ownership-borrowing-drop.md#所有者参数绑定与调用期-loan) |
+| 批准依据 | 2026-10-14 用户批准A诊断封闭→B enum构造实参分类→C List MoveOnly追踪；合同独审通过，获准迁active并准备tests-only；新目标须独审后逐名授权，实际main同步前不运行 |
+| 前置 Spec | [SPEC-0319](0319-final-type-admission-diagnostics.md)；最终类型准入保持，不混入其PR |
 | 分支基线 | `fix/spec-0320` 显式依赖0319本地最终 `6c1a11ca87b642849c6ba7c3be008a7aebece759` / tree `e2d1a5179c7102336154570c95cbd6e6774b5799`；该输入尚未合main |
 | 官方核验 | 本轮只读fetch main仍为`188654603edde5ece3edab114458116c61510371`，全局最大编号0319；0320已保留。实施前正常合入0319实际main并重新冻结，不改写已发布历史 |
 | 语言语义变更 | 否；既有Guide已规定无payload case为构造值、Borrow temporary合法、Inout temporary非法 |
-| 阻塞项 | 草案/候选helper独审、实际main同步与真正expected-positive红测尚待；本片未实现、未验收 |
+| 阻塞项 | 设计独审通过；实际main同步、tests-only helper独审与真正expected-positive红测尚待；本片未实现、未验收 |
 
 ## 1. 单一 Goal
 
@@ -117,7 +117,8 @@ sanitizer、calibration、stage/aggregate。双宿主CI继续按真实工作流�
 
 - [x] 官方main/编号静核，保留0320；新worktree基6c，0319依赖显式记录。
 - [x] Guide构造身份、Borrow temporary与Inout限制核对；原两probe字节与作者矩阵分账。
-- [ ] 草案与精确源码/helper独审；实际main同步与tests-only固定。
+- [x] 草案独审，批准迁active并准备tests-only。
+- [ ] 实际main同步与tests-only固定；实际源码/helper逐名独审后再开测。
 - [ ] 真实expected-positive红测、最小分类修复及不误杀/原when边界回归。
 - [ ] 工程门禁、双宿主CI、Architecture/验收归档及主干交付。
 

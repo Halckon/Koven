@@ -2,9 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 2 份 active。
 
 - [0319 最终类型消费准入与源级诊断](0319-final-type-admission-diagnostics.md)：保留raw/recovery，严格消费前封闭类型资格；本地81项精确回归与工程门禁通过，远端CI及归档待完成。
+
+- [0320 Enum case Borrow实参分类](0320-enum-case-borrow-categories.md)：真实构造身份、临时loan与final静态qualifier；合同已审，tests-only准备，实际main同步与红测待完成。
 
 0316–0318已按各自有界合同归档并合入main；当前交付与CI状态见[近期交付](../README.md#近期交付)。
 

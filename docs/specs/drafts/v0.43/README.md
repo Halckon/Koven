@@ -48,7 +48,7 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 - [0319 最终类型消费准入](../../active/0319-final-type-admission-diagnostics.md)已获准迁入active：当前tests-only红测准备，保留中间Deferred/recovery；不与0292的未启用consume前置混同。
 
-- [0320 Enum case Borrow实参分类](0320-enum-case-borrow-categories.md)：已批准B的有界草案，显式依赖0319；当前仅静态合同与红测候选，未实现，不扩when能力。
+- [0320 Enum case Borrow实参分类](../../active/0320-enum-case-borrow-categories.md)合同已审并迁active，显式依赖0319；当前tests-only准备，尚未实现，不扩when能力。
 
 ## 未编号的现行支持候选
 
