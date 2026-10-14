@@ -2,9 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前无active Spec。
 
-[0319 最终类型消费准入](../../archive/specs/0319-final-type-admission-diagnostics.md)已按PR101实现head双宿主物理CI有界归档；归档head CI、merge/main待核，当前交付见[近期交付](../README.md#近期交付)。
+[0320 Enum case Borrow实参分类](../../archive/specs/0320-enum-case-borrow-categories.md)已按PR102实现head双宿主物理CI有界归档；归档head CI、合并授权及实际main交付待完成，当前状态见[近期交付](../README.md#近期交付)。
+
+[0319 最终类型消费准入](../../archive/specs/0319-final-type-admission-diagnostics.md)已按PR101实现head双宿主物理CI有界归档；归档head CI已通过、PR101已合入main，[main CI](https://github.com/Halckon/Koven/actions/runs/38592817579/attempts/1)已成功（15实际成功、1 PR-only证据job跳过），当前交付见[近期交付](../README.md#近期交付)。
 
 0316–0318已按各自有界合同归档并合入main；当前交付与CI状态见[近期交付](../README.md#近期交付)。
 

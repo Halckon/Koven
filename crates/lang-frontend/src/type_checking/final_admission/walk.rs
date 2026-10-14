@@ -407,7 +407,8 @@ impl<F: Facts> Checker<'_, F> {
         }
         Ok(complete)
     }
-    // 只有真实选中事实才能调用 selector。豁免壳，不豁免运行时 receiver/子表达式。
+    // 真实选中事实或精确原 typed 诊断证明的失败静态壳才能调用 selector。
+    // 仅豁免静态壳，仍检查运行时 receiver/子表达式，失败节点不获得完整资格。
     fn selector(&mut self, id: ExpressionId) -> Result<bool> {
         let parsed = self.parsed;
         let node = parsed
@@ -437,6 +438,14 @@ impl<F: Facts> Checker<'_, F> {
             Expression::SuperMember { interface, .. } => self.type_ref(*interface, true),
             _ => self.expression(id, false),
         }
+    }
+    fn rejected_bare_enum_case(&self, expression: ExpressionId, name_span: Span) -> Result<bool> {
+        let code = codes::catalog()
+            .and_then(|catalog| catalog.resolve(codes::CONSTRUCTION_INFERENCE))
+            .map_err(TypeCheckingError::from)?;
+        Ok(self
+            .facts
+            .rejected_bare_enum_case(expression, name_span, code))
     }
     fn rejected_type_arguments(&self, call: ExpressionId, callee: ExpressionId) -> Result<bool> {
         if self.facts.selection(call).is_some()
@@ -620,7 +629,12 @@ impl<F: Facts> Checker<'_, F> {
                     Expression::Member { name_span, .. } => *name_span,
                     _ => receiver_node.span(),
                 };
-                if selection.as_ref().is_some_and(|s| s.qualifier)
+                // 本 Member 的原 L0144 只恢复静态壳；complete 仍为 false，
+                // 没有成功 descriptor，也不压制其他 runtime 子树或声明的诊断。
+                let rejected_case = !complete
+                    && selection.is_none()
+                    && self.rejected_bare_enum_case(id, *name_span)?;
+                if (selection.as_ref().is_some_and(|s| s.qualifier) || rejected_case)
                     && self.facts.static_qualifier(qualifier_span)
                 {
                     complete &= self.selector(*receiver)?;

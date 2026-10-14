@@ -14,8 +14,10 @@
 表达式类型/类别、call/receiver/argument mapping、nominal projection、container/Rc、copyability、destructuring 与 flow。
 raw检查保留recovery，旧validate边界不变；`complete_file_types` / `complete_compilation_unit_types`另授绑定原分析的
 [最终消费资格](tooling.md#最终类型消费准入)，不把它等同ownership/native能力。
-对应覆盖位于 `name_resolution`、`type_checking`、`type_callable`、`type_copyability` 与 `final_type_admission`；
-lambda expected 与 capture 保全见 [move literal 前端事实](expected-move-literals.md)。
+覆盖见 `name_resolution`、`type_checking`、`type_callable`、`type_copyability`、`final_type_admission`；lambda expected/capture 见[专题](expected-move-literals.md)。
+
+两入口将同expression已选EnumCase构造归为Temporary，Group透传；Name/Member拼写不授予place，真实binding/field不变。
+final仅沿已选case的静态qualifier准入；无descriptor的零payload推导失败须原typed L0144、case Value引用与raw失败表示共同证明，仍保留失败资格及独立根诊断。覆盖见`enum_case_borrow_categories`，不扩展enum when或泛型enum native。
 
 ## 数值字面量解码
 
@@ -156,8 +158,7 @@ callable 选择使用已冻结签名与 overload candidate 隔离；codegen 不�
 泛型、interface/default/override、静态委托、`Copyable`/`Transferable`、String、Box/Rc 和顺序容器共享
 canonical type identity。ordinary class、value class、enum、interface 与 intrinsic 身份保持区分；[泛型body需求](unit-container-storage.md#普通泛型body的具体需求)仍由frontend发布。
 
-单文件与 unit checker 共享语义模型，但 unit facts 使用 source-qualified ID，不能拿单文件 ID 拼接成
-多文件结果。
+两入口共享语义模型；unit facts 使用 source-qualified ID，不能用单文件 ID 拼接多文件结果。
 
 unit runtime layout 仅发布字段完整且 concrete 的 owner；无诊断恢复字段跳过该 owner，不报内部缺声明、
 不泄露字段前缀，保留其他完整 owner；真实类型诊断仍使整表失效。冻结 owner 快照与 identity 校验不变。
@@ -186,9 +187,8 @@ L0158 并使依赖者失效，循环不求值。全部 bodies 与 trial 完成�
 `validate_constants()` 发布独立 `ConstEnabledTypedUnit`，只暴露相同分析的 recovery 视图；
 解包后基础 validate 仍拒绝常量，旧 ownership/native 不接收该 capability。
 
-同文件已绑定 classifier/object 的两段常量路径复用 static member 选择，补全 terminal symbol；
-真正不存在的本地静态成员产生 L0080；private 非常量成员继续由原类型路径处理可见性。
-普通值接收者和同名参数遮蔽仍沿既有路径处理。
+同文件已绑定 classifier/object 的两段常量路径复用 static member 选择并补全 terminal symbol；不存在的本地静态成员报 L0080。
+private 非常量成员可见性、普通值接收者及同名参数遮蔽仍走原类型路径。
 
 String clone 的 typed identity 与后续阶段运输见 [String clone 链路](string-clone.md)。
 
