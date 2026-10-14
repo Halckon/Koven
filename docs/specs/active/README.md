@@ -4,9 +4,8 @@
 
 当前 1 份 active。
 
-- [0316 single value-class 只读方法](0316-single-readonly-value-methods.md)：in-progress，先记录独立无Map红测。
+- [0316 single value-class 只读方法](0316-single-readonly-value-methods.md)：in-progress，独立红测及有界实现已完成本地定向验收；双宿主CI与交付待核。
 
-0316 single 普通 Borrow value-class 只读方法正在独立准备，尚未在本目录建立合同。
 
 0308–0315及0307的当前归档、PR合并与main CI状态统一见[近期交付](../README.md#近期交付)；
 本页不再维护重复的待验清单。原验收、失败与非目标仍保留在各历史Spec中。

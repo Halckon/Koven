@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [0316 single value-class 只读方法](active/0316-single-readonly-value-methods.md)：无Map最小红测先行，普通 Borrow receiver 与 owned Int/Boolean 返回；尚未验收。
+- [0316 single value-class 只读方法](active/0316-single-readonly-value-methods.md)：无Map最小红测与普通 Borrow receiver 的 owned Int/Boolean 返回已完成本地定向验收；双宿主CI与交付待核。
 
 - [Active 合同](active/README.md)：当前 1 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
@@ -21,7 +21,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 （tree `45ab7de3c9dee1996a108ff9d3d1b748e7c84621`）冻结以下有界清单。
 这是收尾范围与完成条件，不表示 M2B 全部能力完成，也不自动批准新语义或未建立的 Spec。
 
-- [ ] single 普通 Borrow 非泛型 value-class 的只读方法：0316 承接准备中，先独立真实红测，再做最小修复；首片拟限 owned Int/Boolean 结果，不扩通用 receiver 借用返回。unit 直接字段已由0309接通，不能再列为同一实现缺口。
+- [ ] single 普通 Borrow 非泛型 value-class 的只读方法：[0316](active/0316-single-readonly-value-methods.md)已完成独立真实红测、有界修复及本地定向验收，双宿主CI与交付待核；首片限 owned Int/Boolean 结果，不扩通用 receiver 借用返回。unit 直接字段已由0309接通，不能再列为同一实现缺口。
 - [ ] 范围绑定函数内的 `&&`/`||`：独立定位并冻结最小合同，核求值一次、未选后缀不执行与 root/loan/cleanup。最终收尾前必须落实独立 Spec 或本节的明确延期条目及理由；当前待选，不计实现。
 - [ ] return operand 内更新 Map：与前项分别定位、冻结当前 owner 和终止路径清理合同；最终收尾前同样必须落实独立 Spec 或明确延期条目及理由。不能从0313/0314的条件 return 成功推定该组合已支持。
 - [ ] 最终联合验收：在选定切片整合后的精确 SHA 上，覆盖 single、unit（含适用的 basic/constant 及 provider 输入顺序）、公开 CLI 的代表源码；逐项记录输入 SHA、入口、真实 fixture/测试名、正例与精确诊断负例、命令/CI链接及实际执行状态。分别核 owner/loan 身份、清理次序与正常执行，不把 stdout 当动态释放计数；CLI 不继承 codegen 入口能力。
