@@ -174,3 +174,14 @@ checked算术的Abort后继精确`MissingFact(cache)`；List、owned source、Bo
 静审同时发现原fixture中的`item + offset`会引入operand内checked Abort。已改为直接lookup
 参数，present三次实际返回分别传1/3，missing三次传100；never不算missing；golden105行
 不变。旧算术形态已成为上述精确拒例，不放宽所有后继至Return的证明取绿。
+
+### 三入口与共享回归（oracle3 / native1 / shared1）
+
+临时 Array initializer 改用既有 inline lambda 合同。独立 oracle 允许 construct seed 经
+透明 block parameter 到达 preheader，仍按精确 ValueId/edge 校验，不按类型猜 owner。
+完整 conditional-return SSA 31/31、三入口原版 native 3/3 通过；各入口 golden 105 行一致。
+共享 Map loop-owner SSA 68/68、nullable cleanup 3/3、旧正常 Map loop-owner native 52/52
+通过；`cargo check -p lang-codegen --all-targets` 与严格 clippy 通过。
+三批前后源码 manifest 一致，汇总
+`8c2fbe7bdd675f55befaa513d65805012657497e11366a2c42044888f4ba22c7`。
+同 guard 反例的额外 P3 身份断言及外围边界补充、独立最终审阅与主干联合回归尚待完成。

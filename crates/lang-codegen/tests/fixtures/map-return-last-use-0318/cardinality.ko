@@ -1,12 +1,10 @@
-fun sourceIndex(index: Int): Int { println("source"); return index + 1 }
-
 fun confirm(actual: Int, expected: Int): Unit {
     if (actual == expected) { println("ok") } else { println("bad result") }
 }
 
 fun removeLive(count: Int, stop: Int, lookup: Int): Int {
     var cache = mutableMapOf<Int, String>()
-    for (item in Array<Int>(count, sourceIndex)) {
+    for (item in Array<Int>(count, { index -> println("source"); index + 1 })) {
         cache.put(item, "head".clone())
         if (item == stop) { return if (cache.remove(lookup) != null) { println("present"); item } else { println("missing"); 0 } }
         cache.put(9, "tail".clone())
@@ -19,7 +17,7 @@ fun removeLive(count: Int, stop: Int, lookup: Int): Int {
 
 fun removeDead(count: Int, stop: Int, lookup: Int): Int {
     var cache = mutableMapOf<Int, String>()
-    for (item in Array<Int>(count, sourceIndex)) {
+    for (item in Array<Int>(count, { index -> println("source"); index + 1 })) {
         cache.put(item, "head".clone())
         if (item == stop) { return if (cache.remove(lookup) != null) { println("present"); item } else { println("missing"); 0 } }
         cache.put(9, "tail".clone())
@@ -31,7 +29,7 @@ fun removeDead(count: Int, stop: Int, lookup: Int): Int {
 
 fun containsLive(count: Int, stop: Int): Int {
     var cache = mutableMapOf<Int, String>()
-    for (item in Array<Int>(count, sourceIndex)) {
+    for (item in Array<Int>(count, { index -> println("source"); index + 1 })) {
         cache.put(item, "head".clone())
         if (item == stop) { return if (cache.contains(item)) { println("present"); item } else { println("missing"); 0 } }
         cache.put(9, "tail".clone())
@@ -44,7 +42,7 @@ fun containsLive(count: Int, stop: Int): Int {
 
 fun containsDead(count: Int, stop: Int): Int {
     var cache = mutableMapOf<Int, String>()
-    for (item in Array<Int>(count, sourceIndex)) {
+    for (item in Array<Int>(count, { index -> println("source"); index + 1 })) {
         cache.put(item, "head".clone())
         if (item == stop) { return if (cache.contains(item)) { println("present"); item } else { println("missing"); 0 } }
         cache.put(9, "tail".clone())

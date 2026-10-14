@@ -114,13 +114,23 @@ fn check(function: &Function, return_span: Span, call_span: Span) {
     assert_ne!(seed.results[0], source_owner);
     let source = definition(function, source_owner);
     let preheader = function.block(length.block).unwrap();
-    assert_eq!(seed.block, preheader.id);
     before(function, source, root);
     before(function, root, source_borrow);
     before(function, source_borrow, length);
     let enter = branch(preheader);
     let header = function.block(enter.target).unwrap();
-    let map_slot = slot(&enter.arguments, seed.results[0]);
+    let seed_inputs = enter
+        .arguments
+        .iter()
+        .copied()
+        .filter(|value| forwards(function, *value, seed.results[0]))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        seed_inputs.len(),
+        1,
+        "constructor guards may forward the exact Map seed before provider entry"
+    );
+    let map_slot = slot(&enter.arguments, seed_inputs[0]);
     let source_slot = slot(&enter.arguments, source_owner);
     let loan_slot = slot(&enter.arguments, source_loan);
     let length_slot = slot(&enter.arguments, length.results[0]);
