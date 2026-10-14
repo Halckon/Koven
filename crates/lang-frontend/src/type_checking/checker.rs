@@ -8,6 +8,7 @@ mod copyability;
 mod delegation;
 mod destructuring;
 mod expression;
+mod expression_category;
 mod flow;
 mod integer;
 mod item;
