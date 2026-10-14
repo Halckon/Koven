@@ -303,10 +303,19 @@ fn cross_file_references_reuse_the_defining_root_diagnostic() {
             source_unit(c),
             expression(&sources, &cf, "otherReceiver.baz()"),
         );
+        let first_type = typed
+            .expression_type(first_root)
+            .expect("the defining root has a real raw type fact");
+        let other_type = typed
+            .expression_type(other_root)
+            .expect("the independent root has a real raw type fact");
         assert_eq!(
-            typed.expression_type(first_root),
-            typed.expression_type(other_root),
+            first_type, other_type,
             "independent roots share a canonical deferred type, not a diagnostic identity"
+        );
+        assert_eq!(
+            typed.types().get(first_type),
+            Some(&UnitTypeKind::Deferred(DeferredReason::MemberAccess)),
         );
         let result = complete_compilation_unit_types(&sources, &selected, &names, &types, &typed)
             .map(|_| ());
