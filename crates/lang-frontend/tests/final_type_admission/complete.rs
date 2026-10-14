@@ -466,7 +466,7 @@ fn selected_constant_qualifiers_do_not_hide_runtime_member_roots() {
             Vec::new(),
         ),
         (
-            "package app\nfun bad(): String = lib.Labels.TEXT.fooBar()\nfun other(): Int { val n = 1; return n.fooBar() }",
+            "package app\nfun bad(): String = (lib.Labels.TEXT).fooBar()\nfun other(): Int { val n = 1; return n.fooBar() }",
             vec!["fooBar", "fooBar"],
         ),
         (
