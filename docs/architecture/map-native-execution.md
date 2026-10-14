@@ -186,7 +186,7 @@ Int/Boolean/Char 使用确定性标量哈希，String 使用 UTF-8 字节哈希�
 | M10 | single/unit / nullable旧查询、remove / 无 | get的Copyable nullable或MoveOnly V；remove的nullable V | 拒绝：T8；L0130/L0136或UnsupportedNode/Span；后继未选，不开放owned三态 |
 | M11 | single/unit / put T→T?、覆盖/null / 无 | owned、Inout / 现行pointer-niche V，含Resource | native正例：T7；非Map wrapper guard保留，不扩inline nullable |
 | M12 | single/unit / 缓存result再建Map / 无 | Int?/String?/MoveOnly Packet? storage | 拒绝：T9；aggregate不授权storage；后继未选 |
-| M13 | unit：`value.n`/`value.text`；single：`value.number()` / 无 | M07独立结果的inline Borrow callee | [0299已记录缺口](../archive/specs/0299-owned-map-result-borrow.md#7-实施中已确认的独立边界)；callee lowering未接通、后继待认领；已在与main `557e3684`相同crates源码复现；非持久测试或main重跑，显式clone正例独立 |
+| M13 | unit：`value.n`/`value.text`；single：`value.number()` / 无 | M07独立结果的inline Borrow callee | unit普通Borrow参数[直接字段](direct-field-replace.md#普通-borrow-inline-参数字段)已由0309有界接通；single只读方法仍受receiver gate拒绝，0316承接准备中；字段正例不外推全部M07组合，显式clone正例独立 |
 | M14 | single / 有界条件 break，loop 后 live/dead / Array、List、MutableList | 非 Resource owned；String/MoveOnly V，构造/own seed | SSA/native 正例：T10；unit basic/constant live 既有成功、dead 拒绝独立对照；[loop owner](map-loop-owner-carry.md) |
 | M15 | single / 一个条件 continue+fallthrough / Array、List、MutableList 的 temporary/Borrow source | 非 Resource owned；String/MoveOnly V，构造/own seed | SSA/native 正例：T11；unit四格基线已有成功；owned local source 已由0312独立证明并验收原fixture及双Map四格，边界见 [loop owner](map-loop-owner-carry.md#owned-source-的独立证明) |
 | M16 | single / 一个条件return+fallthrough / Array、List、MutableList temporary/Borrow/local/own | 非Resource owned；String/MoveOnly V；Unit/Copyable或独立owned返回 | SSA/native正例：T12；owned source由[0314](../archive/specs/0314-owned-source-conditional-return.md)独立证明并验收；unit24格单列，外围Resource与operand更新边界见[loop owner](map-loop-owner-carry.md#条件-return-的独立终止路径) |
@@ -195,6 +195,6 @@ T8 [`frontend/type_map.rs`](../../crates/lang-frontend/tests/type_map.rs)、`ssa
 T10 `ssa/lower_frontend_map_break_tests.rs` / `ssa/lower_frontend_map_break_structure_tests.rs` / `native/unit_map_break_tests.rs`。
 T11 `ssa/lower_frontend_map_continue_tests.rs` / `ssa/lower_frontend_map_continue_structure_tests.rs` / `ssa/lower_frontend_map_continue_source_tests.rs` / `native/unit_map_continue_tests.rs`；local/派生loan专例只含SSA/LLVM，native矩阵不冒充该专例执行。
 T12 `ssa/lower_frontend_map_return_tests.rs` / `ssa/lower_frontend_map_return_structure_tests.rs` / `ssa/lower_frontend_map_return_controls_tests.rs` / `ssa/lower_frontend_map_return_matrix_tests.rs` / `native/unit_map_return_tests.rs`。
-M13实现gate见 `ssa/unit_lower/aggregate.rs` 与 `ssa/lower_frontend.rs`；借入结果合同见[结果借用页](map-owned-result-borrow.md)，不从桥接正例推定callee已接通。
+M13字段证据见 `ssa/borrow_value_field_tests.rs`、`native_borrow_result_tests.rs` / `native/unit_borrow_result_tests.rs`；single receiver gate仍见 `ssa/lower_frontend.rs`，不把字段支持外推为方法或全部[结果借用](map-owned-result-borrow.md)组合支持。
 复杂CFG/NLL仍保留L0164，未接通ABI在SSA前拒绝；条件借用未批准。storage须独立满足NullableHandle；历史0288 §2.12/§2.13分片证据不算本次重跑。
 Linux Map ASan/LSan曾在PR69 run `37946407889`闭合G5；macOS仅正常计数，不宣称动态检出；[历史验收](../archive/specs/0288-map-native-execution.md#71-g5-远端证据2026-10-09)。
