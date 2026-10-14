@@ -37,7 +37,8 @@ Resource 合同、LLVM 和 M13 文档陈旧问题均不在本片。
 | 扩展边界基线 | `comparisons::boundary::` | 3/3通过；17种普通源码×六fixture入口共102次精确拒绝；非Int六种、短路/concat三种、两alias×四比较 |
 | 旧能力与拒绝 | `ssa::range_lowering_tests::local_control::` 中静审过的普通源码目标 | 最终223/223通过（新增171、旧52含==/<18），0 ignored；短路/非Int与其他能力门保持 |
 | 共享调用方 | `ssa::range_lowering_tests::scalar_counts::`；`ssa::borrow_result_boundary_tests::` | 6/6与4/4通过；scalar旧负表在独立main基线1/1复现，四比较initializer改为三数值×三入口native正例，其余旧拒绝保持 |
-| 静态门禁 | fmt、codegen all-targets严格clippy、docs/diff与尺寸 | 待运行 |
+| frontend事实回归 | `ownership_borrow_last_use`、`ownership_range_construction`两独立integration target | 8/8与14/14通过，0 filtered/ignored；只读验证现有last-use及词法if边界，frontend零改 |
+| 静态门禁 | `cargo fmt --all -- --check`、`cargo clippy --locked -p lang-codegen --all-targets -- -D warnings`、docs/diff、尺寸base934b6590 | 全部通过；docs667页，38项历史尺寸债无增长，生产变更仅四比较枚举 |
 | 远端交付 | Draft PR与双宿主CI、归档、具体合并授权 | 未运行；阶段commit/push不表示完成 |
 
 single 的 literal 与 const fixture 使用既有同一 constant-aware 分析/lowering入口；unit basic
@@ -52,3 +53,8 @@ last-read首探索夹具误保留第二次read且输出模板不符，已修正�
 最小生产首跑199通过/24失败：三位置72、if选择72、旧52、新边界3全部通过；24个last-read
 oracle误把词法块内等同仍live，实际RangeEnd与source BorrowEnd已在比较前。修正为
 AfterEnds身份/顺序断言，fixture字节与生产不变，不把此调整宣称为新cleanup修复。
+
+实现提交`12637fec`的代码冻结后，233项codegen及22项frontend实际通过，共255个唯一
+测试名（新增172项codegen），无ignored；strict clippy/fmt均通过，测试前后与clippy后
+源码SHA相同。选定模块已静审为普通源码链；未运行workspace/frontend全量、坏IR、
+故障注入、sanitizer、计数插桩、mock或全量discover。本地Linux结果不替代后续双宿主CI。
