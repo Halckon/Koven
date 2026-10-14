@@ -165,6 +165,9 @@ strict失败不得进入ownership的证明随真实接线补齐，不用forced o
 | 跨文件同根实际结果 | 两种输入顺序均采集到a/c两个独立L0080及b两次引用的派生L0165；oracle在第一组诊断数量4≠2处失败，不计第二组oracle已执行 |
 | 早拒call实际结果 | `clone<Int>`/`inv<Int>`的single/unit四个结果均已采集，误返回Internal缺事实；落点分别为Int `[47,50)`/`[41,44)`。oracle在首个clone single结果失败，不计后三个oracle已执行 |
 | 恢复红测冻结 | 1424个源码/配置文件前后NUL摘要同为`61d51d6f6c3cebe3c12c946da4be96be414a2db51df325ff88a2a8974eaf6b32`；三份原日志、完整argv/status留仓外，保留失败事实 |
-| 待完成 | 修复已复现的同根传播/早拒call恢复，随后共享回归、工程门禁及本片CI；没有故障/插桩或全量云测试 |
+| 恢复修复实际结果 | `22be41cb4c63a26e9b5c3b9b22d598b5d894df73` / tree `56bac7efc40fe9d3dc0d78db55244f119483c65e`；定向3exact及其余13个已审目标全部各1/1绿，合计16唯一目标（15普通源码+1只读catalog），48次CLI全部oracle通过 |
+| 因果与旧边界 | 定义先置/后置两种logical source布局各正逆inputs，4组均只保留独立两个L0080；clone/inv两入口4组均保留本call L0091及独立L0080。旧健康ForwardValueType仍final拒绝，raw/validate对照保持 |
+| 恢复修复冻结 | 两批1424个源码/配置文件前后NUL摘要同为`d0bd2ddd7c28dda7280d4100df4d353ff7a520c8675f238964754f40e3050439`；各exact真实1/1，无零命中，原红日志保留 |
+| 待完成 | 普通下划线binding与真discard、cycle边界补强，随后共享回归、工程门禁及本片CI；没有故障/插桩或全量云测试 |
 | 草案阶段 docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；当时active0/archive302、draft新增0319 |
 | active迁移 | 0319迁入active，archive302不变；draft库存移除0319，四份DAG随生命周期重建 |
