@@ -78,7 +78,22 @@ impl super::ExpressionLowerer<'_> {
         }
         let (argument, loan, created) = match receiver.origin() {
             CallReceiverOrigin::Expression(argument) => {
-                let actual = self.field_replace_ungroup(argument, span)?;
+                let mut actual = argument;
+                loop {
+                    if self.typed.non_null_use(actual).is_some() {
+                        return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                    }
+                    let node = self
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(actual)
+                        .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+                    let Expression::Group { expression } = node.payload() else {
+                        break;
+                    };
+                    actual = *expression;
+                }
                 let node = self
                     .parsed
                     .ast()
@@ -128,6 +143,20 @@ impl super::ExpressionLowerer<'_> {
                 (callee, loan, false)
             }
         };
+        // Only entry Borrow parameters/this may reuse an existing receiver loan.
+        // Iteration and other derived views need their own CFG transport contract.
+        if !created {
+            let entity = self
+                .function
+                .entity(EntityId::Loan(loan))
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if !matches!(entity.definition,
+                crate::ssa::model::Definition::BlockParameter { block, .. }
+                    if Some(block) == self.function.entry_block())
+            {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+        }
         self.pending_call_loans.insert(
             (expression.index(), argument.index()),
             created.then_some(loan),

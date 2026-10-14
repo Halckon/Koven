@@ -91,3 +91,31 @@ fn readonly_keeps_grouped_borrow_result_and_field_receiver_boundaries() {
         "outer.item.read()",
     );
 }
+
+fn nullable_receiver(receiver: &str) {
+    let call = format!("{receiver}.read()");
+    rejected(
+        &format!(
+            "value class Item(val n:Int, val text:String) {{ fun read():Int=this.n }}\nfun entry() {{ var values=mutableMapOf<Int,Item>(); values.put(1,Item(7,\"text\")); val removed=values.remove(1); if(removed!=null) {{ {call} }} }}"
+        ),
+        &call,
+    );
+}
+
+#[test]
+fn readonly_keeps_nullable_receiver_boundary() {
+    nullable_receiver("removed");
+}
+
+#[test]
+fn readonly_keeps_grouped_nullable_receiver_boundary() {
+    nullable_receiver("((removed))");
+}
+
+#[test]
+fn readonly_keeps_iteration_receiver_boundary() {
+    rejected(
+        "value class Item(val n:Int) { fun read():Int=this.n }\nfun entry() { val items=listOf(Item(7)); for(item in items) { item.read() } }",
+        "item.read()",
+    );
+}
