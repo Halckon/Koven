@@ -59,7 +59,9 @@ fn single_text(text: &str, live: bool, map: bool) {
         a.owned.diagnostics()
     );
     use lang_frontend::ownership_checking::{IterationExitKind, IterationPhiIncomingKind};
-    let plan = &a.owned.iterations()[0];
+    let plan = a.owned.iterations().iter().find(|plan| {
+        matches!(plan.source(), LoanTarget::Place(place) if a.names.symbols()[place.root().index()].name() == "keys")
+    }).expect("the exact named owned-source iteration, not an outer temporary provider");
     assert_eq!(plan.exits().len(), 3);
     assert_eq!(
         plan.exits()

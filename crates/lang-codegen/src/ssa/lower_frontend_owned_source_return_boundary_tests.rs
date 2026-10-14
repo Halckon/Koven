@@ -137,3 +137,14 @@ fn owned_source_return_source_loan_rejects_body_moves_and_mutation() {
         );
     }
 }
+
+#[test]
+fn owned_source_return_fresh_inner_exact_source_structure() {
+    for live in [false, true] {
+        let after = if live { "keys.size" } else { "" };
+        let text = format!(
+            "fun main(): Unit {{ for (outer in arrayOf(1, 2)) {{ val keys = arrayOf(1, 2); for (key in keys) {{ if (key == 2) {{ return }} }}; {after} }} }}"
+        );
+        super::single_text(&text, live, false);
+    }
+}
