@@ -1,0 +1,2 @@
+value class Reading(var number:Int) { inout fun change():Int { this.number=9; return this.number }; fun <T> identity(own value:T):T=value; fun unused():Int { val action: (Int) -> Int = { value -> value }; return action(7) } }
+fun entry() { println("entry") }

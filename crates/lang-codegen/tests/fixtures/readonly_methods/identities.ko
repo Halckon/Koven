@@ -1,0 +1,4 @@
+value class Reading(val number:Int) { fun readNumber():Int = this.number }
+value class Other(val number:Int) { fun readNumber():Int = number }
+fun readNumber():Int = 9
+fun entry() { val reading=Reading(7); val other=Other(8); if(reading.readNumber()==7) { println("seven") }; if(other.readNumber()==8) { println("eight") }; if(readNumber()==9) { println("nine") } }

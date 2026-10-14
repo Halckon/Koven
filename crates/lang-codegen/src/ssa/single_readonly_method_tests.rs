@@ -230,3 +230,115 @@ case!(
     ConstantUnit,
     b"enabled\n"
 );
+case!(
+    readonly_borrow_parameter_single,
+    "borrow_parameter",
+    "reading.readNumber()",
+    false,
+    Single,
+    b"seven\nseven\n"
+);
+case!(
+    readonly_borrow_parameter_unit,
+    "borrow_parameter",
+    "reading.readNumber()",
+    false,
+    Unit,
+    b"seven\nseven\n"
+);
+case!(
+    readonly_temporary_single,
+    "temporary",
+    "Reading(7).readNumber()",
+    false,
+    Single,
+    b"seven\n"
+);
+case!(
+    readonly_temporary_unit,
+    "temporary",
+    "Reading(7).readNumber()",
+    false,
+    Unit,
+    b"seven\n"
+);
+case!(
+    readonly_implicit_single,
+    "implicit",
+    "reading.relay()",
+    false,
+    Single,
+    b"seven\n"
+);
+case!(
+    readonly_implicit_unit,
+    "implicit",
+    "reading.relay()",
+    false,
+    Unit,
+    b"seven\n"
+);
+case!(
+    readonly_identities_single,
+    "identities",
+    "reading.readNumber()",
+    false,
+    Single,
+    b"seven\neight\nnine\n"
+);
+case!(
+    readonly_identities_unit,
+    "identities",
+    "reading.readNumber()",
+    false,
+    Unit,
+    b"seven\neight\nnine\n"
+);
+case!(
+    readonly_order_single,
+    "order",
+    "makeReading().readNumber(argument())",
+    false,
+    Single,
+    b"receiver\nargument\nseven\n"
+);
+case!(
+    readonly_order_unit,
+    "order",
+    "makeReading().readNumber(argument())",
+    false,
+    Unit,
+    b"receiver\nargument\nseven\n"
+);
+case!(
+    readonly_moveonly_single,
+    "moveonly",
+    "reading.readNumber()",
+    false,
+    Single,
+    b"seven\nseven\nseven\n"
+);
+case!(
+    readonly_moveonly_unit,
+    "moveonly",
+    "reading.readNumber()",
+    false,
+    Unit,
+    b"seven\nseven\nseven\n"
+);
+case!(
+    readonly_unused_single,
+    "unused",
+    "not called",
+    false,
+    Single,
+    b"entry\n"
+);
+case!(
+    readonly_unused_unit,
+    "unused",
+    "not called",
+    false,
+    Unit,
+    b"entry\n"
+);
