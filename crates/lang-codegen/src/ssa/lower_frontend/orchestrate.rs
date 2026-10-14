@@ -4,21 +4,23 @@ use std::collections::BTreeMap;
 
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
-    name_resolution::{NameResolution, ReferenceTarget, SymbolId, SymbolKind},
+    name_resolution::{NameResolution, ReferenceTarget, SymbolId},
     ownership_checking::{
         CleanupCaptureValue, CleanupCondition, ClosureCaptureEffect, ClosureCaptureMode, DropPoint,
         OwnershipCheckedFile,
     },
-    parser::{ClassifierKind, FunctionBody, FunctionForm, Item, ParsedFile},
+    parser::{FunctionBody, FunctionForm, Item, ParsedFile},
     source::{SourceMap, Span},
-    type_checking::{BuiltinType, CallableDescriptor, ParameterMode, TypeId, TypedFile},
+    type_checking::{BuiltinType, ParameterMode, TypeId, TypedFile},
 };
 
 use super::{
-    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, builtin_type, error,
+    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, builtin_type,
+    declarations::collect_functions,
+    error,
     instances::{FunctionInstanceKey, FunctionTemplate, plan_instances, resolve_concrete_type},
     nominal::NominalTypeMapper,
-    present_name, resource_deinit, return_values, source_closure, span_key,
+    resource_deinit, return_values, source_closure, span_key,
 };
 use crate::ssa::{
     model::{EntityId, EntityType, FunctionId, Origin, Program, TerminatorKind},
@@ -50,14 +52,6 @@ struct FunctionPlan {
     receiver: Option<(lang_frontend::type_checking::NominalId, TypeId)>,
     span: Span,
     source: Option<crate::ssa::lowering_support::callable_instances::SourceToken>,
-}
-
-struct FunctionDeclaration {
-    item_id: ItemId,
-    item: Item,
-    symbol: SymbolId,
-    callable: CallableDescriptor,
-    span: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -870,71 +864,6 @@ pub(crate) fn validate_inputs(
             span: failure.span(),
         })?;
     Ok(())
-}
-
-fn collect_functions(
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-) -> Result<Vec<FunctionDeclaration>, LoweringError> {
-    let mut functions = Vec::new();
-    for root in parsed.roots() {
-        let node = parsed.ast().items().get(*root).map_err(|_| LoweringError {
-            kind: LoweringErrorKind::MissingFact,
-            span: None,
-        })?;
-        let (item, span) = unwrap_modified(parsed, *root)?;
-        // Entry drop facts refer to the function itself, not its modifier wrapper.
-        let mut item_id = *root;
-        while let Item::Modified { declaration, .. } = parsed
-            .ast()
-            .items()
-            .get(item_id)
-            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
-            .payload()
-        {
-            item_id = *declaration;
-        }
-        let name = match &item {
-            Item::Function { name, .. } => name,
-            Item::Constant { .. } => continue,
-            Item::Classifier(declaration)
-                if matches!(
-                    declaration.kind,
-                    ClassifierKind::Object { .. }
-                        | ClassifierKind::Class { .. }
-                        | ClassifierKind::ValueClass { .. }
-                        | ClassifierKind::Interface { .. }
-                        | ClassifierKind::EnumClass { .. }
-                ) =>
-            {
-                continue;
-            }
-            _ => return Err(error(LoweringErrorKind::UnsupportedNode, node.span())),
-        };
-        let name_span =
-            present_name(*name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let symbol = names
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.span() == name_span && symbol.kind() == SymbolKind::Function)
-            .map(|symbol| symbol.id())
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, name_span))?;
-        let callable = typed
-            .callables()
-            .iter()
-            .find(|callable| callable.symbol() == symbol && callable.owner().is_none())
-            .cloned()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, name_span))?;
-        functions.push(FunctionDeclaration {
-            item_id,
-            item,
-            symbol,
-            callable,
-            span,
-        });
-    }
-    Ok(functions)
 }
 
 pub(super) fn unwrap_modified(

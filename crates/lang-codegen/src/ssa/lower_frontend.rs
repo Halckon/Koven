@@ -9,6 +9,7 @@ mod constant;
 mod constant_presence;
 mod container;
 mod control;
+mod declarations;
 mod drops;
 mod enum_condition;
 mod field_replace;
