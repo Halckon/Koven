@@ -80,3 +80,6 @@ mod conditional_continue;
 
 #[path = "unit_map_return_tests.rs"]
 mod conditional_return;
+
+#[path = "unit_owned_source_return_tests.rs"]
+mod owned_source_return;

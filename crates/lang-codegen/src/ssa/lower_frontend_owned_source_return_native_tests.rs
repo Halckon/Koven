@@ -239,3 +239,73 @@ fn owned_source_return_native_independent_results() {
     let one = "returned\ntail\ntail\nreturned\ntail\ntail\ntail\nfallback\n";
     assert_success(&run, one.repeat(4).as_bytes());
 }
+
+#[test]
+fn owned_source_return_native_post_loop_permissions() {
+    let source = r#"
+fun consume(own source: Array<Int>): Unit { if (source.size == 3) { println("moved") } }
+fun handoff(stop: Int): Unit {
+    var keys = arrayOf(1, 2, 3)
+    for (key in keys) { if (key == stop) { return } }
+    consume(keys)
+}
+fun mutate(stop: Int): Unit {
+    var keys = mutableListOf(1, 2, 3)
+    for (key in keys) { if (key == stop) { return } }
+    keys.add(4)
+    keys.removeLast()
+    if (keys.size == 3) { println("mutated") }
+}
+fun main(): Unit { handoff(2); handoff(9); mutate(2); mutate(9) }
+"#;
+    assert_success(
+        &emit_link_and_run("owned-source-return-permissions.ko", source, "main"),
+        b"moved\nmutated\n",
+    );
+}
+
+#[test]
+fn owned_source_return_native_moveonly_patterns() {
+    let source = r#"
+value class Item(val id: Int, val name: String)
+fun destructured(stop: Int): Unit {
+    val items = listOf(Item(1, "one"), Item(2, "two"), Item(3, "three"))
+    for ((id, name) in items) { println(name); if (id == stop) { return }; println("tail") }
+    if (items.size == 3) { println("retained") }
+}
+fun discarded(stop: Boolean): Unit {
+    val keys = arrayOf("one", "two", "three")
+    for (_ in keys) { if (stop) { return }; println("tail") }
+    println("done")
+}
+fun main(): Unit { destructured(2); destructured(9); discarded(true); discarded(false) }
+"#;
+    assert_success(
+        &emit_link_and_run("owned-source-return-patterns.ko", source, "main"),
+        b"one\ntail\ntwo\none\ntail\ntwo\ntail\nthree\ntail\nretained\ntail\ntail\ntail\ndone\n",
+    );
+}
+
+#[test]
+fn owned_source_return_native_fresh_inner_instances() {
+    let mut source = String::new();
+    for live in [false, true] {
+        let tail = if live {
+            "if (keys.size == 2) { println(\"live\") }"
+        } else {
+            ""
+        };
+        source.push_str(&format!("fun scan{live}(stop: String): Unit {{ for (outer in arrayOf(\"first\", \"second\")) {{ val keys = arrayOf(outer.clone(), \"tail\"); for (key in keys) {{ println(key); if (key == stop) {{ return }}; println(\"body\") }}; {tail} }} }}\n"));
+    }
+    source.push_str("fun main(): Unit { scanfalse(\"tail\"); scanfalse(\"never\"); scantrue(\"tail\"); scantrue(\"never\") }");
+    assert_success(
+        &emit_link_and_run("owned-source-return-fresh.ko", &source, "main"),
+        concat!(
+            "first\nbody\ntail\n",
+            "first\nbody\ntail\nbody\nsecond\nbody\ntail\nbody\n",
+            "first\nbody\ntail\n",
+            "first\nbody\ntail\nbody\nlive\nsecond\nbody\ntail\nbody\nlive\n"
+        )
+        .as_bytes(),
+    );
+}

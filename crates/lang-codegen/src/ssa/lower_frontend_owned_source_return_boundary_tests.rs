@@ -113,3 +113,27 @@ fn owned_source_return_same_source_sequential() {
         false,
     );
 }
+
+#[test]
+fn owned_source_return_source_loan_rejects_body_moves_and_mutation() {
+    for (factory, operation) in [
+        ("arrayOf", "consume(keys)"),
+        ("arrayOf", "keys[0] = 9"),
+        ("mutableListOf", "keys.add(4)"),
+        ("mutableListOf", "keys.removeLast()"),
+    ] {
+        let text = format!(
+            "fun consume(own source: Array<Int>): Unit {{}}\nfun main(): Unit {{ var keys = {factory}(1, 2, 3); for (key in keys) {{ {operation}; if (key == 2) {{ return }} }} }}"
+        );
+        let a = analyze(&text);
+        assert!(a.parsed.diagnostics().is_empty());
+        assert!(a.names.diagnostics().is_empty());
+        assert!(a.typed.diagnostics().is_empty());
+        assert!(
+            a.owned
+                .diagnostics()
+                .iter()
+                .any(|d| d.code().to_string() == "L0135")
+        );
+    }
+}
