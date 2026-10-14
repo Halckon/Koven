@@ -407,7 +407,8 @@ impl<F: Facts> Checker<'_, F> {
         }
         Ok(complete)
     }
-    // 只有真实选中事实才能调用 selector。豁免壳，不豁免运行时 receiver/子表达式。
+    // 真实选中事实或精确原 typed 诊断证明的失败静态壳才能调用 selector。
+    // 仅豁免静态壳，仍检查运行时 receiver/子表达式，失败节点不获得完整资格。
     fn selector(&mut self, id: ExpressionId) -> Result<bool> {
         let parsed = self.parsed;
         let node = parsed

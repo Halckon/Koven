@@ -432,7 +432,24 @@ impl Facts for Unit<'_> {
         {
             return false;
         }
-        let Some(symbol) = self.referenced_symbol(name_span) else {
+        let Some(symbol) = self
+            .names
+            .names()
+            .references()
+            .iter()
+            .find_map(|reference| {
+                if reference.source_unit() != self.source
+                    || reference.span() != name_span
+                    || reference.namespace() != Some(Namespace::Value)
+                {
+                    return None;
+                }
+                match reference.target() {
+                    UnitReferenceTarget::Symbol(symbol) => Some(*symbol),
+                    _ => None,
+                }
+            })
+        else {
             return false;
         };
         self.typed
