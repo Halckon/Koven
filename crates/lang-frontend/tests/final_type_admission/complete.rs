@@ -395,3 +395,64 @@ fn early_call_diagnostics_preserve_unvisited_type_arguments() {
         assert_exact(&sources, "main.ko", unit, &expected);
     }
 }
+
+#[test]
+fn real_underscore_bindings_keep_their_root_while_discards_remain_valid() {
+    for text in [
+        "fun echo(_: Int): Int = _\nfun inspect(): Int { val _ = 3; return echo(_) }",
+        "value class Duo(val n: Int, val flag: Boolean)\nfun inspect(xs: List<Duo>): Unit { for ((_, flag) in xs) {}; for (_ in xs) {} }",
+    ] {
+        let (_, single, unit) = complete_both(text, false);
+        single.expect("real underscore values or actual discard: single");
+        unit.expect("real underscore values or actual discard: unit");
+    }
+    let text = "fun inspect(): Int { val n = 1; val _ = n.fooBar(); return _ }";
+    let (sources, single, unit) = complete_both(text, false);
+    eprintln!("underscore root: single={single:?}; unit={unit:?}");
+    let start = text.find("fooBar").unwrap();
+    let expected = [("L0080", start, start + 6, "fooBar")];
+    assert_exact(&sources, "main.ko", single, &expected);
+    assert_exact(&sources, "main.ko", unit, &expected);
+}
+
+#[test]
+fn initializer_order_does_not_complete_forward_types_or_cycles() {
+    let cases = [
+        "val first = second\nval second = 1",
+        "val first = second\nval second = first",
+    ];
+    let mut results = Vec::new();
+    for prefix in cases {
+        let text = format!("{prefix}\nfun separate(): Int {{ val n = 1; return n.fooBar() }}");
+        with_types(&text, |sources, file, single, unit, source| {
+            assert!(single.diagnostics().is_empty());
+            assert!(unit.diagnostics().is_empty());
+            assert!(unit.clone().validate().is_ok());
+            let forward = expression(sources, file, "second");
+            assert_eq!(
+                single
+                    .expression_type(forward)
+                    .and_then(|ty| single.types().get(ty)),
+                Some(&TypeKind::Deferred(DeferredReason::ForwardValueType)),
+            );
+            assert_eq!(
+                unit.expression_type(UnitExpressionId::new(source, forward))
+                    .and_then(|ty| unit.types().get(ty)),
+                Some(&UnitTypeKind::Deferred(DeferredReason::ForwardValueType)),
+            );
+        });
+        let (sources, single, unit) = complete_both(&text, false);
+        eprintln!("initializer boundary {prefix:?}: single={single:?}; unit={unit:?}");
+        results.push((text, sources, single, unit));
+    }
+    for (text, sources, single, unit) in results {
+        let forward = text.find("second").unwrap();
+        let independent = text.find("fooBar").unwrap();
+        let expected = [
+            ("L0165", forward, forward + 6, "second"),
+            ("L0080", independent, independent + 6, "fooBar"),
+        ];
+        assert_exact(&sources, "main.ko", single, &expected);
+        assert_exact(&sources, "main.ko", unit, &expected);
+    }
+}
