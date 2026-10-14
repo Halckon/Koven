@@ -175,6 +175,24 @@ fn cross_file_unannotated_forward_use_preserves_the_single_file_deferred_boundar
         ),
         Some(UnitTypeKind::Builtin(BuiltinType::Int))
     ));
+    let rejection = match lang_frontend::type_checking::complete_compilation_unit_types(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+    ) {
+        Err(lang_frontend::type_checking::FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+            diagnostics
+        }
+        other => panic!("forward value has only base qualification: {other:?}"),
+    };
+    assert_eq!(rejection.len(), 1, "{rejection:?}");
+    assert_eq!(rejection[0].code().to_string(), "L0165");
+    assert_eq!(
+        rejection[0].primary_span(),
+        consumer.ast().expressions().get(before).unwrap().span()
+    );
     assert!(typed.validate().is_ok());
 }
 

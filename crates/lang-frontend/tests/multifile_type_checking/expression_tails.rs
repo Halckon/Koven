@@ -205,6 +205,44 @@ fn remaining_expression_tails_publish_stable_types_and_traverse_cross_file_child
                 .type_ref_type(UnitTypeRefId::new(unit, type_ref))
                 .is_some())
     );
+    // Raw/base capability remains valid; final consumption diagnoses the actual roots.
+    let rejection = match lang_frontend::type_checking::complete_compilation_unit_types(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+    ) {
+        Err(lang_frontend::type_checking::FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+            diagnostics
+        }
+        other => panic!("expression tails must not acquire final qualification: {other:?}"),
+    };
+    let expected = [
+        ("produce() as Long", "L0165", false),
+        ("produce()?", "L0085", true),
+        ("::target", "L0165", false),
+        ("this::ping", "L0165", false),
+        ("produce()..produce()", "L0165", false),
+        ("produce()..<produce()", "L0165", false),
+        ("produce() to produce()", "L0165", false),
+        ("produce() in produce()", "L0165", false),
+        ("produce() !in produce()", "L0165", false),
+    ];
+    assert_eq!(rejection.len(), expected.len(), "{rejection:?}");
+    for (diagnostic, (text, code, question_only)) in rejection.iter().zip(expected) {
+        let id = expression_with_text(&sources, &consumer, text);
+        let span = consumer.ast().expressions().get(id).unwrap().span();
+        let expected = if question_only {
+            sources
+                .span(consumer_source, span.end() - 1, span.end())
+                .unwrap()
+        } else {
+            span
+        };
+        assert_eq!(diagnostic.code().to_string(), code);
+        assert_eq!(diagnostic.primary_span(), expected);
+    }
     assert!(typed.validate().is_ok());
 }
 

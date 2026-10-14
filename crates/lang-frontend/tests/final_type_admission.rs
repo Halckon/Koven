@@ -121,9 +121,7 @@ fn frozen_probe_roots_preserve_raw_deferred_recovery() {
     }
 }
 
-#[test]
-fn resolved_roles_and_symbolic_types_keep_raw_value_facts() {
-    let text = "value class Item(val n: Int)\n\
+const VALID_ROLES: &str = "value class Item(val n: Int)\n\
         fun identity(n: Int): Int = n\n\
         fun <T: Any> symbolic(value: T): T = value\n\
         fun invoke(f: (Int) -> Int): Int = f(1)\n\
@@ -140,6 +138,10 @@ fn resolved_roles_and_symbolic_types_keep_raw_value_facts() {
             val count = list.size\n\
             println(text)\n\
         }";
+
+#[test]
+fn resolved_roles_and_symbolic_types_keep_raw_value_facts() {
+    let text = VALID_ROLES;
     with_types(text, |sources, file, single, unit, unit_id| {
         assert!(
             single.diagnostics().is_empty(),
@@ -333,3 +335,6 @@ fn selected_source_order_and_forward_types_keep_basic_qualification() {
     }
     assert_eq!(snapshots[0], snapshots[1]);
 }
+
+#[path = "final_type_admission/complete.rs"]
+mod complete;
