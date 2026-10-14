@@ -64,7 +64,7 @@ Map live/dead × source live/dead 的双同型 Map 普通 native 对照通过；
 不把尚未支持的跨 owner 短路条件清理混作本片能力。原 Resource/global implies 与 Map
 carrier 算法保持；当前 source seed、nested/跨 loop 边界见[provider](finite-sequential-iteration.md)。
 
-0313阶段owned source return的旧拒绝已由[0314](../specs/active/0314-owned-source-conditional-return.md)
+0313阶段owned source return的旧拒绝已由[0314](../archive/specs/0314-owned-source-conditional-return.md)
 独立关闭有界组合：Array/List/MutableList×local/own×live/dead，无Map12格及Map12格。
 Continue证明未直接放行Return；新source-only proof先建Header归纳，再独立核终止Drop与
 exhaustion两种去向。Map carrier算法未改，双同型Map与返回operand使用各自最新owner。

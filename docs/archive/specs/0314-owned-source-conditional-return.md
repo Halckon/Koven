@@ -1,17 +1,17 @@
 # SPEC-0314: owned Sequential source 条件 return 证明
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收 owned source 条件 return 时 · **唯一真源**：本 Spec
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收 owned source 条件 return 时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0314` |
 | 所属 Phase | Phase 3 事实消费、Phase 4 single SSA/native |
 | 语言规范 | [Guide12](../../guide/12-collections-destructuring.md) |
 | 批准依据 | 2026-10-14 用户对 owned-source return 下一里程碑明确继续实施 |
-| 前置 Spec | [SPEC-0312](../../archive/specs/0312-owned-source-conditional-continue.md)、[SPEC-0313](../../archive/specs/0313-single-map-conditional-return.md) |
+| 前置 Spec | [SPEC-0312](0312-owned-source-conditional-continue.md)、[SPEC-0313](0313-single-map-conditional-return.md) |
 | 前置 ADR | [ADR-0006](../../adr/accepted/0006-typed-ssa-block-parameters.md) |
-| 阻塞项 | 本地有界实现、验收与独立终审通过；PR完整CI及合并闭环待验证 |
+| 阻塞项 | 本地与PR93实现完整CI已验收；归档head CI、merge及actual-main CI待验证 |
 | 影响范围 | 非 Resource owned Array/List/MutableList source 的单条件 return |
 | 语言语义变更 | 否 |
 
@@ -75,7 +75,10 @@ break/continue混合、无fallthrough、跨loop/capture、RangeView等保持原�
 | 共享普通native | 同输入，`native::unit_tests::{map_loop_owner_tests,map_key_return_tests,owned_null_cleanup_tests,temporary_null_cleanup_tests}`分别执行 | 52/18/11/8通过；52包含本片24unit native。原版LLVM/object/link/run，无计数插桩；source前后hash相等 |
 | 静态门禁 | 3dad；fmt、`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`、sizes、size-policy | 全通过；Python指定size-policy模块47通过。38项历史尺寸债保留；测试入口仅3行注册2007→2010有限例外获独立审阅，生产尺寸额度不变 |
 | 独立代码审查 | 3dad及真实日志 | Return独立proof、Continue原body、117新增/共享实际计数及source hash无阻断；d04677c5文档终审通过 |
-| 文档/远端门槛 | 本地最终账本与分支checkpoint | d04677c5最终docs667篇、diff、sizes复验通过且source hash相同；PR完整CI、归档、merge及actual-main CI尚未执行，不以分支备份替代 |
+| 本地文档门槛 | 本地最终账本与分支checkpoint | d04677c5最终docs667篇、diff、sizes复验通过且source hash相同；分支备份不替代PR CI |
+| PR93实现完整CI | [run38501870863/a1](https://github.com/Halckon/Koven/actions/runs/38501870863)，head `d2c3228037d333ae6815ae342a5f2f9b85b91a2f`、base `934b6590`、synthetic `7ac561b9` / tree `093bf3b3ede2f6011d7cb3a812a2167420936807` | success，reuse=false；16 checks/jobs逐项匹配：15 success、1 Editors按分类skip；双宿主117新增及241共享去重目标逐名实际通过，交集27、纯旧214、联合331。codegen Linux1668通过，macOS1667通过及1旧LLDB ignored；双宿主严格clippy通过 |
+| Preview交付链 | 同run两宿主的producer/API artifact/independent consumer | 三方摘要一致，独立consumer无checkout安装通过；不以CI配置或source单测替代安装证据 |
+| 归档后门槛 | 从官方fetch的真实remote实现head独立docs-only迁移 | 归档head CI、merge授权及actual-main CI仍待验证；实现CI不替代这些结果 |
 
 首轮offline在编译前缺inkwell缓存；随后`cargo fetch --locked`补齐原锁定依赖，
 再于独立baseline工作树与绝对target执行48项。日志与完整source hash留仓外。
@@ -97,4 +100,4 @@ baseline/current target身份、前后全source SHA、stdout/stderr均留仓外�
 - mixed break、无Fallthrough、field/Inout/RangeView等由原0312/0313边界回归与未改变的
   入口约束保留；不冒称本片已为每一种Return组合做新的逐形状实证。
 - 不运行workspace/frontend全量、故障注入/校准/sanitizer runtime/bad IR/计数插桩或full
-  discover。macOS未在本地运行；跨平台与合入门槛由后续真实PR/main CI验证。
+  discover。macOS未在本地运行；PR93双宿主结果已按上表独立核验；归档head与合入后main门槛继续开放。

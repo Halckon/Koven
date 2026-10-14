@@ -55,7 +55,7 @@ implies 不变，不新建运行时条件。replacement/alias、跨 loop phi see
 [SPEC-0312](../archive/specs/0312-owned-source-conditional-continue.md)。unit 两视图独立四格原已通过，
 这里的生产修复仅作用于 single；temporary/Borrow 路径保持原实现。
 
-single owned source的单条件Return现由[0314](../specs/active/0314-owned-source-conditional-return.md)
+single owned source的单条件Return现由[0314](../archive/specs/0314-owned-source-conditional-return.md)
 独立证明：3 exits/3 incoming，Return不入phi；真实Entry和唯一Fallthrough先建立Header，
 再分别核Return path∧Header presence精确Drop、正常live Exit运输或dead absent Exit。
 Continue helper的专属gate、全局implies、Resource与frontend/model/verifier/LLVM保持原义。
