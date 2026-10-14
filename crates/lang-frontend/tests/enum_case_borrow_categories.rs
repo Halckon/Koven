@@ -226,6 +226,9 @@ fn selected_case_qualifiers_keep_final_admission_precise() {
         ("enum class Flag { On, Off }\nvalue class Holder(val Flag: String)\nfun invalid(holder: Holder): Int = holder.Flag.On\n", "holder.Flag.On", "On", "L0080"),
         ("enum class Maybe<T> { Some(item: T), None }\nfun invalid(): Unit { val missing = Maybe.None }\n", "Maybe.None", "None", "L0144"),
     ].map(|(text, operand, token, code)| (collect(text), operand, token, code));
+    for (checked, operand, _, _) in &negative {
+        log_unselected_member(checked, operand);
+    }
     // Rejected runtime receivers and unfinished constructions must not acquire static
     // qualifier privileges. These controls are examined independently of positive final.
     for (checked, operand, token, code) in &negative {

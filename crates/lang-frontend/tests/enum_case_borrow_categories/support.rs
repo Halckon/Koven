@@ -436,3 +436,89 @@ pub(super) fn place_source_path(file: &ParsedFile, id: ExpressionId) -> (Span, V
         other => panic!("fixture has a source binding/field/element path: {other:?}"),
     }
 }
+
+// Retain failed construction input facts without changing raw type/diagnostic products.
+pub(super) fn log_unselected_member(checked: &Evidence, text: &str) {
+    let id = checked.expression(text);
+    let unit_id = checked.unit_expression(text);
+    let Expression::Member {
+        receiver,
+        name_span,
+        ..
+    } = checked.file.ast().expressions().get(id).unwrap().payload()
+    else {
+        panic!("observation fixture Member");
+    };
+    let receiver = checked.file.ast().expressions().get(*receiver).unwrap();
+    let qualifier_span = match receiver.payload() {
+        Expression::Member { name_span, .. } => *name_span,
+        _ => receiver.span(),
+    };
+    println!(
+        "[0320 failed-member] source={:?} member={:?} token={name_span:?} qualifier={qualifier_span:?}",
+        checked.file.source_id(),
+        span(&checked.file, id)
+    );
+    println!(
+        "[0320 failed-member single] type={:?} construction={:?} diagnostics={:?}",
+        checked
+            .raw
+            .expression_type(id)
+            .map(|ty| (ty, checked.raw.types().get(ty))),
+        checked.raw.construction(id).map(|fact| fact.target()),
+        diagnostic_evidence(checked.raw.diagnostics())
+    );
+    println!("[0320 failed-member single] references={:?} enum_cases={:?}",
+        checked.names.references().iter().filter(|reference| reference.span() == *name_span || reference.span() == qualifier_span).map(|reference| (reference.span(), reference.namespace(), reference.target())).collect::<Vec<_>>(),
+        checked.raw.enum_cases().iter().map(|case| (case.id(), case.value_symbol(), case.root())).collect::<Vec<_>>());
+    println!(
+        "[0320 failed-member single] symbols={:?}",
+        checked
+            .names
+            .symbols()
+            .iter()
+            .filter(|symbol| matches!(
+                symbol.kind(),
+                SymbolKind::EnumVariant | SymbolKind::Classifier
+            ))
+            .map(|symbol| (symbol.id(), symbol.kind(), symbol.span()))
+            .collect::<Vec<_>>()
+    );
+    println!(
+        "[0320 failed-member unit] type={:?} construction={:?} diagnostics={:?}",
+        checked
+            .unit
+            .raw
+            .expression_type(unit_id)
+            .map(|ty| (ty, checked.unit.raw.types().get(ty))),
+        checked
+            .unit
+            .raw
+            .construction(unit_id)
+            .map(|fact| fact.target()),
+        diagnostic_evidence(checked.unit.raw.diagnostics())
+    );
+    println!(
+        "[0320 failed-member unit] references={:?} enum_cases={:?}",
+        checked
+            .unit
+            .names
+            .names()
+            .references()
+            .iter()
+            .filter(|reference| reference.source_unit() == unit_id.source_unit()
+                && (reference.span() == *name_span || reference.span() == qualifier_span))
+            .map(|reference| (reference.span(), reference.namespace(), reference.target()))
+            .collect::<Vec<_>>(),
+        checked
+            .unit
+            .raw
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|declaration| declaration.nominal())
+            .flat_map(|nominal| nominal.enum_cases())
+            .map(|case| (case.value_symbol(), case.name_span()))
+            .collect::<Vec<_>>()
+    );
+}
