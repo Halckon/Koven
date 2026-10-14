@@ -23,7 +23,7 @@ expression category 和外层调用 argument category，使 Borrow 临时值建�
 不在 ownership 抛 `InvalidUnitArgumentPlace`，也不以“无诊断但缺loan”冒充成功。
 
 修复依赖实际 construction expression/target 身份，不依赖 `E.C` 拼写、结果 enum 类型、
-case 名称或同类型比较；已绑定 enum local、参数和字段仍是 place。只修分类与对应诊断，
+case 名称或同类型比较；已绑定 enum local、参数和字段仍是 place。只修构造值角色、对应分类/loan与诊断，
 不放宽ownership place查找、不允许借用逃逸，也不新增enum when或泛型enum native能力。
 
 ## 2. 原附件与当前静态证据
@@ -47,6 +47,9 @@ case 名称或同类型比较；已绑定 enum local、参数和字段仍是 pla
 - unit `ownership_checking/compilation_unit/dataflow/call_contract.rs::apply_contract` 对SharedLoan
   的Place分支必须找回真实place或temporary projection，否则返回内部错误。single
   `checker/loan.rs` 无place且category非Temporary时可能不发布临时loan，故不能只断言API返回Ok。
+- single短名case另有待确认风险：类型category已是Temporary，但ownership引用表收录EnumVariant，
+  `place(Name)`可能把它当binding，Borrow又先查place；因此category正确不等于loan target正确。
+  必须用enum体内短名普通源码单独核真实construction与Temporary target，不把它归为同一个Member红测。
 - 0319前置还有独立待确认风险：`final_admission/adapters.rs`的construction选择只标static_callee，
   未标Member qualifier；`walk.rs`可能继续把`Flag.On`的静态`Flag`当值检查，而bare构造成功
   未为该receiver发布值类型。因此公开入口可能先被final缺事实阻断，尚无本轮动态证明。
@@ -85,6 +88,11 @@ UnsupportedNode及`Shape.Point -> 0` Span，`move_only_enum_when_waits_for_branc
 保留独立UnsupportedNode。后继真实baseline要确认原p49/q08经过0319的结果，分别锁根因/阶段与Span；
 若更早出现独立准入边界则据实分账，不改0319或when gate凑绿，不把此对照当新增when能力。
 
+此外，既有`ssa::lower_frontend_tests::return_control_tests::direct_enum_case_call_argument_remains_a_precise_missing_fact`
+使用同Goal源码`take(Shape.Point)`并锁MissingFact(Shape.Point)，属于待修bug的旧oracle，不是when保留边界。
+先保留其真实baseline，再以同源码将它迁移为expected-success的临时loan/verified SSA合同；
+不得删除该测试、漏CI或继续把旧失败断言算修复成功。迁移和两个when拒例分别记账。
+
 ## 5. 拟精确红测与安全边界
 
 以下是尚未落地的候选名字，不是已编译目标或开测名单。先固定tests-only输入、helper链、
@@ -94,7 +102,7 @@ UnsupportedNode及`Shape.Point -> 0` Span，`move_only_enum_when_waits_for_branc
 |---|---|
 | frontend `enum_case_borrow_categories` / `selected_case_values_are_temporary_but_bindings_and_fields_are_places` | 普通lex/parse→single/unit names/types；先采raw、不以前置final成功为条件；零operand EnumCase descriptor、root类型、表达式与外层Borrow实参category；直接/Group/短名及place反例 |
 | 同target / `selected_case_qualifiers_keep_final_admission_precise` | 独立调用0319 final，采真实结果；已选case与Package/Type qualifier、runtime同名String/field对照，防全链或同类型豁免；与raw分类红分账 |
-| 同target / `borrowed_case_values_publish_call_scoped_temporary_loans` | 原check_ownership/check_compilation_unit_ownership；Copyable与MoveOnly空case、payload对照；精确临时loan、call Span/结束点及唯一owner消费，不只看无诊断 |
+| 同target / `borrowed_case_values_publish_call_scoped_temporary_loans` | 原check_ownership/check_compilation_unit_ownership；Copyable与MoveOnly空case、payload对照；精确临时loan、call Span/结束点及唯一owner消费，短名case单独断言Temporary而非EnumVariant假Place，不只看无诊断 |
 | 同target / `cross_file_case_aliases_preserve_source_qualified_identity` | 两文件普通unit、真实正逆inputs、qualified/import alias、basic/constant；不按同类型合并目标 |
 | 同target / `inout_case_temporaries_keep_l0122_and_mutable_places_stay_valid` | 普通非法`&E.C`/Group与合法mutable local；精确诊断码、marker与parameter label，成功case不得提前错误 |
 | CLI `native_cli` / `enum_case_borrow::single_direct_case_borrow_builds_and_runs` | 现有run→原版kovenc，固定无when正例，build/run原输出、退出与产物 |
