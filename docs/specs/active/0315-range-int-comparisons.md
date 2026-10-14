@@ -58,3 +58,29 @@ AfterEnds身份/顺序断言，fixture字节与生产不变，不把此调整宣
 测试名（新增172项codegen），无ignored；strict clippy/fmt均通过，测试前后与clippy后
 源码SHA相同。选定模块已静审为普通源码链；未运行workspace/frontend全量、坏IR、
 故障注入、sanitizer、计数插桩、mock或全量discover。本地Linux结果不替代后续双宿主CI。
+
+## PR94 首轮 CI 失败与 CLI 漏选修正
+
+[PR94 run38504210599/a1](https://github.com/Halckon/Koven/actions/runs/38504210599)
+在真实 head `3cf8cd49248e11353758c7f00ffaf4d40a99ea53` / base `934b6590` 上，双宿主
+Targeted均失败于 `range_project_cli::scalar_counts::public_std_range_scalar_counts_keep_other_binary_capability_gates`：
+`n != 2` 已合法 build exit0、stdout/stderr空，旧 `!success` 断言仍要求拒绝。旧表另含
+`n <= 3`、`n > 2`、`n >= 3`，均需随能力迁移。233项选定codegen在双宿主逐名通过；
+22项frontend在该组合执行顺序中尚未到达，preview全部skipped，不能沿用本地结果称CI绿。
+
+首轮本地只选codegen及frontend，遗漏已知下游 `range_project_cli`，是本片验收选择缺口；
+不是新比较生产失效。修复从官方fetch的真实remote head新建 `fix/spec-0315`，不伪造父链。
+独立baseline target原样重跑精确CLI项，实际0通过/1失败、34 filtered，复现相同exit0及
+断言；前后源码hash相同。原失败日志与远端两宿主日志保留在仓外，不重写为通过。
+
+只删除负表中这四个Int比较，其他五种短路/String concat/非Int表达式、UnsupportedNode
+诊断及无产物原子断言原样保留。四个独立新测试经真实project loader→frontend→SSA/
+verifier→native object→系统linker→执行，覆盖literal/basic与常量/validated constant unit、
+绑定前/存活期间/结束后三位置，每次负极值/负数/阈值2/3/4/正极值六输入的显式真值输出。
+既有 `==/<` 正例不改。全仓回查其他range/borrow能力门负例未发现第二处过时四比较表。
+
+单文件CLI不加载/授权range std是独立既有边界；本片不改CLI生产、不伪造该入口支持。
+project CLI覆盖公共stdlib加载，single codegen测试覆盖其已授权真实分析链，两者分账。
+修复后必须选完整静审的 `cargo test --locked -p lang-cli --test range_project_cli`，
+该完整目标已实际39/39通过，0 filtered/ignored（原35+新4），新四测试内部24次真实build/run
+及144个输入输出对照；源码前后hash相同。CLI严格clippy、fmt/docs/diff/尺寸待追加。

@@ -14,6 +14,9 @@ mod drop_algorithms;
 #[path = "range_project_cli/scalar_counts.rs"]
 mod scalar_counts;
 
+#[path = "range_project_cli/int_comparisons.rs"]
+mod int_comparisons;
+
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 struct Project(PathBuf);
 impl Project {
