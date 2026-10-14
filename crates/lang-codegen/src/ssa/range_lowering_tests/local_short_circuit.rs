@@ -8,6 +8,7 @@ mod boundary;
 enum Use {
     Local,
     Argument,
+    PendingArgument,
     Condition,
 }
 
@@ -15,6 +16,7 @@ fn statement(expression: &str, use_site: Use) -> String {
     match use_site {
         Use::Local => format!("val result={expression};show(result)"),
         Use::Argument => format!("show({expression})"),
+        Use::PendingArgument => format!("pending(parent,{expression})"),
         Use::Condition => {
             format!("if({expression}){{println(\"true\")}}else{{println(\"false\")}}")
         }
@@ -36,6 +38,7 @@ fun show(result:Boolean):Unit{{if(result){{println("true")}}else{{println("false
 fun lhs(flag:Boolean):Boolean{{println("lhs");return flag}}
 fun rhs(view:View<{element}>,flag:Boolean):Boolean{{println("rhs");for(item in view){{{read}}};return flag}}
 fun read(view:View<{element}>):Unit{{for(item in view){{{read}}}}}
+fun pending(view:View<{element}>,result:Boolean):Unit{{show(result)}}
 fun consume(own root:List<{element}>):Unit{{println("consume")}}
 fun scan(left:Boolean,right:Boolean,n:Int):Unit{{
     val root=listOf({values})
@@ -97,6 +100,9 @@ fn dynamic(pipeline: Pipeline, and: bool, use_site: Use) {
         let span = lowered.expected_span;
         let (program, entry) = lowered.require_success(&label);
         assertions::short_circuit_transport(&program, span, and);
+        if matches!(use_site, Use::PendingArgument) {
+            assertions::short_circuit_prefix_transport(&program, span);
+        }
         let mut expected = String::new();
         for (left, right) in [(true, true), (true, false), (false, true), (false, false)] {
             expected.push_str("lhs\n");
@@ -457,4 +463,39 @@ fn range_short_circuit_copyable_value_argument_single() {
         "0317-copyable-single",
         b"copyable\ncopyable\ntrue\ncopyable\nfalse\n",
     );
+}
+
+#[test]
+fn range_short_circuit_pending_prefix_single() {
+    for and in [true, false] {
+        dynamic(Pipeline::Single, and, Use::PendingArgument);
+    }
+}
+
+#[test]
+fn range_short_circuit_pending_prefix_unit() {
+    for and in [true, false] {
+        dynamic(Pipeline::Unit, and, Use::PendingArgument);
+    }
+}
+
+#[test]
+fn range_short_circuit_pending_prefix_reversed() {
+    for and in [true, false] {
+        dynamic(Pipeline::UnitReversed, and, Use::PendingArgument);
+    }
+}
+
+#[test]
+fn range_short_circuit_pending_prefix_unit_constant() {
+    for and in [true, false] {
+        dynamic(Pipeline::UnitConstant, and, Use::PendingArgument);
+    }
+}
+
+#[test]
+fn range_short_circuit_pending_prefix_reversed_constant() {
+    for and in [true, false] {
+        dynamic(Pipeline::UnitConstantReversed, and, Use::PendingArgument);
+    }
 }

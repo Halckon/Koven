@@ -36,9 +36,9 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 ## 0298首片之外的开放后继
 
 这是原0298广义目标的当前候选入口；[原验收清单](../../../archive/specs/0298-range-binding-local-control-flow.md#5-原广义目标后继仍开放)保留历史。
-以下均未选定下一片或实施，不因首片done变为完成，也不放入development历史账本代替工作入口：
+同根已建立descriptor的单层正常短路已由[0317](../../active/0317-range-normal-short-circuit.md)独立接入并在本地验收，双宿主交付待核。以下更广组合仍未实施，不因首片done变为完成：
 
-- Boolean短路、String拼接与复杂RHS：分别封闭求值一次、未选后缀不执行及根/loan/清理证明。
+- binding前/结束后、嵌套Boolean短路、String拼接与复杂RHS：分别封闭求值一次、未选后缀不执行及根/loan/清理证明，不能外推0317正常scope合同。
 - 更广局部控制流、条件/多来源及普通借用结果运输：先冻结具体源码和已发布事实，不删除整函数能力门，不默认一般NLL。
 - while/loop及更广循环组合：先证明目标loop、fixed-point/owner版本、backedge和break/continue的逐边依赖与清理。
 

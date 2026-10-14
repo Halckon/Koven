@@ -1,6 +1,6 @@
 # 范围绑定与有界局部控制流
 
-> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改新范围描述符的比较/局部if能力门时 · **唯一真源**：`ssa/borrow_result_support`、两入口borrow-result与普通源码测试
+> **性质**：当前实现事实 · **状态**：current · **读取时机**：修改新范围描述符的比较、局部if与正常短路能力门时 · **唯一真源**：`ssa/borrow_result_support`、两入口borrow-result与普通源码测试
 
 [SPEC-0298](../archive/specs/0298-range-binding-local-control-flow.md)冻结首片只新增真实Int
 `==`/`<`与有界statement-if。[SPEC-0315](../archive/specs/0315-range-int-comparisons.md)
@@ -36,6 +36,21 @@ verifier逐边核对精确descriptor/source配对和实际root能力；不存在
 相等/正负极值的真实build/run。单文件CLI不加载range std，不以single codegen证据宣称
 该CLI入口已支持同一导入源码。
 
-短路、String拼接及复杂RHS、value-if、分支新binding、条件/多来源、一般NLL、借用存储/
+[SPEC-0317](../specs/active/0317-range-normal-short-circuit.md)另接通上述同根词法scope中
+已建立描述符后的单层`&&`/`||`：两operand与结果均核typed Boolean；只选直接Boolean
+局部initializer、直接statement-call的Boolean实参或既有bounded statement-if完整条件。
+Boolean name/literal/Group/`!`、简单Int比较与正常Boolean call可用；比较内的checked
+算术或一元`+/-`仍不在本片。call读取既有typed参数和receiver mode/copyability，拒绝
+own MoveOnly、Inout、cross-thread、borrow/carrier result、FunctionValue和直接Nothing；
+此“只读”指借用/交付效果，不限制正常println等IO。只读普通receiver仍受入口既有能力门：
+single普通class方法保持UnsupportedNode，unit代表源码另验，不由0317补齐。
+
+复用原CFG而非新增清理算法；RHS仅在选择边执行，metadata临时read loan在call-return结束，
+继承Boolean Borrow参数保持原来源且不由callee return结束。更早同步Borrow View实参的
+pending loan同时逐边运输，在合流外层调用后、RangeEnd前结束。普通源码已覆盖single、
+unit basic/constant及provider正逆序、literal/const Never/Always、两op动态真值、String/
+MoveOnly/Resource父子兄弟，公开project CLI也有basic/constant正常build/run。
+
+binding前/结束后及嵌套短路、String拼接及复杂RHS、value-if、分支新binding、条件/多来源、一般NLL、借用存储/
 逃逸和更广循环组合仍是开放后继。0299专用nullable proof suffix、0300 Map owner carrier与
 frontend/LLVM ABI未改；冻结首片不宣称整个0298广义目标完成。

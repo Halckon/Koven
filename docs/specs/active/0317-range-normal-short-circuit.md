@@ -23,10 +23,10 @@
 跳过零次。使用位置限 Boolean 局部 initializer、同步 Boolean 实参、既有 bounded statement-if
 的条件；所有路径正常返回，合流继续读取既有范围。
 
-操作数可用 Boolean name/literal、Group/`!`、既有 Int 比较，以及正常 owned Boolean 的
+操作数可用 Boolean name/literal、Group/`!`、简单 operand 的既有 Int 比较，以及正常 owned Boolean 的
 只读同步 call（只读指 mode/loan 与交付效果，不禁止 println 等可观察 IO）。call 还核实参与 receiver 的传递 mode/copyability/effects，不能仅凭
 Owned 结果放行：拒绝 owning MoveOnly、Inout/mutating receiver、borrow/carrier result 和
-新范围构造。允许现有 metadata 的同步 Borrow 读取；其临时 read loan 在调用返回结束。
+新范围构造。比较内的 checked 算术及一元 `+/-` 仍留独立后继。允许现有 metadata 的同步 Borrow 读取；其临时 read loan 在调用返回结束。
 
 复用既有普通短路 CFG 和 carrier transport，逐边证明 root owner、descriptor、protecting
 loan 与 source continuation 精确配对、恰一次携带和重绑。RHS 的 read loan 只在选中边建立/
@@ -91,3 +91,17 @@ codegen `range_short_circuit_` 实际51/51通过，0 ignored，1841 filtered；�
 正例通过，single的own Copyable参数另验。该差异不由0317补齐，不依赖0316。
 生产首次编译遗漏两个旧consumer闭包的签名适配已修正；原日志保留，不计通过。
 尚待更早Borrow实参pending-loan组合、旧baseline receiver探针、共享回归、公共CLI转绿及clippy。
+
+
+### 补强检查点
+
+更早Borrow View实参的pending metadata loan已增加精确逐边identity、合流单一调用交付、
+call-return早于RangeEnd结束断言；RHS缺省Boolean实参另核shared Boolean type、原right参数
+来源与每边重绑，不结束继承loan。56项新增目标通过；随后outer owning/Inout/新metadata
+prefix拒绝也通过。旧50fda生产另用无短路receiver源码实际验证1/1精确UnsupportedNode；首次
+短名`--exact`零命中不计通过。错误新增Boolean loan结束断言已修正并保留失败记录。
+
+当前已验完整local_control 280/280、scalar_counts 7/7、公开range_project_cli 46/46（零filtered），
+共享原short-circuit及ordinary-borrow 15/15；strict clippy两crate all-targets与CLI build通过。
+补两条简单Int比较内部算术/负号拒例后，将在最终输入提交重跑同一选择并更新唯一验收表。
+所有日志与源码清单留仓外，源码输入前后一致，最终逐名去重名单随检查点交付。

@@ -425,6 +425,39 @@ pub(super) fn short_circuit_transport(program: &Program, span: Span, and: bool) 
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 1, "exactly one RHS reader invocation");
     let (call, loan) = calls[0];
+    let Operation::DirectCall { arguments, .. } = &call.operation else {
+        unreachable!()
+    };
+    let EntityId::Loan(boolean) = arguments[1] else {
+        panic!("default Boolean parameter remains Borrow");
+    };
+    let EntityType::Loan {
+        kind: LoanKind::Shared,
+        target,
+    } = function.entity(EntityId::Loan(boolean)).unwrap().ty
+    else {
+        panic!("RHS flag is a shared Boolean loan");
+    };
+    assert_eq!(
+        program.modules[0].type_kind(target),
+        Some(&SsaTypeKind::Boolean)
+    );
+    let original = function.blocks[0].parameters[1];
+    assert_eq!(
+        function.entity(original).unwrap().ty,
+        function.entity(EntityId::Loan(boolean)).unwrap().ty
+    );
+    let expected = if EntityId::Loan(boolean) == original {
+        original
+    } else {
+        carried_entity(function, rhs, original)
+    };
+    assert_eq!(
+        EntityId::Loan(boolean),
+        expected,
+        "RHS reuses the exact right-parameter Borrow loan"
+    );
+    assert!(!function.instructions.iter().any(|instruction| matches!(instruction.operation, Operation::BorrowEnd {loan} if loan==boolean)),"callee return must not end the inherited Boolean loan");
     assert_eq!(
         borrowed_owner(function, loan),
         rhs_state.descriptors[1].0,
@@ -498,4 +531,82 @@ pub(super) fn short_circuit_transport(program: &Program, span: Span, and: bool) 
         cleanups, 1,
         "both short-circuit paths reach the one lexical cleanup"
     );
+}
+
+pub(super) fn short_circuit_prefix_transport(program: &Program, span: Span) {
+    let function = program.modules[0]
+        .functions
+        .iter()
+        .find(|function| {
+            function.blocks.iter().any(|block| {
+                block
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|term| term.origin.span() == span)
+            })
+        })
+        .unwrap();
+    let branch = function
+        .blocks
+        .iter()
+        .find(|block| {
+            block
+                .terminator
+                .as_ref()
+                .is_some_and(|term| term.origin.span() == span)
+        })
+        .unwrap();
+    let state = initial_carriers(function, 3);
+    let prefix=branch.instructions.iter().filter_map(|id| {
+        let instruction=function.instruction(*id).unwrap();
+        let Operation::BorrowBegin {place,kind:LoanKind::Shared}=instruction.operation else {return None;};
+        if !matches!(defining_instruction(function,EntityId::Place(place)).operation,Operation::RootPlace {owner} if owner==state.descriptors[0].0) {return None;}
+        let [EntityId::Loan(loan)]=instruction.results.as_slice() else {panic!("metadata prefix loan");};
+        (!branch.instructions.iter().any(|id| matches!(function.instruction(*id).unwrap().operation,Operation::BorrowEnd {loan:ended} if ended==*loan))).then_some(*loan)
+    }).collect::<Vec<_>>();
+    assert_eq!(
+        prefix.len(),
+        1,
+        "one already-active parent metadata prefix loan"
+    );
+    let mut pending = vec![(branch.id, prefix[0])];
+    let mut seen = std::collections::BTreeMap::new();
+    let mut ended = 0;
+    while let Some((block, loan)) = pending.pop() {
+        if let Some(prior) = seen.insert(block, loan) {
+            assert_eq!(prior, loan);
+            continue;
+        }
+        let block_node = &function.blocks[block.index()];
+        if block_node.instructions.iter().any(|id| matches!(function.instruction(*id).unwrap().operation,Operation::BorrowEnd {loan:actual} if actual==loan)) {
+            let calls=block_node.instructions.iter().filter_map(|id| {
+                let instruction=function.instruction(*id).unwrap();
+                matches!(&instruction.operation,Operation::DirectCall {arguments,..} if arguments.first()==Some(&EntityId::Loan(loan))).then_some(instruction)
+            }).collect::<Vec<_>>();
+            assert_eq!(calls.len(),1,"prefix delivers once to the outer synchronous call");
+            let end=read_end_position(function,block,loan);
+            assert!(instruction_position(function,calls[0])<end);
+            let range_end=block_node.instructions.iter().position(|id| matches!(function.instruction(*id).unwrap().operation,Operation::RangeEnd {..})).unwrap();
+            assert!(end<range_end,"outer call loan ends before descriptor cleanup");
+            ended+=1;
+            continue;
+        }
+        let edges = match &block_node.terminator.as_ref().unwrap().kind {
+            TerminatorKind::Branch(edge) => vec![edge],
+            TerminatorKind::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            other => panic!("prefix must reach normal call-return: {other:?}"),
+        };
+        for edge in edges {
+            let EntityId::Loan(rebound) = carried_entity(function, edge, EntityId::Loan(loan))
+            else {
+                panic!("prefix stays a loan")
+            };
+            pending.push((edge.target, rebound));
+        }
+    }
+    assert_eq!(ended, 1);
 }

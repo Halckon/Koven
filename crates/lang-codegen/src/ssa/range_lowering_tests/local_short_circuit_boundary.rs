@@ -46,6 +46,8 @@ fn range_short_circuit_boundary_nested_and_hidden_cfg() {
         ("(flag && flag) || flag", "flag && flag"),
         ("flag && values[0]", "flag && values[0]"),
         ("flag || nullable!!", "flag || nullable!!"),
+        ("flag && (n+1>0)", "flag && (n+1>0)"),
+        ("flag && (n>-1)", "flag && (n>-1)"),
         (
             "flag && (if(flag){true}else{false})",
             "if(flag){true}else{false}",
@@ -54,7 +56,7 @@ fn range_short_circuit_boundary_nested_and_hidden_cfg() {
         reject(
             &scoped(
                 "",
-                "val values=listOf(true);val nullable:Boolean?=true",
+                "val n=1;val values=listOf(true);val nullable:Boolean?=true",
                 &format!("show({expression})"),
             ),
             fragment,
@@ -199,5 +201,28 @@ fn range_short_circuit_frontend_nothing_and_borrow_result_diagnostics() {
             sources.slice(diagnostics[0].primary_span()).unwrap(),
             fragment
         );
+    }
+}
+
+#[test]
+fn range_short_circuit_boundary_outer_call_effects_and_new_metadata_prefix() {
+    for (declaration, setup, statement) in [
+        (
+            "fun deliver(own text:String,result:Boolean):Unit{}",
+            "val text=\"owned\"",
+            "deliver(text,flag && flag)",
+        ),
+        (
+            "fun deliver(inout n:Int,result:Boolean):Unit{}",
+            "var n=1",
+            "deliver(&n,flag && flag)",
+        ),
+        (
+            "fun deliver(view:View<String>,result:Boolean):Unit{}",
+            "",
+            "deliver(take(part,1),flag && flag)",
+        ),
+    ] {
+        reject(&scoped(declaration, setup, statement), "flag && flag");
     }
 }
