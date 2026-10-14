@@ -162,7 +162,7 @@ impl ExpressionLowerer<'_> {
         {
             return Ok((loan, false));
         }
-        if let Some((loan, created)) = self.deinit_view(argument)? {
+        if let Some((loan, created)) = self.readonly_view(argument)? {
             // The current call carrier stores one pending loan. Deeper borrowed projections
             // need an ancestor-loan carrier across argument CFG and remain fail-closed.
             if created.len() > 1 {

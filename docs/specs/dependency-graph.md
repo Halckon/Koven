@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 299 份"))
+ARCH(("已完成<br/>archive 300 份"))
 subgraph Gactive["现行 active"]
   S0317["S0317<br/>同根范围绑定内的有界正常短路"]
 end
@@ -30,4 +30,4 @@ ARCH --> S0317
 | SPEC-0317 | active | [0317-range-normal-short-circuit.md](active/0317-range-normal-short-circuit.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| 已完成 Spec（299 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（300 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

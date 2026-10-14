@@ -1,0 +1,4 @@
+value class Reading(val number:Int) { fun readNumber(own delta:Int):Int = this.number+delta }
+fun makeReading():Reading { println("receiver"); return Reading(3) }
+fun argument():Int { println("argument"); return 4 }
+fun entry() { if(makeReading().readNumber(argument())==7) { println("seven") } }

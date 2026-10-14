@@ -1,0 +1,2 @@
+value class Reading(val number:Int) { fun readNumber():Int = this.number; fun relay():Int = readNumber() }
+fun entry() { val reading=Reading(7); if(reading.relay()==7) { println("seven") } }

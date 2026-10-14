@@ -90,7 +90,7 @@ impl ExpressionLowerer<'_> {
         use lang_frontend::type_checking::{AggregateProjectionReceiver, NominalKind, TypeKind};
         let span = self.expression_span(expression)?;
         let target = self.expression_ssa_type(expression, span)?;
-        if let Some((loan, loans)) = self.deinit_view(expression)? {
+        if let Some((loan, loans)) = self.readonly_view(expression)? {
             created.extend(loans);
             return Ok(loan);
         }

@@ -1,0 +1,7 @@
+value class Switch(val enabled: Boolean) {
+    borrow fun readEnabled(): Boolean = enabled
+}
+fun entry() {
+    val switch = Switch(true)
+    if (switch.readEnabled()) { println("enabled") } else { error("wrong field") }
+}

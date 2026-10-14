@@ -1,0 +1,2 @@
+value class Reading(val number:Int, val text:String) { fun readNumber():Int = this.number }
+fun entry() { if(Reading(7,"payload".clone()).readNumber()==7) { println("seven") } }
