@@ -616,8 +616,12 @@ impl<F: Facts> Checker<'_, F> {
                     .expressions()
                     .get(*receiver)
                     .map_err(TypeCheckingError::from)?;
+                let qualifier_span = match receiver_node.payload() {
+                    Expression::Member { name_span, .. } => *name_span,
+                    _ => receiver_node.span(),
+                };
                 if selection.as_ref().is_some_and(|s| s.qualifier)
-                    && self.facts.static_qualifier(receiver_node.span())
+                    && self.facts.static_qualifier(qualifier_span)
                 {
                     complete &= self.selector(*receiver)?;
                 } else {
