@@ -114,6 +114,10 @@ fn assert_single(text: &str, name: &str, supported: bool) {
         Ok(program) => {
             assert!(supported, "{name}: unexpectedly accepted");
             crate::llvm::render_verified_program(&program).unwrap();
+            assert_eq!(
+                super::operand_structure::assert_source(&program, &a.parsed),
+                usize::from(name.starts_with("remove") || name.starts_with("contains"))
+            );
         }
         Err(error) => {
             assert!(!supported, "{name}: {error:?}");
@@ -140,6 +144,15 @@ fn assert_single(text: &str, name: &str, supported: bool) {
 }
 
 fn assert_unit(text: &str, constants: bool, supported: bool) {
+    unit(
+        text,
+        constants,
+        supported,
+        "\nfun main(): Unit { updatingOperand(2) }",
+    );
+}
+
+fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
     use crate::ssa::unit_lower_test_support::{declaration, parsed};
     use lang_frontend::{
         name_resolution::{
@@ -151,7 +164,8 @@ fn assert_unit(text: &str, constants: bool, supported: bool) {
         source::SourceMap,
         type_checking::{check_compilation_unit_types, standard_environments},
     };
-    let text = format!("package p\n{text}\nfun main(): Unit {{ updatingOperand(2) }}");
+    let expected = text.matches("return if (cache.").count();
+    let text = format!("package p\n{text}{entry}");
     let mut sources = SourceMap::new();
     let (source_id, file) = parsed(&mut sources, "p/main.ko", &text);
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source_id, &file)];
@@ -199,6 +213,10 @@ fn assert_unit(text: &str, constants: bool, supported: bool) {
         Ok((program, entry)) => {
             assert!(supported);
             crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            assert_eq!(
+                super::operand_structure::assert_source(&program, &file),
+                expected
+            );
         }
         Err(error) => {
             assert!(!supported, "{error:?}");
@@ -286,4 +304,112 @@ fn map_operand_last_use_contains_live_red() {
 #[test]
 fn map_operand_last_use_contains_dead_red() {
     assert_single(&source("contains", false), "contains-dead-goal", true);
+}
+
+fn assert_boundary(text: &str, kind: crate::ssa::LoweringErrorKind, expected: &str) {
+    let a = analyze(text);
+    assert!(
+        a.parsed.diagnostics().is_empty(),
+        "{:?}",
+        a.parsed.diagnostics()
+    );
+    assert!(
+        a.names.diagnostics().is_empty(),
+        "{:?}",
+        a.names.diagnostics()
+    );
+    assert!(
+        a.typed.diagnostics().is_empty(),
+        "{:?}",
+        a.typed.diagnostics()
+    );
+    assert!(
+        a.owned.diagnostics().is_empty(),
+        "{:?}",
+        a.owned.diagnostics()
+    );
+    let error = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned)
+        .err()
+        .expect("bounded source remains rejected");
+    println!("BOUNDARY {expected}: {error:?}");
+    assert_eq!(error.kind, kind);
+    let span = error.span.unwrap();
+    assert_eq!(&text[span.start()..span.end()], expected);
+}
+
+#[test]
+fn map_operand_last_use_same_guard_outside_return_is_rejected() {
+    let text = ORIGINAL.replace(
+        "return if (cache.remove(item) != null) { println(\"removed operand\"); item } else { 0 }",
+        "cache.contains(item); return item",
+    );
+    assert_boundary(
+        &text,
+        crate::ssa::LoweringErrorKind::UnsupportedNode,
+        "cache",
+    );
+}
+
+#[test]
+fn map_operand_last_use_checked_operand_abort_path_is_rejected() {
+    let text = ORIGINAL.replace("cache.remove(item)", "cache.remove(item + 100)");
+    assert_boundary(&text, crate::ssa::LoweringErrorKind::MissingFact, "cache");
+}
+
+#[test]
+fn map_operand_last_use_extended_provider_and_result_shapes_are_rejected() {
+    for text in [
+        ORIGINAL.replace("arrayOf(1, 2, 3)", "listOf(1, 2, 3)"),
+        ORIGINAL.replace(
+            "    for (item in arrayOf(1, 2, 3))",
+            "    val keys = arrayOf(1, 2, 3)\n    for (item in keys)",
+        ),
+        ORIGINAL
+            .replace(
+                "updatingOperand(stop: Int): Int",
+                "updatingOperand(stop: Int): Boolean",
+            )
+            .replace("; item } else { 0 }", "; true } else { false }")
+            .replace("return 0", "return false"),
+    ] {
+        assert_boundary(
+            &text,
+            crate::ssa::LoweringErrorKind::UnsupportedNode,
+            "cache",
+        );
+    }
+}
+
+#[test]
+fn map_operand_last_use_cardinality_fixture_ssa() {
+    let text = include_str!("../../tests/fixtures/map-return-last-use-0318/cardinality.ko");
+    let a = analyze(text);
+    assert!(
+        a.parsed.diagnostics().is_empty(),
+        "{:?}",
+        a.parsed.diagnostics()
+    );
+    assert!(
+        a.names.diagnostics().is_empty(),
+        "{:?}",
+        a.names.diagnostics()
+    );
+    assert!(
+        a.typed.diagnostics().is_empty(),
+        "{:?}",
+        a.typed.diagnostics()
+    );
+    assert!(
+        a.owned.diagnostics().is_empty(),
+        "{:?}",
+        a.owned.diagnostics()
+    );
+    let program = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned).unwrap();
+    crate::llvm::render_verified_program(&program).unwrap();
+    assert_eq!(
+        super::operand_structure::assert_source(&program, &a.parsed),
+        4
+    );
+    unit(text, false, true, "");
+    unit(text, true, true, "");
 }

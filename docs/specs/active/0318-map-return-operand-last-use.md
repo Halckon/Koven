@@ -157,3 +157,20 @@ loan/call/end与Symbol及guard全部核对。实际lower_return在operand前登�
 manifest汇总 `ac643c4173e52491ec8a51959093cebf0f11a9cc6e6ab55fb214446f9904d487`。
 首次fmt检查指出native测试模块注册排序，已仅按rustfmt调整两组注册顺序；没有生产变化。
 docs/diff/尺寸通过，fmt修正后通过；原fmt失败与该次8/8输入分别保留。
+
+### 独立 oracle 与边界首轮（oracle1）
+
+完整 `conditional_return` SSA 模块执行31目标：30 passed、1 failed、1824 filtered、0 ignored。
+新独立oracle逐三入口核真实Return/Map call origin、remove result0最新Map唯一drop、result1
+presence读取后唯一drop、与provider hidden owner互异、element/source顺序及正常tail最新回边。
+同guard但CallReturn位于Return operand外的正常源码精确`UnsupportedNode(cache)`；operand内
+checked算术的Abort后继精确`MissingFact(cache)`；List、owned source、Boolean结果保持拒绝。
+旧0313/0314普通return、独立owned结果及Resource边界全部在该模块真实通过。
+
+唯一失败是新native scaffold的named `sourceIndex` initializer：single在339..350精确
+`UnsupportedNode`，尚未进入原版native。它不是本片Map清理回退；不扩大callback gate。
+源码manifest前后一致，汇总`1ba0c2220a12fb0a663925a5ec5e6767ab1ef2207422fc9034cea831d6d878c3`。
+
+静审同时发现原fixture中的`item + offset`会引入operand内checked Abort。已改为直接lookup
+参数，present三次实际返回分别传1/3，missing三次传100；never不算missing；golden105行
+不变。旧算术形态已成为上述精确拒例，不放宽所有后继至Return的证明取绿。
