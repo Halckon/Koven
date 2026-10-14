@@ -168,6 +168,9 @@ strict失败不得进入ownership的证明随真实接线补齐，不用forced o
 | 恢复修复实际结果 | `22be41cb4c63a26e9b5c3b9b22d598b5d894df73` / tree `56bac7efc40fe9d3dc0d78db55244f119483c65e`；定向3exact及其余13个已审目标全部各1/1绿，合计16唯一目标（15普通源码+1只读catalog），48次CLI全部oracle通过 |
 | 因果与旧边界 | 定义先置/后置两种logical source布局各正逆inputs，4组均只保留独立两个L0080；clone/inv两入口4组均保留本call L0091及独立L0080。旧健康ForwardValueType仍final拒绝，raw/validate对照保持 |
 | 恢复修复冻结 | 两批1424个源码/配置文件前后NUL摘要同为`d0bd2ddd7c28dda7280d4100df4d353ff7a520c8675f238964754f40e3050439`；各exact真实1/1，无零命中，原红日志保留 |
-| 待完成 | 普通下划线binding与真discard、cycle边界补强，随后共享回归、工程门禁及本片CI；没有故障/插桩或全量云测试 |
+| 共享raw/LSP回归 | 同22be源码追加12exact全绿：10个frontend源码目标、2个LSP正常source-set/recovery；与之前16去重合计28（22 frontend普通源码+1catalog+3CLI+2LSP） |
+| 下划线身份补充红测 | tests-only `731f337d4e930e4b9fc3b924b1d925680a43051c`：合法val_/参数_及for/解构真discard两组×两入口均先通过；坏val_的single/unit均多报派生L0165 `[59,60)`，两个结果已采集，oracle在single首次数量断言失败 |
+| cycle与forward边界 | 同731f另一目标1/1绿：健康forward与两变量cycle的四个API结果均保留首个ForwardValueType L0165及独立L0080，不因诊断遍历排序而获得完成资格；1424源前后摘要`78f5ee5b9f7bf46f8f0686a40d1d144974ff75f2ae124ed4cb0e73c9d8e5ffac` |
+| 待完成 | 修复普通下划线binding根因传播，随后CLI共享回归、工程门禁及本片CI；没有故障/插桩或全量云测试 |
 | 草案阶段 docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；当时active0/archive302、draft新增0319 |
 | active迁移 | 0319迁入active，archive302不变；draft库存移除0319，四份DAG随生命周期重建 |
