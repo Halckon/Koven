@@ -1,5 +1,5 @@
 //! SPEC-0241: enum condition facts and explicit limits of the single-file slice.
-use super::{Analysis, Operation, analyze, lower_scalar_file};
+use super::{Analysis, LoweringErrorKind, Operation, analyze, lower_scalar_file};
 use crate::native_tests::return_control_tests::guide_litmus_04;
 use lang_frontend::{
     ownership_checking::{LoanEndPoint, LoanKind, LoanTarget},
@@ -158,4 +158,51 @@ fn direct_enum_case_call_argument_has_temporary_loan_and_verified_ssa() {
     );
     crate::llvm::render_verified_program(&program)
         .expect("direct enum case Borrow verifies through LLVM");
+}
+
+#[test]
+fn enum_tag_slice_does_not_claim_general_payload_grouped_or_move_only_equality() {
+    for (source, condition) in [
+        (
+            "enum class Flag { On, Off }\nfun score(s: Flag, other: Flag): Int = when (s) { other -> 1; else -> 0 }",
+            "other",
+        ),
+        (
+            "enum class Flag { On, Off }\nfun score(s: Flag): Int = when (s) { (Flag.On) -> 1; else -> 0 }",
+            "(Flag.On)",
+        ),
+        (
+            "enum class Flag { On(item: Int), Off }\nfun score(s: Flag): Int = when (s) { Flag.On(1) -> 1; else -> 0 }",
+            "Flag.On(1)",
+        ),
+        (
+            "enum class Flag { On(text: String), Off }\nfun score(own s: Flag): Int = when (s) { Flag.Off -> 1; else -> 0 }",
+            "Flag.Off",
+        ),
+    ] {
+        let analysis = analyze(source);
+        assert_frontend(&analysis);
+        let error = lower_scalar_file(
+            &analysis.sources,
+            &analysis.parsed,
+            &analysis.names,
+            &analysis.typed,
+            &analysis.owned,
+        )
+        .err()
+        .expect("unsupported enum equality must fail explicitly");
+        assert_eq!(
+            error.kind,
+            LoweringErrorKind::UnsupportedNode,
+            "{source}: {error:?}"
+        );
+        assert_eq!(
+            analysis
+                .sources
+                .slice(error.span.expect("source range"))
+                .unwrap(),
+            condition,
+            "{source}"
+        );
+    }
 }
