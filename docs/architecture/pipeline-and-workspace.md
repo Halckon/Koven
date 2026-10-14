@@ -57,8 +57,8 @@ names.validate() 的原 Result（validated 或 boxed recovery），没有自引�
 inputs Vec，使其 slice 的生命周期覆盖 0249 view。map 中未显式列出的源码不进入 unit。
 
 CLI project 首先完成已有 discovery/path 校验与 source 注册，再调用此前缀；同次
-standard_environments 的 type 半边留宿主。其 names 后非空诊断 gate、basic/const 分流、
-ownership/entry/native 后段保持。LSP unit 同样组合该 owner，但保留 validated_names gate、typed
+standard_environments 的 type 半边留宿主。names及typed非空诊断 gate 后先通过
+[最终类型消费准入](tooling.md#最终类型消费准入)，再进入basic/const及ownership/entry/native。LSP unit组合该owner，仍保留validated_names gate、typed
 recovery、const 无 owned 与 prepare/publish/commit 生命周期。bootstrap 和 legacy LSP 已迁移到
 独立的 `analyze_single_file` 纯阶段门面，保留CLI逐阶段早停与LSP完整recovery/typed观察。
 不提供总模式开关。对应合同为 `unit_name_snapshot`、`unit_name_snapshot_compile_contracts`、

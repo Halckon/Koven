@@ -1,5 +1,8 @@
 //! SPEC-0054 公开无依赖 project build/run 进程验收。
 
+#[path = "project_cli/final_type_admission.rs"]
+mod final_type_admission;
+
 #[path = "project_cli/runtime_constructor.rs"]
 mod runtime_constructor;
 

@@ -16,8 +16,8 @@
 project loader 严格解析 version 1 manifest，验证 source root、logical path、symlink/overlap 和 physical
 file identity，再发布不可变、稳定排序的 source-set snapshot。build 注册原 SourceMap 后将其移动进
 frontend `analyze_unit_names`，取得拥有源码/语法/环境/名称事实的只读 `UnitNameSnapshot`；
-首个非空诊断 gate 仍在完整 names 前缀后。typed 非空 gate 留宿主，随后调用
-frontend `analyze_basic_unit_ownership` 共享 basic validation→普通 ownership 推进；宿主继续
+首个非空诊断 gate 仍在完整 names 前缀后。typed 非空 gate 留宿主，随后先通过
+frontend `complete_compilation_unit_types`，再调用 `analyze_basic_unit_ownership` 共享 basic validation→普通 ownership 推进；宿主继续
 验证 raw ownership，成功后进入单 object、link 和原子 executable 发布。CLI 不从 cwd 或
 祖先目录猜 manifest。typed diagnostics 统一先于 entry 选择；基础 capability 验证成功时沿用
 基础 ownership/native，含常量时由 frontend 专用 gate 发布 typed/owned capability，再调用
@@ -28,7 +28,8 @@ frontend `analyze_basic_unit_ownership` 共享 basic validation→普通 ownersh
 SourceMap/SourceId与一次创建的name/type环境，返回同轮raw产物，不负责IO、诊断渲染、
 entry或native能力。`SingleFileTypedView`字段封闭，只借出本轮parsed/names/typed；
 observer的临时借用不能作为返回值逃逸，`SingleFileAnalysis<T>`消费式拆出原raw产物。
-CLI typed observer为no-op，内部错误逐项映射回原BootstrapError。
+CLI typed observer调用 `complete_file_types`，失败在ownership前返回；源诊断沿原TypeChecking渲染，
+内部身份/缺事实使用独立TypeAdmission错误。single/project原exit2/exit1及JSON schema不变。
 
 CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`，通过 `Command`
 参数数组链接已有 native object，不调用 shell 或让外部 driver 重新编译 LLVM IR。
@@ -36,6 +37,19 @@ CLI 生产链接按宿主使用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc`�
 
 实现入口是 `crates/lang-cli/src/main.rs`、`native_command.rs`、`project/`、`project_build.rs` 和
 `project_command.rs`；对应覆盖位于 `native_cli`、`project_cli` 与 `format_cli` integration suites。
+
+## 最终类型消费准入
+
+frontend `final_admission` 共享分类器检查所选source-set的声明/body/initializer及必需类型图，
+不只检查entry可达函数，也不扫描整个TypeArena。成功资格只借出原typed分析，不能放行另一次分析。
+已选call/construction/intrinsic与真实Package/Type身份仅豁免对应静态语法角色；runtime receiver、
+实参、function-value callee和返回值仍检查。普通assignment效果检查target/value，不要求结果值。
+真实SymbolId/UnitSymbolId把已诊断根因传到引用，保留独立错误；initializer依赖排序不重新推导类型，
+健康ForwardValueType和cycle仍拒绝。ordinary `_`有声明身份，只有真实for discard不要求binding类型。
+已知Int/String不存在成员沿有界查找用L0080，已证非Result的`?`用L0085；Nothing不新增非法判定。
+L0165只表示真实DeferredReason的最终类型未完成；成功描述符缺事实或身份错配仍是内部错误。
+raw API、基础/常量validate及LSP recovery保持原合同；此资格不证明ownership、SSA或native能力。
+直接覆盖在frontend `final_type_admission` 与CLI同名测试模块，原能力回归保留原oracle。
 
 ## LSP
 
@@ -55,7 +69,7 @@ validated_names；同次 standard_environments 的 type 半边留宿主。names 
 typed diagnostics 先由宿主收集，再调用同一 `analyze_basic_unit_ownership`；成功以
 `into_types()` 保存原 typed 而不克隆，NotBasic 取回原 boxed recovery。const（包括仅声明未读）
 不进入基础 ownership；raw ownership 即使有诊断或 deferred 仍保留。typed recovery
-继续向 definition 提供有效事实。
+继续向 definition 提供有效事实，不接入严格CLI的最终类型资格门。
 完整 snapshot 与全部诊断 payload 准备成功、逐项发布成功后才替换内存状态；分析、映射或发送
 失败保留 last-good。已发消息不能撤回，此边界不是 wire 事务。诊断按 target URI 分组并稳定
 发布，definition 直接消费已保存的 name/type target，不重新解析 package/import 或 overload。
@@ -97,7 +111,7 @@ in/is/as 与 identifier 使用同一整词扫描，避免 input 等名称在运�
 
 当前 workflow 定义 macOS 14 / Ubuntu 24.04 双宿主 check、严格 clippy和组合测试，单次fmt。
 组合入口依次执行core（含lang-std）、ownership_iteration、stage、剩余guide_litmus及教程；
-保留独立入口，没有skip开关，frontend integration共77个唯一target，组合共10次Cargo调用。
+保留独立入口，没有skip开关；frontend integration由stage及组合脚本显式列出，组合共10次Cargo调用。
 外部Rust编译合同通过当前integration executable的Cargo 1.96 fingerprint选择实际依赖rlib；
 同目录旧flags产物可以保留，未知或歧义身份失败，不按时间戳推断。
 `editors/**`与教程修改触发Rust路径；内部直接依赖检查为无条件required job。

@@ -30,9 +30,10 @@ use lang_frontend::{
     parser::{FunctionBody, FunctionForm, Item, ParserInternalError},
     source::{SourceError, SourceMap},
     type_checking::{
-        BuiltinType, CompilationUnitTypeError, CompilationUnitTypes, IntrinsicTypeConstructor,
-        ParameterMode, UnitCallableTarget, UnitTypeKind, check_compilation_unit_types,
-        standard_environments,
+        BuiltinType, CompilationUnitTypeError, CompilationUnitTypes, FinalTypeAdmissionError,
+        FinalTypeAdmissionInternalError, IntrinsicTypeConstructor, ParameterMode,
+        UnitCallableTarget, UnitTypeKind, check_compilation_unit_types,
+        complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -53,6 +54,7 @@ pub(crate) enum ProjectBuildError {
     Input(CompilationUnitInputError),
     Name(CompilationUnitNameError),
     Type(CompilationUnitTypeError),
+    TypeAdmission(FinalTypeAdmissionInternalError),
     Ownership(OwnershipCheckingError),
     DiagnosticOrder(UnitDiagnosticOrderError),
     DiagnosticRendering(String),
@@ -81,6 +83,9 @@ impl fmt::Display for ProjectBuildError {
             Self::Input(error) => write!(formatter, "compilation-unit input failed: {error}"),
             Self::Name(error) => write!(formatter, "name resolution failed: {error}"),
             Self::Type(error) => write!(formatter, "type checking failed: {error}"),
+            Self::TypeAdmission(error) => {
+                write!(formatter, "final type admission failed: {error}")
+            }
             Self::Ownership(error) => write!(formatter, "ownership checking failed: {error}"),
             Self::DiagnosticOrder(error) => {
                 write!(formatter, "diagnostic ordering failed: {error}")
@@ -189,6 +194,19 @@ pub(crate) fn emit_project_object(
             names.names().index().source_units(),
             typed.diagnostics(),
         )?);
+    }
+    match complete_compilation_unit_types(sources, &inputs, names, &type_environment, &typed) {
+        Ok(_) => {}
+        Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+            return Err(frontend_diagnostics(
+                sources,
+                names.names().index().source_units(),
+                &diagnostics,
+            )?);
+        }
+        Err(FinalTypeAdmissionError::Internal(error)) => {
+            return Err(ProjectBuildError::TypeAdmission(error));
+        }
     }
     let outcome = analyze_basic_unit_ownership(sources, &inputs, names, &type_environment, typed)
         .map_err(ProjectBuildError::Ownership)?;

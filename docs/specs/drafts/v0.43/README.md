@@ -44,6 +44,10 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 下一片须从实际main独立冻结合同并获得相应批准；不自动启用consume、optional borrow、借用存储/逃逸、N1b或泛型std扩展。
 
+## 现行语义的诊断修复
+
+- [0319 最终类型消费准入](../../../archive/specs/0319-final-type-admission-diagnostics.md)已按PR101实现head双宿主物理CI有界验收归档，保留中间Deferred/recovery；归档head与主干交付待核，不与0292的未启用consume前置混同。
+
 ## 未编号的现行支持候选
 
 [普通unit字段赋值与single nullable Resource工厂](../../../architecture/lowering-support.md#现存入口差异)
