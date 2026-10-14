@@ -420,12 +420,41 @@ fn range_short_circuit_readonly_receiver_and_copyable_value_argument() {
             "class Gate(val flag:Boolean){{fun test():Boolean{{println(\"receiver\");return flag}}}}\nfun identity(own flag:Boolean):Boolean{{println(\"own-copyable\");return flag}}\nfun read(view:View<String>):Unit{{}}\nfun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");val gate=Gate(flag);{{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
         );
         let label = format!("0317-receiver-{pipeline:?}");
-        let (program, entry) = lower(&source, expression, pipeline).require_success(&label);
-        run_unmodified(
-            &program,
-            entry,
-            &label,
-            b"receiver\nown-copyable\ntrue\nreceiver\nfalse\n",
-        );
+        let lowered = lower(&source, expression, pipeline);
+        if matches!(pipeline, Pipeline::Single) {
+            let error = lowered
+                .result
+                .err()
+                .expect("single's existing ordinary receiver boundary remains independent");
+            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+            assert_eq!(
+                lowered.sources.slice(error.span.unwrap()).unwrap(),
+                "gate.test()"
+            );
+        } else {
+            let (program, entry) = lowered.require_success(&label);
+            run_unmodified(
+                &program,
+                entry,
+                &label,
+                b"receiver\nown-copyable\ntrue\nreceiver\nfalse\n",
+            );
+        }
     }
+}
+
+#[test]
+fn range_short_circuit_copyable_value_argument_single() {
+    let expression = "identity(flag) && identity(flag)";
+    let source = format!(
+        "fun identity(own flag:Boolean):Boolean{{println(\"copyable\");return flag}}\nfun read(view:View<String>):Unit{{}}\nfun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");{{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
+    );
+    let (program, entry) =
+        lower(&source, expression, Pipeline::Single).require_success("0317-copyable-single");
+    run_unmodified(
+        &program,
+        entry,
+        "0317-copyable-single",
+        b"copyable\ncopyable\ntrue\ncopyable\nfalse\n",
+    );
 }

@@ -77,3 +77,17 @@ Nothing 仍明确拒绝。它们留独立后继，因为当前合同仅证明既
 与 L0164；现已独立前端诊断/Span测试。两次新增诊断测试的Rust accessor编译错误已修正，
 均保留仓外原日志，不计成功。最终 codegen/CLI 各次执行前后完整源码hash一致；docs、fmt、
 diff及尺寸检查的精确结果随冻结提交记录。尚未生成正例 native 产物，未实施生产放行。
+
+### 首次实现检查点
+
+共享 selector 只放行直接 Boolean initializer、直接 statement-call 的 Boolean 实参或既有
+statement-if 的完整条件；`val x=wrap(lhs&&rhs)`、非 scalar 外层 call 与其它嵌套使用仍拒绝。
+只新增选择与 typed-call effects 判定，原 CFG/carrier/end/verifier/LLVM 均未修改。
+
+codegen `range_short_circuit_` 实际51/51通过，0 ignored，1841 filtered；原版LLVM/native
+已遍历动态测试的全部String/MoveOnly/Resource、五入口和真值组合，以及literal/const首片。
+此前31项失败中30项是断言把缺省Borrow Boolean实参误认为Value，已按真实Loan形状修正；
+另1项揭示single既有普通receiver能力差异：其精确`gate.test()`仍UnsupportedNode，unit独立
+正例通过，single的own Copyable参数另验。该差异不由0317补齐，不依赖0316。
+生产首次编译遗漏两个旧consumer闭包的签名适配已修正；原日志保留，不计通过。
+尚待更早Borrow实参pending-loan组合、旧baseline receiver探针、共享回归、公共CLI转绿及clippy。

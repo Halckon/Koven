@@ -417,7 +417,7 @@ pub(super) fn short_circuit_transport(program: &Program, span: Span, and: bool) 
             let Operation::DirectCall { arguments, .. } = &instruction.operation else {
                 return None;
             };
-            let [EntityId::Loan(loan), EntityId::Value(_)] = arguments.as_slice() else {
+            let [EntityId::Loan(loan), _] = arguments.as_slice() else {
                 return None;
             };
             Some((instruction, *loan))

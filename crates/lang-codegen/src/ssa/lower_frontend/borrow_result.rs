@@ -87,10 +87,27 @@ pub(super) fn validate(
                 Some(TypeKind::Builtin(builtin)) => Some(*builtin),
                 _ => None,
             },
-            |expression| {
+            |expression, access| {
                 typed.call(expression).is_some_and(|call| {
+                    use crate::ssa::borrow_result_support::CallAccess;
+                    let mode_allowed = |mode, ty| {
+                        mode == ParameterMode::Borrow
+                            || (mode == ParameterMode::Value
+                                && typed.copyability(ty)
+                                    == Some(lang_frontend::type_checking::Copyability::Copyable))
+                    };
                     call.result_source()
                         == lang_frontend::type_checking::CallableResultSource::Owned
+                        && (access == CallAccess::OwnedResult
+                            || (!call.aborts()
+                                && !matches!(call.target(), CallableTarget::FunctionValue)
+                                && call.arguments().iter().all(|argument| {
+                                    !argument.crosses_thread()
+                                        && mode_allowed(argument.mode(), argument.parameter_type())
+                                })
+                                && call.receiver().is_none_or(|receiver| {
+                                    mode_allowed(receiver.mode(), receiver.ty())
+                                })))
                 })
             },
         )?;
@@ -458,7 +475,7 @@ impl ExpressionLowerer<'_> {
             &[],
             None,
             |_| None,
-            |_| false,
+            |_, _| false,
         )?;
         if arguments.len() != descriptor.arguments().len() {
             return Err(error(LoweringErrorKind::MissingFact, span));

@@ -119,15 +119,38 @@ pub(super) fn validate(
                 Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
                 _ => None,
             },
-            |expression| {
+            |expression, access| {
                 typed
                     .call(UnitExpressionId::new(
                         fact.binding().source_unit(),
                         expression,
                     ))
                     .is_some_and(|call| {
+                        use crate::ssa::borrow_result_support::CallAccess;
+                        let mode_allowed = |mode, ty| {
+                            mode == ParameterMode::Borrow
+                                || (mode == ParameterMode::Value
+                                    && typed.copyability(ty)
+                                        == lang_frontend::type_checking::Copyability::Copyable)
+                        };
                         call.result_source()
                             == lang_frontend::type_checking::CallableResultSource::Owned
+                            && (access == CallAccess::OwnedResult
+                                || (!call.aborts()
+                                    && !matches!(
+                                        call.target(),
+                                        lang_frontend::type_checking::UnitCallTarget::FunctionValue
+                                    )
+                                    && call.arguments().iter().all(|argument| {
+                                        !argument.crosses_thread()
+                                            && mode_allowed(
+                                                argument.mode(),
+                                                argument.parameter_type(),
+                                            )
+                                    })
+                                    && call.receiver().is_none_or(|receiver| {
+                                        mode_allowed(receiver.mode(), receiver.ty())
+                                    })))
                     })
             },
         )?;
@@ -529,7 +552,7 @@ impl UnitExpressionLowerer<'_> {
             &[],
             None,
             |_| None,
-            |_| false,
+            |_, _| false,
         )?;
         for mapping in descriptor.arguments() {
             let concrete = resolve_concrete_type(
