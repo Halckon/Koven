@@ -271,7 +271,7 @@ pub(super) fn prove(
 
 fn ordered_source_drop(
     exit: &IterationExitPlan,
-    statement: lang_frontend::parser::StatementId,
+    statement: lang_frontend::ast::StatementId,
     fact: DropFact,
 ) -> Option<()> {
     let position = |expected| {
