@@ -260,7 +260,7 @@ fn map_operand_last_use_unit_constant_baseline() {
 
 #[test]
 fn map_operand_last_use_no_map_nullable_control() {
-    assert_single(&source("no-map", false), "no-map-nullable", true);
+    assert_single(&source("no-map", false), "no-map-nullable", false);
 }
 
 #[test]

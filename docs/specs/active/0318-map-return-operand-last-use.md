@@ -123,3 +123,19 @@ baseline2的精确测试输入、逐文件manifest、命令与原始日志保存
 
 独立静审发现第二检查点新 native module 的两处导入沿用了旧嵌套模块路径；已按真实
 `native::unit_tests` 挂载位置更正 helper 路径。尚未编译或运行，不能作为目标行为红测。
+
+### 正式行为红测（baseline3）
+
+输入commit `220fb04735c7cd0e308972a542550a0814cfda32`，原fixture SHA-256
+`a03f52e03177ed9ebdb9267683bad14bfd611216e1ad98174c3355ca9d7ba344`未变。
+命令使用完整SSA模块filter
+`ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::operand_last_use`，
+执行8个目标：3 passed、5 failed、1843 filtered、0 ignored，退出101；没有选择native。
+四条正式goal（remove/contains × live/dead）分别真实失败为`UnsupportedNode(cache)`46..51。
+第五失败是独立no-map nullable factory在声明0..97被拒；已将它锁为精确旧边界，非本片修复。
+unit basic/constant 的remove/contains/item × live/dead共12格verified LLVM，single item两格成功。
+独立nullable+Map在single仍于cache144..149拒绝；unit有无Map均于factory声明10..107拒绝。
+
+该批逐文件`.rs`/`.ko` manifest在前后完全一致，汇总SHA-256
+`3bdbe361cfc771e7933fd20dba08bfcc0ab817473b8bf2a7f774cdc7a06f1316`。
+此后的no-map预期修正尚未运行；生产仍零改。尺寸检查`--base b1165b0f`通过，policy未改。
