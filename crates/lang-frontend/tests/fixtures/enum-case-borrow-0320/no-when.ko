@@ -1,0 +1,3 @@
+enum class Flag { On, Off }
+fun read(value: Flag): Int = 7
+fun main(): Unit { if (read(Flag.On) == 7) { println("enum-borrow") } }

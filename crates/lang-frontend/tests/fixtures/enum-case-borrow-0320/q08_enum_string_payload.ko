@@ -1,0 +1,3 @@
+enum class Msg { Text(s: String), Quit }
+fun show(m: Msg): Unit { when (m) { is Msg.Text -> println(m.s); is Msg.Quit -> println("quit") } }
+fun main(): Unit { show(Msg.Text("hi")); show(Msg.Quit) }

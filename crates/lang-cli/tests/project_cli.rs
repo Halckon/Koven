@@ -1,5 +1,8 @@
 //! SPEC-0054 公开无依赖 project build/run 进程验收。
 
+#[path = "project_cli/enum_case_borrow.rs"]
+mod enum_case_borrow;
+
 #[path = "project_cli/final_type_admission.rs"]
 mod final_type_admission;
 
