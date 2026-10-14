@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 1 份。
+- [Active 合同](active/README.md)：当前 0 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -57,11 +57,13 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 它们不是上述代表拒例的全域推论。需要 Guide 变化的候选须另形成版本并取得明确启用确认。
 List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 file IO 留后续 v1 独立里程碑，
 尚未据此建立新 Spec；已有顺序迭代及 take/drop/dropLast 不重新列待做，原有 draft/candidate 状态不变。
-后继A的[0319 最终类型消费准入](active/0319-final-type-admission-diagnostics.md)已完成有界实现、本地81项精确回归与工程门禁，仍待远端CI和归档；
-随后B enum实参分类、C List MoveOnly转移追踪保持独立，尚未编号。single/project、basic/constant同源码差异矩阵仍需逐项建立，
+后继A的[0319 最终类型消费准入](../archive/specs/0319-final-type-admission-diagnostics.md)已按实现head双宿主物理CI有界验收归档，归档head与主干交付待核；
+随后B enum实参分类、C List MoveOnly转移追踪由独立分支继续推进，不随本片归档宣称实现。single/project、basic/constant同源码差异矩阵仍需逐项建立，
 不以[现存入口差异](../architecture/lowering-support.md#现存入口差异)或本轮有限收尾宣称这些修复已完成。
 
 ### 近期交付
+
+- [0319 最终类型消费准入](../archive/specs/0319-final-type-admission-diagnostics.md)：[PR101实现CI](https://github.com/Halckon/Koven/actions/runs/38588845331/attempts/1)在实际head `5f12af1d` / base `18865460` 16/16 jobs成功、reuse=false；双宿主新final target各13/13，check/clippy/组合及双preview通过后有界归档。保留[首次CI](https://github.com/Halckon/Koven/actions/runs/38587442021)的103/104选择数失败及targeted skipped、本地诊断/常量回归/格式失败；归档head CI、merge/main尚待。
 
 - [0318 Map return operand 最后使用](../archive/specs/0318-map-return-operand-last-use.md)：[实现CI a2](https://github.com/Halckon/Koven/actions/runs/38541560041/attempts/2)在head `f89d466c` / base `878801a3` 双宿主555 codegen、50 CLI、22 frontend与preview验收通过；7前置继承a1、8项a2实际执行，a1基础设施取消保留；[归档CI](https://github.com/Halckon/Koven/actions/runs/38545555262)成功，[PR98](https://github.com/Halckon/Koven/pull/98)合为main `10e41fb6`。其[main CI38546079533](https://github.com/Halckon/Koven/actions/runs/38546079533)仍为 cancelled：15个实际 jobs 成功，仅 PR marker 占位被 main 并发取消；后续 `b43a475b` 的完整 success 见上方联合验收，不倒写前一 run。
 
@@ -110,7 +112,7 @@ List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 f
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：302 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：303 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

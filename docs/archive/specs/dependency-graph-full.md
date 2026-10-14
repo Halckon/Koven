@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，302 份）"]
+subgraph Garchive["已完成（archive，303 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -311,8 +311,6 @@ subgraph Garchive["已完成（archive，302 份）"]
   S0316["S0316<br/>single value-class 普通 Borrow 只读方法"]
   S0317["S0317<br/>同根范围绑定内的有界正常短路"]
   S0318["S0318<br/>Map 条件 return operand 的最后使用清理"]
-end
-subgraph Gactive["现行 active"]
   S0319["S0319<br/>最终类型消费准入与源级诊断"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -1667,6 +1665,6 @@ S0315 --> S0317
 | SPEC-0316 | archive | [0316-single-readonly-value-methods.md](0316-single-readonly-value-methods.md) |
 | SPEC-0317 | archive | [0317-range-normal-short-circuit.md](0317-range-normal-short-circuit.md) |
 | SPEC-0318 | archive | [0318-map-return-operand-last-use.md](0318-map-return-operand-last-use.md) |
-| SPEC-0319 | active | [0319-final-type-admission-diagnostics.md](../../specs/active/0319-final-type-admission-diagnostics.md) |
+| SPEC-0319 | archive | [0319-final-type-admission-diagnostics.md](0319-final-type-admission-diagnostics.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

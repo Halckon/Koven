@@ -46,7 +46,7 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 ## 现行语义的诊断修复
 
-- [0319 最终类型消费准入](../../active/0319-final-type-admission-diagnostics.md)已获准迁入active：本地有界实现、81项精确回归与工程门禁已通过，远端CI及归档待完成；保留中间Deferred/recovery；不与0292的未启用consume前置混同。
+- [0319 最终类型消费准入](../../../archive/specs/0319-final-type-admission-diagnostics.md)已按PR101实现head双宿主物理CI有界验收归档，保留中间Deferred/recovery；归档head与主干交付待核，不与0292的未启用consume前置混同。
 
 ## 未编号的现行支持候选
 

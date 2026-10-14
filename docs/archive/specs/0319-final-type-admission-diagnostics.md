@@ -1,10 +1,10 @@
 # SPEC-0319: 最终类型消费准入与源级诊断
 
-> **性质**：有界修复合同 · **状态**：in-progress · **读取时机**：修改或验收严格 frontend 消费准入时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
+> **性质**：有界修复验收 · **状态**：done · **读取时机**：追溯最终类型消费准入的范围与证据时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0319` |
 | 所属 Phase | Phase 2 最终类型资格；Phase 3 前置准入；Phase 6 CLI 诊断 |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[类型阶段边界](../../guide/03-types-generics.md#基础类型检查与局部推导)、[Result](../../guide/09-nullability-errors.md)、[迭代](../../guide/12-collections-destructuring.md#371-compiler-bound-provider-与执行顺序) |
@@ -13,7 +13,7 @@
 | 基线 | official fetch main `188654603edde5ece3edab114458116c61510371`，tree `ad1e85b00e64aabd832b00218cb17385e1c8ac29`；独立 `fix/spec-0319` |
 | 影响范围 | frontend 最终消费资格与诊断；普通 single/project CLI；仅必要的事实与回归测试 |
 | 语言语义变更 | 否；修复现行 Guide 已要求的阶段隔离，不启用新语言能力 |
-| 阻塞项 | 本地有界实现与验证已通过；远端双宿主CI、验收归档及主干交付待完成 |
+| 交付待项 | 有界实现与双宿主物理CI已验收；本次为docs-only归档，归档head CI、merge及main CI待核 |
 
 ## 1. 单一 Goal 与验收边界
 
@@ -148,7 +148,8 @@ target名不是`--exact`过滤器的一部分。首个可编译行为红测使�
 - [x] tests-only提交与真实失败基线：4个raw/base保护通过、3个CLI行为红；无编译接线失败。
 - [x] 最小frontend准入及CLI接线；准确诊断、不级联、raw对照和成功能力保护。
 - [x] 已审共享回归、工程门禁与Architecture事实更新；新增frontend target显式接入CI。
-- [ ] 双宿主CI与有界归档、主干交付；不引用旧CI或本地结果当本片远端成功。
+- [x] 实现head双宿主物理CI与有界验收归档；不引用旧CI或本地结果替代。
+- [ ] 归档head CI、合并及实际main CI；后继交付单独核验。
 
 | 本轮检查 | 实际状态 |
 |---|---|
@@ -181,8 +182,13 @@ target名不是`--exact`过滤器的一部分。首个可编译行为红测使�
 | 最终有界回归 | 984b / tree `2d6ee3b5e67b4d04d358ca8c558bc6534a59f730` 复跑同81exact均各1/1绿：frontend25普通源码+1只读catalog、CLI52公开integration+1显式prelude bootstrap、LSP2正常recovery。原四probe共48次CLI及全部oracle通过；不等同全目标/native或Map公开CLI覆盖 |
 | 最终工程门禁 | 同984b：fmt check、workspace check --all-targets、frontend+CLI clippy --all-targets -D warnings、CLI build全部exit0；check/clippy/build均--locked、独占绝对target，工程check不计测试执行 |
 | 最终输入冻结 | 上述两批1424源码/配置前后NUL摘要均`ef4f01f4b79a756530f28033e7371ea06e920614dfa224d6a788aaeebec5095a`；81名单/逐项argv/原日志及四门结果保留仓外。后继`85b55e91`仅CI接线，13个新frontend测试全部已在81中，无生产或fixture变化 |
-| CI接线静态检查 | stage显式加入`final_type_admission`，只读Python精确选择断言1/1通过；双宿主实际执行尚待。脚本进入代码fingerprint，不按docs-only复用；云未运行stage/aggregate或故障/插桩 |
+| CI接线静态检查 | stage显式加入`final_type_admission`，只读Python精确选择断言1/1通过；当时双宿主执行尚待，实际结果见下行。脚本进入代码fingerprint，不按docs-only复用；云未运行stage/aggregate或故障/插桩 |
 | 首轮远端CI阻塞 | [PR101 CI38587442021](https://github.com/Halckon/Koven/actions/runs/38587442021) 的Docs Structural因组合选择断言仍期待103、实际104而失败；双宿主Targeted Tests skipped，不计远端验收。`53953df8`按静态完整名单证据修为104并锁新增`final_type_admission`恰1次，原103项和10次Cargo调用保持；真实组合回归只交远端CI，云仅复跑已审只读接线exact 1/1 |
-| 待完成 | 本片远端CI、独立验收、归档与主干交付；B/C继续独立。历史行为红、fixture前置失败和格式失败均保留，不改golden取绿 |
+| 实现head物理CI | [CI38588845331/a1](https://github.com/Halckon/Koven/actions/runs/38588845331/attempts/1) 于2026-10-14 15:40:19 UTC success；实际head `5f12af1d83b668a9e1d191df79ca3f8087694ad2` / tree `b407a754aa06bf80cc3255dabf86c9783d2af9a4`，base `18865460`，synthetic `e4e8b52b45fae1727a264f3269738c4469551e93` |
+| CI实际覆盖 | reuse=false，16/16 jobs实际成功，无job级skip；Docs脚本338/338，修复后的组合选择断言通过。macOS job115939444144与Linux job115939444177均真实执行新`final_type_admission`全部13项，13 passed、0 failed/ignored/filtered；双宿主check/clippy、组合、双preview生产/独立消费及汇总通过 |
+| CI与云边界 | Linux专属sanitizer实际通过，macOS相应条件步骤合法skip；16 jobs成功不代表每个条件step均执行。组合及故障/计数设施仅远端CI执行，不混入本地81正常/只读目标；旧CI38587442021失败与全部本地红日志仍保留 |
+| 实现验收来源 | 固定仓外CI receipt SHA256 `a49d788597a4cccdabc34736b0d646721d9062a2f874ee5e5e1670745758de94`；归档从上述实际远端head建立，代码/测试/Guide原字节不变 |
+| 待完成 | [PR101](https://github.com/Halckon/Koven/pull/101)归档head CI、合并与实际main CI；B/C继续独立。历史行为红、fixture前置失败和格式失败均保留，不改golden取绿 |
 | 草案阶段 docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；当时active0/archive302、draft新增0319 |
 | active迁移 | 0319迁入active，archive302不变；draft库存移除0319，四份DAG随生命周期重建 |
+| 有界归档 | active 1→0、archive 302→303；索引/声明库存/四份DAG同步。只关闭本片冻结诊断与资格，不宣称全部Deferred、enum实参或List MoveOnly缺口已修复 |
