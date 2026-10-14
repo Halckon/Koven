@@ -2,7 +2,8 @@
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        Namespace, SourceUnitInput, UnitReferenceTarget, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
         CompilationUnitOwnership, UnitValueDeliveryKind, UnitValueDeliverySource,
@@ -26,10 +27,12 @@ struct Case {
     name: &'static str,
     text: &'static str,
     operands: &'static [(&'static str, ExpressionCategory, UnitValueDeliveryKind)],
+    copyability: Copyability,
 }
 
 const P38: Case = Case {
     name: "p38",
+    copyability: Copyability::MoveOnly,
     text: include_str!("../../tests/fixtures/mutable-list-delivery-0321/p38_list_of_strings.ko"),
     operands: &[
         (
@@ -46,6 +49,7 @@ const P38: Case = Case {
 };
 const GROUPED: Case = Case {
     name: "grouped",
+    copyability: Copyability::MoveOnly,
     text: include_str!("../../tests/fixtures/mutable-list-delivery-0321/grouped.ko"),
     operands: &[(
         "(\"x\")",
@@ -55,21 +59,25 @@ const GROUPED: Case = Case {
 };
 const NAMED: Case = Case {
     name: "named-root",
+    copyability: Copyability::MoveOnly,
     text: include_str!("../../tests/fixtures/mutable-list-delivery-0321/named-root.ko"),
     operands: &[("x", ExpressionCategory::Place, UnitValueDeliveryKind::Move)],
 };
 const EMPTY: Case = Case {
     name: "empty",
+    copyability: Copyability::MoveOnly,
     text: include_str!("../../tests/fixtures/mutable-list-delivery-0321/empty.ko"),
     operands: &[],
 };
 const COPYABLE: Case = Case {
     name: "copyable",
+    copyability: Copyability::Copyable,
     text: include_str!("../../tests/fixtures/mutable-list-delivery-0321/copyable.ko"),
     operands: &[("x", ExpressionCategory::Place, UnitValueDeliveryKind::Copy)],
 };
 const RETAINED: Case = Case {
     name: "retained-owner",
+    copyability: Copyability::MoveOnly,
     text: include_str!("../../tests/fixtures/mutable-list-delivery-0321/retained-owner.ko"),
     operands: &[(
         "\"x\"",
@@ -148,13 +156,8 @@ fn single(case: &Case) -> Result<(), String> {
         let ty = typed
             .expression_type(append.element())
             .ok_or("single operand type")?;
-        let expected = if case.name == "copyable" {
-            Copyability::Copyable
-        } else {
-            Copyability::MoveOnly
-        };
         require(
-            typed.copyability(ty) == Some(expected),
+            typed.copyability(ty) == Some(case.copyability),
             "single operand copyability",
         )?;
     }
@@ -177,6 +180,7 @@ fn unit_deliveries(
     case: &Case,
     sources: &SourceMap,
     file: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
 ) -> Result<(), String> {
@@ -199,6 +203,11 @@ fn unit_deliveries(
             typed.expression_category(operand) == Some(category),
             "unit operand category",
         )?;
+        let ty = typed.expression_type(operand).ok_or("unit operand type")?;
+        require(
+            typed.copyability(ty) == case.copyability,
+            "unit operand copyability matches the same source single oracle",
+        )?;
         let deliveries = owned
             .value_deliveries()
             .iter()
@@ -220,9 +229,22 @@ fn unit_deliveries(
                 )?;
             }
             UnitValueDeliveryKind::Move | UnitValueDeliveryKind::Copy => {
+                let place = delivery.place().ok_or("unit delivery place")?;
+                require(place.is_root(), "unit real root place")?;
+                let references = names
+                    .names()
+                    .references()
+                    .iter()
+                    .filter(|reference| {
+                        reference.source_unit() == operand.source_unit()
+                            && reference.span() == node.span()
+                            && reference.namespace() == Some(Namespace::Value)
+                    })
+                    .collect::<Vec<_>>();
+                require(references.len() == 1, "unit unique operand Value reference")?;
                 require(
-                    delivery.place().is_some_and(|place| place.is_root()),
-                    "unit real root place",
+                    references[0].target() == &UnitReferenceTarget::Symbol(place.root()),
+                    "unit delivery root equals the actual operand's resolved Symbol",
                 )?;
             }
         }
@@ -274,7 +296,14 @@ fn unit(case: &Case, constants: bool) -> Result<(), String> {
             check_compilation_unit_constant_ownership(&sources, &inputs, &names, &types, &typed),
         )?;
         let owned = stage("unit valid constant ownership", owned.validate())?;
-        unit_deliveries(case, &sources, &file, typed.types(), owned.ownership())?;
+        unit_deliveries(
+            case,
+            &sources,
+            &file,
+            &names,
+            typed.types(),
+            owned.ownership(),
+        )?;
         eprintln!(
             "{} unit constant: frontend and exact delivery passed",
             case.name
@@ -287,7 +316,14 @@ fn unit(case: &Case, constants: bool) -> Result<(), String> {
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed),
         )?;
         let owned = stage("unit valid basic ownership", owned.validate())?;
-        unit_deliveries(case, &sources, &file, typed.types(), owned.ownership())?;
+        unit_deliveries(
+            case,
+            &sources,
+            &file,
+            &names,
+            typed.types(),
+            owned.ownership(),
+        )?;
         eprintln!(
             "{} unit basic: frontend and exact delivery passed",
             case.name

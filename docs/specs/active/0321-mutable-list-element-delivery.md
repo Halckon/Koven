@@ -92,7 +92,7 @@ SSA只消费正常源码产物与标准verifier，可断言真实owner/delivery/
 首批6份普通源码fixture在`crates/lang-codegen/tests/fixtures/mutable-list-delivery-0321/`；
 原p38逐字保留，另有Group、named-root、空列表、Copyable保留与独立live owner。没有Resource/出口扩展。
 `ssa::mutable_list_delivery_tests`的每个目标先收齐single/basic/constant三入口结果再断言成功，
-单入口前置或SSA失败均带阶段记录；unit锁真实call/operand delivery，single锁typed身份与ownership合法。
+单入口前置或SSA失败均带阶段记录；unit锁真实call/operand delivery、源级Value引用Symbol与place.root同一及Copyability；single锁typed身份与ownership合法。
 CLI三个目标独立记录原p38的build/run/普通artifact，constant marker另存文件，不改主源码字节。
 
 | package / target | exact候选（均未执行） |
@@ -101,6 +101,7 @@ CLI三个目标独立记录原p38的build/run/普通artifact，constant marker�
 | lang-cli / native_cli；前缀`mutable_list_delivery::` | `single_p38_string_add_then_for_builds_and_runs` |
 | lang-cli / project_cli；同前缀 | `project_basic_p38_string_add_then_for_builds_and_runs`、`project_constant_p38_string_add_then_for_builds_and_runs` |
 
+18个codegen入口只验证分析/SSA/LLVM；只有原p38的3个CLI入口另有stdout行为oracle，二者分账。
 这9个exact只是待审名单；未编译、未运行，不声称当前红/绿。0320实际main正常同步后重新固定
 源码/argv与基线，helper独审及root逐名授权后才开测；原L0131/L0135测试与oracle未改。
 
