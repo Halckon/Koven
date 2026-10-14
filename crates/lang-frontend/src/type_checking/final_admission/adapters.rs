@@ -1,11 +1,12 @@
 //! 同一资格规则的单文件/source-qualified 事实适配；不重新进行语义选择。
 use super::super::*;
 use crate::{
-    ast::{ExpressionId, TypeRefId},
+    ast::{ExpressionId, ItemId, TypeRefId},
     name_resolution::{
-        NameResolution, Namespace, ReferenceTarget, SourceUnitId, SymbolKind, UnitReferenceTarget,
-        UnitSymbolId, ValidatedCompilationUnitNames,
+        NameResolution, Namespace, ReferenceTarget, SourceUnitId, SymbolId, SymbolKind,
+        UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
     },
+    parser::{Item, NameMarker, ParsedFile},
     source::Span,
 };
 
@@ -26,14 +27,15 @@ pub(super) struct Selection {
     pub receivers: Vec<ExpressionId>,
 }
 pub(super) trait Facts {
+    type Symbol: Copy + Ord;
     fn expression_type(&self, expression: ExpressionId) -> Option<usize>;
     fn type_ref_type(&self, type_ref: TypeRefId) -> Option<usize>;
     fn shape(&self, ty: usize) -> Option<Shape>;
     fn selection(&self, expression: ExpressionId) -> Option<Selection>;
     fn static_qualifier(&self, span: Span) -> bool;
     fn static_candidate(&self, span: Span) -> bool;
-    fn declaration(&self, span: Span) -> Option<(usize, usize)>;
-    fn referenced_symbol(&self, span: Span) -> Option<usize>;
+    fn declaration(&self, span: Span) -> Option<(Self::Symbol, usize)>;
+    fn referenced_symbol(&self, span: Span) -> Option<Self::Symbol>;
     fn statement_assignment(&self) -> bool {
         false
     }
@@ -242,6 +244,7 @@ macro_rules! shape {
     };
 }
 impl Facts for Single<'_> {
+    type Symbol = SymbolId;
     fn expression_type(&self, expression: ExpressionId) -> Option<usize> {
         self.typed.expression_type(expression).map(TypeId::index)
     }
@@ -309,18 +312,15 @@ impl Facts for Single<'_> {
                 _ => false,
             })
     }
-    fn declaration(&self, span: Span) -> Option<(usize, usize)> {
+    fn declaration(&self, span: Span) -> Option<(Self::Symbol, usize)> {
         let symbol = self
             .names
             .symbols()
             .iter()
             .find(|s| s.span() == span && s.namespace() == Namespace::Value)?;
-        Some((
-            symbol.id().index(),
-            self.typed.symbol_type(symbol.id())?.index(),
-        ))
+        Some((symbol.id(), self.typed.symbol_type(symbol.id())?.index()))
     }
-    fn referenced_symbol(&self, span: Span) -> Option<usize> {
+    fn referenced_symbol(&self, span: Span) -> Option<Self::Symbol> {
         self.names
             .references()
             .iter()
@@ -328,7 +328,7 @@ impl Facts for Single<'_> {
                 ReferenceTarget::Symbol(symbol)
                     if r.span() == span && r.namespace() == Namespace::Value =>
                 {
-                    Some(symbol.index())
+                    Some(*symbol)
                 }
                 _ => None,
             })
@@ -338,6 +338,7 @@ impl Facts for Single<'_> {
     }
 }
 impl Facts for Unit<'_> {
+    type Symbol = UnitSymbolId;
     fn expression_type(&self, expression: ExpressionId) -> Option<usize> {
         self.typed
             .expression_type(UnitExpressionId::new(self.source, expression))
@@ -427,7 +428,7 @@ impl Facts for Unit<'_> {
                 _ => false,
             })
     }
-    fn declaration(&self, span: Span) -> Option<(usize, usize)> {
+    fn declaration(&self, span: Span) -> Option<(Self::Symbol, usize)> {
         let names = self
             .names
             .names()
@@ -440,30 +441,131 @@ impl Facts for Unit<'_> {
             .iter()
             .find(|s| s.span() == span && s.namespace() == Namespace::Value)?;
         Some((
-            symbol.id().index(),
+            UnitSymbolId::new(self.source, symbol.id()),
             self.typed
                 .symbol_type(UnitSymbolId::new(self.source, symbol.id()))?
                 .index(),
         ))
     }
-    fn referenced_symbol(&self, span: Span) -> Option<usize> {
+    fn referenced_symbol(&self, span: Span) -> Option<Self::Symbol> {
         self.names
             .names()
             .references()
             .iter()
             .find_map(|r| match r.target() {
-                UnitReferenceTarget::Symbol(symbol)
-                    if r.span() == span && symbol.source_unit() == self.source =>
-                {
-                    Some(symbol.symbol().index())
+                UnitReferenceTarget::Symbol(symbol) if r.span() == span => Some(*symbol),
+                UnitReferenceTarget::Declaration(declaration) if r.span() == span => {
+                    self.names.names().declaration_symbol(*declaration)
                 }
-                UnitReferenceTarget::Declaration(declaration) if r.span() == span => self
-                    .names
-                    .names()
-                    .declaration_symbol(*declaration)
-                    .filter(|s| s.source_unit() == self.source)
-                    .map(|s| s.symbol().index()),
                 _ => None,
             })
     }
+}
+
+/// 仅声明 initializer 之间的真实名称引用建立依赖；不推导或改变任何 raw 类型。
+/// 先核定义根因，再核其读取点，避免 source-key 顺序成为诊断因果顺序。
+pub(super) fn initializer_order(
+    files: &[(&ParsedFile, Unit<'_>)],
+) -> Result<Vec<(usize, ItemId)>, super::FinalTypeAdmissionInternalError> {
+    use super::FinalTypeAdmissionInternalError as Internal;
+    use std::collections::{BTreeMap, BTreeSet};
+    let mut definitions = BTreeMap::new();
+    for (file_index, (parsed, facts)) in files.iter().enumerate() {
+        let mut pending = parsed.roots().iter().rev().copied().collect::<Vec<_>>();
+        while let Some(item) = pending.pop() {
+            let node = parsed
+                .ast()
+                .items()
+                .get(item)
+                .map_err(TypeCheckingError::from)?;
+            match node.payload() {
+                Item::Modified { declaration, .. } => pending.push(*declaration),
+                Item::Classifier(classifier) => {
+                    if let Some(body) = &classifier.body {
+                        pending.extend(body.members.iter().rev().copied());
+                    }
+                }
+                Item::Companion(companion) => {
+                    pending.extend(companion.body.members.iter().rev().copied())
+                }
+                Item::Variable {
+                    name: NameMarker::Present(span),
+                    initializer,
+                    ..
+                }
+                | Item::Constant {
+                    name: NameMarker::Present(span),
+                    initializer,
+                    ..
+                } => {
+                    let (symbol, _) =
+                        facts
+                            .declaration(*span)
+                            .ok_or(Internal::MissingRequiredFact {
+                                span: *span,
+                                kind: "initializer declaration identity",
+                            })?;
+                    let initializer_span = parsed
+                        .ast()
+                        .expressions()
+                        .get(*initializer)
+                        .map_err(TypeCheckingError::from)?
+                        .span();
+                    definitions.insert(symbol, (file_index, item, initializer_span));
+                }
+                // 函数/析构的局部声明仍在其实际 body 上下文中按原 AST 遍历。
+                _ => {}
+            }
+        }
+    }
+    let mut dependencies = BTreeMap::<UnitSymbolId, BTreeSet<UnitSymbolId>>::new();
+    let mut dependents = BTreeMap::<UnitSymbolId, BTreeSet<UnitSymbolId>>::new();
+    for (&symbol, &(file_index, _, span)) in &definitions {
+        let facts = &files[file_index].1;
+        let edges = facts
+            .names
+            .names()
+            .references()
+            .iter()
+            .filter(|reference| {
+                reference.source_unit() == facts.source
+                    && reference.namespace() == Some(Namespace::Value)
+                    && reference.span().start() >= span.start()
+                    && reference.span().end() <= span.end()
+            })
+            .filter_map(|reference| facts.referenced_symbol(reference.span()))
+            .filter(|target| definitions.contains_key(target))
+            .collect::<BTreeSet<_>>();
+        for &target in &edges {
+            dependents.entry(target).or_default().insert(symbol);
+        }
+        dependencies.insert(symbol, edges);
+    }
+    let mut ready = dependencies
+        .iter()
+        .filter_map(|(&symbol, edges)| edges.is_empty().then_some(symbol))
+        .collect::<BTreeSet<_>>();
+    let mut ordered = Vec::with_capacity(definitions.len());
+    while let Some(symbol) = ready.pop_first() {
+        if dependencies.remove(&symbol).is_none() {
+            continue;
+        }
+        let &(file, item, _) = &definitions[&symbol];
+        ordered.push((file, item));
+        for dependent in dependents.get(&symbol).into_iter().flatten() {
+            if let Some(edges) = dependencies.get_mut(dependent) {
+                edges.remove(&symbol);
+                if edges.is_empty() {
+                    ready.insert(*dependent);
+                }
+            }
+        }
+    }
+    // 循环不会获得新语义或伪造的类型；仍检查每个原 initializer 的真实 Deferred。
+    // 稳定次序至少保留原始未完成根因，独立错误也继续检查。
+    for symbol in dependencies.keys() {
+        let &(file, item, _) = &definitions[symbol];
+        ordered.push((file, item));
+    }
+    Ok(ordered)
 }

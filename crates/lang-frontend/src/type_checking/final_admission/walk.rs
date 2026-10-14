@@ -19,52 +19,105 @@ use std::{collections::BTreeSet, thread};
 
 type Result<T> = std::result::Result<T, Internal>;
 
-pub(super) fn check(
+pub(super) fn check<F: Facts + Sync>(
     sources: &SourceMap,
-    parsed: &ParsedFile,
-    facts: &(impl Facts + Sync),
+    files: &[(&ParsedFile, F)],
+    definition_order: &[(usize, ItemId)],
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<()> {
-    // 与 raw 类型检查使用相同的显式工作栈；不在宿主 CLI/LSP 栈上递归 AST。
+    // 同一显式工作栈覆盖全部 source-set，跨文件依赖不引入宿主栈递归。
     thread::scope(|scope| {
         thread::Builder::new()
             .name("koven-final-type-admission".to_owned())
             .stack_size(32 * 1024 * 1024)
-            .spawn_scoped(scope, || check_roots(sources, parsed, facts, diagnostics))
+            .spawn_scoped(scope, || {
+                check_roots(sources, files, definition_order, diagnostics)
+            })
             .map_err(|error| TypeCheckingError::CheckerThread(error.kind()))?
             .join()
             .map_err(|_| TypeCheckingError::CheckerThreadPanicked)?
     })
 }
 
-fn check_roots(
+fn check_roots<F: Facts>(
     sources: &SourceMap,
-    parsed: &ParsedFile,
-    facts: &impl Facts,
+    files: &[(&ParsedFile, F)],
+    definition_order: &[(usize, ItemId)],
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<()> {
-    let mut checker = Checker {
-        sources,
-        parsed,
-        facts,
-        diagnostics,
-        uses: collect_expression_uses(parsed),
-        poisoned: BTreeSet::new(),
-        expressions: vec![None; parsed.ast().expressions().len()],
+    let mut states = files
+        .iter()
+        .map(|(parsed, _)| FileState {
+            uses: collect_expression_uses(parsed),
+            expressions: vec![None; parsed.ast().expressions().len()],
+            items: vec![None; parsed.ast().items().len()],
+        })
+        .collect::<Vec<_>>();
+    let mut poisoned = BTreeSet::new();
+    let mut first_incomplete = None;
+    let mut check_items = |file: usize, items: &[ItemId]| -> Result<()> {
+        let (parsed, facts) = files
+            .get(file)
+            .ok_or(Internal::MismatchedAnalysisIdentity)?;
+        let state = states
+            .get_mut(file)
+            .ok_or(Internal::MismatchedAnalysisIdentity)?;
+        let mut checker = Checker {
+            sources,
+            parsed,
+            facts,
+            diagnostics,
+            poisoned: &mut poisoned,
+            uses: &state.uses,
+            expressions: &mut state.expressions,
+            items: &mut state.items,
+        };
+        for &item in items {
+            if !checker.item(item)? && first_incomplete.is_none() {
+                first_incomplete = Some(
+                    parsed
+                        .ast()
+                        .items()
+                        .get(item)
+                        .map_err(TypeCheckingError::from)?
+                        .span(),
+                );
+            }
+        }
+        Ok(())
     };
-    for &item in parsed.roots() {
-        checker.item(item)?;
+    for &(file, item) in definition_order {
+        check_items(file, &[item])?;
+    }
+    for (file, (parsed, _)) in files.iter().enumerate() {
+        check_items(file, parsed.roots())?;
+    }
+    if let Some(span) = first_incomplete
+        && !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity() == Severity::Error)
+    {
+        return Err(Internal::MissingRequiredFact {
+            span,
+            kind: "root failure diagnostic",
+        });
     }
     Ok(())
 }
-struct Checker<'a, F> {
+struct FileState {
+    uses: Vec<ExpressionUse>,
+    expressions: Vec<Option<bool>>,
+    items: Vec<Option<bool>>,
+}
+struct Checker<'a, F: Facts> {
     sources: &'a SourceMap,
     parsed: &'a ParsedFile,
     facts: &'a F,
     diagnostics: &'a mut Vec<Diagnostic>,
-    uses: Vec<ExpressionUse>,
-    poisoned: BTreeSet<usize>,
-    expressions: Vec<Option<bool>>,
+    uses: &'a [ExpressionUse],
+    poisoned: &'a mut BTreeSet<F::Symbol>,
+    expressions: &'a mut [Option<bool>],
+    items: &'a mut [Option<bool>],
 }
 impl<F: Facts> Checker<'_, F> {
     fn missing(&self, span: Span, kind: &'static str) -> Internal {
@@ -190,6 +243,9 @@ impl<F: Facts> Checker<'_, F> {
         Ok(complete)
     }
     fn item(&mut self, id: ItemId) -> Result<bool> {
+        if let Some(complete) = self.items[id.index()] {
+            return Ok(complete);
+        }
         let parsed = self.parsed;
         let node = parsed
             .ast()
@@ -283,6 +339,7 @@ impl<F: Facts> Checker<'_, F> {
             }
             Item::Deinit { body, .. } => complete &= self.statement(*body)?,
         }
+        self.items[id.index()] = Some(complete);
         Ok(complete)
     }
     fn statement(&mut self, id: StatementId) -> Result<bool> {
@@ -374,6 +431,52 @@ impl<F: Facts> Checker<'_, F> {
             Expression::SuperMember { interface, .. } => self.type_ref(*interface, true),
             _ => self.expression(id, false),
         }
+    }
+    fn rejected_type_arguments(&self, call: ExpressionId, callee: ExpressionId) -> Result<bool> {
+        if self.facts.selection(call).is_some()
+            || !matches!(
+                self.facts
+                    .expression_type(call)
+                    .and_then(|ty| self.facts.shape(ty)),
+                Some(Shape::Error)
+            )
+        {
+            return Ok(false);
+        }
+        let callee = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(callee)
+            .map_err(TypeCheckingError::from)?;
+        let primary = match callee.payload() {
+            Expression::Name => callee.span(),
+            Expression::Member { name_span, .. } => *name_span,
+            _ => return Ok(false),
+        };
+        let code = codes::catalog()
+            .and_then(|catalog| catalog.resolve(codes::TYPE_ARGUMENT_ARITY))
+            .map_err(TypeCheckingError::from)?;
+        Ok(self.diagnostics.iter().any(|diagnostic| {
+            diagnostic.severity() == Severity::Error
+                && diagnostic.code() == code
+                && diagnostic.primary_span() == primary
+        }))
+    }
+    fn call_type_ref(&mut self, id: TypeRefId, rejected: bool) -> Result<bool> {
+        // 只有本 call 的原 L0091 及 Error 产物证明早拒，才允许尚未遍历的类型实参缺值。
+        // 已有真实 Deferred/完整事实仍正常闭合；运行时实参从不走这里。
+        if rejected
+            && matches!(
+                self.facts
+                    .type_ref_type(id)
+                    .and_then(|ty| self.facts.shape(ty)),
+                None | Some(Shape::Error)
+            )
+        {
+            return Ok(false);
+        }
+        self.type_ref(id, false)
     }
     fn static_candidate(&self, id: ExpressionId) -> Result<bool> {
         let node = self
@@ -546,8 +649,9 @@ impl<F: Facts> Checker<'_, F> {
                 for argument in arguments {
                     complete &= self.expression(argument.value, false)?;
                 }
+                let rejected_type_arguments = self.rejected_type_arguments(id, *callee)?;
                 for type_ref in type_arguments {
-                    complete &= self.type_ref(*type_ref, false)?;
+                    complete &= self.call_type_ref(*type_ref, rejected_type_arguments)?;
                 }
                 if selection.as_ref().is_some_and(|s| s.static_callee) {
                     complete &= self.selector(*callee)?;

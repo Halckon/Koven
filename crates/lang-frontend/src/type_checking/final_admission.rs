@@ -142,12 +142,15 @@ pub fn complete_file_types<'a>(
         .collect::<Vec<_>>();
     walk::check(
         sources,
-        parsed,
-        &adapters::Single {
-            typed,
-            names,
-            environment,
-        },
+        &[(
+            parsed,
+            adapters::Single {
+                typed,
+                names,
+                environment,
+            },
+        )],
+        &[],
         &mut diagnostics,
     )?;
     let ordered = ordered_diagnostics(sources, &diagnostics)
@@ -173,6 +176,7 @@ pub fn complete_compilation_unit_types<'a>(
         return Err(FinalTypeAdmissionInternalError::MismatchedAnalysisIdentity.into());
     }
     let mut diagnostics = typed.diagnostics().to_vec();
+    let mut files = Vec::new();
     for source in names.names().index().source_units() {
         let parsed = inputs
             .iter()
@@ -180,18 +184,18 @@ pub fn complete_compilation_unit_types<'a>(
             .map(|input| input.parsed())
             .ok_or(FinalTypeAdmissionInternalError::MismatchedAnalysisIdentity)?;
         diagnostics.extend_from_slice(parsed.diagnostics());
-        walk::check(
-            sources,
+        files.push((
             parsed,
-            &adapters::Unit {
+            adapters::Unit {
                 typed,
                 names,
                 environment,
                 source: source.id(),
             },
-            &mut diagnostics,
-        )?;
+        ));
     }
+    let definition_order = adapters::initializer_order(&files)?;
+    walk::check(sources, &files, &definition_order, &mut diagnostics)?;
     let ordered =
         ordered_unit_diagnostics(sources, names.names().index().source_units(), &diagnostics)
             .map_err(CompilationUnitTypeError::from)
