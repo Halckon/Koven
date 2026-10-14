@@ -33,7 +33,11 @@ fn source(factory: &str, ty: &str, own: bool, live: bool, map: bool) -> String {
 
 fn single(factory: &str, ty: &str, own: bool, live: bool, map: bool) {
     let text = source(factory, ty, own, live, map);
-    let a = analyze(&text);
+    single_text(&text, live, map);
+}
+
+fn single_text(text: &str, live: bool, map: bool) {
+    let a = analyze(text);
     assert!(
         a.parsed.diagnostics().is_empty(),
         "{:?}",
@@ -75,7 +79,7 @@ fn single(factory: &str, ty: &str, own: bool, live: bool, map: bool) {
     if let Err(error) = &lowered {
         assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
         assert_eq!(a.sources.slice(error.span.unwrap()).unwrap(), "keys");
-        println!("BASELINE {factory} own={own} live={live} map={map}: {error:?}");
+        println!("BASELINE live={live} map={map}: {error:?}");
     }
     let program = lowered.unwrap();
     crate::llvm::render_verified_program(&program).unwrap();
@@ -432,3 +436,6 @@ fn owned_source_return_unit_mutable_list_own_live_constant() {
 
 #[path = "lower_frontend_owned_source_return_native_tests.rs"]
 mod native;
+
+#[path = "lower_frontend_owned_source_return_boundary_tests.rs"]
+mod boundaries;
