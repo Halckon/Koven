@@ -9,13 +9,13 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [0315 范围绑定 Int 比较](active/0315-range-int-comparisons.md)：四比较及PR94首轮CLI漏选已本地修正，新main联合562项通过；新输入CI待验收。
-
-- [Active 合同](active/README.md)：当前 1 份。
+- [Active 合同](active/README.md)：当前 0 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
 ### 近期交付
+
+- [0315 范围绑定 Int 比较](../archive/specs/0315-range-int-comparisons.md)：[PR94新base物理CI](https://github.com/Halckon/Koven/actions/runs/38506286229)双宿主562项逐名通过，CLI漏选修正与首轮失败保留；有界归档，归档head CI/合并授权/main待验证。
 
 - [0314 owned Sequential source 条件 return](../archive/specs/0314-owned-source-conditional-return.md)：[PR93实现CI](https://github.com/Halckon/Koven/actions/runs/38501870863)双宿主117新增与241共享去重目标逐名通过（交集27），独立preview安装链通过后有界归档；已由PR93合入main `cedbe73e`，该main CI待验证。
 
@@ -52,7 +52,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：298 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：299 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

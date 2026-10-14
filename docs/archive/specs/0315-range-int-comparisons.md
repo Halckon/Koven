@@ -1,15 +1,15 @@
 # SPEC-0315: 范围绑定函数内剩余 Int 比较
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施范围绑定与 Int 比较组合时 · **唯一真源**：本页合同与验收；语言语义以 Guide 为准
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：实施范围绑定与 Int 比较组合时 · **唯一真源**：本页合同与验收；语言语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0315` |
 | 所属 Phase | Phase 4 typed SSA 能力门与 native 验收 |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[表达式](../../guide/04-expressions-operators.md) |
 | 批准依据 | 用户持续主线实施及小阶段提交授权；合并仍需具体批准 |
-| 前置 Spec | [SPEC-0298](../../archive/specs/0298-range-binding-local-control-flow.md) |
+| 前置 Spec | [SPEC-0298](0298-range-binding-local-control-flow.md) |
 | 基线 | 官方 fetch 确认 actual main `934b65908a7e8a42b3b7d969130aa2c95b191703`；独立 `feature/spec-0315`，不复制未合入0314 |
 | 影响范围 | `borrow_result_support::binding` 的 typed 比较白名单及普通源码测试 |
 | 语言语义变更 | 否 |
@@ -108,3 +108,26 @@ tree `3c61aee01286b803b6a8fdbc6f45a83e8bd6bab6`。保留CLI修复`b571b485`，�
 `7fadd767ad7e3976304d8685496e44dfb0f0b308fdb9cd97b2439ab353797d83`；精确命令、逐名清单、
 日志摘要与恢复bundle留仓外。新base/head改变CI输入，必须重新取得双宿主物理CI证据，
 不能复用首轮失败run或此前本地绿；尚未归档/合并0315。main CI由独立闭环跟踪。
+
+
+## 实现 CI 验收与有界归档
+
+[PR94 新base物理CI run38506286229/a1](https://github.com/Halckon/Koven/actions/runs/38506286229)
+已completed/success，`reuse=false`；实现head `31b7f0dc8d5ea97170591fc3f7d9fae026d34b94`、
+base `cedbe73ef3f30c9cf8ac5f0f067e77bb101c4b45`，synthetic
+`13077bf1db84c0ab25025a1e89626844b83657e4`的有序父为base/head，tree与head均为
+`ac733b19733e5a96676e0b9d29428ce27c231da3`。前文的待验收状态保留其原检查点；
+本次新证据不改写首轮CLI漏选失败或错误last-use oracle历史。
+
+| 物理CI验收 | 实际结果 |
+|---|---|
+| checks/jobs | 16项身份逐一匹配；15 success，仅Tree-sitter因editors=false合法skipped；CI Passed与Code CI Evidence均success |
+| 双宿主联合选择 | Linux、macOS各562个唯一测试逐名通过，无missing；各含codegen local_control223、scalar6、borrow边界4、CLI完整39、frontend8+14及0314/Map共享选择 |
+| codegen完整lib | Linux1840 passed/0 ignored；macOS1839 passed/1既有LLDB权限ignored；本片联合562项不含ignored |
+| 双preview独立安装 | Linux artifact11868162463、macOS11868856099的producer/API/consumer摘要三方一致；两consumer无checkout且安装成功 |
+| 归档边界 | 仅关闭typed Int四比较及CLI负表迁移有界合同；不扩短路、一般CFG/NLL、非Int或整个N1a/M2B |
+
+原始receipt、两宿主日志、逐名清单与artifact证据均留仓外，不把未执行的本地平台检查或
+首轮失败run称为成功。本次只迁移Spec、更新库存/索引/DAG并追加验收，生产、测试、Guide、
+scripts均零变；未运行Cargo。归档head CI仍须独立验证；PR94 merge尚无用户批准，
+合并及actual-main CI不由本节提前认领。

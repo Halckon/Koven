@@ -2,9 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 1 份 active。
+当前 0 份 active。
 
-- [0315 范围绑定函数内剩余 Int 比较](0315-range-int-comparisons.md)：typed Int/Boolean门及CLI旧负表迁移，新main联合验收通过；CI待验收。
+[0315 范围绑定函数内剩余 Int 比较](../../archive/specs/0315-range-int-comparisons.md)已按[PR94新base物理CI](https://github.com/Halckon/Koven/actions/runs/38506286229)双宿主562项逐名证据有界归档；保留CLI漏选/首轮失败与last-use修正，归档head CI、合并授权及main待验证。
 
 [0314 owned Sequential source 条件 return](../../archive/specs/0314-owned-source-conditional-return.md)已按[PR93实现CI](https://github.com/Halckon/Koven/actions/runs/38501870863)双宿主逐名验收后有界归档；117新增及241共享去重（交集27）通过，原红测/失败修复/3行尺寸例外保留；已由PR93合入main `cedbe73e`，该main CI待验证。
 
