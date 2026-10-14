@@ -197,3 +197,45 @@ fn owned_source_return_native_mutable_list_own_live_no_map() {
 fn owned_source_return_native_mutable_list_own_live_map() {
     matrix("mutableListOf", "MutableList", true, true, true);
 }
+
+#[test]
+fn owned_source_return_native_operand_cleanup() {
+    let run = emit_link_and_run(
+        "owned-source-return-cleanup.ko",
+        include_str!("../../tests/fixtures/owned-source-return-0314/operand-cleanup.ko"),
+        "main",
+    );
+    assert_success(&run, concat!("first\noperand\nlater\nearlier\nreturned\n", "fallthrough\nlater\nearlier\nfallthrough\nlater\nearlier\ntail kept\nexhausted\ncompleted\n", "copy returned\ncopy exhausted\n").as_bytes());
+}
+
+#[test]
+fn owned_source_return_native_distinct_maps() {
+    let run = emit_link_and_run(
+        "owned-source-return-distinct.ko",
+        include_str!("../../tests/fixtures/owned-source-return-0314/distinct-owners.ko"),
+        "main",
+    );
+    assert_success(
+        &run,
+        concat!(
+            "parameter empty\nparameter no tail\nparameter missing\n",
+            "return\n",
+            "return\n",
+            "first no last\nfirst no tail\nsecond tail\nfirst after\nsecond after removed\n",
+            "second removed\nreturn\n",
+            "second removed\nsecond removed\nsecond removed\nreturn\n"
+        )
+        .as_bytes(),
+    );
+}
+
+#[test]
+fn owned_source_return_native_independent_results() {
+    let run = emit_link_and_run(
+        "owned-source-return-results.ko",
+        include_str!("../../tests/fixtures/owned-source-return-0314/owned-results.ko"),
+        "main",
+    );
+    let one = "returned\ntail\ntail\nreturned\ntail\ntail\ntail\nfallback\n";
+    assert_success(&run, one.repeat(4).as_bytes());
+}

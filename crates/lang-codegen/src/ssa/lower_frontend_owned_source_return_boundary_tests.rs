@@ -31,6 +31,7 @@ fn observe(text: &str, supported: bool) {
             .err()
             .expect("bounded source proof remains unsupported");
         assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+        assert_eq!(a.sources.slice(error.span.unwrap()).unwrap(), "keys");
         println!("BOUNDARY {text}: {error:?}");
     }
 }

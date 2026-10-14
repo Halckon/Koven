@@ -94,3 +94,25 @@ fn single_map_return_owned_results_matrix() {
         "../../tests/fixtures/map-conditional-return-0313/owned-results.ko"
     ));
 }
+
+#[test]
+fn owned_source_return_operand_cleanup_structure() {
+    let source = include_str!("../../tests/fixtures/owned-source-return-0314/operand-cleanup.ko");
+    let program = check(source);
+    super::structure::assert_owned_operand_before_body_cleanup(&program, source);
+}
+
+#[test]
+fn owned_source_return_distinct_maps_structure() {
+    let program = check(include_str!(
+        "../../tests/fixtures/owned-source-return-0314/distinct-owners.ko"
+    ));
+    super::structure::assert_distinct_return_owners(&program);
+}
+
+#[test]
+fn owned_source_return_independent_results_structure() {
+    check(include_str!(
+        "../../tests/fixtures/owned-source-return-0314/owned-results.ko"
+    ));
+}
