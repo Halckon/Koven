@@ -31,8 +31,10 @@ Resource 合同、LLVM 和 M13 文档陈旧问题均不在本片。
 |---|---|---|
 | 原拒绝复现 | codegen lib 精确 `ssa::range_lowering_tests::local_control::boundary::range_local_control_keeps_unselected_binary_gates` | main源码实际1/1通过；8表达式×3入口，共24次精确UnsupportedNode/Span；新四比较12次拒绝；前后源码hash一致 |
 | 新四比较红测 | codegen lib `ssa::range_lowering_tests::local_control::comparisons::` | 实际72/72红；均frontend成功后在比较精确Span以UnsupportedNode拒绝；四op×三位置×literal/constant与single/unit正逆序，0 ignored；生产未改、源码冻结一致 |
+| 最后read后、scope结束前 | `last_read_`（静审仅24项） | tests-only修正夹具24/24精确红；独立metadata read loan先结束，descriptor scope仍由已有事实约束，SSA/native断言待转绿 |
 | 新四比较真实执行 | 同上 | 待实现；每项负极值/负数/相等/正数/正极值五次输出，SSA核opcode/Int/Boolean/Span与RangeEnd→BorrowEnd→consume |
 | statement-if 与同root父子/兄弟 | `comparisons::selection::` | tests-only实际72/72红，四op×String/MoveOnly/Resource×六fixture入口；均frontend通过，在比较精确Span UnsupportedNode；两arm/合流及析构oracle待转绿 |
+| 扩展边界基线 | `comparisons::boundary::` | 3/3通过；17种普通源码×六fixture入口共102次精确拒绝；非Int六种、短路/concat三种、两alias×四比较 |
 | 旧能力与拒绝 | `ssa::range_lowering_tests::local_control::` 中静审过的普通源码目标 | 待运行；旧==/<18项保持，短路/非Int与其他能力门保持 |
 | 静态门禁 | fmt、codegen all-targets严格clippy、docs/diff与尺寸 | 待运行 |
 | 远端交付 | Draft PR与双宿主CI、归档、具体合并授权 | 未运行；阶段commit/push不表示完成 |
@@ -42,3 +44,6 @@ single 的 literal 与 const fixture 使用既有同一 constant-aware 分析/lo
 frontend、SSA verifier、原版LLVM和native；不造坏IR、不插桩或运行聚合discover。
 日志、源码冻结与恢复材料留仓外。Rust1.96.0/LLVM21.1.8；baseline/current独立绝对target，
 Cargo串行，不clean。Linux本地不替代macOS CI；未运行项不会标绿。
+
+边界helper首编译E0277（Program不实现Debug）已改用显式取err，保留原失败日志；不计通过。
+last-read首探索夹具误保留第二次read且输出模板不符，已修正并独立重跑，探索不作验收。

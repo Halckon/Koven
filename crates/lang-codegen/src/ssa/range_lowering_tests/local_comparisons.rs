@@ -103,11 +103,23 @@ fn assert_comparison(program: &Program, span: Span, expected: ComparisonOperator
 }
 
 fn comparison_case(pipeline: Pipeline, position: Position, operator: ComparisonOperator) {
+    comparison_with_use(pipeline, position, operator, false);
+}
+
+fn comparison_with_use(
+    pipeline: Pipeline,
+    position: Position,
+    operator: ComparisonOperator,
+    after_last_read: bool,
+) {
     let (declaration, expression) = expression(pipeline, operator);
     let comparison = format!("check({expression})");
     let body = match position {
         Position::BeforeBinding => {
             format!("{comparison}\n{{borrow val part=take(root,1);read(part)}}")
+        }
+        Position::WhileLive if after_last_read => {
+            format!("{{borrow val part=take(root,1);read(part);{comparison}}}")
         }
         Position::WhileLive => {
             format!("{{borrow val part=take(root,1);read(part);{comparison};read(part)}}")
@@ -124,18 +136,60 @@ fun scan(n:Int):Unit{{val root=listOf("kept","excluded");{body};consume(root)}}
 fun main():Unit{{{CALLS}}}
 "#
     );
-    let label = format!("0315-{pipeline:?}-{position:?}-{operator:?}");
+    let label = format!("0315-{pipeline:?}-{position:?}-{operator:?}-last={after_last_read}");
     let lowered = lower(&source, &expression, pipeline);
     let span = lowered.expected_span;
     let (program, entry) = lowered.require_success(&label);
     assert_comparison(&program, span, operator);
     assertions::comparison_lifetime(&program, span, position);
+    if after_last_read {
+        let function = program.modules[0]
+            .functions
+            .iter()
+            .find(|function| {
+                function
+                    .instructions
+                    .iter()
+                    .any(|instruction| instruction.origin.span() == span)
+            })
+            .unwrap();
+        let compare = function
+            .instructions
+            .iter()
+            .find(|instruction| {
+                instruction.origin.span() == span
+                    && matches!(instruction.operation, Operation::Compare { .. })
+            })
+            .unwrap();
+        let read = function
+            .instructions
+            .iter()
+            .find(|instruction| {
+                matches!(&instruction.operation, Operation::DirectCall { arguments, .. }
+                if matches!(arguments.as_slice(), [EntityId::Loan(_)]))
+            })
+            .unwrap();
+        let Operation::DirectCall { arguments, .. } = &read.operation else {
+            unreachable!()
+        };
+        let EntityId::Loan(loan) = arguments[0] else {
+            unreachable!()
+        };
+        let end = function.instructions.iter().find(|instruction| {
+            matches!(instruction.operation, Operation::BorrowEnd { loan: actual } if actual == loan)
+        }).unwrap();
+        let order = &function.blocks[compare.block.index()].instructions;
+        let index = |id| order.iter().position(|actual| *actual == id).unwrap();
+        assert!(index(read.id) < index(end.id));
+        assert!(index(end.id) < index(compare.id));
+    }
     let expected = outcomes(operator)
         .into_iter()
         .map(|outcome| {
             let value = if outcome { "true" } else { "false" };
             match position {
                 Position::BeforeBinding => format!("{value}\nkept\nconsume\n"),
+                Position::WhileLive if after_last_read => format!("kept\n{value}\nconsume\n"),
                 Position::WhileLive => format!("kept\n{value}\nkept\nconsume\n"),
                 Position::AfterEnds => format!("kept\n{value}\nconsume\n"),
             }
@@ -328,3 +382,221 @@ comparisons!(
     AfterEnds,
     GreaterThanOrEqual
 );
+
+// The final metadata read loan ends, but the explicit descriptor remains scoped.
+#[test]
+fn range_comparisons_ne_last_read_single() {
+    comparison_with_use(
+        Pipeline::Single,
+        Position::WhileLive,
+        ComparisonOperator::NotEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ne_last_read_unit() {
+    comparison_with_use(
+        Pipeline::Unit,
+        Position::WhileLive,
+        ComparisonOperator::NotEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ne_last_read_reversed() {
+    comparison_with_use(
+        Pipeline::UnitReversed,
+        Position::WhileLive,
+        ComparisonOperator::NotEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ne_last_read_single_constant() {
+    comparison_with_use(
+        Pipeline::SingleConstant,
+        Position::WhileLive,
+        ComparisonOperator::NotEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ne_last_read_unit_constant() {
+    comparison_with_use(
+        Pipeline::UnitConstant,
+        Position::WhileLive,
+        ComparisonOperator::NotEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ne_last_read_reversed_constant() {
+    comparison_with_use(
+        Pipeline::UnitConstantReversed,
+        Position::WhileLive,
+        ComparisonOperator::NotEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_le_last_read_single() {
+    comparison_with_use(
+        Pipeline::Single,
+        Position::WhileLive,
+        ComparisonOperator::LessThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_le_last_read_unit() {
+    comparison_with_use(
+        Pipeline::Unit,
+        Position::WhileLive,
+        ComparisonOperator::LessThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_le_last_read_reversed() {
+    comparison_with_use(
+        Pipeline::UnitReversed,
+        Position::WhileLive,
+        ComparisonOperator::LessThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_le_last_read_single_constant() {
+    comparison_with_use(
+        Pipeline::SingleConstant,
+        Position::WhileLive,
+        ComparisonOperator::LessThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_le_last_read_unit_constant() {
+    comparison_with_use(
+        Pipeline::UnitConstant,
+        Position::WhileLive,
+        ComparisonOperator::LessThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_le_last_read_reversed_constant() {
+    comparison_with_use(
+        Pipeline::UnitConstantReversed,
+        Position::WhileLive,
+        ComparisonOperator::LessThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_gt_last_read_single() {
+    comparison_with_use(
+        Pipeline::Single,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThan,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_gt_last_read_unit() {
+    comparison_with_use(
+        Pipeline::Unit,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThan,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_gt_last_read_reversed() {
+    comparison_with_use(
+        Pipeline::UnitReversed,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThan,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_gt_last_read_single_constant() {
+    comparison_with_use(
+        Pipeline::SingleConstant,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThan,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_gt_last_read_unit_constant() {
+    comparison_with_use(
+        Pipeline::UnitConstant,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThan,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_gt_last_read_reversed_constant() {
+    comparison_with_use(
+        Pipeline::UnitConstantReversed,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThan,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ge_last_read_single() {
+    comparison_with_use(
+        Pipeline::Single,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ge_last_read_unit() {
+    comparison_with_use(
+        Pipeline::Unit,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ge_last_read_reversed() {
+    comparison_with_use(
+        Pipeline::UnitReversed,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ge_last_read_single_constant() {
+    comparison_with_use(
+        Pipeline::SingleConstant,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ge_last_read_unit_constant() {
+    comparison_with_use(
+        Pipeline::UnitConstant,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThanOrEqual,
+        true,
+    );
+}
+#[test]
+fn range_comparisons_ge_last_read_reversed_constant() {
+    comparison_with_use(
+        Pipeline::UnitConstantReversed,
+        Position::WhileLive,
+        ComparisonOperator::GreaterThanOrEqual,
+        true,
+    );
+}
