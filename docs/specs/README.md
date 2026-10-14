@@ -9,7 +9,9 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 0 份。
+- [0316 single value-class 只读方法](active/0316-single-readonly-value-methods.md)：无Map最小红测先行，普通 Borrow receiver 与 owned Int/Boolean 返回；尚未验收。
+
+- [Active 合同](active/README.md)：当前 1 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 

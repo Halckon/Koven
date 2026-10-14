@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 0 份 active。
+当前 1 份 active。
+
+- [0316 single value-class 只读方法](0316-single-readonly-value-methods.md)：in-progress，先记录独立无Map红测。
 
 [0315 范围绑定函数内剩余 Int 比较](../../archive/specs/0315-range-int-comparisons.md)已按[PR94新base物理CI](https://github.com/Halckon/Koven/actions/runs/38506286229)双宿主562项逐名证据有界归档；保留CLI漏选/首轮失败与last-use修正，归档head CI、合并授权及main待验证。
 
