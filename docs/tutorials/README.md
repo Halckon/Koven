@@ -15,16 +15,21 @@ Map 两遍改写及新增增长病例已由 [SPEC-0295](../archive/specs/0295-ma
 编排mock测试本身不作为实际CLI证据。
 历史教程保留在 archive，不代表当前实现。planned 示例不计入通过。
 
+[集合与借用当前说明](koven-tour.md#collections-and-borrow-results)解释 List/Map、普通借用结果、
+`borrow val`、project 范围算法与单层正常短路，并链接已有源码和入口限制。说明文字不是新增
+可执行合同；本次更新保持全部 fence、JSON oracle 与库存不变，只作静态核对，未重跑本地 CLI/native。
+
 ## 有限覆盖与仍有的差距
 
 | 维度 | 当前代表示例 | 证据或边界 |
 |---|---|---|
 | 入门值与调用 | hello/strings/branch/function/constant | 原有真实CLI合同 |
 | 数字表达式组合 | [numbers-bitwise](koven-tour.md#numbers-bitwise) | Int radix、分隔符、and、shl计数屏蔽；不覆盖全部宽度与溢出 |
-| Borrow与资源作用域 | borrowing/deinit、[scope-cleanup](koven-tour.md#scope-cleanup) | 函数资源逆序清理及caller继续；不证明分支资源缺口或纯内存ASAP |
+| Borrow与资源作用域 | borrowing/deinit、[scope-cleanup](koven-tour.md#scope-cleanup) | 函数资源逆序清理及caller继续；分支另见gap-scope-branch，不能推定全部ASAP组合 |
 | 原地置换与参数处理 | root-replace-swap/parameter-report | root与直接字段replace；空、非空、UTF-8和空字符串argv |
 | unit/native资源退出组合 | [unit-loop-cleanup](koven-tour.md#unit-loop-cleanup) | 两文件、临时MutableList、Borrow调用、continue/break/return、元素和局部资源清理；一个具体provider |
 | 预期结构化拒绝 | reject-typed/reject-ownership、[reject-immutable-place](koven-tour.md#reject-immutable-place)、[reject-iteration-move](koven-tour.md#reject-iteration-move) | 完整JSON类型、移动、不可变place及迭代活跃借用诊断；非法源码无产物 |
 | 分支资源退出 | [gap-scope-branch](koven-tour.md#gap-scope-branch) | 同一历史失败源码加入正常CLI合同，核对内层逆序清理与外层存活；验收见0273 |
-| argv词频 | [argv-word-frequency](koven-tour.md#argv-word-frequency) | 三文件、首次顺序、精确UTF-8及控制字节；双宿主各37命令已验收，边界见0274 |
+| argv词频 | [argv-word-frequency](koven-tour.md#argv-word-frequency) | 三文件、两遍argv与Map get/put/remove；当前9组argv，既有双宿主40命令验收及边界见0295，旧37命令证据保留 |
+| 集合、普通借用返回与范围 | [当前能力说明](koven-tour.md#collections-and-borrow-results) | 链接已有后端/公开CLI源码并区分入口；不增加本页执行库存，不将Map遍历或任意短路列为支持 |
 | 未纳入本批 | 一般 nullable/Result、enum、闭包、Box/Rc、任意嵌套组合 | 不从上述例子推定全面支持；语义见Guide，实现边界见Architecture |
