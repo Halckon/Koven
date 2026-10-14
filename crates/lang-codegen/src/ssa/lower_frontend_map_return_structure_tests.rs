@@ -5,7 +5,7 @@ use crate::ssa::model::{
 };
 use lang_frontend::source::Span;
 
-fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
+pub(super) fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
     function
         .blocks
         .iter()
@@ -30,7 +30,7 @@ fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
 }
 
 // Only block parameters forward identity; even an older update of this Map fails.
-fn forwards(function: &Function, actual: EntityId, expected: EntityId) -> bool {
+pub(super) fn forwards(function: &Function, actual: EntityId, expected: EntityId) -> bool {
     fn visit(function: &Function, actual: EntityId, expected: EntityId, depth: usize) -> bool {
         if actual == expected {
             return true;
@@ -55,7 +55,7 @@ fn forwards(function: &Function, actual: EntityId, expected: EntityId) -> bool {
     visit(function, actual, expected, 0)
 }
 
-fn only(function: &Function, predicate: impl Fn(&Instruction) -> bool) -> &Instruction {
+pub(super) fn only(function: &Function, predicate: impl Fn(&Instruction) -> bool) -> &Instruction {
     let found = function
         .instructions
         .iter()
@@ -65,7 +65,7 @@ fn only(function: &Function, predicate: impl Fn(&Instruction) -> bool) -> &Instr
     found[0]
 }
 
-fn definition(function: &Function, entity: EntityId) -> &Instruction {
+pub(super) fn definition(function: &Function, entity: EntityId) -> &Instruction {
     let Definition::InstructionResult { instruction, .. } =
         function.entity(entity).unwrap().definition
     else {
@@ -74,7 +74,7 @@ fn definition(function: &Function, entity: EntityId) -> &Instruction {
     function.instruction(instruction).unwrap()
 }
 
-fn slot(arguments: &[EntityId], entity: EntityId) -> usize {
+pub(super) fn slot(arguments: &[EntityId], entity: EntityId) -> usize {
     let found = arguments
         .iter()
         .enumerate()
@@ -84,18 +84,18 @@ fn slot(arguments: &[EntityId], entity: EntityId) -> usize {
     found[0]
 }
 
-fn transport(function: &Function, edge: &Edge, entity: EntityId) -> EntityId {
+pub(super) fn transport(function: &Function, edge: &Edge, entity: EntityId) -> EntityId {
     function.block(edge.target).unwrap().parameters[slot(&edge.arguments, entity)]
 }
 
-fn branch(block: &Block) -> &Edge {
+pub(super) fn branch(block: &Block) -> &Edge {
     let TerminatorKind::Branch(edge) = &block.terminator.as_ref().unwrap().kind else {
         panic!("expected unconditional branch from {:?}", block.id)
     };
     edge
 }
 
-fn before(function: &Function, first: &Instruction, second: &Instruction) {
+pub(super) fn before(function: &Function, first: &Instruction, second: &Instruction) {
     assert_eq!(
         first.block, second.block,
         "this fixture has straight-line cleanup"
@@ -110,7 +110,12 @@ fn before(function: &Function, first: &Instruction, second: &Instruction) {
     assert!(index(first) < index(second));
 }
 
-fn reaches(function: &Function, from: BlockId, target: BlockId, header: BlockId) -> bool {
+pub(super) fn reaches(
+    function: &Function,
+    from: BlockId,
+    target: BlockId,
+    header: BlockId,
+) -> bool {
     let mut pending = vec![from];
     let mut seen = Vec::new();
     while let Some(block) = pending.pop() {

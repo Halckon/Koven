@@ -30,6 +30,7 @@ struct Carrier {
     exit_live_checked: bool,
     drops: Vec<(DropFact, BlockId, ValueId)>,
     break_exit: Option<(BlockId, ValueId)>,
+    return_start: Option<BlockId>,
     return_current: Option<(BlockId, ValueId)>,
     return_exit: Option<BlockId>,
     backedges: Vec<(IterationPhiIncomingKind, BlockId, ValueId)>,
@@ -41,6 +42,7 @@ struct Carrier {
 pub(in super::super) struct Carriers {
     parameter_seeds: BTreeMap<SymbolId, ValueId>,
     loops: Vec<Carrier>,
+    active_return: Option<ExpressionId>,
 }
 
 impl Carriers {
@@ -54,6 +56,7 @@ impl Carriers {
                 })
                 .collect(),
             loops: Vec::new(),
+            active_return: None,
         }
     }
 }
@@ -67,7 +70,7 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         for fact in self.owned.drops() {
-            let Some(plan) = owner_plan(self.typed, self.owned, *fact)
+            let Some(plan) = owner_plan(self.parsed, self.typed, self.owned, *fact)
                 .filter(|plan| plan.statement == statement && plan.drop == *fact)
             else {
                 continue;
@@ -130,6 +133,7 @@ impl ExpressionLowerer<'_> {
                 exit_live_checked: false,
                 drops: Vec::new(),
                 break_exit: None,
+                return_start: None,
                 return_current: None,
                 return_exit: None,
                 backedges: Vec::new(),
@@ -328,6 +332,24 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
+    // Enter the actual Return evaluation, rather than inferring it from a shared path guard.
+    pub(in super::super) fn begin_map_loop_return(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for carrier in self.map_loop_owners.loops.iter_mut().filter(|carrier| {
+            carrier.plan.return_expression == Some(expression) && carrier.plan.return_call.is_some()
+        }) {
+            if self.map_loop_owners.active_return.is_some() || carrier.return_start.is_some() {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            self.map_loop_owners.active_return = Some(expression);
+            carrier.return_start = Some(self.block);
+        }
+        Ok(())
+    }
+
     // Snapshot after the return operand has completed: it may itself update the Map.
     pub(in super::super) fn prepare_map_loop_return(
         &mut self,
@@ -341,6 +363,26 @@ impl ExpressionLowerer<'_> {
             .filter(|carrier| carrier.plan.return_expression == Some(expression))
         {
             let fail = || error(LoweringErrorKind::MissingFact, span);
+            if carrier.plan.return_call.is_some() {
+                let recorded = unique(
+                    carrier
+                        .drops
+                        .iter()
+                        .filter(|(fact, _, _)| Some(*fact) == carrier.plan.return_drop),
+                )
+                .ok_or_else(fail)?;
+                if self.map_loop_owners.active_return != Some(expression)
+                    || self.bindings.contains_key(&carrier.plan.symbol)
+                    || carrier.return_current != Some((recorded.1, recorded.2))
+                    || carrier.return_exit.is_some()
+                    || carrier.exit_live_checked
+                    || carrier.merge_checked
+                {
+                    return Err(fail());
+                }
+                self.map_loop_owners.active_return = None;
+                continue;
+            }
             let Some(LoweredValue::Value(current)) = self.bindings.get(&carrier.plan.symbol) else {
                 return Err(fail());
             };
@@ -414,8 +456,12 @@ impl ExpressionLowerer<'_> {
         {
             return Ok(());
         }
-        let plan = owner_plan(self.typed, self.owned, fact)
+        let plan = owner_plan(self.parsed, self.typed, self.owned, fact)
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, fact.value_origin()))?;
+        let call_origin = plan
+            .return_call
+            .map(|call| self.expression_span(call))
+            .transpose()?;
         let carrier = self
             .map_loop_owners
             .loops
@@ -428,7 +474,39 @@ impl ExpressionLowerer<'_> {
                         || carrier.plan.return_drop == Some(fact))
             })
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.value_origin()))?;
-        let valid_phase = if Some(fact) == carrier.plan.return_drop {
+        let operand_drop = Some(fact) == carrier.plan.return_drop && plan.return_call.is_some();
+        let valid_phase = if operand_drop {
+            if self.map_loop_owners.active_return != plan.return_expression {
+                return Err(error(
+                    LoweringErrorKind::UnsupportedNode,
+                    fact.value_origin(),
+                ));
+            }
+            !carrier.exit_live_checked
+                && carrier.return_start.is_some()
+                && carrier.return_exit.is_none()
+                && carrier.return_current.is_none()
+                && self
+                    .function
+                    .instructions
+                    .iter()
+                    .filter(|instruction| {
+                        instruction.block == self.block
+                            && call_origin
+                                .is_some_and(|span| instruction.origin == Origin::Source(span))
+                            && match instruction.operation {
+                                Operation::MapRemove { .. } => {
+                                    instruction.results.first() == Some(&EntityId::Value(value))
+                                }
+                                Operation::MapContains { owner, .. } => {
+                                    owner == EntityId::Value(value)
+                                }
+                                _ => false,
+                            }
+                    })
+                    .count()
+                    == 1
+        } else if Some(fact) == carrier.plan.return_drop {
             !carrier.exit_live_checked
                 && carrier.return_exit.is_none()
                 && carrier
@@ -451,6 +529,9 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, fact.value_origin()));
         }
+        if operand_drop {
+            carrier.return_current = Some((self.block, value));
+        }
         carrier.drops.push((fact, self.block, value));
         Ok(())
     }
@@ -459,7 +540,9 @@ impl ExpressionLowerer<'_> {
         for carrier in &self.map_loop_owners.loops {
             let span = carrier.plan.drop.value_origin();
             let fail = || error(LoweringErrorKind::MissingFact, span);
-            if !carrier.merge_checked
+            if self.map_loop_owners.active_return.is_some()
+                || !carrier.merge_checked
+                || carrier.return_start.is_some() != carrier.plan.return_call.is_some()
                 || carrier.drops.len()
                     != 1 + usize::from(carrier.plan.break_drop.is_some())
                         + usize::from(carrier.plan.return_drop.is_some())
@@ -548,7 +631,8 @@ impl ExpressionLowerer<'_> {
                 if Some(*fact) == carrier.plan.return_drop {
                     let (prepared, current) = carrier.return_current.ok_or_else(fail)?;
                     let terminal = carrier.return_exit.ok_or_else(fail)?;
-                    if !lineage(self.function, current, carrier.body)
+                    if carrier.return_start.is_some_and(|start| !cleanup_reaches(self.function, start, *block))
+                        || !lineage(self.function, current, carrier.body)
                         || !forwarded(self.function, *value, current)
                         || !cleanup_reaches(self.function, prepared, *block)
                         || !cleanup_reaches(self.function, *block, terminal)

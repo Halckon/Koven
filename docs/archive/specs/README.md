@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 301 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 302 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -468,3 +468,5 @@
 - [SPEC-0316](0316-single-readonly-value-methods.md)：single非泛型普通Borrow value-class只读方法；PR96实现head双宿主逐名核本片52项与相关回归通过后有界归档，保留nullable/非entry receiver等拒绝与本地红测；最终归档head CI/merge/main待核。
 
 - [SPEC-0317](0317-range-normal-short-circuit.md)：同根词法scope内单层正常Boolean短路；PR97新base物理CI双宿主429 codegen/50 CLI/22 frontend及preview独立安装通过后有界归档，原失败与复杂组合后继保留。
+
+- [SPEC-0318](0318-map-return-operand-last-use.md)：temporary Array<Int>单Map条件return operand最后remove/contains原点清理；PR98精确实现head双宿主555/50/22及preview通过后有界归档，a1取消与云计数项排除保留；归档head CI/merge/main待核。
