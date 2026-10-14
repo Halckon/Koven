@@ -35,6 +35,18 @@ pub(super) fn assert_case_descriptor_at(
         .iter()
         .find(|case| case.id() == case_id)
         .expect("same analysis enum identity");
+    let token = case_token_span(&checked.file, id);
+    let reference = checked
+        .names
+        .references()
+        .iter()
+        .find(|reference| reference.span() == token && reference.namespace() == Namespace::Value)
+        .expect("real source case value reference");
+    assert_eq!(
+        reference.target(),
+        &ReferenceTarget::Symbol(case.value_symbol()),
+        "same root type must not substitute another enum case"
+    );
     let Some(TypeKind::Nominal { nominal, arguments }) =
         checked.raw.types().get(descriptor.result_type())
     else {
@@ -60,15 +72,17 @@ pub(super) fn assert_case_descriptor_at(
         source_unit(&checked.unit.names, checked.file.source_id()),
         id,
     );
-    assert_unit_case_descriptor(&checked.unit.raw, unit_id, operands, generic_int);
+    assert_unit_case_descriptor(&checked.unit, &checked.file, unit_id, operands, generic_int);
 }
 
 pub(super) fn assert_unit_case_descriptor(
-    raw: &CompilationUnitTypes,
+    checked: &UnitEvidence,
+    file: &ParsedFile,
     id: UnitExpressionId,
     operands: usize,
     generic_int: bool,
 ) {
+    let raw = &checked.raw;
     let descriptor = raw
         .construction(id)
         .expect("selected source-qualified construction");
@@ -90,11 +104,26 @@ pub(super) fn assert_unit_case_descriptor(
         .declaration(*declaration)
         .and_then(|declaration| declaration.nominal())
         .expect("real root declaration");
-    assert!(
-        nominal
-            .enum_cases()
-            .iter()
-            .any(|case| case.value_symbol() == case_id)
+    let case = nominal
+        .enum_cases()
+        .iter()
+        .find(|case| case.value_symbol() == case_id)
+        .expect("case belongs to the actual root declaration");
+    let token = case_token_span(file, id.expression());
+    let reference = checked
+        .names
+        .names()
+        .references()
+        .iter()
+        .find(|reference| {
+            reference.source_unit() == id.source_unit()
+                && reference.span() == token
+                && reference.namespace() == Some(Namespace::Value)
+        })
+        .expect("real source-qualified case value reference");
+    assert_eq!(
+        reference.target(),
+        &UnitReferenceTarget::Symbol(case.value_symbol())
     );
     assert_eq!(arguments, descriptor.instance().type_arguments());
     assert_eq!(arguments.len(), usize::from(generic_int));
@@ -272,6 +301,27 @@ pub(super) fn assert_temporary_loan(
     let call = checked.expression(call_text);
     let operand = checked.expression(operand_text);
     let construction = checked.expression(construction_text);
+    let mut inner = operand;
+    let mut groups = Vec::new();
+    while let Expression::Group { expression } = checked
+        .file
+        .ast()
+        .expressions()
+        .get(inner)
+        .unwrap()
+        .payload()
+    {
+        groups.push(inner);
+        inner = *expression;
+    }
+    assert_eq!(
+        inner, construction,
+        "group chain reaches the actual construction"
+    );
+    if operand_text != construction_text {
+        assert_ne!(operand, construction);
+        assert!(!groups.is_empty());
+    }
     let descriptor = checked
         .raw
         .construction(construction)
@@ -349,6 +399,26 @@ pub(super) fn assert_temporary_loan(
         .find(|plan| plan.construction() == unit_construction)
         .expect("unit construction plan");
     let unit_descriptor = checked.unit.raw.construction(unit_construction).unwrap();
+    for group in groups {
+        let unit_group = UnitExpressionId::new(unit_operand.source_unit(), group);
+        assert!(checked.raw.construction(group).is_none());
+        assert!(checked.unit.raw.construction(unit_group).is_none());
+        assert!(owned.construction_plan(group).is_none());
+        assert!(
+            !unit_owned
+                .construction_plans()
+                .iter()
+                .any(|plan| plan.construction() == unit_group)
+        );
+        assert_eq!(
+            checked.raw.expression_type(group),
+            Some(descriptor.result_type())
+        );
+        assert_eq!(
+            checked.unit.raw.expression_type(unit_group),
+            Some(unit_descriptor.result_type())
+        );
+    }
     assert_eq!(unit_plan.target(), unit_descriptor.target());
     assert!(unit_plan.terminating_operand().is_none());
     assert_eq!(plan.deliveries().len(), descriptor.arguments().len());
@@ -372,12 +442,12 @@ pub(super) fn assert_temporary_loan(
     let drops = owned
         .drops()
         .iter()
-        .filter(|drop| drop.target() == DropTarget::Temporary(construction))
+        .filter(|drop| drop.target() == DropTarget::Temporary(operand))
         .collect::<Vec<_>>();
     let unit_drops = unit_owned
         .drops()
         .iter()
-        .filter(|drop| drop.target() == UnitDropTarget::Temporary(unit_construction))
+        .filter(|drop| drop.target() == UnitDropTarget::Temporary(unit_operand))
         .collect::<Vec<_>>();
     if move_only {
         let root = plan
@@ -402,18 +472,30 @@ pub(super) fn assert_temporary_loan(
         );
         assert_eq!(drops.len(), 1, "unique owner consumption");
         assert_eq!(drops[0].point(), DropPoint::CallReturn(call));
-        assert_eq!(drops[0].value_origin(), span(&checked.file, construction));
+        assert_eq!(drops[0].value_origin(), span(&checked.file, operand));
         assert_eq!(unit_drops.len(), 1, "unique unit owner consumption");
         assert_eq!(unit_drops[0].point(), UnitDropPoint::CallReturn(unit_call));
-        assert_eq!(
-            unit_drops[0].value_origin(),
-            span(&checked.file, construction)
-        );
+        assert_eq!(unit_drops[0].value_origin(), span(&checked.file, operand));
     } else {
         assert!(plan.root_obligation().is_none());
         assert!(unit_plan.root_obligation().is_none());
         assert!(drops.is_empty(), "Copyable has no unique drop");
         assert!(unit_drops.is_empty(), "unit Copyable has no unique drop");
+    }
+    if operand != construction {
+        assert!(
+            !owned
+                .drops()
+                .iter()
+                .any(|drop| drop.target() == DropTarget::Temporary(construction)),
+            "inner construction cannot create a second owner consumption"
+        );
+        assert!(
+            !unit_owned
+                .drops()
+                .iter()
+                .any(|drop| drop.target() == UnitDropTarget::Temporary(unit_construction))
+        );
     }
     for (argument, delivery) in descriptor.arguments().iter().zip(plan.deliveries()) {
         let expected = payload_kind.expect("source fixture declares a payload");
@@ -525,6 +607,55 @@ pub(super) fn assert_place_loan(
 ) {
     let call = checked.expression(call_text);
     let operand = checked.expression(operand_text);
+    let (root_span, field_expressions) = place_source_path(&checked.file, operand);
+    let root_reference = checked
+        .names
+        .references()
+        .iter()
+        .find(|reference| {
+            reference.span() == root_span && reference.namespace() == Namespace::Value
+        })
+        .expect("actual source binding reference");
+    let ReferenceTarget::Symbol(expected_root) = root_reference.target() else {
+        panic!("source place root binding");
+    };
+    let expected_fields = field_expressions
+        .iter()
+        .map(|expression| {
+            checked
+                .raw
+                .aggregate_projection(*expression)
+                .expect("selected source field")
+                .field()
+        })
+        .collect::<Vec<_>>();
+    let unit_source = source_unit(&checked.unit.names, checked.file.source_id());
+    let unit_root_reference = checked
+        .unit
+        .names
+        .names()
+        .references()
+        .iter()
+        .find(|reference| {
+            reference.source_unit() == unit_source
+                && reference.span() == root_span
+                && reference.namespace() == Some(Namespace::Value)
+        })
+        .expect("actual source-qualified binding reference");
+    let UnitReferenceTarget::Symbol(expected_unit_root) = unit_root_reference.target() else {
+        panic!("unit place root binding");
+    };
+    let expected_unit_fields = field_expressions
+        .iter()
+        .map(|expression| {
+            checked
+                .unit
+                .raw
+                .aggregate_projection(UnitExpressionId::new(unit_source, *expression))
+                .expect("selected source-qualified field")
+                .field()
+        })
+        .collect::<Vec<_>>();
     let owned = checked.accepted_single();
     let loans = owned
         .loans()
@@ -535,6 +666,15 @@ pub(super) fn assert_place_loan(
     let LoanTarget::Place(place) = loans[0].target() else {
         panic!("real binding/field/element remains Place");
     };
+    assert_eq!(place.root(), *expected_root);
+    assert_eq!(place.fields(), expected_fields.as_slice());
+    assert!(expected_fields.iter().all(|id| {
+        checked
+            .names
+            .symbols()
+            .iter()
+            .any(|symbol| symbol.id() == *id && symbol.kind() == SymbolKind::Field)
+    }));
     let symbol = checked
         .names
         .symbols()
@@ -578,6 +718,20 @@ pub(super) fn assert_place_loan(
     let UnitLoanTarget::Place(place) = unit_loan.target() else {
         panic!("unit real place target");
     };
+    assert_eq!(place.root(), *expected_unit_root);
+    assert_eq!(place.root().source_unit(), unit_source);
+    assert_eq!(place.fields(), expected_unit_fields.as_slice());
+    for field in &expected_unit_fields {
+        assert_eq!(field.source_unit(), unit_source);
+        let resolution =
+            checked.unit.names.names().source_units()[field.source_unit().index()].resolution();
+        assert!(
+            resolution
+                .symbols()
+                .iter()
+                .any(|symbol| symbol.id() == field.symbol() && symbol.kind() == SymbolKind::Field)
+        );
+    }
     let resolution =
         checked.unit.names.names().source_units()[place.root().source_unit().index()].resolution();
     let root = resolution

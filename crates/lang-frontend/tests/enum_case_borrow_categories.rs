@@ -229,6 +229,17 @@ fn selected_case_qualifiers_keep_final_admission_precise() {
     // Rejected runtime receivers and unfinished constructions must not acquire static
     // qualifier privileges. These controls are examined independently of positive final.
     for (checked, operand, token, code) in &negative {
+        let Expression::Member { name_span, .. } = checked
+            .file
+            .ast()
+            .expressions()
+            .get(checked.expression(operand))
+            .unwrap()
+            .payload()
+        else {
+            panic!("negative source Member");
+        };
+        let expected_primary = *name_span;
         assert!(
             checked
                 .raw
@@ -246,6 +257,11 @@ fn selected_case_qualifiers_keep_final_admission_precise() {
             let diagnostics = source_diagnostics(result);
             assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
             assert_eq!(diagnostics[0].code().to_string(), *code);
+            assert_eq!(
+                diagnostics[0].primary_span(),
+                expected_primary,
+                "reject the actual runtime member or unfinished case token"
+            );
             assert_eq!(
                 checked.sources.slice(diagnostics[0].primary_span()),
                 Ok(*token)
@@ -319,13 +335,22 @@ fn borrowed_case_values_publish_call_scoped_temporary_loans() {
     let grouped = DIRECT.replace("read(Flag.On)", "read(((Flag.On)))");
     let move_short = "enum class Msg { Text(text: String), Quit; fun fromShort(): Int = read(Quit) }\nfun read(value: Msg): Int = 7\n";
     let evidence = [
-        SHORT, move_short, DIRECT, &grouped, MOVE_ONLY, GENERIC, PAYLOADS,
+        SHORT, move_short, DIRECT, &grouped, MOVE_ONLY, GENERIC, PAYLOADS, MOVE_GROUP,
     ]
     .map(collect);
     // The short-name case has its own source analysis. In particular, a correct raw
     // Temporary category must not hide ownership choosing an EnumVariant as a Place.
     for (checked, construction, operand, call, move_only, payload, generic) in [
         (&evidence[0], "On", "On", "read(On)", false, None, false),
+        (
+            &evidence[7],
+            "Msg.Quit",
+            "((Msg.Quit))",
+            "read(((Msg.Quit)))",
+            true,
+            None,
+            false,
+        ),
         (
             &evidence[1],
             "Quit",
@@ -495,7 +520,7 @@ fn cross_file_case_aliases_preserve_source_qualified_identity() {
             assert_eq!(case.name_span().source_id(), provider_id);
             assert!(descriptor.arguments().is_empty());
             assert_eq!(descriptor.result_type(), case.value_type());
-            assert_unit_case_descriptor(&checked.raw, value, 0, false);
+            assert_unit_case_descriptor(checked, &consumer, value, 0, false);
             let Some(UnitTypeKind::Nominal {
                 declaration,
                 arguments,

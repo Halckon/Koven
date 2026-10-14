@@ -8,6 +8,7 @@ pub(super) const Q08: &str =
     include_str!("../fixtures/enum-case-borrow-0320/q08_enum_string_payload.ko");
 pub(super) const SHORT: &str = "enum class Flag { On, Off; fun fromShort(): Int = read(On) }\nfun read(value: Flag): Int = 7\n";
 pub(super) const MOVE_ONLY: &str = "enum class Msg { Text(text: String), Quit }\nfun read(value: Msg): Int = 7\nfun main(): Unit { if (read(Msg.Quit) == 7) { println(\"empty-borrow\") }; if (read(Msg.Text(\"payload\")) == 7) { println(\"payload-borrow\") } }\n";
+pub(super) const MOVE_GROUP: &str = "enum class Msg { Text(text: String), Quit }\nfun read(value: Msg): Int = 7\nfun grouped(): Int = read(((Msg.Quit)))\n";
 pub(super) const INOUT: &str = "enum class Flag { On, Off }\nfun touch(inout value: Flag): Unit {}\nfun main(): Unit { touch(&Flag.On) }\n";
 pub(super) const MUTABLE: &str = "enum class Flag { On, Off }\nfun touch(inout value: Flag): Unit {}\nfun main(): Unit { var value = Flag.On; touch(&value) }\n";
 pub(super) const PLACES: &str = "enum class Flag { On, Off }\n\
@@ -406,5 +407,32 @@ fn print_final_evidence(entrance: &str, result: &Result<(), FinalTypeAdmissionEr
         Err(FinalTypeAdmissionError::Internal(error)) => {
             println!("[0320 {entrance}] final=Internal({error:?})")
         }
+    }
+}
+
+// The token comes from the real constructor AST, including payload Call callees.
+pub(super) fn case_token_span(file: &ParsedFile, id: ExpressionId) -> Span {
+    let node = file.ast().expressions().get(id).unwrap();
+    match node.payload() {
+        Expression::Call { callee, .. } => case_token_span(file, *callee),
+        Expression::Member { name_span, .. } => *name_span,
+        Expression::Name => node.span(),
+        other => panic!("source case target must be Name/Member: {other:?}"),
+    }
+}
+
+// Locate source references without asking either ownership checker to classify a place.
+pub(super) fn place_source_path(file: &ParsedFile, id: ExpressionId) -> (Span, Vec<ExpressionId>) {
+    let node = file.ast().expressions().get(id).unwrap();
+    match node.payload() {
+        Expression::Group { expression } => place_source_path(file, *expression),
+        Expression::Index { receiver, .. } => place_source_path(file, *receiver),
+        Expression::Member { receiver, .. } => {
+            let (root, mut fields) = place_source_path(file, *receiver);
+            fields.push(id);
+            (root, fields)
+        }
+        Expression::Name => (node.span(), Vec::new()),
+        other => panic!("fixture has a source binding/field/element path: {other:?}"),
     }
 }
