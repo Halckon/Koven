@@ -4,7 +4,9 @@ use crate::{
     ast::ExpressionId,
     name_resolution::{Namespace, SourceUnitId, UnitReferenceTarget},
     parser::Expression,
-    type_checking::{ExpressionCategory, UnitAggregateProjectionKind, UnitTypeId},
+    type_checking::{
+        ExpressionCategory, UnitAggregateProjectionKind, UnitConstructionTarget, UnitTypeId,
+    },
 };
 
 use super::{BodyChecker, UnitExpressionId};
@@ -15,6 +17,13 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: ExpressionId,
     ) -> ExpressionCategory {
+        let id = UnitExpressionId::new(source, expression);
+        if self.parts.constructions.iter().any(|construction| {
+            construction.expression() == id
+                && matches!(construction.target(), UnitConstructionTarget::EnumCase(_))
+        }) {
+            return ExpressionCategory::Temporary;
+        }
         if self
             .parts
             .constant_selections

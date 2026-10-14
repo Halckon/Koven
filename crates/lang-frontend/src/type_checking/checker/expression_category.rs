@@ -1,5 +1,5 @@
 //! 单文件表达式 value-category；调用检查继续消费同一事实。
-use crate::parser::Expression;
+use crate::{parser::Expression, type_checking::ConstructionTarget};
 
 use super::*;
 
@@ -9,6 +9,12 @@ impl Checker<'_> {
         expression: ExpressionId,
         ty: TypeId,
     ) -> ExpressionCategory {
+        if self.constructions.iter().any(|construction| {
+            construction.expression() == expression
+                && matches!(construction.target(), ConstructionTarget::EnumCase(_))
+        }) {
+            return ExpressionCategory::Temporary;
+        }
         if self
             .associated_constant_uses
             .contains_key(&expression.index())

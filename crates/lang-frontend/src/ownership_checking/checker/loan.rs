@@ -7,8 +7,8 @@ use crate::{
     },
     source::Span,
     type_checking::{
-        AggregateProjectionKind, AggregateProjectionReceiver, Copyability, ElementPlaceDescriptor,
-        ExpressionCategory, NominalKind, ParameterMode, TypeKind,
+        AggregateProjectionKind, AggregateProjectionReceiver, ConstructionTarget, Copyability,
+        ElementPlaceDescriptor, ExpressionCategory, NominalKind, ParameterMode, TypeKind,
     },
 };
 
@@ -48,7 +48,14 @@ impl Checker<'_> {
         &self,
         expression: ExpressionId,
     ) -> Result<Option<OwnershipPlace>, OwnershipCheckingError> {
-        if self.is_constant_use(expression) {
+        if self.is_constant_use(expression)
+            || self
+                .typed
+                .construction(expression)
+                .is_some_and(|construction| {
+                    matches!(construction.target(), ConstructionTarget::EnumCase(_))
+                })
+        {
             return Ok(None);
         }
         let node = self.parsed.ast().expressions().get(expression)?;
