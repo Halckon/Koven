@@ -13,7 +13,7 @@
 | 分支基线 | `fix/spec-0320` 显式依赖0319本地最终 `6c1a11ca87b642849c6ba7c3be008a7aebece759` / tree `e2d1a5179c7102336154570c95cbd6e6774b5799`；初始依赖；随后保留真实双父正常合入0319实际main `a0f5f8ac46a33dc291b814a8bdeae4dae5eed64b` / tree `d28e30ad91e2f02d6bc04cb7ffb0605e8798630b` |
 | 官方核验 | 初次只读fetch main `18865460`时全局最大编号0319，0320按批准保留；本次官方fetch与正常merge确认上述actualmain，未改写已发布历史 |
 | 语言语义变更 | 否；既有Guide已规定无payload case为构造值、Borrow temporary合法、Inout temporary非法 |
-| 阻塞项 | 设计独审通过；CLI2与frontend5 tests-only已固定，实际main已同步；frontend helper独审与真正expected-positive红测尚待，本片未实现、未验收 |
+| 阻塞项 | 10 exact基线已实跑：FE5+CLI2行为红、旧codegen3拒绝合同绿；最小生产修复与回归待完成，本片未验收 |
 
 ## 1. 单一 Goal
 
@@ -95,8 +95,8 @@ UnsupportedNode及`Shape.Point -> 0` Span，`move_only_enum_when_waits_for_branc
 
 ## 5. 拟精确红测与安全边界
 
-以下7个tests-only目标已落地，尚未编译/执行，不是开测名单。CLI2已完成helper独审，
-frontend5固定后交审；源manifest与预期随输入冻结，逐名授权后再运行；普通源码只读facts，不构造伪descriptor/IR或强制observer失败。
+以下7个tests-only目标已落地并完成helper独审，按固定名单实跑为行为红；另3个既有codegen
+拒绝合同保持绿，见下节。源manifest与预期随输入冻结，新增目标仍须逐名审查授权；普通源码只读facts，不构造伪descriptor/IR或强制observer失败。
 
 | tests-only target / 精确函数 | 要锁的合同与helper |
 |---|---|
@@ -113,14 +113,34 @@ ownership construction临时owner与drop、字段/元素place、原两个unit wh
 必须静读每个实际helper后再运行；不继承0319的81计数、不跑suite/discover或云故障、counted、
 sanitizer、calibration、stage/aggregate。双宿主CI继续按真实工作流验收，新增target须显式接线。
 
-## 6. 状态与停止条件
+## 6. 真实基线（未修复）
+
+固定`fc68e0e8332cb7014b99a9b44fbd7d2f82a3b79d` / tree`cf94e411`，生产与实际main `a0f5f8ac`相同。
+Rust/Cargo1.96.0、LLVM/Clang21.1.8；独占绝对target、`--locked`及完整`--exact`串行10项，
+7行为红/3既有拒绝合同绿，无编译接线、源码前置或零命中失败。1433源文件前后NUL摘要均为
+`ba706c021df158f6df2522c46636cb5235286a3131de9af62d0748d725edc1c2`。
+
+| 分层 | 真实结果与断言范围 |
+|---|---|
+| raw category | 首断言unit短名Borrow为Place而非Temporary；跨文件qualified同样Place；single短名category虽Temporary，真实loan却为EnumVariant的Place |
+| final资格 | 正例`Flag.On`的静态`Flag` `[87,91)`在single/unit分别为Error根因缺失/表达式类型缺失Internal；它们由独立结果采集证明，不能冒称已执行全部positive oracle |
+| 原L0144保护 | `Maybe.None`在raw已有`None` `[86,90)` L0144；final反而在静态`Maybe` `[80,85)`报Internal，成为该目标首个失败；需按真实构造根因窄恢复，不能全局压制Internal |
+| Inout | `&Flag.On`首断言raw诊断为空，未产生预期L0122；mutable对照已采结果，后续oracle未执行 |
+| CLI2 | single/basic/constant的build/run共6进程均已采；首失败是上述final缺事实，single exit2、project exit1，constant偏移为`Flag` `[125,129)`；0产物运行 |
+| 旧codegen3 | 同源码`take(Shape.Point)` MissingFact与两个when UnsupportedNode各1/1绿；前者只是旧bug拒绝，尚未迁成功合同，后两项不扩能力 |
+
+FE共32组源码分析（28single+32unit）均完成分采；每目标首个断言后的oracle未执行，不能把采集数当通过数。
+原始10日志、完整argv/结果/manifest与收据保留仓外`spec0320-tests-evidence/baseline1/`，不把作者矩阵倒写成本轮结果。
+
+## 7. 状态与停止条件
 
 - [x] 官方main/编号静核，保留0320；新worktree基6c，0319依赖显式记录。
 - [x] Guide构造身份、Borrow temporary与Inout限制核对；原两probe字节与作者矩阵分账。
 - [x] 草案独审，批准迁active并准备tests-only。
 - [x] 实际main正常merge与tests-only固定；无生产改动。
-- [ ] 新frontend helper逐名独审与开测授权；CLI2 helper已审，均未运行。
-- [ ] 真实expected-positive红测、最小分类修复及不误杀/原when边界回归。
+- [x] frontend5、CLI2与旧codegen3安全逐名独审，固定10 exact真实基线完成。
+- [x] 真实expected-positive及诊断保护红测，前置final/短名loan根因分账。
+- [ ] 最小分类/loan/构造qualifier修复及不误杀、旧oracle迁移和原when边界回归。
 - [ ] 工程门禁、双宿主CI、Architecture/验收归档及主干交付。
 
 若必须修改Guide、重写通用place解析、放宽所有权或扩展when才能达成目标，停止并报告。
