@@ -1,5 +1,6 @@
 //! Normal source only: original object/link/run; no IR editing or allocation instrumentation.
-use super::{assert_success, emit_link_and_run};
+use super::resource_exchange_tests::run_unit;
+use crate::native_tests::{boxed_enum_tests::assert_success, emit_link_and_run};
 
 const SOURCE: &str = include_str!("../../tests/fixtures/map-return-last-use-0318/cardinality.ko");
 const EXPECTED: &[u8] =
@@ -13,7 +14,7 @@ fn single_map_operand_last_use_native_cardinality() {
 
 fn unit(constants: bool) {
     let provider = format!("package p\n{SOURCE}");
-    let (run, _) = super::super::resource_exchange_tests::run_unit(
+    let (run, _) = run_unit(
         &provider,
         "package q\nfun entry(): Unit { p.main() }",
         constants,

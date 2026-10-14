@@ -120,3 +120,6 @@ remove的offset0命中与offset100缺失分开调用，contains独立对照；�
 
 baseline2的精确测试输入、逐文件manifest、命令与原始日志保存在仓外；替换首检查点测试文件
 即可重建该批次输入，反算manifest汇总等于已记录的`e3f90ced…3136`，没有更改原结果。
+
+独立静审发现第二检查点新 native module 的两处导入沿用了旧嵌套模块路径；已按真实
+`native::unit_tests` 挂载位置更正 helper 路径。尚未编译或运行，不能作为目标行为红测。
