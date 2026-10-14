@@ -43,6 +43,8 @@ Nothing 仍明确拒绝。它们留独立后继，因为当前合同仅证明既
 
 ## 3. 唯一验收矩阵
 
+本地302/429保留原始执行结果；其云上执行范围不合规事项见[§6更正](#6-云验收范围更正2026-10-14)，不得整体视为原版native云验收。
+
 | 验收项 | 精确目标/过滤器 | 实际状态 |
 |---|---|---|
 | 新真实源码红测：2 op × 3 用法 × 5 入口；动态四组 LHS/RHS | codegen lib `range_short_circuit_`，single、unit basic/constant、provider 正逆序；String/MoveOnly/Resource 同根父子兄弟 | tests-only `50fda166`：43目标精确UnsupportedNode/Span红；循环首例阻断后续fixture的边界见下文。最终1976通过 |
@@ -164,3 +166,18 @@ sentinel未变且清理成功。此为远端产物静态核验，未在云工作
 冻结正常短路合同，§2后继继续开放。归档提交仅文档，Guide及全部非docs输入不变；
 归档head的远端检查、PR合并批准及actual-main CI尚未完成，不提前记作main交付。
 当前交付状态唯一维护于[Specs近期交付](../../specs/README.md#近期交付)。
+
+
+## 6. 云验收范围更正（2026-10-14）
+
+静态复核确认，旧shared回归、固定`1976cc2b`的302项验收、固定`e0fc96a2`的429项联合
+各有一份内容不同的原始日志，三次均实际执行了同一个目标：
+`ssa::unit_lower_short_circuit_tests::rhs_only_move_uses_published_short_circuit_cleanup_on_both_exits`。
+该测试调用`run_counted_allocations`，将LLVM的`malloc/free`改写为计数函数后执行；
+每批均含这1个不符合用户“云上不插桩”限制的目标，不能把原302/429整批称为合规的
+原版LLVM/native云验收。本页此前关于云执行范围的概括以本更正为准。
+
+三份原日志、成功结果及其hash均原样留仓外，不删除或改称未执行。本次只更正文档，
+没有重跑，也不把扣除该项后的数量当作新的验收。今后云端选择开测前排除该目标，
+保留原测试供允许它的CI执行；§5远端物理CI已通过的事实仍有效。新短路fixtures本身的
+原版LLVM/native证据不受此项既有共享测试的执行方式影响。
