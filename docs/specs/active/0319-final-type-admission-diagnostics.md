@@ -174,6 +174,7 @@ strict失败不得进入ownership的证明随真实接线补齐，不用forced o
 | 下划线修复 | `b97405fed9b3cd111b1692187b6583246796d598` / tree `fb0fde31e43794a6de88b791e7a5ecf405191862`：按AST角色与真实声明区分ordinary `_`和for discard；原两个精确目标各1/1绿，全部子case断言执行 |
 | 横向原oracle回归 | 同b974的已审78exact实际77绿/1红；与定向2去重共80，79通过。原`project_constants_build_run_and_preserve_outputs_on_invalid_constants`首个build被final gate误拒，落在`lib.Labels.TEXT`的`lib` `[89,92)`缺类型；后续native/产物保留断言未执行，原success oracle未改 |
 | 联合输入冻结 | 定向2与联合78两批1424源前后摘要均`64d6e896660d259a5cf1f8345e2bfe458db60955db4963a1535f5d8b10d69f5b`；其余CLI readonly/range/短路/阶段输出、frontend及LSP逐exact原断言通过。CLI名单没有Map fixture，不宣称Map公开入口覆盖 |
+| 常量限定符近邻红测 | `2eb567d1a13ee75c02cd9814a505cbe95eccef62`：3普通源码case×两输入序，6组均核真实constant-use/Package/Type及局部同名lib的Value/Symbol，实际均误报Internal；oracle止于首个成功例。早先未分组反例在names前置失败另存原日志，不计本目标行为红；1424源前后摘要`7577f5b1e5085b0b898560eeffb6beb7d81475fe9134f7f09299a1b462fa6cd3` |
 | 待完成 | 修复已选常量的package/type限定符识别，复跑原成功oracle/联合及工程门禁、本片CI；没有故障/插桩或全量云测试 |
 | 草案阶段 docs / diff / 库存 / DAG | Python文档检查672页通过，diff通过；当时active0/archive302、draft新增0319 |
 | active迁移 | 0319迁入active，archive302不变；draft库存移除0319，四份DAG随生命周期重建 |
