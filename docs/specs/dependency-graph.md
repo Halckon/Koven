@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 300 份"))
+ARCH(("已完成<br/>archive 301 份"))
 subgraph Gactive["现行 active"]
   S0318["S0318<br/>Map 条件 return operand 的最后使用清理"]
 end
@@ -30,4 +30,4 @@ ARCH --> S0318
 | SPEC-0318 | active | [0318-map-return-operand-last-use.md](active/0318-map-return-operand-last-use.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| 已完成 Spec（300 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（301 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

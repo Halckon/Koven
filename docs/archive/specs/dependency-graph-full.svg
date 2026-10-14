@@ -6,7 +6,7 @@
   </defs>
   <rect width="8808" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="7672" height="9280" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，300 份）</text>
+  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，301 份）</text>
   <rect x="7776" y="9324" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="7916" y="9344" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="8120" y="7974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1034,6 +1034,7 @@
   <path d="M 180 8532 C 180 8564, 444 8564, 444 8596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 8394 C 444 8426, 444 8564, 444 8596" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 8082 C 444 8114, 708 8132, 708 8164" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 444 8082 C 444 8114, 1236 8288, 1236 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 8688 C 444 8720, 180 8720, 180 8752" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 8688 C 444 8720, 444 8858, 444 8890" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 8082 C 708 8114, 444 8132, 444 8164" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1047,6 +1048,7 @@
   <path d="M 180 9138 C 180 9170, 180 9170, 180 9202" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 9092 C 4048 9092, 4048 9404, 7796 9404" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 9248 C 4048 9248, 4048 9404, 7796 9404" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 708 8238 C 708 8270, 1236 8288, 1236 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2317,6 +2319,9 @@
   <text x="444" y="867" text-anchor="middle" font-size="13">single value-c</text>
   <text x="444" y="885" text-anchor="middle" font-size="13">lass 普通 Borrow</text>
   <text x="444" y="903" text-anchor="middle" font-size="13"> 只读方法</text>
+  <rect x="1116" y="8320" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1236" y="8343" text-anchor="middle" font-size="13">SPEC-0317</text>
+  <text x="1236" y="8361" text-anchor="middle" font-size="13">同根范围绑定内的有界正常短路</text>
   <rect x="7796" y="9358" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="7916" y="9381" text-anchor="middle" font-size="13" font-weight="600">SPEC-0318</text>
   <text x="7916" y="9399" text-anchor="middle" font-size="13">Map 条件 return </text>
