@@ -9,6 +9,7 @@ pub(super) const Q08: &str =
 pub(super) const SHORT: &str = "enum class Flag { On, Off; fun fromShort(): Int = read(On) }\nfun read(value: Flag): Int = 7\n";
 pub(super) const MOVE_ONLY: &str = "enum class Msg { Text(text: String), Quit }\nfun read(value: Msg): Int = 7\nfun main(): Unit { if (read(Msg.Quit) == 7) { println(\"empty-borrow\") }; if (read(Msg.Text(\"payload\")) == 7) { println(\"payload-borrow\") } }\n";
 pub(super) const MOVE_GROUP: &str = "enum class Msg { Text(text: String), Quit }\nfun read(value: Msg): Int = 7\nfun grouped(): Int = read(((Msg.Quit)))\n";
+pub(super) const MIXED_FAILURES: &str = "enum class Maybe<T> { Some(item: T), None }\nfun invalid(n: Int): Unit { val missing = Maybe.None; n.fooBar() }\nfun shadow(Maybe: String): Unit { (Maybe).None }\n";
 pub(super) const INOUT: &str = "enum class Flag { On, Off }\nfun touch(inout value: Flag): Unit {}\nfun main(): Unit { touch(&Flag.On) }\n";
 pub(super) const MUTABLE: &str = "enum class Flag { On, Off }\nfun touch(inout value: Flag): Unit {}\nfun main(): Unit { var value = Flag.On; touch(&value) }\n";
 pub(super) const PLACES: &str = "enum class Flag { On, Off }\n\

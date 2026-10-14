@@ -226,9 +226,15 @@ fn selected_case_qualifiers_keep_final_admission_precise() {
         ("enum class Flag { On, Off }\nvalue class Holder(val Flag: String)\nfun invalid(holder: Holder): Int = holder.Flag.On\n", "holder.Flag.On", "On", "L0080"),
         ("enum class Maybe<T> { Some(item: T), None }\nfun invalid(): Unit { val missing = Maybe.None }\n", "Maybe.None", "None", "L0144"),
     ].map(|(text, operand, token, code)| (collect(text), operand, token, code));
+    let mixed = collect(MIXED_FAILURES);
     for (checked, operand, _, _) in &negative {
         log_unselected_member(checked, operand);
     }
+    for member in ["Maybe.None", "n.fooBar", "(Maybe).None"] {
+        log_unselected_member(&mixed, member);
+    }
+    assert_failed_case_raw(&negative[2].0, "Maybe.None");
+    assert_failed_case_raw(&mixed, "Maybe.None");
     // Rejected runtime receivers and unfinished constructions must not acquire static
     // qualifier privileges. These controls are examined independently of positive final.
     for (checked, operand, token, code) in &negative {
@@ -274,6 +280,30 @@ fn selected_case_qualifiers_keep_final_admission_precise() {
                 checked.file.source_id()
             );
         }
+    }
+    let expected = [
+        (
+            "L0144".to_owned(),
+            case_token_span(&mixed.file, mixed.expression("Maybe.None")),
+        ),
+        (
+            "L0080".to_owned(),
+            case_token_span(&mixed.file, mixed.expression("n.fooBar")),
+        ),
+        (
+            "L0080".to_owned(),
+            case_token_span(&mixed.file, mixed.expression("(Maybe).None")),
+        ),
+    ];
+    for result in [&mixed.final_result, &mixed.unit.final_result] {
+        let actual = source_diagnostics(result)
+            .iter()
+            .map(|diagnostic| (diagnostic.code().to_string(), diagnostic.primary_span()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual, expected,
+            "the failed case cannot suppress independent runtime roots"
+        );
     }
     for (checked, construction) in [
         (&positive[1], "Flag.On"),

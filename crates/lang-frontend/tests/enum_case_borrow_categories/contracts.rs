@@ -761,3 +761,46 @@ pub(super) fn assert_place_loan(
     }
     assert_eq!(place.element().is_some(), element);
 }
+
+// Preserve the two existing recovery representations; neither is a selected construction.
+pub(super) fn assert_failed_case_raw(checked: &Evidence, member: &str) {
+    let id = checked.expression(member);
+    let unit_id = checked.unit_expression(member);
+    let token = case_token_span(&checked.file, id);
+    let reference = checked
+        .names
+        .references()
+        .iter()
+        .find(|reference| reference.span() == token && reference.namespace() == Namespace::Value)
+        .expect("failed case still has its original value reference");
+    let ReferenceTarget::Symbol(symbol) = reference.target() else {
+        panic!("real source enum case symbol");
+    };
+    let case = checked
+        .raw
+        .enum_cases()
+        .iter()
+        .find(|case| case.value_symbol() == *symbol)
+        .expect("same-analysis case descriptor");
+    assert!(case.payloads().is_empty());
+    assert_eq!(checked.raw.expression_type(id), Some(case.root_type()));
+    assert!(
+        matches!(checked.raw.types().get(case.root_type()), Some(TypeKind::Nominal { nominal, arguments }) if *nominal == case.root() && !arguments.is_empty())
+    );
+    let unit_ty = checked
+        .unit
+        .raw
+        .expression_type(unit_id)
+        .expect("real failed Member type");
+    assert_eq!(
+        checked.unit.raw.types().get(unit_ty),
+        Some(&UnitTypeKind::Error)
+    );
+    assert!(checked.raw.construction(id).is_none());
+    assert!(checked.unit.raw.construction(unit_id).is_none());
+    for diagnostics in [checked.raw.diagnostics(), checked.unit.raw.diagnostics()] {
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code().to_string(), "L0144");
+        assert_eq!(diagnostics[0].primary_span(), token);
+    }
+}
