@@ -40,7 +40,7 @@ arithmetic success edge 运输；地址和旧值身份继续严格校验。retur
 
 ## Single 普通 Borrow value-class 方法
 
-[SPEC-0316](../specs/active/0316-single-readonly-value-methods.md) 接通非泛型 value class 的
+[SPEC-0316](../archive/specs/0316-single-readonly-value-methods.md) 接通非泛型 value class 的
 默认/显式 Borrow 方法，owned 返回 Int/Boolean。方法模板来自已验证 callable SymbolId；
 只有既有顶层 roots 的真实已选 call 可达时才建实例，同名不同 owner 与顶层函数不串路。
 隐藏 receiver 是首个 shared entry loan，独立于显式参数；裸字段与 `this.field` 消费真实

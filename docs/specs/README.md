@@ -9,9 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [0316 single value-class 只读方法](active/0316-single-readonly-value-methods.md)：无Map最小红测与普通 Borrow receiver 的 owned Int/Boolean 返回已完成本地定向验收；双宿主CI与交付待核。
-
-- [Active 合同](active/README.md)：当前 1 份。
+- [Active 合同](active/README.md)：当前 0 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -21,7 +19,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 （tree `45ab7de3c9dee1996a108ff9d3d1b748e7c84621`）冻结以下有界清单。
 这是收尾范围与完成条件，不表示 M2B 全部能力完成，也不自动批准新语义或未建立的 Spec。
 
-- [ ] single 普通 Borrow 非泛型 value-class 的只读方法：[0316](active/0316-single-readonly-value-methods.md)已完成独立真实红测、有界修复及本地定向验收，双宿主CI与交付待核；首片限 owned Int/Boolean 结果，不扩通用 receiver 借用返回。unit 直接字段已由0309接通，不能再列为同一实现缺口。
+- [ ] single 普通 Borrow 非泛型 value-class 的只读方法：[0316](../archive/specs/0316-single-readonly-value-methods.md)已完成独立真实红测、有界修复及双宿主实现head CI，已按有界合同归档；归档head CI、合并与actual-main待核；首片限 owned Int/Boolean 结果，不扩通用 receiver 借用返回。unit 直接字段已由0309接通，不能再列为同一实现缺口。
 - [ ] 范围绑定函数内的 `&&`/`||`：独立定位并冻结最小合同，核求值一次、未选后缀不执行与 root/loan/cleanup。最终收尾前必须落实独立 Spec 或本节的明确延期条目及理由；当前待选，不计实现。
 - [ ] return operand 内更新 Map：与前项分别定位、冻结当前 owner 和终止路径清理合同；最终收尾前同样必须落实独立 Spec 或明确延期条目及理由。不能从0313/0314的条件 return 成功推定该组合已支持。
 - [ ] 最终联合验收：在选定切片整合后的精确 SHA 上，覆盖 single、unit（含适用的 basic/constant 及 provider 输入顺序）、公开 CLI 的代表源码；逐项记录输入 SHA、入口、真实 fixture/测试名、正例与精确诊断负例、命令/CI链接及实际执行状态。分别核 owner/loan 身份、清理次序与正常执行，不把 stdout 当动态释放计数；CLI 不继承 codegen 入口能力。
@@ -34,6 +32,8 @@ List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 f
 已有顺序迭代及 take/drop/dropLast 不重新列待做，候选继续遵守现行 Guide 与各自前置。
 
 ### 近期交付
+
+- [0316 single value-class 只读方法](../archive/specs/0316-single-readonly-value-methods.md)：[实现CI](https://github.com/Halckon/Koven/actions/runs/38528485581)双宿主逐名核验本片52、共享70、CLI4与frontend22项通过；[PR96](https://github.com/Halckon/Koven/pull/96)按有界合同归档，原失败/receiver来源边界保留；归档head CI、合并与actual-main待核。
 
 以下0308–0315于2026-10-14按 GitHub 的 merged 状态、精确归档 head 与各自 merge SHA 的 run 重新核对。
 归档 CI 与 actual-main push CI 均已成功；实现物理测试、归档复用和 main 执行仍是不同证据层。
@@ -76,7 +76,7 @@ List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 f
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：299 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：300 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期

@@ -1,15 +1,15 @@
 # SPEC-0316: single value-class 普通 Borrow 只读方法
 
-> **性质**：有界变更合同 · **状态**：in-progress · **读取时机**：实施 single 普通 receiver 方法时 · **唯一真源**：本页合同与验收；语言语义以 Guide 为准
+> **性质**：有界变更合同 · **状态**：done · **读取时机**：追溯 single 普通 receiver 方法首片验收时 · **唯一真源**：本页合同与验收；语言语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0316` |
 | 所属 Phase | Phase 4 typed SSA 与 native |
 | 语言规范 | [Guide v0.43](../../guide/README.md)、[Receiver](../../guide/08-class-family-members.md#instance-receiver-与静态分发) |
 | 批准依据 | 2026-10-14 用户“按建议顺序继续实施”；具体合并仍需批准 |
-| 前置 Spec | [SPEC-0309](../../archive/specs/0309-borrow-value-class-fields.md) |
+| 前置 Spec | [SPEC-0309](0309-borrow-value-class-fields.md) |
 | 基线 | 官方 fetch actual main `16b4464f4d012eb4813e264b480de4198520aeee`；独立 `feature/spec-0316` |
 | 影响范围 | single 方法收集、实例规划、receiver Loan ABI、真实字段读取及普通源码验收 |
 | 语言语义变更 | 否 |
@@ -35,7 +35,7 @@ unit 既有成功不回退。MoveOnly 字段不复制，本片仅读取可复制
 | named/Borrow参数/temporary、参数顺序和owner复用 | 普通源码源矩阵 | single/unit、literal/真正替换常量、implicit this、同名不同owner/顶层、逆序named实参、未调用非目标method通过；52项中含同源0299组合 |
 | 原诊断与unit边界、0299后继组合 | planner、deinit、0309字段、0299及unit Borrow | 最终窄门后共享70项通过；frontend ownership/receiver/call映射22项通过；CLI native3+project1项通过（新single2项覆盖7个真实build/run变体） |
 | 静态门禁 | fmt、codegen+CLI strict clippy、docs/diff、尺寸base16b4464f | strict clippy两crate all-targets、fmt、docs669页、diff与尺寸通过；1099个Rust文件，旧欠账38个，不提高任何cap |
-| 双宿主CI与交付 | Draft PR、归档、具体合并授权及actual-main核对 | 未运行 |
+| 双宿主CI与交付 | Draft PR96、精确实现head物理CI及归档 | 实现head双宿主CI已通过，详见§4；归档head CI、具体合并授权及actual-main核对仍待完成 |
 
 single literal/constant使用既有同一constant-aware分析入口；unit basic与validated constant
 unit分别验证，不把一个入口成功冒充另一个。native仅静审的正常source→原版LLVM→执行；
@@ -67,3 +67,29 @@ borrow-result alias不在本片。ValueClass this字段限typed Int/Boolean；Cl
   另列，均不是全crate验收。仓外每轮日志与source SHA256前后核对，失败日志保留。
 
 macOS/完整CI、故障注入/校准、sanitizer及聚合门禁未在cloud执行；本地验证不冒充这些结果。
+
+## 4. 双宿主实现验收与归档边界
+
+[PR96](https://github.com/Halckon/Koven/pull/96) 的精确实现 head
+`3bb74ce2d35c4e36228270b6c64ec48225a13d65`、tree
+`4cc7830264779570620504ef6eee10f21b0e489f`，base
+`b1165b0f430b5e8c3bcd669d5129fce6b4a9e1a2`，由
+[CI run 38528485581 / attempt 1](https://github.com/Halckon/Koven/actions/runs/38528485581)
+完成物理验收；16项checks与同head/suite/job/attempt一致，15成功，Tree-sitter因
+editors路径未变而skip，不计为执行通过。
+
+- Ubuntu/macOS逐名核对本片52项、共享70项、CLI4项、frontend22项均实际ok；无缺项、
+  零命中或将filtered计为通过。完整codegen为Linux1892 passed、macOS1891 passed，均0失败；
+  macOS既有 `lldb_hits_a_koven_source_breakpoint_and_reports_the_frame` 因debugserver权限
+  ignored，单独保留，不计通过。
+- 双宿主preview producer→artifact API→独立consumer的ID/digest与归属一致；归档包、binary、
+  manifest全部成员的SHA/size/mode及三方manifest一致。每宿主无源码checkout的独立安装
+  实际执行12条命令，stdout/stderr/exit、cleanup和sentinel核对通过；预装Cargo/Rust存在，
+  但consumer命令没有源码构建，不声称完全没有工具链。
+- 独立只读验收receipt SHA256为
+  `74d6b26f32b064b53b8c204ad16afde6e443ceb04c84505fa7f556b059376013`；
+  归档前复核其中35份日志/制品/元数据hash一致。原始日志、JSON与制品不入库。
+
+本次只把已验收的有界实现标为done并迁移，保留§2–3的本地失败、原诊断与非目标。
+归档提交为上述真实远端head的单父docs-only后继；归档head CI、用户具体合并批准、
+merge及actual-main CI仍独立待核，不把实现head成功冒充交付完成。
