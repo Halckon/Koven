@@ -456,3 +456,119 @@ fn initializer_order_does_not_complete_forward_types_or_cycles() {
         assert_exact(&sources, "main.ko", unit, &expected);
     }
 }
+
+#[test]
+fn selected_constant_qualifiers_do_not_hide_runtime_member_roots() {
+    use lang_frontend::name_resolution::{Namespace, UnitReferenceTarget};
+    let cases = [
+        (
+            "package app\nimport lib.Labels\nfun value(): String = Labels.TEXT + lib.Labels.TEXT",
+            Vec::new(),
+        ),
+        (
+            "package app\nfun bad(): String = lib.Labels.TEXT.fooBar()\nfun other(): Int { val n = 1; return n.fooBar() }",
+            vec!["fooBar", "fooBar"],
+        ),
+        (
+            "package app\nfun bad(): String { val text = \"x\"; return text.TEXT }\nfun value(): String = lib.Labels.TEXT",
+            vec!["text.TEXT"],
+        ),
+    ];
+    let mut results = Vec::new();
+    for (text, roots) in cases {
+        let mut sources = SourceMap::new();
+        let (app, app_file) = parsed(&mut sources, "app.ko", text);
+        let (lib, lib_file) = parsed(
+            &mut sources,
+            "lib.ko",
+            "package lib\nobject Labels { const val TEXT = \"value\" }",
+        );
+        let inputs = [
+            SourceUnitInput::new("root", "app/main.ko", app, &app_file),
+            SourceUnitInput::new("root", "lib/labels.ko", lib, &lib_file),
+        ];
+        let (environment, types) = standard_environments();
+        for selected in [inputs, [inputs[1], inputs[0]]] {
+            let index = index_compilation_unit(&sources, &selected).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &selected, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &selected, &names, &types).unwrap();
+            assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+            let unit = names
+                .names()
+                .index()
+                .source_units()
+                .iter()
+                .find(|unit| unit.source_id() == app)
+                .unwrap()
+                .id();
+            let constant =
+                UnitExpressionId::new(unit, expression(&sources, &app_file, "lib.Labels.TEXT"));
+            let usage = typed
+                .constants()
+                .expect("real constant facts")
+                .uses()
+                .iter()
+                .find(|usage| usage.expression() == constant)
+                .expect("selected qualified constant use");
+            assert_eq!(
+                typed.types().get(usage.ty()),
+                Some(&UnitTypeKind::Builtin(BuiltinType::String))
+            );
+            let start = text.find("lib.Labels.TEXT").unwrap();
+            let package_span = sources.span(app, start, start + 3).unwrap();
+            let type_span = sources.span(app, start + 4, start + 10).unwrap();
+            assert!(
+                names
+                    .names()
+                    .references()
+                    .iter()
+                    .any(|r| r.span() == package_span
+                        && matches!(r.target(), UnitReferenceTarget::Package(_)))
+            );
+            assert!(
+                names
+                    .names()
+                    .references()
+                    .iter()
+                    .any(|r| r.span() == type_span
+                        && r.namespace() == Some(Namespace::Type)
+                        && matches!(
+                            r.target(),
+                            UnitReferenceTarget::Declaration(_) | UnitReferenceTarget::Symbol(_)
+                        ))
+            );
+            let result =
+                complete_compilation_unit_types(&sources, &selected, &names, &types, &typed)
+                    .map(|_| ());
+            eprintln!("constant qualifier {text:?}: {result:?}");
+            results.push((text, roots.clone(), app, result));
+        }
+    }
+    for (text, roots, app, result) in results {
+        if roots.is_empty() {
+            result.expect("selected package/type qualifiers carry no runtime value obligation");
+            continue;
+        }
+        let diagnostics = diagnostics(result);
+        assert_eq!(diagnostics.len(), roots.len(), "{diagnostics:?}");
+        let mut search = 0;
+        for (diagnostic, context) in diagnostics.iter().zip(roots) {
+            let start = search + text[search..].find(context).unwrap();
+            let (start, width) = if context == "text.TEXT" {
+                (start + 5, 4)
+            } else {
+                (start, 6)
+            };
+            assert_eq!(diagnostic.code().to_string(), "L0080");
+            let span = diagnostic.primary_span();
+            assert_eq!(
+                (span.source_id(), span.start(), span.end()),
+                (app, start, start + width)
+            );
+            search = start + width;
+        }
+    }
+}
