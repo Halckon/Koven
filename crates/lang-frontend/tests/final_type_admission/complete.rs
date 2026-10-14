@@ -264,13 +264,16 @@ fn cross_file_references_reuse_the_defining_root_diagnostic() {
         "uses.ko",
         "package p\nfun first(): Int = broken\nfun second(): Int = broken",
     );
+    let independent = "package p\nval otherReceiver: Int = 2\nval unrelated = otherReceiver.baz()";
+    let (c, cf) = parsed(&mut sources, "independent.ko", independent);
     let inputs = [
         SourceUnitInput::new("root", "p/a-definition.ko", a, &af),
-        SourceUnitInput::new("root", "p/z-uses.ko", b, &bf),
+        SourceUnitInput::new("root", "p/b-uses.ko", b, &bf),
+        SourceUnitInput::new("root", "p/c-independent.ko", c, &cf),
     ];
     let (environment, types) = standard_environments();
     let mut results = Vec::new();
-    for selected in [inputs, [inputs[1], inputs[0]]] {
+    for selected in [inputs, [inputs[2], inputs[1], inputs[0]]] {
         let index = index_compilation_unit(&sources, &selected).unwrap();
         let names = resolve_compilation_unit_names(&sources, &selected, &index, &environment)
             .unwrap()
@@ -281,6 +284,29 @@ fn cross_file_references_reuse_the_defining_root_diagnostic() {
         assert!(
             typed.clone().validate().is_ok(),
             "the old base contract is unchanged"
+        );
+        let source_unit = |source| {
+            names
+                .names()
+                .index()
+                .source_units()
+                .iter()
+                .find(|unit| unit.source_id() == source)
+                .unwrap()
+                .id()
+        };
+        let first_root = UnitExpressionId::new(
+            source_unit(a),
+            expression(&sources, &af, "receiver.fooBar()"),
+        );
+        let other_root = UnitExpressionId::new(
+            source_unit(c),
+            expression(&sources, &cf, "otherReceiver.baz()"),
+        );
+        assert_eq!(
+            typed.expression_type(first_root),
+            typed.expression_type(other_root),
+            "independent roots share a canonical deferred type, not a diagnostic identity"
         );
         let result = complete_compilation_unit_types(&sources, &selected, &names, &types, &typed)
             .map(|_| ());
@@ -293,13 +319,19 @@ fn cross_file_references_reuse_the_defining_root_diagnostic() {
         let diagnostics = diagnostics(result);
         assert_eq!(
             diagnostics.len(),
-            1,
+            2,
             "derived references must not add L0165: {diagnostics:?}"
         );
         assert_eq!(diagnostics[0].code().to_string(), "L0080");
         assert_eq!(
             diagnostics[0].primary_span(),
             sources.span(a, start, start + 6).unwrap()
+        );
+        let other_start = independent.find("baz").unwrap();
+        assert_eq!(diagnostics[1].code().to_string(), "L0080");
+        assert_eq!(
+            diagnostics[1].primary_span(),
+            sources.span(c, other_start, other_start + 3).unwrap()
         );
         snapshots.push(diagnostics);
     }
@@ -310,10 +342,13 @@ fn cross_file_references_reuse_the_defining_root_diagnostic() {
 fn early_call_diagnostics_preserve_unvisited_type_arguments() {
     let cases = [
         (
-            "fun inspect(text: String): String = text.clone<Int>()",
+            "fun inspect(text: String): String = text.clone<Int>()\nfun separate(): Int { val n = 1; return n.fooBar() }",
             "clone",
         ),
-        ("fun inspect(value: Int): Int = value.inv<Int>()", "inv"),
+        (
+            "fun inspect(value: Int): Int = value.inv<Int>()\nfun separate(): Int { val n = 1; return n.fooBar() }",
+            "inv",
+        ),
     ];
     let mut results = Vec::new();
     for (text, member) in cases {
@@ -331,7 +366,11 @@ fn early_call_diagnostics_preserve_unvisited_type_arguments() {
     }
     for (text, member, sources, single, unit) in results {
         let start = text.find(member).unwrap();
-        let expected = [("L0091", start, start + member.len(), member)];
+        let independent = text.find("fooBar").unwrap();
+        let expected = [
+            ("L0091", start, start + member.len(), member),
+            ("L0080", independent, independent + 6, "fooBar"),
+        ];
         assert_exact(&sources, "main.ko", single, &expected);
         assert_exact(&sources, "main.ko", unit, &expected);
     }
