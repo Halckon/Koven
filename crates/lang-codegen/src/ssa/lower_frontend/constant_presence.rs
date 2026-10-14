@@ -1,5 +1,6 @@
 //! Bounded presence proof from published incoming edges and a unique real entry owner.
 mod source;
+mod source_return;
 
 use lang_frontend::ownership_checking::{
     CleanupCondition, CleanupConditionId, CleanupConditions, CleanupOwnerValue, DropFact,
@@ -93,6 +94,7 @@ pub(super) fn constant_drop(
     }
     prove_graph(owned, owner, symbol, fact.condition())
         || source::prove(parsed, names, typed, owned, fact).is_some()
+        || source_return::prove(parsed, names, typed, owned, fact).is_some()
 }
 
 pub(super) fn prove_graph(

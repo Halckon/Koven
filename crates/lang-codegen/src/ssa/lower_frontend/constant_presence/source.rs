@@ -259,18 +259,18 @@ pub(super) fn prove(
     Some(())
 }
 
-fn unique<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
+pub(super) fn unique<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
     let first = items.next()?;
     items.next().is_none().then_some(first)
 }
-fn always(table: &CleanupConditions, id: CleanupConditionId) -> bool {
+pub(super) fn always(table: &CleanupConditions, id: CleanupConditionId) -> bool {
     matches!(table.get(id), Some(CleanupCondition::Always))
 }
-fn never(table: &CleanupConditions, id: CleanupConditionId) -> bool {
+pub(super) fn never(table: &CleanupConditions, id: CleanupConditionId) -> bool {
     matches!(table.get(id), Some(CleanupCondition::Never))
 }
 
-fn canonical_phi(
+pub(super) fn canonical_phi(
     table: &CleanupConditions,
     plan: &IterationOwnershipPlan,
     phi: &IterationClosurePhiBinding,
@@ -327,7 +327,7 @@ fn canonical_phi(
     }
 }
 
-fn incoming<'a>(
+pub(super) fn incoming<'a>(
     edge: &'a IterationPhiIncoming,
     phi: &IterationClosurePhiBinding,
 ) -> Option<&'a IterationPhiIncomingBinding> {
@@ -350,7 +350,7 @@ fn incoming<'a>(
     }
     Some(binding)
 }
-fn carried(
+pub(super) fn carried(
     table: &CleanupConditions,
     edge: &IterationPhiIncoming,
     target: &IterationClosurePhiBinding,
