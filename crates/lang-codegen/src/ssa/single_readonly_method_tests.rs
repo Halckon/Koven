@@ -99,11 +99,17 @@ fn run_case(
     expected: &[u8],
 ) {
     let text = if constant {
+        let substituted = fixture
+            .replace("Reading(3)", "Reading(THREE)")
+            .replace("Reading(7)", "Reading(SEVEN)")
+            .replace("Reading(7,", "Reading(SEVEN,")
+            .replace("Switch(true)", "Switch(ENABLED)");
+        assert_ne!(
+            substituted, fixture,
+            "constant fixture must use a constant operand"
+        );
         format!(
-            "const val SEVEN: Int = 7\nconst val ENABLED: Boolean = true\n{}",
-            fixture
-                .replace("Reading(7)", "Reading(SEVEN)")
-                .replace("Switch(true)", "Switch(ENABLED)")
+            "const val THREE: Int = 3\nconst val SEVEN: Int = 7\nconst val ENABLED: Boolean = true\n{substituted}"
         )
     } else {
         fixture.to_owned()
@@ -589,3 +595,89 @@ case!(
     Unit,
     b"seven\n"
 );
+
+case!(
+    readonly_field_identity_single,
+    "shadow",
+    "reading.readNumber(1)",
+    false,
+    Single,
+    b"field\nthird\nparameter\n"
+);
+case!(
+    readonly_field_identity_unit,
+    "shadow",
+    "reading.readNumber(1)",
+    false,
+    Unit,
+    b"field\nthird\nparameter\n"
+);
+
+#[test]
+fn readonly_moveonly_temporary_drop_follows_actual_receiver_loan() {
+    let source = include_str!("../../tests/fixtures/readonly_methods/moveonly_temporary.ko");
+    for pipeline in [Pipeline::Single, Pipeline::Unit] {
+        let (_, result) = lower(source, pipeline);
+        let (program, entry) = result.unwrap();
+        let function = program.modules[0].function(entry).unwrap();
+        let call = function
+            .instructions
+            .iter()
+            .find(|i| {
+                matches!(
+                    i.operation,
+                    Operation::DirectCall {
+                        receiver: Some(_),
+                        ..
+                    }
+                )
+            })
+            .unwrap();
+        let Operation::DirectCall {
+            receiver: Some(EntityId::Loan(receiver)),
+            ..
+        } = call.operation
+        else {
+            panic!("shared receiver");
+        };
+        let Definition::InstructionResult { instruction, .. } = function
+            .entity(EntityId::Loan(receiver))
+            .unwrap()
+            .definition
+        else {
+            panic!("new receiver loan");
+        };
+        let Operation::BorrowBegin { place, .. } =
+            function.instruction(instruction).unwrap().operation
+        else {
+            panic!("receiver borrow");
+        };
+        let Definition::InstructionResult { instruction, .. } =
+            function.entity(EntityId::Place(place)).unwrap().definition
+        else {
+            panic!("receiver storage");
+        };
+        let Operation::RootPlace { owner } = function.instruction(instruction).unwrap().operation
+        else {
+            panic!("exact temporary owner");
+        };
+        let end = function
+            .instructions
+            .iter()
+            .find(|i| {
+                matches!(i.operation,
+            Operation::BorrowEnd { loan } if loan == receiver)
+            })
+            .unwrap();
+        let drops = function
+            .instructions
+            .iter()
+            .filter(|i| {
+                matches!(i.operation,
+            Operation::Drop { owner: dropped } if dropped == owner)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(drops.len(), 1);
+        assert!(call.id.index() < end.id.index() && end.id.index() < drops[0].id.index());
+    }
+}
