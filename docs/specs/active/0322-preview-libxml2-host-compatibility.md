@@ -8,10 +8,10 @@
 | Goal ID | `KOV-P6-322` |
 | 所属 Phase | Phase 6 工程交付；不改变语言/native ABI |
 | 语言规范 | [Guide v0.43](../../guide/README.md) |
-| 批准依据 | 用户 2026-10-15 同意仅 libxml2 有界兼容方向；§4取证合同独审通过；后续兼容合同仍须独审 |
+| 批准依据 | 用户 2026-10-15 同意仅 libxml2 有界兼容方向；§4取证合同与§5–6 C1设计独审通过；生产实现须先有CI红证据及diff独审 |
 | 前置 Spec | SPEC-0272 |
 | 前置 ADR | 无新增 |
-| 阻塞项 | §9 后续兼容判定仍待证；仅 §4 只读取证阶段获准实施 |
+| 阻塞项 | C1设计已审；第二阶段tests-only CI红证据及生产实现/验收待完成 |
 | 影响范围 | `scripts/preview_host.py`、对应 Python 协议测试、preview 文档/CI 证据 |
 | 语言语义变更 | 否 |
 
@@ -81,57 +81,120 @@ libxml2 项的宿主策略，并同步当前文档；历史合同和失败记录
 发 Draft PR 触发现有完整 CI。此次 CI 红可以是原严格 hash 门禁，不能把它记为安装通过。
 云端仅语法/静态检查；所有 mock/fault 测试、真实 Ubuntu 探针都只在 CI 执行。
 
-## 5. 拟定后续最小宿主策略（未批准实施）
+## 5. C1 冻结设计：仅已见两修订的有界预检
 
-仅对两侧 `system=Linux`、`arch=x86_64`、Ubuntu `ID=ubuntu / VERSION_ID=24.04` 且同一
-name/resolved 的 `libxml2.so.2` 考虑不同 hash。两侧记录均须由真实工具采集：
+本节设计经独审通过，仅允许推进 tests-only CI 红证据，不授权生产实现。仅两侧 `Linux/x86_64`、真实 os-release
+`ID=ubuntu / VERSION_ID=24.04 / VERSION_CODENAME=noble`，唯一同 name/resolved 的
+`libxml2.so.2` SHA 不同且 §3 全部成立时才进入例外；无其他 fallback。
 
-1. ELF64、小端、EM_X86_64，唯一真实 DT_SONAME 为 `libxml2.so.2`；读取该文件的
-   DT_NEEDED、RPATH/RUNPATH，不允许该例外新增外部路径或闭包。
-2. `dpkg-query` 对实际 resolved 文件给出唯一安装包 owner，安装状态完整，包名 libxml2、
-   架构 amd64、source package libxml2，保存完整 binary/source version；不能仅核名称。
-3. 精确 installed version 必须在当前 apt 索引有 Ubuntu Noble 官方来源证据；允许
-   noble/noble-updates/noble-security，禁止 PPA、其他发行、proposed/backports、未知来源。
-   该证据是宿主包管理器来源边界，不冒充独立的加密供应链证明。是否追加本地包文件完整性
-   检查、精确来源解析命令及其局限，必须在 §9 冻结后才能实施。
-4. 遍历已测得加载闭包与 kovenc 的真实 ELF dynamic/version/dynsym 元数据，找出真实
-   libxml2 引用者及所需 symbol/version；consumer 必须提供所需可见定义及匹配的符号类型，
-   版本名必须与归属 libxml2 的 version need 对应。无版本引用的归属不明确、未知格式、
-   空/矛盾事实、工具缺失/非零/超时均拒绝，不凭 `xml` 前缀或 SONAME 推断满足。
-5. producer/consumer 均保留 path/hash/deb version/source、架构/SONAME、引用者和需要/导出
-   符号的可核对事实；原始命令 argv/exit/stdout/stderr 继续留在 host_inspection evidence。
-   不把 ABI 预检扩大为符号解析器/通用 ELF loader；若无法有限提取则保守拒绝并报告。
+### 5.1 包与来源边界
 
-相同 hash 的原严格路径不因未知的兼容扩展元数据获得放宽；不同 hash 必须有完整匹配策略
-证据才可考虑通过。旧候选缺少元数据仍按旧严格规则，不临时从网络补写 producer 事实。
+- v1 只接受完整 binary/source version 均为 `2.9.14+dfsg-1.3ubuntu3.9` 或
+  `2.9.14+dfsg-1.3ubuntu3.10`；不是 hash 白名单，不按前缀、版本大小或“同 upstream”放行。
+  新修订需要另一次事实审阅和规则变更；交换 producer/consumer 不免除任一侧校验。
+- 真实 resolved 文件必须由唯一 `libxml2:amd64` owner 声明，状态精确为
+  `install ok installed`，architecture 为 amd64，source package 为 libxml2。
+  `dpkg-query --control-show ... md5sums` 必须有唯一精确相对路径条目，实际文件 MD5 与之相等；
+  同时保留原 SHA256。此项仅检查本地 dpkg 清单一致性，不是防篡改或官方供应链证明。
+- 本策略选择“受界 Ubuntu 安装环境证据”，不建立具体 installed 文件的来源安全证明。
+  要求当前 apt Candidate 为上述两个已审阅版本之一，且 package policy 的该版本块至少有
+  noble/noble-updates/noble-security 的 main/amd64 Packages 条目；全局 policy 必须有对应
+  suite/component/architecture 且 `o=Ubuntu,l=Ubuntu,n=noble,v=24.04` 的 release 条目。
+  不接受只有 status、候选缺失、错误发行/组件/架构或已知第三方来源；但这些标签不能认证URI。
+- URI继续按§4脱敏；不能以 `<redacted-source>` 相等来联结两个具体源，也不将多个符合
+  suite/component/arch 的记录猜成唯一源。标签仅是可观察环境旁证；URI脱敏时显式记录
+  `source_uri_status=unproven`，实际installed来源无论当前索引是否有它均标为 `unproven`。
+  不读取配置或记录未知原始URI绕过脱敏，不声称排除伪造本地包数据库/源元数据的宿主。
+- 两个精确修订的官方发布存在已由人工审阅的公开页面支持：
+  [USN-8787-1](https://ubuntu.com/security/notices/USN-8787-1) 列明 Noble `.9`；
+  [Ubuntu Noble libxml2](https://packages.ubuntu.com/noble/libxml2) 列明 amd64 `.10` 与 source版本。
+  这些页面是设计依据，不是本机文件来源证书；runtime不访问网页、不根据未来页面自动扩展版本。
+- 旧installed版本退出当前apt索引不拒绝，只要上述完整dpkg身份、本地文件一致性、固定已见
+  修订边界及当前候选环境旁证满足。取舍是避免把正常升级窗口当作不兼容；代价是明确不证明
+  installed来源。预检没有防御恶意宿主的新增承诺，包自身完整性及其它依赖严格规则仍完全保留。
+  不下载包、不刷新索引、不安装，不引入历史仓库查询或签名验证体系。
 
-## 6. 拟定数据合同与改动边界
+### 5.2 有限 ELF 事实，不实现 loader
 
-新增仅 Ubuntu libxml2 有界 policy 子记录，保留现有 libraries 每项三字段。候选字段：
-`policy`（固定版本标识）、`package`（name/arch/version/source/source_version/origin）、
-`elf`（class/data/machine/soname/needed）、`required_symbols`（requester/name/version/type）、
-`exports`（name/version/type/visibility，若涉及数据符号另明确 size 规则）。
+- 两侧 libxml 都须 ELF64、小端、EM_X86_64，唯一 SONAME `libxml2.so.2`；
+  DT_NEEDED 名称集合两侧严格相同、无重复且全部在原加载闭包中；RPATH/RUNPATH 必须不存在。
+  现有闭包路径/hash 规则继续检查其依赖，不能通过新增或移走依赖取得兼容。
+- 为避免只检查 direct requester 而漏掉符号引用，读取 kovenc 与现有完整闭包每个文件的
+  `readelf --wide -d / --dyn-syms / --version-info`；追加 `-h` 于 libxml 和直接引用者。
+  复用 §4 有界 probe，严格 UTF-8/退出/超时/截断检查。对未识别行、表数量/条目数不符、
+  重复 dynsym 行索引、同一对象 version_r/version_d 的索引定义冲突、缺少其引用/索引声称存在的必要表或内部矛盾拒绝，
+  不能通过正则只挑出认识的行而静默漏项。无版本需求/导出的对象可合法没有version_r/version_d，
+  不要求所有闭包对象同时有两表；多个 dynsym 复用同一合法版本索引是正常情况。
+- v1 要求真实 DT_NEEDED libxml 的直接引用者集合恰为闭包中的 `libLLVM.so.21.1` 对应路径；
+  其路径/hash 本来必须两侧全等。任一其他对象出现归属 libxml 的 version need 或引用则拒绝。
+  requester 的动态表、version need 与 UND 集合两侧一致；不硬编码 16 个符号名作兼容白名单。
+- 将 requester `.gnu.version_r` 的每个 version index 映射到唯一 File/name/flags，
+  dynsym UND 的索引和版本文本必须一致；只选 File 精确 `libxml2.so.2` 的记录。
+  同时核验 `.gnu.version` 对 dynsym index 的对应，拒绝索引冲突、孤立版本或隐藏位歧义。
+  libxml required 集合非空，所有引用均 GLOBAL/DEFAULT，类型仅 FUNC 或 OBJECT；WEAK、
+  NOTYPE、TLS、IFUNC、GNU_UNIQUE 或其它未支持形式一律不走兼容例外。此限制仅针对
+  libxml 候选需求及匹配定义，不拒绝闭包其它库自身正常的 IFUNC/WEAK 等符号。
+- 需要的每个 `(name,version)` 在各自 provider 中都有唯一 GLOBAL/DEFAULT、已定义、
+  `@@` default-version 导出，定义 version index 可核对到 `.gnu.version_d`。类型必须与 UND
+  相同；FUNC size 不作为 ABI 合约，OBJECT provider size 必须正数且两侧严格相同；UND size
+  为0时不据此推断对象大小，非0时须与两侧 provider 一致。真实 xmlFree 为0→8/8。
+- 比较两 provider 所有已定义导出的名字并检查整个闭包：任何无版本 UND 与任一 provider
+  导出名字相交，或非上述 requester 对相同 libxml version/name 有引用，均视为归属歧义拒绝。
+  不把无版本 UND 全部拒绝（真实 LLVM 含其它库的无版本引用），也不按 `xml` 前缀归属。
+  此规则仅排除可见歧义，不宣称模拟 ELF 搜索顺序或证明所有动态调用兼容。
+- 符号预检仅是必要条件；函数签名、布局语义及运行时加载仍可能不兼容。最终必须真实执行
+  原12命令、逐字节输出断言及 cleanup/sentinel；不能把该有限验收称作通用 ABI 证明。
 
-字段精确形态、排序/去重、版本索引归属和无版本歧义拒绝规则须在真实输出审阅后冻结，
-不能先实现再把实现倒写为合同。兼容判定只返回原有 compare_hosts 错误列表；结构化两侧
-事实留 manifest/result，最终 success 仍由原 12 命令和清理决定。优先仅修改现有模块；
-如新增 helper，则包内 TOOLS 精确成员与 bootstrap/hash 测试同步，不豁免包校验。
+## 6. 冻结数据形态与调用边界
+
+保留 libraries 的 name/resolved/sha256 三字段、原 schema 与原 compare_hosts 错误列表接口。
+新增可选 host `libxml2_policy`，标识 `koven.preview.libxml2-ubuntu-noble.v1`；其事实包含：
+
+- `library`：name/resolved/sha256，与原唯一库记录逐字段绑定；`distribution`：id/version/codename。
+- `package`：binary/architecture/status/version/source/source_version，`file_md5`：path/expected/actual；
+  `apt_environment`：candidate/version-block的suite/component/architecture与release事实；
+  `installed_origin=unproven`、`source_uri_status`明确区分可公开观察与未证，不含推断的源联结。
+- `elf`：class/data/machine/soname/needed/rpaths/runpaths；`requesters`：path/sha256 与
+  `requirements`（symbol index/name/version index/version/type/binding/visibility/size）。
+- `definitions`：required name/version 对应的两侧本地导出 index/type/binding/visibility/size/default；
+  `unversioned_imports` 与 `exported_names`：供两侧 union 名字歧义检查的有序去重事实。
+  原完整 command/bytes 留在包外 evidence，不把完整 ELF dump 放入 manifest。
+
+集合按字段字典序排序，重复原始定义/索引先拒绝而非靠去重隐藏。所有结构严格校验字段类型、
+必需字段、策略标识与绑定；未知策略不能打开例外。采集失败留下结构化 policy error 和原始
+probe证据，不抹掉 host 已有事实；同 hash 按原严格路径，不因可选策略未知而取得额外放宽。
+不同 hash 必须两侧有效 policy 全部满足。旧包缺 policy 仍按原严格比较拒绝差 hash；
+不从消费侧网络或当前包库补造 producer 信息。采集在两侧 inspect_host 中独立完成，
+不依赖 CI 诊断开关来启用放宽；实现限现有 preview_host.py，不增 TOOLS 或包成员。
 
 ## 7. 验收账本与 CI-only 测试计划
 
 | ID | 精确验收目标 | 当前结果 |
 |---|---|---|
-| C1 | 独立设计审阅；真实 dpkg/apt/readelf 输出核对，明确来源局限、依赖符号算法 | 待完成 |
+| C1 | 独立设计审阅；真实 dpkg/apt/readelf 输出核对，明确来源局限、依赖符号算法 | 设计独审通过；仅推进tests-only，完整闭包实采待CI |
 | C2 | CI 协议正例：同 hash 保持；不同 hash 且全部 policy 事实满足；交换生产/消费方向按实际需求判定 | 未运行 |
 | C3 | CI 协议拒绝：非 Ubuntu/架构/SONAME、路径变化、其他库 hash、LLVM/cc/SDK/override、重复/缺字段、未知策略 | 未运行 |
-| C4 | CI 解析/故障拒绝：未知/歧义/缺失 symbols/version、不可见或错误类型 export、无实际引用者、工具缺失/非零/超时、非官方/失去版本索引 | 未运行 |
+| C4 | CI 解析/故障拒绝：未知/歧义/缺失 symbols/version、不可见或错误类型 export、无实际引用者、工具缺失/非零/超时、不符候选环境/失去ELF版本索引 | 未运行 |
 | C5 | 现有 test_preview_host.py、test_preview_install.py、test_preview_package.py 完整 CI；原包篡改/成员/权限/源/清理拒绝不弱化 | 未运行 |
 | C6 | 新 head 双宿主完整 CI：各 producer、独立 consumer 12/12 真命令、清理和哨兵；准确记录两侧 libxml2 事实 | 未运行 |
 | C7 | 若实际 CI 恰同 hash，只记严格路径验证；差 hash 真实跨修订证据未建立则明确保留，不以 fake 正例冒充 | 待实际结果 |
 | C8 | 当前 Architecture/交付说明同步、文档静态门禁、独立代码审阅、按实际证据归档 | 未运行 |
 
+第二阶段具体协议矩阵（全部CI-only，先红后实现）：
+
+- 同hash且policy缺失/unknown仍走原strict；差hash缺policy、错library绑定或其它库变更拒绝。
+- dpkg owner/path重复、错误版本/source/arch、MD5不匹配拒绝；候选缺失/错误suite或release拒绝。
+  脱敏URI明确未证且不拿占位符联结；旧installed退索引可符合环境策略；未知新修订拒绝。
+- xmlFree UND0/provider8/8可满足预检、8/16拒绝；FUNC size改变不单独拒绝。
+  required定义非default、hidden、weak、错误类型或版本归属其它SONAME/孤立索引均拒绝。
+- 普通libc无版本UND可存在，碰撞任一libxml导出名拒绝；重复合法version索引使用可存在，
+  索引定义冲突拒绝；无引用的合法缺省版本表可存在，孤立索引/必要表缺失拒绝；
+  其它库正常IFUNC不误拒绝，libxml required IFUNC拒绝。
+- 合成预检成功后第N条native命令失败、cleanup失败或sentinel损坏仍使整体失败；
+  合成用例不冒充12条真实命令。真实requester/provider摘录与合成闭包fixture分开标注来源。
+
 所有 fake/mutation/fault 校准和 Python 协议测试仅在 CI 运行；云端当前只允许静态检查，
-真实只读宿主命令须经审阅。尚未运行任何测试、故障注入或 kovenc 命令。
+真实只读宿主命令须经审阅。第二阶段尚未运行测试、故障注入或 kovenc 命令。
 行为变化先在 CI 建立失败测试证据，再实施最小生产修改。具体 CI 发布由唯一 publisher 执行。
 
 ## 8. 实施与提交计划
@@ -141,16 +204,16 @@ name/resolved 的 `libxml2.so.2` 考虑不同 hash。两侧记录均须由真实
 3. 实现单项策略与有限解析，保留原接口/完整性；同步当前说明，小提交复审后交唯一 publisher。
 4. 按 C1–C8 回填精确 head/base/tree、实际命令/CI run 来源和未覆盖；全部必要证据满足后才归档。
 
-## 9. 未决问题与停止条件
+## 9. 第二阶段停止条件
 
-- 真实 runner deb 修订尚未知；本地只读输出只能证明解析可行，不替代历史 runner 证据。
-- apt 索引通常会淘汰旧修订；未知/缺失版本保守拒绝，不能因影响通过率而改为信任包名。
-- 来源证据和文件所有权之间是否需追加 `dpkg --verify` 或包内摘要核验，待独审。
-- 实际 libxml2 引用者的 version needs/undefined symbols 格式及数据符号是否出现待真实读取。
-- 可安全限定的无版本符号归属规则、对象 size 与 weak/global 的处理待审；未知不默认兼容。
-- 不保证精确已见两 runner 的兼容路径一定通过；如果真实事实不满足，保留失败并报告具体差异。
-
-第一片取证合同已独立审阅通过；后续兼容判定仍待真实 Ubuntu 证据与独立审阅。不得将本稿当作兼容验收通过。
+- C1 独审未通过之前不写 tests/production；通过后先 tests-only CI 红证据，再写生产兼容实现。
+- 已回收的 producer .9 只有 status 来源，两侧URI均脱敏；按§5.1明确记来源未证，
+  不称具体installed官方来源已验证。该口径已获独审同意，不能把标签改名为来源安全证明。
+- §5.2 新增完整闭包 dynsym/version-info 读取尚未在真实 Ubuntu CI 采集，因此无版本歧义
+  排除仍待证。fixture 明确区分已采真实 requester/provider 摘录与合成完整闭包场景，
+  不称第一片已经覆盖完整解析。任何未知格式或不满足有界规则都停止，不扩张为通用 ELF loader。
+- md5sums 条目的实际文件一致性及候选环境解析尚未实现/验收；不声称已经验证。
+- 历史失败保留，不重跑历史 attempt 以抹红；新测试/修订使用新 head 留独立证据。
 
 ## 10. 已执行的本地只读检查
 
@@ -164,7 +227,7 @@ UND 实为其它库用途，不能一概拒绝或只按 xml 前缀归属。该�
 
 2026-10-15：§4 独立设计审阅通过后迁 active，仅允许只读取证阶段；§5 及兼容例外未获实施批准。首次 docs 检查因四份 DAG 过期失败，按既有 generator 更新后 674 项通过；非语义或行为验收。
 
-## 11. 第一片实施账本（待 CI 真实执行）
+## 11. 第一片实施时账本（当时待 CI，后续结果见 §12）
 
 - `5ecf25a7`：完整草案/编号/索引；`7ec5e486`：仅§4取证迁active。
 - `909a0d6c`：先提交CI-only诊断协议测试，未运行，未取得动态红证据。
@@ -174,3 +237,19 @@ UND 实为其它库用途，不能一概拒绝或只按 xml 前缀归属。该�
 - 云端只做AST语法解析、docs结构检查（674项）和diff空白检查，均通过；未执行helper、
   任何mock/fault测试或kovenc。CI协议执行、真实Ubuntu来源/符号事实与安装结果全部待证。
 - 不新增后续compatibility policy字段，不把首片诊断完整性称为libxml2兼容或安装通过。
+
+## 12. 第一片真实 CI 与 C1 输入（2026-10-15）
+
+来源：[PR106 CI 38667368062 attempt 1](https://github.com/Halckon/Koven/actions/runs/38667368062/attempts/1)。
+PR head `b388e6dea5571dae95219d170ac22e317c4226a9`，本地等价代码 tree
+`991e4e03f2c6aba64e357750eb86ac88e5fd4950`；失败结果不覆盖。
+两个宿主代码门禁通过，15个新增诊断协议用例在CI通过（总354）；macOS consumer通过。
+Ubuntu producer成功，consumer被原严格hash门禁拒绝，`commands=[]`，不是安装通过。
+
+两侧诊断各29 probes exit0、无超时/截断；17库仅libxml SHA不同；同路径由唯一
+libxml2:amd64拥有，完整binary/source版本分别为 `2.9.14+dfsg-1.3ubuntu3.9` / `.10`。
+两侧唯一直接引用者是 `/usr/lib/x86_64-linux-gnu/libLLVM.so.21.1`，16个 GLOBAL/DEFAULT
+versioned UND：15 FUNC、1 OBJECT xmlFree；后者UND size0、两provider定义size8。
+xmlReadMemory需要LIBXML2_2.6.0，其余15需要LIBXML2_2.4.30；两侧对应定义均存在。
+这只支持冻结有界预检，不证明运行兼容。URI全部脱敏，producer旧修订不在当前apt源版本块，
+故来源仍不完整。完整artifact摘要和原始输出保留在该run artifact，不复制完整dump入库。
