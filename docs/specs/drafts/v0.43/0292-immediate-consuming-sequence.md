@@ -7,7 +7,7 @@
 | 状态 | draft |
 | Goal ID | `KOV-P4-0292` |
 | 所属 Phase | Phase 2/3 owned 契约与清理；Phase 4 SSA；Phase 5/6 std 与 native |
-| 语言规范 | 当前 v0.43；首片具体合同须先形成并启用新 Guide |
+| 语言规范 | 当前 v0.44；本 draft 的链内消费合同未启用，不随 Map.consume 启用；仍需另定 Guide |
 | 批准依据 | 2026-10-08 12:15 UTC 用户明确同意修订后首片本地实施 |
 | 前置 Spec | [SPEC-0289](../../../archive/specs/0289-n1a-range-carrier.md) 的最小 std 声明接线；独立消费原语准备可先推进 |
 | 前置 ADR | [ADR-0008](../../../adr/accepted/0008-internal-value-and-allocation-abi.md)、[ADR-0016](../../../adr/accepted/0016-interprocedural-borrow-abi.md) |

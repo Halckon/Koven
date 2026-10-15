@@ -1,8 +1,8 @@
-# Koven v0.43：一致性、Phase 与实施边界
+# Koven v0.44：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.43） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.43 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -401,3 +401,13 @@ fun main(): Unit {
 [类型与泛型](03-types-generics.md#expected-typelocal-与-lambda)，不新增 named Function 转换。
 [迁移账本](../archive/migrations/v0.41-enablement.md)保全启用记录与旧版快照。
 前端接受性、capture/loan/drop 与 SSA/LLVM/native 仍需分别验收；规范启用不是实现完成。
+
+## v0.44 启用边界
+
+本版完整继承 v0.43，仅新增封闭 if/when join、简单变量普通赋值 Unit 与事实失效、保守
+while true facts、IntRange/LongRange 与 in/基本 for、八整数 checked 转换、插入序 Map
+借用遍历及 MutableMap.consume 只读移交。具体规则只由相应领域页定义。
+未完成的类型、所有权、SSA 或 native 路径必须结构化拒绝，不能伪造事实或把 Deferred
+当成功；版本启用不等于全部实现、资源验收或 native 通过。single/unit 均需验收，可共享实现。
+不启用 Abort 输出保证、subject 驱动 enum case 类型推断、顶层 runtime val/var 禁用，
+亦不附赠可变 capture、borrow var、FFI/unsafe、并发、N1b 或一般泛型 lambda 结果推导。

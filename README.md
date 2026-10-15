@@ -10,7 +10,7 @@
 
 The runtime uses no tracing garbage collector. Memory and resources follow checked ownership facts: pure-memory values use ASAP drop, while resource values use lexical cleanup. Implementation and native support are bounded; design goals are not claims that every feature or memory-safety property has been verified.
 
-The current specification is [Guide v0.43](docs/guide/README.md); start with the [executable tutorial](docs/tutorials/README.md). The native subset includes sequential collections, Map lookup/update/removal, ordinary borrow results, and borrowed List/View ranges with bounded local control flow. These are specific supported combinations, not a promise of arbitrary collection APIs or control flow. See the [current tour notes](docs/tutorials/koven-tour.md#collections-and-borrow-results), [Spec index](docs/specs/README.md), and [architecture](docs/architecture/README.md) for the boundaries. Performance and cost acceptance remains deferred.
+The current specification is [Guide v0.44](docs/guide/README.md); start with the [executable tutorial](docs/tutorials/README.md). The native subset includes sequential collections, Map lookup/update/removal, ordinary borrow results, and borrowed List/View ranges with bounded local control flow. These are specific supported combinations, not a promise of arbitrary collection APIs or control flow. See the [current tour notes](docs/tutorials/koven-tour.md#collections-and-borrow-results), [Spec index](docs/specs/README.md), and [architecture](docs/architecture/README.md) for the boundaries. Performance and cost acceptance remains deferred.
 
 ---
 
@@ -220,7 +220,7 @@ The repository contains comprehensive documentation organized under [`docs/`](do
 
 - [**Current executable tutorial**](docs/tutorials/README.md): Markdown source authority and real CLI contracts.
 - [**Specs and evolution status**](docs/specs/README.md): Bounded contracts, archive relationships, and capability gaps.
-- [**Language Specification (v0.43)**](docs/guide/README.md): The normative source of truth for Koven syntax, semantics, type rules, and ownership mechanics.
+- [**Language Specification (v0.44)**](docs/guide/README.md): The normative source of truth for Koven syntax, semantics, type rules, and ownership mechanics.
 - [**Compiler Architecture**](docs/architecture/README.md): Detailed snapshots of the compilation pipeline, typed SSA design, and codegen.
 - [**Development & Testing Guide**](docs/development/README.md): Guidelines for testing, layered verification, and code invariants.
 - [**Architecture Decision Records (ADRs)**](docs/adr/README.md): Records of long-term architectural designs and technical rationales.

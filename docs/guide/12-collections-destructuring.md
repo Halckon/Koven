@@ -1,8 +1,8 @@
-# Koven v0.43：集合、索引与解构
+# Koven v0.44：集合、索引与解构
 
-> **性质**：规范性语言规范 · **状态**：current（v0.43） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：实现或评审顺序容器、element place 与解构时 · **唯一真源**：本页
 
-本页是现行 Koven v0.43 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 顺序容器的表示与索引语义
 
@@ -395,9 +395,10 @@ unsupported destructuring context 拒绝。未来若开放其他上下文，必�
 
 ### 37.1 compiler-bound provider 与执行顺序
 
-- v1 首轮只有编译器绑定的 `Array<T>`、`List<T>`、`MutableList<T>` identity 提供顺序迭代。
+- 本节顺序容器 provider 只有编译器绑定的 `Array<T>`、`List<T>`、`MutableList<T>` identity。
+  整数 Range 与 Map 各按下文独立 provider 合同，不冒充顺序容器 element place。
   用户声明的同名类型、`Iterable` / `Iterator`、`iterator()` / `hasNext()` / `next()` 不取得
-  intrinsic 身份；String、range、Map、IO lines、普通 class/interface 和用户自定义 provider
+  intrinsic 身份；String、IO lines、普通 class/interface 和用户自定义 provider
   均不是首轮 `for` source。
 - 历史语法中的 `iterator()` / `hasNext()` / `next()` 只保留“取得 provider → 检查下一项 →
   取得下一项”的抽象执行节奏，不是 AST 脱糖、名称解析结果或用户可观察的普通方法调用。
@@ -410,7 +411,8 @@ unsupported destructuring context 拒绝。未来若开放其他上下文，必�
   `size <= 2^31 - 1`；未来增长操作在提交会超过该上限时必须按现行 checked-size/abort
   边界终止而不能截断。内部 pointer-width header/cursor 不改变该源语言不变量。
 
-source 静态类型不是上述 intrinsic container 时使用 L0159；primary 为完整 source expression，
+本节顺序容器路径中，source 静态类型不是上述 intrinsic container 时使用 L0159；
+下文 Range / Map 独立 provider 按各自合同判定，不由本句拒绝。primary 为完整 source expression，
 可用时 label 指向其类型声明。已有 Error/Deferred 根因不追加 L0159；同名方法或类型不改变结果。
 
 ### 37.2 循环 binding 与借用式解构
@@ -466,7 +468,7 @@ source 静态类型不是上述 intrinsic container 时使用 L0159；primary �
   hidden owner 在正常耗尽、break、return 时按 §37.3 清理，continue 保留，Abort 不展开。
   Inout/field source 的 native lowering 延后，不得因前端已验证而误报为可执行。
 
-本节不启用 consuming iteration、可逃逸 iterator value、反向/步进/并行迭代、Map/range/String/
+本节不启用 consuming iteration、可逃逸 iterator value、反向/步进/并行迭代、String/
 IO provider、用户自定义 iteration、borrow-return/place-return、动态分发或 coroutine generator。
 未来扩展必须另行启用 guide；不能把普通同名方法或某个标准库 class 反向识别为本 intrinsic provider。
 
@@ -533,3 +535,30 @@ Phase 2 发布封闭 identity、位置与 callable/result mode；Phase 3 证明�
 caller root-loan continuation、绑定及 end facts；Phase 4 必须再由 SSA/verifier 验证
 描述符交付、来源与权限恢复，Phase 5/6 验证 String/MoveOnly/Resource 正常 native 清理。
 前一阶段通过不能替代后一阶段证明。仅有 Parser/AST 或类型通过的路径不得误编。
+
+## 整数 Range 与 Map 的独立迭代合同
+
+- IntRange/LongRange 的 source 只求值一次；for 按升序每轮交付相应 Int/Long Copyable 值，
+  不建立容器元素 place 或 owner loan。空区间不执行 body，闭区间到达终点后直接结束，
+  不能在 MAX 后再递增。每轮局部 owner 以及 break/continue/return 沿既有 loop 清理规则；
+  不引入可逃逸 iterator、step、反向或开放用户 provider。
+- Map/MutableMap 只接受 `for ((key, value) in source)` 两个具名分量的 shared Borrow
+  绑定；本片不发布单 entry 值、Pair 或 `_` 分量形式。Copyable 普通读取可复制，MoveOnly
+  不得移出或逃逸。source 求值一次，temporary source 由隐藏 owner 保持至 provider 结束。
+- Map 按插入顺序遍历；覆盖已有 key 不改变位置，remove 后重新 put 同一 key 进入末尾。
+  不承诺具体哈希表布局。正常 fallthrough/continue、break、return 的 body-local owner、
+  派生及分量 loan、provider/source loan、temporary source owner 清理顺序沿用 37.3；
+  return 求值/交付不能提前解除来源保护。活跃遍历拒绝 put/remove/consume/relocation/
+  整体 move/drop，允许共享查询及嵌套共享遍历；借用不得超出所属 provider。
+- 遍历顺序不构成整体析构顺序。Map 整体销毁时每个仍有 owner 的 key/value 精确销毁一次，
+  不保证不同条目间的顺序；现有 put/remove 的提交、移出及精确清理规则不变。
+
+## MutableMap 的消费式只读移交
+
+- `MutableMap<K,V>.consume(): Map<K,V>` 是预声明立即转换，只接受 owned 本地根 val/var
+  binding；Borrow/Inout 来源、字段、元素和临时 receiver 不接纳，可先将临时值绑定再调用。
+  相同 K/V 的唯一 owner 与全部条目存储整体移交，源 binding 之后不可用，沿用 move 诊断。
+- 活跃借用阻止同来源 consume，沿用 loan 冲突；不 clone、不重新装填、不析构条目，
+  转换后只读结果承担唯一清理义务。它不是借用视图，不改变元素能力或 nullable 表示。
+- 此合同不启用复制式 toMap、反向转换或非空 mapOf 参数语法；不将布局字段写入语言规则。
+  与插入序存储共用的布局及最终释放由内部合同保证，不得借转换引入公开只读变异。

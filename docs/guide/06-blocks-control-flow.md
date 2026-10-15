@@ -1,8 +1,8 @@
-# Koven v0.43：Block 与控制流
+# Koven v0.44：Block 与控制流
 
-> **性质**：规范性语言规范 · **状态**：current（v0.43） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：实现或评审 block、if、when、loop 与 jump 时 · **唯一真源**：本页
 
-本页是现行 Koven v0.43 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Block 与函数 Body
 
@@ -238,10 +238,12 @@ control_element = block_element ;
 - `while`、`for`、`loop` 是 statement，不进入 Pratt 运算符表；三者 body 都必须是普通
   `{ ... }` block，缺 body 使用 L0060。`while` 条件与 `for` source 只解析表达式，类型约束
   留给 Phase 2。
-- `for` 接受一个名称或完整解构 binding，单名称 `_` 与解构中的 `_` 均为 discard。缺 binding
+- `for` 语法接受一个名称或完整解构 binding，单名称 `_` 与解构中的 `_` 保留为 discard。缺 binding
   用 L0061，缺 `in` 用 L0062。Parser 保留源码顺序和完整 marker，只保存 source、binding 与 body。
   provider、Borrow binding 和借用式 value-class projection 由
-  [顺序迭代规则](12-collections-destructuring.md#37-借用式顺序容器迭代-provider)定义；
+  [顺序迭代规则](12-collections-destructuring.md#37-借用式顺序容器迭代-provider)及
+  [Range/Map 独立合同](12-collections-destructuring.md#整数-range-与-map-的独立迭代合同)定义；
+  binding/discard 的实际接纳由各 provider 限定，Map 不接受 `_`；
   不新增 call/member AST，不按 `iterator()` / `hasNext()` / `next()` 拼写猜测协议。
   `for_binding` 不增加 `borrow`、`own`、`&` 或 consuming marker。
 - `break` / `continue` 只允许控制最近的词法 enclosing loop；不得越过 lambda 或具名函数
@@ -322,13 +324,17 @@ AST 形状提前伪造结论。
 - `x != null` / `x == null` 为稳定 nullable key 建立非空/为空事实。事实只能收窄，不能改变
   声明类型或写回类型；赋值仍按声明类型检查。循环回边、未知 call 的副作用和 lambda 捕获
   使用保守 kill，不实现完整 SSA 数据流或 NLL。
+- while 进入循环头时清除可能被循环写入或回边改变的旧事实；每次条件成立只把稳定 place
+  的 true facts 传给 body。赋值先检查 RHS 再 kill；normal/continue 不把本轮新收窄直接
+  带回头。退出不新增 condition-false 或 break 推导事实，既有必须 kill 的来源仍失效。
+  稳定不可变来源规则不变；零次执行、嵌套循环仍遵循本规则，不启用固定点或 borrow var。
 
 ### `when` 条件、覆盖域与重复
 
 - subjectless `when` 的普通条件必须是 `Boolean`；类型/包含条件仍为语法错误恢复产物，类型
   阶段使用 L0107。subjectful 普通条件按 `subject == condition` 检查可比较性；`in` / `!in`
-  的协议选择由[class-family 与调用规则](08-class-family-members.md)处理，在此保持专用
-  deferred，不据此证明穷尽。
+  在已启用的整数 Range / Map 包含合同内检查，其余未支持选择保持专用 deferred；
+  不据此证明整数域穷尽。
 - 编译器只对有限且封闭的域证明无 `else` 穷尽：`Boolean` 的 `{true,false}`、enum root 的全部
   case，以及它们的 nullable 形式（额外包含 `null`）。泛型类型参数、普通 class、整数、
   String、interface、`Any` 和 subjectless predicate 集合都不是封闭域。
@@ -347,10 +353,15 @@ AST 形状提前伪造结论。
   普通 block 中非尾 expression element 是 statement use；control/lambda body 的尾 expression、
   initializer 与表达式 body 是 value use。`expected == None` 同时可能表示推导和值被丢弃，
   禁止用它推断上下文。
-- value-context 分支先接受外部 expected type。无 expected type 时按源码顺序求最小公共类型：
-  忽略 `Nothing`；完全相同类型保持不变；`T` 与 `T?` 合并为 `T?`；同一 enum 的 case 流类型
-  合并为 enum root；其他已知类型合并为 `Any`。Error 抑制同根级联，Deferred 只保留其专用
-  reason。分支不满足显式 expected type 时沿用 L0086；无法形成上述 join 时使用 L0112。
+- if/when 的 value-context 分支先接受外部 expected type，不匹配使用 L0084。无 expected
+  type 时按源码顺序作封闭 join：相同规范化类型保持；Nothing 与另一类型取另一侧；
+  null 的 Nothing? 与非 nullable T 合成 T?，与已 nullable 类型合并时保持该类型，不产生
+  嵌套 nullable；T 与 T? 取 T?；同一 enum 实例的 case/root 合并为该 root。
+  nullable 提升沿既有 assignability，不做数值 widening、泛型协变或隐式 Any 装箱。
+  其余已知类型拒绝：if 保留 L0089，when 保留 L0112；Error 抑制同根级联，Deferred
+  保留原 reason 且不参与成功判定。全部可达分支均不正常返回时结果为 Nothing。
+- statement when 与无 else 的 if 保持 Unit；有 else 的 if 仍要求分支 join，不因结果被
+  丢弃而接纳混型分支。上下文必须显式传递，不能把 expected 缺失当作 statement。
 - 穷尽 `when` 只有全部可到达 entry 都不 fall through 时才是 `Nothing`。诊断、typed 结果和
   coverage 顺序必须只依赖源码顺序；不得用随机 hash 迭代决定遗漏 case 的顺序。
 

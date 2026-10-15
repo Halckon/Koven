@@ -1,10 +1,10 @@
-# Koven v0.43 语言规范
+# Koven v0.44 语言规范
 
-> **性质**：规范性语言规范入口 · **状态**：current（v0.43） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
+> **性质**：规范性语言规范入口 · **状态**：current（v0.44） · **读取时机**：判断语言语义或实现授权时 · **唯一真源**：本索引导航的 15 个领域页面
 
-<!-- current-guide: v0.43 -->
+<!-- current-guide: v0.44 -->
 
-本规范定义 Koven v0.43。它不是教程，也不描述某项功能何时完成；当前实现事实见
+本规范定义 Koven v0.44。它不是教程，也不描述某项功能何时完成；当前实现事实见
 [Architecture](../architecture/README.md)，未来设计见 [Proposals](../proposals/README.md)。
 已分离的内部表示、算法与资源合同见 [Compiler Contracts](../compiler-specs/README.md)；
 本 Guide 继续作为 Language Reference，语言语义、诊断与强制 Phase 权威不变。
@@ -36,6 +36,12 @@ Spec归档或后继里程碑推进，只证明各自验收范围，不能视为�
 | 权威边界、Phase、门禁和明确非目标 | [一致性与实施边界](15-conformance-and-staging.md) |
 
 ## 版本与边界
+
+- v0.44 完整继承并取代 v0.43，启用类型/控制流与基础集合的封闭补全，范围见
+  [本版边界](15-conformance-and-staging.md#v044-启用边界)；
+  [启用账本](../archive/migrations/v0.44-enablement.md)记录授权、逐章取代与旧版完整保全。
+  规范启用不证明对应实现或验收完成。
+
 
 - 2026-10-08 用户批准 r3 小修后的 N1a 首片本地实施，并批准负数 Abort、超出 size 截边界。
   v0.43 完整继承并取代 v0.42，仅启用[单来源连续范围 carrier](12-collections-destructuring.md#n1a-单来源连续范围-carrier)

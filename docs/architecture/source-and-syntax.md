@@ -63,7 +63,7 @@ Pratt binding power 只有一个实现来源。Parser 保存参数 marker、调�
 N1a 声明前置由 `engine/declaration_head.rs` 复用正式 TypeRef 解析扩展 receiver，保存
 receiver 类型与分隔点 Span；顶层显式 mode 限于 borrow/own，inout、普通函数 mode、成员
 扩展和扩展属性仍有结构化拒绝。`FunctionResultSource` 区分普通存储借用与新 carrier
-来源，不伪造 borrow Span。现行 Guide v0.43 的 compiler-bound View 与可信标准库
+来源，不伪造 borrow Span。现行 Guide v0.44 继承的 compiler-bound View 与可信标准库
 List/View Borrow receiver 已接通 single/unit 类型选择、实际来源、静态 ABI 与 native；
 未授权声明及未证明路径仍由 L0164/结构化 unsupported 封闭，详见[范围 carrier](range-carrier.md)。
 Parser 直接覆盖为 `parser_n1a_frontier`；`type_declaration_frontier` 验证未授权声明拒绝，

@@ -1,8 +1,8 @@
-# Koven v0.43：表达式与运算符
+# Koven v0.44：表达式与运算符
 
-> **性质**：规范性语言规范 · **状态**：current（v0.43） · **读取时机**：实现或评审表达式 Parser、优先级和运算语义时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：实现或评审表达式 Parser、优先级和运算语义时 · **唯一真源**：本页
 
-本页是现行 Koven v0.43 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 整数溢出与除零
 
@@ -226,3 +226,23 @@ unsupported operator，不能把它们接受为两次 prefix / binary 或 range 
 `|`、`^`、`~`、`<<`、`>>` 没有现行位运算语义；`&` 也只在调用实参入口表示 `Inout`，
 不是通用一元或二元运算符。Koven 使用具名中缀 `shl`、`shr`、`ushr`、`and`、`or`、`xor`；
 位宽屏蔽及结果规则见本页上文。
+
+## 整数 Range 与显式整数转换
+
+- `a..b` 与 `a..<b` 要求两个已定型端点同为 Int 或同为 Long，分别产生 IntRange 或
+  LongRange；沿既有字面量定型，不隐式转换已定型数值。端点从左到右各求值一次。
+  类型不匹配沿用 L0085。闭区间包含两端，半开区间不含右端；反向区间为空，相等端点时
+  闭区间含一个值而半开区间为空。Range 不同于借用容器的 View，也不是切片下标。
+- `x in range`、`x !in range` 要求 x 与 range 端点的整数类型相同，返回 Boolean；
+  两个 operand 按源码顺序各求值一次，空区间的 in 为 false。既有 Map 包含性不变。
+- 同型 Range 的 `==`/`!=` 按升序元素序列比较；同型空区间彼此相等，`1..2` 与 `1..<3`
+  相等。不同 Range 类型不隐式转换。此合同不要求逐元素比较，不允许闭区间 MAX 再加一
+  或空区间端点归一计算溢出；也不发布排序、hash、first/last/step/size 等 API。
+- 八整数 builtin（Byte、Short、Int、Long、UByte、UShort、UInt、ULong）各提供零参成员
+  `toByte()`、`toShort()`、`toInt()`、`toLong()`、`toUByte()`、`toUShort()`、`toUInt()`、
+  `toULong()`，完整覆盖 8×8 包括同型 identity。receiver 求值一次，数学整数在目标类型
+  闭值域内则返回目标类型值，否则沿既有 Abort 终止；先判断值域，不能先截断再判断。
+  Int→Long、UInt→Long 总可表示，负 Int→ULong 仍失败，ULong→Long 上半值域失败。
+- 转换成员是编译器绑定身份，不是一般用户扩展、接口或重载授权。沿用普通调用匹配与
+  诊断，不隐式调用转换；Float/Double、Char、Boolean、String、nullable 不因此获得转换。
+  不启用 OrNull、截断、常量求值或错误消息输出保证；同名风格不意味着 Kotlin 的截断语义。
