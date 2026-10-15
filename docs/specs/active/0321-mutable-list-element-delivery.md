@@ -8,12 +8,12 @@
 | Goal ID | `KOV-P4-0321` |
 | 所属 Phase | Phase 4 消费既有 Phase 3 Value delivery；Phase 6 两入口对照 |
 | 语言规范 | [集合元素交付](../../guide/12-collections-destructuring.md)、[String owner](../../guide/13-program-runtime-standard-library.md#string)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
-| 批准依据 | 原A→B→C顺序中的C“List MoveOnly追踪”；2026-10-14草案独审通过，批准迁active及tests-only准备；未批准生产实现或测试执行 |
+| 批准依据 | 原A→B→C顺序中的C“List MoveOnly追踪”；2026-10-14草案独审通过，批准迁active及tests-only准备；后续已批准正常main同步及独审后的9 exact基线执行；生产实现仍待独审放行 |
 | 前置 Spec | [SPEC-0320 Enum case Borrow分类](../../archive/specs/0320-enum-case-borrow-categories.md)，已由PR102合入actual main `7c348e704ecd3595fa17ce4b08a2734d7d966e80`；本片独立交付 |
 | 分支基线 | `fix/spec-0321`依赖0320本地最终`da03e0f84f6f3fdd2d4a3572117a511dfa8ce608` / tree`f0abc5e03035f9911a26fa44a026bfc281c25f92`；远端0320`7a305bd7bcead62921827ca8a24eba5fed8504ef`同tree；现正常merge实际main `7c348e704ecd3595fa17ce4b08a2734d7d966e80` / tree `910164ff461374f2c133a7f5ac4d938486c32de4`，保留真实父链 |
 | 官方编号核验 | 2026-10-14官方main`a0f5f8ac`全树最大0319；上述0320完整树最大0320；93分支及2个开放PR未见更新编号，保留0321；实施前重核并正常同步实际main |
 | 语言语义变更 | 否；add已取得Value元素，Copyable复制、MoveOnly转移；不能放宽verifier或新增循环能力 |
-| 阻塞项 | 设计独审已通过；0320已交付并正常同步实际main；tests-only与helper新基线独审、逐名运行授权及真实红测待完成 |
+| 阻塞项 | 设计独审已通过；0320已交付并正常同步实际main；9 exact真实基线已完成，生产最小修复及独立live owner候选仍待独审 |
 
 ## 1. 单一 Goal
 
@@ -102,17 +102,37 @@ CLI三个目标独立记录原p38的build/run/普通artifact，constant marker�
 | lang-cli / project_cli；同前缀 | `project_basic_p38_string_add_then_for_builds_and_runs`、`project_constant_p38_string_add_then_for_builds_and_runs` |
 
 18个codegen入口只验证分析/SSA/LLVM；只有原p38的3个CLI入口另有stdout行为oracle，二者分账。
-这9个exact只是待审名单；未编译、未运行，不声称当前红/绿。0320实际main正常同步后重新固定
-源码/argv与基线，helper独审及root逐名授权后才开测；原L0131/L0135测试与oracle未改。
+上述名单的首轮真实结果见下节，初始tests-only准备时未编译、未运行。0320实际main正常同步后已重新固定
+源码/argv与基线，并经helper/runner独审及root逐名授权完成首轮；原L0131/L0135测试与oracle未改。
 
-## 7. 验收与停止条件
+## 7. 真实基线账本
+
+2026-10-15固定HEAD `1a0ecab44dbd99b65891b8f87211a20ed284f674` / tree
+`ff861004984e4571ff481e76eb0111c7ded823d0`；正常双父为tests-only `ad53006d`与actual main
+`7c348e70`。Linux Rust1.96.0 / LLVM21.1.8，9个上述exact各实际命中1条，串行使用
+`cargo test --locked --offline -p PACKAGE TARGET EXACT -- --exact --nocapture --test-threads=1`。
+
+| 验收项 | 实际结果 |
+|---|---|
+| p38、Group、named-root，各single/basic/constant | frontend与精确operand/delivery身份均通过；single SSA `InvalidSsa`且Span为None；两unit入口SSA/LLVM通过 |
+| 空列表、Copyable，各三入口 | 6个分析/SSA/LLVM入口通过，不据此声称stdout验证 |
+| 独立live String跨for，各三入口 | single SSA前置`UnsupportedNode`，SourceId0字节27..35为retained声明；两unit入口通过；这是独立既有边界，不算append根因红，不扩循环能力 |
+| 原p38公开CLI single | build/run均exit2，报告InvalidModel/InvalidSsa；stdout空，artifact未运行 |
+| 原p38公开CLI project basic/constant | build/run/artifact均exit0；build输出空，run/artifact stdout精确`x\ny\n`，stderr空；源码不变和临时产物清理oracle通过 |
+
+合计18分析入口14绿、3个single InvalidSsa红、1个独立UnsupportedNode；9 exact为4绿5失败断言。
+首次offline因缺inkwell在编译前exit101、零执行；另获准正常`cargo fetch --locked`成功后重跑，
+原失败未覆盖。所有13个fixture/helper输入SHA前后不变，生产零改动。原始日志与清单仓外保留，
+稳定输入可由上述固定Git提交及exact复现；该基线不是完整套件或macOS验收，也没有具体verifier错误/Span。
+
+## 8. 验收与停止条件
 
 - [x] 官方库存/编号、原p38字节与历史矩阵、single/unit静态链核对。
 - [x] 草案独审通过，批准迁active及tests-only；生产实现与测试运行仍未授权。
-- [ ] 正常同步0320实际main；tests-only及helper独审、逐名运行授权。
-- [ ] 当前输入真实expected-positive红与已有绿/拒绝边界分采。
+- [x] 正常同步0320实际main；tests-only及helper/runner独审、逐名运行授权。
+- [x] 当前输入真实expected-positive红与已有绿/独立拒绝边界分采。
 - [ ] 只对精确已交付owner作最小修复，普通源码回归及工程门禁。
 - [ ] 独立PR双宿主物理CI、Architecture同步、验收归档及main交付。
 
-0320已合实际main并正常同步；0321新固定基线及runner待独审，生产、构建、测试和本片远端CI均未执行。
+0320已合实际main并正常同步；0321固定基线及runner已独审并运行上述9 exact。生产修复与本片远端CI未执行。
 若必须改Guide、放宽verifier、补通用循环能力或改无关容器操作，停止并请求独立决定。

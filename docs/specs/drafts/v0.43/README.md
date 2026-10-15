@@ -50,7 +50,7 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 - [0320 Enum case Borrow实参分类](../../../archive/specs/0320-enum-case-borrow-categories.md)已按PR102实现head双宿主物理CI有界验收归档；原when与泛型enum native边界不扩，归档head CI、合并授权及main交付待完成。
 
-- [0321 single MutableList.add元素交付记账](../../active/0321-mutable-list-element-delivery.md)：设计独审通过并迁active，依赖尚未合main的0320；tests-only准备已批准，helper独审、实际main同步及逐名运行授权尚待。
+- [0321 single MutableList.add元素交付记账](../../active/0321-mutable-list-element-delivery.md)：设计独审通过并迁active，依赖已合main的0320；tests-only准备已批准，helper独审、实际main同步及逐名运行授权尚待。
 
 ## 未编号的现行支持候选
 
