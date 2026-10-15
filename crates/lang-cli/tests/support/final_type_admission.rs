@@ -187,7 +187,7 @@ fn assert_rejection(
         }
         assert_eq!(
             json!({ "code": record["code"], "primary": record["primary"] }),
-            *expected,
+            json!({ "code": expected["code"], "primary": expected["primary"] }),
             "{context}: {text}"
         );
     } else {
