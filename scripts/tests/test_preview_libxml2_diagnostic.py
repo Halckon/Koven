@@ -29,6 +29,10 @@ class Libxml2DiagnosticTests(unittest.TestCase):
                     'https://archive.ubuntu.com:443/ubuntu',
                     'https://archive.ubuntu.com/ubuntu?token=secret',
                     'https://archive.ubuntu.com/ubuntu#secret',
+                    'https://archive.ubuntu.com/ubuntu?',
+                    'https://archive.ubuntu.com/ubuntu#',
+                    'cdrom:[Ubuntu 24.04 private label]/noble',
+                    'mirror:private.example/secret',
                     'https://private.example/secret', 'file:/private/secret',
                     'ftp://archive.ubuntu.com/ubuntu',
                     'https://archive.ubuntu.com/private/secret'):
@@ -36,6 +40,10 @@ class Libxml2DiagnosticTests(unittest.TestCase):
                 text, redacted = self.host._redact_apt_sources('source ' + uri + '\n')
                 self.assertTrue(redacted)
                 self.assertEqual(text, 'source <redacted-source>\n')
+
+    def test_package_architecture_is_not_a_source_uri(self):
+        self.assertEqual(self.host._redact_apt_sources('libxml2:amd64\n'),
+                         ('libxml2:amd64\n', False))
 
     def test_real_child_bytes_and_exit_are_recorded(self):
         records = []
@@ -70,12 +78,53 @@ class Libxml2DiagnosticTests(unittest.TestCase):
         self.assertTrue(records[0]['timed_out'])
         self.assertIsNotNone(records[0]['exit'])
 
+    def test_stderr_limit_is_also_bounded(self):
+        records = []
+        self.assertIsNone(self.host._diagnostic_probe(
+            [sys.executable, '-c', 'import os; os.write(2,b"x"*8192)'], records, output_limit=128))
+        self.assertTrue(records[0]['output_limited'])
+        self.assertLessEqual(len(base64.b64decode(records[0]['stderr_base64'])), 128)
+
+    def test_closed_pipes_do_not_bypass_process_timeout(self):
+        records = []
+        self.assertIsNone(self.host._diagnostic_probe(
+            [sys.executable, '-c', 'import os,time; os.close(1); os.close(2); time.sleep(30)'],
+            records, timeout=0.1))
+        self.assertTrue(records[0]['timed_out'])
+        self.assertIsNotNone(records[0]['exit'])
+
     def test_startup_error_is_contained(self):
         records = []
         with mock.patch.object(self.host.subprocess, 'Popen', side_effect=OSError('cannot start')):
             self.assertIsNone(self.host._diagnostic_probe(['/usr/bin/readelf'], records))
         self.assertFalse(records[0]['success'])
         self.assertEqual(records[0]['error'], 'OSError')
+
+    def test_close_error_still_preserves_probe_record(self):
+        records = []
+        actual_popen = subprocess.Popen
+        class CloseErrorStream:
+            def __init__(self, stream):
+                self.stream = stream
+
+            def fileno(self):
+                return self.stream.fileno()
+
+            def close(self):
+                self.stream.close()
+                raise OSError('do not expose this detail')
+
+        def child(args, **kwargs):
+            process = actual_popen(args, **kwargs)
+            process.stdout = CloseErrorStream(process.stdout)
+            return process
+
+        with mock.patch.object(self.host.subprocess, 'Popen', side_effect=child):
+            self.assertIsNone(self.host._diagnostic_probe(
+                [sys.executable, '-c', 'print("kept")'], records))
+        self.assertEqual(records[0]['error'], 'OSError')
+        self.assertEqual(records[0]['exit'], 0)
+        self.assertEqual(base64.b64decode(records[0]['stdout_base64']), b'kept\n')
 
     def test_apt_both_streams_are_redacted_before_recording(self):
         records = []

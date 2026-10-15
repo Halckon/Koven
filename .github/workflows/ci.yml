@@ -420,6 +420,8 @@ jobs:
         run: rustup component add rust-docs
       - name: Build source-traceable release candidate
         run: /usr/bin/python3 scripts/package_preview.py --output "$RUNNER_TEMP/preview-producer"
+        env:
+          KOVEN_PREVIEW_LIBXML2_EVIDENCE: '1'
       - name: Upload this run's candidate and bootstrap
         id: candidate
         uses: actions/upload-artifact@v7
@@ -461,6 +463,8 @@ jobs:
           path: ${{ runner.temp }}/preview-download
       - name: Install and run only the matching package
         shell: bash
+        env:
+          KOVEN_PREVIEW_LIBXML2_EVIDENCE: '1'
         run: |
           /usr/bin/python3 "$RUNNER_TEMP/preview-download/check_preview_install.py" \
             --archive "$RUNNER_TEMP/preview-download/"*.tar.gz \
