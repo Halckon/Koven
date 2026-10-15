@@ -153,7 +153,7 @@ fn project_assignment_capture_build_preserves_ownership_rejection() {
         let before = directory_snapshot(project.path());
         let output = project_build(&manifest, "main", &executable, Some(format));
         cases.push(RejectionCase {
-            context: format!("SPEC-0325 build {format} constants={}", !prefix.is_empty()),
+            context: format!("SPEC-0325 build {format}"),
             output,
             format,
             expected: expected_diagnostic(probe, &source_name, prefix),
