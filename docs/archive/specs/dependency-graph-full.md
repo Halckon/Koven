@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，305 份）"]
+subgraph Garchive["已完成（archive，306 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -313,10 +313,8 @@ subgraph Garchive["已完成（archive，305 份）"]
   S0318["S0318<br/>Map 条件 return operand 的最后使用清理"]
   S0319["S0319<br/>最终类型消费准入与源级诊断"]
   S0320["S0320<br/>Enum case 构造值的 Borrow 实参分类"]
-  S0322["S0322<br/>Preview 外部 libxml2 有界宿主兼容性"]
-end
-subgraph Gactive["现行 active"]
   S0321["S0321<br/>single MutableList.add 元素所有权交付记账"]
+  S0322["S0322<br/>Preview 外部 libxml2 有界宿主兼容性"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1675,7 +1673,7 @@ S0320 --> S0321
 | SPEC-0318 | archive | [0318-map-return-operand-last-use.md](0318-map-return-operand-last-use.md) |
 | SPEC-0319 | archive | [0319-final-type-admission-diagnostics.md](0319-final-type-admission-diagnostics.md) |
 | SPEC-0320 | archive | [0320-enum-case-borrow-categories.md](0320-enum-case-borrow-categories.md) |
+| SPEC-0321 | archive | [0321-mutable-list-element-delivery.md](0321-mutable-list-element-delivery.md) |
 | SPEC-0322 | archive | [0322-preview-libxml2-host-compatibility.md](0322-preview-libxml2-host-compatibility.md) |
-| SPEC-0321 | active | [0321-mutable-list-element-delivery.md](../../specs/active/0321-mutable-list-element-delivery.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

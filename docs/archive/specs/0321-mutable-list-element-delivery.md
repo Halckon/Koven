@@ -1,10 +1,10 @@
 # SPEC-0321: single MutableList.add 元素所有权交付记账
 
-> **性质**：有界修复合同 · **状态**：in-progress · **读取时机**：审查 add 元素交付与后继 CFG owner 运输时 · **唯一真源**：本合同；语言规则仍以现行 Guide 为准
+> **性质**：有界修复合同 · **状态**：done · **读取时机**：审查 add 元素交付与后继 CFG owner 运输时 · **唯一真源**：本合同；语言规则仍以现行 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0321` |
 | 所属 Phase | Phase 4 消费既有 Phase 3 Value delivery；Phase 6 两入口对照 |
 | 语言规范 | [集合元素交付](../../guide/12-collections-destructuring.md)、[String owner](../../guide/13-program-runtime-standard-library.md#string)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
@@ -13,7 +13,7 @@
 | 分支基线 | `fix/spec-0321`依赖0320本地最终`da03e0f84f6f3fdd2d4a3572117a511dfa8ce608` / tree`f0abc5e03035f9911a26fa44a026bfc281c25f92`；远端0320`7a305bd7bcead62921827ca8a24eba5fed8504ef`同tree；现正常merge实际main `7c348e704ecd3595fa17ce4b08a2734d7d966e80` / tree `910164ff461374f2c133a7f5ac4d938486c32de4`，保留真实父链 |
 | 官方编号核验 | 2026-10-14官方main`a0f5f8ac`全树最大0319；上述0320完整树最大0320；93分支及2个开放PR未见更新编号，保留0321；实施前重核并正常同步实际main |
 | 语言语义变更 | 否；add已取得Value元素，Copyable复制、MoveOnly转移；不能放宽verifier或新增循环能力 |
-| 阻塞项 | 设计独审已通过；0320已交付并正常同步实际main；同head14精确目标与工程四门禁已通过；双宿主CI、归档与main交付待完成 |
+| 待交付 | 本片有限实现已按§11双宿主物理CI验收归档；归档head CI、PR105合并授权、实际main交付及main CI仍待 |
 
 ## 1. 单一 Goal
 
@@ -195,14 +195,50 @@ PR105原[CI 38659703874](https://github.com/Halckon/Koven/actions/runs/386597038
 Ubuntu preview consumer环境闭包拒绝保持失败历史；不靠本次正常merge覆写旧结果。
 含0322的新base远端CI等待本PR更新触发，Spec仍保持active。
 
-## 11. 验收与停止条件
+## 11. 实现head双宿主CI与有限归档
+
+2026-10-15 [PR105 CI 38692676541 / attempt 1](https://github.com/Halckon/Koven/actions/runs/38692676541/attempts/1)
+终态success：15个job成功，Tree-sitter CLI Corpus按变更范围跳过；`reuse=false`，不将范围skip
+计作执行通过。真实head为`895b9f508b5c29019d4301072dce258fea885cc0`，tree为
+`64ffcd591ed20785cbf02bca1e7864b3a8a5936b`；实际synthetic merge为
+`e0f86f5ab684337cbf760ed885cfe661505d74f4`，ordered parents为main `29657994`、head `895b9f50`，
+tree与head相同。本归档提交直接继承真实head，不合并旧本地等内容映射链。
+
+- Ubuntu与macOS物理测试日志逐名确认§6新增6个codegen、3个CLI目标均`ok`；每宿主18个
+  single/basic/constant分析/身份/SSA/LLVM入口与3个原p38 CLI行为oracle分别通过。
+  CLI仍核build/run/artifact及精确`x\ny\n`输出，不把codegen入口当作stdout验收。
+- 两宿主独立preview consumer各执行12条真实命令，全部exit0、输出字节校验成功，
+  cleanup.removed与sentinel.unchanged均true；manifest绑定上述head/tree，没有命令超时。
+- Linux实际producer libxml2 `2.9.14+dfsg-1.3ubuntu3.10`到consumer `.9`差hash路径通过；
+  两侧各61 probes成功、errors为空，无timeout/output limit。沿用0322固定两修订合同，
+  不扩展ABI或来源认证；source_uri_status与installed_origin仍为unproven。
+  不把本次结果宣称为反方向实跑，相关协议测试仅在CI执行。
+- §7–10的真实红、独立Unsupported边界、编译零执行及旧CI环境失败全部保留。
+  本片没有运行云端聚合、故障注入或校准，亦未新增Resource/deinit或出口矩阵。
+
+下载ZIP与GitHub artifact digest核同的证据如下；原始日志/JSON仓外保留，不复制入库：
+
+| Artifact ID | 内容 | SHA256 |
+|---|---|---|
+| 11953705463 | Linux producer evidence | `393080cb97501181616eead6781ff7380d40909441b1c8631fd0dec6942b3be4` |
+| 11953705576 | Linux consumer evidence | `7bce89f8d280d3651dd99c7760cccadfdd75f548eb831626ac6180b035698045` |
+| 11953002764 | macOS consumer evidence | `9eb1de5525a5efe61c3f3a4ccaea1cc6415d5d766604538c791959cb67949c33` |
+
+GitHub记录artifact于2027-01-13过期；保留固定输入、摘要、digest与真实fixture，
+不承诺过期后完整远端日志仍在线。Architecture已同步实际ValueId清理及Copyable/无关owner保留。
+归档done仅表示本片有限实现验收完成；A最终类型准入、B Enum case Borrow分类、C本片三个核心
+缺陷的有界闭合不表示整份review或v1全部完成。归档head CI、PR105合并授权、实际main交付及
+main CI仍待，不将上述实现head记录冒用为这些后继步骤已通过。
+
+## 12. 验收与停止条件
 
 - [x] 官方库存/编号、原p38字节与历史矩阵、single/unit静态链核对。
 - [x] 初始草案独审通过并批准迁active及tests-only；当时未授权生产与测试，后续基线授权/执行见上文。
 - [x] 正常同步0320实际main；tests-only及helper/runner独审、逐名运行授权。
 - [x] 当前输入真实expected-positive红与已有绿/独立拒绝边界分采。
 - [x] 精确已交付owner最小修复、14唯一普通源码目标及工程四门禁通过。
-- [ ] 独立PR双宿主物理CI、Architecture同步、验收归档及main交付。
+- [x] 实现head独立PR双宿主物理CI、Architecture同步及有限验收归档。
+- [ ] 归档head CI、PR105合并授权、实际main交付及main CI。
 
-0320已合实际main并正常同步；0321固定基线及runner已独审并运行上述9 exact。最小生产、固定14 exact与工程四门禁已完成；Spec保持active，本片远端CI/归档/main交付未完成。
+0320已合实际main并正常同步；0321固定基线及runner已独审并运行上述9 exact。最小生产、固定14 exact、工程四门禁与实现head双宿主CI已完成；本片有限归档，后继交付待项见上文。
 若必须改Guide、放宽verifier、补通用循环能力或改无关容器操作，停止并请求独立决定。

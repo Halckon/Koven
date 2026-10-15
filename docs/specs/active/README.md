@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-- [0321 single MutableList.add元素交付记账](0321-mutable-list-element-delivery.md)：最小交付登记修复已正常同步含0322的actual main，并在新merge head重验同14精确普通目标与四工程门禁通过；双宿主CI/归档/main交付待完成。
+当前无active Spec；0321已按实现head双宿主CI有限归档，归档head CI及main交付待，见[近期交付](../README.md#近期交付)。
 
 0322已按实现head有限验收归档并由PR106合入actual main `29657994`；main CI另行跟踪，见[近期交付](../README.md#近期交付)。
 

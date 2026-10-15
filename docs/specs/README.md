@@ -58,14 +58,19 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 file IO 留后续 v1 独立里程碑，
 尚未据此建立新 Spec；已有顺序迭代及 take/drop/dropLast 不重新列待做，原有 draft/candidate 状态不变。
 后继A的[0319 最终类型消费准入](../archive/specs/0319-final-type-admission-diagnostics.md)已按实现head双宿主物理CI有界验收归档，并经归档head CI后合入main；
-随后B已登记[0320 Enum case Borrow实参分类](../archive/specs/0320-enum-case-borrow-categories.md)，已按PR102实现head双宿主物理CI有界归档，归档head CI、合并授权及main交付待完成；C List MoveOnly转移追踪仍独立，当前待查为p38的`MutableList<String>.add`后`for`临时owner清理。single/project、basic/constant同源码差异矩阵仍需逐项建立，
-不以[现存入口差异](../architecture/lowering-support.md#现存入口差异)或本轮有限收尾宣称这些修复已完成。
+随后B [0320 Enum case Borrow实参分类](../archive/specs/0320-enum-case-borrow-categories.md)已由PR102交付；
+C [0321 List MoveOnly交付记账](../archive/specs/0321-mutable-list-element-delivery.md)已按实现head双宿主CI有限归档，
+原p38的single/project、basic/constant普通源码矩阵通过，归档head CI及main交付仍待。
+A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或v1全部完成；Resource/deinit、新出口、
+通用循环和其他容器/API仍按原能力边界及独立后继处理。
 
 ### 近期交付
 
-- [0322](../archive/specs/0322-preview-libxml2-host-compatibility.md)：[PR106实现CI](https://github.com/Halckon/Koven/actions/runs/38677370915/attempts/1)16/16成功；仅固定两修订，真实Ubuntu `.10→.9` 差hash及双宿主各12命令/清理通过。归档head CI、合并授权及main交付仍待；不表示反方向实跑或来源认证。
+- [0321](../archive/specs/0321-mutable-list-element-delivery.md)：[PR105实现CI](https://github.com/Halckon/Koven/actions/runs/38692676541/attempts/1)15个job成功、Tree-sitter范围skip，非复用；新增9目标两宿主逐名通过，独立consumer各12命令/清理通过。归档head CI、合并授权及main交付待；旧环境失败保留。
 
-- [0320 Enum case Borrow实参分类](../archive/specs/0320-enum-case-borrow-categories.md)：[PR102实现CI](https://github.com/Halckon/Koven/actions/runs/38605435497/attempts/1)在实际head `7a305bd7`通过完整物理CI；双宿主新FE5逐名验收，本地46普通目标与CI-only设施分账，保留原红史；已作有界归档，归档head CI、PR102合并授权及实际main交付待完成。
+- [0322](../archive/specs/0322-preview-libxml2-host-compatibility.md)：[PR106实现CI](https://github.com/Halckon/Koven/actions/runs/38677370915/attempts/1)16/16成功；仅固定两修订，真实Ubuntu `.10→.9` 差hash及双宿主各12命令/清理通过。已由[PR106](https://github.com/Halckon/Koven/pull/106)合入main `29657994`，[main CI](https://github.com/Halckon/Koven/actions/runs/38688635054/attempts/1)通过；不表示反方向实跑或来源认证。
+
+- [0320 Enum case Borrow实参分类](../archive/specs/0320-enum-case-borrow-categories.md)：[PR102实现CI](https://github.com/Halckon/Koven/actions/runs/38605435497/attempts/1)在实际head `7a305bd7`通过完整物理CI；双宿主新FE5逐名验收，本地46普通目标与CI-only设施分账，保留原红史；已作有界归档并由[PR102](https://github.com/Halckon/Koven/pull/102)合入main `7c348e70`；旧main环境失败记录保留，不追写为成功。
 
 - [0319 最终类型消费准入](../archive/specs/0319-final-type-admission-diagnostics.md)：[PR101实现CI](https://github.com/Halckon/Koven/actions/runs/38588845331/attempts/1)在实际head `5f12af1d` / base `18865460` 16/16 jobs成功、reuse=false；双宿主新final target各13/13，check/clippy/组合及双preview通过后有界归档。保留[首次CI](https://github.com/Halckon/Koven/actions/runs/38587442021)的103/104选择数失败及targeted skipped、本地诊断/常量回归/格式失败；[归档head CI](https://github.com/Halckon/Koven/actions/runs/38592462711)合法复用该实现证据后通过，PR101已合入实际main `a0f5f8ac`；[main CI](https://github.com/Halckon/Koven/actions/runs/38592817579/attempts/1)已成功，15个job实际执行成功，1个PR-only证据job按条件跳过。
 

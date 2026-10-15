@@ -475,4 +475,5 @@
 
 - [SPEC-0320](0320-enum-case-borrow-categories.md)：Enum case Borrow临时值分类、调用期loan及精确final静态qualifier；PR102实现head双宿主新增FE5与完整物理CI验收后有界归档，原红测与本地46普通目标分账保留；归档head CI、合并授权及main交付待完成。
 
+- [SPEC-0321](0321-mutable-list-element-delivery.md)：single MutableList.add仅移除实际MoveOnly element owner别名，保留Copyable/无关owner；14精确目标、四工程门禁及实现head双宿主CI通过，归档head CI/main交付待。
 - [SPEC-0322](0322-preview-libxml2-host-compatibility.md)：Ubuntu Noble libxml2两修订有界预检；真实`.10→.9`及双宿主12命令通过，反向实跑未覆盖；归档head CI/合并/main待。
