@@ -5,8 +5,10 @@ import os
 from pathlib import Path
 import platform
 import re
+import selectors
 import subprocess
 import time
+from urllib.parse import urlsplit
 
 
 class HostInspectionError(ValueError):
@@ -180,6 +182,158 @@ def inspect_host(binary, evidence=None):
         raise HostInspectionError(error, evidence) from error
 
 
+def _redact_apt_sources(text):
+    """Keep only public Ubuntu archive URLs; never persist other source URIs."""
+    redacted = False
+
+    def replace(match):
+        nonlocal redacted
+        value = match.group(0)
+        try:
+            uri = urlsplit(value)
+            if (uri.scheme in {'http', 'https'}
+                    and uri.netloc in {'archive.ubuntu.com', 'azure.archive.ubuntu.com',
+                                       'security.ubuntu.com'}
+                    and uri.path in {'/ubuntu', '/ubuntu/'}
+                    and '?' not in value and '#' not in value):
+                return value
+        except ValueError:
+            pass
+        redacted = True
+        return '<redacted-source>'
+
+    # cdrom labels can contain spaces; drop the rest of that source line too.
+    # Enumerate non-hierarchical APT schemes, never package names like libxml2:amd64.
+    pattern = (r'\b(?:cdrom:[^\r\n]*|[A-Za-z][A-Za-z0-9+.-]*:/{1,2}\S+'
+               r'|(?:mirror|file|copy|rsh|ssh|ftp|http|https|tor):\S*)')
+    return re.sub(pattern, replace, text, flags=re.IGNORECASE), redacted
+
+
+def _diagnostic_probe(args, records, timeout=60, output_limit=32 * 1024 * 1024):
+    """Bound both pipes while reading and reap every diagnostic subprocess."""
+    argv = [str(arg) for arg in args]
+    record = {'argv': argv, 'exit': None, 'timed_out': False, 'output_limited': False,
+              'success': False, 'redacted': False, 'timeout_seconds': timeout,
+              'output_limit_bytes_per_stream': output_limit, 'locale': 'C'}
+    started = time.monotonic()
+    buffers = {'stdout': bytearray(), 'stderr': bytearray()}
+    process = None
+    try:
+        process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, env={**os.environ, 'LC_ALL': 'C'})
+        with selectors.DefaultSelector() as selected:
+            selected.register(process.stdout, selectors.EVENT_READ, 'stdout')
+            selected.register(process.stderr, selectors.EVENT_READ, 'stderr')
+            while selected.get_map():
+                remaining = timeout - (time.monotonic() - started)
+                if remaining <= 0:
+                    record['timed_out'] = True
+                    break
+                limited = False
+                for key, _ in selected.select(remaining):
+                    target = buffers[key.data]
+                    capacity = output_limit - len(target)
+                    chunk = os.read(key.fd, min(65536, capacity + 1))
+                    if not chunk:
+                        selected.unregister(key.fileobj)
+                        continue
+                    target.extend(chunk[:capacity])
+                    if len(chunk) > capacity:
+                        record['output_limited'] = limited = True
+                        break
+                if limited:
+                    break
+        if not record['timed_out'] and not record['output_limited']:
+            try:
+                process.wait(timeout=max(0, timeout - (time.monotonic() - started)))
+            except subprocess.TimeoutExpired:
+                record['timed_out'] = True
+    except Exception as error:
+        # Exception messages may contain unredacted command output or source URIs.
+        record['error'] = type(error).__name__
+    finally:
+        if process is not None:
+            try:
+                if process.poll() is None:
+                    process.kill()
+                record['exit'] = process.wait()
+            except Exception as error:
+                record['error'] = type(error).__name__
+            for stream in (process.stdout, process.stderr):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except Exception as error:
+                        record['error'] = type(error).__name__
+        output = {name: bytes(data) for name, data in buffers.items()}
+        if argv and argv[0] == '/usr/bin/apt-cache':
+            try:
+                for name, data in output.items():
+                    safe, redacted = _redact_apt_sources(data.decode('utf-8', errors='strict'))
+                    output[name] = safe.encode('utf-8')
+                    record['redacted'] |= redacted
+            except Exception:
+                output = {'stdout': b'', 'stderr': b''}
+                record['error'] = 'RedactionError'
+        record.update(elapsed_seconds=time.monotonic() - started,
+                      stdout_base64=base64.b64encode(output['stdout']).decode('ascii'),
+                      stderr_base64=base64.b64encode(output['stderr']).decode('ascii'))
+        records.append(record)
+    if (record['exit'] == 0 and not record['timed_out']
+            and not record['output_limited'] and 'error' not in record):
+        try:
+            text = output['stdout'].decode('utf-8', errors='strict')
+        except UnicodeError:
+            record['error'] = 'UnicodeError'
+        else:
+            record['success'] = True
+            return text
+    return None
+
+
+def collect_libxml2_diagnostic(binary, libraries, evidence):
+    """CI-only read-only evidence, separate from every existing host verdict."""
+    diagnostic = {'schema': 'koven.preview.libxml2-diagnostic.v1', 'complete': False,
+                  'libraries': [], 'requesters': [], 'commands': [], 'errors': []}
+    evidence['libxml2_diagnostic'] = diagnostic
+    try:
+        rows = [row for row in libraries if row['name'] == 'libxml2.so.2']
+        diagnostic['libraries'] = rows
+        if len(rows) != 1:
+            diagnostic['errors'].append('expected exactly one measured libxml2 library')
+            return
+        library = rows[0]
+
+        def probe(args):
+            return _diagnostic_probe(args, diagnostic['commands'])
+
+        probe(['/usr/bin/dpkg-query', '-S', library['resolved']])
+        probe(['/usr/bin/dpkg-query', '-W',
+               '-f=${binary:Package}\t${Status}\t${Architecture}\t${Version}\t'
+               '${source:Package}\t${source:Version}\n', 'libxml2:amd64'])
+        probe(['/usr/bin/dpkg-query', '--control-show', 'libxml2:amd64', 'md5sums'])
+        probe(['/usr/bin/apt-cache', 'policy', 'libxml2:amd64'])
+        probe(['/usr/bin/apt-cache', 'policy'])
+        targets = [str(binary), *(row['resolved'] for row in libraries)]
+        for path in sorted(set(targets)):
+            dynamic = probe(['/usr/bin/readelf', '--wide', '-d', path])
+            if dynamic is None:
+                continue
+            if re.search(r'\(NEEDED\).*\[libxml2\.so\.2\]', dynamic):
+                diagnostic['requesters'].append(path)
+            elif path != library['resolved']:
+                continue
+            probe(['/usr/bin/readelf', '--wide', '-h', path])
+            probe(['/usr/bin/readelf', '--wide', '--dyn-syms', path])
+            probe(['/usr/bin/readelf', '--wide', '--version-info', path])
+        if not diagnostic['requesters']:
+            diagnostic['errors'].append('no measured direct libxml2 requester')
+        diagnostic['complete'] = (not diagnostic['errors'] and bool(diagnostic['commands'])
+                                  and all(row['success'] for row in diagnostic['commands']))
+    except Exception as error:
+        diagnostic['errors'].append(type(error).__name__)
+
+
 def _inspect_host(binary, evidence):
     binary = Path(binary).resolve(strict=True)
     check_loader_environment(os.environ)
@@ -235,6 +389,8 @@ def _inspect_host(binary, evidence):
         host.update(os_version=os_release['VERSION_ID'], libraries=libraries,
                     load_records={'dynamic': dynamic, 'program_headers': headers},
                     glibc=command(['/usr/bin/getconf', 'GNU_LIBC_VERSION'], evidence))
+        if os.environ.get('KOVEN_PREVIEW_LIBXML2_EVIDENCE') == '1':
+            collect_libxml2_diagnostic(binary, libraries, evidence)
     return host
 
 
