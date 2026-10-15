@@ -322,5 +322,12 @@ fn field_assignment_retains_existing_entry_difference() {
             },
             "{entry:?}"
         );
+        assert!(entry.raw.is_empty(), "{entry:?}");
+        assert!(entry.complete.is_ok(), "{entry:?}");
+        let diagnostics = entry.ownership.as_ref().unwrap();
+        assert_eq!(diagnostics.len(), 1, "{entry:?}");
+        assert_eq!(diagnostics[0].code().to_string(), if entry.mode == "single" { "L0135" } else { "L0134" });
+        let span = diagnostics[0].primary_span();
+        assert_eq!((span.start(), span.end()), (48, 54));
     }
 }

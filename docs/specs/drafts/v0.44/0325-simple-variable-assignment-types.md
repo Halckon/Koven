@@ -50,5 +50,11 @@ helper 只普通源码 lex/parse/names/raw types/complete；complete 成功才 o
 
 ## 3. 当前结果
 
-仅静态准备，8 项尚未编译/执行，oracle 不等于已测事实。Guide 启用不表示本片实现完成。
-首次红测与实现准入后再登记 active；两平台 native/资源路径未运行不得宣称通过。
+红测输入 `620782607dd01ca04827e222e2cda2d8f1ea65a4`，2026-10-15 串行8 exact各实际1命中，
+16输入前后SHA一致，6行为红/2边界绿，无编译或API基础失败。p42 single仍L0165，
+unit Unit后L0135；expected Int及非法RHS unit已有L0084，single未完成；nullable single
+缺storage expected报L0083，unit按storage成功且后续Nullable。compound和field raw对照通过。
+field真实single complete成功→L0135 receiver，unit complete成功→L0134 immutable，随后补锁此边界。
+多case首断言红后未到达的local/group/nullable负例不称已执行。仓外原始收据保留在
+`spec0325-evidence/red-receipt.json`；固定源码与选择可由该提交及上列exact重现。
+实现准入后再登记 active；native/资源与完整工程门禁尚未运行。
