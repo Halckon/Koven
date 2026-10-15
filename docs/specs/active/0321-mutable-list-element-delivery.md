@@ -13,7 +13,7 @@
 | 分支基线 | `fix/spec-0321`依赖0320本地最终`da03e0f84f6f3fdd2d4a3572117a511dfa8ce608` / tree`f0abc5e03035f9911a26fa44a026bfc281c25f92`；远端0320`7a305bd7bcead62921827ca8a24eba5fed8504ef`同tree；现正常merge实际main `7c348e704ecd3595fa17ce4b08a2734d7d966e80` / tree `910164ff461374f2c133a7f5ac4d938486c32de4`，保留真实父链 |
 | 官方编号核验 | 2026-10-14官方main`a0f5f8ac`全树最大0319；上述0320完整树最大0320；93分支及2个开放PR未见更新编号，保留0321；实施前重核并正常同步实际main |
 | 语言语义变更 | 否；add已取得Value元素，Copyable复制、MoveOnly转移；不能放宽verifier或新增循环能力 |
-| 阻塞项 | 设计独审已通过；0320已交付并正常同步实际main；最小生产固定9 exact已通过；共享精确回归、工程门禁及双宿主CI待完成 |
+| 阻塞项 | 设计独审已通过；0320已交付并正常同步实际main；同head14精确目标与工程四门禁已通过；双宿主CI、归档与main交付待完成 |
 
 ## 1. 单一 Goal
 
@@ -38,7 +38,7 @@ fun main(): Unit {
 
 原review的`614a7a7f`及`b43a475b`矩阵均记录single `BE:InvalidSsa`、project `OK`。
 原字节与矩阵保留仓外`review-input/latest/inspected/review-2026-10-13/`；这不是0320基线上的新运行。
-本片尚未执行probe、测试或构建；具体当前首失败阶段、verifier错误及Span仍须真实基线确认。
+初始设计时本片尚未执行probe、测试或构建；后续真实首失败与修复结果见§7–9，未获得的具体verifier错误及Span不作推断。
 “String元素追加”指`MutableList<String>.add`，不是String拼接或字符串append API。
 
 ## 3. 静态根因候选
@@ -54,10 +54,10 @@ fun main(): Unit {
 
 | 形状 | 当前证据与本片处理 |
 |---|---|
-| 原p38 String两次add后正常for | 历史single红/project绿；本片必保留同字节两入口，当前基线待跑 |
+| 原p38 String两次add后正常for | 历史single红/project绿；本片必保留同字节两入口，真实基线和修复结果见§7–9 |
 | 空列表、零/单/多次追加 | 既有容器语义；空列表与Copyable作为不误伤控制，不宣称已有single组合验收 |
 | Copyable named元素 | 必须保持交付后原binding可用；旧single SSA测试仅Int追加无for |
-| String literal/Group、MoveOnly named root | 同一已交付owner的temporary/绑定两种来源，纳入精确身份验证；当前结果待核 |
+| String literal/Group、MoveOnly named root | 同一已交付owner的temporary/绑定两种来源，纳入精确身份验证；真实三入口结果见§7–9 |
 | Resource构造值与named root | 原unit native已验证追加后逆序deinit，无后继for；本片仅用已有合法class/deinit形状比较single/unit，普通stdout验证恰一次，不引入仪器 |
 | 正常耗尽 | 原p38核心；容器按既有ASAP点清理，元素由容器拥有 |
 | 既有无条件break/continue/return | 候选有界回归，先独立核源码前置与既有支持，再锁具体fixture；不能据此启用任意出口组合 |
@@ -95,7 +95,7 @@ SSA只消费正常源码产物与标准verifier，可断言真实owner/delivery/
 单入口前置或SSA失败均带阶段记录；unit锁真实call/operand delivery、源级Value引用Symbol与place.root同一及Copyability；single锁typed身份与ownership合法。
 CLI三个目标独立记录原p38的build/run/普通artifact，constant marker另存文件，不改主源码字节。
 
-| package / target | exact候选（均未执行） |
+| package / target | 初始exact候选（后续结果见§7–9） |
 |---|---|
 | lang-codegen / lib；前缀`ssa::mutable_list_delivery_tests::` | `p38_original_append_then_for_has_verified_delivery`、`grouped_append_operand_has_verified_delivery`、`named_root_append_operand_has_verified_delivery`、`empty_list_iteration_remains_valid`、`copyable_append_preserves_original_binding`、`append_preserves_unrelated_live_owner` |
 | lang-cli / native_cli；前缀`mutable_list_delivery::` | `single_p38_string_add_then_for_builds_and_runs` |
@@ -154,14 +154,37 @@ stderr空，源码不变和临时产物清理oracle通过。执行前后14个输
 现有CI双宿主test经`check_integration.sh`→`check_core.sh`完整选择lang-codegen及lang-cli，
 会纳入新增目标；这里只确认接线，尚未执行本片远端CI。本地不运行该聚合脚本。
 
-## 9. 验收与停止条件
+## 9. 最终本地有界验收
+
+2026-10-15固定HEAD `048e127c1ce430e20377c2b18fedd9a53cfda5ee` / tree
+`7f3ade699c930c4ed3c59a6c735b6867e5997eb4`逐名重跑原9加共享5个exact，14个唯一目标
+均实际1命中通过；原9仍分别核18分析入口与3CLI行为，不把工程检查计入行为测试数。
+共享5项为`ownership_containers`的`mutable_list_add_valid_ownership_succeeds`、
+`mutable_list_add_transfers_move_only_elements`（L0131）、`mutable_list_add_conflicts_with_active_element_borrow`（L0135），
+以及codegen `ssa::lower_frontend_tests::call_lifetimes_tests::grouped_temporary_has_one_owner_at_argument_merge`
+和`ssa::lower_frontend_tests::map_result_tests::map_operands_follow_argument_control_flow`。
+它们只执行普通源码/既有分析器；旧append指令计数目标不在本地名单。
+
+同一head串行工程门禁全部exit0：
+- `cargo fmt --all -- --check`
+- `cargo check --locked --offline --workspace --all-targets`
+- `cargo clippy --locked --offline -p lang-codegen -p lang-cli --all-targets -- -D warnings`
+- `cargo build --locked --offline -p lang-cli`
+
+此前`66441633`的fmt因两个cfg(test)模块排序失败，独立机械提交修正；原失败保留。
+最终源码/fixture/helper SHA前后相同，完整stdout/stderr、argv、退出码与hash收据仓外保留。
+当前文档提交不改上述已验证代码输入；docs checker与diff check另行执行，不冒用旧head执行记录。
+Resource/deinit与break/continue/return新增矩阵未纳入本片，不能从String正常for外推；无关String
+跨for仍保留原Unsupported边界。未运行本地聚合、故障注入或IR计数；macOS与双宿主完整CI待PR。
+
+## 10. 验收与停止条件
 
 - [x] 官方库存/编号、原p38字节与历史矩阵、single/unit静态链核对。
 - [x] 初始草案独审通过并批准迁active及tests-only；当时未授权生产与测试，后续基线授权/执行见上文。
 - [x] 正常同步0320实际main；tests-only及helper/runner独审、逐名运行授权。
 - [x] 当前输入真实expected-positive红与已有绿/独立拒绝边界分采。
-- [ ] 精确已交付owner最小修复及9 exact已通过；共享普通源码回归及工程门禁待完成。
+- [x] 精确已交付owner最小修复、14唯一普通源码目标及工程四门禁通过。
 - [ ] 独立PR双宿主物理CI、Architecture同步、验收归档及main交付。
 
-0320已合实际main并正常同步；0321固定基线及runner已独审并运行上述9 exact。最小生产和固定9 exact已完成，额外回归/工程门禁与本片远端CI未执行。
+0320已合实际main并正常同步；0321固定基线及runner已独审并运行上述9 exact。最小生产、固定14 exact与工程四门禁已完成；Spec保持active，本片远端CI/归档/main交付未完成。
 若必须改Guide、放宽verifier、补通用循环能力或改无关容器操作，停止并请求独立决定。
