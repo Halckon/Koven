@@ -127,13 +127,16 @@ CLI三个目标独立记录原p38的build/run/普通artifact，constant marker�
 
 原`retained-owner.ko`基线字节已原样保留为`retained-owner-across-for.ko`；新候选
 `retained-owner.ko`仅将`println(retained)`移到append后、for前，验证同类型未交付owner在append
-时live且交付后仍可读，不宣称跨循环能力。候选保持原exact及三分析入口，待独审/授权后单独采样，
-不改写上表的原输入与首失败。
+时live且交付后仍可读，不宣称跨循环能力。该候选在`82ade427`经独审/授权单exact运行，single仍在retained声明27..35报
+`UnsupportedNode`，两unit绿；仅提前last-use并未避开已有门，原字节另存为
+`retained-owner-before-for.ko`。第二tests-only候选在xs声明之后使用普通词法块包住
+retained声明、append和读取，块结束再for；parser已有Block statement、single已有
+AfterStatement drop消费入口，不增加功能。该候选仍待独审/授权运行，不改写两版首失败。
 
 ## 8. 验收与停止条件
 
 - [x] 官方库存/编号、原p38字节与历史矩阵、single/unit静态链核对。
-- [x] 草案独审通过，批准迁active及tests-only；生产实现与测试运行仍未授权。
+- [x] 初始草案独审通过并批准迁active及tests-only；当时未授权生产与测试，后续基线授权/执行见上文。
 - [x] 正常同步0320实际main；tests-only及helper/runner独审、逐名运行授权。
 - [x] 当前输入真实expected-positive红与已有绿/独立拒绝边界分采。
 - [ ] 只对精确已交付owner作最小修复，普通源码回归及工程门禁。
