@@ -1,6 +1,6 @@
-# Koven v0.43：语法索引
+# Koven v0.44：语法索引
 
-> **性质**：规范性导航索引 · **状态**：current（v0.43） · **读取时机**：从 token 或语法形式定位规则时 · **唯一真源**：链接指向的领域正文
+> **性质**：规范性导航索引 · **状态**：current（v0.44） · **读取时机**：从 token 或语法形式定位规则时 · **唯一真源**：链接指向的领域正文
 
 本页不重复关键字表、产生式或优先级，只提供到唯一规则正文的入口。
 
@@ -44,3 +44,6 @@
 | 程序入口 | project selector 与 process entry | [Project 与 Process Entry](13-program-runtime-standard-library.md#project-与-process-entry) |
 
 `for` 的 provider、Borrow binding 与退出清理见[顺序迭代规则](12-collections-destructuring.md#37-借用式顺序容器迭代-provider)。
+
+- [整数 Range 与 checked 转换](04-expressions-operators.md#整数-range-与显式整数转换)
+- [Range/Map 迭代](12-collections-destructuring.md#整数-range-与-map-的独立迭代合同)与 [consume 移交](12-collections-destructuring.md#mutablemap-的消费式只读移交)

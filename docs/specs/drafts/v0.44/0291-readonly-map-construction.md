@@ -1,6 +1,13 @@
 # SPEC-0291: 非空只读 Map 构造：MutableMap 立即消费式转换 consume()
 
-> **性质**：变更合同 · **状态**：draft · **读取时机**：准备或验收非空只读 Map 构造路径时 · **唯一真源**：本 Spec；候选语言语义须经后续 Guide 明确启用（暂列 v0.44）
+> **性质**：变更合同 · **状态**：draft · **读取时机**：准备或验收非空只读 Map 构造路径时 · **唯一真源**：本 Spec 的历史实施候选；现行语义以 Guide v0.44 为准
+
+## v0.44 启用后的重基边界
+
+2026-10-15 已启用[MutableMap 消费式只读移交](../../../guide/12-collections-destructuring.md#mutablemap-的消费式只读移交)。
+以下字段与正文保留历史候选，不再作为启用阻塞的当前事实：首片 receiver 已限定 owned 本地
+根 binding，临时 receiver 不接纳；旧布局不变假设须与插入序 Map 内部合同协调，尚未重基
+实施或运行验收。本 Spec 继续 draft；后续重基只承接已选合同，不扩 List/其他 consume。
 
 | 字段 | 值 |
 |---|---|

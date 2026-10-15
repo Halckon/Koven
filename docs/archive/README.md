@@ -25,3 +25,5 @@ Archive 不参与现行语言语义、实现授权或默认 Agent 路由。历�
 - [v0.42 普通借用结果启用账本](migrations/v0.42-enablement.md)
 
 - [PR72–75有界交付与后继核对](migrations/pr72-74-followup-audit.md)
+
+- [v0.44 类型控制流与集合启用账本](migrations/v0.44-enablement.md)

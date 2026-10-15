@@ -1,8 +1,8 @@
-# Koven v0.43：声明与 Callable
+# Koven v0.44：声明与 Callable
 
-> **性质**：规范性语言规范 · **状态**：current（v0.43） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
 
-本页是现行 Koven v0.43 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Callable 与函数值
 
@@ -27,6 +27,8 @@ val boundRef = obj::method
   编译器按 callee 已声明的契约自动借用；只有 `Inout` 契约仍要求调用点
   显式标注，但调用点的拼写是符号 `&` 而不是关键字 `inout`**（`&x` 而非 `inout x`），
   Value 调用也保持无 marker：声明写 `own`，调用仍写 `consume(x)`，不写 `consume(own x)`。
+  这里 consume 是普通函数示例名，不是保留字或标准转换；MutableMap 的 `m.consume()`
+  仅由[其专门合同](12-collections-destructuring.md#mutablemap-的消费式只读移交)定义。
   详见[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)的完整规则与设计说明。
 - 单态化为具体闭包结构体（捕获环境 + 函数指针），无捕获的函数值直接是裸函数指针，零成本抽象。
 - 函数类型可以带 `move` 前缀（`move (ParamTypes) -> ReturnType`），表示只接受不含任何借用捕获的闭包，详见[调用与 Closure](07-calls-lambdas-closures.md)。

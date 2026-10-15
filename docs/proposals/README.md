@@ -5,8 +5,7 @@
 Proposal 本身不修改现行 v0.43、不批准 Spec，也不代表实现优先级。已选 String.clone 部分
 已移入 guide，剩余候选仍未启用；普通开发任务不要读取本目录。
 
-- [v0.44 启用前合同差异与迁移清单](v0.44-enablement-contracts.md)：版本启用已获同意，补充语义选择仍待确认
-- [v0.44 类型、控制流与基础集合补全](v0.44-language-completion.md)：六项范围待冻结，current 不变
+- [v0.44 类型、控制流与基础集合补全](v0.44-language-completion.md)：选定规则已启用，后继候选与实施验收分开
 - [文本输入与 IO（M1B-b）](text-input-and-io.md)
 - [集合剩余 API 与迭代](collection-api-followups.md)
 - [检测扩展与定向外审（M4）](native-safety-validation.md)

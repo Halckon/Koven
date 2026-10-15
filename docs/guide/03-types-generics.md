@@ -1,8 +1,8 @@
-# Koven v0.43：类型与泛型
+# Koven v0.44：类型与泛型
 
-> **性质**：规范性语言规范 · **状态**：current（v0.43） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：实现或评审类型引用、类型检查、泛型实例化与名义关系时 · **唯一真源**：本页
 
-本页是现行 Koven v0.43 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 基础类型与类型种类
 
@@ -86,9 +86,22 @@ body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`
   接受相同类型、`T` 与 `T?` 或任一侧 `Nothing`，返回 `Boolean`；`&&` / `||` 只接受
   `Boolean`。不满足操作数契约使用 L0085，primary 为运算符，左右 operand 作为 label。
 - Elvis `left ?: right` 要求左侧为 `T?` 或 `Nothing?`，并以 expected type 检查右侧可适配
-  `T`；结果为 `T`。`!!` 要求 nullable operand 并返回非空 `T`。range、`to`、cast/type-test、
-  assignment、member、index、call/callable reference 与 postfix `?` 需要 nominal、place、
+  `T`；结果为 `T`。`!!` 要求 nullable operand 并返回非空 `T`。`to`、cast/type-test、
+  尚未由专门合同覆盖的 assignment、member、index、call/callable reference 与 postfix `?` 需要 nominal、place、
   callable 或 `Result` 信息，基础类型检查 只遍历 child 并将自身结果标为 deferred，不臆造类型。
+
+### 简单变量赋值与整数 Range 身份
+
+- 已解析简单变量的普通 `=` 按变量声明的 storage 类型检查 RHS；不相容使用 L0084，
+  primary 覆盖 RHS。成功赋值的表达式类型为 Unit。RHS 检查后清除目标 symbol 的全部流事实，
+  不以赋值前 smart cast 后的窄类型替代 storage 类型。分组目标沿既有透明语法处理。
+- 此规则不改变名称、可变性、capture、loan 或 move 检查的阶段；compound、字段和下标
+  仍按各自已启用合同处理，不因本节扩大。Unit 可用于兼容的值上下文及 lambda 尾值；
+  链式赋值按右结合及外层 storage 兼容性检查，不能全局禁用。Boolean 条件不能接收 Unit。
+- `IntRange`、`LongRange` 是环境身份绑定的公开非泛型类型，分别由 Int、Long 同型端点
+  的区间表达式产生；不是按用户声明拼写识别。二者为无 loan 的普通 Copyable、Transferable
+  值，可进入局部、参数、返回、字段和容器。无公共构造器或额外成员，亦不据此成为 Hashable。
+  操作及序列相等见[整数 Range](04-expressions-operators.md#整数-range-与显式整数转换)。
 
 ### Expected Type、Local 与 Lambda
 
@@ -128,8 +141,8 @@ body 只允许 `const val` 与普通成员函数，不允许普通 `val` / `var`
   `Unit` callable 的形态冲突使用 L0087，表达式值类型不匹配仍使用 L0084。break/continue
   target 留给 control-flow 语义检查；本节只赋 bottom type。
 - 显式非 `Unit` block-body 函数若存在可到达的 body 末尾，使用 L0088，primary 为右花括号
-  或 EOF 恢复点，label 指向返回 TypeRef。`if` 两分支或 control body 尾值在两侧已知时取最小
-  join：同型保持原类型，任一侧 `Nothing` 取另一侧，`T` 与 `T?` 取 `T?`；否则 L0089。
+  或 EOF 恢复点，label 指向返回 TypeRef。`if` 两分支或 control body 尾值的合并统一遵循
+  [封闭 join](06-blocks-control-flow.md#valuestatement-context-与分支类型)，不回退到 Any。
   缺 `else` 的 statement-context `if` 固定 `Unit`。`when` 穷尽性和 smart cast 留给 when 类型规则；
   在此之前 `when` 的整体类型为 deferred，但其 child 仍接受局部检查。
 
