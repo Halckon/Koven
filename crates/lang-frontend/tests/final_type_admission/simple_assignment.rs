@@ -83,6 +83,7 @@ fn observe(text: &str) -> Vec<Observation> {
     }
     let complete = complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ());
     assert_eq!(typed.diagnostics(), raw);
+    eprintln!("SPEC-0325 before ownership: raw={raw:?} assignments={assignments:?} current_uses={current_uses:?} complete={complete:?}");
     let ownership = if complete.is_ok() {
         Some(
             check_ownership(&sources, &file, &names, &typed)
@@ -135,6 +136,7 @@ fn observe(text: &str) -> Vec<Observation> {
     let complete =
         complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).map(|_| ());
     assert_eq!(typed.diagnostics(), raw);
+    eprintln!("SPEC-0325 before ownership: raw={raw:?} assignments={assignments:?} current_uses={current_uses:?} complete={complete:?}");
     let ownership = if complete.is_ok() {
         let typed = typed
             .validate()
