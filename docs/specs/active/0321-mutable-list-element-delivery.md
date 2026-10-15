@@ -177,7 +177,25 @@ stderr空，源码不变和临时产物清理oracle通过。执行前后14个输
 Resource/deinit与break/continue/return新增矩阵未纳入本片，不能从String正常for外推；无关String
 跨for仍保留原Unsupported边界。未运行本地聚合、故障注入或IR计数；macOS与双宿主完整CI待PR。
 
-## 10. 验收与停止条件
+## 10. 同步0322实际main后的复核
+
+2026-10-15从真实PR105 head `906803c5befc8fe0cc74c28b314c3655621b5437`正常merge
+actual main `296579948e46d4a596eb6e72384a6489f82dbe08`，固定merge
+`0aa77b30719abaadd55b4e143a8e0b58ea6c9533` / tree `d52c48d096bf7c9e5db1e461509eb6f92a26a3ce`，
+两真实父链保留；未将旧本地等内容映射链重复merge。仅5份索引/DAG冲突按0321 active、0322 archive
+机械解决；Rust生产、测试、helper与fixture相对PR105原head零变化，Cargo与preview脚本/CI来自main。
+
+新lock正常`cargo fetch --locked`取得toml 1.1.8及其锁定依赖；固定上述merge重新逐名串行执行
+同14 exact，全部各实际1命中通过。18个分析入口与3个原p38 CLI build/run/artifact仍分别全绿，
+运行stdout精确`x\ny\n`、stderr空；§9同四条工程argv亦全exit0。执行前后登记源码/helper/fixture
+及Cargo输入SHA相同、工作树干净，raw/argv/hash收据仓外保留。没有新增测试目标，也没有在云端
+执行0322故障注入、校准或聚合脚本；不能把本地14绿代替新base双宿主完整CI。
+
+PR105原[CI 38659703874](https://github.com/Halckon/Koven/actions/runs/38659703874/attempts/1)的
+Ubuntu preview consumer环境闭包拒绝保持失败历史；不靠本次正常merge覆写旧结果。
+含0322的新base远端CI等待本PR更新触发，Spec仍保持active。
+
+## 11. 验收与停止条件
 
 - [x] 官方库存/编号、原p38字节与历史矩阵、single/unit静态链核对。
 - [x] 初始草案独审通过并批准迁active及tests-only；当时未授权生产与测试，后续基线授权/执行见上文。
