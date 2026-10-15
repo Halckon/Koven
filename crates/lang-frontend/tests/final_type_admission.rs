@@ -338,3 +338,6 @@ fn selected_source_order_and_forward_types_keep_basic_qualification() {
 
 #[path = "final_type_admission/complete.rs"]
 mod complete;
+
+#[path = "final_type_admission/static_recovery.rs"]
+mod static_recovery;

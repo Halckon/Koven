@@ -1,0 +1,2 @@
+class P(val x: Int) { companion object { fun origin(): P = P(0) } }
+fun main(): Unit { val p = P.origin(); println("e") }
