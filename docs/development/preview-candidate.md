@@ -48,8 +48,8 @@ Ubuntu 24.04 x86_64 的宿主预检仅对 libxml2 的两个已审阅发行修订
 `2.9.14+dfsg-1.3ubuntu3.9` / `2.9.14+dfsg-1.3ubuntu3.10` 提供有界差hash预检；
 包自身完整性、其它依赖/path/LLVM/C driver校验不变。包身份、本地文件一致性与ELF需求不完整
 时拒绝例外；同hash保持原严格路径。来源URI/实际安装来源未证，不是供应链或通用ABI保证。
-策略预检通过仍须完成全部真实命令与清理；新策略的CI验收进度见
-[SPEC-0322](../specs/active/0322-preview-libxml2-host-compatibility.md)。
+策略预检通过仍须完成全部真实命令与清理；新策略的CI验收证据与覆盖边界见
+[SPEC-0322](../archive/specs/0322-preview-libxml2-host-compatibility.md)。
 
 `results.json` 包含命令、输出字节、宿主检查、清理与失败信息。12 条正常命令有缺项时不能通过。
 

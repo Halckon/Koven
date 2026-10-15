@@ -142,8 +142,8 @@ LLVM setup action 统一校验所需工具，CI 汇总策略拒绝必需 job
 复用教程 `run_case` 在独立中文/空格目录执行12条完整 byte 合同，保存宿主失败与清理证据。
 Linux 宿主预检增加仅 Ubuntu Noble 的 libxml2 `.9/.10` 有界差hash策略：核已安装包身份与本地
 MD5一致性、ELF版本需求/导出和对象大小，来源标为未证；其它依赖与包校验仍严格。
-该实现的新双宿主/12命令验收尚待CI，范围和失败记录见
-[SPEC-0322](../specs/active/0322-preview-libxml2-host-compatibility.md)。
+实现head已通过双宿主各12条真实命令及清理/哨兵；真实差hash方向为`.10→.9`，覆盖边界和失败记录见
+[SPEC-0322](../archive/specs/0322-preview-libxml2-host-compatibility.md)。
 CI 已接线两个生产 job 和两个无 checkout/Cargo 的独立消费 job，按实际 producer artifact ID 传递候选。
 PR51实现head的双宿主真实release生产与独立安装各12条命令已通过，精确移除及哨兵核对成功；
 原始来源/加载/材料/hash与验收及剩余范围见

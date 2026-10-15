@@ -1,17 +1,17 @@
 # SPEC-0322: Preview 外部 libxml2 有界宿主兼容性
 
-> **性质**：候选工程合同 · **状态**：in-progress · **读取时机**：审阅有界宿主预检策略时 · **唯一真源**：本页；现行行为仍由脚本与交付说明定义
+> **性质**：有界工程验收合同 · **状态**：done · **读取时机**：审阅有界宿主预检策略时 · **唯一真源**：本页；现行行为仍由脚本与交付说明定义
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-322` |
 | 所属 Phase | Phase 6 工程交付；不改变语言/native ABI |
 | 语言规范 | [Guide v0.43](../../guide/README.md) |
 | 批准依据 | 用户 2026-10-15 同意仅 libxml2 有界兼容方向；§4取证合同与§5–6 C1设计独审通过；生产实现须先有CI红证据及diff独审 |
 | 前置 Spec | SPEC-0272 |
 | 前置 ADR | 无新增 |
-| 阻塞项 | C1及tests-only真实CI红已审；最小实现/补充协议测试待独审与新CI验收 |
+| 待交付 | 实现head有限验收通过；归档head CI、PR106合并授权、实际main交付仍待完成 |
 | 影响范围 | `scripts/preview_host.py`、对应 Python 协议测试、preview 文档/CI 证据 |
 | 语言语义变更 | 否 |
 
@@ -169,16 +169,18 @@ probe证据，不抹掉 host 已有事实；同 hash 按原严格路径，不因
 
 ## 7. 验收账本与 CI-only 测试计划
 
+以下当前结果已按§15更新；后文实施计划、停止条件及§10–14保留各阶段当时记录，不覆盖历史失败。
+
 | ID | 精确验收目标 | 当前结果 |
 |---|---|---|
-| C1 | 独立设计审阅；真实 dpkg/apt/readelf 输出核对，明确来源局限、依赖符号算法 | 设计独审通过；仅推进tests-only，完整闭包实采待CI |
-| C2 | CI 协议正例：同 hash 保持；不同 hash 且全部 policy 事实满足；交换生产/消费方向按实际需求判定 | 初片三正例已取得预期行为红；实现后绿及完整矩阵待CI |
-| C3 | CI 协议拒绝：非 Ubuntu/架构/SONAME、路径变化、其他库 hash、LLVM/cc/SDK/override、重复/缺字段、未知策略 | 未运行 |
-| C4 | CI 解析/故障拒绝：未知/歧义/缺失 symbols/version、不可见或错误类型 export、无实际引用者、工具缺失/非零/超时、不符候选环境/失去ELF版本索引 | 未运行 |
-| C5 | 现有 test_preview_host.py、test_preview_install.py、test_preview_package.py 完整 CI；原包篡改/成员/权限/源/清理拒绝不弱化 | 未运行 |
-| C6 | 新 head 双宿主完整 CI：各 producer、独立 consumer 12/12 真命令、清理和哨兵；准确记录两侧 libxml2 事实 | 未运行 |
-| C7 | 若实际 CI 恰同 hash，只记严格路径验证；差 hash 真实跨修订证据未建立则明确保留，不以 fake 正例冒充 | 待实际结果 |
-| C8 | 当前 Architecture/交付说明同步、文档静态门禁、独立代码审阅、按实际证据归档 | 未运行 |
+| C1 | 独立设计审阅；真实 dpkg/apt/readelf 输出核对，明确来源局限、依赖符号算法 | 设计与生产diff独审通过；§15双侧18对象真实解析通过 |
+| C2 | CI 协议正例：同 hash 保持；不同 hash 且全部 policy 事实满足；交换生产/消费方向按实际需求判定 | §13三红保留；§15协议388项全绿，含交换方向合成正例 |
+| C3 | CI 协议拒绝：非 Ubuntu/架构/SONAME、路径变化、其他库 hash、LLVM/cc/SDK/override、重复/缺字段、未知策略 | §15 CI协议正反控通过；不外推未列组合 |
+| C4 | CI 解析/故障拒绝：未知/歧义/缺失 symbols/version、不可见或错误类型 export、无实际引用者、工具缺失/非零/超时、不符候选环境/失去ELF版本索引 | §15 CI解析/故障矩阵通过；真实header失败与修复见§14 |
+| C5 | 现有 test_preview_host.py、test_preview_install.py、test_preview_package.py 完整 CI；原包篡改/成员/权限/源/清理拒绝不弱化 | §15现有协议及新增矩阵共388项通过 |
+| C6 | 新 head 双宿主完整 CI：各 producer、独立 consumer 12/12 真命令、清理和哨兵；准确记录两侧 libxml2 事实 | §15双宿主各12命令与cleanup/sentinel通过 |
+| C7 | 若实际 CI 恰同 hash，只记严格路径验证；差 hash 真实跨修订证据未建立则明确保留，不以 fake 正例冒充 | §15真实 .10→.9 差hash通过；反方向实跑尚未覆盖 |
+| C8 | 当前 Architecture/交付说明同步、文档静态门禁、独立代码审阅、按实际证据归档 | 当前说明已同步、独审通过；本次docs-only归档，归档head CI/merge/main待 |
 
 第二阶段具体协议矩阵（全部CI-only，先红后实现）：
 
@@ -285,3 +287,45 @@ policy probes成功，但正常GNU ELF header有两个语义不同的Version字�
 `ae8b8f05034fa46aac15bfb109245147ffa9fe5a1551ef927b963f937526e3f3`），补缺失/错值/反序/
 多Version、重复Class/Machine反控。新修复基于实际已发布15ed后继，不再次合并等树映射历史。
 尚未运行新回归；新CI仍须验证policy真实生成、完整闭包以及12条命令/清理，不覆盖本次失败。
+
+## 15. 实现head有限验收与归档（2026-10-15）
+
+[CI 38677370915 attempt 1](https://github.com/Halckon/Koven/actions/runs/38677370915/attempts/1)
+于03:55:10Z完成success，16/16 jobs成功，388项Python协议测试通过（包含原三项行为红）。
+发布head为 `e776d8317a00af7f577d64deb5a3d329d7669c4d`，tree
+`3cd740998bba4c476d789ea98fd79991c547ae25`，实际base为
+`8dae0b49403c40714bb1d99f02379ad7625dafac`；CI执行synthetic merge
+`f9eacf4d23e2fc95a9b5cf39a1df41727a6d894b`，ordered parents为base/head，tree与head相同。
+本次仅据该实现输入关闭§3–6的有限合同，不将归档文档提交本身称为已验CI。
+
+- Ubuntu producer为完整binary/source版本 `2.9.14+dfsg-1.3ubuntu3.10`，consumer为
+  `2.9.14+dfsg-1.3ubuntu3.9`；17库只有libxml2字节不同，路径仍相同。
+  producer libxml SHA256为 `209e941be9eb2eb9ab36caaa0b81d1c6b36c8f5d7268c24f19e81039137e6485`，
+  consumer为 `ddd3af3f491a9686c82fe1232f1250cec368eb2fbcb1d2725c6ce9401a6dbd3b`。
+  此轮实际经过有界例外，不能用same-hash fastpath解释成功。
+- 两侧policy真实生成，errors均为空，各61 probes全部成功、无timeout/output limit；
+  kovenc与完整闭包共18对象真实解析通过。唯一直接requester为libLLVM.so.21.1，16个版本需求
+  均按索引/所属SONAME和定义核验。两侧实际文件MD5分别为
+  `fa832a056b76fae098eb9172efa6c7c3` / `b5615980783b87ee1df9edae944eacf2`，各自等于本地清单。
+- Linux与macOS独立consumer各执行12条真实命令，全部exit0且预期输出字节校验成功；
+  cleanup.removed=true、sentinel.unchanged=true，无命令超时。两宿主producer及代码门禁通过。
+- source_uri_status与installed_origin两侧仍为unproven。MD5是本地一致性、apt release是环境
+  旁证；本次成功不补出来源认证，也不证明任意ABI、未见修订或一般ELF加载器兼容。
+- 已实现规则仅固定`.9`/`.10`两个修订；协议交换方向正例与真实`.10→.9`运行分开记账。
+  实现后真实`.9→.10`尚未运行，不将初片该方向的hash拒绝记为成功，不外推双向实跑覆盖。
+- §12原严格hash拒绝、§13三项先红、§14真实header拒绝均保留；不重跑原attempt抹掉失败。
+  云端仅静态/AST/docs/diff检查，全部协议/fault/mutation与native验收在CI执行。
+
+原始stdout与完整JSON留在该run的artifact；本页只保留身份、摘要与结论，不复制dump。
+已核下载ZIP与GitHub artifact digest一致的原始证据：
+
+| Artifact ID | 内容 | SHA256 |
+|---|---|---|
+| 11947146156 | Linux producer evidence | `b435b47d20b392a26ab2873f1c537e74cc553875647835bde8ef88b6be91071f` |
+| 11947411841 | Linux consumer evidence | `a98af94741029405d2a3d8c0850cd4ce37947bcd1ddef239aa0527b1317c38a1` |
+| 11947821527 | macOS consumer evidence | `b49bb78ec3cf3be8a48eee6e9caab075a2cc6d798f127bae0609a71d8fa306dd` |
+
+GitHub记录这些artifact于2027-01-13过期；长期追溯保留上述身份/digest与仓库真实剪裁fixture，
+不承诺过期后完整CI日志仍在线。
+归档状态done只表示上述有限实现验收完成；本docs-only归档head CI仍待发布验证，
+PR106合并尚未获用户授权，实际main交付及main CI仍待。未修改Guide、0321或新增版本范围。
