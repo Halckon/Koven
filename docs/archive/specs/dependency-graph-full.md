@@ -318,6 +318,7 @@ subgraph Garchive["已完成（archive，306 份）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
+  S0324["S0324<br/>最终类型准入的用户诊断措辞"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
@@ -1677,3 +1678,4 @@ S0320 --> S0321
 | SPEC-0322 | archive | [0322-preview-libxml2-host-compatibility.md](0322-preview-libxml2-host-compatibility.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
+| SPEC-0324 | drafts/v0.43 | [0324-final-admission-user-messages.md](../../specs/drafts/v0.43/0324-final-admission-user-messages.md) |

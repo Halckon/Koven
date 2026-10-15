@@ -7,8 +7,8 @@
   <rect width="8464" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="7672" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，306 份）</text>
-  <rect x="7776" y="7974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="7916" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
+  <rect x="7776" y="30" width="280" height="8068" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="7916" y="50" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="8120" y="7974" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="8260" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2346,4 +2346,7 @@
   <text x="1500" y="6159" text-anchor="middle" font-size="13">SPEC-0322</text>
   <text x="1500" y="6177" text-anchor="middle" font-size="13">Preview 外部 lib</text>
   <text x="1500" y="6195" text-anchor="middle" font-size="13">xml2 有界宿主兼容性</text>
+  <rect x="7796" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="7916" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0324</text>
+  <text x="7916" y="105" text-anchor="middle" font-size="13">最终类型准入的用户诊断措辞</text>
 </svg>

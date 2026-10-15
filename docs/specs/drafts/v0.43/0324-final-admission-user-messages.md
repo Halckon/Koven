@@ -1,0 +1,53 @@
+# SPEC-0324: 最终类型准入的用户诊断措辞
+
+> **性质**：有界呈现修复合同 · **状态**：draft · **读取时机**：审查L0165消息与分类保持时 · **唯一真源**：本Spec；不改变现行Guide
+
+| 字段 | 值 |
+|---|---|
+| 状态 | draft |
+| Goal ID | `KOV-P2-0324` |
+| 所属 Phase | Phase 2诊断呈现；不改变最终消费资格 |
+| 语言规范 | [现行Guide](../../../guide/README.md)，语义不变 |
+| 批准依据 | 用户2026-10-15要求解决增量review；本片仅措辞，先等价提取与普通数据exact测试，审定后执行 |
+| 基线 | actual main `3104baa47845a9ec738c06aa60cf61f5d1a3772e`；独立`fix/spec-0324`，不依赖未合0323 |
+| 前置 Spec | [0319最终类型准入](../../../archive/specs/0319-final-type-admission-diagnostics.md) |
+| 语言语义变更 | 否 |
+| 阻塞项 | 18项文案待审；等价提取验证、tests-only红与映射生产尚未执行 |
+
+## 1. Goal与非目标
+
+L0165当前直接显示DeferredReason的Debug枚举名。将18项真实分类映射为稳定用户措辞，
+保持code、severity、源Span、顺序、原诊断保留与失败类别。Any在bound角色的既有例外不变。
+不推断用户一定写错，不称所有情况unsupported/not implemented，不给未经事实支持的修法。
+不修改raw类型事实、成功资格、ownership次序、CLI协议或公开API；不依赖0323静态恢复。
+
+p42普通赋值类型事实、p25循环流事实须分别确认语言合同权威，登记为后继，不在本片改Guide或接纳。
+
+## 2. 最小模块与验收顺序
+
+1. 私有`final_admission/message.rs`提取原Debug格式，walk只委托构造消息；独立小提交。
+   一个纯函数exact枚举18个正常DeferredReason值，锁原文本逐字不变；不构造或修改compiler facts。
+2. 文案审定后独立tests-only锁18项候选用户文本，采真实断言红；不以缺符号/编译失败代替红。
+3. 生产以无通配fallback的穷尽match返回静态后缀，再组成消息；新增reason必须编译失败要求补文案。
+4. 同head精确回归：纯映射、普通源码single/unit根诊断、CLI human/json呈现；固定输入及argv，
+   独审/授权后串行执行。CLI只build，不运行产物；不为覆盖18原因制造IR或改facts。
+5. 适用工程检查与远端CI完成后有限归档；未运行项不写通过。
+
+初始旧文案exact：
+`cargo test --locked --offline -p lang-frontend --lib type_checking::final_admission::message::tests::legacy_messages_preserve_all_deferred_reasons -- --exact --nocapture --test-threads=1`。
+仅执行这一已审定函数，不宽跑lib或测试target。仓外绝对target与原始收据保留。
+
+## 3. 候选文案原则
+
+统一描述类型检查尚不能完成的具体对象。18项分别覆盖Any值表示、名义/类型参数、限定类型、
+函数组成类型、外部符号类型、前向值依赖、重载选择、this类型、成员、调用、索引、赋值、
+转换/类型测试、错误传播、when、控制流结果、解构分量和迭代来源。最终精确文本由受审测试表
+作为单一实现验收真源；此处不复制整表，避免多个合同漂移。
+
+## 4. 状态
+
+- [x] 基线/独立分支与编号只读核查；官方分支未见0324，本基线无同号文件。
+- [ ] 私有提取等价exact通过。
+- [ ] 候选18消息独审与真实红证。
+- [ ] 最小映射实现、普通源码/CLI/工程精确验证。
+- [ ] 双宿主CI、有限归档和正常合并。

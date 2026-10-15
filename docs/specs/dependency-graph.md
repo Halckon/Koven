@@ -11,6 +11,7 @@ flowchart TD
 ARCH(("已完成<br/>archive 306 份"))
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
+  S0324["S0324<br/>最终类型准入的用户诊断措辞"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
@@ -25,4 +26,5 @@ ARCH --> S0292
 |---|---|---|
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
+| SPEC-0324 | drafts/v0.43 | [0324-final-admission-user-messages.md](drafts/v0.43/0324-final-admission-user-messages.md) |
 | 已完成 Spec（306 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
