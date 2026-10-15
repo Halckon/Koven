@@ -59,7 +59,7 @@ unit Unit后L0135；expected Int及非法RHS unit已有L0084，single未完成�
 field真实single complete成功→L0135 receiver，unit complete成功→L0134 immutable，随后补锁此边界。
 多case首断言红后未到达的local/group/nullable负例不称已执行。仓外原始收据保留在
 `spec0325-evidence/red-receipt.json`；固定源码与选择可由该提交及上列exact重现。
-已在红证后登记 active，最小实现正在独审；native/资源与完整工程门禁尚未运行。
+已在红证后登记 active；以下保留各轮历史，最终本地验收见下表。
 Guide 发布 PR110 的远端映射 head `e0c447f73ec896d9cc340d5168d1d0e32246f186` 与本地基线同tree；
 其CI与合并另行核验。发布本分支须由唯一publisher按映射保留真实父链，不覆盖Guide分支。
 
@@ -73,4 +73,28 @@ chain fixture缺声明分隔符产生L0047；single CLI真实exit2/L0135，误�
 直接 actual main fcc5 的tests-only `10377e63` 单exact观测确认旧single也为
 Deferred/complete成功/ownership无诊断，unit L0134；此观测命令失败，不算回归绿。
 新增只读/local参数与Unit链式2 exact、既有类型失效/捕获/unit assignment3 exact、
-p42 single/project human/json仅build2 exact，共15唯一目标；最终绿测及四工程仍待。
+p42 single/project human/json仅build2 exact，共15唯一目标；各轮原失败保留。
+
+## 4. 最终本地验收与交付边界
+
+固定实现/测试输入 `d805381ff174dc4ec52ea8160fdbdce1aa90c0d5` / tree
+`43f334da8268547630cffcf7198e7d56bbbaf17b`，2026-10-15：
+
+| 验收 | 实际结果 |
+|---|---|
+| 原8+readonly/chain2+既有共享3+CLI2 | 15唯一exact各1命中通过，35输入SHA前后一致 |
+| p42公开CLI | single/project各human/json仅build，共4进程；L0135 129..132，退出分别2/1，无产物 |
+| fmt / workspace all-target check | 通过；check使用locked/offline |
+| frontend+CLI all-target clippy / CLI build | 通过；locked/offline，clippy禁止warnings |
+| 历史工程失败 | 初次fmt排版失败；v3 clippy固定空prefix日志失败，build当轮未跑；机械修后最终4项均重跑 |
+| 未运行 | native正向/资源产物、远端双宿主CI；不宣称v0.44其他A/C/D/E/F完成 |
+
+仓外最终收据 `spec0325-evidence/final15-v4-receipt.json` 与 `engineering-v4-receipt.json`；
+所有旧红、oracle错误、原main观测分别保留，未覆盖。源码输入可按上述固定提交与exact名单重现。
+两处既有超1000行Rust文件只增加分发/调用4行：type expression 1207→1211，ownership checker
+1282→1286；判断分别放独立71/60行helper，增量已逐行审查，未为尺寸重构无关行为。
+
+CI接线仅核现有配置：stage选final_type_admission/type_checking/multifile_type_checking/
+ownership_closures，core选lang-cli全部测试；本片未改脚本/workflow。PR的crates改动触发
+macos-14/ubuntu-24.04门禁，仍受既有reuse/前置成功/事件条件约束；未把静态接线当作CI通过。
+Guide PR110未合期间只备份stacked分支，publisher按远端映射保留父链，再单独交付本Spec。
