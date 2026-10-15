@@ -1,0 +1,4 @@
+enum class Result<T, E> { Ok(success: T), Err(error: E) }
+fun parse(n: Int): Result<Int, Int> = Result.Ok(n)
+fun twice(n: Int): Result<Int, Int> { val v = parse(n)?; return Result.Ok(v) }
+fun main(): Unit { println("f") }
