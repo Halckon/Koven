@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无active Spec。
+- [0322 Preview libxml2 有界兼容性](0322-preview-libxml2-host-compatibility.md)：仅只读取证阶段获准，兼容判定待真实 Ubuntu 证据与独审。
 
 [0320 Enum case Borrow实参分类](../../archive/specs/0320-enum-case-borrow-categories.md)已按PR102实现head双宿主物理CI有界归档；归档head CI、合并授权及实际main交付待完成，当前状态见[近期交付](../README.md#近期交付)。
 
