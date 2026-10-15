@@ -12,7 +12,7 @@
 | 基线 | actual main `3104baa47845a9ec738c06aa60cf61f5d1a3772e`；独立`fix/spec-0324`，不依赖未合0323 |
 | 前置 Spec | [0319最终类型准入](../../archive/specs/0319-final-type-admission-diagnostics.md) |
 | 语言语义变更 | 否 |
-| 阻塞项 | 等价提取与18项新文案红证已核；最小映射及下游精确验收待执行 |
+| 阻塞项 | 同head本地5exact与4工程已通过；发布、双宿主CI及有限归档待完成 |
 
 ## 1. Goal与非目标
 
@@ -48,8 +48,8 @@ p42普通赋值类型事实、p25循环流事实须分别确认语言合同权�
 
 - [x] 基线/独立分支与编号只读核查；官方分支未见0324，本基线无同号文件。
 - [x] 私有提取等价exact通过。
-- [ ] 候选18消息独审与真实红证。
-- [ ] 最小映射实现、普通源码/CLI/工程精确验证。
+- [x] 候选18消息独审与真实红证。
+- [x] 最小映射实现、普通源码/CLI/工程精确验证。
 - [ ] 双宿主CI、有限归档和正常合并。
 
 ## 5. 等价提取实际记录
@@ -69,3 +69,28 @@ ForwardValueType使用“the value's type is not yet determined”，避免暗�
 下一固定名单仅5exact：18消息映射、p34普通源码single/unit消息与Span、新CLI single/project
 build human/json各一exact、既有0319 frozen_roots精确控制。CLI只启动编译器build进程，
 不执行产物；保持L0165、Error、源40..45和空details，只替换message。工程检查待同head执行。
+
+## 7. 同head本地验收
+
+实际运行`0b15e5462456a94203d3102c9d0349907e72c063` / tree `d7e0823a2e53819707d24e31b1c19f0ad7709444`。
+五个唯一exact逐项实际1命中全绿；manifest SHA256
+`206a99fc58d4bd0a95e6b3314807b621500e5067ede76c0a0e52add1b261eabc`。
+18登记输入SHA前后同、clean，完整argv/raw/hash收据仓外保留；后继docs-only提交不冒称实际测试head。
+
+- 私有纯函数18分类逐项匹配受审文本，生产穷尽match无通配分支或Debug fallback。
+- p34普通源码single/unit保持唯一L0165、Error、源40..45、空details；原0319四fixture控制
+  仍保持各自code/Span及真实最终分析拒绝，不把未完成类型放行。
+- 两个CLI exact共4次build进程（single/project各human/json）；single exit2、project exit1，
+  stdout空，新message精确一致、code/Span/协议保持、无Internal、产物或目录字节改写。未运行产物。
+- 同head `cargo fmt --all -- --check`、`cargo check --workspace --all-targets --locked --offline`、
+  `cargo clippy -p lang-frontend -p lang-cli --all-targets --locked --offline -- -D warnings`、
+  `cargo build -p lang-cli --locked --offline`四工程均exit0，不计作额外行为测试。
+
+原legacy等价绿与新文案断言红完整保留。下游helper曾在静态独审发现JSON整对象比较含额外message
+键的问题，执行前由0b15e546改为code/primary两侧投影、message/details分别精确断言；未运行该
+已知错误版本，不编造失败或通过证据。
+
+CI接线静核：`crates/**`触发Rust changes；`check_integration.sh`经`check_core.sh`选择frontend lib
+与lang-cli，`check_stage_integration.sh`选择frontend final_type_admission，覆盖本片新测试。
+尚未发布或执行本片远端CI；本地未运行这些聚合脚本。Spec保持active，p42/p25合同与0323修复不在
+本片验收范围；这不是整份增量review或v1完成。
