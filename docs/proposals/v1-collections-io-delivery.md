@@ -30,7 +30,7 @@
 | 类别 | 基线静态事实 | 待冻结的最小合同与验收 |
 |---|---|---|
 | stdin | 未在当前std/标准环境找到行读取API | 行读取区分空行、EOF与错误；UTF-8/非法字节、换行保留策略、限额与关闭责任；复用IO错误/资源合同 |
-| stdout/stderr | 已有String Borrow的println写全部字节再LF；不是完整输出流API，error不保证stderr内容 | 不换行写、stderr写与flush的API/错误；短写、U+0000、失败和输出顺序，不能把CLI转发stderr当标准库写入能力 |
+| stdout/stderr | 已有String Borrow的println：内容及LF各调用write，短写/错误Abort；没有write_all重试或完整流API，error不保证stderr内容 | 不换行写、stderr写与flush的API/错误；短写、U+0000、失败和输出顺序，不能把CLI转发stderr当标准库写入能力 |
 | 时间 | 未找到标准Duration、wall-clock或monotonic API | Duration表示/单位/溢出，墙钟与单调计时分别定用途；精度、回拨、平台范围与可比较性，不引入时区/日历 |
 | sleep | 未找到标准阻塞sleep API | 依赖Duration，负值/零/超额、被中断后的行为及允许误差；验证阻塞与不忙等，不承诺精确唤醒。异步delay待并发合同 |
 | 基础math | 整数运算/比较可复用，不等于已有min/max/abs/clamp库 | 先整数适用类型与min/max/abs/clamp；继承现行checked算术，另定abs最小负数、clamp反向上下界等函数合同 |
