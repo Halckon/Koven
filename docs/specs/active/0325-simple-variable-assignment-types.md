@@ -1,18 +1,18 @@
 # SPEC-0325: 简单变量普通赋值类型事实
 
-> **性质**：有界类型修复 · **状态**：draft · **读取时机**：实现 p42 类型前置与所有权诊断时 · **唯一真源**：本 Spec；语言合同见 Guide
+> **性质**：有界类型修复 · **状态**：in-progress · **读取时机**：实现 p42 类型前置与所有权诊断时 · **唯一真源**：本 Spec；语言合同见 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-0325` |
 | 所属 Phase | Phase 2；final admission 仍先于 Phase 3 ownership |
-| 语言规范 | [Guide v0.44 简单赋值](../../../guide/03-types-generics.md#简单变量赋值与整数-range-身份) |
+| 语言规范 | [Guide v0.44 简单赋值](../../guide/03-types-generics.md#简单变量赋值与整数-range-身份) |
 | 批准依据 | 2026-10-15 用户批准 B 最小合同，随后明确启用 v0.44 及四组细则 |
 | 基线 | Guide 分支 `be3264bc7143fdddb160ce77039fb902694d0d77`；其 actual main 祖先 `fcc5cc02c5f8b78b71dd703f864e04ad98c2a678` |
 | 分支依赖 | `fix/spec-0325-v044` stacked 在 Guide 启用提交上；Guide PR 尚未合并，发布须先完成其主干交付 |
-| 前置 Spec | [0319](../../../archive/specs/0319-final-type-admission-diagnostics.md)、[0323](../../../archive/specs/0323-final-admission-static-recovery.md) |
-| 关联实现 | [0218 unit 赋值事实](../../../archive/specs/0218-compilation-unit-assignment-facts.md) |
+| 前置 Spec | [0319](../../archive/specs/0319-final-type-admission-diagnostics.md)、[0323](../../archive/specs/0323-final-admission-static-recovery.md) |
+| 关联实现 | [0218 unit 赋值事实](../../archive/specs/0218-compilation-unit-assignment-facts.md) |
 | 语言语义变更 | 无新增合同；实现当前 Guide B，其他 A/C/D/E/F 不在本片 |
 
 ## 1. 范围与顺序
@@ -57,4 +57,6 @@ unit Unit后L0135；expected Int及非法RHS unit已有L0084，single未完成�
 field真实single complete成功→L0135 receiver，unit complete成功→L0134 immutable，随后补锁此边界。
 多case首断言红后未到达的local/group/nullable负例不称已执行。仓外原始收据保留在
 `spec0325-evidence/red-receipt.json`；固定源码与选择可由该提交及上列exact重现。
-实现准入后再登记 active；native/资源与完整工程门禁尚未运行。
+已在红证后登记 active，最小实现正在独审；native/资源与完整工程门禁尚未运行。
+Guide 发布 PR110 的远端映射 head `e0c447f73ec896d9cc340d5168d1d0e32246f186` 与本地基线同tree；
+其CI与合并另行核验。发布本分支须由唯一publisher按映射保留真实父链，不覆盖Guide分支。
