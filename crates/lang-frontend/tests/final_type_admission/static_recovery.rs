@@ -227,22 +227,43 @@ fn unresolved_static_member_without_call_keeps_its_own_root() {
         .and_then(|ty| typed.types().get(ty));
     let result = complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ());
     eprintln!(
-        "OBSERVATION ONLY: single root={span:?} type={raw_kind:?} original={original:?} final={result:?}"
+        "single noncall root={span:?} type={raw_kind:?} original={original:?} final={result:?}"
     );
     let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
     let index = index_compilation_unit(&sources, &inputs).expect("unit index");
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
         .expect("unit names infrastructure");
-    eprintln!(
-        "OBSERVATION ONLY: unit name-stage diagnostics={:?}",
-        names.diagnostics()
-    );
-    eprintln!(
-        "OBSERVATION ONLY: unit names validation success={}",
-        names.validate().is_ok()
-    );
-    // This temporary observer records actual analysis, not a successful regression oracle.
+    eprintln!("unit name-stage diagnostics={:?}", names.diagnostics());
     assert_eq!(typed.diagnostics(), original);
+    assert!(matches!(raw_kind, Some(TypeKind::Error)));
+    assert_eq!(original.len(), 1);
+    assert_eq!(original[0].code().to_string(), "L0080");
+    assert_eq!(original[0].message(), "unresolved associated constant");
+    assert_eq!(
+        (
+            original[0].primary_span().start(),
+            original[0].primary_span().end()
+        ),
+        (49, 56)
+    );
+    assert_eq!(sources.slice(original[0].primary_span()), Ok("unknown"));
+    assert_eq!(names.diagnostics().len(), 1);
+    let diagnostic = &names.diagnostics()[0];
+    assert_eq!(diagnostic.code().to_string(), "L0080");
+    assert_eq!(diagnostic.message(), "unresolved qualified name");
+    assert_eq!(
+        (
+            diagnostic.primary_span().start(),
+            diagnostic.primary_span().end()
+        ),
+        (49, 56)
+    );
+    assert_eq!(sources.slice(diagnostic.primary_span()), Ok("unknown"));
+    assert!(names.validate().is_err());
+    let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = result else {
+        panic!("single must preserve its source diagnostic, not Internal or Ok: {result:?}");
+    };
+    assert_eq!(diagnostics, original);
 }
 
 #[test]

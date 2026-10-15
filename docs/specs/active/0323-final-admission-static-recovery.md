@@ -109,3 +109,15 @@ exact为`unresolved_static_member_without_call_keeps_its_own_root`、
 处失败，不能计为本生产缺陷红。其raw完整保留，输入SHA前后一致。
 按真实阶段仅修该tests-only控制：single独立采真实complete，unit锁已有name诊断并止于names。
 不将unit强行送入complete、不降低其他oracle；修订后八目标须同head另经审定执行。
+
+## 8. 非调用控制的真实恢复根因
+
+411b75da的八目标重跑保留原四Internal红与三控制绿，但第七single并非预设Deferred，
+在raw断言前置失败；该失败同样不算已验证生产缺陷。随后独审/批准的d9723229唯一exact
+仅作普通前端观察，命令exit0/1命中不计回归绿：single `P.unknown`为Error，原L0080
+`unresolved associated constant`在unknown49..56，complete却在P47..48报缺原诊断Internal。
+unit的L0080 `unresolved qualified name`仍在name阶段，validate拒绝，不能进入complete。
+
+现将该控制锁为single完整原Diagnostic保留、unit原name拒绝；同根恢复只额外纳入本Member
+name上的精确L0080原诊断与Error形状，仍须真实静态限定符身份，不以全局任意错误作豁免。
+两次前置假设失败及独立观察收据保持原样，不改写为成功；其余精确根oracle不变。
