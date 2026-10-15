@@ -45,6 +45,30 @@
 整数溢出/除零及Float/Double IEEE754基础规则已有[Guide04](../guide/04-expressions-operators.md)约束，不重新待定。
 新增IO详细错误与清理只在[IO候选](text-input-and-io.md)冻结；本表不复制实现合同。
 
+## 跨语言参照与优先级建议
+
+以下参照官方**当前模块分类**，不是Rust/Go/Java/Python历史1.0配置的断言：
+[Rust core](https://doc.rust-lang.org/core/) / [std](https://doc.rust-lang.org/std/)、
+[Go io](https://pkg.go.dev/io) / [标准库](https://pkg.go.dev/std)、
+[Java java.base](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/module-summary.html)、
+[Python library](https://docs.python.org/3/library/index.html)。这些语言把内建类型、库与runtime
+放在不同层级，不能按包数量对齐，亦不把其异常/interface/线程机制直接带入Koven。
+
+下表是依赖与取舍建议。用户明确要求的集合、同步IO、stdin、time/sleep/math维持已选方向；
+其余新列类别不是自动批准的v1门槛，每片仍须选定具体Goal和合同。
+
+| 优先级 | 建议类别 | Koven依赖与停止边界 |
+|---|---|---|
+| P0：CLI/文件闭环 | 错误/资源、bytes/String解析格式化、集合、stdio/fs/path、args/env、最小应用test | 先核选定Result形状与正常清理，再选字节/UTF-8、短读写、EOF及失败；argv已有，env/path与应用测试入口需独立合同 |
+| P1：常用扩充 | 已选time/sleep/math、集合算法；可seed普通random、hex/base64；JSON为可选扩展 | sleep依赖Duration，浮点math依赖执行链；random只指可复现普通伪随机，不宣称安全；编码/JSON依赖文本、容器与错误合同 |
+| P2：独立定位 | process/socket/concurrency、用户FFI、通用序列化等 | 须独立决定是否纳入v1及所需规范，不等于默认移到v2；不能因现有runtime符号或类型名称宣称已具备 |
+
+先打通“输入→解析→集合处理→格式化输出→可观察错误/资源清理”，应用test贯穿；
+不以浮点、全部M2B泛化或网络并发作为该闭环默认前置。用户FFI必须独立封闭ABI/权限/资源合同，
+runtime内部malloc/free/write桥接不是公开FFI；Rust驱动的编译器测试也不是Koven应用test库。
+现有Result声明不证明所有泛型payload可执行，Byte/UByte类型不等于Bytes库，不能为了清单
+顺手启用Option/异常展开、动态接口、Str或通用序列化。路径/env外部字节是否必须UTF-8另定。
+
 ## 已有能力与实际缺口
 
 - `listOf`空/非空、Array/List/MutableList普通for已有native源码矩阵：
