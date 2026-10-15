@@ -101,3 +101,40 @@ fn project_deferred_user_message_build_preserves_source_root() {
     }
     support::assert_rejections_count(&cases, 1, 2);
 }
+
+#[test]
+fn project_static_recovery_build_preserves_source_root() {
+    assert_static_recovery_project_build("");
+}
+
+#[test]
+fn project_constant_static_recovery_build_preserves_source_root() {
+    assert_eq!(CONSTANT_PREFIX.len(), 47);
+    assert_static_recovery_project_build(CONSTANT_PREFIX);
+}
+
+fn assert_static_recovery_project_build(prefix: &str) {
+    // Companion unit typing is complete; its unrelated backend boundary is excluded.
+    let probes = support::static_recovery_probes();
+    let probe = &probes[1];
+    let mut cases = Vec::new();
+    for format in ["human", "json"] {
+        let project = TestProject::create("static-recovery-0323");
+        let manifest = project.manifest(&["src"]);
+        let source_name = format!("src/{}", probe.name);
+        project.write(&source_name, &format!("{prefix}{}", probe.text));
+        let executable = project.join("rejected-program");
+        let before = directory_snapshot(project.path());
+        let output = project_build(&manifest, "main", &executable, Some(format));
+        cases.push(RejectionCase {
+            context: format!("SPEC-0323 build {format} constants={}", !prefix.is_empty()),
+            output,
+            format,
+            expected: expected_diagnostic(probe, &source_name, prefix),
+            before,
+            after: directory_snapshot(project.path()),
+            executable_exists: executable.exists(),
+        });
+    }
+    support::assert_rejections_count(&cases, 1, 2);
+}

@@ -56,6 +56,30 @@ pub(super) const PROBES: [Probe; 4] = [
     },
 ];
 
+// SPEC-0323: original ordinary-source probes, shared by build-only checks.
+pub(super) fn static_recovery_probes() -> [Probe; 2] {
+    [
+        Probe {
+            name: "p28_companion.ko",
+            text: include_str!(
+                "../../../lang-frontend/tests/fixtures/final-admission-static-recovery-0323/p28_companion.ko"
+            ),
+            code: "L0165",
+            primary: 95..103,
+            token: "P.origin",
+        },
+        Probe {
+            name: "p16_result_q.ko",
+            text: include_str!(
+                "../../../lang-frontend/tests/fixtures/final-admission-static-recovery-0323/p16_result_q.ko"
+            ),
+            code: "L0165",
+            primary: 185..194,
+            token: "parse(n)?",
+        },
+    ]
+}
+
 pub(super) fn expected_diagnostic(probe: &Probe, source_name: &str, prefix: &str) -> Value {
     assert_eq!(&probe.text[probe.primary.clone()], probe.token);
     let text = format!("{prefix}{}", probe.text);
@@ -101,7 +125,7 @@ pub(super) fn assert_rejections_count(cases: &[RejectionCase], exit_code: i32, c
     // 先执行完矩阵并记录全部真实进程结果；首个红断言不能隐藏其余根因。
     for case in cases {
         eprintln!(
-            "SPEC-0319 {} status={:?}\nstdout: {:?}\nstderr: {:?}",
+            "final-admission {} status={:?}\nstdout: {:?}\nstderr: {:?}",
             case.context,
             case.output.status.code(),
             String::from_utf8_lossy(&case.output.stdout),
