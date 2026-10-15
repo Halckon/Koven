@@ -219,6 +219,38 @@ class Libxml2CompatibilityTests(unittest.TestCase):
                 host['libxml2_policy']['unversioned_imports'].append('xmlFree')
                 self.assert_rejected(producer, consumer)
 
+    def test_each_side_and_matching_invalid_policy_facts_are_rejected(self):
+        mutations = [
+            ('package', 'version', '2.9.14+dfsg-1.3ubuntu3.11'),
+            ('package', 'source', 'not-libxml2'),
+            ('distribution', 'id', 'debian'),
+            ('file_md5', 'actual', '0' * 32),
+            ('elf', 'class', 'ELF32'),
+            ('elf', 'soname', 'not-libxml2'),
+        ]
+        for section, field, value in mutations:
+            for sides in ((0,), (1,), (0, 1)):
+                with self.subTest(section=section, field=field, sides=sides):
+                    pair = [copy.deepcopy(self.producer), copy.deepcopy(self.consumer)]
+                    for side in sides:
+                        pair[side]['libxml2_policy'][section][field] = value
+                    self.assert_rejected(*pair)
+        for sides in ((0,), (1,), (0, 1)):
+            with self.subTest(definition_sides=sides):
+                pair = [copy.deepcopy(self.producer), copy.deepcopy(self.consumer)]
+                for side in sides:
+                    pair[side]['libxml2_policy']['definitions'][0]['binding'] = 'WEAK'
+                self.assert_rejected(*pair)
+
+    def test_missing_and_wrongly_typed_policy_fields_fail_closed(self):
+        for field in ('package', 'file_md5', 'apt_environment', 'elf', 'requesters',
+                      'definitions', 'unversioned_imports', 'exported_names'):
+            for value in (None, True, 12, 'wrong'):
+                with self.subTest(field=field, value=value):
+                    consumer = copy.deepcopy(self.consumer)
+                    consumer['libxml2_policy'][field] = value
+                    self.assert_rejected(consumer=consumer)
+
 
 if __name__ == '__main__':
     unittest.main()

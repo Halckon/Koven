@@ -289,6 +289,38 @@ class PreviewInstallProtocol(unittest.TestCase):
                     self.assertEqual(execute.call_count, 0)
                 self.assertIn('unsupported archive member', self.results()['failure'])
 
+    def test_successful_host_preflight_does_not_hide_any_native_command_failure(self):
+        # The package's synthetic host preflight returns []; native execution still
+        # owns success. These are protocol injections, never real native evidence.
+        for fail_at in range(1, 13):
+            with self.subTest(fail_at=fail_at):
+                archive, checksum = self.package()
+                calls = []
+                def execute(command, **kwargs):
+                    calls.append(command)
+                    result = self.mock_execute(command, **kwargs)
+                    if len(calls) == fail_at:
+                        return subprocess.CompletedProcess(command, 99, result.stdout, b'injected failure')
+                    return result
+                with mock.patch.object(self.consumer.subprocess, 'run', side_effect=execute):
+                    self.assertEqual(self.install(archive, checksum), 1)
+                results = self.results()
+                self.assertFalse(results['success'])
+                self.assertEqual(len(results['commands']), fail_at)
+                self.assertFalse(results['cleanup']['removed'])
+                self.assertTrue(results['sentinel']['unchanged'])
+
+    def test_successful_twelve_commands_do_not_hide_cleanup_failure(self):
+        archive, checksum = self.package()
+        with mock.patch.object(self.consumer.subprocess, 'run', side_effect=self.mock_execute), \
+                mock.patch.object(self.consumer.shutil, 'rmtree', side_effect=OSError('injected cleanup failure')):
+            self.assertEqual(self.install(archive, checksum), 1)
+        results = self.results()
+        self.assertEqual(len(results['commands']), 12)
+        self.assertFalse(results['success'])
+        self.assertFalse(results['cleanup']['removed'])
+        self.assertTrue(results['sentinel']['unchanged'])
+
     def test_cleanup_cannot_succeed_if_sibling_sentinel_was_changed(self):
         archive, checksum = self.package()
         def execute(command, **kwargs):
