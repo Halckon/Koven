@@ -1,6 +1,6 @@
 # SPEC-0323: 最终类型准入的静态非值角色与失败调用恢复
 
-> **性质**：有界诊断修复草案 · **状态**：in-progress · **读取时机**：审查最终准入静态角色与恢复根因时 · **唯一真源**：本合同；不改变现行Guide
+> **性质**：有界诊断修复 · **状态**：in-progress · **读取时机**：审查最终准入静态角色与恢复根因时 · **唯一真源**：本合同；不改变现行Guide
 
 | 字段 | 值 |
 |---|---|
@@ -13,13 +13,13 @@
 | 前置 Spec | [0319最终类型准入](../../archive/specs/0319-final-type-admission-diagnostics.md) |
 | 编号 | 本基线最大0322；官方分支只读核查未见0323/0324；官方开放PR检索仅见103/64，未占0323；本片登记0323 |
 | 语言语义变更 | 否 |
-| 阻塞项 | 首轮六exact已运行，四红两绿；根集合已据raw收紧，最小生产需独审 |
+| 阻塞项 | 本地15 exact与4工程门禁已通过；PR双宿主CI、有限归档与合并待完成 |
 
 ## 1. Goal与报告边界
 
 review报告原p28 companion single、原p16 Result传播single/project共3个入口出现
 `final type admission is missing original diagnostic for required Error type`。
-这是外部增量review的实测报告，不冒称本分支已经重现。附件原probe字节保持在真实fixture，
+上述为外部增量review的报告表述；本分支重现区分single缺原诊断与unit缺expression type，见§5。附件原probe字节保持在真实fixture，
 另收review §3.1两份最小源码；不执行附件matrix.sh、99×2矩阵或任何产物。
 
 最终准入只豁免由真实名称/已选事实证明的非值静态限定符；失败调用的恢复不能把这类子壳
@@ -29,8 +29,8 @@ review报告原p28 companion single、原p16 Result传播single/project共3个�
 ## 2. 静态候选与非目标
 
 `final_admission/walk.rs`的Member对未选static qualifier进入普通value检查；Call的失败callee
-恢复标记没有覆盖该限定符子壳，可能触发缺原diagnostic Internal。这里是静态根因候选，
-待真实raw/complete结果确认后才能冻结修复，不以统一Error→L0165掩盖内部事实缺失。
+恢复标记没有覆盖该限定符子壳，可能触发缺原diagnostic Internal。首轮以静态根因候选准入，
+后续真实raw/complete与修复结果见§5–9；不以统一Error→L0165掩盖内部事实缺失。
 
 - 不开放companion/Result传播后端能力，不改verifier、CFG、所有权顺序或基础类型准入规则。
 - 真实必需call仍Deferred时必须源级拒绝，不得因限定符豁免获得最终完成资格。
@@ -70,7 +70,7 @@ lex/parse/name/raw type/complete API构造真实分析，不改facts/IR，不进
 - [x] 官方开放PR与分支编号只读复核，未发现0323占用。
 - [x] 首轮tests/helper/argv独审及六exact运行授权。
 - [x] 固定tests-only真实红与既有绿分账，收紧确定根因code/Span。
-- [ ] 最小生产独立提交与审查，原精确目标和受影响普通控制回归。
+- [x] 最小生产独立提交与审查，原精确目标和受影响普通控制回归。
 - [ ] 按适用入口补足CLI/constant证据，工程门禁、双宿主CI与有限归档。
 
 若需要放宽全部静态类型名、抹除value Error、改变语言支持或 ownership 顺序，停止并请求独立决定。
@@ -121,3 +121,32 @@ unit的L0080 `unresolved qualified name`仍在name阶段，validate拒绝，不�
 现将该控制锁为single完整原Diagnostic保留、unit原name拒绝；同根恢复只额外纳入本Member
 name上的精确L0080原诊断与Error形状，仍须真实静态限定符身份，不以全局任意错误作豁免。
 两次前置假设失败及独立观察收据保持原样，不改写为成功；其余精确根oracle不变。
+
+## 9. 最小修复与同head本地验收
+
+生产提交`b0f60399cce3d9f2c105ab0e361ce16ad252a977`仅改final-admission Member恢复：
+未选Member、真实静态限定符身份，以及失败recovery、Member Deferred或本name精确L0080的Error
+共同界定恢复；Member最终类型、动态receiver和实参仍检查。独审后原八exact及四个既有普通控制全绿。
+
+固定`521f38746833d85845955eb0e19acd78e45416b7` / tree `8acd8f0414e8459b32fa37713d2c3f5fb8f16da8`
+统一重跑15个唯一exact，每个实际1命中通过：八个本片frontend、四个既有final-admission控制、
+三个公开CLI build-only诊断测试。使用`--locked --offline`、串行及仓外绝对target；21个登记输入
+SHA前后同、工作树干净。manifest SHA256为`5f5c2b8e37b8d7d6aa827672df59af07161f7553222da7149b9317cb8a173c09`。
+原始stdout/stderr、完整argv和前后输入身份仓外保留，不把后续docs-only提交冒称实跑head。
+
+- single p28与p16各human/json、project p16基础/含const各human/json，共8次编译器build进程；
+  分别exit2/exit1，stdout空，唯一L0165主Span精确，无Internal、产物或目录字节改写，未执行产物。
+- 含const项目的真实Span为232..241，原185..194加47字节；最终准入先于constant fallback，
+  此证据只覆盖含常量源码的前置源诊断，不能宣称执行constant ownership。p28 unit合法typing
+  保持正控；其后端能力不在本片接纳范围。
+- 同head `cargo fmt --all -- --check`、`cargo check --workspace --all-targets --locked --offline`、
+  `cargo clippy -p lang-frontend -p lang-cli --all-targets --locked --offline -- -D warnings`、
+  `cargo build -p lang-cli --locked --offline`均exit0。工程门禁不计为额外行为测试。
+- 旧b0工程fmt/check通过、clippy因新测试两处bool.then lint失败，build未执行；原失败保留。
+  ed7a9c67仅将这两处改为等价if/Some/None后才取得上述同head工程结果。
+
+CI静态接线已核：`crates/**`命中Rust changes，双宿主Targeted Tests的`check_integration.sh`
+经`check_stage_integration.sh`选择frontend final_type_admission，且`check_core.sh`选择lang-cli
+全部集成targets，覆盖新八frontend与三CLI。尚未触发本分支远端CI，不把接线当执行通过；
+本地未运行这些聚合脚本。仍待远端CI、有限归档及正常合并；p25/p42推断、L0165措辞和整份review
+其余能力不由本片宣称闭合。
