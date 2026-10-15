@@ -1,0 +1,6 @@
+fun main(): Unit {
+    val x = "x"
+    var xs = mutableListOf<String>()
+    xs.add(x)
+    for (s in xs) { println(s) }
+}

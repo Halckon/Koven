@@ -6,7 +6,7 @@
   </defs>
   <rect width="8464" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="7672" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，305 份）</text>
+  <text x="3876" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，306 份）</text>
   <rect x="7776" y="7974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="7916" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="8120" y="7974" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1051,6 +1051,7 @@
   <path d="M 180 9294 C 180 9326, 180 9326, 180 9358" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 8238 C 708 8270, 1236 8288, 1236 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 6504 C 1500 6536, 2292 6572, 2292 6604" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 2292 6678 C 2292 6710, 972 6728, 972 6760" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2336,6 +2337,11 @@
   <text x="2292" y="6627" text-anchor="middle" font-size="13">SPEC-0320</text>
   <text x="2292" y="6645" text-anchor="middle" font-size="13">Enum case 构造值的</text>
   <text x="2292" y="6663" text-anchor="middle" font-size="13"> Borrow 实参分类</text>
+  <rect x="852" y="6760" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="972" y="6783" text-anchor="middle" font-size="13">SPEC-0321</text>
+  <text x="972" y="6801" text-anchor="middle" font-size="13">single Mutable</text>
+  <text x="972" y="6819" text-anchor="middle" font-size="13">List.add 元素所有权</text>
+  <text x="972" y="6837" text-anchor="middle" font-size="13">交付记账</text>
   <rect x="1380" y="6136" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="1500" y="6159" text-anchor="middle" font-size="13">SPEC-0322</text>
   <text x="1500" y="6177" text-anchor="middle" font-size="13">Preview 外部 lib</text>

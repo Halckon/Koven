@@ -51,6 +51,8 @@ mod container_lowering_tests;
 #[cfg(test)]
 mod container_operation_tests;
 #[cfg(test)]
+mod mutable_list_delivery_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod type_tests;

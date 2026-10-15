@@ -1,0 +1,7 @@
+fun main(): Unit {
+    val x: Int = 7
+    var xs = mutableListOf<Int>()
+    xs.add(x)
+    for (s in xs) { println("item") }
+    if (x == 7) { println("copy-ok") }
+}

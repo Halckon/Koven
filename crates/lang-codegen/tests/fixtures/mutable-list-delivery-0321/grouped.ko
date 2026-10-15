@@ -1,0 +1,5 @@
+fun main(): Unit {
+    var xs = mutableListOf<String>()
+    xs.add(("x"))
+    for (s in xs) { println(s) }
+}

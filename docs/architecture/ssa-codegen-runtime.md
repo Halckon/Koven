@@ -24,7 +24,7 @@ runtime-length 在 `Int` 域拒绝负数再转换；argv 从非负 i32 建立相
 provider builder 固定 length 快照、零 cursor 的入口运输、guard 真边 element loan 与固定步长回边；真实 `for` lowering 已接入 `lower_frontend`：消费前端 validated sequential iteration provider 与 ownership drop/loan 事实，按 preheader/header/body/continue/exit 展开无分配 CFG；body CFG 重绑定同步维护本层 source loan 的使用与 cleanup 身份，不结束外部 Borrow source。支持 named、borrowed 与 temporary 顺序容器（Array/List/MutableList）、名称/discard/value-class 借用解构及 break/continue/early return/nested 完整 cleanup 闭环，已有对应 native object/link/run 验证，但不代表任意 source/退出组合：single owned local/own source 的单条件 continue 已由0312的独立source presence证明有界支持，单条件return由0314的独立终止路径source proof有界支持；有限资源与provider边界见[顺序迭代事实与provider](finite-sequential-iteration.md)。[外层 guarded Map 运输](map-loop-owner-carry.md)覆盖正常耗尽、有界单条件 break、continue 或 return；continue与owned source的组合由0312独立验收，return与owned source的有界组合由0314独立验收，不继承provider的任意退出组合。
 
 单文件 lowering 在函数参数 bindings 建立后消费 `FunctionEntry` 析构事实；MoveOnly Value 实参
-交付后移除其源码 binding。通用 `when` 条件边显式传递 owned bindings，并只在匹配边消费
+交付后移除其源码 binding；`MutableList.add`另按具体MoveOnly element ValueId移除binding/temporary别名，保留Copyable和无关owner。通用 `when` 条件边显式传递 owned bindings，并只在匹配边消费
 `WhenAlternativeMatch` 析构事实。非 nullable subjectless 逗号分支已通过 SSA 和 native 双路径测试；
 该证据不扩大 nullable native 支持，也不证明 MoveOnly enum 后续类型判别的主体重绑定已闭合。 无 payload Copyable enum case condition 另消费 construction/ownership identity 生成 Boolean tag 比较；Guide4 单文件 native 和精确剩余边界见[Litmus4 账本](guide-conformance.md#return-控制表达式与-litmus4-的-native-边界)。
 

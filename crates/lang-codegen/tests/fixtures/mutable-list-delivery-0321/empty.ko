@@ -1,0 +1,5 @@
+fun main(): Unit {
+    var xs = mutableListOf<String>()
+    for (s in xs) { println("unexpected-body"); println(s) }
+    println("empty-ok")
+}
