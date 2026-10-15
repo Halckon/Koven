@@ -83,7 +83,9 @@ fn observe(text: &str) -> Vec<Observation> {
     }
     let complete = complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ());
     assert_eq!(typed.diagnostics(), raw);
-    eprintln!("SPEC-0325 before ownership: raw={raw:?} assignments={assignments:?} current_uses={current_uses:?} complete={complete:?}");
+    eprintln!(
+        "SPEC-0325 before ownership: raw={raw:?} assignments={assignments:?} current_uses={current_uses:?} complete={complete:?}"
+    );
     let ownership = if complete.is_ok() {
         Some(
             check_ownership(&sources, &file, &names, &typed)
@@ -136,7 +138,9 @@ fn observe(text: &str) -> Vec<Observation> {
     let complete =
         complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).map(|_| ());
     assert_eq!(typed.diagnostics(), raw);
-    eprintln!("SPEC-0325 before ownership: raw={raw:?} assignments={assignments:?} current_uses={current_uses:?} complete={complete:?}");
+    eprintln!(
+        "SPEC-0325 before ownership: raw={raw:?} assignments={assignments:?} current_uses={current_uses:?} complete={complete:?}"
+    );
     let ownership = if complete.is_ok() {
         let typed = typed
             .validate()
@@ -294,7 +298,11 @@ fn nullable_storage_rhs_clears_target_refinement() {
     // A later Int read must not reuse the pre-assignment non-null fact.
     let invalid = "fun test(): Unit { var current: Int? = 1; if (current != null) { current = null; val after: Int = current } }";
     for entry in observe(invalid) {
-        assert_eq!(entry.current_uses.last().unwrap().1, Shape::Error, "{entry:?}");
+        assert_eq!(
+            entry.current_uses.last().unwrap().1,
+            Shape::Error,
+            "{entry:?}"
+        );
         assert_eq!(entry.raw.len(), 1, "{entry:?}");
         assert_eq!(entry.raw[0].code().to_string(), "L0084");
         let start = invalid.rfind("current").unwrap();
@@ -326,8 +334,55 @@ fn field_assignment_retains_existing_entry_difference() {
         assert!(entry.complete.is_ok(), "{entry:?}");
         let diagnostics = entry.ownership.as_ref().unwrap();
         assert_eq!(diagnostics.len(), 1, "{entry:?}");
-        assert_eq!(diagnostics[0].code().to_string(), if entry.mode == "single" { "L0135" } else { "L0134" });
+        assert_eq!(
+            diagnostics[0].code().to_string(),
+            if entry.mode == "single" {
+                "L0135"
+            } else {
+                "L0134"
+            }
+        );
         let span = diagnostics[0].primary_span();
         assert_eq!((span.start(), span.end()), (48, 54));
+    }
+}
+
+#[test]
+fn readonly_variable_assignments_remain_ownership_errors() {
+    for text in [
+        "fun test(): Unit { val number = 1; number = 2 }",
+        "fun test(number: Int): Unit { number = 2 }",
+    ] {
+        for entry in observe(text) {
+            assert_unit_assignment(&entry, "number = 2");
+            let diagnostics = entry.ownership.as_ref().unwrap();
+            assert_eq!(diagnostics.len(), 1, "{entry:?}");
+            assert_eq!(diagnostics[0].code().to_string(), "L0134");
+            let start = text.rfind("number").unwrap();
+            let span = diagnostics[0].primary_span();
+            assert_eq!((span.start(), span.end()), (start, start + "number".len()));
+        }
+    }
+}
+
+#[test]
+fn unit_value_context_and_right_associative_chain_use_storage_types() {
+    let passing = "fun done(): Unit {} fun test(): Unit { var number = 1; var result: Unit = done(); val value: Unit = result = number = 2 }";
+    for entry in observe(passing) {
+        assert_eq!(entry.assignments.len(), 2, "{entry:?}");
+        assert!(
+            entry
+                .assignments
+                .iter()
+                .all(|(_, _, shape)| *shape == Shape::Unit),
+            "{entry:?}"
+        );
+        assert!(entry.raw.is_empty(), "{entry:?}");
+        assert!(entry.complete.is_ok(), "{entry:?}");
+        assert!(entry.ownership.as_ref().unwrap().is_empty(), "{entry:?}");
+    }
+    let rejected = "fun test(): Unit { var left = 1; var right = 2; left = right = 3 }";
+    for entry in observe(rejected) {
+        assert_raw_rejection(&entry, "L0084", rejected, "right = 3");
     }
 }

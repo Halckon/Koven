@@ -138,3 +138,29 @@ fn assert_static_recovery_project_build(prefix: &str) {
     }
     support::assert_rejections_count(&cases, 1, 2);
 }
+
+#[test]
+fn project_assignment_capture_build_preserves_ownership_rejection() {
+    let prefix = "";
+    let probe = &support::assignment_capture_probe();
+    let mut cases = Vec::new();
+    for format in ["human", "json"] {
+        let project = TestProject::create("assignment-capture-0325");
+        let manifest = project.manifest(&["src"]);
+        let source_name = format!("src/{}", probe.name);
+        project.write(&source_name, &format!("{prefix}{}", probe.text));
+        let executable = project.join("rejected-program");
+        let before = directory_snapshot(project.path());
+        let output = project_build(&manifest, "main", &executable, Some(format));
+        cases.push(RejectionCase {
+            context: format!("SPEC-0325 build {format} constants={}", !prefix.is_empty()),
+            output,
+            format,
+            expected: expected_diagnostic(probe, &source_name, prefix),
+            before,
+            after: directory_snapshot(project.path()),
+            executable_exists: executable.exists(),
+        });
+    }
+    support::assert_rejections_count(&cases, 1, 2);
+}
