@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无active Spec。
+当前无 active Spec。0322已按实现head有限验收归档，归档head CI、合并授权与main交付仍待；见[近期交付](../README.md#近期交付)。
 
 [0320 Enum case Borrow实参分类](../../archive/specs/0320-enum-case-borrow-categories.md)已按PR102实现head双宿主物理CI有界归档；归档head CI、合并授权及实际main交付待完成，当前状态见[近期交付](../README.md#近期交付)。
 

@@ -55,3 +55,5 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 [普通unit字段赋值与single nullable Resource工厂](../../../architecture/lowering-support.md#现存入口差异)
 各自保留独立后继：字段更新须验证旧owner恰一次清理；工厂须验证nullable返回映射/ABI与
 恰一次清理。它们尚未选定Goal或编号，不并入0296，也不因本次文档归整获得实现验收。
+
+## Preview 外部宿主工程候选
