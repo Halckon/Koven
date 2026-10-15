@@ -2,7 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-- [0321 single MutableList.add元素交付记账](0321-mutable-list-element-delivery.md)：精确P3交付事实与已消费owner记账；0320已合实际main并正常同步；最小交付登记修复已通过同head14精确普通目标与四工程门禁，双宿主CI/归档/main交付待完成。
+- [0321 single MutableList.add元素交付记账](0321-mutable-list-element-delivery.md)：最小交付登记修复已通过旧固定输入14精确普通目标与四工程门禁；现正常同步含0322的actual main，重新验证与双宿主CI/归档/main交付待完成。
+
+0322已按实现head有限验收归档并由PR106合入actual main `29657994`；main CI另行跟踪，见[近期交付](../README.md#近期交付)。
 
 [0320 Enum case Borrow实参分类](../../archive/specs/0320-enum-case-borrow-categories.md)已按PR102实现head双宿主物理CI有界归档并合入actual main `7c348e70`；[main CI](https://github.com/Halckon/Koven/actions/runs/38656839732)另行跟踪。
 

@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 304 份"))
+ARCH(("已完成<br/>archive 305 份"))
 subgraph Gactive["现行 active"]
   S0321["S0321<br/>single MutableList.add 元素所有权交付记账"]
 end
@@ -30,4 +30,4 @@ ARCH --> S0321
 | SPEC-0321 | active | [0321-mutable-list-element-delivery.md](active/0321-mutable-list-element-delivery.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| 已完成 Spec（304 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（305 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

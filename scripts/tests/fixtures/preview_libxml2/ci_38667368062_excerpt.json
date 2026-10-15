@@ -1,0 +1,1041 @@
+{
+  "source": {
+    "run": "https://github.com/Halckon/Koven/actions/runs/38667368062/attempts/1",
+    "head": "b388e6dea5571dae95219d170ac22e317c4226a9",
+    "tree": "991e4e03f2c6aba64e357750eb86ac88e5fd4950"
+  },
+  "roles": {
+    "producer": {
+      "artifact_member": "producer/evidence/host-inspection.json",
+      "artifact_member_sha256": "a0ee141819581cecb82a537ad76032069be05e108d75c9610d445307686b104a",
+      "host": {
+        "arch": "x86_64",
+        "c_driver": {
+          "path": "/usr/bin/cc",
+          "version": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+        },
+        "glibc": "glibc 2.39",
+        "libraries": [
+          {
+            "name": "ld-linux-x86-64.so.2",
+            "resolved": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+            "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da"
+          },
+          {
+            "name": "libLLVM.so.21.1",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libLLVM.so.21.1",
+            "sha256": "fd419f2d3eddfbdece987a7757da8f66794ab933dde48fa685c2ad1c9478225e"
+          },
+          {
+            "name": "libbsd.so.0",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1",
+            "sha256": "e86cd4f0019f42c2ba5e60602e0edc8694d2948377d98c3654d0f6bddb5254bb"
+          },
+          {
+            "name": "libc.so.6",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+            "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
+          },
+          {
+            "name": "libedit.so.2",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libedit.so.2.0.72",
+            "sha256": "195c607216f8581dbf516346ed38f4c73500cac4b84e18eb0a4fd49931e4cd56"
+          },
+          {
+            "name": "libffi.so.8",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libffi.so.8.1.4",
+            "sha256": "00f593fe192f2851b8ce23b25cec2488d769beb5a8f63e8c9e563071e1075153"
+          },
+          {
+            "name": "libgcc_s.so.1",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+            "sha256": "d93224d2b0dab4247598be683adca02f5cf00586f99c187579cd7e92058fb7cb"
+          },
+          {
+            "name": "libicudata.so.74",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libicudata.so.74.2",
+            "sha256": "ddbb3718b8bd9cbd780e5ab08b4503c30a6c4fa0706ebe5d074ed6b596c1714e"
+          },
+          {
+            "name": "libicuuc.so.74",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libicuuc.so.74.2",
+            "sha256": "7560aadde38e5f4237a47a1ddd5891f9b36768a77a60faae30beee003ac01901"
+          },
+          {
+            "name": "liblzma.so.5",
+            "resolved": "/usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5",
+            "sha256": "696e868dd0700a19a6d65fc01608ec2d70d3cb91f65710e89180cd2e688f30cb"
+          },
+          {
+            "name": "libm.so.6",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+            "sha256": "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0"
+          },
+          {
+            "name": "libmd.so.0",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libmd.so.0.1.0",
+            "sha256": "423e18586b6ea740f4465afd64f7a9a4cb7264ed979c8e7256f9085af5345fef"
+          },
+          {
+            "name": "libstdc++.so.6",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33",
+            "sha256": "1fd75fe70354a416d75aef22bcae68c47bd25d20e2d0568c30b1a9838cf62f11"
+          },
+          {
+            "name": "libtinfo.so.6",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libtinfo.so.6.4",
+            "sha256": "e6089d7bb95eee5b545f3770dd69095b0bca47d26701cad145af429561d16306"
+          },
+          {
+            "name": "libxml2.so.2",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14",
+            "sha256": "ddd3af3f491a9686c82fe1232f1250cec368eb2fbcb1d2725c6ce9401a6dbd3b"
+          },
+          {
+            "name": "libz.so.1",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libz.so.1.3",
+            "sha256": "86200da370f20476a2507e9097a789b5ef97269b4ca8d5e164ad82dab9d99892"
+          },
+          {
+            "name": "libzstd.so.1",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.5",
+            "sha256": "0a2128bc10841fb29e76d08d945864dfb0b6a66da5df6df5d8299197439e54bb"
+          }
+        ],
+        "llvm_prefix": "/usr/lib/llvm-21",
+        "llvm_version": "21.1.8",
+        "os_version": "24.04",
+        "system": "Linux"
+      },
+      "requirements": [
+        {
+          "symbol_index": 446,
+          "name": "xmlAddChild",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 443,
+          "name": "xmlCopyNamespace",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 449,
+          "name": "xmlDocDumpFormatMemoryEnc",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 438,
+          "name": "xmlDocGetRootElement",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 448,
+          "name": "xmlDocSetRootElement",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 445,
+          "name": "xmlFree",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "OBJECT",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 439,
+          "name": "xmlFreeDoc",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 441,
+          "name": "xmlFreeNode",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 450,
+          "name": "xmlFreeNs",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 447,
+          "name": "xmlNewDoc",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 451,
+          "name": "xmlNewNs",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 442,
+          "name": "xmlNewProp",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 437,
+          "name": "xmlReadMemory",
+          "version_index": 48,
+          "version": "LIBXML2_2.6.0",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 436,
+          "name": "xmlSetGenericErrorFunc",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 444,
+          "name": "xmlStrdup",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 440,
+          "name": "xmlUnlinkNode",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        }
+      ],
+      "definitions": [
+        {
+          "symbol_index": 1879,
+          "name": "xmlAddChild",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 638,
+          "default": true
+        },
+        {
+          "symbol_index": 691,
+          "name": "xmlCopyNamespace",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 37,
+          "default": true
+        },
+        {
+          "symbol_index": 1866,
+          "name": "xmlDocDumpFormatMemoryEnc",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 810,
+          "default": true
+        },
+        {
+          "symbol_index": 1074,
+          "name": "xmlDocGetRootElement",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 52,
+          "default": true
+        },
+        {
+          "symbol_index": 1713,
+          "name": "xmlDocSetRootElement",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 155,
+          "default": true
+        },
+        {
+          "symbol_index": 1237,
+          "name": "xmlFree",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "OBJECT",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 8,
+          "default": true
+        },
+        {
+          "symbol_index": 974,
+          "name": "xmlFreeDoc",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 1345,
+          "default": true
+        },
+        {
+          "symbol_index": 488,
+          "name": "xmlFreeNode",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 126,
+          "default": true
+        },
+        {
+          "symbol_index": 1609,
+          "name": "xmlFreeNs",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 73,
+          "default": true
+        },
+        {
+          "symbol_index": 857,
+          "name": "xmlNewDoc",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 442,
+          "default": true
+        },
+        {
+          "symbol_index": 1759,
+          "name": "xmlNewNs",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 848,
+          "default": true
+        },
+        {
+          "symbol_index": 1324,
+          "name": "xmlNewProp",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 679,
+          "default": true
+        },
+        {
+          "symbol_index": 1878,
+          "name": "xmlReadMemory",
+          "version_index": 11,
+          "version": "LIBXML2_2.6.0",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 380,
+          "default": true
+        },
+        {
+          "symbol_index": 750,
+          "name": "xmlSetGenericErrorFunc",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 1023,
+          "default": true
+        },
+        {
+          "symbol_index": 922,
+          "name": "xmlStrdup",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 58,
+          "default": true
+        },
+        {
+          "symbol_index": 1577,
+          "name": "xmlUnlinkNode",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 592,
+          "default": true
+        }
+      ],
+      "excerpts": {
+        "0": {
+          "original_stdout_sha256": "281f0f35746e75713908d37330d89c9dd7ea6d8477d7b70a0766ef510ee2785a",
+          "selection": "whole stdout",
+          "text": "libxml2:amd64: /usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14\n"
+        },
+        "1": {
+          "original_stdout_sha256": "38cc7138637dc3b0e414cd98be5ea7e207504d9db23384c672025a123e0b3cff",
+          "selection": "whole stdout",
+          "text": "libxml2:amd64\tinstall ok installed\tamd64\t2.9.14+dfsg-1.3ubuntu3.9\tlibxml2\t2.9.14+dfsg-1.3ubuntu3.9\n"
+        },
+        "2": {
+          "original_stdout_sha256": "c45c3f4619a23129cbb9a121c3919248f1aa717ee569b8b10ff005ee92e7fd9b",
+          "selection": "selected original lines; incomplete table",
+          "text": "b5615980783b87ee1df9edae944eacf2  usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14\n"
+        },
+        "3": {
+          "original_stdout_sha256": "f65fac463b0794c0a3a4559bccb6845a03f4d0eb087e67e654be4273e61876a7",
+          "selection": "whole stdout",
+          "text": "libxml2:\n  Installed: 2.9.14+dfsg-1.3ubuntu3.9\n  Candidate: 2.9.14+dfsg-1.3ubuntu3.10\n  Version table:\n     2.9.14+dfsg-1.3ubuntu3.10 500\n        500 <redacted-source> noble-updates/main amd64 Packages\n        500 <redacted-source> noble-security/main amd64 Packages\n *** 2.9.14+dfsg-1.3ubuntu3.9 100\n        100 /var/lib/dpkg/status\n     2.9.14+dfsg-1.3ubuntu3 500\n        500 <redacted-source> noble/main amd64 Packages\n"
+        },
+        "4": {
+          "original_stdout_sha256": "c0538d4dd1b4f263b190221ad719a158e699a76f6e6683f8d1514ad1c1ed099d",
+          "selection": "selected original lines; incomplete table",
+          "text": "     release v=24.04,o=Ubuntu,a=noble-security,n=noble,l=Ubuntu,c=main,b=amd64\n     release v=24.04,o=Ubuntu,a=noble-backports,n=noble,l=Ubuntu,c=main,b=amd64\n     release v=24.04,o=Ubuntu,a=noble-updates,n=noble,l=Ubuntu,c=main,b=amd64\n     release v=24.04,o=Ubuntu,a=noble,n=noble,l=Ubuntu,c=main,b=amd64\n"
+        },
+        "9": {
+          "original_stdout_sha256": "8edeba03128a116be0d23d05e37de65a8dec3642a10badef653091e7de383dd6",
+          "selection": "selected original lines; incomplete table",
+          "text": "   436: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlSetGenericErrorFunc@LIBXML2_2.4.30 (47)\n   437: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlReadMemory@LIBXML2_2.6.0 (48)\n   438: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlDocGetRootElement@LIBXML2_2.4.30 (47)\n   439: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlFreeDoc@LIBXML2_2.4.30 (47)\n   440: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlUnlinkNode@LIBXML2_2.4.30 (47)\n   441: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlFreeNode@LIBXML2_2.4.30 (47)\n   442: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlNewProp@LIBXML2_2.4.30 (47)\n   443: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlCopyNamespace@LIBXML2_2.4.30 (47)\n   444: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlStrdup@LIBXML2_2.4.30 (47)\n   445: 0000000000000000     0 OBJECT  GLOBAL DEFAULT  UND xmlFree@LIBXML2_2.4.30 (47)\n   446: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlAddChild@LIBXML2_2.4.30 (47)\n   447: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlNewDoc@LIBXML2_2.4.30 (47)\n   448: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlDocSetRootElement@LIBXML2_2.4.30 (47)\n   449: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlDocDumpFormatMemoryEnc@LIBXML2_2.4.30 (47)\n   450: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlFreeNs@LIBXML2_2.4.30 (47)\n   451: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlNewNs@LIBXML2_2.4.30 (47)\n"
+        },
+        "10": {
+          "original_stdout_sha256": "e8d1907e2766283a28af0f0a3f16b25377ffd57babf6bcdbe08cf273e9673a77",
+          "selection": "selected original lines; incomplete table",
+          "text": "  0x0030: Version: 1  File: libxml2.so.2  Cnt: 2\n  0x00e0:   Name: LIBXML2_2.4.30  Flags: none  Version: 47\n  0x00f0:   Name: LIBXML2_2.6.0  Flags: none  Version: 48\n"
+        },
+        "23": {
+          "original_stdout_sha256": "e82f652e09a71a6f824bdea6b470546eb365ab59e28c1ee02c002cb6c10e3119",
+          "selection": "whole stdout",
+          "text": "\nDynamic section at offset 0x1de7e8 contains 33 entries:\n  Tag        Type                         Name/Value\n 0x0000000000000001 (NEEDED)             Shared library: [libicuuc.so.74]\n 0x0000000000000001 (NEEDED)             Shared library: [libz.so.1]\n 0x0000000000000001 (NEEDED)             Shared library: [liblzma.so.5]\n 0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]\n 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]\n 0x000000000000000e (SONAME)             Library soname: [libxml2.so.2]\n 0x000000000000000c (INIT)               0x2f000\n 0x000000000000000d (FINI)               0x194e10\n 0x0000000000000019 (INIT_ARRAY)         0x1d7a68\n 0x000000000000001b (INIT_ARRAYSZ)       8 (bytes)\n 0x000000000000001a (FINI_ARRAY)         0x1d7a70\n 0x000000000000001c (FINI_ARRAYSZ)       16 (bytes)\n 0x000000006ffffef5 (GNU_HASH)           0x2f0\n 0x0000000000000005 (STRTAB)             0xeae8\n 0x0000000000000006 (SYMTAB)             0x3700\n 0x000000000000000a (STRSZ)              37227 (bytes)\n 0x000000000000000b (SYMENT)             24 (bytes)\n 0x0000000000000003 (PLTGOT)             0x1dfa38\n 0x0000000000000002 (PLTRELSZ)           2520 (bytes)\n 0x0000000000000014 (PLTREL)             RELA\n 0x0000000000000017 (JMPREL)             0x2d860\n 0x0000000000000007 (RELA)               0x192c8\n 0x0000000000000008 (RELASZ)             83352 (bytes)\n 0x0000000000000009 (RELAENT)            24 (bytes)\n 0x000000006ffffffc (VERDEF)             0x18b58\n 0x000000006ffffffd (VERDEFNUM)          44\n 0x000000000000001e (FLAGS)              BIND_NOW\n 0x000000006ffffffb (FLAGS_1)            Flags: NOW\n 0x000000006ffffffe (VERNEED)            0x19178\n 0x000000006fffffff (VERNEEDNUM)         4\n 0x000000006ffffff0 (VERSYM)             0x17c54\n 0x000000006ffffff9 (RELACOUNT)          3395\n 0x0000000000000000 (NULL)               0x0\n"
+        },
+        "24": {
+          "original_stdout_sha256": "ae8b8f05034fa46aac15bfb109245147ffa9fe5a1551ef927b963f937526e3f3",
+          "selection": "whole stdout",
+          "text": "ELF Header:\n  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 \n  Class:                             ELF64\n  Data:                              2's complement, little endian\n  Version:                           1 (current)\n  OS/ABI:                            UNIX - System V\n  ABI Version:                       0\n  Type:                              DYN (Shared object file)\n  Machine:                           Advanced Micro Devices X86-64\n  Version:                           0x1\n  Entry point address:               0x0\n  Start of program headers:          64 (bytes into file)\n  Start of section headers:          1965568 (bytes into file)\n  Flags:                             0x0\n  Size of this header:               64 (bytes)\n  Size of program headers:           56 (bytes)\n  Number of program headers:         11\n  Size of section headers:           64 (bytes)\n  Number of section headers:         29\n  Section header string table index: 28\n"
+        },
+        "25": {
+          "original_stdout_sha256": "7a28609f1dfdf3241137d006b9b203f94b60f625d93089bfc408ad6e36629d58",
+          "selection": "selected original lines; incomplete table",
+          "text": "   488: 00000000000673e0   126 FUNC    GLOBAL DEFAULT   15 xmlFreeNode@@LIBXML2_2.4.30\n   691: 0000000000061920    37 FUNC    GLOBAL DEFAULT   15 xmlCopyNamespace@@LIBXML2_2.4.30\n   750: 0000000000037950  1023 FUNC    GLOBAL DEFAULT   15 xmlSetGenericErrorFunc@@LIBXML2_2.4.30\n   857: 0000000000064f00   442 FUNC    GLOBAL DEFAULT   15 xmlNewDoc@@LIBXML2_2.4.30\n   922: 00000000000eee50    58 FUNC    GLOBAL DEFAULT   15 xmlStrdup@@LIBXML2_2.4.30\n   974: 0000000000067c90  1345 FUNC    GLOBAL DEFAULT   15 xmlFreeDoc@@LIBXML2_2.4.30\n  1074: 000000000006c4e0    52 FUNC    GLOBAL DEFAULT   15 xmlDocGetRootElement@@LIBXML2_2.4.30\n  1237: 00000000001e0610     8 OBJECT  GLOBAL DEFAULT   25 xmlFree@@LIBXML2_2.4.30\n  1324: 0000000000065ae0   679 FUNC    GLOBAL DEFAULT   15 xmlNewProp@@LIBXML2_2.4.30\n  1577: 00000000000613c0   592 FUNC    GLOBAL DEFAULT   15 xmlUnlinkNode@@LIBXML2_2.4.30\n  1609: 0000000000060dd0    73 FUNC    GLOBAL DEFAULT   15 xmlFreeNs@@LIBXML2_2.4.30\n  1713: 000000000006c520   155 FUNC    GLOBAL DEFAULT   15 xmlDocSetRootElement@@LIBXML2_2.4.30\n  1759: 00000000000627f0   848 FUNC    GLOBAL DEFAULT   15 xmlNewNs@@LIBXML2_2.4.30\n  1866: 0000000000173770   810 FUNC    GLOBAL DEFAULT   15 xmlDocDumpFormatMemoryEnc@@LIBXML2_2.4.30\n  1878: 0000000000060380   380 FUNC    GLOBAL DEFAULT   15 xmlReadMemory@@LIBXML2_2.6.0\n  1879: 0000000000068c10   638 FUNC    GLOBAL DEFAULT   15 xmlAddChild@@LIBXML2_2.4.30\n"
+        },
+        "26": {
+          "original_stdout_sha256": "716542e01e9e13591a845e4dc15c3dc9e79bc2120e6f7289dffaac1a87f4e26d",
+          "selection": "selected original lines; incomplete table",
+          "text": "  0x001c: Rev: 1  Flags: none  Index: 2  Cnt: 1  Name: LIBXML2_2.4.30\n  0x0158: Rev: 1  Flags: none  Index: 11  Cnt: 2  Name: LIBXML2_2.6.0\n"
+        }
+      }
+    },
+    "consumer": {
+      "artifact_member": "consumer/results.json",
+      "artifact_member_sha256": "004d3d6ec799d14e06e2b0941e22623a041c62ab55a613c716985271088e6f04",
+      "host": {
+        "system": "Linux",
+        "arch": "x86_64",
+        "llvm_version": "21.1.8",
+        "llvm_prefix": "/usr/lib/llvm-21",
+        "c_driver": {
+          "path": "/usr/bin/cc",
+          "version": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+        },
+        "os_version": "24.04",
+        "libraries": [
+          {
+            "name": "ld-linux-x86-64.so.2",
+            "resolved": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+            "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da"
+          },
+          {
+            "name": "libLLVM.so.21.1",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libLLVM.so.21.1",
+            "sha256": "fd419f2d3eddfbdece987a7757da8f66794ab933dde48fa685c2ad1c9478225e"
+          },
+          {
+            "name": "libbsd.so.0",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1",
+            "sha256": "e86cd4f0019f42c2ba5e60602e0edc8694d2948377d98c3654d0f6bddb5254bb"
+          },
+          {
+            "name": "libc.so.6",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+            "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
+          },
+          {
+            "name": "libedit.so.2",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libedit.so.2.0.72",
+            "sha256": "195c607216f8581dbf516346ed38f4c73500cac4b84e18eb0a4fd49931e4cd56"
+          },
+          {
+            "name": "libffi.so.8",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libffi.so.8.1.4",
+            "sha256": "00f593fe192f2851b8ce23b25cec2488d769beb5a8f63e8c9e563071e1075153"
+          },
+          {
+            "name": "libgcc_s.so.1",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+            "sha256": "d93224d2b0dab4247598be683adca02f5cf00586f99c187579cd7e92058fb7cb"
+          },
+          {
+            "name": "libicudata.so.74",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libicudata.so.74.2",
+            "sha256": "ddbb3718b8bd9cbd780e5ab08b4503c30a6c4fa0706ebe5d074ed6b596c1714e"
+          },
+          {
+            "name": "libicuuc.so.74",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libicuuc.so.74.2",
+            "sha256": "7560aadde38e5f4237a47a1ddd5891f9b36768a77a60faae30beee003ac01901"
+          },
+          {
+            "name": "liblzma.so.5",
+            "resolved": "/usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5",
+            "sha256": "696e868dd0700a19a6d65fc01608ec2d70d3cb91f65710e89180cd2e688f30cb"
+          },
+          {
+            "name": "libm.so.6",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+            "sha256": "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0"
+          },
+          {
+            "name": "libmd.so.0",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libmd.so.0.1.0",
+            "sha256": "423e18586b6ea740f4465afd64f7a9a4cb7264ed979c8e7256f9085af5345fef"
+          },
+          {
+            "name": "libstdc++.so.6",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33",
+            "sha256": "1fd75fe70354a416d75aef22bcae68c47bd25d20e2d0568c30b1a9838cf62f11"
+          },
+          {
+            "name": "libtinfo.so.6",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libtinfo.so.6.4",
+            "sha256": "e6089d7bb95eee5b545f3770dd69095b0bca47d26701cad145af429561d16306"
+          },
+          {
+            "name": "libxml2.so.2",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14",
+            "sha256": "209e941be9eb2eb9ab36caaa0b81d1c6b36c8f5d7268c24f19e81039137e6485"
+          },
+          {
+            "name": "libz.so.1",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libz.so.1.3",
+            "sha256": "86200da370f20476a2507e9097a789b5ef97269b4ca8d5e164ad82dab9d99892"
+          },
+          {
+            "name": "libzstd.so.1",
+            "resolved": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.5",
+            "sha256": "0a2128bc10841fb29e76d08d945864dfb0b6a66da5df6df5d8299197439e54bb"
+          }
+        ],
+        "glibc": "glibc 2.39"
+      },
+      "requirements": [
+        {
+          "symbol_index": 446,
+          "name": "xmlAddChild",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 443,
+          "name": "xmlCopyNamespace",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 449,
+          "name": "xmlDocDumpFormatMemoryEnc",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 438,
+          "name": "xmlDocGetRootElement",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 448,
+          "name": "xmlDocSetRootElement",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 445,
+          "name": "xmlFree",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "OBJECT",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 439,
+          "name": "xmlFreeDoc",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 441,
+          "name": "xmlFreeNode",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 450,
+          "name": "xmlFreeNs",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 447,
+          "name": "xmlNewDoc",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 451,
+          "name": "xmlNewNs",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 442,
+          "name": "xmlNewProp",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 437,
+          "name": "xmlReadMemory",
+          "version_index": 48,
+          "version": "LIBXML2_2.6.0",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 436,
+          "name": "xmlSetGenericErrorFunc",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 444,
+          "name": "xmlStrdup",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        },
+        {
+          "symbol_index": 440,
+          "name": "xmlUnlinkNode",
+          "version_index": 47,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 0,
+          "file": "libxml2.so.2"
+        }
+      ],
+      "definitions": [
+        {
+          "symbol_index": 1879,
+          "name": "xmlAddChild",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 638,
+          "default": true
+        },
+        {
+          "symbol_index": 691,
+          "name": "xmlCopyNamespace",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 37,
+          "default": true
+        },
+        {
+          "symbol_index": 1866,
+          "name": "xmlDocDumpFormatMemoryEnc",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 810,
+          "default": true
+        },
+        {
+          "symbol_index": 1074,
+          "name": "xmlDocGetRootElement",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 52,
+          "default": true
+        },
+        {
+          "symbol_index": 1713,
+          "name": "xmlDocSetRootElement",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 155,
+          "default": true
+        },
+        {
+          "symbol_index": 1237,
+          "name": "xmlFree",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "OBJECT",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 8,
+          "default": true
+        },
+        {
+          "symbol_index": 974,
+          "name": "xmlFreeDoc",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 1345,
+          "default": true
+        },
+        {
+          "symbol_index": 488,
+          "name": "xmlFreeNode",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 126,
+          "default": true
+        },
+        {
+          "symbol_index": 1609,
+          "name": "xmlFreeNs",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 73,
+          "default": true
+        },
+        {
+          "symbol_index": 857,
+          "name": "xmlNewDoc",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 442,
+          "default": true
+        },
+        {
+          "symbol_index": 1759,
+          "name": "xmlNewNs",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 848,
+          "default": true
+        },
+        {
+          "symbol_index": 1324,
+          "name": "xmlNewProp",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 679,
+          "default": true
+        },
+        {
+          "symbol_index": 1878,
+          "name": "xmlReadMemory",
+          "version_index": 11,
+          "version": "LIBXML2_2.6.0",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 380,
+          "default": true
+        },
+        {
+          "symbol_index": 750,
+          "name": "xmlSetGenericErrorFunc",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 1023,
+          "default": true
+        },
+        {
+          "symbol_index": 922,
+          "name": "xmlStrdup",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 58,
+          "default": true
+        },
+        {
+          "symbol_index": 1577,
+          "name": "xmlUnlinkNode",
+          "version_index": 2,
+          "version": "LIBXML2_2.4.30",
+          "type": "FUNC",
+          "binding": "GLOBAL",
+          "visibility": "DEFAULT",
+          "size": 592,
+          "default": true
+        }
+      ],
+      "excerpts": {
+        "0": {
+          "original_stdout_sha256": "281f0f35746e75713908d37330d89c9dd7ea6d8477d7b70a0766ef510ee2785a",
+          "selection": "whole stdout",
+          "text": "libxml2:amd64: /usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14\n"
+        },
+        "1": {
+          "original_stdout_sha256": "dcc68027d03e354e86f97265f47b150afcb6361fbcdeac90dfe6677040feea3a",
+          "selection": "whole stdout",
+          "text": "libxml2:amd64\tinstall ok installed\tamd64\t2.9.14+dfsg-1.3ubuntu3.10\tlibxml2\t2.9.14+dfsg-1.3ubuntu3.10\n"
+        },
+        "2": {
+          "original_stdout_sha256": "d678364339fc36de21bdde4b6dded44d7f33f47755d49302e05ae228e38d0fd2",
+          "selection": "selected original lines; incomplete table",
+          "text": "fa832a056b76fae098eb9172efa6c7c3  usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14\n"
+        },
+        "3": {
+          "original_stdout_sha256": "737a45d056f9a2d791eddbb5ceb9fb053e01dcc121e9864d48b4b7ee17e32fcb",
+          "selection": "whole stdout",
+          "text": "libxml2:\n  Installed: 2.9.14+dfsg-1.3ubuntu3.10\n  Candidate: 2.9.14+dfsg-1.3ubuntu3.10\n  Version table:\n *** 2.9.14+dfsg-1.3ubuntu3.10 500\n        500 <redacted-source> noble-updates/main amd64 Packages\n        500 <redacted-source> noble-security/main amd64 Packages\n        100 /var/lib/dpkg/status\n     2.9.14+dfsg-1.3ubuntu3 500\n        500 <redacted-source> noble/main amd64 Packages\n"
+        },
+        "4": {
+          "original_stdout_sha256": "c0538d4dd1b4f263b190221ad719a158e699a76f6e6683f8d1514ad1c1ed099d",
+          "selection": "selected original lines; incomplete table",
+          "text": "     release v=24.04,o=Ubuntu,a=noble-security,n=noble,l=Ubuntu,c=main,b=amd64\n     release v=24.04,o=Ubuntu,a=noble-backports,n=noble,l=Ubuntu,c=main,b=amd64\n     release v=24.04,o=Ubuntu,a=noble-updates,n=noble,l=Ubuntu,c=main,b=amd64\n     release v=24.04,o=Ubuntu,a=noble,n=noble,l=Ubuntu,c=main,b=amd64\n"
+        },
+        "9": {
+          "original_stdout_sha256": "8edeba03128a116be0d23d05e37de65a8dec3642a10badef653091e7de383dd6",
+          "selection": "selected original lines; incomplete table",
+          "text": "   436: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlSetGenericErrorFunc@LIBXML2_2.4.30 (47)\n   437: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlReadMemory@LIBXML2_2.6.0 (48)\n   438: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlDocGetRootElement@LIBXML2_2.4.30 (47)\n   439: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlFreeDoc@LIBXML2_2.4.30 (47)\n   440: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlUnlinkNode@LIBXML2_2.4.30 (47)\n   441: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlFreeNode@LIBXML2_2.4.30 (47)\n   442: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlNewProp@LIBXML2_2.4.30 (47)\n   443: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlCopyNamespace@LIBXML2_2.4.30 (47)\n   444: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlStrdup@LIBXML2_2.4.30 (47)\n   445: 0000000000000000     0 OBJECT  GLOBAL DEFAULT  UND xmlFree@LIBXML2_2.4.30 (47)\n   446: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlAddChild@LIBXML2_2.4.30 (47)\n   447: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlNewDoc@LIBXML2_2.4.30 (47)\n   448: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlDocSetRootElement@LIBXML2_2.4.30 (47)\n   449: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlDocDumpFormatMemoryEnc@LIBXML2_2.4.30 (47)\n   450: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlFreeNs@LIBXML2_2.4.30 (47)\n   451: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND xmlNewNs@LIBXML2_2.4.30 (47)\n"
+        },
+        "10": {
+          "original_stdout_sha256": "e8d1907e2766283a28af0f0a3f16b25377ffd57babf6bcdbe08cf273e9673a77",
+          "selection": "selected original lines; incomplete table",
+          "text": "  0x0030: Version: 1  File: libxml2.so.2  Cnt: 2\n  0x00e0:   Name: LIBXML2_2.4.30  Flags: none  Version: 47\n  0x00f0:   Name: LIBXML2_2.6.0  Flags: none  Version: 48\n"
+        },
+        "23": {
+          "original_stdout_sha256": "64d6d52f59a52b6866eb6cf5dff3cfd4dd3cac8e4c0cb42d235582817a761905",
+          "selection": "whole stdout",
+          "text": "\nDynamic section at offset 0x1de7e8 contains 33 entries:\n  Tag        Type                         Name/Value\n 0x0000000000000001 (NEEDED)             Shared library: [libicuuc.so.74]\n 0x0000000000000001 (NEEDED)             Shared library: [libz.so.1]\n 0x0000000000000001 (NEEDED)             Shared library: [liblzma.so.5]\n 0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]\n 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]\n 0x000000000000000e (SONAME)             Library soname: [libxml2.so.2]\n 0x000000000000000c (INIT)               0x2f000\n 0x000000000000000d (FINI)               0x194ee0\n 0x0000000000000019 (INIT_ARRAY)         0x1d7a68\n 0x000000000000001b (INIT_ARRAYSZ)       8 (bytes)\n 0x000000000000001a (FINI_ARRAY)         0x1d7a70\n 0x000000000000001c (FINI_ARRAYSZ)       16 (bytes)\n 0x000000006ffffef5 (GNU_HASH)           0x2f0\n 0x0000000000000005 (STRTAB)             0xeae8\n 0x0000000000000006 (SYMTAB)             0x3700\n 0x000000000000000a (STRSZ)              37227 (bytes)\n 0x000000000000000b (SYMENT)             24 (bytes)\n 0x0000000000000003 (PLTGOT)             0x1dfa38\n 0x0000000000000002 (PLTRELSZ)           2520 (bytes)\n 0x0000000000000014 (PLTREL)             RELA\n 0x0000000000000017 (JMPREL)             0x2d860\n 0x0000000000000007 (RELA)               0x192c8\n 0x0000000000000008 (RELASZ)             83352 (bytes)\n 0x0000000000000009 (RELAENT)            24 (bytes)\n 0x000000006ffffffc (VERDEF)             0x18b58\n 0x000000006ffffffd (VERDEFNUM)          44\n 0x000000000000001e (FLAGS)              BIND_NOW\n 0x000000006ffffffb (FLAGS_1)            Flags: NOW\n 0x000000006ffffffe (VERNEED)            0x19178\n 0x000000006fffffff (VERNEEDNUM)         4\n 0x000000006ffffff0 (VERSYM)             0x17c54\n 0x000000006ffffff9 (RELACOUNT)          3395\n 0x0000000000000000 (NULL)               0x0\n"
+        },
+        "24": {
+          "original_stdout_sha256": "ae8b8f05034fa46aac15bfb109245147ffa9fe5a1551ef927b963f937526e3f3",
+          "selection": "whole stdout",
+          "text": "ELF Header:\n  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 \n  Class:                             ELF64\n  Data:                              2's complement, little endian\n  Version:                           1 (current)\n  OS/ABI:                            UNIX - System V\n  ABI Version:                       0\n  Type:                              DYN (Shared object file)\n  Machine:                           Advanced Micro Devices X86-64\n  Version:                           0x1\n  Entry point address:               0x0\n  Start of program headers:          64 (bytes into file)\n  Start of section headers:          1965568 (bytes into file)\n  Flags:                             0x0\n  Size of this header:               64 (bytes)\n  Size of program headers:           56 (bytes)\n  Number of program headers:         11\n  Size of section headers:           64 (bytes)\n  Number of section headers:         29\n  Section header string table index: 28\n"
+        },
+        "25": {
+          "original_stdout_sha256": "58f5e8ea5517008dc22c02b1c8e88eda6eba7e7c76a388b759c47bd2de9959fa",
+          "selection": "selected original lines; incomplete table",
+          "text": "   488: 00000000000673d0   126 FUNC    GLOBAL DEFAULT   15 xmlFreeNode@@LIBXML2_2.4.30\n   691: 0000000000061910    37 FUNC    GLOBAL DEFAULT   15 xmlCopyNamespace@@LIBXML2_2.4.30\n   750: 0000000000037950  1023 FUNC    GLOBAL DEFAULT   15 xmlSetGenericErrorFunc@@LIBXML2_2.4.30\n   857: 0000000000064ef0   442 FUNC    GLOBAL DEFAULT   15 xmlNewDoc@@LIBXML2_2.4.30\n   922: 00000000000eef70    58 FUNC    GLOBAL DEFAULT   15 xmlStrdup@@LIBXML2_2.4.30\n   974: 0000000000067c80  1345 FUNC    GLOBAL DEFAULT   15 xmlFreeDoc@@LIBXML2_2.4.30\n  1074: 000000000006c4d0    52 FUNC    GLOBAL DEFAULT   15 xmlDocGetRootElement@@LIBXML2_2.4.30\n  1237: 00000000001e0610     8 OBJECT  GLOBAL DEFAULT   25 xmlFree@@LIBXML2_2.4.30\n  1324: 0000000000065ad0   679 FUNC    GLOBAL DEFAULT   15 xmlNewProp@@LIBXML2_2.4.30\n  1577: 00000000000613b0   592 FUNC    GLOBAL DEFAULT   15 xmlUnlinkNode@@LIBXML2_2.4.30\n  1609: 0000000000060dc0    73 FUNC    GLOBAL DEFAULT   15 xmlFreeNs@@LIBXML2_2.4.30\n  1713: 000000000006c510   155 FUNC    GLOBAL DEFAULT   15 xmlDocSetRootElement@@LIBXML2_2.4.30\n  1759: 00000000000627e0   848 FUNC    GLOBAL DEFAULT   15 xmlNewNs@@LIBXML2_2.4.30\n  1866: 0000000000173840   810 FUNC    GLOBAL DEFAULT   15 xmlDocDumpFormatMemoryEnc@@LIBXML2_2.4.30\n  1878: 0000000000060370   380 FUNC    GLOBAL DEFAULT   15 xmlReadMemory@@LIBXML2_2.6.0\n  1879: 0000000000068c00   638 FUNC    GLOBAL DEFAULT   15 xmlAddChild@@LIBXML2_2.4.30\n"
+        },
+        "26": {
+          "original_stdout_sha256": "716542e01e9e13591a845e4dc15c3dc9e79bc2120e6f7289dffaac1a87f4e26d",
+          "selection": "selected original lines; incomplete table",
+          "text": "  0x001c: Rev: 1  Flags: none  Index: 2  Cnt: 1  Name: LIBXML2_2.4.30\n  0x0158: Rev: 1  Flags: none  Index: 11  Cnt: 2  Name: LIBXML2_2.6.0\n"
+        }
+      }
+    }
+  }
+}

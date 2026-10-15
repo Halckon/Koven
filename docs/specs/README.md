@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 1 份。
+- [Active 合同](active/README.md)：当前 0 份。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -62,6 +62,8 @@ List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 f
 不以[现存入口差异](../architecture/lowering-support.md#现存入口差异)或本轮有限收尾宣称这些修复已完成。
 
 ### 近期交付
+
+- [0322](../archive/specs/0322-preview-libxml2-host-compatibility.md)：[PR106实现CI](https://github.com/Halckon/Koven/actions/runs/38677370915/attempts/1)16/16成功；仅固定两修订，真实Ubuntu `.10→.9` 差hash及双宿主各12命令/清理通过。归档head CI、合并授权及main交付仍待；不表示反方向实跑或来源认证。
 
 - [0320 Enum case Borrow实参分类](../archive/specs/0320-enum-case-borrow-categories.md)：[PR102实现CI](https://github.com/Halckon/Koven/actions/runs/38605435497/attempts/1)在实际head `7a305bd7`通过完整物理CI；双宿主新FE5逐名验收，本地46普通目标与CI-only设施分账，保留原红史；已作有界归档，归档head CI、PR102合并授权及实际main交付待完成。
 
