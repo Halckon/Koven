@@ -100,3 +100,12 @@ Member自身最终类型仍检查；不处理任意Name/Error，不跳动态rece
 新增两个普通源码控制仅锁非call静态`P.unknown`根与局部值P遮蔽类型P的原错误保留；
 exact为`unresolved_static_member_without_call_keeps_its_own_root`、
 `local_value_shadowing_type_keeps_real_operand_diagnostic`，待固定名单独审/批准运行。
+
+## 7. 八目标精确红轮与控制前置修正
+
+固定`52fd8e8955a019ab79c464d146aff088895c742e` / tree `19b6471c357feac701f934a205115691ad4da394`
+八exact各实际1命中；原四目标Internal红、原两控制及同名局部P遮蔽控制绿。第七无调用
+`P.unknown`的unit在名称阶段已有L0080、unknown49..56，未到complete；helper在validate
+处失败，不能计为本生产缺陷红。其raw完整保留，输入SHA前后一致。
+按真实阶段仅修该tests-only控制：single独立采真实complete，unit锁已有name诊断并止于names。
+不将unit强行送入complete、不降低其他oracle；修订后八目标须同head另经审定执行。

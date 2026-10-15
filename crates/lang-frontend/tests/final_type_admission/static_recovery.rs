@@ -213,11 +213,50 @@ fn static_constructor_real_argument_error_is_not_hidden() {
 #[test]
 fn unresolved_static_member_without_call_keeps_its_own_root() {
     let text = "class P(val n: Int)\nfun main(): Unit { val x = P.unknown }";
-    let start = text.find("P.unknown").unwrap();
-    let (sources, entries) = collect(text);
-    for entry in &entries {
-        assert_deferred_source_diagnostic(&sources, entry, (start, start + 9, "P.unknown"));
-    }
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "main.ko", text);
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&sources, &file, &environment).expect("single names");
+    assert!(names.diagnostics().is_empty());
+    let typed = check_types(&sources, &file, &names, &types).expect("single raw types");
+    let original = typed.diagnostics().to_vec();
+    let root = expression(&sources, &file, "P.unknown");
+    let span = file.ast().expressions().get(root).unwrap().span();
+    assert!(matches!(
+        typed
+            .expression_type(root)
+            .and_then(|ty| typed.types().get(ty)),
+        Some(TypeKind::Deferred(_))
+    ));
+    let result = complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ());
+    eprintln!("single static noncall root={span:?} original={original:?} final={result:?}");
+    let observation = Observation {
+        mode: "single",
+        original,
+        deferred: vec![(span, "P.unknown".to_owned())],
+        result,
+    };
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
+    let index = index_compilation_unit(&sources, &inputs).expect("unit index");
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+        .expect("unit names infrastructure");
+    eprintln!("unit name-stage diagnostics={:?}", names.diagnostics());
+    assert_eq!(names.diagnostics().len(), 1);
+    let diagnostic = &names.diagnostics()[0];
+    assert_eq!(diagnostic.code().to_string(), "L0080");
+    assert_eq!(
+        (
+            diagnostic.primary_span().start(),
+            diagnostic.primary_span().end()
+        ),
+        (49, 56)
+    );
+    assert_eq!(sources.slice(diagnostic.primary_span()), Ok("unknown"));
+    assert!(
+        names.validate().is_err(),
+        "existing name rejection must not reach unit completion"
+    );
+    assert_deferred_source_diagnostic(&sources, &observation, (47, 56, "P.unknown"));
 }
 
 #[test]
