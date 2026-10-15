@@ -58,4 +58,4 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 ## Preview 外部宿主工程候选
 
-- [0322 libxml2 有界兼容性](0322-preview-libxml2-host-compatibility.md)：先独立 CI 真实只读取证；兼容判定待来源和符号合同审阅，不改变 Guide。
+- [0322 libxml2 有界兼容性](../../active/0322-preview-libxml2-host-compatibility.md)：已批准进入独立 CI 真实只读取证阶段；兼容判定待来源和符号合同审阅，不改变 Guide。
