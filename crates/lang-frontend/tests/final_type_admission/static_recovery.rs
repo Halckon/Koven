@@ -89,7 +89,11 @@ fn collect(text: &str) -> (SourceMap, Vec<Observation>) {
     (sources, observations)
 }
 
-fn assert_deferred_source_diagnostic(sources: &SourceMap, entry: &Observation) {
+fn assert_deferred_source_diagnostic(
+    sources: &SourceMap,
+    entry: &Observation,
+    expected: (usize, usize, &str),
+) {
     assert!(
         !entry.deferred.is_empty(),
         "{} must retain unresolved raw obligations",
@@ -101,21 +105,20 @@ fn assert_deferred_source_diagnostic(sources: &SourceMap, entry: &Observation) {
             entry.mode, entry.result
         );
     };
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.code().to_string() == "L0165"
-                && entry
-                    .deferred
-                    .iter()
-                    .any(|(span, _)| *span == diagnostic.primary_span())
-        }),
-        "L0165 must identify an actual raw Deferred expression: {diagnostics:?}"
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "only the independent root survives: {diagnostics:?}"
     );
+    let diagnostic = &diagnostics[0];
+    assert_eq!(diagnostic.code().to_string(), "L0165");
+    let span = diagnostic.primary_span();
+    assert_eq!((span.start(), span.end()), (expected.0, expected.1));
+    assert_eq!(sources.slice(span), Ok(expected.2));
+    assert!(entry.deferred.iter().any(|(raw_span, _)| *raw_span == span));
     for old in &entry.original {
         assert!(
-            diagnostics.iter().any(|new| new.code() == old.code()
-                && new.primary_span() == old.primary_span()
-                && new.message() == old.message()),
+            diagnostics.contains(old),
             "original diagnostic disappeared: {old:?}"
         );
     }
@@ -130,7 +133,7 @@ fn assert_deferred_source_diagnostic(sources: &SourceMap, entry: &Observation) {
 
 fn check_companion(text: &str) {
     let (sources, entries) = collect(text);
-    assert_deferred_source_diagnostic(&sources, &entries[0]);
+    assert_deferred_source_diagnostic(&sources, &entries[0], (95, 103, "P.origin"));
     assert!(
         entries[1].deferred.is_empty(),
         "unit positive control must be fully typed"
@@ -142,10 +145,10 @@ fn check_companion(text: &str) {
         .expect("existing unit companion completion");
 }
 
-fn check_result(text: &str) {
+fn check_result(text: &str, start: usize) {
     let (sources, entries) = collect(text);
     for entry in &entries {
-        assert_deferred_source_diagnostic(&sources, entry);
+        assert_deferred_source_diagnostic(&sources, entry, (start, start + 9, "parse(n)?"));
     }
 }
 
@@ -163,15 +166,17 @@ fn minimal_companion_preserves_source_rejection_and_unit_control() {
 }
 #[test]
 fn original_result_propagation_preserves_source_rejections() {
-    check_result(include_str!(
-        "../fixtures/final-admission-static-recovery-0323/p16_result_q.ko"
-    ));
+    check_result(
+        include_str!("../fixtures/final-admission-static-recovery-0323/p16_result_q.ko"),
+        185,
+    );
 }
 #[test]
 fn minimal_result_propagation_preserves_source_rejections() {
-    check_result(include_str!(
-        "../fixtures/final-admission-static-recovery-0323/result_minimal.ko"
-    ));
+    check_result(
+        include_str!("../fixtures/final-admission-static-recovery-0323/result_minimal.ko"),
+        155,
+    );
 }
 
 fn assert_original_errors(text: &str) {
@@ -187,10 +192,11 @@ fn assert_original_errors(text: &str) {
                 entry.mode
             );
         };
-        for old in entry.original {
-            assert!(diagnostics.iter().any(|new| new.code() == old.code()
-                && new.primary_span() == old.primary_span()
-                && new.message() == old.message()));
+        assert_eq!(
+            diagnostics, entry.original,
+            "retain complete diagnostics including labels/details"
+        );
+        for old in &entry.original {
             assert!(!sources.slice(old.primary_span()).unwrap().is_empty());
         }
     }

@@ -13,7 +13,7 @@
 | 前置 Spec | [0319最终类型准入](../../../archive/specs/0319-final-type-admission-diagnostics.md) |
 | 编号 | 本基线最大0322；官方分支只读核查未见0323/0324；官方开放PR检索仅见103/64，未占0323；本片登记0323草案 |
 | 语言语义变更 | 否 |
-| 阻塞项 | 新tests-only尚未编译/运行；原diagnostic与raw Deferred/source身份须真实采集；最小生产需独审 |
+| 阻塞项 | 首轮六exact已运行，四红两绿；根集合已据raw收紧，最小生产需独审 |
 
 ## 1. Goal与报告边界
 
@@ -68,10 +68,26 @@ lex/parse/name/raw type/complete API构造真实分析，不改facts/IR，不进
 
 - [x] 独立main分支与普通源码准备、静态根因及非目标登记。
 - [x] 官方开放PR与分支编号只读复核，未发现0323占用。
-- [ ] tests/helper/argv独审及运行授权。
-- [ ] 固定tests-only真实红与既有绿分账，收紧确定根因code/Span。
+- [x] 首轮tests/helper/argv独审及六exact运行授权。
+- [x] 固定tests-only真实红与既有绿分账，收紧确定根因code/Span。
 - [ ] 最小生产独立提交与审查，原精确目标和受影响普通控制回归。
 - [ ] 按适用入口补足CLI/constant证据，工程门禁、双宿主CI与有限归档。
 
 若需要放宽全部静态类型名、抹除value Error、改变语言支持或 ownership 顺序，停止并请求独立决定。
 本草案不是整份review闭合，也不把未运行项、后端旧拒绝或外部报告当作本分支通过。
+
+## 5. 首轮真实红账本
+
+2026-10-15固定`e6c1280d1100d466cb8c060db16e0ba2249dc5f5` / tree
+`8797e28c185fe79cace9be483e8b834278614866`，上述六exact各实际1命中，4断言红、2控制绿。
+编译成功，11个登记输入SHA前后相同、工作树干净；完整argv/stdout/stderr/hash收据仓外保留。
+
+- 原/最小p28 single在`P` SourceId0 95..96报缺original diagnostic Internal；unit-basic均Ok。
+  raw Member `P.origin`95..103及call95..105仍Deferred，修复应保留前者L0165独立根，不完成调用。
+- 原p16两入口在`Result`203..209内部失败；最小为173..179。single缺original diagnostic，
+  unit缺expression type，不能把两种Internal原因混为一谈。真实传播根`parse(n)?`原185..194、
+  最小155..164，两入口均Deferred；应保留该L0165根，不新增限定符错误或v级联。
+- 动态receiver普通错误两入口L0085，`+`34..35；静态P(true)参数两入口L0084，`true`55..59。
+  源诊断保留，后续oracle加强完整Diagnostic相等，包括labels/details，不只比较主消息。
+
+本轮未执行CLI/constant/native。收紧tests-only不修改首轮receipt或将未运行新head称为已验。
