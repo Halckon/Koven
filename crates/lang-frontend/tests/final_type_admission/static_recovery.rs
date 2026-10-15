@@ -29,13 +29,16 @@ fn collect(text: &str) -> (SourceMap, Vec<Observation>) {
         .expressions()
         .iter()
         .filter_map(|(id, node)| {
-            matches!(
+            if matches!(
                 typed
                     .expression_type(id)
                     .and_then(|ty| typed.types().get(ty)),
                 Some(TypeKind::Deferred(_))
-            )
-            .then(|| (node.span(), sources.slice(node.span()).unwrap().to_owned()))
+            ) {
+                Some((node.span(), sources.slice(node.span()).unwrap().to_owned()))
+            } else {
+                None
+            }
         })
         .collect();
     let single = complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ());
@@ -61,13 +64,16 @@ fn collect(text: &str) -> (SourceMap, Vec<Observation>) {
         .expressions()
         .iter()
         .filter_map(|(id, node)| {
-            matches!(
+            if matches!(
                 typed
                     .expression_type(UnitExpressionId::new(unit, id))
                     .and_then(|ty| typed.types().get(ty)),
                 Some(UnitTypeKind::Deferred(_))
-            )
-            .then(|| (node.span(), sources.slice(node.span()).unwrap().to_owned()))
+            ) {
+                Some((node.span(), sources.slice(node.span()).unwrap().to_owned()))
+            } else {
+                None
+            }
         })
         .collect();
     let result =
