@@ -131,7 +131,9 @@ CLI三个目标独立记录原p38的build/run/普通artifact，constant marker�
 `UnsupportedNode`，两unit绿；仅提前last-use并未避开已有门，原字节另存为
 `retained-owner-before-for.ko`。第二tests-only候选在xs声明之后使用普通词法块包住
 retained声明、append和读取，块结束再for；parser已有Block statement、single已有
-AfterStatement drop消费入口，不增加功能。该候选仍待独审/授权运行，不改写两版首失败。
+AfterStatement drop消费入口，不增加功能。该词法块候选在`6753d2ad`经独审/逐名批准执行，single前端与operand身份通过后报
+`InvalidSsa`、Span None，两unit SSA/LLVM通过，exact实际1命中。它避开独立Unsupported门，
+保留预期成功红；不改写前两版结果。后续只批准最小append交付登记生产修复，尚未验证修复结果。
 
 ## 8. 验收与停止条件
 
