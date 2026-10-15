@@ -26,3 +26,6 @@ argv首片和Map应用分别由0274、0295承接；本页只保留未选文本�
 选定合同先红测，再用双宿主真实project build/run及直接阶段测试验收；M1A和argv保持。
 不用宿主实现代替Koven程序，不删已选失败用例。normalization、locale/case folding、正则、
 异步IO、Str、通用toString和公开C FFI均非默认范围。
+
+2026-10-15已按[v1交付清单](v1-collections-io-delivery.md)选择同步文件读写作为最小合同方向；
+本页详细错误/编码/资源决策仍待冻结，stdin不自动捆入，现行Guide示例不构成实现验收。
