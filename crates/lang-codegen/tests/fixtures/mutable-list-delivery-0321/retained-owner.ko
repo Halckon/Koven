@@ -2,6 +2,6 @@ fun main(): Unit {
     val retained = "keep"
     var xs = mutableListOf<String>()
     xs.add("x")
-    for (s in xs) { println(s) }
     println(retained)
+    for (s in xs) { println(s) }
 }

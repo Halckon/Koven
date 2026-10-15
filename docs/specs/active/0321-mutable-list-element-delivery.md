@@ -76,7 +76,7 @@ Resource和出口未进入首批tests-only；当前未确证的拒绝边界须�
 1. 原p38：分采parse/type/final/ownership/SSA/LLVM，再通过公开CLI single与project basic/constant
    build/run同源码；成功输出应为`x\ny\n`。原历史结果、当前真实红和unit已绿对照分别记账。
 2. 同一简单for分别使用`xs.add(("x"))`及`val x = "x"; xs.add(x)`，锁Group别名和named-root。
-   独立未交付String与Copyable Int在loop后仍可读，防按类型清空或误删其他owner。
+   独立未交付String在append后、loop前仍可读，Copyable Int在loop后仍可读，防按类型清空或误删其他owner；String跨loop原形状保留独立拒绝边界。
 3. 空String列表的for不得打印body标记；正常输出`empty-ok`。Copyable named元素add后仍可读。
    不通过统计总SSA指令数或内部计数替代合法性/行为断言。
 4. 沿已有unit Resource源码形状使用两个元素，普通输出区分构造/访问/逆序deinit/函数末；
@@ -124,6 +124,11 @@ CLI三个目标独立记录原p38的build/run/普通artifact，constant marker�
 首次offline因缺inkwell在编译前exit101、零执行；另获准正常`cargo fetch --locked`成功后重跑，
 原失败未覆盖。所有13个fixture/helper输入SHA前后不变，生产零改动。原始日志与清单仓外保留，
 稳定输入可由上述固定Git提交及exact复现；该基线不是完整套件或macOS验收，也没有具体verifier错误/Span。
+
+原`retained-owner.ko`基线字节已原样保留为`retained-owner-across-for.ko`；新候选
+`retained-owner.ko`仅将`println(retained)`移到append后、for前，验证同类型未交付owner在append
+时live且交付后仍可读，不宣称跨循环能力。候选保持原exact及三分析入口，待独审/授权后单独采样，
+不改写上表的原输入与首失败。
 
 ## 8. 验收与停止条件
 
