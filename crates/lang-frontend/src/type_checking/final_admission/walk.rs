@@ -439,6 +439,16 @@ impl<F: Facts> Checker<'_, F> {
             _ => self.expression(id, false),
         }
     }
+    fn rejected_static_member(&self, name_span: Span) -> Result<bool> {
+        let code = codes::catalog()
+            .and_then(|catalog| catalog.resolve(codes::UNRESOLVED_NAME))
+            .map_err(TypeCheckingError::from)?;
+        Ok(self.diagnostics.iter().any(|diagnostic| {
+            diagnostic.severity() == Severity::Error
+                && diagnostic.code() == code
+                && diagnostic.primary_span() == name_span
+        }))
+    }
     fn rejected_bare_enum_case(&self, expression: ExpressionId, name_span: Span) -> Result<bool> {
         let code = codes::catalog()
             .and_then(|catalog| catalog.resolve(codes::CONSTRUCTION_INFERENCE))
@@ -634,7 +644,20 @@ impl<F: Facts> Checker<'_, F> {
                 let rejected_case = !complete
                     && selection.is_none()
                     && self.rejected_bare_enum_case(id, *name_span)?;
-                if (selection.as_ref().is_some_and(|s| s.qualifier) || rejected_case)
+                let member_shape = self
+                    .facts
+                    .expression_type(id)
+                    .and_then(|ty| self.facts.shape(ty));
+                // 恢复仅移除真实静态限定符的非值义务；Member自身的Deferred/Error
+                // 仍由原根因与末尾type_root处理，不能据此完成未选调用。
+                let failed_static_member = selection.is_none()
+                    && (recovery
+                        || matches!(member_shape, Some(Shape::Deferred(_)))
+                        || (matches!(member_shape, Some(Shape::Error))
+                            && self.rejected_static_member(*name_span)?));
+                if (selection.as_ref().is_some_and(|s| s.qualifier)
+                    || rejected_case
+                    || failed_static_member)
                     && self.facts.static_qualifier(qualifier_span)
                 {
                     complete &= self.selector(*receiver)?;
