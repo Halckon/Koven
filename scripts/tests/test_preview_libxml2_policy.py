@@ -6,6 +6,7 @@ counts. They test protocol boundaries, never real-host ABI/native acceptance.
 import copy
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -21,7 +22,9 @@ MD5 = hashlib.md5(CONTENT, usedforsecurity=False).hexdigest()
 HEADER = """ELF Header:
   Class: ELF64
   Data: 2's complement, little endian
+  Version: 1 (current)
   Machine: Advanced Micro Devices X86-64
+  Version: 0x1
 """
 
 
@@ -143,6 +146,29 @@ class Libxml2PolicyTests(unittest.TestCase):
         for text in (HEADER.replace('ELF64', 'ELF32'), HEADER.replace('Machine:', 'Other:')):
             with self.assertRaises(ValueError):
                 self.host._elf_header(text)
+
+    def test_complete_measured_headers_accept_only_the_two_standard_version_fields(self):
+        fixture = Path(__file__).parent / 'fixtures/preview_libxml2/ci_38667368062_excerpt.json'
+        observations = json.loads(fixture.read_text())['roles']
+        # Whole probe24 stdout retained with its original SHA. These bytes also
+        # exactly match both provider headers in CI38675369744 policy probe59.
+        for role, observation in observations.items():
+            with self.subTest(role=role):
+                excerpt = observation['excerpts']['24']
+                text = excerpt['text']
+                self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), excerpt['original_stdout_sha256'])
+                self.assertEqual(self.host._elf_header(text),
+                                 {'class': 'ELF64', 'data': 'little', 'machine': 'EM_X86_64'})
+
+    def test_ambiguous_duplicate_header_keys_and_invalid_versions_stay_rejected(self):
+        for text in (HEADER + '  Class: ELF64\n', HEADER + '  Machine: Advanced Micro Devices X86-64\n',
+                     HEADER + '  Version: 0x1\n', HEADER.replace('0x1', '0x2'),
+                     HEADER.replace('1 (current)', '2 (current)'), HEADER.replace('  Version: 0x1\n', ''),
+                     HEADER.replace('1 (current)', 'swap').replace('0x1', '1 (current)').replace('swap', '0x1'),
+                     HEADER.replace('EM_X86_64', 'unknown').replace('Advanced Micro Devices X86-64', 'AArch64')):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):
+                    self.host._elf_header(text)
 
     def fixture(self):
         libraries = [{'name': name, 'resolved': path, 'sha256': SHA} for name, path in
