@@ -33,8 +33,8 @@
 | stdout/stderr | 已有String Borrow的println写全部字节再LF；不是完整输出流API，error不保证stderr内容 | 不换行写、stderr写与flush的API/错误；短写、U+0000、失败和输出顺序，不能把CLI转发stderr当标准库写入能力 |
 | 时间 | 未找到标准Duration、wall-clock或monotonic API | Duration表示/单位/溢出，墙钟与单调计时分别定用途；精度、回拨、平台范围与可比较性，不引入时区/日历 |
 | sleep | 未找到标准阻塞sleep API | 依赖Duration，负值/零/超额、被中断后的行为及允许误差；验证阻塞与不忙等，不承诺精确唤醒。异步delay待并发合同 |
-| 基础math | 整数运算/比较可复用，不等于已有min/max/abs/clamp库 | 先整数适用类型与min/max/abs/clamp；abs最小负数、clamp反向上下界与溢出策略需明确 |
-| 浮点math | single字面量lowering仍明确拒绝Float；未据此声称任何完整浮点执行链可用 | 浮点基础类型/运算/ABI先核齐，再排round/sqrt/pow/trig；NaN/无穷/负零、舍入及域错误逐项定，不从函数名字导入宿主语义 |
+| 基础math | 整数运算/比较可复用，不等于已有min/max/abs/clamp库 | 先整数适用类型与min/max/abs/clamp；继承现行checked算术，另定abs最小负数、clamp反向上下界等函数合同 |
+| 浮点math | single字面量lowering仍明确拒绝Float；未据此声称任何完整浮点执行链可用 | 先核齐现行Float/Double IEEE754执行/ABI，再排round/sqrt/pow/trig；继承已有Inf/NaN规则，另定函数域错误、精度、舍入及特殊值传播，不从名字导入宿主语义 |
 | String/解析格式化/argv | String与argv已有局部实现；不是通用文本处理库已齐 | 盘点concat/clone/字节长度及现有argv；解析、整数/浮点格式化和文本操作按真实缺口选片，通用toString/Str不自动启用 |
 
 代码锚点：[标准println环境](../../crates/lang-frontend/src/type_checking/mod.rs)、
@@ -42,6 +42,7 @@
 [single literal门](../../crates/lang-codegen/src/ssa/lower_frontend.rs)、
 [当前std声明](../../crates/lang-std/koven/prelude.ko)。现行println/argv/String合同见
 [程序与标准库](../guide/13-program-runtime-standard-library.md)。以上只是固定main的静态核对，未重跑测试。
+整数溢出/除零及Float/Double IEEE754基础规则已有[Guide04](../guide/04-expressions-operators.md)约束，不重新待定。
 新增IO详细错误与清理只在[IO候选](text-input-and-io.md)冻结；本表不复制实现合同。
 
 ## 已有能力与实际缺口

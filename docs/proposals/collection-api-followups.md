@@ -48,7 +48,8 @@ Set、开放Iterator/Iterable与视图分别选定，不捆入Map基础能力。
 
 ### 求值、重复key与owner候选
 
-- 建议按源码顺序逐条求值，每条key先于value，均只求值一次；具体复用Pair构造次序。
+- 建议按源码顺序逐条求值，条目表达式与内部实参均遵守既有源码求值顺序且只求值一次；
+  仅位置参数Pair(key, value)是key先value，命名逆序实参不得重排。按字段身份拆分已求得结果。
   条目完整求值后再提交，下一条开始前本条交付完成；该提交点是候选，须核现有构造流水线。
 - 建议重复key后者覆盖；冻结前逐项比对现行MutableMap.put的Guide、runtime和native证据：
   等价key命中时旧key保留或被替换、incoming key何时消费/drop、旧value替换的准确时点均须一致，
