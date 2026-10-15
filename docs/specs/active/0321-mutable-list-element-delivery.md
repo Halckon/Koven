@@ -8,12 +8,12 @@
 | Goal ID | `KOV-P4-0321` |
 | 所属 Phase | Phase 4 消费既有 Phase 3 Value delivery；Phase 6 两入口对照 |
 | 语言规范 | [集合元素交付](../../guide/12-collections-destructuring.md)、[String owner](../../guide/13-program-runtime-standard-library.md#string)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
-| 批准依据 | 原A→B→C顺序中的C“List MoveOnly追踪”；2026-10-14草案独审通过，批准迁active及tests-only准备；后续已批准正常main同步及独审后的9 exact基线执行；生产实现仍待独审放行 |
+| 批准依据 | 原A→B→C顺序中的C“List MoveOnly追踪”；2026-10-14草案独审通过，批准迁active及tests-only准备；后续已批准正常main同步及独审后的9 exact基线执行；后续最小生产已批准并经独审、固定9 exact验证 |
 | 前置 Spec | [SPEC-0320 Enum case Borrow分类](../../archive/specs/0320-enum-case-borrow-categories.md)，已由PR102合入actual main `7c348e704ecd3595fa17ce4b08a2734d7d966e80`；本片独立交付 |
 | 分支基线 | `fix/spec-0321`依赖0320本地最终`da03e0f84f6f3fdd2d4a3572117a511dfa8ce608` / tree`f0abc5e03035f9911a26fa44a026bfc281c25f92`；远端0320`7a305bd7bcead62921827ca8a24eba5fed8504ef`同tree；现正常merge实际main `7c348e704ecd3595fa17ce4b08a2734d7d966e80` / tree `910164ff461374f2c133a7f5ac4d938486c32de4`，保留真实父链 |
 | 官方编号核验 | 2026-10-14官方main`a0f5f8ac`全树最大0319；上述0320完整树最大0320；93分支及2个开放PR未见更新编号，保留0321；实施前重核并正常同步实际main |
 | 语言语义变更 | 否；add已取得Value元素，Copyable复制、MoveOnly转移；不能放宽verifier或新增循环能力 |
-| 阻塞项 | 设计独审已通过；0320已交付并正常同步实际main；9 exact真实基线已完成，生产最小修复及独立live owner候选仍待独审 |
+| 阻塞项 | 设计独审已通过；0320已交付并正常同步实际main；最小生产固定9 exact已通过；共享精确回归、工程门禁及双宿主CI待完成 |
 
 ## 1. 单一 Goal
 
@@ -135,14 +135,33 @@ AfterStatement drop消费入口，不增加功能。该词法块候选在`6753d2
 `InvalidSsa`、Span None，两unit SSA/LLVM通过，exact实际1命中。它避开独立Unsupported门，
 保留预期成功红；不改写前两版结果。后续只批准最小append交付登记生产修复，尚未验证修复结果。
 
-## 8. 验收与停止条件
+## 8. 最小修复与固定回归
+
+生产仅改`lower_container_append`：核typed call/element类型，resolve_type取得具体copyability；
+成功ContainerAppend后仅对MoveOnly实际element ValueId移除binding/temporary别名。Copyable不清，
+缺事实及Unknown/Error返回MissingFact；不改loan表、unit、verifier、CFG、insertAt或drop。
+`daea8367`首次编译因Copyability枚举分支不完整报E0004，零测试执行；独立`dbb7c4a5`补齐
+Unknown/Error fail-loud，保留首次失败，不作行为红。
+
+2026-10-15固定HEAD `dbb7c4a54eaff91b64292e6a1d7a79922e7bf05b` / tree
+`a81b2fc957a8be26a26ba5a2e51091abb867b638`经独审/批准按原9 exact串行运行，retained使用
+词法块版。9项各实际1命中全绿；18个single/basic/constant分析、身份、SSA/LLVM入口全通过。
+原p38三公开CLI的build/run/artifact均exit0；build输出空，run/artifact stdout精确`x\ny\n`、
+stderr空，源码不变和临时产物清理oracle通过。执行前后14个输入SHA一致且工作树干净。
+这不是全套或macOS验收；原两版retained跨loop Unsupported边界、依赖零执行与E0004均保留。
+
+新增codegen模块由`ssa/mod.rs`的cfg(test)注册；两CLI模块由native_cli/project_cli注册。
+现有CI双宿主test经`check_integration.sh`→`check_core.sh`完整选择lang-codegen及lang-cli，
+会纳入新增目标；这里只确认接线，尚未执行本片远端CI。本地不运行该聚合脚本。
+
+## 9. 验收与停止条件
 
 - [x] 官方库存/编号、原p38字节与历史矩阵、single/unit静态链核对。
 - [x] 初始草案独审通过并批准迁active及tests-only；当时未授权生产与测试，后续基线授权/执行见上文。
 - [x] 正常同步0320实际main；tests-only及helper/runner独审、逐名运行授权。
 - [x] 当前输入真实expected-positive红与已有绿/独立拒绝边界分采。
-- [ ] 只对精确已交付owner作最小修复，普通源码回归及工程门禁。
+- [ ] 精确已交付owner最小修复及9 exact已通过；共享普通源码回归及工程门禁待完成。
 - [ ] 独立PR双宿主物理CI、Architecture同步、验收归档及main交付。
 
-0320已合实际main并正常同步；0321固定基线及runner已独审并运行上述9 exact。生产修复与本片远端CI未执行。
+0320已合实际main并正常同步；0321固定基线及runner已独审并运行上述9 exact。最小生产和固定9 exact已完成，额外回归/工程门禁与本片远端CI未执行。
 若必须改Guide、放宽verifier、补通用循环能力或改无关容器操作，停止并请求独立决定。
