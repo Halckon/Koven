@@ -1,6 +1,7 @@
 //! 最终消费资格：不修改 raw/recovery facts，也不替代 basic/constant capability。
 
 mod adapters;
+mod message;
 mod walk;
 
 use super::{

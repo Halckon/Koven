@@ -172,7 +172,7 @@ impl<F: Facts> Checker<'_, F> {
             Shape::Deferred(DeferredReason::AnyValueRepresentation) if bound => Ok(true),
             Shape::Deferred(reason) => self.emit(
                 codes::FINAL_TYPE_ANALYSIS_INCOMPLETE,
-                format!("final type analysis is incomplete: {reason:?}"),
+                super::message::deferred_message(reason),
                 span,
             ),
             Shape::Error if self.existing_error(span) => Ok(false),
