@@ -47,8 +47,7 @@ frontend `final_admission` 共享分类器检查所选source-set的声明/body/i
 真实SymbolId/UnitSymbolId把已诊断根因传到引用，保留独立错误；initializer依赖排序不重新推导类型，
 健康ForwardValueType和cycle仍拒绝。ordinary `_`有声明身份，只有真实for discard不要求binding类型。
 已知Int/String不存在成员沿有界查找用L0080，已证非Result的`?`用L0085；Nothing不新增非法判定。
-L0165只表示真实DeferredReason的最终类型未完成；18项分类经私有穷尽映射生成用户措辞，
-不显示Rust枚举Debug名，也不据措辞扩展成功资格。成功描述符缺事实或身份错配仍是内部错误。
+L0165以私有穷尽映射呈现18项真实Deferred原因，不显示Debug名或扩成功资格；成功描述符缺事实或身份错配仍是内部错误。
 未选Member的失败recovery、Deferred或本name精确L0080错误，只在真实静态限定符身份下恢复非值壳；
 Member本身的最终类型仍检查，动态receiver及实参不会因该恢复被跳过。
 raw API、基础/常量validate及LSP recovery保持原合同；此资格不证明ownership、SSA或native能力。
