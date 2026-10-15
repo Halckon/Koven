@@ -11,7 +11,7 @@
 | 批准依据 | 用户 2026-10-15 同意仅 libxml2 有界兼容方向；§4取证合同与§5–6 C1设计独审通过；生产实现须先有CI红证据及diff独审 |
 | 前置 Spec | SPEC-0272 |
 | 前置 ADR | 无新增 |
-| 阻塞项 | C1设计已审；第二阶段tests-only CI红证据及生产实现/验收待完成 |
+| 阻塞项 | C1及tests-only真实CI红已审；最小实现/补充协议测试待独审与新CI验收 |
 | 影响范围 | `scripts/preview_host.py`、对应 Python 协议测试、preview 文档/CI 证据 |
 | 语言语义变更 | 否 |
 
@@ -83,7 +83,7 @@ libxml2 项的宿主策略，并同步当前文档；历史合同和失败记录
 
 ## 5. C1 冻结设计：仅已见两修订的有界预检
 
-本节设计经独审通过，仅允许推进 tests-only CI 红证据，不授权生产实现。仅两侧 `Linux/x86_64`、真实 os-release
+本节设计经独审通过，tests-only CI 已建立行为红；现获准最小生产实施，最终验收仍待新CI。仅两侧 `Linux/x86_64`、真实 os-release
 `ID=ubuntu / VERSION_ID=24.04 / VERSION_CODENAME=noble`，唯一同 name/resolved 的
 `libxml2.so.2` SHA 不同且 §3 全部成立时才进入例外；无其他 fallback。
 
@@ -172,7 +172,7 @@ probe证据，不抹掉 host 已有事实；同 hash 按原严格路径，不因
 | ID | 精确验收目标 | 当前结果 |
 |---|---|---|
 | C1 | 独立设计审阅；真实 dpkg/apt/readelf 输出核对，明确来源局限、依赖符号算法 | 设计独审通过；仅推进tests-only，完整闭包实采待CI |
-| C2 | CI 协议正例：同 hash 保持；不同 hash 且全部 policy 事实满足；交换生产/消费方向按实际需求判定 | 未运行 |
+| C2 | CI 协议正例：同 hash 保持；不同 hash 且全部 policy 事实满足；交换生产/消费方向按实际需求判定 | 初片三正例已取得预期行为红；实现后绿及完整矩阵待CI |
 | C3 | CI 协议拒绝：非 Ubuntu/架构/SONAME、路径变化、其他库 hash、LLVM/cc/SDK/override、重复/缺字段、未知策略 | 未运行 |
 | C4 | CI 解析/故障拒绝：未知/歧义/缺失 symbols/version、不可见或错误类型 export、无实际引用者、工具缺失/非零/超时、不符候选环境/失去ELF版本索引 | 未运行 |
 | C5 | 现有 test_preview_host.py、test_preview_install.py、test_preview_package.py 完整 CI；原包篡改/成员/权限/源/清理拒绝不弱化 | 未运行 |
@@ -253,3 +253,21 @@ versioned UND：15 FUNC、1 OBJECT xmlFree；后者UND size0、两provider定义
 xmlReadMemory需要LIBXML2_2.6.0，其余15需要LIBXML2_2.4.30；两侧对应定义均存在。
 这只支持冻结有界预检，不证明运行兼容。URI全部脱敏，producer旧修订不在当前apt源版本块，
 故来源仍不完整。完整artifact摘要和原始输出保留在该run artifact，不复制完整dump入库。
+
+## 13. 第二阶段先红与实现切片（2026-10-15）
+
+[tests-only CI 38673070071 attempt 1](https://github.com/Halckon/Koven/actions/runs/38673070071/attempts/1)
+在发布head `74abcb99e062f1b5306a3496564b3b49a27f4b18` 对应synthetic merge执行367项协议测试，恰有3个预期
+compare_hosts断言失败，无API缺失/导入错误；新增13项为10通过/3失败。这只建立行为先红，
+不是兼容成功。CI synthetic与head仅Cargo.toml/lock不同，相关生产/测试/fixture/Spec blob一致，
+红归属已独审核对；历史失败保留。
+
+真实main已推进到 `8dae0b49403c40714bb1d99f02379ad7625dafac`（PR104 toml依赖升级）。
+本地以零树差normal merge保留local/已发布父链，再normal merge该main，基线merge
+`b9b3ae2cb35a981fa2293c62fc37b2d0067d1fda`，tree
+`a6b4309e4210943ac1ab50d480953b6998c104da`，无rebase。新base必须重新完成真实验收。
+
+最小生产切片限preview_host.py，保持TOOLS、包成员及consumer命令/清理生产路径不变；
+补充CI-only协议矩阵含完整合成版本表、真实已见十六进制size/无0x首offset词法、合法缺省表、
+单对象索引冲突、每个probe失败、两侧同步无效policy、第N命令失败与cleanup失败传播。
+这些新增测试尚未运行；云端仅AST/docs/diff静态检查，不以合成完整表代替真实闭包读取。
