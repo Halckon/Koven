@@ -150,6 +150,9 @@ impl ExpressionLowerer<'_> {
         match copyability {
             Copyability::MoveOnly => self.forget_delivered_owners(&[element]),
             Copyability::Copyable => {}
+            Copyability::Unknown | Copyability::Error => {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
         }
         let new_owner = value(results[0]);
         if let Some(symbol) = symbol {
