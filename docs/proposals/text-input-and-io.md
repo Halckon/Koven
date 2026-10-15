@@ -28,4 +28,5 @@ argv首片和Map应用分别由0274、0295承接；本页只保留未选文本�
 异步IO、Str、通用toString和公开C FFI均非默认范围。
 
 2026-10-15已按[v1交付清单](v1-collections-io-delivery.md)选择同步文件读写作为最小合同方向；
-本页详细错误/编码/资源决策仍待冻结，stdin不自动捆入，现行Guide示例不构成实现验收。
+同日用户补充stdin行读取、stdout/stderr与flush，纳入独立最小合同目标；
+本页详细错误/编码/资源决策仍待冻结，现行Guide示例不构成实现验收。

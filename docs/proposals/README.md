@@ -5,7 +5,7 @@
 Proposal 本身不修改现行 v0.43、不批准 Spec，也不代表实现优先级。已选 String.clone 部分
 已移入 guide，剩余候选仍未启用；普通开发任务不要读取本目录。
 
-- [v1集合与同步文件IO最小交付清单](v1-collections-io-delivery.md)：已选推进顺序，详细语义仍待审/启用
+- [v1集合与常用标准库最小交付清单](v1-collections-io-delivery.md)：已选推进顺序，详细语义仍待审/启用
 - [文本输入与 IO（M1B-b）](text-input-and-io.md)
 - [集合剩余 API 与迭代](collection-api-followups.md)
 - [检测扩展与定向外审（M4）](native-safety-validation.md)
