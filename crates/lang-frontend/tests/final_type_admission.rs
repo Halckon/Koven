@@ -341,3 +341,6 @@ mod complete;
 
 #[path = "final_type_admission/static_recovery.rs"]
 mod static_recovery;
+
+#[path = "final_type_admission/simple_assignment.rs"]
+mod simple_assignment;

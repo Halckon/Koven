@@ -1,0 +1,2 @@
+fun each(xs: List<Int>, f: (Int) -> Unit): Unit { for (x in xs) { f(x) } }
+fun main(): Unit { var sum = 0; each(listOf(1,2,3)) { sum = sum + it }; println("mut-capture") }
