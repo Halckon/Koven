@@ -94,3 +94,20 @@ CI接线静核：`crates/**`触发Rust changes；`check_integration.sh`经`check
 与lang-cli，`check_stage_integration.sh`选择frontend final_type_admission，覆盖本片新测试。
 尚未发布或执行本片远端CI；本地未运行这些聚合脚本。Spec保持active，p42/p25合同与0323修复不在
 本片验收范围；这不是整份增量review或v1完成。
+
+## 8. PR108主线后的真实双父整合与重验
+
+PR108正常合入actual main `1409ff851646e1a9012bed0b11d6366990e0410d`后，从真实PR109 head
+`a8555ff04ae80426ad3980569e9e36ded33f92b5`正常merge，提交`6430e3bda97e4ed147f7feec61f7c6b0ccfded48`
+按上述PR109、main顺序保留两个真实父节点，不重写或合并同内容的local/remote映射历史。
+生产walk保留0323静态恢复与0324消息委托；CLI helper合并两边精确断言，0323 archived、0324 active。
+初次docs检查发现tooling入口201行超过200上限；0bb5fcbd仅精简重复措辞后677页结构检查通过。
+
+固定实跑`0bb5fcbd78d0ebdeac8e418af61d307547c49ea8` / tree `fa5c5e9eacab521d4b16378657595be069468de9`：
+原0323的15与0324的5构成20个唯一exact，逐项实际1命中全绿，全部argv保持原审定名单。
+manifest SHA256为`8f9a417cb9519ee568aa933c2cc2f430a6a96f2e49b122eaf840338f58e2f88f`。
+同head重跑§7四工程均exit0；24登记输入SHA前后同、clean，原始收据仓外保留。
+五个CLI exact合计12次build进程，仅核诊断，不运行产物；两修复的已有oracle均保持。
+
+本节是整合后的新本地证据；原实现head的CI不冒称该整合head通过。后继仅docs账本提交，
+仍须发布整合版并核其远端CI通过，之后再另作0324有限归档；不提前改为done，不改Guide或扩大语义。
