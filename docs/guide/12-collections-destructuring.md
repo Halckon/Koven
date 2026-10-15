@@ -411,7 +411,8 @@ unsupported destructuring context 拒绝。未来若开放其他上下文，必�
   `size <= 2^31 - 1`；未来增长操作在提交会超过该上限时必须按现行 checked-size/abort
   边界终止而不能截断。内部 pointer-width header/cursor 不改变该源语言不变量。
 
-source 静态类型不是上述 intrinsic container 时使用 L0159；primary 为完整 source expression，
+本节顺序容器路径中，source 静态类型不是上述 intrinsic container 时使用 L0159；
+下文 Range / Map 独立 provider 按各自合同判定，不由本句拒绝。primary 为完整 source expression，
 可用时 label 指向其类型声明。已有 Error/Deferred 根因不追加 L0159；同名方法或类型不改变结果。
 
 ### 37.2 循环 binding 与借用式解构

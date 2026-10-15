@@ -18,6 +18,8 @@
 - **`Transferable` 是编译器结构化递归推导的能力**，规则与 [`Copyable`](11-copyability-layout-construction.md)
   平行：
   - 数值类型、`Boolean`、`Char`、`Unit`、`String` 满足 `Transferable`；
+  - [整数 Range 内建身份](03-types-generics.md#简单变量赋值与整数-range-身份) `IntRange` /
+    `LongRange` 满足 `Transferable`；该能力本身不启用线程 API。
   - `value class` 当且仅当其全部字段类型都满足 `Transferable` 时满足 `Transferable`；
   - 普通 `class` 满足 `Transferable`，当且仅当其全部字段类型都满足 `Transferable`——转移
     一个 `class` 实例的唯一所有权本身是安全的（所有权检查已经保证原绑定不再可用），真正

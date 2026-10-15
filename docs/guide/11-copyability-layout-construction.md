@@ -24,6 +24,8 @@ MoveOnly 分量；名称或 lint 约定不能改变类型能力。任何显式 o
 
 - 数值类型、`Boolean`、`Char`、`Unit` 和 bottom type `Nothing` 满足 `Copyable`。`Nothing`
   没有可构造的有效值，因此是平凡满足；这也使只有 `null` 值域的 `Nothing?` 满足规则。
+- [整数 Range 内建身份](03-types-generics.md#简单变量赋值与整数-range-身份) `IntRange` /
+  `LongRange` 满足 `Copyable`，不依赖源码 value class 字段推导。
 - `T?` 当且仅当 `T` 满足 `Copyable`；nullable wrapper 不引入 retain、clone 或唯一析构。
 - `value class C<A...>` 当且仅当按实际类型实参替换后，每个主构造器字段类型都满足
   `Copyable`。字段的 `val` / `var` 不参与判定。
