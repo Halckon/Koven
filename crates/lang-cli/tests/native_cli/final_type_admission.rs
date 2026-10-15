@@ -152,5 +152,5 @@ fn single_assignment_capture_build_preserves_ownership_rejection() {
             });
         }
     }
-    support::assert_rejections_count(&cases, 1, 2);
+    support::assert_rejections_count(&cases, 2, 2);
 }

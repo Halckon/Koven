@@ -367,7 +367,7 @@ fn readonly_variable_assignments_remain_ownership_errors() {
 
 #[test]
 fn unit_value_context_and_right_associative_chain_use_storage_types() {
-    let passing = "fun done(): Unit {} fun test(): Unit { var number = 1; var result: Unit = done(); val value: Unit = result = number = 2 }";
+    let passing = "fun done(): Unit {}\nfun test(): Unit { var number = 1; var result: Unit = done(); val value: Unit = result = number = 2 }";
     for entry in observe(passing) {
         assert_eq!(entry.assignments.len(), 2, "{entry:?}");
         assert!(
