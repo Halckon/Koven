@@ -1,18 +1,18 @@
 # SPEC-0324: 最终类型准入的用户诊断措辞
 
-> **性质**：有界呈现修复合同 · **状态**：draft · **读取时机**：审查L0165消息与分类保持时 · **唯一真源**：本Spec；不改变现行Guide
+> **性质**：有界呈现修复合同 · **状态**：in-progress · **读取时机**：审查L0165消息与分类保持时 · **唯一真源**：本Spec；不改变现行Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-0324` |
 | 所属 Phase | Phase 2诊断呈现；不改变最终消费资格 |
-| 语言规范 | [现行Guide](../../../guide/README.md)，语义不变 |
+| 语言规范 | [现行Guide](../../guide/README.md)，语义不变 |
 | 批准依据 | 用户2026-10-15要求解决增量review；本片仅措辞，先等价提取与普通数据exact测试，审定后执行 |
 | 基线 | actual main `3104baa47845a9ec738c06aa60cf61f5d1a3772e`；独立`fix/spec-0324`，不依赖未合0323 |
-| 前置 Spec | [0319最终类型准入](../../../archive/specs/0319-final-type-admission-diagnostics.md) |
+| 前置 Spec | [0319最终类型准入](../../archive/specs/0319-final-type-admission-diagnostics.md) |
 | 语言语义变更 | 否 |
-| 阻塞项 | 18项文案待审；等价提取验证、tests-only红与映射生产尚未执行 |
+| 阻塞项 | 等价提取与18项新文案红证已核；最小映射及下游精确验收待执行 |
 
 ## 1. Goal与非目标
 
@@ -58,3 +58,14 @@ p42普通赋值类型事实、p25循环流事实须分别确认语言合同权�
 唯一legacy exact实际1命中通过，覆盖全部18旧文本；7登记输入SHA前后同且clean，原始收据仓外保留。
 该结果仅证明等价提取，未实现或验证新用户文本。随后tests-only替换18项新oracle，保留原提交与收据；
 ForwardValueType使用“the value's type is not yet determined”，避免暗示重排声明能够解决循环依赖。
+
+## 6. 真实红证与实施准入
+
+77811968147a3afea990644f8fd0472bd429f08e / tree b67feeb3f3c8f5a754d63bc8b6691725bbcd44fb，
+唯一新oracle exact编译成功、实际1命中、exit101断言红；完整18旧文本与18新文本差集已记录，
+7输入SHA前后同且clean。该失败为预期行为红，不修改旧receipt。随后独立4d5603c5仅实施穷尽映射，
+无通配fallback，不改变walk分类、Any-bound例外或输入事实。
+
+下一固定名单仅5exact：18消息映射、p34普通源码single/unit消息与Span、新CLI single/project
+build human/json各一exact、既有0319 frozen_roots精确控制。CLI只启动编译器build进程，
+不执行产物；保持L0165、Error、源40..45和空details，只替换message。工程检查待同head执行。

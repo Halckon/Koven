@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无active Spec；0321已按实现head双宿主CI有限归档，归档head CI及main交付待，见[近期交付](../README.md#近期交付)。
+当前实施[0324用户诊断措辞](0324-final-admission-user-messages.md)，仅呈现映射；0321已按实现head双宿主CI有限归档，归档head CI及main交付待，见[近期交付](../README.md#近期交付)。
 
 0322已按实现head有限验收归档并由PR106合入actual main `29657994`；main CI另行跟踪，见[近期交付](../README.md#近期交付)。
 
