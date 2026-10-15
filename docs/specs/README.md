@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 0 份；0323已有限归档。
+- [Active 合同](active/README.md)：当前 0 份；0323/0324已有限归档。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -66,7 +66,9 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 ### 近期交付
 
-- [0323](../archive/specs/0323-final-admission-static-recovery.md)：[PR108实现CI](https://github.com/Halckon/Koven/actions/runs/38714525342/attempts/1)15实际success、1范围skip、非复用，双宿主15精确目标逐项通过；仅静态角色诊断恢复，归档head CI/main交付待核。
+- [0324](../archive/specs/0324-final-admission-user-messages.md)：[PR109整合CI](https://github.com/Halckon/Koven/actions/runs/38734960861/attempts/1)15实际success、1范围skip、非复用，双宿主20精确目标逐项通过；只改用户措辞并保留0323修复，归档head CI/main交付待核。
+
+- [0323](../archive/specs/0323-final-admission-static-recovery.md)：[PR108实现CI](https://github.com/Halckon/Koven/actions/runs/38714525342/attempts/1)15实际success、1范围skip、非复用，双宿主15精确目标逐项通过；仅静态角色诊断恢复，已由PR108正常合入actual main `1409ff85`，main CI另行核验。
 
 - [0321](../archive/specs/0321-mutable-list-element-delivery.md)：[PR105实现CI](https://github.com/Halckon/Koven/actions/runs/38692676541/attempts/1)15个job成功、Tree-sitter范围skip，非复用；新增9目标两宿主逐名通过，独立consumer各12命令/清理通过。归档head CI、合并授权及main交付待；旧环境失败保留。
 

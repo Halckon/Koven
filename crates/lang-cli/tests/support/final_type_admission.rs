@@ -121,11 +121,7 @@ pub(super) fn assert_rejections(cases: &[RejectionCase], exit_code: i32) {
     assert_rejections_count(cases, exit_code, 16);
 }
 
-pub(super) fn assert_rejections_count(
-    cases: &[RejectionCase],
-    exit_code: i32,
-    expected_count: usize,
-) {
+pub(super) fn assert_rejections_count(cases: &[RejectionCase], exit_code: i32, count: usize) {
     // 先执行完矩阵并记录全部真实进程结果；首个红断言不能隐藏其余根因。
     for case in cases {
         eprintln!(
@@ -136,7 +132,7 @@ pub(super) fn assert_rejections_count(
             String::from_utf8_lossy(&case.output.stderr),
         );
     }
-    assert_eq!(cases.len(), expected_count, "exact planned process count");
+    assert_eq!(cases.len(), count, "exact planned process count");
     for case in cases {
         assert!(
             !case.executable_exists,
@@ -209,9 +205,13 @@ fn assert_rejection(
             "{context}: {text}"
         );
         assert!(record["details"].is_array(), "{context}: {text}");
+        if let Some(message) = expected.get("message") {
+            assert_eq!(&record["message"], message, "{context}: {text}");
+            assert_eq!(record["details"], json!([]), "{context}: {text}");
+        }
         assert_eq!(
             json!({ "code": record["code"], "primary": record["primary"] }),
-            *expected,
+            json!({ "code": expected["code"], "primary": expected["primary"] }),
             "{context}: {text}"
         );
     } else {
@@ -239,6 +239,14 @@ fn assert_rejection(
             .strip_prefix(&prefix)
             .unwrap_or_else(|| panic!("{context}: wrong source diagnostic: {text}"));
         assert!(!message.trim().is_empty(), "{context}: {text}");
+        if let Some(expected_message) = expected.get("message") {
+            assert_eq!(
+                message,
+                expected_message.as_str().unwrap(),
+                "{context}: {text}"
+            );
+            assert_eq!(text.lines().count(), 1, "{context}: {text}");
+        }
         assert!(
             text.lines().skip(1).all(|line| {
                 line.starts_with("  label ")

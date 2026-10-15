@@ -479,3 +479,5 @@
 - [SPEC-0322](0322-preview-libxml2-host-compatibility.md)：Ubuntu Noble libxml2两修订有界预检；真实`.10→.9`及双宿主12命令通过，反向实跑未覆盖；归档head CI/合并/main待。
 
 - [SPEC-0323](0323-final-admission-static-recovery.md)：PR108实现head双宿主15精确目标与CI有限归档，15实际success/1范围skip；原红、helper修正与lint失败保留，不扩companion/Result原生能力；归档head CI/main待核。
+
+- [SPEC-0324](0324-final-admission-user-messages.md)：PR109整合head双宿主20精确目标与CI有限归档；18项用户措辞不改资格，旧基线/整合CI分账，保留红与docs超限历史；归档head CI/main待核。

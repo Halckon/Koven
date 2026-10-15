@@ -584,3 +584,27 @@ fn selected_constant_qualifiers_do_not_hide_runtime_member_roots() {
         }
     }
 }
+
+#[test]
+fn deferred_user_message_preserves_source_identity() {
+    let (sources, single, unit) = complete_both(FROZEN[2].0, false);
+    for result in [single, unit] {
+        let diagnostics = diagnostics(result);
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = &diagnostics[0];
+        assert_eq!(diagnostic.code().to_string(), "L0165");
+        assert_eq!(
+            diagnostic.severity(),
+            lang_frontend::diagnostic::Severity::Error
+        );
+        let span = diagnostic.primary_span();
+        assert_eq!(sources.source_name(span.source_id()), Ok("main.ko"));
+        assert_eq!((span.start(), span.end()), (40, 45));
+        assert_eq!(sources.slice(span), Ok("0..<5"));
+        assert_eq!(
+            diagnostic.message(),
+            "type checking could not complete: the call's type is unresolved"
+        );
+        assert!(diagnostic.details().is_empty());
+    }
+}

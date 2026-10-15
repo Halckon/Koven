@@ -61,3 +61,5 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 ## Preview 外部宿主工程候选
 
 - [0323 最终准入静态角色恢复](../../../archive/specs/0323-final-admission-static-recovery.md)：已按PR108实现head双宿主15精确目标与CI有限归档，保留真实红史，不扩原生能力；归档head CI/main交付待核。
+
+- [0324 最终类型准入用户措辞](../../../archive/specs/0324-final-admission-user-messages.md)：已按PR109整合head双宿主20精确目标与CI有限归档，18分类映射不扩成功资格，历史红保留；归档head CI/main交付待核。
