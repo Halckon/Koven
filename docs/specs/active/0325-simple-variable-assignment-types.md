@@ -19,6 +19,8 @@
 
 已解析简单变量普通 `=` 按声明 storage 类型检查 RHS，成功结果 Unit；RHS 后 kill 目标流事实。
 分组目标透明。捕获、可变性、loan、move 继续按既有 ownership 阶段检查；不绕 final admission。
+扩验暴露 single 普通只读根变量赋值漏检，本片在 RHS 后且既有 capture/loan 诊断优先之后，
+补齐普通 `=` 的 Name/Group 根变量 L0134；不扩大 field/index/compound 或更改 ownership 阶段。
 不扩大 field/index/compound，不实现 while 新收窄，不混入其他 v0.44 功能。
 Unit 允许兼容值上下文；expected Int 的 lambda 尾赋值须拒绝，不能全局改成 statement。
 
@@ -64,3 +66,11 @@ Guide 发布 PR110 的远端映射 head `e0c447f73ec896d9cc340d5168d1d0e32246f18
 首轮实现 `c4229343` 的8 exact为7通过/1 oracle失败，19输入不变。第7负例真实两入口均
 L0084 98..105，complete原诊断保留；expected mismatch的既有规则将错误读取标Error，
 测试误期Nullable。只修oracle，保留原收据；正例Nullable与ownership空均已实际通过。
+
+扩验 `87af105d` 的15 exact：12通过、1真实只读变量漏检、2测试输入/oracle错误。
+chain fixture缺声明分隔符产生L0047；single CLI真实exit2/L0135，误期project的exit1。
+两项仅tests修正，保留原raw。CLI四个build均产生L0135，无产物执行。
+直接 actual main fcc5 的tests-only `10377e63` 单exact观测确认旧single也为
+Deferred/complete成功/ownership无诊断，unit L0134；此观测命令失败，不算回归绿。
+新增只读/local参数与Unit链式2 exact、既有类型失效/捕获/unit assignment3 exact、
+p42 single/project human/json仅build2 exact，共15唯一目标；最终绿测及四工程仍待。
