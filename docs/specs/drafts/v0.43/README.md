@@ -48,9 +48,9 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 - [0319 最终类型消费准入](../../../archive/specs/0319-final-type-admission-diagnostics.md)已按PR101实现head双宿主物理CI有界验收归档，保留中间Deferred/recovery；归档head CI已通过并合入main，[main CI](https://github.com/Halckon/Koven/actions/runs/38592817579/attempts/1)已成功（15实际成功、1 PR-only证据job跳过），不与0292的未启用consume前置混同。
 
-- [0320 Enum case Borrow实参分类](../../../archive/specs/0320-enum-case-borrow-categories.md)已按PR102实现head双宿主物理CI有界验收归档；原when与泛型enum native边界不扩，归档head CI、合并授权及main交付待完成。
+- [0320 Enum case Borrow实参分类](../../../archive/specs/0320-enum-case-borrow-categories.md)已按PR102实现head双宿主物理CI有界验收归档；原when与泛型enum native边界不扩，已由PR102合入main `7c348e70`；旧main环境失败保留。
 
-- [0321 single MutableList.add元素交付记账](../../../archive/specs/0321-mutable-list-element-delivery.md)：最小修复已按同head14精确普通目标、四工程门禁及实现head双宿主CI有限归档；归档head CI/main交付待，不表示整份review或v1完成。
+- [0321 single MutableList.add元素交付记账](../../../archive/specs/0321-mutable-list-element-delivery.md)：最小修复已按同head14精确普通目标、四工程门禁及实现head双宿主CI有限归档；归档head已由PR105合入actual main `3104baa4`，[main CI](https://github.com/Halckon/Koven/actions/runs/38697537161/attempts/1)已通过（15实际成功、1 PR-only证据job跳过）；不表示整份review或v1完成。
 
 ## 未编号的现行支持候选
 
