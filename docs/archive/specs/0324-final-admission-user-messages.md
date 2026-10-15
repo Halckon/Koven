@@ -1,18 +1,18 @@
 # SPEC-0324: 最终类型准入的用户诊断措辞
 
-> **性质**：有界呈现修复合同 · **状态**：in-progress · **读取时机**：审查L0165消息与分类保持时 · **唯一真源**：本Spec；不改变现行Guide
+> **性质**：有界呈现修复合同 · **状态**：done · **读取时机**：审查L0165消息与分类保持时 · **唯一真源**：本Spec；不改变现行Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0324` |
 | 所属 Phase | Phase 2诊断呈现；不改变最终消费资格 |
 | 语言规范 | [现行Guide](../../guide/README.md)，语义不变 |
 | 批准依据 | 用户2026-10-15要求解决增量review；本片仅措辞，先等价提取与普通数据exact测试，审定后执行 |
 | 基线 | actual main `3104baa47845a9ec738c06aa60cf61f5d1a3772e`；独立`fix/spec-0324`，不依赖未合0323 |
-| 前置 Spec | [0319最终类型准入](../../archive/specs/0319-final-type-admission-diagnostics.md) |
+| 前置 Spec | [0319最终类型准入](0319-final-type-admission-diagnostics.md) |
 | 语言语义变更 | 否 |
-| 阻塞项 | 同head本地5exact与4工程已通过；发布、双宿主CI及有限归档待完成 |
+| 阻塞项 | 整合head双宿主CI与有限验收已通过；归档head CI及正常合并/main交付待核 |
 
 ## 1. Goal与非目标
 
@@ -50,7 +50,8 @@ p42普通赋值类型事实、p25循环流事实须分别确认语言合同权�
 - [x] 私有提取等价exact通过。
 - [x] 候选18消息独审与真实红证。
 - [x] 最小映射实现、普通源码/CLI/工程精确验证。
-- [ ] 双宿主CI、有限归档和正常合并。
+- [x] 整合head双宿主CI与有限归档。
+- [ ] 归档head CI、正常合并与main交付核验。
 
 ## 5. 等价提取实际记录
 
@@ -111,3 +112,21 @@ manifest SHA256为`8f9a417cb9519ee568aa933c2cc2f430a6a96f2e49b122eaf840338f58e2f
 
 本节是整合后的新本地证据；原实现head的CI不冒称该整合head通过。后继仅docs账本提交，
 仍须发布整合版并核其远端CI通过，之后再另作0324有限归档；不提前改为done，不改Guide或扩大语义。
+
+## 9. 整合CI与有限归档
+
+用户已批准归档及正常合并。原PR109 head `a8555ff04ae80426ad3980569e9e36ded33f92b5`的
+[CI 38717393131/a1](https://github.com/Halckon/Koven/actions/runs/38717393131/attempts/1)仅归属于
+整合前基线，不替代§8真实双父合并后的验收。
+
+整合head `d8e8eff52a17f85abaf09e9d240279d3bd74c45e` / tree `c22d8da3aaad014a6b1177f2ef06ae1e30c41b06`
+通过[CI 38734960861/a1](https://github.com/Halckon/Koven/actions/runs/38734960861/attempts/1)，
+2026-10-15 12:47:58 UTC terminal success：15个job实际success、Tree-sitter范围skip，reuse=false；
+Linux/macOS均逐项核验20个指定exact实际各1次ok。synthetic为
+`dc4efab73a677d564f547da14156ed08a0307a7a`，有序父为actual main `1409ff85`与上述整合head。
+独立summary SHA256 `ec3f57953e73b61c4e6d45793fb7b7428c26364830b22465a4131eb3656f8f3e`；
+原始日志仓外保留。Preview仅核job成功，未逐项审计artifacts或native结果，不作相应扩大声称。
+
+本次仅关闭18项用户措辞及与0323恢复的整合；code/Span/资格语义不扩，p42/p25合同仍独立。
+保留§5–8等价绿、新文本红、helper静态修正及docs201行超限历史；不表示整份review或v1完成。
+归档提交直接继承真实整合head且只改文档；归档head CI、正常合并及main交付仍须另核。
