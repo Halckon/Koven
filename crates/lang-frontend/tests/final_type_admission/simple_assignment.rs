@@ -349,12 +349,14 @@ fn field_assignment_retains_existing_entry_difference() {
 
 #[test]
 fn readonly_variable_assignments_remain_ownership_errors() {
-    for (text, shared_parameter) in [
+    for (text, shared_parameter, observations) in [
         ("fun test(): Unit { val number = 1; number = 2 }", false),
         ("fun test(own number: Int): Unit { number = 2 }", false),
         ("fun test(number: Int): Unit { number = 2 }", true),
-    ] {
-        for entry in observe(text) {
+    ]
+    .map(|(text, shared)| (text, shared, observe(text)))
+    {
+        for entry in observations {
             assert_unit_assignment(&entry, "number = 2");
             let diagnostics = entry.ownership.as_ref().unwrap();
             assert_eq!(diagnostics.len(), 1, "{entry:?}");
