@@ -60,13 +60,13 @@ List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 f
 后继A的[0319 最终类型消费准入](../archive/specs/0319-final-type-admission-diagnostics.md)已按实现head双宿主物理CI有界验收归档，并经归档head CI后合入main；
 随后B [0320 Enum case Borrow实参分类](../archive/specs/0320-enum-case-borrow-categories.md)已由PR102交付；
 C [0321 List MoveOnly交付记账](../archive/specs/0321-mutable-list-element-delivery.md)已按实现head双宿主CI有限归档，
-原p38的single/project、basic/constant普通源码矩阵通过，已由PR105合入actual main `3104baa4`，main CI单独跟踪。
+原p38的single/project、basic/constant普通源码矩阵通过，已由PR105合入actual main `3104baa4`，[main CI](https://github.com/Halckon/Koven/actions/runs/38697537161/attempts/1)已通过（15实际成功、1 PR-only证据job跳过）。
 A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或v1全部完成；Resource/deinit、新出口、
 通用循环和其他容器/API仍按原能力边界及独立后继处理。
 
 ### 近期交付
 
-- [0321](../archive/specs/0321-mutable-list-element-delivery.md)：[PR105实现CI](https://github.com/Halckon/Koven/actions/runs/38692676541/attempts/1)15个job成功、Tree-sitter范围skip，非复用；新增9目标两宿主逐名通过，独立consumer各12命令/清理通过。归档head已由[PR105](https://github.com/Halckon/Koven/pull/105)合入actual main `3104baa4`，main CI单独跟踪；旧环境失败保留。
+- [0321](../archive/specs/0321-mutable-list-element-delivery.md)：[PR105实现CI](https://github.com/Halckon/Koven/actions/runs/38692676541/attempts/1)15个job成功、Tree-sitter范围skip，非复用；新增9目标两宿主逐名通过，独立consumer各12命令/清理通过。归档head已由[PR105](https://github.com/Halckon/Koven/pull/105)合入actual main `3104baa4`，[main CI](https://github.com/Halckon/Koven/actions/runs/38697537161/attempts/1)已通过（15实际成功、1 PR-only证据job跳过）；旧环境失败保留。
 
 - [0322](../archive/specs/0322-preview-libxml2-host-compatibility.md)：[PR106实现CI](https://github.com/Halckon/Koven/actions/runs/38677370915/attempts/1)16/16成功；仅固定两修订，真实Ubuntu `.10→.9` 差hash及双宿主各12命令/清理通过。已由[PR106](https://github.com/Halckon/Koven/pull/106)合入main `29657994`，[main CI](https://github.com/Halckon/Koven/actions/runs/38688635054/attempts/1)通过；不表示反方向实跑或来源认证。
 

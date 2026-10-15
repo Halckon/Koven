@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无active Spec；0321已有限归档并由PR105合入actual main `3104baa4`，main CI单独跟踪，见[近期交付](../README.md#近期交付)。
+当前无active Spec；0321已有限归档并由PR105合入actual main `3104baa4`，[main CI](https://github.com/Halckon/Koven/actions/runs/38697537161/attempts/1)已通过（15实际成功、1 PR-only证据job跳过），见[近期交付](../README.md#近期交付)。
 
 0322已按实现head有限验收归档并由PR106合入actual main `29657994`；main CI另行跟踪，见[近期交付](../README.md#近期交付)。
 
