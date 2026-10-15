@@ -1,17 +1,17 @@
 # SPEC-0323: 最终类型准入的静态非值角色与失败调用恢复
 
-> **性质**：有界诊断修复草案 · **状态**：draft · **读取时机**：审查最终准入静态角色与恢复根因时 · **唯一真源**：本合同；不改变现行Guide
+> **性质**：有界诊断修复草案 · **状态**：in-progress · **读取时机**：审查最终准入静态角色与恢复根因时 · **唯一真源**：本合同；不改变现行Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-0323` |
 | 所属 Phase | Phase 2最终类型准入；保持先于Phase 3 ownership |
-| 语言规范 | [名称身份](../../../guide/02-names-files-packages.md)、[类型规则](../../../guide/03-types-generics.md) |
-| 批准依据 | 用户2026-10-15要求检查并解决增量review问题；当前仅草案与tests-only准备，运行与生产待固定独审/批准 |
+| 语言规范 | [名称身份](../../guide/02-names-files-packages.md)、[类型规则](../../guide/03-types-generics.md) |
+| 批准依据 | 用户2026-10-15要求检查并解决增量review问题；首轮tests-only已独审/获准执行并采红；据此准入最小生产patch准备，固定diff独审后才重跑 |
 | 基线 | actual main `3104baa47845a9ec738c06aa60cf61f5d1a3772e` / tree `64ebc102c8237f74f87db8311b14949b9c7b0105`；独立`fix/spec-0323`，不混std规划 |
-| 前置 Spec | [0319最终类型准入](../../../archive/specs/0319-final-type-admission-diagnostics.md) |
-| 编号 | 本基线最大0322；官方分支只读核查未见0323/0324；官方开放PR检索仅见103/64，未占0323；本片登记0323草案 |
+| 前置 Spec | [0319最终类型准入](../../archive/specs/0319-final-type-admission-diagnostics.md) |
+| 编号 | 本基线最大0322；官方分支只读核查未见0323/0324；官方开放PR检索仅见103/64，未占0323；本片登记0323 |
 | 语言语义变更 | 否 |
 | 阻塞项 | 首轮六exact已运行，四红两绿；根集合已据raw收紧，最小生产需独审 |
 
@@ -39,7 +39,7 @@ review报告原p28 companion single、原p16 Result传播single/project共3个�
 
 ## 3. 首轮tests-only与安全范围
 
-新增模块`crates/lang-frontend/tests/final_type_admission/static_recovery.rs`，只通过现有
+首轮新增模块`crates/lang-frontend/tests/final_type_admission/static_recovery.rs`，只通过现有
 lex/parse/name/raw type/complete API构造真实分析，不改facts/IR，不进ownership、LLVM、链接或运行。
 原p16/p28及两份最小fixture在`tests/fixtures/final-admission-static-recovery-0323/`。
 每个exact先采single和unit-basic两份结果，再断言；本轮没有constant qualification或CLI覆盖，
@@ -91,3 +91,12 @@ lex/parse/name/raw type/complete API构造真实分析，不改facts/IR，不进
   源诊断保留，后续oracle加强完整Diagnostic相等，包括labels/details，不只比较主消息。
 
 本轮未执行CLI/constant/native。收紧tests-only不修改首轮receipt或将未运行新head称为已验。
+
+## 6. 红证后最小实现准入
+
+首轮红证及984c9b33的精确根oracle已交独审；仅在Member无selection、真实名称事实证明
+receiver为静态限定符，且该Member本身Deferred或已有失败callee recovery上下文时恢复该非值壳。
+Member自身最终类型仍检查；不处理任意Name/Error，不跳动态receiver/实参，不取得未完成调用资格。
+新增两个普通源码控制仅锁非call静态`P.unknown`根与局部值P遮蔽类型P的原错误保留；
+exact为`unresolved_static_member_without_call_keeps_its_own_root`、
+`local_value_shadowing_type_keeps_real_operand_diagnostic`，待固定名单独审/批准运行。

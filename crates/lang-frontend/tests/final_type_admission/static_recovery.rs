@@ -209,3 +209,20 @@ fn dynamic_receiver_real_value_error_is_not_hidden() {
 fn static_constructor_real_argument_error_is_not_hidden() {
     assert_original_errors("value class P(val n: Int)\nfun main(): Unit { val p = P(true) }");
 }
+
+#[test]
+fn unresolved_static_member_without_call_keeps_its_own_root() {
+    let text = "class P(val n: Int)\nfun main(): Unit { val x = P.unknown }";
+    let start = text.find("P.unknown").unwrap();
+    let (sources, entries) = collect(text);
+    for entry in &entries {
+        assert_deferred_source_diagnostic(&sources, entry, (start, start + 9, "P.unknown"));
+    }
+}
+
+#[test]
+fn local_value_shadowing_type_keeps_real_operand_diagnostic() {
+    assert_original_errors(
+        "class P(val n: Int)\nfun main(): Unit { val P = true + false; P.fooBar() }",
+    );
+}

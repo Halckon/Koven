@@ -60,4 +60,4 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 
 ## Preview 外部宿主工程候选
 
-- [0323 最终准入静态角色恢复](0323-final-admission-static-recovery.md)：增量review三入口Internal的有界诊断修复草案；当前仅tests-only，生产与运行待审。
+- [0323 最终准入静态角色恢复](../../active/0323-final-admission-static-recovery.md)：真实六exact四红两绿后迁active；最小Member恢复patch待固定独审，不扩能力。
