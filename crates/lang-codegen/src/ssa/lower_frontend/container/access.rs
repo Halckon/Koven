@@ -122,6 +122,21 @@ impl ExpressionLowerer<'_> {
                 span: None,
             })?;
         let span = descriptor.span();
+        if descriptor.expression() != expression {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let element_type = self
+            .typed
+            .expression_type(descriptor.element())
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let element_type = self.resolve_type(element_type, span)?;
+        if element_type != self.resolve_type(descriptor.element_type(), span)? {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let copyability = self
+            .typed
+            .copyability(element_type)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let (owner, symbol) = self.container_owner_for_append(descriptor.receiver())?;
         let element = self.require_value(descriptor.element())?;
         let container_type = self.expression_ssa_type(descriptor.receiver(), span)?;
@@ -130,6 +145,12 @@ impl ExpressionLowerer<'_> {
             vec![EntityType::Value(container_type)],
             span,
         )?;
+        // Append owns this exact MoveOnly value, including any Group aliases.
+        // Unrelated owners and Copyable source bindings remain caller-owned.
+        match copyability {
+            Copyability::MoveOnly => self.forget_delivered_owners(&[element]),
+            Copyability::Copyable => {}
+        }
         let new_owner = value(results[0]);
         if let Some(symbol) = symbol {
             self.bindings.insert(symbol, LoweredValue::Value(new_owner));
