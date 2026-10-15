@@ -43,7 +43,7 @@ Unit 允许兼容值上下文；expected Int 的 lambda 尾赋值须拒绝，不
 8. `field_assignment_retains_existing_entry_difference`：仅保留已有 single/unit 差异，不扩 field。
 
 helper 只普通源码 lex/parse/names/raw types/complete；complete 成功才 ownership，unit 用 basic validate。
-不修改 facts，不构造 IR，不运行 native/附件批次。p42 SHA256：
+此前端 helper 不修改 facts，不构造 IR，不运行 native/附件批次。p42 SHA256：
 `6d99f070206795274701749b4a6cd475c0709882bb8dfb83a567e33fadf58137`。
 
 固定 head/tree/input SHA、完整 exact argv 与 runner 经独审后串行红测；失败保留真实 raw。
@@ -75,7 +75,7 @@ Deferred/complete成功/ownership无诊断，unit L0134；此观测命令失败�
 新增只读/local参数与Unit链式2 exact、既有类型失效/捕获/unit assignment3 exact、
 p42 single/project human/json仅build2 exact，共15唯一目标；各轮原失败保留。
 
-## 4. 最终本地验收与交付边界
+## 4. 前端与拒绝诊断阶段验收
 
 固定实现/测试输入 `d805381ff174dc4ec52ea8160fdbdce1aa90c0d5` / tree
 `43f334da8268547630cffcf7198e7d56bbbaf17b`，2026-10-15：
@@ -87,7 +87,7 @@ p42 single/project human/json仅build2 exact，共15唯一目标；各轮原失�
 | fmt / workspace all-target check | 通过；check使用locked/offline |
 | frontend+CLI all-target clippy / CLI build | 通过；locked/offline，clippy禁止warnings |
 | 历史工程失败 | 初次fmt排版失败；v3 clippy固定空prefix日志失败，build当轮未跑；机械修后最终4项均重跑 |
-| 未运行 | native正向/资源产物、远端双宿主CI；不宣称v0.44其他A/C/D/E/F完成 |
+| 当时未运行 | native正向/资源产物、远端双宿主CI；后续普通native补验见§5 |
 
 仓外最终收据 `spec0325-evidence/final15-v4-receipt.json` 与 `engineering-v4-receipt.json`；
 所有旧红、oracle错误、原main观测分别保留，未覆盖。源码输入可按上述固定提交与exact名单重现。
@@ -98,3 +98,18 @@ CI接线仅核现有配置：stage选final_type_admission/type_checking/multifil
 ownership_closures，core选lang-cli全部测试；本片未改脚本/workflow。PR的crates改动触发
 macos-14/ubuntu-24.04门禁，仍受既有reuse/前置成功/事件条件约束；未把静态接线当作CI通过。
 Guide PR110未合期间只备份stacked分支，publisher按远端映射保留父链，再单独交付本Spec。
+
+## 5. 普通 native 补验与统一本地结果
+
+固定 `d0ea63aba21a1fff89174c8264884783c108b9bf` / tree
+`068357d6b03bfe9d970b44c581f5159245a784a3`，2026-10-15 同 head 统一重跑：
+原15加 `single_local_assignment_unit_value_executes`、
+`project_local_assignment_unit_value_executes`，共17唯一exact各1命中通过，36输入SHA前后一致。
+两新增用例分别位于 native_cli/project_cli 的 final_type_admission 模块；普通Int局部var
+赋值作为Unit值，分别build一次并运行一次；断言exit0、stdout为 `assigned\n`、stderr空。
+子进程结果由测试断言验证，raw保留libtest结果，没有另导出的子进程逐项日志。
+同head fmt、workspace all-target check、frontend+CLI all-target clippy和CLI build四门禁均通过；
+后3项locked/offline，clippy禁止warnings。独立native2与原15阶段收据保留，未改写原失败。
+统一仓外收据为 `spec0325-evidence/final17-receipt.json` 与 `engineering-final17-receipt.json`。
+本片已具备上述有限本地验收；仍待远端双宿主CI与主干交付，Spec保持active。
+普通Int赋值成功不外推nullable/资源值native能力，也不声称其他v0.44片完成。
