@@ -55,3 +55,7 @@ consume 不由这些证据自动启用，0292 仍须独立满足规范和实施�
 [普通unit字段赋值与single nullable Resource工厂](../../../architecture/lowering-support.md#现存入口差异)
 各自保留独立后继：字段更新须验证旧owner恰一次清理；工厂须验证nullable返回映射/ABI与
 恰一次清理。它们尚未选定Goal或编号，不并入0296，也不因本次文档归整获得实现验收。
+
+## Preview 外部宿主工程候选
+
+- [0322 libxml2 有界兼容性](0322-preview-libxml2-host-compatibility.md)：先独立 CI 真实只读取证；兼容判定待来源和符号合同审阅，不改变 Guide。

@@ -316,6 +316,7 @@ subgraph Garchive["已完成（archive，304 份）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
+  S0322["S0322<br/>Preview 外部 libxml2 有界宿主兼容性"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
@@ -1293,6 +1294,7 @@ S0268 --> S0271
 S0268 --> S0272
 S0268 --> S0274
 S0270 --> S0273
+S0272 --> S0322
 S0274 --> S0275
 S0274 --> S0295
 S0275 --> S0276
@@ -1671,3 +1673,4 @@ S0319 --> S0320
 | SPEC-0320 | archive | [0320-enum-case-borrow-categories.md](0320-enum-case-borrow-categories.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
+| SPEC-0322 | drafts/v0.43 | [0322-preview-libxml2-host-compatibility.md](../../specs/drafts/v0.43/0322-preview-libxml2-host-compatibility.md) |
