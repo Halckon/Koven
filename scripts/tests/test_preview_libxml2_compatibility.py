@@ -242,6 +242,22 @@ class Libxml2CompatibilityTests(unittest.TestCase):
                     pair[side]['libxml2_policy']['definitions'][0]['binding'] = 'WEAK'
                 self.assert_rejected(*pair)
 
+    def test_matching_duplicate_symbol_indices_and_conflicting_versions_are_rejected(self):
+        for field in ('requirements', 'definitions'):
+            for key in ('symbol_index', 'version_index'):
+                pair = [copy.deepcopy(self.producer), copy.deepcopy(self.consumer)]
+                for host in pair:
+                    policy = host['libxml2_policy']
+                    rows = policy['requesters'][0]['requirements'] if field == 'requirements' else policy[field]
+                    if key == 'symbol_index':
+                        rows[1][key] = rows[0][key]
+                    else:
+                        # Force LIBXML2_2.6.0 to reuse the 2.4.30 index on both sides.
+                        other = next(row for row in rows if row['version'] != rows[0]['version'])
+                        other[key] = rows[0][key]
+                with self.subTest(field=field, key=key):
+                    self.assert_rejected(*pair)
+
     def test_missing_and_wrongly_typed_policy_fields_fail_closed(self):
         for field in ('package', 'file_md5', 'apt_environment', 'elf', 'requesters',
                       'definitions', 'unversioned_imports', 'exported_names'):

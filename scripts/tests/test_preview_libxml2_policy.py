@@ -103,7 +103,8 @@ class Libxml2PolicyTests(unittest.TestCase):
                versions().replace('Cnt: 1', 'Cnt: 2'),
                versions().replace('2 (LIBXML2_2.4.30)', '2 (OTHER)'),
                versions() + ' 0x0020: Name: OTHER Flags: none Version: 2\n',
-               versions().split('Version needs section')[0], 'No version information found in this file.\n']
+               versions().split('Version needs section')[0], 'No version information found in this file.\n',
+               versions().replace('.gnu.version_r', '.unknown')]
         for text in bad:
             with self.subTest(text=text):
                 with self.assertRaises(ValueError):
@@ -111,6 +112,19 @@ class Libxml2PolicyTests(unittest.TestCase):
         rows = self.host._elf_symbols(symbols())
         self.host._elf_versions(versions().replace('2 (LIBXML', '2h (LIBXML'), rows)
         self.assertTrue(rows[1]['version_hidden'])
+
+    def test_empty_mixed_or_duplicate_no_info_output_is_rejected(self):
+        no_info = 'No version information found in this file.\n'
+        for text in ('', '  \n', no_info + no_info, no_info + versions()):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):
+                    self.host._elf_versions(text, self.host._elf_symbols(symbols(version=False)))
+
+    def test_versioned_undefined_cannot_use_a_definition_or_omit_version_name(self):
+        with self.assertRaises(ValueError):
+            self.host._elf_versions(versions(True), self.host._elf_symbols(symbols()))
+        with self.assertRaises(ValueError):
+            self.host._elf_versions(versions(), self.host._elf_symbols(symbols(version=False)))
 
     def test_reusing_one_version_index_for_multiple_symbols_is_valid(self):
         table = symbols().replace('contains 2', 'contains 3') + (
@@ -205,6 +219,27 @@ class Libxml2PolicyTests(unittest.TestCase):
                 self.assertIsNone(policy)
                 self.assertTrue(evidence['libxml2_policy']['errors'])
                 self.assertEqual(len(calls), fail_at + 1)
+
+    def test_copy_relocation_and_special_required_definition_are_rejected(self):
+        for target, replacement in ((LLVM, ('DEFAULT UND xmlFree', 'DEFAULT 12 xmlFree')),
+                                    (XML, ('DEFAULT 12 xmlFree', 'DEFAULT ABS xmlFree'))):
+            def reply(args, records):
+                text = self.reply(args, records)
+                if args[-2:] == ['--dyn-syms', target]:
+                    return text.replace(*replacement)
+                return text
+            with self.subTest(target=target):
+                policy, evidence = self.collect(reply)
+                self.assertIsNone(policy)
+                self.assertTrue(evidence['libxml2_policy']['errors'])
+
+    def test_library_changing_after_elf_probes_cannot_grant_policy(self):
+        libraries, distro = self.fixture()
+        with mock.patch.object(self.host, '_diagnostic_probe', side_effect=self.reply), \
+                mock.patch.object(self.host.Path, 'read_bytes', side_effect=[CONTENT, CONTENT, b'changed']):
+            evidence = {}
+            self.assertIsNone(self.host._collect_libxml2_policy(BINARY, libraries, distro, evidence))
+        self.assertIn('after ELF inspection', evidence['libxml2_policy']['errors'][0])
 
     def test_duplicate_owner_checksum_and_changed_disk_are_rejected(self):
         for kind in ('owner', 'checksum', 'disk'):
