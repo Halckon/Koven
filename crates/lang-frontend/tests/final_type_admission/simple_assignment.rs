@@ -349,15 +349,22 @@ fn field_assignment_retains_existing_entry_difference() {
 
 #[test]
 fn readonly_variable_assignments_remain_ownership_errors() {
-    for text in [
-        "fun test(): Unit { val number = 1; number = 2 }",
-        "fun test(number: Int): Unit { number = 2 }",
+    for (text, shared_parameter) in [
+        ("fun test(): Unit { val number = 1; number = 2 }", false),
+        ("fun test(own number: Int): Unit { number = 2 }", false),
+        ("fun test(number: Int): Unit { number = 2 }", true),
     ] {
         for entry in observe(text) {
             assert_unit_assignment(&entry, "number = 2");
             let diagnostics = entry.ownership.as_ref().unwrap();
             assert_eq!(diagnostics.len(), 1, "{entry:?}");
-            assert_eq!(diagnostics[0].code().to_string(), "L0134");
+            // Preserve the pre-existing single shared-parameter loan priority.
+            let code = if shared_parameter && entry.mode == "single" {
+                "L0135"
+            } else {
+                "L0134"
+            };
+            assert_eq!(diagnostics[0].code().to_string(), code);
             let start = text.rfind("number").unwrap();
             let span = diagnostics[0].primary_span();
             assert_eq!((span.start(), span.end()), (start, start + "number".len()));
