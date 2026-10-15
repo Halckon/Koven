@@ -238,10 +238,12 @@ control_element = block_element ;
 - `while`、`for`、`loop` 是 statement，不进入 Pratt 运算符表；三者 body 都必须是普通
   `{ ... }` block，缺 body 使用 L0060。`while` 条件与 `for` source 只解析表达式，类型约束
   留给 Phase 2。
-- `for` 接受一个名称或完整解构 binding，单名称 `_` 与解构中的 `_` 均为 discard。缺 binding
+- `for` 语法接受一个名称或完整解构 binding，单名称 `_` 与解构中的 `_` 保留为 discard。缺 binding
   用 L0061，缺 `in` 用 L0062。Parser 保留源码顺序和完整 marker，只保存 source、binding 与 body。
   provider、Borrow binding 和借用式 value-class projection 由
-  [顺序迭代规则](12-collections-destructuring.md#37-借用式顺序容器迭代-provider)定义；
+  [顺序迭代规则](12-collections-destructuring.md#37-借用式顺序容器迭代-provider)及
+  [Range/Map 独立合同](12-collections-destructuring.md#整数-range-与-map-的独立迭代合同)定义；
+  binding/discard 的实际接纳由各 provider 限定，Map 不接受 `_`；
   不新增 call/member AST，不按 `iterator()` / `hasNext()` / `next()` 拼写猜测协议。
   `for_binding` 不增加 `borrow`、`own`、`&` 或 consuming marker。
 - `break` / `continue` 只允许控制最近的词法 enclosing loop；不得越过 lambda 或具名函数
@@ -353,7 +355,8 @@ AST 形状提前伪造结论。
   禁止用它推断上下文。
 - if/when 的 value-context 分支先接受外部 expected type，不匹配使用 L0084。无 expected
   type 时按源码顺序作封闭 join：相同规范化类型保持；Nothing 与另一类型取另一侧；
-  null 的 Nothing? 与 T 合成 T?；T 与 T? 取 T?；同一 enum 实例的 case/root 合并为该 root。
+  null 的 Nothing? 与非 nullable T 合成 T?，与已 nullable 类型合并时保持该类型，不产生
+  嵌套 nullable；T 与 T? 取 T?；同一 enum 实例的 case/root 合并为该 root。
   nullable 提升沿既有 assignability，不做数值 widening、泛型协变或隐式 Any 装箱。
   其余已知类型拒绝：if 保留 L0089，when 保留 L0112；Error 抑制同根级联，Deferred
   保留原 reason 且不参与成功判定。全部可达分支均不正常返回时结果为 Nothing。
