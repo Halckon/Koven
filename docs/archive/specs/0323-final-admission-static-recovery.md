@@ -1,19 +1,19 @@
 # SPEC-0323: 最终类型准入的静态非值角色与失败调用恢复
 
-> **性质**：有界诊断修复 · **状态**：in-progress · **读取时机**：审查最终准入静态角色与恢复根因时 · **唯一真源**：本合同；不改变现行Guide
+> **性质**：有界诊断修复 · **状态**：done · **读取时机**：审查最终准入静态角色与恢复根因时 · **唯一真源**：本合同；不改变现行Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0323` |
 | 所属 Phase | Phase 2最终类型准入；保持先于Phase 3 ownership |
 | 语言规范 | [名称身份](../../guide/02-names-files-packages.md)、[类型规则](../../guide/03-types-generics.md) |
 | 批准依据 | 用户2026-10-15要求检查并解决增量review问题；首轮tests-only已独审/获准执行并采红；据此准入最小生产patch准备，固定diff独审后才重跑 |
 | 基线 | actual main `3104baa47845a9ec738c06aa60cf61f5d1a3772e` / tree `64ebc102c8237f74f87db8311b14949b9c7b0105`；独立`fix/spec-0323`，不混std规划 |
-| 前置 Spec | [0319最终类型准入](../../archive/specs/0319-final-type-admission-diagnostics.md) |
+| 前置 Spec | [0319最终类型准入](0319-final-type-admission-diagnostics.md) |
 | 编号 | 本基线最大0322；官方分支只读核查未见0323/0324；官方开放PR检索仅见103/64，未占0323；本片登记0323 |
 | 语言语义变更 | 否 |
-| 阻塞项 | 本地15 exact与4工程门禁已通过；PR双宿主CI、有限归档与合并待完成 |
+| 阻塞项 | 实现head双宿主CI与有限验收已通过；归档head CI及正常合并/main交付待核 |
 
 ## 1. Goal与报告边界
 
@@ -71,7 +71,7 @@ lex/parse/name/raw type/complete API构造真实分析，不改facts/IR，不进
 - [x] 首轮tests/helper/argv独审及六exact运行授权。
 - [x] 固定tests-only真实红与既有绿分账，收紧确定根因code/Span。
 - [x] 最小生产独立提交与审查，原精确目标和受影响普通控制回归。
-- [ ] 按适用入口补足CLI/constant证据，工程门禁、双宿主CI与有限归档。
+- [x] 按适用入口补足CLI/含const前置诊断证据，工程门禁、双宿主CI与有限归档。
 
 若需要放宽全部静态类型名、抹除value Error、改变语言支持或 ownership 顺序，停止并请求独立决定。
 本草案不是整份review闭合，也不把未运行项、后端旧拒绝或外部报告当作本分支通过。
@@ -150,3 +150,17 @@ CI静态接线已核：`crates/**`命中Rust changes，双宿主Targeted Tests�
 全部集成targets，覆盖新八frontend与三CLI。尚未触发本分支远端CI，不把接线当执行通过；
 本地未运行这些聚合脚本。仍待远端CI、有限归档及正常合并；p25/p42推断、L0165措辞和整份review
 其余能力不由本片宣称闭合。
+
+## 10. 实现head CI与有限归档
+
+用户已批准本片归档及正常合并。PR108实现head
+`f71a23a92837622531b336e40213c3f6e2887d80` / tree `b61b5552b00145ea185546bb9b7a5c8b257a3cec`
+通过[CI 38714525342/a1](https://github.com/Halckon/Koven/actions/runs/38714525342/attempts/1)：
+15个job实际success、Tree-sitter范围skip，reuse=false；Linux/macOS均逐项核验本地清单15个
+exact实际各1命中通过。synthetic merge为`8c8c7a20c4d148a4f6a642dff2a1dc7bb971a7b2`，
+基线main3104。独立summary SHA256为`df18748d3118e7d24788448f4821e9412ac494cbbb27d2a610fa581bb554a40e`；
+原始日志仓外保留，不计skip为实际执行，也不把此实现head证据冒称归档head已实跑。
+
+本次仅关闭静态非值角色恢复导致的Internal及原诊断丢失；companion/Result传播的原生能力、
+p25/p42推断合同和整份review/v1均未因此完成。保留§5–9真实红、控制helper假设修正、独立观察
+与clippy失败记录。归档提交直接继承实际PR head；归档head CI、正常合并及main交付仍须另核。
