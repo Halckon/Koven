@@ -41,7 +41,7 @@ fun main(): Unit {
 初始设计时本片尚未执行probe、测试或构建；后续真实首失败与修复结果见§7–9，未获得的具体verifier错误及Span不作推断。
 “String元素追加”指`MutableList<String>.add`，不是String拼接或字符串append API。
 
-## 3. 静态根因候选
+## 3. 修复前基线的静态根因候选
 
 - [single lower](../../../crates/lang-codegen/src/ssa/lower_frontend.rs)按Temporary+MoveOnly登记`temporaries`；Group可为相同ValueId保留多个表达式key。
 - [single append](../../../crates/lang-codegen/src/ssa/lower_frontend/container/access.rs)仅取receiver/element、发`ContainerAppend`、更新list binding及消费drop；没有移除已交付element的binding/temporary。
@@ -58,7 +58,7 @@ fun main(): Unit {
 | 空列表、零/单/多次追加 | 既有容器语义；空列表与Copyable作为不误伤控制，不宣称已有single组合验收 |
 | Copyable named元素 | 必须保持交付后原binding可用；旧single SSA测试仅Int追加无for |
 | String literal/Group、MoveOnly named root | 同一已交付owner的temporary/绑定两种来源，纳入精确身份验证；真实三入口结果见§7–9 |
-| Resource构造值与named root | 原unit native已验证追加后逆序deinit，无后继for；本片仅用已有合法class/deinit形状比较single/unit，普通stdout验证恰一次，不引入仪器 |
+| Resource构造值与named root | 原unit native已验证追加后逆序deinit，无后继for；仅作为已有合法class/deinit普通stdout对照候选；未纳入最终矩阵，不宣称本片已验证deinit |
 | 正常耗尽 | 原p38核心；容器按既有ASAP点清理，元素由容器拥有 |
 | 既有无条件break/continue/return | 候选有界回归，先独立核源码前置与既有支持，再锁具体fixture；不能据此启用任意出口组合 |
 | 条件/嵌套出口、复杂元素实参控制流 | 非目标；若需扩source-presence、CFG或提前退出合同，停止并独立报告 |
@@ -107,7 +107,7 @@ CLI三个目标独立记录原p38的build/run/普通artifact，constant marker�
 
 ## 7. 真实基线账本
 
-2026-10-15固定HEAD `1a0ecab44dbd99b65891b8f87211a20ed284f674` / tree
+2026-10-14固定HEAD `1a0ecab44dbd99b65891b8f87211a20ed284f674` / tree
 `ff861004984e4571ff481e76eb0111c7ded823d0`；正常双父为tests-only `ad53006d`与actual main
 `7c348e70`。Linux Rust1.96.0 / LLVM21.1.8，9个上述exact各实际命中1条，串行使用
 `cargo test --locked --offline -p PACKAGE TARGET EXACT -- --exact --nocapture --test-threads=1`。
@@ -133,7 +133,7 @@ CLI三个目标独立记录原p38的build/run/普通artifact，constant marker�
 retained声明、append和读取，块结束再for；parser已有Block statement、single已有
 AfterStatement drop消费入口，不增加功能。该词法块候选在`6753d2ad`经独审/逐名批准执行，single前端与operand身份通过后报
 `InvalidSsa`、Span None，两unit SSA/LLVM通过，exact实际1命中。它避开独立Unsupported门，
-保留预期成功红；不改写前两版结果。后续只批准最小append交付登记生产修复，尚未验证修复结果。
+保留预期成功红；不改写前两版结果。该检查点随后批准最小append交付登记生产修复；后续验证见§8–9。
 
 ## 8. 最小修复与固定回归
 
