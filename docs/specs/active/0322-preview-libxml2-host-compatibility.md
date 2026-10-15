@@ -271,3 +271,17 @@ compare_hosts断言失败，无API缺失/导入错误；新增13项为10通过/3
 补充CI-only协议矩阵含完整合成版本表、真实已见十六进制size/无0x首offset词法、合法缺省表、
 单对象索引冲突、每个probe失败、两侧同步无效policy、第N命令失败与cleanup失败传播。
 这些新增测试尚未运行；云端仅AST/docs/diff静态检查，不以合成完整表代替真实闭包读取。
+
+## 14. 首次实现CI的真实header拒绝与最小修复
+
+[CI 38675369744 attempt 1](https://github.com/Halckon/Koven/actions/runs/38675369744/attempts/1)
+使用发布head `15ed9483982ac424eb15ff5b12b2e930afc3cac2`，结果failure。Linux两侧各60个
+policy probes成功，但正常GNU ELF header有两个语义不同的Version字段（`1 (current)` 与
+`0x1`），解析器把第二个当重复键拒绝；两侧policy未生成，consumer命令0条，严格门禁未放宽。
+本轮真实包修订为producer `.10`、consumer `.9`；macOS独立consumer12条与cleanup/sentinel通过。
+
+修复仅对Version接受上述精确有序对，其余重复字段和不支持架构继续拒绝。CI-only回归复用
+已保留的完整真实header文本（首轮probe24，与本轮两侧probe59字节相同，SHA256
+`ae8b8f05034fa46aac15bfb109245147ffa9fe5a1551ef927b963f937526e3f3`），补缺失/错值/反序/
+多Version、重复Class/Machine反控。新修复基于实际已发布15ed后继，不再次合并等树映射历史。
+尚未运行新回归；新CI仍须验证policy真实生成、完整闭包以及12条命令/清理，不覆盖本次失败。

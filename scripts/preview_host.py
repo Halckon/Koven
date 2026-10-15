@@ -431,13 +431,21 @@ def _elf_dynamic(text):
 
 def _elf_header(text):
     fields = {}
+    versions = []
     for line in text.splitlines():
         if line.strip() == 'ELF Header:' or not line.strip():
             continue
         key, separator, value = line.strip().partition(':')
-        if not separator or key in fields:
+        if not separator:
+            raise ValueError('invalid ELF header')
+        if key == 'Version':
+            versions.append(value.strip())
+            continue
+        if key in fields:
             raise ValueError('invalid ELF header')
         fields[key] = value.strip()
+    if versions != ['1 (current)', '0x1']:
+        raise ValueError('unsupported ELF identification/header versions')
     if (fields.get('Class'), fields.get('Data'), fields.get('Machine')) != (
             'ELF64', "2's complement, little endian", 'Advanced Micro Devices X86-64'):
         raise ValueError('unsupported libxml ELF architecture')
