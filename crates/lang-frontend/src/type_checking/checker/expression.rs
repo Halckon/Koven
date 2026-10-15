@@ -222,6 +222,10 @@ impl Checker<'_> {
                     self.check_container_assignment(target, operator, operator_span, value)?
                 {
                     result
+                } else if let Some(result) =
+                    self.check_variable_assignment(target, operator, value)?
+                {
+                    result
                 } else {
                     self.check_expression(target, None, None)?;
                     self.check_expression(value, None, None)?;
