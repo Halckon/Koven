@@ -9,11 +9,11 @@
 | 所属 Phase | Phase 4 消费既有 Phase 3 Value delivery；Phase 6 两入口对照 |
 | 语言规范 | [集合元素交付](../../guide/12-collections-destructuring.md)、[String owner](../../guide/13-program-runtime-standard-library.md#string)、[所有权](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 原A→B→C顺序中的C“List MoveOnly追踪”；2026-10-14草案独审通过，批准迁active及tests-only准备；未批准生产实现或测试执行 |
-| 前置 Spec | [SPEC-0320 Enum case Borrow分类](0320-enum-case-borrow-categories.md)，当前未合main；本片不得混入其PR102 |
-| 分支基线 | `fix/spec-0321`依赖0320本地最终`da03e0f84f6f3fdd2d4a3572117a511dfa8ce608` / tree`f0abc5e03035f9911a26fa44a026bfc281c25f92`；远端0320`7a305bd7bcead62921827ca8a24eba5fed8504ef`同tree，尚未主干交付 |
+| 前置 Spec | [SPEC-0320 Enum case Borrow分类](../../archive/specs/0320-enum-case-borrow-categories.md)，已由PR102合入actual main `7c348e704ecd3595fa17ce4b08a2734d7d966e80`；本片独立交付 |
+| 分支基线 | `fix/spec-0321`依赖0320本地最终`da03e0f84f6f3fdd2d4a3572117a511dfa8ce608` / tree`f0abc5e03035f9911a26fa44a026bfc281c25f92`；远端0320`7a305bd7bcead62921827ca8a24eba5fed8504ef`同tree；现正常merge实际main `7c348e704ecd3595fa17ce4b08a2734d7d966e80` / tree `910164ff461374f2c133a7f5ac4d938486c32de4`，保留真实父链 |
 | 官方编号核验 | 2026-10-14官方main`a0f5f8ac`全树最大0319；上述0320完整树最大0320；93分支及2个开放PR未见更新编号，保留0321；实施前重核并正常同步实际main |
 | 语言语义变更 | 否；add已取得Value元素，Copyable复制、MoveOnly转移；不能放宽verifier或新增循环能力 |
-| 阻塞项 | 设计独审已通过；0320交付/实际main同步、tests-only与helper独审、逐名运行授权及真实红测待完成 |
+| 阻塞项 | 设计独审已通过；0320已交付并正常同步实际main；tests-only与helper新基线独审、逐名运行授权及真实红测待完成 |
 
 ## 1. 单一 Goal
 
@@ -114,5 +114,5 @@ CLI三个目标独立记录原p38的build/run/普通artifact，constant marker�
 - [ ] 只对精确已交付owner作最小修复，普通源码回归及工程门禁。
 - [ ] 独立PR双宿主物理CI、Architecture同步、验收归档及main交付。
 
-0320依赖未合前不宣称main基线已固定；生产、构建、测试和远端CI均未执行。
+0320已合实际main并正常同步；0321新固定基线及runner待独审，生产、构建、测试和本片远端CI均未执行。
 若必须改Guide、放宽verifier、补通用循环能力或改无关容器操作，停止并请求独立决定。

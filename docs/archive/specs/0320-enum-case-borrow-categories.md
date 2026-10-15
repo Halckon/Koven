@@ -1,19 +1,19 @@
 # SPEC-0320: Enum case 构造值的 Borrow 实参分类
 
-> **性质**：有界修复合同 · **状态**：in-progress · **读取时机**：审查 enum case 值与真实 place 的调用期借用分类时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
+> **性质**：有界修复合同 · **状态**：done · **读取时机**：审查 enum case 值与真实 place 的调用期借用分类时 · **唯一真源**：本合同；语言规则仍由现行 Guide 定义
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2P3-0320` |
 | 所属 Phase | Phase 2 expression/call argument category；Phase 3 调用期 loan；Phase 6 两入口结果 |
 | 语言规范 | [构造身份与参数](../../guide/11-copyability-layout-construction.md#可构造目标与唯一身份)、[调用期loan](../../guide/10-ownership-borrowing-drop.md#所有者参数绑定与调用期-loan) |
-| 批准依据 | 2026-10-14 用户批准A诊断封闭→B enum构造实参分类→C List MoveOnly追踪；合同与最小实现独审通过；在实际main正常同步后，按逐名授权完成普通源码本地验证；远端CI仍待 |
-| 前置 Spec | [SPEC-0319](../../archive/specs/0319-final-type-admission-diagnostics.md)；最终类型准入保持，不混入其PR |
+| 批准依据 | 2026-10-14 用户批准A诊断封闭→B enum构造实参分类→C List MoveOnly追踪；合同与最小实现独审通过；在实际main正常同步后，按逐名授权完成普通源码本地验证；实现head双宿主物理CI已通过并有界归档 |
+| 前置 Spec | [SPEC-0319](0319-final-type-admission-diagnostics.md)；最终类型准入保持，不混入其PR |
 | 分支基线 | `fix/spec-0320` 显式依赖0319本地最终 `6c1a11ca87b642849c6ba7c3be008a7aebece759` / tree `e2d1a5179c7102336154570c95cbd6e6774b5799`；初始依赖；随后保留真实双父正常合入0319实际main `a0f5f8ac46a33dc291b814a8bdeae4dae5eed64b` / tree `d28e30ad91e2f02d6bc04cb7ffb0605e8798630b` |
 | 官方核验 | 初次只读fetch main `18865460`时全局最大编号0319，0320按批准保留；本次官方fetch与正常merge确认上述actualmain，未改写已发布历史 |
 | 语言语义变更 | 否；既有Guide已规定无payload case为构造值、Borrow temporary合法、Inout temporary非法 |
-| 阻塞项 | 最小实现与46唯一普通Rust目标、四工程门禁已在固定输入通过；双宿主物理CI、归档与主干交付待完成 |
+| 待交付 | 最小实现、本地46唯一普通Rust目标与四工程门禁、实现head双宿主物理CI已验收；仅关闭本片冻结范围，归档head CI、PR102合并授权及main交付待完成 |
 
 ## 1. 单一 Goal
 
@@ -158,7 +158,7 @@ FE共32组源码分析（28single+32unit）均完成分采；每目标首个断�
 新增FE target显式进入双宿主stage；静态完整选择104→105唯一frontend integration，唯一增量为
 `enum_case_borrow_categories`，Cargo调用仍10。Composition故障/聚合合同只交远端CI，本轮云端未执行；
 脚本进入代码CI指纹，未声称docs-only复用。原始红/观察/绿日志、固定名单与完整argv保留仓外
-`spec0320-tests-evidence/`，本片仍active；本地通过不能替代双宿主新增FE5实际执行与完整CI验收。
+`spec0320-tests-evidence/`；该本地阶段仍active，不能替代双宿主新增FE5实际执行与完整CI验收；远端结果见§9。
 
 ## 8. 状态与停止条件
 
@@ -170,8 +170,22 @@ FE共32组源码分析（28single+32unit）均完成分采；每目标首个断�
 - [x] 真实expected-positive及诊断保护红测，前置final/短名loan根因分账。
 - [x] 最小分类/loan/构造qualifier修复及不误杀、旧oracle迁移和原when边界回归。
 - [x] 本地46唯一普通Rust目标、四工程门禁与Architecture事实同步。
-- [ ] 双宿主物理CI、验收归档及主干交付。
+- [x] 实现head双宿主物理CI与有界验收归档；结果见§9。
+- [ ] 归档head CI、PR102合并授权及实际main交付。
 
 若必须修改Guide、重写通用place解析、放宽所有权或扩展when才能达成目标，停止并报告。
 任何fixture前置失败、已绿对照、未执行后续oracle与真正行为红分账；C保留原“List MoveOnly追踪”授权名，当前待查为p38的`MutableList<String>.add`后`for`临时owner清理，独立于本片，
 不得借本片编号或后端拒例夹入实现。
+
+## 9. 实现head物理CI与有界归档
+
+| 验收项 | 已核结果与来源 |
+|---|---|
+| 实现head身份 | [PR102 CI38605435497/a1](https://github.com/Halckon/Koven/actions/runs/38605435497/attempts/1) 于2026-10-14 17:34 UTC观测completed/success；实际head `7a305bd7bcead62921827ca8a24eba5fed8504ef` / tree `f0abc5e03035f9911a26fa44a026bfc281c25f92`，与本地最终docs head `da03e0f8`同tree；base `a0f5f8ac46a33dc291b814a8bdeae4dae5eed64b`，synthetic `e89be5fd97a929d3a1172fe81bb78221aa6f26ed` |
+| 物理执行 | reuse=false，fingerprint `3fc7146bc7a8a00fbdadea7db228c7437dcdca86444b299d8503d0280bbac52f`；16/16 jobs实际success，无job级skip；双宿主check/clippy、Targeted Tests、双preview producer/独立consumer及汇总均成功 |
+| 新FE5 | macOS job115996460361日志3291–3301、Linux job115996460398日志3404–3417均真实执行`enum_case_borrow_categories`全部5项，5 passed、0 failed/ignored/filtered；五个exact为`cross_file_case_aliases_preserve_source_qualified_identity`、`inout_case_temporaries_keep_l0122_and_mutable_places_stay_valid`、`borrowed_case_values_publish_call_scoped_temporary_loans`、`selected_case_values_are_temporary_but_bindings_and_fields_are_places`、`selected_case_qualifiers_keep_final_admission_precise` |
+| 组合选择与公共行为 | 双宿主实际执行`check_integration.sh`的有界组合及教程；stage自身为103唯一frontend selector/3次Cargo，完整composition另加ownership_iteration及guide_litmus共105唯一frontend selector，含core共10次Cargo；不是stage单独105/10。双宿主词频40次公开命令通过 |
+| CI-only与平台边界 | 双宿主generated resource合同成功；Linux专属sanitizer/校准实际通过，macOS的Linux sanitizer及其证据上传两step按平台skip。16 jobs成功不表示所有条件step都执行；生成/校准/故障设施仅属远端CI，绝不计入本地46普通Rust目标或声称云已执行 |
+| Preview独立交付 | Linux consumer job116002029609日志85行、macOS consumer job116002095282日志108行分别明确`preview install passed`；两宿主producer/consumer产物上传成功 |
+| 固定来源 | 仓外`spec0320-ci-run-38605435497-a1/RECEIPT.md` SHA256 `d2b4eff37486f3fe0463dbf4f51f49aa2b3898e1310a57a085427c86810fffb4`；16原始job日志的`LOGS.sha256`摘要 `762d7360af25c8febd2b612b100c89dd4cf597a091f9b15e429df398cc7ae14f`；未以push run38605373596替代PR证据 |
+| 有界归档与待交付 | 直接从上述实际远端head建立docs-only归档，active1→0、archive303→304，索引/库存/四份DAG同步；代码、测试、Guide字节不变。只关闭本片分类/loan及精确qualifier，不关闭enum when、generic enum native或C的元素交付；归档head CI、[PR102](https://github.com/Halckon/Koven/pull/102)合并授权、实际main CI仍待，不将本实现证据冒充后续head成功 |
