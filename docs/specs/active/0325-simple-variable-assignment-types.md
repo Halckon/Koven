@@ -60,3 +60,7 @@ field真实single complete成功→L0135 receiver，unit complete成功→L0134 
 已在红证后登记 active，最小实现正在独审；native/资源与完整工程门禁尚未运行。
 Guide 发布 PR110 的远端映射 head `e0c447f73ec896d9cc340d5168d1d0e32246f186` 与本地基线同tree；
 其CI与合并另行核验。发布本分支须由唯一publisher按映射保留真实父链，不覆盖Guide分支。
+
+首轮实现 `c4229343` 的8 exact为7通过/1 oracle失败，19输入不变。第7负例真实两入口均
+L0084 98..105，complete原诊断保留；expected mismatch的既有规则将错误读取标Error，
+测试误期Nullable。只修oracle，保留原收据；正例Nullable与ownership空均已实际通过。

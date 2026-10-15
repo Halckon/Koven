@@ -294,7 +294,7 @@ fn nullable_storage_rhs_clears_target_refinement() {
     // A later Int read must not reuse the pre-assignment non-null fact.
     let invalid = "fun test(): Unit { var current: Int? = 1; if (current != null) { current = null; val after: Int = current } }";
     for entry in observe(invalid) {
-        assert_eq!(entry.current_uses.last().unwrap().1, Shape::Nullable, "{entry:?}");
+        assert_eq!(entry.current_uses.last().unwrap().1, Shape::Error, "{entry:?}");
         assert_eq!(entry.raw.len(), 1, "{entry:?}");
         assert_eq!(entry.raw[0].code().to_string(), "L0084");
         let start = invalid.rfind("current").unwrap();
