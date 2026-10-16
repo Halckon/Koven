@@ -268,17 +268,48 @@ fn same_type_and_bottom_branches_keep_exact_result() {
     for root in roots("return 1", "return 2") {
         observations.extend(
             observe_text(
-                &format!("fun test(flag: Boolean): Int {{ val result = {root} }}"),
+                &format!("fun test(flag: Boolean): Int {{ return {root} }}"),
                 &root,
             )
             .into_iter()
             .map(|o| (BuiltinType::Nothing, o)),
         );
     }
+    let declaration_boundary: Vec<_> = roots("return 1", "return 2")
+        .into_iter()
+        .flat_map(|root| {
+            observe_text(
+                &format!("fun test(flag: Boolean): Int {{ val result = {root} }}"),
+                &root,
+            )
+        })
+        .collect();
     for (expected, o) in observations {
         assert_eq!(o.shape, Shape::Builtin(expected), "{} {o:?}", o.mode);
         assert!(o.raw.is_empty(), "{o:?}");
         assert!(o.complete.is_ok(), "{o:?}");
+    }
+    for o in declaration_boundary {
+        assert_eq!(o.shape, Shape::Builtin(BuiltinType::Nothing), "{o:?}");
+        if o.mode == "single" {
+            assert_eq!(
+                o.raw
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0088"],
+                "{o:?}"
+            );
+            assert_eq!(o.primary_text, ["}"]);
+            match o.complete {
+                Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                    assert_eq!(diagnostics, o.raw)
+                }
+                other => panic!("expected tracked declaration-flow gap: {other:?}"),
+            }
+        } else {
+            assert!(o.raw.is_empty() && o.complete.is_ok(), "{o:?}");
+        }
     }
 }
 
@@ -303,6 +334,16 @@ fn null_and_nullable_branches_use_canonical_result() {
             .flat_map(|root| observe(&root))
             .map(|o| (BuiltinType::Nothing, o)),
     );
+    for root in roots("(null)", "2")
+        .into_iter()
+        .chain(roots("{ null }", "2"))
+    {
+        observations.extend(observe(&root).into_iter().map(|o| (BuiltinType::Int, o)));
+    }
+    let unrelated_null: Vec<_> = roots("{ val independent = null; null }", "2")
+        .into_iter()
+        .flat_map(|root| observe(&root))
+        .collect();
     let standalone = observe("null");
     for (expected, o) in observations {
         assert_eq!(
@@ -329,6 +370,35 @@ fn null_and_nullable_branches_use_canonical_result() {
                 assert_eq!(diagnostics, o.raw)
             }
             other => panic!("expected standalone null diagnostic: {other:?}"),
+        }
+    }
+    for o in unrelated_null {
+        assert_eq!(
+            o.shape,
+            Shape::Nullable(Box::new(Shape::Builtin(BuiltinType::Int))),
+            "{o:?}"
+        );
+        assert_eq!(
+            o.raw
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            ["L0083"],
+            "{o:?}"
+        );
+        let independent = o
+            .node_spans
+            .iter()
+            .filter(|(text, _)| text == "null")
+            .map(|(_, span)| *span)
+            .min_by_key(|span| span.start())
+            .expect("independent initializer null");
+        assert_eq!(o.raw[0].primary_span(), independent);
+        match o.complete {
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                assert_eq!(diagnostics, o.raw)
+            }
+            other => panic!("expected independent declaration null rejection: {other:?}"),
         }
     }
 }

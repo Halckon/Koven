@@ -98,3 +98,19 @@ ErrorPropagation，但single if变ControlJoin，unit if及两when与Int合并误
 最终8项tests-only补齐不同enum/List实例、全Nothing/return、null/null及独立null反例、
 显式expected的return/实参、无expected lambda尾值、smart-cast enum case/root双序；
 Deferred源span多重集与唯一L0112自身label精确对比。统一8项仍待审后重跑，生产零改。
+
+
+统一 `06d7287d` 的8项各1命中，13输入不变：7红1绿；expected含return/实参仍绿。
+旧same/Nothing控制新增声明内return后触发独立single L0088，根型两入口已Nothing；
+statement旧控制仍绿，新无expected lambda尾when暴露Any。原收据
+`spec0326-evidence/final8-red-receipt.json`保留，不把总数变化误称所有旧控制回退。
+
+## 5. 已认领的后继终止性待办
+
+本Spec作者继续跟踪“变量初始化终止性传递”后继，排序由root协调，未将其计入A已完成。
+真实最小源码：`fun test(flag: Boolean): Int { val result = if (flag) return 1 else return 2 }`；
+when同形亦然。`06d7287d`下控制根两侧Nothing，single函数结尾L0088、unit完整成功。
+静态入口是single `checker/item.rs` 的变量检查与Statement::Declaration返回路径。
+此处应按语言合同终止，现L0088是已确认实现缺口，不是合法规范拒绝；本片不改其生产。
+回归保留两入口现差异；A的正向全Nothing另用显式return语境，不经该声明路径。
+因此A不会宣称所有不返回控制流已完全一致。后继另Spec认领前由本节保留源码/诊断责任。
