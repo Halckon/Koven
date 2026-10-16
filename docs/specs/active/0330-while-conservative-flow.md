@@ -130,3 +130,33 @@ nullable 构造局部在两入口各拒绝，参数来源转局部再赋 null �
 同 head 复验：完整 nullable continue 的 unit 越过赋值 MissingFact 到 InvalidSsa，
 其余停点不变；新增 InvalidSsa 尚待具体错误确认，不直接断言与旧 proof 错误同根。
 收据 SHA `c573f945ce37bc2acd5921d7de7e943a09652fb0aeea5f20b88ae9e3ed858542`。
+## 9. 有限 enum is 与 nullable direct-local 补片
+
+两入口 ordinary enum TypeTest 仅以当前真实 TypeRef/case/root 实例和登记 tagged identity
+比较 discriminator；when 的现有 tag 发射抽为私有 helper。末次 named owner 读取先读取
+tag 再执行原 operand/Group cleanup；缺少既有 temporary cleanup 的 MoveOnly 临时仍拒绝。
+Single nullable-local 需求仅来自本函数真实 owned direct-construction plan，并按实际
+Variable storage 与当前 substitutions 走既有 mapper；未扩 factory/null/if initializer。
+
+首轮 `4202e0ab` 的四个 exact 各 1 命中：原 enum while 两源码双入口进入 LLVM；
+nullable while 四入口仍 InvalidSsa。新增 String-payload enum 末次读取 single 四项成功，
+unit 因普通 TypeTest 未触发内部 Int tag 类型登记而 MissingFact；`02931cef` 单独补齐
+真实 EnumCase TypeRef 的既有 Int/Boolean 登记。原始红证完整保留。
+
+同源旧 `f85ac8cf` baseline 证明 `val _ = Holder(42)` 两入口原有 MissingFact，primary
+为下划线：single 53..54/unit 63..64。静态链为 Named(_) AfterStatement drop 与 lowering
+不保留 discard binding 的既有不一致；它是待后续 ownership/lowering cleanup 片处理的
+明确缺口，不由本片扩修，且不把该拒绝写成规范要求。direct-local 对照保留精确旧边界。
+
+切换 baseline 与主 worktree 后共享 Cargo target 曾复用旧测试二进制，新增 exact
+实际 0 命中被 runner 拦截；该轮四项均作废，仅记 harness 失败，不计代码行为红。
+经授权保持源码 SHA 不变触发当前 crate 重编后，以新目录重新采证。后续跨 worktree
+优先隔离 target，不能仅靠库路径或源码 SHA 推断测试产物身份。
+
+旧基线收据 SHA `24658d6132ba3b63be7fcc074609471b0a9be08a9de8af396d4857c88664b572`。
+当前 crate 实际重编后的 `02931cef` 同四项收据 SHA
+`3ada84f31c712307b872c3b46cbcdec2c1447dab28290be72b32cbfcbbafe2df`：
+末次 enum Read 八入口全部进入 verified SSA/LLVM；direct-local 前三源码六入口全部通过，
+discard 两入口仍原 MissingFact；完整 while 四个 nullable 入口仍待 true-edge proof。
+这一阶段不计 native 或完整 C 完成。后续 tests-only 将 discard 作为已证旧边界锁定，
+另加强真实 tag owner 的唯一 Drop 与指令顺序，不将已知拒绝当规范正例。

@@ -155,6 +155,7 @@ fn enum_type_tests_preserve_last_use_cleanup_for_owned_roots() {
         .map(|(index, result)| {
             let result = result.and_then(|program| {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                verify_last_enum_read_precedes_drop(&program)?;
                 let llvm = crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 println!("ENUM LAST USE LLVM case={index} {llvm}");
@@ -208,7 +209,72 @@ fun entry(): Unit { val _ = Holder(42) }"#,
             result
         })
         .collect::<Vec<_>>();
-    for result in outcomes {
-        result.expect("direct nullable storage and reachability controls lower normally");
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if index < 6 {
+            result.expect("direct nullable storage and reachability controls lower normally");
+        } else {
+            // The original f85 baseline has the same discard-owner cleanup gap.
+            let start = if index == 6 { 53 } else { 63 };
+            assert_eq!(
+                result,
+                Err(format!(
+                    "lower: LoweringError {{ kind: MissingFact, span: Some(Span {{ source_id: SourceId(0), start: {start}, end: {} }}) }}",
+                    start + 1
+                ))
+            );
+        }
     }
+}
+
+fn verify_last_enum_read_precedes_drop(program: &super::model::Program) -> Result<(), String> {
+    use super::model::Operation;
+    let tests = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .flat_map(|function| {
+            function.instructions.iter().filter_map(move |instruction| {
+                match instruction.operation {
+                    Operation::TaggedDiscriminant { owner } => Some((function, instruction, owner)),
+                    _ => None,
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    if tests.len() != 1 {
+        return Err(format!("expected one actual tag read, got {}", tests.len()));
+    }
+    let (function, tag, owner) = tests[0];
+    let drops = function.instructions.iter().filter(|instruction|
+        matches!(instruction.operation, Operation::Drop { owner: dropped } if dropped == owner)
+    ).collect::<Vec<_>>();
+    if drops.len() != 1 {
+        return Err(format!(
+            "expected one drop of tag owner, got {}",
+            drops.len()
+        ));
+    }
+    let drop = drops[0];
+    if tag.block != drop.block {
+        return Err("tag read and final owner drop must share the straight-line block".to_owned());
+    }
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == tag.block)
+        .ok_or_else(|| "tag block missing".to_owned())?;
+    let tag_position = block
+        .instructions
+        .iter()
+        .position(|id| *id == tag.id)
+        .ok_or_else(|| "tag instruction absent from block".to_owned())?;
+    let drop_position = block
+        .instructions
+        .iter()
+        .position(|id| *id == drop.id)
+        .ok_or_else(|| "drop instruction absent from block".to_owned())?;
+    if tag_position >= drop_position {
+        return Err("owner dropped before discriminator read".to_owned());
+    }
+    Ok(())
 }
