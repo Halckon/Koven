@@ -6,11 +6,12 @@ use lang_frontend::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     parser::parse_file,
-    source::SourceMap,
+    source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, CompilationUnitTypes, FinalTypeAdmissionError, TypeId, TypeKind, TypedFile,
-        UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types,
-        check_types, complete_compilation_unit_types, complete_file_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, DeferredReason, FinalTypeAdmissionError, TypeId,
+        TypeKind, TypedFile, UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
+        check_compilation_unit_types, check_types, complete_compilation_unit_types,
+        complete_file_types, standard_environments,
     },
 };
 
@@ -18,6 +19,7 @@ use lang_frontend::{
 enum Shape {
     Builtin(BuiltinType),
     Nullable(Box<Shape>),
+    Deferred(DeferredReason),
     Other(String),
 }
 
@@ -27,7 +29,7 @@ struct Observation {
     root: String,
     shape: Shape,
     nodes: Vec<(String, Shape)>,
-    labels: Vec<String>,
+    node_spans: Vec<(String, Span)>,
     matches_type_refs: Vec<String>,
     raw: Vec<Diagnostic>,
     primary_text: Vec<String>,
@@ -37,6 +39,7 @@ struct Observation {
 fn single_shape(typed: &TypedFile, id: TypeId) -> Shape {
     match typed.types().get(id).expect("single type") {
         TypeKind::Builtin(kind) => Shape::Builtin(*kind),
+        TypeKind::Deferred(reason) => Shape::Deferred(*reason),
         TypeKind::Nullable(inner) => Shape::Nullable(Box::new(single_shape(typed, *inner))),
         other => Shape::Other(format!("{other:?}")),
     }
@@ -45,6 +48,7 @@ fn single_shape(typed: &TypedFile, id: TypeId) -> Shape {
 fn unit_shape(typed: &CompilationUnitTypes, id: UnitTypeId) -> Shape {
     match typed.types().get(id).expect("unit type") {
         UnitTypeKind::Builtin(kind) => Shape::Builtin(*kind),
+        UnitTypeKind::Deferred(reason) => Shape::Deferred(*reason),
         UnitTypeKind::Nullable(inner) => Shape::Nullable(Box::new(unit_shape(typed, *inner))),
         other => Shape::Other(format!("{other:?}")),
     }
@@ -108,15 +112,11 @@ fn observe_text(text: &str, root: &str) -> Vec<Observation> {
                     .then(|| sources.slice(node.span()).unwrap().to_owned())
             })
             .collect(),
-        labels: raw
+        node_spans: file
+            .ast()
+            .expressions()
             .iter()
-            .flat_map(|d| d.details())
-            .filter_map(|detail| match detail {
-                DiagnosticDetail::Label(label) => {
-                    Some(sources.slice(label.span()).unwrap().to_owned())
-                }
-                _ => None,
-            })
+            .map(|(_, node)| (sources.slice(node.span()).unwrap().to_owned(), node.span()))
             .collect(),
         raw: raw.clone(),
     };
@@ -172,15 +172,11 @@ fn observe_text(text: &str, root: &str) -> Vec<Observation> {
                 .then(|| sources.slice(node.span()).unwrap().to_owned())
             })
             .collect(),
-        labels: raw
+        node_spans: file
+            .ast()
+            .expressions()
             .iter()
-            .flat_map(|d| d.details())
-            .filter_map(|detail| match detail {
-                DiagnosticDetail::Label(label) => {
-                    Some(sources.slice(label.span()).unwrap().to_owned())
-                }
-                _ => None,
-            })
+            .map(|(_, node)| (sources.slice(node.span()).unwrap().to_owned(), node.span()))
             .collect(),
         raw: raw.clone(),
     };
@@ -398,36 +394,65 @@ fn statement_and_value_contexts_remain_distinct() {
 
 #[test]
 fn error_and_deferred_branches_preserve_original_roots() {
-    let deferred: Vec<_> = [
-        ("optional?", "2"),
-        ("2", "optional?"),
-        ("optional?", "error(\"stop\")"),
-    ]
-    .into_iter()
-    .flat_map(|(left, right)| roots(left, right))
-    .flat_map(|root| observe(&root))
-    .collect();
+    let deferred: Vec<_> = [("r?", "2"), ("2", "r?"), ("r?", "error(\"stop\")"), ("error(\"stop\")", "r?"), ("r?", "r?")].into_iter().flat_map(|(left, right)| roots(left, right)).flat_map(|root| {
+        observe_text(&format!("enum class Result<T, E> {{ Ok(success: T), Err(error: E) }}\nfun test(flag: Boolean, r: Result<Int, Int>): Result<Int, Int> {{ val result = {root}; return r }}"), &root)
+    }).collect();
+    let invalid: Vec<_> = roots("optional?", "2")
+        .into_iter()
+        .flat_map(|root| observe(&root))
+        .collect();
     let errors: Vec<_> = roots("1 + true", "2")
         .into_iter()
         .flat_map(|root| observe(&root))
         .collect();
     for o in deferred {
+        let leaves: Vec<_> = o
+            .node_spans
+            .iter()
+            .filter(|(text, _)| text == "r?")
+            .map(|(_, span)| *span)
+            .collect();
+        assert!(!leaves.is_empty());
         assert!(
-            o.nodes.iter().any(|(text, shape)| text == "optional?"
-                && *shape == Shape::Other("Deferred(ErrorPropagation)".to_owned())),
+            o.nodes
+                .iter()
+                .filter(|(text, _)| text == "r?")
+                .all(|(_, shape)| *shape == Shape::Deferred(DeferredReason::ErrorPropagation)),
             "{o:?}"
         );
         assert_eq!(
             o.shape,
-            Shape::Other("Deferred(ErrorPropagation)".to_owned()),
+            Shape::Deferred(DeferredReason::ErrorPropagation),
             "{o:?}"
         );
+        assert!(o.raw.is_empty(), "{o:?}");
         match o.complete {
-            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => assert!(
-                diagnostics.iter().all(|d| d.code().to_string() == "L0165"),
-                "{diagnostics:?}"
-            ),
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                assert_eq!(diagnostics.len(), leaves.len());
+                for d in diagnostics {
+                    assert_eq!(d.code().to_string(), "L0165");
+                    assert!(leaves.contains(&d.primary_span()), "{d:?}");
+                }
+            }
             other => panic!("expected deferred source gate: {other:?}"),
+        }
+    }
+    for o in invalid {
+        assert!(o.raw.is_empty(), "{o:?}");
+        match o.complete {
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                assert_eq!(diagnostics.len(), 1);
+                assert_eq!(diagnostics[0].code().to_string(), "L0085");
+                let leaf = o
+                    .node_spans
+                    .iter()
+                    .find(|(text, _)| text == "optional?")
+                    .expect("invalid leaf")
+                    .1;
+                assert_eq!(diagnostics[0].primary_span().end(), leaf.end());
+                assert_eq!(diagnostics[0].primary_span().len(), 1);
+            }
+            other => panic!("expected illegal operand source diagnostic: {other:?}"),
         }
     }
     for o in errors {
@@ -437,12 +462,6 @@ fn error_and_deferred_branches_preserve_original_roots() {
                 .map(|d| d.code().to_string())
                 .collect::<Vec<_>>(),
             ["L0085"],
-            "{o:?}"
-        );
-        assert!(
-            o.raw
-                .iter()
-                .all(|d| !matches!(d.code().to_string().as_str(), "L0089" | "L0112")),
             "{o:?}"
         );
         match o.complete {
@@ -476,16 +495,28 @@ fn when_conflict_labels_track_actual_participating_branch() {
             .filter(|d| d.code().to_string() == "L0112")
             .collect();
         assert_eq!(joins.len(), 1, "{o:?}");
-        assert!(
-            o.primary_text.iter().any(|text| text == "\"text\""),
-            "{o:?}"
-        );
-        assert!(o.labels.iter().any(|text| text == "1"), "{o:?}");
-        assert!(
-            !o.labels
-                .iter()
-                .any(|text| text == "error(\"stop\")" || text == "1 + true"),
-            "{o:?}"
-        );
+        let expected_primary = o
+            .node_spans
+            .iter()
+            .find(|(text, _)| text == "\"text\"")
+            .expect("conflicting branch")
+            .1;
+        let expected_label = o
+            .node_spans
+            .iter()
+            .filter(|(text, _)| text == "1")
+            .map(|(_, span)| *span)
+            .max_by_key(|span| span.start())
+            .expect("actual prior Int branch");
+        assert_eq!(joins[0].primary_span(), expected_primary);
+        let labels: Vec<_> = joins[0]
+            .details()
+            .iter()
+            .filter_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => Some(label.span()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(labels, [expected_label]);
     }
 }
