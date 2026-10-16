@@ -265,8 +265,16 @@ fn range_construction_membership_and_equality_reach_verified_ssa() {
             sources.push(format!("fun entry(): {range} = {root}"));
         }
     }
+    let mut llvm_results = Vec::new();
     for result in collect_sources(&sources) {
-        verified(result);
+        let program = verified(result);
+        let llvm = crate::llvm::render_verified_program(&program);
+        println!("CORE LLVM {llvm:?}");
+        llvm_results.push(llvm);
+    }
+    assert_eq!(llvm_results.len(), 40);
+    for result in llvm_results {
+        result.expect("ordinary Range operation reaches verified LLVM");
     }
 }
 
@@ -311,27 +319,64 @@ fn range_values_cross_fields_containers_and_consumed_map_results() {
             sources.push(format!("fun entry(a: {integer}, b: {integer}): Boolean {{ var values = mutableMapOf<Int, {range}>(); values.put(1, a..b); val found = values.{operation}(1); return if (found != null) (a in found) else false }}"));
         }
     }
-    for result in collect_sources(&sources) {
-        verified(result);
+    let mut llvm_results = Vec::new();
+    for (index, result) in collect_sources(&sources).into_iter().enumerate() {
+        let source = &sources[index / 2];
+        if source.contains("borrow val item") {
+            let error = result
+                .err()
+                .expect("existing whole-function borrow CFG frontier remains rejected");
+            let start = source.find("a..b").unwrap() + if index % 2 == 1 { 10 } else { 0 };
+            assert_eq!(
+                error,
+                format!(
+                    "lower: LoweringError {{ kind: UnsupportedNode, span: Some(Span {{ source_id: SourceId(0), start: {start}, end: {} }}) }}",
+                    start + 4
+                )
+            );
+        } else {
+            let program = verified(result);
+            let llvm = crate::llvm::render_verified_program(&program);
+            println!("STORAGE LLVM index={index} {llvm:?}");
+            llvm_results.push(llvm);
+        }
+    }
+    assert_eq!(llvm_results.len(), 28);
+    for result in llvm_results {
+        result.expect("ordinary Range storage reaches verified LLVM");
     }
 }
 
 #[test]
-fn observe_copyable_range_require_value_without_borrow_binding() {
+fn range_require_value_preserves_explicit_borrow_contract() {
     let mut sources = [("Int", "IntRange"), ("Long", "LongRange")].map(|(integer, range)| {
         format!("fun entry(a: {integer}, b: {integer}): Boolean {{ var values = mutableMapOf<Int, {range}>(); values.put(1, a..b); val copy = values.requireValue(1); return (a in copy) && values.contains(1) }}")
     }).to_vec();
     for (integer, range, zero) in [("Int", "IntRange", "0"), ("Long", "LongRange", "0L")] {
         sources.push(format!("fun make(a: {integer}, b: {integer}): {range} = a..b\nfun check(value: {range}): Boolean = {zero} in value\nfun entry(a: {integer}, b: {integer}): Unit {{ var values = mutableMapOf<Int, {range}>(); values.put(1, make(a, b)); borrow val item = values.requireValue(1); val copy = item; check(copy); values.contains(1) }}"));
     }
-    // This exact records the actual existing loan-to-Copyable path; it is not a green oracle.
-    for result in collect_sources(&sources) {
-        if let Ok(program) = result {
-            println!("OBSERVED VERIFY {:?}", verify_program(&program));
-            println!(
-                "OBSERVED LLVM {:?}",
-                crate::llvm::render_verified_program(&program)
+    for (index, result) in collect_sources(&sources).into_iter().enumerate() {
+        if index < 4 {
+            let error = result
+                .err()
+                .expect("ordinary val cannot directly bind a borrowed result");
+            assert!(error.starts_with("ownership"), "{error}");
+            assert_eq!(error.matches("code: L0163").count(), 1, "{error}");
+            let source = &sources[index / 2];
+            let start = source.find("values.requireValue(1)").unwrap()
+                + if index % 2 == 1 { 10 } else { 0 };
+            assert!(
+                error.contains(&format!(
+                    "start: {start}, end: {}",
+                    start + "values.requireValue(1)".len()
+                )),
+                "{error}"
             );
+        } else {
+            let program = verified(result);
+            let llvm = crate::llvm::render_verified_program(&program)
+                .expect("explicit borrow and Copyable read reach LLVM");
+            println!("REQUIRE VALUE LLVM {llvm}");
         }
     }
 }
