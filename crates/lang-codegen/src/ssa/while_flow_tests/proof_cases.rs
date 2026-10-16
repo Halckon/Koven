@@ -556,15 +556,35 @@ return number + 1
     let compound =
         "fun entry(own number: Int): Int { var value = 0; value += number; return value + number }"
             .to_owned();
-    observe(
-        "root-assignment-delivery",
-        &[
-            (string, false),
-            (moved, false),
-            (nullable, false),
-            (grouped, false),
-            (copied, false),
-            (compound, false),
-        ],
+    let sources = [string, moved, nullable, grouped, copied, compound];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(())
+            });
+            println!(
+                "ASSIGNMENT OUTCOME source={} unit={} {result:?}",
+                index / 2,
+                index % 2 == 1
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 12);
+    // Unit compound assignment is a pre-existing frontend Deferred boundary.
+    let error = outcomes[11]
+        .as_ref()
+        .expect_err("retain the observed compound boundary");
+    assert_eq!(
+        error,
+        "complete: Diagnostics([Diagnostic { severity: Error, code: L0165, message: DiagnosticText(\"type checking could not complete: assignment type checking is unresolved\"), primary_span: Span { source_id: SourceId(0), start: 59, end: 74 }, details: [] }])"
     );
+    for result in outcomes.into_iter().take(11) {
+        result.expect("owned assignment delivery and Copyable controls reach LLVM");
+    }
 }
