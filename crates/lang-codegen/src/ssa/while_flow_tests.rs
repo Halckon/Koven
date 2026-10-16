@@ -284,10 +284,8 @@ mod proof_cases;
 
 #[test]
 fn bounded_while_fixture_reaches_verified_llvm_before_native() {
-    let source = format!(
-        "{}\nfun entry(): Unit {{ main() }}",
-        include_str!("../../../lang-cli/tests/fixtures/while-flow-0330/success.ko")
-    );
+    let source =
+        include_str!("../../../lang-cli/tests/fixtures/while-flow-0330/success.ko").to_owned();
     let outcomes = collect_sources(&[source])
         .into_iter()
         .enumerate()
