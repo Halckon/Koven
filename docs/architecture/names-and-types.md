@@ -30,12 +30,12 @@ final仅沿已选case的静态qualifier准入；无descriptor的零payload推导
 
 ## 顺序迭代类型计划
 `TypedFile::sequential_iterations` / `sequential_iteration` 按 StatementId 发布 intrinsic
-Array/List/MutableList provider、唯一 source 表达式、container/element 类型及 Borrow delivery。
+Array/List/MutableList provider 交付 Borrow；NumericRange 按 IntRange/LongRange 身份交付 Int/Long Value。
 名称 binding 获得 element 类型，discard 不创建 symbol；value-class 解构按字段声明顺序替换
 泛型参数，保留 discard 分量位置。该 projection 独立于局部 owned destructuring。
 计划参与 callable trial 快照；错误输入与最终后置约束失败不发布计划。
 unit 同名查询以 `UnitStatementId` 发布跨文件 provider/binding/projection，body 前精确化类型，
-trial 回滚与错误原子性一致；ownership/native已消费计划，支持边界见[unit事实](finite-sequential-iteration.md#compilation-unit-前端事实)。
+trial 回滚与错误原子性一致；借用与数值 provider 的不同实施阶段见[迭代事实](finite-sequential-iteration.md)。
 
 ## 单文件常量类型资格
 

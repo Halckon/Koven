@@ -101,3 +101,10 @@ EndSource 及 for primary span，并追加旧 Borrow provider 的普通共享回
 新增四项仅验证旧 typed/ownership 借用计划及清理事实，不替代 final admission 或 native。
 同 head fmt/check 通过；clippy 在 single validator 的等价布尔表达式触发 nonminimal_bool，
 build 因遇错停未运行。保留失败，机械化简后同名单与四工程重新验收。
+
+`147d1ba3` / tree `945cf016` 同 10 exact 再次各 1 通过，63 输入每轮前后同；
+最终阶段收据 SHA `850b35cd00697eaff93c40d685d8a160990f922d707c65e985cfcedab1d84af0`。
+同 head fmt、workspace/all-targets check、frontend/codegen/cli clippy、CLI build 全部通过；
+actual-main `3fa567aa` size 0 errors，docs 700 通过。synthetic 仅编译，未本地执行。
+阶段 backup 基线为 local `ef756580` 对应真实 remote `2987218d`；仍 active，等待数值 CFG、
+极值安全递增、精确退出清理与有界 native。旧 p34 七项后继责任见上节，未以局部绿宣称全 CI。
