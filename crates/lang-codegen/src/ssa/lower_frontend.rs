@@ -998,7 +998,7 @@ impl ExpressionLowerer<'_> {
         }
         self.begin_map_loop_return(return_expression, span)?;
         let result = match expression {
-            Some(expression) => self.lower(expression)?,
+            Some(expression) => self.lower_while_owner_return(expression, span)?,
             None => LoweredValue::Unit,
         };
         if matches!(result, LoweredValue::Diverged) {

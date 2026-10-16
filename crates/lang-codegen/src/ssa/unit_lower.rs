@@ -406,20 +406,24 @@ impl UnitExpressionLowerer<'_> {
                 span,
             );
         }
-        let mut result = match value {
-            Some(value) => self.lower(value)?,
-            None => LoweredValue::Unit,
+        let (mut result, nullable_owner_return) = match value {
+            Some(value) => self.lower_while_owner_return(value, span)?,
+            None => (LoweredValue::Unit, false),
         };
         if result == LoweredValue::Diverged {
             return Ok(result);
         }
         if let (Some(value_expression), LoweredValue::Value(lowered)) = (value, result) {
-            let (lowered, transferred) = self.adapt_owned_value_to_expected(
-                value_expression,
-                lowered,
-                self.return_type,
-                span,
-            )?;
+            let (lowered, transferred) = if nullable_owner_return {
+                (lowered, false)
+            } else {
+                self.adapt_owned_value_to_expected(
+                    value_expression,
+                    lowered,
+                    self.return_type,
+                    span,
+                )?
+            };
             if !transferred {
                 self.transfer_owned_expression(value_expression, lowered, span)?;
             }

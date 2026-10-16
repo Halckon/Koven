@@ -1,4 +1,4 @@
-//! Bounded retirement and direct Int reads for a real nullable while view.
+//! Bounded retirement, owner returns and direct Int reads for a real nullable while view.
 use super::*;
 use crate::ssa::model::SsaTypeKind;
 use lang_frontend::type_checking::{
@@ -7,6 +7,116 @@ use lang_frontend::type_checking::{
 };
 
 impl UnitExpressionLowerer<'_> {
+    /// The true flag qualifies only an unchanged nullable owner for this return.
+    /// The caller must still perform its original transfer_owned_expression once.
+    pub(super) fn lower_while_owner_return(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<(LoweredValue, bool), LoweringError> {
+        let id = UnitExpressionId::new(self.source_unit, expression);
+        let Some(use_fact) = self.typed.non_null_use(id) else {
+            return self.lower(expression).map(|result| (result, false));
+        };
+        let root = use_fact.symbol();
+        let Some(proof) = self.nullable_proofs.get(&root).copied() else {
+            return self.lower(expression).map(|result| (result, false));
+        };
+        let storage = self
+            .typed
+            .symbol_type(root)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let concrete =
+            |ty| resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span);
+        let declared = concrete(storage)?;
+        if concrete(self.return_type)? != declared {
+            return self.lower(expression).map(|result| (result, false));
+        }
+        let narrowed = concrete(use_fact.narrowed_type())?;
+        let nullable = self
+            .type_ids
+            .get(&declared)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
+        if !matches!(self.typed.types().get(declared), Some(UnitTypeKind::Nullable(inner)) if *inner == narrowed)
+            || self.type_ids.get(&narrowed) != Some(&proof.inner)
+            || self.ssa_types.get(nullable.index())
+                != Some(&SsaTypeKind::NullableHandle { inner: proof.inner })
+            || self
+                .function
+                .entity(EntityId::Value(proof.owner))
+                .map(|data| data.ty)
+                != Some(EntityType::Value(nullable))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if self.borrow_bindings.contains_key(&root)
+            || self.typed.copyability(declared) != Copyability::MoveOnly
+            || self.typed.copyability(narrowed) != Copyability::MoveOnly
+            || !matches!(
+                self.ssa_types.get(proof.inner.index()),
+                Some(SsaTypeKind::HeapOwner { .. })
+            )
+            || self.nullable_proofs.iter().any(|(&other, candidate)| {
+                other != root && (candidate.loan == proof.loan || candidate.owner == proof.owner)
+            })
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let mut operand = expression;
+        loop {
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(operand)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if !matches!(node.payload(), Expression::Name | Expression::Group { .. }) {
+                return self.lower(expression).map(|result| (result, false));
+            }
+            let operand_id = UnitExpressionId::new(self.source_unit, operand);
+            let fact = self
+                .typed
+                .non_null_use(operand_id)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if fact.expression() != operand_id
+                || fact.symbol() != root
+                || fact.declared_type() != storage
+                || fact.narrowed_type() != use_fact.narrowed_type()
+                || self.typed.expression_type(operand_id) != Some(fact.narrowed_type())
+                || self.typed.expression_category(operand_id) != Some(ExpressionCategory::Place)
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            match node.payload() {
+                Expression::Group { expression } => operand = *expression,
+                Expression::Name => {
+                    if self.references.get(&span_key(node.span())) != Some(&root) {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                    }
+                    break;
+                }
+                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            }
+        }
+        self.ensure_no_while_proof_carriers(span)?;
+        self.end_while_proof(root, span)?;
+        // Preserve Name/Group AfterExpression facts before the existing transfer.
+        let result = self.lower(expression)?;
+        if result != LoweredValue::Value(proof.owner)
+            || self.bindings.get(&root) != Some(&result)
+            || self
+                .function
+                .entity(EntityId::Value(proof.owner))
+                .map(|data| data.ty)
+                != Some(EntityType::Value(nullable))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok((result, true))
+    }
+
     pub(super) fn reject_nested_while_proof(&self, span: Span) -> Result<(), LoweringError> {
         if !self.nullable_proofs.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
