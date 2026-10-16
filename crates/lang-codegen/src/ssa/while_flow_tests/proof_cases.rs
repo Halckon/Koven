@@ -164,9 +164,7 @@ fn branch_join_and_replacement_keep_current_proof_identity() {
 
 #[test]
 fn same_root_nested_loops_preserve_or_invalidate_outer_proof() {
-    let readonly = holder(
-        "while (current != null) {\ntotal = current.value\nwhile (current != null) { total = total + current.value\nbreak }\ntotal = total + current.value\nbreak\n}\nreturn total",
-    );
+    let readonly = readonly_nested_source();
     let written = holder(
         "while (current != null) {\ntotal = current.value\nwhile (current != null) { total = total + current.value\ncurrent = null\ncontinue }\nreturn total\n}\nreturn total",
     );
@@ -369,5 +367,44 @@ fn nullable_owner_return_retires_proof_without_rewrapping_storage() {
         direct_contract::assert_owner_return(
             &result.expect("original nullable owner safely returned"),
         );
+    }
+}
+
+fn readonly_nested_source() -> String {
+    holder(
+        "while (current != null) {\ntotal = current.value\nwhile (current != null) { total = total + current.value\nbreak }\ntotal = total + current.value\nbreak\n}\nreturn total",
+    )
+}
+
+#[test]
+fn readonly_same_root_nested_while_preserves_the_outer_proof() {
+    let source = readonly_nested_source();
+    let grouped = source.replace(
+        "while (current != null) { total = total + current.value",
+        "while (((current) != null)) { total = total + current.value",
+    );
+    let sources = [source, grouped];
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 4);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(())
+            });
+            println!(
+                "READONLY NESTED source={} unit={} {result:?}",
+                index / 2,
+                index % 2 == 1
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    for result in outcomes {
+        result.expect("read-only inner while preserves the inherited proof");
     }
 }
