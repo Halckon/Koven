@@ -34,10 +34,11 @@ impl super::CompilationUnitOwnership {
     }
 }
 
-/// source 的现有能力；迭代本身始终只建立 shared access。
+/// 借用 provider 的原 source 能力，或数值 provider 已复制快照的 Owned 分类。
+/// 来源身份与 provider 分派由 source_kind 区分；快照不建立 shared access。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnitIterationSourceAccess {
-    /// owned place 上新建共享借用。
+    /// 借用 provider 的 owned place，或数值 provider 的 owned 值快照。
     Owned,
     /// 复用或shared-reborrow既有Borrow能力。
     Shared,

@@ -190,6 +190,9 @@ pub fn validate_iteration_facts(
             return Err(reject("missing exhaustion exit"));
         }
         for exit in plan.exits() {
+            if numeric && exit.actions().contains(&Action::EndSource(statement)) {
+                return Err(reject("snapshot must not end a source loan"));
+            }
             if owned.cleanup_conditions().get(exit.condition()).is_none() {
                 return Err(reject("unknown exit path condition"));
             }

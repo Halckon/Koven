@@ -13,7 +13,8 @@ impl CompilationUnitOwnership {
             let statement = plan.descriptor().statement();
             let numeric =
                 plan.descriptor().delivery() == crate::type_checking::ParameterMode::Value;
-            if numeric != plan.source().is_none()
+            if numeric && plan.source_access() != super::UnitIterationSourceAccess::Owned
+                || numeric != plan.source().is_none()
                 || numeric
                     && plan.source_kind()
                         != &crate::ownership_checking::IterationSource::OwnedSnapshot(
