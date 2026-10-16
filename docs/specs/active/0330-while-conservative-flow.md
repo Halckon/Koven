@@ -536,3 +536,50 @@ build 未跑记录；机械解构修中一次错误覆盖相邻 BorrowEnd arm �
 `5fa29ce52fe89d193557ebe39582c8a58b6d0f8ea684b309a56fab0e6308d060`。
 剩余 lower 为 numeric for 两路、borrowed for 内外嵌套四路。本片仅阶段分支备份，
 完整 C、远端 CI 与完成 PR 仍未交付；后继须保留本轮全部既有控制继续闭合。
+
+### Numeric for 运输外层 nullable While 证明
+
+原 numeric 源及仅 source 加 Group 的四入口在 `24f74e1c` 全部 lower Unsupported，
+首红与公共事实观察收据为
+`a64749671889b8f25b331932e161bd7622b9a6f15f9dfe109ee9fa746d7ed833`。
+事实观察明确 Parameter seed、Header/Exit 两 phi、Always Entry/Exhaustion 及
+Continue/Fallthrough 同 header 自运输；观察本身不算 lower 成功。此前 E0599
+访问器预检失败未执行测试，修正为真实公开 iterations 接口后重新冻结采证。
+
+unit 仅为已核活动 While 的当前 owner/view 配对复用既有 carried context，真实
+empty 边、normal/continue、exhaustion 与 merge 保留 origin/inner 和当前列身份；
+numeric 本身不出生或退休该 proof，旧空 proof 路径保留。single 的专用条件清理
+资格要求完整两 phi/selector/所有 incoming 和 exit、唯一真实 seed 与同 header
+自运输，并在消费前核实际 numeric CFG 和当前 owner/view 成对列。反向图枚举
+所有真实前驱，全部访问节点均须能回到唯一外层 While 出生锚，悬空 SCC 拒绝。
+通用 implies、constant Drop 与 verifier 未放宽；实际消费仍恰一次 parent End
+随后一次对应 owner Drop。额外版本、写根、capture、未知 carrier 不因此获准。
+
+`a116f1e5` 首阶段三项均通过，原/Group 四路及完整 fixture 双入口 SSA/LLVM
+成功，公共 facts 项仍只记观察完成。query-only 独立 oracle 随后锁同 snapshot
+三投影、empty 分支、current/last 终值判断先于增量、normal/continue 真边及
+exhaustion 后最终 Member→End→Drop。首次统一第31项因追踪已无用途的 scalar
+到 exhaustion 而误断 dominance；四路真实 SSA/LLVM 已成功。仅跳过该 scalar
+目标，owner/view 全边追踪和 dominance 判据不变；保留原 oracle 失败证据。
+
+完整 bounded numeric fixture 先双入口 LLVM，再分别 single/project native：
+nonnull 时内层恰两轮，continue 后累加并最终返回34；初始 null 返回0。独立
+两行 stdout 由严格 helper 断言验证，不冒称独立子进程日志，也不将其等同 numeric
+空区间、MAX、Long、Resource 析构或 child/break 组合验收。自身 run 限10秒，
+build 不称有此期限。既有六个 native 控制保持。
+
+保留 v2 工程 fmt 失败、后三项未跑；v3 fmt/check 成功但 clippy 报 qualify
+8/7 参数、build 未跑。先机械格式化，再将调用方同一 symbol_type 查询移入
+qualify，未改变资格或错误传播；v3 普通/native/分类清单未执行。
+固定 `e4b85ec8` 最终32普通 exact 各1通过、139输入前后稳定，收据
+`c6d5dc2ffdf865bfd749e2c6217658b930e56062fdab67ee00f2967fa3fa5dd6`；
+同头 native8 各1通过，收据
+`5ce61d079da3733dfbe94cc69c764853aa5fb93e1d37fc5395be134ed4a2f8f0`。
+原六组五绿一行为红，38观察为28成功/4lower/4complete/2ownership，收据
+`7354ce1591a2914935c4ebbc4cf01ee158d4ad68784d888e37ec70cee73a6814`；
+加同头 owner-return 四路，原42现为32成功/4lower/4complete/2ownership。
+四工程原 argv 全 exit0、139输入稳定，收据
+`4d57dc426cba1b6ea3f24ab6ec498da06a24aa0dde9c391209b63e950cda1007`。
+剩余 lower 明确为 borrowed for 内外嵌套两源码双入口；仍须逐关系核 provider、
+element 与 nullable proof 的真实运输和清理。当前仅阶段分支备份，完整 C、
+CI-only guards、远端双平台验收及完成 PR 尚未交付。
