@@ -4,7 +4,7 @@ use crate::{
     name_resolution::SourceUnitId,
     parser::Statement,
     source::Span,
-    type_checking::{BuiltinType, TypeCheckingError, UnitTypeId, UnitTypeKind},
+    type_checking::{BuiltinType, TypeCheckingError, UnitTypeId},
 };
 
 use super::flow::{extend_facts, intersect_facts};
