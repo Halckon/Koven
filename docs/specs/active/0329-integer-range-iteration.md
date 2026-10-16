@@ -154,3 +154,17 @@ fixed-point budget exceeded；未出现其他 verifier 错误。观察收据 SHA
 祖先与 inactive 记录，先实际边同时赋值/nullable birth 后再去重。预算、耗尽拒绝、
 State.end 和边映射不改；不按当前引用/liveness 删，不合并不同路径，不承诺所有合法 CFG
 均在预算内。移除临时 tracing，原完整普通源码转严格 SSA/LLVM 回归；负控只交 CI。
+
+`53caf853` 同普通 8 exact 各 1 通过，91 输入前后相同；收据 SHA
+`0b9d85d353053aab28a530467bf422c6b28c12fbaf21a664742020558affe6a7` 已独核。
+两个 native 在当前 Linux 云分别完成 single/project build+run，严格 111 行轨迹与
+38 次析构顺序由已审断言验证；未另导出子进程 stdout。完整普通 fixture 双入口 SSA/LLVM
+也通过。四个 projection 私有状态合同及原预算拒绝/路径关联仍只编译，执行留 CI。
+
+旧 p34 七项于同 head 各 1 真红，101 输入前后相同，收据 SHA
+`2cad82341a215c4acd93f9ee4d985d12e448a35767b2bdde1040ffa7e522bf23`：
+raw 诊断现为空、complete 成功，CLI 原 p34 生成/运行成功使旧拒绝 oracle 失败。
+两 FE 断言在 p34 处停止，不声称后续分支已验；CLI 56 调用在断言前完整收齐。
+后继 tests-only 保留 p34 原字节为成功控制；另用普通 Int 非 provider 保留精确 L0159，
+Call-L0165 独立文案控制不变。三 CLI 矩阵各增加 p34 四个成功调用（含 constant 前缀），
+本片不修改历史 Spec 原验收记录。新 oracle 仍待实跑。

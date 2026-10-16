@@ -53,6 +53,46 @@ fn single_probe_roots_reject_before_codegen() {
         }
     }
     assert_rejections(&cases, 2);
+    assert_numeric_range_probe();
+}
+
+fn assert_numeric_range_probe() {
+    for command in ["build", "run"] {
+        for format in ["human", "json"] {
+            let directory = TestDirectory::create();
+            let source = directory.join("p34_for_range.ko");
+            let executable = directory.join("numeric-range");
+            fs::write(&source, support::NUMERIC_RANGE_SOURCE).expect("original p34 bytes");
+            let format_option = format!("--message-format={format}");
+            let output = if command == "build" {
+                run([
+                    OsStr::new(&format_option),
+                    OsStr::new("build"),
+                    source.as_os_str(),
+                    OsStr::new("-o"),
+                    executable.as_os_str(),
+                ])
+            } else {
+                run([
+                    OsStr::new(&format_option),
+                    OsStr::new("run"),
+                    source.as_os_str(),
+                ])
+            };
+            eprintln!("p34 success {command} {format}: {output:?}");
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert!(output.stderr.is_empty(), "{output:?}");
+            assert_eq!(
+                output.stdout,
+                if command == "run" {
+                    b"for-range\n".as_slice()
+                } else {
+                    b"".as_slice()
+                }
+            );
+            assert_eq!(executable.exists(), command == "build");
+        }
+    }
 }
 
 #[test]

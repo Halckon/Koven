@@ -93,12 +93,20 @@ fn assert_exact(
 #[test]
 fn frozen_roots_reject_with_exact_source_diagnostics() {
     let expected = [
-        ("L0080", 40, 46, "fooBar"),
-        ("L0080", 44, 50, "length"),
-        ("L0159", 40, 45, "0..<5"),
-        ("L0085", 32, 33, "?"),
+        Some(("L0080", 40, 46, "fooBar")),
+        Some(("L0080", 44, 50, "length")),
+        None,
+        Some(("L0085", 32, 33, "?")),
     ];
-    for ((text, _, _), &(code, start, end, token)) in FROZEN.iter().zip(&expected) {
+    for ((text, _, _), expected) in FROZEN.iter().zip(&expected) {
+        let Some((code, start, end, token)) = *expected else {
+            for prefix in ["", "const val PREFIX: Int = 1\n"] {
+                let (_, single, unit) = complete_both(&format!("{prefix}{text}"), false);
+                single.expect("original p34 single numeric for qualifies");
+                unit.expect("original p34 unit numeric for qualifies");
+            }
+            continue;
+        };
         for prefix in ["", "const val PREFIX: Int = 1\n"] {
             let text = format!("{prefix}{text}");
             let (sources, single, unit) = complete_both(&text, false);
@@ -139,6 +147,13 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
             }
             other => panic!("source root must stop before ownership: {other:?}"),
         }
+    }
+    let invalid = include_str!("../fixtures/final-type-admission-0319/invalid_integer_for.ko");
+    for prefix in ["", "const val PREFIX: Int = 1\n"] {
+        let (sources, single, unit) = complete_both(&format!("{prefix}{invalid}"), false);
+        let expected = [("L0159", 29 + prefix.len(), 30 + prefix.len(), "1")];
+        assert_exact(&sources, "main.ko", single, &expected);
+        assert_exact(&sources, "main.ko", unit, &expected);
     }
     // Nothing is bottom, so this slice does not invent a new illegal-operand rule for it.
     let text = "fun stop(): Nothing = error(\"stop\")\nfun inspect(): Int? = stop()?";

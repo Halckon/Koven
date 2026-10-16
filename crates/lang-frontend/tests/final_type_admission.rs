@@ -30,7 +30,7 @@ const FROZEN: &[(&str, &str, Option<DeferredReason>)] = &[
     (
         include_str!("fixtures/final-type-admission-0319/p34_for_range.ko"),
         "0..<5",
-        None, // Range values are resolved; the numeric for provider remains pending.
+        None, // Range values and their numeric for provider are resolved.
     ),
     (
         include_str!("fixtures/final-type-admission-0319/s04_question_on_nullable.ko"),
@@ -104,30 +104,20 @@ fn frozen_probe_roots_preserve_raw_deferred_recovery() {
                             .and_then(|ty| unit.types().get(ty)),
                         Some(&UnitTypeKind::Builtin(BuiltinType::IntRange))
                     );
-                    for diagnostics in [single.diagnostics(), unit.diagnostics()] {
-                        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-                        let diagnostic = &diagnostics[0];
-                        assert_eq!(diagnostic.code().to_string(), "L0159");
-                        assert_eq!(sources.slice(diagnostic.primary_span()), Ok(root));
-                        assert_eq!(
-                            (
-                                diagnostic.primary_span().start(),
-                                diagnostic.primary_span().end()
-                            ),
-                            (
-                                input.find(root).unwrap(),
-                                input.find(root).unwrap() + root.len()
-                            )
-                        );
-                        assert_eq!(
-                            diagnostic.message(),
-                            "for source requires a compiler-bound sequential container or View"
-                        );
-                        assert!(diagnostic.details().is_empty());
-                    }
-                    assert!(unit.clone().validate().is_err());
+                    assert!(
+                        single.diagnostics().is_empty(),
+                        "{:?}",
+                        single.diagnostics()
+                    );
+                    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
                     if constants {
-                        assert!(unit.clone().validate_constants().is_err());
+                        unit.clone()
+                            .validate_constants()
+                            .expect("numeric for with const prefix");
+                    } else {
+                        unit.clone()
+                            .validate()
+                            .expect("numeric for ordinary qualification");
                     }
                     return;
                 };
