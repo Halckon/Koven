@@ -603,8 +603,33 @@ println(outer.text)
 }"#
     .to_owned();
     let grouped = direct.replace("println(outer.text)", "println((outer.text))");
-    observe(
-        "owned-local-field",
-        &[(broken, false), (direct, false), (grouped, false)],
-    );
+    let sources = [broken, direct, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            println!(
+                "OWNED FIELD source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 6);
+    for result in outcomes {
+        owned_field_contract::assert_field_loan(
+            &result.expect("ordinary local field loan reaches LLVM"),
+        );
+    }
 }
+
+#[path = "owned_field_contract.rs"]
+mod owned_field_contract;
