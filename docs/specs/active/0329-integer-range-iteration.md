@@ -146,3 +146,11 @@ build 报 InvalidSsa，尚未运行产物。收据 SHA
 `9899ee119e8be31db4d5ca60301f72f1b26b59618f3a6cb14ceba7b6b8c646ad` 保留。
 后继仅在 test 配置失败分支打印真实 verifier 错误/SSA，完整普通源码加 entry 调 main
 作双入口只读观察；保留原错误传播，不以观察结束记能力绿，定位后删除临时 tracing。
+
+只读观察 `96dda772` 确认两入口仅 numericInsideListInt/Long 触发 provider provenance
+fixed-point budget exceeded；未出现其他 verifier 错误。观察收据 SHA
+`90dcf47cd6a19512f2075ca3cfba14d1982c48dbec4e5b7fe6ecaaa937e83092` 保留。
+最小后继在已验证 SSA 支配关系下投影入口状态：保留入口可用 loan/place、完整 lineage
+祖先与 inactive 记录，先实际边同时赋值/nullable birth 后再去重。预算、耗尽拒绝、
+State.end 和边映射不改；不按当前引用/liveness 删，不合并不同路径，不承诺所有合法 CFG
+均在预算内。移除临时 tracing，原完整普通源码转严格 SSA/LLVM 回归；负控只交 CI。

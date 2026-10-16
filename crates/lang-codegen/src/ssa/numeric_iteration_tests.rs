@@ -86,18 +86,10 @@ fn numeric_resource_exits_and_nested_borrow_reach_verified_llvm() {
 }
 
 #[test]
-fn observe_bounded_native_fixture_verifier_failures() {
+fn complete_bounded_numeric_fixture_preserves_provider_provenance() {
     let source = format!(
         "{}\nfun entry():Unit{{main()}}",
         include_str!("../../../lang-cli/tests/fixtures/integer-range-iteration-0329/success.ko")
     );
-    let observations = collect_sources(&[source]);
-    assert_eq!(observations.len(), 2);
-    for (index, result) in observations.iter().enumerate() {
-        println!(
-            "NATIVE FIXTURE OBSERVATION {index}: {:?}",
-            result.as_ref().map(|_| ())
-        );
-    }
-    // Observation completion does not assert or claim that the language program passes.
+    require_verified_sources(&[source], true);
 }
