@@ -122,18 +122,8 @@ fn single_non_null_proof_guards_preserve_binding_and_merge_origin() {
         "the real argument-if has two merge predecessors"
     );
 
-    let mut function = baseline.clone();
-    fixture.with_lowerer(&mut function, |lowerer| {
-        lowerer.block = call.block;
-        lowerer
-            .bindings
-            .insert(root, LoweredValue::Value(current.owner));
-        lowerer.non_null_bindings.insert(root, current);
-        assert_eq!(
-            lowerer.checked_non_null_proof(root, inner, span).unwrap(),
-            Some(current)
-        );
-        let exits = incoming
+    let exits_at = |lowerer: &ExpressionLowerer<'_>| {
+        incoming
             .iter()
             .map(|(block, edge)| {
                 let parameters = &lowerer.function.block(call.block).unwrap().parameters;
@@ -162,7 +152,21 @@ fn single_non_null_proof_guards_preserve_binding_and_merge_origin() {
                 );
                 exit
             })
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+    };
+
+    let mut function = baseline.clone();
+    fixture.with_lowerer(&mut function, |lowerer| {
+        lowerer.block = call.block;
+        lowerer
+            .bindings
+            .insert(root, LoweredValue::Value(current.owner));
+        lowerer.non_null_bindings.insert(root, current);
+        assert_eq!(
+            lowerer.checked_non_null_proof(root, inner, span).unwrap(),
+            Some(current)
+        );
+        let exits = exits_at(lowerer);
         lowerer.validate_non_null_exit_proofs(&exits, span).unwrap();
         let merged = lowerer
             .merged_non_null_proofs(
@@ -223,23 +227,20 @@ fn single_non_null_proof_guards_preserve_binding_and_merge_origin() {
                 .bindings
                 .insert(root, LoweredValue::Value(current.owner));
             lowerer.non_null_bindings.insert(root, current);
-            let first = lowerer.branch_exit(LoweredValue::Unit);
-            let mut second = lowerer.branch_exit(LoweredValue::Unit);
-            let changed = second.views.get_mut(&root).unwrap();
+            let mut exits = exits_at(lowerer);
+            let changed = exits[1].views.get_mut(&root).unwrap();
             if change_birth {
                 changed.origin.birth = current.loan;
             } else {
                 changed.origin.introduced_by =
                     ProofScope::While(whiles.iter().find(|(id, _)| *id != scope).unwrap().0);
             }
+            let changed = *changed;
             // Basic binding/type validation deliberately does not claim birth validation.
             lowerer
-                .validate_non_null_proof(root, *changed, &second.bindings, span)
+                .validate_non_null_proof(root, changed, &exits[1].bindings, span)
                 .unwrap();
-            missing(
-                lowerer.validate_non_null_exit_proofs(&[first, second], span),
-                span,
-            );
+            missing(lowerer.validate_non_null_exit_proofs(&exits, span), span);
         });
     }
 }

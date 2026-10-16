@@ -457,6 +457,47 @@ impl Shape {
         (span, proof)
     }
 
+    fn before_fallthrough(&self, lowerer: &mut ExpressionLowerer<'_>) {
+        let provider = provider::shape(lowerer, &self.relation).unwrap();
+        let (block, edge) = incoming(lowerer.function, self.header)
+            .into_iter()
+            .find(|(block, _)| *block != self.preheader)
+            .unwrap();
+        let end = unique(
+            instructions(lowerer.function, block)
+                .unwrap()
+                .into_iter()
+                .filter(|op| matches!(op.operation, Operation::BorrowEnd { .. })),
+        )
+        .unwrap();
+        let Operation::BorrowEnd { loan } = end.operation else {
+            unreachable!()
+        };
+        let prefix = lowerer
+            .function
+            .block(block)
+            .unwrap()
+            .instructions
+            .iter()
+            .position(|id| *id == end.id)
+            .unwrap();
+        let mut columns = Columns {
+            block,
+            entities: provider
+                .header
+                .entities
+                .iter()
+                .map(|entity| edge.arguments[parameter(lowerer.function, *entity).1])
+                .collect(),
+        };
+        columns.entities.push(EntityId::Loan(loan));
+        lowerer.function.blocks[block.index()]
+            .instructions
+            .truncate(prefix);
+        lowerer.function.blocks[block.index()].terminator = None;
+        self.state(lowerer, &columns);
+    }
+
     fn exhaustion(&self, lowerer: &mut ExpressionLowerer<'_>) {
         let provider = provider::shape(lowerer, &self.relation).unwrap();
         assert_eq!(
@@ -582,6 +623,35 @@ fn single_outer_borrowed_runtime_guards_preserve_snapshot_break_and_exhaustion()
                     }
                     _ => unreachable!(),
                 }
+                if mutation >= 4 {
+                    let provider = provider::shape(lowerer, relation).unwrap();
+                    let columns = Columns {
+                        block: state.block,
+                        entities: vec![
+                            EntityId::Value(match state.bindings[&relation.root] {
+                                LoweredValue::Value(value) => value,
+                                _ => unreachable!(),
+                            }),
+                            EntityId::Value(match state.bindings[&relation.items] {
+                                LoweredValue::Value(value) => value,
+                                _ => unreachable!(),
+                            }),
+                            EntityId::Loan(state.for_sources[&relation.outer.index()]),
+                            EntityId::Loan(state.for_elements[&relation.outer.index()]),
+                        ],
+                    };
+                    assert!(!transport(
+                        lowerer.function,
+                        columns,
+                        &provider.body,
+                        None,
+                        None
+                    ));
+                }
+                // Make a partial rebind observable even when the snapshot's source is valid.
+                let data = lowerer.loops[0].for_loop.as_mut().unwrap();
+                data.body_source = shape.source;
+                data.active_source_loan = None;
                 let before = ambient(lowerer);
                 unsupported(
                     lowerer.restore_outer_borrowed_state(relation, &state, span),
@@ -730,6 +800,33 @@ fn single_outer_borrowed_runtime_guards_preserve_snapshot_break_and_exhaustion()
             assert!(!lowerer.bindings.contains_key(&relation.root));
             assert!(!lowerer.bindings.contains_key(&relation.items));
         });
+        let mut function = fixture.entry().clone();
+        fixture.with_lowerer(&mut function, |lowerer| {
+            shape.seed(&fixture, lowerer);
+            shape.before_fallthrough(lowerer);
+            let exit = fixture
+                .owned
+                .iteration(relation.outer)
+                .unwrap()
+                .exits()
+                .iter()
+                .find(|exit| exit.kind() == IterationExitKind::Fallthrough)
+                .unwrap();
+            lowerer
+                .preflight_outer_borrowed_iteration(exit, span)
+                .unwrap();
+        });
+        for fact in relation.drops {
+            let mut function = fixture.entry().clone();
+            fixture.with_lowerer(&mut function, |lowerer| {
+                shape.seed(&fixture, lowerer);
+                shape.exhaustion(lowerer);
+                // Both real Header-owner drops must wait for the real source end.
+                let before = lowerer.function.instructions.len();
+                unsupported(lowerer.emit_outer_borrowed_drop(fact), fact.value_origin());
+                assert_eq!(lowerer.function.instructions.len(), before);
+            });
+        }
         for mutation in 0..5 {
             let mut function = fixture.entry().clone();
             fixture.with_lowerer(&mut function, |lowerer| {
