@@ -18,6 +18,7 @@ pub(super) struct IterationContext {
     pub(super) retained_start: usize,
     pub(super) outer_temporaries: BTreeSet<UnitExpressionId>,
     pub(super) state: IterationState,
+    pub(super) inherited_borrowed: Option<BorrowedWhileProof>,
 }
 
 #[derive(Clone, Copy)]
@@ -27,7 +28,6 @@ pub(super) enum IterationState {
         element: usize,
         step: ValueId,
         int_type: SsaTypeId,
-        inherited: Option<BorrowedWhileProof>,
     },
     Numeric {
         current: usize,
@@ -253,8 +253,8 @@ impl UnitExpressionLowerer<'_> {
                 element: element_slot,
                 step: header.step,
                 int_type,
-                inherited,
             },
+            inherited_borrowed: inherited,
         });
         match descriptor.binding() {
             UnitSequentialIterationBinding::Discard => {}
@@ -430,14 +430,13 @@ impl UnitExpressionLowerer<'_> {
             start,
             step,
             int_type,
-            inherited,
             ..
         } = context.state
         else {
             // Numeric providers test their terminal value after all continuing edges join.
             return Ok(());
         };
-        if let Some(proof) = inherited {
+        if let Some(proof) = context.inherited_borrowed {
             // EndBinding/EndElement have run, but prepare_jump has not yet
             // removed the exact rebound element slot. Check it while available.
             proof.validate_element_cleanup(self, span)?;

@@ -216,8 +216,9 @@ impl BorrowedWhileProof {
                         || context.proof_scope.is_some()
                         || iteration.retained_start != 0
                         || !matches!(iteration.state,
-                            IterationState::Borrowed { start: 0, element: 3, int_type, inherited: Some(candidate), .. }
-                                if int_type == self.int_type && candidate == self)
+                            IterationState::Borrowed { start: 0, element: 3, int_type, .. }
+                                if int_type == self.int_type)
+                        || iteration.inherited_borrowed != Some(self)
                 })
             })
         {

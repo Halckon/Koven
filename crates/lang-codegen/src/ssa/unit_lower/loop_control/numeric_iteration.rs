@@ -272,6 +272,7 @@ impl UnitExpressionLowerer<'_> {
                 last: retained_start + 1,
                 endpoint_type,
             },
+            inherited_borrowed: None,
         });
         if let UnitSequentialIterationBinding::Name(symbol) = descriptor.binding() {
             let current = self.numeric_pending_value(retained_start, endpoint_type, span)?;
