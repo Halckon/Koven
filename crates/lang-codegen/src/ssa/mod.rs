@@ -142,6 +142,8 @@ mod bitwise_lowering_tests;
 #[cfg(test)]
 mod bitwise_operation_tests;
 #[cfg(test)]
+mod checked_integer_conversion_backend_tests;
+#[cfg(test)]
 mod checked_integer_conversion_tests;
 
 #[cfg(test)]

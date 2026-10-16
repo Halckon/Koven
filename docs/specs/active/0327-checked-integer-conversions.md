@@ -8,7 +8,7 @@
 | Goal ID | `KOV-P2-0327` |
 | Phase | Phase 2 类型身份先行；Phase 3/4 按后继验收分片闭合 |
 | 基线 | 实际 main `5a32550a0ea956c1d66fdb65ae9bf2aeb6681684`（正常合并继承A/B） |
-| 分支 | `feature/spec-0327-integer-conversions`；已继承主干0325/0326归档与实现 |
+| 分支 | 本地 `feature/spec-0327-integer-conversions`；授权远端 `fix/spec-0327-integer-conversions`，保留发布映射 |
 | 规范 | [Guide整数转换](../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
 | 当前状态 | 合A/B主干后13普通exact与4工程通过；仅FE阶段，后端转换未实现 |
 
@@ -116,3 +116,13 @@ frontend/codegen/cli三包all-targets clippy、cli build四工程均成功；实
 仓外main-sync13与engineering-main-sync13收据绑定argv/logSHA；旧两次编译0执行均保留。
 本阶段仅供增量备份，Spec保持in-progress；未实现转换SSA/LLVM或运行native/Abort，
 尚未接入新增target的最终CI名单，不以13绿或build成功表示完整E交付。
+
+## 8. 后端普通源码首红计划
+
+先独立4exact：双入口64对lower/verify、具名receiver调用一次、活跃String/pending实参、
+双入口64对动态LLVM生成/verify。只读取真实typed/owned/SSA，不改facts/IR、不运行产物。
+首红先锁真实UnsupportedNode缺口；新私有operation尚无API，精确双result/Abort边、
+receiver call结果身份、carry/rebind及i128原值界限谓词在接口冻结后补oracle，未补不验收。
+后端拟复用checked双结果(value,failed)和原成功/Abort CFG；先以source数学值判界，
+LLVM内部i128不进入语言/ABI，失败result不得交付。native成功及有界Abort另审名单。
+新增FE target接CI时同步唯一/精确预算composition断言，实际base尺寸门禁不可省略。
