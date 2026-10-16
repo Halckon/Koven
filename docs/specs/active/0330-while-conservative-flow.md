@@ -627,3 +627,46 @@ E0599（改为真实 ListForm）；首工程 fmt imports 失败；随后 large_e
 剩余 lower 仅外层 borrowed for 内 nullable while 的两入口，仍须闭合真实
 provider/element 在 inner false/break 的恢复与后用。CI-only guards、双平台 CI、
 完整 C 验收和完成 PR 尚待；本次仅阶段分支备份，不扩 Guide。
+
+### Nullable while 位于借用 for 内：最后普通正例关系闭合
+
+沿上一阶段已采原/Group outer 红证继续，本片仅 Owned List<Int>、单 Name Borrow
+item、独立 nullable current 的既定关系。single 对两个真实 Header Drop 分别复用
+原 prove_graph，封闭四 phi/所有 incoming，保持 FinishProvider→EndSource→items
+Drop→current Drop。inner false/break 分别恢复完整 provider snapshot，当前实体须
+沿真实列回溯；unit 同样核当前 source/element、cursor/length 与两个 owner。
+内层只结束自己的 view，source/element 仍活，后用 item 后才执行外层 EndElement；
+outer exhaustion 无 element/view。未将 presence 当作非空证明，未知 carrier 门保留。
+
+静审发现的 birth LoanId 与当前 rebound view 混用已在运行前纠正：true body 的
+checked-add 后继按五角色共同追到真实 NullableBranch 出生，break 结束当前 alias，
+禁止它进入 merge/outer 回边。另保留 ListOf→ListForm 机械修，以及首次有限 check
+E0027 Assignment pattern 缺 operator_span 的失败；加 `..` 后预检成功，原清单未运行。
+`e1bf46f4` 三项阶段收据
+`13ac77d4897452f96b2b4f5f079f10ef7f49a2c568ae443ae33f3e4daa51f4b2`
+确认原/Group 四 SSA/LLVM、完整 fixture 双 LLVM 成功，facts 八项仅表示观察完成。
+同头双 native 收据
+`c26da0b6a64f6edb9da5feb1ed9765fa5cbebdd9172263d0214766f96d4e6215`
+证明严格 helper 的 40/3 两行值结果：固定两元素、nonnull 每轮 inner 一次 break，
+null 每轮 inner 零入，item 在 inner 后继续使用。无独立子进程 stdout 文件，不据此
+认领 Resource 析构顺序；flag 未参与控制，不能称额外 true/false 分支覆盖。
+
+独立 query oracle 沿全部实际边核 owner/items/source/element/view 五角色、非空与
+空路径的后用 item、当前 view 与 element/source 结束顺序、两个 Header owner Drop，
+以及真实 cursor/length 列。原/Group 四入口先完整 verify/render，再执行身份断言。
+首统一工程 fmt/check 成功，clippy 报大枚举变体与三处 question_mark，build 未跑，
+后三组也未跑。provider 单独 Box/getter as_deref 与 Option `?` 等价机械修后重冻。
+
+固定 `6037cdbf` 最终36 ordinary 各1通过，158输入逐轮前后同，收据
+`f2f9ce748efc680a2b8e42c1768f62f1045e5fc8e39be6fc2f27711ce2cfbc41`；
+新 outer 原/Group 完整身份断言与完整 fixture 双 LLVM 均通过。同头 native12 各1
+通过，收据 `afb9ca749b20210b73af2658847d44a6e2d2487a03bed992b1d71d6658859fe1`；
+四工程原 argv 全 exit0，收据
+`5232909562de848c622b62bad2a0d5005910ee47e0395869767f10660f119480`。
+remaining 首次缺已审 toolchain 环境，在输出目录/Cargo 前拦截，实际0执行；日志
+保留，补环境后原六项各1通过，收据
+`0df84ce4509f93924199ebbad4779d21d39913117fee70add536e81bfb7762e0`。
+38观察实际32成功/0lower/4complete/2ownership，加同头 owner-return 四路，原42
+现36成功/0lower/4complete/2ownership；六个负控仍为既定精确诊断断言。至此原普通
+正例矩阵闭合，CI-only 私有 guards、前端与后端最终同头统一验收、双平台 CI、完成
+PR 与正常合并仍待交付。本次仅阶段分支备份，不扩 Guide 或宣称完整 C 已完成。
