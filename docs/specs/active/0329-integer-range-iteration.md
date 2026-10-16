@@ -140,3 +140,9 @@ terminal 支配 increment、四退出真实清理事实，native 数值/轨迹�
 该结果只闭合可达性；下一 tests-only 小片锁 snapshot/terminal CFG 身份，并以双入口
 有界成功 native 验证独立 111 行轨迹（Int/Long 对称，每次循环至多三轮，全域首轮退出）。
 原 pending lower 用例须精确转为 SSA/LLVM 正例；本段不宣称新 oracle/native 已执行。
+
+`e5c6683d` 七项实际 5 绿 2 红：精确 CFG 与原 pending 转正均通过；两个 native 都在
+build 报 InvalidSsa，尚未运行产物。收据 SHA
+`9899ee119e8be31db4d5ca60301f72f1b26b59618f3a6cb14ceba7b6b8c646ad` 保留。
+后继仅在 test 配置失败分支打印真实 verifier 错误/SSA，完整普通源码加 entry 调 main
+作双入口只读观察；保留原错误传播，不以观察结束记能力绿，定位后删除临时 tracing。
