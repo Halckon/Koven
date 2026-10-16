@@ -162,9 +162,7 @@ fn same_root_nested_loops_preserve_or_invalidate_outer_proof() {
 #[test]
 fn different_root_and_borrowed_loops_preserve_outer_access() {
     let different = different_root_source();
-    let numeric = holder(
-        "while (current != null) {\nfor (item in 0..<2) { if (item == 0) { continue }\ntotal = total + current.value }\nreturn total + current.value\n}\nreturn total",
-    );
+    let numeric = numeric_nested_source();
     let inner_borrow = holder(
         "val items = listOf(1, 2)\nwhile (current != null) {\nfor (item in items) { if (item == 1) { continue }\ntotal = total + item + current.value }\nreturn total + current.value\n}\nreturn total",
     );
@@ -894,3 +892,16 @@ fn nullable_if_retest_after_conditional_replacement_reaches_llvm() {
 
 #[path = "if_retest_contract.rs"]
 mod if_retest_contract;
+
+fn numeric_nested_source() -> String {
+    holder(
+        "while (current != null) {\nfor (item in 0..<2) { if (item == 0) { continue }\ntotal = total + current.value }\nreturn total + current.value\n}\nreturn total",
+    )
+}
+
+#[test]
+fn numeric_for_preserves_the_outer_nullable_while_proof() {
+    let source = numeric_nested_source();
+    let grouped = source.replace("in 0..<2", "in ((0..<2))");
+    observe("numeric-proof", &[(source, false), (grouped, false)]);
+}

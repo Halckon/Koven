@@ -136,6 +136,10 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
         );
         println!("IF CLEANUP UNIT TYPE TABLE {:#?}", typed.types().types());
         println!(
+            "CLEANUP UNIT ITERATION PLANS {:#?}",
+            owned.ownership().iterations()
+        );
+        println!(
             "IF CLEANUP UNIT STORAGE {:#?}",
             typed.types().body_symbol_types()
         );
@@ -233,6 +237,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
             );
         }
         println!("IF CLEANUP SINGLE DROPS {:#?}", owned.drops());
+        println!("CLEANUP SINGLE ITERATION PLANS {:#?}", owned.iterations());
         let table = owned.cleanup_conditions();
         // Debug retains the complete published table, including every owner definition.
         println!("IF CLEANUP SINGLE CONDITION TABLE {table:#?}");
@@ -355,5 +360,26 @@ fn print_condition(
             println!("IF CLEANUP DAG EDGE condition={condition:?} branch={branch} child={child:?}");
             print_condition(table, child, seen);
         }
+    }
+}
+
+#[test]
+fn nullable_numeric_for_cleanup_facts_are_observed_before_lowering() {
+    let source = super::numeric_nested_source();
+    let grouped = source.replace("in 0..<2", "in ((0..<2))");
+    let mut outcomes = Vec::new();
+    for (case, source) in [source, grouped].iter().enumerate() {
+        for unit in [false, true] {
+            println!("NUMERIC CLEANUP BEGIN case={case} unit={unit}");
+            let outcome = observe_source(source, unit);
+            println!("NUMERIC CLEANUP OUTCOME case={case} unit={unit} {outcome:?}");
+            outcomes.push(outcome);
+        }
+    }
+    assert_eq!(outcomes.len(), 4);
+    for outcome in outcomes {
+        let observation = outcome.expect("ordinary numeric frontend prerequisites succeed");
+        assert!(observation.nullable_current_storage, "{observation:?}");
+        assert!(observation.current_drops > 0, "{observation:?}");
     }
 }
