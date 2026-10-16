@@ -3,7 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::ssa::model::{
     Block, BlockId, Definition, Edge, EntityId, EntityType, Function, Instruction, InstructionId,
-    LoanId, LoanKind, Operation, Origin, Program, SsaTypeKind, TerminatorKind, ValueId,
+    LoanId, LoanKind, Operation, Origin, PlaceAccess, Program, SsaTypeKind, TerminatorKind,
+    ValueId,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -355,10 +356,15 @@ pub(super) fn assert_pending_child(program: &Program, source: &str, unit: bool) 
         assert!(!matches!(
             instruction.operation,
             Operation::StringClone { .. }
-                | Operation::Read { .. }
                 | Operation::NullableTake { .. }
                 | Operation::NullableWrap { .. }
         ));
+        assert!(
+            !matches!(instruction.operation,
+                Operation::Read { source: PlaceAccess::Loan(loan) }
+                    if trace.children.contains(&loan)),
+            "the actual String child cannot be copied through Read"
+        );
         assert!(
             instruction.results.iter().all(|entity| {
                 function.entity(*entity).unwrap().ty != EntityType::Value(*string)
