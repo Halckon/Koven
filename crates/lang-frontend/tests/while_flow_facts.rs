@@ -317,7 +317,13 @@ fn assert_cases(cases: &[Case]) {
                 rejected_read.nodes[0].0,
                 "{context}"
             );
-            assert_eq!(typed.primary_text, ["x"], "{context}");
+            let rejected_text = case
+                .marks
+                .iter()
+                .find(|mark| mark.name == rejected)
+                .expect("rejection names a source marker")
+                .text;
+            assert_eq!(typed.primary_text, [rejected_text], "{context}");
             let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = &typed.complete else {
                 panic!("{context}: {typed:?}");
             };
@@ -608,6 +614,60 @@ fn shared_condition_facts_respect_effect_order_and_short_circuit_paths() {
             text: "fun mutate(inout value: Int?): Boolean = true\nfun accept(value: Int): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; if ((x != null && mutate(&x)) && accept(/*reject*/x)) {} }",
             marks: vec![read("reject", Shape::Error)],
             rejected: Some("reject"),
+        },
+    ]);
+}
+
+#[test]
+fn while_scans_evaluated_initializers_and_preserves_error_and_capture_rules() {
+    assert_cases(&[
+        Case {
+            name: "initializer_call_is_a_potential_loop_write",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) { while (flag) { val head = /*head*/x; val ignored = mutate(&x); val rejected: Int = /*reject*/x; break } } }",
+            marks: vec![
+                read("head", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "nested_control_initializer_is_a_potential_loop_write",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) { while (flag) { val head = /*head*/x; val ignored = if (flag) mutate(&x) else true; val rejected: Int = /*reject*/x; break } } }",
+            marks: vec![
+                read("head", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "captured_mutable_source_remains_ineligible",
+            text: "fun test(initial: Int?): Unit { var x = initial; val callback = { x }; while (x != null) { val seen = /*body*/x; val rejected: Int = /*reject*/x; break } }",
+            marks: vec![
+                read("body", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "captured_immutable_source_keeps_existing_eligibility",
+            text: "fun test(x: Int?): Unit { val callback = { x }; while (x != null) { val seen = /*body*/x; val accepted: Int = /*consume*/x; break } }",
+            marks: vec![read("body", Shape::Int), read("consume", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "invalid_assignment_rhs_keeps_diagnostic_and_kills_fact",
+            text: "fun test(initial: Int?): Unit { var x = initial; while (x != null) { val before = /*before*/x; x = /*bad*/\"bad\"; val after = /*after*/x; break } }",
+            marks: vec![
+                read("before", Shape::Int),
+                Mark {
+                    name: "bad",
+                    text: "\"bad\"",
+                    kind: NodeKind::Other,
+                    shape: Shape::Error,
+                },
+                read("after", Shape::NullableInt),
+            ],
+            rejected: Some("bad"),
         },
     ]);
 }
