@@ -267,24 +267,9 @@ macro_rules! litmus {
     };
 }
 
-litmus!(
-    litmus_01_basic_frontend,
-    1,
-    [],
-    [("result = result + 10", "Some(Deferred(Assignment))")],
-    []
-);
+litmus!(litmus_01_basic_frontend, 1, []);
 litmus!(litmus_02_newlines_frontend, 2, []);
-litmus!(
-    litmus_03_control_frontend,
-    3,
-    [],
-    [
-        ("count = count + 1", "Some(Deferred(Assignment))"),
-        ("count = count - 1", "Some(Deferred(Assignment))")
-    ],
-    []
-);
+litmus!(litmus_03_control_frontend, 3, []);
 litmus!(
     litmus_04_return_when_frontend,
     4,
@@ -324,10 +309,7 @@ litmus!(
     litmus_11_iteration_frontend,
     11,
     [],
-    [
-        ("listOf", "Some(Deferred(Call))"),
-        ("sum = sum + i", "Some(Deferred(Assignment))")
-    ],
+    [("listOf", "Some(Deferred(Call))")],
     [("listOf", "Some(Deferred(Call))")]
 );
 litmus!(

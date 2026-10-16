@@ -6,7 +6,6 @@
 不表示实现完成。[SPEC-0291](0291-readonly-map-construction.md)保留历史候选正文，须按
 新的 owned 本地 receiver、插入序共享布局与资源验收重基后再申请 active；旧“不改变布局”
 假设不能约束新的内部方案。此目录不授权其他 consume 家族或复制转换。
-0325 在独立实施分支推进；本树不包含该片实现，不将两片交付状态混为一体。
-
-[SPEC-0326](../../active/0326-closed-control-branch-join.md)已按普通源码红证登记active，
-实施已启用A的封闭if/when join；其余范围不因此获得实现完成状态。
+[SPEC-0325](../../../archive/specs/0325-simple-variable-assignment-types.md)已有限归档并由PR111合入main `aa42bdc5`。
+[SPEC-0326](../../active/0326-closed-control-branch-join.md)保持active，当前与0325进行联合整合验收；
+其余v0.44范围不因此获得实现完成状态。

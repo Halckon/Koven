@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前 1 份：0326；0323/0324已有限归档。
+- [Active 合同](active/README.md)：当前 1 份：0326；0325已归档并由PR111正常合入main `aa42bdc5`。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -65,6 +65,8 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 通用循环和其他容器/API仍按原能力边界及独立后继处理。
 
 ### 近期交付
+
+- [0325](../archive/specs/0325-simple-variable-assignment-types.md)：[PR111实施CI](https://github.com/Halckon/Koven/actions/runs/38834828940/attempts/1)15实际success、1路径skip、非复用，双host21exact各1通过；仅简单变量赋值与readonly义务；归档head CI通过并由PR111合入main `aa42bdc5`，main CI另核。
 
 - [0324](../archive/specs/0324-final-admission-user-messages.md)：[PR109整合CI](https://github.com/Halckon/Koven/actions/runs/38734960861/attempts/1)15实际success、1范围skip、非复用，双宿主20精确目标逐项通过；只改用户措辞并保留0323修复，归档head CI/main交付待核。
 

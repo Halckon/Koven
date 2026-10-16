@@ -1,5 +1,6 @@
 use crate::type_checking::IntegerOperationDescriptor;
 mod argument_mapping;
+mod assignment;
 mod callable;
 mod constants;
 mod construction;

@@ -189,3 +189,53 @@ fn project_mixed_control_join_build_preserves_source_rejection() {
     }
     support::assert_rejections_count(&cases, 1, 4);
 }
+
+#[test]
+fn project_assignment_capture_build_preserves_ownership_rejection() {
+    let prefix = "";
+    let probe = &support::assignment_capture_probe();
+    let mut cases = Vec::new();
+    for format in ["human", "json"] {
+        let project = TestProject::create("assignment-capture-0325");
+        let manifest = project.manifest(&["src"]);
+        let source_name = format!("src/{}", probe.name);
+        project.write(&source_name, &format!("{prefix}{}", probe.text));
+        let executable = project.join("rejected-program");
+        let before = directory_snapshot(project.path());
+        let output = project_build(&manifest, "main", &executable, Some(format));
+        cases.push(RejectionCase {
+            context: format!("SPEC-0325 build {format}"),
+            output,
+            format,
+            expected: expected_diagnostic(probe, &source_name, prefix),
+            before,
+            after: directory_snapshot(project.path()),
+            executable_exists: executable.exists(),
+        });
+    }
+    support::assert_rejections_count(&cases, 1, 2);
+}
+
+#[test]
+fn project_local_assignment_unit_value_executes() {
+    let project = TestProject::create("assignment-unit-0325");
+    let manifest = project.manifest(&["src"]);
+    project.write(
+        "src/main.ko",
+        include_str!("../fixtures/simple-assignment-0325/local_unit.ko"),
+    );
+    let executable = project.join("local-unit");
+    let built = project_build(&manifest, "main", &executable, None);
+    assert_eq!(built.status.code(), Some(0), "{built:?}");
+    assert!(
+        built.stdout.is_empty() && built.stderr.is_empty(),
+        "{built:?}"
+    );
+    let launched = std::process::Command::new(&executable)
+        .output()
+        .expect("ordinary executable");
+    assert_eq!(launched.status.code(), Some(0), "{launched:?}");
+    assert_eq!(launched.stdout, b"assigned\n");
+    assert!(launched.stderr.is_empty(), "{launched:?}");
+    super::assert_no_build_temporaries(project.path());
+}
