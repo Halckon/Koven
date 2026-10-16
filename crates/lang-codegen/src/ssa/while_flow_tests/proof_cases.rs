@@ -489,15 +489,49 @@ fn distinct_root_nested_while_retires_only_the_inner_scope() {
         |source: &str| source.replace("while (other != null)", "while (((other) != null))");
     let continued_group = grouped(&continued);
     let normal_group = grouped(&normal);
-    observe(
-        "distinct-scopes",
-        &[
-            (continued, false),
-            (normal, false),
-            (continued_group, false),
-            (normal_group, false),
-            (empty, false),
-            (distinct_payload, false),
-        ],
-    );
+    let sources = [
+        continued,
+        normal,
+        continued_group,
+        normal_group,
+        empty,
+        distinct_payload,
+    ];
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 12);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("DISTINCT LLVM case={index} {llvm}");
+                println!(
+                    "DISTINCT SSA case={index} {}",
+                    crate::ssa::render::render_program(&program)
+                );
+                Ok(program)
+            });
+            println!(
+                "DISTINCT OUTCOME source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    for (index, result) in outcomes.into_iter().enumerate() {
+        let program = result.expect("independent nested scopes preserve the outer proof");
+        distinct_nested_contract::assert_distinct_scopes(
+            &program,
+            &sources[index / 2],
+            index % 2 == 1,
+        );
+    }
 }
+
+#[path = "distinct_nested_contract.rs"]
+mod distinct_nested_contract;
