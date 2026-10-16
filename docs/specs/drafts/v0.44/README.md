@@ -7,3 +7,6 @@
 新的 owned 本地 receiver、插入序共享布局与资源验收重基后再申请 active；旧“不改变布局”
 假设不能约束新的内部方案。此目录不授权其他 consume 家族或复制转换。
 0325 的静态测试准备尚在独立未发布分支，不由本次版本切换冒称已测试或已实施。
+
+[SPEC-0326](0326-closed-control-branch-join.md)认领已启用 A 的封闭 if/when join；
+当前仅静态计划，须固定普通源码 helper/exact 名单独审后采红，不声称实现完成。
