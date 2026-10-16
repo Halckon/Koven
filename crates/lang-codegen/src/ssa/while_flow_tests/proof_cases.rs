@@ -124,9 +124,7 @@ fn branch_join_and_replacement_keep_current_proof_identity() {
     let matched = holder(
         "while (current != null) {\nwhen (flag) {\ntrue -> { total = current.value }\nelse -> { total = current.value }\n}\ntotal = total + current.value\ncurrent = null\n}\nreturn total",
     );
-    let retested = holder(
-        "while (current != null) {\nif (flag) { current = null }\nif (current != null) { total = current.value }\nbreak\n}\nreturn total",
-    );
+    let retested = retested_after_branch_source();
     let stale = holder(
         "while (current != null) {\nif (flag) { current = null }\ntotal = current.value\nbreak\n}\nreturn total",
     );
@@ -810,4 +808,17 @@ fn pending_nullable_field_child_preserves_readonly_call_prefix() {
             index % 2 == 1,
         );
     }
+}
+
+fn retested_after_branch_source() -> String {
+    holder(
+        "while (current != null) {\nif (flag) { current = null }\nif (current != null) { total = current.value }\nbreak\n}\nreturn total",
+    )
+}
+
+#[test]
+fn nullable_if_retest_after_conditional_replacement_reaches_llvm() {
+    let source = retested_after_branch_source();
+    let grouped = source.replace("if (current != null)", "if (((current) != null))");
+    observe("if-retest", &[(source, false), (grouped, false)]);
 }
