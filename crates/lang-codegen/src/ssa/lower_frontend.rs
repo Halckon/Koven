@@ -980,6 +980,7 @@ impl ExpressionLowerer<'_> {
             return Ok(assigned);
         }
         self.reject_live_while_proof(symbol, span)?;
+        self.deliver_assignment_rhs(operator, expression, assigned, span);
         self.bindings.insert(symbol, assigned);
         Ok(LoweredValue::Unit)
     }
