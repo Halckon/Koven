@@ -456,3 +456,101 @@ fn while_exit_adds_no_facts_and_preserves_immutable_outer_facts() {
         },
     ]);
 }
+
+#[test]
+fn while_condition_effect_order_preserves_only_current_facts() {
+    assert_cases(&[
+        Case {
+            name: "condition_inout_after_test_kills_true_fact",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; while (x != null && mutate(&x)) { val seen = /*body*/x; val rejected: Int = /*reject*/x; break } }",
+            marks: vec![
+                read("body", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "condition_test_after_inout_reestablishes_true_fact",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; while (mutate(&x) && x != null) { val seen = /*body*/x; val accepted: Int = /*consume*/x; break } }",
+            marks: vec![read("body", Shape::Int), read("consume", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "body_inout_kills_condition_fact",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; while (x != null) { mutate(&x); val seen = /*body*/x; val rejected: Int = /*reject*/x; break } }",
+            marks: vec![
+                read("body", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "ordinary_call_preserves_immutable_condition_fact",
+            text: "fun inspect(): Boolean = true\nfun test(x: Int?): Unit { while (x != null && inspect()) { val seen = /*body*/x; val accepted: Int = /*consume*/x; break } }",
+            marks: vec![read("body", Shape::Int), read("consume", Shape::Int)],
+            rejected: None,
+        },
+    ]);
+}
+
+#[test]
+fn while_nested_and_continue_paths_do_not_reuse_stale_facts() {
+    assert_cases(&[
+        Case {
+            name: "continue_rechecks_condition_after_assignment",
+            text: "fun test(initial: Int?): Unit { var x = initial; while (x != null) { val before = /*before*/x; /*write*/x = null; continue }; val after = /*after*/x; val rejected: Int = /*reject*/x }",
+            marks: vec![
+                read("before", Shape::Int),
+                write(),
+                read("after", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "inner_write_invalidates_outer_body_fact",
+            text: "fun test(initial: Int?, flag: Boolean): Unit { var x = initial; while (x != null) { val before = /*before*/x; while (flag) { /*write*/x = null; break }; val after = /*after*/x; val rejected: Int = /*reject*/x; break } }",
+            marks: vec![
+                read("before", Shape::Int),
+                write(),
+                read("after", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "nested_immutable_condition_facts_remain_stable",
+            text: "fun test(x: Int?, flag: Boolean): Unit { while (x != null) { while (flag) { val inside = /*body*/x; break }; val after = /*after*/x; val accepted: Int = /*consume*/x; break } }",
+            marks: vec![
+                read("body", Shape::Int),
+                read("after", Shape::Int),
+                read("consume", Shape::Int),
+            ],
+            rejected: None,
+        },
+    ]);
+}
+
+#[test]
+fn while_enum_case_true_fact_matches_existing_if_payload_access() {
+    let payload = || Mark {
+        name: "payload",
+        text: "x.value",
+        kind: NodeKind::Other,
+        shape: Shape::Int,
+    };
+    assert_cases(&[
+        Case {
+            name: "enum_while_payload",
+            text: "enum class Shape { A(value: Int), B(value: Int) }\nfun test(x: Shape): Unit { while (x is Shape.A) { val accepted: Int = /*payload*/x.value; break } }",
+            marks: vec![payload()],
+            rejected: None,
+        },
+        Case {
+            name: "enum_if_payload_control",
+            text: "enum class Shape { A(value: Int), B(value: Int) }\nfun test(x: Shape): Unit { if (x is Shape.A) { val accepted: Int = /*payload*/x.value } }",
+            marks: vec![payload()],
+            rejected: None,
+        },
+    ]);
+}

@@ -48,12 +48,12 @@ stable key、赋值/未知 call/capture 的 kill 规则；需在真实普通源�
 ## 4. 实施与交付
 
 Guide 已启用，草案不要求新增语义决策。按 draft→active、测试红→小片生产→普通绿、
-精确共享回归、有限工程门禁、双平台 CI 的顺序推进。当前未运行本片测试。
+精确共享回归、有限工程门禁、双平台 CI 的顺序推进。首红前未运行本片测试；实跑结果见 §5。
 每步冻结 head/tree/输入 SHA、唯一 exact 名单、实际命中及历史失败；小提交以 binary/full-index
 format-patch 增量恢复核验。实际远端发布、PR、归档与 normal merge 由唯一 publisher 执行。
 本片远端阶段备份/PR/审验后 normal merge 已获用户明确授权；不改0329冻结树。
 首批新增 while_flow_facts 三个普通 exact，11 段源码双入口先采齐再断言；已通过有限
-Rust 编译预检，尚未执行。初次 docs 错误锚点已机械修复，保留失败日志。
+Rust 编译预检；该首红前状态的后续实跑见 §5。初次 docs 错误锚点已机械修复，保留失败日志。
 
 ## 5. 首批真实红测
 
@@ -64,3 +64,7 @@ kill、零轮/false/break 不新增事实及不可变外层事实对照均保留
 收据 SHA `c17a1fbeab29fe57bb781946f6ee5398ccacc58632cd2d812564ff11c3368df6`。
 生产前还须采条件内 inout kill 前后顺序、enum/nested/continue；现有 condition_facts
 事后重取可能复活失效事实，不能只在 while body 入口机械加入未经副作用筛选的 true facts。
+
+后续普通采证补齐条件中 inout 的先后顺序、body inout、普通调用、
+嵌套循环与 continue，以及 enum case payload 的 while/if 对照。
+这些前端采证不替代后端/native 与完整退出清理验收。
