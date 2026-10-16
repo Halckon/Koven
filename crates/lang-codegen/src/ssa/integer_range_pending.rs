@@ -15,7 +15,10 @@ fn range(builtin: BuiltinType) -> bool {
 }
 
 fn file_range(typed: &TypedFile, mut ty: TypeId) -> bool {
-    while let Some(kind) = typed.types().get(ty) {
+    for _ in 0..typed.types().len() {
+        let Some(kind) = typed.types().get(ty) else {
+            return false;
+        };
         match kind {
             TypeKind::Builtin(builtin) => return range(*builtin),
             TypeKind::Nullable(inner) => ty = *inner,
@@ -26,7 +29,10 @@ fn file_range(typed: &TypedFile, mut ty: TypeId) -> bool {
 }
 
 fn unit_range(typed: &CompilationUnitTypes, mut ty: UnitTypeId) -> bool {
-    while let Some(kind) = typed.types().get(ty) {
+    for _ in 0..typed.types().len() {
+        let Some(kind) = typed.types().get(ty) else {
+            return false;
+        };
         match kind {
             UnitTypeKind::Builtin(builtin) => return range(*builtin),
             UnitTypeKind::Nullable(inner) => ty = *inner,
