@@ -170,3 +170,16 @@ when/owned assignment/nullable storage/unreachable-inline 回归通过。收据 
 同 head 四工程 fmt/check/clippy/build 全部 exit0、输入稳定，收据 SHA `707e17a999a2cc10501219e6c8ca2b5513ab5dc79158b17fdbe021fb303efd33`；
 docs701 与实际 main size 门禁通过。此批仅备份已验 enum/storage 必要片，仍 active，
 不创建完成 PR、不称 nullable while proof 或本片 native 已完成。
+
+### Nullable proof 跨 CFG 首批完整观察
+
+固定 `ad7ead73` 的七个 ordinary exact 各实际 1 命中并行为红，66 输入前后同；
+20 源码双入口共 40 结果均先采齐：29 停 lower、8 停 complete、2 停 ownership，
+1 个 single owner-return 已通过 SSA/LLVM。收据 SHA
+`81966b42dcae616a367a46c7707bd21f33d35ccde3975a6b95a64f50d4b399c4`。
+同根只读内层和 pending-field 只读内层的拟正例，各两入口因再次比较裸 null 得到
+L0083，先列前端事实/expected 边界，不冒充后端 proof 失败。旧事实读取负控为
+complete L0165，pending 字段借用期间写 owner 为 ownership L0135 并保留来源 label。
+每组首个正例断言失败会遮住后续负控断言，完整观察不等于这些断言已通过。
+后续先审精确 owner/inner/loan 身份运输，再闭合每轮 proof 产生、嵌套继承、
+替换与各出口失效；本轮不执行 native，不改变已备份 enum/storage 生产。
