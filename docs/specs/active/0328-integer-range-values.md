@@ -193,3 +193,8 @@ Range值根现在为IntRange，原p34源码for仍唯一L0159（40..45），未�
 工程收据SHA `b284554bc4f8c9e9ba3058674a5e80875179e61347d75933cd40dcbd8cba87a6`。
 远端待验35个唯一exact：本地25、CI-only verifier七项、既有CLI拒绝聚合三项；后者含run模式，
 本轮不在云本地执行。保留此前19绿及六红/24绿1红原始收据，尚未取得本片远端CI结论。
+
+PR114首CI `38858644835` 双host旧fault导出测试因硬编码`f1.__deinit.t20`失败；该后缀来自
+frontend receiver TypeId。改为唯一Holder witness关联真实LLVM函数，验证定义保留/调用清零及记录。
+云仅cargo check codegen all-targets通过，未执行fault；实际修复验证留新CI。邻近`.drop.t15`属SSA型域，
+独立校准路径尚未证受本片影响，本片不改；由本片作者后继移除该编号依赖，保留旧失败。
