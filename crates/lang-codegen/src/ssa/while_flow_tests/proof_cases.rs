@@ -773,5 +773,41 @@ fn pending_nullable_field_child_preserves_readonly_call_prefix() {
         "while (current != null) { break }",
         "while (((current) != null)) { break }",
     );
-    observe("pending-prefix", &[(source, false), (grouped, false)]);
+    #[path = "pending_child_contract.rs"]
+    mod pending_child_contract;
+
+    let sources = [source, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("PENDING CHILD LLVM case={index} {llvm}");
+                println!(
+                    "PENDING CHILD SSA case={index} {}",
+                    crate::ssa::render::render_program(&program)
+                );
+                Ok(program)
+            });
+            println!(
+                "PENDING CHILD OUTCOME source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    // Retain all four real verify/render outcomes before querying any SSA identity.
+    assert_eq!(outcomes.len(), 4);
+    for (index, result) in outcomes.into_iter().enumerate() {
+        pending_child_contract::assert_pending_child(
+            &result.expect("pending child survives readonly argument control flow"),
+            &sources[index / 2],
+            index % 2 == 1,
+        );
+    }
 }
