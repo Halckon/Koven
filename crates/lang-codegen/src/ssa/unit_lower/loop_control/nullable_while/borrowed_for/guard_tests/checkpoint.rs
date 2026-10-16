@@ -1,5 +1,5 @@
 use super::*;
-use crate::ssa::model::{Function, InstructionId};
+use crate::ssa::model::{Function, InstructionId, LoanId};
 use crate::ssa::unit_lower::{
     loop_control::iteration::IterationContext,
     nullable_proof::{

@@ -114,7 +114,7 @@ use checkpoint::Shape;
 #[test]
 fn unit_borrowed_for_while_guards_preserve_current_roles() {
     for source in
-        crate::ssa::while_flow_tests::borrowed_proof_cases::while_inside_borrowed_for_sources()
+        crate::ssa::while_flow_tests::proof_cases::borrowed_proof_cases::while_inside_borrowed_for_sources()
     {
         let fixture = Fixture::new(&source);
         let original = fixture.function();
