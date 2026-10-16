@@ -160,3 +160,13 @@ unit 因普通 TypeTest 未触发内部 Int tag 类型登记而 MissingFact；`0
 discard 两入口仍原 MissingFact；完整 while 四个 nullable 入口仍待 true-edge proof。
 这一阶段不计 native 或完整 C 完成。后续 tests-only 将 discard 作为已证旧边界锁定，
 另加强真实 tag owner 的唯一 Drop 与指令顺序，不将已知拒绝当规范正例。
+
+固定 `1314665d` 八个 ordinary exact 各实际 1 命中，54 输入逐轮前后 SHA 相同：
+原完整 while exact 保留 nullable proof 四入口 InvalidSsa 的真实红，其余七项通过；
+其中 nullable-boundary 一项仅表示观察完成，不能作为所有入口能力绿。独立 enum
+末次读取八入口现精确断真实 tag owner、同 block 唯一 Drop 及 tag 在前；四个共享
+when/owned assignment/nullable storage/unreachable-inline 回归通过。收据 SHA
+`8903a4e9cc9333494991abd55453c134ecac9c84fbed6ce658dffec45ddb9004`。
+同 head 四工程 fmt/check/clippy/build 全部 exit0、输入稳定，收据 SHA `707e17a999a2cc10501219e6c8ca2b5513ab5dc79158b17fdbe021fb303efd33`；
+docs701 与实际 main size 门禁通过。此批仅备份已验 enum/storage 必要片，仍 active，
+不创建完成 PR、不称 nullable while proof 或本片 native 已完成。
