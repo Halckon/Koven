@@ -90,7 +90,9 @@ fn temporary_root_substitution_cannot_bypass_source_call() {
         .find(|(_, node)| matches!(node.payload(), crate::parser::Expression::Literal(_)))
         .unwrap()
         .0;
-    owned.iterations[0].source = LoanTarget::Temporary(replacement);
+    owned.iterations[0].source = crate::ownership_checking::IterationSource::BorrowedSource(
+        LoanTarget::Temporary(replacement),
+    );
     let error = validate_iteration_facts(&parsed, &names, &typed, &owned).unwrap_err();
     assert_eq!(error.reason(), "temporary root bypasses source evaluation");
     assert!(error.span().is_some());

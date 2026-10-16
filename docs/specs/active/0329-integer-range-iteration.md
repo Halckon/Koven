@@ -1,15 +1,15 @@
 # SPEC-0329: 整数 Range 的 owned 值 for
 
-> **性质**：实施草案 · **状态**：draft · **读取时机**：实现整数 Range provider 与退出清理时 · **唯一真源**：本片实施范围；语言语义以 Guide 为准
+> **性质**：实施合同 · **状态**：in-progress · **读取时机**：实现整数 Range provider 与退出清理时 · **唯一真源**：本片实施范围；语言语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-0329` |
 | 基线 | 真实 main `3fa567aa39be7ddba421046b2c4ed33d8ce90716`，已合0328值ABI |
 | 分支 | 本地 `feature/spec-0329-integer-range-iteration`；授权远端 `fix/spec-0329-range-for` |
-| 依赖 | [SPEC-0328](../../../archive/specs/0328-integer-range-values.md) |
-| 合同 | [Guide12整数Range迭代](../../../guide/12-collections-destructuring.md#整数-range-与-map-的独立迭代合同) |
+| 依赖 | [SPEC-0328](../../archive/specs/0328-integer-range-values.md) |
+| 合同 | [Guide12整数Range迭代](../../guide/12-collections-destructuring.md#整数-range-与-map-的独立迭代合同) |
 
 ## 1. 范围
 
@@ -52,7 +52,7 @@
 所有新helper与精确argv先独审；本地仅普通source，synthetic非法facts/故障校准留CI。
 新增integration target同步精确composition数量与唯一性，不宽跑aggregate。
 小提交binary/full-index format-patch、真实远端基线恢复逐树核验；不改Guide，不rebase既有历史。
-实现CI、归档head CI、normal merge/main证据分账。当前尚未运行本片测试或实施生产。
+实现CI、归档head CI、normal merge/main证据分账。初始草案时尚未运行本片测试或实施生产；首红实跑见§5。
 
 ## 5. 首批真实前端红证
 
@@ -63,3 +63,13 @@ Array/List/MutableList/View四源码双入口保留Borrow计划并complete通过
 源码观测并不证明snapshot/运行次数/退出清理；完整六组矩阵仍须后继层次验收。
 冻结前cargo check一次E0608为helper公开table索引误用、0测试执行；改get后预检通过，旧日志保留。
 仓外red3收据SHA `7f5d09007961d35c0af974dcaa4b159b92db268d52fdfe6483e3b55a3ba5803c`。
+
+## 6. FE / ownership 阶段
+
+Numeric provider 按真实 IntRange/LongRange 身份交付 owned Int/Long，source 以 Read 形成
+OwnedSnapshot；借用 provider 保持 BorrowedSource，数值计划不建立 source/element loan。
+各退出继续复用局部清理和词法 element/provider 边界，但数值计划没有 EndSource。
+本阶段后端对真实 numeric descriptor 明确 Unsupported；SSA/native 尚未交付。
+公开 source 查询变为可选借用目标，旧消费者和对应断言仅同步 Some，原借用合同保持。
+冻结前有限 all-targets check 暴露 Option API 迁移、测试 validate 消费及 LoweringError 字段误用，
+均为编译预检失败、0 测试执行；修正后的同范围预检通过。行为验收须另按固定名单实跑。

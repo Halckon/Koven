@@ -29,7 +29,7 @@ pub(super) fn drop(
         return None;
     };
     if plan.descriptor().provider() != IterationProvider::Sequential(SequentialContainerKind::Array)
-        || !matches!(plan.source(), LoanTarget::Temporary(_))
+        || !matches!(plan.source(), Some(LoanTarget::Temporary(_)))
         || typed.types().get(plan.descriptor().element_type())
             != Some(&TypeKind::Builtin(BuiltinType::Int))
         || typed.types().get(typed.expression_type(*value)?)

@@ -60,7 +60,7 @@ fn single_text(text: &str, live: bool, map: bool) {
     );
     use lang_frontend::ownership_checking::{IterationExitKind, IterationPhiIncomingKind};
     let plan = a.owned.iterations().iter().find(|plan| {
-        matches!(plan.source(), LoanTarget::Place(place) if a.names.symbols()[place.root().index()].name() == "keys")
+        matches!(plan.source(), Some(LoanTarget::Place(place)) if a.names.symbols()[place.root().index()].name() == "keys")
     }).expect("the exact named owned-source iteration, not an outer temporary provider");
     assert_eq!(plan.exits().len(), 3);
     assert_eq!(
@@ -87,7 +87,7 @@ fn single_text(text: &str, live: bool, map: bool) {
     crate::llvm::render_verified_program(&program).unwrap();
     use lang_frontend::ownership_checking::{CleanupOwnerValue, IterationPhiBoundary, LoanTarget};
     let symbol = match plan.source() {
-        LoanTarget::Place(place) => place.root(),
+        Some(LoanTarget::Place(place)) => place.root(),
         _ => panic!("owned source root"),
     };
     let header = plan

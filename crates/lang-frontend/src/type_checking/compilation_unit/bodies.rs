@@ -958,6 +958,7 @@ impl CompilationUnitTypes {
         if self.ownership_primitives_are_valid()
             && self.integer_operations_are_valid()
             && self.integer_range_operations_are_valid()
+            && self.numeric_range_iterations_are_valid()
             && self.constants.is_some()
             && !self
                 .diagnostics
@@ -984,6 +985,7 @@ impl CompilationUnitTypes {
             || !self.ownership_primitives_are_valid()
             || !self.integer_operations_are_valid()
             || !self.integer_range_operations_are_valid()
+            || !self.numeric_range_iterations_are_valid()
         {
             Err(Box::new(self))
         } else {

@@ -124,7 +124,7 @@ impl UnitIterationExitPlan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitIterationOwnershipPlan {
     pub(super) descriptor: UnitSequentialIterationDescriptor,
-    pub(super) source: UnitLoanTarget,
+    pub(super) source: crate::ownership_checking::IterationSource<UnitLoanTarget, UnitExpressionId>,
     pub(super) source_access: UnitIterationSourceAccess,
     pub(super) bindings: Vec<UnitOwnershipBindingDescriptor>,
     pub(super) exits: Vec<UnitIterationExitPlan>,
@@ -137,7 +137,14 @@ impl UnitIterationOwnershipPlan {
     }
     /// source的稳定owner/place身份。
     #[must_use]
-    pub const fn source(&self) -> &UnitLoanTarget {
+    pub const fn source(&self) -> Option<&UnitLoanTarget> {
+        self.source.borrowed()
+    }
+    /// Exact borrowed source or owned value snapshot identity.
+    #[must_use]
+    pub fn source_kind(
+        &self,
+    ) -> &crate::ownership_checking::IterationSource<UnitLoanTarget, UnitExpressionId> {
         &self.source
     }
     /// source原有能力，不改变provider Shared交付。

@@ -22,6 +22,7 @@ pub(super) struct IterationFrame {
     pub(super) source_root: Option<UnitSymbolId>,
     temporary: Option<(ExpressionId, Span)>,
     element_active: bool,
+    borrowed: bool,
     scope_depth: usize,
     loop_depth: usize,
 }
@@ -34,8 +35,21 @@ impl DropPlanner<'_, '_> {
         body: StatementId,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        let borrowed = self
+            .checker
+            .iterations
+            .get(&UnitStatementId::new(self.checker.source_unit, statement))
+            .is_none_or(|plan| plan.source().is_some());
         // A return/abort in source happens before AcquireProvider.
-        if !self.expression(source, DropExpressionUse::Place, state)? {
+        if !self.expression(
+            source,
+            if borrowed {
+                DropExpressionUse::Place
+            } else {
+                DropExpressionUse::Read
+            },
+            state,
+        )? {
             return Ok(false);
         }
         let statement_id = UnitStatementId::new(self.checker.source_unit, statement);
@@ -46,11 +60,11 @@ impl DropPlanner<'_, '_> {
             },
         )?;
         let source_root = match plan.source() {
-            UnitLoanTarget::Place(place) => Some(place.root()),
+            Some(UnitLoanTarget::Place(place)) => Some(place.root()),
             _ => None,
         };
         let temporary = match plan.source() {
-            UnitLoanTarget::Temporary(owner) => Some((
+            Some(UnitLoanTarget::Temporary(owner)) => Some((
                 owner.expression(),
                 self.checker
                     .parsed
@@ -69,6 +83,7 @@ impl DropPlanner<'_, '_> {
             source_root,
             temporary,
             element_active: false,
+            borrowed,
             scope_depth: self.scope_depth,
             loop_depth: self.loop_boundaries.len() + 1,
         });
@@ -135,8 +150,10 @@ impl DropPlanner<'_, '_> {
         };
         self.iteration_actions
             .push((point, Action::FinishProvider(frame.statement)));
-        self.iteration_actions
-            .push((point, Action::EndSource(frame.statement)));
+        if frame.borrowed {
+            self.iteration_actions
+                .push((point, Action::EndSource(frame.statement)));
+        }
         if let Some((temporary, origin)) = frame.temporary {
             self.push_fact(PlannerDropFact::new(
                 point,

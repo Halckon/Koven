@@ -36,6 +36,7 @@ pub(super) struct IterationExitRecord {
 pub(super) struct IterationFrame {
     statement: StatementId,
     element_active: bool,
+    borrowed: bool,
     pub(super) source_root: Option<SymbolId>,
     temporary: Option<(ExpressionId, Span, CleanupOwnerValueId)>,
     pub(super) scope_depth: usize,
@@ -50,8 +51,21 @@ impl DropPlanner<'_, '_> {
         body: StatementId,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        let borrowed = self
+            .checker
+            .iterations
+            .get(&statement.index())
+            .is_none_or(|plan| plan.source().is_some());
         // Source 求值中的 return/abort 发生在 provider 建立之前。
-        if !self.expression(source, ExpressionUse::Place, state)? {
+        if !self.expression(
+            source,
+            if borrowed {
+                ExpressionUse::Place
+            } else {
+                ExpressionUse::Read
+            },
+            state,
+        )? {
             return Ok(false);
         }
         self.preallocate_closure_phis(statement)?;
@@ -71,7 +85,7 @@ impl DropPlanner<'_, '_> {
             })
             .or(self.checker.temporary_element_owner(source)?)
             .unwrap_or(source);
-        let temporary = if self.is_move_only_temporary(temporary_owner) {
+        let temporary = if borrowed && self.is_move_only_temporary(temporary_owner) {
             let origin = self
                 .checker
                 .parsed
@@ -89,7 +103,12 @@ impl DropPlanner<'_, '_> {
         state.iterations.push(IterationFrame {
             statement,
             element_active: false,
-            source_root: self.checker.place(source)?.map(|place| place.root()),
+            borrowed,
+            source_root: if borrowed {
+                self.checker.place(source)?.map(|place| place.root())
+            } else {
+                None
+            },
             temporary,
             scope_depth: self.scope_depth,
             loop_depth: self.loop_boundaries.len() + 1,
@@ -207,8 +226,10 @@ impl DropPlanner<'_, '_> {
         if let Some(frame) = state.iterations.last() {
             self.cleanup
                 .push((point, Action::FinishProvider(frame.statement)));
-            self.cleanup
-                .push((point, Action::EndSource(frame.statement)));
+            if frame.borrowed {
+                self.cleanup
+                    .push((point, Action::EndSource(frame.statement)));
+            }
         }
         if let Some(frame) = state.iterations.pop() {
             if let Some((source, origin, owner)) = frame.temporary {

@@ -48,6 +48,7 @@ pub fn validate_iteration_facts(
     for plan in owned.iterations() {
         let descriptor = plan.descriptor();
         let statement = descriptor.statement();
+        let numeric = descriptor.delivery() == ParameterMode::Value;
         let node = parsed
             .ast()
             .statements()
@@ -63,7 +64,6 @@ pub fn validate_iteration_facts(
         };
         if !seen.insert(statement.index())
             || typed.sequential_iteration(statement) != Some(descriptor)
-            || descriptor.delivery() != ParameterMode::Borrow
         {
             return Err(reject("typed provider descriptor mismatch or duplicate"));
         }
@@ -72,6 +72,32 @@ pub fn validate_iteration_facts(
         };
         if *source != descriptor.source() {
             return Err(reject("source evaluation identity mismatch"));
+        }
+        if numeric != plan.source().is_none() {
+            return Err(reject("provider source capability mismatch"));
+        }
+        if numeric {
+            use crate::type_checking::{BuiltinType, IterationProvider, TypeKind};
+            let (range, endpoint) = match descriptor.provider() {
+                IterationProvider::NumericRange(BuiltinType::Int) => {
+                    (BuiltinType::IntRange, BuiltinType::Int)
+                }
+                IterationProvider::NumericRange(BuiltinType::Long) => {
+                    (BuiltinType::LongRange, BuiltinType::Long)
+                }
+                _ => return Err(reject("invalid numeric provider endpoint")),
+            };
+            if typed.expression_type(*source) != Some(descriptor.source_type())
+                || typed.types().get(descriptor.source_type()) != Some(&TypeKind::Builtin(range))
+                || typed.types().get(descriptor.element_type())
+                    != Some(&TypeKind::Builtin(endpoint))
+                || matches!(
+                    descriptor.binding(),
+                    SequentialIterationBinding::Destructure(_)
+                )
+            {
+                return Err(reject("numeric snapshot type identity mismatch"));
+            }
         }
         let mut root = *source;
         loop {
@@ -95,7 +121,7 @@ pub fn validate_iteration_facts(
         });
         if let Some(fact) = range_source {
             let source = fact.source_loan();
-            if fact.origin() != plan.source()
+            if Some(fact.origin()) != plan.source()
                 || owned
                     .loans()
                     .iter()
@@ -113,17 +139,22 @@ pub fn validate_iteration_facts(
         }
         match plan.source() {
             _ if range_source.is_some() => {}
-            LoanTarget::Place(path) if path.is_root() => {
+            Some(LoanTarget::Place(path)) if path.is_root() => {
                 if !matches!(source_node.payload(), Expression::Name) || !names.references().iter().any(|reference| reference.span() == source_node.span() && matches!(reference.target(), ReferenceTarget::Symbol(symbol) if *symbol == path.root())) {
                     return Err(reject("source owner does not match evaluated source"));
                 }
             }
-            LoanTarget::Temporary(temporary) => {
+            Some(LoanTarget::Temporary(temporary)) => {
                 if *temporary != root && *temporary != *source && !typed.element_place(root).is_some_and(|place| place.receiver() == *temporary) {
                     return Err(reject("temporary root bypasses source evaluation"));
                 }
             }
-            LoanTarget::Place(_) | LoanTarget::This(_) => {}
+            Some(LoanTarget::Place(_) | LoanTarget::This(_)) => {},
+            None => {
+                if !numeric || plan.source_kind() != &super::IterationSource::OwnedSnapshot(*source) {
+                    return Err(reject("invalid owned snapshot identity"));
+                }
+            }
         }
         let expected = match descriptor.binding() {
             SequentialIterationBinding::Discard => Vec::new(),
@@ -138,10 +169,14 @@ pub fn validate_iteration_facts(
             .map(|binding| binding.symbol())
             .collect::<Vec<_>>()
             != expected
-            || plan
-                .bindings()
-                .iter()
-                .any(|binding| binding.kind() != OwnershipBindingKind::Shared)
+            || plan.bindings().iter().any(|binding| {
+                binding.kind()
+                    != if numeric {
+                        OwnershipBindingKind::Owned
+                    } else {
+                        OwnershipBindingKind::Shared
+                    }
+            })
         {
             return Err(reject(
                 "element bindings must preserve typed shared delivery",
@@ -176,6 +211,14 @@ pub fn validate_iteration_facts(
                     .iter()
                     .position(|action| *action == Action::FinishProvider(statement))
                     .ok_or_else(|| reject("missing provider finish"))?;
+                if numeric {
+                    if exit.actions().contains(&Action::EndSource(statement))
+                        || !element.is_none_or(|element| element < provider)
+                    {
+                        return Err(reject("snapshot must not end a source loan"));
+                    }
+                    continue;
+                }
                 let source = exit
                     .actions()
                     .iter()

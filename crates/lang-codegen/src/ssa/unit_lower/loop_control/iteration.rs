@@ -45,6 +45,19 @@ impl UnitExpressionLowerer<'_> {
         if plan.source_access() == UnitIterationSourceAccess::Exclusive {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if matches!(
+            descriptor.provider(),
+            lang_frontend::type_checking::IterationProvider::NumericRange(_)
+        ) {
+            if plan.source_kind()
+                != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(
+                    descriptor.source(),
+                )
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let container = self.iteration_type(descriptor.source_type(), span)?;
         let element_type = self.iteration_type(descriptor.element_type(), span)?;
         let int_type = self.ssa_builtin(BuiltinType::Int, span)?;
@@ -56,7 +69,10 @@ impl UnitExpressionLowerer<'_> {
         {
             self.range_iteration_loan(source, container, span)?
         } else {
-            match plan.source() {
+            match plan
+                .source()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+            {
                 UnitLoanTarget::Place(place) => {
                     let symbol = place.root();
                     let symbol_data = self.names.names().source_units()

@@ -189,7 +189,7 @@ fn source_category_plans_preserve_place_and_owner_capabilities() {
         ));
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         let plan = &owned.iterations()[0];
-        let LoanTarget::Place(place) = plan.source() else {
+        let Some(LoanTarget::Place(place)) = plan.source() else {
             panic!("expected source place")
         };
         assert_eq!(place.fields().len(), fields);
@@ -217,7 +217,7 @@ fn provider_loan_ends_before_an_inout_source_is_replaced_after_the_loop() {
             owned.diagnostics()
         );
         let plan = &owned.iterations()[0];
-        assert!(matches!(plan.source(), LoanTarget::Place(_)));
+        assert!(matches!(plan.source(), Some(LoanTarget::Place(_))));
         assert_eq!(
             plan.exits()
                 .iter()
@@ -296,7 +296,7 @@ fn explicit_this_field_source_has_the_same_provider_loan_as_a_bare_field() {
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert!(matches!(
         owned.iterations()[0].source(),
-        LoanTarget::Place(_)
+        Some(LoanTarget::Place(_))
     ));
 }
 
@@ -363,7 +363,7 @@ fn source_reuse_and_moved_entry_follow_the_original_owner() {
         "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>) { for (_ in xs) { break } read(xs) }",
     );
     let plan = &good.iterations()[0];
-    let LoanTarget::Place(place) = plan.source() else {
+    let Some(LoanTarget::Place(place)) = plan.source() else {
         panic!("expected place")
     };
     assert!(!plan.exits().iter().flat_map(|exit| exit.actions()).any(|action| matches!(action, Action::Drop(fact) if fact.target() == DropTarget::Named(place.root()))));
@@ -587,7 +587,7 @@ fn multi_index_source_keeps_the_original_temporary_owner() {
             .unwrap();
         assert_eq!(
             owned.iteration(statement).unwrap().source(),
-            &LoanTarget::Temporary(owner)
+            Some(&LoanTarget::Temporary(owner))
         );
         let drops = owned
             .drops()
@@ -636,8 +636,10 @@ fn multi_index_places_preserve_prefix_aliases_and_named_owner_cleanup() {
     let places = plans
         .iter()
         .map(|plan| match plan.source() {
-            LoanTarget::Place(place) => place,
-            LoanTarget::Temporary(_) | LoanTarget::This(_) => panic!("named source lost its place"),
+            Some(LoanTarget::Place(place)) => place,
+            Some(LoanTarget::Temporary(_) | LoanTarget::This(_)) | None => {
+                panic!("named source lost its place")
+            }
         })
         .collect::<Vec<_>>();
     assert_eq!(

@@ -21,12 +21,24 @@ impl Checker<'_> {
         body: StatementId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let numeric = self
+            .typed
+            .sequential_iteration(statement)
+            .is_some_and(|plan| plan.delivery() == crate::type_checking::ParameterMode::Value);
         let errors = self.diagnostics.len();
         let previous = self.allowed_borrow_call;
         if self.range_expression_is_proven(source) {
             self.allowed_borrow_call = Some(source);
         }
-        let checked = self.check_expression(source, state, ExpressionUse::Place);
+        let checked = self.check_expression(
+            source,
+            state,
+            if numeric {
+                ExpressionUse::Read
+            } else {
+                ExpressionUse::Place
+            },
+        );
         self.allowed_borrow_call = previous;
         let mut prefix = checked?;
         if self.diagnostics.len() == errors && self.range_expression_is_proven(source) {
@@ -45,7 +57,8 @@ impl Checker<'_> {
             return self.check_maybe_loop(prefix, body, errors);
         };
         let source_span = self.parsed.ast().expressions().get(source)?.span();
-        if self.diagnostics.len() == errors
+        if !numeric
+            && self.diagnostics.len() == errors
             && let Some(place) = self.place(source)?
             && self.access_place(&place, AccessKind::SharedLoan, false, source_span, state)?
         {
@@ -67,34 +80,45 @@ impl Checker<'_> {
         for &symbol in &bindings {
             let origin = self.names.symbols()[symbol.index()].span();
             state.moved.remove(&symbol);
-            state.non_owning.insert(symbol, origin);
-            // binding 有独立借用身份；字段 mutation 不能绕过 Shared element access。
-            state.loans.push(ActiveLoan {
-                owner: ActiveLoanOwner::IterationElement(statement),
-                target: ActiveLoanTarget::Place(OwnershipPlace::new(symbol, Vec::new())),
-                kind: LoanKind::Shared,
-                origin,
-            });
+            if !numeric {
+                state.non_owning.insert(symbol, origin);
+                // binding 有独立借用身份；字段 mutation 不能绕过 Shared element access。
+                state.loans.push(ActiveLoan {
+                    owner: ActiveLoanOwner::IterationElement(statement),
+                    target: ActiveLoanTarget::Place(OwnershipPlace::new(symbol, Vec::new())),
+                    kind: LoanKind::Shared,
+                    origin,
+                });
+            }
         }
         self.iterations.insert(
             statement.index(),
             crate::ownership_checking::IterationOwnershipPlan {
                 descriptor: plan,
-                source: self
-                    .range_use(source)
-                    .map(|fact| fact.origin().clone())
-                    .or(self
-                        .place(source)?
-                        .map(crate::ownership_checking::LoanTarget::Place))
-                    .unwrap_or(crate::ownership_checking::LoanTarget::Temporary(
-                        self.temporary_element_owner(source)?.unwrap_or(source),
-                    )),
+                source: if numeric {
+                    crate::ownership_checking::IterationSource::OwnedSnapshot(source)
+                } else {
+                    crate::ownership_checking::IterationSource::BorrowedSource(
+                        self.range_use(source)
+                            .map(|fact| fact.origin().clone())
+                            .or(self
+                                .place(source)?
+                                .map(crate::ownership_checking::LoanTarget::Place))
+                            .unwrap_or(crate::ownership_checking::LoanTarget::Temporary(
+                                self.temporary_element_owner(source)?.unwrap_or(source),
+                            )),
+                    )
+                },
                 bindings: bindings
                     .iter()
                     .map(|&symbol| {
                         crate::ownership_checking::OwnershipBindingDescriptor::new(
                             symbol,
-                            crate::ownership_checking::OwnershipBindingKind::Shared,
+                            if numeric {
+                                crate::ownership_checking::OwnershipBindingKind::Owned
+                            } else {
+                                crate::ownership_checking::OwnershipBindingKind::Shared
+                            },
                         )
                     })
                     .collect(),

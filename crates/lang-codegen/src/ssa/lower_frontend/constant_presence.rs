@@ -84,8 +84,7 @@ pub(super) fn constant_drop(
     let Some(plan) = owned.iteration(*statement) else {
         return false;
     };
-    let source =
-        matches!(plan.source(), LoanTarget::Place(path) if path.is_root() && path.root() == symbol);
+    let source = matches!(plan.source(), Some(LoanTarget::Place(path)) if path.is_root() && path.root() == symbol);
     let resource = typed
         .symbol_type(symbol)
         .is_some_and(|ty| typed.is_resource_type(ty) == Some(true));

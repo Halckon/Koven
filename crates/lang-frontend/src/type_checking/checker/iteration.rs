@@ -18,6 +18,14 @@ impl Checker<'_> {
         let diagnostic_start = self.diagnostics.len();
         let source_type = self.check_expression(source, None, None)?.ty;
         let provider = match self.kind(source_type) {
+            TypeKind::Builtin(BuiltinType::IntRange) => Some((
+                crate::type_checking::IterationProvider::NumericRange(BuiltinType::Int),
+                self.builtin(BuiltinType::Int),
+            )),
+            TypeKind::Builtin(BuiltinType::LongRange) => Some((
+                crate::type_checking::IterationProvider::NumericRange(BuiltinType::Long),
+                self.builtin(BuiltinType::Long),
+            )),
             TypeKind::Intrinsic {
                 constructor: IntrinsicTypeConstructor::View,
                 arguments,
@@ -43,7 +51,7 @@ impl Checker<'_> {
                 let span = self.ast().expressions().get(source)?.span();
                 self.emit_iteration_error(
                     self.invalid_iteration_source_code,
-                    "for source requires a compiler-bound sequential container or View",
+                    "for source requires a compiler-bound sequential container, View, IntRange or LongRange",
                     span,
                     source_type,
                 )?;

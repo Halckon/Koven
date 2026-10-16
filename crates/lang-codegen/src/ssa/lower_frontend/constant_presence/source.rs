@@ -47,7 +47,7 @@ pub(super) fn prove(
         IterationProvider::Sequential(_)
     ) || plan.descriptor().source_type() != ty
         || typed.is_resource_type(ty) != Some(false)
-        || !matches!(plan.source(), LoanTarget::Place(place) if place.is_root() && place.root() == symbol)
+        || !matches!(plan.source(), Some(LoanTarget::Place(place)) if place.is_root() && place.root() == symbol)
         || owned
             .borrow_results()
             .bindings()
