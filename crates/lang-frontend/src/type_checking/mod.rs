@@ -19,6 +19,7 @@ mod declaration_frontier;
 mod error;
 mod expression_use;
 mod final_admission;
+mod flow_effects;
 pub use final_admission::{
     FinalCompilationUnitTypes, FinalTypeAdmissionError, FinalTypeAdmissionInternalError,
     FinalTypedFile, complete_compilation_unit_types, complete_file_types,
