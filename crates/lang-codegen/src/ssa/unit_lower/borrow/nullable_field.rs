@@ -25,6 +25,9 @@ impl UnitExpressionLowerer<'_> {
         let Some(proof) = self.nullable_proofs.get(&root).copied() else {
             return Ok(None);
         };
+        if proof.while_scope().is_none() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if path.is_root() {
             return Ok(None);
         }

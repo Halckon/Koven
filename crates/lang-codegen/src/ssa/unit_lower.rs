@@ -240,6 +240,23 @@ impl UnitExpressionLowerer<'_> {
             })?;
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
+        // Reject unsupported If carriers/transfers before specialized dispatch can
+        // create a call frame, a temporary owner, or any SSA instruction.
+        if matches!(
+            node.payload(),
+            Expression::Call { .. }
+                | Expression::Lambda { .. }
+                | Expression::String { .. }
+                | Expression::Index { .. }
+                | Expression::NonNullAssert { .. }
+                | Expression::CallableReference { .. }
+                | Expression::Propagate { .. }
+                | Expression::Return { .. }
+                | Expression::Break { .. }
+                | Expression::Continue { .. }
+        ) {
+            self.reject_live_if_proof(span)?;
+        }
         if self.typed.range_size(unit_expression).is_some() {
             return self.lower_range_size(expression, span);
         }
@@ -400,6 +417,7 @@ impl UnitExpressionLowerer<'_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_live_if_proof(span)?;
         if self.function.carrier_return.is_some() {
             return self.lower_range_return(
                 value.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,

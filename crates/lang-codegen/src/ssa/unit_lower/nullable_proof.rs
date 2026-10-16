@@ -3,8 +3,14 @@ use super::*;
 use crate::ssa::model::SsaTypeKind;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NullableProofScope {
+    If(UnitExpressionId),
+    While(UnitStatementId),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct NullableProofOrigin {
-    scope: UnitStatementId,
+    scope: NullableProofScope,
     birth: LoanId,
 }
 
@@ -17,14 +23,36 @@ pub(super) struct NullableProof {
 }
 
 impl NullableProof {
-    pub(super) fn scope(self) -> UnitStatementId {
-        self.origin.scope
+    pub(super) fn while_scope(self) -> Option<UnitStatementId> {
+        match self.origin.scope {
+            NullableProofScope::While(scope) => Some(scope),
+            NullableProofScope::If(_) => None,
+        }
+    }
+
+    pub(super) fn if_scope(self) -> Option<UnitExpressionId> {
+        match self.origin.scope {
+            NullableProofScope::If(scope) => Some(scope),
+            NullableProofScope::While(_) => None,
+        }
     }
 }
 
 pub(super) type NullableProofs = BTreeMap<UnitSymbolId, NullableProof>;
 
 impl UnitExpressionLowerer<'_> {
+    /// If retests currently support only local reads and normal branch completion.
+    pub(super) fn reject_live_if_proof(&self, span: Span) -> Result<(), LoweringError> {
+        if self
+            .nullable_proofs
+            .values()
+            .any(|proof| proof.if_scope().is_some())
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        Ok(())
+    }
+
     /// Only the actual NullableBranch view and its owner column can mint a proof.
     pub(super) fn introduce_while_proof(
         &mut self,
@@ -34,9 +62,26 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         self.validate_direct_while_entry(entry, span)?;
-        let root = entry.root();
-        let inner = entry.inner();
-        let scope = entry.scope();
+        self.introduce_nullable_proof(
+            header,
+            owner_column,
+            entry.root(),
+            entry.inner(),
+            NullableProofScope::While(entry.scope()),
+            span,
+        )
+    }
+
+    /// Both scopes use the same actual non-null successor and owner-column check.
+    pub(super) fn introduce_nullable_proof(
+        &mut self,
+        header: BlockId,
+        owner_column: usize,
+        root: UnitSymbolId,
+        inner: SsaTypeId,
+        scope: NullableProofScope,
+        span: Span,
+    ) -> Result<(), LoweringError> {
         let Some(TerminatorKind::NullableBranch {
             owner,
             when_null,
@@ -70,7 +115,7 @@ impl UnitExpressionLowerer<'_> {
         if self
             .nullable_proofs
             .values()
-            .any(|outer| outer.loan == *view || outer.scope() == scope)
+            .any(|outer| outer.loan == *view || outer.origin.scope == scope)
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -113,7 +158,12 @@ impl UnitExpressionLowerer<'_> {
                 .insert(proof.loan, identity)
                 .is_some_and(|old| old != identity)
                 || root.source_unit() != self.source_unit
-                || proof.scope().source_unit() != self.source_unit
+                || match proof.origin.scope {
+                    NullableProofScope::If(scope) => scope.source_unit() != self.source_unit
+                        || !self.parsed.ast().expressions().get(scope.expression())
+                            .is_ok_and(|node| matches!(node.payload(), Expression::If { .. })),
+                    NullableProofScope::While(scope) => scope.source_unit() != self.source_unit,
+                }
                 || !self.function.blocks.iter().any(|block| {
                     matches!(block.terminator.as_ref().map(|terminator| &terminator.kind),
                         Some(TerminatorKind::NullableBranch { view, .. }) if *view == proof.origin.birth)

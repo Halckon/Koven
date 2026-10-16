@@ -306,7 +306,7 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         if let UnitDropTarget::Named(symbol) = fact.target() {
-            self.end_while_proof(symbol, fact.value_origin())?;
+            self.end_nullable_proof(symbol, fact.value_origin())?;
         }
         let owner = match fact.target() {
             UnitDropTarget::This(owner) => match self.current_receiver.take() {
@@ -515,7 +515,7 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             };
-            self.end_while_proof(symbol, span)?;
+            self.end_nullable_proof(symbol, span)?;
             let Some(binding) = self.bindings.remove(&symbol) else {
                 self.closure_bindings.remove(&symbol);
                 continue;

@@ -57,6 +57,7 @@ impl UnitExpressionLowerer<'_> {
                         .count()
                         != 1
                     || !frame.shared_field_roots.contains(&child.root)
+                    || proof.while_scope().is_none()
                     || proof.origin != child.parent_origin
                     || proof.inner != child.parent_inner
                     || loan == proof.loan
@@ -89,6 +90,13 @@ impl UnitExpressionLowerer<'_> {
         root: UnitSymbolId,
         span: Span,
     ) -> Result<(), LoweringError> {
+        if self
+            .nullable_proofs
+            .get(&root)
+            .is_none_or(|proof| proof.while_scope().is_none())
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if self.pending_operands.is_empty() {
             return self.ensure_no_while_proof_carriers(span);
         }

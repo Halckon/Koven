@@ -22,6 +22,9 @@ impl UnitExpressionLowerer<'_> {
         let Some(proof) = self.nullable_proofs.get(&root).copied() else {
             return self.lower(expression).map(|result| (result, false));
         };
+        if proof.while_scope().is_none() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let storage = self
             .typed
             .symbol_type(root)
@@ -101,7 +104,7 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         self.ensure_no_while_proof_carriers(span)?;
-        self.end_while_proof(root, span)?;
+        self.end_nullable_proof(root, span)?;
         // Preserve Name/Group AfterExpression facts before the existing transfer.
         let result = self.lower(expression)?;
         if result != LoweredValue::Value(proof.owner)
@@ -189,7 +192,7 @@ impl UnitExpressionLowerer<'_> {
         })
     }
 
-    pub(super) fn end_while_proof(
+    pub(super) fn end_nullable_proof(
         &mut self,
         root: UnitSymbolId,
         span: Span,
@@ -197,6 +200,28 @@ impl UnitExpressionLowerer<'_> {
         let Some(proof) = self.nullable_proofs.get(&root).copied() else {
             return Ok(());
         };
+        self.validate_nullable_proof_retirement(root, span)?;
+        self.function
+            .append_instruction(
+                self.block,
+                Operation::BorrowEnd { loan: proof.loan },
+                Vec::new(),
+                Origin::Source(span),
+            )
+            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        self.nullable_proofs.remove(&root);
+        Ok(())
+    }
+
+    pub(super) fn validate_nullable_proof_retirement(
+        &self,
+        root: UnitSymbolId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let proof = self
+            .nullable_proofs
+            .get(&root)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         // All checks precede both BorrowEnd and state removal, in particular an owner Drop.
         self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
         self.ensure_no_while_proof_carriers(span)?;
@@ -207,15 +232,6 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        self.function
-            .append_instruction(
-                self.block,
-                Operation::BorrowEnd { loan: proof.loan },
-                Vec::new(),
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        self.nullable_proofs.remove(&root);
         Ok(())
     }
 
@@ -230,11 +246,14 @@ impl UnitExpressionLowerer<'_> {
             .nullable_proofs
             .iter()
             .filter_map(|(&root, proof)| {
-                (returning || Some(proof.scope()) == scope).then_some(root)
+                proof
+                    .while_scope()
+                    .is_some_and(|proof_scope| returning || Some(proof_scope) == scope)
+                    .then_some(root)
             })
             .collect::<Vec<_>>();
         for root in roots {
-            self.end_while_proof(root, span)?;
+            self.end_nullable_proof(root, span)?;
         }
         Ok(())
     }

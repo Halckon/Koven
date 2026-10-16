@@ -39,6 +39,7 @@ impl UnitExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_live_if_proof(span)?;
         let statement_id = UnitStatementId::new(self.source_unit, statement);
         let Some(plan) = self.owned.iteration(statement_id).cloned() else {
             // Source control transfer happens before AcquireProvider; no exit plan exists yet.

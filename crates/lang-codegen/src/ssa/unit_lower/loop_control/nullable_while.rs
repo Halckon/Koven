@@ -15,7 +15,7 @@ use lang_frontend::{
 };
 
 impl UnitExpressionLowerer<'_> {
-    pub(super) fn direct_nullable_while_condition(
+    pub(in super::super) fn direct_nullable_while_condition(
         &self,
         condition: ExpressionId,
         span: Span,
@@ -80,7 +80,7 @@ impl UnitExpressionLowerer<'_> {
         )))
     }
 
-    fn direct_nullable_while_entry(
+    pub(in super::super) fn direct_nullable_while_entry(
         &self,
         descriptor: UnitNullComparisonDescriptor,
         span: Span,
@@ -212,7 +212,7 @@ impl UnitExpressionLowerer<'_> {
         self.borrow_bindings =
             self.rebind_carried_loans(false_block, carried.len(), &loans, span)?;
         self.validate_direct_while_entry(&entry, span)?;
-        self.emit_direct_while_condition_drops(condition, span)?;
+        self.emit_direct_nullable_condition_drops(condition, span)?;
         let false_exit = self.loop_state();
 
         self.restore_loop_state(&condition_state);
@@ -228,7 +228,7 @@ impl UnitExpressionLowerer<'_> {
         )?;
         self.introduce_while_proof(context.header, owner_column, &entry, span)?;
         self.loops.push(context);
-        self.emit_direct_while_condition_drops(condition, span)?;
+        self.emit_direct_nullable_condition_drops(condition, span)?;
         if self.lower_statement(body)? != LoweredValue::Diverged {
             self.record_natural_continue(span)?;
         }
@@ -287,7 +287,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn emit_direct_while_condition_drops(
+    pub(in super::super) fn emit_direct_nullable_condition_drops(
         &mut self,
         condition: ExpressionId,
         span: Span,
@@ -300,7 +300,7 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
         match *node.payload() {
             Expression::Group { expression } => {
-                self.emit_direct_while_condition_drops(expression, span)?
+                self.emit_direct_nullable_condition_drops(expression, span)?
             }
             Expression::Binary { left, right, .. } => {
                 self.emit_null_condition_drops(left)?;

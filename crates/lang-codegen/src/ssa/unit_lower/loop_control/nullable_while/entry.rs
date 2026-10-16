@@ -64,10 +64,12 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         if self.nullable_proofs.len() != 1
-            || !self
-                .loops
-                .iter()
-                .any(|context| context.proof_scope == Some(proof.scope()))
+            || proof.while_scope().is_none_or(|scope| {
+                !self
+                    .loops
+                    .iter()
+                    .any(|context| context.proof_scope == Some(scope))
+            })
             || self.borrow_bindings.contains_key(&outer_root)
             || !matches!(
                 self.ssa_types.get(proof.inner.index()),
@@ -164,12 +166,12 @@ impl UnitExpressionLowerer<'_> {
         self.ensure_no_while_proof_carriers(span)?;
         if root == outer_root {
             // The written same-root header kills the old view before rebirth.
-            self.end_while_proof(root, span)?;
+            self.end_nullable_proof(root, span)?;
         } else {
             let Some(LoweredValue::Value(owner)) = self.bindings.get(&root) else {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             };
-            if *owner == proof.owner || entry.scope == proof.scope() {
+            if *owner == proof.owner || proof.while_scope() == Some(entry.scope) {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
             entry.inherited = Some((outer_root, proof));
@@ -189,6 +191,8 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
         if exit.nullable_proofs.len() != 1
+            || inherited.while_scope().is_none()
+            || proof.while_scope().is_none()
             || proof.origin != inherited.origin
             || proof.inner != inherited.inner
         {
@@ -216,11 +220,13 @@ impl UnitExpressionLowerer<'_> {
         };
         if root == entry.root
             || proof.owner == *owner
-            || proof.scope() == entry.scope
-            || !self
-                .loops
-                .iter()
-                .any(|context| context.proof_scope == Some(proof.scope()))
+            || proof.while_scope() == Some(entry.scope)
+            || proof.while_scope().is_none_or(|scope| {
+                !self
+                    .loops
+                    .iter()
+                    .any(|context| context.proof_scope == Some(scope))
+            })
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }

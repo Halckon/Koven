@@ -65,6 +65,7 @@ impl UnitExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_live_if_proof(span)?;
         let descriptor = self.direct_nullable_while_condition(condition, span)?;
         let inherited = if let Some((descriptor, subject)) = descriptor {
             match self.prepare_nullable_while_entry(statement, descriptor, subject, span)? {
@@ -198,6 +199,7 @@ impl UnitExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_live_if_proof(span)?;
         self.reject_nested_while_proof(span)?;
         if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -250,6 +252,7 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_live_if_proof(span)?;
         if self
             .owned
             .iteration_cleanup_at(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
@@ -282,6 +285,7 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_live_if_proof(span)?;
         if self
             .owned
             .iteration_cleanup_at(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
@@ -406,7 +410,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn restore_loop_state(&mut self, state: &BranchExit) {
+    pub(super) fn restore_loop_state(&mut self, state: &BranchExit) {
         self.block = state.block;
         self.bindings.clone_from(&state.bindings);
         self.borrow_bindings.clone_from(&state.borrow_bindings);
