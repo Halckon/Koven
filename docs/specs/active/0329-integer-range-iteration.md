@@ -108,3 +108,12 @@ build 因遇错停未运行。保留失败，机械化简后同名单与四工�
 actual-main `3fa567aa` size 0 errors，docs 700 通过。synthetic 仅编译，未本地执行。
 阶段 backup 基线为 local `ef756580` 对应真实 remote `2987218d`；仍 active，等待数值 CFG、
 极值安全递增、精确退出清理与有界 native。旧 p34 七项后继责任见上节，未以局部绿宣称全 CI。
+
+## 7. 数值 CFG 首批普通源码采证计划
+
+后端首三 exact 复用真实完整前端/ownership 的分阶段 helper：16 个来源/极值退出源码、
+6 个 source call/重赋/返回源码、12 个 Resource 四出口及内外借用嵌套源码，各跑双入口。
+首红先收齐可达阶段再要求 SSA/verify；第三组仅请求内存 LLVM，不 emit/JIT/run 产物。
+当前失败须区分 names/type/ownership 与 lower，不将前置拒绝冒充后端缺口。
+初始 oracle 只定位可达性缺口；实现验收前再锁 source call 身份/次数、Value 快照运输、
+terminal 支配 increment、四退出真实清理事实，native 数值/轨迹另行固定独审。

@@ -99,7 +99,7 @@ fn lower_source(text: &str, unit: bool) -> Result<Program, String> {
     result
 }
 
-fn collect_sources(sources: &[String]) -> Vec<Result<Program, String>> {
+pub(super) fn collect_sources(sources: &[String]) -> Vec<Result<Program, String>> {
     let mut results = Vec::new();
     for source in sources {
         for unit in [false, true] {
