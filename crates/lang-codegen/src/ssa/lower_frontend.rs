@@ -34,6 +34,7 @@ mod nullable_if_cleanup;
 mod nullable_numeric_cleanup;
 mod nullable_when;
 pub(super) mod orchestrate;
+mod outer_borrowed_while;
 mod ownership_primitive;
 mod pending_call;
 mod range;

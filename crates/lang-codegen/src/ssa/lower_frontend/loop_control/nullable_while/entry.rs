@@ -11,9 +11,13 @@ pub(in super::super) struct DirectNullableWhileEntry {
     statement: StatementId,
     descriptor: NullComparisonDescriptor,
     inherited: Option<(SymbolId, NonNullProof)>,
+    provider: Option<super::super::super::outer_borrowed_while::Relation>,
 }
 
 impl DirectNullableWhileEntry {
+    pub(super) fn provider(&self) -> Option<&super::super::super::outer_borrowed_while::Relation> {
+        self.provider.as_ref()
+    }
     pub(super) fn into_parts(
         self,
         statement: StatementId,
@@ -126,7 +130,7 @@ impl ExpressionLowerer<'_> {
         }
         // Retire only the old view, before the inner baseline/header can capture it.
         // The nullable owner remains intact for the direct guard's independent birth.
-        self.direct_nullable_while_entry(descriptor, span)?;
+        self.direct_nullable_while_entry(descriptor, None, span)?;
         self.end_non_null_proof(root, span)?;
         Ok(None)
     }
@@ -138,6 +142,16 @@ impl ExpressionLowerer<'_> {
         operand: ExpressionId,
         span: Span,
     ) -> Result<NullableWhileEntry, LoweringError> {
+        if let Some(provider) =
+            self.qualify_outer_borrowed_entry(statement, descriptor, operand, span)?
+        {
+            return Ok(NullableWhileEntry::Direct(DirectNullableWhileEntry {
+                statement,
+                descriptor,
+                inherited: None,
+                provider: Some(provider),
+            }));
+        }
         let inherited = if self.non_null_bindings.is_empty() {
             None
         } else if self.non_null_bindings.contains_key(&descriptor.symbol()) {
@@ -154,6 +168,7 @@ impl ExpressionLowerer<'_> {
             statement,
             descriptor,
             inherited,
+            provider: None,
         }))
     }
 
@@ -217,7 +232,7 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         // The new root qualifies independently; its payload need not match the outer's.
-        let (_, inner) = self.direct_nullable_while_entry(descriptor, span)?;
+        let (_, inner) = self.direct_nullable_while_entry(descriptor, None, span)?;
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&root) else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };

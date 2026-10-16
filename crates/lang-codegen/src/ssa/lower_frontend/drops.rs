@@ -26,6 +26,9 @@ impl ExpressionLowerer<'_> {
             }
             let fact = facts[index];
             index += 1;
+            if self.emit_outer_borrowed_drop(fact)? {
+                continue;
+            }
             if self.emit_nullable_borrowed_cleanup(fact)? {
                 continue;
             }

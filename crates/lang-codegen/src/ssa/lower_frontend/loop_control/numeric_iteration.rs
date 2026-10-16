@@ -134,6 +134,7 @@ impl ExpressionLowerer<'_> {
         }
         self.loops.push(LoopContext {
             entry_views: self.non_null_bindings.clone(),
+            outer_borrowed_while: None,
             header,
             carried: carried.clone(),
             continues: Vec::new(),

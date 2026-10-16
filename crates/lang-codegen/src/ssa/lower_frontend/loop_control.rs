@@ -55,6 +55,7 @@ impl ForLoopData {
 
 pub(super) struct LoopContext {
     pub(super) entry_views: BTreeMap<SymbolId, super::NonNullProof>,
+    pub(super) outer_borrowed_while: Option<super::outer_borrowed_while::Relation>,
     pub(super) header: BlockId,
     pub(super) carried: LinearBindings,
     pub(super) continues: Vec<LoopJump>,
@@ -146,7 +147,7 @@ impl ExpressionLowerer<'_> {
         }
         let mut exits = context.breaks;
         exits.push(false_exit);
-        let result = self.finish_loop_exits(statement, exits, &baseline, inherited, span)?;
+        let result = self.finish_loop_exits(statement, exits, &baseline, inherited, None, span)?;
         if let Some((root, proof)) = inherited {
             self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
         }
@@ -168,7 +169,7 @@ impl ExpressionLowerer<'_> {
         }
         let context = self.loops.pop().expect("loop context must be balanced");
         self.finish_loop_continues(&context)?;
-        self.finish_loop_exits(statement, context.breaks, &baseline, None, span)
+        self.finish_loop_exits(statement, context.breaks, &baseline, None, None, span)
     }
 
     fn finish_loop_exits(
@@ -177,10 +178,17 @@ impl ExpressionLowerer<'_> {
         mut exits: Vec<BranchExit>,
         baseline: &BTreeMap<SymbolId, LoweredValue>,
         inherited: Option<(SymbolId, super::NonNullProof)>,
+        provider: Option<&super::outer_borrowed_while::Relation>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(provider) = provider {
+            self.validate_outer_borrowed_exit_states(provider, &exits, span)?;
+        }
         // Different paths may already have consumed an owner; discharge each exit before joining.
         for exit in &mut exits {
+            if let Some(provider) = provider {
+                self.restore_outer_borrowed_state(provider, exit, span)?;
+            }
             if let Some((root, proof)) = inherited {
                 self.validate_readonly_while_exit(root, proof, exit, span)?;
             }
@@ -196,6 +204,9 @@ impl ExpressionLowerer<'_> {
             self.emit_drops(lang_frontend::ownership_checking::DropPoint::LoopExit(
                 statement,
             ))?;
+            if let Some(provider) = provider {
+                self.validate_outer_borrowed_exit_states(provider, &[self.loop_exit()], span)?;
+            }
             *exit = self.loop_exit();
             if let Some((root, proof)) = inherited {
                 self.validate_readonly_while_exit(root, proof, exit, span)?;
@@ -209,7 +220,9 @@ impl ExpressionLowerer<'_> {
     }
 
     pub(super) fn lower_break(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
-        self.retire_while_proofs(false, span)?;
+        if !self.retire_outer_borrowed_break(span)? {
+            self.retire_while_proofs(false, span)?;
+        }
         let exit = self.loop_exit();
         let context = self
             .loops
@@ -308,6 +321,7 @@ impl ExpressionLowerer<'_> {
         self.block = header;
         Ok(LoopContext {
             entry_views: self.non_null_bindings.clone(),
+            outer_borrowed_while: None,
             header,
             carried,
             continues: Vec::new(),
@@ -466,6 +480,7 @@ impl ExpressionLowerer<'_> {
         exit: &lang_frontend::ownership_checking::IterationExitPlan,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.preflight_outer_borrowed_iteration(exit, span)?;
         self.preflight_borrowed_while_exit(exit, span)?;
         for action in exit.actions() {
             self.emit_iteration_cleanup_action(action, span)?;
@@ -481,6 +496,9 @@ impl ExpressionLowerer<'_> {
         use lang_frontend::ownership_checking::{DropTarget, IterationCleanupAction as Action};
         match action {
             Action::Drop(fact) => {
+                if self.emit_outer_borrowed_drop(*fact)? {
+                    return Ok(());
+                }
                 if fact.condition().is_some()
                     && !super::map_loop_owner::supported_drop(
                         self.parsed,

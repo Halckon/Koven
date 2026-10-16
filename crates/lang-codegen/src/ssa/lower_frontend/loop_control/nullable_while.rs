@@ -98,9 +98,14 @@ impl ExpressionLowerer<'_> {
     fn direct_nullable_while_entry(
         &self,
         descriptor: NullComparisonDescriptor,
+        provider: Option<&super::super::outer_borrowed_while::Relation>,
         span: Span,
     ) -> Result<(SsaTypeId, SsaTypeId), LoweringError> {
-        self.ensure_no_unresolved_while_proof_carriers(span)?;
+        if let Some(provider) = provider {
+            self.validate_outer_borrowed_entry(provider, descriptor, span)?;
+        } else {
+            self.ensure_no_unresolved_while_proof_carriers(span)?;
+        }
         let symbol = descriptor.symbol();
         let nullable = self.resolve_type(descriptor.nullable_type(), span)?;
         let nullable = *self
@@ -140,16 +145,19 @@ impl ExpressionLowerer<'_> {
         entry: DirectNullableWhileEntry,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        let provider = entry.provider().cloned();
         let (descriptor, inherited) = entry.into_parts(statement, span)?;
         if let Some((root, proof)) = inherited {
             self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
         } else if !self.non_null_bindings.is_empty() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let (nullable, inner) = self.direct_nullable_while_entry(descriptor, span)?;
+        let (nullable, inner) =
+            self.direct_nullable_while_entry(descriptor, provider.as_ref(), span)?;
         let symbol = descriptor.symbol();
         let baseline = self.bindings.clone();
-        let context = self.create_loop_header(&baseline, span)?;
+        let mut context = self.create_loop_header(&baseline, span)?;
+        context.outer_borrowed_while = provider.clone();
         if let Some((root, proof)) = inherited {
             self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
         }
@@ -209,7 +217,7 @@ impl ExpressionLowerer<'_> {
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
 
-        self.restore_direct_while_condition(&condition_state, span)?;
+        self.restore_direct_while_condition(&condition_state, provider.as_ref(), span)?;
         self.block = false_block;
         self.bindings =
             self.rebind_linear_bindings(&condition_state.bindings, false_block, &carried, span)?;
@@ -219,7 +227,7 @@ impl ExpressionLowerer<'_> {
         self.emit_direct_while_condition_drops(condition, span)?;
         let false_exit = self.loop_exit();
 
-        self.restore_direct_while_condition(&condition_state, span)?;
+        self.restore_direct_while_condition(&condition_state, provider.as_ref(), span)?;
         self.block = body_block;
         self.bindings =
             self.rebind_linear_bindings(&condition_state.bindings, body_block, &carried, span)?;
@@ -254,7 +262,14 @@ impl ExpressionLowerer<'_> {
         self.finish_loop_continues(&context)?;
         let mut exits = context.breaks;
         exits.push(false_exit);
-        let result = self.finish_loop_exits(statement, exits, &baseline, inherited, span)?;
+        let result = self.finish_loop_exits(
+            statement,
+            exits,
+            &baseline,
+            inherited,
+            provider.as_ref(),
+            span,
+        )?;
         if let Some((root, proof)) = inherited {
             self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
         }
@@ -264,10 +279,12 @@ impl ExpressionLowerer<'_> {
     fn restore_direct_while_condition(
         &mut self,
         state: &BranchExit,
+        provider: Option<&super::super::outer_borrowed_while::Relation>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        // Provider contexts remain outside the direct owned-while qualification.
-        if !state.for_sources.is_empty() || !state.for_elements.is_empty() {
+        if let Some(provider) = provider {
+            self.restore_outer_borrowed_state(provider, state, span)?;
+        } else if !state.for_sources.is_empty() || !state.for_elements.is_empty() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
         self.block = state.block;

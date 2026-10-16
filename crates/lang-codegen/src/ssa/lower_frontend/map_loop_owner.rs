@@ -58,7 +58,8 @@ pub(super) fn supported_drop(
     owned: &OwnershipCheckedFile,
     fact: DropFact,
 ) -> bool {
-    super::constant_presence::constant_drop(parsed, names, typed, owned, fact)
+    super::outer_borrowed_while::candidate(parsed, names, typed, owned, fact).is_some()
+        || super::constant_presence::constant_drop(parsed, names, typed, owned, fact)
         || owner_plan(parsed, typed, owned, fact).is_some()
         || super::nullable_if_cleanup::candidate(parsed, names, typed, owned, fact).is_some()
         || super::nullable_numeric_cleanup::candidate(parsed, names, typed, owned, fact).is_some()
