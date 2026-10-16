@@ -13,9 +13,9 @@ pub(super) fn qualify(
     statement: StatementId,
     member: ExpressionId,
     root: SymbolId,
-    storage: TypeId,
     seed: SymbolId,
 ) -> Option<StatementId> {
+    let storage = typed.symbol_type(root)?;
     let Statement::For { source, body, .. } =
         parsed.ast().statements().get(statement).ok()?.payload()
     else {

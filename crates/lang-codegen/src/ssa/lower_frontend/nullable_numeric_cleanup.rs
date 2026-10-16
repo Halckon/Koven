@@ -292,9 +292,7 @@ pub(super) fn candidate(
             return None;
         }
     }
-    let outer = source::qualify(
-        parsed, names, typed, statement, member, root, storage, *parameter,
-    )?;
+    let outer = source::qualify(parsed, names, typed, statement, member, root, *parameter)?;
     let root_drops = owned
         .drops()
         .iter()
