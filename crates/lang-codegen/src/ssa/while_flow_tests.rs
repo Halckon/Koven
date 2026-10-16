@@ -305,3 +305,27 @@ fn bounded_while_fixture_reaches_verified_llvm_before_native() {
         outcome.expect("complete bounded fixture reaches verified LLVM");
     }
 }
+
+#[test]
+fn bounded_pending_child_fixture_reaches_verified_llvm_before_native() {
+    let source =
+        include_str!("../../../lang-cli/tests/fixtures/while-flow-0330/pending.ko").to_owned();
+    let outcomes = collect_sources(&[source])
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(())
+            });
+            println!("BOUNDED PENDING unit={} {result:?}", index == 1);
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 2);
+    for outcome in outcomes {
+        outcome.expect("complete bounded pending fixture reaches verified LLVM");
+    }
+}
