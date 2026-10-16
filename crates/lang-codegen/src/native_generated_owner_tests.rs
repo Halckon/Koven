@@ -10,7 +10,7 @@ use inkwell::{
     context::Context,
     memory_buffer::MemoryBuffer,
     module::Module,
-    values::{CallSiteValue, InstructionOpcode},
+    values::{CallSiteValue, FunctionValue, InstructionOpcode},
 };
 use lang_frontend::{
     analysis::{SingleFileAnalysisError, SingleFileStage, analyze_single_file},
@@ -678,8 +678,7 @@ fn inject_missing_deinit_fault(module: &Module<'_>) -> String {
     name
 }
 
-#[allow(clippy::collapsible_if)]
-fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> (String, String) {
+fn holder_deinit<'ctx>(module: &Module<'ctx>) -> FunctionValue<'ctx> {
     // 1. Identify the unique Holder global constant containing "drop:holder"
     let mut holder_globals = Vec::new();
     for global in module.get_globals() {
@@ -710,7 +709,12 @@ fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> (String, String) {
         "Holder deinit fault requires exactly one __deinit function referencing Holder constant, found {}",
         holder_deinit_fns.len()
     );
-    let holder_deinit = holder_deinit_fns[0];
+    holder_deinit_fns[0]
+}
+
+#[allow(clippy::collapsible_if)]
+fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> (String, String) {
+    let holder_deinit = holder_deinit(module);
     let holder_deinit_name = holder_deinit.get_name().to_str().unwrap().to_owned();
 
     // 3. Identify and erase the unique call to Holder.__deinit in drop glue
@@ -844,6 +848,36 @@ fn export_generated_owner_case_with_missing_deinit_fault() {
         assert!(directory.0.join(name).is_file(), "missing {name}");
     }
     let raw_ll = fs::read_to_string(directory.0.join("case.raw.ll")).unwrap();
-    assert!(raw_ll.contains("define internal void @f1.__deinit.t20"));
-    assert_eq!(raw_ll.matches("call void @f1.__deinit.t20").count(), 0);
+    let context = Context::create();
+    let buffer = MemoryBuffer::create_from_memory_range_copy(raw_ll.as_bytes(), "exported-fault");
+    let module = context.create_module_from_ir(buffer).unwrap();
+    let deinit = holder_deinit(&module);
+    assert!(
+        !deinit.get_basic_blocks().is_empty(),
+        "deinit definition remains"
+    );
+    let calls = module
+        .get_functions()
+        .flat_map(|function| function.get_basic_blocks())
+        .flat_map(|block| block.get_instructions())
+        .filter_map(|instruction| CallSiteValue::try_from(instruction).ok())
+        .filter(|call| call.get_called_fn_value() == Some(deinit))
+        .count();
+    assert_eq!(calls, 0, "the identified Holder deinit call was removed");
+    let record = fs::read_to_string(directory.0.join("injected-fault.json")).unwrap();
+    assert!(record.contains(&format!(
+        "\"deinit_fn\": \"{}\"",
+        deinit.get_name().to_str().unwrap()
+    )));
+    let drop_names: Vec<_> = record
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("\"drop_glue_fn\": \""))
+        .collect();
+    assert_eq!(drop_names.len(), 1);
+    let drop_name = drop_names[0].strip_suffix("\",").unwrap();
+    let drop = module
+        .get_function(drop_name)
+        .expect("recorded drop glue exists");
+    assert!(drop_name.starts_with("koven.drop."));
+    assert!(!drop.get_basic_blocks().is_empty());
 }
