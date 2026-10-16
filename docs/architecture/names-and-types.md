@@ -13,7 +13,7 @@
 `type_checking::check_types` 消费名称产物与显式 `TypeEnvironment`，返回按 AST ID 索引的 `TypedFile`：
 表达式类型/类别、call/receiver/argument mapping、nominal projection、container/Rc、copyability、destructuring 与 flow。
 raw检查保留recovery，旧validate边界不变；`complete_file_types` / `complete_compilation_unit_types`另授绑定原分析的
-[最终消费资格](tooling.md#最终类型消费准入)，不等同ownership/native能力；普通变量 `=` 按storage检查RHS、产Unit并kill旧facts（[0325](../specs/active/0325-simple-variable-assignment-types.md)）。
+[最终消费资格](tooling.md#最终类型消费准入)，不等同ownership/native能力；普通变量 `=` 按storage检查RHS、产Unit并kill旧facts（[0325](../archive/specs/0325-simple-variable-assignment-types.md)）。
 覆盖见 `name_resolution`、`type_checking`、`type_callable`、`type_copyability`、`final_type_admission`；lambda expected/capture 见[专题](expected-move-literals.md)。
 
 两入口将同expression已选EnumCase构造归为Temporary，Group透传；Name/Member拼写不授予place，真实binding/field不变。

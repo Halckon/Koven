@@ -6,5 +6,5 @@
 不表示实现完成。[SPEC-0291](0291-readonly-map-construction.md)保留历史候选正文，须按
 新的 owned 本地 receiver、插入序共享布局与资源验收重基后再申请 active；旧“不改变布局”
 假设不能约束新的内部方案。此目录不授权其他 consume 家族或复制转换。
-[SPEC-0325](../../active/0325-simple-variable-assignment-types.md) 已在独立 stacked 分支采红并进入 active；
-实施仍须定向绿测与交付，不因 Guide 启用声称完成。
+[SPEC-0325](../../../archive/specs/0325-simple-variable-assignment-types.md) 已按PR111实施CI有界归档；
+归档head CI与main交付待核，其他v0.44片不因此完成。

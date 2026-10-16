@@ -1,16 +1,16 @@
 # SPEC-0325: 简单变量普通赋值类型事实
 
-> **性质**：有界类型修复 · **状态**：in-progress · **读取时机**：实现 p42 类型前置与所有权诊断时 · **唯一真源**：本 Spec；语言合同见 Guide
+> **性质**：有界类型修复 · **状态**：done · **读取时机**：实现 p42 类型前置与所有权诊断时 · **唯一真源**：本 Spec；语言合同见 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0325` |
 | 所属 Phase | Phase 2；final admission 仍先于 Phase 3 ownership |
 | 语言规范 | [Guide v0.44 简单赋值](../../guide/03-types-generics.md#简单变量赋值与整数-range-身份) |
 | 批准依据 | 2026-10-15 用户批准 B 最小合同，随后明确启用 v0.44 及四组细则 |
 | 基线 | Guide 分支 `be3264bc7143fdddb160ce77039fb902694d0d77`；其 actual main 祖先 `fcc5cc02c5f8b78b71dd703f864e04ad98c2a678` |
-| 分支依赖 | `fix/spec-0325-v044` stacked 在 Guide 启用提交上；Guide PR 尚未合并，发布须先完成其主干交付 |
+| 分支依赖 | Guide PR110已合入main `020ff41f`；本片真实远端同步后按PR111实施CI归档 |
 | 前置 Spec | [0319](../../archive/specs/0319-final-type-admission-diagnostics.md)、[0323](../../archive/specs/0323-final-admission-static-recovery.md) |
 | 关联实现 | [0218 unit 赋值事实](../../archive/specs/0218-compilation-unit-assignment-facts.md) |
 | 语言语义变更 | 无新增合同；实现当前 Guide B，其他 A/C/D/E/F 不在本片 |
@@ -135,3 +135,17 @@ Guide PR110未合期间只备份stacked分支，publisher按远端映射保留�
 各1命中通过、38输入前后一致；四工程及真实base020ff完整尺寸检查通过。
 仓外 `ci-repair21-receipt.json`、`engineering-ci-repair21-receipt.json` 保留真实结果；
 新增litmus绿包含两入口分析/ownership，不是native执行。以上未冒充修复后的远端CI。
+
+## 7. 实施 CI 有限归档
+
+2026-10-16，[PR111 implementation CI](https://github.com/Halckon/Koven/actions/runs/38834828940/attempts/1)
+在实际head `1c0c95ce8686f8dc0d09dfa2983fbf87cd7b87eb` / tree
+`0b2f58388c7b251d941ac7b893062baea0a8a5ec` 终态success，reuse=false；15个job实际成功、
+1个Tree-sitter路径范围skip。synthetic `e4e7d603884192312de500b43f0be5472258a133`
+的父为main020ff41f与本实施head，tree一致；双host受审21exact逐项各1命中通过。
+Preview仅核jobs/步骤成功，未下载或逐项审查artifact，不声称原生产物逐项核验。
+独立收据 `pr111-ci-38834828940-evidence.json` SHA256
+`87a3af4b05a7fc468d501b4c0f76ad6625f7d5772c2e605e64079bc6fa88784b` 保存在仓外。
+本归档只关闭本Spec的简单变量赋值/既有readonly义务，不开放capture或field/index/compound，
+不代表v0.44其他片完成。历史红、旧oracle、尺寸失败与有限native范围保留。
+归档head的CI及normal merge/main交付仍须分别核验，不以上述实现CI冒充。
