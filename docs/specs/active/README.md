@@ -2,7 +2,8 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前1份active：[0326封闭分支类型合并](0326-closed-control-branch-join.md)，实施后联合整合验收中。
+当前本树无active Spec。[0326封闭分支类型合并](../../archive/specs/0326-closed-control-branch-join.md)
+已按合B后联合CI双host39exact有界归档；归档head CI/main交付待验。
 
 [0325简单变量赋值](../../archive/specs/0325-simple-variable-assignment-types.md)已按双host21exact与CI有界归档，
 归档head CI通过并由PR111正常合入main `aa42bdc5`；main CI另行核验。

@@ -1,17 +1,17 @@
 # SPEC-0326: if/when 封闭分支类型合并
 
-> **性质**：有界类型修复 · **状态**：in-progress · **读取时机**：实施 v0.44 A 时 · **唯一真源**：本 Spec；语言合同见 Guide
+> **性质**：有界类型修复 · **状态**：done · **读取时机**：追溯 v0.44 A 有界验收时 · **唯一真源**：本 Spec；语言合同见 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0326` |
 | 所属 Phase | Phase 2；不倒置 final admission 与 ownership |
 | 语言规范 | [Guide 分支类型](../../guide/06-blocks-control-flow.md#valuestatement-context-与分支类型) |
 | 基线 | Guide `be3264bc7143fdddb160ce77039fb902694d0d77`；独立于 0325 实现分支 |
 | 分支依赖 | Guide已合主干；从真实A远端正常合入main aa42bdc5的0325交付 |
 | 批准范围 | 用户已启用 v0.44 A 及封闭 join 细则；实施与验收分别推进 |
-| 当前状态 | 合B后本地39exact与4工程已验收；待联合发布head远端CI |
+| 当前状态 | 联合实现CI双host39exact通过并有界归档；归档head CI/main待验 |
 
 ## 1. 最小范围
 
@@ -68,7 +68,6 @@ Guide 与其他 Spec 发布由唯一 publisher 串行处理，本分支不改 03
 首轮 `56d2d9fb` 的第一命令在helper编译阶段E0599（DiagnosticCode无as_str）停止，
 0测试执行，其余两条未跑；原raw/input保留。改用既有Display/to_string，不计语言红证。
 
-
 ## 4. 首批真实基线
 
 `b43c74ed85d73adf5b51f69c2d4e6f887a363e00`，2026-10-15 首3 exact各1命中，
@@ -79,13 +78,11 @@ if(null,Int)错误取Int；部分nullable组合虽得Int?仍保留该错误。�
 不能仅删Any或只补join类型函数。原始仓外收据 `spec0326-evidence/first3-v2-receipt.json`。
 尚未执行总矩阵其余边界、CLI/native/工程验收；未实施生产。首轮E0599独立保留。
 
-
 第二批追加同enum实例（泛型显式参数、nullable三分支双序）、expected L0084、statement、
 Error/Deferred与实际冲突label五项；enum结果与各入口真实typed TypeRef的TypeId比对，
 不跨入口比较ID，不依赖Debug文本判断enum身份。原ordinary error control使用 `1 + true`，
 不把names失败作为类型红证。null/null、全不返回及复杂调用/return/lambda语境仍待补齐；
 本批未运行，整个A尚不具备生产准入。
-
 
 第二批 `920c1f6a` 的5 exact各1命中，11输入不变：expected/statement两控制绿，
 enum/Deferred/conflict三红。single nullable enum首分支误Any、反序正确，unit两序正确；
@@ -94,14 +91,12 @@ Nothing/Error前缀when仍Any。Int?的postfix ?最终真实L0085，是非法ope
 显式Result参数补锁Deferred源根，nullable非法操作数另锁L0085，不放宽final admission。
 仓外 `spec0326-evidence/next5-receipt.json` 保留逐项事实；未到达的断言不称通过。
 
-
 `83711e82` 精确恢复2项各1命中真实红，13输入不变；Result参数r?保留真实leaf
 ErrorPropagation，但single if变ControlJoin，unit if及两when与Int合并误报已知混型，
 部分顺序遮蔽leaf L0165。原Int? ?的L0085保留为非法操作数对照。
 最终8项tests-only补齐不同enum/List实例、全Nothing/return、null/null及独立null反例、
 显式expected的return/实参、无expected lambda尾值、smart-cast enum case/root双序；
 Deferred源span多重集与唯一L0112自身label精确对比。统一8项仍待审后重跑，生产零改。
-
 
 统一 `06d7287d` 的8项各1命中，13输入不变：7红1绿；expected含return/实参仍绿。
 旧same/Nothing控制新增声明内return后触发独立single L0088，根型两入口已Nothing；
@@ -117,7 +112,6 @@ when同形亦然。`06d7287d`下控制根两侧Nothing，single函数结尾L0088
 此处应按语言合同终止，现L0088是已确认实现缺口，不是合法规范拒绝；本片不改其生产。
 回归保留两入口现差异；A的正向全Nothing另用显式return语境，不经该声明路径。
 因此A不会宣称所有不返回控制流已完全一致。后继另Spec认领前由本节保留源码/诊断责任。
-
 
 最终红测 `c69f12db`，8exact各1命中，13输入前后不变：6行为红、Nothing与expected两控制绿。
 所有case双入口raw均采齐，无编译/基础API失败。仓外 `spec0326-evidence/final8-red-v2-receipt.json`。
@@ -191,3 +185,13 @@ FAIL_MATCH空且未运行邻近故障传播测试。5输入前后一致，docs�
 仓外joint39与engineering-joint39收据保留逐项真实结果；未运行本地聚合/故障邻项。
 前置A run38836199049在12ee双host18/CI成功，仅为合B之前证据；Preview只核job/步骤。
 联合发布head仍须新的实际CI成功后归档，不以前置CI替代；0325归档正文保留历史，0326仍active。
+
+## 9. 联合实现CI与有界归档
+
+[PR112联合CI38838072417/a1](https://github.com/Halckon/Koven/actions/runs/38838072417/attempts/1)在真实head `1815f5fa590aeb77f1f0ba1e6b4e9795db12e96c`、tree `45350e7221319266f64d87b2317cbb5768e9301d`成功。
+15实际success、1 Tree-sitter路径skip，reuse=false；双host39唯一exact各实际1次ok。
+synthetic `a1af8292d63a1e7c99752a526e86d95aa52e8fdb` 双父为main aa42与上述head，同tree。
+Preview仅jobs/steps成功，未独立审artifact；native子进程输出由已审断言验证，非独立日志。
+仓外独立receipt SHA256 `97260a24e1945087942c79662ca8f7c88519e6692b66e1398092bec665416750`。
+仅关闭本片join合同；§5声明终止性后继保留live责任，Any入口差异/nullable与enum native不扩。
+归档head须自身CI通过后正常合并；本记录不冒称归档CI或main交付通过，原失败与前置CI均保留。
