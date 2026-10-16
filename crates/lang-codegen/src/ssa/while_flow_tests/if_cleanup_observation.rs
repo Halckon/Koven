@@ -137,7 +137,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
         println!("IF CLEANUP UNIT TYPE TABLE {:#?}", typed.types().types());
         println!(
             "CLEANUP UNIT ITERATION PLANS {:#?}",
-            owned.ownership().iterations()
+            owned.iterations()
         );
         println!(
             "IF CLEANUP UNIT STORAGE {:#?}",
