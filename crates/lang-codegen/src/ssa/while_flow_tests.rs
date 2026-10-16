@@ -96,3 +96,47 @@ fun entry(): Unit {
         result.expect("refined while body reaches verified SSA and LLVM");
     }
 }
+
+#[test]
+fn observe_nullable_storage_and_while_boundaries() {
+    let sources = [
+        r#"class Holder(val value: Int)
+fun entry(): Unit {
+    var current: Holder? = Holder(42)
+}"#,
+        r#"class Holder(val value: Int)
+fun entry(own initial: Holder?): Unit {
+    var current: Holder? = initial
+    current = null
+}"#,
+        r#"class Holder(val value: Int)
+fun entry(own initial: Holder?): Unit {
+    var current: Holder? = initial
+    while (current != null) { current = null }
+}"#,
+        r#"class Holder(val value: Int)
+fun entry(own initial: Holder?): Unit {
+    var current: Holder? = initial
+    while (current != null) {
+        val seen: Int = current.value
+        println(seen)
+        return
+    }
+}"#,
+    ]
+    .map(str::to_owned);
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 8);
+    for (index, result) in observations.iter().enumerate() {
+        println!(
+            "NULLABLE BOUNDARY case={} unit={} stage={}",
+            index / 2,
+            index % 2 == 1,
+            match result {
+                Ok(_) => "verified SSA",
+                Err(error) => error.as_str(),
+            }
+        );
+    }
+    // This exact records actual phase boundaries; success means observation only.
+}
