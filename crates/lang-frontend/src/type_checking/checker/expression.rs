@@ -4,7 +4,6 @@ use crate::{
     parser::{
         BinaryOperator, Expression, IntegerLiteralKind, LiteralKind, PrefixOperator, StringPart,
     },
-    type_checking::RcOperationKind,
 };
 
 use super::{flow::extend_facts, *};
@@ -217,44 +216,7 @@ impl Checker<'_> {
                 operator,
                 operator_span,
                 value,
-            } => {
-                let result = if let Some(result) =
-                    self.check_container_assignment(target, operator, operator_span, value)?
-                {
-                    result
-                } else if let Some(result) =
-                    self.check_variable_assignment(target, operator, value)?
-                {
-                    result
-                } else {
-                    self.check_expression(target, None, None)?;
-                    self.check_expression(value, None, None)?;
-                    if self.rc_operations.iter().any(|operation| {
-                        operation.expression() == target
-                            && operation.kind() == RcOperationKind::Value
-                    }) {
-                        self.emit(
-                            self.immutable_container_place_code,
-                            "Rc.value is read-only",
-                            self.ast().expressions().get(target)?.span(),
-                        )?;
-                        ExprCheck {
-                            ty: self.error_type(),
-                            falls_through: true,
-                        }
-                    } else {
-                        ExprCheck {
-                            ty: self.deferred(DeferredReason::Assignment),
-                            falls_through: true,
-                        }
-                    }
-                };
-                if let Some(key) = self.stable_flow_key(target) {
-                    self.flow_facts.remove(&key);
-                    *self.flow_versions.entry(key).or_default() += 1;
-                }
-                result
-            }
+            } => self.check_assignment_expression(target, operator, operator_span, value)?,
             Expression::Member {
                 receiver,
                 name_span,

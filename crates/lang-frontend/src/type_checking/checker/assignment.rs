@@ -1,9 +1,54 @@
 //! SPEC-0325: storage-typed ordinary variable assignment; ownership stays downstream.
-use crate::parser::{AssignmentOperator, Expression};
+use crate::{
+    parser::{AssignmentOperator, Expression},
+    type_checking::RcOperationKind,
+};
 
 use super::*;
 
 impl Checker<'_> {
+    pub(super) fn check_assignment_expression(
+        &mut self,
+        target: ExpressionId,
+        operator: AssignmentOperator,
+        operator_span: Span,
+        value: ExpressionId,
+    ) -> Result<ExprCheck, TypeCheckingError> {
+        let result = if let Some(result) =
+            self.check_container_assignment(target, operator, operator_span, value)?
+        {
+            result
+        } else if let Some(result) = self.check_variable_assignment(target, operator, value)? {
+            result
+        } else {
+            self.check_expression(target, None, None)?;
+            self.check_expression(value, None, None)?;
+            if self.rc_operations.iter().any(|operation| {
+                operation.expression() == target && operation.kind() == RcOperationKind::Value
+            }) {
+                self.emit(
+                    self.immutable_container_place_code,
+                    "Rc.value is read-only",
+                    self.ast().expressions().get(target)?.span(),
+                )?;
+                ExprCheck {
+                    ty: self.error_type(),
+                    falls_through: true,
+                }
+            } else {
+                ExprCheck {
+                    ty: self.deferred(DeferredReason::Assignment),
+                    falls_through: true,
+                }
+            }
+        };
+        if let Some(key) = self.stable_flow_key(target) {
+            self.flow_facts.remove(&key);
+            *self.flow_versions.entry(key).or_default() += 1;
+        }
+        Ok(result)
+    }
+
     pub(super) fn check_variable_assignment(
         &mut self,
         target: ExpressionId,
