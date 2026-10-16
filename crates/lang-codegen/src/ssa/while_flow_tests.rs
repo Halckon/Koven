@@ -355,3 +355,29 @@ fn bounded_if_retest_fixture_reaches_verified_llvm_before_native() {
         outcome.expect("complete bounded if-retest fixture reaches verified LLVM");
     }
 }
+
+#[test]
+fn bounded_numeric_proof_fixture_reaches_verified_llvm_before_native() {
+    let source = format!(
+        "{}\nfun entry(): Unit = main()\n",
+        include_str!("../../../lang-cli/tests/fixtures/while-flow-0330/numeric.ko"),
+    );
+    let outcomes = collect_sources(&[source])
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(())
+            });
+            println!("BOUNDED NUMERIC PROOF unit={} {result:?}", index == 1);
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 2);
+    for outcome in outcomes {
+        outcome.expect("complete bounded numeric proof fixture reaches verified LLVM");
+    }
+}
