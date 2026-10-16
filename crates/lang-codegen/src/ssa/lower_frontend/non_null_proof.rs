@@ -12,7 +12,7 @@ use super::{
     EntityId, EntityType, ExpressionLowerer, LoanId, LoanKind, LoweredValue, LoweringError,
     LoweringErrorKind, Operation, SsaTypeId, ValueId, error,
 };
-use crate::ssa::model::SsaTypeKind;
+use crate::ssa::model::{Ownership, SsaTypeKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ProofScope {
@@ -98,17 +98,27 @@ impl ExpressionLowerer<'_> {
         else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
-        if !matches!(
-            self.ssa_types.get(nullable.index()),
-            Some(SsaTypeKind::NullableHandle { inner }) if *inner == proof.inner
-        ) || self
-            .function
-            .entity(EntityId::Loan(proof.loan))
-            .map(|entity| entity.ty)
-            != Some(EntityType::Loan {
-                kind: LoanKind::Shared,
-                target: proof.inner,
-            })
+        let valid_storage = match self.ssa_types.get(nullable.index()) {
+            Some(SsaTypeKind::NullableHandle { inner }) => *inner == proof.inner,
+            Some(SsaTypeKind::Aggregate {
+                ownership: Ownership::MoveOnly,
+                ..
+            }) if !proof.is_while_origin() => {
+                // Existing Map results use registered owning aggregates for String
+                // and inline payloads. Preserve the verifier's exact inner identity.
+                self.map_results.get(&nullable) == Some(&proof.inner)
+            }
+            _ => false,
+        };
+        if !valid_storage
+            || self
+                .function
+                .entity(EntityId::Loan(proof.loan))
+                .map(|entity| entity.ty)
+                != Some(EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: proof.inner,
+                })
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
