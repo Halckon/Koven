@@ -139,3 +139,8 @@ source/target由真实operand/result类型决定，双result为目标整数与Bo
 
 SSA候选首次actualbase尺寸检查发现render.rs 1001>1000；独立抽出原四个标量命名纯函数，
 不提高阈值、不挤行，保留首失败日志。此机械修不改renderer输出或转换语义。
+
+`f14fe27c`阶段6exact各1、42输入同：single LLVM拒绝边界绿，其余5红。single的64对及
+receiver/live/pending均产出verified SSA；unit因body type plan未登记转换失败Boolean而
+MissingFact。第4首次实际进入LLVM并明确Unsupported。仅补真实CheckedConvert的Boolean
+类型登记，不改其它表达式推导；原日志保留，修后同6重新验证。

@@ -171,9 +171,15 @@ pub(super) fn intern_body_scalar_types(
                 types.intern(module, typed, ty, span)?;
             }
         }
-        if checked_operand_type(parsed, instance, typed, expression, concrete)?
-            .and_then(|ty| builtin_type(typed, ty))
-            .is_some_and(is_integer_builtin)
+        if typed
+            .integer_operation(expression)
+            .is_some_and(|descriptor| {
+                descriptor.kind()
+                    == lang_frontend::type_checking::IntegerOperationKind::CheckedConvert
+            })
+            || checked_operand_type(parsed, instance, typed, expression, concrete)?
+                .and_then(|ty| builtin_type(typed, ty))
+                .is_some_and(is_integer_builtin)
         {
             let boolean = typed
                 .types()
