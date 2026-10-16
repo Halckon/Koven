@@ -65,3 +65,7 @@ impl EntryProjection {
         self.dominators[block.index()].contains(&defining_block.index())
     }
 }
+
+#[cfg(test)]
+#[path = "provider_entry_projection_tests.rs"]
+mod tests;
