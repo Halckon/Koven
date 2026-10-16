@@ -1,0 +1,117 @@
+fun choosel(a: Long, b: Long, flag: Boolean): LongRange { val live = "l-live".clone(); val first = a..<b; val second = b..<a; val chosen = if (flag) first else second; println(live); return chosen }
+fun choosei(a: Int, b: Int, flag: Boolean): IntRange { val live = "i-live".clone(); val first = a..<b; val second = b..<a; val chosen = if (flag) first else second; println(live); return chosen }
+fun record(name: String, value: Boolean): Unit { if (value) println(name) else println("FAILED") }
+fun closedi(a: Int, b: Int): IntRange = a..b
+fun halfi(a: Int, b: Int): IntRange = a..<b
+fun passi(own value: IntRange): IntRange = value
+class Holderi(val value: IntRange)
+value class ValueHolderi(val value: IntRange)
+fun firsti(): Int { println("i-first"); return 1 }
+fun lasti(): Int { println("i-last"); return 3 }
+fun valuesi(): Unit {
+    record("i-closed-first", 1 in closedi(1, 3))
+    record("i-closed-last", 3 in closedi(1, 3))
+    record("i-closed-out", 4 !in closedi(1, 3))
+    record("i-half-in", 2 in halfi(1, 3))
+    record("i-half-out", 3 !in halfi(1, 3))
+    record("i-sequence", closedi(1, 2) == halfi(1, 3))
+    record("i-different", closedi(1, 2) != halfi(1, 4))
+    record("i-empty", closedi(3, 1) == halfi(4, 4))
+    record("i-single", closedi(1, 1) != halfi(1, 1))
+    record("i-min", -2147483648 in closedi(-2147483648, 2147483647))
+    record("i-max", 2147483647 in closedi(-2147483648, 2147483647))
+    record("i-max-single", 2147483647 in closedi(2147483647, 2147483647))
+    record("i-min-half-empty", halfi(-2147483648, -2147483648) == halfi(2147483647, 2147483647))
+    record("i-reverse-empty", halfi(2147483647, -2147483648) == halfi(-2147483648, -2147483648))
+    val original = closedi(1, 3)
+    val copy = original
+    record("i-copy", (copy == original) && (passi(copy) == original))
+    val holder = Holderi(original)
+    val valueHolder = ValueHolderi(copy)
+    record("i-fields", (2 in holder.value) && (valueHolder.value == original))
+    val values = listOf(original, copy)
+    record("i-list", (values[0] == values[1]) && (3 in values[0]))
+    var map = mutableMapOf<Int, IntRange>()
+    map.put(1, original)
+    val found = map.get(1)
+    if (found != null) record("i-get", found == copy) else println("FAILED")
+    val missing = map.get(2)
+    record("i-missing", missing == null)
+    val removed = map.remove(1)
+    if (removed != null) record("i-remove", (2 in removed) && (removed == original)) else println("FAILED")
+    record("i-removed", !map.contains(1))
+    val ordered = firsti()..<lasti()
+    record("i-order", ordered == halfi(1, 3))
+    record("i-membership-order", firsti() in (firsti()..<lasti()))
+    record("i-join-first", choosei(-2147483648, 2147483647, true) == halfi(-2147483648, 2147483647))
+    record("i-join-empty", choosei(-2147483648, 2147483647, false) == halfi(-2147483648, -2147483648))
+}
+fun inspecti(value: IntRange): Unit { record("i-require", 2 in value) }
+fun requirei(): Unit {
+    var map = mutableMapOf<Int, IntRange>()
+    map.put(1, closedi(1, 3))
+    borrow val item = map.requireValue(1)
+    val copy = item
+    inspecti(copy)
+    record("i-map-after-copy", map.contains(1))
+}
+fun closedl(a: Long, b: Long): LongRange = a..b
+fun halfl(a: Long, b: Long): LongRange = a..<b
+fun passl(own value: LongRange): LongRange = value
+class Holderl(val value: LongRange)
+value class ValueHolderl(val value: LongRange)
+fun firstl(): Long { println("l-first"); return 1L }
+fun lastl(): Long { println("l-last"); return 3L }
+fun valuesl(): Unit {
+    record("l-closed-first", 1L in closedl(1L, 3L))
+    record("l-closed-last", 3L in closedl(1L, 3L))
+    record("l-closed-out", 4L !in closedl(1L, 3L))
+    record("l-half-in", 2L in halfl(1L, 3L))
+    record("l-half-out", 3L !in halfl(1L, 3L))
+    record("l-sequence", closedl(1L, 2L) == halfl(1L, 3L))
+    record("l-different", closedl(1L, 2L) != halfl(1L, 4L))
+    record("l-empty", closedl(3L, 1L) == halfl(4L, 4L))
+    record("l-single", closedl(1L, 1L) != halfl(1L, 1L))
+    record("l-min", -9223372036854775808L in closedl(-9223372036854775808L, 9223372036854775807L))
+    record("l-max", 9223372036854775807L in closedl(-9223372036854775808L, 9223372036854775807L))
+    record("l-max-single", 9223372036854775807L in closedl(9223372036854775807L, 9223372036854775807L))
+    record("l-min-half-empty", halfl(-9223372036854775808L, -9223372036854775808L) == halfl(9223372036854775807L, 9223372036854775807L))
+    record("l-reverse-empty", halfl(9223372036854775807L, -9223372036854775808L) == halfl(-9223372036854775808L, -9223372036854775808L))
+    val original = closedl(1L, 3L)
+    val copy = original
+    record("l-copy", (copy == original) && (passl(copy) == original))
+    val holder = Holderl(original)
+    val valueHolder = ValueHolderl(copy)
+    record("l-fields", (2L in holder.value) && (valueHolder.value == original))
+    val values = listOf(original, copy)
+    record("l-list", (values[0] == values[1]) && (3L in values[0]))
+    var map = mutableMapOf<Int, LongRange>()
+    map.put(1, original)
+    val found = map.get(1)
+    if (found != null) record("l-get", found == copy) else println("FAILED")
+    val missing = map.get(2)
+    record("l-missing", missing == null)
+    val removed = map.remove(1)
+    if (removed != null) record("l-remove", (2L in removed) && (removed == original)) else println("FAILED")
+    record("l-removed", !map.contains(1))
+    val ordered = firstl()..<lastl()
+    record("l-order", ordered == halfl(1L, 3L))
+    record("l-membership-order", firstl() in (firstl()..<lastl()))
+    record("l-join-first", choosel(-9223372036854775808L, 9223372036854775807L, true) == halfl(-9223372036854775808L, 9223372036854775807L))
+    record("l-join-empty", choosel(-9223372036854775808L, 9223372036854775807L, false) == halfl(-9223372036854775808L, -9223372036854775808L))
+}
+fun inspectl(value: LongRange): Unit { record("l-require", 2L in value) }
+fun requirel(): Unit {
+    var map = mutableMapOf<Int, LongRange>()
+    map.put(1, closedl(1L, 3L))
+    borrow val item = map.requireValue(1)
+    val copy = item
+    inspectl(copy)
+    record("l-map-after-copy", map.contains(1))
+}
+fun main(): Unit {
+    valuesi()
+    requirei()
+    valuesl()
+    requirel()
+}
