@@ -199,7 +199,10 @@ impl BorrowedWhileProof {
     ) -> Result<(), LoweringError> {
         lowerer.validate_readonly_while_exit(self.root, self.proof, state, span)?;
         if self.proof.while_scope().is_none_or(|scope| {
-            !lowerer.loops.iter().any(|context| context.proof_scope == Some(scope))
+            !lowerer
+                .loops
+                .iter()
+                .any(|context| context.proof_scope == Some(scope))
         }) || lowerer.function.borrow_return.is_some()
             || lowerer.function.carrier_return.is_some()
             || !state.pending_call_frames.is_empty()
