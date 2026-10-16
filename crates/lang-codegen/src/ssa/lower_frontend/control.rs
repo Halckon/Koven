@@ -27,7 +27,7 @@ pub(super) struct BranchExit {
     pub(super) result: LoweredValue,
     pub(super) bindings: BTreeMap<SymbolId, LoweredValue>,
     pub(super) temporaries: BTreeMap<usize, ValueId>,
-    pub(super) loans: BTreeMap<(usize, usize), Option<super::LoanId>>,
+    pub(super) loans: super::PendingCallLoans,
     pub(super) capture_loans: BTreeMap<(usize, usize), super::LoanId>,
     pub(super) views: BTreeMap<SymbolId, NonNullProof>,
     pub(super) borrow_bindings: BTreeMap<SymbolId, super::LoanId>,
@@ -62,6 +62,7 @@ pub(super) struct LinearBindingSlot {
     pub(super) source: EntityId,
     pub(super) temporaries: Vec<usize>,
     pub(super) loans: Vec<(usize, usize)>,
+    pub(super) field_child: Option<super::pending_call::PendingFieldCarry>,
     pub(super) captures: Vec<(usize, usize)>,
     pub(super) views: Vec<(SymbolId, NonNullProof)>,
     pub(super) borrow_symbols: Vec<SymbolId>,
@@ -78,6 +79,7 @@ impl LinearBindingSlot {
             source,
             temporaries: Vec::new(),
             loans: Vec::new(),
+            field_child: None,
             captures: Vec::new(),
             views: Vec::new(),
             borrow_symbols: Vec::new(),
@@ -858,6 +860,7 @@ impl ExpressionLowerer<'_> {
             return Ok(LoweredValue::Diverged);
         };
         self.validate_non_null_exit_proofs(&exits, span)?;
+        self.validate_pending_field_exits(&exits, span)?;
         if exits.len() == 1 {
             self.block = first.block;
             self.bindings = first.bindings.clone();
@@ -920,7 +923,7 @@ impl ExpressionLowerer<'_> {
         }
         let mut loans = first.loans.clone();
         loans.retain(|key, _| exits.iter().all(|exit| exit.loans.contains_key(key)));
-        for (&key, &loan) in &loans {
+        for (&key, &loan) in loans.iter() {
             if let Some(loan) = loan {
                 parameter_types.push(
                     self.function
@@ -1064,6 +1067,7 @@ impl ExpressionLowerer<'_> {
             };
             slot_parameters.push(parameter);
         }
+        self.validate_pending_field_merge_columns(&exits, &columns, span)?;
         let merge = self
             .function
             .add_block(unique_types, Origin::Source(span))
@@ -1115,7 +1119,8 @@ impl ExpressionLowerer<'_> {
                 let EntityId::Loan(loan) = parameter else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
-                loans.insert(key, Some(loan));
+                let child = loans.child(&key);
+                loans.rebind(key, loan, child);
                 continue;
             }
             if let MergeSlot::CaptureLoan(key) = slot {
@@ -1183,6 +1188,12 @@ impl ExpressionLowerer<'_> {
         self.capture_loans = capture_loans;
         self.result_source_loans = result_sources;
         self.non_null_bindings = views;
+        self.validate_pending_field_children(
+            &self.bindings,
+            &self.non_null_bindings,
+            &self.pending_call_loans,
+            span,
+        )?;
         self.borrow_bindings
             .retain(|_, loan| entry_loans.contains(loan));
         self.borrow_bindings.extend(borrow_bindings);

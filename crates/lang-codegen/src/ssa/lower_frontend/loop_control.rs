@@ -141,6 +141,9 @@ impl ExpressionLowerer<'_> {
             }
         }
         self.finish_loop_continues(&context)?;
+        for exit in context.breaks.iter().chain(std::iter::once(&false_exit)) {
+            self.validate_pending_field_loop_exit(&context.carried, exit, span)?;
+        }
         let mut exits = context.breaks;
         exits.push(false_exit);
         let result = self.finish_loop_exits(statement, exits, &baseline, inherited, span)?;
@@ -243,6 +246,7 @@ impl ExpressionLowerer<'_> {
                 .iter()
                 .map(|slot| loop_slot_entity(self, slot, &jump.exit, jump.span))
                 .collect::<Result<Vec<_>, _>>()?;
+            self.validate_pending_field_edge(&context.carried, &jump.exit, &arguments, jump.span)?;
             self.function
                 .set_terminator(
                     jump.exit.block,
@@ -602,8 +606,8 @@ impl ExpressionLowerer<'_> {
             }
             Action::EndCallLoan(fact) => {
                 let key = (fact.call().index(), fact.argument().index());
-                if let Some(Some(loan)) = self.pending_call_loans.remove(&key) {
-                    self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
+                if self.pending_call_loans.contains_key(&key) {
+                    self.end_pending_source_loan(key, span)?;
                 }
             }
             _ => {}

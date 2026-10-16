@@ -50,7 +50,7 @@ impl ExpressionLowerer<'_> {
                 carried.push(slot);
             }
         }
-        for (&key, &loan) in &self.pending_call_loans {
+        for (&key, &loan) in self.pending_call_loans.iter() {
             let Some(loan) = loan else {
                 continue;
             };
@@ -172,6 +172,7 @@ impl ExpressionLowerer<'_> {
                 }
             }
         }
+        self.bind_pending_field_columns(bindings, &mut carried, span)?;
         Ok(LinearBindings {
             slots: carried,
             forwarded_loans: self
@@ -318,6 +319,8 @@ impl ExpressionLowerer<'_> {
                 }
             }
         }
+        let parameters = parameters.clone();
+        self.restore_pending_field_columns(&bindings, &carried.slots, &parameters, span)?;
         Ok(bindings)
     }
 }

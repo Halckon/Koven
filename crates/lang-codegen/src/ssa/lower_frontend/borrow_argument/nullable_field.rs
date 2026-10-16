@@ -176,6 +176,8 @@ impl ExpressionLowerer<'_> {
         let [EntityId::Loan(loan)] = result.as_slice() else {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         };
-        Ok(Some(*loan))
+        let loan = *loan;
+        self.register_pending_field_child(fact, proof, field, target, loan, span)?;
+        Ok(Some(loan))
     }
 }

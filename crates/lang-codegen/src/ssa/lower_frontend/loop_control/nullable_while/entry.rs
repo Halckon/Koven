@@ -43,7 +43,6 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
         self.validate_non_null_proof(root, proof, &self.bindings, span)?;
-        self.ensure_no_unresolved_while_proof_carriers(span)?;
         let declared = self.resolve_type(descriptor.nullable_type(), span)?;
         let nullable = self
             .type_ids
@@ -122,6 +121,7 @@ impl ExpressionLowerer<'_> {
             }
         }
         if inherited {
+            self.ensure_readonly_while_field_carriers(root, span)?;
             return Ok(Some((root, proof)));
         }
         // Retire only the old view, before the inner baseline/header can capture it.

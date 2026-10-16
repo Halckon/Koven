@@ -32,6 +32,7 @@ mod nullable_comparison;
 mod nullable_when;
 pub(super) mod orchestrate;
 mod ownership_primitive;
+mod pending_call;
 mod range;
 mod readonly_receiver;
 mod resource_deinit;
@@ -66,6 +67,7 @@ use super::model::{
 };
 use instances::FunctionInstanceKey;
 use non_null_proof::NonNullProof;
+use pending_call::PendingCallLoans;
 
 pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
 use super::lowering_support::{error, string_literal};
@@ -129,7 +131,7 @@ struct ExpressionLowerer<'a> {
     result_source_loans: BTreeMap<SymbolId, Vec<LoanId>>,
     non_null_bindings: BTreeMap<SymbolId, NonNullProof>,
     temporaries: BTreeMap<usize, ValueId>,
-    pending_call_loans: BTreeMap<(usize, usize), Option<LoanId>>,
+    pending_call_loans: PendingCallLoans,
     return_type: TypeId,
     readonly_receiver: Option<(lang_frontend::type_checking::NominalId, TypeId, LoanId)>,
     loops: Vec<loop_control::LoopContext>,
@@ -1160,10 +1162,11 @@ impl ExpressionLowerer<'_> {
                     } else {
                         self.lower_borrow_argument(expression, argument.value, argument.span)?
                     };
-                    self.pending_call_loans.insert(
+                    self.insert_pending_source_argument(
                         (expression.index(), argument.value.index()),
                         ends_after_call.then_some(loan),
-                    );
+                        argument.span,
+                    )?;
                     EntityId::Loan(loan)
                 }
                 ParameterMode::Inout => {
@@ -1202,6 +1205,7 @@ impl ExpressionLowerer<'_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        self.validate_pending_source_arguments(expression, &arguments, span)?;
         let return_type = self.resolve_type(descriptor.return_type(), span)?;
         let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()
