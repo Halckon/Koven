@@ -8,8 +8,8 @@ use lang_frontend::{
     parser::{Statement, parse_file},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, FinalTypeAdmissionError, ParameterMode, TypeKind, UnitExpressionId,
-        UnitStatementId, UnitTypeKind, check_compilation_unit_types, check_types,
+        BuiltinType, FinalTypeAdmissionError, IterationProvider, ParameterMode, TypeKind,
+        UnitExpressionId, UnitStatementId, UnitTypeKind, check_compilation_unit_types, check_types,
         complete_compilation_unit_types, complete_file_types, standard_environments,
     },
 };
@@ -24,6 +24,8 @@ struct Observation {
     plan: String,
     identity: bool,
     element: Option<BuiltinType>,
+    provider: Option<IterationProvider>,
+    source_builtin: Option<BuiltinType>,
     delivery: Option<ParameterMode>,
     complete: Option<Result<(), FinalTypeAdmissionError>>,
 }
@@ -76,6 +78,11 @@ fn observe(text: &str) -> Vec<Observation> {
             Some(TypeKind::Builtin(builtin)) => Some(*builtin),
             _ => None,
         }),
+        provider: plan.map(|p| p.provider()),
+        source_builtin: plan.and_then(|p| match typed.types().get(p.source_type()) {
+            Some(TypeKind::Builtin(b)) => Some(*b),
+            _ => None,
+        }),
         delivery: plan.map(|p| p.delivery()),
         complete: Some(complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ())),
     };
@@ -93,6 +100,8 @@ fn observe(text: &str) -> Vec<Observation> {
             plan: String::new(),
             identity: false,
             element: None,
+            provider: None,
+            source_builtin: None,
             delivery: None,
             complete: None,
         },
@@ -124,6 +133,11 @@ fn observe(text: &str) -> Vec<Observation> {
                     Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
                     _ => None,
                 }),
+                provider: plan.map(|p| p.provider()),
+                source_builtin: plan.and_then(|p| match typed.types().get(p.source_type()) {
+                    Some(UnitTypeKind::Builtin(b)) => Some(*b),
+                    _ => None,
+                }),
                 delivery: plan.map(|p| p.delivery()),
                 complete: Some(
                     complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
@@ -148,6 +162,15 @@ fn accepted(o: &Observation, endpoint: BuiltinType, mode: ParameterMode) {
     assert!(o.identity, "{o:?}");
     assert_eq!(o.element, Some(endpoint), "{o:?}");
     assert_eq!(o.delivery, Some(mode), "{o:?}");
+    if mode == ParameterMode::Value {
+        assert_eq!(o.provider, Some(IterationProvider::NumericRange(endpoint)));
+        let range = match endpoint {
+            BuiltinType::Int => BuiltinType::IntRange,
+            BuiltinType::Long => BuiltinType::LongRange,
+            _ => panic!("numeric endpoint"),
+        };
+        assert_eq!(o.source_builtin, Some(range));
+    }
     assert!(matches!(o.complete, Some(Ok(()))), "{o:?}");
 }
 

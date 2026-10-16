@@ -137,13 +137,21 @@ fn numeric_iteration_stops_at_explicit_pending_backend_boundary() {
     let mut observed = Vec::new();
     for range in ["IntRange", "LongRange"] {
         for unit in [false, true] {
-            observed.push(lower_source(&format!("fun entry(value: {range}): Unit {{ for (item in value) {{ val copy = item }} }}"), unit));
+            let text = format!(
+                "fun entry(value: {range}): Unit {{ for (item in value) {{ val copy = item }} }}"
+            );
+            let offset = if unit { "package p\n".len() } else { 0 };
+            let start = text.find("for (").unwrap() + offset;
+            let end = text.rfind(" }").unwrap() + offset;
+            observed.push((lower_source(&text, unit), start, end));
         }
     }
-    for result in observed {
+    for (result, start, end) in observed {
         let error = result
             .err()
             .expect("numeric provider backend remains pending");
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        let span = error.span.expect("actual for statement");
+        assert_eq!((span.start(), span.end()), (start, end));
     }
 }

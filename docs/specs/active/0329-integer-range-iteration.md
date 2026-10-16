@@ -73,3 +73,25 @@ OwnedSnapshot；借用 provider 保持 BorrowedSource，数值计划不建立 so
 公开 source 查询变为可选借用目标，旧消费者和对应断言仅同步 Some，原借用合同保持。
 冻结前有限 all-targets check 暴露 Option API 迁移、测试 validate 消费及 LoweringError 字段误用，
 均为编译预检失败、0 测试执行；修正后的同范围预检通过。行为验收须另按固定名单实跑。
+
+`44e59d62` 六项普通 exact 各 1 通过，55 输入前后相同；阶段收据 SHA
+`20b0ab5b6a6006c245687abf9b5a7caee4ed40e9fca544b65ca9d2e172deaf28`。
+覆盖双入口 Value/source 身份、owned item/原变量重赋、外层容器 loan 保留及 lower 明确拒绝；
+不等于精确 Resource/ASAP 清理或 native 快照已验。后续加强计划数量、endpoint、所有退出无
+EndSource 及 for primary span，并追加旧 Borrow provider 的普通共享回归。
+
+### 6.1 旧 p34 门槛后继责任
+
+以下旧 exact 仍冻结 p34 的 L0159，阶段备份尚未更新，不据本阶段开完成 PR：
+
+- frontend / `final_type_admission`：`frozen_probe_roots_preserve_raw_deferred_recovery`、
+  `complete::frozen_roots_reject_with_exact_source_diagnostics`。
+- CLI / `native_cli`：`final_type_admission::single_probe_roots_reject_before_codegen`、
+  `final_type_admission::single_deferred_user_message_build_preserves_source_root`。
+- CLI / `project_cli`：`final_type_admission::project_probe_roots_reject_before_codegen`、
+  `final_type_admission::project_deferred_user_message_build_preserves_source_root`、
+  `final_type_admission::project_const_fallback_keeps_type_admission`。
+
+原 fixture 字节保留。本阶段应为 FE 成功、numeric for lower Unsupported；后端完成时将 p34
+转为有界成功正例，并以独立非法 provider 保留拒绝控制。`call_to_deferred.ko` 的 L0165
+文案合同继续独立保留。含 run 的旧聚合 helper 不在本地阶段名单，后续需先拆审精确调用。

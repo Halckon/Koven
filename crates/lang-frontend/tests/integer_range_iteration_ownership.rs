@@ -12,8 +12,8 @@ use lang_frontend::{
     parser::parse_file,
     source::SourceMap,
     type_checking::{
-        ParameterMode, check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        BuiltinType, IterationProvider, ParameterMode, check_compilation_unit_types, check_types,
+        complete_compilation_unit_types, complete_file_types, standard_environments,
     },
 };
 
@@ -60,7 +60,14 @@ fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
     (single, unit)
 }
 
-fn assert_numeric(single: &OwnershipCheckedFile, unit: &CompilationUnitOwnership) {
+fn assert_numeric(
+    single: &OwnershipCheckedFile,
+    unit: &CompilationUnitOwnership,
+    endpoint: BuiltinType,
+    bindings: usize,
+) {
+    assert_eq!(single.iterations().len(), 1);
+    assert_eq!(unit.iterations().len(), 1);
     assert!(
         single.diagnostics().is_empty(),
         "{:?}",
@@ -68,11 +75,13 @@ fn assert_numeric(single: &OwnershipCheckedFile, unit: &CompilationUnitOwnership
     );
     assert!(single.deferred().is_empty(), "{:?}", single.deferred());
     assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-    for plan in single
-        .iterations()
-        .iter()
-        .filter(|p| p.descriptor().delivery() == ParameterMode::Value)
-    {
+    for plan in single.iterations().iter() {
+        assert_eq!(plan.descriptor().delivery(), ParameterMode::Value);
+        assert_eq!(
+            plan.descriptor().provider(),
+            IterationProvider::NumericRange(endpoint)
+        );
+        assert_eq!(plan.bindings().len(), bindings);
         assert_eq!(
             plan.source_kind(),
             &IterationSource::OwnedSnapshot(plan.descriptor().source())
@@ -88,11 +97,13 @@ fn assert_numeric(single: &OwnershipCheckedFile, unit: &CompilationUnitOwnership
         )));
         assert!(!plan.exits().is_empty());
     }
-    for plan in unit
-        .iterations()
-        .iter()
-        .filter(|p| p.descriptor().delivery() == ParameterMode::Value)
-    {
+    for plan in unit.iterations().iter() {
+        assert_eq!(plan.descriptor().delivery(), ParameterMode::Value);
+        assert_eq!(
+            plan.descriptor().provider(),
+            IterationProvider::NumericRange(endpoint)
+        );
+        assert_eq!(plan.bindings().len(), bindings);
         assert_eq!(
             plan.source_kind(),
             &IterationSource::OwnedSnapshot(plan.descriptor().source())
@@ -113,7 +124,10 @@ fn assert_numeric(single: &OwnershipCheckedFile, unit: &CompilationUnitOwnership
 #[test]
 fn numeric_snapshots_allow_owned_items_source_reassignment_and_local_cleanup() {
     let mut observed = Vec::new();
-    for (range, integer) in [("IntRange", "Int"), ("LongRange", "Long")] {
+    for (range, integer, endpoint) in [
+        ("IntRange", "Int", BuiltinType::Int),
+        ("LongRange", "Long", BuiltinType::Long),
+    ] {
         for body in [
             "val copy = item; return copy".to_owned(),
             "current = replacement; val copy = item".to_owned(),
@@ -123,14 +137,18 @@ fn numeric_snapshots_allow_owned_items_source_reassignment_and_local_cleanup() {
             let text = format!(
                 "fun entry(input: {range}, replacement: {range}, fallback: {integer}): {integer} {{ var current = input; for (item in current) {{ {body} }}; return fallback }}"
             );
-            observed.push(checked(&text));
+            observed.push((checked(&text), endpoint, 1));
         }
-        observed.push(checked(&format!(
-            "fun entry(input: {range}): Unit {{ for (_ in input) {{}} }}"
-        )));
+        observed.push((
+            checked(&format!(
+                "fun entry(input: {range}): Unit {{ for (_ in input) {{}} }}"
+            )),
+            endpoint,
+            0,
+        ));
     }
-    for (single, unit) in observed {
-        assert_numeric(&single, &unit);
+    for ((single, unit), endpoint, bindings) in observed {
+        assert_numeric(&single, &unit, endpoint, bindings);
     }
 }
 
