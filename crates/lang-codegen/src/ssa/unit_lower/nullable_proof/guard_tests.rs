@@ -278,7 +278,7 @@ fn unit_nullable_proof_guards_preserve_source_identity() {
             };
             match case {
                 5 => column = other_column,
-                6 | 7 | 8 | 9 => {
+                6..=9 => {
                     let TerminatorKind::NullableBranch {
                         owner,
                         when_null,

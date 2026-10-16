@@ -169,13 +169,13 @@ fn unit_borrowed_for_while_guards_preserve_current_roles() {
                     let before = lowerer.loop_state();
                     let current =
                         roles(&before, token.items, token.current, token.item, true, span).unwrap();
-                    let view = Some(EntityId::Loan(token.proof.unwrap().loan));
+                    let view = EntityId::Loan(token.proof.unwrap().loan);
                     token
                         .transport(
                             lowerer,
                             lowerer.block,
                             &current,
-                            view,
+                            Some(view),
                             None,
                             &mut BTreeSet::new(),
                             span,
@@ -219,7 +219,7 @@ fn unit_borrowed_for_while_guards_preserve_current_roles() {
                                     lowerer,
                                     lowerer.block,
                                     &shape.six,
-                                    view,
+                                    Some(view),
                                     None,
                                     &mut BTreeSet::new(),
                                     span,
@@ -233,7 +233,7 @@ fn unit_borrowed_for_while_guards_preserve_current_roles() {
                             let ended = if case == 15 {
                                 current[2]
                             } else {
-                                view.unwrap()
+                                view
                             };
                             let EntityId::Loan(loan) = ended else {
                                 panic!()
