@@ -216,7 +216,7 @@ pub fn validate_iteration_facts(
                     .ok_or_else(|| reject("missing provider finish"))?;
                 if numeric {
                     if exit.actions().contains(&Action::EndSource(statement))
-                        || !element.is_none_or(|element| element < provider)
+                        || element.is_some_and(|element| element >= provider)
                     {
                         return Err(reject("snapshot must not end a source loan"));
                     }

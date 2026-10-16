@@ -95,3 +95,9 @@ EndSource 及 for primary span，并追加旧 Borrow provider 的普通共享回
 原 fixture 字节保留。本阶段应为 FE 成功、numeric for lower Unsupported；后端完成时将 p34
 转为有界成功正例，并以独立非法 provider 保留拒绝控制。`call_to_deferred.ko` 的 L0165
 文案合同继续独立保留。含 run 的旧聚合 helper 不在本地阶段名单，后续需先拆审精确调用。
+
+`63e85f07` 严格 10 exact 各 1 通过，63 输入前后同，收据 SHA
+`03b44dc3daf2b66122d7199428adfd82126a625583d5ebb89d298dfabee2368f`。
+新增四项仅验证旧 typed/ownership 借用计划及清理事实，不替代 final admission 或 native。
+同 head fmt/check 通过；clippy 在 single validator 的等价布尔表达式触发 nonminimal_bool，
+build 因遇错停未运行。保留失败，机械化简后同名单与四工程重新验收。
