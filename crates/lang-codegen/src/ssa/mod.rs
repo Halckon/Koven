@@ -214,3 +214,6 @@ mod integer_range_value_tests;
 
 #[cfg(test)]
 mod numeric_iteration_tests;
+
+#[cfg(test)]
+mod while_flow_tests;
