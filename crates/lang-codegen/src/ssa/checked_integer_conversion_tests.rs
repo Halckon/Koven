@@ -3,16 +3,19 @@ use super::{
     LoweringErrorKind,
     lower_frontend::orchestrate::lower_scalar_file,
     unit_lower::lower_scalar_unit_with_entry,
-    unit_lower_test_support::{analyze, declaration, parsed},
+    unit_lower_test_support::{declaration, parsed},
 };
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{SourceUnitInput, resolve_names},
-    ownership_checking::check_ownership,
+    name_resolution::{
+        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+    },
+    ownership_checking::{check_compilation_unit_ownership, check_ownership},
     parser::parse_file,
     source::SourceMap,
     type_checking::{
-        check_types, complete_compilation_unit_types, complete_file_types, standard_environments,
+        check_compilation_unit_types, check_types, complete_compilation_unit_types,
+        complete_file_types, standard_environments,
     },
 };
 
@@ -57,8 +60,20 @@ fn unit_conversion_identity_stops_before_unimplemented_lowering() {
             &file,
         )];
         let (environment, types) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &environment, &types);
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
         complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).unwrap();
+        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+            .unwrap()
+            .validate()
+            .unwrap();
         let error = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
