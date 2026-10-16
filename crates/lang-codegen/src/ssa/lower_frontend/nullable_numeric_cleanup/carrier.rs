@@ -354,3 +354,7 @@ pub(super) fn numeric_exit(
             .iter()
             .all(|edge| header_sources.contains(edge))
 }
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod tests;

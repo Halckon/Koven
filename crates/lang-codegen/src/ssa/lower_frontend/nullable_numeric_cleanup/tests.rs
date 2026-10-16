@@ -1,5 +1,5 @@
 //! Real numeric-loop SSA, with direct private transport/exhaustion guard oracles.
-use super::super::cleanup_guard_harness::{self as harness, Fixture};
+use super::super::super::cleanup_guard_harness::{self as harness, Fixture};
 use super::*;
 
 fn checkpoint<T>(
@@ -70,6 +70,93 @@ fn incoming_edge<'a>(lowerer: &'a mut ExpressionLowerer<'_>, current: Pair) -> &
     .into_iter()
     .find(|edge| edge.target == current.block)
     .unwrap()
+}
+
+// Check every earlier transport gate independently before claiming an SCC witness.
+fn transport_shapes(
+    lowerer: &ExpressionLowerer<'_>,
+    current: Pair,
+    anchor: Pair,
+    inner: SsaTypeId,
+) -> BTreeMap<Pair, Vec<Pair>> {
+    let mut graph = BTreeMap::new();
+    let mut work = vec![current];
+    while let Some(pair) = work.pop() {
+        if graph.contains_key(&pair) {
+            continue;
+        }
+        let (owner, loan) = pair_columns(lowerer.function, pair, inner, lowerer.ssa_types)
+            .expect("real, correctly typed parameter columns");
+        if pair == anchor {
+            graph.insert(pair, Vec::new());
+            continue;
+        }
+        let edges = incoming(lowerer.function, pair.block);
+        assert!(!edges.is_empty());
+        let mut parents = Vec::new();
+        for (block, edge) in edges {
+            assert!(matches!(
+                lowerer
+                    .function
+                    .block(block)
+                    .unwrap()
+                    .terminator
+                    .as_ref()
+                    .unwrap()
+                    .kind,
+                TerminatorKind::Branch(_) | TerminatorKind::Conditional { .. }
+            ));
+            assert_eq!(
+                edge.arguments.len(),
+                lowerer
+                    .function
+                    .block(edge.target)
+                    .unwrap()
+                    .parameters
+                    .len()
+            );
+            for (&source, &target) in edge
+                .arguments
+                .iter()
+                .zip(&lowerer.function.block(edge.target).unwrap().parameters)
+            {
+                assert_eq!(
+                    lowerer.function.entity(source).unwrap().ty,
+                    lowerer.function.entity(target).unwrap().ty
+                );
+            }
+            let (EntityId::Value(value), EntityId::Loan(view)) =
+                (edge.arguments[owner], edge.arguments[loan])
+            else {
+                panic!("paired edge operands")
+            };
+            assert_eq!(
+                parameter(lowerer.function, EntityId::Value(value))
+                    .unwrap()
+                    .0,
+                block
+            );
+            let parent = Pair {
+                block,
+                owner: value,
+                loan: view,
+            };
+            assert!(pair_columns(lowerer.function, parent, inner, lowerer.ssa_types).is_some());
+            for entity in [EntityId::Value(value), EntityId::Loan(view)] {
+                assert_eq!(
+                    edge.arguments
+                        .iter()
+                        .filter(|&&other| other == entity)
+                        .count(),
+                    1
+                );
+            }
+            parents.push(parent);
+            work.push(parent);
+        }
+        graph.insert(pair, parents);
+    }
+    graph
 }
 
 #[test]
@@ -188,8 +275,8 @@ fn nullable_numeric_cleanup_rejects_columns_ungrounded_cycles_and_false_exhausti
             });
         }
         checkpoint(&fixture, *fact, |lowerer, plan, current, anchor| {
-            // One good predecessor is insufficient: a different visited SCC has
-            // no path to the birth even though the current node itself does.
+            // Composite graph counterexample: one actual anchored predecessor and
+            // an independent self-loop, with every paired-column check still valid.
             let first = lowerer
                 .function
                 .block(anchor.block)
@@ -199,29 +286,51 @@ fn nullable_numeric_cleanup_rejects_columns_ungrounded_cycles_and_false_exhausti
                 .unwrap()
                 .clone();
             let TerminatorKind::Conditional {
-                condition,
                 when_true,
                 when_false,
-            } = first.kind
+                ..
+            } = &first.kind
             else {
                 unreachable!()
             };
             let header = when_false.target;
+            let TerminatorKind::Conditional { condition, .. } = lowerer
+                .function
+                .block(header)
+                .unwrap()
+                .terminator
+                .as_ref()
+                .unwrap()
+                .kind
+            else {
+                panic!("real item comparison")
+            };
+            let parameters = lowerer.function.block(header).unwrap().parameters.clone();
+            let current_parameters = &lowerer.function.block(current.block).unwrap().parameters;
+            let exit_arguments = parameters[..current_parameters.len()].to_vec();
+            for (&source, &target) in exit_arguments.iter().zip(current_parameters) {
+                assert_eq!(
+                    lowerer.function.entity(source).unwrap().ty,
+                    lowerer.function.entity(target).unwrap().ty
+                );
+            }
             for block in &mut lowerer.function.blocks {
-                if let Some(term) = &mut block.terminator {
-                    for edge in harness::edges_mut(&mut term.kind) {
-                        if edge.target == header {
-                            edge.target = current.block;
-                        }
-                    }
+                if block.id != anchor.block
+                    && block.id != header
+                    && block.terminator.as_ref().is_some_and(|term| {
+                        harness::edges(&term.kind)
+                            .iter()
+                            .any(|edge| [current.block, header].contains(&edge.target))
+                    })
+                {
+                    block.terminator.as_mut().unwrap().kind = TerminatorKind::Abort;
                 }
             }
             lowerer.function.blocks[anchor.block.index()]
                 .terminator
                 .as_mut()
                 .unwrap()
-                .kind = TerminatorKind::Branch(when_true);
-            let arguments = lowerer.function.block(header).unwrap().parameters.clone();
+                .kind = TerminatorKind::Branch(when_true.clone());
             lowerer.function.blocks[header.index()]
                 .terminator
                 .as_mut()
@@ -230,15 +339,34 @@ fn nullable_numeric_cleanup_rejects_columns_ungrounded_cycles_and_false_exhausti
                 condition,
                 when_true: Edge {
                     target: current.block,
-                    arguments: arguments.clone(),
+                    arguments: exit_arguments,
                 },
                 when_false: Edge {
                     target: header,
-                    arguments,
+                    arguments: parameters,
                 },
             };
             let proof = lowerer.non_null_bindings[&plan.root];
+            let graph = transport_shapes(lowerer, current, anchor, proof.inner);
+            assert_eq!(graph.len(), 3);
+            assert!(graph.contains_key(&anchor));
+            let (&cycle, parents) = graph.iter().find(|(pair, _)| pair.block == header).unwrap();
+            assert!(
+                parents.as_slice() == [cycle],
+                "only the independent SCC lacks a path to birth"
+            );
             assert!(!transport(
+                lowerer.function,
+                current,
+                anchor,
+                proof.inner,
+                lowerer.ssa_types
+            ));
+            // Repair only the missing actual entry. Identical column/edge shapes
+            // now succeed, isolating the all-visited-nodes anchoring guard.
+            lowerer.function.blocks[anchor.block.index()].terminator = Some(first);
+            transport_shapes(lowerer, current, anchor, proof.inner);
+            assert!(transport(
                 lowerer.function,
                 current,
                 anchor,
