@@ -168,3 +168,47 @@ fn enum_type_tests_preserve_last_use_cleanup_for_owned_roots() {
         result.expect("ordinary enum test reads tag before final owner cleanup");
     }
 }
+
+#[test]
+fn direct_nullable_construction_storage_preserves_reachable_demand() {
+    let sources = [
+        r#"class Holder(val value: Int)
+fun entry(): Unit {
+    val current: Holder? = Holder(42)
+    if (current == null) { println("bad") } else { println("present") }
+}"#,
+        r#"class Holder(val value: Int)
+fun entry(): Unit {
+    println("done")
+    return
+    val unused: Holder? = Holder(42)
+}"#,
+        r#"class Holder(val value: Int)
+fun entry(own current: Holder?): Unit {
+    if (current == null) { println("absent") } else { println("present") }
+}"#,
+        r#"class Holder(val value: Int)
+fun entry(): Unit { val _ = Holder(42) }"#,
+    ]
+    .map(str::to_owned);
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 8);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("LOCAL STORAGE LLVM case={index} {llvm}");
+                Ok(())
+            });
+            println!("LOCAL STORAGE OUTCOME case={index} {result:?}");
+            result
+        })
+        .collect::<Vec<_>>();
+    for result in outcomes {
+        result.expect("direct nullable storage and reachability controls lower normally");
+    }
+}

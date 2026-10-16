@@ -18,6 +18,7 @@ mod field_replace;
 mod instances;
 mod integer;
 mod integer_range;
+mod local_storage;
 mod loop_control;
 mod map;
 mod map_loop_owner;

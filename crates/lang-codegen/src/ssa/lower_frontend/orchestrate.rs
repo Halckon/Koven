@@ -57,7 +57,7 @@ struct FunctionPlan {
 }
 
 #[derive(Clone, Copy)]
-enum FunctionPlanBody {
+pub(super) enum FunctionPlanBody {
     Expression(ExpressionId),
     Block(StatementId),
 }
@@ -636,6 +636,19 @@ fn lower_scalar_file_product(
         span: plan.span,
         source: None,
     }));
+
+    for plan in &plans {
+        super::local_storage::Planner {
+            module,
+            mapper: &mut type_mapper,
+            parsed,
+            names,
+            typed,
+            owned,
+            substitutions: &plan.substitutions,
+        }
+        .intern_body(plan.body)?;
+    }
 
     let (type_ids, heap_payloads, enum_payloads) = type_mapper.into_parts();
     let source_text = sources
