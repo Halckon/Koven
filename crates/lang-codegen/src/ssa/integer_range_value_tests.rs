@@ -315,3 +315,20 @@ fn range_values_cross_fields_containers_and_consumed_map_results() {
         verified(result);
     }
 }
+
+#[test]
+fn observe_copyable_range_require_value_without_borrow_binding() {
+    let sources = [("Int", "IntRange"), ("Long", "LongRange")].map(|(integer, range)| {
+        format!("fun entry(a: {integer}, b: {integer}): Boolean {{ var values = mutableMapOf<Int, {range}>(); values.put(1, a..b); val copy = values.requireValue(1); return (a in copy) && values.contains(1) }}")
+    });
+    // This exact records the actual existing loan-to-Copyable path; it is not a green oracle.
+    for result in collect_sources(&sources) {
+        if let Ok(program) = result {
+            println!("OBSERVED VERIFY {:?}", verify_program(&program));
+            println!(
+                "OBSERVED LLVM {:?}",
+                crate::llvm::render_verified_program(&program)
+            );
+        }
+    }
+}
