@@ -16,26 +16,26 @@ use lang_frontend::{
     },
 };
 
-const FROZEN: &[(&str, &str, DeferredReason)] = &[
+const FROZEN: &[(&str, &str, Option<DeferredReason>)] = &[
     (
         include_str!("fixtures/final-type-admission-0319/r01_bogus_member.ko"),
         "a.fooBar()",
-        DeferredReason::MemberAccess,
+        Some(DeferredReason::MemberAccess),
     ),
     (
         include_str!("fixtures/final-type-admission-0319/r02_bogus_member_str.ko"),
         "s.length",
-        DeferredReason::MemberAccess,
+        Some(DeferredReason::MemberAccess),
     ),
     (
         include_str!("fixtures/final-type-admission-0319/p34_for_range.ko"),
         "0..<5",
-        DeferredReason::Call,
+        None, // Range values are resolved; the numeric for provider remains pending.
     ),
     (
         include_str!("fixtures/final-type-admission-0319/s04_question_on_nullable.ko"),
         "x?",
-        DeferredReason::ErrorPropagation,
+        Some(DeferredReason::ErrorPropagation),
     ),
 ];
 
@@ -91,6 +91,46 @@ fn frozen_probe_roots_preserve_raw_deferred_recovery() {
                 text.to_owned()
             };
             with_types(&input, |sources, file, single, unit, unit_id| {
+                let Some(reason) = reason else {
+                    let id = expression(sources, file, root);
+                    assert_eq!(
+                        single
+                            .expression_type(id)
+                            .and_then(|ty| single.types().get(ty)),
+                        Some(&TypeKind::Builtin(BuiltinType::IntRange))
+                    );
+                    assert_eq!(
+                        unit.expression_type(UnitExpressionId::new(unit_id, id))
+                            .and_then(|ty| unit.types().get(ty)),
+                        Some(&UnitTypeKind::Builtin(BuiltinType::IntRange))
+                    );
+                    for diagnostics in [single.diagnostics(), unit.diagnostics()] {
+                        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+                        let diagnostic = &diagnostics[0];
+                        assert_eq!(diagnostic.code().to_string(), "L0159");
+                        assert_eq!(sources.slice(diagnostic.primary_span()), Ok(root));
+                        assert_eq!(
+                            (
+                                diagnostic.primary_span().start(),
+                                diagnostic.primary_span().end()
+                            ),
+                            (
+                                input.find(root).unwrap(),
+                                input.find(root).unwrap() + root.len()
+                            )
+                        );
+                        assert_eq!(
+                            diagnostic.message(),
+                            "for source requires a compiler-bound sequential container or View"
+                        );
+                        assert!(diagnostic.details().is_empty());
+                    }
+                    assert!(unit.clone().validate().is_err());
+                    if constants {
+                        assert!(unit.clone().validate_constants().is_err());
+                    }
+                    return;
+                };
                 assert!(
                     single.diagnostics().is_empty(),
                     "{:?}",

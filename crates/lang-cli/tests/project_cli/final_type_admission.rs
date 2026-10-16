@@ -76,30 +76,40 @@ fn assert_project_probes(prefix: &str) {
 
 #[test]
 fn project_deferred_user_message_build_preserves_source_root() {
-    let probe = &PROBES[2];
+    let deferred = support::deferred_call_probe();
     let mut cases = Vec::new();
-    for format in ["human", "json"] {
-        let project = TestProject::create("deferred-message-0324");
-        let manifest = project.manifest(&["src"]);
-        let source_name = format!("src/{}", probe.name);
-        project.write(&source_name, probe.text);
-        let executable = project.join("rejected-program");
-        let before = directory_snapshot(project.path());
-        let output = project_build(&manifest, "main", &executable, Some(format));
-        let mut expected = expected_diagnostic(probe, &source_name, "");
-        expected["message"] =
-            "type checking could not complete: the call's type is unresolved".into();
-        cases.push(RejectionCase {
-            context: format!("SPEC-0324 project build {format}"),
-            output,
-            format,
-            expected,
-            before,
-            after: directory_snapshot(project.path()),
-            executable_exists: executable.exists(),
-        });
+    for (probe, message) in [
+        (
+            &deferred,
+            "type checking could not complete: the call's type is unresolved",
+        ),
+        (
+            &PROBES[2],
+            "for source requires a compiler-bound sequential container or View",
+        ),
+    ] {
+        for format in ["human", "json"] {
+            let project = TestProject::create("deferred-message-0324");
+            let manifest = project.manifest(&["src"]);
+            let source_name = format!("src/{}", probe.name);
+            project.write(&source_name, probe.text);
+            let executable = project.join("rejected-program");
+            let before = directory_snapshot(project.path());
+            let output = project_build(&manifest, "main", &executable, Some(format));
+            let mut expected = expected_diagnostic(probe, &source_name, "");
+            expected["message"] = message.into();
+            cases.push(RejectionCase {
+                context: format!("SPEC-0324 project build {format}"),
+                output,
+                format,
+                expected,
+                before,
+                after: directory_snapshot(project.path()),
+                executable_exists: executable.exists(),
+            });
+        }
     }
-    support::assert_rejections_count(&cases, 1, 2);
+    support::assert_rejections_count(&cases, 1, 4);
 }
 
 #[test]

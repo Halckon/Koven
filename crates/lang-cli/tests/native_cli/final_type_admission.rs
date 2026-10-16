@@ -57,36 +57,46 @@ fn single_probe_roots_reject_before_codegen() {
 
 #[test]
 fn single_deferred_user_message_build_preserves_source_root() {
-    let probe = &PROBES[2];
+    let deferred = support::deferred_call_probe();
     let mut cases = Vec::new();
-    for format in ["human", "json"] {
-        let directory = TestDirectory::create();
-        let source = directory.join(probe.name);
-        let executable = directory.join("rejected-program");
-        fs::write(&source, probe.text.as_bytes()).expect("original fixture write");
-        let before = directory_snapshot(&directory.0);
-        let format_option = format!("--message-format={format}");
-        let output = run([
-            OsStr::new(&format_option),
-            OsStr::new("build"),
-            source.as_os_str(),
-            OsStr::new("-o"),
-            executable.as_os_str(),
-        ]);
-        let mut expected = expected_diagnostic(probe, source.to_str().unwrap(), "");
-        expected["message"] =
-            "type checking could not complete: the call's type is unresolved".into();
-        cases.push(RejectionCase {
-            context: format!("SPEC-0324 single build {format}"),
-            output,
-            format,
-            expected,
-            before,
-            after: directory_snapshot(&directory.0),
-            executable_exists: executable.exists(),
-        });
+    for (probe, message) in [
+        (
+            &deferred,
+            "type checking could not complete: the call's type is unresolved",
+        ),
+        (
+            &PROBES[2],
+            "for source requires a compiler-bound sequential container or View",
+        ),
+    ] {
+        for format in ["human", "json"] {
+            let directory = TestDirectory::create();
+            let source = directory.join(probe.name);
+            let executable = directory.join("rejected-program");
+            fs::write(&source, probe.text.as_bytes()).expect("original fixture write");
+            let before = directory_snapshot(&directory.0);
+            let format_option = format!("--message-format={format}");
+            let output = run([
+                OsStr::new(&format_option),
+                OsStr::new("build"),
+                source.as_os_str(),
+                OsStr::new("-o"),
+                executable.as_os_str(),
+            ]);
+            let mut expected = expected_diagnostic(probe, source.to_str().unwrap(), "");
+            expected["message"] = message.into();
+            cases.push(RejectionCase {
+                context: format!("SPEC-0324 single build {format}"),
+                output,
+                format,
+                expected,
+                before,
+                after: directory_snapshot(&directory.0),
+                executable_exists: executable.exists(),
+            });
+        }
     }
-    support::assert_rejections_count(&cases, 2, 2);
+    support::assert_rejections_count(&cases, 2, 4);
 }
 
 // SPEC-0323: only invoke the compiler's build command, never a produced artifact.

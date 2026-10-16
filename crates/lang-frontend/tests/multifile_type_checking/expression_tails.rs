@@ -170,13 +170,17 @@ fn remaining_expression_tails_publish_stable_types_and_traverse_cross_file_child
             Some(UnitTypeKind::Builtin(BuiltinType::Int))
         ));
     }
+    for text in ["produce()..produce()", "produce()..<produce()"] {
+        assert!(matches!(
+            expression_kind(text),
+            Some(UnitTypeKind::Builtin(BuiltinType::IntRange))
+        ));
+    }
     for (text, reason) in [
         ("produce() as Long", DeferredReason::CastOrTypeTest),
         ("produce()?", DeferredReason::ErrorPropagation),
         ("::target", DeferredReason::OverloadSelection),
         ("this::ping", DeferredReason::OverloadSelection),
-        ("produce()..produce()", DeferredReason::Call),
-        ("produce()..<produce()", DeferredReason::Call),
         ("produce() to produce()", DeferredReason::Call),
         ("produce() in produce()", DeferredReason::Call),
         ("produce() !in produce()", DeferredReason::Call),
