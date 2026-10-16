@@ -117,3 +117,8 @@ actual-main `3fa567aa` size 0 errors，docs 700 通过。synthetic 仅编译，�
 当前失败须区分 names/type/ownership 与 lower，不将前置拒绝冒充后端缺口。
 初始 oracle 只定位可达性缺口；实现验收前再锁 source call 身份/次数、Value 快照运输、
 terminal 支配 increment、四退出真实清理事实，native 数值/轨迹另行固定独审。
+
+`c897d7a3` 首三后端 exact 各 1 真实行为红，69 输入前后相同：32/12/24 共 68 观察
+全部通过 names/type/ownership，停在 numeric for lower 的 UnsupportedNode；未到 LLVM。
+不存在编译/parse/harness 前置失败。仓外收据 SHA
+`bfc40e56bfd952024796237c27cad23426cc5db6095d573a50b8691aaaa6e74e`，独审核同。
