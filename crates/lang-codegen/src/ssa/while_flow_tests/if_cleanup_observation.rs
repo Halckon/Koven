@@ -126,8 +126,14 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
             .map_err(|error| format!("types validation: {error:?}"))?;
         let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
             .map_err(|error| format!("ownership API: {error:?}"))?;
-        println!("IF CLEANUP UNIT SYMBOLS {:#?}", names.names().source_units());
-        println!("IF CLEANUP UNIT REFERENCES {:#?}", names.names().references());
+        println!(
+            "IF CLEANUP UNIT SYMBOLS {:#?}",
+            names.names().source_units()
+        );
+        println!(
+            "IF CLEANUP UNIT REFERENCES {:#?}",
+            names.names().references()
+        );
         println!("IF CLEANUP UNIT TYPE TABLE {:#?}", typed.types().types());
         println!(
             "IF CLEANUP UNIT STORAGE {:#?}",
