@@ -707,6 +707,10 @@ fn assert_numeric_scalars(function: &Function, numeric: &Numeric) {
                 );
                 closed_backedges.insert(increment);
             }
+            // Current/last are dead at exhaustion; owner/view transport is checked separately.
+            if edge.target == numeric.exhaustion {
+                continue;
+            }
             let next_current = carry_scalar(function, edge, current);
             let next_last = carry_scalar(function, edge, last);
             pending.push((edge.target, next_current, next_last));
