@@ -138,6 +138,13 @@ pub(super) fn intern_body_scalar_types(
         {
             types.intern(module, typed, concrete, span)?;
         }
+        if matches!(typed.types().get(concrete), Some(lang_frontend::type_checking::UnitTypeKind::Nullable(inner))
+            if matches!(builtin_type(typed, *inner), Some(BuiltinType::IntRange | BuiltinType::LongRange)))
+        {
+            // Map query results were registered before body planning. Otherwise the
+            // existing nullable mapper reports Unsupported rather than a missing ID.
+            types.intern(module, typed, concrete, span)?;
+        }
         if typed.map_construction(expression).is_some() {
             // Consume the concrete descriptor even for unsupported storage shapes, so an
             // inline nullable Map is rejected here rather than becoming a missing SSA fact.
