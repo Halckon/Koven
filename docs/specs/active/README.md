@@ -4,8 +4,11 @@
 
 当前本树 active：[0327显式checked整数转换](0327-checked-integer-conversions.md)，前端分片实施中，后端尚未交付。
 
-[0325简单变量赋值](../../archive/specs/0325-simple-variable-assignment-types.md)
-已按PR111实施head双宿主21exact与CI有界归档；归档head CI及main交付待核。
+[0326封闭分支类型合并](../../archive/specs/0326-closed-control-branch-join.md)
+已按合B后联合CI双host39exact有界归档；归档head CI/main交付待验。
+
+[0325简单变量赋值](../../archive/specs/0325-simple-variable-assignment-types.md)已按双host21exact与CI有界归档，
+归档head CI通过并由PR111正常合入main `aa42bdc5`；main CI另行核验。
 
 [0324用户诊断措辞](../../archive/specs/0324-final-admission-user-messages.md)已按整合head双宿主20精确目标与CI有限归档，归档head CI/main交付待核。
 

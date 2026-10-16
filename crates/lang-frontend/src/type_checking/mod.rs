@@ -14,6 +14,7 @@ mod constant_graph;
 mod constant_value;
 mod construction;
 mod container;
+mod control_body;
 mod declaration_frontier;
 mod error;
 mod expression_use;

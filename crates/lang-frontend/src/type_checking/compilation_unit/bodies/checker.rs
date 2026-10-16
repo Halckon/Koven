@@ -33,6 +33,7 @@ mod construction;
 mod container;
 mod container_operations;
 mod control;
+mod control_join;
 pub(super) mod copyability;
 mod destructuring;
 mod expression_facts;

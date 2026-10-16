@@ -5,6 +5,7 @@ mod callable;
 mod constants;
 mod construction;
 mod container;
+mod control_join;
 mod copyability;
 mod delegation;
 mod destructuring;
@@ -755,25 +756,6 @@ impl<'a> Checker<'a> {
             (TypeKind::Nullable(actual), TypeKind::Nullable(expected)) => actual == expected,
             (_, TypeKind::Nullable(inner)) => actual == *inner,
             _ => false,
-        }
-    }
-
-    fn join(&mut self, left: TypeId, right: TypeId) -> Option<TypeId> {
-        if left == right {
-            return Some(left);
-        }
-        if matches!(self.kind(left), TypeKind::Builtin(BuiltinType::Nothing)) {
-            return Some(right);
-        }
-        if matches!(self.kind(right), TypeKind::Builtin(BuiltinType::Nothing)) {
-            return Some(left);
-        }
-        match (self.kind(left).clone(), self.kind(right).clone()) {
-            (TypeKind::Nullable(inner), _) if inner == right => Some(left),
-            (_, TypeKind::Nullable(inner)) if inner == left => Some(right),
-            (TypeKind::Error, _) => Some(right),
-            (_, TypeKind::Error) => Some(left),
-            _ => None,
         }
     }
 

@@ -16,6 +16,9 @@ use std::{collections::BTreeSet, fs, path::Path};
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
+#[path = "type_checking/control_join_regressions.rs"]
+mod control_join_regressions;
+
 use parser_test_assertions::parse_file_twice;
 
 const BUILTINS: [BuiltinType; 16] = [
@@ -766,67 +769,6 @@ fn when_context_and_coverage_diagnostics_are_deterministic() {
             .collect::<Vec<_>>(),
         ["when", "when", "true", "else", "else"]
     );
-}
-
-#[test]
-fn subjectless_when_requires_boolean_conditions_and_known_branches_join_to_any() {
-    let invalid = "fun invalid(): Int = when { 1 -> 1; else -> 0 }";
-    let (sources, _, _, typed) = checked(invalid);
-    assert_eq!(codes(typed.diagnostics()), ["L0107"]);
-    assert_eq!(
-        sources
-            .slice(typed.diagnostics()[0].primary_span())
-            .expect("condition span"),
-        "1"
-    );
-
-    let valid = "fun mixed(flag: Boolean): Any = when (flag) {
-                     true -> 1
-                     false -> \"text\"
-                 }";
-    let (_, _, _, typed) = checked(valid);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-}
-
-#[test]
-fn when_branch_join_handles_nothing_nullable_enum_cases_and_any() {
-    let text = "enum class Choice { First, Second }
-                fun joins(flag: Boolean, optional: Int?, choice: Choice): Unit {
-                    val nullable = when (flag) { true -> 1; false -> optional }
-                    val root = when (choice) {
-                        is Choice.First -> choice
-                        is Choice.Second -> choice
-                    }
-                    val mixed = when (flag) { true -> 1; false -> \"text\" }
-                }
-                fun bottom(flag: Boolean): Int = when (flag) {
-                    true -> return 1
-                    false -> 2
-                }";
-    let (_, _, names, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-
-    let symbol_type = |name: &str| {
-        let symbol = names
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.name() == name)
-            .expect("local symbol");
-        typed
-            .symbol_type(symbol.id())
-            .and_then(|ty| typed.types().get(ty))
-            .expect("local type")
-    };
-    assert!(matches!(
-        symbol_type("nullable"),
-        TypeKind::Nullable(inner)
-            if matches!(typed.types().get(*inner), Some(TypeKind::Builtin(BuiltinType::Int)))
-    ));
-    assert!(matches!(symbol_type("root"), TypeKind::Nominal { .. }));
-    assert!(matches!(
-        symbol_type("mixed"),
-        TypeKind::Builtin(BuiltinType::Any)
-    ));
 }
 
 #[test]

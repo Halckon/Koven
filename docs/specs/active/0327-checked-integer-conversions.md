@@ -7,8 +7,8 @@
 | 状态 | in-progress |
 | Goal ID | `KOV-P2-0327` |
 | Phase | Phase 2 类型身份先行；Phase 3/4 按后继验收分片闭合 |
-| 基线 | 实际 main `aa42bdc5f1f3172b22f1ff7f708155b1aa077f10`（从020ff草案正常合并） |
-| 分支 | `feature/spec-0327-integer-conversions`；已继承主干0325；不包含未合0326实施 |
+| 基线 | 实际 main `5a32550a0ea956c1d66fdb65ae9bf2aeb6681684`（正常合并继承A/B） |
+| 分支 | `feature/spec-0327-integer-conversions`；已继承主干0325/0326归档与实现 |
 | 规范 | [Guide整数转换](../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
 | 当前状态 | 六项普通前端首轮4红/2初始拒绝控制绿；有限前端候选已固定待审，后端转换未实现 |
 
@@ -103,3 +103,5 @@ const 对照先要求 runtime 成功，失败时不把成员不存在误计 cons
 identity/异型lower均在真实调用span返回UnsupportedNode，无emit/native；后端转换仍未交付。
 负例据raw收紧完整code/span并核原诊断保全；参数与const恢复附加L0080如实保留，
 不把此旧恢复现象修成任意gate豁免。下一步待A真实main同步后的共享inv与工程验收。
+
+后继正常同步A实际main5a32550a，仅7处docs索引/四图冲突，生产自动合并；新head尚待统一复验。

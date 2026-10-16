@@ -452,12 +452,21 @@ fn cross_file_when_covers_enum_boolean_nullable_and_statement_contexts() {
         check_compilation_unit_types(&sources, &reverse_inputs, &reverse_names, &type_environment)
             .expect("reverse when unit succeeds");
 
-    assert!(
-        forward.diagnostics().is_empty(),
-        "{:?}",
-        forward.diagnostics()
+    assert_eq!(
+        forward
+            .diagnostics()
+            .iter()
+            .map(|d| d.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0112"]
     );
-    assert!(forward.clone().validate().is_ok());
+    assert_eq!(
+        sources
+            .slice(forward.diagnostics()[0].primary_span())
+            .unwrap(),
+        "\"text\""
+    );
+    assert!(forward.clone().validate().is_err());
     assert_eq!(forward.expression_types(), reverse.expression_types());
     assert_eq!(forward.body_symbol_types(), reverse.body_symbol_types());
     assert_eq!(forward.diagnostics(), reverse.diagnostics());
@@ -508,7 +517,7 @@ fn cross_file_when_covers_enum_boolean_nullable_and_statement_contexts() {
         forward
             .symbol_type(symbol_named(&forward, &forward_names, uses_unit, "mixed",))
             .and_then(|ty| forward.types().get(ty)),
-        Some(UnitTypeKind::Builtin(BuiltinType::Any))
+        Some(UnitTypeKind::Error)
     ));
     let when_nodes = when_expressions(&uses);
     assert_eq!(when_nodes.len(), 11);
@@ -575,7 +584,9 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
             .iter()
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>(),
-        ["L0111", "L0107", "L0111", "L0110", "L0109", "L0108",]
+        [
+            "L0111", "L0107", "L0111", "L0110", "L0109", "L0108", "L0112"
+        ]
     );
     assert_eq!(
         forward
@@ -585,7 +596,7 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
                 .slice(diagnostic.primary_span())
                 .expect("diagnostic span"))
             .collect::<Vec<_>>(),
-        ["when", "1", "when", "true", "else", "else"]
+        ["when", "1", "when", "true", "else", "else", "0"]
     );
     let missing_case = forward.body_diagnostics()[0]
         .details()
@@ -596,12 +607,12 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
         })
         .expect("enum non-exhaustiveness labels the missing case");
     assert_eq!(missing_case, "Point");
-    // Guide06: other known branch types join as Any; Unit and Int are not a conflict.
+    // Guide06 v0.44: Unit and Int have no closed value join.
     let uses_unit = source_unit(&forward_names, uses_source);
     let joined = symbol_named(&forward, &forward_names, uses_unit, "result");
     assert_eq!(
         forward.types().get(forward.symbol_type(joined).unwrap()),
-        Some(&UnitTypeKind::Builtin(BuiltinType::Any))
+        Some(&UnitTypeKind::Error)
     );
     let joined_when = *when_expressions(&uses).last().unwrap();
     assert_eq!(
@@ -610,7 +621,7 @@ fn cross_file_when_diagnostics_cover_shape_order_coverage_and_branch_join() {
                 .expression_type(UnitExpressionId::new(uses_unit, joined_when))
                 .unwrap()
         ),
-        Some(&UnitTypeKind::Builtin(BuiltinType::Any))
+        Some(&UnitTypeKind::Error)
     );
     assert!(forward.validate().is_err());
 }

@@ -1,0 +1,6 @@
+fun main(): Unit {
+    val flag = true
+    val first = if (flag) 1 else 2
+    val second = when (flag) { true -> 3; false -> 4 }
+    if (first + second == 4) { println("joined") } else { println("bad") }
+}
