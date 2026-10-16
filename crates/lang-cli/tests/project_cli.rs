@@ -7,6 +7,8 @@ mod enum_case_borrow;
 mod checked_integer_conversion;
 #[path = "project_cli/integer_range.rs"]
 mod integer_range;
+#[path = "project_cli/numeric_iteration.rs"]
+mod numeric_iteration;
 
 #[path = "project_cli/mutable_list_delivery.rs"]
 mod mutable_list_delivery;

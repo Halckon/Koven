@@ -1,4 +1,6 @@
 //! SPEC-0329 ordinary source probes; no object emission or native execution.
+mod cfg_contract;
+
 use super::{integer_range_value_tests::collect_sources, verify::verify_program};
 
 fn require_verified_sources(sources: &[String], llvm: bool) {

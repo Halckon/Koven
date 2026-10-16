@@ -133,7 +133,7 @@ fn unused_range_environment_seeds_do_not_block_ordinary_lowering() {
 }
 
 #[test]
-fn numeric_iteration_stops_at_explicit_pending_backend_boundary() {
+fn numeric_iteration_reaches_verified_value_backend() {
     let mut observed = Vec::new();
     for range in ["IntRange", "LongRange"] {
         for unit in [false, true] {
@@ -147,11 +147,19 @@ fn numeric_iteration_stops_at_explicit_pending_backend_boundary() {
         }
     }
     for (result, start, end) in observed {
-        let error = result
-            .err()
-            .expect("numeric provider backend remains pending");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-        let span = error.span.expect("actual for statement");
-        assert_eq!((span.start(), span.end()), (start, end));
+        let program = result.expect("numeric provider reaches its value backend");
+        verify_program(&program).unwrap();
+        assert!(
+            program
+                .modules
+                .iter()
+                .flat_map(|module| &module.functions)
+                .flat_map(|function| &function.instructions)
+                .any(
+                    |instruction| matches!(&instruction.origin, super::model::Origin::Source(span)
+                if (span.start(), span.end()) == (start, end))
+                )
+        );
+        crate::llvm::render_verified_program(&program).unwrap();
     }
 }

@@ -133,3 +133,10 @@ terminal 支配 increment、四退出真实清理事实，native 数值/轨迹�
 原 type planner 只为迭代登记 Int/Boolean，LongRange 无 Long 叶表达式时漏 endpoint 映射；
 后继仅按真实 NumericRange descriptor 登记端点，并加强 single source/清理身份核对。
 收据 SHA `4d7ed9e53b8ddda9acc689d8eb3855860aebae4f90f91c0660a9d36aa9fabc55`；保留原红。
+
+`48e8b1c2` 同三项各 1 通过，76 输入前后相同，68 观察均 SSA/verify 成功；
+其中资源/嵌套 24 观察另通过内存 LLVM。收据 SHA
+`a594ab3686457ac3f37f59f7702c25412b0742d22bda316164c058290aaf4633` 已独核。
+该结果只闭合可达性；下一 tests-only 小片锁 snapshot/terminal CFG 身份，并以双入口
+有界成功 native 验证独立 111 行轨迹（Int/Long 对称，每次循环至多三轮，全域首轮退出）。
+原 pending lower 用例须精确转为 SSA/LLVM 正例；本段不宣称新 oracle/native 已执行。

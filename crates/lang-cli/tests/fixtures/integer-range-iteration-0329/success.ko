@@ -1,0 +1,347 @@
+// SPEC-0329 bounded successful native candidate. Expected stdout is hand-derived.
+// No Abort/error/fault probe. Every loop activation is at most three iterations;
+// full-domain ranges terminate unconditionally on their first iteration.
+class Resource(val name: String) {
+    deinit() { println(this.name) }
+}
+
+fun emptyInt(): Unit {
+    println("int.empty.begin")
+    for (_ in -2147483648..<-2147483648) { println("UNEXPECTED.int.empty.min") }
+    for (_ in 2147483647..<2147483647) { println("UNEXPECTED.int.empty.max") }
+    for (_ in 3..2) { println("UNEXPECTED.int.reverse") }
+    println("int.empty.done")
+}
+
+fun maximumInt(): Unit {
+    for (item in 2147483647..2147483647) {
+        if (item == 2147483647) { println("int.max.singleton") }
+        else { println("UNEXPECTED.int.max.singleton") }
+        continue
+    }
+    println("int.max.singleton.done")
+    for (item in 2147483646..2147483647) {
+        if (item == 2147483646) { println("int.max.previous") }
+        else {
+            if (item == 2147483647) { println("int.max.last") }
+            else { println("UNEXPECTED.int.max.pair") }
+        }
+        continue
+    }
+    println("int.max.pair.done")
+}
+
+fun fullBreakInt(): Unit {
+    for (item in -2147483648..2147483647) {
+        if (item == -2147483648) { println("int.full.break.first") }
+        else { println("UNEXPECTED.int.full.break") }
+        break
+    }
+    println("int.full.break.done")
+}
+
+fun fullReturnInt(): Int {
+    for (item in -2147483648..2147483647) {
+        println("int.full.return.first")
+        return item
+    }
+    return 0
+}
+
+fun observeInt(input: IntRange): IntRange {
+    println("int.snapshot.source")
+    return input
+}
+
+fun snapshotInt(): Unit {
+    var current = 2..4
+    for (item in observeInt(current)) {
+        current = 9..9
+        if (item == 2) { println("int.snapshot.first") }
+        else {
+            if (item == 3) { println("int.snapshot.second") }
+            else {
+                if (item == 4) { println("int.snapshot.last") }
+                else { println("UNEXPECTED.int.snapshot.item") }
+            }
+        }
+        continue
+    }
+    if (current == (9..9)) { println("int.snapshot.reassigned") }
+    else { println("UNEXPECTED.int.snapshot.source.after") }
+}
+
+fun resourceNormalInt(): Unit {
+    val outer = Resource("int.normal.outer.drop")
+    for (_ in 1..2) {
+        val first = Resource("int.normal.first.drop")
+        val second = Resource("int.normal.second.drop")
+        println("int.normal.body")
+    }
+    println("int.normal.after")
+}
+
+fun resourceContinueInt(): Unit {
+    val outer = Resource("int.continue.outer.drop")
+    for (_ in 1..2) {
+        val first = Resource("int.continue.first.drop")
+        val second = Resource("int.continue.second.drop")
+        println("int.continue.body")
+        continue
+    }
+    println("int.continue.after")
+}
+
+fun resourceBreakInt(): Unit {
+    val outer = Resource("int.break.outer.drop")
+    for (_ in 1..3) {
+        val first = Resource("int.break.first.drop")
+        val second = Resource("int.break.second.drop")
+        println("int.break.body")
+        break
+    }
+    println("int.break.after")
+}
+
+fun returnOperandInt(input: Int): Int {
+    println("int.return.operand")
+    return input
+}
+
+fun resourceReturnInt(): Int {
+    val outer = Resource("int.return.outer.drop")
+    for (item in 1..3) {
+        val first = Resource("int.return.first.drop")
+        val second = Resource("int.return.second.drop")
+        println("int.return.body")
+        return returnOperandInt(item)
+    }
+    return 0
+}
+
+fun numericInsideListInt(values: List<Int>): Unit {
+    for (value in values) {
+        val outer = Resource("int.inside.outer.drop")
+        for (item in 1..2) {
+            if (value == 7) {
+                if (item == 1) { println("int.inside.first") }
+                else {
+                    if (item == 2) { println("int.inside.last") }
+                    else { println("UNEXPECTED.int.inside.item") }
+                }
+            } else { println("UNEXPECTED.int.inside.borrow") }
+            continue
+        }
+        if (value == 7) { println("int.inside.borrow.after") }
+        else { println("UNEXPECTED.int.inside.borrow.after") }
+    }
+    println("int.inside.done")
+}
+
+fun listInsideNumericInt(values: List<Int>): Unit {
+    for (item in 1..2) {
+        val outer = Resource("int.outside.outer.drop")
+        for (value in values) {
+            if (value == 7) { println("int.outside.borrow") }
+            else { println("UNEXPECTED.int.outside.borrow") }
+            break
+        }
+        if (item == 1) { println("int.outside.first.after") }
+        else {
+            if (item == 2) { println("int.outside.last.after") }
+            else { println("UNEXPECTED.int.outside.item") }
+        }
+        continue
+    }
+    println("int.outside.done")
+}
+
+fun runInt(values: List<Int>): Unit {
+    emptyInt()
+    maximumInt()
+    fullBreakInt()
+    if (fullReturnInt() == -2147483648) { println("int.full.return.done") }
+    else { println("UNEXPECTED.int.full.return.value") }
+    snapshotInt()
+    resourceNormalInt()
+    resourceContinueInt()
+    resourceBreakInt()
+    if (resourceReturnInt() == 1) { println("int.return.done") }
+    else { println("UNEXPECTED.int.return.value") }
+    numericInsideListInt(values)
+    listInsideNumericInt(values)
+}
+
+fun emptyLong(): Unit {
+    println("long.empty.begin")
+    for (_ in -9223372036854775808L..<-9223372036854775808L) { println("UNEXPECTED.long.empty.min") }
+    for (_ in 9223372036854775807L..<9223372036854775807L) { println("UNEXPECTED.long.empty.max") }
+    for (_ in 3L..2L) { println("UNEXPECTED.long.reverse") }
+    println("long.empty.done")
+}
+
+fun maximumLong(): Unit {
+    for (item in 9223372036854775807L..9223372036854775807L) {
+        if (item == 9223372036854775807L) { println("long.max.singleton") }
+        else { println("UNEXPECTED.long.max.singleton") }
+        continue
+    }
+    println("long.max.singleton.done")
+    for (item in 9223372036854775806L..9223372036854775807L) {
+        if (item == 9223372036854775806L) { println("long.max.previous") }
+        else {
+            if (item == 9223372036854775807L) { println("long.max.last") }
+            else { println("UNEXPECTED.long.max.pair") }
+        }
+        continue
+    }
+    println("long.max.pair.done")
+}
+
+fun fullBreakLong(): Unit {
+    for (item in -9223372036854775808L..9223372036854775807L) {
+        if (item == -9223372036854775808L) { println("long.full.break.first") }
+        else { println("UNEXPECTED.long.full.break") }
+        break
+    }
+    println("long.full.break.done")
+}
+
+fun fullReturnLong(): Long {
+    for (item in -9223372036854775808L..9223372036854775807L) {
+        println("long.full.return.first")
+        return item
+    }
+    return 0L
+}
+
+fun observeLong(input: LongRange): LongRange {
+    println("long.snapshot.source")
+    return input
+}
+
+fun snapshotLong(): Unit {
+    var current = 2L..4L
+    for (item in observeLong(current)) {
+        current = 9L..9L
+        if (item == 2L) { println("long.snapshot.first") }
+        else {
+            if (item == 3L) { println("long.snapshot.second") }
+            else {
+                if (item == 4L) { println("long.snapshot.last") }
+                else { println("UNEXPECTED.long.snapshot.item") }
+            }
+        }
+        continue
+    }
+    if (current == (9L..9L)) { println("long.snapshot.reassigned") }
+    else { println("UNEXPECTED.long.snapshot.source.after") }
+}
+
+fun resourceNormalLong(): Unit {
+    val outer = Resource("long.normal.outer.drop")
+    for (_ in 1L..2L) {
+        val first = Resource("long.normal.first.drop")
+        val second = Resource("long.normal.second.drop")
+        println("long.normal.body")
+    }
+    println("long.normal.after")
+}
+
+fun resourceContinueLong(): Unit {
+    val outer = Resource("long.continue.outer.drop")
+    for (_ in 1L..2L) {
+        val first = Resource("long.continue.first.drop")
+        val second = Resource("long.continue.second.drop")
+        println("long.continue.body")
+        continue
+    }
+    println("long.continue.after")
+}
+
+fun resourceBreakLong(): Unit {
+    val outer = Resource("long.break.outer.drop")
+    for (_ in 1L..3L) {
+        val first = Resource("long.break.first.drop")
+        val second = Resource("long.break.second.drop")
+        println("long.break.body")
+        break
+    }
+    println("long.break.after")
+}
+
+fun returnOperandLong(input: Long): Long {
+    println("long.return.operand")
+    return input
+}
+
+fun resourceReturnLong(): Long {
+    val outer = Resource("long.return.outer.drop")
+    for (item in 1L..3L) {
+        val first = Resource("long.return.first.drop")
+        val second = Resource("long.return.second.drop")
+        println("long.return.body")
+        return returnOperandLong(item)
+    }
+    return 0L
+}
+
+fun numericInsideListLong(values: List<Int>): Unit {
+    for (value in values) {
+        val outer = Resource("long.inside.outer.drop")
+        for (item in 1L..2L) {
+            if (value == 7) {
+                if (item == 1L) { println("long.inside.first") }
+                else {
+                    if (item == 2L) { println("long.inside.last") }
+                    else { println("UNEXPECTED.long.inside.item") }
+                }
+            } else { println("UNEXPECTED.long.inside.borrow") }
+            continue
+        }
+        if (value == 7) { println("long.inside.borrow.after") }
+        else { println("UNEXPECTED.long.inside.borrow.after") }
+    }
+    println("long.inside.done")
+}
+
+fun listInsideNumericLong(values: List<Int>): Unit {
+    for (item in 1L..2L) {
+        val outer = Resource("long.outside.outer.drop")
+        for (value in values) {
+            if (value == 7) { println("long.outside.borrow") }
+            else { println("UNEXPECTED.long.outside.borrow") }
+            break
+        }
+        if (item == 1L) { println("long.outside.first.after") }
+        else {
+            if (item == 2L) { println("long.outside.last.after") }
+            else { println("UNEXPECTED.long.outside.item") }
+        }
+        continue
+    }
+    println("long.outside.done")
+}
+
+fun runLong(values: List<Int>): Unit {
+    emptyLong()
+    maximumLong()
+    fullBreakLong()
+    if (fullReturnLong() == -9223372036854775808L) { println("long.full.return.done") }
+    else { println("UNEXPECTED.long.full.return.value") }
+    snapshotLong()
+    resourceNormalLong()
+    resourceContinueLong()
+    resourceBreakLong()
+    if (resourceReturnLong() == 1L) { println("long.return.done") }
+    else { println("UNEXPECTED.long.return.value") }
+    numericInsideListLong(values)
+    listInsideNumericLong(values)
+}
+
+fun main(): Unit {
+    val values = listOf(7)
+    runInt(values)
+    runLong(values)
+    println("numeric.iteration.done")
+}
