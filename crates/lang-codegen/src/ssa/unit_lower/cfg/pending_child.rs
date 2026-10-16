@@ -160,6 +160,13 @@ impl UnitExpressionLowerer<'_> {
         let Some(first) = exits.first() else {
             return Ok(());
         };
+        // Frame equivalence is a transport requirement for live nullable children.
+        // Ordinary call prefixes may be cancelled on a loop's control-exit path.
+        let carries_child = exits.iter().any(|exit| {
+            exit.pending_call_frames
+                .iter()
+                .any(|frame| !frame.nullable_children.is_empty())
+        });
         for exit in exits {
             self.validate_pending_nullable_children(
                 &exit.pending_call_frames,
@@ -167,7 +174,7 @@ impl UnitExpressionLowerer<'_> {
                 &exit.nullable_proofs,
                 span,
             )?;
-            if exit.pending_call_frames != first.pending_call_frames {
+            if carries_child && exit.pending_call_frames != first.pending_call_frames {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         }
