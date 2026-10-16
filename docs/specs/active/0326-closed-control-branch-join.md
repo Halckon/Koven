@@ -158,3 +158,16 @@ cli build四工程命令全exit0；Cargo依赖锁定offline，均非新增行为
 CI接线为`check_stage_integration.sh`新增本target，既有type_checking/multifile与CLI已在
 两host路径；仅静态核接线与bash -n通过，本分支远端CI尚未执行。Spec继续active，
 等待唯一publisher按Guide同树映射发布并对齐真实main；不重复发布Guide，也不覆盖0325。
+
+## 7. 真实远端基线同步与尺寸检查
+
+2026-10-16，从真实远端 `7baf0a3b` 正常合并 main `020ff41f`，本地merge
+`3cf2e5c5` 保留这两个有序父，完整tree仍为原 `1303545e`。该main尚不含0325实施，
+本轮不称A/B联合整合；0325合入后仍需核共享checker与索引。
+静态尺寸检查相对真实base020ff发现 tests/type_checking.rs 2254>2251；未提高阈值，
+将两项既有when/join回归原样移入control_join_regressions子模块，主文件降至2193行。
+固定 `225cc77de9edbe526ddba521cc1f92e51685fe14` 同head重跑原18exact，只有上述两项
+完整名增加模块前缀，各1命中通过、44输入SHA前后一致；原四工程和完整尺寸门禁均通过。
+仓外 `main-sync18-receipt.json`、`engineering-main-sync18-receipt.json` 保存结果。
+抽取初次fmt仅报告子文件末尾多余空行，修正后统一四工程通过；未改变测试体或生产语义。
+本地真实输入与远端CI继续分账，发布后的实际head仍须双host验证，Spec保持active。
