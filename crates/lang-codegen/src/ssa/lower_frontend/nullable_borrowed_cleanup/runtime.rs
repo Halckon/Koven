@@ -261,3 +261,7 @@ impl ExpressionLowerer<'_> {
         Ok(proof.owner)
     }
 }
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod tests;

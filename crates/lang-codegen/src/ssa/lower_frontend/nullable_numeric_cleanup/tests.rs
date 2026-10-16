@@ -55,7 +55,7 @@ fn checkpoint<T>(
     })
 }
 
-fn incoming_edge(lowerer: &mut ExpressionLowerer<'_>, current: Pair) -> &mut Edge {
+fn incoming_edge<'a>(lowerer: &'a mut ExpressionLowerer<'_>, current: Pair) -> &'a mut Edge {
     let (block, _) = harness::incoming(lowerer.function, current.block)
         .into_iter()
         .find(|(block, _)| *block != lowerer.loops[0].header)
