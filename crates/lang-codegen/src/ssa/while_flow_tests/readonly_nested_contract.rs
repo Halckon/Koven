@@ -105,10 +105,28 @@ pub(super) fn assert_inherited_proof(program: &Program, source: &str, unit: bool
         );
     }
     let inner_header = only(function.blocks.iter().filter(|block| {
-        matches!(
-            block.terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::Conditional { .. })
-        )
+        let Some(TerminatorKind::Conditional { condition, .. }) =
+            block.terminator.as_ref().map(|term| &term.kind)
+        else {
+            return false;
+        };
+        let Some(negation) = function
+            .instructions
+            .iter()
+            .find(|instruction| instruction.results == [EntityId::Value(*condition)])
+        else {
+            return false;
+        };
+        let Operation::BooleanNot { operand } = negation.operation else {
+            return false;
+        };
+        function.instructions.iter().any(|instruction| {
+            instruction.results == [EntityId::Value(operand)]
+                && matches!(instruction.operation, Operation::NullableIsNull { owner }
+                    if pairs.iter().any(|(paired_owner, loan)| *paired_owner == owner
+                        && block.parameters.contains(&EntityId::Value(owner))
+                        && block.parameters.contains(&EntityId::Loan(*loan))))
+        })
     }));
     let header_pair = only(pairs.iter().copied().filter(|(owner, loan)| {
         inner_header.parameters.contains(&EntityId::Value(*owner))
