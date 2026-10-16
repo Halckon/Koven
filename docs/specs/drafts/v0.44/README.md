@@ -16,5 +16,9 @@
 [Int函数中val初始化全分支return的真实源码与L0088入口差异](../../../archive/specs/0326-closed-control-branch-join.md#5-已认领的后继终止性待办)仍开放。
 本片join根已为Nothing不代表声明/函数终止性全部一致；尚未另分Spec或宣称修复。
 
+[SPEC-0328](../../../archive/specs/0328-integer-range-values.md)已按PR114实现CI双host36exact有界归档；
+数值 for 值 provider 由该 Spec 作者认领为独立后继，不以首片代替完整 D。
+一般Range?参数/局部null与requireValue借用绑定函数含Binary的旧控制流边界仍由该作者跟踪；
+MapResult实际查询与显式borrow复制已验不代表这些一般边界已完成。
 [SPEC-0327](../../../archive/specs/0327-checked-integer-conversions.md)已按双host30exact实施CI有界归档；
 八整数转换前端至native及CI-only负控已验，归档head CI/main待验，其余v0.44合同不随之完成。

@@ -2,7 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前本树无 active Spec。[0327显式checked整数转换](../../archive/specs/0327-checked-integer-conversions.md)
+当前 active 为空。[0328整数 Range 普通值](../../archive/specs/0328-integer-range-values.md)
+已按PR114实现CI双host36exact有界归档；归档head CI/main待验。
+数值for、一般nullable及旧borrow全函数Binary边界仍由0328作者认领，见[v0.44后继](../drafts/v0.44/README.md)。
+
+[0327显式checked整数转换](../../archive/specs/0327-checked-integer-conversions.md)
 已按PR113实施CI双host30exact有界归档；归档head CI/main交付仍待。
 
 [0326封闭分支类型合并](../../archive/specs/0326-closed-control-branch-join.md)

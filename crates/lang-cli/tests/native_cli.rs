@@ -5,6 +5,8 @@ mod enum_case_borrow;
 
 #[path = "native_cli/checked_integer_conversion.rs"]
 mod checked_integer_conversion;
+#[path = "native_cli/integer_range.rs"]
+mod integer_range;
 
 #[path = "native_cli/mutable_list_delivery.rs"]
 mod mutable_list_delivery;

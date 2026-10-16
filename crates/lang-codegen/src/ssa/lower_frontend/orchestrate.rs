@@ -27,7 +27,7 @@ use crate::ssa::{
     verify::verify_program,
 };
 
-const LOWERED_BUILTINS: [BuiltinType; 12] = [
+const LOWERED_BUILTINS: [BuiltinType; 14] = [
     BuiltinType::Byte,
     BuiltinType::Short,
     BuiltinType::Int,
@@ -40,6 +40,8 @@ const LOWERED_BUILTINS: [BuiltinType; 12] = [
     BuiltinType::Char,
     BuiltinType::String,
     BuiltinType::Unit,
+    BuiltinType::IntRange,
+    BuiltinType::LongRange,
 ];
 
 struct FunctionPlan {

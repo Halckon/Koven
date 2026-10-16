@@ -49,6 +49,20 @@ pub(crate) enum Operation {
     CheckedIntegerConvert {
         operand: ValueId,
     },
+    /// Pure registered numeric Range value; inclusive or half-open upper endpoint.
+    IntegerRangeConstruct {
+        first: ValueId,
+        bound: ValueId,
+        inclusive: bool,
+    },
+    IntegerRangeContains {
+        value: ValueId,
+        range: ValueId,
+    },
+    IntegerRangeEqual {
+        left: ValueId,
+        right: ValueId,
+    },
     /// Exact-width integer operations; shift counts are masked by width - 1.
     IntegerBitwise {
         operator: IntegerBitwiseOperator,
@@ -373,6 +387,15 @@ impl Operation {
             | Self::CheckedArithmetic { left, right, .. }
             | Self::IntegerBitwise { left, right, .. }
             | Self::Compare { left, right, .. } => {
+                vec![EntityId::Value(*left), EntityId::Value(*right)]
+            }
+            Self::IntegerRangeConstruct { first, bound, .. } => {
+                vec![EntityId::Value(*first), EntityId::Value(*bound)]
+            }
+            Self::IntegerRangeContains { value, range } => {
+                vec![EntityId::Value(*value), EntityId::Value(*range)]
+            }
+            Self::IntegerRangeEqual { left, right } => {
                 vec![EntityId::Value(*left), EntityId::Value(*right)]
             }
             Self::DirectCall {

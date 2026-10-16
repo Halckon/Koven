@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树 0 份；[0327](../archive/specs/0327-checked-integer-conversions.md)已按PR113实施CI双host30exact有界归档，归档head CI/main待验。0325/0326既有交付不受影响。
+- [Active 合同](active/README.md)：当前本树 0 份。[0328](../archive/specs/0328-integer-range-values.md)已按PR114实现CI双host36exact有界归档；归档head CI/main待验，数值for等后继仍开放。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -65,6 +65,8 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 通用循环和其他容器/API仍按原能力边界及独立后继处理。
 
 ### 近期交付
+
+- [0328](../archive/specs/0328-integer-range-values.md)：[PR114实现CI](https://github.com/Halckon/Koven/actions/runs/38861894139/attempts/1)15实际success、1路径skip、非复用；双host36exact各1通过，Holder校准正确检出，macOS partial限制保留；归档head CI/main待验。
 
 - [0326](../archive/specs/0326-closed-control-branch-join.md)：[PR112联合CI](https://github.com/Halckon/Koven/actions/runs/38838072417/attempts/1)15实际success、1路径skip、非复用，双host39exact各1通过；封闭join有界归档，声明终止性后继仍由作者跟踪，归档head CI/main待验。
 

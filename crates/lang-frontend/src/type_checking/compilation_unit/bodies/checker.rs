@@ -40,6 +40,7 @@ mod expression_facts;
 mod flow;
 mod generic_body_types;
 mod integer;
+mod integer_range;
 mod iteration;
 mod lambda;
 mod literals;
@@ -298,8 +299,12 @@ impl<'a> BodyChecker<'a> {
             self.parts.ownership_primitives.clear();
             self.clear_range_facts();
             self.parts.integer_operations.clear();
+            self.parts.integer_range_operations.clear();
             self.parts.iterations.clear();
         }
+        self.parts
+            .integer_range_operations
+            .sort_by_key(|fact| fact.expression());
         self.parts.iterations.sort_by_key(|plan| plan.statement());
         self.parts
             .ownership_primitives
@@ -656,6 +661,7 @@ impl<'a> BodyChecker<'a> {
             } => self.check_binary(
                 source,
                 operators::BinaryExpression {
+                    expression,
                     left,
                     operator,
                     operator_span,

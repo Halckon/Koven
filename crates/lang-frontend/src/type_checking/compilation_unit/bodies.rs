@@ -25,6 +25,7 @@ mod constants;
 mod container;
 pub use constants::*;
 mod integer;
+mod integer_range;
 mod map;
 mod non_null_assertion;
 mod nullable;
@@ -36,6 +37,7 @@ mod string;
 pub use checker::check_compilation_unit_types;
 pub(crate) use checker::copyability::UnitTransferability;
 pub use integer::*;
+pub use integer_range::*;
 pub use ownership_primitive::*;
 pub use {
     assignment::*, container::*, map::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
@@ -503,6 +505,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
     pub(crate) string_operations: Vec<UnitStringOperationDescriptor>,
     pub(crate) integer_operations: Vec<UnitIntegerOperationDescriptor>,
+    pub(crate) integer_range_operations: Vec<UnitIntegerRangeOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
     container_sizes: Vec<UnitContainerSizeDescriptor>,
     pub(crate) range_sizes:
@@ -554,6 +557,7 @@ pub struct CompilationUnitTypes {
     rc_operations: Vec<UnitRcOperationDescriptor>,
     string_operations: Vec<UnitStringOperationDescriptor>,
     integer_operations: Vec<UnitIntegerOperationDescriptor>,
+    integer_range_operations: Vec<UnitIntegerRangeOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
     container_sizes: Vec<UnitContainerSizeDescriptor>,
     pub(crate) range_sizes:
@@ -622,6 +626,7 @@ impl CompilationUnitTypes {
             rc_operations: parts.rc_operations,
             string_operations: parts.string_operations,
             integer_operations: parts.integer_operations,
+            integer_range_operations: parts.integer_range_operations,
             container_constructions: parts.container_constructions,
             container_sizes: parts.container_sizes,
             range_sizes: parts.range_sizes,
@@ -774,6 +779,20 @@ impl CompilationUnitTypes {
     #[must_use]
     pub fn integer_operations(&self) -> &[UnitIntegerOperationDescriptor] {
         &self.integer_operations
+    }
+
+    /// Numeric Range facts in stable source-qualified order.
+    pub fn integer_range_operations(&self) -> &[UnitIntegerRangeOperationDescriptor] {
+        &self.integer_range_operations
+    }
+    /// Query one numeric Range operation by source identity.
+    pub fn integer_range_operation(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<&UnitIntegerRangeOperationDescriptor> {
+        self.integer_range_operations
+            .iter()
+            .find(|fact| fact.expression() == expression)
     }
 
     /// 查询已绑定 receiver 的显式 Integer 操作。
@@ -938,6 +957,7 @@ impl CompilationUnitTypes {
     pub fn validate_constants(self) -> Result<ConstEnabledTypedUnit, Box<Self>> {
         if self.ownership_primitives_are_valid()
             && self.integer_operations_are_valid()
+            && self.integer_range_operations_are_valid()
             && self.constants.is_some()
             && !self
                 .diagnostics
@@ -963,6 +983,7 @@ impl CompilationUnitTypes {
             || !self.constant_selections.is_empty()
             || !self.ownership_primitives_are_valid()
             || !self.integer_operations_are_valid()
+            || !self.integer_range_operations_are_valid()
         {
             Err(Box::new(self))
         } else {

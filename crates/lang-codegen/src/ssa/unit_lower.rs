@@ -23,6 +23,7 @@ mod field_borrow;
 mod field_replace;
 mod handoff;
 mod integer;
+mod integer_range;
 mod loop_control;
 mod map;
 mod map_borrow;
@@ -252,6 +253,13 @@ impl UnitExpressionLowerer<'_> {
                     self.lower_enum_construction(expression, span)
                 }
             };
+        }
+        if self
+            .typed
+            .integer_range_operation(unit_expression)
+            .is_some()
+        {
+            return self.lower_integer_range(expression, span);
         }
         if self.typed.integer_operation(unit_expression).is_some() {
             return self.lower_integer_operation(expression, span);

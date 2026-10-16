@@ -1,4 +1,4 @@
-use crate::type_checking::IntegerOperationDescriptor;
+use crate::type_checking::{IntegerOperationDescriptor, IntegerRangeOperationDescriptor};
 use std::collections::BTreeMap;
 
 use crate::{
@@ -46,6 +46,7 @@ pub(super) struct TrialState {
     rc_operations: Vec<RcOperationDescriptor>,
     string_operations: Vec<StringOperationDescriptor>,
     integer_operations: Vec<IntegerOperationDescriptor>,
+    integer_range_operations: Vec<IntegerRangeOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     container_sizes: Vec<ContainerSizeDescriptor>,
     range_sizes: Vec<crate::type_checking::RangeSizeDescriptor<crate::ast::ExpressionId, TypeId>>,
@@ -86,6 +87,7 @@ impl Checker<'_> {
             rc_operations: self.rc_operations.clone(),
             string_operations: self.string_operations.clone(),
             integer_operations: self.integer_operations.clone(),
+            integer_range_operations: self.integer_range_operations.clone(),
             container_constructions: self.container_constructions.clone(),
             container_sizes: self.container_sizes.clone(),
             range_sizes: self.range_sizes.clone(),
@@ -125,6 +127,7 @@ impl Checker<'_> {
         self.rc_operations = state.rc_operations;
         self.string_operations = state.string_operations;
         self.integer_operations = state.integer_operations;
+        self.integer_range_operations = state.integer_range_operations;
         self.container_constructions = state.container_constructions;
         self.container_sizes = state.container_sizes;
         self.range_sizes = state.range_sizes;

@@ -24,6 +24,7 @@ pub use final_admission::{
     FinalTypedFile, complete_compilation_unit_types, complete_file_types,
 };
 mod integer;
+mod integer_range;
 mod iteration;
 mod literal_value;
 mod map_descriptor;
@@ -60,6 +61,7 @@ pub use construction::*;
 pub use container::*;
 pub use error::TypeCheckingError;
 pub use integer::*;
+pub use integer_range::*;
 pub use iteration::*;
 pub use literal_value::integer_literal_magnitude;
 pub use map_descriptor::*;

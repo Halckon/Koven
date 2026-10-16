@@ -3,6 +3,8 @@
 mod closure;
 mod deinit;
 mod integer;
+mod integer_range;
+mod integer_range_type;
 mod lower_frontend;
 mod map_result;
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
@@ -200,3 +202,12 @@ mod borrow_value_field_tests;
 
 #[cfg(test)]
 mod single_readonly_method_tests;
+
+#[cfg(test)]
+mod integer_range_contract_tests;
+
+#[cfg(test)]
+mod integer_range_pending_tests;
+
+#[cfg(test)]
+mod integer_range_value_tests;

@@ -178,6 +178,14 @@ macro_rules! selected {
                 operation.result_type().index(),
             ]);
         }
+        if let Some(operation) = typed.integer_range_operation(id) {
+            selected = true;
+            result.types.extend([
+                operation.left_type().index(),
+                operation.right_type().index(),
+                operation.result_type().index(),
+            ]);
+        }
         if let Some(operation) = typed.integer_operation(id) {
             selected = true;
             result.static_callee = true;

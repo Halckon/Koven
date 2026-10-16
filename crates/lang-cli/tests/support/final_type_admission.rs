@@ -41,7 +41,7 @@ pub(super) const PROBES: [Probe; 4] = [
         text: include_str!(
             "../../../lang-frontend/tests/fixtures/final-type-admission-0319/p34_for_range.ko"
         ),
-        code: "L0165",
+        code: "L0159",
         primary: 40..45,
         token: "0..<5",
     },
@@ -55,6 +55,19 @@ pub(super) const PROBES: [Probe; 4] = [
         token: "?",
     },
 ];
+
+// Keep the L0165 Call presentation control after numeric Range values become resolved.
+pub(super) fn deferred_call_probe() -> Probe {
+    Probe {
+        name: "call_to_deferred.ko",
+        text: include_str!(
+            "../../../lang-frontend/tests/fixtures/final-type-admission-0319/call_to_deferred.ko"
+        ),
+        code: "L0165",
+        primary: 30..36,
+        token: "1 to 2",
+    }
+}
 
 // SPEC-0323: original ordinary-source probes, shared by build-only checks.
 pub(super) fn static_recovery_probes() -> [Probe; 2] {

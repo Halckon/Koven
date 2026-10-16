@@ -45,3 +45,13 @@ LLVM从原source按符号扩展/零扩展到内部i128，先比较目标闭界�
 receiver一次及有限资源控制；PR113实施CI双host另核7个畸形SSA exact与2个越界Abort exact，
 各Abort exact固定9例由循环断言验收，不承诺stderr或unwind/drop。
 准确实跑head、历史失败与归档CI/main待验见[SPEC-0327](../archive/specs/0327-checked-integer-conversions.md)。
+
+## 数值 Range 普通值（SPEC-0328）
+
+环境绑定的 IntRange/LongRange 通过私有 TypeId 注册表映射为 Copyable 三字段 aggregate，
+端点仅signed32/64；不复用借用RangeView、不按显示名称识别。构造、包含、相等三种SSA运算
+验证注册身份与真实operand/result，LLVM半开在nonempty块才计算bound−1，以ready PHI续接；
+闭MAX不加一，序列相等区分空与有效端点。普通局部/参数返回/字段/List/Map值沿通用aggregate ABI。
+有限Linux单文件/项目native已验证动态边界、源码求值顺序及MapResult found/missing真实消费；
+requireValue仍须显式borrow val再复制，复杂全函数borrow CFG与一般Range?仍保留结构化边界。
+数值Range for尚未交付；本地/CI分账和后继责任见[SPEC-0328](../archive/specs/0328-integer-range-values.md)。

@@ -151,6 +151,19 @@ impl UnitTypeLowering {
             UnitTypeKind::Builtin(BuiltinType::ULong) => {
                 module.intern_type(integer_type(64, false))
             }
+            UnitTypeKind::Builtin(builtin @ (BuiltinType::IntRange | BuiltinType::LongRange)) => {
+                let endpoint = module.intern_type(integer_type(
+                    if builtin == BuiltinType::IntRange {
+                        32
+                    } else {
+                        64
+                    },
+                    true,
+                ));
+                module
+                    .add_integer_range_type(endpoint)
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?
+            }
             UnitTypeKind::Builtin(BuiltinType::String) => module.add_string_owner_type(),
             UnitTypeKind::Builtin(BuiltinType::Unit) => module.intern_type(SsaTypeKind::Unit),
             UnitTypeKind::Nullable(inner) => {
@@ -555,6 +568,8 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
                 | BuiltinType::ULong
                 | BuiltinType::String
                 | BuiltinType::Unit
+                | BuiltinType::IntRange
+                | BuiltinType::LongRange
         ),
         Some(UnitTypeKind::Intrinsic {
             constructor: IntrinsicTypeConstructor::Rc | IntrinsicTypeConstructor::Box,

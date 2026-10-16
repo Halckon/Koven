@@ -95,7 +95,7 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
     let expected = [
         ("L0080", 40, 46, "fooBar"),
         ("L0080", 44, 50, "length"),
-        ("L0165", 40, 45, "0..<5"),
+        ("L0159", 40, 45, "0..<5"),
         ("L0085", 32, 33, "?"),
     ];
     for ((text, _, _), &(code, start, end, token)) in FROZEN.iter().zip(&expected) {
@@ -587,7 +587,10 @@ fn selected_constant_qualifiers_do_not_hide_runtime_member_roots() {
 
 #[test]
 fn deferred_user_message_preserves_source_identity() {
-    let (sources, single, unit) = complete_both(FROZEN[2].0, false);
+    let (sources, single, unit) = complete_both(
+        include_str!("../fixtures/final-type-admission-0319/call_to_deferred.ko"),
+        false,
+    );
     for result in [single, unit] {
         let diagnostics = diagnostics(result);
         assert_eq!(diagnostics.len(), 1);
@@ -599,8 +602,8 @@ fn deferred_user_message_preserves_source_identity() {
         );
         let span = diagnostic.primary_span();
         assert_eq!(sources.source_name(span.source_id()), Ok("main.ko"));
-        assert_eq!((span.start(), span.end()), (40, 45));
-        assert_eq!(sources.slice(span), Ok("0..<5"));
+        assert_eq!((span.start(), span.end()), (30, 36));
+        assert_eq!(sources.slice(span), Ok("1 to 2"));
         assert_eq!(
             diagnostic.message(),
             "type checking could not complete: the call's type is unresolved"

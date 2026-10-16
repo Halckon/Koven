@@ -1,5 +1,5 @@
 mod callable_descriptor;
-use crate::type_checking::IntegerOperationDescriptor;
+use crate::type_checking::{IntegerOperationDescriptor, IntegerRangeOperationDescriptor};
 pub use callable_descriptor::CallableDescriptor;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -451,11 +451,15 @@ pub enum BuiltinType {
     Nothing,
     /// Top value type whose representation remains deferred.
     Any,
+    /// Ordinary stored value with signed 32-bit integer endpoints.
+    IntRange,
+    /// Ordinary stored value with signed 64-bit integer endpoints.
+    LongRange,
 }
 
 impl BuiltinType {
     /// 全部编译器内建类型的规范声明顺序。
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 18] = [
         Self::Byte,
         Self::Short,
         Self::Int,
@@ -472,6 +476,8 @@ impl BuiltinType {
         Self::Unit,
         Self::Nothing,
         Self::Any,
+        Self::IntRange,
+        Self::LongRange,
     ];
 
     /// 返回规范源码名称。
@@ -494,6 +500,8 @@ impl BuiltinType {
             Self::Unit => "Unit",
             Self::Nothing => "Nothing",
             Self::Any => "Any",
+            Self::IntRange => "IntRange",
+            Self::LongRange => "LongRange",
         }
     }
 }
@@ -1078,6 +1086,7 @@ pub struct TypedFile {
     rc_operations: Vec<RcOperationDescriptor>,
     string_operations: Vec<StringOperationDescriptor>,
     integer_operations: Vec<IntegerOperationDescriptor>,
+    integer_range_operations: Vec<IntegerRangeOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
     pub(crate) range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
@@ -1118,6 +1127,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) rc_operations: Vec<RcOperationDescriptor>,
     pub(crate) string_operations: Vec<StringOperationDescriptor>,
     pub(crate) integer_operations: Vec<IntegerOperationDescriptor>,
+    pub(crate) integer_range_operations: Vec<IntegerRangeOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
     pub(crate) range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
@@ -1175,6 +1185,7 @@ impl TypedFile {
             rc_operations: parts.rc_operations,
             string_operations: parts.string_operations,
             integer_operations: parts.integer_operations,
+            integer_range_operations: parts.integer_range_operations,
             container_constructions: parts.container_constructions,
             container_sizes: parts.container_sizes,
             range_sizes: parts.range_sizes,
@@ -1416,6 +1427,20 @@ impl TypedFile {
     #[must_use]
     pub fn integer_operations(&self) -> &[IntegerOperationDescriptor] {
         &self.integer_operations
+    }
+
+    /// Numeric Range facts in stable expression order.
+    pub fn integer_range_operations(&self) -> &[IntegerRangeOperationDescriptor] {
+        &self.integer_range_operations
+    }
+    /// Query one numeric Range operation by source identity.
+    pub fn integer_range_operation(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&IntegerRangeOperationDescriptor> {
+        self.integer_range_operations
+            .iter()
+            .find(|fact| fact.expression() == expression)
     }
 
     /// 查询已绑定 receiver 的显式 Integer 操作。
