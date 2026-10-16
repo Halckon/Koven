@@ -48,6 +48,11 @@ impl Checker<'_> {
         };
         if left_inner != left || right_inner != right {
             let inner = self.join_control_types(left_inner, right_inner)?;
+            // Case refinements are internal flow types; nullable values use their runtime root.
+            let inner = match self.kind(inner) {
+                TypeKind::EnumCase { root, .. } => *root,
+                _ => inner,
+            };
             return Some(self.types.intern(TypeKind::Nullable(inner)));
         }
         match (left_kind, right_kind) {

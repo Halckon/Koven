@@ -59,6 +59,11 @@ impl BodyChecker<'_> {
         };
         if left_inner != left || right_inner != right {
             let inner = self.join_control_types(left_inner, right_inner)?;
+            // Case refinements are internal flow types; nullable values use their runtime root.
+            let inner = match self.signatures.types().get(inner)? {
+                UnitTypeKind::EnumCase { root, .. } => *root,
+                _ => inner,
+            };
             return Some(
                 self.signatures
                     .types_mut()
