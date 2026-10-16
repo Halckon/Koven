@@ -189,6 +189,23 @@ impl UnitExpressionLowerer<'_> {
             })
             .collect::<Vec<_>>();
         for (exit, roots) in exits.iter().zip(&retirements) {
+            if !roots.is_empty()
+                && self
+                    .function
+                    .block(exit.block)
+                    .is_none_or(|block| block.terminator.is_some())
+            {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            }
+            for root in roots {
+                let proof = exit
+                    .nullable_proofs
+                    .get(root)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                if proof.while_scope().is_none() && proof.if_scope() != Some(control) {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
+            }
             self.restore_loop_state(exit);
             for &root in roots {
                 self.validate_nullable_proof_retirement(root, span)?;
