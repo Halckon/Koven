@@ -79,7 +79,7 @@ impl BodyChecker<'_> {
             ) {
                 self.emit(
                     codes::UNRESOLVED_NAME,
-                    format!("receiver has no {member} member"),
+                    &format!("receiver has no {member} member"),
                     name_span,
                 )?;
                 self.check_call_arguments_without_expected(source, arguments, return_type)?;
@@ -93,7 +93,7 @@ impl BodyChecker<'_> {
         if !type_arguments.is_empty() {
             self.emit(
                 codes::TYPE_ARGUMENT_ARITY,
-                format!("integer {member} accepts no type arguments"),
+                &format!("integer {member} accepts no type arguments"),
                 name_span,
             )?;
             self.check_call_arguments_without_expected(source, arguments, return_type)?;

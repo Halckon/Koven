@@ -93,3 +93,5 @@ const 对照先要求 runtime 成功，失败时不把成员不存在误计 cons
 畸形事实仍MissingFact。此边界需普通源码lower-only正控验收，未运行前不记通过。
 
 首次active迁移将状态误写active，docs门禁拒绝；现修为治理规定in-progress，不计首次通过。
+
+候选49cd首条因4处emit参数String/&str编译E0308而0执行，余7未跑；独立机械引用修复，原日志保留。

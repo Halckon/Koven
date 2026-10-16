@@ -57,7 +57,7 @@ impl Checker<'_> {
             ) {
                 self.emit(
                     self.unresolved_constant_code,
-                    format!("receiver has no {member} member"),
+                    &format!("receiver has no {member} member"),
                     name_span,
                 )?;
                 self.check_construction_operands(arguments)?;
@@ -71,7 +71,7 @@ impl Checker<'_> {
         if !type_arguments.is_empty() {
             self.emit(
                 self.type_argument_arity_code,
-                format!("integer {member} accepts no type arguments"),
+                &format!("integer {member} accepts no type arguments"),
                 name_span,
             )?;
             self.check_construction_operands(arguments)?;
