@@ -103,6 +103,7 @@ fn lower_scalar_file_product(
     owned: &OwnershipCheckedFile,
 ) -> Result<LoweredFile, LoweringError> {
     validate_inputs(sources, parsed, names, typed, owned)?;
+    crate::ssa::integer_range_pending::file(parsed, typed)?;
     super::borrow_result::validate(parsed, typed, owned)?;
     if let Some(root) =
         owned.cleanup_steps().iter().find_map(|(_, action)| {

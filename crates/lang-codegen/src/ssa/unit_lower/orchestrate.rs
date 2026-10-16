@@ -12,6 +12,15 @@ pub(super) fn lower_unit_from_facts(
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
     let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
+    for source in names.names().index().source_units() {
+        let parsed = parsed_by_source
+            .get(source.id().index())
+            .ok_or(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        crate::ssa::integer_range_pending::unit(source.id(), parsed, typed)?;
+    }
     super::borrow_result::validate(&parsed_by_source, typed, owned)?;
     let instance_plan = plan_unit_instances_from_facts(
         &parsed_by_source,

@@ -3,6 +3,7 @@
 mod closure;
 mod deinit;
 mod integer;
+mod integer_range_pending;
 mod lower_frontend;
 mod map_result;
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
