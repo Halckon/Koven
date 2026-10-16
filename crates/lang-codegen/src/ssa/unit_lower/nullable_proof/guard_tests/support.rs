@@ -189,7 +189,18 @@ impl Fixture {
             .iter()
             .find(|instance| function_ids.get(instance.key()) == Some(&self.entry))
             .unwrap();
-        let mut abi_module = module.clone();
+        let mut abi_module = Module {
+            id: module.id,
+            name: module.name.clone(),
+            types: module.types.clone(),
+            type_ids: module.type_ids.clone(),
+            named_type_ids: module.named_type_ids.clone(),
+            type_origins: module.type_origins.clone(),
+            functions: module.functions.clone(),
+            deinits: module.deinits.clone(),
+            map_results: module.map_results.clone(),
+            integer_ranges: module.integer_ranges.clone(),
+        };
         let mut abi_types = type_lower::UnitTypeLowering::new();
         let layouts = closure::layout::declare(
             &mut abi_module,
@@ -500,4 +511,90 @@ pub(in crate::ssa::unit_lower) fn state(lowerer: &UnitExpressionLowerer<'_>) -> 
         capture_loans: lowerer.capture_loans.clone(),
         result_source_loans: lowerer.result_source_loans.clone(),
     }
+}
+
+/// Independent graph oracle: transport the complete role tuple through every
+/// actual predecessor, and require every visited cycle to reach the same birth.
+pub(in crate::ssa::unit_lower) fn assert_transport<const N: usize>(
+    function: &Function,
+    block: BlockId,
+    current: [EntityId; N],
+    birth_block: BlockId,
+    birth: [EntityId; N],
+) {
+    use std::collections::BTreeSet;
+    let anchor = (birth_block, birth);
+    let mut graph = BTreeMap::new();
+    let mut pending = vec![(block, current)];
+    while let Some(state @ (block, entities)) = pending.pop() {
+        if graph.contains_key(&state) {
+            continue;
+        }
+        for (role, entity) in entities.iter().enumerate() {
+            assert!(!entities[..role].contains(entity));
+            assert_eq!(
+                function.entity(*entity).unwrap().ty,
+                function.entity(birth[role]).unwrap().ty
+            );
+        }
+        if state == anchor {
+            graph.insert(state, Vec::new());
+            continue;
+        }
+        let columns = entities.map(|entity| {
+            let (defined, column) = parameter(function, entity);
+            assert_eq!(defined, block, "all roles occupy one current block");
+            column
+        });
+        let predecessors = function
+            .blocks
+            .iter()
+            .flat_map(|parent| {
+                parent
+                    .terminator
+                    .iter()
+                    .flat_map(|term| edges(&term.kind))
+                    .filter(move |edge| edge.target == block)
+                    .map(move |edge| (parent.id, edge))
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            !predecessors.is_empty(),
+            "only the real producer terminates the trace"
+        );
+        let mut parents = Vec::new();
+        for (parent, edge) in predecessors {
+            let entities = columns.map(|column| edge.arguments[column]);
+            for entity in entities {
+                assert_eq!(
+                    edge.arguments
+                        .iter()
+                        .filter(|argument| **argument == entity)
+                        .count(),
+                    1
+                );
+            }
+            parents.push((parent, entities));
+            pending.push((parent, entities));
+        }
+        graph.insert(state, parents);
+    }
+    assert!(graph.contains_key(&anchor));
+    let mut anchored = BTreeSet::from([anchor]);
+    loop {
+        let before = anchored.len();
+        for (state, parents) in &graph {
+            if parents.iter().any(|parent| anchored.contains(parent)) {
+                anchored.insert(*state);
+            }
+        }
+        if anchored.len() == before {
+            break;
+        }
+    }
+    assert_eq!(
+        anchored.len(),
+        graph.len(),
+        "all actual paths reach the same role birth"
+    );
 }

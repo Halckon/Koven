@@ -6,7 +6,7 @@ use crate::ssa::unit_lower::{
         NullableProof,
         guard_tests::{
             install_birth, origin_in_scope,
-            support::{Fixture, edges, parameter, rebound, rejected, state},
+            support::{Fixture, assert_transport, edges, parameter, rebound, rejected, state},
         },
     },
 };
@@ -196,6 +196,8 @@ fn unit_pending_child_guards_preserve_actual_columns() {
             assert_eq!(call_arguments[0], merged_child, "the existing call consumes the current child");
             let merged_owner = rebound(lowerer.function, EntityId::Value(proof.owner), merge);
             let merged_parent = rebound(lowerer.function, EntityId::Loan(proof.loan), merge);
+            assert_transport(lowerer.function, merge, [merged_owner, merged_parent, merged_child],
+                birth.body, [EntityId::Value(proof.owner), EntityId::Loan(proof.loan), EntityId::Loan(child_loan)]);
             let (_, owner_column) = parameter(lowerer.function, merged_owner);
             let (_, parent_column) = parameter(lowerer.function, merged_parent);
             let (_, child_column) = parameter(lowerer.function, merged_child);
