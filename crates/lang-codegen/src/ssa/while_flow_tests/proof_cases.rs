@@ -474,6 +474,10 @@ fun entry(own left: Holder?, own right: Holder?): Int {
 fn distinct_root_nested_while_retires_only_the_inner_scope() {
     let continued = different_root_source();
     let normal = continued.replace("; continue }", " }");
+    let empty = continued.replace(
+        "var other: Holder? = right",
+        "var other: Holder? = right\n    other = null",
+    );
     let grouped =
         |source: &str| source.replace("while (other != null)", "while (((other) != null))");
     let continued_group = grouped(&continued);
@@ -485,6 +489,7 @@ fn distinct_root_nested_while_retires_only_the_inner_scope() {
             (normal, false),
             (continued_group, false),
             (normal_group, false),
+            (empty, false),
         ],
     );
 }
