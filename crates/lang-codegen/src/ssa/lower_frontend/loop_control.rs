@@ -1,6 +1,7 @@
 //! `while` / `loop` 的 backedge、jump 与 loop-carried binding lowering。
 
 mod iteration;
+mod nullable_while;
 mod numeric_iteration;
 
 use std::collections::BTreeMap;
@@ -81,6 +82,9 @@ impl ExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(descriptor) = self.direct_nullable_while_condition(condition, span)? {
+            return self.lower_direct_nullable_while(statement, condition, body, descriptor, span);
+        }
         let baseline = self.bindings.clone();
         let context = self.create_loop_header(&baseline, span)?;
         let condition = self.require_value(condition)?;
@@ -160,7 +164,8 @@ impl ExpressionLowerer<'_> {
             self.pending_call_loans.clone_from(&exit.loans);
             self.capture_loans.clone_from(&exit.capture_loans);
             self.borrow_bindings.clone_from(&exit.borrow_bindings);
-            self.result_source_loans.clone_from(&exit.result_source_loans);
+            self.result_source_loans
+                .clone_from(&exit.result_source_loans);
             self.non_null_bindings.clone_from(&exit.views);
             self.emit_drops(lang_frontend::ownership_checking::DropPoint::LoopExit(
                 statement,
@@ -175,6 +180,7 @@ impl ExpressionLowerer<'_> {
     }
 
     pub(super) fn lower_break(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
+        self.retire_while_proofs(false, span)?;
         let exit = self.loop_exit();
         let context = self
             .loops
@@ -190,6 +196,7 @@ impl ExpressionLowerer<'_> {
     }
 
     fn record_continue(&mut self, span: Span) -> Result<(), LoweringError> {
+        self.retire_while_proofs(false, span)?;
         let jump = LoopJump {
             exit: self.loop_exit(),
             span,
@@ -600,7 +607,10 @@ fn loop_slot_entity(
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         lowerer.validate_non_null_proof(symbol, proof, &exit.bindings, span)?;
-        if entry_proof.inner != proof.inner || slot.source != EntityId::Loan(entry_proof.loan) {
+        if entry_proof.inner != proof.inner
+            || entry_proof.origin != proof.origin
+            || slot.source != EntityId::Loan(entry_proof.loan)
+        {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
     }

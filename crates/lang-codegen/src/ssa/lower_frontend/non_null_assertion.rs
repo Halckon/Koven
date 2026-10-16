@@ -136,11 +136,12 @@ impl ExpressionLowerer<'_> {
                 .parameters[owner_slot],
         );
         self.validate_non_null_proof_types(
-            super::NonNullProof {
-                loan: proof,
+            super::NonNullProof::introduced(
+                proof,
                 owner,
                 inner,
-            },
+                super::non_null_proof::ProofScope::Assertion(expression),
+            ),
             span,
         )?;
         let consumed_symbols = self
@@ -151,6 +152,7 @@ impl ExpressionLowerer<'_> {
             })
             .collect::<Vec<_>>();
         for &symbol in &consumed_symbols {
+            self.reject_live_while_proof(symbol, span)?;
             if let Some(&existing) = self.non_null_bindings.get(&symbol) {
                 self.validate_non_null_proof(symbol, existing, &self.bindings, span)?;
             }

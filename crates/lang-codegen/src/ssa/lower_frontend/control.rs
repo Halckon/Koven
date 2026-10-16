@@ -235,6 +235,7 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let symbol = descriptor.symbol();
+        self.reject_live_while_proof(symbol, span)?;
         let owner = match self.bindings.get(&symbol).copied() {
             Some(LoweredValue::Value(owner)) => owner,
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
@@ -353,11 +354,12 @@ impl ExpressionLowerer<'_> {
                         .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
                         .parameters[owner_slot],
                 );
-                let proof = NonNullProof {
-                    loan: view,
+                let proof = NonNullProof::introduced(
+                    view,
                     owner,
                     inner,
-                };
+                    super::non_null_proof::ProofScope::If(expression),
+                );
                 self.validate_non_null_proof(symbol, proof, &self.bindings, span)?;
                 self.non_null_bindings.insert(symbol, proof);
             }
@@ -1127,7 +1129,7 @@ impl ExpressionLowerer<'_> {
                 let EntityId::Loan(loan) = parameter else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
-                view_parameters.push((symbol, loan, first.views[&symbol].inner));
+                view_parameters.push((symbol, loan, first.views[&symbol]));
                 continue;
             }
             if let MergeSlot::BorrowBinding(symbol) = slot {

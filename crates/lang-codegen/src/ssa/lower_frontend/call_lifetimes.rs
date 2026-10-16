@@ -101,7 +101,11 @@ impl ExpressionLowerer<'_> {
         let views = self
             .non_null_bindings
             .iter()
-            .filter_map(|(&symbol, _)| {
+            .filter_map(|(&symbol, proof)| {
+                // While proofs retire only after the existing child and owner cleanup.
+                if proof.is_while_origin() {
+                    return None;
+                }
                 let retained = !is_return
                     && self
                         .loops

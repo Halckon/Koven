@@ -266,7 +266,7 @@ impl ExpressionLowerer<'_> {
                 let proof = NonNullProof {
                     loan,
                     owner,
-                    inner: source_proof.inner,
+                    ..source_proof
                 };
                 self.validate_non_null_proof(symbol, proof, &bindings, span)?;
                 self.non_null_bindings.insert(symbol, proof);

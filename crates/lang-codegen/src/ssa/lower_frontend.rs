@@ -37,6 +37,7 @@ mod readonly_receiver;
 mod resource_deinit;
 mod source_closure;
 mod string_clone;
+mod while_proof;
 
 use std::collections::BTreeMap;
 
@@ -978,6 +979,7 @@ impl ExpressionLowerer<'_> {
         if matches!(assigned, LoweredValue::Diverged) {
             return Ok(assigned);
         }
+        self.reject_live_while_proof(symbol, span)?;
         self.bindings.insert(symbol, assigned);
         Ok(LoweredValue::Unit)
     }
@@ -1021,6 +1023,7 @@ impl ExpressionLowerer<'_> {
         } else {
             self.emit_control_transfer_cleanup(return_expression)?;
         }
+        self.retire_while_proofs(true, span)?;
         self.end_thunk_capture_views(span)?;
         let values = return_values(self.typed, self.return_type, result, span)?;
         self.function

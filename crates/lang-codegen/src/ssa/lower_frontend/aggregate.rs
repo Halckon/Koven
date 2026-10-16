@@ -32,6 +32,9 @@ impl ExpressionLowerer<'_> {
                 span: None,
             })?
             .span();
+        if let Some(result) = self.read_while_proof_int_field(expression, projection, span)? {
+            return Ok(result);
+        }
         if let Some((loan, created)) = self.readonly_view(expression)? {
             if self.typed.copyability(projection.ty())
                 != Some(lang_frontend::type_checking::Copyability::Copyable)

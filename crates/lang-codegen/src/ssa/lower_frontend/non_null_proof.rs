@@ -1,7 +1,11 @@
 //! Current-block identity for an existing nullable branch proof.
 use std::collections::BTreeMap;
 
-use lang_frontend::{ast::ExpressionId, name_resolution::SymbolId, source::Span};
+use lang_frontend::{
+    ast::{ExpressionId, StatementId},
+    name_resolution::SymbolId,
+    source::Span,
+};
 
 use super::control::BranchExit;
 use super::{
@@ -11,10 +15,50 @@ use super::{
 use crate::ssa::model::SsaTypeKind;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ProofScope {
+    If(ExpressionId),
+    When(ExpressionId),
+    While(StatementId),
+    Assertion(ExpressionId),
+}
+
+/// Immutable branch identity, never a current SSA operand after rebinding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct ProofOrigin {
+    birth: LoanId,
+    introduced_by: ProofScope,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct NonNullProof {
     pub(super) loan: LoanId,
     pub(super) owner: ValueId,
     pub(super) inner: SsaTypeId,
+    pub(super) origin: ProofOrigin,
+}
+
+impl NonNullProof {
+    /// Call only with the real view and owner parameters of a NullableBranch successor.
+    pub(super) fn introduced(
+        loan: LoanId,
+        owner: ValueId,
+        inner: SsaTypeId,
+        introduced_by: ProofScope,
+    ) -> Self {
+        Self {
+            loan,
+            owner,
+            inner,
+            origin: ProofOrigin {
+                birth: loan,
+                introduced_by,
+            },
+        }
+    }
+
+    pub(super) fn is_while_origin(self) -> bool {
+        matches!(self.origin.introduced_by, ProofScope::While(_))
+    }
 }
 
 impl ExpressionLowerer<'_> {
@@ -101,6 +145,9 @@ impl ExpressionLowerer<'_> {
             return Ok(());
         };
         self.validate_non_null_proof(symbol, proof, &self.bindings, span)?;
+        if proof.is_while_origin() {
+            self.ensure_no_unresolved_while_proof_carriers(span)?;
+        }
         self.append(Operation::BorrowEnd { loan: proof.loan }, Vec::new(), span)?;
         self.non_null_bindings.remove(&symbol);
         Ok(())
@@ -139,7 +186,9 @@ impl ExpressionLowerer<'_> {
             }
             for (&symbol, &proof) in &exit.views {
                 self.validate_non_null_proof(symbol, proof, &exit.bindings, span)?;
-                if proof.inner != first.views[&symbol].inner {
+                if proof.inner != first.views[&symbol].inner
+                    || proof.origin != first.views[&symbol].origin
+                {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
             }
@@ -150,16 +199,20 @@ impl ExpressionLowerer<'_> {
     pub(super) fn merged_non_null_proofs(
         &self,
         bindings: &BTreeMap<SymbolId, LoweredValue>,
-        parameters: Vec<(SymbolId, LoanId, SsaTypeId)>,
+        parameters: Vec<(SymbolId, LoanId, NonNullProof)>,
         span: Span,
     ) -> Result<BTreeMap<SymbolId, NonNullProof>, LoweringError> {
         let mut views = BTreeMap::new();
         // Each incoming owner/proof pair was checked before constructing the merge edges.
-        for (symbol, loan, inner) in parameters {
+        for (symbol, loan, source) in parameters {
             let Some(LoweredValue::Value(owner)) = bindings.get(&symbol).copied() else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
-            let proof = NonNullProof { loan, owner, inner };
+            let proof = NonNullProof {
+                loan,
+                owner,
+                ..source
+            };
             self.validate_non_null_proof(symbol, proof, bindings, span)?;
             views.insert(symbol, proof);
         }

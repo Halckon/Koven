@@ -41,6 +41,9 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        if let Some(symbol) = plan.stable_symbol() {
+            self.reject_live_while_proof(symbol, span)?;
+        }
         // Defer subject ASAP cleanup until the discriminator has read its owner.
         // Group aliases share the same single evaluation and owner.
         let mut subject_expressions = vec![plan.subject()];
@@ -124,11 +127,12 @@ impl ExpressionLowerer<'_> {
                 self.bindings
                     .insert(symbol, LoweredValue::Value(branch_owner));
                 if proven {
-                    let proof = super::NonNullProof {
-                        loan: view,
-                        owner: branch_owner,
+                    let proof = super::NonNullProof::introduced(
+                        view,
+                        branch_owner,
                         inner,
-                    };
+                        super::non_null_proof::ProofScope::When(expression),
+                    );
                     self.validate_non_null_proof(symbol, proof, &self.bindings, span)?;
                     self.non_null_bindings.insert(symbol, proof);
                 }
@@ -279,6 +283,7 @@ impl ExpressionLowerer<'_> {
         let proof = self
             .checked_non_null_proof(symbol, inner, span)?
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        self.reject_live_while_proof(symbol, span)?;
         let owner = proof.owner;
         if fact.kind() != NullableWhenExtractionKind::Consume {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
