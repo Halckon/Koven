@@ -49,18 +49,20 @@ helper 仅普通源码经真实 lex/parse/names/raw types/complete API，两入�
 
 1. `same_type_endpoints_publish_range_identity`：已定型 Int/Long 参数分别构造闭/半开区间，
    用真实 TypeRef/类型表核结果，complete 成功；不能只断无诊断或把两入口 TypeId 互比。
-2. `range_values_cross_storage_boundaries`：局部复制再用、own 参数与返回、普通字段、
+2. `range_values_cross_storage_boundaries`：局部复制再用、普通参数/own 参数与返回、普通字段、
    既有支持的容器 element 路径分别采证；明确每个边界，不能用局部成功概括全部存储。
    示例 `fun make(a: Int, b: Int): IntRange = a..b`；未知类型当前可能先名称拒绝，分账。
+   显式查询 Copyable/Transferable 分类并以普通调用/复制验证，不启动线程；own 只是参数采样。
 3. `range_membership_requires_matching_endpoint_type`：Int/IntRange、Long/LongRange 的 in/!in
    结果 Boolean；Int/Long 混用、非 Range RHS 与现有 Map 包含性成对控制。
 4. `range_equality_preserves_nominal_type_boundaries`：同型闭/半开混合 ==/!= 为 Boolean；
    IntRange/LongRange 不相容，不用静态类型绿冒称序列值比较已执行。
-5. `invalid_range_endpoints_preserve_source_diagnostics`：已定型 Int/Long 混用、UInt、Char、
-   Boolean、nullable 端点拒绝；端点错型锁 Guide L0085，其他前置诊断先采完整 code/span。
+5. `invalid_range_endpoints_preserve_source_diagnostics`：已定型 Int/Long 混用、Byte/Short、四种
+   unsigned、Float/Double、Char、Boolean、String、nullable 端点拒绝；端点错型锁 Guide L0085，其他前置诊断先采完整 code/span。
    不放宽 null 推导或 nullable 支持；用户同名类型仍按真实名称解析规则处理。
 6. `range_values_do_not_publish_extra_apis`：公共构造调用、first/last/step/size/hash 成员不开放；
-   与合法构造表达式配对，避免以 Range 身份本身尚不存在误计专属拒绝门通过。
+   `IntRange<Int>` 非泛型拒绝与 Map key 的 Hashable 约束拒绝另验，缺 hash 成员不等于
+   不满足 Hashable。均与合法构造配对，避免以 Range 身份尚不存在误计专属拒绝门通过。
 
 运行模板：`cargo test --locked --offline -p lang-frontend --test integer_range_values NAME -- --exact --nocapture --test-threads=1`。
 落 helper 后再冻结 head/tree/输入 SHA 与唯一 exact 清单，独审后按授权执行；串行绝对 target。
