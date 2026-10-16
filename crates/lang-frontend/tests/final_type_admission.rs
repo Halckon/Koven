@@ -211,7 +211,12 @@ fn resolved_roles_and_symbolic_types_keep_raw_value_facts() {
             single
                 .expression_type(local("n = identity(1)"))
                 .and_then(|ty| single.types().get(ty)),
-            Some(&TypeKind::Deferred(DeferredReason::Assignment))
+            Some(&TypeKind::Builtin(BuiltinType::Unit))
+        );
+        assert_eq!(
+            unit.expression_type(qualified("n = identity(1)"))
+                .and_then(|ty| unit.types().get(ty)),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
         );
         assert!(unit.assignment(qualified("n = identity(1)")).is_some());
         assert!(unit.clone().validate().is_ok());
