@@ -5,11 +5,11 @@ use lang_frontend::{
     name_resolution::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
-    parser::parse_file,
+    parser::{BinaryOperator, Expression, parse_file},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, Copyability, FinalTypeAdmissionError, TypeKind, UnitExpressionId,
-        UnitTypeKind, UnitTypeRefId, check_compilation_unit_types, check_types,
+        BuiltinType, Copyability, FinalTypeAdmissionError, IntegerRangeOperationKind, TypeKind,
+        UnitExpressionId, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types, check_types,
         complete_compilation_unit_types, complete_file_types, standard_environments,
     },
 };
@@ -18,11 +18,15 @@ use lang_frontend::{
 struct Observation {
     mode: &'static str,
     root: Span,
+    operator_span: Option<Span>,
+    range_fact_valid: Option<bool>,
+    range_fact_count: usize,
     names: Vec<Diagnostic>,
     raw: Option<Vec<Diagnostic>>,
     shape: Option<String>,
     resolved: bool,
     boolean: bool,
+    builtin: Option<BuiltinType>,
     copyable: bool,
     matches_annotation: Option<bool>,
     complete: Option<Result<(), FinalTypeAdmissionError>>,
@@ -43,6 +47,16 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
         .collect::<Vec<_>>();
     assert_eq!(roots.len(), 1, "unique root {root_text}");
     let (root_id, root_node) = roots[0];
+    let binary = match root_node.payload() {
+        Expression::Binary {
+            left,
+            right,
+            operator,
+            operator_span,
+        } => Some((*left, *right, *operator, *operator_span)),
+        _ => None,
+    };
+    let operator_span = binary.map(|(_, _, _, span)| span);
     let annotation_id = annotation.map(|text| {
         let found = file
             .ast()
@@ -62,11 +76,28 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
     let single = Observation {
         mode: "single",
         root: root_node.span(),
+        operator_span,
+        range_fact_valid: typed.integer_range_operation(root_id).map(|fact| {
+            binary.is_some_and(|(left, right, operator, _)| {
+                fact.expression() == root_id
+                    && fact.left() == left
+                    && fact.right() == right
+                    && Some(fact.kind()) == range_kind(operator)
+                    && typed.expression_type(left) == Some(fact.left_type())
+                    && typed.expression_type(right) == Some(fact.right_type())
+                    && root_type == Some(fact.result_type())
+            })
+        }),
+        range_fact_count: typed.integer_range_operations().len(),
         names: names.diagnostics().to_vec(),
         raw: Some(typed.diagnostics().to_vec()),
         shape: Some(format!("{kind:?}")),
         resolved: matches!(kind, Some(kind) if !matches!(kind, TypeKind::Error | TypeKind::Deferred(_))),
         boolean: matches!(kind, Some(TypeKind::Builtin(BuiltinType::Boolean))),
+        builtin: match kind {
+            Some(TypeKind::Builtin(builtin)) => Some(*builtin),
+            _ => None,
+        },
         copyable: root_type.and_then(|id| typed.copyability(id)) == Some(Copyability::Copyable),
         matches_annotation: annotation_id
             .map(|id| root_type.is_some() && root_type == typed.type_ref_type(id)),
@@ -81,11 +112,15 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
         Err(_) => Observation {
             mode: "unit names rejected",
             root: root_node.span(),
+            operator_span,
+            range_fact_valid: None,
+            range_fact_count: 0,
             names: name_diagnostics,
             raw: None,
             shape: None,
             resolved: false,
             boolean: false,
+            builtin: None,
             copyable: false,
             matches_annotation: None,
             complete: None,
@@ -99,11 +134,30 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
             Observation {
                 mode: "unit",
                 root: root_node.span(),
+                operator_span,
+                range_fact_valid: typed
+                    .integer_range_operation(UnitExpressionId::new(unit, root_id))
+                    .map(|fact| {
+                        binary.is_some_and(|(left, right, operator, _)| {
+                            fact.expression() == UnitExpressionId::new(unit, root_id)
+                                && fact.left() == UnitExpressionId::new(unit, left)
+                                && fact.right() == UnitExpressionId::new(unit, right)
+                                && Some(fact.kind()) == range_kind(operator)
+                                && typed.expression_type(fact.left()) == Some(fact.left_type())
+                                && typed.expression_type(fact.right()) == Some(fact.right_type())
+                                && root_type == Some(fact.result_type())
+                        })
+                    }),
+                range_fact_count: typed.integer_range_operations().len(),
                 names: name_diagnostics,
                 raw: Some(typed.diagnostics().to_vec()),
                 shape: Some(format!("{kind:?}")),
                 resolved: matches!(kind, Some(kind) if !matches!(kind, UnitTypeKind::Error | UnitTypeKind::Deferred(_))),
                 boolean: matches!(kind, Some(UnitTypeKind::Builtin(BuiltinType::Boolean))),
+                builtin: match kind {
+                    Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
+                    _ => None,
+                },
                 copyable: root_type.map(|id| typed.copyability(id)) == Some(Copyability::Copyable),
                 matches_annotation: annotation_id.map(|id| {
                     root_type.is_some()
@@ -126,7 +180,21 @@ fn observe(text: &str, root_text: &str, annotation: Option<&str>) -> Vec<Observa
     result
 }
 
+fn range_kind(operator: BinaryOperator) -> Option<IntegerRangeOperationKind> {
+    use IntegerRangeOperationKind as Kind;
+    Some(match operator {
+        BinaryOperator::InclusiveRange => Kind::Inclusive,
+        BinaryOperator::ExclusiveRange => Kind::Exclusive,
+        BinaryOperator::In => Kind::Contains,
+        BinaryOperator::NotIn => Kind::NotContains,
+        BinaryOperator::Equal => Kind::Equal,
+        BinaryOperator::NotEqual => Kind::NotEqual,
+        _ => return None,
+    })
+}
+
 fn assert_complete(observation: &Observation) {
+    assert_eq!(observation.range_fact_valid, Some(true), "{observation:?}");
     assert!(observation.names.is_empty(), "{observation:?}");
     assert!(
         observation.raw.as_ref().is_some_and(Vec::is_empty),
@@ -142,15 +210,24 @@ fn assert_complete(observation: &Observation) {
 #[test]
 fn implicit_range_construction_has_resolved_copyable_value() {
     let mut all = Vec::new();
-    for ty in ["Int", "Long"] {
+    for (ty, range) in [
+        ("Int", BuiltinType::IntRange),
+        ("Long", BuiltinType::LongRange),
+    ] {
         for operator in ["..", "..<"] {
             let root = format!("left {operator} right");
             let text = format!("fun probe(left: {ty}, right: {ty}): Unit {{ val range = {root} }}");
-            all.extend(observe(&text, &root, None));
+            all.extend(
+                observe(&text, &root, None)
+                    .into_iter()
+                    .map(|observation| (observation, range)),
+            );
         }
     }
-    // Initial public-API red oracle; exact range identity is paired below.
-    for observation in all {
+    // Operand/result identities and the exact operation kind are checked with the AST.
+    for (observation, range) in all {
+        assert_eq!(observation.builtin, Some(range));
+        assert_eq!(observation.range_fact_count, 1);
         assert_complete(&observation);
         assert!(observation.copyable, "{observation:?}");
     }
@@ -167,8 +244,16 @@ fn explicit_range_identity_and_capabilities_are_available() {
             "fun <T: Transferable> accept(value: T): Unit {{}}\nfun probe(left: {ty}, right: {ty}): Unit {{\n val range: {range} = left..right\n val copy = range\n accept(copy)\n accept(range)\n}}"
         );
         all.extend(observe(&text, "left..right", Some(range)));
+        let text = format!(
+            "fun accept(value: IntRange): Unit {{}}\nfun accept(value: LongRange): Unit {{}}\nfun probe(left: {ty}, right: {ty}): Unit {{ accept(left..right) }}"
+        );
+        all.extend(observe(&text, "left..right", Some(range)));
     }
     for observation in all {
+        assert_eq!(
+            observation.range_fact_count, 1,
+            "trial must not duplicate facts"
+        );
         assert_complete(&observation);
         assert_eq!(
             observation.matches_annotation,
@@ -258,10 +343,11 @@ fn invalid_range_endpoints_have_operand_diagnostics() {
             .raw
             .as_ref()
             .expect("types reached for known endpoint types");
-        assert!(
-            raw.iter().any(|d| d.code().to_string() == "L0085"),
-            "{observation:?}"
-        );
+        assert_eq!(raw.len(), 1, "{observation:?}");
+        assert_eq!(raw[0].code().to_string(), "L0085", "{observation:?}");
+        assert_eq!(Some(raw[0].primary_span()), observation.operator_span);
+        assert_eq!(observation.range_fact_count, 0, "{observation:?}");
+        assert_eq!(observation.range_fact_valid, None);
         let Some(Err(FinalTypeAdmissionError::Diagnostics(final_diagnostics))) =
             &observation.complete
         else {
@@ -274,6 +360,19 @@ fn invalid_range_endpoints_have_operand_diagnostics() {
     }
 }
 
+fn rejected_api(
+    text: &str,
+    root: &str,
+    code: &str,
+    span_text: &str,
+) -> Vec<(Observation, String, std::ops::Range<usize>)> {
+    let start = text.rfind(span_text).expect("diagnostic source token");
+    observe(text, root, None)
+        .into_iter()
+        .map(|observation| (observation, code.to_owned(), start..start + span_text.len()))
+        .collect()
+}
+
 #[test]
 fn range_identity_does_not_enable_extra_public_apis() {
     let mut positive = Vec::new();
@@ -282,33 +381,36 @@ fn range_identity_does_not_enable_extra_public_apis() {
         let text = format!("fun probe(left: {ty}, right: {ty}): {range} = left..right");
         positive.extend(observe(&text, "left..right", Some(range)));
         let call = format!("{range}()");
-        negative.extend(observe(
+        negative.extend(rejected_api(
             &format!("fun probe(): Unit {{ val bad = {call} }}"),
             &call,
-            None,
+            "L0143",
+            range,
         ));
         for member in ["first", "last", "step", "size", "hash"] {
             let root = format!("value.{member}");
-            negative.extend(observe(
+            negative.extend(rejected_api(
                 &format!("fun probe(value: {range}): Unit {{ val bad = {root} }}"),
                 &root,
-                None,
+                "L0165",
+                &root,
             ));
         }
-        negative.extend(observe(
+        negative.extend(rejected_api(
             &format!("fun probe(left: {ty}, right: {ty}): {range}<Int> = left..right"),
             "left..right",
-            None,
+            "L0082",
+            "Int",
         ));
         for container in ["Map", "MutableMap"] {
-            negative.extend(observe(
+            negative.extend(rejected_api(
                 &format!("fun probe(value: {container}<{range}, Int>): Unit {{ val marker = 0 }}"),
                 "0",
-                None,
+                "L0161",
+                range,
             ));
         }
     }
-    // A missing Range identity cannot count as proof of its dedicated API gates.
     for observation in positive {
         assert_complete(&observation);
         assert_eq!(
@@ -317,14 +419,27 @@ fn range_identity_does_not_enable_extra_public_apis() {
             "{observation:?}"
         );
     }
-    // Initial observation oracle only; freeze exact reason/span once identity exists.
-    for observation in negative {
-        match observation.complete {
-            Some(Err(FinalTypeAdmissionError::Diagnostics(ref diagnostics))) => {
-                assert!(!diagnostics.is_empty(), "{observation:?}");
-            }
-            None => assert!(!observation.names.is_empty(), "{observation:?}"),
-            _ => panic!("structured source rejection required: {observation:?}"),
+    for (observation, code, span) in negative {
+        assert!(observation.names.is_empty(), "{observation:?}");
+        let Some(Err(FinalTypeAdmissionError::Diagnostics(ref diagnostics))) = observation.complete
+        else {
+            panic!("structured source rejection required: {observation:?}");
+        };
+        assert_eq!(diagnostics.len(), 1, "{observation:?}");
+        assert_eq!(diagnostics[0].code().to_string(), code, "{observation:?}");
+        assert_eq!(
+            diagnostics[0].primary_span().start()..diagnostics[0].primary_span().end(),
+            span
+        );
+        let raw = observation.raw.as_ref().expect("actual types reached");
+        if code == "L0165" {
+            assert!(raw.is_empty(), "{observation:?}");
+        } else {
+            assert_eq!(raw, diagnostics, "original diagnostic preserved in full");
         }
+        assert_eq!(
+            observation.range_fact_count, 0,
+            "no successful fact survives rejected source"
+        );
     }
 }

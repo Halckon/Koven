@@ -148,3 +148,9 @@ ABI 完成前，lower 在规划前按真实类型使用与 descriptor 结构化�
 
 89b1b70e 的原六项 FE exact 各1命中成功；第7 lower 测试编译 E0277，原因是 expect_err 要求成功 Program 实现 Debug。
 该项0执行，第8未跑；改测试提取 err 后再 expect，不为测试给生产 Program 添加 Debug。原输入35项稳定。
+
+090e721f 同8实际各1成功，35输入每轮前后相同；六FE加44个真实lower边界入口与无Range近邻，
+只证明FE阶段与结构化暂拒，不证明Range SSA/LLVM/native。收据SHA
+`2563e19c441ee1ec8b647bb359d4ab21b5f60ef827552f18232c545438e3a7de`。
+后继 tests-only 锁真实descriptor的kind/operand/result、两种精确builtin身份、原L0085 operator span；
+公共构造L0143、成员L0165、非泛型L0082与Hashable L0161按实际源span收紧，加入普通重载trial唯一事实控制。
