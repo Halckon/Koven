@@ -7,10 +7,10 @@
 | 状态 | draft |
 | Goal ID | `KOV-P2-0327` |
 | Phase | Phase 2 类型身份先行；Phase 3/4 按后继验收分片闭合 |
-| 基线 | 实际 main `020ff41f2efd47cbfa0f936d2452771ceaeaf7d8` |
-| 分支 | `feature/spec-0327-integer-conversions`；不包含独立0325/0326实施 |
+| 基线 | 实际 main `aa42bdc5f1f3172b22f1ff7f708155b1aa077f10`（从020ff草案正常合并） |
+| 分支 | `feature/spec-0327-integer-conversions`；已继承主干0325；不包含未合0326实施 |
 | 规范 | [Guide整数转换](../../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
-| 当前状态 | 仅草案与精确测试计划；未新增测试、未执行、未实施生产 |
+| 当前状态 | 六项 tests-only 已准备；未编译、未执行、未实施生产 |
 
 ## 1. 批准范围与依赖
 
@@ -37,7 +37,7 @@ A/B主干交付优先；本草案可中断，后续在真实main同步后冻结�
 拟新独立integration target `checked_integer_conversion`。所有helper仅普通源码→真实
 lex/parse/names/raw types/complete API；不构造或修改facts/IR，不运行语言产物。
 每case先收齐single/unit观察再断言，解析/名称前置失败与语言行为红分账。
-精确函数与helper冻结后须再次独审，以下不是已执行名单：
+精确函数与helper已落独立测试文件，冻结后须独审，以下不是已执行名单：
 
 1. `all_integer_pairs_publish_target_types`：64个独立普通函数
    `fun convert(value: SRC): DST = value.toDst()`，源/目标来自八整数封闭表；
@@ -74,3 +74,6 @@ inv、普通同名成员、const与非法receiver均保留近邻回归。SSA/ver
 未闭合后端时不以Phase2绿色标记整个转换功能done。工程检查、实际base尺寸门禁、
 双hostCI与正常归档/合并分别记录。备份使用有明确base/head/顺序/SHA的format-patch增量；
 merge拓扑单独登记，不以线性补丁冒充保真恢复。
+
+首轮非法调用/receiver仅锁结构化拒绝并采完整诊断；既有成员缺失不能证明未来专属参数门已闭合。
+const 对照先要求 runtime 成功，失败时不把成员不存在误计 const 白名单通过。
