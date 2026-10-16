@@ -31,12 +31,56 @@ fn observe(group: &str, cases: &[(String, bool)]) {
     for (index, result) in outcomes.into_iter().enumerate() {
         if cases[index / 2].1 {
             let error = result.expect_err("stale read or conflicting child must be rejected");
-            assert!(
-                error.starts_with("complete:") || error.starts_with("ownership"),
-                "{error}"
-            );
+            assert_rejection(group, &cases[index / 2].0, index % 2 == 1, &error);
         } else {
             result.expect("ordinary nullable while proof reaches verified SSA and LLVM");
+        }
+    }
+}
+
+fn assert_rejection(group: &str, source: &str, unit: bool, error: &str) {
+    let offset = if unit { "package p\n".len() } else { 0 };
+    let primary = |start: usize, length: usize| {
+        format!(
+            "primary_span: Span {{ source_id: SourceId(0), start: {}, end: {} }}",
+            start + offset,
+            start + offset + length
+        )
+    };
+    if group == "pending-child" {
+        assert!(error.starts_with("ownership"), "{error}");
+        assert_eq!(
+            error.matches("Diagnostic { severity:").count(),
+            1,
+            "{error}"
+        );
+        assert_eq!(error.matches("code: L0135,").count(), 1, "{error}");
+        let mutation = source.find("current = null").unwrap();
+        let borrowed = source.find("current.text").unwrap();
+        assert!(
+            error.contains(&primary(mutation, "current".len())),
+            "{error}"
+        );
+        let label = format!(
+            "Label(DiagnosticLabel {{ span: Span {{ source_id: SourceId(0), start: {}, end: {} }}, message: DiagnosticText(\"conflicting loan starts here\") }})",
+            borrowed + offset,
+            borrowed + offset + "current.text".len()
+        );
+        assert!(error.contains(&label), "{error}");
+    } else {
+        assert!(error.starts_with("complete:"), "{error}");
+        let count = if group == "same-root" { 2 } else { 1 };
+        assert_eq!(
+            error.matches("Diagnostic { severity:").count(),
+            count,
+            "{error}"
+        );
+        assert_eq!(error.matches("code: L0165,").count(), count, "{error}");
+        for (start, _) in source.rmatch_indices("current.value").take(count) {
+            assert!(
+                error.contains(&primary(start, "current.value".len())),
+                "{error}"
+            );
         }
     }
 }
