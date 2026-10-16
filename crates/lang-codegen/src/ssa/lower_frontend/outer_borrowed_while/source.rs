@@ -62,6 +62,7 @@ pub(super) fn qualify(
             target,
             operator: AssignmentOperator::Assign,
             value,
+            ..
         } = expr(parsed, *expression)?
         else {
             return None;
