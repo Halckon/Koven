@@ -160,6 +160,7 @@ impl ExpressionLowerer<'_> {
             self.pending_call_loans.clone_from(&exit.loans);
             self.capture_loans.clone_from(&exit.capture_loans);
             self.borrow_bindings.clone_from(&exit.borrow_bindings);
+            self.result_source_loans.clone_from(&exit.result_source_loans);
             self.non_null_bindings.clone_from(&exit.views);
             self.emit_drops(lang_frontend::ownership_checking::DropPoint::LoopExit(
                 statement,
