@@ -183,20 +183,7 @@ fn different_root_and_borrowed_loops_preserve_outer_access() {
 
 #[test]
 fn pending_field_child_survives_readonly_nested_control() {
-    let read = r#"class Holder(val text: String, val value: Int)
-fun inspect(text: String, own marker: Int): Int { println(text); return marker }
-fun entry(own initial: Holder?, flag: Boolean): Int {
-    var current: Holder? = initial
-    while (current != null) {
-        val result = inspect(current.text, if (flag) {
-            while (current != null) { break }
-            current.value
-        } else { current.value })
-        return result + current.value
-    }
-    return 0
-}"#
-    .to_owned();
+    let read = pending_child_source();
     let conflict = r#"class Holder(val text: String, val value: Int)
 fun inspect(text: String, own marker: Int): Int { println(text); return marker }
 fun entry(own initial: Holder?, flag: Boolean): Int {
@@ -760,4 +747,31 @@ fun entry(own initial: Holder?): Int {
         outcomes[3].as_ref().unwrap_err(),
         "lower: LoweringError { kind: UnsupportedNode, span: Some(Span { source_id: SourceId(0), start: 159, end: 166 }) }"
     );
+}
+
+fn pending_child_source() -> String {
+    r#"class Holder(val text: String, val value: Int)
+fun inspect(text: String, own marker: Int): Int { println(text); return marker }
+fun entry(own initial: Holder?, flag: Boolean): Int {
+    var current: Holder? = initial
+    while (current != null) {
+        val result = inspect(current.text, if (flag) {
+            while (current != null) { break }
+            current.value
+        } else { current.value })
+        return result + current.value
+    }
+    return 0
+}"#
+    .to_owned()
+}
+
+#[test]
+fn pending_nullable_field_child_preserves_readonly_call_prefix() {
+    let source = pending_child_source();
+    let grouped = source.replace(
+        "while (current != null) { break }",
+        "while (((current) != null)) { break }",
+    );
+    observe("pending-prefix", &[(source, false), (grouped, false)]);
 }
