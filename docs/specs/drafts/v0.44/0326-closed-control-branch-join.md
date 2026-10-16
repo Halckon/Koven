@@ -61,3 +61,6 @@ Guide 与其他 Spec 发布由唯一 publisher 串行处理，本分支不改 03
 
 首批3 exact仅采Int/String、Int/Long、Int同型与Nothing调用、Int/null/Int?双序；
 全不返回、null/null、泛型/enum、复杂上下文与后5项尚待补验，不以首批红证批准生产。
+
+首轮 `56d2d9fb` 的第一命令在helper编译阶段E0599（DiagnosticCode无as_str）停止，
+0测试执行，其余两条未跑；原raw/input保留。改用既有Display/to_string，不计语言红证。

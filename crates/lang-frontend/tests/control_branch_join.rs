@@ -135,7 +135,7 @@ fn known_mixed_value_branches_reject_implicit_any() {
         assert_eq!(
             o.raw
                 .iter()
-                .map(|d| d.code().as_str().to_owned())
+                .map(|d| d.code().to_string())
                 .collect::<Vec<_>>(),
             [code],
             "{} {o:?}",
