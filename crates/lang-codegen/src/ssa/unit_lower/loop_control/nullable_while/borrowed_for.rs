@@ -1,4 +1,7 @@
 //! One readonly nullable while inside a live owned List<Int> provider.
+#[cfg(test)]
+mod guard_tests;
+
 use super::super::iteration::IterationState;
 use super::*;
 use crate::ssa::model::{
