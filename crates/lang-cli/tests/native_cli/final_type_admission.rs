@@ -63,6 +63,7 @@ fn assert_numeric_range_probe() {
             let source = directory.join("p34_for_range.ko");
             let executable = directory.join("numeric-range");
             fs::write(&source, support::NUMERIC_RANGE_SOURCE).expect("original p34 bytes");
+            let before = directory_snapshot(&directory.0);
             let format_option = format!("--message-format={format}");
             let output = if command == "build" {
                 run([
@@ -91,6 +92,11 @@ fn assert_numeric_range_probe() {
                 }
             );
             assert_eq!(executable.exists(), command == "build");
+            let mut after = directory_snapshot(&directory.0);
+            if command == "build" {
+                after.retain(|(path, _)| path != std::path::Path::new("numeric-range"));
+            }
+            assert_eq!(after, before, "source bytes and temporary output cleanup");
         }
     }
 }
@@ -106,7 +112,7 @@ fn single_deferred_user_message_build_preserves_source_root() {
         ),
         (
             &PROBES[2],
-            "for source requires a compiler-bound sequential container or View",
+            "for source requires a compiler-bound sequential container, View, IntRange or LongRange",
         ),
     ] {
         for format in ["human", "json"] {

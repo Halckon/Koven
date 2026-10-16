@@ -168,3 +168,7 @@ raw 诊断现为空、complete 成功，CLI 原 p34 生成/运行成功使旧拒
 后继 tests-only 保留 p34 原字节为成功控制；另用普通 Int 非 provider 保留精确 L0159，
 Call-L0165 独立文案控制不变。三 CLI 矩阵各增加 p34 四个成功调用（含 constant 前缀），
 本片不修改历史 Spec 原验收记录。新 oracle 仍待实跑。
+
+`e00b1192` p34 更新首轮前三 exact 通过，第四精确消息断言失败，后三未跑：
+非法 Int provider 实际 L0159/29..30 已列出新增 IntRange/LongRange，测试仍写旧 View 列表。
+后继只更新两文案 oracle，并加强成功路径原文件字节/临时产物清理断言；生产不改。
