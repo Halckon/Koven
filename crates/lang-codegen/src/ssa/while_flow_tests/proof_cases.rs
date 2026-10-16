@@ -535,3 +535,36 @@ fn distinct_root_nested_while_retires_only_the_inner_scope() {
 
 #[path = "distinct_nested_contract.rs"]
 mod distinct_nested_contract;
+
+#[test]
+fn root_assignment_delivers_move_only_rhs_before_later_control_flow() {
+    let string = r#"fun entry(own number: Int): Int {
+var text = "old"
+text = "new"
+println(text)
+return number + 1
+}"#
+    .to_owned();
+    let moved = string.replace("text = \"new\"", "val incoming = \"new\"\ntext = incoming");
+    let nullable = holder(
+        "current = null\nwhile (current != null) { total = total + current.value\ncurrent = null }\nreturn total + 1",
+    );
+    let grouped = nullable.replace("current = null", "current = (null)");
+    let copied =
+        "fun entry(own number: Int): Int { var value = 0; value = number; return value + number }"
+            .to_owned();
+    let compound =
+        "fun entry(own number: Int): Int { var value = 0; value += number; return value + number }"
+            .to_owned();
+    observe(
+        "root-assignment-delivery",
+        &[
+            (string, false),
+            (moved, false),
+            (nullable, false),
+            (grouped, false),
+            (copied, false),
+            (compound, false),
+        ],
+    );
+}
