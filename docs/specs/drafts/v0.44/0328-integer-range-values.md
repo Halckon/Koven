@@ -128,3 +128,10 @@ README两处current Guide标签v0.44，不更改语言正文。
 包含性/相等typed事实→合法事实到未实现backend的结构化拒绝。先锁事实中的真实operand
 与端点/结果类型和operator种类，再由后端消费；不按源码名字猜身份、不先清全局Deferred。
 本阶段尚无生产补丁；具体表示/ABI及共享调用方穷尽检查通过后再实施。
+
+`c8867978`后三exact实际各1红，11输入前后同，16/60/40入口观察全部收齐；无测试编译或
+解析前置失败。storage八个unit因Range身份缺失停names门；非法端点names-clean但两入口
+仍Deferred(Call)/L0165，缺少要求的L0085。额外API组在合法身份正控先红，18负控只观察，
+不计非泛型/Hashable/member拒绝验收。仓外 `next3-receipt.json` SHA
+`7f9f7d4eafdfeb2506279810180f9911f18d54d307fe511b02ec251cb2787746`。
+所有权/运行时存储能力仍未测，包含性/相等算法仍被构造身份缺口阻挡，生产尚未改动。
