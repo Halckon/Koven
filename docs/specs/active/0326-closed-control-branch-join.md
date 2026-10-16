@@ -132,3 +132,9 @@ unit checker旧尺寸1127→1128仅注册独立模块，新逻辑独立文件；
 将直接case取其已有同实例root；不改一般assignability、叶smartcast或泛型身份。
 该head原8+新增1共9exact各1命中全绿，18输入前后同；仓外`green9-receipt.json`保留事实。
 这是前端阶段结果；共享旧Any期望、公开CLI、普通native与工程门禁仍待本片后续验收。
+
+共享5首轮`6ff902ed`首项1命中失败、余4未跑：原“显式Any合法”判断不成立。
+`a488386c`单项普通观察显示single的Any返回标注是Deferred，complete在Any处L0165；
+unit签名虽为BuiltinAny，两个分支各L0084且complete拒绝。旧single raw空不代表最终接纳。
+据此仅修旧混型raw预期与有限Any拒绝控制，未增加expected wrapper或开启Any运行时表示；
+入口诊断差异保留为当前边界。原失败与观察分账保留仓外，观察命令成功不计能力通过。

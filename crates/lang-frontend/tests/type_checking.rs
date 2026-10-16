@@ -769,7 +769,7 @@ fn when_context_and_coverage_diagnostics_are_deterministic() {
 }
 
 #[test]
-fn subjectless_when_requires_boolean_conditions_and_explicit_any_context() {
+fn subjectless_when_requires_boolean_conditions_and_runtime_any_is_not_a_join_target() {
     let invalid = "fun invalid(): Int = when { 1 -> 1; else -> 0 }";
     let (sources, _, _, typed) = checked(invalid);
     assert_eq!(codes(typed.diagnostics()), ["L0107"]);
@@ -780,12 +780,18 @@ fn subjectless_when_requires_boolean_conditions_and_explicit_any_context() {
         "1"
     );
 
-    let valid = "fun mixed(flag: Boolean): Any = when (flag) {
+    let runtime_any = "fun mixed(flag: Boolean): Any = when (flag) {
                      true -> 1
                      false -> \"text\"
                  }";
-    let (_, _, _, typed) = checked(valid);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    let (sources, _, _, typed) = checked(runtime_any);
+    assert_eq!(codes(typed.diagnostics()), ["L0112"]);
+    assert_eq!(
+        sources
+            .slice(typed.diagnostics()[0].primary_span())
+            .unwrap(),
+        "\"text\""
+    );
 }
 
 #[test]

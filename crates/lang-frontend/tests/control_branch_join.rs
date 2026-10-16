@@ -523,6 +523,7 @@ fn expected_types_keep_original_mismatch_diagnostics() {
             other => panic!("expected original mismatch: {other:?}"),
         }
     }
+    assert_runtime_any_annotations_remain_rejected();
 }
 
 #[test]
@@ -779,12 +780,37 @@ fn nullable_case_joins_deliver_the_same_enum_instance() {
     }
 }
 
-/// Observe the existing runtime Any gate; this command is not a regression pass.
-#[test]
-fn observe_runtime_any_return_context() {
-    for root in roots("1", "\"text\"").into_iter().chain(roots("1", "2")) {
-        let text = format!("fun mixed(flag: Boolean): Any = {root}");
-        let observations = observe_text(&text, &root);
-        eprintln!("SPEC-0326 runtime Any observation only: {observations:?}");
+// Recorded entry-specific Any rejection; this does not enable an Any value representation.
+fn assert_runtime_any_annotations_remain_rejected() {
+    let observations: Vec<_> = roots("1", "\"text\"")
+        .into_iter()
+        .chain(roots("1", "2"))
+        .flat_map(|root| observe_text(&format!("fun mixed(flag: Boolean): Any = {root}"), &root))
+        .collect();
+    for o in observations {
+        let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = &o.complete else {
+            panic!("runtime Any must remain rejected: {o:?}");
+        };
+        if o.mode == "single" {
+            assert_eq!(diagnostics[0].code().to_string(), "L0165", "{o:?}");
+            assert_eq!(
+                (
+                    diagnostics[0].primary_span().start(),
+                    diagnostics[0].primary_span().end()
+                ),
+                (26, 29)
+            );
+            assert_eq!(&diagnostics[1..], o.raw);
+        } else {
+            assert_eq!(
+                o.raw
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0084", "L0084"],
+                "{o:?}"
+            );
+            assert_eq!(diagnostics, &o.raw);
+        }
     }
 }
