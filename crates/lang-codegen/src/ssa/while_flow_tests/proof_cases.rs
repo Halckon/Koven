@@ -823,5 +823,41 @@ fn retested_after_branch_source() -> String {
 fn nullable_if_retest_after_conditional_replacement_reaches_llvm() {
     let source = retested_after_branch_source();
     let grouped = source.replace("if (current != null)", "if (((current) != null))");
-    observe("if-retest", &[(source, false), (grouped, false)]);
+    let sources = [source, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                println!(
+                    "IF RETEST SSA case={index} {}",
+                    crate::ssa::render::render_program(&program)
+                );
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("IF RETEST LLVM case={index} {llvm}");
+                Ok(program)
+            });
+            println!(
+                "IF RETEST OUTCOME source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    // Finish all four real lowering/verify/render observations before querying identities.
+    assert_eq!(outcomes.len(), 4);
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if_retest_contract::assert_retest(
+            &result.expect("conditional replacement permits a fresh nullable if proof"),
+            &sources[index / 2],
+            index % 2 == 1,
+        );
+    }
 }
+
+#[path = "if_retest_contract.rs"]
+mod if_retest_contract;
