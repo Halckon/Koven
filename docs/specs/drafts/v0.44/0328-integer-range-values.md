@@ -89,3 +89,15 @@ helper 仅普通源码经真实 lex/parse/names/raw types/complete API，两入�
 新增 target 必须同步 CI 选择与真实新增数量/唯一预算，执行实际 main base 的尺寸检查，
 不得抬阈值或挤行。最终工程、双 host CI、归档 head CI 与真实 main 验收分账。
 备份用 binary/full-index format-patch 增量及 base/head/tree/SHA/恢复说明；不修改 E 固定包。
+
+## 6. 首批三项采证候选
+
+现仅落 `integer_range_values.rs` 三个 ordinary exact：
+`implicit_range_construction_has_resolved_copyable_value`（4源码/8入口）、
+`explicit_range_identity_and_capabilities_are_available`（4源码/8入口）、
+`range_membership_and_equality_publish_boolean_results`（8源码/16入口）。
+每项在断言前收齐所有源码的 single/unit 观察；unit names.validate 拒绝时明确保存名称诊断，
+不绕该门调用 types。single 保留真实 recovery raw 与 complete。原始 API 异常另报。
+显式身份以本入口真实 TypeRef 对比，Copyable 使用公开查询；Transferable 仅先观察普通
+泛型 bound 调用，完整所有权能力查询/存储、拒绝矩阵与值语义仍待后续，并非首三覆盖全 D。
+当前只有 tests-only 候选，尚未编译或执行；其余三项与第4节验收保留待采。
