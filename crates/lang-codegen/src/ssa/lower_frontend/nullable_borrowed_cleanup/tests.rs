@@ -226,6 +226,21 @@ fn inner_borrowed_provider_rejects_role_and_cleanup_corruption() {
         assert_eq!(fixture.program.modules[0].functions.len(), 1);
         assert!(fixture.entry().receiver.is_none());
         assert!(fixture.typed.type_parameters().is_empty());
+        assert!(
+            fixture
+                .parsed
+                .ast()
+                .expressions()
+                .iter()
+                .all(|(_, node)| !matches!(node.payload(), Expression::Lambda { .. }))
+        );
+        assert!(
+            fixture
+                .entry()
+                .instructions
+                .iter()
+                .all(|instruction| !matches!(instruction.operation, Operation::DirectCall { .. }))
+        );
         assert_eq!(
             fixture.entry().return_types,
             [fixture.type_ids[&fixture.typed.types().builtin(BuiltinType::Int).unwrap()]]
