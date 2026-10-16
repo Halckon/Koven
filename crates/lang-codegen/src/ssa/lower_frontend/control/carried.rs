@@ -83,10 +83,11 @@ impl ExpressionLowerer<'_> {
                 carried.push(slot);
             }
         }
-        for (&symbol, &loan) in &self.non_null_bindings {
-            let source = EntityId::Loan(loan);
+        for (&symbol, &proof) in &self.non_null_bindings {
+            self.validate_non_null_proof(symbol, proof, bindings, span)?;
+            let source = EntityId::Loan(proof.loan);
             if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                slot.views.push(symbol);
+                slot.views.push((symbol, proof));
             } else {
                 let ty = self
                     .function
@@ -94,7 +95,7 @@ impl ExpressionLowerer<'_> {
                     .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
                     .ty;
                 let mut slot = LinearBindingSlot::new(None, source, ty);
-                slot.views.push(symbol);
+                slot.views.push((symbol, proof));
                 carried.push(slot);
             }
         }
@@ -223,10 +224,21 @@ impl ExpressionLowerer<'_> {
             .collect();
         self.result_source_loans.clear();
         let mut bindings = baseline.clone();
+        let mut owners = BTreeMap::new();
+        // Finish the complete owner mapping before rebuilding any proof pair.
         for (slot, &parameter) in carried.slots.iter().zip(parameters) {
             if let Some(symbol) = slot.symbol {
-                bindings.insert(symbol, LoweredValue::Value(value(parameter)));
+                let (EntityId::Value(source), EntityId::Value(owner)) = (slot.source, parameter)
+                else {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                };
+                if owners.insert(symbol, (source, owner)).is_some() {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                bindings.insert(symbol, LoweredValue::Value(owner));
             }
+        }
+        for (slot, &parameter) in carried.slots.iter().zip(parameters) {
             for key in &slot.temporaries {
                 self.temporaries.insert(*key, value(parameter));
             }
@@ -236,11 +248,28 @@ impl ExpressionLowerer<'_> {
                 };
                 self.capture_loans.insert(*key, loan);
             }
-            for symbol in &slot.views {
+            for &(symbol, source_proof) in &slot.views {
+                self.validate_non_null_proof(symbol, source_proof, baseline, span)?;
+                if slot.source != EntityId::Loan(source_proof.loan) {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
                 let EntityId::Loan(loan) = parameter else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
-                self.non_null_bindings.insert(*symbol, loan);
+                let (source_owner, owner) = owners
+                    .get(&symbol)
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                if source_owner != source_proof.owner {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                let proof = NonNullProof {
+                    loan,
+                    owner,
+                    inner: source_proof.inner,
+                };
+                self.validate_non_null_proof(symbol, proof, &bindings, span)?;
+                self.non_null_bindings.insert(symbol, proof);
             }
             for key in &slot.loans {
                 let EntityId::Loan(loan) = parameter else {

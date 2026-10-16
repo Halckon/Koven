@@ -271,7 +271,7 @@ impl ExpressionLowerer<'_> {
         let args = carried
             .slots
             .iter()
-            .map(|slot| loop_slot_entity(slot, &state, span))
+            .map(|slot| loop_slot_entity(self, slot, &state, span))
             .collect::<Result<Vec<_>, _>>()?;
         self.function
             .set_terminator(
@@ -311,7 +311,7 @@ impl ExpressionLowerer<'_> {
         let mut args = carried
             .slots
             .iter()
-            .map(|slot| loop_slot_entity(slot, &state, span))
+            .map(|slot| loop_slot_entity(self, slot, &state, span))
             .collect::<Result<Vec<_>, _>>()?;
         args.push(EntityId::Value(next));
         self.function

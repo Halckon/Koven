@@ -67,13 +67,7 @@ impl ExpressionLowerer<'_> {
                     }
                     // nullable 分支证明是 owner 的共享视图。ASAP drop 可能恰好位于证明分支的
                     // 最后一次使用处，因此必须先结束视图，再消费 owner。
-                    if let Some(loan) = self.non_null_bindings.remove(&symbol) {
-                        self.append(
-                            Operation::BorrowEnd { loan },
-                            Vec::new(),
-                            fact.value_origin(),
-                        )?;
-                    }
+                    self.end_non_null_proof(symbol, fact.value_origin())?;
                     match self.bindings.remove(&symbol) {
                         Some(LoweredValue::Value(value)) => value,
                         Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {

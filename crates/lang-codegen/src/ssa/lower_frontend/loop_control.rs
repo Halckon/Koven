@@ -53,7 +53,7 @@ impl ForLoopData {
 }
 
 pub(super) struct LoopContext {
-    pub(super) entry_views: BTreeMap<SymbolId, super::LoanId>,
+    pub(super) entry_views: BTreeMap<SymbolId, super::NonNullProof>,
     pub(super) header: BlockId,
     pub(super) carried: LinearBindings,
     pub(super) continues: Vec<LoopJump>,
@@ -207,7 +207,7 @@ impl ExpressionLowerer<'_> {
                 .carried
                 .slots
                 .iter()
-                .map(|slot| loop_slot_entity(slot, &jump.exit, jump.span))
+                .map(|slot| loop_slot_entity(self, slot, &jump.exit, jump.span))
                 .collect::<Result<Vec<_>, _>>()?;
             self.function
                 .set_terminator(
@@ -394,7 +394,7 @@ impl ExpressionLowerer<'_> {
             .carried
             .slots
             .iter()
-            .map(|slot| loop_slot_entity(slot, &current_exit, span))
+            .map(|slot| loop_slot_entity(self, slot, &current_exit, span))
             .collect::<Result<Vec<_>, _>>()?;
         if !is_carried_source {
             backedge_args.push(EntityId::Loan(body_source));
@@ -458,13 +458,7 @@ impl ExpressionLowerer<'_> {
                 }
                 let owner = match fact.target() {
                     DropTarget::Named(symbol) => {
-                        if let Some(loan) = self.non_null_bindings.remove(&symbol) {
-                            self.append(
-                                Operation::BorrowEnd { loan },
-                                Vec::new(),
-                                fact.value_origin(),
-                            )?;
-                        }
+                        self.end_non_null_proof(symbol, fact.value_origin())?;
                         match self.bindings.remove(&symbol) {
                             Some(LoweredValue::Value(value)) => value,
                             _ if fact.condition().is_some()
@@ -593,10 +587,22 @@ fn loop_edge(target: BlockId, carried: &LinearBindings) -> Edge {
 
 /// Resolve header slots from the exit snapshot, after nested CFG has rebound IDs.
 fn loop_slot_entity(
+    lowerer: &ExpressionLowerer<'_>,
     slot: &LinearBindingSlot,
     exit: &BranchExit,
     span: Span,
 ) -> Result<EntityId, LoweringError> {
+    for &(symbol, entry_proof) in &slot.views {
+        let proof = exit
+            .views
+            .get(&symbol)
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        lowerer.validate_non_null_proof(symbol, proof, &exit.bindings, span)?;
+        if entry_proof.inner != proof.inner || slot.source != EntityId::Loan(entry_proof.loan) {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+    }
     let entity = if let Some(symbol) = slot.symbol {
         match exit.bindings.get(&symbol) {
             Some(LoweredValue::Value(value)) => Some(EntityId::Value(*value)),
@@ -608,8 +614,10 @@ fn loop_slot_entity(
         exit.loans.get(key).copied().flatten().map(EntityId::Loan)
     } else if let Some(key) = slot.captures.first() {
         exit.capture_loans.get(key).copied().map(EntityId::Loan)
-    } else if let Some(symbol) = slot.views.first() {
-        exit.views.get(symbol).copied().map(EntityId::Loan)
+    } else if let Some((symbol, _)) = slot.views.first() {
+        exit.views
+            .get(symbol)
+            .map(|proof| EntityId::Loan(proof.loan))
     } else if let Some(symbol) = slot.borrow_symbols.first() {
         exit.borrow_bindings
             .get(symbol)
@@ -628,5 +636,13 @@ fn loop_slot_entity(
     } else {
         None
     };
-    entity.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+    let entity = entity.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+    if slot.views.iter().any(|(symbol, _)| {
+        exit.views
+            .get(symbol)
+            .is_none_or(|proof| entity != EntityId::Loan(proof.loan))
+    }) {
+        return Err(error(LoweringErrorKind::MissingFact, span));
+    }
+    Ok(entity)
 }

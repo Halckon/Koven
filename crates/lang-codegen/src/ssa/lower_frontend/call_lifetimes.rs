@@ -101,18 +101,17 @@ impl ExpressionLowerer<'_> {
         let views = self
             .non_null_bindings
             .iter()
-            .filter_map(|(&symbol, &loan)| {
+            .filter_map(|(&symbol, _)| {
                 let retained = !is_return
                     && self
                         .loops
                         .last()
                         .is_some_and(|context| context.entry_views.contains_key(&symbol));
-                (!retained).then_some((symbol, loan))
+                (!retained).then_some(symbol)
             })
             .collect::<Vec<_>>();
-        for (symbol, loan) in views {
-            self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
-            self.non_null_bindings.remove(&symbol);
+        for symbol in views {
+            self.end_non_null_proof(symbol, span)?;
         }
         self.emit_drops(DropPoint::ControlTransfer(transfer))
     }

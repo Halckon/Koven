@@ -85,10 +85,8 @@ impl ExpressionLowerer<'_> {
                 .lower_short_range(argument, target, span)
                 .map(|loan| (loan, true));
         }
-        if let Some(non_null) = self.typed.non_null_use(argument)
-            && let Some(view) = self.non_null_bindings.get(&non_null.symbol()).copied()
-        {
-            return Ok((view, false));
+        if let Some(proof) = self.non_null_proof_for_expression(argument, span)? {
+            return Ok((proof.loan, false));
         }
         let fact = self
             .owned

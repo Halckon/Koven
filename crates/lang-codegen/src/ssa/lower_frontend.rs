@@ -27,6 +27,7 @@ mod map_result;
 mod map_with;
 mod nominal;
 mod non_null_assertion;
+mod non_null_proof;
 mod nullable_comparison;
 mod nullable_when;
 pub(super) mod orchestrate;
@@ -63,6 +64,7 @@ use super::model::{
     SsaTypeId, TerminatorKind, ValueId,
 };
 use instances::FunctionInstanceKey;
+use non_null_proof::NonNullProof;
 
 pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
 use super::lowering_support::{error, string_literal};
@@ -124,7 +126,7 @@ struct ExpressionLowerer<'a> {
     bindings: BTreeMap<SymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<SymbolId, LoanId>,
     result_source_loans: BTreeMap<SymbolId, Vec<LoanId>>,
-    non_null_bindings: BTreeMap<SymbolId, LoanId>,
+    non_null_bindings: BTreeMap<SymbolId, NonNullProof>,
     temporaries: BTreeMap<usize, ValueId>,
     pending_call_loans: BTreeMap<(usize, usize), Option<LoanId>>,
     return_type: TypeId,
@@ -535,24 +537,6 @@ impl ExpressionLowerer<'_> {
                 Ok(LoweredValue::Value(value(results[0])))
             }
         }
-    }
-
-    fn shared_owner_operand(
-        &mut self,
-        receiver: ExpressionId,
-        span: Span,
-    ) -> Result<EntityId, LoweringError> {
-        if let Some(non_null) = self.typed.non_null_use(receiver)
-            && let Some(view) = self.non_null_bindings.get(&non_null.symbol()).copied()
-        {
-            return Ok(EntityId::Loan(view));
-        }
-        self.require_value(receiver)
-            .map(EntityId::Value)
-            .map_err(|mut error| {
-                error.span.get_or_insert(span);
-                error
-            })
     }
 
     fn validate_construction_root(
@@ -1201,15 +1185,13 @@ impl ExpressionLowerer<'_> {
                 .pending_call_loans
                 .get(&(expression.index(), argument.value.index()))
                 == Some(&None)
-                && let Some(non_null) = self.typed.non_null_use(argument.value)
+                && self.typed.non_null_use(argument.value).is_some()
             {
                 // 后续实参的 CFG 会重绑定视图；转发借用必须使用当前 block 的 loan。
-                let loan = self
-                    .non_null_bindings
-                    .get(&non_null.symbol())
-                    .copied()
+                let proof = self
+                    .non_null_proof_for_expression(argument.value, argument.span)?
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
-                ordered[mapping.parameter_index()] = Some(EntityId::Loan(loan));
+                ordered[mapping.parameter_index()] = Some(EntityId::Loan(proof.loan));
             }
         }
         let arguments = ordered

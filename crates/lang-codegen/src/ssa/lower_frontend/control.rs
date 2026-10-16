@@ -14,7 +14,8 @@ use lang_frontend::{
 };
 
 use super::{
-    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, builtin_type, error, value,
+    ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, NonNullProof, builtin_type,
+    error, value,
 };
 use crate::ssa::model::{
     BlockId, ComparisonOperator, Edge, EntityId, EntityType, Operation, Origin, ScalarConstant,
@@ -28,7 +29,7 @@ pub(super) struct BranchExit {
     pub(super) temporaries: BTreeMap<usize, ValueId>,
     pub(super) loans: BTreeMap<(usize, usize), Option<super::LoanId>>,
     pub(super) capture_loans: BTreeMap<(usize, usize), super::LoanId>,
-    pub(super) views: BTreeMap<SymbolId, super::LoanId>,
+    pub(super) views: BTreeMap<SymbolId, NonNullProof>,
     pub(super) borrow_bindings: BTreeMap<SymbolId, super::LoanId>,
     pub(super) result_source_loans: BTreeMap<SymbolId, Vec<super::LoanId>>,
     pub(super) for_sources: BTreeMap<usize, super::LoanId>,
@@ -62,7 +63,7 @@ pub(super) struct LinearBindingSlot {
     pub(super) temporaries: Vec<usize>,
     pub(super) loans: Vec<(usize, usize)>,
     pub(super) captures: Vec<(usize, usize)>,
-    pub(super) views: Vec<SymbolId>,
+    pub(super) views: Vec<(SymbolId, NonNullProof)>,
     pub(super) borrow_symbols: Vec<SymbolId>,
     pub(super) result_sources: Vec<(SymbolId, usize)>,
     pub(super) for_sources: Vec<usize>,
@@ -269,6 +270,11 @@ impl ExpressionLowerer<'_> {
                 EntityType::Value(nullable),
             ));
         }
+        let owner_slot = carried
+            .slots
+            .iter()
+            .position(|slot| slot.source == EntityId::Value(owner))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let branch_types = |proven| {
             let mut types: Vec<_> = carried.slots.iter().map(|slot| slot.ty).collect();
             if proven {
@@ -341,7 +347,19 @@ impl ExpressionLowerer<'_> {
             self.block = block;
             self.bindings = self.rebind_linear_bindings(&baseline, block, &carried, span)?;
             if proven {
-                self.non_null_bindings.insert(symbol, view);
+                let owner = value(
+                    self.function
+                        .block(block)
+                        .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+                        .parameters[owner_slot],
+                );
+                let proof = NonNullProof {
+                    loan: view,
+                    owner,
+                    inner,
+                };
+                self.validate_non_null_proof(symbol, proof, &self.bindings, span)?;
+                self.non_null_bindings.insert(symbol, proof);
             }
             self.emit_null_condition_drops(condition)?;
             let result = match statement {
@@ -354,8 +372,8 @@ impl ExpressionLowerer<'_> {
                     control: expression,
                     branch,
                 })?;
-                if proven && let Some(view) = self.non_null_bindings.remove(&symbol) {
-                    self.append(Operation::BorrowEnd { loan: view }, Vec::new(), span)?;
+                if proven {
+                    self.end_non_null_proof(symbol, span)?;
                 }
                 exits.push(self.branch_exit(result));
             }
@@ -837,6 +855,7 @@ impl ExpressionLowerer<'_> {
         let Some(first) = exits.first() else {
             return Ok(LoweredValue::Diverged);
         };
+        self.validate_non_null_exit_proofs(&exits, span)?;
         if exits.len() == 1 {
             self.block = first.block;
             self.bindings = first.bindings.clone();
@@ -927,15 +946,14 @@ impl ExpressionLowerer<'_> {
             slots.push(MergeSlot::CaptureLoan(key));
         }
 
-        let mut views = first.views.clone();
-        views.retain(|key, _| exits.iter().all(|exit| exit.views.contains_key(key)));
-        for (&symbol, &loan) in &views {
-            parameter_types.push(
-                self.function
-                    .entity(EntityId::Loan(loan))
-                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
-                    .ty,
-            );
+        for (&symbol, &proof) in &first.views {
+            if !baseline.contains_key(&symbol) {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            parameter_types.push(EntityType::Loan {
+                kind: crate::ssa::model::LoanKind::Shared,
+                target: proof.inner,
+            });
             slots.push(MergeSlot::NonNullView(symbol));
         }
 
@@ -1015,7 +1033,7 @@ impl ExpressionLowerer<'_> {
                         Ok(EntityId::Loan(exit.result_source_loans[symbol][*index]))
                     }
                     MergeSlot::CaptureLoan(key) => Ok(EntityId::Loan(exit.capture_loans[key])),
-                    MergeSlot::NonNullView(symbol) => Ok(EntityId::Loan(exit.views[symbol])),
+                    MergeSlot::NonNullView(symbol) => Ok(EntityId::Loan(exit.views[symbol].loan)),
                     MergeSlot::Temporary(key) => Ok(EntityId::Value(exit.temporaries[key])),
                     MergeSlot::PendingLoan(key) => exit.loans[key]
                         .map(EntityId::Loan)
@@ -1079,6 +1097,7 @@ impl ExpressionLowerer<'_> {
                     .map(|binding| (*symbol, binding))
             })
             .collect::<BTreeMap<_, _>>();
+        let mut view_parameters = Vec::new();
         for (slot, index) in slots.into_iter().zip(slot_parameters) {
             let parameter = parameters[index];
             if let MergeSlot::ResultSource(symbol, index) = slot {
@@ -1108,7 +1127,7 @@ impl ExpressionLowerer<'_> {
                 let EntityId::Loan(loan) = parameter else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
-                views.insert(symbol, loan);
+                view_parameters.push((symbol, loan, first.views[&symbol].inner));
                 continue;
             }
             if let MergeSlot::BorrowBinding(symbol) = slot {
@@ -1154,6 +1173,7 @@ impl ExpressionLowerer<'_> {
                 }
             }
         }
+        let views = self.merged_non_null_proofs(&bindings, view_parameters, span)?;
         self.block = merge;
         self.bindings = bindings;
         self.temporaries = temporaries;

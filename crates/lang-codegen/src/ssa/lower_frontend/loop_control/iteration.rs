@@ -444,7 +444,7 @@ impl ExpressionLowerer<'_> {
             let mut backedge_args = carried
                 .slots
                 .iter()
-                .map(|slot| loop_slot_entity(slot, &current_exit, span))
+                .map(|slot| loop_slot_entity(self, slot, &current_exit, span))
                 .collect::<Result<Vec<_>, _>>()?;
             if !is_carried_source {
                 backedge_args.push(EntityId::Loan(body_source));
