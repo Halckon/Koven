@@ -33,7 +33,11 @@ pub(super) fn assert_abort(executable: &Path, directory: &Path) {
     // Core dumps are disabled only in this child shell; executable is passed as an
     // argv operand, never interpolated into shell source. All files remain owned by the test.
     let mut child = Command::new("bash")
-        .args(["-c", "ulimit -c 0; exec \"$@\"", "conversion-abort"])
+        .args([
+            "-c",
+            "ulimit -c 0 || exit 125; exec \"$@\"",
+            "conversion-abort",
+        ])
         .arg(executable)
         .current_dir(directory)
         .stdout(Stdio::piped())
