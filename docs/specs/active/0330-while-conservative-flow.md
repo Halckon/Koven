@@ -487,3 +487,52 @@ native exact 各 1 通过，收据
 `24b0af7e013bfab4d2862a7a6f2c70a9c8d33cdf9e304e8b6f733beead75c6f5`。
 剩余 lower 为 if 写后重检两路、numeric for 两路、borrowed for 内外嵌套四路；
 本片仅分支增量备份，完整 C、远端 CI 与完成 PR 仍待闭合。
+
+### 条件替换后 If 重检及 owned nullable 调用交付
+
+原重检及 Group 四入口首红在 `3f926781` 全为 lower Unsupported，收据
+`bbdc7e62f149b174f84a228949b2418b3dd7634a5a23c9e1315919bbd0281a6d`。
+独立公共事实观察明确同一 Named root 的 initial/null 两 owner 版本及两个真实 If
+selector；该观察不算 lower 验收。普通 If 仅对实际非 Diverged 出口先全部预检，
+再安全退休 While-origin 差集；共有 root 的 origin/inner 不一致继续拒绝。unit 新
+If birth 限活动 direct While 同根、proof 空、then-only Unit 的实际 NullableBranch，
+If/While scope 明确区分，复杂 carrier/转移/新 loop 仍不自动获得准入。
+single 的窄清理组同时核原两版本 DropPoint、完整互斥且精确覆盖当前 arm 的条件
+DAG、first join 两条实际 owner 入边与 second successor 当前 owner/view；消费前
+再次核实际身份，仅一次原清理消费两个组员，未跳过 verifier 或泛化条件 Drop。
+Int 字段读仅复用该完整组的只读资格，读取后仍由原事实执行 End/Drop。
+
+保留 stage2 首轮完整 fixture 的 unit `declaration exists` 测试入口事故：codegen
+观测补 entry→main wrapper，native 原 fixture 字节不变。第二轮原/Group 四路绿，
+完整 fixture single InvalidSsa、unit 绿；临时 cfg(test) 追踪已撤，真实错误为 main
+两处 DirectCall 将 HeapOwner 直接传给 NullableHandle 参数，非重检清理错误。
+单独四源码八入口首红为 single direct/Group/后续 CFG 三失败，其余五成功，收据
+`bc706c65b2cc9b27ce07ae337754ad5b6c470bd3ac107ac5dbb92300e4ab0c38`。
+修复仅普通 Value source-call 的已映射 MoveOnly HeapOwner→精确 NullableHandle，
+完整资格在适配前，复用既有 NullableWrap 并更新该 argument 的原 pending 槽；
+后续 CFG 与末轮 take 使用当前包装 owner。未命中资格保留旧路径，不新增 nullable
+ABI 或 Borrow/Inout 能力。等型/null 与后续参数 CFG 的实际普通对照保留。
+
+原四路的 query-only 身份断言锁 outer/If 两次出生、两次 join 实际 owner/view 列、
+写/未写路径的退休与 Drop、null 路径及无失效实体复活。完整有界 retest fixture
+先双入口 LLVM，再 native；三个调用分别保留 17、清除为 0、初始 null 为 0，
+每个 while 最多一轮。严格三行 stdout 只证明这些值结果，不额外声称 Resource
+析构次数；既有两份 native 代表继续保留各自清理断言。
+
+保留首统一工程 fmt/check 成功、clippy 两处 oracle unnecessary_unwrap 失败和
+build 未跑记录；机械解构修中一次错误覆盖相邻 BorrowEnd arm 的候选未执行，
+随后独立恢复该 arm，最终相对受验版本仅 Drop 分支等价 if-let 改写。首次红控
+清单也因父模块 rustfmt 递归格式化未 clean 而未运行，格式化独立提交后重新冻结。
+
+固定 `a830cb0c` 普通 30 exact 各 1 真绿、132 输入逐轮前后稳定，收据
+`1e88e2a6030ed7077fe79ba3379621e9cd6f50ff4fa826b90070516226f685c8`。
+同 head 六个 native exact 各 1 通过，收据
+`6221cff2f942be9270a7a0a16843b5943581f687224bd611e9e6a8d3cba69cbb`；
+输出均由 helper 严格字节断言证明，无独立子进程日志声称，十秒仅限自身 run。
+原六组五绿一行为红，38 观察为 26/6/4/2，收据
+`088f65bda0c216ae7bed5e53ddbb9d6c003ea467ffc00b0c09371e8d33e45d8d`；
+加同 head owner-return 四路，原 42 现为 30 成功、6 lower、4 complete、2 ownership。
+四工程原 argv 全 exit0、132 输入稳定，收据
+`5fa29ce52fe89d193557ebe39582c8a58b6d0f8ea684b309a56fab0e6308d060`。
+剩余 lower 为 numeric for 两路、borrowed for 内外嵌套四路。本片仅阶段分支备份，
+完整 C、远端 CI 与完成 PR 仍未交付；后继须保留本轮全部既有控制继续闭合。
