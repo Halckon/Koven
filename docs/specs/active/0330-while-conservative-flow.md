@@ -98,3 +98,15 @@ initializer 扫描、捕获资格及非法 RHS 诊断保全；5 个共享 exact 
 改为既有入口简短导航后重检。历史行为红与该文档失败的原始证据均留仓外。
 此包只作已授权阶段备份，仍 active；普通 lower/LLVM、CLI/native 与完整 CI 待后续。
 一般 nullable ABI 和普通 is 条件后端支持必须逐源采证，不能由前端绿推定已支持。
+
+## 8. 普通 downstream 首轮采证
+
+固定 `2690dafc` 四源码双入口全部通过 complete 与 ownership 后在 lower 停止；
+唯一 exact 实际 1 命中行为红，8 个结果在断言前完整保留，尚未到 LLVM。
+enum normal/break 均在普通 `current is Shape.A` 返回 UnsupportedNode；
+nullable continue 的 single 在局部 nullable 初始化返回 UnsupportedNode，
+unit 在 `current = null` 返回 MissingFact；nullable return 两入口返回 InvalidSsa。
+这些是不同的实际停点，不能统一解释为 while true-edge proof 缺失。
+收据 SHA `3bb47b4a3ac385bfaa219a1dbd66ab96a688222d73fb65da14586e8fc2a72054`。
+下一定位片仅在既有 verify 失败路径以 cfg(test) 打印真实错误与 SSA；不修改事实、
+验证次数或错误传播。定位后撤下该临时追踪，再以普通源码回归验收。
