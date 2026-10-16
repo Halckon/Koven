@@ -1,7 +1,7 @@
 //! Ordinary-source Range value ABI probes; no fabricated facts or native execution.
 use super::{
     lower_frontend::orchestrate::lower_scalar_file,
-    model::Program,
+    model::{EntityId, Operation, Ownership, Program, SsaTypeKind},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{declaration, parsed},
@@ -115,7 +115,118 @@ fn collect_sources(sources: &[String]) -> Vec<Result<Program, String>> {
 fn verified(result: Result<Program, String>) -> Program {
     let program = result.expect("real Range value source must reach SSA");
     verify_program(&program).expect("ordinary source SSA verifies");
+    let mut operations = 0;
+    for module in &program.modules {
+        for function in &module.functions {
+            for instruction in &function.instructions {
+                let range_value = match instruction.operation {
+                    Operation::IntegerRangeConstruct { first, bound, .. } => {
+                        let [EntityId::Value(range)] = instruction.results.as_slice() else {
+                            panic!("one Range value result");
+                        };
+                        let range_type = function
+                            .entity(EntityId::Value(*range))
+                            .unwrap()
+                            .ty
+                            .semantic_type();
+                        let endpoint = module
+                            .integer_range_endpoint(range_type)
+                            .expect("registered Range identity");
+                        assert_eq!(
+                            function
+                                .entity(EntityId::Value(first))
+                                .unwrap()
+                                .ty
+                                .semantic_type(),
+                            endpoint
+                        );
+                        assert_eq!(
+                            function
+                                .entity(EntityId::Value(bound))
+                                .unwrap()
+                                .ty
+                                .semantic_type(),
+                            endpoint
+                        );
+                        *range
+                    }
+                    Operation::IntegerRangeContains { range, .. } => range,
+                    Operation::IntegerRangeEqual { left, .. } => left,
+                    _ => continue,
+                };
+                operations += 1;
+                let ty = function
+                    .entity(EntityId::Value(range_value))
+                    .unwrap()
+                    .ty
+                    .semantic_type();
+                let endpoint = module
+                    .integer_range_endpoint(ty)
+                    .expect("registered numeric Range");
+                assert!(matches!(
+                    module.type_kind(endpoint),
+                    Some(SsaTypeKind::Integer {
+                        bits: 32 | 64,
+                        signed: true
+                    })
+                ));
+                assert_eq!(module.type_ownership(ty), Some(Ownership::Copyable));
+                assert!(module.valid_integer_range_type(ty, endpoint));
+            }
+        }
+    }
+    assert!(operations > 0);
     program
+}
+
+fn assert_operand_call_identities(program: &Program) {
+    let mut matched = 0;
+    for module in &program.modules {
+        for function in &module.functions {
+            let contains =
+                function
+                    .instructions
+                    .iter()
+                    .find_map(|instruction| match instruction.operation {
+                        Operation::IntegerRangeContains { value, range } => Some((value, range)),
+                        _ => None,
+                    });
+            let Some((value, range)) = contains else {
+                continue;
+            };
+            let calls = function
+                .instructions
+                .iter()
+                .filter_map(|instruction| match instruction.operation {
+                    Operation::DirectCall { callee, .. } => {
+                        Some((callee, instruction.results.as_slice()))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            matched += 1;
+            assert_eq!(calls.len(), 3);
+            assert_eq!(calls[0].0, calls[1].0);
+            assert_ne!(calls[0].0, calls[2].0);
+            assert_eq!(calls[0].1, &[EntityId::Value(value)]);
+            let construct = function
+                .instructions
+                .iter()
+                .find(|instruction| instruction.results == [EntityId::Value(range)])
+                .unwrap();
+            let Operation::IntegerRangeConstruct {
+                first,
+                bound,
+                inclusive: false,
+            } = construct.operation
+            else {
+                panic!("membership RHS is half-open constructor");
+            };
+            assert_eq!(calls[1].1, &[EntityId::Value(first)]);
+            assert_eq!(calls[2].1, &[EntityId::Value(bound)]);
+        }
+    }
+    assert_eq!(matched, 1);
 }
 
 #[test]
@@ -170,12 +281,13 @@ fn range_operand_calls_and_outer_join_reach_verified_llvm() {
     for (integer, range) in [("Int", "IntRange"), ("Long", "LongRange")] {
         sources.push(format!("fun entry(a: {integer}, b: {integer}, flag: Boolean): {range} {{ val live = \"live\".clone(); val first = a..<b; val second = b..<a; val chosen = if (flag) first else second; println(live); return chosen }}"));
     }
-    for result in collect_sources(&sources) {
+    for (index, result) in collect_sources(&sources).into_iter().enumerate() {
         let program = verified(result);
+        if index < 4 {
+            assert_operand_call_identities(&program);
+        }
         let rendered = render_program(&program);
         println!("CALL ORDER SSA {rendered}");
-        // Initial lower-gap oracle; exact call/result identities will be locked with the new op.
-        assert!(rendered.contains("call"));
         println!("STAGE LLVM");
         let llvm =
             crate::llvm::render_verified_program(&program).expect("real Range LLVM verifies");
