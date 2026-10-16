@@ -131,3 +131,19 @@ fn unused_range_environment_seeds_do_not_block_ordinary_lowering() {
         assert!(llvm.contains("define"));
     }
 }
+
+#[test]
+fn numeric_iteration_stops_at_explicit_pending_backend_boundary() {
+    let mut observed = Vec::new();
+    for range in ["IntRange", "LongRange"] {
+        for unit in [false, true] {
+            observed.push(lower_source(&format!("fun entry(value: {range}): Unit {{ for (item in value) {{ val copy = item }} }}"), unit));
+        }
+    }
+    for result in observed {
+        let error = result
+            .err()
+            .expect("numeric provider backend remains pending");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    }
+}
