@@ -192,3 +192,18 @@ proof 新增 when 源码缺分支分隔符，#11 在 parse 前置失败；该项
 single 三元 metadata 普通回归成立；unit 空表 scaffold 没有 proof 出生，
 其普通绿仅证明空态回归，不能证明非空关联或尚未构造回边的有效性。
 本次先修 when fixture 分支换行；null expected 的受限 storage fallback 单独审查。
+
+固定 `a6e7b75b` 的 metadata17-v2，各 exact 实际 1 命中、77 输入逐轮前后同。
+八个旧 nullable/assignment 回归与末两 FE exact 通过；FE 正向八入口和邻控十六入口
+完整断言通过。新增 expected fallback 仅当前 stable symbol 的真实 nullable storage、
+active fact 与实际 inner read 一致时用于裸 null，不改收窄 read 或一般 null 推导。
+七个 proof exact 仍在正例 lower 要求处行为红；其先行精确负控已执行通过。
+修正 when 分隔符后，21 源码双入口 42 观察完整：35 lower、4 complete、2 ownership
+拒绝和原 single owner-return 一个 SSA/LLVM 成功；同根只读内层与 pending-field
+内层已越过原 L0083 前置，不能因此称 while proof 已实现。收据 SHA
+`f56e8a69e9e002430e9f443440f92d606f77623b35c0ca16128e8ce91bb37d33`。
+同 head 四工程 fmt/check/clippy/build 全部 exit0、77 输入稳定，收据 SHA
+`b7f17a7f8b3cd8e0770f3f57a8816daadae5741e58a3d8a478d794f6ca92f7f5`。
+本阶段 single metadata 保留真实 owner/inner/loan 配对；unit 仅空表运输 scaffold，
+没有新增 proof 出生。后续必须核实际 NullableBranch 出生、非空运输和回边关联、
+活跃子 loan、各出口与 owner 替换失效；当前仍不计 native、最终 CI 或本片完成。
