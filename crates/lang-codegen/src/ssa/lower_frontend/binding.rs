@@ -102,14 +102,14 @@ impl ExpressionLowerer<'_> {
 impl ExpressionLowerer<'_> {
     pub(super) fn deliver_assignment_rhs(
         &mut self,
-        operator: lang_frontend::ast::AssignmentOperator,
+        operator: AssignmentOperator,
         expression: ExpressionId,
         assigned: LoweredValue,
         span: Span,
     ) {
         // The original assignment installs this exact value. Deliver its owner just
         // as a local initializer does; do not change adaptation or rejection rules.
-        if operator == lang_frontend::ast::AssignmentOperator::Assign
+        if operator == AssignmentOperator::Assign
             && let LoweredValue::Value(owner) = assigned
             && let Some(template) = self.typed.expression_type(expression)
             && let Ok(concrete) = self.resolve_type(template, span)
