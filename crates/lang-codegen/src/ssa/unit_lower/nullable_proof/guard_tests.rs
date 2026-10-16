@@ -23,12 +23,15 @@ pub(in crate::ssa::unit_lower) fn install_birth(
     root: UnitSymbolId,
     live: &[UnitSymbolId],
 ) -> Birth {
-    let (scope, span) = lowerer
+    // AST arena order is child-first: a nested readonly while may precede
+    // the outer while that actually creates the proof. Match source facts to
+    // real NullableBranch births, rather than selecting the first same-root AST.
+    let births = lowerer
         .parsed
         .ast()
         .statements()
         .iter()
-        .find_map(|(id, node)| {
+        .filter_map(|(id, node)| {
             let Statement::While { condition, .. } = node.payload() else {
                 return None;
             };
@@ -38,28 +41,29 @@ pub(in crate::ssa::unit_lower) fn install_birth(
             (descriptor.symbol() == root)
                 .then_some((UnitStatementId::new(lowerer.source_unit, id), node.span()))
         })
-        .unwrap();
-    let (header, owner, edge) = lowerer
-        .function
-        .blocks
-        .iter()
-        .find_map(|block| {
-            let term = block.terminator.as_ref()?;
-            let TerminatorKind::NullableBranch {
-                owner,
-                when_non_null,
-                ..
-            } = &term.kind
-            else {
-                return None;
-            };
-            (term.origin == Origin::Source(span)).then_some((
-                block.id,
-                *owner,
-                when_non_null.clone(),
-            ))
+        .flat_map(|(scope, span)| {
+            lowerer.function.blocks.iter().filter_map(move |block| {
+                let term = block.terminator.as_ref()?;
+                let TerminatorKind::NullableBranch {
+                    owner,
+                    when_non_null,
+                    ..
+                } = &term.kind
+                else {
+                    return None;
+                };
+                (term.origin == Origin::Source(span)).then_some((
+                    scope,
+                    span,
+                    block.id,
+                    *owner,
+                    when_non_null.clone(),
+                ))
+            })
         })
-        .unwrap();
+        .collect::<Vec<_>>();
+    assert_eq!(births.len(), 1, "one actual nullable birth for this root");
+    let (scope, span, header, owner, edge) = births.into_iter().next().unwrap();
     let column = edge
         .arguments
         .iter()
