@@ -144,3 +144,7 @@ SSA候选首次actualbase尺寸检查发现render.rs 1001>1000；独立抽出原
 receiver/live/pending均产出verified SSA；unit因body type plan未登记转换失败Boolean而
 MissingFact。第4首次实际进入LLVM并明确Unsupported。仅补真实CheckedConvert的Boolean
 类型登记，不改其它表达式推导；原日志保留，修后同6重新验证。
+
+`956da303`同6复验5绿1红，43输入前后同、各1命中；两入口128对SSA及receiver唯一call、
+live/pending普通样例通过，旧2边界到LLVM明确拒绝。第4实际LLVM Unsupported仍红，
+不计后端完整交付；carry仅限现样例与verifier/CFG，未宣称全部loan/owner组合覆盖。
