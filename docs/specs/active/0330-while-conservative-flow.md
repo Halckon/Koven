@@ -19,16 +19,18 @@
 或 break 推导事实，既有必须 kill 的来源仍失效，稳定不可变来源规则保留。
 零次执行与嵌套循环适用同一规则，不启用固定点、borrow var、完整 SSA 数据流或 NLL。
 
-## 2. 当前缺口与最小边界
+## 2. 实施前缺口与初始最小边界
 
 single `checker/item.rs` 的 While 与 unit `checker/control.rs::check_while_statement`
-当前只按 Boolean 检查条件再调用 body，未把条件 true facts 传入。复用现有 condition_facts、
+实施前只按 Boolean 检查条件再调用 body，未把条件 true facts 传入。复用现有 condition_facts、
 stable key、赋值/未知 call/capture 的 kill 规则；需在真实普通源码红证后冻结头部与出口策略。
 不能直接把 if 的 false 分支合并用于 while，也不能将本轮 body 末 facts 当下一轮入口。
 
-本片不改变 AST、ownership 借用规则、loop drop/SSA CFG、nullable ABI、Map、Range provider；
+初始前端片不改变 AST、ownership 借用规则、loop drop/SSA CFG、nullable ABI、Map、Range provider；
 不顺带修 0326 已认领的变量初始化 Nothing/falls-through 后继。若合法类型收窄暴露已有
 下游缺口，先记录精确源码与阶段，再按本片完整交付所需范围独立审查，不吞 gate。
+后续已按此流程补齐必要的 proof/carry/原清理事实消费接线，详见下方逐片实证；
+上述初始边界不应解读为最终实现未改 SSA 路径，Guide 与 verifier 合同保持原样。
 
 ## 3. 普通源码验收矩阵
 
@@ -670,3 +672,42 @@ remaining 首次缺已审 toolchain 环境，在输出目录/Cargo 前拦截，�
 现36成功/0lower/4complete/2ownership；六个负控仍为既定精确诊断断言。至此原普通
 正例矩阵闭合，CI-only 私有 guards、前端与后端最终同头统一验收、双平台 CI、完成
 PR 与正常合并仍待交付。本次仅阶段分支备份，不扩 Guide 或宣称完整 C 已完成。
+
+### 最终本地统一验收与 CI-only 私有防线
+
+固定 `eecede94011837654e2b559c17ff3c841ab48604`，tree
+`45d60612bf39740ca409b74150b62d7ac9122297`，179 输入逐项锁定并在每项运行前后核同。
+普通57 = FE13+nullable storage fallback2+后端36+原分类6，全部各实际1命中通过；
+收据 `501bad65b795d6d209d4228ad7b974048b0a577bbf8f3ea68f7f0a2bc9785355`。
+前端共享5仍按原 raw/typed.validate 范围记账，不冒称全部 complete；其余相应源码
+保留真实 complete/ownership/SSA/LLVM 与查询身份断言。原六分类38观察为
+32成功/0lower/4complete/2ownership，加同头 owner-return 四路为原42的
+36成功/0lower/4complete/2ownership，原 L0165/L0135 primary/label 负控未放宽。
+
+同头 bounded native12 全部各1通过，收据
+`ca7e2a1ae0801acd415b4eb31e2feae2fa4960d0b71c8c6c1ef7e6e5089175d9`；
+六份 fixture 的 single/project 值与清理输出均由既有严格 helper 断言，未另存独立
+子进程 stdout。工程 fmt/check/clippy/build 四原 argv 全 exit0，收据
+`76d624f188c570098d57db19a2592fed4cbf76336e3de3820e13fe0f16f8abaa`。
+静态收据 `6b331292f71954315cfae2865e8dac4b848fc4f73555e183a887821b485b3c2d`
+记录唯一成功 composition stub、docs701 与真实 main 基线 size 门通过；stub 只记
+命令并返回成功，不等同实际聚合 Cargo。stage 补入 while_flow_facts，110 个 stage
+目标、整体112个唯一目标且该 target 正好一次，补齐其10个 FE exact 的真实 CI 选择链。
+
+新增9个私有 CI-only exact 覆盖 single/unit proof、pending child、outer borrowed
+关系各两项，以及 single If/numeric/inner borrowed 清理各一项。真实普通产物先成功，
+从同一实际图恢复受限私有 checkpoint，再逐 fresh clone 变异并检查目标 guard；
+不是捕获完整运行时 Lowerer，也未新增公开 mutator 或 TLS hook。跨 crate sealed
+phi/条件 DAG 没有直接变异权限，相关候选使用真实 facts/私有 Plan 与 SSA 变异，
+不将此限制隐藏为完整 schema 损坏覆盖。numeric 未锚定 SCC 负控已排除早门遮蔽，
+pending 基线按全部真实前驱同步核 owner/parent/child 三列，不以分别同型可达代替。
+全部9项仅内容独审与本地编译通过，本地没有执行；须在真实双平台 CI 各实际1命中。
+最终选择表69个普通/native加9个 CI-only，共78个唯一三元组，定义及完整 cfg/path
+父链已反查，numeric 使用 carrier::tests 的实际注册路径。
+
+保留本阶段有限 check 的 E0596、缺 LoanId/模块路径及其级联错误，均为0测试；
+修复后 check 成功。首统一工程 fmt/check 成功，clippy 两个 unit guard 测试表达式
+报 unnecessary_literal_unwrap/manual_range_patterns，build 与后三组未运行；
+仅等价改写 Entity/Some 与范围匹配后重冻为上述实跑头，原失败未被改记为绿。
+本节只闭合最终本地统一验收。双平台 CI 的9个私有负控行为、实现头与归档头 CI、
+PR 正常合并及真实 main 核验仍待；当前不迁移 Spec、不改 Guide、不宣布完整 C 完成。
