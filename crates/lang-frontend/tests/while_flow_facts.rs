@@ -11,18 +11,26 @@ use lang_frontend::{
     parser::{Expression, ParsedFile, parse_file},
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, CompilationUnitTypes, FinalTypeAdmissionError, TypeId, TypeKind, TypedFile,
-        UnitExpressionId, UnitTypeId, UnitTypeKind, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, complete_file_types, standard_environments,
+        BuiltinType, CompilationUnitTypes, DeferredReason, FinalTypeAdmissionError, TypeId,
+        TypeKind, TypedFile, UnitExpressionId, UnitTypeId, UnitTypeKind,
+        check_compilation_unit_types, check_types, complete_compilation_unit_types,
+        complete_file_types, standard_environments,
     },
 };
+
+#[path = "while_flow_facts/null_comparison_fallback.rs"]
+mod null_comparison_fallback;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Shape {
     Int,
     NullableInt,
+    Boolean,
+    Nominal,
+    NullableNominal,
     Unit,
     Error,
+    Deferred(DeferredReason),
     Other,
 }
 
@@ -73,14 +81,28 @@ struct MarkObservation {
     nodes: Vec<(Span, NodeKind, Option<Shape>)>,
 }
 
-#[derive(Debug)]
 struct TypeObservation {
     marks: Vec<MarkObservation>,
+    comparisons: Vec<null_comparison_fallback::ComparisonObservation>,
     raw: Vec<Diagnostic>,
     raw_after_complete: Vec<Diagnostic>,
     primary_text: Vec<String>,
     // 成功时同时验证 complete 仍指向原始分析，不能靠另一轮分析通过。
     complete: Result<bool, FinalTypeAdmissionError>,
+}
+
+// 旧八项 exact 的输出格式不变；新增比较事实由新增 exact 单独完整输出。
+impl std::fmt::Debug for TypeObservation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TypeObservation")
+            .field("marks", &self.marks)
+            .field("raw", &self.raw)
+            .field("raw_after_complete", &self.raw_after_complete)
+            .field("primary_text", &self.primary_text)
+            .field("complete", &self.complete)
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -94,6 +116,7 @@ struct Observation {
 fn single_shape(typed: &TypedFile, id: TypeId) -> Shape {
     match typed.types().get(id) {
         Some(TypeKind::Builtin(BuiltinType::Int)) => Shape::Int,
+        Some(TypeKind::Builtin(BuiltinType::Boolean)) => Shape::Boolean,
         Some(TypeKind::Builtin(BuiltinType::Unit)) => Shape::Unit,
         Some(TypeKind::Nullable(inner))
             if typed.types().get(*inner) == Some(&TypeKind::Builtin(BuiltinType::Int)) =>
@@ -101,6 +124,13 @@ fn single_shape(typed: &TypedFile, id: TypeId) -> Shape {
             Shape::NullableInt
         }
         Some(TypeKind::Error) => Shape::Error,
+        Some(TypeKind::Nominal { .. }) => Shape::Nominal,
+        Some(TypeKind::Nullable(inner))
+            if matches!(typed.types().get(*inner), Some(TypeKind::Nominal { .. })) =>
+        {
+            Shape::NullableNominal
+        }
+        Some(TypeKind::Deferred(reason)) => Shape::Deferred(*reason),
         _ => Shape::Other,
     }
 }
@@ -108,6 +138,7 @@ fn single_shape(typed: &TypedFile, id: TypeId) -> Shape {
 fn unit_shape(typed: &CompilationUnitTypes, id: UnitTypeId) -> Shape {
     match typed.types().get(id) {
         Some(UnitTypeKind::Builtin(BuiltinType::Int)) => Shape::Int,
+        Some(UnitTypeKind::Builtin(BuiltinType::Boolean)) => Shape::Boolean,
         Some(UnitTypeKind::Builtin(BuiltinType::Unit)) => Shape::Unit,
         Some(UnitTypeKind::Nullable(inner))
             if typed.types().get(*inner) == Some(&UnitTypeKind::Builtin(BuiltinType::Int)) =>
@@ -115,6 +146,16 @@ fn unit_shape(typed: &CompilationUnitTypes, id: UnitTypeId) -> Shape {
             Shape::NullableInt
         }
         Some(UnitTypeKind::Error) => Shape::Error,
+        Some(UnitTypeKind::Nominal { .. }) => Shape::Nominal,
+        Some(UnitTypeKind::Nullable(inner))
+            if matches!(
+                typed.types().get(*inner),
+                Some(UnitTypeKind::Nominal { .. })
+            ) =>
+        {
+            Shape::NullableNominal
+        }
+        Some(UnitTypeKind::Deferred(reason)) => Shape::Deferred(*reason),
         _ => Shape::Other,
     }
 }
@@ -182,6 +223,14 @@ fn primary_text(sources: &SourceMap, diagnostics: &[Diagnostic]) -> Vec<String> 
 
 // 此处不作成功断言。基础设施错误也作为 observation 返回，避免第一例失败遮住后续证据。
 fn observe(case: &Case, unit_mode: bool) -> Result<Observation, String> {
+    observe_with_comparisons(case, unit_mode, false)
+}
+
+fn observe_with_comparisons(
+    case: &Case,
+    unit_mode: bool,
+    collect_comparisons: bool,
+) -> Result<Observation, String> {
     let mut sources = SourceMap::new();
     let source = sources
         .add_source("main.ko", case.text)
@@ -224,6 +273,11 @@ fn observe(case: &Case, unit_mode: bool) -> Result<Observation, String> {
             });
             Ok(TypeObservation {
                 marks,
+                comparisons: if collect_comparisons {
+                    null_comparison_fallback::observe_unit(&file, &names, &typed, unit)
+                } else {
+                    Vec::new()
+                },
                 primary_text: primary_text(&sources, &raw),
                 raw,
                 raw_after_complete: typed.diagnostics().to_vec(),
@@ -248,6 +302,11 @@ fn observe(case: &Case, unit_mode: bool) -> Result<Observation, String> {
                 });
             Ok(TypeObservation {
                 marks,
+                comparisons: if collect_comparisons {
+                    null_comparison_fallback::observe_single(&file, &names, &typed)
+                } else {
+                    Vec::new()
+                },
                 primary_text: primary_text(&sources, &raw),
                 raw,
                 raw_after_complete: typed.diagnostics().to_vec(),
