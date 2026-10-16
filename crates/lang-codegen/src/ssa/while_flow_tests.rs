@@ -332,8 +332,10 @@ fn bounded_pending_child_fixture_reaches_verified_llvm_before_native() {
 
 #[test]
 fn bounded_if_retest_fixture_reaches_verified_llvm_before_native() {
-    let source =
-        include_str!("../../../lang-cli/tests/fixtures/while-flow-0330/retest.ko").to_owned();
+    let source = format!(
+        "{}\nfun entry(): Unit = main()\n",
+        include_str!("../../../lang-cli/tests/fixtures/while-flow-0330/retest.ko"),
+    );
     let outcomes = collect_sources(&[source])
         .into_iter()
         .enumerate()
