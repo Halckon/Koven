@@ -7,7 +7,6 @@ use crate::ssa::model::Operation;
 
 impl ExpressionLowerer<'_> {
     pub(super) fn emit_drops(&mut self, point: DropPoint) -> Result<(), LoweringError> {
-        self.end_result_bindings(point)?;
         let facts = self
             .owned
             .drops()
@@ -15,7 +14,16 @@ impl ExpressionLowerer<'_> {
             .copied()
             .filter(|fact| fact.point() == point)
             .collect::<Vec<_>>();
-        for fact in facts {
+        self.preflight_nullable_if_cleanup_groups(&facts)?;
+        self.end_result_bindings(point)?;
+        let mut index = 0;
+        while index < facts.len() {
+            if let Some(consumed) = self.emit_nullable_if_cleanup_group(&facts[index..])? {
+                index += consumed;
+                continue;
+            }
+            let fact = facts[index];
+            index += 1;
             // Generic ownership facts precede monomorphization. A concrete Copyable
             // instance has no drop obligation; keep its binding/aliases intact.
             let template = match fact.target() {
