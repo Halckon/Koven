@@ -321,36 +321,4 @@ impl BodyChecker<'_> {
         )?;
         Ok(self.error_type())
     }
-
-    fn join_control_types(&self, left: UnitTypeId, right: UnitTypeId) -> Option<UnitTypeId> {
-        if left == right {
-            return Some(left);
-        }
-        if self.is_builtin(left, BuiltinType::Nothing) {
-            return Some(right);
-        }
-        if self.is_builtin(right, BuiltinType::Nothing) {
-            return Some(left);
-        }
-        match (
-            self.signatures.types().get(left),
-            self.signatures.types().get(right),
-        ) {
-            (Some(UnitTypeKind::Error), _) => Some(right),
-            (_, Some(UnitTypeKind::Error)) => Some(left),
-            (Some(UnitTypeKind::Nullable(_)), _) if self.assignable(right, left) => Some(left),
-            (_, Some(UnitTypeKind::Nullable(_))) if self.assignable(left, right) => Some(right),
-            (Some(UnitTypeKind::EnumCase { root, .. }), _) if *root == right => Some(right),
-            (_, Some(UnitTypeKind::EnumCase { root, .. })) if left == *root => Some(left),
-            (
-                Some(UnitTypeKind::EnumCase {
-                    root: left_root, ..
-                }),
-                Some(UnitTypeKind::EnumCase {
-                    root: right_root, ..
-                }),
-            ) if left_root == right_root => Some(*left_root),
-            _ => None,
-        }
-    }
 }

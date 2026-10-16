@@ -99,9 +99,7 @@ impl Checker<'_> {
             (false, true) => else_facts,
             (false, false) => baseline,
         };
-        let ty = if self.is_deferred(then_result.ty) || self.is_deferred(else_result.ty) {
-            self.deferred(DeferredReason::ControlJoin)
-        } else if let Some(join) = self.join(then_result.ty, else_result.ty) {
+        let ty = if let Some(join) = self.join_control_types(then_result.ty, else_result.ty) {
             join
         } else {
             let primary = else_span.unwrap_or(self.ast().statements().get(else_branch)?.span());

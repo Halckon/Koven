@@ -514,77 +514,55 @@ impl BodyChecker<'_> {
         entries: &[WhenEntry],
         branches: &[ExpressionCheck],
     ) -> Result<UnitTypeId, CompilationUnitTypeError> {
-        let mut joined = None;
-        for (entry, branch) in entries.iter().zip(branches) {
-            if self.is_error(branch.ty) {
+        let mut joined: Option<(UnitTypeId, usize)> = None;
+        let mut failed = false;
+        for (index, (entry, branch)) in entries.iter().zip(branches).enumerate() {
+            if self.is_error(branch.ty) || failed {
                 continue;
             }
-            joined = Some(match joined {
-                None => branch.ty,
-                Some(current) => match self.join_when_types(current, branch.ty) {
-                    Some(ty) => ty,
-                    None => {
-                        let primary = self
-                            .file(source)
-                            .ast()
-                            .statements()
-                            .get(entry.body)
-                            .map_err(TypeCheckingError::from)?
-                            .span();
-                        let first = self
-                            .file(source)
-                            .ast()
-                            .statements()
-                            .get(entries[0].body)
-                            .map_err(TypeCheckingError::from)?
-                            .span();
-                        self.emit_maybe_label(
-                            codes::WHEN_BRANCH_TYPE,
-                            "when branches do not have a legal common type",
-                            primary,
-                            Some(first),
-                            format!("first branch has type {}", self.type_name(current)),
-                        )?;
-                        self.error_type()
-                    }
-                },
-            });
-        }
-        Ok(joined.unwrap_or_else(|| self.builtin(BuiltinType::Unit)))
-    }
-
-    fn join_when_types(&self, left: UnitTypeId, right: UnitTypeId) -> Option<UnitTypeId> {
-        if left == right {
-            return Some(left);
-        }
-        if self.is_builtin(left, BuiltinType::Nothing) {
-            return Some(right);
-        }
-        if self.is_builtin(right, BuiltinType::Nothing) {
-            return Some(left);
-        }
-        match (
-            self.signatures.types().get(left),
-            self.signatures.types().get(right),
-        ) {
-            (Some(UnitTypeKind::Error), _) => Some(right),
-            (_, Some(UnitTypeKind::Error)) => Some(left),
-            (Some(UnitTypeKind::Nullable(_)), _) if self.assignable(right, left) => Some(left),
-            (_, Some(UnitTypeKind::Nullable(_))) if self.assignable(left, right) => Some(right),
-            (Some(UnitTypeKind::EnumCase { root, .. }), _) if *root == right => Some(right),
-            (_, Some(UnitTypeKind::EnumCase { root, .. })) if left == *root => Some(left),
-            (
-                Some(UnitTypeKind::EnumCase {
-                    root: left_root, ..
-                }),
-                Some(UnitTypeKind::EnumCase {
-                    root: right_root, ..
-                }),
-            ) if left_root == right_root => Some(*left_root),
-            _ if !self.is_deferred(left) && !self.is_deferred(right) => {
-                Some(self.builtin(BuiltinType::Any))
+            let Some((current, origin)) = joined else {
+                joined = Some((branch.ty, index));
+                continue;
+            };
+            if let Some(ty) = self.join_control_types(current, branch.ty) {
+                let origin = if self.is_builtin(current, BuiltinType::Nothing) && ty != current {
+                    index
+                } else {
+                    origin
+                };
+                joined = Some((ty, origin));
+            } else {
+                let primary = self
+                    .file(source)
+                    .ast()
+                    .statements()
+                    .get(entry.body)
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                let first = self
+                    .file(source)
+                    .ast()
+                    .statements()
+                    .get(entries[origin].body)
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                self.emit_maybe_label(
+                    codes::WHEN_BRANCH_TYPE,
+                    "when branches do not have a legal common type",
+                    primary,
+                    Some(first),
+                    format!(
+                        "previous branches have common type {}",
+                        self.type_name(current)
+                    ),
+                )?;
+                failed = true;
             }
-            _ => None,
         }
+        Ok(if failed {
+            self.error_type()
+        } else {
+            joined.map_or_else(|| self.builtin(BuiltinType::Unit), |(ty, _)| ty)
+        })
     }
 }

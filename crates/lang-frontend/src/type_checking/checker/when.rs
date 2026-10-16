@@ -571,48 +571,42 @@ impl Checker<'_> {
         entries: &[WhenEntry],
         branches: &[StatementCheck],
     ) -> Result<TypeId, TypeCheckingError> {
-        let mut joined = None;
-        for (entry, branch) in entries.iter().zip(branches) {
-            if self.is_error(branch.ty) {
+        let mut joined: Option<(TypeId, usize)> = None;
+        let mut failed = false;
+        for (index, (entry, branch)) in entries.iter().zip(branches).enumerate() {
+            if self.is_error(branch.ty) || failed {
                 continue;
             }
-            joined = Some(match joined {
-                None => branch.ty,
-                Some(current) => match self.join_when_types(current, branch.ty) {
-                    Some(ty) => ty,
-                    None => {
-                        self.emit_with_label(
-                            self.when_branch_type_code,
-                            "when branches do not have a legal common type",
-                            self.ast().statements().get(entry.body)?.span(),
-                            self.ast().statements().get(entries[0].body)?.span(),
-                            format!("first branch has type {}", self.type_name(current)),
-                        )?;
-                        self.error_type()
-                    }
-                },
-            });
-        }
-        Ok(joined.unwrap_or_else(|| self.builtin(BuiltinType::Unit)))
-    }
-
-    fn join_when_types(&mut self, left: TypeId, right: TypeId) -> Option<TypeId> {
-        if let Some(joined) = self.join(left, right) {
-            return Some(joined);
-        }
-        let root = |kind: &TypeKind| match kind {
-            TypeKind::EnumCase { root, .. } => Some(*root),
-            _ => None,
-        };
-        match (root(self.kind(left)), root(self.kind(right))) {
-            (Some(left_root), Some(right_root)) if left_root == right_root => Some(left_root),
-            (Some(root), None) if root == right => Some(root),
-            (None, Some(root)) if root == left => Some(root),
-            _ if !self.is_deferred(left) && !self.is_deferred(right) => {
-                Some(self.builtin(BuiltinType::Any))
+            let Some((current, origin)) = joined else {
+                joined = Some((branch.ty, index));
+                continue;
+            };
+            if let Some(ty) = self.join_control_types(current, branch.ty) {
+                let origin = if self.is_builtin(current, BuiltinType::Nothing) && ty != current {
+                    index
+                } else {
+                    origin
+                };
+                joined = Some((ty, origin));
+            } else {
+                self.emit_with_label(
+                    self.when_branch_type_code,
+                    "when branches do not have a legal common type",
+                    self.ast().statements().get(entry.body)?.span(),
+                    self.ast().statements().get(entries[origin].body)?.span(),
+                    format!(
+                        "previous branches have common type {}",
+                        self.type_name(current)
+                    ),
+                )?;
+                failed = true;
             }
-            _ => None,
         }
+        Ok(if failed {
+            self.error_type()
+        } else {
+            joined.map_or_else(|| self.builtin(BuiltinType::Unit), |(ty, _)| ty)
+        })
     }
 }
 
