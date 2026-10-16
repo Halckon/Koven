@@ -84,3 +84,16 @@ kill、零轮/false/break 不新增事实及不可变外层事实对照均保留
 body 使用条件求值后的有效 baseline 与有序 true facts，出口只保留该头基线。
 共享 AND/OR 的右执行路径扣除右侧写入后再合事实；短路恢复也扣除右潜在写入，
 unit 显式 inout 调用边界与 single 对齐。不扩大 unknown-call 全清或 stable/capture 资格。
+
+## 7. 有限前端阶段验收
+
+固定 `09e6fd27` 的 13 个普通 exact 各实际 1 命中绿，27 输入逐轮前后 SHA 相同。
+8 个本片 exact 包含 raw/complete 双入口，覆盖上述头/body/出口、AND/OR/inout 顺序、
+initializer 扫描、捕获资格及非法 RHS 诊断保全；5 个共享 exact 仅 raw/typed.validate
+回归，不将它们描述为 complete 或 ownership/native 验收。
+收据 SHA `83cd1deb0672f25aeefcec59666e0f8b40dc7080a94c9e247eadf37aade88016`；
+四工程 fmt/check workspace all-targets/clippy 三包 all-targets/build CLI 均实际 exit0，
+收据 SHA `86646148d6e3b285759893a7d8b9516fc0031227b89119068a84dd70792ae677`。
+实际 main 尺寸门禁与 docs 检查通过，历史三组行为红及全部原始观察留仓外。
+此包只作已授权阶段备份，仍 active；普通 lower/LLVM、CLI/native 与完整 CI 待后续。
+一般 nullable ABI 和普通 is 条件后端支持必须逐源采证，不能由前端绿推定已支持。

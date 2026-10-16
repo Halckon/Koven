@@ -19,6 +19,13 @@ raw检查保留recovery，旧validate边界不变；`complete_file_types` / `com
 两入口将同expression已选EnumCase构造归为Temporary，Group透传；Name/Member拼写不授予place，真实binding/field不变。
 final仅沿已选case的静态qualifier准入；无descriptor的零payload推导失败须原typed L0144、case Value引用与raw失败表示共同证明，仍保留失败资格及独立根诊断。覆盖见`enum_case_borrow_categories`，不扩展enum when或泛型enum native。
 
+## while 保守流事实
+
+两入口先扣除 condition/body 实际求值 AST 中潜在 assignment/inout 的稳定来源，再以
+有序条件 true facts 检查 body；出口不加入 false/break 新事实。共享 AND/OR 与短路恢复
+按右路径潜在写入失效，unit 显式 inout 调用边界同步 kill；捕获/stable eligibility 不扩张。
+[0330](../specs/active/0330-while-conservative-flow.md)当前仅有限前端验收，native/CI 待验。
+
 ## 数值字面量解码
 
 `type_checking::integer_literal_magnitude` 为单文件/unit 类型检查、常量求值、元素索引身份与
