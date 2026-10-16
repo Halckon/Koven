@@ -82,3 +82,11 @@ Error/Deferred与实际冲突label五项；enum结果与各入口真实typed Typ
 不跨入口比较ID，不依赖Debug文本判断enum身份。原ordinary error control使用 `1 + true`，
 不把names失败作为类型红证。null/null、全不返回及复杂调用/return/lambda语境仍待补齐；
 本批未运行，整个A尚不具备生产准入。
+
+
+第二批 `920c1f6a` 的5 exact各1命中，11输入不变：expected/statement两控制绿，
+enum/Deferred/conflict三红。single nullable enum首分支误Any、反序正确，unit两序正确；
+Nothing/Error前缀when仍Any。Int?的postfix ?最终真实L0085，是非法operand对照；
+父if raw改写为ControlJoin虽真实，但原测试预期L0165不适合该源码。保留原raw并改用
+显式Result参数补锁Deferred源根，nullable非法操作数另锁L0085，不放宽final admission。
+仓外 `spec0326-evidence/next5-receipt.json` 保留逐项事实；未到达的断言不称通过。
