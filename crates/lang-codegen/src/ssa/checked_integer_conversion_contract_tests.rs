@@ -41,54 +41,74 @@ fn fixture(source: SsaTypeKind, results: Vec<SsaTypeKind>) -> Program {
     program
 }
 
-#[test]
-fn checked_conversion_rejects_invalid_integer_and_result_contracts() {
-    let integer = SsaTypeKind::Integer {
+fn integer() -> SsaTypeKind {
+    SsaTypeKind::Integer {
         bits: 32,
         signed: true,
-    };
-    let invalid = [
-        (
-            SsaTypeKind::Boolean,
-            vec![integer.clone(), SsaTypeKind::Boolean],
-        ),
-        (
-            SsaTypeKind::Integer {
-                bits: 128,
-                signed: true,
-            },
-            vec![integer.clone(), SsaTypeKind::Boolean],
-        ),
-        (
-            integer.clone(),
-            vec![SsaTypeKind::Char, SsaTypeKind::Boolean],
-        ),
-        (
-            integer.clone(),
-            vec![
-                SsaTypeKind::Integer {
-                    bits: 7,
-                    signed: false,
-                },
-                SsaTypeKind::Boolean,
-            ],
-        ),
-        (integer.clone(), vec![integer.clone()]),
-        (
-            integer.clone(),
-            vec![integer.clone(), SsaTypeKind::Boolean, SsaTypeKind::Boolean],
-        ),
-        (integer.clone(), vec![integer.clone(), integer]),
-    ];
-    for (source, results) in invalid {
-        let errors =
-            verify_program(&fixture(source, results)).expect_err("invalid conversion contract");
-        assert!(
-            errors
-                .errors
-                .iter()
-                .any(|error| matches!(error.kind, VerifyErrorKind::OperationContract { .. })),
-            "{errors:?}"
-        );
     }
+}
+
+fn assert_invalid(source: SsaTypeKind, results: Vec<SsaTypeKind>) {
+    let errors =
+        verify_program(&fixture(source, results)).expect_err("invalid conversion contract");
+    assert!(
+        errors
+            .errors
+            .iter()
+            .any(|error| matches!(error.kind, VerifyErrorKind::OperationContract { .. })),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn rejects_boolean_source() {
+    assert_invalid(SsaTypeKind::Boolean, vec![integer(), SsaTypeKind::Boolean]);
+}
+
+#[test]
+fn rejects_non_language_integer_source() {
+    assert_invalid(
+        SsaTypeKind::Integer {
+            bits: 128,
+            signed: true,
+        },
+        vec![integer(), SsaTypeKind::Boolean],
+    );
+}
+
+#[test]
+fn rejects_char_target() {
+    assert_invalid(integer(), vec![SsaTypeKind::Char, SsaTypeKind::Boolean]);
+}
+
+#[test]
+fn rejects_non_language_integer_target() {
+    assert_invalid(
+        integer(),
+        vec![
+            SsaTypeKind::Integer {
+                bits: 7,
+                signed: false,
+            },
+            SsaTypeKind::Boolean,
+        ],
+    );
+}
+
+#[test]
+fn rejects_missing_failure_result() {
+    assert_invalid(integer(), vec![integer()]);
+}
+
+#[test]
+fn rejects_extra_result() {
+    assert_invalid(
+        integer(),
+        vec![integer(), SsaTypeKind::Boolean, SsaTypeKind::Boolean],
+    );
+}
+
+#[test]
+fn rejects_non_boolean_failure_result() {
+    assert_invalid(integer(), vec![integer(), integer()]);
 }
