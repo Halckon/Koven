@@ -118,10 +118,8 @@ fn observe_text(text: &str, root: &str) -> Vec<Observation> {
             .ast()
             .type_refs()
             .iter()
-            .filter_map(|(type_ref, node)| {
-                (typed.type_ref_type(type_ref) == typed.expression_type(id))
-                    .then(|| sources.slice(node.span()).unwrap().to_owned())
-            })
+            .filter(|&(type_ref, _)| typed.type_ref_type(type_ref) == typed.expression_type(id))
+            .map(|(_, node)| sources.slice(node.span()).unwrap().to_owned())
             .collect(),
         node_spans: file
             .ast()
@@ -190,11 +188,11 @@ fn observe_text(text: &str, root: &str) -> Vec<Observation> {
             .ast()
             .type_refs()
             .iter()
-            .filter_map(|(type_ref, node)| {
-                (typed.type_ref_type(UnitTypeRefId::new(unit, type_ref))
-                    == typed.expression_type(UnitExpressionId::new(unit, id)))
-                .then(|| sources.slice(node.span()).unwrap().to_owned())
+            .filter(|&(type_ref, _)| {
+                typed.type_ref_type(UnitTypeRefId::new(unit, type_ref))
+                    == typed.expression_type(UnitExpressionId::new(unit, id))
             })
+            .map(|(_, node)| sources.slice(node.span()).unwrap().to_owned())
             .collect(),
         node_spans: file
             .ast()
