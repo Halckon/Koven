@@ -166,7 +166,7 @@ MapResult已有presence/payload布局实际承载Range get/remove，found后参�
 get missing、remove缺失及已有key移出后二次remove。requireValue保持显式borrow val再Copyable读取；
 构造/比较在辅助函数的Unit入口已通。原同函数包含Binary的四条源码仍因旧borrow-result全函数gate
 结构化Unsupported，作为后继borrow控制流责任保留，不以Range名称放宽；普通val直绑四例唯一L0163。
-一般Range?参数/返回/null八入口仍Unsupported；unit真实nullable表达式补intern仅修MissingFact，
+一般Range?参数/局部null八入口仍Unsupported；unit真实nullable表达式补intern仅修MissingFact，
 既有MapResult cache优先，不开启通用nullable ABI。数值Range for仍由本片作者另Spec继续认领。
 
 阶段9adc backend8各1全绿（收据877dcc10…392b0），Linux云两native入口严格68行断言成立；
