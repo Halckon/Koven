@@ -434,13 +434,34 @@ fn written_same_root_nested_while_retires_outer_and_rebirths_inner_proof() {
     };
     let continued_group = grouped(&continued);
     let normal_group = grouped(&normal);
-    observe(
-        "written-rebirth",
-        &[
-            (continued, false),
-            (normal, false),
-            (continued_group, false),
-            (normal_group, false),
-        ],
-    );
+    let sources = [continued, normal, continued_group, normal_group];
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 8);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            println!(
+                "WRITTEN NESTED source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    for (index, result) in outcomes.into_iter().enumerate() {
+        let program =
+            result.expect("head-killed inner guard safely retires then rebinds its proof");
+        written_nested_contract::assert_reborn_proof(&program, &sources[index / 2], index % 2 == 1);
+    }
 }
+
+#[path = "written_nested_contract.rs"]
+mod written_nested_contract;
