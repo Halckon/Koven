@@ -2,8 +2,11 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前本树无 active Spec。[0325简单变量赋值](../../archive/specs/0325-simple-variable-assignment-types.md)
-已按PR111实施head双宿主21exact与CI有界归档；归档head CI及main交付待核。
+当前本树无active Spec。[0326封闭分支类型合并](../../archive/specs/0326-closed-control-branch-join.md)
+已按合B后联合CI双host39exact有界归档；归档head CI/main交付待验。
+
+[0325简单变量赋值](../../archive/specs/0325-simple-variable-assignment-types.md)已按双host21exact与CI有界归档，
+归档head CI通过并由PR111正常合入main `aa42bdc5`；main CI另行核验。
 
 [0324用户诊断措辞](../../archive/specs/0324-final-admission-user-messages.md)已按整合head双宿主20精确目标与CI有限归档，归档head CI/main交付待核。
 

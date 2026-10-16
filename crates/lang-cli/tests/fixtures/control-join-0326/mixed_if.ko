@@ -1,0 +1,4 @@
+fun main(): Unit {
+    val flag = true
+    val result = if (flag) 1 else "text"
+}

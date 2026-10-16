@@ -156,16 +156,30 @@ fn implicit_unused_lambda_parameter_and_known_when_join_match_single_file() {
     let (ne, te) = standard_environments();
     let names = resolve_names(&sources, &file, &ne).unwrap();
     let single = check_types(&sources, &file, &names, &te).unwrap();
-    assert!(
-        single.diagnostics().is_empty(),
-        "{:?}",
-        single.diagnostics()
+    assert_eq!(
+        single
+            .diagnostics()
+            .iter()
+            .map(|d| d.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0112"]
     );
     let inputs = [SourceUnitInput::new("root", "parity.ko", source, &file)];
     let unit_names = validated_names(&sources, &inputs, &ne);
     let unit = source_unit(&unit_names, source);
     let typed = check_compilation_unit_types(&sources, &inputs, &unit_names, &te).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(
+        typed
+            .diagnostics()
+            .iter()
+            .map(|d| d.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0112"]
+    );
+    assert_eq!(
+        single.diagnostics()[0].primary_span(),
+        typed.diagnostics()[0].primary_span()
+    );
     let lambda = expression_with_text(&sources, &file, "{ 1 }");
     assert!(
         matches!(single.types().get(single.expression_type(lambda).unwrap()), Some(TypeKind::Function { parameters, return_type, .. }) if parameters.len() == 1 && parameters[0].mode == ParameterMode::Borrow && single.types().get(parameters[0].ty) == Some(&TypeKind::Builtin(BuiltinType::Int)) && single.types().get(*return_type) == Some(&TypeKind::Builtin(BuiltinType::Int)))
@@ -195,7 +209,7 @@ fn implicit_unused_lambda_parameter_and_known_when_join_match_single_file() {
     let when = when_expressions(&file)[0];
     assert_eq!(
         single.types().get(single.expression_type(when).unwrap()),
-        Some(&TypeKind::Builtin(BuiltinType::Any))
+        Some(&TypeKind::Error)
     );
     assert_eq!(
         typed.types().get(
@@ -203,7 +217,7 @@ fn implicit_unused_lambda_parameter_and_known_when_join_match_single_file() {
                 .expression_type(UnitExpressionId::new(unit, when))
                 .unwrap()
         ),
-        Some(&UnitTypeKind::Builtin(BuiltinType::Any))
+        Some(&UnitTypeKind::Error)
     );
-    assert!(typed.validate().is_ok());
+    assert!(typed.validate().is_err());
 }

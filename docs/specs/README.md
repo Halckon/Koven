@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树 0 份；0325已按实施CI有界归档，独立0326分支不在本树。
+- [Active 合同](active/README.md)：当前本树 0 份，0326已联合验收归档；0325已归档并由PR111正常合入main `aa42bdc5`。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -66,7 +66,9 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 ### 近期交付
 
-- [0325](../archive/specs/0325-simple-variable-assignment-types.md)：[PR111实施CI](https://github.com/Halckon/Koven/actions/runs/38834828940/attempts/1)15实际success、1路径skip、非复用，双host21exact各1通过；仅简单变量赋值与readonly义务，归档head CI/main仍待。
+- [0326](../archive/specs/0326-closed-control-branch-join.md)：[PR112联合CI](https://github.com/Halckon/Koven/actions/runs/38838072417/attempts/1)15实际success、1路径skip、非复用，双host39exact各1通过；封闭join有界归档，声明终止性后继仍由作者跟踪，归档head CI/main待验。
+
+- [0325](../archive/specs/0325-simple-variable-assignment-types.md)：[PR111实施CI](https://github.com/Halckon/Koven/actions/runs/38834828940/attempts/1)15实际success、1路径skip、非复用，双host21exact各1通过；仅简单变量赋值与readonly义务；归档head CI通过并由PR111合入main `aa42bdc5`，main CI另核。
 
 - [0324](../archive/specs/0324-final-admission-user-messages.md)：[PR109整合CI](https://github.com/Halckon/Koven/actions/runs/38734960861/attempts/1)15实际success、1范围skip、非复用，双宿主20精确目标逐项通过；只改用户措辞并保留0323修复，归档head CI/main交付待核。
 
