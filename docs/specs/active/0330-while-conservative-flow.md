@@ -370,3 +370,28 @@ compound 精确拒绝均通过；原十八回归含 owner-return 保持绿。
 借用两路、pending 子 loan 跨只读 control 两路、写后 if 重检两路、numeric for
 继承两路、borrowed for 内外 scope 四路。仍须独立验证根因与逐项闭合；本阶段仅
 分支备份，native/完整 CI 与完成 PR 尚待，不降低最终 while 合同。
+
+### 普通 owned-local 字段 Borrow 对齐阶段
+
+于 `d984067f` 采独立首红：原 broken、直接及 Group 三源码的 single 均在字段处
+Unsupported，unit 三路 SSA/LLVM 已成功；六观察先收齐，收据 SHA
+`caaadd6d4509e16a1d45ea7266a2d0dbddefce37a81ea0bbdeee03770da4cbac`。
+新增 single 路由仅接真实一级非泛型 owned-local Class 字段，核 LoanFact 根/字段、
+projection、HeapOwner payload 布局后生成 HeapPayloadPlace→FieldPlace，沿原调用
+生成和结束唯一 Shared loan。直接查询既有 owner binding，避免提前执行 receiver
+AfterExpression；未引入父 loan、String 复制或 nullable proof 借用扩围。
+
+固定 `ce70c763` 普通 22 exact 各 1 实跑通过，94 输入前后稳定，收据 SHA
+`e95579e977075587cf9bd0112b21c20806c61e9fb024abafc12eb8afcad4f248`。
+新增正例六入口均 SSA/内存 LLVM 成功，并锁真实字段 place→BorrowBegin→PrintString
+→BorrowEnd→原 owner Drop 的身份和顺序；十二个 Unsupported 边界控制通过，
+覆盖 nested/generic/inline/owned parameter 及 sibling exclusive 两种顺序，未称精确 span。
+首次 wrapper 缺少已审工具链环境，被 runner 在 Cargo/输出目录前阻断，零测试执行；
+补齐原环境后正式采证，旧日志保留，不算代码行为红。
+同 head 其余六组二绿四行为红、38 观察为 20/12/4/2；加 owner-return 四路，
+原 42 为 24 成功、12 lower、4 complete、2 ownership。分类收据 SHA
+`be3e677e4ddb7fe2bd851504feb4f80da4017c023448d3f6a639fd7e6e51511b`。
+四工程原命令全部 exit0、94 输入稳定，收据 SHA
+`5404891124fb0e1410f79f18ccec12f0750bb7730f4827277f4cf30dc2ae988f`。
+下一依赖仍为 nullable String 字段子 loan、pending child、写后 if 重检及两类 for
+继承；本阶段仅分支备份，native/完整 CI/完成 PR 仍待。
