@@ -28,11 +28,17 @@ fn observe(group: &str, cases: &[(String, bool)]) {
             result
         })
         .collect::<Vec<_>>();
-    for (index, result) in outcomes.into_iter().enumerate() {
+    // Check the observed rejection controls before a still-red positive can stop this exact.
+    for (index, result) in outcomes.iter().enumerate() {
         if cases[index / 2].1 {
-            let error = result.expect_err("stale read or conflicting child must be rejected");
-            assert_rejection(group, &cases[index / 2].0, index % 2 == 1, &error);
-        } else {
+            let error = result
+                .as_ref()
+                .expect_err("stale read or conflicting child must be rejected");
+            assert_rejection(group, &cases[index / 2].0, index % 2 == 1, error);
+        }
+    }
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if !cases[index / 2].1 {
             result.expect("ordinary nullable while proof reaches verified SSA and LLVM");
         }
     }
