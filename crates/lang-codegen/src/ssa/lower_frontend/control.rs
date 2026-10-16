@@ -742,38 +742,7 @@ impl ExpressionLowerer<'_> {
                 .get(&(tagged, case.id()))
                 .copied()
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, node.span()))?;
-            let integer = self.ssa_builtin(lang_frontend::type_checking::BuiltinType::Int, span)?;
-            let boolean =
-                self.ssa_builtin(lang_frontend::type_checking::BuiltinType::Boolean, span)?;
-            let (_, tag) = self.append(
-                Operation::TaggedDiscriminant { owner },
-                vec![EntityType::Value(integer)],
-                span,
-            )?;
-            let (_, expected) = self.append(
-                Operation::Constant(ScalarConstant::Integer(variant as i128)),
-                vec![EntityType::Value(integer)],
-                span,
-            )?;
-            let (_, matches) = self.append(
-                Operation::Compare {
-                    operator: ComparisonOperator::Equal,
-                    left: value(tag[0]),
-                    right: value(expected[0]),
-                },
-                vec![EntityType::Value(boolean)],
-                span,
-            )?;
-            let matches = value(matches[0]);
-            if !negated {
-                return Ok(matches);
-            }
-            let (_, result) = self.append(
-                Operation::BooleanNot { operand: matches },
-                vec![EntityType::Value(boolean)],
-                span,
-            )?;
-            return Ok(value(result[0]));
+            return self.lower_enum_tag_test(owner, variant, *negated, span);
         }
         let WhenCondition::Expression(expression) = condition else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));

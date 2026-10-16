@@ -19,6 +19,7 @@ mod control;
 mod deinit;
 mod deinit_borrow;
 mod enum_lower;
+mod enum_type_test;
 mod field_borrow;
 mod field_replace;
 mod handoff;
@@ -286,6 +287,7 @@ impl UnitExpressionLowerer<'_> {
             Expression::This => self.lower_this(expression, span),
             Expression::Group { expression } => self.lower(*expression),
             Expression::NonNullAssert { .. } => self.lower_non_null_assertion(expression, span),
+            Expression::TypeTest { .. } => self.lower_enum_type_test(expression, span),
             Expression::Call {
                 callee, arguments, ..
             } => self.lower_call(expression, *callee, arguments, span),

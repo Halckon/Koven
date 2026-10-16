@@ -16,7 +16,7 @@ use lang_frontend::{
 use super::{
     LoweredValue, UnitExpressionLowerer, builtin_type,
     cfg::{BranchExit, carried_control_edge},
-    lowering_error, require_value, resolve_concrete_type,
+    lowering_error, resolve_concrete_type,
     type_lower::is_supported_storage_type,
 };
 use crate::ssa::{
@@ -672,56 +672,7 @@ impl UnitExpressionLowerer<'_> {
                 .get(&(tagged, case.type_symbol()))
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            let integer = self.ssa_builtin(BuiltinType::Int, span)?;
-            let boolean = self.ssa_builtin(BuiltinType::Boolean, span)?;
-            let (_, tag) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::TaggedDiscriminant { owner },
-                    vec![EntityType::Value(integer)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let (_, expected) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::Constant(ScalarConstant::Integer(
-                        i128::try_from(variant)
-                            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?,
-                    )),
-                    vec![EntityType::Value(integer)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let (_, matches) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::Compare {
-                        operator: ComparisonOperator::Equal,
-                        left: require_value(tag[0], span)?,
-                        right: require_value(expected[0], span)?,
-                    },
-                    vec![EntityType::Value(boolean)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let matches = require_value(matches[0], span)?;
-            if !negated {
-                return Ok(matches);
-            }
-            let (_, results) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::BooleanNot { operand: matches },
-                    vec![EntityType::Value(boolean)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            return require_value(results[0], span);
+            return self.lower_enum_tag_test(owner, variant, *negated, span);
         }
         let WhenCondition::Expression(expression) = condition else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));

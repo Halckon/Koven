@@ -140,3 +140,31 @@ fun entry(own initial: Holder?): Unit {
     }
     // This exact records actual phase boundaries; success means observation only.
 }
+
+#[test]
+fn enum_type_tests_preserve_last_use_cleanup_for_owned_roots() {
+    let sources = ["subject is Shape.A", "subject !is Shape.A", "(subject) is Shape.A", "(subject) !is Shape.A"]
+        .map(|condition| format!(
+            "enum class Shape {{ A(value: String), B }}\nfun entry(own subject: Shape): Boolean = {condition}"
+        ));
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 8);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("ENUM LAST USE LLVM case={index} {llvm}");
+                Ok(())
+            });
+            println!("ENUM LAST USE OUTCOME case={index} {result:?}");
+            result
+        })
+        .collect::<Vec<_>>();
+    for result in outcomes {
+        result.expect("ordinary enum test reads tag before final owner cleanup");
+    }
+}

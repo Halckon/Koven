@@ -13,6 +13,7 @@ mod control;
 mod declarations;
 mod drops;
 mod enum_condition;
+mod enum_type_test;
 mod field_replace;
 mod instances;
 mod integer;
@@ -208,6 +209,7 @@ impl ExpressionLowerer<'_> {
             Expression::Lambda { .. } => self.lower_source_closure(expression, span),
             Expression::Name => self.lower_name(expression, span),
             Expression::NonNullAssert { .. } => self.lower_non_null_assertion(expression, span),
+            Expression::TypeTest { .. } => self.lower_enum_type_test(expression, span),
             Expression::Group { expression } => self.lower(expression),
             Expression::Prefix {
                 operator, operand, ..
