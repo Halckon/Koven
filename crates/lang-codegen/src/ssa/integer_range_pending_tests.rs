@@ -1,4 +1,4 @@
-//! Ordinary Range source reaches a structured boundary while its value ABI is pending.
+//! Ordinary Range storage reaches its value ABI; independent nullable use stays bounded.
 use super::{
     LoweringError, LoweringErrorKind,
     lower_frontend::orchestrate::lower_scalar_file,

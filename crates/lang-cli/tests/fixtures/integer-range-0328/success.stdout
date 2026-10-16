@@ -19,6 +19,8 @@ i-get
 i-missing
 i-remove
 i-removed
+i-remove-again-missing
+i-remove-never-present
 i-first
 i-last
 i-order
@@ -53,6 +55,8 @@ l-get
 l-missing
 l-remove
 l-removed
+l-remove-again-missing
+l-remove-never-present
 l-first
 l-last
 l-order
