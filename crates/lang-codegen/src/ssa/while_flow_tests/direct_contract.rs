@@ -17,12 +17,18 @@ fn assert_proof(program: &Program, case: usize, unit: bool) {
         if unit {
             // Unit names include source-qualified declaration identities.
             // This fixture has exactly one function with a nullable guard.
-            function.blocks.iter().any(|block| {
-                matches!(
-                    block.terminator.as_ref().map(|term| &term.kind),
-                    Some(TerminatorKind::NullableBranch { .. })
-                )
-            })
+            function
+                .name
+                .strip_prefix("koven.p.entry.d")
+                .is_some_and(|index| {
+                    !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit())
+                })
+                && function.blocks.iter().any(|block| {
+                    matches!(
+                        block.terminator.as_ref().map(|term| &term.kind),
+                        Some(TerminatorKind::NullableBranch { .. })
+                    )
+                })
         } else {
             function.name == "entry"
         }
