@@ -44,6 +44,11 @@ pub(crate) enum Operation {
         left: ValueId,
         right: ValueId,
     },
+    /// Returns target-typed value and Boolean failure. Failed values have no semantic value.
+    /// Bounds use the original mathematical operand; lowering routes failure to Abort.
+    CheckedIntegerConvert {
+        operand: ValueId,
+    },
     /// Exact-width integer operations; shift counts are masked by width - 1.
     IntegerBitwise {
         operator: IntegerBitwiseOperator,
@@ -524,7 +529,9 @@ impl Operation {
             Self::SharedReborrow { source } | Self::SharedReferenceFollow { source } => {
                 vec![EntityId::Loan(*source)]
             }
-            Self::BooleanNot { operand } | Self::IntegerNot { operand } => {
+            Self::BooleanNot { operand }
+            | Self::IntegerNot { operand }
+            | Self::CheckedIntegerConvert { operand } => {
                 vec![EntityId::Value(*operand)]
             }
             Self::Copy { source } => vec![EntityId::Value(*source)],

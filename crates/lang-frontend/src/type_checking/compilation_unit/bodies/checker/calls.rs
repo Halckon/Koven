@@ -62,7 +62,7 @@ impl BodyChecker<'_> {
         )? {
             return Ok(result);
         }
-        if let Some(result) = self.check_integer_inv_call(
+        if let Some(result) = self.check_integer_operation_call(
             source,
             expression,
             call_span,
