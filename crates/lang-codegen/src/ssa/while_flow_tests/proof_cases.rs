@@ -252,13 +252,7 @@ fun entry(own initial: Holder?, flag: Boolean): Int {
 
 #[test]
 fn owner_transfer_and_other_owner_assertion_preserve_cleanup() {
-    let transfer = r#"class Holder(val value: Int)
-fun entry(own initial: Holder?): Holder? {
-    var current: Holder? = initial
-    while (current != null) { return current }
-    return null
-}"#
-    .to_owned();
+    let transfer = owner_return_source();
     let assertion = r#"class Holder(val value: Int)
 fun entry(own initial: Holder?, own other: Holder?): Int {
     var current: Holder? = initial
@@ -334,3 +328,46 @@ fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>
 
 #[path = "direct_contract.rs"]
 mod direct_contract;
+
+fn owner_return_source() -> String {
+    r#"class Holder(val value: Int)
+fun entry(own initial: Holder?): Holder? {
+    var current: Holder? = initial
+    while (current != null) { return current }
+    return null
+}"#
+    .to_owned()
+}
+
+#[test]
+fn nullable_owner_return_retires_proof_without_rewrapping_storage() {
+    let source = owner_return_source();
+    let grouped = source.replace("return current", "return ((current))");
+    let sources = [source, grouped];
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 4);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            println!(
+                "OWNER RETURN source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    for result in outcomes {
+        direct_contract::assert_owner_return(
+            &result.expect("original nullable owner safely returned"),
+        );
+    }
+}

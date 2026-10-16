@@ -249,3 +249,77 @@ fn only<T>(mut iterator: impl Iterator<Item = T>) -> T {
     assert!(iterator.next().is_none(), "identity must be unique");
     value
 }
+
+pub(super) fn assert_owner_return(program: &Program) {
+    let module = only(program.modules.iter());
+    let function = only(module.functions.iter().filter(|function| {
+        function.blocks.iter().any(|block| {
+            matches!(
+                block.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::NullableBranch { .. })
+            )
+        })
+    }));
+    let header = only(function.blocks.iter().filter(|block| {
+        matches!(
+            block.terminator.as_ref().map(|term| &term.kind),
+            Some(TerminatorKind::NullableBranch { .. })
+        )
+    }));
+    let TerminatorKind::NullableBranch {
+        owner,
+        when_null,
+        when_non_null,
+        view,
+    } = &header.terminator.as_ref().unwrap().kind
+    else {
+        unreachable!()
+    };
+    let body = function.block(when_non_null.target).unwrap();
+    let column = only(
+        when_non_null
+            .arguments
+            .iter()
+            .enumerate()
+            .filter_map(|(index, entity)| (*entity == EntityId::Value(*owner)).then_some(index)),
+    );
+    let EntityId::Value(body_owner) = body.parameters[column] else {
+        panic!("real true-edge owner")
+    };
+    assert_eq!(body.parameters.last(), Some(&EntityId::Loan(*view)));
+    assert!(!when_null.arguments.contains(&EntityId::Loan(*view)));
+    let EntityType::Value(nullable) = function.entity(EntityId::Value(*owner)).unwrap().ty else {
+        panic!("nullable owner")
+    };
+    let Some(SsaTypeKind::NullableHandle { inner }) = module.type_kind(nullable) else {
+        panic!("nullable storage")
+    };
+    assert!(matches!(
+        module.type_kind(*inner),
+        Some(SsaTypeKind::HeapOwner { .. })
+    ));
+    assert_eq!(
+        function.entity(EntityId::Value(body_owner)).unwrap().ty,
+        EntityType::Value(nullable)
+    );
+    assert_eq!(
+        function.entity(EntityId::Loan(*view)).unwrap().ty,
+        EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: *inner
+        }
+    );
+    let end = only(function.instructions.iter().filter(|instruction| matches!(instruction.operation, Operation::BorrowEnd { loan } if loan == *view)));
+    assert_eq!(end.block, body.id);
+    assert!(body.instructions.contains(&end.id));
+    assert!(
+        matches!(&body.terminator.as_ref().unwrap().kind, TerminatorKind::Return { values } if values.as_slice() == [body_owner])
+    );
+    for instruction in &function.instructions {
+        assert!(!matches!(instruction.operation, Operation::Drop { owner } if owner == body_owner));
+        assert!(!matches!(
+            instruction.operation,
+            Operation::NullableTake { .. } | Operation::NullableWrap { .. }
+        ));
+    }
+}
