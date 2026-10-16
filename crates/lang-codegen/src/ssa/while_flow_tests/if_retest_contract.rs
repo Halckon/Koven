@@ -415,36 +415,20 @@ fn trace(
             } else {
                 match instruction.operation {
                     Operation::BorrowEnd { loan } if state.view == Some(loan) => {
-                        if state.second.is_none() {
-                            assert!(state.first.is_some());
-                            assert!(!state.old_ended);
-                            state.old_ended = true;
-                            trace.old_ends.insert(*id);
+                        if let Some(second) = state.second {
+                            assert_eq!(state.read, second);
+                            assert_eq!(state.if_ended, second);
+                            assert!(!state.if_dropped);
+                            state.if_dropped = true;
+                            state.owner = None;
+                            trace.if_drops.insert(*id);
                         } else {
-                            assert_eq!(state.second, Some(true));
-                            assert!(state.read, "field read precedes If-view retirement");
-                            assert!(!state.if_ended);
-                            state.if_ended = true;
-                            trace.if_ends.insert(*id);
-                        }
-                        state.view = None;
-                    }
-                    Operation::Drop { owner } if state.owner == Some(owner) => {
-                        assert_eq!(state.view, None, "end the paired proof before owner drop");
-                        if state.second.is_none() {
                             assert_eq!(state.first, Some(true));
                             assert!(state.old_ended);
                             assert!(!state.old_dropped);
                             state.old_dropped = true;
                             state.owner = state.replacement.take();
                             trace.old_drops.insert(*id);
-                        } else {
-                            assert_eq!(state.read, state.second.unwrap());
-                            assert_eq!(state.if_ended, state.second.unwrap());
-                            assert!(!state.if_dropped);
-                            state.if_dropped = true;
-                            state.owner = None;
-                            trace.if_drops.insert(*id);
                         }
                     }
                     _ => {}
