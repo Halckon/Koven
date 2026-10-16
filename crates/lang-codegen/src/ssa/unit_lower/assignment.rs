@@ -163,6 +163,7 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        self.reject_live_while_proof(symbol, span)?;
         self.bindings.insert(symbol, assigned);
         Ok(LoweredValue::Unit)
     }

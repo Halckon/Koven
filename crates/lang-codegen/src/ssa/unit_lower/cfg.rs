@@ -67,7 +67,7 @@ pub(super) struct CarriedBinding {
 
 #[derive(Clone)]
 pub(super) struct CarriedAccess {
-    nullable_proofs: Vec<(UnitSymbolId, super::nullable_proof::NullableProof)>,
+    nullable_proofs: Vec<nullable::CarriedNullableProof>,
     range_sources: Vec<(UnitSymbolId, usize)>,
     captures: Vec<(UnitExpressionId, usize)>,
     symbol: Option<UnitSymbolId>,
@@ -283,6 +283,7 @@ impl UnitExpressionLowerer<'_> {
                 });
             }
         }
+        self.bind_nullable_columns(bindings, loans, span)?;
         Ok(())
     }
 
@@ -550,6 +551,17 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
         }
+        let source_offset =
+            first.pending_operands.len() + first.temporaries.len() + first.capture_loans.len();
+        let proof_offset = source_offset + range::keys(&first.result_source_loans).len();
+        self.validate_nullable_merge_columns(
+            &exits,
+            &edge_arguments,
+            &value_symbols,
+            usize::from(result_type.is_some()) + usize::from(first.receiver.is_some()),
+            &pending_indices[proof_offset..],
+            span,
+        )?;
         let merge = self
             .function
             .add_block(parameter_types, Origin::Source(span))
@@ -598,9 +610,6 @@ impl UnitExpressionLowerer<'_> {
                 Ok((*key, loan))
             })
             .collect::<Result<_, _>>()?;
-        let source_offset =
-            first.pending_operands.len() + first.temporaries.len() + first.capture_loans.len();
-        let proof_offset = source_offset + range::keys(&first.result_source_loans).len();
         self.result_source_loans = range::rebind(
             &first.result_source_loans,
             pending_indices[source_offset..proof_offset]
@@ -785,10 +794,10 @@ impl UnitExpressionLowerer<'_> {
                     .map(EntityId::Loan)
             } else if let Some(key) = slot.captures.first() {
                 state.capture_loans.get(key).copied().map(EntityId::Loan)
-            } else if let Some((root, _)) = slot.nullable_proofs.first() {
+            } else if let Some(role) = slot.nullable_proofs.first() {
                 state
                     .nullable_proofs
-                    .get(root)
+                    .get(&role.root)
                     .map(|proof| EntityId::Loan(proof.loan))
             } else {
                 slot.pending
@@ -821,10 +830,10 @@ impl UnitExpressionLowerer<'_> {
             }) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
-            if slot.nullable_proofs.iter().any(|(root, _)| {
+            if slot.nullable_proofs.iter().any(|role| {
                 state
                     .nullable_proofs
-                    .get(root)
+                    .get(&role.root)
                     .map(|proof| EntityId::Loan(proof.loan))
                     != Some(entity)
             }) {
@@ -832,6 +841,7 @@ impl UnitExpressionLowerer<'_> {
             }
             arguments.push(entity);
         }
+        self.validate_nullable_edge_columns(carried, loans, state, &arguments, span)?;
         Ok(Edge { target, arguments })
     }
 

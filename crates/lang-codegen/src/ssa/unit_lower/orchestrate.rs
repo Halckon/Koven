@@ -395,6 +395,7 @@ pub(super) fn lower_unit_from_facts(
         };
         let mut bindings = BTreeMap::new();
         let mut borrow_bindings = BTreeMap::new();
+        let mut entry_boolean_roots = std::collections::BTreeSet::new();
         for (symbol, entity) in plan
             .parameter_symbols
             .into_iter()
@@ -405,6 +406,13 @@ pub(super) fn lower_unit_from_facts(
                     bindings.insert(symbol, LoweredValue::Value(value));
                 }
                 EntityId::Loan(loan) => {
+                    if matches!(function.entity(entity).map(|data| data.ty),
+                        Some(EntityType::Loan { kind: LoanKind::Shared, target })
+                            if matches!(module.types.get(target.index()),
+                                Some(crate::ssa::model::SsaTypeKind::Boolean)))
+                    {
+                        entry_boolean_roots.insert(symbol);
+                    }
                     borrow_bindings.insert(symbol, loan);
                 }
                 EntityId::Place(_) => {
@@ -441,6 +449,7 @@ pub(super) fn lower_unit_from_facts(
             block,
             bindings,
             borrow_bindings,
+            entry_boolean_roots,
             nullable_proofs: BTreeMap::new(),
             map_borrow_guards: BTreeMap::new(),
             result_source_loans: BTreeMap::new(),
@@ -565,6 +574,7 @@ pub(super) fn lower_unit_from_facts(
             block,
             bindings: BTreeMap::new(),
             borrow_bindings: BTreeMap::new(),
+            entry_boolean_roots: std::collections::BTreeSet::new(),
             nullable_proofs: BTreeMap::new(),
             map_borrow_guards: BTreeMap::new(),
             result_source_loans: BTreeMap::new(),

@@ -43,6 +43,7 @@ mod scalar;
 mod string_clone;
 mod type_lower;
 mod type_plan;
+mod while_proof;
 
 pub(crate) use handoff::lower_owned_unit_with_entry;
 #[cfg_attr(
@@ -179,6 +180,7 @@ struct UnitExpressionLowerer<'a> {
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
     map_borrow_guards:
         BTreeMap<UnitSymbolId, lang_frontend::type_checking::UnitNullComparisonDescriptor>,
@@ -440,6 +442,7 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.end_thunk_capture_views(span)?;
+        self.retire_while_proofs(true, span)?;
         let values = self.return_values(result, span)?;
         self.function
             .set_terminator(

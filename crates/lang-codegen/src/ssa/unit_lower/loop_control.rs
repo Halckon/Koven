@@ -2,6 +2,7 @@
 
 mod iteration;
 mod iteration_cleanup;
+mod nullable_while;
 mod numeric_iteration;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -30,6 +31,7 @@ struct LoopJump {
 }
 
 pub(super) struct LoopContext {
+    proof_scope: Option<UnitStatementId>,
     iteration: Option<iteration::IterationContext>,
     header: BlockId,
     carried: Vec<CarriedBinding>,
@@ -45,6 +47,14 @@ pub(super) struct LoopContext {
 }
 
 impl UnitExpressionLowerer<'_> {
+    pub(super) fn current_while_proof_scope(&self) -> Option<UnitStatementId> {
+        self.loops.last().and_then(|context| context.proof_scope)
+    }
+
+    pub(super) fn has_iteration_context(&self) -> bool {
+        self.loops.iter().any(|context| context.iteration.is_some())
+    }
+
     pub(super) fn lower_while(
         &mut self,
         statement: StatementId,
@@ -52,6 +62,10 @@ impl UnitExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_nested_while_proof(span)?;
+        if let Some(descriptor) = self.direct_nullable_while_condition(condition, span)? {
+            return self.lower_direct_nullable_while(statement, condition, body, descriptor, span);
+        }
         if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -162,6 +176,7 @@ impl UnitExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_nested_while_proof(span)?;
         if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -229,6 +244,7 @@ impl UnitExpressionLowerer<'_> {
             self.source_unit,
             expression,
         )))?;
+        self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, true)?;
         let jump = self.current_jump(span)?;
         self.loops
@@ -261,6 +277,7 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.advance_iteration(span)?;
+        self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, false)?;
         let jump = self.current_jump(span)?;
         self.loops
@@ -276,12 +293,14 @@ impl UnitExpressionLowerer<'_> {
         baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
         span: Span,
     ) -> Result<LoopContext, LoweringError> {
+        self.reject_nested_while_proof(span)?;
         let mut carried = self.carried_bindings(baseline, span)?;
         let mut loans = self.carried_loans(&self.borrow_bindings, span)?;
         self.carry_pending_operands(&mut carried, &mut loans, span)?;
         self.separate_loop_pending_copies(&mut carried, span)?;
         let header = self.add_carried_control_block(&carried, &loans, span)?;
         Ok(LoopContext {
+            proof_scope: None,
             iteration: None,
             header,
             carried,
@@ -370,6 +389,7 @@ impl UnitExpressionLowerer<'_> {
 
     fn record_natural_continue(&mut self, span: Span) -> Result<(), LoweringError> {
         self.advance_iteration(span)?;
+        self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, false)?;
         let jump = self.current_jump(span)?;
         self.loops

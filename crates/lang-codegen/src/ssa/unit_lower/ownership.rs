@@ -139,6 +139,7 @@ impl UnitExpressionLowerer<'_> {
         value: ValueId,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.reject_live_while_proof(symbol, span)?;
         match self.bindings.remove(&symbol) {
             Some(LoweredValue::Value(bound)) if bound == value => {
                 self.closure_bindings.remove(&symbol);
@@ -303,6 +304,9 @@ impl UnitExpressionLowerer<'_> {
             if concrete != template && self.typed.copyability(concrete) == Copyability::Copyable {
                 return Ok(());
             }
+        }
+        if let UnitDropTarget::Named(symbol) = fact.target() {
+            self.end_while_proof(symbol, fact.value_origin())?;
         }
         let owner = match fact.target() {
             UnitDropTarget::This(owner) => match self.current_receiver.take() {
@@ -511,6 +515,7 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             };
+            self.end_while_proof(symbol, span)?;
             let Some(binding) = self.bindings.remove(&symbol) else {
                 self.closure_bindings.remove(&symbol);
                 continue;
