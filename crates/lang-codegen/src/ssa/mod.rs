@@ -204,3 +204,6 @@ mod single_readonly_method_tests;
 
 #[cfg(test)]
 mod integer_range_pending_tests;
+
+#[cfg(test)]
+mod integer_range_value_tests;

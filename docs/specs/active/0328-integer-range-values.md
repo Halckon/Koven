@@ -171,3 +171,11 @@ ABI 完成前，lower 在规划前按真实类型使用与 descriptor 结构化�
 尚无 Range 的SSA值ABI、LLVM运算或native成功证据；CI亦未运行，Spec保持in-progress。
 后继必须验证普通存储位置与Map查询实际消费；Map专用presence/payload结果不等于一般nullable handle，
 独立Range?现有边界分账，不能笼统排除Map.get/remove或以丢弃返回值冒称完成。
+
+## 9. 后端首批普通源码采证
+
+三个独立exact先收齐两入口：构造/包含/相等40入口；局部、参数返回、字段、List及
+Map.requireValue/get/remove实际消费32入口；调用顺序与连续半开/外层join的SSA→LLVM8入口。
+逐源记录names、types、ownership、lower到达阶段；Map查询若前置拒绝单列，不用其他case覆盖。
+初始断言仅定位lower/LLVM缺口；注册身份、单次operand与实际PHI前驱待实现后收紧。
+仅真实前端→ownership→lower/verify及内存LLVM，不执行产物；for provider仍独立后继。
