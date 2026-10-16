@@ -12,7 +12,10 @@ pub(super) fn assert_half_open_cfg(llvm: &str, expected: usize) {
                 && let Some((label, _)) = line.split_once(':')
             {
                 current = Some(label);
-            } else if let Some(label) = current {
+            } else if let Some(label) = current
+                && !line.trim().is_empty()
+                && !line.trim().starts_with(';')
+            {
                 blocks.entry(label).or_default().push(line.trim());
             }
         }
