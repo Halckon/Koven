@@ -183,3 +183,12 @@ complete L0165，pending 字段借用期间写 owner 为 ownership L0135 并保�
 每组首个正例断言失败会遮住后续负控断言，完整观察不等于这些断言已通过。
 后续先审精确 owner/inner/loan 身份运输，再闭合每轮 proof 产生、嵌套继承、
 替换与各出口失效；本轮不执行 native，不改变已备份 enum/storage 生产。
+
+固定 `d351af61` 的 metadata17 采证：八个旧 nullable/assignment 普通回归全绿，
+新增 FE 正向四源码八入口因 L0083 真红，八邻控十六入口完整断言绿。
+proof 新增 when 源码缺分支分隔符，#11 在 parse 前置失败；该项不能计后端红，
+其他六组 34 观察保留实际阶段。收据 SHA
+`b95d39160c6950af24d5005362defde19e6c535bf0e67a4f71548d046c62c01c`。
+single 三元 metadata 普通回归成立；unit 空表 scaffold 没有 proof 出生，
+其普通绿仅证明空态回归，不能证明非空关联或尚未构造回边的有效性。
+本次先修 when fixture 分支换行；null expected 的受限 storage fallback 单独审查。
