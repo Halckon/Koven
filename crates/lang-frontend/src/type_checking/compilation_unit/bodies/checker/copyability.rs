@@ -51,7 +51,9 @@ impl CapabilityQuery<'_> {
                     | BuiltinType::Boolean
                     | BuiltinType::Char
                     | BuiltinType::Unit
-                    | BuiltinType::Nothing,
+                    | BuiltinType::Nothing
+                    | BuiltinType::IntRange
+                    | BuiltinType::LongRange,
                 )
                 | UnitTypeKind::IntegerLiteral(_),
             ) => Copyability::Copyable,
@@ -188,7 +190,9 @@ impl CapabilityQuery<'_> {
                     | BuiltinType::Char
                     | BuiltinType::String
                     | BuiltinType::Unit
-                    | BuiltinType::Nothing,
+                    | BuiltinType::Nothing
+                    | BuiltinType::IntRange
+                    | BuiltinType::LongRange,
                 )
                 | UnitTypeKind::IntegerLiteral(_),
             ) => UnitTransferability::Transferable,

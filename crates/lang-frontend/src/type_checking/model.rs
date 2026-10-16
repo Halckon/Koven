@@ -451,11 +451,15 @@ pub enum BuiltinType {
     Nothing,
     /// Top value type whose representation remains deferred.
     Any,
+    /// Ordinary stored value with signed 32-bit integer endpoints.
+    IntRange,
+    /// Ordinary stored value with signed 64-bit integer endpoints.
+    LongRange,
 }
 
 impl BuiltinType {
     /// 全部编译器内建类型的规范声明顺序。
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 18] = [
         Self::Byte,
         Self::Short,
         Self::Int,
@@ -472,6 +476,8 @@ impl BuiltinType {
         Self::Unit,
         Self::Nothing,
         Self::Any,
+        Self::IntRange,
+        Self::LongRange,
     ];
 
     /// 返回规范源码名称。
@@ -494,6 +500,8 @@ impl BuiltinType {
             Self::Unit => "Unit",
             Self::Nothing => "Nothing",
             Self::Any => "Any",
+            Self::IntRange => "IntRange",
+            Self::LongRange => "LongRange",
         }
     }
 }

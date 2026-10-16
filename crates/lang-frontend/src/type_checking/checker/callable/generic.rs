@@ -357,7 +357,9 @@ impl Checker<'_> {
                 | BuiltinType::Char
                 | BuiltinType::String
                 | BuiltinType::Unit
-                | BuiltinType::Nothing,
+                | BuiltinType::Nothing
+                | BuiltinType::IntRange
+                | BuiltinType::LongRange,
             )
             | TypeKind::IntegerLiteral(_) => Transferability::Transferable,
             TypeKind::Builtin(BuiltinType::Any) | TypeKind::Function { .. } => {

@@ -34,7 +34,9 @@ impl Checker<'_> {
                 | BuiltinType::Boolean
                 | BuiltinType::Char
                 | BuiltinType::Unit
-                | BuiltinType::Nothing,
+                | BuiltinType::Nothing
+                | BuiltinType::IntRange
+                | BuiltinType::LongRange,
             )
             | TypeKind::IntegerLiteral(_) => Copyability::Copyable,
             TypeKind::Builtin(BuiltinType::String | BuiltinType::Any)

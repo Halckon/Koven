@@ -526,7 +526,9 @@ impl SignatureCollector<'_> {
                 | BuiltinType::Boolean
                 | BuiltinType::Char
                 | BuiltinType::Unit
-                | BuiltinType::Nothing,
+                | BuiltinType::Nothing
+                | BuiltinType::IntRange
+                | BuiltinType::LongRange,
             )) => CapabilityState::Yes,
             Some(UnitTypeKind::Builtin(BuiltinType::String | BuiltinType::Any))
             | Some(UnitTypeKind::Function { .. })
@@ -597,7 +599,9 @@ impl SignatureCollector<'_> {
                 | BuiltinType::Char
                 | BuiltinType::String
                 | BuiltinType::Unit
-                | BuiltinType::Nothing,
+                | BuiltinType::Nothing
+                | BuiltinType::IntRange
+                | BuiltinType::LongRange,
             )) => CapabilityState::Yes,
             Some(UnitTypeKind::Builtin(BuiltinType::Any)) | Some(UnitTypeKind::Function { .. }) => {
                 CapabilityState::No
