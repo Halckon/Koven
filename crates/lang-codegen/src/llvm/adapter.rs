@@ -6,6 +6,7 @@ mod callable;
 mod constant;
 mod integer;
 mod integer_conversion;
+mod integer_range;
 mod map;
 mod module_lowering;
 mod range;
@@ -442,10 +443,16 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 left,
                 right,
             } => self.lower_checked(*operator, *left, *right, &results)?,
-            Operation::IntegerRangeConstruct { .. }
-            | Operation::IntegerRangeContains { .. }
-            | Operation::IntegerRangeEqual { .. } => {
-                return Err(unsupported("integer Range LLVM is pending"));
+            Operation::IntegerRangeConstruct {
+                first,
+                bound,
+                inclusive,
+            } => self.lower_integer_range_construct(*first, *bound, *inclusive, &results)?,
+            Operation::IntegerRangeContains { value, range } => {
+                self.lower_integer_range_contains(*value, *range, &results)?
+            }
+            Operation::IntegerRangeEqual { left, right } => {
+                self.lower_integer_range_equal(*left, *right, &results)?
             }
             Operation::CheckedIntegerConvert { operand } => {
                 self.lower_checked_integer_conversion(*operand, &results)?;
