@@ -48,7 +48,7 @@ fun broken(own initial: Holder?): Int {
     return total
 }
 
-fun returnOperand(value: Int): Int {
+fun returnOperand(own value: Int): Int {
     println("return.operand")
     return value
 }
