@@ -2,6 +2,9 @@
 use super::*;
 use crate::ssa::model::SsaTypeKind;
 
+#[cfg(test)]
+pub(super) mod guard_tests;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum NullableProofScope {
     If(UnitExpressionId),
