@@ -302,3 +302,32 @@ birth、inner 两边真实 owner/loan 列、两实际出口到 final-read join �
 `38e4ed9a23e9c86e057c34fb0b44a2909dd656a54c4b681184c3d0bc0b7458a0`。
 仍 active，仅阶段分支备份；同根写入、不同根、child/pending/provider 与最终 native、
 CI 继续由本片后继逐源码闭合，不降低既定最终合同。
+
+同根写入内层的 normal/continue 与两个 Group 变体于 `e5e3d6b8` 独立采红，
+八入口均到 lower Unsupported，唯一 exact 实际失败且 88 输入稳定，收据 SHA
+`6ba64ef37bf4f870abc6c7b3ee1f27aec31a7bca5cddd9373def4fb3eaffe8dd`。
+后继消费前端已有 head-kill 事实：实际 subject 每层 Name/透明 Group 均为声明
+Nullable、无 NonNullUse，且真实 descriptor/root、当前单一 proof 的 owner/inner/origin
+和全部 carrier/direct-entry 资格吻合后，才在 preheader 结束旧 view，不 Drop owner，
+再走原 direct NullableBranch 出生；readonly 则要求每层精确 narrowed type 与完整
+NonNullUse，继续原继承路径。未新增写扫描、loan 或放宽一般 Name/return/borrow 门。
+首次 `44bfadcf` 十八项中前十七通过，新八入口 SSA/LLVM 全成功，但身份 oracle
+错误假定 NullableNull 与 proof 退休同块；收据 SHA
+`11f9dc1d87fee41b438f1b9084f8f64209825387a29357c9bd95dd8d10f70cf9` 保留。
+真实 ASAP 时序是在最后 field read 后 end proof、Drop owner，再 checked 加法，
+仅成功块创建 null。此处只修测试沿真实成功边追踪，不将生产析构推迟到赋值。
+固定 `918942b3` 同十八项重新各 1 通过、89 输入逐轮稳定，收据 SHA
+`4d3c49273cdd8fa64bc9612c277688338480feb54ba70caafb12d1692fb1f25f`。
+新八入口身份断言通过：两次真实 birth、旧 end 在 inner header 前、inner 可达边不带
+旧 loan；新 read→end→配对 owner Drop→实际 checked Add，失败边 Abort、成功边
+NullableNull 且真实回边替换 header owner 列，旧新 proof 均不进入回边。
+原十七回归含 readonly 与 owner-return 保持绿；同 head 原其余六组实际各 1 命中，
+normal 与 same-root 整组通过，其余四组仍行为红，38 观察为 17 成功、15 lower、
+4 complete、2 ownership，收据 SHA
+`606ea44671c77b1e4e042495f57d232b892a662322fc88ac1fed3e20b15e2078`。
+加同 head owner-transfer 四成功，原 42 当前为 21 成功、15 lower、4 complete、
+2 ownership；精确 stale-read/child 冲突负控保持，不冒称矩阵全绿。
+同 head 四工程均 exit0、89 输入稳定，收据 SHA
+`4ecb455002bfa80bce3ca03c21b42958b2d88ea8b9b6ebc17e45bf624f114639`。
+本阶段仅增量备份；不同根/provider、复杂分支/资源退出、child/pending 与最终 native、
+CI 仍须本 Spec 后继闭合，继续 active，不创建完成 PR。
