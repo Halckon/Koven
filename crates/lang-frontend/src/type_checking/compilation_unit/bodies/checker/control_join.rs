@@ -1,7 +1,26 @@
 //! Closed value-branch joins; no implicit Any fallback.
-use super::{BodyChecker, BuiltinType, UnitTypeId, UnitTypeKind};
+use super::{BodyChecker, BuiltinType, CompilationUnitTypeError, UnitTypeId, UnitTypeKind};
 
 impl BodyChecker<'_> {
+    pub(super) fn control_branch_expected(
+        &mut self,
+        source: crate::name_resolution::SourceUnitId,
+        body: crate::ast::StatementId,
+        expected: Option<UnitTypeId>,
+    ) -> Result<Option<UnitTypeId>, CompilationUnitTypeError> {
+        if expected.is_some()
+            || !crate::type_checking::control_body::ends_in_null(self.file(source), body)?
+        {
+            return Ok(expected);
+        }
+        let nothing = self.builtin(BuiltinType::Nothing);
+        Ok(Some(
+            self.signatures
+                .types_mut()
+                .intern(UnitTypeKind::Nullable(nothing)),
+        ))
+    }
+
     pub(super) fn join_control_types(
         &mut self,
         left: UnitTypeId,

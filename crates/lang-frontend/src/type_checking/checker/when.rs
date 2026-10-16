@@ -217,7 +217,12 @@ impl Checker<'_> {
                 body_type,
                 stable_symbol,
             });
-            let result = self.check_value_body(entry.body, expected, expected_span)?;
+            let branch_expected = if self.expression_use(id) == ExpressionUse::Value {
+                self.control_branch_expected(entry.body, expected)?
+            } else {
+                expected
+            };
+            let result = self.check_value_body(entry.body, branch_expected, expected_span)?;
             if result.falls_through {
                 exits.push(self.flow_facts.clone());
             }

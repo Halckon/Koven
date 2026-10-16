@@ -127,8 +127,19 @@ impl BodyChecker<'_> {
             } else {
                 baseline.clone()
             };
-            let result =
-                self.check_value_body(source, entry.body, expected, expected_span, return_type)?;
+            let branch_expected = if self.expression_use(source, expression) == ExpressionUse::Value
+            {
+                self.control_branch_expected(source, entry.body, expected)?
+            } else {
+                expected
+            };
+            let result = self.check_value_body(
+                source,
+                entry.body,
+                branch_expected,
+                expected_span,
+                return_type,
+            )?;
             if result.falls_through {
                 exits.push(self.flow_facts.clone());
             }

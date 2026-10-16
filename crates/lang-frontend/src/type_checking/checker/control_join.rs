@@ -2,6 +2,18 @@
 use super::*;
 
 impl Checker<'_> {
+    pub(super) fn control_branch_expected(
+        &mut self,
+        body: crate::ast::StatementId,
+        expected: Option<TypeId>,
+    ) -> Result<Option<TypeId>, TypeCheckingError> {
+        if expected.is_some() || !super::super::control_body::ends_in_null(self.parsed, body)? {
+            return Ok(expected);
+        }
+        let nothing = self.builtin(BuiltinType::Nothing);
+        Ok(Some(self.types.intern(TypeKind::Nullable(nothing))))
+    }
+
     pub(super) fn join_control_types(&mut self, left: TypeId, right: TypeId) -> Option<TypeId> {
         if self.is_deferred(left) {
             return Some(left);

@@ -161,8 +161,18 @@ impl BodyChecker<'_> {
         let baseline = self.flow_facts.clone();
         let (true_facts, false_facts) = self.condition_facts(source, condition)?;
         self.flow_facts = extend_facts(&baseline, &true_facts);
-        let then_result =
-            self.check_value_body(source, then_branch, expected, expected_span, return_type)?;
+        let then_expected = if else_branch.is_some() {
+            self.control_branch_expected(source, then_branch, expected)?
+        } else {
+            expected
+        };
+        let then_result = self.check_value_body(
+            source,
+            then_branch,
+            then_expected,
+            expected_span,
+            return_type,
+        )?;
         let then_facts = self.flow_facts.clone();
         let Some(else_branch) = else_branch else {
             let false_path = extend_facts(&baseline, &false_facts);
@@ -177,8 +187,14 @@ impl BodyChecker<'_> {
             });
         };
         self.flow_facts = extend_facts(&baseline, &false_facts);
-        let else_result =
-            self.check_value_body(source, else_branch, expected, expected_span, return_type)?;
+        let else_expected = self.control_branch_expected(source, else_branch, expected)?;
+        let else_result = self.check_value_body(
+            source,
+            else_branch,
+            else_expected,
+            expected_span,
+            return_type,
+        )?;
         let else_facts = self.flow_facts.clone();
         self.flow_facts = match (then_result.falls_through, else_result.falls_through) {
             (true, true) => intersect_facts(&then_facts, &else_facts),

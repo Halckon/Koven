@@ -8,6 +8,7 @@ mod checker;
 mod compilation_unit;
 mod constant;
 mod constant_evaluation;
+mod control_body;
 #[cfg(test)]
 mod constant_evaluation_tests;
 mod constant_graph;
