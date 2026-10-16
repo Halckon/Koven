@@ -633,3 +633,39 @@ println(outer.text)
 
 #[path = "owned_field_contract.rs"]
 mod owned_field_contract;
+
+#[test]
+fn owned_local_field_borrow_preserves_unclosed_projection_boundaries() {
+    let sources = [
+        "class Inner(val text: String)\nclass Outer(val inner: Inner)\nfun entry(): Unit {\nval outer = Outer(Inner(\"text\"))\nprintln(outer.inner.text)\n}",
+        "class Holder<T>(val text: T)\nfun entry(): Unit {\nval holder = Holder(\"text\")\nprintln(holder.text)\n}",
+        "value class Holder(val text: String)\nfun entry(): Unit {\nval holder = Holder(\"text\")\nprintln(holder.text)\n}",
+        "class Holder(val text: String)\nfun inspect(own holder: Holder): Unit { println(holder.text) }\nfun entry(): Unit { inspect(Holder(\"text\")) }",
+        "class Holder(var first: String, val second: String)\nfun inspect(text: String): String { println(text)\nreturn \"next\" }\nfun entry(): Unit {\nval holder = Holder(\"first\", \"second\")\nval old = replace(&holder.first, inspect(holder.second))\n}",
+        "class Holder(val first: String, var second: String)\nfun inspect(text: String, own other: String): Unit { println(text)\nprintln(other) }\nfun entry(): Unit {\nval holder = Holder(\"first\", \"second\")\ninspect(holder.first, replace(&holder.second, \"next\"))\n}",
+
+    ].map(str::to_owned);
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let status = result.as_ref().map(|_| ());
+            println!(
+                "OWNED FIELD BOUNDARY source={} unit={} {status:?}",
+                index / 2,
+                index % 2 == 1
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 12);
+    for result in outcomes {
+        let error = result
+            .err()
+            .expect("nested/generic/inline/parameter/sibling boundaries remain rejected");
+        assert!(
+            error.starts_with("lower: LoweringError { kind: UnsupportedNode,"),
+            "{error}"
+        );
+    }
+}
