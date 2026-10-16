@@ -154,3 +154,20 @@ ABI 完成前，lower 在规划前按真实类型使用与 descriptor 结构化�
 `2563e19c441ee1ec8b647bb359d4ab21b5f60ef827552f18232c545438e3a7de`。
 后继 tests-only 锁真实descriptor的kind/operand/result、两种精确builtin身份、原L0085 operator span；
 公共构造L0143、成员L0165、非泛型L0082与Hashable L0161按实际源span收紧，加入普通重载trial唯一事实控制。
+
+## 8. FE 阶段固定备份（非完成交付）
+
+实跑 head `b1fd0d344964220632bd1bf736265069793799f5` / tree `49b5bebcc4a6b0abd17cac087af0911c1e2fab4d`：
+强化8项与共享5项共13个唯一 ordinary exact 全部各1命中；核心35、共享41输入每轮前后稳定。
+共享反查覆盖 ALL 环境绑定、local/unit seed 尾序与数量、普通类型表、single Map contains/get/remove
+及 unit nullable ==/!= 的确定性事实；未发现旧16项硬码快照。Map此项不证明binary in或unit完整准入。
+四工程 fmt/check/clippy(frontend/codegen/cli)/build CLI 均 exit0；只编译不执行语言产物。
+实际 main `8a02572f` 的完整尺寸门禁0错误，docs699通过。执行连接短暂中断后读取原五轮完整收据，未重复启动。
+仓外 `spec0328-evidence`：核心收据SHA `55bba4fd9677023c562dffa32adf111a493d26d368f8aea124dfa0908fed14c5`，
+共享收据SHA `be7bd5728024399eb183bf566b256e0ae4b9911d5ee7b5b0dab36c6908bbb60a`，
+工程收据SHA `3b2ffdf4df8c71836922ab4b5b96392689a4eea38369433cce82bf6bb1b20a71`。
+
+本阶段真实 Range 源码通过前端/所有权后仍在lower结构化Unsupported；普通无Range程序可生成LLVM。
+尚无 Range 的SSA值ABI、LLVM运算或native成功证据；CI亦未运行，Spec保持in-progress。
+后继必须验证普通存储位置与Map查询实际消费；Map专用presence/payload结果不等于一般nullable handle，
+独立Range?现有边界分账，不能笼统排除Map.get/remove或以丢弃返回值冒称完成。
