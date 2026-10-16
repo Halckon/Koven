@@ -275,10 +275,51 @@ pub(super) fn assert_reborn_proof(program: &Program, source: &str, unit: bool) {
             && matches!(instruction.origin, Origin::Source(span)
                 if span.start() == null_start && span.end() == null_start + "null".len())
     }));
-    assert_eq!(
-        null.block, new_end.block,
-        "retirement belongs to the real null assignment"
-    );
+    // The last field read retires the old owner before checked arithmetic; the
+    // null assignment executes only on that arithmetic's real success edge.
+    assert_eq!(inner_read.block, new_end.block);
+    assert_before(function, new_end.block, inner_read.id, new_end.id);
+    let EntityId::Value(read_value) = only(inner_read.results.iter().copied()) else {
+        panic!("field read value")
+    };
+    let checked = only(function.instructions.iter().filter(|instruction| {
+        instruction.block == new_end.block
+            && matches!(instruction.operation,
+                Operation::CheckedArithmetic { operator: crate::ssa::model::CheckedArithmeticOperator::Add, right, .. }
+                if right == read_value)
+    }));
+    assert_before(function, new_end.block, drop.id, checked.id);
+    let [EntityId::Value(_), EntityId::Value(failed)] = checked.results.as_slice() else {
+        panic!("checked arithmetic value and failure flag")
+    };
+    let TerminatorKind::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &assignment_block.terminator.as_ref().unwrap().kind
+    else {
+        panic!("actual checked arithmetic branch")
+    };
+    assert_eq!(condition, failed);
+    assert_eq!(when_false.target, null.block);
+    assert!(matches!(
+        function
+            .block(when_true.target)
+            .unwrap()
+            .terminator
+            .as_ref()
+            .unwrap()
+            .kind,
+        TerminatorKind::Abort
+    ));
+    let incoming_success = function
+        .blocks
+        .iter()
+        .flat_map(edges)
+        .filter(|edge| edge.target == null.block)
+        .collect::<Vec<_>>();
+    assert_eq!(incoming_success.len(), 1);
+    assert_eq!(incoming_success[0], when_false);
     let replacement = only(null.results.iter().copied());
     assert!(matches!(replacement, EntityId::Value(_)));
     assert_ne!(replacement, EntityId::Value(ended_pair.0));
@@ -313,7 +354,7 @@ pub(super) fn assert_reborn_proof(program: &Program, source: &str, unit: bool) {
             .into_iter()
             .filter(|(block, _)| block.id != entry_predecessor),
     );
-    assert_eq!(backedge_block.id, new_end.block);
+    assert_eq!(backedge_block.id, null.block);
     assert!(matches!(
         backedge_block.terminator.as_ref().unwrap().kind,
         TerminatorKind::Branch(_)
