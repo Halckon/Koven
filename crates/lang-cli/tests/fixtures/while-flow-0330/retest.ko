@@ -1,0 +1,22 @@
+class Holder(val value: Int)
+
+fun retest(own initial: Holder?, flag: Boolean): Int {
+    var current: Holder? = initial
+    var total: Int = 0
+    while (current != null) {
+        if (flag) { current = null }
+        if (current != null) { total = current.value }
+        break
+    }
+    return total
+}
+
+fun main(): Unit {
+    val kept = retest(Holder(17), false)
+    if (kept == 17) { println("if.keep=17") } else { println("if.keep=wrong") }
+    val cleared = retest(Holder(23), true)
+    if (cleared == 0) { println("if.clear=0") } else { println("if.clear=wrong") }
+    val empty: Holder? = null
+    val zero = retest(empty, false)
+    if (zero == 0) { println("if.empty=0") } else { println("if.empty=wrong") }
+}
