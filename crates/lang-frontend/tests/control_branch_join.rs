@@ -703,14 +703,54 @@ fn when_conflict_labels_track_actual_participating_branch() {
     }
 }
 
-/// Observation only: completion of this command is not a regression pass.
 #[test]
-fn observe_nullable_case_join_delivery() {
+fn nullable_case_joins_deliver_the_same_enum_instance() {
+    let mut observations = Vec::new();
     for root in roots("null", "e").into_iter().chain(roots("e", "null")) {
         let text = format!(
             "enum class E<T> {{ A(value: T), B(value: T) }}\nfun test(flag: Boolean, e: E<Int>): Unit {{ if (e is E.A<Int>) {{ val result = {root}; val delivered: E<Int>? = result }} }}"
         );
-        let observations = observe_text(&text, &root);
-        eprintln!("SPEC-0326 nullable case delivery observation only: {observations:?}");
+        observations.extend(observe_text(&text, &root));
+    }
+    let mut incompatible = Vec::new();
+    for root in roots("other", "e").into_iter().chain(roots("e", "other")) {
+        let text = format!(
+            "enum class E<T> {{ A(value: T), B(value: T) }}\nfun test(flag: Boolean, e: E<Int>, other: E<Long>?): Unit {{ if (e is E.A<Int>) {{ val result = {root} }} }}"
+        );
+        incompatible.extend(observe_text(&text, &root));
+    }
+    for o in incompatible {
+        let expected = if o.root.starts_with("if") {
+            "L0089"
+        } else {
+            "L0112"
+        };
+        assert_eq!(
+            o.raw
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            [expected],
+            "{o:?}"
+        );
+        match o.complete {
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                assert_eq!(diagnostics, o.raw)
+            }
+            other => panic!("expected different enum instance rejection: {other:?}"),
+        }
+    }
+    for o in observations {
+        assert!(
+            o.nodes.iter().any(|(text, shape)| text == "e"
+                && matches!(shape, Shape::Other(kind) if kind.starts_with("EnumCase"))),
+            "leaf smart cast must remain: {o:?}"
+        );
+        assert!(
+            o.matches_type_refs.iter().any(|text| text == "E<Int>?"),
+            "{o:?}"
+        );
+        assert!(o.raw.is_empty(), "{o:?}");
+        assert!(o.complete.is_ok(), "{o:?}");
     }
 }
