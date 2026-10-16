@@ -9,8 +9,8 @@
   <text x="4140" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，308 份）</text>
   <rect x="8304" y="7974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="8444" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
-  <rect x="8648" y="7974" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="8788" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
+  <rect x="8648" y="30" width="280" height="8086" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="8788" y="50" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2353,4 +2353,8 @@
   <rect x="7980" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="8100" y="87" text-anchor="middle" font-size="13">SPEC-0324</text>
   <text x="8100" y="105" text-anchor="middle" font-size="13">最终类型准入的用户诊断措辞</text>
+  <rect x="8668" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="8788" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0327</text>
+  <text x="8788" y="105" text-anchor="middle" font-size="13">显式 checked 整数转</text>
+  <text x="8788" y="123" text-anchor="middle" font-size="13">换</text>
 </svg>
