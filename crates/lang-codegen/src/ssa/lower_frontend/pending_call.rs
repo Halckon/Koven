@@ -53,8 +53,8 @@ impl PendingCallLoans {
     pub(super) fn remove(&mut self, key: &Key) -> Option<Option<LoanId>> {
         self.0.remove(key).map(|entry| entry.loan)
     }
-    pub(super) fn retain(&mut self, mut predicate: impl FnMut(&Key, &mut Option<LoanId>) -> bool) {
-        self.0.retain(|key, entry| predicate(key, &mut entry.loan));
+    pub(super) fn retain(&mut self, mut predicate: impl FnMut(&Key, &Option<LoanId>) -> bool) {
+        self.0.retain(|key, entry| predicate(key, &entry.loan));
     }
     pub(super) fn iter(&self) -> impl Iterator<Item = (&Key, &Option<LoanId>)> {
         self.0.iter().map(|(key, entry)| (key, &entry.loan))
