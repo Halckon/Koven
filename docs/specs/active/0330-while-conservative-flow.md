@@ -232,3 +232,32 @@ break Unsupported，未将 unit 观察计作成功；收据 SHA
 旧 If/When 的提前清理时序保留。已有 proof 入场、同根 retest/take、未决子借用和复杂
 carrier 继续明确拒绝。原 42 入口矩阵及最终合同保留，unit 非空运输、复杂嵌套、
 子借用退出与 native 仍待后继逐项闭合；本阶段只作增量分支备份，不创建完成 PR。
+
+unit 同五个直接源码先于 `88e928d6` 采真实红，十入口全部先观察：single 五项
+SSA/LLVM 成功，unit 四项 InvalidSsa 与 break Unsupported；唯一 unit exact 失败。
+收据 SHA `8b3977c526d9055661e9826c29be89a4c2e198d38ee6688e4d95347cbd0901d3`。
+后继复用既有 carry/cleanup，让真实 NullableBranch 的成功 owner/view 配对产生
+unit proof；origin 保持出生身份，当前 owner/loan 沿实际 edge 列运输并核对。
+入口 Shared(Boolean) 参数按真实 root 保留，闭包路径不取得该资格；其他未决 carrier
+继续拒绝。HeapOwner 与入口 owner Value(nullable) 资格在创建 CFG 前检查。
+
+固定 `0f57aa10` 的十四个普通 exact 各 1 通过；同 head 工程 fmt/check 通过，
+clippy 因测试 helper 的 let-and-return 失败，build 尚未运行，原日志保留。
+仅机械直返 collect 后，固定 `fa723a33` 同十四项重新各 1 通过、87 输入逐轮稳定，
+收据 SHA `1a978712819ce2e1c28f8bc5a9d5446f0fc409b623a20b1f06aeb4c1eff83e39`。
+两个 direct exact 分别完整观察十入口，再验证各自五源码的真实 SSA 身份：
+owner/view、字段读取至 BorrowEnd/owner Drop 顺序、回边 NullableNull owner 列，
+unit 另核入口 Boolean loan 的真实运输列且不被本轮 proof 退休结束。其余十二个
+旧 nullable、借用交付、while、赋值 RHS 与 nullable storage 普通回归通过。
+同 head 四工程 fmt/check/clippy/build 均 exit0、87 输入稳定，收据 SHA
+`5e6e6eb282390a906c9e3a6452fc1ce89965f7890e28f170b58d5370ddacfb41`。
+
+同 `fa723a33` 再跑原七组 21 源码双入口，42 结果全部收齐：13 SSA/内存 LLVM
+成功、23 lower 拒绝、4 complete 与2 ownership 拒绝；精确负控先于正例断言。
+normal/continue/Group 组通过，其余六组仍行为红，未改正负 oracle。
+收据 SHA `4fc0370b5cf7764e06a55474d9dcdde51b4676577783212a90cc39fddb5cc5f4`。
+特别保留暂时退步：原 metadata 阶段 single owner-return 曾成功，实际 while proof
+启用后被活跃 proof 的 take 门拒绝于 144..151；必须由后继安全交付/退休小片恢复，
+不能描述为始终未支持的旧边界。复杂嵌套、borrowed child、pending 与 provider 携带
+仍须逐项闭合；本阶段仅五直接源码双入口有限闭合与分支增量备份，仍 active，
+没有执行 native、故障或校准，也不创建完成 PR 或宣称最终合同已完成。
