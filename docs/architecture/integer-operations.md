@@ -54,4 +54,4 @@ receiver一次及有限资源控制；PR113实施CI双host另核7个畸形SSA ex
 闭MAX不加一，序列相等区分空与有效端点。普通局部/参数返回/字段/List/Map值沿通用aggregate ABI。
 有限Linux单文件/项目native已验证动态边界、源码求值顺序及MapResult found/missing真实消费；
 requireValue仍须显式borrow val再复制，复杂全函数borrow CFG与一般Range?仍保留结构化边界。
-数值Range for尚未交付；本地/CI分账和后继责任见[SPEC-0328](../specs/active/0328-integer-range-values.md)。
+数值Range for尚未交付；本地/CI分账和后继责任见[SPEC-0328](../archive/specs/0328-integer-range-values.md)。

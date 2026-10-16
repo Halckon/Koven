@@ -1,16 +1,16 @@
 # SPEC-0328: IntRange / LongRange 普通值首片
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：准备 v0.44 D 首片接口与普通源码红测时 · **唯一真源**：本 Spec 的实施范围；语言合同以 Guide 为准
+> **性质**：实施合同 · **状态**：done · **读取时机**：追溯 v0.44 Range 普通值有界交付时 · **唯一真源**：本 Spec 的实施范围；语言合同以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0328` |
 | Phase | 类型与所有权身份先行；SSA、LLVM、native 分片验收 |
 | 基线 | 正常合入实际 main `8a02572fbb490deb614009a84228bf5e06347f52`，已继承 0325/0326/0327 |
 | 分支 | 本地 `feature/spec-0328-integer-range-values`；授权远端 `fix/spec-0328-integer-range-values` |
 | 规范 | [Range 身份](../../guide/03-types-generics.md#简单变量赋值与整数-range-身份)、[操作](../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
-| 当前阶段 | 前端、值SSA/LLVM与有限Linux native已本地验收；远端CI待验，for另片 |
+| 当前阶段 | 实现head双host CI有界验收通过；归档head CI/main待验，for另片 |
 
 ## 1. 范围与拆片责任
 
@@ -199,3 +199,18 @@ PR114首CI `38858644835` 双host旧fault测试硬编码frontend `deinit.t20`失�
 选中Leaf的t14，而Holder实际由witness→deinit→t16关联；原错误mutant exit0，失败证据仓外保留。
 后继只按真实Holder identity选择唯一field drop/self-param free，锁同block前后顺序，故障类别与判据不变。
 两次修复云仅编译/静态检查，未执行fault；首次暂留t15决定已由新CI实证收口，实际验证仍待下一CI。
+
+## 12. 实现 CI 验收与有限归档
+
+[PR114实现CI 38861894139/a1](https://github.com/Halckon/Koven/actions/runs/38861894139/attempts/1)
+绑定真实head `3bf685817011a73e9cdc626318b2869690f271c5` / tree `30d9c03def4d6a88bdea24afff852bc1c8ff7755`；
+synthetic `2c485cb172c8836d32009ccc84d38c6c5bb1e328`，双父实际main8a02572f/该head。
+15实际success、Tree-sitter路径skip，reuse=false；两host各36exact各1ok：25普通、7 verifier、
+3既有CLI拒绝及1旧missing-deinit导出控制。云本地仍未执行fault/校准，CI结果另账。
+Generated-owner产物clean v1/v2均exit0；正确Holder premature-free两host均由counter_order拒绝（exit−6）。
+Linux calibration pass；macOS保留ASan不支持/counter-only导致的partial，不称双host动态检测完整。
+Preview仅jobs/steps成功，未做artifact逐项审计。两轮先前CI失败和原始产物继续保留，不覆盖为绿。
+独立CI收据SHA `4274dfc695327a919e05260a3ae337672a92b778242fbacb0d4bd7763e38e341`；
+artifact摘要SHA `8f53762a65b09ae30ad4268a14ced680291fbdd58e0f4285afebc31598eff73d`。
+只归档本片值合同；数值for、一般nullable和旧borrow控制流边界由当前后继索引继续认领。
+归档head CI、normal merge及main CI尚待，不能用本实现CI冒充后续实际交付。
