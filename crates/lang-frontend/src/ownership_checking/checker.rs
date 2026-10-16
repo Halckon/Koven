@@ -1,6 +1,7 @@
 mod declaration;
 use std::collections::BTreeMap;
 
+mod assignment;
 mod borrow_binding;
 mod borrow_call_use;
 mod borrow_result;
@@ -1013,6 +1014,9 @@ impl<'a> Checker<'a> {
                 && operator == AssignmentOperator::Assign
                 && place.is_root()
             {
+                if !self.check_assignment_variable_mutability(target, &place, span)? {
+                    return Ok(flows);
+                }
                 let origins = self.closure_origins(value, state)?;
                 // RHS has completed: replace the environment without ending a transferred loan.
                 self.release_closure_except(place.root(), state, &origins);

@@ -1,0 +1,5 @@
+fun main(): Unit {
+    var number: Int = 1
+    val assigned: Unit = (number = 2)
+    if (number == 2) { println("assigned") } else { println("bad") }
+}
