@@ -147,6 +147,50 @@ pub(super) fn assert_inherited_proof(program: &Program, source: &str, unit: bool
         receiver, *view,
         "the outer read uses the real inner-exit rebinding"
     );
+    let read_block = function.block(final_read.block).unwrap();
+    let final_pair = only(pairs.iter().copied().filter(|(owner, loan)| {
+        *loan == receiver && read_block.parameters.contains(&EntityId::Value(*owner))
+    }));
+    let loan_column = only(
+        read_block
+            .parameters
+            .iter()
+            .enumerate()
+            .filter_map(|(index, entity)| (*entity == EntityId::Loan(receiver)).then_some(index)),
+    );
+    let owner_column = only(
+        read_block
+            .parameters
+            .iter()
+            .enumerate()
+            .filter_map(|(index, entity)| {
+                (*entity == EntityId::Value(final_pair.0)).then_some(index)
+            }),
+    );
+    let incoming = function
+        .blocks
+        .iter()
+        .flat_map(edges)
+        .filter(|edge| edge.target == read_block.id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        incoming.len(),
+        2,
+        "the actual inner break and false exits join here"
+    );
+    for edge in incoming {
+        let EntityId::Value(incoming_owner) = edge.arguments[owner_column] else {
+            panic!("incoming owner column")
+        };
+        let EntityId::Loan(incoming_loan) = edge.arguments[loan_column] else {
+            panic!("incoming proof column")
+        };
+        assert!(
+            pairs.contains(&(incoming_owner, incoming_loan)),
+            "both real incoming columns retain the same traced proof pairing"
+        );
+    }
+
     let end = only(function.instructions.iter().filter(|instruction| {
         matches!(instruction.operation, Operation::BorrowEnd { loan } if pairs.iter().any(|(_, inherited)| *inherited == loan))
     }));
