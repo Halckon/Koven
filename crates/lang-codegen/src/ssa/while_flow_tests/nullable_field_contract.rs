@@ -111,7 +111,10 @@ pub(super) fn assert_field_child(program: &Program, returned: bool) {
         kind: LoanKind::Shared,
         target: *string,
     };
-    assert_eq!(function.entity(EntityId::Loan(child)).unwrap().ty, child_type);
+    assert_eq!(
+        function.entity(EntityId::Loan(child)).unwrap().ty,
+        child_type
+    );
     let call = only(function.instructions.iter().filter(|instruction| {
         matches!(&instruction.operation, Operation::DirectCall { arguments, .. }
             if arguments.contains(&EntityId::Loan(child)))
@@ -138,7 +141,10 @@ pub(super) fn assert_field_child(program: &Program, returned: bool) {
             assert_eq!(callee.entity(parameter).unwrap().ty, child_type);
         }
         Operation::PrintString { value } => {
-            assert!(!returned, "the direct and Group fixtures print the same child");
+            assert!(
+                !returned,
+                "the direct and Group fixtures print the same child"
+            );
             assert_eq!(*value, child);
         }
         _ => unreachable!(),
