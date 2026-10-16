@@ -310,7 +310,7 @@ CI 继续由本片后继逐源码闭合，不降低既定最终合同。
 Nullable、无 NonNullUse，且真实 descriptor/root、当前单一 proof 的 owner/inner/origin
 和全部 carrier/direct-entry 资格吻合后，才在 preheader 结束旧 view，不 Drop owner，
 再走原 direct NullableBranch 出生；readonly 则要求每层精确 narrowed type 与完整
-NonNullUse，继续原继承路径。未新增写扫描、loan 或放宽一般 Name/return/borrow 门。
+NonNullUse，继续原继承路径。未新增写扫描或伪造 loan 事实，也未放宽一般 Name/return/borrow 门。
 首次 `44bfadcf` 十八项中前十七通过，新八入口 SSA/LLVM 全成功，但身份 oracle
 错误假定 NullableNull 与 proof 退休同块；收据 SHA
 `11f9dc1d87fee41b438f1b9084f8f64209825387a29357c9bd95dd8d10f70cf9` 保留。
