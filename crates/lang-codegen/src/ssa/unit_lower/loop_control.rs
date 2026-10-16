@@ -64,15 +64,20 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         let descriptor = self.direct_nullable_while_condition(condition, span)?;
         let inherited = if self.nullable_proofs.is_empty() {
-            if let Some(descriptor) = descriptor {
+            if let Some((descriptor, _)) = descriptor {
                 return self
                     .lower_direct_nullable_while(statement, condition, body, descriptor, span);
             }
             None
         } else {
-            let descriptor = descriptor
+            let (descriptor, subject) = descriptor
                 .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-            Some(self.readonly_nullable_while_proof(descriptor, span)?)
+            let inherited = self.prepare_nested_nullable_while(descriptor, subject, span)?;
+            if inherited.is_none() {
+                return self
+                    .lower_direct_nullable_while(statement, condition, body, descriptor, span);
+            }
+            inherited
         };
         if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));

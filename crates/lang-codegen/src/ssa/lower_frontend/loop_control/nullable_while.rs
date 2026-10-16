@@ -5,7 +5,7 @@ use crate::ssa::model::SsaTypeKind;
 use lang_frontend::{
     ownership_checking::DropPoint,
     parser::{BinaryOperator, Expression, LiteralKind},
-    type_checking::{Copyability, NullComparisonDescriptor},
+    type_checking::{Copyability, ExpressionCategory, NullComparisonDescriptor, TypeKind},
 };
 
 impl ExpressionLowerer<'_> {
@@ -13,7 +13,7 @@ impl ExpressionLowerer<'_> {
         &self,
         condition: ExpressionId,
         span: Span,
-    ) -> Result<Option<NullComparisonDescriptor>, LoweringError> {
+    ) -> Result<Option<(NullComparisonDescriptor, ExpressionId)>, LoweringError> {
         let expression = self.field_replace_ungroup(condition, span)?;
         let Some(descriptor) = self.typed.null_comparison(expression) else {
             return Ok(None);
@@ -51,12 +51,12 @@ impl ExpressionLowerer<'_> {
             (false, true) => left,
             _ => return Err(error(LoweringErrorKind::MissingFact, span)),
         };
-        let subject = self.field_replace_ungroup(subject, span)?;
+        let leaf = self.field_replace_ungroup(subject, span)?;
         let node = self
             .parsed
             .ast()
             .expressions()
-            .get(subject)
+            .get(leaf)
             .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
         if !matches!(node.payload(), Expression::Name) {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
@@ -67,16 +67,17 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        Ok(Some(descriptor))
+        Ok(Some((descriptor, subject)))
     }
 
-    /// Reuse only the current same-root owned while proof. The inner guard reads
-    /// presence through the ordinary condition path; it never introduces a view.
-    pub(super) fn readonly_nullable_while_proof(
-        &self,
+    /// The real typed operand distinguishes an inherited read from a head kill.
+    /// Qualify every transparent layer before retiring the current same-root view.
+    pub(super) fn prepare_nested_nullable_while(
+        &mut self,
         descriptor: NullComparisonDescriptor,
+        mut operand: ExpressionId,
         span: Span,
-    ) -> Result<(SymbolId, NonNullProof), LoweringError> {
+    ) -> Result<Option<(SymbolId, NonNullProof)>, LoweringError> {
         let root = descriptor.symbol();
         let Some(proof) = self.non_null_bindings.get(&root).copied() else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
@@ -111,7 +112,66 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        Ok((root, proof))
+        let storage = descriptor.nullable_type();
+        let Some(TypeKind::Nullable(narrowed)) = self.typed.types().get(storage) else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let narrowed = *narrowed;
+        let concrete_inner = self.resolve_type(narrowed, span)?;
+        if self.type_ids.get(&concrete_inner) != Some(&proof.inner) {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        if self.typed.copyability(concrete_inner) != Some(Copyability::MoveOnly) {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let operand_type = self
+            .typed
+            .expression_type(operand)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if operand_type != narrowed && operand_type != storage {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let inherited = operand_type == narrowed;
+        loop {
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(operand)
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+            if self.typed.expression_type(operand) != Some(operand_type)
+                || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            match (inherited, self.typed.non_null_use(operand)) {
+                (true, Some(fact))
+                    if fact.expression() == operand
+                        && fact.symbol() == root
+                        && fact.declared_type() == storage
+                        && fact.narrowed_type() == narrowed => {}
+                (false, None) => {}
+                _ => return Err(error(LoweringErrorKind::MissingFact, span)),
+            }
+            match node.payload() {
+                Expression::Group { expression } => operand = *expression,
+                Expression::Name => {
+                    if self.references.get(&span_key(node.span())) != Some(&root) {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    }
+                    break;
+                }
+                _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+            }
+        }
+        if inherited {
+            return Ok(Some((root, proof)));
+        }
+        // Retire only the old view, before the inner baseline/header can capture it.
+        // The nullable owner remains intact for the direct guard's independent birth.
+        self.direct_nullable_while_entry(descriptor, span)?;
+        self.end_non_null_proof(root, span)?;
+        Ok(None)
     }
 
     /// Real exits must retain the inherited proof. A killed or replaced proof
@@ -135,19 +195,11 @@ impl ExpressionLowerer<'_> {
         self.validate_non_null_proof(root, proof, &exit.bindings, span)
     }
 
-    pub(super) fn lower_direct_nullable_while(
-        &mut self,
-        statement: StatementId,
-        condition: ExpressionId,
-        body: StatementId,
+    fn direct_nullable_while_entry(
+        &self,
         descriptor: NullComparisonDescriptor,
         span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        // Existing proof scopes and unresolved aliases need a separate reuse/kill slice.
-        // Refuse before creating any block or ending any existing proof.
-        if !self.non_null_bindings.is_empty() {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
+    ) -> Result<(SsaTypeId, SsaTypeId), LoweringError> {
         self.ensure_no_unresolved_while_proof_carriers(span)?;
         let symbol = descriptor.symbol();
         let nullable = self.resolve_type(descriptor.nullable_type(), span)?;
@@ -177,6 +229,23 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        Ok((nullable, inner))
+    }
+
+    pub(super) fn lower_direct_nullable_while(
+        &mut self,
+        statement: StatementId,
+        condition: ExpressionId,
+        body: StatementId,
+        descriptor: NullComparisonDescriptor,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        // Nested entry must already have qualified and retired its old proof.
+        if !self.non_null_bindings.is_empty() {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let (nullable, inner) = self.direct_nullable_while_entry(descriptor, span)?;
+        let symbol = descriptor.symbol();
         let baseline = self.bindings.clone();
         let context = self.create_loop_header(&baseline, span)?;
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&symbol).copied() else {

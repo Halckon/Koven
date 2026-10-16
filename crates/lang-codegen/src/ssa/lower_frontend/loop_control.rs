@@ -82,16 +82,22 @@ impl ExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let inherited =
-            if let Some(descriptor) = self.direct_nullable_while_condition(condition, span)? {
-                if self.non_null_bindings.is_empty() {
-                    return self
-                        .lower_direct_nullable_while(statement, condition, body, descriptor, span);
-                }
-                Some(self.readonly_nullable_while_proof(descriptor, span)?)
-            } else {
-                None
-            };
+        let inherited = if let Some((descriptor, subject)) =
+            self.direct_nullable_while_condition(condition, span)?
+        {
+            if self.non_null_bindings.is_empty() {
+                return self
+                    .lower_direct_nullable_while(statement, condition, body, descriptor, span);
+            }
+            let inherited = self.prepare_nested_nullable_while(descriptor, subject, span)?;
+            if inherited.is_none() {
+                return self
+                    .lower_direct_nullable_while(statement, condition, body, descriptor, span);
+            }
+            inherited
+        } else {
+            None
+        };
         let baseline = self.bindings.clone();
         let context = self.create_loop_header(&baseline, span)?;
         let condition = self.require_value(condition)?;

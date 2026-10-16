@@ -1,13 +1,13 @@
 //! Source-qualified direct nullable guards: one real view per body entry.
 use super::super::{
-    EntityId, EntityType, Expression, LiteralKind, nullable_proof::NullableProof,
+    EntityId, EntityType, Expression, LiteralKind, SsaTypeId, nullable_proof::NullableProof,
     resolve_concrete_type, span_key,
 };
 use super::*;
 use crate::ssa::model::SsaTypeKind;
 use lang_frontend::{
     parser::BinaryOperator,
-    type_checking::{Copyability, UnitNullComparisonDescriptor},
+    type_checking::{Copyability, ExpressionCategory, UnitNullComparisonDescriptor, UnitTypeKind},
 };
 
 impl UnitExpressionLowerer<'_> {
@@ -15,7 +15,7 @@ impl UnitExpressionLowerer<'_> {
         &self,
         condition: ExpressionId,
         span: Span,
-    ) -> Result<Option<UnitNullComparisonDescriptor>, LoweringError> {
+    ) -> Result<Option<(UnitNullComparisonDescriptor, UnitExpressionId)>, LoweringError> {
         let expression = self.ungroup_while_operand(condition, span)?;
         let id = UnitExpressionId::new(self.source_unit, expression);
         let Some(descriptor) = self.typed.null_comparison(id) else {
@@ -54,12 +54,12 @@ impl UnitExpressionLowerer<'_> {
             (false, true) => left,
             _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
-        let subject = self.ungroup_while_operand(subject, span)?;
+        let leaf = self.ungroup_while_operand(subject, span)?;
         let node = self
             .parsed
             .ast()
             .expressions()
-            .get(subject)
+            .get(leaf)
             .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
         if !matches!(node.payload(), Expression::Name) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -70,16 +70,20 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        Ok(Some(descriptor))
+        Ok(Some((
+            descriptor,
+            UnitExpressionId::new(self.source_unit, subject),
+        )))
     }
 
-    /// Only an existing proof of this same owned root can cross the inner loop.
-    /// Its origin remains the outer while, including after owner/loan rebinding.
-    pub(super) fn readonly_nullable_while_proof(
-        &self,
+    /// Source-qualified operand facts distinguish inheritance from a head kill.
+    /// No existing view is ended until every transparent layer has qualified.
+    pub(super) fn prepare_nested_nullable_while(
+        &mut self,
         descriptor: UnitNullComparisonDescriptor,
+        mut operand: UnitExpressionId,
         span: Span,
-    ) -> Result<(UnitSymbolId, NullableProof), LoweringError> {
+    ) -> Result<Option<(UnitSymbolId, NullableProof)>, LoweringError> {
         let root = descriptor.symbol();
         let Some(proof) = self.nullable_proofs.get(&root).copied() else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -126,7 +130,77 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        Ok((root, proof))
+        let storage = descriptor.nullable_type();
+        let Some(UnitTypeKind::Nullable(narrowed)) = self.typed.types().get(storage) else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let narrowed = *narrowed;
+        let concrete_inner = resolve_concrete_type(
+            self.typed,
+            narrowed,
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        if self.type_ids.get(&concrete_inner) != Some(&proof.inner) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if self.typed.copyability(concrete_inner) != Copyability::MoveOnly {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        if operand.source_unit() != self.source_unit {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let operand_type = self
+            .typed
+            .expression_type(operand)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if operand_type != narrowed && operand_type != storage {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let inherited = operand_type == narrowed;
+        loop {
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(operand.expression())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if self.typed.expression_type(operand) != Some(operand_type)
+                || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            match (inherited, self.typed.non_null_use(operand)) {
+                (true, Some(fact))
+                    if fact.expression() == operand
+                        && fact.symbol() == root
+                        && fact.declared_type() == storage
+                        && fact.narrowed_type() == narrowed => {}
+                (false, None) => {}
+                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            }
+            match node.payload() {
+                Expression::Group { expression } => {
+                    operand = UnitExpressionId::new(self.source_unit, *expression)
+                }
+                Expression::Name => {
+                    if self.references.get(&span_key(node.span())) != Some(&root) {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                    }
+                    break;
+                }
+                _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+            }
+        }
+        if inherited {
+            return Ok(Some((root, proof)));
+        }
+        // The next context must contain neither the old loan nor its scope.
+        // Keep the original nullable storage for the direct guard's new proof.
+        self.direct_nullable_while_entry(descriptor, span)?;
+        self.end_while_proof(root, span)?;
+        Ok(None)
     }
 
     /// Require the actual path's surviving current pair, not the entry pair IDs.
@@ -149,15 +223,11 @@ impl UnitExpressionLowerer<'_> {
         self.validate_nullable_proofs(&exit.bindings, &exit.nullable_proofs, span)
     }
 
-    pub(super) fn lower_direct_nullable_while(
-        &mut self,
-        statement: StatementId,
-        condition: ExpressionId,
-        body: StatementId,
+    fn direct_nullable_while_entry(
+        &self,
         descriptor: UnitNullComparisonDescriptor,
         span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        self.reject_nested_while_proof(span)?;
+    ) -> Result<(SsaTypeId, SsaTypeId), LoweringError> {
         self.ensure_no_while_proof_carriers(span)?;
         if !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -196,6 +266,20 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        Ok((nullable, inner))
+    }
+
+    pub(super) fn lower_direct_nullable_while(
+        &mut self,
+        statement: StatementId,
+        condition: ExpressionId,
+        body: StatementId,
+        descriptor: UnitNullComparisonDescriptor,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        self.reject_nested_while_proof(span)?;
+        let (nullable, inner) = self.direct_nullable_while_entry(descriptor, span)?;
+        let symbol = descriptor.symbol();
         let baseline = self.bindings.clone();
         let mut context = self.create_loop_context(&baseline, span)?;
         context.proof_scope = Some(UnitStatementId::new(self.source_unit, statement));
