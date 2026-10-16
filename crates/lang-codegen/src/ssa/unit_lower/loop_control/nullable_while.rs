@@ -108,6 +108,17 @@ impl UnitExpressionLowerer<'_> {
         ) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        let Some(LoweredValue::Value(entry_owner)) = self.bindings.get(&symbol).copied() else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        if self
+            .function
+            .entity(EntityId::Value(entry_owner))
+            .map(|data| data.ty)
+            != Some(EntityType::Value(nullable))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         let baseline = self.bindings.clone();
         let mut context = self.create_loop_context(&baseline, span)?;
         context.proof_scope = Some(UnitStatementId::new(self.source_unit, statement));
