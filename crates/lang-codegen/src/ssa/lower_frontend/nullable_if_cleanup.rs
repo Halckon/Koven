@@ -153,6 +153,27 @@ fn control(
 }
 
 impl ExpressionLowerer<'_> {
+    /// Reuse the existing Int projection reader only for the same fully proven
+    /// true-arm group. This query does not consume a fact, view, or owner.
+    pub(super) fn is_proven_nullable_if_field_read(
+        &self,
+        expression: ExpressionId,
+        proof: NonNullProof,
+        span: Span,
+    ) -> bool {
+        self.ensure_no_unresolved_while_proof_carriers(span).is_ok()
+            && self.owned.drops().iter().copied().any(|fact| {
+                fact.point() == DropPoint::AfterExpression(expression)
+                    && candidate(self.parsed, self.names, self.typed, self.owned, fact).is_some_and(
+                        |plan| {
+                            plan.arm == 0
+                                && self.non_null_bindings.get(&plan.root) == Some(&proof)
+                                && self.nullable_if_cleanup_owner(&plan) == Some(proof.owner)
+                        },
+                    )
+            })
+    }
+
     /// Do not let existing point cleanup retire a live child before this new path's
     /// strict qualification. This pass is read-only, including for every other fact.
     pub(super) fn preflight_nullable_if_cleanup_groups(
