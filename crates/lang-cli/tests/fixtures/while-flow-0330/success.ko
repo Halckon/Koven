@@ -1,0 +1,210 @@
+// SPEC-0330 review candidate; not yet compiled or executed.
+// Every entered while body either writes its guard root to null or exits
+// unconditionally by break/return. No pending child, for, or re-test flow.
+class Holder(val value: Int)
+class TextHolder(val text: String)
+class Guard(val text: String) { deinit() { println(this.text) } }
+
+fun normal(own initial: Holder?): Int {
+    val outer = Guard("normal.outer.drop")
+    var current: Holder? = initial
+    var total: Int = 0
+    while (current != null) {
+        val inner = Guard("normal.inner.drop")
+        total = current.value
+        println("normal.body")
+        current = null
+    }
+    println("normal.after")
+    return total
+}
+
+fun continued(own initial: Holder?): Int {
+    val outer = Guard("continue.outer.drop")
+    var current: Holder? = initial
+    var total: Int = 0
+    while (((current) != null)) {
+        val inner = Guard("continue.inner.drop")
+        total = current.value
+        println("continue.body")
+        current = null
+        continue
+    }
+    println("continue.after")
+    return total
+}
+
+fun broken(own initial: Holder?): Int {
+    val outer = Guard("break.outer.drop")
+    var current: Holder? = initial
+    var total: Int = 0
+    while (current != null) {
+        val inner = Guard("break.inner.drop")
+        total = current.value
+        println("break.body")
+        break
+    }
+    println("break.after")
+    return total
+}
+
+fun returnOperand(value: Int): Int {
+    println("return.operand")
+    return value
+}
+
+fun returned(own initial: Holder?): Int {
+    val outer = Guard("return.outer.drop")
+    var current: Holder? = initial
+    while (current != null) {
+        val inner = Guard("return.inner.drop")
+        println("return.body")
+        return returnOperand(current.value)
+    }
+    return 0
+}
+
+fun readonlyNested(own initial: Holder?): Int {
+    var current: Holder? = initial
+    var total: Int = 0
+    while (current != null) {
+        total = current.value
+        while (current != null) {
+            total = total + current.value
+            println("readonly.inner")
+            break
+        }
+        total = total + current.value
+        println("readonly.outer")
+        break
+    }
+    return total
+}
+
+fun writtenNested(own initial: Holder?): Int {
+    var current: Holder? = initial
+    var total: Int = 0
+    while (current != null) {
+        total = current.value
+        while (current != null) {
+            total = total + current.value
+            println("written.inner")
+            current = null
+            continue
+        }
+        println("written.after.inner")
+        return total
+    }
+    return total
+}
+
+fun distinctNested(own left: Holder?, own right: Holder?): Int {
+    var current: Holder? = left
+    var other: Holder? = right
+    var total: Int = 0
+    while (current != null) {
+        while (other != null) {
+            total = total + other.value
+            println("distinct.inner")
+            other = null
+            continue
+        }
+        println("distinct.outer")
+        return total + current.value
+    }
+    return total
+}
+
+fun returnOwner(own initial: Holder?): Holder? {
+    var current: Holder? = initial
+    while (current != null) { return current }
+    return null
+}
+
+fun readOwner(own initial: Holder?): Int {
+    var current: Holder? = initial
+    while (current != null) { return current.value }
+    return 0
+}
+
+fun inspect(text: String): Int {
+    println(text)
+    return 7
+}
+
+fun childReturn(own initial: TextHolder?): Int {
+    var current: TextHolder? = initial
+    while (current != null) { return inspect(current.text) }
+    return 0
+}
+
+fun childDirect(own initial: TextHolder?): Unit {
+    var current: TextHolder? = initial
+    while (current != null) {
+        println(current.text)
+        break
+    }
+}
+
+fun main(): Unit {
+    val normalInput: Holder? = Holder(11)
+    val normalValue = normal(normalInput)
+    if (normalValue == 11) { println("normal.ok") }
+    else { println("UNEXPECTED.normal.value") }
+
+    val continueInput: Holder? = Holder(13)
+    val continueValue = continued(continueInput)
+    if (continueValue == 13) { println("continue.ok") }
+    else { println("UNEXPECTED.continue.value") }
+
+    val breakInput: Holder? = Holder(17)
+    val breakValue = broken(breakInput)
+    if (breakValue == 17) { println("break.ok") }
+    else { println("UNEXPECTED.break.value") }
+
+    val returnInput: Holder? = Holder(19)
+    val returnValue = returned(returnInput)
+    if (returnValue == 19) { println("return.ok") }
+    else { println("UNEXPECTED.return.value") }
+
+    val readonlyInput: Holder? = Holder(23)
+    val readonlyValue = readonlyNested(readonlyInput)
+    if (readonlyValue == 69) { println("readonly.ok") }
+    else { println("UNEXPECTED.readonly.value") }
+
+    val writtenInput: Holder? = Holder(29)
+    val writtenValue = writtenNested(writtenInput)
+    if (writtenValue == 58) { println("written.ok") }
+    else { println("UNEXPECTED.written.value") }
+
+    val leftInput: Holder? = Holder(31)
+    val rightInput: Holder? = Holder(37)
+    val distinctValue = distinctNested(leftInput, rightInput)
+    if (distinctValue == 68) { println("distinct.ok") }
+    else { println("UNEXPECTED.distinct.value") }
+
+    val ownerInput: Holder? = Holder(41)
+    val ownerValue = readOwner(returnOwner(ownerInput))
+    if (ownerValue == 41) { println("owner.return.ok") }
+    else { println("UNEXPECTED.owner.return.value") }
+
+    val childReturnInput: TextHolder? = TextHolder("child.return.text")
+    val childValue = childReturn(childReturnInput)
+    if (childValue == 7) { println("child.return.ok") }
+    else { println("UNEXPECTED.child.return.value") }
+
+    val childDirectInput: TextHolder? = TextHolder("child.direct.text")
+    childDirect(childDirectInput)
+    println("child.direct.done")
+
+    var zeroInput: Holder? = Holder(43)
+    zeroInput = null
+    val zeroValue = normal(zeroInput)
+    if (zeroValue == 0) { println("zero.ok") }
+    else { println("UNEXPECTED.zero.value") }
+    println("while.flow.done")
+}
+
+// Existing collect_sources selects p.entry for unit-source observation.
+// CLI native tests select the same main body through the conventional main entry.
+fun entry(): Unit { main() }
