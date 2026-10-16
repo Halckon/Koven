@@ -113,3 +113,15 @@ Guide PR110未合期间只备份stacked分支，publisher按远端映射保留�
 统一仓外收据为 `spec0325-evidence/final17-receipt.json` 与 `engineering-final17-receipt.json`。
 本片已具备上述有限本地验收；仍待远端双宿主CI与主干交付，Spec保持active。
 普通Int赋值成功不外推nullable/资源值native能力，也不声称其他v0.44片完成。
+
+## 6. PR111 尺寸门禁修复
+
+2026-10-16，PR111 run `38832832352` 的 Rust Physical Line Guard 在真实 base
+`020ff41f` 拒绝 expression.rs 的 1211 行（base 1207）；此前增量审阅不等于该门禁通过。
+后继 `6b8a630b6c14740cc7cc97083a190da93f1208e0` 从实际远端 `358133bf` 继承，
+将完整赋值分发、旧fallback/Rc诊断及flow kill/version移入既有私有assignment模块，
+求值与错误顺序不变；expression降至1173行，ownership未改且仍在既有1429行例外内。
+未调整尺寸阈值；实际 `check_rust_sizes.py --base 020ff41f` 全部通过。
+同一修复head原17 exact各1命中通过、36输入SHA前后不变，原四工程检查全部通过；
+仓外 `size-repair17-receipt.json` 与 `engineering-size-repair17-receipt.json` 保存结果。
+原CI失败及历史本地结果保留；修复远端CI仍须对实际发布head独立验证。
