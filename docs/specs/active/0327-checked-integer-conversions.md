@@ -1,10 +1,10 @@
 # SPEC-0327: 显式 checked 整数转换
 
-> **性质**：实施合同 · **状态**：active · **读取时机**：准备 v0.44 E 的普通前端红测时 · **唯一真源**：本 Spec；语言合同见 Guide
+> **性质**：实施合同 · **状态**：in-progress · **读取时机**：准备 v0.44 E 的普通前端红测时 · **唯一真源**：本 Spec；语言合同见 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | active |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-0327` |
 | Phase | Phase 2 类型身份先行；Phase 3/4 按后继验收分片闭合 |
 | 基线 | 实际 main `aa42bdc5f1f3172b22f1ff7f708155b1aa077f10`（从020ff草案正常合并） |
@@ -91,3 +91,5 @@ const 对照先要求 runtime 成功，失败时不把成员不存在误计 cons
 当前候选只发布CheckedConvert源/目标/AST身份并按kind验证；final admission复用既有角色。
 两条lowering在事实验证后对合法CheckedConvert明确UnsupportedNode，不生成IntegerNot或cast；
 畸形事实仍MissingFact。此边界需普通源码lower-only正控验收，未运行前不记通过。
+
+首次active迁移将状态误写active，docs门禁拒绝；现修为治理规定in-progress，不计首次通过。
