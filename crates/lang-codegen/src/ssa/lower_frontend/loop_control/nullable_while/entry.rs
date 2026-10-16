@@ -11,12 +11,12 @@ pub(in super::super) struct DirectNullableWhileEntry {
     statement: StatementId,
     descriptor: NullComparisonDescriptor,
     inherited: Option<(SymbolId, NonNullProof)>,
-    provider: Option<super::super::super::outer_borrowed_while::Relation>,
+    provider: Option<Box<super::super::super::outer_borrowed_while::Relation>>,
 }
 
 impl DirectNullableWhileEntry {
     pub(super) fn provider(&self) -> Option<&super::super::super::outer_borrowed_while::Relation> {
-        self.provider.as_ref()
+        self.provider.as_deref()
     }
     pub(super) fn into_parts(
         self,
@@ -149,7 +149,7 @@ impl ExpressionLowerer<'_> {
                 statement,
                 descriptor,
                 inherited: None,
-                provider: Some(provider),
+                provider: Some(Box::new(provider)),
             }));
         }
         let inherited = if self.non_null_bindings.is_empty() {

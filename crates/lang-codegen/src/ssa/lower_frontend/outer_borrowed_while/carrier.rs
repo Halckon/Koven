@@ -122,9 +122,7 @@ pub(super) fn transport_states(
         {
             return None;
         }
-        let Some(ops) = instructions(function, state.block) else {
-            return None;
-        };
+        let ops = instructions(function, state.block)?;
         for instruction in ops {
             match instruction.operation {
                 Operation::BorrowEnd { loan }
@@ -143,17 +141,14 @@ pub(super) fn transport_states(
             graph.insert(state, Vec::new());
             continue;
         }
-        let Some(columns) = state
+        let columns = state
             .entities
             .iter()
             .map(|entity| {
                 let (block, index) = parameter(function, *entity)?;
                 (block == state.block).then_some(index)
             })
-            .collect::<Option<Vec<_>>>()
-        else {
-            return None;
-        };
+            .collect::<Option<Vec<_>>>()?;
         let predecessors = incoming(function, state.block);
         if predecessors.is_empty() {
             return None;
@@ -180,7 +175,7 @@ pub(super) fn transport_states(
                 }) => {}
                 _ => return None,
             }
-            let Some(entities) = columns
+            let entities = columns
                 .iter()
                 .map(|column| {
                     let entity = *edge.arguments.get(*column)?;
@@ -192,10 +187,7 @@ pub(super) fn transport_states(
                         == 1)
                         .then_some(entity)
                 })
-                .collect::<Option<Vec<_>>>()
-            else {
-                return None;
-            };
+                .collect::<Option<Vec<_>>>()?;
             let parent = Columns { block, entities };
             parents.push(parent.clone());
             pending.push(parent);
