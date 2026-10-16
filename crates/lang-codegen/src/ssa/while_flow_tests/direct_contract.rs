@@ -1,6 +1,6 @@
 //! Read-only identity assertions for five direct ordinary nullable while sources.
 use crate::ssa::model::{
-    EntityId, EntityType, LoanKind, Operation, Program, SsaTypeKind, TerminatorKind,
+    Definition, EntityId, EntityType, LoanKind, Operation, Program, SsaTypeKind, TerminatorKind,
 };
 
 pub(super) fn assert_direct_proof(program: &Program, case: usize) {
@@ -120,7 +120,24 @@ pub(super) fn assert_direct_proof(program: &Program, case: usize) {
                 .iter()
                 .any(|entity| matches!(entity, EntityId::Loan(_)))
         );
-        let replacement = edge.arguments[owner_column];
+        let Definition::BlockParameter { block, index } =
+            function.entity(EntityId::Value(*owner)).unwrap().definition
+        else {
+            panic!("the condition reads the loop header owner parameter")
+        };
+        assert_eq!(block, header.id);
+        let replacement = edge.arguments[index];
+        let Definition::InstructionResult {
+            instruction,
+            index: 0,
+        } = function.entity(replacement).unwrap().definition
+        else {
+            panic!("replacement is the actual nullable-null result")
+        };
+        assert!(
+            matches!(function.instruction(instruction).unwrap().operation,
+            Operation::NullableNull { nullable: actual } if actual == nullable)
+        );
         assert_ne!(
             replacement,
             EntityId::Value(body_owner),

@@ -291,15 +291,13 @@ fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
         .map(|(index, result)| {
             let result = result.and_then(|program| {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
-                if index % 2 == 0 {
-                    direct_contract::assert_direct_proof(&program, index / 2);
-                }
                 crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                Ok(())
+                Ok(program)
             });
+            let status = result.as_ref().map(|_| ());
             println!(
-                "DIRECT PROOF source={} unit={} {result:?}",
+                "DIRECT PROOF source={} unit={} {status:?}",
                 index / 2,
                 index % 2 == 1
             );
@@ -308,7 +306,9 @@ fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
         .collect::<Vec<_>>();
     for (index, result) in outcomes.into_iter().enumerate() {
         if index % 2 == 0 {
-            result.expect("single direct nullable while has a real per-iteration proof");
+            let program =
+                result.expect("single direct nullable while has a real per-iteration proof");
+            direct_contract::assert_direct_proof(&program, index / 2);
         }
     }
 }
