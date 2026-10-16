@@ -204,6 +204,9 @@ mod borrow_value_field_tests;
 mod single_readonly_method_tests;
 
 #[cfg(test)]
+mod integer_range_contract_tests;
+
+#[cfg(test)]
 mod integer_range_pending_tests;
 
 #[cfg(test)]

@@ -11,7 +11,7 @@ run() { "$@" || status=$?; }
 # from the full frontend suite. SPEC-0247 includes the repaired multifile baseline.
 # SPEC-0290 retains all 25 frontend contracts changed by SPEC-0288 / PR #69.
 run cargo test --locked -p lang-frontend --no-fail-fast \
-  --test numeric_literals --test bitwise_constants --test integer_inv --test checked_integer_conversion --test type_ownership_primitives --test ownership_primitives --test ownership_field_replace \
+  --test numeric_literals --test bitwise_constants --test integer_inv --test checked_integer_conversion --test integer_range_values --test type_ownership_primitives --test ownership_primitives --test ownership_field_replace \
   --test string_clone --test clone_primitive_integration \
   --test diagnostic_model --test final_type_admission --test enum_case_borrow_categories \
   --test ownership_borrow_continuation --test ownership_borrow_last_use \

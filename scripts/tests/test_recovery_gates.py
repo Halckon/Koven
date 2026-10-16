@@ -91,10 +91,11 @@ class CompositionContracts(unittest.TestCase):
         cargo = [line for line in calls if line.startswith("cargo ")]
         targets = [target for line in cargo for target in re.findall(r"--test ([a-z0-9_]+)", line)]
         self.assertEqual(len(targets), len(set(targets)))
-        self.assertEqual(107, len(targets))
+        self.assertEqual(108, len(targets))
         self.assertEqual(1, targets.count("final_type_admission"))
         self.assertEqual(1, targets.count("control_branch_join"))
         self.assertEqual(1, targets.count("checked_integer_conversion"))
+        self.assertEqual(1, targets.count("integer_range_values"))
         self.assertEqual(1, targets.count("enum_case_borrow_categories"))
         self.assertEqual(10, len(cargo))
         self.assertTrue(calls[-1].endswith("scripts/check_tutorial.py"))
