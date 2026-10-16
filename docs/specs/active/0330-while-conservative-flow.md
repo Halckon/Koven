@@ -278,3 +278,27 @@ Return 恰为 NullableBranch true-edge 的原 nullable owner、同 proof BorrowE
 `a6374b2b634a09980291106cce46912b6c643a007636025de5e7b5996582d9dc`。
 保留前述失败与阶段记录；本批仍仅增量备份，复杂嵌套、child/pending/provider、
 最终 native 与 CI 尚待逐项验收，不归档、不创建完成 PR。
+
+同根只读内层 while 随后独立推进：原 readonly 源码与仅内层 Group guard 变体，
+于 `26dcb91c` 采四入口真实 lower Unsupported，收据 SHA
+`25eb10f3c8d550558c53a7969ed092cbb4dc1f86bbf8392789f09bc17ce19c0a`。
+生产只复用当前单一同根 While proof 的真实 owner/inner/origin，沿既有
+NullableIsNull/Conditional/carry 运输，不重新出生 view；unit 的 false/body 从完整
+condition state 分别恢复，各实际 continue、break/false 及 merge 核存活配对。
+消失或替换的 proof 不从入口重造，未决 carrier 仍拒绝。
+执行前静态发现测试将 checked 加法分支误算作唯一 Conditional，旧清单未运行；
+仅将 inner guard 按真实 BooleanNot→NullableIsNull(owner) 生产链定位后重冻。
+固定 `5ab6b93c` 十七项普通 exact 各 1 通过、88 输入逐轮稳定，收据 SHA
+`077d5328f5c43b314d4b659bcd8ff3e19b69790dd8f4edf3dfec68a9d74d276d`。
+原十六回归含 owner-return 保持通过；新四入口均 SSA/内存 LLVM 成功并锁唯一外层
+birth、inner 两边真实 owner/loan 列、两实际出口到 final-read join 的配对参数，以及
+最后读取后的同 lineage 唯一 BorrowEnd。该精确 oracle 只覆盖这两个 readonly 源码。
+同 head 原六组其余矩阵各实际 1 命中，38 观察为 13 成功、19 lower、4 complete、
+2 ownership 拒绝；normal 组绿，其余五组仍正例行为红，原精确负控保留，收据 SHA
+`70d64962e9002a35b4c25c9d8dab192ecb0de9ba816c9fc6b3d5a0076d825e3d`。
+其中同根写入后 continue/normal 均仍 Unsupported。与同 head owner-transfer 四成功
+合并计原 42 矩阵为 17 成功、19 lower、4 complete、2 ownership；不声称这些组全绿。
+同 head 四工程 fmt/check/clippy/build 全部 exit0、88 输入稳定，收据 SHA
+`38e4ed9a23e9c86e057c34fb0b44a2909dd656a54c4b681184c3d0bc0b7458a0`。
+仍 active，仅阶段分支备份；同根写入、不同根、child/pending/provider 与最终 native、
+CI 继续由本片后继逐源码闭合，不降低既定最终合同。
