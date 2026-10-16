@@ -11,7 +11,7 @@
 | 基线 | Guide `be3264bc7143fdddb160ce77039fb902694d0d77`；独立于 0325 实现分支 |
 | 分支依赖 | stacked Guide PR110；尚未主干交付，不重复发布 Guide 提交 |
 | 批准范围 | 用户已启用 v0.44 A 及封闭 join 细则；实施与验收分别推进 |
-| 当前状态 | 首3项已采基线，后5项 tests-only 待审；无生产改动 |
+| 当前状态 | 本地18exact与4工程已验收；待独审、发布及远端CI |
 
 ## 1. 最小范围
 
@@ -25,10 +25,10 @@ statement when/无 else if 为 Unit；有 else if 即使结果被丢弃也检查
 不以本片引入跨体系大 trait 或类型事实重构。诊断关联实际首冲突来源，
 不能把被跳过的 Error/Nothing 首分支误标为参与冲突的类型来源。
 
-## 2. 拟定普通源码 exact 清单
+## 2. 普通源码 exact 矩阵
 
-拟新增 target `control_branch_join`，每项相同源码走 single/unit raw types 与 complete API。
-首3已采普通标量子集，现补4–8待审；helper/argv重新固定独审后才采第二批。
+target `control_branch_join`，每项相同源码走 single/unit raw types 与 complete API。
+前8项为原定矩阵，第9项由同一合同的真实邻近缺口补齐；历史采证顺序见下文。
 
 1. `known_mixed_value_branches_reject_implicit_any`：Int/String、Int/Long、不同 enum、
    List<Int>/List<Long>；分别锁 if/when 错误码与源码范围。
@@ -42,10 +42,13 @@ statement when/无 else if 为 Unit；有 else if 即使结果被丢弃也检查
    原 L0084 与完整诊断保留，不借无 expected join 隐藏错误。
 6. `statement_and_value_contexts_remain_distinct`：statement when 混型 Unit、
    statement 有 else if 混型拒绝、无 else if Unit，以及 initializer 值上下文。
-7. `error_and_deferred_branches_preserve_original_roots`：普通未定义名字及已有 postfix ?，
+7. `error_and_deferred_branches_preserve_original_roots`：普通非法二元操作及合法Result的 postfix ?，
    原诊断/Deferred reason 不被 ControlJoin 或成功 Any 取代；与同型/Nothing/冲突组合亦然。
 8. `when_conflict_labels_track_actual_participating_branch`：前置 Nothing/Error 的三分支，
    primary/label 指向实际冲突，不硬指第一 entry；保留同根级联抑制。
+
+9. `nullable_case_joins_deliver_the_same_enum_instance`：null/case双序交付同实例E?，
+   保留leaf smartcast，拒绝不同泛型实例合并。
 
 每项完整 `cargo test --locked --offline -p lang-frontend --test control_branch_join NAME -- --exact --nocapture --test-threads=1`。
 helper 不构造/修改 compiler facts、IR；无产物执行、注入或校准。冻结输入 SHA/HEAD/tree，
@@ -56,10 +59,10 @@ helper 不构造/修改 compiler facts、IR；无产物执行、注入或校准�
 已有要求 Any 的旧回归须按新合同精确更新并逐项审定，不宽跑旧 target。
 公开 CLI 只 build 验证拒绝路径；成功 native 仅选已有 Int if/Boolean when 普通路径。
 合法前端 nullable/enum join 不等于后端已经支持，结构化拒绝单独记账。
-工程门禁与最终有限名单待冻结；红证后再登记 active、实施最小 patch。
+最终有限名单与工程命令已冻结执行，输入身份与分账结果见§7。
 Guide 与其他 Spec 发布由唯一 publisher 串行处理，本分支不改 0325 固定工作树。
 
-首批3 exact仅采Int/String、Int/Long、Int同型与Nothing调用、Int/null/Int?双序；
+历史首批3 exact仅采Int/String、Int/Long、Int同型与Nothing调用、Int/null/Int?双序；
 全不返回、null/null、泛型/enum、复杂上下文与后5项尚待补验，不以首批红证批准生产。
 
 首轮 `56d2d9fb` 的第一命令在helper编译阶段E0599（DiagnosticCode无as_str）停止，
@@ -138,3 +141,20 @@ unit checker旧尺寸1127→1128仅注册独立模块，新逻辑独立文件；
 unit签名虽为BuiltinAny，两个分支各L0084且complete拒绝。旧single raw空不代表最终接纳。
 据此仅修旧混型raw预期与有限Any拒绝控制，未增加expected wrapper或开启Any运行时表示；
 入口诊断差异保留为当前边界。原失败与观察分账保留仓外，观察命令成功不计能力通过。
+
+## 7. 本地最终验收与交接
+
+实跑head `7064a803faa19c966b7e76d489a43731dc34a20e`，tree `207bcd6377e7c98727e6d809144bc2f19f02444a`。
+18个唯一exact串行、各实际1命中、43输入前后SHA一致：9新前端矩阵、5既有精确回归、
+2公开CLI拒绝与2普通native成功。CLI拒绝合计8次build，human/json均锁L0089/L0112与Span，
+无产物执行或残留；native每入口build/run各一次，仅Boolean/Int if/when，断言exit0、
+stdout `joined\n`、stderr空及自身临时目录清理。native子进程结果由测试断言验证，
+未另导出独立子进程逐项日志；不外推nullable/enum native或更宽资源退出能力。
+同head的fmt、workspace/all-targets check、frontend+cli all-targets clippy -D warnings、
+cli build四工程命令全exit0；Cargo依赖锁定offline，均非新增行为测试。
+仓外`spec0326-evidence/final18-v3-receipt.json`与`engineering-final18-v3-receipt.json`
+绑定固定argv、输入与日志SHA。原cc0e工程fmt失败/后三项未跑、bb463工程clippy失败/build未跑
+均保留；修复仅模块排序及测试迭代器风格，原18两轮均实际通过。
+CI接线为`check_stage_integration.sh`新增本target，既有type_checking/multifile与CLI已在
+两host路径；仅静态核接线与bash -n通过，本分支远端CI尚未执行。Spec继续active，
+等待唯一publisher按Guide同树映射发布并对齐真实main；不重复发布Guide，也不覆盖0325。
