@@ -1,6 +1,6 @@
 //! SPEC-0326 first source-only batch. No fact mutation or artifact execution.
 use lang_frontend::{
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, DiagnosticDetail},
     lexer::lex,
     name_resolution::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
@@ -9,8 +9,8 @@ use lang_frontend::{
     source::SourceMap,
     type_checking::{
         BuiltinType, CompilationUnitTypes, FinalTypeAdmissionError, TypeId, TypeKind, TypedFile,
-        UnitExpressionId, UnitTypeId, UnitTypeKind, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, complete_file_types, standard_environments,
+        UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId, check_compilation_unit_types,
+        check_types, complete_compilation_unit_types, complete_file_types, standard_environments,
     },
 };
 
@@ -26,6 +26,9 @@ struct Observation {
     mode: &'static str,
     root: String,
     shape: Shape,
+    nodes: Vec<(String, Shape)>,
+    labels: Vec<String>,
+    matches_type_refs: Vec<String>,
     raw: Vec<Diagnostic>,
     primary_text: Vec<String>,
     complete: Result<(), FinalTypeAdmissionError>,
@@ -51,6 +54,10 @@ fn observe(root: &str) -> Vec<Observation> {
     let text = format!(
         "fun test(flag: Boolean, optional: Int?, wide: Long): Unit {{ val result = {root} }}"
     );
+    observe_text(&text, root)
+}
+
+fn observe_text(text: &str, root: &str) -> Vec<Observation> {
     let mut sources = SourceMap::new();
     let source = sources.add_source("main.ko", text).expect("source");
     let lexed = lex(&sources, source).expect("lex");
@@ -79,6 +86,38 @@ fn observe(root: &str) -> Vec<Observation> {
             .map(|d| sources.slice(d.primary_span()).unwrap().to_owned())
             .collect(),
         complete: complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ()),
+        nodes: file
+            .ast()
+            .expressions()
+            .iter()
+            .filter_map(|(id, node)| {
+                typed.expression_type(id).map(|ty| {
+                    (
+                        sources.slice(node.span()).unwrap().to_owned(),
+                        single_shape(&typed, ty),
+                    )
+                })
+            })
+            .collect(),
+        matches_type_refs: file
+            .ast()
+            .type_refs()
+            .iter()
+            .filter_map(|(type_ref, node)| {
+                (typed.type_ref_type(type_ref) == typed.expression_type(id))
+                    .then(|| sources.slice(node.span()).unwrap().to_owned())
+            })
+            .collect(),
+        labels: raw
+            .iter()
+            .flat_map(|d| d.details())
+            .filter_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => {
+                    Some(sources.slice(label.span()).unwrap().to_owned())
+                }
+                _ => None,
+            })
+            .collect(),
         raw: raw.clone(),
     };
     assert_eq!(typed.diagnostics(), raw);
@@ -108,6 +147,41 @@ fn observe(root: &str) -> Vec<Observation> {
             .collect(),
         complete: complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
             .map(|_| ()),
+        nodes: file
+            .ast()
+            .expressions()
+            .iter()
+            .filter_map(|(id, node)| {
+                typed
+                    .expression_type(UnitExpressionId::new(unit, id))
+                    .map(|ty| {
+                        (
+                            sources.slice(node.span()).unwrap().to_owned(),
+                            unit_shape(&typed, ty),
+                        )
+                    })
+            })
+            .collect(),
+        matches_type_refs: file
+            .ast()
+            .type_refs()
+            .iter()
+            .filter_map(|(type_ref, node)| {
+                (typed.type_ref_type(UnitTypeRefId::new(unit, type_ref))
+                    == typed.expression_type(UnitExpressionId::new(unit, id)))
+                .then(|| sources.slice(node.span()).unwrap().to_owned())
+            })
+            .collect(),
+        labels: raw
+            .iter()
+            .flat_map(|d| d.details())
+            .filter_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => {
+                    Some(sources.slice(label.span()).unwrap().to_owned())
+                }
+                _ => None,
+            })
+            .collect(),
         raw: raw.clone(),
     };
     assert_eq!(typed.diagnostics(), raw);
@@ -206,5 +280,212 @@ fn null_and_nullable_branches_use_canonical_result() {
         );
         assert!(o.raw.is_empty(), "{o:?}");
         assert!(o.complete.is_ok(), "{o:?}");
+    }
+}
+
+#[test]
+fn same_enum_instance_branches_join_to_root() {
+    let expressions = roots("E.A", "E.B").into_iter().chain(roots("E.A", "base"));
+    let mut observations: Vec<_> = expressions.flat_map(|root| {
+        let text = format!("enum class E {{ A, B }}\nfun test(flag: Boolean, base: E): Unit {{ val witness = base; val result = {root} }}");
+        observe_text(&text, &root).into_iter().map(|o| ("E", o))
+    }).collect();
+    for (root, expected, input_type) in [
+        (
+            "when (e) { is E.A<Int> -> e; is E.B<Int> -> e }",
+            "E<Int>",
+            "E<Int>",
+        ),
+        (
+            "when (e) { is E.A<Int> -> e; is E.B<Int> -> anchor }",
+            "E<Int>",
+            "E<Int>",
+        ),
+        (
+            "when (e) { null -> optional; is E.A<Int> -> e; is E.B<Int> -> e }",
+            "E<Int>?",
+            "E<Int>?",
+        ),
+        (
+            "when (e) { is E.A<Int> -> e; is E.B<Int> -> e; null -> optional }",
+            "E<Int>?",
+            "E<Int>?",
+        ),
+    ] {
+        let text = format!(
+            "enum class E<T> {{ A(value: T), B(value: T) }}\nfun test(e: {input_type}, anchor: E<Int>, optional: E<Int>?): Unit {{ val result = {root} }}"
+        );
+        observations.extend(observe_text(&text, root).into_iter().map(|o| (expected, o)));
+    }
+    for (expected, o) in observations {
+        assert!(
+            o.matches_type_refs.iter().any(|text| text == expected),
+            "{} expected {expected}: {o:?}",
+            o.mode
+        );
+        assert!(o.raw.is_empty(), "{o:?}");
+        assert!(o.complete.is_ok(), "{o:?}");
+    }
+}
+
+#[test]
+fn expected_types_keep_original_mismatch_diagnostics() {
+    let observations: Vec<_> = roots("1", "\"text\"")
+        .into_iter()
+        .flat_map(|root| {
+            observe_text(
+                &format!("fun test(flag: Boolean): Unit {{ val result: Int = {root} }}"),
+                &root,
+            )
+        })
+        .collect();
+    for o in observations {
+        assert_eq!(
+            o.raw
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            ["L0084"],
+            "{o:?}"
+        );
+        assert_eq!(o.primary_text, ["\"text\""]);
+        match o.complete {
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                assert_eq!(diagnostics, o.raw)
+            }
+            other => panic!("expected original mismatch: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn statement_and_value_contexts_remain_distinct() {
+    let when = "when (flag) { true -> 1; false -> \"text\" }";
+    let with_else = "if (flag) 1 else \"text\"";
+    let without_else = "if (flag) 1";
+    let cases = [(when, true), (with_else, false), (without_else, true)];
+    let observations: Vec<_> = cases
+        .into_iter()
+        .flat_map(|(root, ok)| {
+            observe_text(
+                &format!("fun test(flag: Boolean): Unit {{ {root}; println(\"done\") }}"),
+                root,
+            )
+            .into_iter()
+            .map(move |o| (ok, o))
+        })
+        .collect();
+    for (ok, o) in observations {
+        if ok {
+            assert_eq!(o.shape, Shape::Builtin(BuiltinType::Unit), "{o:?}");
+            assert!(o.raw.is_empty() && o.complete.is_ok(), "{o:?}");
+        } else {
+            assert_eq!(
+                o.raw
+                    .iter()
+                    .map(|d| d.code().to_string())
+                    .collect::<Vec<_>>(),
+                ["L0089"],
+                "{o:?}"
+            );
+            assert!(matches!(
+                o.complete,
+                Err(FinalTypeAdmissionError::Diagnostics(_))
+            ));
+        }
+    }
+}
+
+#[test]
+fn error_and_deferred_branches_preserve_original_roots() {
+    let deferred: Vec<_> = [
+        ("optional?", "2"),
+        ("2", "optional?"),
+        ("optional?", "error(\"stop\")"),
+    ]
+    .into_iter()
+    .flat_map(|(left, right)| roots(left, right))
+    .flat_map(|root| observe(&root))
+    .collect();
+    let errors: Vec<_> = roots("1 + true", "2")
+        .into_iter()
+        .flat_map(|root| observe(&root))
+        .collect();
+    for o in deferred {
+        assert!(
+            o.nodes.iter().any(|(text, shape)| text == "optional?"
+                && *shape == Shape::Other("Deferred(ErrorPropagation)".to_owned())),
+            "{o:?}"
+        );
+        assert_eq!(
+            o.shape,
+            Shape::Other("Deferred(ErrorPropagation)".to_owned()),
+            "{o:?}"
+        );
+        match o.complete {
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => assert!(
+                diagnostics.iter().all(|d| d.code().to_string() == "L0165"),
+                "{diagnostics:?}"
+            ),
+            other => panic!("expected deferred source gate: {other:?}"),
+        }
+    }
+    for o in errors {
+        assert_eq!(
+            o.raw
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            ["L0085"],
+            "{o:?}"
+        );
+        assert!(
+            o.raw
+                .iter()
+                .all(|d| !matches!(d.code().to_string().as_str(), "L0089" | "L0112")),
+            "{o:?}"
+        );
+        match o.complete {
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                assert_eq!(diagnostics, o.raw)
+            }
+            other => panic!("expected preserved original error: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn when_conflict_labels_track_actual_participating_branch() {
+    let roots = [
+        "when { flag -> error(\"stop\"); other -> 1; else -> \"text\" }",
+        "when { flag -> 1 + true; other -> 1; else -> \"text\" }",
+    ];
+    let observations: Vec<_> = roots
+        .into_iter()
+        .flat_map(|root| {
+            observe_text(
+                &format!("fun test(flag: Boolean, other: Boolean): Unit {{ val result = {root} }}"),
+                root,
+            )
+        })
+        .collect();
+    for o in observations {
+        let joins: Vec<_> = o
+            .raw
+            .iter()
+            .filter(|d| d.code().to_string() == "L0112")
+            .collect();
+        assert_eq!(joins.len(), 1, "{o:?}");
+        assert!(
+            o.primary_text.iter().any(|text| text == "\"text\""),
+            "{o:?}"
+        );
+        assert!(o.labels.iter().any(|text| text == "1"), "{o:?}");
+        assert!(
+            !o.labels
+                .iter()
+                .any(|text| text == "error(\"stop\")" || text == "1 + true"),
+            "{o:?}"
+        );
     }
 }

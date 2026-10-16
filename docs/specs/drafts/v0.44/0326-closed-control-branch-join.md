@@ -11,7 +11,7 @@
 | 基线 | Guide `be3264bc7143fdddb160ce77039fb902694d0d77`；独立于 0325 实现分支 |
 | 分支依赖 | stacked Guide PR110；尚未主干交付，不重复发布 Guide 提交 |
 | 批准范围 | 用户已启用 v0.44 A 及封闭 join 细则；实施与验收分别推进 |
-| 当前状态 | 首批3项 tests-only 准备；无生产改动，未运行本片测试 |
+| 当前状态 | 首3项已采基线，后5项 tests-only 待审；无生产改动 |
 
 ## 1. 最小范围
 
@@ -28,7 +28,7 @@ statement when/无 else if 为 Unit；有 else if 即使结果被丢弃也检查
 ## 2. 拟定普通源码 exact 清单
 
 拟新增 target `control_branch_join`，每项相同源码走 single/unit raw types 与 complete API。
-首批仅实现下列1–3的普通标量子集；其余仍是计划。helper/argv固定独审后才采红。
+首3已采普通标量子集，现补4–8待审；helper/argv重新固定独审后才采第二批。
 
 1. `known_mixed_value_branches_reject_implicit_any`：Int/String、Int/Long、不同 enum、
    List<Int>/List<Long>；分别锁 if/when 错误码与源码范围。
@@ -75,3 +75,10 @@ Int/String、Int/Long的if两入口已有L0089；when两入口却回退Any且com
 if(null,Int)错误取Int；部分nullable组合虽得Int?仍保留该错误。说明需要处理分支预期上下文，
 不能仅删Any或只补join类型函数。原始仓外收据 `spec0326-evidence/first3-v2-receipt.json`。
 尚未执行总矩阵其余边界、CLI/native/工程验收；未实施生产。首轮E0599独立保留。
+
+
+第二批追加同enum实例（泛型显式参数、nullable三分支双序）、expected L0084、statement、
+Error/Deferred与实际冲突label五项；enum结果与各入口真实typed TypeRef的TypeId比对，
+不跨入口比较ID，不依赖Debug文本判断enum身份。原ordinary error control使用 `1 + true`，
+不把names失败作为类型红证。null/null、全不返回及复杂调用/return/lambda语境仍待补齐；
+本批未运行，整个A尚不具备生产准入。
