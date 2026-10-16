@@ -394,17 +394,26 @@ fn readonly_same_root_nested_while_preserves_the_outer_proof() {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
                 crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
-                Ok(())
+                Ok(program)
             });
             println!(
-                "READONLY NESTED source={} unit={} {result:?}",
+                "READONLY NESTED source={} unit={} {:?}",
                 index / 2,
-                index % 2 == 1
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
             );
             result
         })
         .collect::<Vec<_>>();
-    for result in outcomes {
-        result.expect("read-only inner while preserves the inherited proof");
+    for (index, result) in outcomes.into_iter().enumerate() {
+        let program = result.expect("read-only inner while preserves the inherited proof");
+        readonly_nested_contract::assert_inherited_proof(
+            &program,
+            &sources[index / 2],
+            index % 2 == 1,
+        );
     }
 }
+
+#[path = "readonly_nested_contract.rs"]
+mod readonly_nested_contract;
