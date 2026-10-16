@@ -154,6 +154,7 @@ impl UnitExpressionLowerer<'_> {
                 consumed_receiver: self.consumed_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
+                nullable_proofs: self.nullable_proofs.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 capture_loans: self.capture_loans.clone(),
                 result_source_loans: self.result_source_loans.clone(),
@@ -194,6 +195,7 @@ impl UnitExpressionLowerer<'_> {
             consumed_receiver: self.consumed_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
+            nullable_proofs: self.nullable_proofs.clone(),
             closure_bindings: self.closure_bindings.clone(),
             capture_loans: self.capture_loans.clone(),
             result_source_loans: self.result_source_loans.clone(),
@@ -357,6 +359,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver,
             self.bindings.clone(),
             self.borrow_bindings.clone(),
+            self.nullable_proofs.clone(),
             self.result_source_loans.clone(),
             self.closure_bindings.clone(),
             self.capture_loans.clone(),
@@ -393,6 +396,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver,
             baseline.clone(),
             baseline_borrows,
+            self.nullable_proofs.clone(),
             baseline_closures,
             self.capture_loans.clone(),
             self.pending_operands.clone(),
@@ -407,6 +411,7 @@ impl UnitExpressionLowerer<'_> {
                 unmatched_consumed_receiver,
                 unmatched_bindings,
                 unmatched_borrows,
+                unmatched_proofs,
                 unmatched_closures,
                 unmatched_captures,
                 unmatched_pending,
@@ -422,6 +427,7 @@ impl UnitExpressionLowerer<'_> {
                     unmatched_consumed_receiver,
                     unmatched_bindings,
                     unmatched_borrows,
+                    unmatched_proofs,
                     self.result_source_loans.clone(),
                     unmatched_closures,
                     unmatched_captures,
@@ -446,6 +452,7 @@ impl UnitExpressionLowerer<'_> {
             let mut next_consumed_receiver = unmatched_consumed_receiver;
             let mut next_bindings = unmatched_bindings;
             let mut next_borrows = unmatched_borrows;
+            let mut next_proofs = unmatched_proofs;
             let mut next_closures = unmatched_closures;
             let mut next_captures = unmatched_captures;
             let mut next_pending = unmatched_pending;
@@ -457,6 +464,7 @@ impl UnitExpressionLowerer<'_> {
                 self.consumed_receiver = next_consumed_receiver;
                 self.bindings = next_bindings;
                 self.borrow_bindings = next_borrows;
+                self.nullable_proofs = next_proofs;
                 self.closure_bindings = next_closures;
                 self.capture_loans = next_captures;
                 self.pending_operands = next_pending;
@@ -507,6 +515,7 @@ impl UnitExpressionLowerer<'_> {
                     result: LoweredValue::Unit,
                     bindings: matched_bindings,
                     borrow_bindings: matched_borrows,
+                    nullable_proofs: self.nullable_proofs.clone(),
                     receiver: self.current_receiver,
                     consumed_receiver: self.consumed_receiver,
                     closure_bindings: after_condition_closures.clone(),
@@ -527,6 +536,7 @@ impl UnitExpressionLowerer<'_> {
                 )?;
                 next_borrows =
                     self.rebind_carried_loans(next, carried.len(), &carried_loans, entry.span)?;
+                next_proofs = self.nullable_proofs.clone();
                 next_receiver = self.current_receiver;
                 next_consumed_receiver = self.consumed_receiver;
                 next_closures = after_condition_closures;
@@ -543,6 +553,7 @@ impl UnitExpressionLowerer<'_> {
                 self.consumed_receiver,
                 self.bindings.clone(),
                 self.borrow_bindings.clone(),
+                self.nullable_proofs.clone(),
                 self.result_source_loans.clone(),
                 self.closure_bindings.clone(),
                 self.capture_loans.clone(),
@@ -562,6 +573,7 @@ impl UnitExpressionLowerer<'_> {
                 next_consumed_receiver,
                 next_bindings,
                 next_borrows,
+                next_proofs,
                 next_closures,
                 next_captures,
                 next_pending,
@@ -575,6 +587,7 @@ impl UnitExpressionLowerer<'_> {
             unmatched_consumed_receiver,
             unmatched_bindings,
             unmatched_borrows,
+            unmatched_proofs,
             unmatched_closures,
             unmatched_captures,
             unmatched_pending,
@@ -600,6 +613,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver = unmatched_consumed_receiver;
             self.bindings = unmatched_bindings;
             self.borrow_bindings = unmatched_borrows;
+            self.nullable_proofs = unmatched_proofs;
             self.closure_bindings = unmatched_closures;
             self.capture_loans = unmatched_captures;
             self.pending_operands = unmatched_pending;
@@ -615,6 +629,7 @@ impl UnitExpressionLowerer<'_> {
                 consumed_receiver: self.consumed_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
+                nullable_proofs: self.nullable_proofs.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 capture_loans: self.capture_loans.clone(),
                 result_source_loans: self.result_source_loans.clone(),
@@ -802,6 +817,7 @@ impl UnitExpressionLowerer<'_> {
             self.rebind_carried_control(&baseline, then_block, &carried, &carried_loans, span)?;
         let then_borrows =
             self.rebind_carried_loans(then_block, carried.len(), &carried_loans, span)?;
+        let then_proofs = self.nullable_proofs.clone();
         let then_captures = self.capture_loans.clone();
         let then_pending = self.pending_operands.clone();
         let then_temporaries = self.temporaries.clone();
@@ -814,6 +830,7 @@ impl UnitExpressionLowerer<'_> {
             self.rebind_carried_control(&baseline, else_block, &carried, &carried_loans, span)?;
         let else_borrows =
             self.rebind_carried_loans(else_block, carried.len(), &carried_loans, span)?;
+        let else_proofs = self.nullable_proofs.clone();
         let else_captures = self.capture_loans.clone();
         let else_pending = self.pending_operands.clone();
         let else_temporaries = self.temporaries.clone();
@@ -831,6 +848,7 @@ impl UnitExpressionLowerer<'_> {
             then_consumed_receiver,
             then_baseline,
             then_borrows,
+            then_proofs,
             then_sources,
             baseline_closures.clone(),
             then_captures,
@@ -856,6 +874,7 @@ impl UnitExpressionLowerer<'_> {
                 else_consumed_receiver,
                 else_baseline,
                 else_borrows,
+                else_proofs,
                 else_sources.clone(),
                 baseline_closures.clone(),
                 else_captures,
@@ -878,6 +897,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver = else_consumed_receiver;
             self.bindings = else_baseline;
             self.borrow_bindings = else_borrows;
+            self.nullable_proofs = else_proofs;
             self.result_source_loans = else_sources;
             self.closure_bindings = baseline_closures;
             self.capture_loans = else_captures;
@@ -894,6 +914,7 @@ impl UnitExpressionLowerer<'_> {
                 consumed_receiver: self.consumed_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
+                nullable_proofs: self.nullable_proofs.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 capture_loans: self.capture_loans.clone(),
                 result_source_loans: self.result_source_loans.clone(),

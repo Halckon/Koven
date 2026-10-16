@@ -48,6 +48,7 @@ impl UnitExpressionLowerer<'_> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
                     .ty;
                 carried.push(CarriedAccess {
+                    nullable_proofs: Vec::new(),
                     range_sources: vec![(symbol, index)],
                     captures: Vec::new(),
                     symbol: None,

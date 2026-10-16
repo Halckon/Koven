@@ -33,6 +33,7 @@ mod map_result;
 mod map_with;
 mod non_null_assertion;
 mod nullable_comparison;
+mod nullable_proof;
 mod ownership;
 mod ownership_primitive;
 mod range;
@@ -53,6 +54,7 @@ pub(crate) use handoff::lower_owned_unit_with_entry;
 )]
 pub(crate) use handoff::lower_scalar_unit_with_entry;
 
+use nullable_proof::NullableProofs;
 use std::collections::BTreeMap;
 
 use lang_frontend::{
@@ -177,6 +179,7 @@ struct UnitExpressionLowerer<'a> {
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    nullable_proofs: NullableProofs,
     map_borrow_guards:
         BTreeMap<UnitSymbolId, lang_frontend::type_checking::UnitNullComparisonDescriptor>,
     result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,

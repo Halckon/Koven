@@ -144,6 +144,7 @@ impl UnitExpressionLowerer<'_> {
             consumed_receiver: self.consumed_receiver,
             bindings: false_bindings,
             borrow_bindings: self.borrow_bindings.clone(),
+            nullable_proofs: self.nullable_proofs.clone(),
             closure_bindings: condition_closures,
             capture_loans: self.capture_loans.clone(),
             result_source_loans: self.result_source_loans.clone(),
@@ -195,6 +196,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver = None;
             self.bindings.clear();
             self.borrow_bindings.clear();
+            self.nullable_proofs.clear();
             self.closure_bindings.clear();
             self.capture_loans.clear();
             self.temporaries.clear();
@@ -343,6 +345,7 @@ impl UnitExpressionLowerer<'_> {
             consumed_receiver: self.consumed_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
+            nullable_proofs: self.nullable_proofs.clone(),
             closure_bindings: self.closure_bindings.clone(),
             capture_loans: self.capture_loans.clone(),
             result_source_loans: self.result_source_loans.clone(),

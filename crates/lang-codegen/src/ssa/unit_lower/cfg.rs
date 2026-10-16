@@ -1,5 +1,6 @@
 //! compilation-unit CFG 中跨 edge 携带 value/loan 与出口合流的共享基元。
 
+mod nullable;
 mod range;
 mod rebind;
 
@@ -26,6 +27,7 @@ pub(super) struct BranchExit {
     pub(super) consumed_receiver: Option<super::ConsumedReceiver>,
     pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    pub(super) nullable_proofs: super::NullableProofs,
     pub(super) pending_operands: Vec<EntityId>,
     pub(super) temporaries: BTreeMap<UnitExpressionId, ValueId>,
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
@@ -65,6 +67,7 @@ pub(super) struct CarriedBinding {
 
 #[derive(Clone)]
 pub(super) struct CarriedAccess {
+    nullable_proofs: Vec<(UnitSymbolId, super::nullable_proof::NullableProof)>,
     range_sources: Vec<(UnitSymbolId, usize)>,
     captures: Vec<(UnitExpressionId, usize)>,
     symbol: Option<UnitSymbolId>,
@@ -157,6 +160,7 @@ impl UnitExpressionLowerer<'_> {
                     .map(|entity| entity.ty)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 Ok(CarriedAccess {
+                    nullable_proofs: Vec::new(),
                     range_sources: Vec::new(),
                     captures: Vec::new(),
                     symbol: Some(*symbol),
@@ -176,6 +180,7 @@ impl UnitExpressionLowerer<'_> {
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             carried.push(CarriedAccess {
+                nullable_proofs: Vec::new(),
                 range_sources: Vec::new(),
                 captures: Vec::new(),
                 symbol: None,
@@ -196,6 +201,7 @@ impl UnitExpressionLowerer<'_> {
                     .map(|entity| entity.ty)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 carried.push(CarriedAccess {
+                    nullable_proofs: Vec::new(),
                     symbol: None,
                     receiver: None,
                     source: entity,
@@ -207,6 +213,7 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         self.carry_range_sources(&mut carried, span)?;
+        self.carry_nullable_proofs(&mut carried, span)?;
         Ok(carried)
     }
 
@@ -243,6 +250,7 @@ impl UnitExpressionLowerer<'_> {
                         slot.pending.push(index);
                     } else {
                         loans.push(CarriedAccess {
+                            nullable_proofs: Vec::new(),
                             range_sources: Vec::new(),
                             captures: Vec::new(),
                             symbol: None,
@@ -341,11 +349,13 @@ impl UnitExpressionLowerer<'_> {
         mut exits: Vec<BranchExit>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.validate_nullable_exit_proofs(&exits, span)?;
         if exits.is_empty() {
             self.current_receiver = None;
             self.consumed_receiver = None;
             self.bindings.clear();
             self.borrow_bindings.clear();
+            self.nullable_proofs.clear();
             self.closure_bindings.clear();
             self.capture_loans.clear();
             self.result_source_loans.clear();
@@ -360,6 +370,7 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver = first.consumed_receiver;
             self.bindings = first.bindings.clone();
             self.borrow_bindings = first.borrow_bindings.clone();
+            self.nullable_proofs = first.nullable_proofs.clone();
             self.closure_bindings = first.closure_bindings.clone();
             self.capture_loans = first.capture_loans.clone();
             self.result_source_loans = first.result_source_loans.clone();
@@ -493,6 +504,11 @@ impl UnitExpressionLowerer<'_> {
                     .chain(exit.temporaries.values().copied().map(EntityId::Value))
                     .chain(exit.capture_loans.values().copied().map(EntityId::Loan))
                     .chain(range::arguments(&exit.result_source_loans))
+                    .chain(
+                        exit.nullable_proofs
+                            .values()
+                            .map(|proof| EntityId::Loan(proof.loan)),
+                    )
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -584,13 +600,18 @@ impl UnitExpressionLowerer<'_> {
             .collect::<Result<_, _>>()?;
         let source_offset =
             first.pending_operands.len() + first.temporaries.len() + first.capture_loans.len();
+        let proof_offset = source_offset + range::keys(&first.result_source_loans).len();
         self.result_source_loans = range::rebind(
             &first.result_source_loans,
-            pending_indices[source_offset..]
+            pending_indices[source_offset..proof_offset]
                 .iter()
                 .map(|index| parameters[*index]),
             span,
         )?;
+        let proof_parameters = pending_indices[proof_offset..]
+            .iter()
+            .map(|index| parameters[*index])
+            .collect::<Vec<_>>();
         let mut parameters = parameters.into_iter();
         let result = if result_type.is_some() {
             let EntityId::Value(value) = parameters
@@ -628,6 +649,12 @@ impl UnitExpressionLowerer<'_> {
             borrow_bindings.insert(symbol, loan);
         }
         self.block = merge;
+        self.nullable_proofs = self.rebind_merged_nullable_proofs(
+            first,
+            &bindings,
+            proof_parameters.into_iter(),
+            span,
+        )?;
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
         self.closure_bindings = first.closure_bindings.clone();
@@ -691,6 +718,7 @@ impl UnitExpressionLowerer<'_> {
         state: &BranchExit,
         span: Span,
     ) -> Result<Edge, LoweringError> {
+        self.validate_carried_nullable_edge(loans, state, span)?;
         let receiver = |expected: Option<super::ReceiverBinding>| {
             expected
                 .and_then(|expected| {
@@ -757,6 +785,11 @@ impl UnitExpressionLowerer<'_> {
                     .map(EntityId::Loan)
             } else if let Some(key) = slot.captures.first() {
                 state.capture_loans.get(key).copied().map(EntityId::Loan)
+            } else if let Some((root, _)) = slot.nullable_proofs.first() {
+                state
+                    .nullable_proofs
+                    .get(root)
+                    .map(|proof| EntityId::Loan(proof.loan))
             } else {
                 slot.pending
                     .first()
@@ -785,6 +818,15 @@ impl UnitExpressionLowerer<'_> {
             }
             if slot.captures.iter().any(|key| {
                 state.capture_loans.get(key).copied().map(EntityId::Loan) != Some(entity)
+            }) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            if slot.nullable_proofs.iter().any(|(root, _)| {
+                state
+                    .nullable_proofs
+                    .get(root)
+                    .map(|proof| EntityId::Loan(proof.loan))
+                    != Some(entity)
             }) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }

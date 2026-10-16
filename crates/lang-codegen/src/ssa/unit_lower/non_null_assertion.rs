@@ -87,6 +87,12 @@ impl UnitExpressionLowerer<'_> {
             LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
             LoweredValue::Unit => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
+        self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
+        let nullable_proofs = self.nullable_proofs.clone();
+        if nullable_proofs.values().any(|proof| proof.owner == owner) {
+            // This transport slice cannot retire a persistent proof before consuming its owner.
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let mut carried = std::collections::BTreeSet::from([EntityId::Value(owner)]);
         carried.extend(self.bindings.values().filter_map(|binding| match binding {
             LoweredValue::Value(value) => Some(EntityId::Value(*value)),
@@ -94,6 +100,11 @@ impl UnitExpressionLowerer<'_> {
         }));
         carried.extend(self.temporaries.values().copied().map(EntityId::Value));
         carried.extend(self.borrow_bindings.values().copied().map(EntityId::Loan));
+        carried.extend(
+            nullable_proofs
+                .values()
+                .map(|proof| EntityId::Loan(proof.loan)),
+        );
         carried.extend(self.current_receiver.map(|receiver| receiver.entity));
         carried.extend(self.pending_operands.iter().copied());
         let carried = carried.into_iter().collect::<Vec<_>>();
@@ -178,6 +189,7 @@ impl UnitExpressionLowerer<'_> {
         for entity in &mut self.pending_operands {
             *entity = rebound[entity];
         }
+        self.rebind_assertion_nullable_proofs(&nullable_proofs, &rebound, span)?;
         self.block = non_null;
         let (_, results) = self
             .function
