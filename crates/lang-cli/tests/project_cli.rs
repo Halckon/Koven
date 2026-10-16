@@ -9,6 +9,8 @@ mod checked_integer_conversion;
 mod integer_range;
 #[path = "project_cli/numeric_iteration.rs"]
 mod numeric_iteration;
+#[path = "project_cli/while_flow.rs"]
+mod while_flow;
 
 #[path = "project_cli/mutable_list_delivery.rs"]
 mod mutable_list_delivery;
