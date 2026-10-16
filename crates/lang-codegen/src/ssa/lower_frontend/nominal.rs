@@ -533,6 +533,19 @@ fn intern_builtin(
             bits: 64,
             signed: false,
         },
+        BuiltinType::IntRange | BuiltinType::LongRange => {
+            let endpoint = module.intern_type(SsaTypeKind::Integer {
+                bits: if builtin == BuiltinType::IntRange {
+                    32
+                } else {
+                    64
+                },
+                signed: true,
+            });
+            return module
+                .add_integer_range_type(endpoint)
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span));
+        }
         BuiltinType::String => return Ok(module.add_string_owner_type()),
         BuiltinType::Unit => SsaTypeKind::Unit,
         _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),

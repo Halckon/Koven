@@ -16,6 +16,7 @@ mod enum_condition;
 mod field_replace;
 mod instances;
 mod integer;
+mod integer_range;
 mod loop_control;
 mod map;
 mod map_loop_owner;
@@ -175,6 +176,9 @@ impl ExpressionLowerer<'_> {
         }
         if self.typed.construction(expression).is_some() {
             return self.lower_construction(expression);
+        }
+        if self.typed.integer_range_operation(expression).is_some() {
+            return self.lower_integer_range(expression);
         }
         if self.typed.integer_operation(expression).is_some() {
             return self.lower_integer_operation(expression);
