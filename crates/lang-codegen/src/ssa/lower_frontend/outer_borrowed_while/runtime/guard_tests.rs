@@ -670,10 +670,7 @@ fn single_outer_borrowed_runtime_guards_preserve_snapshot_break_and_exhaustion()
             let (break_span, proof) = shape.before_break(lowerer);
             let before = ambient(lowerer);
             let count = lowerer.function.instructions.len();
-            assert_eq!(
-                lowerer.retire_outer_borrowed_break(break_span).unwrap(),
-                true
-            );
+            assert!(lowerer.retire_outer_borrowed_break(break_span).unwrap());
             assert_eq!(ambient(lowerer), before);
             assert!(!lowerer.non_null_bindings.contains_key(&relation.root));
             assert_eq!(lowerer.function.instructions.len(), count + 1);
@@ -795,7 +792,7 @@ fn single_outer_borrowed_runtime_guards_preserve_snapshot_break_and_exhaustion()
                 assert_ne!(header.owner(), exit.owner());
                 assert_eq!(fact.condition(), Some(header.availability_condition()));
                 assert_ne!(fact.condition(), Some(exit.availability_condition()));
-                assert_eq!(lowerer.emit_outer_borrowed_drop(fact).unwrap(), true);
+                assert!(lowerer.emit_outer_borrowed_drop(fact).unwrap());
             }
             assert!(!lowerer.bindings.contains_key(&relation.root));
             assert!(!lowerer.bindings.contains_key(&relation.items));
