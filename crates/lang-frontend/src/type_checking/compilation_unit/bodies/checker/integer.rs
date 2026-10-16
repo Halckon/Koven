@@ -1,5 +1,6 @@
-//! Compilation-unit builtin 整数按位取反。
+//! Compilation-unit compiler-bound 整数操作。
 
+use crate::type_checking::integer::integer_member;
 use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::codes,
@@ -18,7 +19,7 @@ use super::{BodyChecker, ExpressionCheck};
 
 impl BodyChecker<'_> {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_integer_inv_call(
+    pub(super) fn check_integer_operation_call(
         &mut self,
         source: SourceUnitId,
         expression: ExpressionId,
@@ -44,15 +45,16 @@ impl BodyChecker<'_> {
         else {
             return Ok(None);
         };
-        if safe
-            || self
-                .sources
-                .slice(name_span)
-                .map_err(TypeCheckingError::from)?
-                != "inv"
-        {
+        if safe {
             return Ok(None);
         }
+        let member = self
+            .sources
+            .slice(name_span)
+            .map_err(TypeCheckingError::from)?;
+        let Some((operation_kind, target_builtin)) = integer_member(member) else {
+            return Ok(None);
+        };
         let receiver_result = self.check_expression(source, receiver, None, None, return_type)?;
         if !matches!(
             self.signatures.types().get(receiver_result.ty),
@@ -77,7 +79,7 @@ impl BodyChecker<'_> {
             ) {
                 self.emit(
                     codes::UNRESOLVED_NAME,
-                    "receiver has no inv member",
+                    format!("receiver has no {member} member"),
                     name_span,
                 )?;
                 self.check_call_arguments_without_expected(source, arguments, return_type)?;
@@ -91,7 +93,7 @@ impl BodyChecker<'_> {
         if !type_arguments.is_empty() {
             self.emit(
                 codes::TYPE_ARGUMENT_ARITY,
-                "integer inv accepts no type arguments",
+                format!("integer {member} accepts no type arguments"),
                 name_span,
             )?;
             self.check_call_arguments_without_expected(source, arguments, return_type)?;
@@ -114,10 +116,11 @@ impl BodyChecker<'_> {
                 }));
             }
         }
+        let result_type = target_builtin.map_or(receiver_result.ty, |target| self.builtin(target));
         let function = self.signatures.types_mut().intern(UnitTypeKind::Function {
             move_only: false,
             parameters: Vec::<UnitFunctionParameterType>::new(),
-            return_type: receiver_result.ty,
+            return_type: result_type,
         });
         self.record_expression(source, callee, function);
         self.parts.expression_categories.insert(
@@ -130,9 +133,11 @@ impl BodyChecker<'_> {
                 UnitExpressionId::new(source, expression),
                 UnitExpressionId::new(source, receiver),
                 receiver_result.ty,
+                result_type,
+                operation_kind,
             ));
         Ok(Some(ExpressionCheck {
-            ty: receiver_result.ty,
+            ty: result_type,
             falls_through: receiver_result.falls_through,
         }))
     }

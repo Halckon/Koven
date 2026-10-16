@@ -1,16 +1,16 @@
 # SPEC-0327: 显式 checked 整数转换
 
-> **性质**：实施草案 · **状态**：draft · **读取时机**：准备 v0.44 E 的普通前端红测时 · **唯一真源**：本 Spec；语言合同见 Guide
+> **性质**：实施合同 · **状态**：active · **读取时机**：准备 v0.44 E 的普通前端红测时 · **唯一真源**：本 Spec；语言合同见 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | active |
 | Goal ID | `KOV-P2-0327` |
 | Phase | Phase 2 类型身份先行；Phase 3/4 按后继验收分片闭合 |
 | 基线 | 实际 main `aa42bdc5f1f3172b22f1ff7f708155b1aa077f10`（从020ff草案正常合并） |
 | 分支 | `feature/spec-0327-integer-conversions`；已继承主干0325；不包含未合0326实施 |
-| 规范 | [Guide整数转换](../../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
-| 当前状态 | 六项普通前端首轮4红/2初始拒绝控制绿；未实施生产 |
+| 规范 | [Guide整数转换](../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
+| 当前状态 | 六项普通前端首轮4红/2初始拒绝控制绿；有限前端候选已固定待审，后端转换未实现 |
 
 ## 1. 批准范围与依赖
 
@@ -20,7 +20,7 @@
 不改变普通用户同名成员的选择规则，不把名字本身当intrinsic身份。
 A/B主干交付优先；本草案可中断，后续在真实main同步后冻结测试输入，不混入其发布分支。
 
-## 2. 最小实现候选（尚未实施）
+## 2. 最小实现分片
 
 - 复用既有IntegerOperationKind/descriptor链，集中定义转换名到目标builtin的映射。
   descriptor必须分别发布receiver源类型、目标结果类型、真实receiver/call身份；不沿用
@@ -70,7 +70,7 @@ inv、普通同名成员、const与非法receiver均保留近邻回归。SSA/ver
 
 ## 5. 交付门
 
-首批红证与接口方案通过后再active登记与最小生产；本片结束前闭合所宣称各Phase，
+首批红证与接口方案通过后已active登记，前端候选仍须独审与真实绿测；本片结束前闭合所宣称各Phase，
 未闭合后端时不以Phase2绿色标记整个转换功能done。工程检查、实际base尺寸门禁、
 双hostCI与正常归档/合并分别记录。备份使用有明确base/head/顺序/SHA的format-patch增量；
 merge拓扑单独登记，不以线性补丁冒充保真恢复。
@@ -87,3 +87,7 @@ const 对照先要求 runtime 成功，失败时不把成员不存在误计 cons
 不能以成员尚不存在证明转换专属参数门完成；const断言尚未越过runtime红，不计白名单通过。
 没有编译/解析/名称前置失败；未运行ownership/native/Abort，后续先冻结精确诊断与接口方案。
 原始收据在仓外 `spec0327-evidence/red6-receipt.json`，不将日志或重复源码入库。
+
+当前候选只发布CheckedConvert源/目标/AST身份并按kind验证；final admission复用既有角色。
+两条lowering在事实验证后对合法CheckedConvert明确UnsupportedNode，不生成IntegerNot或cast；
+畸形事实仍MissingFact。此边界需普通源码lower-only正控验收，未运行前不记通过。

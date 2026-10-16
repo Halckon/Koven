@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树 0 份；0325已按实施CI有界归档，独立0326分支不在本树。
+- [Active 合同](active/README.md)：当前本树 1 份（0327）；0325已按实施CI有界归档，独立0326分支不在本树。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 

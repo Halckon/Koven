@@ -164,7 +164,7 @@ fn assert_conversion(observations: &[Observation], source: BuiltinType, target: 
             .operation
             .as_ref()
             .expect("selected conversion identity");
-        assert_ne!(operation.kind, IntegerOperationKind::Invert);
+        assert_eq!(operation.kind, IntegerOperationKind::CheckedConvert);
         assert_eq!(operation.source, Some(source));
         assert_eq!(operation.target, Some(target));
         assert!(operation.ast_identity_matches);

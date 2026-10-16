@@ -9,5 +9,5 @@
 [SPEC-0325](../../../archive/specs/0325-simple-variable-assignment-types.md) 已按PR111实施CI有界归档；
 归档head CI与main交付待核，其他v0.44片不因此完成。
 
-[SPEC-0327](0327-checked-integer-conversions.md)仅准备E的普通前端精确红测计划；
-完整8×8合同已启用，实施尚未开始，A/B主干交付仍优先。
+[SPEC-0327](../../active/0327-checked-integer-conversions.md)已凭六项普通前端首红登记active；
+完整8×8合同已启用，当前仅前端分片，后端尚未交付，A主干收尾仍优先。

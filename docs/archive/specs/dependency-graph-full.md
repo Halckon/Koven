@@ -319,12 +319,14 @@ subgraph Garchive["已完成（archive，309 份）"]
   S0324["S0324<br/>最终类型准入的用户诊断措辞"]
   S0325["S0325<br/>简单变量普通赋值类型事实"]
 end
+subgraph Gactive["现行 active"]
+  S0327["S0327<br/>显式 checked 整数转换"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
-  S0327["S0327<br/>显式 checked 整数转换"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1682,6 +1684,6 @@ S0320 --> S0321
 | SPEC-0323 | archive | [0323-final-admission-static-recovery.md](0323-final-admission-static-recovery.md) |
 | SPEC-0324 | archive | [0324-final-admission-user-messages.md](0324-final-admission-user-messages.md) |
 | SPEC-0325 | archive | [0325-simple-variable-assignment-types.md](0325-simple-variable-assignment-types.md) |
+| SPEC-0327 | active | [0327-checked-integer-conversions.md](../../specs/active/0327-checked-integer-conversions.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| SPEC-0327 | drafts/v0.44 | [0327-checked-integer-conversions.md](../../specs/drafts/v0.44/0327-checked-integer-conversions.md) |
