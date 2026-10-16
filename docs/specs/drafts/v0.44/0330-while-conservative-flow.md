@@ -54,3 +54,13 @@ format-patch 增量恢复核验。实际远端发布、PR、归档与 normal mer
 本片远端阶段备份/PR/审验后 normal merge 已获用户明确授权；不改0329冻结树。
 首批新增 while_flow_facts 三个普通 exact，11 段源码双入口先采齐再断言；已通过有限
 Rust 编译预检，尚未执行。初次 docs 错误锚点已机械修复，保留失败日志。
+
+## 5. 首批真实红测
+
+`57801015` 首三 exact 各实际 1 命中且行为红，11 输入前后 SHA 相同；4/8/10 份观察
+覆盖全部 11 源码双入口，lex/parse/names 均无诊断。while 条件 true 后 body 仍为 Int?；
+循环可能写入的外层 var 在头部仍沿旧 Int 事实，分别构成真实缺口。独立 if、赋值 storage/
+kill、零轮/false/break 不新增事实及不可变外层事实对照均保留实际观察，不以首红遮盖。
+收据 SHA `c17a1fbeab29fe57bb781946f6ee5398ccacc58632cd2d812564ff11c3368df6`。
+生产前还须采条件内 inout kill 前后顺序、enum/nested/continue；现有 condition_facts
+事后重取可能复活失效事实，不能只在 while body 入口机械加入未经副作用筛选的 true facts。
