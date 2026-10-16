@@ -491,3 +491,6 @@ impl ExpressionLowerer<'_> {
         Ok(proof.owner)
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -232,3 +232,6 @@ impl ExpressionLowerer<'_> {
         Ok(Some(plan.members.len()))
     }
 }
+
+#[cfg(test)]
+mod tests;
