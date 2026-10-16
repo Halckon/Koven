@@ -7,7 +7,7 @@
 | 状态 | draft |
 | Goal ID | `KOV-P2-0330` |
 | 基线 | 真实 main `3a79fef25c3e2dc8827a410f96b65f01b3fbb5e2`，已合0329 |
-| 分支 | 本地 `feature/spec-0330-while-flow`；新远端发布另按用户授权 |
+| 分支 | 本地 `feature/spec-0330-while-flow`；授权远端 `fix/spec-0330-while-flow` |
 | 依赖 | [0325赋值](../../../archive/specs/0325-simple-variable-assignment-types.md)、[0326分支合并](../../../archive/specs/0326-closed-control-branch-join.md) |
 | 合同 | [Guide06稳定来源与流事实](../../../guide/06-blocks-control-flow.md#类型测试与流事实) |
 
@@ -51,4 +51,6 @@ Guide 已启用，草案不要求新增语义决策。按 draft→active、测�
 精确共享回归、有限工程门禁、双平台 CI 的顺序推进。当前未运行本片测试。
 每步冻结 head/tree/输入 SHA、唯一 exact 名单、实际命中及历史失败；小提交以 binary/full-index
 format-patch 增量恢复核验。实际远端发布、PR、归档与 normal merge 由唯一 publisher 执行。
-未取得本片远端发布授权前只本地推进；不改0329冻结树，不宣称main CI已完成。
+本片远端阶段备份/PR/审验后 normal merge 已获用户明确授权；不改0329冻结树。
+首批新增 while_flow_facts 三个普通 exact，11 段源码双入口先采齐再断言；已通过有限
+Rust 编译预检，尚未执行。初次 docs 错误锚点已机械修复，保留失败日志。
