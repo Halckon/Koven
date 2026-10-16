@@ -81,6 +81,17 @@ fn observe_text(text: &str, root: &str) -> Vec<Observation> {
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
     let typed = check_types(&sources, &file, &names, &types).expect("single types");
     let raw = typed.diagnostics().to_vec();
+    eprintln!(
+        "SPEC-0326 single type refs: {:?}",
+        file.ast()
+            .type_refs()
+            .iter()
+            .map(|(id, node)| (
+                sources.slice(node.span()).unwrap(),
+                typed.type_ref_type(id).map(|ty| single_shape(&typed, ty))
+            ))
+            .collect::<Vec<_>>()
+    );
     let single = Observation {
         mode: "single",
         root: root.to_owned(),
@@ -132,6 +143,19 @@ fn observe_text(text: &str, root: &str) -> Vec<Observation> {
     let typed =
         check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit types");
     let raw = typed.diagnostics().to_vec();
+    eprintln!(
+        "SPEC-0326 unit type refs: {:?}",
+        file.ast()
+            .type_refs()
+            .iter()
+            .map(|(id, node)| (
+                sources.slice(node.span()).unwrap(),
+                typed
+                    .type_ref_type(UnitTypeRefId::new(unit, id))
+                    .map(|ty| unit_shape(&typed, ty))
+            ))
+            .collect::<Vec<_>>()
+    );
     let unit = Observation {
         mode: "unit",
         root: root.to_owned(),
@@ -752,5 +776,15 @@ fn nullable_case_joins_deliver_the_same_enum_instance() {
         );
         assert!(o.raw.is_empty(), "{o:?}");
         assert!(o.complete.is_ok(), "{o:?}");
+    }
+}
+
+/// Observe the existing runtime Any gate; this command is not a regression pass.
+#[test]
+fn observe_runtime_any_return_context() {
+    for root in roots("1", "\"text\"").into_iter().chain(roots("1", "2")) {
+        let text = format!("fun mixed(flag: Boolean): Any = {root}");
+        let observations = observe_text(&text, &root);
+        eprintln!("SPEC-0326 runtime Any observation only: {observations:?}");
     }
 }
