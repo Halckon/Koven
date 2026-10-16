@@ -172,3 +172,19 @@ Call-L0165 独立文案控制不变。三 CLI 矩阵各增加 p34 四个成功�
 `e00b1192` p34 更新首轮前三 exact 通过，第四精确消息断言失败，后三未跑：
 非法 Int provider 实际 L0159/29..30 已列出新增 IntRange/LongRange，测试仍写旧 View 列表。
 后继只更新两文案 oracle，并加强成功路径原文件字节/临时产物清理断言；生产不改。
+
+## 8. 完整本地交付与 CI 待验
+
+`c176b514` 统一 26 个普通 exact 各 1 通过，114 输入每项前后相同；收据 SHA
+`ae58af3b4b23bcb4802cc24e87c86222ffa05b9f04a767e913b7333018b0b5b1`。
+p34 七项已转正且保留原字节；68 次 CLI 调用中 6 次有界 p34 run 均输出 for-range，
+非法 Int provider 的 L0159 与独立 Call-L0165 文案继续精确检查。两入口完整 native
+仍以严格 111 行轨迹、38 次析构断言验收；当前 Linux 云结果不代替双平台 CI。
+同 head fmt、workspace check、frontend/codegen/cli clippy 和 CLI build 四工程通过；
+工程收据 SHA `2d8744c0c5d49aca0117c8c6a15980c0ca6e3a0db6e9e3f280c2ee671ab43be7`。真实 main 基线尺寸、
+docs 与唯一 composition 成功路径 exact 通过。新增两 integration target 恰各一次，
+目标库存 109→111，未放宽唯一性。已审 11 个 CI-only exact（ownership 四、typed 一、
+projection 四及原预算/路径关联二）仅编译，保留预算耗尽拒绝；实际执行待远端 CI。
+其中三 projection 测试是私有状态合同，不冒充完整程序 verifier 负控；typed 身份负控
+验证跨 source/type/binding 资格，不宣称拒绝同文件另一同型表达式替换。
+本片保持 active；发布后的真实 head CI、归档 head CI 与 main 验证分别登记。
