@@ -85,16 +85,13 @@ impl ExpressionLowerer<'_> {
         let inherited = if let Some((descriptor, subject)) =
             self.direct_nullable_while_condition(condition, span)?
         {
-            if self.non_null_bindings.is_empty() {
-                return self
-                    .lower_direct_nullable_while(statement, condition, body, descriptor, span);
+            match self.qualify_nullable_while_entry(statement, descriptor, subject, span)? {
+                nullable_while::NullableWhileEntry::Readonly(root, proof) => Some((root, proof)),
+                nullable_while::NullableWhileEntry::Direct(entry) => {
+                    return self
+                        .lower_direct_nullable_while(statement, condition, body, entry, span);
+                }
             }
-            let inherited = self.prepare_nested_nullable_while(descriptor, subject, span)?;
-            if inherited.is_none() {
-                return self
-                    .lower_direct_nullable_while(statement, condition, body, descriptor, span);
-            }
-            inherited
         } else {
             None
         };

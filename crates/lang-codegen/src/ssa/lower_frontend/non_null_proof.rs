@@ -56,6 +56,14 @@ impl NonNullProof {
         }
     }
 
+    /// Immutable origin is for active-scope qualification, never an SSA operand.
+    pub(super) fn while_origin(self) -> Option<(StatementId, LoanId)> {
+        match self.origin.introduced_by {
+            ProofScope::While(statement) => Some((statement, self.origin.birth)),
+            _ => None,
+        }
+    }
+
     pub(super) fn is_while_origin(self) -> bool {
         matches!(self.origin.introduced_by, ProofScope::While(_))
     }

@@ -29,12 +29,14 @@ impl UnitExpressionLowerer<'_> {
     pub(super) fn introduce_while_proof(
         &mut self,
         header: BlockId,
-        root: UnitSymbolId,
         owner_column: usize,
-        inner: SsaTypeId,
-        scope: UnitStatementId,
+        entry: &loop_control::DirectNullableWhileEntry,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.validate_direct_while_entry(entry, span)?;
+        let root = entry.root();
+        let inner = entry.inner();
+        let scope = entry.scope();
         let Some(TerminatorKind::NullableBranch {
             owner,
             when_null,
@@ -62,9 +64,15 @@ impl UnitExpressionLowerer<'_> {
             || when_non_null.arguments.get(owner_column) != Some(&EntityId::Value(*owner))
             || parameters.last() != Some(&EntityId::Loan(*view))
             || parameters.len() != when_non_null.arguments.len() + 1
-            || !self.nullable_proofs.is_empty()
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        if self
+            .nullable_proofs
+            .values()
+            .any(|outer| outer.loan == *view || outer.scope() == scope)
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let proof = NullableProof {
             loan: *view,
@@ -75,7 +83,12 @@ impl UnitExpressionLowerer<'_> {
                 birth: *view,
             },
         };
-        let proofs = BTreeMap::from([(root, proof)]);
+        // Keep only the actual rebound outer candidate validated above. Never
+        // reinstall the qualification's preheader owner/loan IDs at this birth.
+        let mut proofs = self.nullable_proofs.clone();
+        if proofs.insert(root, proof).is_some() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         self.validate_nullable_proofs(&self.bindings, &proofs, span)?;
         self.nullable_proofs = proofs;
         Ok(())

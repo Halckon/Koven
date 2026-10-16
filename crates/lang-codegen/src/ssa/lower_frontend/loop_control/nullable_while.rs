@@ -1,7 +1,11 @@
 //! Direct owned nullable guards create one real proof on each body entry.
+mod entry;
+
 use super::super::{NonNullProof, non_null_proof::ProofScope, span_key};
 use super::*;
 use crate::ssa::model::SsaTypeKind;
+use entry::DirectNullableWhileEntry;
+pub(super) use entry::NullableWhileEntry;
 use lang_frontend::{
     ownership_checking::DropPoint,
     parser::{BinaryOperator, Expression, LiteralKind},
@@ -70,110 +74,6 @@ impl ExpressionLowerer<'_> {
         Ok(Some((descriptor, subject)))
     }
 
-    /// The real typed operand distinguishes an inherited read from a head kill.
-    /// Qualify every transparent layer before retiring the current same-root view.
-    pub(super) fn prepare_nested_nullable_while(
-        &mut self,
-        descriptor: NullComparisonDescriptor,
-        mut operand: ExpressionId,
-        span: Span,
-    ) -> Result<Option<(SymbolId, NonNullProof)>, LoweringError> {
-        let root = descriptor.symbol();
-        let Some(proof) = self.non_null_bindings.get(&root).copied() else {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        if self.non_null_bindings.len() != 1 || !proof.is_while_origin() {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        self.validate_non_null_proof(root, proof, &self.bindings, span)?;
-        self.ensure_no_unresolved_while_proof_carriers(span)?;
-        let declared = self.resolve_type(descriptor.nullable_type(), span)?;
-        let nullable = self
-            .type_ids
-            .get(&declared)
-            .copied()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        if self.typed.copyability(declared) != Some(Copyability::MoveOnly)
-            || self.borrow_bindings.contains_key(&root)
-            || !matches!(
-                self.ssa_types.get(proof.inner.index()),
-                Some(SsaTypeKind::HeapOwner { .. })
-            )
-        {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        if self.ssa_types.get(nullable.index())
-            != Some(&SsaTypeKind::NullableHandle { inner: proof.inner })
-            || self
-                .function
-                .entity(EntityId::Value(proof.owner))
-                .map(|data| data.ty)
-                != Some(EntityType::Value(nullable))
-        {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        }
-        let storage = descriptor.nullable_type();
-        let Some(TypeKind::Nullable(narrowed)) = self.typed.types().get(storage) else {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        };
-        let narrowed = *narrowed;
-        let concrete_inner = self.resolve_type(narrowed, span)?;
-        if self.type_ids.get(&concrete_inner) != Some(&proof.inner) {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        }
-        if self.typed.copyability(concrete_inner) != Some(Copyability::MoveOnly) {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let operand_type = self
-            .typed
-            .expression_type(operand)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        if operand_type != narrowed && operand_type != storage {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        }
-        let inherited = operand_type == narrowed;
-        loop {
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(operand)
-                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
-            if self.typed.expression_type(operand) != Some(operand_type)
-                || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
-            {
-                return Err(error(LoweringErrorKind::MissingFact, span));
-            }
-            match (inherited, self.typed.non_null_use(operand)) {
-                (true, Some(fact))
-                    if fact.expression() == operand
-                        && fact.symbol() == root
-                        && fact.declared_type() == storage
-                        && fact.narrowed_type() == narrowed => {}
-                (false, None) => {}
-                _ => return Err(error(LoweringErrorKind::MissingFact, span)),
-            }
-            match node.payload() {
-                Expression::Group { expression } => operand = *expression,
-                Expression::Name => {
-                    if self.references.get(&span_key(node.span())) != Some(&root) {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
-                    }
-                    break;
-                }
-                _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
-            }
-        }
-        if inherited {
-            return Ok(Some((root, proof)));
-        }
-        // Retire only the old view, before the inner baseline/header can capture it.
-        // The nullable owner remains intact for the direct guard's independent birth.
-        self.direct_nullable_while_entry(descriptor, span)?;
-        self.end_non_null_proof(root, span)?;
-        Ok(None)
-    }
-
     /// Real exits must retain the inherited proof. A killed or replaced proof
     /// cannot be reconstructed from the loop's entry record.
     pub(super) fn validate_readonly_while_exit(
@@ -237,17 +137,22 @@ impl ExpressionLowerer<'_> {
         statement: StatementId,
         condition: ExpressionId,
         body: StatementId,
-        descriptor: NullComparisonDescriptor,
+        entry: DirectNullableWhileEntry,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        // Nested entry must already have qualified and retired its old proof.
-        if !self.non_null_bindings.is_empty() {
+        let (descriptor, inherited) = entry.into_parts(statement, span)?;
+        if let Some((root, proof)) = inherited {
+            self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
+        } else if !self.non_null_bindings.is_empty() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
         let (nullable, inner) = self.direct_nullable_while_entry(descriptor, span)?;
         let symbol = descriptor.symbol();
         let baseline = self.bindings.clone();
         let context = self.create_loop_header(&baseline, span)?;
+        if let Some((root, proof)) = inherited {
+            self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
+        }
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&symbol).copied() else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
@@ -259,8 +164,9 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let condition_bindings = self.bindings.clone();
-        let carried = self.linear_binding_slots(&condition_bindings, span)?;
+        // Both successors start from the complete header state, before the new birth.
+        let condition_state = self.loop_exit();
+        let carried = self.linear_binding_slots(&condition_state.bindings, span)?;
         let owner_slot = carried
             .slots
             .iter()
@@ -303,14 +209,30 @@ impl ExpressionLowerer<'_> {
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
 
+        self.restore_direct_while_condition(&condition_state, span)?;
         self.block = false_block;
         self.bindings =
-            self.rebind_linear_bindings(&condition_bindings, false_block, &carried, span)?;
+            self.rebind_linear_bindings(&condition_state.bindings, false_block, &carried, span)?;
+        if let Some((root, proof)) = inherited {
+            self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
+        }
         self.emit_direct_while_condition_drops(condition, span)?;
         let false_exit = self.loop_exit();
+
+        self.restore_direct_while_condition(&condition_state, span)?;
         self.block = body_block;
         self.bindings =
-            self.rebind_linear_bindings(&condition_bindings, body_block, &carried, span)?;
+            self.rebind_linear_bindings(&condition_state.bindings, body_block, &carried, span)?;
+        if let Some((root, inherited_proof)) = inherited {
+            self.validate_readonly_while_exit(root, inherited_proof, &self.loop_exit(), span)?;
+            let outer = self
+                .non_null_bindings
+                .get(&root)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if outer.owner == body_owner || outer.loan == view {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+        }
         let proof = NonNullProof::introduced(view, body_owner, inner, ProofScope::While(statement));
         self.validate_non_null_proof(symbol, proof, &self.bindings, span)?;
         self.non_null_bindings.insert(symbol, proof);
@@ -324,10 +246,40 @@ impl ExpressionLowerer<'_> {
             .loops
             .pop()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if let Some((root, proof)) = inherited {
+            for jump in &context.continues {
+                self.validate_readonly_while_exit(root, proof, &jump.exit, jump.span)?;
+            }
+        }
         self.finish_loop_continues(&context)?;
         let mut exits = context.breaks;
         exits.push(false_exit);
-        self.finish_loop_exits(statement, exits, &baseline, None, span)
+        let result = self.finish_loop_exits(statement, exits, &baseline, inherited, span)?;
+        if let Some((root, proof)) = inherited {
+            self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
+        }
+        Ok(result)
+    }
+
+    fn restore_direct_while_condition(
+        &mut self,
+        state: &BranchExit,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        // Provider contexts remain outside the direct owned-while qualification.
+        if !state.for_sources.is_empty() || !state.for_elements.is_empty() {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        self.block = state.block;
+        self.bindings.clone_from(&state.bindings);
+        self.temporaries.clone_from(&state.temporaries);
+        self.pending_call_loans.clone_from(&state.loans);
+        self.capture_loans.clone_from(&state.capture_loans);
+        self.borrow_bindings.clone_from(&state.borrow_bindings);
+        self.result_source_loans
+            .clone_from(&state.result_source_loans);
+        self.non_null_bindings.clone_from(&state.views);
+        Ok(())
     }
 
     fn emit_direct_while_condition_drops(

@@ -5,6 +5,9 @@ mod iteration_cleanup;
 mod nullable_while;
 mod numeric_iteration;
 
+pub(super) use nullable_while::DirectNullableWhileEntry;
+use nullable_while::NullableWhileEntry;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
@@ -63,21 +66,17 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         let descriptor = self.direct_nullable_while_condition(condition, span)?;
-        let inherited = if self.nullable_proofs.is_empty() {
-            if let Some((descriptor, _)) = descriptor {
-                return self
-                    .lower_direct_nullable_while(statement, condition, body, descriptor, span);
+        let inherited = if let Some((descriptor, subject)) = descriptor {
+            match self.prepare_nullable_while_entry(statement, descriptor, subject, span)? {
+                NullableWhileEntry::Readonly(root, proof) => Some((root, proof)),
+                NullableWhileEntry::Direct(entry) => {
+                    return self
+                        .lower_direct_nullable_while(statement, condition, body, entry, span);
+                }
             }
-            None
         } else {
-            let (descriptor, subject) = descriptor
-                .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-            let inherited = self.prepare_nested_nullable_while(descriptor, subject, span)?;
-            if inherited.is_none() {
-                return self
-                    .lower_direct_nullable_while(statement, condition, body, descriptor, span);
-            }
-            inherited
+            self.reject_nested_while_proof(span)?;
+            None
         };
         if !self.supports_control_prefix(span) && !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -321,7 +320,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     // Shared construction only. The old wrapper keeps its rejection for loop/for
-    // and direct proof births; readonly while qualifies its existing proof first.
+    // and unqualified proof births; nullable while qualifies an existing proof first.
     fn create_carried_loop_context(
         &mut self,
         baseline: &BTreeMap<UnitSymbolId, LoweredValue>,
