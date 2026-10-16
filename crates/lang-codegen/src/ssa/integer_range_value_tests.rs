@@ -362,12 +362,17 @@ fn range_require_value_preserves_explicit_borrow_contract() {
                 .expect("ordinary val cannot directly bind a borrowed result");
             assert!(error.starts_with("ownership"), "{error}");
             assert_eq!(error.matches("code: L0163").count(), 1, "{error}");
+            assert_eq!(
+                error.matches("Diagnostic { severity:").count(),
+                1,
+                "{error}"
+            );
             let source = &sources[index / 2];
             let start = source.find("values.requireValue(1)").unwrap()
                 + if index % 2 == 1 { 10 } else { 0 };
             assert!(
                 error.contains(&format!(
-                    "start: {start}, end: {}",
+                    "primary_span: Span {{ source_id: SourceId(0), start: {start}, end: {} }}",
                     start + "values.requireValue(1)".len()
                 )),
                 "{error}"
