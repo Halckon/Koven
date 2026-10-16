@@ -11,7 +11,7 @@
 | 基线 | Guide `be3264bc7143fdddb160ce77039fb902694d0d77`；独立于 0325 实现分支 |
 | 分支依赖 | stacked Guide PR110；尚未主干交付，不重复发布 Guide 提交 |
 | 批准范围 | 用户已启用 v0.44 A 及封闭 join 细则；实施与验收分别推进 |
-| 当前状态 | 仅静态计划；尚无新增测试或生产改动，未运行本片测试 |
+| 当前状态 | 首批3项 tests-only 准备；无生产改动，未运行本片测试 |
 
 ## 1. 最小范围
 
@@ -28,12 +28,12 @@ statement when/无 else if 为 Unit；有 else if 即使结果被丢弃也检查
 ## 2. 拟定普通源码 exact 清单
 
 拟新增 target `control_branch_join`，每项相同源码走 single/unit raw types 与 complete API。
-具体 helper、fixture 与完整 argv 固定后独审；以下是测试函数计划，尚未实现或执行。
+首批仅实现下列1–3的普通标量子集；其余仍是计划。helper/argv固定独审后才采红。
 
 1. `known_mixed_value_branches_reject_implicit_any`：Int/String、Int/Long、不同 enum、
    List<Int>/List<Long>；分别锁 if/when 错误码与源码范围。
 2. `same_type_and_bottom_branches_keep_exact_result`：Int 同型、Nothing/Int 双序、
-   全分支 return/error 的类型与 falls-through；仅分析源码，不执行 Abort。
+   全分支 return/返回 Nothing 的 error 调用的类型与 falls-through；仅分析源码，不执行 Abort。
 3. `null_and_nullable_branches_use_canonical_result`：null/Int 双序、null/null、Int?/Int、
    Int?/null，精确类型且无嵌套 nullable。
 4. `same_enum_instance_branches_join_to_root`：case/case、case/root 及合法 nullable 组合；
@@ -43,7 +43,7 @@ statement when/无 else if 为 Unit；有 else if 即使结果被丢弃也检查
 6. `statement_and_value_contexts_remain_distinct`：statement when 混型 Unit、
    statement 有 else if 混型拒绝、无 else if Unit，以及 initializer 值上下文。
 7. `error_and_deferred_branches_preserve_original_roots`：普通未定义名字及已有 postfix ?，
-   原诊断/Deferred reason 不被 ControlJoin 或成功 Any 取代。
+   原诊断/Deferred reason 不被 ControlJoin 或成功 Any 取代；与同型/Nothing/冲突组合亦然。
 8. `when_conflict_labels_track_actual_participating_branch`：前置 Nothing/Error 的三分支，
    primary/label 指向实际冲突，不硬指第一 entry；保留同根级联抑制。
 
@@ -58,3 +58,6 @@ helper 不构造/修改 compiler facts、IR；无产物执行、注入或校准�
 合法前端 nullable/enum join 不等于后端已经支持，结构化拒绝单独记账。
 工程门禁与最终有限名单待冻结；红证后再登记 active、实施最小 patch。
 Guide 与其他 Spec 发布由唯一 publisher 串行处理，本分支不改 0325 固定工作树。
+
+首批3 exact仅采Int/String、Int/Long、Int同型与Nothing调用、Int/null/Int?双序；
+全不返回、null/null、泛型/enum、复杂上下文与后5项尚待补验，不以首批红证批准生产。
