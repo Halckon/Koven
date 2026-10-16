@@ -1,5 +1,7 @@
 //! Source-qualified direct nullable guards: one real view per body entry.
+mod borrowed_for;
 mod entry;
+pub(super) use borrowed_for::BorrowedForWhile;
 pub(in super::super) use entry::DirectNullableWhileEntry;
 pub(super) use entry::NullableWhileEntry;
 
@@ -130,7 +132,7 @@ impl UnitExpressionLowerer<'_> {
         statement: StatementId,
         condition: ExpressionId,
         body: StatementId,
-        entry: DirectNullableWhileEntry,
+        mut entry: DirectNullableWhileEntry,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         if entry.scope() != UnitStatementId::new(self.source_unit, statement) {
@@ -147,6 +149,9 @@ impl UnitExpressionLowerer<'_> {
             self.create_loop_context(&baseline, span)?
         };
         context.proof_scope = Some(entry.scope());
+        if let Some(provider) = &mut entry.borrowed_for {
+            provider.bind_header(context.header);
+        }
         let entry_edge = self.carried_edge_from(
             context.header,
             &context.carried,
@@ -214,6 +219,9 @@ impl UnitExpressionLowerer<'_> {
         self.validate_direct_while_entry(&entry, span)?;
         self.emit_direct_nullable_condition_drops(condition, span)?;
         let false_exit = self.loop_state();
+        if let Some(provider) = &entry.borrowed_for {
+            provider.validate_exit(self, &false_exit, span)?;
+        }
 
         self.restore_loop_state(&condition_state);
         self.block = body_block;
@@ -227,6 +235,11 @@ impl UnitExpressionLowerer<'_> {
             span,
         )?;
         self.introduce_while_proof(context.header, owner_column, &entry, span)?;
+        if let Some(provider) = &entry.borrowed_for {
+            let mut provider = provider.clone();
+            provider.bind_proof(self, span)?;
+            context.borrowed_for_while = Some(provider);
+        }
         self.loops.push(context);
         self.emit_direct_nullable_condition_drops(condition, span)?;
         if self.lower_statement(body)? != LoweredValue::Diverged {
@@ -236,6 +249,11 @@ impl UnitExpressionLowerer<'_> {
             .loops
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if entry.borrowed_for.is_some()
+            && (!context.continues.is_empty() || context.breaks.len() != 1)
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         if let Some((root, proof)) = inherited {
             for jump in &context.continues {
                 self.validate_readonly_while_exit(root, proof, &jump.state, jump.span)?;
@@ -251,17 +269,27 @@ impl UnitExpressionLowerer<'_> {
         // Break and false may have consumed different owners. Discharge each actual
         // exit's original LoopExit facts before the existing exact-state merge.
         for exit in &mut exits {
+            if let Some(provider) = &entry.borrowed_for {
+                provider.validate_exit(self, exit, span)?;
+            }
             if let Some((root, proof)) = inherited {
                 self.validate_readonly_while_exit(root, proof, exit, span)?;
             }
             self.restore_loop_state(exit);
             self.emit_loop_exit(statement)?;
             *exit = self.loop_state();
+            if let Some(provider) = &entry.borrowed_for {
+                provider.validate_exit(self, exit, span)?;
+            }
             if let Some((root, proof)) = inherited {
                 self.validate_readonly_while_exit(root, proof, exit, span)?;
             }
         }
         self.merge_loop_exits(exits, span)?;
+        if let Some(provider) = &entry.borrowed_for {
+            provider.validate_exit(self, &self.loop_state(), span)?;
+            provider.install_outer(self, span)?;
+        }
         if let Some((root, proof)) = inherited {
             self.validate_readonly_while_exit(root, proof, &self.loop_state(), span)?;
         }

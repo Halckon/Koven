@@ -35,6 +35,8 @@ struct LoopJump {
 
 pub(super) struct LoopContext {
     proof_scope: Option<UnitStatementId>,
+    borrowed_for_while: Option<Box<nullable_while::BorrowedForWhile>>,
+    borrowed_while_body: Option<Box<nullable_while::BorrowedForWhile>>,
     iteration: Option<iteration::IterationContext>,
     header: BlockId,
     carried: Vec<CarriedBinding>,
@@ -269,6 +271,7 @@ impl UnitExpressionLowerer<'_> {
             self.source_unit,
             expression,
         )))?;
+        self.retire_borrowed_for_while_break(expression, span)?;
         self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, true)?;
         let jump = self.current_jump(span)?;
@@ -337,6 +340,8 @@ impl UnitExpressionLowerer<'_> {
         let header = self.add_carried_control_block(&carried, &loans, span)?;
         Ok(LoopContext {
             proof_scope: None,
+            borrowed_for_while: None,
+            borrowed_while_body: None,
             iteration: None,
             header,
             carried,
@@ -442,6 +447,13 @@ impl UnitExpressionLowerer<'_> {
     }
 
     fn record_natural_continue(&mut self, span: Span) -> Result<(), LoweringError> {
+        if let Some(token) = self
+            .loops
+            .last()
+            .and_then(|context| context.borrowed_while_body.as_ref())
+        {
+            token.validate_element_end(self, span)?;
+        }
         self.advance_iteration(span)?;
         self.retire_while_proofs(false, span)?;
         self.prepare_jump(span, false)?;
@@ -479,6 +491,9 @@ impl UnitExpressionLowerer<'_> {
                 &jump.state,
                 jump.span,
             )?;
+            if let Some(token) = &context.borrowed_while_body {
+                token.validate_backedge(self, context, &jump.state, &edge, jump.span)?;
+            }
             self.function
                 .set_terminator(
                     jump.state.block,

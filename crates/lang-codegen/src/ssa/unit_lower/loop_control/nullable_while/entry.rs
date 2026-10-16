@@ -14,6 +14,7 @@ pub(in super::super::super) struct DirectNullableWhileEntry {
     nullable: SsaTypeId,
     inner: SsaTypeId,
     inherited: Option<(UnitSymbolId, NullableProof)>,
+    pub(super) borrowed_for: Option<Box<BorrowedForWhile>>,
 }
 
 impl DirectNullableWhileEntry {
@@ -55,9 +56,13 @@ impl UnitExpressionLowerer<'_> {
             nullable,
             inner,
             inherited: None,
+            borrowed_for: None,
         };
         if self.nullable_proofs.is_empty() {
-            self.ensure_no_while_proof_carriers(span)?;
+            entry.borrowed_for = BorrowedForWhile::qualify(self, &entry, span)?.map(Box::new);
+            if entry.borrowed_for.is_none() {
+                self.ensure_no_while_proof_carriers(span)?;
+            }
             return Ok(NullableWhileEntry::Direct(entry));
         }
         let Some((&outer_root, &proof)) = self.nullable_proofs.first_key_value() else {
@@ -207,6 +212,9 @@ impl UnitExpressionLowerer<'_> {
         entry: &DirectNullableWhileEntry,
         span: Span,
     ) -> Result<(), LoweringError> {
+        if let Some(provider) = &entry.borrowed_for {
+            return provider.validate_exit(self, &self.loop_state(), span);
+        }
         let Some((root, inherited)) = entry.inherited else {
             return self.reject_nested_while_proof(span);
         };
