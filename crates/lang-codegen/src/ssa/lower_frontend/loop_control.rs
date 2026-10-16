@@ -498,12 +498,29 @@ impl ExpressionLowerer<'_> {
                 self.release_owner_capture_loans(owner, fact.value_origin())?;
             }
             Action::EndBinding { symbol, statement } => {
-                if self
-                    .owned
-                    .iteration(*statement)
-                    .is_some_and(|plan| plan.source().is_none())
+                if let Some(plan) = self.owned.iteration(*statement)
+                    && let lang_frontend::type_checking::IterationProvider::NumericRange(endpoint) =
+                        plan.descriptor().provider()
                 {
-                    self.bindings.remove(symbol);
+                    if plan.source_kind()
+                        != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(
+                            plan.descriptor().source(),
+                        )
+                    {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    }
+                    let endpoint_type = self.ssa_builtin(endpoint, span)?;
+                    let Some(LoweredValue::Value(value)) = self.bindings.remove(symbol) else {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    };
+                    if self
+                        .function
+                        .entity(EntityId::Value(value))
+                        .map(|entity| entity.ty)
+                        != Some(EntityType::Value(endpoint_type))
+                    {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    }
                     return Ok(());
                 }
                 if let Some(loan) = self.borrow_bindings.remove(symbol) {

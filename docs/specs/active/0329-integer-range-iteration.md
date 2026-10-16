@@ -127,3 +127,9 @@ terminal 支配 increment、四退出真实清理事实，native 数值/轨迹�
 空区间直接 exhaustion，正常/continue 先消费前端 cleanup，再比较 current 与 last，
 只有非终值边递增。unit 复用 pending/carry/rebind 保存两端点，single 以 body 参数保存 cursor；
 借用 provider 仍走原 loan 路径。此候选 codegen all-targets 编译预检通过，行为验收尚待同三项实跑。
+
+`ea56aa10` 同三项实际 2 绿 1 红：32/12 来源与快照观察全部通过 SSA/verify；第三组
+24 观察中 18 到 SSA，6 个 unit LongRange（四资源出口及两嵌套）在 lower MissingFact。
+原 type planner 只为迭代登记 Int/Boolean，LongRange 无 Long 叶表达式时漏 endpoint 映射；
+后继仅按真实 NumericRange descriptor 登记端点，并加强 single source/清理身份核对。
+收据 SHA `4d7ed9e53b8ddda9acc689d8eb3855860aebae4f90f91c0660a9d36aa9fabc55`；保留原红。

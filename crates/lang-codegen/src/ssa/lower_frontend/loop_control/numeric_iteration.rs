@@ -3,7 +3,7 @@ use super::*;
 use crate::ssa::model::{BinaryOperator, ComparisonOperator, ScalarConstant};
 use lang_frontend::{
     ownership_checking::{IterationExitKind, IterationOwnershipPlan},
-    type_checking::{BuiltinType, SequentialIterationBinding},
+    type_checking::{BuiltinType, IterationProvider, SequentialIterationBinding},
 };
 
 pub(in super::super) struct NumericLoopData {
@@ -33,12 +33,34 @@ impl ExpressionLowerer<'_> {
             .type_ids
             .get(&endpoint)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let endpoint_builtin = match descriptor.provider() {
+            IterationProvider::NumericRange(value @ (BuiltinType::Int | BuiltinType::Long)) => {
+                value
+            }
+            _ => return Err(error(LoweringErrorKind::MissingFact, span)),
+        };
+        if endpoint != self.ssa_builtin(endpoint_builtin, span)? {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        let range_type = self.resolve_type(descriptor.source_type(), span)?;
+        let range_type = *self
+            .type_ids
+            .get(&range_type)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let boolean = self.ssa_builtin(BuiltinType::Boolean, span)?;
         let snapshot = match self.lower(source)? {
             LoweredValue::Value(value) => value,
             LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
             LoweredValue::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
         };
+        if self
+            .function
+            .entity(EntityId::Value(snapshot))
+            .map(|entity| entity.ty)
+            != Some(EntityType::Value(range_type))
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
         let first = self.numeric_projection(snapshot, 0, endpoint, span)?;
         let last = self.numeric_projection(snapshot, 1, endpoint, span)?;
         let empty = self.numeric_projection(snapshot, 2, boolean, span)?;

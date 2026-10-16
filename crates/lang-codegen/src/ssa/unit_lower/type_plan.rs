@@ -105,6 +105,20 @@ pub(super) fn intern_body_scalar_types(
             types.intern(module, typed, ty, instance.span())?;
         }
     }
+    for descriptor in typed.sequential_iterations() {
+        if descriptor.statement().source_unit() != instance.source_unit() {
+            continue;
+        }
+        if let lang_frontend::type_checking::IterationProvider::NumericRange(endpoint) =
+            descriptor.provider()
+        {
+            let ty = typed
+                .types()
+                .builtin(endpoint)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
+            types.intern(module, typed, ty, instance.span())?;
+        }
+    }
     for (&expression, &ty) in typed.expression_types() {
         if expression.source_unit() != instance.source_unit() {
             continue;
