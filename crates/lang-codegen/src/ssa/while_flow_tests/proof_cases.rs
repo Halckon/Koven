@@ -111,21 +111,7 @@ fn normal_continue_and_group_conditions_reach_llvm() {
 
 #[test]
 fn break_return_and_outer_owner_reach_llvm() {
-    let broken = r#"class Holder(val value: Int)
-class Guard(val text: String) { deinit() { println(this.text) } }
-fun entry(own initial: Holder?): Int {
-    val outer = Guard("outer")
-    var current: Holder? = initial
-    var total: Int = 0
-    while (current != null) {
-        val inner = Guard("inner")
-        total = current.value
-        break
-    }
-    println(outer.text)
-    return total
-}"#
-    .to_owned();
+    let broken = resource_break_source();
     let returned = r#"class Holder(val text: String)
 fun inspect(text: String): Int { println(text); return 7 }
 fun entry(own initial: Holder?): Int {
@@ -587,4 +573,38 @@ return number + 1
     for result in outcomes.into_iter().take(11) {
         result.expect("owned assignment delivery and Copyable controls reach LLVM");
     }
+}
+
+fn resource_break_source() -> String {
+    r#"class Holder(val value: Int)
+class Guard(val text: String) { deinit() { println(this.text) } }
+fun entry(own initial: Holder?): Int {
+    val outer = Guard("outer")
+    var current: Holder? = initial
+    var total: Int = 0
+    while (current != null) {
+        val inner = Guard("inner")
+        total = current.value
+        break
+    }
+    println(outer.text)
+    return total
+}"#
+    .to_owned()
+}
+
+#[test]
+fn owned_local_field_borrow_matches_the_existing_unit_path() {
+    let broken = resource_break_source();
+    let direct = r#"class Guard(val text: String) { deinit() { println(this.text) } }
+fun entry(): Unit {
+val outer = Guard("outer")
+println(outer.text)
+}"#
+    .to_owned();
+    let grouped = direct.replace("println(outer.text)", "println((outer.text))");
+    observe(
+        "owned-local-field",
+        &[(broken, false), (direct, false), (grouped, false)],
+    );
 }
