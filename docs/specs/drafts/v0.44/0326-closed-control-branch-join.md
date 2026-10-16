@@ -90,3 +90,11 @@ Nothing/Error前缀when仍Any。Int?的postfix ?最终真实L0085，是非法ope
 父if raw改写为ControlJoin虽真实，但原测试预期L0165不适合该源码。保留原raw并改用
 显式Result参数补锁Deferred源根，nullable非法操作数另锁L0085，不放宽final admission。
 仓外 `spec0326-evidence/next5-receipt.json` 保留逐项事实；未到达的断言不称通过。
+
+
+`83711e82` 精确恢复2项各1命中真实红，13输入不变；Result参数r?保留真实leaf
+ErrorPropagation，但single if变ControlJoin，unit if及两when与Int合并误报已知混型，
+部分顺序遮蔽leaf L0165。原Int? ?的L0085保留为非法操作数对照。
+最终8项tests-only补齐不同enum/List实例、全Nothing/return、null/null及独立null反例、
+显式expected的return/实参、无expected lambda尾值、smart-cast enum case/root双序；
+Deferred源span多重集与唯一L0112自身label精确对比。统一8项仍待审后重跑，生产零改。

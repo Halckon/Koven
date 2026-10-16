@@ -194,11 +194,27 @@ fn roots(left: &str, right: &str) -> [String; 2] {
 
 #[test]
 fn known_mixed_value_branches_reject_implicit_any() {
-    let observations: Vec<_> = ["\"text\"", "wide"]
+    let mut observations: Vec<_> = ["\"text\"", "wide"]
         .into_iter()
         .flat_map(|right| roots("1", right))
         .flat_map(|root| observe(&root))
         .collect();
+    for (prefix, parameters) in [
+        (
+            "enum class E { A }\nenum class F { B }\n",
+            "left: E, right: F",
+        ),
+        ("", "left: List<Int>, right: List<Long>"),
+    ] {
+        for root in roots("left", "right") {
+            observations.extend(observe_text(
+                &format!(
+                    "{prefix}fun test(flag: Boolean, {parameters}): Unit {{ val result = {root} }}"
+                ),
+                &root,
+            ));
+        }
+    }
     for o in observations {
         let is_if = o.root.starts_with("if");
         let code = if is_if { "L0089" } else { "L0112" };
@@ -211,16 +227,16 @@ fn known_mixed_value_branches_reject_implicit_any() {
             "{} {o:?}",
             o.mode
         );
-        assert_eq!(
-            o.primary_text,
-            [if is_if {
-                "else"
-            } else if o.root.contains("text") {
-                "\"text\""
-            } else {
-                "wide"
-            }]
-        );
+        let expected_primary = if is_if {
+            "else"
+        } else {
+            o.root
+                .rsplit("-> ")
+                .next()
+                .expect("last branch")
+                .trim_end_matches(" }")
+        };
+        assert_eq!(o.primary_text, [expected_primary]);
         match o.complete {
             Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
                 assert_eq!(diagnostics, o.raw)
@@ -232,7 +248,7 @@ fn known_mixed_value_branches_reject_implicit_any() {
 
 #[test]
 fn same_type_and_bottom_branches_keep_exact_result() {
-    let observations: Vec<_> = [
+    let mut observations: Vec<_> = [
         ("1", "2"),
         ("error(\"stop\")", "2"),
         ("2", "error(\"stop\")"),
@@ -240,14 +256,27 @@ fn same_type_and_bottom_branches_keep_exact_result() {
     .into_iter()
     .flat_map(|(left, right)| roots(left, right))
     .flat_map(|root| observe(&root))
+    .map(|o| (BuiltinType::Int, o))
     .collect();
-    for o in observations {
-        assert_eq!(
-            o.shape,
-            Shape::Builtin(BuiltinType::Int),
-            "{} {o:?}",
-            o.mode
+    for root in roots("error(\"left\")", "error(\"right\")") {
+        observations.extend(
+            observe(&root)
+                .into_iter()
+                .map(|o| (BuiltinType::Nothing, o)),
         );
+    }
+    for root in roots("return 1", "return 2") {
+        observations.extend(
+            observe_text(
+                &format!("fun test(flag: Boolean): Int {{ val result = {root} }}"),
+                &root,
+            )
+            .into_iter()
+            .map(|o| (BuiltinType::Nothing, o)),
+        );
+    }
+    for (expected, o) in observations {
+        assert_eq!(o.shape, Shape::Builtin(expected), "{} {o:?}", o.mode);
         assert!(o.raw.is_empty(), "{o:?}");
         assert!(o.complete.is_ok(), "{o:?}");
     }
@@ -255,7 +284,7 @@ fn same_type_and_bottom_branches_keep_exact_result() {
 
 #[test]
 fn null_and_nullable_branches_use_canonical_result() {
-    let observations: Vec<_> = [
+    let mut observations: Vec<_> = [
         ("null", "2"),
         ("2", "null"),
         ("optional", "2"),
@@ -266,16 +295,41 @@ fn null_and_nullable_branches_use_canonical_result() {
     .into_iter()
     .flat_map(|(left, right)| roots(left, right))
     .flat_map(|root| observe(&root))
+    .map(|o| (BuiltinType::Int, o))
     .collect();
-    for o in observations {
+    observations.extend(
+        roots("null", "null")
+            .into_iter()
+            .flat_map(|root| observe(&root))
+            .map(|o| (BuiltinType::Nothing, o)),
+    );
+    let standalone = observe("null");
+    for (expected, o) in observations {
         assert_eq!(
             o.shape,
-            Shape::Nullable(Box::new(Shape::Builtin(BuiltinType::Int))),
+            Shape::Nullable(Box::new(Shape::Builtin(expected))),
             "{} {o:?}",
             o.mode
         );
         assert!(o.raw.is_empty(), "{o:?}");
         assert!(o.complete.is_ok(), "{o:?}");
+    }
+    for o in standalone {
+        assert_eq!(
+            o.raw
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            ["L0083"],
+            "{o:?}"
+        );
+        assert_eq!(o.primary_text, ["null"]);
+        match o.complete {
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                assert_eq!(diagnostics, o.raw)
+            }
+            other => panic!("expected standalone null diagnostic: {other:?}"),
+        }
     }
 }
 
@@ -313,6 +367,17 @@ fn same_enum_instance_branches_join_to_root() {
         );
         observations.extend(observe_text(&text, root).into_iter().map(|o| (expected, o)));
     }
+    for (root, expected) in [
+        ("if (flag) e else anchor", "E<Int>"),
+        ("if (flag) anchor else e", "E<Int>"),
+        ("if (flag) e else optional", "E<Int>?"),
+        ("if (flag) optional else e", "E<Int>?"),
+    ] {
+        let text = format!(
+            "enum class E<T> {{ A(value: T), B(value: T) }}\nfun test(flag: Boolean, e: E<Int>, anchor: E<Int>, optional: E<Int>?): Unit {{ if (e is E.A<Int>) {{ val result = {root} }} }}"
+        );
+        observations.extend(observe_text(&text, root).into_iter().map(|o| (expected, o)));
+    }
     for (expected, o) in observations {
         assert!(
             o.matches_type_refs.iter().any(|text| text == expected),
@@ -326,7 +391,7 @@ fn same_enum_instance_branches_join_to_root() {
 
 #[test]
 fn expected_types_keep_original_mismatch_diagnostics() {
-    let observations: Vec<_> = roots("1", "\"text\"")
+    let mut observations: Vec<_> = roots("1", "\"text\"")
         .into_iter()
         .flat_map(|root| {
             observe_text(
@@ -335,6 +400,18 @@ fn expected_types_keep_original_mismatch_diagnostics() {
             )
         })
         .collect();
+    for root in roots("1", "\"text\"") {
+        observations.extend(observe_text(
+            &format!("fun test(flag: Boolean): Int {{ return {root} }}"),
+            &root,
+        ));
+        observations.extend(observe_text(
+            &format!(
+                "fun take(value: Int): Unit {{}}\nfun test(flag: Boolean): Unit {{ take({root}) }}"
+            ),
+            &root,
+        ));
+    }
     for o in observations {
         assert_eq!(
             o.raw
@@ -371,6 +448,15 @@ fn statement_and_value_contexts_remain_distinct() {
             .map(move |o| (ok, o))
         })
         .collect();
+    let lambda_values: Vec<_> = roots("1", "\"text\"")
+        .into_iter()
+        .flat_map(|root| {
+            observe_text(
+                &format!("fun test(flag: Boolean): Unit {{ val callback = {{ {root} }} }}"),
+                &root,
+            )
+        })
+        .collect();
     for (ok, o) in observations {
         if ok {
             assert_eq!(o.shape, Shape::Builtin(BuiltinType::Unit), "{o:?}");
@@ -388,6 +474,27 @@ fn statement_and_value_contexts_remain_distinct() {
                 o.complete,
                 Err(FinalTypeAdmissionError::Diagnostics(_))
             ));
+        }
+    }
+    for o in lambda_values {
+        let code = if o.root.starts_with("if") {
+            "L0089"
+        } else {
+            "L0112"
+        };
+        assert_eq!(
+            o.raw
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            [code],
+            "{o:?}"
+        );
+        match o.complete {
+            Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
+                assert_eq!(diagnostics, o.raw)
+            }
+            other => panic!("expected value-context conflict: {other:?}"),
         }
     }
 }
@@ -428,7 +535,12 @@ fn error_and_deferred_branches_preserve_original_roots() {
         assert!(o.raw.is_empty(), "{o:?}");
         match o.complete {
             Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
-                assert_eq!(diagnostics.len(), leaves.len());
+                let mut actual_spans: Vec<_> =
+                    diagnostics.iter().map(|d| d.primary_span()).collect();
+                let mut expected_spans = leaves.clone();
+                actual_spans.sort_by_key(|span| (span.start(), span.end()));
+                expected_spans.sort_by_key(|span| (span.start(), span.end()));
+                assert_eq!(actual_spans, expected_spans);
                 for d in diagnostics {
                     assert_eq!(d.code().to_string(), "L0165");
                     assert!(leaves.contains(&d.primary_span()), "{d:?}");
