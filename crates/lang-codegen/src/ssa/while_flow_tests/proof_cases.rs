@@ -903,5 +903,37 @@ fn numeric_nested_source() -> String {
 fn numeric_for_preserves_the_outer_nullable_while_proof() {
     let source = numeric_nested_source();
     let grouped = source.replace("in 0..<2", "in ((0..<2))");
-    observe("numeric-proof", &[(source, false), (grouped, false)]);
+    let sources = [source, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("NUMERIC PROOF LLVM case={index} {llvm}");
+                Ok(program)
+            });
+            println!(
+                "NUMERIC PROOF OUTCOME source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    // Collect every original/Group single/unit verify/render result before identities.
+    assert_eq!(outcomes.len(), 4);
+    for (index, result) in outcomes.into_iter().enumerate() {
+        numeric_proof_contract::assert_numeric_proof(
+            &result.expect("numeric for preserves the existing nullable while proof"),
+            &sources[index / 2],
+            index % 2 == 1,
+        );
+    }
 }
+
+#[path = "numeric_proof_contract.rs"]
+mod numeric_proof_contract;
