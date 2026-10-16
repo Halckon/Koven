@@ -194,7 +194,8 @@ Range值根现在为IntRange，原p34源码for仍唯一L0159（40..45），未�
 远端待验35个唯一exact：本地25、CI-only verifier七项、既有CLI拒绝聚合三项；后者含run模式，
 本轮不在云本地执行。保留此前19绿及六红/24绿1红原始收据，尚未取得本片远端CI结论。
 
-PR114首CI `38858644835` 双host旧fault导出测试因硬编码`f1.__deinit.t20`失败；该后缀来自
-frontend receiver TypeId。改为唯一Holder witness关联真实LLVM函数，验证定义保留/调用清零及记录。
-云仅cargo check codegen all-targets通过，未执行fault；实际修复验证留新CI。邻近`.drop.t15`属SSA型域，
-独立校准路径尚未证受本片影响，本片不改；由本片作者后继移除该编号依赖，保留旧失败。
+PR114首CI `38858644835` 双host旧fault测试硬编码frontend `deinit.t20`失败；真实Holder函数关联修复后，
+新CI `38860219063` 该项通过，但premature-holder-free校准未检出。artifact确证旧SSA `.drop.t15`
+选中Leaf的t14，而Holder实际由witness→deinit→t16关联；原错误mutant exit0，失败证据仓外保留。
+后继只按真实Holder identity选择唯一field drop/self-param free，锁同block前后顺序，故障类别与判据不变。
+两次修复云仅编译/静态检查，未执行fault；首次暂留t15决定已由新CI实证收口，实际验证仍待下一CI。
