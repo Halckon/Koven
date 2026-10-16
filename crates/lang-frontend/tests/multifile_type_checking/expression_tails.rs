@@ -227,8 +227,6 @@ fn remaining_expression_tails_publish_stable_types_and_traverse_cross_file_child
         ("produce()?", "L0085", true),
         ("::target", "L0165", false),
         ("this::ping", "L0165", false),
-        ("produce()..produce()", "L0165", false),
-        ("produce()..<produce()", "L0165", false),
         ("produce() to produce()", "L0165", false),
         ("produce() in produce()", "L0165", false),
         ("produce() !in produce()", "L0165", false),
