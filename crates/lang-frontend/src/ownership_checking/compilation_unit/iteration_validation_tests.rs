@@ -1,4 +1,7 @@
 //! Mutations attack the public producer contract rather than re-running its builder.
+#[path = "iteration_validation_tests/numeric_snapshot.rs"]
+mod numeric_snapshot;
+
 use super::{
     CompilationUnitOwnership, UnitDropPoint, UnitIterationCleanupAction as Action,
     UnitIterationExitKind as Exit,

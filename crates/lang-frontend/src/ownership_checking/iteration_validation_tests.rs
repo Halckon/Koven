@@ -1,4 +1,7 @@
 //! Private mutations of real analyzed products; no public capability mutation.
+#[path = "iteration_validation_tests/numeric_snapshot.rs"]
+mod numeric_snapshot;
+
 use super::super::{IterationExitKind, LoanTarget, check_ownership, validate_iteration_facts};
 use super::*;
 use crate::{
