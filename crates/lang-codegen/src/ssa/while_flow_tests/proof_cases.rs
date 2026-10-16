@@ -291,6 +291,9 @@ fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
         .map(|(index, result)| {
             let result = result.and_then(|program| {
                 verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                if index % 2 == 0 {
+                    direct_contract::assert_direct_proof(&program, index / 2);
+                }
                 crate::llvm::render_verified_program(&program)
                     .map_err(|error| format!("LLVM: {error:?}"))?;
                 Ok(())
@@ -309,3 +312,6 @@ fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
         }
     }
 }
+
+#[path = "direct_contract.rs"]
+mod direct_contract;
