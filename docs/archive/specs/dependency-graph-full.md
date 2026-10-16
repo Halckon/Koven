@@ -321,12 +321,14 @@ subgraph Garchive["已完成（archive，311 份）"]
   S0326["S0326<br/>if/when 封闭分支类型合并"]
   S0327["S0327<br/>显式 checked 整数转换"]
 end
+subgraph Gactive["现行 active"]
+  S0328["S0328<br/>IntRange / LongRange 普通值首片"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
-  S0328["S0328<br/>IntRange / LongRange 普通值首片"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1686,6 +1688,6 @@ S0320 --> S0321
 | SPEC-0325 | archive | [0325-simple-variable-assignment-types.md](0325-simple-variable-assignment-types.md) |
 | SPEC-0326 | archive | [0326-closed-control-branch-join.md](0326-closed-control-branch-join.md) |
 | SPEC-0327 | archive | [0327-checked-integer-conversions.md](0327-checked-integer-conversions.md) |
+| SPEC-0328 | active | [0328-integer-range-values.md](../../specs/active/0328-integer-range-values.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| SPEC-0328 | drafts/v0.44 | [0328-integer-range-values.md](../../specs/drafts/v0.44/0328-integer-range-values.md) |

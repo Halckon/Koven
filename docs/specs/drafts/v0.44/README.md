@@ -16,7 +16,7 @@
 [Int函数中val初始化全分支return的真实源码与L0088入口差异](../../../archive/specs/0326-closed-control-branch-join.md#5-已认领的后继终止性待办)仍开放。
 本片join根已为Nothing不代表声明/函数终止性全部一致；尚未另分Spec或宣称修复。
 
-[SPEC-0328](0328-integer-range-values.md)仅准备整数 Range 普通值首片；构造、包含性与序列相等
-尚未实施，数值 for 值 provider 由该 Spec 作者认领为独立后继，不以首片代替完整 D。
+[SPEC-0328](../../active/0328-integer-range-values.md)已进入整数 Range 普通值首片实施；
+数值 for 值 provider 由该 Spec 作者认领为独立后继，不以首片代替完整 D。
 [SPEC-0327](../../../archive/specs/0327-checked-integer-conversions.md)已按双host30exact实施CI有界归档；
 八整数转换前端至native及CI-only负控已验，归档head CI/main待验，其余v0.44合同不随之完成。

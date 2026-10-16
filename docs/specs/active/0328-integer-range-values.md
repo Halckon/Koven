@@ -1,16 +1,16 @@
 # SPEC-0328: IntRange / LongRange 普通值首片
 
-> **性质**：实施草案 · **状态**：draft · **读取时机**：准备 v0.44 D 首片接口与普通源码红测时 · **唯一真源**：本 Spec 的实施范围；语言合同以 Guide 为准
+> **性质**：实施合同 · **状态**：in-progress · **读取时机**：准备 v0.44 D 首片接口与普通源码红测时 · **唯一真源**：本 Spec 的实施范围；语言合同以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-0328` |
 | Phase | 类型与所有权身份先行；SSA、LLVM、native 分片验收 |
 | 基线 | 正常合入实际 main `8a02572fbb490deb614009a84228bf5e06347f52`，已继承 0325/0326/0327 |
-| 分支 | `feature/spec-0328-integer-range-values` |
-| 规范 | [Range 身份](../../../guide/03-types-generics.md#简单变量赋值与整数-range-身份)、[操作](../../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
-| 当前阶段 | 仅计划与接口审查；无新测试、生产实现或执行结论 |
+| 分支 | 本地 `feature/spec-0328-integer-range-values`；授权远端 `fix/spec-0328-integer-range-values` |
+| 规范 | [Range 身份](../../guide/03-types-generics.md#简单变量赋值与整数-range-身份)、[操作](../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
+| 当前阶段 | 六项普通前端真实红已采；身份/运算事实开始实施，SSA/LLVM/native 尚未完成 |
 
 ## 1. 范围与拆片责任
 
@@ -20,10 +20,10 @@
 不同 Range 类型与已定型 Int/Long 不隐式转换；既有字面量定型和 Map 包含性保留。
 
 数值 Range 的 `for` 是已启用但本片不交付的独立后继，由本片作者继续认领：
-在本片值身份/ABI稳定后，另立实施 Spec，按[独立迭代合同](../../../guide/12-collections-destructuring.md#整数-range-与-map-的独立迭代合同)
+在本片值身份/ABI稳定后，另立实施 Spec，按[独立迭代合同](../../guide/12-collections-destructuring.md#整数-range-与-map-的独立迭代合同)
 闭合无 loan 的值交付、终点判断、continue/break/return 与 body owner 清理。
 不以首片 done 宣称 D 全部完成，不预占后继编号。
-0327 仍为独立转换交付，本片不依赖其未合入代码；其 CI/归档异常优先处理。
+0327 已随实际 main 8a02572f 正常合入；其 main CI 异常仍优先处理。
 
 ## 2. 已核接口缺口与候选表示
 
@@ -42,7 +42,7 @@
 
 ## 3. 拟定首批 ordinary frontend exact
 
-拟独立 integration target `integer_range_values`，以下六个函数尚未落测试代码。
+以下为原六项验收计划；已落具体 exact 名称与实际红证见后文。
 helper 仅普通源码经真实 lex/parse/names/raw types/complete API，两入口观察收齐后断言；
 无 facts/IR 构造或变异、无语言产物执行。新 API 未存在时先采现有公开查询事实，
 不得引用未来 API 产生编译失败后称语言红。
@@ -85,7 +85,7 @@ helper 仅普通源码经真实 lex/parse/names/raw types/complete API，两入�
 
 ## 5. 交付门
 
-接口与红证明确后再 active 登记、最小实现、逐片绿测；此刻只提交 draft。
+接口与六项红证已明确，现 active 登记并分片实施；前端阶段通过不能替代存储 ABI/native 交付。
 新增 target 必须同步 CI 选择与真实新增数量/唯一预算，执行实际 main base 的尺寸检查，
 不得抬阈值或挤行。最终工程、双 host CI、归档 head CI 与真实 main 验收分账。
 备份用 binary/full-index format-patch 增量及 base/head/tree/SHA/恢复说明；不修改 E 固定包。
@@ -135,3 +135,10 @@ README两处current Guide标签v0.44，不更改语言正文。
 不计非泛型/Hashable/member拒绝验收。仓外 `next3-receipt.json` SHA
 `7f9f7d4eafdfeb2506279810180f9911f18d54d307fe511b02ec251cb2787746`。
 所有权/运行时存储能力仍未测，包含性/相等算法仍被构造身份缺口阻挡，生产尚未改动。
+
+## 7. 前端实施切片
+
+环境绑定的两种 builtin 身份显式登记 Copyable/Transferable；不加入 numeric、Hashable 或 const 白名单。
+两入口运算事实保存原 operand ID、类型和操作种类，随 trial 回滚/排序/validate/final admission 接线。
+ABI 完成前，lower 在规划前按真实类型使用与 descriptor 结构化拒绝，包含 nullable 包装；
+这只是阶段边界，后续必须关闭字段、容器元素/Map 值及普通参数/返回等承诺存储路径。
