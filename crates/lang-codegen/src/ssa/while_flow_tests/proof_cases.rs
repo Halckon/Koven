@@ -311,7 +311,7 @@ fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>
     let sources = direct_proof_sources();
     let observations = collect_sources(&sources);
     assert_eq!(observations.len(), sources.len() * 2);
-    let outcomes = observations
+    observations
         .into_iter()
         .enumerate()
         .map(|(index, result)| {
@@ -329,8 +329,7 @@ fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>
             );
             result
         })
-        .collect::<Vec<_>>();
-    outcomes
+        .collect::<Vec<_>>()
 }
 
 #[path = "direct_contract.rs"]
