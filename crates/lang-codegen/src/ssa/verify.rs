@@ -888,7 +888,7 @@ fn instruction_positions(function: &Function) -> Vec<usize> {
     positions
 }
 
-fn compute_dominators(function: &Function) -> Vec<BTreeSet<usize>> {
+pub(super) fn compute_dominators(function: &Function) -> Vec<BTreeSet<usize>> {
     let block_count = function.blocks.len();
     let mut predecessors = vec![Vec::new(); block_count];
     for block in &function.blocks {
