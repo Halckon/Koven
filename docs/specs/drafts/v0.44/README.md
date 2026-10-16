@@ -17,7 +17,7 @@
 本片join根已为Nothing不代表声明/函数终止性全部一致；尚未另分Spec或宣称修复。
 
 [SPEC-0328](../../../archive/specs/0328-integer-range-values.md)已按PR114实现CI双host36exact有界归档；
-数值 for 值 provider 由[SPEC-0329](../../active/0329-integer-range-iteration.md)认领，不以值首片代替完整 D。
+数值 for 值 provider 已由[SPEC-0329](../../../archive/specs/0329-integer-range-iteration.md)按双host37exact实现CI有界归档；归档head CI/main另验。
 一般Range?参数/局部null与requireValue借用绑定函数含Binary的旧控制流边界仍由该作者跟踪；
 MapResult实际查询与显式borrow复制已验不代表这些一般边界已完成。
 [SPEC-0327](../../../archive/specs/0327-checked-integer-conversions.md)已按双host30exact实施CI有界归档；

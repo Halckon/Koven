@@ -1,14 +1,14 @@
 # SPEC-0329: 整数 Range 的 owned 值 for
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：实现整数 Range provider 与退出清理时 · **唯一真源**：本片实施范围；语言语义以 Guide 为准
+> **性质**：实施合同 · **状态**：done · **读取时机**：实现整数 Range provider 与退出清理时 · **唯一真源**：本片实施范围；语言语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0329` |
 | 基线 | 真实 main `3fa567aa39be7ddba421046b2c4ed33d8ce90716`，已合0328值ABI |
 | 分支 | 本地 `feature/spec-0329-integer-range-iteration`；授权远端 `fix/spec-0329-range-for` |
-| 依赖 | [SPEC-0328](../../archive/specs/0328-integer-range-values.md) |
+| 依赖 | [SPEC-0328](0328-integer-range-values.md) |
 | 合同 | [Guide12整数Range迭代](../../guide/12-collections-destructuring.md#整数-range-与-map-的独立迭代合同) |
 
 ## 1. 范围
@@ -188,3 +188,19 @@ projection 四及原预算/路径关联二）仅编译，保留预算耗尽拒�
 其中三 projection 测试是私有状态合同，不冒充完整程序 verifier 负控；typed 身份负控
 验证跨 source/type/binding 资格，不宣称拒绝同文件另一同型表达式替换。
 本片保持 active；发布后的真实 head CI、归档 head CI 与 main 验证分别登记。
+
+## 9. 实现 CI 有界归档
+
+[PR115 实现 CI](https://github.com/Halckon/Koven/actions/runs/38878529450/attempts/1) 已成功：
+真实 head `809c75faa2f6233d014a59a37d68e489a21b0d1a`，tree
+`408454909cbbc08fb7fcb4f1badf358297813975`；synthetic
+`6f912dc8c4206712096600f55cbd3cd147e41830` 同树，父为真实 main `3fa567aa` 与该 head。
+15 job 实际 success、Tree-sitter 按路径 skip、reuse=false；Linux/macOS 各 37 exact
+均唯一一次通过，含本地 26 普通与 11 CI-only。后三组私有合同范围沿 §8，不扩大证明。
+收据 SHA `6160ecbd9be4600b092494b96ca30b3a7582cb61890c8e166db8fe85d793d47e`。
+generated-owner clean/fault 产物已核：Linux calibration pass，macOS partial（平台
+ASan 能力限制，counter 证据有效）；不把 partial 写成全部工具检验通过。
+Preview 仅核 jobs/steps 成功，不声称 artifact 逐项审计。历史失败与有限 native 边界保留。
+本片据上述实际实现验收 done/归档；归档 head CI、正常合并与 main CI 尚待独立核验。
+一般 nullable Range/旧 borrow CFG 及 A 声明终止性仍按 live 后继路由跟踪；C while/F Map
+不因本片完成而获交付。

@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树 0 份。[0328](../archive/specs/0328-integer-range-values.md)已按PR114实现CI双host36exact有界归档；归档head CI/main待验，数值for等后继仍开放。
+- [Active 合同](active/README.md)：当前本树 0 份。[0328](../archive/specs/0328-integer-range-values.md)已按PR114实现CI双host36exact有界归档；归档head CI/main待验，数值for已由0329有限归档，其余后继仍开放。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -66,6 +66,7 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 ### 近期交付
 
+- [0329](../archive/specs/0329-integer-range-iteration.md)：[PR115实现CI](https://github.com/Halckon/Koven/actions/runs/38878529450/attempts/1)双host37exact各1通过，15实际success/1路径skip、非复用；Linux校准pass/macOS partial，归档head CI/main待验。
 - [0328](../archive/specs/0328-integer-range-values.md)：[PR114实现CI](https://github.com/Halckon/Koven/actions/runs/38861894139/attempts/1)15实际success、1路径skip、非复用；双host36exact各1通过，Holder校准正确检出，macOS partial限制保留；归档head CI/main待验。
 
 - [0326](../archive/specs/0326-closed-control-branch-join.md)：[PR112联合CI](https://github.com/Halckon/Koven/actions/runs/38838072417/attempts/1)15实际success、1路径skip、非复用，双host39exact各1通过；封闭join有界归档，声明终止性后继仍由作者跟踪，归档head CI/main待验。

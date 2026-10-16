@@ -108,6 +108,6 @@ OwnedSnapshot(expression) 与 BorrowedSource(target) 区分；不为数值 sourc
 两 lower 使用独立 Value 状态：source 一次投影 first/last/empty，空值直接退出；
 normal/continue 清理后先判 current==last，仅非终值边进入增量块，不计算 length。
 break/return 沿真实退出计划保留外层 loan；当前 Linux single/project 有界 native 已核
-快照隔离、Int/Long 极值及 38 次资源析构顺序，跨平台与私有负控仍待本片 CI。
+快照隔离、Int/Long 极值及 38 次资源析构顺序，双平台与私有负控已按 PR115 实现 CI 有界验收。
 provider 验证器只投影入口不可用历史，保留完整 lineage 与 inactive；预算及耗尽拒绝不变。
-验收与旧 p34 门槛演进责任见 [SPEC-0329](../specs/active/0329-integer-range-iteration.md)。
+验收与旧 p34 门槛演进责任见 [SPEC-0329](../archive/specs/0329-integer-range-iteration.md)。
