@@ -8,5 +8,5 @@
 假设不能约束新的内部方案。此目录不授权其他 consume 家族或复制转换。
 0325 的静态测试准备尚在独立未发布分支，不由本次版本切换冒称已测试或已实施。
 
-[SPEC-0326](0326-closed-control-branch-join.md)认领已启用 A 的封闭 if/when join；
-当前仅静态计划，须固定普通源码 helper/exact 名单独审后采红，不声称实现完成。
+[SPEC-0326](../../active/0326-closed-control-branch-join.md)已按普通源码红证登记active，
+实施已启用A的封闭if/when join；其余范围不因此获得实现完成状态。

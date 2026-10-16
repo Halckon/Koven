@@ -1,13 +1,13 @@
 # SPEC-0326: if/when 封闭分支类型合并
 
-> **性质**：有界类型修复 · **状态**：draft · **读取时机**：实施 v0.44 A 时 · **唯一真源**：本 Spec；语言合同见 Guide
+> **性质**：有界类型修复 · **状态**：in-progress · **读取时机**：实施 v0.44 A 时 · **唯一真源**：本 Spec；语言合同见 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-0326` |
 | 所属 Phase | Phase 2；不倒置 final admission 与 ownership |
-| 语言规范 | [Guide 分支类型](../../../guide/06-blocks-control-flow.md#valuestatement-context-与分支类型) |
+| 语言规范 | [Guide 分支类型](../../guide/06-blocks-control-flow.md#valuestatement-context-与分支类型) |
 | 基线 | Guide `be3264bc7143fdddb160ce77039fb902694d0d77`；独立于 0325 实现分支 |
 | 分支依赖 | stacked Guide PR110；尚未主干交付，不重复发布 Guide 提交 |
 | 批准范围 | 用户已启用 v0.44 A 及封闭 join 细则；实施与验收分别推进 |
@@ -114,3 +114,8 @@ when同形亦然。`06d7287d`下控制根两侧Nothing，single函数结尾L0088
 此处应按语言合同终止，现L0088是已确认实现缺口，不是合法规范拒绝；本片不改其生产。
 回归保留两入口现差异；A的正向全Nothing另用显式return语境，不经该声明路径。
 因此A不会宣称所有不返回控制流已完全一致。后继另Spec认领前由本节保留源码/诊断责任。
+
+
+最终红测 `c69f12db`，8exact各1命中，13输入前后不变：6行为红、Nothing与expected两控制绿。
+所有case双入口raw均采齐，无编译/基础API失败。仓外 `spec0326-evidence/final8-red-v2-receipt.json`。
+现按已批准A与该红证登记active；先私有封闭join与分支尾null上下文，再固定patch独审及同名单绿测。
