@@ -13,12 +13,20 @@ pub(super) fn assert_unit_direct_proof(program: &Program, case: usize) {
 
 fn assert_proof(program: &Program, case: usize, unit: bool) {
     let module = only(program.modules.iter());
-    let function = only(
-        module
-            .functions
-            .iter()
-            .filter(|function| function.name == "entry"),
-    );
+    let function = only(module.functions.iter().filter(|function| {
+        if unit {
+            // Unit names include source-qualified declaration identities.
+            // This fixture has exactly one function with a nullable guard.
+            function.blocks.iter().any(|block| {
+                matches!(
+                    block.terminator.as_ref().map(|term| &term.kind),
+                    Some(TerminatorKind::NullableBranch { .. })
+                )
+            })
+        } else {
+            function.name == "entry"
+        }
+    }));
     let header = only(function.blocks.iter().filter(|block| {
         matches!(
             block.terminator.as_ref().map(|term| &term.kind),
