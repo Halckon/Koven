@@ -27,7 +27,16 @@ impl ExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         if !self.pending_call_loans.is_empty()
             || !self.capture_loans.is_empty()
-            || !self.borrow_bindings.is_empty()
+            || self.borrow_bindings.values().any(|&loan| {
+                // A caller-provided Boolean loan cannot contain this owned handle
+                // or a view born inside this function. Keep its identity and life.
+                !self.is_entry_loan(loan)
+                    || !matches!(
+                        self.function.entity(EntityId::Loan(loan)).map(|entity| entity.ty),
+                        Some(EntityType::Loan { kind: super::LoanKind::Shared, target })
+                            if matches!(self.ssa_types.get(target.index()), Some(SsaTypeKind::Boolean))
+                    )
+            })
             || !self.result_source_loans.is_empty()
             || self.readonly_receiver.is_some()
             || self.loops.iter().any(|context| context.for_loop.is_some())
