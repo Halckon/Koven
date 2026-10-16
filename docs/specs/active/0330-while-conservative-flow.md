@@ -395,3 +395,27 @@ AfterExpression；未引入父 loan、String 复制或 nullable proof 借用扩�
 `5404891124fb0e1410f79f18ccec12f0750bb7730f4827277f4cf30dc2ae988f`。
 下一依赖仍为 nullable String 字段子 loan、pending child、写后 if 重检及两类 for
 继承；本阶段仅分支备份，native/完整 CI/完成 PR 仍待。
+
+### nullable while 字段同步子借用阶段
+
+于 `8fa55716` 保留原 returned 字节并加直接/Group println 对照，六入口首红均到
+lower：single 三 Unsupported、unit 三 MissingFact。收据 SHA
+`f5ac2f1c716d4269226a21148f4e4c461e69984ab5c71b53fe37a0bfe8d952b4`。
+两入口仅从当前已验证 While proof.loan 生成真实 String 字段 SharedHeapFieldLoan；
+完整 LoanFact/NonNullUse/当前 owner/payload 资格先于 append，只有 child 进入原
+调用清理，parent 不加入 created，不提前求值 receiver。unit 保留真实 call frame
+资格及 shared_field_roots，未知 carrier、later-argument CFG 和退休门未放宽。
+
+固定 `15533aa1` 普通 23 exact 各 1 通过、98 输入前后稳定，收据 SHA
+`18b79fcd00a65329d3d0947123ddec375d5c68fc991ffdcc1ba55215bb6f35dc`。
+新六入口 SSA/内存 LLVM 与完整身份断言均通过：真实 NullableBranch owner/view、
+String 字段 child、实际 Borrow call/PrintString、唯一 child end→parent end→owner
+Drop；null 可达侧无 child，未通过复制 String 或重造 parent 达成。原 22 回归保持。
+同 head 原六组现三绿三行为红，38 观察为 22 成功、10 lower、4 complete、2 ownership，
+收据 SHA `bcf66a20abdba7d1b7e951d8b8972fac320eefb30358c7279cc675070e9169d6`。
+加 owner-return 四路，原 42 为 26/10/4/2。pending 正例已越过字段借用，真实停在
+内层 while carrier 门：single 314..347、unit 324..357 Unsupported，尚未闭合。
+原四工程全部 exit0、98 输入稳定，收据 SHA
+`fb900f2064e8a6b2ef3b01aa9693e88ba020c260269d3c8a893c6a4230569b26`。
+后继仍须 pending child、写后 if 重检、numeric 与 borrowed for 继承；有界 native
+代表源码另准备并审验。本阶段仅分支备份，完整 C/CI/PR 尚待。
