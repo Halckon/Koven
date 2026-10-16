@@ -119,3 +119,16 @@ when同形亦然。`06d7287d`下控制根两侧Nothing，single函数结尾L0088
 最终红测 `c69f12db`，8exact各1命中，13输入前后不变：6行为红、Nothing与expected两控制绿。
 所有case双入口raw均采齐，无编译/基础API失败。仓外 `spec0326-evidence/final8-red-v2-receipt.json`。
 现按已批准A与该红证登记active；先私有封闭join与分支尾null上下文，再固定patch独审及同名单绿测。
+
+## 6. 首轮实现与 enum nullable 补齐
+
+`e498e621` 原8exact逐项各1命中全绿，18输入前后不变；生产只改两入口的控制join、
+when冲突来源和控制body尾null上下文，未改一般literal推导、ownership或final admission。
+unit checker旧尺寸1127→1128仅注册独立模块，新逻辑独立文件；该增长已专项审阅。
+`a2ded691` 唯一观察命令完成不算回归绿：null与smart-cast case的if/when双序在两入口
+均生成Nullable(case)，向同实例E<Int>?交付均L0084。`34e11bdf` 锁真实TypeRef红oracle，
+新增不同泛型实例负控全部通过，正控真实红，原观察/失败保留仓外收据。
+依据Guide06的内部case/runtime root与nullable合同，`32f6e385` 仅在join创建Nullable前
+将直接case取其已有同实例root；不改一般assignability、叶smartcast或泛型身份。
+该head原8+新增1共9exact各1命中全绿，18输入前后同；仓外`green9-receipt.json`保留事实。
+这是前端阶段结果；共享旧Any期望、公开CLI、普通native与工程门禁仍待本片后续验收。
