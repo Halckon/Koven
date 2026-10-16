@@ -213,9 +213,7 @@ impl ExpressionLowerer<'_> {
         let Some(proof) = self.non_null_proof_for_expression(receiver, span)? else {
             return Ok(None);
         };
-        if !proof.is_while_origin()
-            && !self.is_proven_nullable_if_field_read(expression, proof, span)
-        {
+        if !proof.is_while_origin() && !self.is_proven_nullable_if_field_read(expression, proof) {
             return Ok(None);
         }
         let use_fact = self

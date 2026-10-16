@@ -159,19 +159,20 @@ impl ExpressionLowerer<'_> {
         &self,
         expression: ExpressionId,
         proof: NonNullProof,
-        span: Span,
     ) -> bool {
-        self.ensure_no_unresolved_while_proof_carriers(span).is_ok()
-            && self.owned.drops().iter().copied().any(|fact| {
-                fact.point() == DropPoint::AfterExpression(expression)
-                    && candidate(self.parsed, self.names, self.typed, self.owned, fact).is_some_and(
-                        |plan| {
-                            plan.arm == 0
-                                && self.non_null_bindings.get(&plan.root) == Some(&proof)
-                                && self.nullable_if_cleanup_owner(&plan) == Some(proof.owner)
-                        },
-                    )
-            })
+        self.owned.drops().iter().copied().any(|fact| {
+            fact.point() == DropPoint::AfterExpression(expression)
+                && candidate(self.parsed, self.names, self.typed, self.owned, fact).is_some_and(
+                    |plan| {
+                        plan.arm == 0
+                            && self.non_null_bindings.get(&plan.root) == Some(&proof)
+                            && self
+                                .checked_nullable_if_cleanup_owner(&plan, &plan.members)
+                                .ok()
+                                == Some(proof.owner)
+                    },
+                )
+        })
     }
 
     /// Do not let existing point cleanup retire a live child before this new path's
