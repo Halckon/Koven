@@ -474,6 +474,13 @@ fun entry(own left: Holder?, own right: Holder?): Int {
 fn distinct_root_nested_while_retires_only_the_inner_scope() {
     let continued = different_root_source();
     let normal = continued.replace("; continue }", " }");
+    let distinct_payload = continued
+        .replace(
+            "class Holder(val value: Int)",
+            "class Holder(val value: Int)\nclass Other(val value: Int)",
+        )
+        .replace("own right: Holder?", "own right: Other?")
+        .replace("var other: Holder?", "var other: Other?");
     let empty = continued.replace(
         "var other: Holder? = right",
         "var other: Holder? = right\n    other = null",
@@ -490,6 +497,7 @@ fn distinct_root_nested_while_retires_only_the_inner_scope() {
             (continued_group, false),
             (normal_group, false),
             (empty, false),
+            (distinct_payload, false),
         ],
     );
 }
