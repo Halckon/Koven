@@ -419,3 +419,36 @@ Drop；null 可达侧无 child，未通过复制 String 或重造 parent 达成�
 `fb900f2064e8a6b2ef3b01aa9693e88ba020c260269d3c8a893c6a4230569b26`。
 后继仍须 pending child、写后 if 重检、numeric 与 borrowed for 继承；有界 native
 代表源码另准备并审验。本阶段仅分支备份，完整 C/CI/PR 尚待。
+
+### 有界代表程序 native 与 unit 空调用帧
+
+完整代表程序含十四个至多进入一轮的 while、独立字面值算得的 38 行输出及九次
+Resource 析构。首次普通 LLVM 观察在 `returnOperand(value: Int)` 的默认 Borrow
+字段参数处双入口 Unsupported；收据 `aa0f70f0846c18dc49e5a6df2b8da6457657e01a4973b3bd5ed3c98af384393a`。
+仅将该 helper 参数明确为 `own Int`，表达既有 Copyable 值交付，保留 Guard/return
+场景及黄金输出。其后 single 完整 LLVM 成功，unit 在 returned 的 current 声明名
+1623..1630 拒绝；收据 `5997b4d9a71cf9d09f540817964a97cc1e8e6f9c89ec859ea677d9b2cd1d27c9`。
+single 先独立 native 真绿，收据 `d7b864c14a2d1ab8a52b280c66e6956cddad2d96fd578e01d59995c280dd499a`。
+
+最小双源码确认 unit 在求首个 own Int 实参前的完全空 PendingCallFrame 触发统一
+carrier 拒绝；含已有 Value 前缀的对照也拒绝，single 两源均成功。首红收据
+`3dcda8aa6934bd822c00196299e398b1b8f8dc972c0d3dee4265af78edac34b6`。
+新增纯资格只认零帧或恰一实际当前 source 的 Declaration 调用空帧，Owned 结果、
+无 receiver，pending/loan/ABI/root 全空且 pending_start 为零。未清状态或改 Drop/
+BorrowEnd；所有非空前缀仍走旧门，unit 对照完整 Unsupported159..166 原样断言。
+
+固定 `964247d7` 普通 25 exact 各 1 真绿，收据 SHA
+`e1cd3194d49543183a46bf7885340ea26468556e953b8ef61f5a41fb3f1b010e`。
+同 head single/project native 各一次 build、一次自身子进程 run，实际各 1 通过；
+收据 `ac56db5398d3c66243da404c8309e6e63b5e7760ade470ebb27f124a3f98ab08`。
+38 行 stdout（含九条 drop）、空 stderr、exit0 由已审 helper 严格断言证明，无独立
+子进程日志声称；10 秒限时只适用于自身 run，不涵盖 build。覆盖直接四退出、
+同根只读/写、不同根、owner-return、String child 及零轮正常退出。
+原六组分类收据 `226b572e02fc8c081883c7694437311ecc5a0a2360211cf366417f620239a652`，
+38 仍为 22/10/4/2，结合 owner-return 四路，原 42 仍 26/10/4/2。
+四工程全部 exit0、107 输入前后稳定，收据
+`f1cba68287b9eb5227bbee9069a9d6ebffde85d09ac22e3c500c298ba7e336bb`。
+保留先前 clippy duplicate_mod 失败及当轮 build 未跑：机械改为每 integration 根
+仅注册一次既有 bounded runner，0329/0330 子模块复用；旧 numeric native 未重跑，
+仅当前 while native 与 all-targets 编译检查该接线。本阶段仍仅分支备份，剩十路
+lower、全合同回归及远端 CI/PR 未完成，不以代表 native 绿代替完整 C。
