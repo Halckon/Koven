@@ -9,8 +9,8 @@
   <text x="4668" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，312 份）</text>
   <rect x="9360" y="7974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="9500" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
-  <rect x="9704" y="7974" width="280" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="9844" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
+  <rect x="9704" y="30" width="280" height="8086" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="9844" y="50" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 482, 180 514" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2368,4 +2368,8 @@
   <text x="9156" y="87" text-anchor="middle" font-size="13">SPEC-0328</text>
   <text x="9156" y="105" text-anchor="middle" font-size="13">IntRange / Lon</text>
   <text x="9156" y="123" text-anchor="middle" font-size="13">gRange 普通值首片</text>
+  <rect x="9724" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="9844" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0329</text>
+  <text x="9844" y="105" text-anchor="middle" font-size="13">整数 Range 的 own</text>
+  <text x="9844" y="123" text-anchor="middle" font-size="13">ed 值 for</text>
 </svg>
