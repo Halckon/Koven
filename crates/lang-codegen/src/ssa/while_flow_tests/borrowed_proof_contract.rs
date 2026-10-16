@@ -176,7 +176,15 @@ pub(super) fn assert_borrowed_proof(program: &Program, spans: &Spans, unit: bool
     for instruction in &function.instructions {
         assert_eq!(
             instruction.origin.span().source_id(),
-            spans.outer.source_id()
+            function
+                .block(shape.outer)
+                .unwrap()
+                .terminator
+                .as_ref()
+                .unwrap()
+                .origin
+                .span()
+                .source_id()
         );
     }
     assert_eq!(trace.ends[VIEW].len(), 1);
@@ -878,7 +886,8 @@ fn term_at(block: &Block, expected: Span) -> bool {
 }
 
 fn source_origin(origin: &Origin, expected: Span) -> bool {
-    matches!(origin, Origin::Source(span) if *span == expected)
+    matches!(origin, Origin::Source(span)
+        if span.start() == expected.start() && span.end() == expected.end())
 }
 
 fn definition(function: &Function, value: ValueId) -> &Instruction {
