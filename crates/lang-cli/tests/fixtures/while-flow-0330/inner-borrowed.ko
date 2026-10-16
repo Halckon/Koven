@@ -1,0 +1,25 @@
+class Holder(val value: Int)
+
+fun borrowedWork(own initial: Holder?, flag: Boolean): Int {
+    var current: Holder? = initial
+    var total: Int = 0
+    val items = listOf(1, 2)
+    while (current != null) {
+        for (item in items) {
+            if (item == 1) { continue }
+            total = total + item + current.value
+        }
+        return total + current.value
+    }
+    return total
+}
+
+fun main(): Unit {
+    val nonnull = borrowedWork(Holder(17), false)
+    if (nonnull == 36) { println("borrowed.nonnull=36") }
+    else { println("UNEXPECTED.borrowed.nonnull") }
+    val empty: Holder? = null
+    val zero = borrowedWork(empty, true)
+    if (zero == 0) { println("borrowed.null=0") }
+    else { println("UNEXPECTED.borrowed.null") }
+}
