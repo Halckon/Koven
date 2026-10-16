@@ -153,3 +153,7 @@ LLVM候选`c8e797a4`从原source符号扩展/零扩展到内部i128，比较目�
 再以无poison截断产生仅成功路径可用的值。新增动态128对IR断言锁扩展符号、实际min/max、
 谓词先于cast和Abort；live/pending样例进一步锁原owner双边交付及成功参数重绑。尚未运行，
 本阶段仍无native值/越界Abort执行证据。
+
+`f214e61c`同6exact全绿，各实际1命中、47输入前后同；128动态参数IR的符号扩展、目标界、
+判界至cast顺序与Abort检查通过，两旧边界已真实LLVM成功。IR预期公式与实现同源，不能
+替代独立显式数值/native边界；仍无运行产物或越界Abort证据，Spec保持in-progress。
