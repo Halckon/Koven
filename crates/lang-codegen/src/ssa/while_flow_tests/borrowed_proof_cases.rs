@@ -34,25 +34,25 @@ struct OuterSpans {
     returned: Span,
 }
 
-pub(super) fn borrowed_for_inside_while_source() -> String {
+pub(in crate::ssa) fn borrowed_for_inside_while_source() -> String {
     holder(
         "val items = listOf(1, 2)\nwhile (current != null) {\nfor (item in items) { if (item == 1) { continue }\ntotal = total + item + current.value }\nreturn total + current.value\n}\nreturn total",
     )
 }
 
-pub(super) fn while_inside_borrowed_for_source() -> String {
+pub(in crate::ssa) fn while_inside_borrowed_for_source() -> String {
     holder(
         "val items = listOf(1, 2)\nfor (item in items) {\nwhile (current != null) { total = total + item + current.value\nbreak }\ntotal = total + item\n}\nreturn total",
     )
 }
 
-pub(super) fn borrowed_for_inside_while_sources() -> [String; 2] {
+pub(in crate::ssa) fn borrowed_for_inside_while_sources() -> [String; 2] {
     let source = borrowed_for_inside_while_source();
     let grouped = source.replace("in items", "in ((items))");
     [source, grouped]
 }
 
-pub(super) fn while_inside_borrowed_for_sources() -> [String; 2] {
+pub(in crate::ssa) fn while_inside_borrowed_for_sources() -> [String; 2] {
     let source = while_inside_borrowed_for_source();
     let grouped = source.replace("in items", "in ((items))");
     [source, grouped]

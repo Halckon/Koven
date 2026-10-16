@@ -227,3 +227,6 @@ impl ExpressionLowerer<'_> {
         Ok(views)
     }
 }
+
+#[cfg(test)]
+mod guard_tests;

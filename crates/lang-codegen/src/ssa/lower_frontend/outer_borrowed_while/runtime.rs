@@ -361,3 +361,6 @@ impl ExpressionLowerer<'_> {
         Ok(true)
     }
 }
+
+#[cfg(test)]
+mod guard_tests;

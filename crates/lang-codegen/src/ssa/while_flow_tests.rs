@@ -280,7 +280,7 @@ fn verify_last_enum_read_precedes_drop(program: &super::model::Program) -> Resul
 }
 
 #[path = "while_flow_tests/proof_cases.rs"]
-mod proof_cases;
+pub(in crate::ssa) mod proof_cases;
 
 #[test]
 fn bounded_while_fixture_reaches_verified_llvm_before_native() {

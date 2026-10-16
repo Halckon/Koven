@@ -1,7 +1,7 @@
 //! Ordinary nullable-proof acceptance candidates. Initial negative controls pin stage;
 //! their complete diagnostic identities are tightened after first real observation.
 #[path = "borrowed_proof_cases.rs"]
-mod borrowed_proof_cases;
+pub(in crate::ssa) mod borrowed_proof_cases;
 #[path = "if_cleanup_observation.rs"]
 mod if_cleanup_observation;
 
@@ -418,7 +418,7 @@ fn written_same_root_nested_while_retires_outer_and_rebirths_inner_proof() {
 #[path = "written_nested_contract.rs"]
 mod written_nested_contract;
 
-fn different_root_source() -> String {
+pub(in crate::ssa) fn different_root_source() -> String {
     r#"class Holder(val value: Int)
 fun entry(own left: Holder?, own right: Holder?): Int {
     var current: Holder? = left
@@ -779,7 +779,7 @@ fun entry(own initial: Holder?): Int {
     );
 }
 
-fn pending_child_source() -> String {
+pub(in crate::ssa) fn pending_child_source() -> String {
     r#"class Holder(val text: String, val value: Int)
 fun inspect(text: String, own marker: Int): Int { println(text); return marker }
 fun entry(own initial: Holder?, flag: Boolean): Int {
@@ -842,7 +842,7 @@ fn pending_nullable_field_child_preserves_readonly_call_prefix() {
     }
 }
 
-fn retested_after_branch_source() -> String {
+pub(in crate::ssa) fn retested_after_branch_source() -> String {
     holder(
         "while (current != null) {\nif (flag) { current = null }\nif (current != null) { total = current.value }\nbreak\n}\nreturn total",
     )
@@ -891,7 +891,7 @@ fn nullable_if_retest_after_conditional_replacement_reaches_llvm() {
 #[path = "if_retest_contract.rs"]
 mod if_retest_contract;
 
-fn numeric_nested_source() -> String {
+pub(in crate::ssa) fn numeric_nested_source() -> String {
     holder(
         "while (current != null) {\nfor (item in 0..<2) { if (item == 0) { continue }\ntotal = total + current.value }\nreturn total + current.value\n}\nreturn total",
     )
