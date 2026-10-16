@@ -583,3 +583,47 @@ qualify，未改变资格或错误传播；v3 普通/native/分类清单未执�
 剩余 lower 明确为 borrowed for 内外嵌套两源码双入口；仍须逐关系核 provider、
 element 与 nullable proof 的真实运输和清理。当前仅阶段分支备份，完整 C、
 CI-only guards、远端双平台验收及完成 PR 尚未交付。
+
+### 借用 for 位于 nullable while 内：有限 provider 运输闭合
+
+从真实 numeric 阶段后继继续。`9f3c0f21` 原/Group 两种嵌套关系先采红：
+inner/outer 各四入口均在 lower 拒绝，公共事实八观察完成；收据
+`916ee808a0a71760b938ebcb02eaeb02ea71d4c9b232bea312be99e9d2625b23`。
+事实明确区分 current Exit phi 条件 Drop 与 items Header phi 的 LoopExit Drop；
+后者顺序为 FinishProvider→EndSource→Drop(items)，不能统一当 Exit owner。
+本片只接 inner 关系：Owned List<Int> 根、单 Name Borrow element、不同真实
+current/items owner、既有 While proof。single 封闭四 phi/全部 incoming，items
+Header Drop 单独复用原 constant presence；current 的归纳和运行期实际列另核。
+unit 保存 body 前真实 false 完整状态，沿原 provider/cursor/element 槽运输；
+normal/continue 先原 EndBinding/EndElement，exhaustion 原 EndSource→items Drop，
+最后 Member 才结束 outer view 并 Drop current。未知 carrier 和 outer 关系仍拒绝。
+
+`ea7e1d1e` 阶段四项实际 exit0/101/0/0：inner 原/Group 四 SSA/LLVM 成功，
+完整 fixture 双入口成功，outer 原拒绝保留，facts 项仅表示观察完成；收据
+`2b5fb105a7d3388a368f3521c20654f07a27f1d27a49ad97521a3183bf78047a`。
+同头新增双 native 各1成功，收据
+`b22c4fd5e29acb0478a430dd4a18135a894ac24341fff78e8648750d8323f7fd`。
+固定两元素、continue/normal、outer null 代表程序的 36/0 两行输出由严格 helper
+实际断言证明；没有独立子进程 stdout 文件，也不据此声称 Resource 顺序覆盖。
+
+保留全部前置与验收失败：重复 --tests 的命令解析失败、ListOf 非实际枚举的
+E0599（改为真实 ListForm）；首工程 fmt imports 失败；随后 large_enum_variant
+导致 clippy 失败/build 未跑，token 等价移至 IterationContext（Numeric 为 None）；
+下一轮仅 scope 谓词 fmt 失败。`1f209447` 工程四绿、普通34中33绿，新增 identity
+因独立 SourceMap 的隐藏 map_id 比较导致首函数筛选为空，四 lower/LLVM 已全采绿。
+该 oracle 错误改为独立 AST 坐标与真实 outer 来源锚，生产未改。
+
+固定 `afd62ae9` 最终34 ordinary 各1通过、149输入逐轮前后同，收据
+`e0651e5c76973896aeb7c5e6978fbd2de9008cca4161270dc262eaa9e1eaf67a`；
+独立 query 锁五角色实际边列、两条 element 结束回边、source 结束与 items Drop、
+最终 view/read/owner 清理，原/Group 两入口完整身份断言通过。
+同头 native10 各1通过，收据
+`6f9548584f137a393bbce35993feef915db78960c68af3cc8a4e74d1dc6a61a8`；
+四工程原 argv 全 exit0，收据
+`b8d2f2c58840c2c60f673a03a4a20436acb1dd03405bbea10b4c946d7c5baaa9`。
+原六组五绿一行为红，38观察为30成功/2lower/4complete/2ownership，收据
+`45310ec8685af216730ac0388c592e9ddcd11e81d777c1f7e6be9e33035aa39d`；
+加同头 owner-return 四路，原42现34成功/2lower/4complete/2ownership。
+剩余 lower 仅外层 borrowed for 内 nullable while 的两入口，仍须闭合真实
+provider/element 在 inner false/break 的恢复与后用。CI-only guards、双平台 CI、
+完整 C 验收和完成 PR 尚待；本次仅阶段分支备份，不扩 Guide。
