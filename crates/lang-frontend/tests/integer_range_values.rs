@@ -198,3 +198,133 @@ fn range_membership_and_equality_publish_boolean_results() {
         assert!(observation.boolean, "{observation:?}");
     }
 }
+
+#[test]
+fn range_values_cross_existing_storage_boundaries() {
+    let mut all = Vec::new();
+    for (ty, range) in [("Int", "IntRange"), ("Long", "LongRange")] {
+        for text in [
+            format!(
+                "fun accept(value: {range}): Unit {{}}\nfun probe(left: {ty}, right: {ty}): Unit {{\n val stored = left..right\n val copied = stored\n accept(copied)\n accept(stored)\n}}"
+            ),
+            format!(
+                "fun pass(own value: {range}): {range} = value\nfun probe(left: {ty}, right: {ty}): {range} = pass(left..right)"
+            ),
+            format!(
+                "class Holder(val value: {range})\nfun probe(left: {ty}, right: {ty}): Holder = Holder(left..right)"
+            ),
+            format!("fun probe(left: {ty}, right: {ty}): List<{range}> = listOf(left..right)"),
+        ] {
+            all.extend(observe(&text, "left..right", None));
+        }
+    }
+    for observation in all {
+        assert_complete(&observation);
+        assert!(observation.copyable, "{observation:?}");
+    }
+}
+
+#[test]
+fn invalid_range_endpoints_have_operand_diagnostics() {
+    let mut all = Vec::new();
+    let pairs = [
+        ("Int", "Long"),
+        ("Long", "Int"),
+        ("Byte", "Byte"),
+        ("Short", "Short"),
+        ("UByte", "UByte"),
+        ("UShort", "UShort"),
+        ("UInt", "UInt"),
+        ("ULong", "ULong"),
+        ("Float", "Float"),
+        ("Double", "Double"),
+        ("Char", "Char"),
+        ("Boolean", "Boolean"),
+        ("String", "String"),
+        ("Int?", "Int?"),
+        ("Long?", "Long?"),
+    ];
+    for (left, right) in pairs {
+        for operator in ["..", "..<"] {
+            let root = format!("left {operator} right");
+            let text =
+                format!("fun probe(left: {left}, right: {right}): Unit {{ val bad = {root} }}");
+            all.extend(observe(&text, &root, None));
+        }
+    }
+    for observation in all {
+        assert!(observation.names.is_empty(), "{observation:?}");
+        let raw = observation
+            .raw
+            .as_ref()
+            .expect("types reached for known endpoint types");
+        assert!(
+            raw.iter().any(|d| d.code().to_string() == "L0085"),
+            "{observation:?}"
+        );
+        let Some(Err(FinalTypeAdmissionError::Diagnostics(final_diagnostics))) =
+            &observation.complete
+        else {
+            panic!("source diagnostics required: {observation:?}");
+        };
+        assert!(
+            raw.iter().all(|d| final_diagnostics.contains(d)),
+            "{observation:?}"
+        );
+    }
+}
+
+#[test]
+fn range_identity_does_not_enable_extra_public_apis() {
+    let mut positive = Vec::new();
+    let mut negative = Vec::new();
+    for (ty, range) in [("Int", "IntRange"), ("Long", "LongRange")] {
+        let text = format!("fun probe(left: {ty}, right: {ty}): {range} = left..right");
+        positive.extend(observe(&text, "left..right", Some(range)));
+        let call = format!("{range}()");
+        negative.extend(observe(
+            &format!("fun probe(): Unit {{ val bad = {call} }}"),
+            &call,
+            None,
+        ));
+        for member in ["first", "last", "step", "size", "hash"] {
+            let root = format!("value.{member}");
+            negative.extend(observe(
+                &format!("fun probe(value: {range}): Unit {{ val bad = {root} }}"),
+                &root,
+                None,
+            ));
+        }
+        negative.extend(observe(
+            &format!("fun probe(left: {ty}, right: {ty}): {range}<Int> = left..right"),
+            "left..right",
+            None,
+        ));
+        for container in ["Map", "MutableMap"] {
+            negative.extend(observe(
+                &format!("fun probe(value: {container}<{range}, Int>): Unit {{ val marker = 0 }}"),
+                "0",
+                None,
+            ));
+        }
+    }
+    // A missing Range identity cannot count as proof of its dedicated API gates.
+    for observation in positive {
+        assert_complete(&observation);
+        assert_eq!(
+            observation.matches_annotation,
+            Some(true),
+            "{observation:?}"
+        );
+    }
+    // Initial observation oracle only; freeze exact reason/span once identity exists.
+    for observation in negative {
+        match observation.complete {
+            Some(Err(FinalTypeAdmissionError::Diagnostics(ref diagnostics))) => {
+                assert!(!diagnostics.is_empty(), "{observation:?}");
+            }
+            None => assert!(!observation.names.is_empty(), "{observation:?}"),
+            _ => panic!("structured source rejection required: {observation:?}"),
+        }
+    }
+}

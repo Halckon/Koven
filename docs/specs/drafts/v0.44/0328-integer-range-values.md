@@ -7,7 +7,7 @@
 | 状态 | draft |
 | Goal ID | `KOV-P2-0328` |
 | Phase | 类型与所有权身份先行；SSA、LLVM、native 分片验收 |
-| 基线 | 实际 main `5a32550a0ea956c1d66fdb65ae9bf2aeb6681684`，已继承 0325/0326 |
+| 基线 | 正常合入实际 main `8a02572fbb490deb614009a84228bf5e06347f52`，已继承 0325/0326/0327 |
 | 分支 | `feature/spec-0328-integer-range-values` |
 | 规范 | [Range 身份](../../../guide/03-types-generics.md#简单变量赋值与整数-range-身份)、[操作](../../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
 | 当前阶段 | 仅计划与接口审查；无新测试、生产实现或执行结论 |
@@ -110,3 +110,21 @@ unit 四例在 names.validate 拒绝，未调用后续 types。这是公开身�
 不据此声称 Copyable/Transferable、存储或序列值语义已经实现；完整 raw 位于仓外
 `spec0328-evidence/red3-receipt.json`（SHA `18e2a3a78b9ca802c30325f82153bd8df1fd78cecb6c1156a4557d9e4d390ad5`）。
 仍保持 draft 与无生产变化，后续实现/剩余矩阵须另行按审定范围推进。
+
+
+## 7. 后三项与接口审查准备
+
+正常合并 `8843af8e` 双父为首红账本 `30504b87` 与真实 main `8a02572f`；
+冲突仅版本索引/生成图，E生产与归档、A终止性后继责任保留。独立 `74499028` 只修中文
+README两处current Guide标签v0.44，不更改语言正文。
+新增后三exact为 `range_values_cross_existing_storage_boundaries`、
+`invalid_range_endpoints_have_operand_diagnostics`、`range_identity_does_not_enable_extra_public_apis`。
+分别8源码/16入口、30源码/60入口、正控2与负控18源码/40入口；全部先收观察再断言。
+非法端点要求真实L0085及complete保留原诊断；额外API拒绝先以正控身份成功作门，
+未越过该门不声称非泛型/Hashable或额外成员拒绝已经验证，具体code/span后续收紧。
+此批未执行；字段/容器若出现独立既有前置边界须单列，不为通过Range测试扩大其他能力。
+
+候选接口次序：环境绑定两身份→两套类型表及Copyability/Transferable→构造typed事实→
+包含性/相等typed事实→合法事实到未实现backend的结构化拒绝。先锁事实中的真实operand
+与端点/结果类型和operator种类，再由后端消费；不按源码名字猜身份、不先清全局Deferred。
+本阶段尚无生产补丁；具体表示/ABI及共享调用方穷尽检查通过后再实施。
