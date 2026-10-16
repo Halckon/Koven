@@ -554,3 +554,60 @@ fn while_enum_case_true_fact_matches_existing_if_payload_access() {
         },
     ]);
 }
+
+#[test]
+fn shared_condition_facts_respect_effect_order_and_short_circuit_paths() {
+    assert_cases(&[
+        Case {
+            name: "if_inout_after_test_kills_fact",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; if (x != null && mutate(&x)) { val seen = /*body*/x; val rejected: Int = /*reject*/x } }",
+            marks: vec![
+                read("body", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "if_test_after_inout_reestablishes_fact",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; if (mutate(&x) && x != null) { val seen = /*body*/x; val accepted: Int = /*consume*/x } }",
+            marks: vec![read("body", Shape::Int), read("consume", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "negated_or_inout_after_test_kills_fact",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; if (!(x == null || mutate(&x))) { val seen = /*body*/x; val rejected: Int = /*reject*/x } }",
+            marks: vec![
+                read("body", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "negated_or_test_after_inout_reestablishes_fact",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; if (!(mutate(&x) || x == null)) { val seen = /*body*/x; val accepted: Int = /*consume*/x } }",
+            marks: vec![read("body", Shape::Int), read("consume", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "short_circuit_does_not_restore_written_baseline",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) { val ignored = flag && mutate(&x); val seen = /*body*/x; val rejected: Int = /*reject*/x } }",
+            marks: vec![
+                read("body", Shape::NullableInt),
+                read("reject", Shape::Error),
+            ],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "ordinary_call_preserves_unwritten_mutable_baseline",
+            text: "fun inspect(): Boolean = true\nfun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) { val ignored = flag && inspect(); val seen = /*body*/x; val accepted: Int = /*consume*/x } }",
+            marks: vec![read("body", Shape::Int), read("consume", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "nested_and_rhs_cannot_recover_invalidated_left_fact",
+            text: "fun mutate(inout value: Int?): Boolean = true\nfun accept(value: Int): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; if ((x != null && mutate(&x)) && accept(/*reject*/x)) {} }",
+            marks: vec![read("reject", Shape::Error)],
+            rejected: Some("reject"),
+        },
+    ]);
+}
