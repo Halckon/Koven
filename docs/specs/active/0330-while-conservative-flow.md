@@ -711,3 +711,38 @@ pending 基线按全部真实前驱同步核 owner/parent/child 三列，不以�
 仅等价改写 Entity/Some 与范围匹配后重冻为上述实跑头，原失败未被改记为绿。
 本节只闭合最终本地统一验收。双平台 CI 的9个私有负控行为、实现头与归档头 CI、
 PR 正常合并及真实 main 核验仍待；当前不迁移 Spec、不改 Guide、不宣布完整 C 完成。
+
+### PR116 首次完整 CI 回归与兼容修复
+
+首次完整 CI `38978077877` 在 Linux/macOS 均报告相同52个 codegen 失败；Linux
+2007通过，macOS 2006通过/1忽略。此前本地69个普通/native 控制通过不能替代完整
+CI。9个新增私有 guard 中8个通过，unit pending guard 的基线因 parser body-first
+顺序选到同根 readonly 内层 while，再寻找不存在的 NullableBranch 而失败。修复仅
+联合真实 typed while 与实际 NullableBranch origin 唯一定位出生，保留原20个负控；
+该合成 exact 本地仍只编译，等待下一次双平台 CI 实际执行。
+
+两处生产回归分别收窄修复：single proof 校验恢复已登记 MapResult 的 MoveOnly
+Aggregate 表示，仅非 While origin 且精确 inner 注册匹配时接受，原 NullableHandle、
+Shared loan、owner/root 身份校验保留；unit 每个出口仍核 pending child，仅在任一
+出口确有 nullable child 时跨出口严格比较完整 call frames，恢复无 child 旧路径的
+合法 break/continue 取消差异。没有放宽任意 Aggregate 或带 child 的运输约束。
+
+修复前固定 `b3f99c50` 的 unit3、single4 均实际各1失败，收据分别为
+`79c01973d5afd55220a7f36538716b56eb25014d63d398027661256088dd5d82`、
+`7b3cb9b46ce38058e5826b4f768ab60a78321f36d423b5bf4b890c1541854301`。
+固定修复头 `1e8a2caf39b2ea814f9509d8bab422aac9bda18a`、tree
+`85009fecebbbfe050e9cd9b1f3bd30b451bc5350` 后，同7各1通过，收据
+`2dca9ff85ffac145e6afe5f86df64923e62bea86ea186f725c00a07c88e26811`；
+既有 readonly nullable receiver 的 Unsupported kind/span 断言也恢复通过。
+
+按完整 helper 链将52失败精确分为42个可本地复验（22普通 SSA/LLVM、20未改产物
+成功 native）及10个 CI-only（7 LLVM/C 计数插桩、2真实 Abort、1私有 guard）。
+42项逐一唯一 exact 全通过，758输入逐项前后同，收据
+`add47a2286d6103b1cb3f68c6d8302fdc6ee8cd4f956ad106842378ce6faa44f`。
+同头原69控制全部各1通过，收据
+`7dec5dbdcb0354163bf508464556025c4b0fdc1c9a0d1047b80b2b81475c6440`；
+原42仍为36成功/0lower/4complete/2ownership，精确 L0165/L0135 负控保留。
+原四工程 fmt/check/clippy/build 全 exit0，758输入稳定，收据
+`c5ad1a46e1d3aa9b4db76bda9538660e554c92f4cb8f160b776919a748629bfb`。
+上述10项未在本地执行；完整双平台 CI 还须复验原78选择及全部52失败，不能据本轮
+本地恢复声称 CI 全绿。PR116 尚待真实 CI、归档与正常合并，F 实施继续等待。
