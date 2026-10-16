@@ -318,9 +318,12 @@ fn range_values_cross_fields_containers_and_consumed_map_results() {
 
 #[test]
 fn observe_copyable_range_require_value_without_borrow_binding() {
-    let sources = [("Int", "IntRange"), ("Long", "LongRange")].map(|(integer, range)| {
+    let mut sources = [("Int", "IntRange"), ("Long", "LongRange")].map(|(integer, range)| {
         format!("fun entry(a: {integer}, b: {integer}): Boolean {{ var values = mutableMapOf<Int, {range}>(); values.put(1, a..b); val copy = values.requireValue(1); return (a in copy) && values.contains(1) }}")
-    });
+    }).to_vec();
+    for (integer, range, zero) in [("Int", "IntRange", "0"), ("Long", "LongRange", "0L")] {
+        sources.push(format!("fun make(a: {integer}, b: {integer}): {range} = a..b\nfun check(value: {range}): Boolean = {zero} in value\nfun entry(a: {integer}, b: {integer}): Unit {{ var values = mutableMapOf<Int, {range}>(); values.put(1, make(a, b)); borrow val item = values.requireValue(1); val copy = item; check(copy); values.contains(1) }}"));
+    }
     // This exact records the actual existing loan-to-Copyable path; it is not a green oracle.
     for result in collect_sources(&sources) {
         if let Ok(program) = result {
