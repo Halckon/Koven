@@ -10,7 +10,7 @@
 | 基线 | 实际 main `5a32550a0ea956c1d66fdb65ae9bf2aeb6681684`（正常合并继承A/B） |
 | 分支 | `feature/spec-0327-integer-conversions`；已继承主干0325/0326归档与实现 |
 | 规范 | [Guide整数转换](../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
-| 当前状态 | 六项普通前端首轮4红/2初始拒绝控制绿；有限前端候选已固定待审，后端转换未实现 |
+| 当前状态 | 合A/B主干后13普通exact与4工程通过；仅FE阶段，后端转换未实现 |
 
 ## 1. 批准范围与依赖
 
@@ -105,3 +105,14 @@ identity/异型lower均在真实调用span返回UnsupportedNode，无emit/native
 不把此旧恢复现象修成任意gate豁免。下一步待A真实main同步后的共享inv与工程验收。
 
 后继正常同步A实际main5a32550a，仅7处docs索引/四图冲突，生产自动合并；新head尚待统一复验。
+
+## 7. 合A/B主干后的FE阶段备份点
+
+`885fc487` / tree `a0c8aa67` 正常双父为原E `b496115b` 与真实main `5a32550a`；
+A/B实现与归档均保留，仅7处当前索引/四图冲突，Rust自动合并无冲突。
+同head13exact=6FE+2lower-only+5既有inv普通回归，各实际1命中、25输入前后同；
+5inv仅raw/ownership回归，不冒称其经过complete。fmt、workspace/all-targets check、
+frontend/codegen/cli三包all-targets clippy、cli build四工程均成功；实际base尺寸与docs亦通过。
+仓外main-sync13与engineering-main-sync13收据绑定argv/logSHA；旧两次编译0执行均保留。
+本阶段仅供增量备份，Spec保持in-progress；未实现转换SSA/LLVM或运行native/Abort，
+尚未接入新增target的最终CI名单，不以13绿或build成功表示完整E交付。
