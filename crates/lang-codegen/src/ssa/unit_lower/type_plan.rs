@@ -10,6 +10,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         BuiltinType, CompilationUnitTypes, UnitCallTarget, UnitExpressionId, UnitTypeId,
+        UnitTypeKind, UnitTypeRefId,
     },
 };
 
@@ -182,7 +183,7 @@ pub(super) fn intern_body_scalar_types(
                 descriptor.kind()
                     == lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
             })
-            || requires_enum_discriminant(parsed, expression)?
+            || requires_enum_discriminant(parsed, typed, expression)?
         {
             for builtin in [BuiltinType::Int, BuiltinType::Boolean] {
                 let ty = typed
@@ -282,6 +283,7 @@ fn mark_static_callee_chain(
 
 fn requires_enum_discriminant(
     parsed: &ParsedFile,
+    typed: &CompilationUnitTypes,
     expression: UnitExpressionId,
 ) -> Result<bool, LoweringError> {
     let node = parsed
@@ -292,6 +294,12 @@ fn requires_enum_discriminant(
             kind: LoweringErrorKind::MissingFact,
             span: None,
         })?;
+    if let Expression::TypeTest { type_ref, .. } = node.payload() {
+        return Ok(typed
+            .type_ref_type(UnitTypeRefId::new(expression.source_unit(), *type_ref))
+            .and_then(|ty| typed.types().get(ty))
+            .is_some_and(|kind| matches!(kind, UnitTypeKind::EnumCase { .. })));
+    }
     Ok(matches!(
         node.payload(),
         Expression::When { entries, .. }
