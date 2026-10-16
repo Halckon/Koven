@@ -29,6 +29,9 @@ mod integer_range;
 mod map;
 mod non_null_assertion;
 mod nullable;
+#[cfg(test)]
+#[path = "bodies/numeric_iteration_validation_tests.rs"]
+mod numeric_iteration_validation_tests;
 mod ownership_primitive;
 mod projection;
 mod rc;
