@@ -167,22 +167,14 @@ impl BodyChecker<'_> {
         let right_null = equality && self.is_null_literal(source, right)?;
         let (left_result, right_result) = if left_null && !right_null {
             let right_result = self.check_expression(source, right, None, None, return_type)?;
-            let expected = matches!(
-                self.signatures.types().get(right_result.ty),
-                Some(crate::type_checking::UnitTypeKind::Nullable(_))
-            )
-            .then_some(right_result.ty);
+            let expected = self.null_comparison_expected(source, right, right_result.ty);
             (
                 self.check_expression(source, left, expected, None, return_type)?,
                 right_result,
             )
         } else if right_null && !left_null {
             let left_result = self.check_expression(source, left, None, None, return_type)?;
-            let expected = matches!(
-                self.signatures.types().get(left_result.ty),
-                Some(crate::type_checking::UnitTypeKind::Nullable(_))
-            )
-            .then_some(left_result.ty);
+            let expected = self.null_comparison_expected(source, left, left_result.ty);
             (
                 left_result,
                 self.check_expression(source, right, expected, None, return_type)?,

@@ -20,6 +20,33 @@ pub(super) enum FlowKey {
 type ConditionFacts = (BTreeMap<FlowKey, TypeId>, BTreeMap<FlowKey, TypeId>);
 
 impl Checker<'_> {
+    // A stable narrowed read still compares against its declared nullable storage.
+    // This expected type belongs only to the other, literal-null operand.
+    pub(super) fn null_comparison_expected(
+        &self,
+        expression: ExpressionId,
+        read_type: TypeId,
+    ) -> Option<TypeId> {
+        if matches!(self.kind(read_type), TypeKind::Nullable(_)) {
+            return Some(read_type);
+        }
+        if matches!(
+            self.kind(read_type),
+            TypeKind::Error | TypeKind::Deferred(_)
+        ) {
+            return None;
+        }
+        let FlowKey::Symbol(symbol) = self.stable_flow_key(expression)? else {
+            return None;
+        };
+        let declared = self.symbol_type(symbol)?;
+        let TypeKind::Nullable(inner) = self.kind(declared) else {
+            return None;
+        };
+        (*inner == read_type && self.flow_facts.get(&FlowKey::Symbol(symbol)) == Some(&read_type))
+            .then_some(declared)
+    }
+
     pub(super) fn collect_flow_metadata(&mut self) {
         let variables = self
             .ast()

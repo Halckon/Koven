@@ -962,13 +962,11 @@ impl Checker<'_> {
             );
         let (left_result, right_result) = if left_null && !right_null {
             let right_result = self.check_expression(right, None, None)?;
-            let expected = matches!(self.kind(right_result.ty), TypeKind::Nullable(_))
-                .then_some(right_result.ty);
+            let expected = self.null_comparison_expected(right, right_result.ty);
             (self.check_expression(left, expected, None)?, right_result)
         } else if right_null && !left_null {
             let left_result = self.check_expression(left, None, None)?;
-            let expected = matches!(self.kind(left_result.ty), TypeKind::Nullable(_))
-                .then_some(left_result.ty);
+            let expected = self.null_comparison_expected(left, left_result.ty);
             (left_result, self.check_expression(right, expected, None)?)
         } else {
             (
