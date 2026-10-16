@@ -69,7 +69,7 @@ fn unit_conversion_identity_stops_before_unimplemented_lowering() {
             .unwrap()
             .validate()
             .unwrap();
-        complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).unwrap();
+        complete_compilation_unit_types(&sources, &inputs, &names, &types, typed.types()).unwrap();
         let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
             .unwrap()
             .validate()

@@ -95,3 +95,6 @@ const 对照先要求 runtime 成功，失败时不把成员不存在误计 cons
 首次active迁移将状态误写active，docs门禁拒绝；现修为治理规定in-progress，不计首次通过。
 
 候选49cd首条因4处emit参数String/&str编译E0308而0执行，余7未跑；独立机械引用修复，原日志保留。
+
+`5ba8426b`六FE exact各1通过、21输入同；lower测试编译E0308误传validated而非recovery只读视图，
+第7命令0执行、第8未跑。现仅修helper公开types()访问，后端仍Unsupported，不计完整交付。
