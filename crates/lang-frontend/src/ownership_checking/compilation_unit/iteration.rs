@@ -34,10 +34,11 @@ impl super::CompilationUnitOwnership {
     }
 }
 
-/// source 的现有能力；迭代本身始终只建立 shared access。
+/// 借用 provider 的原 source 能力，或数值 provider 已复制快照的 Owned 分类。
+/// 来源身份与 provider 分派由 source_kind 区分；快照不建立 shared access。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnitIterationSourceAccess {
-    /// owned place 上新建共享借用。
+    /// 借用 provider 的 owned place，或数值 provider 的 owned 值快照。
     Owned,
     /// 复用或shared-reborrow既有Borrow能力。
     Shared,
@@ -124,7 +125,7 @@ impl UnitIterationExitPlan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitIterationOwnershipPlan {
     pub(super) descriptor: UnitSequentialIterationDescriptor,
-    pub(super) source: UnitLoanTarget,
+    pub(super) source: crate::ownership_checking::IterationSource<UnitLoanTarget, UnitExpressionId>,
     pub(super) source_access: UnitIterationSourceAccess,
     pub(super) bindings: Vec<UnitOwnershipBindingDescriptor>,
     pub(super) exits: Vec<UnitIterationExitPlan>,
@@ -137,7 +138,14 @@ impl UnitIterationOwnershipPlan {
     }
     /// source的稳定owner/place身份。
     #[must_use]
-    pub const fn source(&self) -> &UnitLoanTarget {
+    pub const fn source(&self) -> Option<&UnitLoanTarget> {
+        self.source.borrowed()
+    }
+    /// Exact borrowed source or owned value snapshot identity.
+    #[must_use]
+    pub fn source_kind(
+        &self,
+    ) -> &crate::ownership_checking::IterationSource<UnitLoanTarget, UnitExpressionId> {
         &self.source
     }
     /// source原有能力，不改变provider Shared交付。

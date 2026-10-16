@@ -238,7 +238,11 @@ impl ExpressionLowerer<'_> {
             } => self.lower_when(expression, subject, &entries, span),
             Expression::Return { value, .. } => self.lower_return(expression, value, span),
             Expression::Break { .. } => {
-                if self.loops.last().is_some_and(|c| c.for_loop.is_some()) {
+                if self
+                    .loops
+                    .last()
+                    .is_some_and(|c| c.for_loop.is_some() || c.numeric_loop.is_some())
+                {
                     self.lower_for_break(expression, span)
                 } else {
                     self.emit_control_transfer_cleanup(expression)?;
@@ -246,7 +250,11 @@ impl ExpressionLowerer<'_> {
                 }
             }
             Expression::Continue { .. } => {
-                if self.loops.last().is_some_and(|c| c.for_loop.is_some()) {
+                if self
+                    .loops
+                    .last()
+                    .is_some_and(|c| c.for_loop.is_some() || c.numeric_loop.is_some())
+                {
                     self.lower_for_continue(expression, span)
                 } else {
                     self.emit_control_transfer_cleanup(expression)?;
@@ -1009,9 +1017,8 @@ impl ExpressionLowerer<'_> {
         }
         self.prepare_map_loop_return(return_expression, span)?;
         let for_return_exit = self.loops.iter().rev().find_map(|c| {
-            c.for_loop.as_ref().and_then(|f| {
-                f.plan
-                    .exits()
+            c.iteration_plan().and_then(|plan| {
+                plan.exits()
                     .iter()
                     .find(|e| {
                         matches!(

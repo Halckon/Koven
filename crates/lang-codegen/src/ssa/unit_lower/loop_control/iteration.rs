@@ -11,12 +11,24 @@ use lang_frontend::{
 
 pub(super) struct IterationContext {
     pub(super) statement: UnitStatementId,
-    pub(super) start: usize,
     pub(super) retained_start: usize,
     pub(super) outer_temporaries: BTreeSet<UnitExpressionId>,
-    pub(super) element: usize,
-    pub(super) step: ValueId,
-    pub(super) int_type: SsaTypeId,
+    pub(super) state: IterationState,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum IterationState {
+    Borrowed {
+        start: usize,
+        element: usize,
+        step: ValueId,
+        int_type: SsaTypeId,
+    },
+    Numeric {
+        current: usize,
+        last: usize,
+        endpoint_type: SsaTypeId,
+    },
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -45,6 +57,19 @@ impl UnitExpressionLowerer<'_> {
         if plan.source_access() == UnitIterationSourceAccess::Exclusive {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        if matches!(
+            descriptor.provider(),
+            lang_frontend::type_checking::IterationProvider::NumericRange(_)
+        ) {
+            if plan.source_kind()
+                != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(
+                    descriptor.source(),
+                )
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            return self.lower_numeric_for(&plan, body, span);
+        }
         let container = self.iteration_type(descriptor.source_type(), span)?;
         let element_type = self.iteration_type(descriptor.element_type(), span)?;
         let int_type = self.ssa_builtin(BuiltinType::Int, span)?;
@@ -56,7 +81,10 @@ impl UnitExpressionLowerer<'_> {
         {
             self.range_iteration_loan(source, container, span)?
         } else {
-            match plan.source() {
+            match plan
+                .source()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+            {
                 UnitLoanTarget::Place(place) => {
                     let symbol = place.root();
                     let symbol_data = self.names.names().source_units()
@@ -185,12 +213,14 @@ impl UnitExpressionLowerer<'_> {
         self.pending_operands.push(EntityId::Loan(element.loan()));
         context.iteration = Some(IterationContext {
             statement: statement_id,
-            start,
             retained_start,
             outer_temporaries,
-            element: element_slot,
-            step: header.step,
-            int_type,
+            state: IterationState::Borrowed {
+                start,
+                element: element_slot,
+                step: header.step,
+                int_type,
+            },
         });
         match descriptor.binding() {
             UnitSequentialIterationBinding::Discard => {}
@@ -234,7 +264,7 @@ impl UnitExpressionLowerer<'_> {
             .loops
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        self.finish_continues(&context)?;
+        self.finish_continues(&context, context.header)?;
         self.block = false_block;
         self.current_receiver = context.entry_receiver;
         self.consumed_receiver = context.entry_consumed_receiver;
@@ -333,11 +363,21 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Ok(());
         };
-        let cursor_index = context.start + 2;
+        let IterationState::Borrowed {
+            start,
+            step,
+            int_type,
+            ..
+        } = context.state
+        else {
+            // Numeric providers test their terminal value after all continuing edges join.
+            return Ok(());
+        };
+        let cursor_index = start + 2;
         let Some(EntityId::Value(cursor)) = self.pending_operands.get(cursor_index).copied() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        let Some(EntityId::Loan(source)) = self.pending_operands.get(context.start).copied() else {
+        let Some(EntityId::Loan(source)) = self.pending_operands.get(start).copied() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let header = self
@@ -351,8 +391,8 @@ impl UnitExpressionLowerer<'_> {
             header,
             source,
             cursor,
-            context.step,
-            context.int_type,
+            step,
+            int_type,
             &Origin::Source(span),
         )
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;

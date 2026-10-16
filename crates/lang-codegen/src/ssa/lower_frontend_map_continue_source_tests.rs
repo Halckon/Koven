@@ -50,7 +50,7 @@ fn check(text: &str, source_gap: Option<IterationPhiBoundary>) {
         assert!(fact.condition().is_some());
         let plan = analysis.owned.iteration(*statement).unwrap();
         assert!(
-            matches!(plan.source(), LoanTarget::Place(place) if place.is_root() && place.root() == symbol)
+            matches!(plan.source(), Some(LoanTarget::Place(place)) if place.is_root() && place.root() == symbol)
         );
         if boundary == IterationPhiBoundary::Header {
             assert_eq!(fact.point(), DropPoint::LoopExit(*statement));

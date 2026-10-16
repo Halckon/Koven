@@ -102,7 +102,7 @@ fn owner_plan(
     if !matches!(
         plan.descriptor().provider(),
         IterationProvider::Sequential(_)
-    ) || matches!(plan.source(), LoanTarget::Place(place) if place.root() == symbol)
+    ) || matches!(plan.source(), Some(LoanTarget::Place(place)) if place.root() == symbol)
     {
         return None;
     }

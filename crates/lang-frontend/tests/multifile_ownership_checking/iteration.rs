@@ -134,7 +134,7 @@ fn temporary_sources_release_only_on_terminal_exits() {
         );
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         let plan = &owned.iterations()[0];
-        let UnitLoanTarget::Temporary(source) = plan.source() else {
+        let Some(UnitLoanTarget::Temporary(source)) = plan.source() else {
             panic!("temporary source");
         };
         let exit = plan
@@ -323,7 +323,7 @@ fn named_source_has_no_early_drop_when_loop_is_its_last_explicit_read() {
         "package q\nfun run(own xs: List<Int>) { for (item in xs) { p.read(item) } }",
     );
     let plan = &owned.iterations()[0];
-    let UnitLoanTarget::Place(source) = plan.source() else {
+    let Some(UnitLoanTarget::Place(source)) = plan.source() else {
         panic!("named source");
     };
     let drops = owned

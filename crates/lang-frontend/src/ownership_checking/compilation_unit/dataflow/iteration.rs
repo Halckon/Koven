@@ -24,6 +24,10 @@ impl Checker<'_> {
         body: StatementId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let numeric = self
+            .typed
+            .sequential_iteration(UnitStatementId::new(self.source_unit, statement))
+            .is_some_and(|plan| plan.delivery() == crate::type_checking::ParameterMode::Value);
         let errors = self.diagnostics.len();
         let previous = self.allowed_borrow_call;
         if self.range_expression_is_proven(source) {
@@ -32,8 +36,12 @@ impl Checker<'_> {
         let checked = self.check_expression(
             source,
             state,
-            ExpressionUse::Place {
-                parameter_span: None,
+            if numeric {
+                ExpressionUse::Read
+            } else {
+                ExpressionUse::Place {
+                    parameter_span: None,
+                }
             },
         );
         self.allowed_borrow_call = previous;
@@ -57,34 +65,39 @@ impl Checker<'_> {
             },
         )?;
         let span = self.parsed.ast().expressions().get(source)?.span();
-        let target = if let Some(fact) = self.range_use(source) {
-            fact.origin().clone()
-        } else if let Some(place) = self.place(source)? {
-            if self.access_place(&place, AccessKind::SharedLoan, span, None, base)? {
-                base.loans.push(ActiveLoan {
-                    owner: ActiveLoanOwner::IterationSource(statement),
-                    target: ActiveLoanTarget::Place(place.clone()),
-                    kind: LoanKind::Shared,
-                    reserved: false,
-                    origin: span,
-                });
-            }
-            UnitLoanTarget::Place(place)
+        let target = if numeric {
+            None
         } else {
-            let owner = self
-                .temporary_projection_owner(source)?
-                .or(self.temporary_expression_origin(source)?)
-                .ok_or(OwnershipCheckingError::InvalidUnitArgumentPlace {
-                    source_unit: self.source_unit.index(),
-                    expression: source.index(),
-                })?;
-            UnitLoanTarget::Temporary(owner)
+            Some(if let Some(fact) = self.range_use(source) {
+                fact.origin().clone()
+            } else if let Some(place) = self.place(source)? {
+                if self.access_place(&place, AccessKind::SharedLoan, span, None, base)? {
+                    base.loans.push(ActiveLoan {
+                        owner: ActiveLoanOwner::IterationSource(statement),
+                        target: ActiveLoanTarget::Place(place.clone()),
+                        kind: LoanKind::Shared,
+                        reserved: false,
+                        origin: span,
+                    });
+                }
+                UnitLoanTarget::Place(place)
+            } else {
+                let owner = self
+                    .temporary_projection_owner(source)?
+                    .or(self.temporary_expression_origin(source)?)
+                    .ok_or(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                        source_unit: self.source_unit.index(),
+                        expression: source.index(),
+                    })?;
+                UnitLoanTarget::Temporary(owner)
+            })
         };
-        let source_access = match &target {
-            UnitLoanTarget::Place(place) if base.non_owning.contains_key(&place.root()) => {
+        let source_access = match target.as_ref() {
+            None => UnitIterationSourceAccess::Owned,
+            Some(UnitLoanTarget::Place(place)) if base.non_owning.contains_key(&place.root()) => {
                 UnitIterationSourceAccess::Shared
             }
-            UnitLoanTarget::Place(place)
+            Some(UnitLoanTarget::Place(place))
                 if self.symbol_kind(place.root())
                     == Some(crate::name_resolution::SymbolKind::Field) =>
             {
@@ -98,7 +111,7 @@ impl Checker<'_> {
                     _ => UnitIterationSourceAccess::Shared,
                 }
             }
-            UnitLoanTarget::Place(place) => self.bindings.get(&place.root()).map_or(
+            Some(UnitLoanTarget::Place(place)) => self.bindings.get(&place.root()).map_or(
                 UnitIterationSourceAccess::Owned,
                 |binding| match binding.kind() {
                     OwnershipBindingKind::Owned => UnitIterationSourceAccess::Owned,
@@ -106,8 +119,8 @@ impl Checker<'_> {
                     OwnershipBindingKind::Exclusive => UnitIterationSourceAccess::Exclusive,
                 },
             ),
-            UnitLoanTarget::This(_) => UnitIterationSourceAccess::Shared,
-            UnitLoanTarget::Temporary(_) => UnitIterationSourceAccess::Temporary,
+            Some(UnitLoanTarget::This(_)) => UnitIterationSourceAccess::Shared,
+            Some(UnitLoanTarget::Temporary(_)) => UnitIterationSourceAccess::Temporary,
         };
         let symbols = descriptor.binding().symbols().collect::<Vec<_>>();
         let bindings = symbols
@@ -124,20 +137,29 @@ impl Checker<'_> {
         for binding in &bindings {
             let symbol = binding.symbol();
             base.moved.remove(&symbol);
-            base.non_owning.insert(symbol, binding.declaration_span());
-            base.loans.push(ActiveLoan {
-                owner: ActiveLoanOwner::IterationElement(statement),
-                target: ActiveLoanTarget::Place(UnitOwnershipPlace::new(symbol, Vec::new())),
-                kind: LoanKind::Shared,
-                reserved: false,
-                origin: binding.declaration_span(),
-            });
+            if !numeric {
+                base.non_owning.insert(symbol, binding.declaration_span());
+                base.loans.push(ActiveLoan {
+                    owner: ActiveLoanOwner::IterationElement(statement),
+                    target: ActiveLoanTarget::Place(UnitOwnershipPlace::new(symbol, Vec::new())),
+                    kind: LoanKind::Shared,
+                    reserved: false,
+                    origin: binding.declaration_span(),
+                });
+            }
         }
         self.iterations.insert(
             statement,
             UnitIterationOwnershipPlan {
                 descriptor,
-                source: target,
+                source: target.map_or_else(
+                    || {
+                        crate::ownership_checking::IterationSource::OwnedSnapshot(
+                            self.unit_expression(source),
+                        )
+                    },
+                    crate::ownership_checking::IterationSource::BorrowedSource,
+                ),
                 source_access,
                 bindings,
                 exits: Vec::new(),

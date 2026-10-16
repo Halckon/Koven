@@ -71,7 +71,7 @@ fn conditional_temporary_source_survives_until_each_provider_exit() {
             .unwrap();
         assert_eq!(
             owned.iteration(statement).unwrap().source(),
-            &LoanTarget::Temporary(source)
+            Some(&LoanTarget::Temporary(source))
         );
         let transfer = parsed
             .ast()
@@ -196,7 +196,7 @@ fn conditional_temporary_source_replays_each_executed_exit_once() {
                 })
                 .unwrap();
             let plan = owned.iteration(statement).unwrap();
-            assert_eq!(plan.source(), &LoanTarget::Temporary(source));
+            assert_eq!(plan.source(), Some(&LoanTarget::Temporary(source)));
             let mut element_live = false;
             let mut provider_live = true;
             let mut source_loan_live = true;
@@ -393,7 +393,7 @@ fn iteration_plans_publish_ordered_and_distinct_exit_paths() {
         "fun run(flag: Boolean) { for (n in listOf(1)) { if (flag) { continue } else { break } } }",
     );
     let plan = &owned.iterations()[0];
-    assert!(matches!(plan.source(), LoanTarget::Temporary(_)));
+    assert!(matches!(plan.source(), Some(LoanTarget::Temporary(_))));
     assert_eq!(plan.bindings().len(), 1);
     assert_eq!(owned.iteration(plan.descriptor().statement()), Some(plan));
     for exit in plan.exits() {

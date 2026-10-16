@@ -18,7 +18,7 @@ fn project_probe_roots_reject_before_codegen() {
 fn project_const_fallback_keeps_type_admission() {
     // 与原始单一真源分开生成；这 47 个 UTF-8 字节把根因移至第二行。
     assert_eq!(CONSTANT_PREFIX.len(), 47);
-    let shifted_spans = [(87, 93), (91, 97), (87, 92), (79, 80)];
+    let shifted_spans = [(87, 93), (91, 97), (76, 77), (79, 80)];
     for (probe, (start, end)) in PROBES.iter().zip(shifted_spans) {
         let expected = expected_diagnostic(probe, probe.name, CONSTANT_PREFIX);
         assert_eq!(expected["primary"]["byte_start"], start);
@@ -72,6 +72,55 @@ fn assert_project_probes(prefix: &str) {
         }
     }
     assert_rejections(&cases, 1);
+    assert_numeric_range_project(prefix);
+}
+
+fn assert_numeric_range_project(prefix: &str) {
+    for command in ["build", "run"] {
+        for format in ["human", "json"] {
+            let project = TestProject::create("numeric-range-0329");
+            let manifest = project.manifest(&["src"]);
+            project.write(
+                "src/p34_for_range.ko",
+                &format!("{prefix}{}", support::NUMERIC_RANGE_SOURCE),
+            );
+            let executable = project.join("numeric-range");
+            let before = directory_snapshot(project.path());
+            let format_option = format!("--message-format={format}");
+            let output = if command == "build" {
+                project_build(&manifest, "main", &executable, Some(format))
+            } else {
+                run([
+                    OsStr::new(&format_option),
+                    OsStr::new("run"),
+                    OsStr::new("--project"),
+                    manifest.as_os_str(),
+                    OsStr::new("--entry"),
+                    OsStr::new("main"),
+                ])
+            };
+            eprintln!(
+                "p34 success {command} {format} constants={}: {output:?}",
+                !prefix.is_empty()
+            );
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert!(output.stderr.is_empty(), "{output:?}");
+            assert_eq!(
+                output.stdout,
+                if command == "run" {
+                    b"for-range\n".as_slice()
+                } else {
+                    b"".as_slice()
+                }
+            );
+            assert_eq!(executable.exists(), command == "build");
+            let mut after = directory_snapshot(project.path());
+            if command == "build" {
+                after.retain(|(path, _)| path != std::path::Path::new("numeric-range"));
+            }
+            assert_eq!(after, before, "source bytes and temporary output cleanup");
+        }
+    }
 }
 
 #[test]
@@ -85,7 +134,7 @@ fn project_deferred_user_message_build_preserves_source_root() {
         ),
         (
             &PROBES[2],
-            "for source requires a compiler-bound sequential container or View",
+            "for source requires a compiler-bound sequential container, View, IntRange or LongRange",
         ),
     ] {
         for format in ["human", "json"] {

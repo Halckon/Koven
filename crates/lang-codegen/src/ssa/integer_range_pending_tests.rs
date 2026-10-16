@@ -131,3 +131,35 @@ fn unused_range_environment_seeds_do_not_block_ordinary_lowering() {
         assert!(llvm.contains("define"));
     }
 }
+
+#[test]
+fn numeric_iteration_reaches_verified_value_backend() {
+    let mut observed = Vec::new();
+    for range in ["IntRange", "LongRange"] {
+        for unit in [false, true] {
+            let text = format!(
+                "fun entry(value: {range}): Unit {{ for (item in value) {{ val copy = item }} }}"
+            );
+            let offset = if unit { "package p\n".len() } else { 0 };
+            let start = text.find("for (").unwrap() + offset;
+            let end = text.rfind(" }").unwrap() + offset;
+            observed.push((lower_source(&text, unit), start, end));
+        }
+    }
+    for (result, start, end) in observed {
+        let program = result.expect("numeric provider reaches its value backend");
+        verify_program(&program).unwrap();
+        assert!(
+            program
+                .modules
+                .iter()
+                .flat_map(|module| &module.functions)
+                .flat_map(|function| &function.instructions)
+                .any(
+                    |instruction| matches!(&instruction.origin, super::model::Origin::Source(span)
+                if (span.start(), span.end()) == (start, end))
+                )
+        );
+        crate::llvm::render_verified_program(&program).unwrap();
+    }
+}

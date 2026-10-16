@@ -1,6 +1,7 @@
 //! `while` / `loop` 的 backedge、jump 与 loop-carried binding lowering。
 
 mod iteration;
+mod numeric_iteration;
 
 use std::collections::BTreeMap;
 
@@ -58,6 +59,18 @@ pub(super) struct LoopContext {
     pub(super) continues: Vec<LoopJump>,
     pub(super) breaks: Vec<BranchExit>,
     pub(super) for_loop: Option<ForLoopData>,
+    pub(super) numeric_loop: Option<numeric_iteration::NumericLoopData>,
+}
+
+impl LoopContext {
+    pub(super) fn iteration_plan(
+        &self,
+    ) -> Option<&lang_frontend::ownership_checking::IterationOwnershipPlan> {
+        self.for_loop
+            .as_ref()
+            .map(|data| &data.plan)
+            .or_else(|| self.numeric_loop.as_ref().map(|data| &data.plan))
+    }
 }
 
 impl ExpressionLowerer<'_> {
@@ -262,6 +275,7 @@ impl ExpressionLowerer<'_> {
             continues: Vec::new(),
             breaks: Vec::new(),
             for_loop: None,
+            numeric_loop: None,
         })
     }
 
@@ -270,6 +284,13 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self
+            .loops
+            .last()
+            .is_some_and(|context| context.numeric_loop.is_some())
+        {
+            return self.lower_numeric_break(expression, span);
+        }
         let (plan, statement) = {
             let context = self
                 .loops
@@ -306,6 +327,13 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self
+            .loops
+            .last()
+            .is_some_and(|context| context.numeric_loop.is_some())
+        {
+            return self.lower_numeric_continue(expression, span);
+        }
         let (
             plan,
             header_block,
@@ -470,6 +498,31 @@ impl ExpressionLowerer<'_> {
                 self.release_owner_capture_loans(owner, fact.value_origin())?;
             }
             Action::EndBinding { symbol, statement } => {
+                if let Some(plan) = self.owned.iteration(*statement)
+                    && let lang_frontend::type_checking::IterationProvider::NumericRange(endpoint) =
+                        plan.descriptor().provider()
+                {
+                    if plan.source_kind()
+                        != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(
+                            plan.descriptor().source(),
+                        )
+                    {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    }
+                    let endpoint_type = self.ssa_builtin(endpoint, span)?;
+                    let Some(LoweredValue::Value(value)) = self.bindings.remove(symbol) else {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    };
+                    if self
+                        .function
+                        .entity(EntityId::Value(value))
+                        .map(|entity| entity.ty)
+                        != Some(EntityType::Value(endpoint_type))
+                    {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    }
+                    return Ok(());
+                }
                 if let Some(loan) = self.borrow_bindings.remove(symbol) {
                     let is_element_loan = self.loops.iter().rev().any(|c| {
                         c.for_loop.as_ref().is_some_and(|f| {

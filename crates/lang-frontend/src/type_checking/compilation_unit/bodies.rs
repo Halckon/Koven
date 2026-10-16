@@ -29,6 +29,9 @@ mod integer_range;
 mod map;
 mod non_null_assertion;
 mod nullable;
+#[cfg(test)]
+#[path = "bodies/numeric_iteration_validation_tests.rs"]
+mod numeric_iteration_validation_tests;
 mod ownership_primitive;
 mod projection;
 mod rc;
@@ -958,6 +961,7 @@ impl CompilationUnitTypes {
         if self.ownership_primitives_are_valid()
             && self.integer_operations_are_valid()
             && self.integer_range_operations_are_valid()
+            && self.numeric_range_iterations_are_valid()
             && self.constants.is_some()
             && !self
                 .diagnostics
@@ -984,6 +988,7 @@ impl CompilationUnitTypes {
             || !self.ownership_primitives_are_valid()
             || !self.integer_operations_are_valid()
             || !self.integer_range_operations_are_valid()
+            || !self.numeric_range_iterations_are_valid()
         {
             Err(Box::new(self))
         } else {

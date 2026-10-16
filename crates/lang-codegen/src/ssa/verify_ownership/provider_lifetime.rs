@@ -5,6 +5,9 @@ use super::super::{
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+#[path = "provider_entry_projection.rs"]
+mod entry_projection;
+
 #[cfg(test)]
 #[path = "provider_lifetime_tests.rs"]
 mod tests;
@@ -69,11 +72,13 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
             );
         }
     }
+    let projection = entry_projection::EntryProjection::new(function);
     let mut queue = VecDeque::from([(entry, initial)]);
     let mut visited = BTreeSet::<(BlockId, State)>::new();
     // Independent finite budget. Exhaustion is an explicit rejection, never acceptance.
     let budget = function.blocks.len().saturating_mul(256).max(256);
     while let Some((block_id, mut state)) = queue.pop_front() {
+        projection.retain_entry(function, block_id, &mut state);
         if !visited.insert((block_id, state.clone())) {
             continue;
         }

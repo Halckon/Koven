@@ -86,6 +86,7 @@ pub(crate) struct GuardedElement {
 
 #[derive(Debug)]
 pub(crate) enum ProviderBuildError {
+    UnsupportedValueProvider,
     Model(ModelError),
     MissingBodyTransport { block: BlockId },
     InvalidHeaderTransport { block: BlockId },
@@ -104,11 +105,14 @@ pub(crate) fn snapshot(
     int_type: SsaTypeId,
     origin: &Origin,
     provider: lang_frontend::type_checking::IterationProvider,
-) -> Result<ProviderSnapshot, ModelError> {
+) -> Result<ProviderSnapshot, ProviderBuildError> {
     let length = append_value(
         function,
         preheader,
         match provider {
+            lang_frontend::type_checking::IterationProvider::NumericRange(_) => {
+                return Err(ProviderBuildError::UnsupportedValueProvider);
+            }
             lang_frontend::type_checking::IterationProvider::RangeView => Operation::RangeLength {
                 view: EntityId::Loan(source),
             },
@@ -255,6 +259,9 @@ pub(crate) fn guard_and_begin(
         function,
         body_id,
         match provider {
+            lang_frontend::type_checking::IterationProvider::NumericRange(_) => {
+                return Err(ProviderBuildError::UnsupportedValueProvider);
+            }
             lang_frontend::type_checking::IterationProvider::RangeView => {
                 Operation::RangeElementPlace {
                     view: body_source,

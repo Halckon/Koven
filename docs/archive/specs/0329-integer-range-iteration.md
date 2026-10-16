@@ -1,0 +1,206 @@
+# SPEC-0329: 整数 Range 的 owned 值 for
+
+> **性质**：实施合同 · **状态**：done · **读取时机**：实现整数 Range provider 与退出清理时 · **唯一真源**：本片实施范围；语言语义以 Guide 为准
+
+| 字段 | 值 |
+|---|---|
+| 状态 | done |
+| Goal ID | `KOV-P2-0329` |
+| 基线 | 真实 main `3fa567aa39be7ddba421046b2c4ed33d8ce90716`，已合0328值ABI |
+| 分支 | 本地 `feature/spec-0329-integer-range-iteration`；授权远端 `fix/spec-0329-range-for` |
+| 依赖 | [SPEC-0328](0328-integer-range-values.md) |
+| 合同 | [Guide12整数Range迭代](../../guide/12-collections-destructuring.md#整数-range-与-map-的独立迭代合同) |
+
+## 1. 范围
+
+只接受环境绑定IntRange/LongRange的普通值for，source求值一次并复制owned快照；
+每轮交付Int/Long Copyable值。名称及单`_`沿现语法；整数解构拒绝。
+空区间零轮、升序、终值完成后直接退出。闭MAX后不递增，不计算全域长度。
+每轮owner、normal/continue/break/return沿既有清理合同；返回值先求值交付，Abort不展开。
+不扩Map迭代、用户Iterator/provider、step/reverse、nullable provider或其他循环收窄。
+一般nullable值ABI和0328旧borrow-result全函数Binary边界不是本片顺带开放项。
+
+## 2. 实施约束
+
+- typed计划必须区分numeric owned value delivery与Sequential/RangeView Borrow交付；
+  真实source/endpoint/binding身份、trial、排序/validate及final admission两入口一致。
+- ownership明确快照，不创建元素place或源owner loan，不用虚拟LoanTarget凑既有接口。
+  原容器/View借用算法保留，选普通source精确近邻回归。
+- SSA沿0328注册Range身份提取first/last/empty；不使用借用provider的LoanId与Int length。
+  empty→exit；body后normal/continue先清理，再current==last→exit，否则current+1→body。
+  break不递增；所有回边使用真实重绑定/owner身份。LLVM加法须受not-last边支配。
+- 不因类型成功冒称ownership/native完成；非法/未完成路径继续结构化拒绝，不能绕final gate。
+
+## 3. 六组普通源码验收矩阵
+
+1. Int/Long×闭/半开×named/call/field来源：source只求一次，精确provider/endpoint/Value binding。
+2. empty/reversed/singleton/二三元素次序、discard及嵌套；双入口SSA/LLVM与独立native输出。
+3. source打印一次、循环内重赋原Range而仍走初始快照、循环后原值可用。
+4. Resource normal/continue/break/return恰一次清理；混合容器/Range内外循环保留外层loan。
+5. 两宽度MAX singleton、MAX−1..MAX、MIN..<MIN、MAX..<MAX、全域首轮break/return；
+   终轮continue绝不溢出，全域测试有界而不枚举。
+6. nullable/nonprovider/整数解构/body真实类型错误/Deferred，与Array/List/View普通近邻不退化。
+
+首批只做三项前端普通exact：来源身份与Value交付、普通退出body类型、provider拒绝/旧借用对照。
+完整收集single与unit的names/raw/complete及实际计划后再断言；不引用尚不存在Rust enum变体。
+它们不证明source运行次数、snapshot隔离或drop/native。其余矩阵按实现层次继续补齐，不能据首批归档。
+清理轨迹先核既有ASAP时点；普通Resource变量未使用时不得猜测它必活到循环末尾。
+
+## 4. 验收与交付顺序
+
+测试先红→FE/ownership→SSA/verifier→LLVM→有限native→共享回归/四工程/actual-base size。
+所有新helper与精确argv先独审；本地仅普通source，synthetic非法facts/故障校准留CI。
+新增integration target同步精确composition数量与唯一性，不宽跑aggregate。
+小提交binary/full-index format-patch、真实远端基线恢复逐树核验；不改Guide，不rebase既有历史。
+实现CI、归档head CI、normal merge/main证据分账。初始草案时尚未运行本片测试或实施生产；首红实跑见§5。
+
+## 5. 首批真实前端红证
+
+`7bbff35d` / tree `dc921f83` 三exact各1命中，12输入每轮前后同：两行为红、一对照绿。
+来源16源码×双入口与退出10源码×双入口全部已具Range类型，但raw/complete为L0159、计划缺失；
+不存在names/parse前置失败，尚未到ownership。Boolean/nullable三源码双入口精确L0159拒绝，
+Array/List/MutableList/View四源码双入口保留Borrow计划并complete通过。
+源码观测并不证明snapshot/运行次数/退出清理；完整六组矩阵仍须后继层次验收。
+冻结前cargo check一次E0608为helper公开table索引误用、0测试执行；改get后预检通过，旧日志保留。
+仓外red3收据SHA `7f5d09007961d35c0af974dcaa4b159b92db268d52fdfe6483e3b55a3ba5803c`。
+
+## 6. FE / ownership 阶段
+
+Numeric provider 按真实 IntRange/LongRange 身份交付 owned Int/Long，source 以 Read 形成
+OwnedSnapshot；借用 provider 保持 BorrowedSource，数值计划不建立 source/element loan。
+各退出继续复用局部清理和词法 element/provider 边界，但数值计划没有 EndSource。
+本阶段后端对真实 numeric descriptor 明确 Unsupported；SSA/native 尚未交付。
+公开 source 查询变为可选借用目标，旧消费者和对应断言仅同步 Some，原借用合同保持。
+冻结前有限 all-targets check 暴露 Option API 迁移、测试 validate 消费及 LoweringError 字段误用，
+均为编译预检失败、0 测试执行；修正后的同范围预检通过。行为验收须另按固定名单实跑。
+
+`44e59d62` 六项普通 exact 各 1 通过，55 输入前后相同；阶段收据 SHA
+`20b0ab5b6a6006c245687abf9b5a7caee4ed40e9fca544b65ca9d2e172deaf28`。
+覆盖双入口 Value/source 身份、owned item/原变量重赋、外层容器 loan 保留及 lower 明确拒绝；
+不等于精确 Resource/ASAP 清理或 native 快照已验。后续加强计划数量、endpoint、所有退出无
+EndSource 及 for primary span，并追加旧 Borrow provider 的普通共享回归。
+
+### 6.1 旧 p34 门槛后继责任
+
+以下旧 exact 仍冻结 p34 的 L0159，阶段备份尚未更新，不据本阶段开完成 PR：
+
+- frontend / `final_type_admission`：`frozen_probe_roots_preserve_raw_deferred_recovery`、
+  `complete::frozen_roots_reject_with_exact_source_diagnostics`。
+- CLI / `native_cli`：`final_type_admission::single_probe_roots_reject_before_codegen`、
+  `final_type_admission::single_deferred_user_message_build_preserves_source_root`。
+- CLI / `project_cli`：`final_type_admission::project_probe_roots_reject_before_codegen`、
+  `final_type_admission::project_deferred_user_message_build_preserves_source_root`、
+  `final_type_admission::project_const_fallback_keeps_type_admission`。
+
+原 fixture 字节保留。本阶段应为 FE 成功、numeric for lower Unsupported；后端完成时将 p34
+转为有界成功正例，并以独立非法 provider 保留拒绝控制。`call_to_deferred.ko` 的 L0165
+文案合同继续独立保留。含 run 的旧聚合 helper 不在本地阶段名单，后续需先拆审精确调用。
+
+`63e85f07` 严格 10 exact 各 1 通过，63 输入前后同，收据 SHA
+`03b44dc3daf2b66122d7199428adfd82126a625583d5ebb89d298dfabee2368f`。
+新增四项仅验证旧 typed/ownership 借用计划及清理事实，不替代 final admission 或 native。
+同 head fmt/check 通过；clippy 在 single validator 的等价布尔表达式触发 nonminimal_bool，
+build 因遇错停未运行。保留失败，机械化简后同名单与四工程重新验收。
+
+`147d1ba3` / tree `945cf016` 同 10 exact 再次各 1 通过，63 输入每轮前后同；
+最终阶段收据 SHA `850b35cd00697eaff93c40d685d8a160990f922d707c65e985cfcedab1d84af0`。
+同 head fmt、workspace/all-targets check、frontend/codegen/cli clippy、CLI build 全部通过；
+actual-main `3fa567aa` size 0 errors，docs 700 通过。synthetic 仅编译，未本地执行。
+阶段 backup 基线为 local `ef756580` 对应真实 remote `2987218d`；仍 active，等待数值 CFG、
+极值安全递增、精确退出清理与有界 native。旧 p34 七项后继责任见上节，未以局部绿宣称全 CI。
+
+## 7. 数值 CFG 首批普通源码采证计划
+
+后端首三 exact 复用真实完整前端/ownership 的分阶段 helper：16 个来源/极值退出源码、
+6 个 source call/重赋/返回源码、12 个 Resource 四出口及内外借用嵌套源码，各跑双入口。
+首红先收齐可达阶段再要求 SSA/verify；第三组仅请求内存 LLVM，不 emit/JIT/run 产物。
+当前失败须区分 names/type/ownership 与 lower，不将前置拒绝冒充后端缺口。
+初始 oracle 只定位可达性缺口；实现验收前再锁 source call 身份/次数、Value 快照运输、
+terminal 支配 increment、四退出真实清理事实，native 数值/轨迹另行固定独审。
+
+`c897d7a3` 首三后端 exact 各 1 真实行为红，69 输入前后相同：32/12/24 共 68 观察
+全部通过 names/type/ownership，停在 numeric for lower 的 UnsupportedNode；未到 LLVM。
+不存在编译/parse/harness 前置失败。仓外收据 SHA
+`bfc40e56bfd952024796237c27cad23426cc5db6095d573a50b8691aaaa6e74e`，独审核同。
+
+候选实现采用两入口独立 numeric Value 状态：source 一次求值并投影 first/last/empty；
+空区间直接 exhaustion，正常/continue 先消费前端 cleanup，再比较 current 与 last，
+只有非终值边递增。unit 复用 pending/carry/rebind 保存两端点，single 以 body 参数保存 cursor；
+借用 provider 仍走原 loan 路径。此候选 codegen all-targets 编译预检通过，行为验收尚待同三项实跑。
+
+`ea56aa10` 同三项实际 2 绿 1 红：32/12 来源与快照观察全部通过 SSA/verify；第三组
+24 观察中 18 到 SSA，6 个 unit LongRange（四资源出口及两嵌套）在 lower MissingFact。
+原 type planner 只为迭代登记 Int/Boolean，LongRange 无 Long 叶表达式时漏 endpoint 映射；
+后继仅按真实 NumericRange descriptor 登记端点，并加强 single source/清理身份核对。
+收据 SHA `4d7ed9e53b8ddda9acc689d8eb3855860aebae4f90f91c0660a9d36aa9fabc55`；保留原红。
+
+`48e8b1c2` 同三项各 1 通过，76 输入前后相同，68 观察均 SSA/verify 成功；
+其中资源/嵌套 24 观察另通过内存 LLVM。收据 SHA
+`a594ab3686457ac3f37f59f7702c25412b0742d22bda316164c058290aaf4633` 已独核。
+该结果只闭合可达性；下一 tests-only 小片锁 snapshot/terminal CFG 身份，并以双入口
+有界成功 native 验证独立 111 行轨迹（Int/Long 对称，每次循环至多三轮，全域首轮退出）。
+原 pending lower 用例须精确转为 SSA/LLVM 正例；本段不宣称新 oracle/native 已执行。
+
+`e5c6683d` 七项实际 5 绿 2 红：精确 CFG 与原 pending 转正均通过；两个 native 都在
+build 报 InvalidSsa，尚未运行产物。收据 SHA
+`9899ee119e8be31db4d5ca60301f72f1b26b59618f3a6cb14ceba7b6b8c646ad` 保留。
+后继仅在 test 配置失败分支打印真实 verifier 错误/SSA，完整普通源码加 entry 调 main
+作双入口只读观察；保留原错误传播，不以观察结束记能力绿，定位后删除临时 tracing。
+
+只读观察 `96dda772` 确认两入口仅 numericInsideListInt/Long 触发 provider provenance
+fixed-point budget exceeded；未出现其他 verifier 错误。观察收据 SHA
+`90dcf47cd6a19512f2075ca3cfba14d1982c48dbec4e5b7fe6ecaaa937e83092` 保留。
+最小后继在已验证 SSA 支配关系下投影入口状态：保留入口可用 loan/place、完整 lineage
+祖先与 inactive 记录，先实际边同时赋值/nullable birth 后再去重。预算、耗尽拒绝、
+State.end 和边映射不改；不按当前引用/liveness 删，不合并不同路径，不承诺所有合法 CFG
+均在预算内。移除临时 tracing，原完整普通源码转严格 SSA/LLVM 回归；负控只交 CI。
+
+`53caf853` 同普通 8 exact 各 1 通过，91 输入前后相同；收据 SHA
+`0b9d85d353053aab28a530467bf422c6b28c12fbaf21a664742020558affe6a7` 已独核。
+两个 native 在当前 Linux 云分别完成 single/project build+run，严格 111 行轨迹与
+38 次析构顺序由已审断言验证；未另导出子进程 stdout。完整普通 fixture 双入口 SSA/LLVM
+也通过。四个 projection 私有状态合同及原预算拒绝/路径关联仍只编译，执行留 CI。
+
+旧 p34 七项于同 head 各 1 真红，101 输入前后相同，收据 SHA
+`2cad82341a215c4acd93f9ee4d985d12e448a35767b2bdde1040ffa7e522bf23`：
+raw 诊断现为空、complete 成功，CLI 原 p34 生成/运行成功使旧拒绝 oracle 失败。
+两 FE 断言在 p34 处停止，不声称后续分支已验；CLI 56 调用在断言前完整收齐。
+后继 tests-only 保留 p34 原字节为成功控制；另用普通 Int 非 provider 保留精确 L0159，
+Call-L0165 独立文案控制不变。三 CLI 矩阵各增加 p34 四个成功调用（含 constant 前缀），
+本片不修改历史 Spec 原验收记录。新 oracle 仍待实跑。
+
+`e00b1192` p34 更新首轮前三 exact 通过，第四精确消息断言失败，后三未跑：
+非法 Int provider 实际 L0159/29..30 已列出新增 IntRange/LongRange，测试仍写旧 View 列表。
+后继只更新两文案 oracle，并加强成功路径原文件字节/临时产物清理断言；生产不改。
+
+## 8. 完整本地交付与 CI 待验
+
+`c176b514` 统一 26 个普通 exact 各 1 通过，114 输入每项前后相同；收据 SHA
+`ae58af3b4b23bcb4802cc24e87c86222ffa05b9f04a767e913b7333018b0b5b1`。
+p34 七项已转正且保留原字节；68 次 CLI 调用中 6 次有界 p34 run 均输出 for-range，
+非法 Int provider 的 L0159 与独立 Call-L0165 文案继续精确检查。两入口完整 native
+仍以严格 111 行轨迹、38 次析构断言验收；当前 Linux 云结果不代替双平台 CI。
+同 head fmt、workspace check、frontend/codegen/cli clippy 和 CLI build 四工程通过；
+工程收据 SHA `2d8744c0c5d49aca0117c8c6a15980c0ca6e3a0db6e9e3f280c2ee671ab43be7`。真实 main 基线尺寸、
+docs 与唯一 composition 成功路径 exact 通过。新增两 integration target 恰各一次，
+目标库存 109→111，未放宽唯一性。已审 11 个 CI-only exact（ownership 四、typed 一、
+projection 四及原预算/路径关联二）仅编译，保留预算耗尽拒绝；实际执行待远端 CI。
+其中三 projection 测试是私有状态合同，不冒充完整程序 verifier 负控；typed 身份负控
+验证跨 source/type/binding 资格，不宣称拒绝同文件另一同型表达式替换。
+本片保持 active；发布后的真实 head CI、归档 head CI 与 main 验证分别登记。
+
+## 9. 实现 CI 有界归档
+
+[PR115 实现 CI](https://github.com/Halckon/Koven/actions/runs/38878529450/attempts/1) 已成功：
+真实 head `809c75faa2f6233d014a59a37d68e489a21b0d1a`，tree
+`408454909cbbc08fb7fcb4f1badf358297813975`；synthetic
+`6f912dc8c4206712096600f55cbd3cd147e41830` 同树，父为真实 main `3fa567aa` 与该 head。
+15 job 实际 success、Tree-sitter 按路径 skip、reuse=false；Linux/macOS 各 37 exact
+均唯一一次通过，含本地 26 普通与 11 CI-only。后三组私有合同范围沿 §8，不扩大证明。
+收据 SHA `6160ecbd9be4600b092494b96ca30b3a7582cb61890c8e166db8fe85d793d47e`。
+generated-owner clean/fault 产物已核：Linux calibration pass，macOS partial（平台
+ASan 能力限制，counter 证据有效）；不把 partial 写成全部工具检验通过。
+Preview 仅核 jobs/steps 成功，不声称 artifact 逐项审计。历史失败与有限 native 边界保留。
+本片据上述实际实现验收 done/归档；归档 head CI、正常合并与 main CI 尚待独立核验。
+一般 nullable Range/旧 borrow CFG 及 A 声明终止性仍按 live 后继路由跟踪；C while/F Map
+不因本片完成而获交付。

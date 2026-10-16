@@ -1,5 +1,5 @@
-//! 顺序容器 for 的借用交付事实；不证明 Phase 3 loan 或 native 可执行性。
-use super::{ParameterMode, SequentialContainerKind, TypeId};
+//! 封闭 for provider 的交付事实；不证明 Phase 3 loan 或 native 可执行性。
+use super::{BuiltinType, ParameterMode, SequentialContainerKind, TypeId};
 use crate::{
     ast::{ExpressionId, StatementId},
     name_resolution::SymbolId,
@@ -12,9 +12,20 @@ pub enum IterationProvider {
     Sequential(SequentialContainerKind),
     /// 借用区间描述符。
     RangeView,
+    /// 整数 Range 的 owned 值交付；endpoint 只能为真实 Builtin Int 或 Long。
+    NumericRange(BuiltinType),
 }
 
-/// 本轮 element access 的 binding；所有名称均为 loop-scoped Borrow。
+impl IterationProvider {
+    pub(crate) const fn delivery(self) -> ParameterMode {
+        match self {
+            Self::Sequential(_) | Self::RangeView => ParameterMode::Borrow,
+            Self::NumericRange(_) => ParameterMode::Value,
+        }
+    }
+}
+
+/// 本轮 element 的 loop-scoped binding；交付模式由 provider 决定。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SequentialIterationBinding {
     /// 单 `_`，没有源码 symbol。
@@ -71,7 +82,7 @@ impl SequentialIterationDescriptor {
     pub fn source(&self) -> ExpressionId {
         self.source
     }
-    /// source 的 intrinsic container 类型。
+    /// source 的精确 provider 类型。
     #[must_use]
     pub fn source_type(&self) -> TypeId {
         self.source_type
@@ -86,14 +97,14 @@ impl SequentialIterationDescriptor {
     pub fn element_type(&self) -> TypeId {
         self.element_type
     }
-    /// 本轮 borrowed binding。
+    /// 本轮 binding。
     #[must_use]
     pub fn binding(&self) -> &SequentialIterationBinding {
         &self.binding
     }
-    /// 只授予 shared delivery，不推导 owned copy 或 move。
+    /// 整数 Range 交付 owned Copyable 值，顺序容器与 View 保持 shared Borrow。
     #[must_use]
     pub fn delivery(&self) -> ParameterMode {
-        ParameterMode::Borrow
+        self.provider.delivery()
     }
 }

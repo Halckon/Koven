@@ -95,3 +95,19 @@ conditional `StaticSelf` receiver 的析构也以 `DropConditionalReceiver` 进�
 原 `preceding_drops` 保留非迭代消费兼容；它只计普通drop，不能定位provider动作之间的位置。
 验证器另核pending receiver形成时的provider集合，确保body内receiver在EndElement之前、
 外围receiver在EndSource之后；嵌套return按每个frame的loop depth清理pending owner。
+
+## 数值 Range owned 快照
+
+SPEC-0329 的 single/unit 类型计划已按环境绑定的 IntRange/LongRange 身份发布 NumericRange，
+endpoint 为 Int/Long，delivery 为 Value。ownership 对 source 执行普通 Read，使用
+OwnedSnapshot(expression) 与 BorrowedSource(target) 区分；不为数值 source/element 创建 loan。
+具名元素是 Owned Copyable，discard 不建立 binding；各退出保留词法清理边界而没有 EndSource。
+旧借用 provider 的来源能力、temporary 延寿及 source loan 保持原路径。
+
+普通精确测试已核双入口计划、复制/返回元素、重赋原 source、外层容器 loan 拒绝与旧借用回归。
+两 lower 使用独立 Value 状态：source 一次投影 first/last/empty，空值直接退出；
+normal/continue 清理后先判 current==last，仅非终值边进入增量块，不计算 length。
+break/return 沿真实退出计划保留外层 loan；当前 Linux single/project 有界 native 已核
+快照隔离、Int/Long 极值及 38 次资源析构顺序，双平台与私有负控已按 PR115 实现 CI 有界验收。
+provider 验证器只投影入口不可用历史，保留完整 lineage 与 inactive；预算及耗尽拒绝不变。
+验收与旧 p34 门槛演进责任见 [SPEC-0329](../archive/specs/0329-integer-range-iteration.md)。

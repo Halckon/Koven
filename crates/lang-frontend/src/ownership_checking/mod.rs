@@ -13,6 +13,8 @@ mod construction;
 mod error;
 mod handoff;
 mod iteration;
+mod iteration_source;
+pub use iteration_source::IterationSource;
 mod model;
 mod non_null_assertion;
 mod nullable_when;

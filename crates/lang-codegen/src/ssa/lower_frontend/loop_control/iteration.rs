@@ -18,6 +18,19 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
 
+        if matches!(
+            descriptor.provider(),
+            lang_frontend::type_checking::IterationProvider::NumericRange(_)
+        ) {
+            if plan.source_kind()
+                != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(
+                    descriptor.source(),
+                )
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            return self.lower_numeric_for(statement, source, body, span, plan);
+        }
         let container_type = self.resolve_type(descriptor.source_type(), span)?;
         let container_ssa_type = self
             .type_ids
@@ -48,7 +61,10 @@ impl ExpressionLowerer<'_> {
             }
             loan
         } else {
-            match plan.source() {
+            match plan
+                .source()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+            {
                 lang_frontend::ownership_checking::LoanTarget::Place(target)
                     if target.is_root() =>
                 {
@@ -363,6 +379,7 @@ impl ExpressionLowerer<'_> {
             carried: carried.clone(),
             continues: Vec::new(),
             breaks: Vec::new(),
+            numeric_loop: None,
             for_loop: Some(ForLoopData {
                 statement,
                 provider_header,

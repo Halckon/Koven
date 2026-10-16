@@ -225,7 +225,7 @@ impl IterationExitPlan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IterationOwnershipPlan {
     pub(crate) descriptor: SequentialIterationDescriptor,
-    pub(crate) source: LoanTarget,
+    pub(crate) source: crate::ownership_checking::IterationSource<LoanTarget, ExpressionId>,
     pub(crate) bindings: Vec<OwnershipBindingDescriptor>,
     pub(crate) exits: Vec<IterationExitPlan>,
     pub(crate) closure_flow: IterationClosureFlow,
@@ -262,7 +262,14 @@ impl IterationOwnershipPlan {
     /// 覆盖 provider 全生命周期的 shared loan 目标；temporary 指实际 backing owner。
     /// 若 source 是 temporary container 的 element，其访问仍由 descriptor.source 表示。
     #[must_use]
-    pub fn source(&self) -> &LoanTarget {
+    pub fn source(&self) -> Option<&LoanTarget> {
+        self.source.borrowed()
+    }
+    /// Exact borrowed source or owned value snapshot identity.
+    #[must_use]
+    pub fn source_kind(
+        &self,
+    ) -> &crate::ownership_checking::IterationSource<LoanTarget, ExpressionId> {
         &self.source
     }
     /// 本轮具名 shared bindings；discard 不建立 symbol。

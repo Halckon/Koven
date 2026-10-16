@@ -378,14 +378,14 @@ fn receiver_element_loans_protect_root_and_end_before_scope_restores_permission(
     }
     assert_eq!(single.iterations().len(), 1);
     assert_eq!(unit.iterations().len(), 1);
-    let LoanTarget::Place(metadata) = single.iterations()[0].source() else {
+    let Some(LoanTarget::Place(metadata)) = single.iterations()[0].source() else {
         panic!("named provider metadata")
     };
     assert_eq!(
         metadata.root(),
         single.borrow_results().bindings()[0].binding()
     );
-    let UnitLoanTarget::Place(metadata) = unit.iterations()[0].source() else {
+    let Some(UnitLoanTarget::Place(metadata)) = unit.iterations()[0].source() else {
         panic!("unit named provider metadata")
     };
     assert_eq!(

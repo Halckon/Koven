@@ -1,16 +1,16 @@
-//! Unit for 的精确 provider 与 borrowed projection；不授予所有权或 native capability。
-use super::{UnitExpressionId, UnitStatementId, UnitTypeId};
+//! Unit for 的精确 provider、值交付与 borrowed projection；不授予 native capability。
+use super::{CompilationUnitTypes, UnitExpressionId, UnitStatementId, UnitTypeId, UnitTypeKind};
 use crate::{
     name_resolution::UnitSymbolId,
-    type_checking::{IterationProvider, ParameterMode},
+    type_checking::{BuiltinType, IterationProvider, ParameterMode},
 };
 
-/// 当前轮的借用 binding，所有 identity 均限定所属 source。
+/// 当前轮 binding，所有 identity 均限定所属 source；交付模式由 provider 决定。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UnitSequentialIterationBinding {
     /// `_` 不声明 symbol。
     Discard,
-    /// 借用当前 element。
+    /// 绑定当前 element。
     Name(UnitSymbolId),
     /// 按主构造器字段顺序的 borrowed projection，包含 discard。
     Destructure(Vec<UnitSequentialIterationComponent>),
@@ -80,7 +80,7 @@ impl UnitSequentialIterationDescriptor {
     pub const fn source(&self) -> UnitExpressionId {
         self.source
     }
-    /// intrinsic container 类型。
+    /// source 的精确 provider 类型。
     #[must_use]
     pub const fn source_type(&self) -> UnitTypeId {
         self.source_type
@@ -95,14 +95,53 @@ impl UnitSequentialIterationDescriptor {
     pub const fn element_type(&self) -> UnitTypeId {
         self.element_type
     }
-    /// 本轮 borrowed binding 与投影。
+    /// 本轮 binding 与投影。
     #[must_use]
     pub const fn binding(&self) -> &UnitSequentialIterationBinding {
         &self.binding
     }
-    /// 迭代只授予共享借用，普通值复制另由 Copyable 规则决定。
+    /// 整数 Range 交付 owned Copyable 值，顺序容器与 View 保持 shared Borrow。
     #[must_use]
     pub const fn delivery(&self) -> ParameterMode {
-        ParameterMode::Borrow
+        self.provider.delivery()
+    }
+
+    pub(crate) fn numeric_range_is_valid(&self, typed: &CompilationUnitTypes) -> bool {
+        let (endpoint, range) = match self.provider {
+            IterationProvider::NumericRange(BuiltinType::Int) => {
+                (BuiltinType::Int, BuiltinType::IntRange)
+            }
+            IterationProvider::NumericRange(BuiltinType::Long) => {
+                (BuiltinType::Long, BuiltinType::LongRange)
+            }
+            _ => return false,
+        };
+        self.statement.source_unit() == self.source.source_unit()
+            && typed.expression_type(self.source) == Some(self.source_type)
+            && typed.types().get(self.source_type) == Some(&UnitTypeKind::Builtin(range))
+            && typed.types().get(self.element_type) == Some(&UnitTypeKind::Builtin(endpoint))
+            && match &self.binding {
+                UnitSequentialIterationBinding::Discard => true,
+                UnitSequentialIterationBinding::Name(symbol) => {
+                    symbol.source_unit() == self.statement.source_unit()
+                        && typed.symbol_type(*symbol) == Some(self.element_type)
+                }
+                UnitSequentialIterationBinding::Destructure(_) => false,
+            }
+    }
+}
+
+impl CompilationUnitTypes {
+    pub(super) fn numeric_range_iterations_are_valid(&self) -> bool {
+        self.sequential_iterations()
+            .windows(2)
+            .all(|plans| plans[0].statement() < plans[1].statement())
+            && self
+                .sequential_iterations()
+                .iter()
+                .all(|plan| match plan.provider() {
+                    IterationProvider::NumericRange(_) => plan.numeric_range_is_valid(self),
+                    IterationProvider::Sequential(_) | IterationProvider::RangeView => true,
+                })
     }
 }

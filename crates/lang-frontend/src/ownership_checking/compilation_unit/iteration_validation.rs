@@ -11,8 +11,20 @@ impl CompilationUnitOwnership {
         }
         for (index, plan) in self.iterations.iter().enumerate() {
             let statement = plan.descriptor().statement();
+            let numeric =
+                plan.descriptor().delivery() == crate::type_checking::ParameterMode::Value;
+            if numeric && plan.source_access() != super::UnitIterationSourceAccess::Owned
+                || numeric != plan.source().is_none()
+                || numeric
+                    && plan.source_kind()
+                        != &crate::ownership_checking::IterationSource::OwnedSnapshot(
+                            plan.descriptor().source(),
+                        )
+            {
+                return false;
+            }
             if plan.descriptor().provider() == crate::type_checking::IterationProvider::RangeView
-                && matches!(plan.source(), UnitLoanTarget::Temporary(_))
+                && matches!(plan.source(), Some(UnitLoanTarget::Temporary(_)))
             {
                 let Some(fact) = self.borrow_results.range_uses.iter().find(|fact| {
                     fact.expression() == plan.descriptor().source()
@@ -21,7 +33,7 @@ impl CompilationUnitOwnership {
                     return false;
                 };
                 let source = fact.source_loan();
-                if fact.origin() != plan.source()
+                if Some(fact.origin()) != plan.source()
                     || source.call() != fact.expression()
                     || self
                         .loans
@@ -51,13 +63,17 @@ impl CompilationUnitOwnership {
                 return false;
             };
             if plan.descriptor() != template.descriptor()
-                || plan.source() != template.source()
+                || plan.source_kind() != template.source_kind()
                 || plan.source_access() != template.source_access()
                 || plan.bindings() != template.bindings()
-                || plan
-                    .bindings()
-                    .iter()
-                    .any(|binding| binding.kind() != OwnershipBindingKind::Shared)
+                || plan.bindings().iter().any(|binding| {
+                    binding.kind()
+                        != if numeric {
+                            OwnershipBindingKind::Owned
+                        } else {
+                            OwnershipBindingKind::Shared
+                        }
+                })
                 || plan
                     .bindings()
                     .iter()
@@ -110,7 +126,9 @@ impl CompilationUnitOwnership {
                     }
                     if matches!(kind, Exit::Break(_) | Exit::Return(_) | Exit::Exhaustion) {
                         required_actions.push(Action::FinishProvider(*owner));
-                        required_actions.push(Action::EndSource(*owner));
+                        if owner_plan.source().is_some() {
+                            required_actions.push(Action::EndSource(*owner));
+                        }
                     }
                 }
                 if actions
@@ -181,12 +199,22 @@ impl CompilationUnitOwnership {
                     exit.kind(),
                     Exit::Break(_) | Exit::Return(_) | Exit::Exhaustion
                 );
-                if finish.len() != usize::from(terminal) || source.len() != usize::from(terminal) {
+                if finish.len() != usize::from(terminal)
+                    || source.len() != usize::from(terminal && !numeric)
+                {
                     return false;
                 }
-                if terminal && (finish[0] >= source[0] || !exhausted && elements[0] >= finish[0]) {
+                if terminal
+                    && (!numeric && finish[0] >= source[0]
+                        || !exhausted && elements[0] >= finish[0])
+                {
                     return false;
                 }
+                let source_boundary = source
+                    .first()
+                    .or(finish.first())
+                    .copied()
+                    .unwrap_or(usize::MAX);
                 for (position, action) in actions.iter().enumerate() {
                     // A loan must end before destruction of the owner it protects,
                     // not merely before the later element/provider boundary.
@@ -298,7 +326,7 @@ impl CompilationUnitOwnership {
                                     && (exhausted || position >= elements[0]))
                                 || (!scopes.contains(&statement)
                                     && terminal
-                                    && position <= source[0])
+                                    && position <= source_boundary)
                             {
                                 return false;
                             }
@@ -315,14 +343,14 @@ impl CompilationUnitOwnership {
                                 && ((!exhausted && *inside && position >= elements[0])
                                     || (matches!(exit.kind(), Exit::Return(_) | Exit::Break(_))
                                         && !*inside
-                                        && position <= source[0]))
+                                        && position <= source_boundary))
                             {
                                 return false;
                             }
                             if terminal
-                                && let UnitLoanTarget::Place(place) = plan.source()
+                                && let Some(UnitLoanTarget::Place(place)) = plan.source()
                                 && fact.target() == UnitDropTarget::Named(place.root())
-                                && position <= source[0]
+                                && position <= source_boundary
                             {
                                 return false;
                             }
@@ -330,7 +358,7 @@ impl CompilationUnitOwnership {
                         _ => {}
                     }
                 }
-                if let UnitLoanTarget::Temporary(temporary) = plan.source() {
+                if let Some(UnitLoanTarget::Temporary(temporary)) = plan.source() {
                     let drops = actions
                         .iter()
                         .enumerate()
@@ -343,7 +371,9 @@ impl CompilationUnitOwnership {
                             _ => None,
                         })
                         .collect::<Vec<_>>();
-                    if drops.len() != usize::from(terminal) || terminal && drops[0] <= source[0] {
+                    if drops.len() != usize::from(terminal)
+                        || terminal && drops[0] <= source_boundary
+                    {
                         return false;
                     }
                 }

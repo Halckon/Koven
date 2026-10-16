@@ -272,7 +272,7 @@ fn map_remove_single_for_guarded_owner_is_carried() {
     };
     assert_eq!(*owner_symbol, symbol);
     let plan = analysis.owned.iteration(*statement).unwrap();
-    assert!(!matches!(plan.source(), LoanTarget::Place(place) if place.root() == symbol));
+    assert!(!matches!(plan.source(), Some(LoanTarget::Place(place)) if place.root() == symbol));
     assert_eq!(
         analysis
             .typed

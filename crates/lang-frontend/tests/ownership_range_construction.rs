@@ -190,7 +190,7 @@ fn temporary_range_provider_continues_the_actual_root_in_single_and_unit() {
         panic!("actual temporary root");
     };
     assert_ne!(root, fact.expression());
-    assert_eq!(single.iterations()[0].source(), fact.origin());
+    assert_eq!(single.iterations()[0].source(), Some(fact.origin()));
     assert_eq!(
         sources
             .slice(
@@ -212,7 +212,7 @@ fn temporary_range_provider_continues_the_actual_root_in_single_and_unit() {
         panic!("unit actual temporary root");
     };
     assert_ne!(root, fact.expression());
-    assert_eq!(unit.iterations()[0].source(), fact.origin());
+    assert_eq!(unit.iterations()[0].source(), Some(fact.origin()));
 }
 
 #[test]
@@ -265,11 +265,11 @@ fn nested_view_construction_continues_the_original_temporary_collection_root() {
     }
     assert_eq!(
         single.iterations()[0].source(),
-        single.borrow_results().range_uses()[0].origin()
+        Some(single.borrow_results().range_uses()[0].origin())
     );
     assert_eq!(
         unit.iterations()[0].source(),
-        unit.borrow_results().range_uses()[0].origin()
+        Some(unit.borrow_results().range_uses()[0].origin())
     );
 }
 

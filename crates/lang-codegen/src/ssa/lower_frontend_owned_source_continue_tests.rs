@@ -51,7 +51,7 @@ fn check_with_decoy(live: bool, factory: &str, decoy: bool) {
         })
         .unwrap();
     let source_symbol = match plan.source() {
-        lang_frontend::ownership_checking::LoanTarget::Place(place) => place.root(),
+        Some(lang_frontend::ownership_checking::LoanTarget::Place(place)) => place.root(),
         _ => unreachable!(),
     };
     let header = plan
@@ -272,7 +272,7 @@ fn owned_source_continue_fresh_inner_owner_structure() {
     crate::llvm::render_verified_program(&program).unwrap();
     let mut count = 0;
     for plan in analysis.owned.iterations() {
-        let LoanTarget::Place(place) = plan.source() else {
+        let Some(LoanTarget::Place(place)) = plan.source() else {
             continue;
         };
         let symbol = place.root();

@@ -37,13 +37,13 @@ pub(super) const PROBES: [Probe; 4] = [
         token: "length",
     },
     Probe {
-        name: "p34_for_range.ko",
+        name: "invalid_integer_for.ko",
         text: include_str!(
-            "../../../lang-frontend/tests/fixtures/final-type-admission-0319/p34_for_range.ko"
+            "../../../lang-frontend/tests/fixtures/final-type-admission-0319/invalid_integer_for.ko"
         ),
         code: "L0159",
-        primary: 40..45,
-        token: "0..<5",
+        primary: 29..30,
+        token: "1",
     },
     Probe {
         name: "s04_question_on_nullable.ko",
@@ -55,6 +55,11 @@ pub(super) const PROBES: [Probe; 4] = [
         token: "?",
     },
 ];
+
+// Original p34 bytes are now a bounded successful iteration control.
+pub(super) const NUMERIC_RANGE_SOURCE: &str = include_str!(
+    "../../../lang-frontend/tests/fixtures/final-type-admission-0319/p34_for_range.ko"
+);
 
 // Keep the L0165 Call presentation control after numeric Range values become resolved.
 pub(super) fn deferred_call_probe() -> Probe {

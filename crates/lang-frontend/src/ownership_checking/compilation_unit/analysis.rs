@@ -49,7 +49,7 @@ pub(super) fn analyze(
                 &mut bindings,
                 UnitOwnershipBindingDescriptor::new(
                     symbol,
-                    OwnershipBindingKind::Shared,
+                    binding_kind(plan.delivery()),
                     unit_symbol_span(names, symbol)?,
                 ),
             )?;

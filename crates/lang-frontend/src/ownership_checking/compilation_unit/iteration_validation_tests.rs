@@ -1,4 +1,7 @@
 //! Mutations attack the public producer contract rather than re-running its builder.
+#[path = "iteration_validation_tests/numeric_snapshot.rs"]
+mod numeric_snapshot;
+
 use super::{
     CompilationUnitOwnership, UnitDropPoint, UnitIterationCleanupAction as Action,
     UnitIterationExitKind as Exit,
@@ -188,7 +191,7 @@ fn iteration_schema_rejects_pending_temporary_after_element_end() {
     assert!(owned.clone().validate().is_ok());
     let point = return_point(&owned);
     let source = match owned.iterations()[0].source() {
-        super::UnitLoanTarget::Temporary(source) => *source,
+        Some(super::UnitLoanTarget::Temporary(source)) => *source,
         _ => panic!("temporary source"),
     };
     mutate_point(&mut owned, point, |actions| {
