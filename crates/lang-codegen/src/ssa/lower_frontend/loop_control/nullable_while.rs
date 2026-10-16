@@ -95,6 +95,23 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
         let inner = *inner;
+        if !matches!(
+            self.ssa_types.get(inner.index()),
+            Some(SsaTypeKind::HeapOwner { .. })
+        ) {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let Some(LoweredValue::Value(entry_owner)) = self.bindings.get(&symbol).copied() else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        if self
+            .function
+            .entity(EntityId::Value(entry_owner))
+            .map(|entity| entity.ty)
+            != Some(EntityType::Value(nullable))
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
         let baseline = self.bindings.clone();
         let context = self.create_loop_header(&baseline, span)?;
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&symbol).copied() else {
