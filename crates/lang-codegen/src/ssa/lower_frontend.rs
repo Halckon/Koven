@@ -28,6 +28,7 @@ mod map_with;
 mod nominal;
 mod non_null_assertion;
 mod non_null_proof;
+mod nullable_borrowed_cleanup;
 mod nullable_comparison;
 mod nullable_if_cleanup;
 mod nullable_numeric_cleanup;

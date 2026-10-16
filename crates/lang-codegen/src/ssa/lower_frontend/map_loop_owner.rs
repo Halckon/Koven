@@ -62,6 +62,7 @@ pub(super) fn supported_drop(
         || owner_plan(parsed, typed, owned, fact).is_some()
         || super::nullable_if_cleanup::candidate(parsed, names, typed, owned, fact).is_some()
         || super::nullable_numeric_cleanup::candidate(parsed, names, typed, owned, fact).is_some()
+        || super::nullable_borrowed_cleanup::candidate(parsed, names, typed, owned, fact).is_some()
 }
 
 fn owner_plan(

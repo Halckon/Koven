@@ -466,6 +466,7 @@ impl ExpressionLowerer<'_> {
         exit: &lang_frontend::ownership_checking::IterationExitPlan,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.preflight_borrowed_while_exit(exit, span)?;
         for action in exit.actions() {
             self.emit_iteration_cleanup_action(action, span)?;
         }

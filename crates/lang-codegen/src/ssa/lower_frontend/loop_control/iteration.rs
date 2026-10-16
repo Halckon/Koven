@@ -31,6 +31,7 @@ impl ExpressionLowerer<'_> {
             }
             return self.lower_numeric_for(statement, source, body, span, plan);
         }
+        self.qualify_borrowed_while_entry(statement, span)?;
         let container_type = self.resolve_type(descriptor.source_type(), span)?;
         let container_ssa_type = self
             .type_ids
