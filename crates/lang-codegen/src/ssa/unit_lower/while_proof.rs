@@ -127,7 +127,7 @@ impl UnitExpressionLowerer<'_> {
     /// Entry qualification is minted from actual entry Shared(Boolean) parameters.
     /// The existing named access slots keep that root identity across CFG rebinding.
     pub(super) fn ensure_no_while_proof_carriers(&self, span: Span) -> Result<(), LoweringError> {
-        if !self.pending_call_frames.is_empty()
+        if !self.has_only_empty_source_call_frame()
             || self.function.borrow_return.is_some()
             || self.function.carrier_return.is_some()
             || !self.pending_operands.is_empty()
@@ -147,6 +147,37 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         Ok(())
+    }
+
+    // A freshly opened ordinary call frame carries no value or loan yet.
+    // Keep the frame intact; any prefix or other carrier still uses the strict gate.
+    fn has_only_empty_source_call_frame(&self) -> bool {
+        let [frame] = self.pending_call_frames.as_slice() else {
+            return self.pending_call_frames.is_empty();
+        };
+        if !self.pending_operands.is_empty()
+            || frame.pending_start != 0
+            || frame.receiver
+            || !frame.loan_arguments.is_empty()
+            || !frame.created_loans.is_empty()
+            || !frame.abi_slots.is_empty()
+            || frame.field_replace_owner.is_some()
+            || !frame.shared_field_roots.is_empty()
+            || !frame.exclusive_root_owners.is_empty()
+            || frame.call.source_unit() != self.source_unit
+        {
+            return false;
+        }
+        self.typed.call(frame.call).is_some_and(|descriptor| {
+            descriptor.expression() == frame.call
+                && descriptor.receiver().is_none()
+                && descriptor.result_source()
+                    == lang_frontend::type_checking::CallableResultSource::Owned
+                && matches!(
+                    descriptor.target(),
+                    lang_frontend::type_checking::UnitCallTarget::Declaration(_)
+                )
+        })
     }
 
     pub(super) fn end_while_proof(

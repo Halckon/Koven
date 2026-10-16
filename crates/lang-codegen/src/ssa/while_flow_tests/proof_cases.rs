@@ -753,7 +753,11 @@ fun entry(own initial: Holder?): Int {
         })
         .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 4);
-    for outcome in outcomes.iter().take(2) {
-        assert!(outcome.is_ok(), "empty call frame: {outcome:?}");
+    for outcome in outcomes.iter().take(3) {
+        assert!(outcome.is_ok(), "accepted value argument: {outcome:?}");
     }
+    assert_eq!(
+        outcomes[3].as_ref().unwrap_err(),
+        "lower: LoweringError { kind: UnsupportedNode, span: Some(Span { source_id: SourceId(0), start: 159, end: 166 }) }"
+    );
 }
