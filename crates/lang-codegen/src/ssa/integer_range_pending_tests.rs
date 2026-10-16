@@ -76,7 +76,7 @@ fn lower_source(text: &str, unit: bool) -> Result<Program, LoweringError> {
 }
 
 #[test]
-fn range_type_uses_reach_pending_abi_boundary() {
+fn range_type_uses_reach_value_abi_or_existing_nullable_boundary() {
     let mut results = Vec::new();
     for (integer, range) in [("Int", "IntRange"), ("Long", "LongRange")] {
         for text in [
@@ -94,17 +94,32 @@ fn range_type_uses_reach_pending_abi_boundary() {
         ] {
             for unit in [false, true] {
                 println!("BEGIN unit={unit} SOURCE {text:?}");
-                results.push(lower_source(&text, unit));
+                results.push((
+                    text.contains(&format!("{range}?")),
+                    lower_source(&text, unit),
+                ));
             }
         }
     }
-    for result in results {
-        let error = result
-            .err()
-            .expect("Range value ABI is not implemented in this FE stage");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-        assert!(error.span.is_some());
+    let mut supported = 0;
+    let mut nullable_rejected = 0;
+    for (nullable, result) in results {
+        if nullable {
+            let error = result
+                .err()
+                .expect("independent nullable Range retains its existing ABI boundary");
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+            assert!(error.span.is_some());
+            nullable_rejected += 1;
+        } else {
+            let program = result.expect("ordinary Range value storage is supported");
+            verify_program(&program).unwrap();
+            let llvm = crate::llvm::render_verified_program(&program).unwrap();
+            println!("TYPE USE LLVM {llvm}");
+            supported += 1;
+        }
     }
+    assert_eq!((supported, nullable_rejected), (36, 8));
 }
 
 #[test]
