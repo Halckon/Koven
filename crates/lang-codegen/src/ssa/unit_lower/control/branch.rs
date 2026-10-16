@@ -15,6 +15,7 @@ impl UnitExpressionLowerer<'_> {
         closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
         capture_loans: BTreeMap<(UnitExpressionId, usize), crate::ssa::model::LoanId>,
         pending_operands: Vec<EntityId>,
+        pending_call_frames: Vec<super::super::call_lifetimes::PendingCallFrame>,
         temporaries: BTreeMap<UnitExpressionId, ValueId>,
         drop_point: UnitDropPoint,
         result_required: bool,
@@ -30,6 +31,7 @@ impl UnitExpressionLowerer<'_> {
         self.closure_bindings = closure_bindings;
         self.capture_loans = capture_loans;
         self.pending_operands = pending_operands;
+        self.pending_call_frames = pending_call_frames;
         let entry_temporaries = temporaries.keys().copied().collect::<Vec<_>>();
         self.temporaries = temporaries;
         let result_expression = result_required
@@ -71,6 +73,7 @@ impl UnitExpressionLowerer<'_> {
             capture_loans: self.capture_loans.clone(),
             result_source_loans: self.result_source_loans.clone(),
             pending_operands: self.pending_operands.clone(),
+            pending_call_frames: self.pending_call_frames.clone(),
             temporaries: self.temporaries.clone(),
         }))
     }

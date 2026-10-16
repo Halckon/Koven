@@ -276,6 +276,7 @@ impl UnitExpressionLowerer<'_> {
         // callee 也属于调用前缀；参数退出时须先移除其 pending alias，再消费 owner drop。
         self.pending_call_frames
             .push(super::call_lifetimes::PendingCallFrame {
+                nullable_children: Vec::new(),
                 call,
                 receiver: false,
                 loan_arguments: Vec::new(),

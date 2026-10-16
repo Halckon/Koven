@@ -10,6 +10,7 @@ impl UnitExpressionLowerer<'_> {
         let start = self.pending_operands.len();
         self.pending_call_frames
             .push(call_lifetimes::PendingCallFrame {
+                nullable_children: Vec::new(),
                 call: id,
                 receiver: false,
                 loan_arguments: Vec::new(),

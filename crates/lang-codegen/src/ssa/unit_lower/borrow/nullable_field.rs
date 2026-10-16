@@ -206,11 +206,34 @@ impl UnitExpressionLowerer<'_> {
         let [EntityId::Loan(loan)] = result.as_slice() else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        self.pending_call_frames
+        let frame = self
+            .pending_call_frames
             .last_mut()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-            .shared_field_roots
-            .push(root);
+            .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        frame.shared_field_roots.push(root);
+        // Only ordinary source calls get transport evidence; legacy immediate
+        // print/function-value children keep their original cleanup path.
+        if call.receiver().is_none()
+            && !call.prints_line()
+            && !call.aborts()
+            && matches!(
+                call.target(),
+                lang_frontend::type_checking::UnitCallTarget::Declaration(_)
+            )
+        {
+            frame
+                .nullable_children
+                .push(call_lifetimes::nullable_child::PendingNullableChild {
+                    call: fact.call(),
+                    argument: fact.argument(),
+                    root,
+                    parent_origin: proof.origin,
+                    parent_inner: proof.inner,
+                    field,
+                    target,
+                    slot: self.pending_operands.len(),
+                });
+        }
         Ok(Some(*loan))
     }
 }

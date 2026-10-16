@@ -401,6 +401,7 @@ impl UnitExpressionLowerer<'_> {
             capture_loans: self.capture_loans.clone(),
             result_source_loans: self.result_source_loans.clone(),
             pending_operands: self.pending_operands.clone(),
+            pending_call_frames: self.pending_call_frames.clone(),
             temporaries: self.temporaries.clone(),
         }
     }
@@ -417,6 +418,8 @@ impl UnitExpressionLowerer<'_> {
         self.result_source_loans
             .clone_from(&state.result_source_loans);
         self.pending_operands.clone_from(&state.pending_operands);
+        self.pending_call_frames
+            .clone_from(&state.pending_call_frames);
         self.temporaries.clone_from(&state.temporaries);
     }
 

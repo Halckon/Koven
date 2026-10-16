@@ -1,6 +1,7 @@
 //! compilation-unit CFG 中跨 edge 携带 value/loan 与出口合流的共享基元。
 
 mod nullable;
+mod pending_child;
 mod range;
 mod rebind;
 
@@ -29,6 +30,7 @@ pub(super) struct BranchExit {
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     pub(super) nullable_proofs: super::NullableProofs,
     pub(super) pending_operands: Vec<EntityId>,
+    pub(super) pending_call_frames: Vec<super::call_lifetimes::PendingCallFrame>,
     pub(super) temporaries: BTreeMap<UnitExpressionId, ValueId>,
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     pub(super) capture_loans: BTreeMap<(UnitExpressionId, usize), LoanId>,
@@ -68,6 +70,7 @@ pub(super) struct CarriedBinding {
 #[derive(Clone)]
 pub(super) struct CarriedAccess {
     nullable_proofs: Vec<nullable::CarriedNullableProof>,
+    nullable_children: Vec<pending_child::CarriedNullableChild>,
     range_sources: Vec<(UnitSymbolId, usize)>,
     captures: Vec<(UnitExpressionId, usize)>,
     symbol: Option<UnitSymbolId>,
@@ -161,6 +164,7 @@ impl UnitExpressionLowerer<'_> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 Ok(CarriedAccess {
                     nullable_proofs: Vec::new(),
+                    nullable_children: Vec::new(),
                     range_sources: Vec::new(),
                     captures: Vec::new(),
                     symbol: Some(*symbol),
@@ -181,6 +185,7 @@ impl UnitExpressionLowerer<'_> {
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             carried.push(CarriedAccess {
                 nullable_proofs: Vec::new(),
+                nullable_children: Vec::new(),
                 range_sources: Vec::new(),
                 captures: Vec::new(),
                 symbol: None,
@@ -202,6 +207,7 @@ impl UnitExpressionLowerer<'_> {
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 carried.push(CarriedAccess {
                     nullable_proofs: Vec::new(),
+                    nullable_children: Vec::new(),
                     symbol: None,
                     receiver: None,
                     source: entity,
@@ -251,6 +257,7 @@ impl UnitExpressionLowerer<'_> {
                     } else {
                         loans.push(CarriedAccess {
                             nullable_proofs: Vec::new(),
+                            nullable_children: Vec::new(),
                             range_sources: Vec::new(),
                             captures: Vec::new(),
                             symbol: None,
@@ -284,6 +291,7 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         self.bind_nullable_columns(bindings, loans, span)?;
+        self.bind_pending_child_columns(bindings, loans, span)?;
         Ok(())
     }
 
@@ -351,6 +359,7 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         self.validate_nullable_exit_proofs(&exits, span)?;
+        self.validate_pending_child_exits(&exits, span)?;
         if exits.is_empty() {
             self.current_receiver = None;
             self.consumed_receiver = None;
@@ -362,6 +371,9 @@ impl UnitExpressionLowerer<'_> {
             self.result_source_loans.clear();
             self.temporaries.clear();
             self.pending_operands.clear();
+            for frame in &mut self.pending_call_frames {
+                frame.nullable_children.clear();
+            }
             return Ok(LoweredValue::Diverged);
         }
         if exits.len() == 1 {
@@ -377,6 +389,7 @@ impl UnitExpressionLowerer<'_> {
             self.result_source_loans = first.result_source_loans.clone();
             self.temporaries = first.temporaries.clone();
             self.pending_operands = first.pending_operands.clone();
+            self.pending_call_frames = first.pending_call_frames.clone();
             return Ok(first.result);
         }
         self.normalize_receiver_exits(&mut exits, span)?;
@@ -562,6 +575,15 @@ impl UnitExpressionLowerer<'_> {
             &pending_indices[proof_offset..],
             span,
         )?;
+        self.validate_pending_child_merge_columns(
+            &exits,
+            &edge_arguments,
+            &value_symbols,
+            usize::from(result_type.is_some()) + usize::from(first.receiver.is_some()),
+            &pending_indices[..first.pending_operands.len()],
+            &pending_indices[proof_offset..],
+            span,
+        )?;
         let merge = self
             .function
             .add_block(parameter_types, Origin::Source(span))
@@ -584,6 +606,7 @@ impl UnitExpressionLowerer<'_> {
             .expect("new merge block exists")
             .parameters
             .clone();
+        self.pending_call_frames = first.pending_call_frames.clone();
         self.pending_operands = pending_indices[..first.pending_operands.len()]
             .iter()
             .map(|index| parameters[*index])
@@ -662,6 +685,12 @@ impl UnitExpressionLowerer<'_> {
             first,
             &bindings,
             proof_parameters.into_iter(),
+            span,
+        )?;
+        self.validate_pending_nullable_children(
+            &self.pending_call_frames,
+            &self.pending_operands,
+            &self.nullable_proofs,
             span,
         )?;
         self.bindings = bindings;
@@ -842,6 +871,7 @@ impl UnitExpressionLowerer<'_> {
             arguments.push(entity);
         }
         self.validate_nullable_edge_columns(carried, loans, state, &arguments, span)?;
+        self.validate_pending_child_edge_columns(carried, loans, state, &arguments, span)?;
         Ok(Edge { target, arguments })
     }
 

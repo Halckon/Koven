@@ -41,6 +41,7 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         let pending_start = self.pending_operands.len();
         self.pending_call_frames.push(PendingCallFrame {
+            nullable_children: Vec::new(),
             call: UnitExpressionId::new(self.source_unit, expression),
             receiver: false,
             loan_arguments: Vec::new(),

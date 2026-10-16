@@ -127,10 +127,18 @@ impl UnitExpressionLowerer<'_> {
     /// Entry qualification is minted from actual entry Shared(Boolean) parameters.
     /// The existing named access slots keep that root identity across CFG rebinding.
     pub(super) fn ensure_no_while_proof_carriers(&self, span: Span) -> Result<(), LoweringError> {
-        if !self.has_only_empty_source_call_frame()
-            || self.function.borrow_return.is_some()
+        if !self.has_only_empty_source_call_frame() || !self.pending_operands.is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        self.ensure_while_proof_non_call_carriers(span)
+    }
+
+    pub(super) fn ensure_while_proof_non_call_carriers(
+        &self,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if self.function.borrow_return.is_some()
             || self.function.carrier_return.is_some()
-            || !self.pending_operands.is_empty()
             || !self.capture_loans.is_empty()
             || !self.result_source_loans.is_empty()
             || !self.temporary_range_slots.is_empty()
@@ -158,6 +166,7 @@ impl UnitExpressionLowerer<'_> {
         if !self.pending_operands.is_empty()
             || frame.pending_start != 0
             || frame.receiver
+            || !frame.nullable_children.is_empty()
             || !frame.loan_arguments.is_empty()
             || !frame.created_loans.is_empty()
             || !frame.abi_slots.is_empty()

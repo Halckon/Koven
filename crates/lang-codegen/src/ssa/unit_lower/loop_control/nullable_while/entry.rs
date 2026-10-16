@@ -57,6 +57,7 @@ impl UnitExpressionLowerer<'_> {
             inherited: None,
         };
         if self.nullable_proofs.is_empty() {
+            self.ensure_no_while_proof_carriers(span)?;
             return Ok(NullableWhileEntry::Direct(entry));
         }
         let Some((&outer_root, &proof)) = self.nullable_proofs.first_key_value() else {
@@ -157,8 +158,10 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         if readonly {
+            self.ensure_readonly_while_carriers(root, span)?;
             return Ok(NullableWhileEntry::Readonly(root, proof));
         }
+        self.ensure_no_while_proof_carriers(span)?;
         if root == outer_root {
             // The written same-root header kills the old view before rebirth.
             self.end_while_proof(root, span)?;

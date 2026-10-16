@@ -140,6 +140,7 @@ impl UnitExpressionLowerer<'_> {
         let source_parameters = parameters[bindings.len()..].to_vec();
         self.rebind_range_sources(loans, &source_parameters, span)?;
         self.rebind_carried_nullable_proofs(block, &rebound, bindings, loans, span)?;
+        self.validate_rebound_pending_children(block, &rebound, bindings, loans, span)?;
         Ok(rebound)
     }
 

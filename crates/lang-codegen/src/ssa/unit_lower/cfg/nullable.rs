@@ -124,6 +124,7 @@ impl UnitExpressionLowerer<'_> {
                 });
             } else {
                 carried.push(CarriedAccess {
+                    nullable_children: Vec::new(),
                     nullable_proofs: vec![CarriedNullableProof {
                         root,
                         proof,

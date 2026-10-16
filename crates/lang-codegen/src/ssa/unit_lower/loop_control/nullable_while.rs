@@ -85,7 +85,6 @@ impl UnitExpressionLowerer<'_> {
         descriptor: UnitNullComparisonDescriptor,
         span: Span,
     ) -> Result<(SsaTypeId, SsaTypeId), LoweringError> {
-        self.ensure_no_while_proof_carriers(span)?;
         if !self.temporaries.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
