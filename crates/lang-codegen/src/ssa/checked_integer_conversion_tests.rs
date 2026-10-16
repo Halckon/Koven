@@ -1,9 +1,9 @@
-//! Ordinary source only: Phase 2 conversion identity is not an implemented backend operation.
+//! Ordinary source: verified conversion SSA reaches the explicit pending LLVM boundary.
 use super::{
-    LoweringErrorKind,
     lower_frontend::orchestrate::lower_scalar_file,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{declaration, parsed},
+    verify::verify_program,
 };
 use lang_frontend::{
     lexer::lex,
@@ -20,7 +20,7 @@ use lang_frontend::{
 };
 
 #[test]
-fn single_conversion_identity_stops_before_unimplemented_lowering() {
+fn single_conversion_identity_reaches_pending_llvm_boundary() {
     for target in ["Int", "Long"] {
         let root = format!("value.to{target}()");
         let text = format!("fun entry(value: Int): {target} = {root}");
@@ -37,17 +37,13 @@ fn single_conversion_identity_stops_before_unimplemented_lowering() {
         complete_file_types(&sources, &file, &names, &types, &typed).unwrap();
         let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
         assert!(owned.diagnostics().is_empty());
-        let error = lower_scalar_file(&sources, &file, &names, &typed, &owned)
-            .err()
-            .expect("conversion lowering is not implemented");
-        println!("single {root}: {error:?}");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-        assert_eq!(sources.slice(error.span.unwrap()).unwrap(), root);
+        let program = lower_scalar_file(&sources, &file, &names, &typed, &owned).unwrap();
+        assert_pending_llvm(&program);
     }
 }
 
 #[test]
-fn unit_conversion_identity_stops_before_unimplemented_lowering() {
+fn unit_conversion_identity_reaches_pending_llvm_boundary() {
     for target in ["Int", "Long"] {
         let root = format!("value.to{target}()");
         let text = format!("package p\nfun entry(value: Int): {target} = {root}");
@@ -74,7 +70,7 @@ fn unit_conversion_identity_stops_before_unimplemented_lowering() {
             .unwrap()
             .validate()
             .unwrap();
-        let error = lower_scalar_unit_with_entry(
+        let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
             &names,
@@ -83,10 +79,17 @@ fn unit_conversion_identity_stops_before_unimplemented_lowering() {
             &owned,
             declaration(&names, "p", "entry"),
         )
-        .err()
-        .expect("conversion lowering is not implemented");
-        println!("unit {root}: {error:?}");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-        assert_eq!(sources.slice(error.span.unwrap()).unwrap(), root);
+        .unwrap();
+        assert_pending_llvm(&program);
     }
+}
+
+fn assert_pending_llvm(program: &super::model::Program) {
+    verify_program(program).unwrap();
+    let error = crate::llvm::render_verified_program(program).unwrap_err();
+    println!("verified conversion SSA: {error:?}");
+    assert!(
+        matches!(error, crate::llvm::LlvmAdapterError::Unsupported(message)
+        if message == "checked integer conversion LLVM lowering is not implemented")
+    );
 }

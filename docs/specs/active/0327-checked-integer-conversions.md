@@ -130,3 +130,9 @@ LLVM内部i128不进入语言/ABI，失败result不得交付。native成功及�
 `eb26265f`后端首4exact各1命中真实红，29输入同；128/2/4/128次双入口观察均
 在转换调用span返回UnsupportedNode，FE/ownership前置均通过；LLVM生成尚未到达，
 不计IR验收。仓外backend4-red-receipt保留，后继先SSA/lower再LLVM，各自强化oracle。
+
+`eb059787`仅抽取两入口各自checked CFG；`486c1a5c`新增私有CheckedIntegerConvert，
+source/target由真实operand/result类型决定，双result为目标整数与Boolean，failed导Abort。
+原arithmetic及unit pending operands/loan的carry/rebind保持；LLVM暂显式Unsupported。
+后继普通oracle锁128对源/目标、失败边与成功使用、receiver call结果身份；旧2lower边界
+改验真实SSA成功后LLVM明确拒绝。此SSA阶段尚未执行，不据此声称LLVM/native已实现。

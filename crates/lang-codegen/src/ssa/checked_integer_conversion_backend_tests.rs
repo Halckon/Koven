@@ -2,7 +2,7 @@
 use super::{
     LoweringError,
     lower_frontend::orchestrate::lower_scalar_file,
-    model::Program,
+    model::{EntityId, EntityType, Operation, Program, SsaTypeKind, TerminatorKind},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{declaration, parsed},
@@ -108,11 +108,10 @@ fn pair_sources() -> Vec<(bool, String, String, Result<Program, LoweringError>)>
 fn all_integer_pairs_lower_from_real_typed_sources() {
     let cases = pair_sources();
     assert_eq!(cases.len(), 128);
-    for (_, _, _, result) in cases {
-        let _ = checked_program(result);
+    for (_, source, target, result) in cases {
+        let program = checked_program(result);
+        assert_conversion_cfg(&program, &source, &target, false);
     }
-    // Exact private operation/result/Abort-edge assertions are added when that API exists;
-    // the initial red must be the actual UnsupportedNode, not a missing Rust symbol.
 }
 
 #[test]
@@ -122,10 +121,8 @@ fn conversion_receiver_call_has_one_source_evaluation() {
     let cases = [false, true].map(|unit| lower_source(source, unit));
     for result in cases {
         let program = checked_program(result);
-        let rendered = render_program(&program);
-        assert!(rendered.contains("tick"), "{rendered}");
+        assert_conversion_cfg(&program, "Int", "Long", true);
     }
-    // Bind the selected call result directly to the conversion operand in the implementation oracle.
 }
 
 #[test]
@@ -139,7 +136,8 @@ fn checked_conversion_preserves_live_owner_and_pending_argument() {
         .flat_map(|source| [false, true].map(|unit| lower_source(source, unit)))
         .collect::<Vec<_>>();
     for result in cases {
-        let _ = checked_program(result);
+        let program = checked_program(result);
+        assert_conversion_cfg(&program, "Int", "Long", false);
     }
 }
 
@@ -153,4 +151,96 @@ fn all_integer_pairs_generate_verified_dynamic_llvm() {
         assert!(!llvm.contains("poison"), "{llvm}");
     }
     // Signed/unsigned i128 bounds and failure-result non-delivery are frozen with the adapter patch.
+}
+
+fn integer_kind(name: &str) -> SsaTypeKind {
+    let (bits, signed) = match name {
+        "Byte" => (8, true),
+        "Short" => (16, true),
+        "Int" => (32, true),
+        "Long" => (64, true),
+        "UByte" => (8, false),
+        "UShort" => (16, false),
+        "UInt" => (32, false),
+        "ULong" => (64, false),
+        _ => panic!("only the fixed eight integer sources are admitted"),
+    };
+    SsaTypeKind::Integer { bits, signed }
+}
+
+fn assert_conversion_cfg(program: &Program, source: &str, target: &str, receiver_call: bool) {
+    let mut count = 0;
+    for module in &program.modules {
+        for function in &module.functions {
+            for instruction in &function.instructions {
+                let Operation::CheckedIntegerConvert { operand } = instruction.operation else {
+                    continue;
+                };
+                count += 1;
+                let [EntityId::Value(result), EntityId::Value(failed)] =
+                    instruction.results.as_slice()
+                else {
+                    panic!("conversion exposes value and failure");
+                };
+                let kind = |entity| {
+                    let EntityType::Value(ty) = function.entity(entity).unwrap().ty else {
+                        panic!("value entity");
+                    };
+                    &module.types[ty.index()]
+                };
+                assert_eq!(kind(EntityId::Value(operand)), &integer_kind(source));
+                assert_eq!(kind(EntityId::Value(*result)), &integer_kind(target));
+                assert_eq!(kind(EntityId::Value(*failed)), &SsaTypeKind::Boolean);
+                let block = function.block(instruction.block).unwrap();
+                assert_eq!(block.instructions.last(), Some(&instruction.id));
+                let TerminatorKind::Conditional {
+                    condition,
+                    when_true,
+                    when_false,
+                } = &block.terminator.as_ref().unwrap().kind
+                else {
+                    panic!("checked failure must select an explicit edge");
+                };
+                assert_eq!(condition, failed);
+                let failure = function.block(when_true.target).unwrap();
+                assert!(failure.instructions.is_empty());
+                assert!(matches!(
+                    failure.terminator.as_ref().unwrap().kind,
+                    TerminatorKind::Abort
+                ));
+                assert!(!when_true.arguments.contains(&EntityId::Value(*result)));
+                assert_ne!(when_true.target, when_false.target);
+                let success = function.block(when_false.target).unwrap();
+                assert!(
+                    success.instructions.iter().any(|id| function
+                        .instruction(*id)
+                        .unwrap()
+                        .operation
+                        .entities()
+                        .contains(&EntityId::Value(*result)))
+                        || success
+                            .terminator
+                            .as_ref()
+                            .unwrap()
+                            .kind
+                            .entities()
+                            .contains(&EntityId::Value(*result))
+                );
+                if receiver_call {
+                    let calls = function
+                        .instructions
+                        .iter()
+                        .filter(|call| matches!(call.operation, Operation::DirectCall { .. }))
+                        .collect::<Vec<_>>();
+                    assert_eq!(calls.len(), 1);
+                    assert_eq!(calls[0].results, [EntityId::Value(operand)]);
+                    let Operation::DirectCall { callee, .. } = calls[0].operation else {
+                        unreachable!()
+                    };
+                    assert!(module.function(callee).unwrap().name.contains("tick"));
+                }
+            }
+        }
+    }
+    assert_eq!(count, 1);
 }
