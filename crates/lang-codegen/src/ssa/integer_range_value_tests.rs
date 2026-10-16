@@ -1,4 +1,6 @@
 //! Ordinary-source Range value ABI probes; no fabricated facts or native execution.
+mod llvm_contract;
+
 use super::{
     lower_frontend::orchestrate::lower_scalar_file,
     model::{EntityId, Operation, Ownership, Program, SsaTypeKind},
@@ -300,7 +302,7 @@ fn range_operand_calls_and_outer_join_reach_verified_llvm() {
         let llvm =
             crate::llvm::render_verified_program(&program).expect("real Range LLVM verifies");
         println!("RANGE LLVM {llvm}");
-        assert!(llvm.contains("define"));
+        llvm_contract::assert_half_open_cfg(&llvm, if index < 4 { 1 } else { 2 });
     }
 }
 
