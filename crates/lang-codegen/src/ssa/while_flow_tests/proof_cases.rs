@@ -684,8 +684,34 @@ fun entry(own initial: Holder?): Unit {
 }"#
     .to_owned();
     let grouped = direct.replace("println(current.text)", "println((current.text))");
-    observe(
-        "nullable-field-child",
-        &[(returned, false), (direct, false), (grouped, false)],
-    );
+    let sources = [returned, direct, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            println!(
+                "NULLABLE FIELD CHILD source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 6);
+    for (index, result) in outcomes.into_iter().enumerate() {
+        nullable_field_contract::assert_field_child(
+            &result.expect("ordinary nullable field child reaches verified SSA and LLVM"),
+            index / 2 == 0,
+        );
+    }
 }
+
+#[path = "nullable_field_contract.rs"]
+mod nullable_field_contract;
