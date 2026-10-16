@@ -1,6 +1,6 @@
 //! Consume each frontend cleanup sequence once, preserving provider/call/drop ordering.
-use super::*;
-use crate::ssa::model::{EntityId, LoanId, Operation};
+use super::{iteration::IterationState, *};
+use crate::ssa::model::{EntityId, EntityType, LoanId, Operation};
 use lang_frontend::{
     ownership_checking::UnitIterationCleanupAction as Action,
     type_checking::{BorrowReturnOrigin, CallableResultSource, UnitCallReceiverOrigin},
@@ -40,21 +40,48 @@ impl UnitExpressionLowerer<'_> {
                 }
                 Action::EndBinding { statement, symbol } => {
                     let span = self.statement_span(statement.statement())?;
-                    let context = self.iteration_context(*statement, span)?;
-                    let element = self.iteration_pending_loan(context.element, span)?;
-                    let loan = self
-                        .borrow_bindings
-                        .remove(symbol)
-                        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                    if loan != element {
-                        self.iteration_end_loan(loan, span)?;
+                    match self.iteration_context(*statement, span)?.state {
+                        IterationState::Borrowed { element, .. } => {
+                            let element = self.iteration_pending_loan(element, span)?;
+                            let loan = self.borrow_bindings.remove(symbol).ok_or_else(|| {
+                                lowering_error(LoweringErrorKind::MissingFact, span)
+                            })?;
+                            if loan != element {
+                                self.iteration_end_loan(loan, span)?;
+                            }
+                        }
+                        IterationState::Numeric { endpoint_type, .. } => {
+                            let Some(LoweredValue::Value(value)) = self.bindings.remove(symbol)
+                            else {
+                                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                            };
+                            if self
+                                .function
+                                .entity(EntityId::Value(value))
+                                .map(|value| value.ty)
+                                != Some(EntityType::Value(endpoint_type))
+                            {
+                                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                            }
+                        }
                     }
                 }
                 Action::EndElement(statement) => {
                     let span = self.statement_span(statement.statement())?;
-                    let context = self.iteration_context(*statement, span)?;
-                    let loan = self.iteration_pending_loan(context.element, span)?;
-                    self.iteration_end_loan(loan, span)?;
+                    match self.iteration_context(*statement, span)?.state {
+                        IterationState::Borrowed { element, .. } => {
+                            let loan = self.iteration_pending_loan(element, span)?;
+                            self.iteration_end_loan(loan, span)?;
+                        }
+                        IterationState::Numeric {
+                            current,
+                            last,
+                            endpoint_type,
+                        } => {
+                            self.numeric_pending_value(current, endpoint_type, span)?;
+                            self.numeric_pending_value(last, endpoint_type, span)?;
+                        }
+                    }
                 }
                 Action::FinishProvider(statement) => {
                     let span = self.statement_span(statement.statement())?;
@@ -62,8 +89,12 @@ impl UnitExpressionLowerer<'_> {
                 }
                 Action::EndSource(statement) => {
                     let span = self.statement_span(statement.statement())?;
-                    let context = self.iteration_context(*statement, span)?;
-                    let loan = self.iteration_pending_loan(context.start, span)?;
+                    let IterationState::Borrowed { start, .. } =
+                        self.iteration_context(*statement, span)?.state
+                    else {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                    };
+                    let loan = self.iteration_pending_loan(start, span)?;
                     self.iteration_end_loan(loan, span)?;
                     if let Some(source) = self
                         .owned

@@ -29,7 +29,7 @@ impl ExpressionLowerer<'_> {
             {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            return self.lower_numeric_for(statement, source, body, span, plan);
         }
         let container_type = self.resolve_type(descriptor.source_type(), span)?;
         let container_ssa_type = self
@@ -379,6 +379,7 @@ impl ExpressionLowerer<'_> {
             carried: carried.clone(),
             continues: Vec::new(),
             breaks: Vec::new(),
+            numeric_loop: None,
             for_loop: Some(ForLoopData {
                 statement,
                 provider_header,

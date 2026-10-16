@@ -2,6 +2,7 @@
 
 mod iteration;
 mod iteration_cleanup;
+mod numeric_iteration;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -126,7 +127,7 @@ impl UnitExpressionLowerer<'_> {
             self.record_natural_continue(span)?;
         }
         let context = self.loops.pop().expect("while context must be balanced");
-        self.finish_continues(&context)?;
+        self.finish_continues(&context, context.header)?;
 
         self.current_receiver = condition_receiver;
         self.consumed_receiver = condition_consumed_receiver;
@@ -188,7 +189,7 @@ impl UnitExpressionLowerer<'_> {
             self.record_natural_continue(span)?;
         }
         let context = self.loops.pop().expect("loop context must be balanced");
-        self.finish_continues(&context)?;
+        self.finish_continues(&context, context.header)?;
         if context.breaks.is_empty() {
             self.current_receiver = None;
             self.consumed_receiver = None;
@@ -318,8 +319,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        // Keep exactly the frame preceding this edge: continue retains the provider,
-        // whereas break has already ended its source and dropped its hidden owner.
+        // Continue retains this provider's state; break keeps only its outer frame
+        // after consuming any source-loan and hidden-owner cleanup.
         self.pending_operands.truncate(pending_count);
         self.discard_non_entry_bindings(&entry_symbols, span)
     }
@@ -376,7 +377,11 @@ impl UnitExpressionLowerer<'_> {
         Ok(())
     }
 
-    fn finish_continues(&mut self, context: &LoopContext) -> Result<(), LoweringError> {
+    fn finish_continues(
+        &mut self,
+        context: &LoopContext,
+        target: BlockId,
+    ) -> Result<(), LoweringError> {
         for jump in &context.continues {
             if jump.state.closure_bindings != context.entry_closure_bindings {
                 return Err(lowering_error(
@@ -391,7 +396,7 @@ impl UnitExpressionLowerer<'_> {
                 ));
             }
             let edge = self.carried_edge_from(
-                context.header,
+                target,
                 &context.carried,
                 &context.loans,
                 &jump.state,

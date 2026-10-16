@@ -122,3 +122,8 @@ terminal 支配 increment、四退出真实清理事实，native 数值/轨迹�
 全部通过 names/type/ownership，停在 numeric for lower 的 UnsupportedNode；未到 LLVM。
 不存在编译/parse/harness 前置失败。仓外收据 SHA
 `bfc40e56bfd952024796237c27cad23426cc5db6095d573a50b8691aaaa6e74e`，独审核同。
+
+候选实现采用两入口独立 numeric Value 状态：source 一次求值并投影 first/last/empty；
+空区间直接 exhaustion，正常/continue 先消费前端 cleanup，再比较 current 与 last，
+只有非终值边递增。unit 复用 pending/carry/rebind 保存两端点，single 以 body 参数保存 cursor；
+借用 provider 仍走原 loan 路径。此候选 codegen all-targets 编译预检通过，行为验收尚待同三项实跑。
