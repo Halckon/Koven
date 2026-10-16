@@ -121,7 +121,7 @@ drop facts 管理；这不代表 Phase 4 lowering 已接入。
 单文件与 unit 在 loop 正常回边和 continue 边检查 moved owner 是否仍在下一轮 live set 中，
 重复消费产生 L0131；break/return 不参与回边检查。显式 `loop` 的 header 从空集求固定点，
 退出后的使用经 break 边传播，允许每轮先重新赋值的 owner。普通 whole-root 赋值无需读取
-已移动旧值，成功后恢复 binding；字段、元素、复合赋值和有效 loan 仍执行原有访问检查。
+已移动旧值，成功后恢复 binding；普通根变量 `=` 在RHS及capture/loan检查后补readonly L0134，字段、元素和复合赋值保持原检查（[0325](../archive/specs/0325-simple-variable-assignment-types.md)）。
 
 ## Capture、Transferability 与 drop
 

@@ -2,7 +2,10 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前无active Spec；[0324用户诊断措辞](../../archive/specs/0324-final-admission-user-messages.md)已按整合head双宿主20精确目标与CI有限归档，归档head CI/main交付待核。
+当前本树无 active Spec。[0325简单变量赋值](../../archive/specs/0325-simple-variable-assignment-types.md)
+已按PR111实施head双宿主21exact与CI有界归档；归档head CI及main交付待核。
+
+[0324用户诊断措辞](../../archive/specs/0324-final-admission-user-messages.md)已按整合head双宿主20精确目标与CI有限归档，归档head CI/main交付待核。
 
 [0323 最终准入静态角色恢复](../../archive/specs/0323-final-admission-static-recovery.md)已按PR108实现head双宿主15精确目标与CI有限归档，已由PR108正常合入actual main `1409ff85`；main CI另行核验。
 

@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，308 份）"]
+subgraph Garchive["已完成（archive，309 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -317,6 +317,7 @@ subgraph Garchive["已完成（archive，308 份）"]
   S0322["S0322<br/>Preview 外部 libxml2 有界宿主兼容性"]
   S0323["S0323<br/>最终类型准入的静态非值角色与失败调用恢复"]
   S0324["S0324<br/>最终类型准入的用户诊断措辞"]
+  S0325["S0325<br/>简单变量普通赋值类型事实"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1680,6 +1681,7 @@ S0320 --> S0321
 | SPEC-0322 | archive | [0322-preview-libxml2-host-compatibility.md](0322-preview-libxml2-host-compatibility.md) |
 | SPEC-0323 | archive | [0323-final-admission-static-recovery.md](0323-final-admission-static-recovery.md) |
 | SPEC-0324 | archive | [0324-final-admission-user-messages.md](0324-final-admission-user-messages.md) |
+| SPEC-0325 | archive | [0325-simple-variable-assignment-types.md](0325-simple-variable-assignment-types.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0327 | drafts/v0.44 | [0327-checked-integer-conversions.md](../../specs/drafts/v0.44/0327-checked-integer-conversions.md) |

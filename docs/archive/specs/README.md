@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 305 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 309 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -481,3 +481,5 @@
 - [SPEC-0323](0323-final-admission-static-recovery.md)：PR108实现head双宿主15精确目标与CI有限归档，15实际success/1范围skip；原红、helper修正与lint失败保留，不扩companion/Result原生能力；归档head CI/main待核。
 
 - [SPEC-0324](0324-final-admission-user-messages.md)：PR109整合head双宿主20精确目标与CI有限归档；18项用户措辞不改资格，旧基线/整合CI分账，保留红与docs超限历史；归档head CI/main待核。
+
+- [SPEC-0325](0325-simple-variable-assignment-types.md)：简单变量storage RHS→Unit与readonly根ownership；PR111实施CI双宿主21exact有界归档，保留旧失败和有限native范围；归档head CI/main待核。
