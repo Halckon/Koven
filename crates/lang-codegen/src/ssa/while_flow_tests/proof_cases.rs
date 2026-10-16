@@ -715,3 +715,45 @@ fun entry(own initial: Holder?): Unit {
 
 #[path = "nullable_field_contract.rs"]
 mod nullable_field_contract;
+
+#[test]
+fn nullable_field_value_argument_observes_empty_and_populated_call_frames() {
+    let first = r#"class Holder(val value: Int)
+fun pass(own value: Int): Int { return value }
+fun entry(own initial: Holder?): Int {
+    var current: Holder? = initial
+    while (current != null) { return pass(current.value) }
+    return 0
+}"#
+    .to_owned();
+    let prefix = r#"class Holder(val value: Int)
+fun pass(own marker: Int, own value: Int): Int { return marker + value }
+fun entry(own initial: Holder?): Int {
+    var current: Holder? = initial
+    while (current != null) { return pass(1, current.value) }
+    return 0
+}"#
+    .to_owned();
+    let outcomes = collect_sources(&[first, prefix])
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(())
+            });
+            println!(
+                "VALUE ARG FRAME source={} unit={} {result:?}",
+                index / 2,
+                index % 2 == 1
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 4);
+    for outcome in outcomes.iter().take(2) {
+        assert!(outcome.is_ok(), "empty call frame: {outcome:?}");
+    }
+}
