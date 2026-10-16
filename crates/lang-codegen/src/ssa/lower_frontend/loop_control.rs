@@ -82,9 +82,16 @@ impl ExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        if let Some(descriptor) = self.direct_nullable_while_condition(condition, span)? {
-            return self.lower_direct_nullable_while(statement, condition, body, descriptor, span);
-        }
+        let inherited =
+            if let Some(descriptor) = self.direct_nullable_while_condition(condition, span)? {
+                if self.non_null_bindings.is_empty() {
+                    return self
+                        .lower_direct_nullable_while(statement, condition, body, descriptor, span);
+                }
+                Some(self.readonly_nullable_while_proof(descriptor, span)?)
+            } else {
+                None
+            };
         let baseline = self.bindings.clone();
         let context = self.create_loop_header(&baseline, span)?;
         let condition = self.require_value(condition)?;
@@ -125,10 +132,19 @@ impl ExpressionLowerer<'_> {
             self.record_continue(span)?;
         }
         let context = self.loops.pop().expect("while context must be balanced");
+        if let Some((root, proof)) = inherited {
+            for jump in &context.continues {
+                self.validate_readonly_while_exit(root, proof, &jump.exit, jump.span)?;
+            }
+        }
         self.finish_loop_continues(&context)?;
         let mut exits = context.breaks;
         exits.push(false_exit);
-        self.finish_loop_exits(statement, exits, &baseline, span)
+        let result = self.finish_loop_exits(statement, exits, &baseline, inherited, span)?;
+        if let Some((root, proof)) = inherited {
+            self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
+        }
+        Ok(result)
     }
 
     pub(super) fn lower_loop(
@@ -146,7 +162,7 @@ impl ExpressionLowerer<'_> {
         }
         let context = self.loops.pop().expect("loop context must be balanced");
         self.finish_loop_continues(&context)?;
-        self.finish_loop_exits(statement, context.breaks, &baseline, span)
+        self.finish_loop_exits(statement, context.breaks, &baseline, None, span)
     }
 
     fn finish_loop_exits(
@@ -154,10 +170,14 @@ impl ExpressionLowerer<'_> {
         statement: StatementId,
         mut exits: Vec<BranchExit>,
         baseline: &BTreeMap<SymbolId, LoweredValue>,
+        inherited: Option<(SymbolId, super::NonNullProof)>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         // Different paths may already have consumed an owner; discharge each exit before joining.
         for exit in &mut exits {
+            if let Some((root, proof)) = inherited {
+                self.validate_readonly_while_exit(root, proof, exit, span)?;
+            }
             self.block = exit.block;
             self.bindings.clone_from(&exit.bindings);
             self.temporaries.clone_from(&exit.temporaries);
@@ -171,6 +191,9 @@ impl ExpressionLowerer<'_> {
                 statement,
             ))?;
             *exit = self.loop_exit();
+            if let Some((root, proof)) = inherited {
+                self.validate_readonly_while_exit(root, proof, exit, span)?;
+            }
         }
         self.merge_exits(exits, baseline, span)
     }

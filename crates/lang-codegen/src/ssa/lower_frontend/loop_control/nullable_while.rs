@@ -70,6 +70,71 @@ impl ExpressionLowerer<'_> {
         Ok(Some(descriptor))
     }
 
+    /// Reuse only the current same-root owned while proof. The inner guard reads
+    /// presence through the ordinary condition path; it never introduces a view.
+    pub(super) fn readonly_nullable_while_proof(
+        &self,
+        descriptor: NullComparisonDescriptor,
+        span: Span,
+    ) -> Result<(SymbolId, NonNullProof), LoweringError> {
+        let root = descriptor.symbol();
+        let Some(proof) = self.non_null_bindings.get(&root).copied() else {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        if self.non_null_bindings.len() != 1 || !proof.is_while_origin() {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        self.validate_non_null_proof(root, proof, &self.bindings, span)?;
+        self.ensure_no_unresolved_while_proof_carriers(span)?;
+        let declared = self.resolve_type(descriptor.nullable_type(), span)?;
+        let nullable = self
+            .type_ids
+            .get(&declared)
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if self.typed.copyability(declared) != Some(Copyability::MoveOnly)
+            || self.borrow_bindings.contains_key(&root)
+            || !matches!(
+                self.ssa_types.get(proof.inner.index()),
+                Some(SsaTypeKind::HeapOwner { .. })
+            )
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        if self.ssa_types.get(nullable.index())
+            != Some(&SsaTypeKind::NullableHandle { inner: proof.inner })
+            || self
+                .function
+                .entity(EntityId::Value(proof.owner))
+                .map(|data| data.ty)
+                != Some(EntityType::Value(nullable))
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok((root, proof))
+    }
+
+    /// Real exits must retain the inherited proof. A killed or replaced proof
+    /// cannot be reconstructed from the loop's entry record.
+    pub(super) fn validate_readonly_while_exit(
+        &self,
+        root: SymbolId,
+        inherited: NonNullProof,
+        exit: &BranchExit,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(proof) = exit.views.get(&root).copied() else {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        if exit.views.len() != 1
+            || proof.origin != inherited.origin
+            || proof.inner != inherited.inner
+        {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        self.validate_non_null_proof(root, proof, &exit.bindings, span)
+    }
+
     pub(super) fn lower_direct_nullable_while(
         &mut self,
         statement: StatementId,
@@ -193,7 +258,7 @@ impl ExpressionLowerer<'_> {
         self.finish_loop_continues(&context)?;
         let mut exits = context.breaks;
         exits.push(false_exit);
-        self.finish_loop_exits(statement, exits, &baseline, span)
+        self.finish_loop_exits(statement, exits, &baseline, None, span)
     }
 
     fn emit_direct_while_condition_drops(

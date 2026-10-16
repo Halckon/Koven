@@ -1,6 +1,7 @@
 //! Source-qualified direct nullable guards: one real view per body entry.
 use super::super::{
-    EntityId, EntityType, Expression, LiteralKind, resolve_concrete_type, span_key,
+    EntityId, EntityType, Expression, LiteralKind, nullable_proof::NullableProof,
+    resolve_concrete_type, span_key,
 };
 use super::*;
 use crate::ssa::model::SsaTypeKind;
@@ -70,6 +71,82 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         Ok(Some(descriptor))
+    }
+
+    /// Only an existing proof of this same owned root can cross the inner loop.
+    /// Its origin remains the outer while, including after owner/loan rebinding.
+    pub(super) fn readonly_nullable_while_proof(
+        &self,
+        descriptor: UnitNullComparisonDescriptor,
+        span: Span,
+    ) -> Result<(UnitSymbolId, NullableProof), LoweringError> {
+        let root = descriptor.symbol();
+        let Some(proof) = self.nullable_proofs.get(&root).copied() else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        if self.nullable_proofs.len() != 1
+            || !self
+                .loops
+                .iter()
+                .any(|context| context.proof_scope == Some(proof.scope()))
+            || !self.temporaries.is_empty()
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
+        self.ensure_no_while_proof_carriers(span)?;
+        let declared = resolve_concrete_type(
+            self.typed,
+            descriptor.nullable_type(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        let nullable = self
+            .type_ids
+            .get(&declared)
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if self.typed.copyability(declared) != Copyability::MoveOnly
+            || self.borrow_bindings.contains_key(&root)
+            || !matches!(
+                self.ssa_types.get(proof.inner.index()),
+                Some(SsaTypeKind::HeapOwner { .. })
+            )
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        if self.ssa_types.get(nullable.index())
+            != Some(&SsaTypeKind::NullableHandle { inner: proof.inner })
+            || self
+                .function
+                .entity(EntityId::Value(proof.owner))
+                .map(|data| data.ty)
+                != Some(EntityType::Value(nullable))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        Ok((root, proof))
+    }
+
+    /// Require the actual path's surviving current pair, not the entry pair IDs.
+    pub(super) fn validate_readonly_while_exit(
+        &self,
+        root: UnitSymbolId,
+        inherited: NullableProof,
+        exit: &BranchExit,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let Some(proof) = exit.nullable_proofs.get(&root) else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        if exit.nullable_proofs.len() != 1
+            || proof.origin != inherited.origin
+            || proof.inner != inherited.inner
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        self.validate_nullable_proofs(&exit.bindings, &exit.nullable_proofs, span)
     }
 
     pub(super) fn lower_direct_nullable_while(
@@ -220,18 +297,7 @@ impl UnitExpressionLowerer<'_> {
         // Break and false may have consumed different owners. Discharge each actual
         // exit's original LoopExit facts before the existing exact-state merge.
         for exit in &mut exits {
-            self.block = exit.block;
-            self.bindings.clone_from(&exit.bindings);
-            self.borrow_bindings.clone_from(&exit.borrow_bindings);
-            self.nullable_proofs.clone_from(&exit.nullable_proofs);
-            self.current_receiver = exit.receiver;
-            self.consumed_receiver = exit.consumed_receiver;
-            self.closure_bindings.clone_from(&exit.closure_bindings);
-            self.capture_loans.clone_from(&exit.capture_loans);
-            self.result_source_loans
-                .clone_from(&exit.result_source_loans);
-            self.pending_operands.clone_from(&exit.pending_operands);
-            self.temporaries.clone_from(&exit.temporaries);
+            self.restore_loop_state(exit);
             self.emit_loop_exit(statement)?;
             *exit = self.loop_state();
         }
