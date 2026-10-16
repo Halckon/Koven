@@ -62,5 +62,12 @@ ULong->UByte
 ULong->UShort
 ULong->UInt
 ULong->ULong
+retained
+retained-ok
+pending-owned
+owned-ok
+borrowed
+borrow-ok
+borrowed
 tick
 done

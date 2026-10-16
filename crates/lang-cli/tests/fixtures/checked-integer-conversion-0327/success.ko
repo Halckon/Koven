@@ -768,6 +768,14 @@ fun check63(): Boolean {
     return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
 }
 fun tick(): Int { println("tick"); return 1 }
+fun acceptOwned(own label: String, value: Long): Unit {
+    println(label)
+    if (value == 7L) { println("owned-ok") } else { println("bad-owned") }
+}
+fun acceptBorrow(label: String, value: Long): Unit {
+    println(label)
+    if (value == 7L) { println("borrow-ok") } else { println("bad-borrow") }
+}
 fun main(): Unit {
     if (check0()) { println("Byte->Byte") } else { println("bad-0") }
     if (check1()) { println("Byte->Short") } else { println("bad-1") }
@@ -833,6 +841,14 @@ fun main(): Unit {
     if (check61()) { println("ULong->UShort") } else { println("bad-61") }
     if (check62()) { println("ULong->UInt") } else { println("bad-62") }
     if (check63()) { println("ULong->ULong") } else { println("bad-63") }
+    val retained = "retained"
+    val retainedValue: Long = convert19(7)
+    println(retained)
+    if (retainedValue == 7L) { println("retained-ok") } else { println("bad-retained") }
+    acceptOwned("pending-owned", 7.toLong())
+    val borrowed = "borrowed"
+    acceptBorrow(borrowed, 7.toLong())
+    println(borrowed)
     val once: Long = tick().toLong()
     if (once == 1L) { println("done") } else { println("bad-tick") }
 }
