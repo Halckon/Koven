@@ -165,9 +165,7 @@ fn branch_join_and_replacement_keep_current_proof_identity() {
 #[test]
 fn same_root_nested_loops_preserve_or_invalidate_outer_proof() {
     let readonly = readonly_nested_source();
-    let written = holder(
-        "while (current != null) {\ntotal = current.value\nwhile (current != null) { total = total + current.value\ncurrent = null\ncontinue }\nreturn total\n}\nreturn total",
-    );
+    let written = written_nested_source();
     let normal = written.replace("\ncontinue }", "\n}");
     let stale = written.replace("\nreturn total\n}", "\nreturn current.value\n}");
     observe(
@@ -417,3 +415,32 @@ fn readonly_same_root_nested_while_preserves_the_outer_proof() {
 
 #[path = "readonly_nested_contract.rs"]
 mod readonly_nested_contract;
+
+fn written_nested_source() -> String {
+    holder(
+        "while (current != null) {\ntotal = current.value\nwhile (current != null) { total = total + current.value\ncurrent = null\ncontinue }\nreturn total\n}\nreturn total",
+    )
+}
+
+#[test]
+fn written_same_root_nested_while_retires_outer_and_rebirths_inner_proof() {
+    let continued = written_nested_source();
+    let normal = continued.replace("\ncontinue }", "\n}");
+    let grouped = |source: &str| {
+        source.replace(
+            "while (current != null) { total = total + current.value",
+            "while (((current) != null)) { total = total + current.value",
+        )
+    };
+    let continued_group = grouped(&continued);
+    let normal_group = grouped(&normal);
+    observe(
+        "written-rebirth",
+        &[
+            (continued, false),
+            (normal, false),
+            (continued_group, false),
+            (normal_group, false),
+        ],
+    );
+}
