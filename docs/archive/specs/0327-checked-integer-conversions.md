@@ -1,16 +1,16 @@
 # SPEC-0327: 显式 checked 整数转换
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：准备 v0.44 E 的普通前端红测时 · **唯一真源**：本 Spec；语言合同见 Guide
+> **性质**：实施合同 · **状态**：done · **读取时机**：追溯 v0.44 E 的有界实现与验收时 · **唯一真源**：本 Spec；语言合同见 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0327` |
 | Phase | Phase 2 类型身份先行；Phase 3/4 按后继验收分片闭合 |
 | 基线 | 实际 main `5a32550a0ea956c1d66fdb65ae9bf2aeb6681684`（正常合并继承A/B） |
 | 分支 | 本地 `feature/spec-0327-integer-conversions`；授权远端 `fix/spec-0327-integer-conversions`，保留发布映射 |
 | 规范 | [Guide整数转换](../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
-| 当前状态 | 合A/B主干后13普通exact与4工程通过；仅FE阶段，后端转换未实现 |
+| 当前状态 | 前端、SSA、LLVM及有限native已验；PR113实施CI双host30exact通过，归档head CI/main待验 |
 
 ## 1. 批准范围与依赖
 
@@ -179,3 +179,19 @@ frontend/codegen/cli三包all-targets clippy、cli build四工程均0；actualma
 CI-only的7个synthetic verifier独立exact及两入口各9个普通越界Abort已编译，未本地执行；
 实际CI仍待验，不归档、不声称越界运行已通过。Abort每入口只形成一个libtest exact记录，
 通过后可结合固定9case循环断言核验，不宣称有18条独立子进程日志。
+
+## 10. 实施 CI 与有界归档
+
+PR113 [CI38846644649/a1](https://github.com/Halckon/Koven/actions/runs/38846644649/attempts/1)
+在实际 head `a5768f9a5e628a7d85b9f67f087755a3223b7d3d` / tree `c879db85bc4f0aa256dbc91512029e29e7f33861`
+终态 success：15 jobs 实际成功、1 Tree-sitter 路径 skip，reuse=false。
+合并测试提交 `39ec8df6` 的双父为 main `5a32550a` 与该实施 head，tree 相同。
+Linux/macOS 各21普通exact、7畸形SSA verifier exact、2越界Abort exact全部各实际1次ok。
+两Abort exact各按固定9源码循环与逐case SIGABRT/before断言验收；没有18条独立子进程日志。
+这9个负控exact仅在CI执行，本地只编译；Preview只核jobs/steps成功，未独立审artifact。
+仓外收据 `pr113-ci-38846644649-evidence.json` SHA
+`6ab06fd8799e035eb074514f3eca02073f1127e48b292842350125d79cd16432`。
+本次只关闭八整数checked转换合同及所列有限资源样例；不扩const、浮点/Char、nullable、
+OrNull、stderr/固定退出码或unwind/drop保证，不以有限native穷举全部整数域。
+此前红测、编译错误、尺寸失败与各阶段待验文字保留为当时事实；本节为最终实施验收。
+归档提交自己的CI与PR正常合并、真实main验收仍待，不能用实施head通过替代。

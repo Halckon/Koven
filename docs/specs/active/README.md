@@ -2,7 +2,8 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前本树 active：[0327显式checked整数转换](0327-checked-integer-conversions.md)，前端分片实施中，后端尚未交付。
+当前本树无 active Spec。[0327显式checked整数转换](../../archive/specs/0327-checked-integer-conversions.md)
+已按PR113实施CI双host30exact有界归档；归档head CI/main交付仍待。
 
 [0326封闭分支类型合并](../../archive/specs/0326-closed-control-branch-join.md)
 已按合B后联合CI双host39exact有界归档；归档head CI/main交付待验。

@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树 1 份（0327显式整数转换），0326已联合验收归档；0325已归档并由PR111正常合入main `aa42bdc5`。
+- [Active 合同](active/README.md)：当前本树 0 份；[0327](../archive/specs/0327-checked-integer-conversions.md)已按PR113实施CI双host30exact有界归档，归档head CI/main待验。0325/0326既有交付不受影响。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
