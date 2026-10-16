@@ -191,7 +191,7 @@ pub(super) fn qualify(
                     || leaf != source_seed
                     || *kind != VariableKind::Val
                     || construction.expression() != leaf
-                    || construction.kind() != ContainerConstructionKind::ListOf
+                    || construction.kind() != ContainerConstructionKind::ListForm
                     || construction.container() != SequentialContainerKind::List
                     || Some(construction.container_type()) != typed.symbol_type(source_root)
                     || builtin_type(typed, construction.element_type()) != Some(BuiltinType::Int)
