@@ -10,7 +10,7 @@
 | 基线 | 实际 main `aa42bdc5f1f3172b22f1ff7f708155b1aa077f10`（从020ff草案正常合并） |
 | 分支 | `feature/spec-0327-integer-conversions`；已继承主干0325；不包含未合0326实施 |
 | 规范 | [Guide整数转换](../../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
-| 当前状态 | 六项 tests-only 已准备；未编译、未执行、未实施生产 |
+| 当前状态 | 六项普通前端首轮4红/2初始拒绝控制绿；未实施生产 |
 
 ## 1. 批准范围与依赖
 
@@ -77,3 +77,13 @@ merge拓扑单独登记，不以线性补丁冒充保真恢复。
 
 首轮非法调用/receiver仅锁结构化拒绝并采完整诊断；既有成员缺失不能证明未来专属参数门已闭合。
 const 对照先要求 runtime 成功，失败时不把成员不存在误计 const 白名单通过。
+
+## 6. 首轮真实红证
+
+固定 `72d5afed` / tree `52c55ae8` 串行六 exact 各实际1命中，13输入前后相同；
+64对128入口观察收齐，当前转换均无descriptor，complete拒L0165或L0080。
+四红为全配对、identity、用户同名配对中的整数intrinsic、const配对中的runtime正控；
+用户普通toInt两入口已成功，inv观察已收齐。非法调用/receiver两绿仅证明当前结构化拒绝，
+不能以成员尚不存在证明转换专属参数门完成；const断言尚未越过runtime红，不计白名单通过。
+没有编译/解析/名称前置失败；未运行ownership/native/Abort，后续先冻结精确诊断与接口方案。
+原始收据在仓外 `spec0327-evidence/red6-receipt.json`，不将日志或重复源码入库。
