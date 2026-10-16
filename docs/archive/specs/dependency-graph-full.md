@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，313 份）"]
+subgraph Garchive["已完成（archive，314 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -322,8 +322,6 @@ subgraph Garchive["已完成（archive，313 份）"]
   S0327["S0327<br/>显式 checked 整数转换"]
   S0328["S0328<br/>IntRange / LongRange 普通值首片"]
   S0329["S0329<br/>整数 Range 的 owned 值 for"]
-end
-subgraph Gactive["现行 active"]
   S0330["S0330<br/>while 条件收窄与保守循环流事实"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -1692,6 +1690,6 @@ S0320 --> S0321
 | SPEC-0327 | archive | [0327-checked-integer-conversions.md](0327-checked-integer-conversions.md) |
 | SPEC-0328 | archive | [0328-integer-range-values.md](0328-integer-range-values.md) |
 | SPEC-0329 | archive | [0329-integer-range-iteration.md](0329-integer-range-iteration.md) |
-| SPEC-0330 | active | [0330-while-conservative-flow.md](../../specs/active/0330-while-conservative-flow.md) |
+| SPEC-0330 | archive | [0330-while-conservative-flow.md](0330-while-conservative-flow.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

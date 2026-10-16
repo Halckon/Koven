@@ -1,14 +1,14 @@
 # SPEC-0330: while 条件收窄与保守循环流事实
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：准备 while 的类型流事实实现与验收时 · **唯一真源**：本片实施范围；语义以 Guide 为准
+> **性质**：实施合同 · **状态**：done · **读取时机**：准备 while 的类型流事实实现与验收时 · **唯一真源**：本片实施范围；语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0330` |
 | 基线 | 真实 main `3a79fef25c3e2dc8827a410f96b65f01b3fbb5e2`，已合0329 |
 | 分支 | 本地 `feature/spec-0330-while-flow`；授权远端 `fix/spec-0330-while-flow` |
-| 依赖 | [0325赋值](../../archive/specs/0325-simple-variable-assignment-types.md)、[0326分支合并](../../archive/specs/0326-closed-control-branch-join.md) |
+| 依赖 | [0325赋值](0325-simple-variable-assignment-types.md)、[0326分支合并](0326-closed-control-branch-join.md) |
 | 合同 | [Guide06稳定来源与流事实](../../guide/06-blocks-control-flow.md#类型测试与流事实) |
 
 ## 1. 范围
@@ -746,3 +746,27 @@ Shared loan、owner/root 身份校验保留；unit 每个出口仍核 pending ch
 `c5ad1a46e1d3aa9b4db76bda9538660e554c92f4cb8f160b776919a748629bfb`。
 上述10项未在本地执行；完整双平台 CI 还须复验原78选择及全部52失败，不能据本轮
 本地恢复声称 CI 全绿。PR116 尚待真实 CI、归档与正常合并，F 实施继续等待。
+
+
+### 实现 CI 完成与有界归档
+
+修复实现远端 `3b81de339b147124bd73e6e2ec620caa4ae68a6a`，tree
+`4d7ccb07a187da78b1b2f464cf1e201432e8b6ec`，对应本地 `0b845312`。
+[PR116](https://github.com/Halckon/Koven/pull/116) 的真实实现
+[CI38980642796](https://github.com/Halckon/Koven/actions/runs/38980642796)
+attempt 1 完整 success，reuse=false；15 jobs 实际成功，Tree-sitter 按路径合法 skipped。
+其 synthetic merge `2111df6e830a72d17de612258dc94b99e5632b33` 的双父为原 main
+`3a79fef25c3e2dc8827a410f96b65f01b3fbb5e2` 与上述实现头，tree 与实现头一致。
+
+Linux/macOS 各129个唯一 exact 均实际1次通过：111普通（原69与回归42）及18 CI-only
+（原9私有 guard、7计数插桩、2有意 Abort）。该集合为原78与首轮失败52的并集，
+唯一交集为 unit pending guard；首轮52失败全部恢复，前文失败记录保留。
+终态收据 SHA256 `9f517d8fa1e1cd6ebfc07fc263b209a453bb490c3ad8b86d4e68e235fdb7face`
+由仓外交付审验记录保全，原始日志由该 Actions run 追溯，不将完整 dump 入库。
+校准 Linux pass；macOS 按既有合同 partial（ASan unsupported、leak counter-only），
+两 host clean exit0、premature fault 被 counter_order 捕获；不升级为双平台完整动态检测。
+Preview 四 jobs/steps 成功，未独立审验该轮 artifact，不声称包内容审计完成。
+
+本次按上述真实实现 CI 关闭本 Spec 有界合同，源码冻结，历史限定与未评估组合保留；
+不将代表 native、私有 checkpoint 或 presence 证明外推为完整语言能力。该迁移仅文档，
+归档 head 的合法 CI 复用、PR 正常合并及真实 main 核验仍由交付流程继续；F 实施等待合并。
