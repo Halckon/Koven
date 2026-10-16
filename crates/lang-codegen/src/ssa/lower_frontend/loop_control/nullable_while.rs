@@ -76,7 +76,7 @@ impl ExpressionLowerer<'_> {
 
     /// Real exits must retain the inherited proof. A killed or replaced proof
     /// cannot be reconstructed from the loop's entry record.
-    pub(super) fn validate_readonly_while_exit(
+    pub(in super::super) fn validate_readonly_while_exit(
         &self,
         root: SymbolId,
         inherited: NonNullProof,

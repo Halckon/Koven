@@ -30,6 +30,7 @@ mod non_null_assertion;
 mod non_null_proof;
 mod nullable_comparison;
 mod nullable_if_cleanup;
+mod nullable_numeric_cleanup;
 mod nullable_when;
 pub(super) mod orchestrate;
 mod ownership_primitive;

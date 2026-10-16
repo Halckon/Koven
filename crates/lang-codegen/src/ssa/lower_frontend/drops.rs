@@ -15,6 +15,7 @@ impl ExpressionLowerer<'_> {
             .filter(|fact| fact.point() == point)
             .collect::<Vec<_>>();
         self.preflight_nullable_if_cleanup_groups(&facts)?;
+        self.preflight_nullable_numeric_cleanup(&facts)?;
         self.end_result_bindings(point)?;
         let mut index = 0;
         while index < facts.len() {
@@ -24,6 +25,9 @@ impl ExpressionLowerer<'_> {
             }
             let fact = facts[index];
             index += 1;
+            if self.emit_nullable_numeric_cleanup(fact)? {
+                continue;
+            }
             // Generic ownership facts precede monomorphization. A concrete Copyable
             // instance has no drop obligation; keep its binding/aliases intact.
             let template = match fact.target() {
