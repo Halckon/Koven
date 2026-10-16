@@ -1,6 +1,7 @@
 //! Typed SSA operation 的局部类型契约。
 
 mod integer;
+mod integer_range;
 mod range;
 pub(super) use range::{
     parameter as range_parameter, return_contract as range_return_contract,
@@ -62,6 +63,15 @@ pub(super) fn verify_operation(
         } => binary_contract(module, function, *operator, *left, *right, &results),
         Operation::CheckedArithmetic { left, right, .. } => {
             checked_arithmetic_contract(module, function, *left, *right, &results)
+        }
+        Operation::IntegerRangeConstruct { first, bound, .. } => {
+            integer_range::construct(module, function, *first, *bound, &results)
+        }
+        Operation::IntegerRangeContains { value, range } => {
+            integer_range::contains(module, function, *value, *range, &results)
+        }
+        Operation::IntegerRangeEqual { left, right } => {
+            integer_range::equal(module, function, *left, *right, &results)
         }
         Operation::CheckedIntegerConvert { operand } => {
             integer::checked_conversion_contract(module, function, *operand, &results)

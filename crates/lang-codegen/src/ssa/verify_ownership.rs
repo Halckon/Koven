@@ -359,6 +359,9 @@ fn apply_operation(
         | Operation::StringLiteral { .. }
         | Operation::Binary { .. }
         | Operation::CheckedArithmetic { .. }
+        | Operation::IntegerRangeConstruct { .. }
+        | Operation::IntegerRangeContains { .. }
+        | Operation::IntegerRangeEqual { .. }
         | Operation::CheckedIntegerConvert { .. }
         | Operation::IntegerBitwise { .. }
         | Operation::IntegerNot { .. }

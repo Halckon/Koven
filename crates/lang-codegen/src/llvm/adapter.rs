@@ -442,6 +442,11 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 left,
                 right,
             } => self.lower_checked(*operator, *left, *right, &results)?,
+            Operation::IntegerRangeConstruct { .. }
+            | Operation::IntegerRangeContains { .. }
+            | Operation::IntegerRangeEqual { .. } => {
+                return Err(unsupported("integer Range LLVM is pending"));
+            }
             Operation::CheckedIntegerConvert { operand } => {
                 self.lower_checked_integer_conversion(*operand, &results)?;
             }

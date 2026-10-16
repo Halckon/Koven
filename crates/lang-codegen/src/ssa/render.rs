@@ -412,6 +412,32 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*right))
         }
+        Operation::IntegerRangeConstruct {
+            first,
+            bound,
+            inclusive,
+        } => {
+            write!(
+                output,
+                "integer.range.{} ",
+                if *inclusive { "inclusive" } else { "exclusive" }
+            )?;
+            write_entity_id(output, EntityId::Value(*first))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*bound))
+        }
+        Operation::IntegerRangeContains { value, range } => {
+            output.write_str("integer.range.contains ")?;
+            write_entity_id(output, EntityId::Value(*value))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*range))
+        }
+        Operation::IntegerRangeEqual { left, right } => {
+            output.write_str("integer.range.equal ")?;
+            write_entity_id(output, EntityId::Value(*left))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*right))
+        }
         Operation::CheckedIntegerConvert { operand } => {
             output.write_str("checked.convert ")?;
             write_entity_id(output, EntityId::Value(*operand))
