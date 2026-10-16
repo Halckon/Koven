@@ -112,14 +112,7 @@ fn normal_continue_and_group_conditions_reach_llvm() {
 #[test]
 fn break_return_and_outer_owner_reach_llvm() {
     let broken = resource_break_source();
-    let returned = r#"class Holder(val text: String)
-fun inspect(text: String): Int { println(text); return 7 }
-fun entry(own initial: Holder?): Int {
-    var current: Holder? = initial
-    while (current != null) { return inspect(current.text) }
-    return 0
-}"#
-    .to_owned();
+    let returned = nullable_field_return_source();
     observe("break-return", &[(broken, false), (returned, false)]);
 }
 
@@ -668,4 +661,31 @@ fn owned_local_field_borrow_preserves_unclosed_projection_boundaries() {
             "{error}"
         );
     }
+}
+
+fn nullable_field_return_source() -> String {
+    r#"class Holder(val text: String)
+fun inspect(text: String): Int { println(text); return 7 }
+fun entry(own initial: Holder?): Int {
+    var current: Holder? = initial
+    while (current != null) { return inspect(current.text) }
+    return 0
+}"#
+    .to_owned()
+}
+
+#[test]
+fn nullable_proof_field_child_borrow_reaches_the_synchronous_call() {
+    let returned = nullable_field_return_source();
+    let direct = r#"class Holder(val text: String)
+fun entry(own initial: Holder?): Unit {
+    var current: Holder? = initial
+    while (current != null) { println(current.text); break }
+}"#
+    .to_owned();
+    let grouped = direct.replace("println(current.text)", "println((current.text))");
+    observe(
+        "nullable-field-child",
+        &[(returned, false), (direct, false), (grouped, false)],
+    );
 }
