@@ -66,7 +66,9 @@ helper 仅普通源码经真实 lex/parse/names/raw types/complete API，两入�
 
 运行模板：`cargo test --locked --offline -p lang-frontend --test integer_range_values NAME -- --exact --nocapture --test-threads=1`。
 落 helper 后再冻结 head/tree/输入 SHA 与唯一 exact 清单，独审后按授权执行；串行绝对 target。
-本计划不授权宽 target、聚合、故障注入、校准或 fuzz；编译/名称前置失败不算行为红。
+本计划不授权宽 target、聚合、故障注入、校准或 fuzz；测试自身编译失败不算语言红。
+隐式 `1..2` 表达式事实与显式 IntRange/LongRange 身份分组采证：后者当前名称拒绝可正是
+本片缺身份的真实红，必须保留阶段与完整诊断；只将无关源码拼写/解析错误列为 harness 前置失败。
 
 ## 4. 后续值语义与资源验收
 
