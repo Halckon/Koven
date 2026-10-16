@@ -11,6 +11,7 @@ use crate::{
 use super::{BodyChecker, ExpressionCheck, flow::extend_facts};
 
 pub(super) struct BinaryExpression {
+    pub(super) expression: crate::ast::ExpressionId,
     pub(super) left: crate::ast::ExpressionId,
     pub(super) operator: BinaryOperator,
     pub(super) operator_span: Span,
@@ -101,6 +102,7 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let BinaryExpression {
+            expression,
             left,
             operator,
             operator_span,
@@ -194,6 +196,18 @@ impl BodyChecker<'_> {
                 ty: self.deferred_type(crate::type_checking::DeferredReason::ControlJoin),
                 falls_through: left_result.falls_through && right_result.falls_through,
             });
+        }
+        if let Some(result) = self.finish_integer_range_binary(
+            source,
+            expression,
+            left,
+            right,
+            operator,
+            operator_span,
+            left_result,
+            right_result,
+        )? {
+            return Ok(result);
         }
         let boolean = self.builtin(BuiltinType::Boolean);
         let result = match operator {

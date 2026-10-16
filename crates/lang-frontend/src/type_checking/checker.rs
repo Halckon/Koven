@@ -1,4 +1,5 @@
 use crate::type_checking::IntegerOperationDescriptor;
+use crate::type_checking::IntegerRangeOperationDescriptor;
 mod argument_mapping;
 mod assignment;
 mod callable;
@@ -13,6 +14,7 @@ mod expression;
 mod expression_category;
 mod flow;
 mod integer;
+mod integer_range;
 mod item;
 mod iteration;
 mod layout;
@@ -173,6 +175,7 @@ struct Checker<'a> {
     rc_operations: Vec<RcOperationDescriptor>,
     string_operations: Vec<StringOperationDescriptor>,
     integer_operations: Vec<IntegerOperationDescriptor>,
+    integer_range_operations: Vec<IntegerRangeOperationDescriptor>,
     container_constructions: Vec<ContainerConstructionDescriptor>,
     container_sizes: Vec<ContainerSizeDescriptor>,
     range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
@@ -391,6 +394,7 @@ impl<'a> Checker<'a> {
             rc_operations: Vec::new(),
             string_operations: Vec::new(),
             integer_operations: Vec::new(),
+            integer_range_operations: Vec::new(),
             container_constructions: Vec::new(),
             container_sizes: Vec::new(),
             range_sizes: Vec::new(),
@@ -513,10 +517,13 @@ impl<'a> Checker<'a> {
             self.iterations.clear();
             self.ownership_primitives.clear();
             self.integer_operations.clear();
+            self.integer_range_operations.clear();
         }
         self.ownership_primitives
             .sort_by_key(|fact| fact.expression().index());
         self.integer_operations
+            .sort_by_key(|fact| fact.expression().index());
+        self.integer_range_operations
             .sort_by_key(|fact| fact.expression().index());
         self.iterations.sort_by_key(|plan| plan.statement().index());
         let copyabilities = self.all_copyabilities();
@@ -583,6 +590,7 @@ impl<'a> Checker<'a> {
                 rc_operations: self.rc_operations,
                 string_operations: self.string_operations,
                 integer_operations: self.integer_operations,
+                integer_range_operations: self.integer_range_operations,
                 container_constructions: self.container_constructions,
                 container_sizes: self.container_sizes,
                 range_sizes: self.range_sizes,

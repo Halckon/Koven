@@ -145,6 +145,7 @@ impl Checker<'_> {
                 operator_span,
                 right,
             } => self.check_binary(
+                id,
                 left,
                 operator,
                 operator_span,
@@ -894,8 +895,10 @@ impl Checker<'_> {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_binary(
         &mut self,
+        expression: ExpressionId,
         left: ExpressionId,
         operator: BinaryOperator,
         operator_span: Span,
@@ -976,6 +979,17 @@ impl Checker<'_> {
                 ty: self.deferred(DeferredReason::ControlJoin),
                 falls_through: left_result.falls_through && right_result.falls_through,
             });
+        }
+        if let Some(result) = self.finish_integer_range_binary(
+            expression,
+            left,
+            right,
+            operator,
+            operator_span,
+            left_result,
+            right_result,
+        )? {
+            return Ok(result);
         }
         let boolean = self.builtin(BuiltinType::Boolean);
         let result = match operator {

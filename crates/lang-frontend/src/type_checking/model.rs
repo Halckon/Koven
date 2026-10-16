@@ -1,5 +1,5 @@
 mod callable_descriptor;
-use crate::type_checking::IntegerOperationDescriptor;
+use crate::type_checking::{IntegerOperationDescriptor, IntegerRangeOperationDescriptor};
 pub use callable_descriptor::CallableDescriptor;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -1086,6 +1086,7 @@ pub struct TypedFile {
     rc_operations: Vec<RcOperationDescriptor>,
     string_operations: Vec<StringOperationDescriptor>,
     integer_operations: Vec<IntegerOperationDescriptor>,
+    integer_range_operations: Vec<IntegerRangeOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
     pub(crate) range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
@@ -1126,6 +1127,7 @@ pub(crate) struct TypedFileParts {
     pub(crate) rc_operations: Vec<RcOperationDescriptor>,
     pub(crate) string_operations: Vec<StringOperationDescriptor>,
     pub(crate) integer_operations: Vec<IntegerOperationDescriptor>,
+    pub(crate) integer_range_operations: Vec<IntegerRangeOperationDescriptor>,
     pub(crate) container_constructions: Vec<ContainerConstructionDescriptor>,
     pub(crate) container_sizes: Vec<ContainerSizeDescriptor>,
     pub(crate) range_sizes: Vec<super::RangeSizeDescriptor<ExpressionId, TypeId>>,
@@ -1183,6 +1185,7 @@ impl TypedFile {
             rc_operations: parts.rc_operations,
             string_operations: parts.string_operations,
             integer_operations: parts.integer_operations,
+            integer_range_operations: parts.integer_range_operations,
             container_constructions: parts.container_constructions,
             container_sizes: parts.container_sizes,
             range_sizes: parts.range_sizes,
@@ -1424,6 +1427,20 @@ impl TypedFile {
     #[must_use]
     pub fn integer_operations(&self) -> &[IntegerOperationDescriptor] {
         &self.integer_operations
+    }
+
+    /// Numeric Range facts in stable expression order.
+    pub fn integer_range_operations(&self) -> &[IntegerRangeOperationDescriptor] {
+        &self.integer_range_operations
+    }
+    /// Query one numeric Range operation by source identity.
+    pub fn integer_range_operation(
+        &self,
+        expression: ExpressionId,
+    ) -> Option<&IntegerRangeOperationDescriptor> {
+        self.integer_range_operations
+            .iter()
+            .find(|fact| fact.expression() == expression)
     }
 
     /// 查询已绑定 receiver 的显式 Integer 操作。
