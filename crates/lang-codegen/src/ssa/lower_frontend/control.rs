@@ -1,6 +1,7 @@
 //! `if` 与短路 Boolean 表达式的 CFG 和 block-parameter lowering。
 
 mod carried;
+mod proof_join;
 
 use std::collections::BTreeMap;
 
@@ -224,6 +225,7 @@ impl ExpressionLowerer<'_> {
         if self.expression_is_unit(expression, span)? {
             discard_exit_results(&mut exits);
         }
+        self.retire_non_common_if_while_proofs(&mut exits, span)?;
         self.merge_exits(exits, &baseline, span)
     }
 
