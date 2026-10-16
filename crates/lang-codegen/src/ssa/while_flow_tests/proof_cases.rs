@@ -276,13 +276,38 @@ fun entry(own initial: Holder?, own other: Holder?): Int {
 /// is required here. The full dual-entrance matrix above remains the final contract.
 #[test]
 fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
+    let outcomes = direct_proof_observations();
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if index % 2 == 0 {
+            let program =
+                result.expect("single direct nullable while has a real per-iteration proof");
+            direct_contract::assert_direct_proof(&program, index / 2);
+        }
+    }
+}
+
+#[test]
+fn unit_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
+    let outcomes = direct_proof_observations();
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if index % 2 == 1 {
+            result.expect("unit direct nullable while reaches verified LLVM");
+        }
+    }
+}
+
+fn direct_proof_sources() -> [String; 5] {
     let normal =
         holder("while (current != null) { total = current.value\ncurrent = null }\nreturn total");
     let continued = normal.replace("current = null }", "current = null\ncontinue }");
     let grouped = continued.replace("while (current != null)", "while (((current) != null))");
     let broken = holder("while (current != null) { total = current.value\nbreak }\nreturn total");
     let returned = holder("while (current != null) { return current.value }\nreturn total");
-    let sources = [normal, continued, grouped, broken, returned];
+    [normal, continued, grouped, broken, returned]
+}
+
+fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>> {
+    let sources = direct_proof_sources();
     let observations = collect_sources(&sources);
     assert_eq!(observations.len(), sources.len() * 2);
     let outcomes = observations
@@ -304,13 +329,7 @@ fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
             result
         })
         .collect::<Vec<_>>();
-    for (index, result) in outcomes.into_iter().enumerate() {
-        if index % 2 == 0 {
-            let program =
-                result.expect("single direct nullable while has a real per-iteration proof");
-            direct_contract::assert_direct_proof(&program, index / 2);
-        }
-    }
+    outcomes
 }
 
 #[path = "direct_contract.rs"]
