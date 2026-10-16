@@ -278,3 +278,6 @@ fn verify_last_enum_read_precedes_drop(program: &super::model::Program) -> Resul
     }
     Ok(())
 }
+
+#[path = "while_flow_tests/proof_cases.rs"]
+mod proof_cases;
