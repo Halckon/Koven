@@ -769,7 +769,7 @@ fn when_context_and_coverage_diagnostics_are_deterministic() {
 }
 
 #[test]
-fn subjectless_when_requires_boolean_conditions_and_known_branches_join_to_any() {
+fn subjectless_when_requires_boolean_conditions_and_explicit_any_context() {
     let invalid = "fun invalid(): Int = when { 1 -> 1; else -> 0 }";
     let (sources, _, _, typed) = checked(invalid);
     assert_eq!(codes(typed.diagnostics()), ["L0107"]);
@@ -789,7 +789,7 @@ fn subjectless_when_requires_boolean_conditions_and_known_branches_join_to_any()
 }
 
 #[test]
-fn when_branch_join_handles_nothing_nullable_enum_cases_and_any() {
+fn when_branch_join_handles_nothing_nullable_enum_cases_and_rejects_mixed() {
     let text = "enum class Choice { First, Second }
                 fun joins(flag: Boolean, optional: Int?, choice: Choice): Unit {
                     val nullable = when (flag) { true -> 1; false -> optional }
@@ -804,7 +804,7 @@ fn when_branch_join_handles_nothing_nullable_enum_cases_and_any() {
                     false -> 2
                 }";
     let (_, _, names, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    assert_eq!(codes(typed.diagnostics()), ["L0112"]);
 
     let symbol_type = |name: &str| {
         let symbol = names
@@ -823,10 +823,7 @@ fn when_branch_join_handles_nothing_nullable_enum_cases_and_any() {
             if matches!(typed.types().get(*inner), Some(TypeKind::Builtin(BuiltinType::Int)))
     ));
     assert!(matches!(symbol_type("root"), TypeKind::Nominal { .. }));
-    assert!(matches!(
-        symbol_type("mixed"),
-        TypeKind::Builtin(BuiltinType::Any)
-    ));
+    assert!(matches!(symbol_type("mixed"), TypeKind::Error));
 }
 
 #[test]
