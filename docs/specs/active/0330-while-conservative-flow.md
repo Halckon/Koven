@@ -110,3 +110,10 @@ unit 在 `current = null` 返回 MissingFact；nullable return 两入口返回 I
 收据 SHA `3bb47b4a3ac385bfaa219a1dbd66ab96a688222d73fb65da14586e8fc2a72054`。
 下一定位片仅在既有 verify 失败路径以 cfg(test) 打印真实错误与 SSA；不修改事实、
 验证次数或错误传播。定位后撤下该临时追踪，再以普通源码回归验收。
+
+`66b6de30` 同一 exact 的只读追踪采齐 8 结果后仍行为红；两入口 InvalidSsa
+均为 `current.value` 的 HeapPayloadPlace 使用 NullableHandle 而非非空 owner/view，
+verifier 返回 OperationContract。未观察到该 case 的 cleanup/dominance 错误，不能据此
+假定后续均无缺口。追踪收据 SHA
+`8e68412313915992195e0da89c6a41d73db7e684ccd8928ebeada0834a9d08b5`；
+本次定位后已撤下全部临时日志，两 orchestrate 恢复采证前字节。
