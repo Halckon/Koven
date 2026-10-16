@@ -115,6 +115,15 @@ impl ExpressionLowerer<'_> {
             owner(relation.root).ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
         let items =
             owner(relation.items).ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+        let mut columns = Columns {
+            block: state.block,
+            entities: vec![
+                EntityId::Value(current),
+                EntityId::Value(items),
+                EntityId::Loan(source),
+                EntityId::Loan(element),
+            ],
+        };
         if state.for_sources.len() != 1 || state.for_elements.len() != 1
             || state.borrow_bindings.get(&relation.item) != Some(&element)
             || !state.temporaries.is_empty() || !state.loans.is_empty() || !state.capture_loans.is_empty()
@@ -122,8 +131,7 @@ impl ExpressionLowerer<'_> {
             || state.borrow_bindings.iter().any(|(&symbol, &loan)| symbol != relation.item
                 && (!self.is_entry_loan(loan) || !matches!(self.function.entity(EntityId::Loan(loan)).map(|entity| entity.ty),
                     Some(EntityType::Loan { kind: LoanKind::Shared, target }) if self.ssa_types.get(target.index()) == Some(&SsaTypeKind::Boolean))))
-            || !transport(self.function, Columns { block: state.block, entities: vec![EntityId::Value(current), EntityId::Value(items), EntityId::Loan(source), EntityId::Loan(element)] },
-                &provider.body, None, guard.as_ref())
+            || !transport(self.function, columns.clone(), &provider.body, None, guard.as_ref())
         { return Err(error(LoweringErrorKind::UnsupportedNode, span)); }
         if allow_view {
             let guard = guard.ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
@@ -132,10 +140,10 @@ impl ExpressionLowerer<'_> {
                 .get(&relation.root)
                 .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
             self.validate_non_null_proof(relation.root, *proof, &state.bindings, span)?;
+            columns.entities.push(EntityId::Loan(proof.loan));
             if state.views.len() != 1
-                || state.block != guard.when_non_null
-                || proof.loan != guard.view
                 || proof.while_origin() != Some((relation.inner, guard.view))
+                || !transport(self.function, columns, &guard.non_null, None, None)
                 || self
                     .function
                     .block(state.block)

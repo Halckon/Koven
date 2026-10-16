@@ -13,6 +13,7 @@ pub(super) struct Guard {
     pub(super) view: LoanId,
     pub(super) when_null: BlockId,
     pub(super) when_non_null: BlockId,
+    pub(super) non_null: Columns,
 }
 pub(super) fn parameter(function: &Function, entity: EntityId) -> Option<(BlockId, usize)> {
     let Definition::BlockParameter { block, index } = function.entity(entity)?.definition else {
@@ -94,6 +95,18 @@ pub(super) fn transport(
     allowed_end: Option<(BlockId, LoanId)>,
     guard: Option<&Guard>,
 ) -> bool {
+    transport_states(function, current, anchor, allowed_end, guard).is_some()
+}
+
+/// Preserve the checked columns at every predecessor so final cleanup can pair
+/// the actual break alias with the same owner/provider path, not a birth ID.
+pub(super) fn transport_states(
+    function: &Function,
+    current: Columns,
+    anchor: &Columns,
+    allowed_end: Option<(BlockId, LoanId)>,
+    guard: Option<&Guard>,
+) -> Option<BTreeSet<Columns>> {
     let mut graph = BTreeMap::<Columns, Vec<Columns>>::new();
     let mut pending = vec![current];
     while let Some(state) = pending.pop() {
@@ -107,10 +120,10 @@ pub(super) fn transport(
                         != function.entity(anchor.entities[index]).map(|data| data.ty)
             })
         {
-            return false;
+            return None;
         }
         let Some(ops) = instructions(function, state.block) else {
-            return false;
+            return None;
         };
         for instruction in ops {
             match instruction.operation {
@@ -118,10 +131,10 @@ pub(super) fn transport(
                     if state.entities.contains(&EntityId::Loan(loan))
                         && allowed_end != Some((state.block, loan)) =>
                 {
-                    return false;
+                    return None;
                 }
                 Operation::Drop { owner } if state.entities.contains(&EntityId::Value(owner)) => {
-                    return false;
+                    return None;
                 }
                 _ => {}
             }
@@ -139,11 +152,11 @@ pub(super) fn transport(
             })
             .collect::<Option<Vec<_>>>()
         else {
-            return false;
+            return None;
         };
         let predecessors = incoming(function, state.block);
         if predecessors.is_empty() {
-            return false;
+            return None;
         }
         let mut parents = Vec::new();
         for (block, edge) in predecessors {
@@ -165,7 +178,7 @@ pub(super) fn transport(
                         && guard.when_null == when_null.target
                         && guard.when_non_null == when_non_null.target
                 }) => {}
-                _ => return false,
+                _ => return None,
             }
             let Some(entities) = columns
                 .iter()
@@ -181,7 +194,7 @@ pub(super) fn transport(
                 })
                 .collect::<Option<Vec<_>>>()
             else {
-                return false;
+                return None;
             };
             let parent = Columns { block, entities };
             parents.push(parent.clone());
@@ -190,7 +203,7 @@ pub(super) fn transport(
         graph.insert(state, parents);
     }
     if !graph.contains_key(anchor) {
-        return false;
+        return None;
     }
     let mut anchored = BTreeSet::from([anchor.clone()]);
     loop {
@@ -201,7 +214,7 @@ pub(super) fn transport(
             }
         }
         if before == anchored.len() {
-            return anchored.len() == graph.len();
+            return (anchored.len() == graph.len()).then_some(anchored);
         }
     }
 }

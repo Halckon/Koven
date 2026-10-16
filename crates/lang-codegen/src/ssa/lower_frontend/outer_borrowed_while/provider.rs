@@ -1,6 +1,6 @@
 //! Actual provider and nullable-branch births; no loan is identified by type alone.
 use super::carrier::{
-    Columns, Guard, forward, incoming, instructions, parameter, result, transport,
+    Columns, Guard, forward, incoming, instructions, parameter, result, transport, transport_states,
 };
 use super::*;
 use crate::ssa::model::{BinaryOperator, Instruction, SsaTypeKind};
@@ -341,7 +341,7 @@ pub(super) fn guard(
     if !transport(function, header.clone(), &provider.body, None, None) {
         return None;
     }
-    let yes = forward(function, when_non_null, &header.entities)?;
+    let mut yes = forward(function, when_non_null, &header.entities)?;
     let no = forward(function, when_null, &header.entities)?;
     let target = function.block(yes.block)?;
     let storage = *lowerer.type_ids.get(&relation.storage)?;
@@ -368,12 +368,14 @@ pub(super) fn guard(
     {
         return None;
     }
+    yes.entities.push(EntityId::Loan(view));
     Some(Guard {
         header: block,
         owner,
         view,
         when_null: no.block,
         when_non_null: yes.block,
+        non_null: yes,
     })
 }
 
@@ -431,16 +433,16 @@ pub(super) fn completed_backedge(
     if end.origin != Origin::Source(span)
         || edge.arguments.contains(&EntityId::Loan(element))
         || edge.arguments.contains(&EntityId::Loan(guard.view))
-        || !transport(
-            function,
-            Columns { block, entities },
-            &provider.body,
-            Some((block, element)),
-            Some(&guard),
-        )
     {
         return None;
     }
+    let carried = transport_states(
+        function,
+        Columns { block, entities },
+        &provider.body,
+        Some((block, element)),
+        Some(&guard),
+    )?;
     let length = parameter(function, EntityId::Value(provider.length))?.1;
     let cursor = parameter(function, EntityId::Value(provider.cursor))?.1;
     let next = result(function, *edge.arguments.get(cursor)?)?;
@@ -458,13 +460,8 @@ pub(super) fn completed_backedge(
     {
         return None;
     }
-    // The inner true path ends exactly its new proof before reaching the merge.
-    let yes = instructions(function, guard.when_non_null)?;
-    let end_view = unique(
-        yes.iter()
-            .copied()
-            .filter(|op| matches!(op.operation, Operation::BorrowEnd { .. })),
-    )?;
+    // Checked scalar operations rebind all five columns. Locate the real break
+    // block and trace its current view together with its owner and provider.
     let break_span = lowerer
         .parsed
         .ast()
@@ -472,8 +469,43 @@ pub(super) fn completed_backedge(
         .get(relation.breaking)
         .ok()?
         .span();
-    if end_view.operation != (Operation::BorrowEnd { loan: guard.view })
-        || end_view.origin != Origin::Source(break_span)
+    let end_view = unique(
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter_map(|id| function.instruction(*id))
+            .filter(|op| {
+                op.origin == Origin::Source(break_span)
+                    && matches!(op.operation, Operation::BorrowEnd { .. })
+            }),
+    )?;
+    let Operation::BorrowEnd { loan: view } = end_view.operation else {
+        return None;
+    };
+    let mut breaking =
+        unique(carried.iter().filter(|state| state.block == end_view.block))?.clone();
+    let TerminatorKind::Branch(merge_edge) =
+        &function.block(breaking.block)?.terminator.as_ref()?.kind
+    else {
+        return None;
+    };
+    let merged = forward(function, merge_edge, &breaking.entities)?;
+    breaking.entities.push(EntityId::Loan(view));
+    if merge_edge.arguments.contains(&EntityId::Loan(view))
+        || edge.arguments.contains(&EntityId::Loan(view))
+        || function
+            .block(merged.block)?
+            .parameters
+            .iter()
+            .any(|entity| matches!(entity, EntityId::Loan(_)) && !merged.entities.contains(entity))
+        || !transport(
+            function,
+            breaking,
+            &guard.non_null,
+            Some((end_view.block, view)),
+            None,
+        )
         || instructions(function, guard.when_null)?.iter().any(|op| {
             matches!(
                 op.operation,

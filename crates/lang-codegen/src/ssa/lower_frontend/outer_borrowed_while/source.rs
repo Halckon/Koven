@@ -143,7 +143,7 @@ pub(super) fn qualify(
                     || *kind != VariableKind::Val
                     || leaf != initializer
                     || descriptor.expression() != leaf
-                    || descriptor.kind() != ContainerConstructionKind::ListOf
+                    || descriptor.kind() != ContainerConstructionKind::ListForm
                     || descriptor.container() != SequentialContainerKind::List
                     || Some(descriptor.container_type()) != typed.symbol_type(items)
                     || builtin_type(typed, descriptor.element_type()) != Some(BuiltinType::Int)
