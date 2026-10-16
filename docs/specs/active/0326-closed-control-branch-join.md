@@ -171,3 +171,12 @@ CI接线为`check_stage_integration.sh`新增本target，既有type_checking/mul
 仓外 `main-sync18-receipt.json`、`engineering-main-sync18-receipt.json` 保存结果。
 抽取初次fmt仅报告子文件末尾多余空行，修正后统一四工程通过；未改变测试体或生产语义。
 本地真实输入与远端CI继续分账，发布后的实际head仍须双host验证，Spec保持active。
+
+PR112 implementation run `38835221595` 的Docs门禁发现命令组合预算仍为105，新增
+control_branch_join后实际106；该轮Targeted全部skip，未运行A18。真实remote `0027aa6c`
+上的唯一 `CompositionContracts.test_selection_is_unique_and_bounded` 本地先红，
+修复 `0233c049` 仅预算精确改106并锁新增target恰1，保留原唯一性/顺序/调用数断言。
+同一exact再绿（Ran1）；它以临时cargo/python3 stub记录成功路径命令，不执行实际Cargo，
+FAIL_MATCH空且未运行邻近故障传播测试。5输入前后一致，docs与实际base尺寸检查通过。
+原Rust源码/测试未改，复用225cc的18+4同字节证据，不声称0233再次运行18。
+仓外selection-contract红/绿收据分别保留，修复后远端CI仍待实际head验证。
