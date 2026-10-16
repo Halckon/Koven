@@ -452,3 +452,38 @@ BorrowEnd；所有非空前缀仍走旧门，unit 对照完整 Unsupported159..1
 仅注册一次既有 bounded runner，0329/0330 子模块复用；旧 numeric native 未重跑，
 仅当前 while native 与 all-targets 编译检查该接线。本阶段仍仅分支备份，剩十路
 lower、全合同回归及远端 CI/PR 未完成，不以代表 native 绿代替完整 C。
+
+### pending String child 的只读嵌套运输与有界执行
+
+在 `44b7129d` 固定原 pending 正例及仅内层 guard 加 Group 的对照，双入口四路均
+在 inner while 处 Unsupported；首红收据
+`e5694cf3fb7be5828fba01c667a7e7f0ff7a251837379c69df4b334ee9a8fc78`。
+本片复用已有 pending loan/operand 槽，只有真实 SharedHeapFieldLoan 出生才登记
+call、argument、root、parent origin、field/target 关联。single 原 pending 表快照
+携带完整记录；unit frame 进入 BranchExit/condition/兄弟快照，并在提交后随
+LoweredCallArguments 保留到原 BorrowEnd。每条实际 edge/merge 核 owner、parent、
+child 对应列；不从首出口或旧出生 LoanId 恢复当前实体，不新增 SSA 参数。
+特许仅同根只读、一个普通 source 调用的单字段 child；写根、新出生、parent 退休
+及未知 carrier 仍守原严格门。调用后先 end child，真实后用读取 parent，再 end
+parent/drop 对应 owner。原写冲突唯一 L0135 及完整 primary/loan label 断言保留。
+
+固定 `13b6c0ae` 普通 27 exact 各 1 真绿，119 输入逐轮前后稳定，收据
+`940e8e3b4eedf0ef6247257753c220cd6dee2b3247f0b08188a9d91d77aabc95`。
+新四路 SSA/LLVM 及真实三列、if/inner 分支、调用和清理身份 oracle 完整通过。
+保留执行前发现并修正的 oracle 误禁：合法 Borrow Boolean flag 的 Read 不属于
+String child 复制；现仅限制实际 child Read/对应 StringOwner 结果，未改生产来
+迎合该断言。只读 retain 谓词也不能改写 loan 而遗留出生证据。
+
+新完整 pending fixture 先双入口 LLVM 真绿，再 single/project 各一次 build/run；
+true/false/null 输入的独立结果为 94/106/0，严格六行 stdout、空 stderr、exit0，
+每个进入的外 while 直接 return、内 while 直接 break。连同旧代表程序共四个
+native exact 各 1 通过，收据
+`37e724fb105516cdaac3cc73729de3a787ff3db71d650ef173c273988dcdc245`。
+输出由已审 helper 字节断言证明，没有独立子进程日志；十秒仅限自身 run。
+原六组四绿两行为红，38 观察为 24/8/4/2，收据
+`419490751688ca7fae5e735f132d15fcde9bc4adf7e375db54bae9b7833bc47b`；
+结合同 head owner-return 四路，原 42 现为 28 成功、8 lower、4 complete、2 ownership。
+四工程原 argv 全 exit0、119 输入稳定，收据
+`24b0af7e013bfab4d2862a7a6f2c70a9c8d33cdf9e304e8b6f733beead75c6f5`。
+剩余 lower 为 if 写后重检两路、numeric for 两路、borrowed for 内外嵌套四路；
+本片仅分支增量备份，完整 C、远端 CI 与完成 PR 仍待闭合。
