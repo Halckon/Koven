@@ -117,3 +117,16 @@ verifier 返回 OperationContract。未观察到该 case 的 cleanup/dominance �
 假定后续均无缺口。追踪收据 SHA
 `8e68412313915992195e0da89c6a41d73db7e684ccd8928ebeada0834a9d08b5`；
 本次定位后已撤下全部临时日志，两 orchestrate 恢复采证前字节。
+
+最小 nullable 对照 `e5b47ab5` 采齐 8 个入口，仅观测 exact 完成：无 while 的
+nullable 构造局部在两入口各拒绝，参数来源转局部再赋 null 两入口 SSA 通过；
+同参数来源在 while 内只赋 null 的 single 通过、unit 在 while span 返回 MissingFact；
+字段读取后 return 两入口 InvalidSsa。该组不记作 8 个能力正例；原 `3561d220`
+因静态发现 println(Int) 不符现有 String 签名未执行，先更正源码再采证。
+观测收据 SHA `08b936366900885203ebe02c4afdae3b0e9a4224122b4876ae31b27ea3fa9761`。
+
+`760facd5` 仅让 unit 普通 Name 赋值消费、核验真实 assignment descriptor 的
+声明/storage 类型，保留 RHS 转移、drop 与旧 owner guard。原 full4 与对照4
+同 head 复验：完整 nullable continue 的 unit 越过赋值 MissingFact 到 InvalidSsa，
+其余停点不变；新增 InvalidSsa 尚待具体错误确认，不直接断言与旧 proof 错误同根。
+收据 SHA `c573f945ce37bc2acd5921d7de7e943a09652fb0aeea5f20b88ae9e3ed858542`。
