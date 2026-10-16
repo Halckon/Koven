@@ -162,3 +162,9 @@ LLVM候选`c8e797a4`从原source符号扩展/零扩展到内部i128，比较目�
 共256调用，以及动态同帧live/pending/borrow与receiver一次均按73行stdout/exit0严格断言。
 不计独立导出的子进程日志、不外推析构顺序；越界Abort尚未执行。新增FE integration target
 checked_integer_conversion仅1项，composition精确预算106→107并保留唯一性，待独立exact验收。
+
+最终候选分账：普通本地21exact=6FE+5inv+6SSA/LLVM+2成功native+2原checked算术回归；
+CI-only另有两入口各9个普通越界Abort及1个畸形SSA verifier负矩阵，本地仅编译不调用。
+Abort helper仅子进程禁core、10秒后kill/reap自身Child，断原生SIGABRT/before且无after；
+无stderr/drop保证。composition成功stub唯一exact已实际Ran1/OK，107target各唯一；
+旧Unsupported拒绝测试已逐项改为真实LLVM成功，源码无遗留旧转换拒绝oracle。最终统一验证待跑。

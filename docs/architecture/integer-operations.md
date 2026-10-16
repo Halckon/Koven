@@ -33,3 +33,14 @@ LLVM shift 先对 count 与 W-1 相与；signed shr 使用算术右移，unsigne
 单文件普通整数索引 value lowering 与 source member call 尚未支持，裸索引/普通方法与 inv 的对照负例固定这些边界；unit 入口保留借用/命名 List 元素取反及普通源码 inv 方法正例。
 
 两 native 入口各以 304 个二元、40 个取反边界检查结果，六组 eager operand 验证顺序与一次求值；48 组三方对照核验 const/runtime 与独立十进制 oracle。Guide Litmus12 原样提取并通过两 native 入口运行。
+
+## Checked 整数转换（SPEC-0327 实施中）
+
+`integer_operations` 另发布 CheckedConvert 与独立 receiver/result type；完整8×8及identity
+复用真实调用/AST身份，const、非整数与用户同名分派边界保留。两个lower入口生成
+`CheckedIntegerConvert(operand)` 的目标整数/Boolean双结果，沿各自checked CFG保留
+owner/loan/pending operand运输并把failed送Abort。verifier不接受任意位宽或错误结果型。
+LLVM从原source按符号扩展/零扩展到内部i128，先比较目标闭界再生成截断暂值，失败值
+不交付；i128不进入语言类型或ABI。Linux云single/project成功native已覆盖64对交集边界、
+receiver一次及有限资源控制；越界Abort和畸形SSA负例目前仅编写交CI，尚未在此阶段验收。
+准确实跑head、历史失败及未完成项见[active SPEC-0327](../specs/active/0327-checked-integer-conversions.md)。
