@@ -9,9 +9,9 @@
 | 所属 Phase | Phase 2；不倒置 final admission 与 ownership |
 | 语言规范 | [Guide 分支类型](../../guide/06-blocks-control-flow.md#valuestatement-context-与分支类型) |
 | 基线 | Guide `be3264bc7143fdddb160ce77039fb902694d0d77`；独立于 0325 实现分支 |
-| 分支依赖 | stacked Guide PR110；尚未主干交付，不重复发布 Guide 提交 |
+| 分支依赖 | Guide已合主干；从真实A远端正常合入main aa42bdc5的0325交付 |
 | 批准范围 | 用户已启用 v0.44 A 及封闭 join 细则；实施与验收分别推进 |
-| 当前状态 | 本地18exact与4工程已验收；待独审、发布及远端CI |
+| 当前状态 | 合B后本地39exact与4工程已验收；待联合发布head远端CI |
 
 ## 1. 最小范围
 
@@ -180,3 +180,14 @@ control_branch_join后实际106；该轮Targeted全部skip，未运行A18。真�
 FAIL_MATCH空且未运行邻近故障传播测试。5输入前后一致，docs与实际base尺寸检查通过。
 原Rust源码/测试未改，复用225cc的18+4同字节证据，不声称0233再次运行18。
 仓外selection-contract红/绿收据分别保留，修复后远端CI仍待实际head验证。
+
+## 8. 合入0325后的联合验收
+
+真实A `12ee0932` 与已归档0325的main `aa42bdc5` 正常合并为
+`464309d64e1d366dc417d68f8dea3805d9b227fc` / tree `61ec756b71304350b251650dcd2830140d6665f2`。
+十处冲突仅CLI双方测试追加、当前索引/事实与四图；生产保留B storage/readonly和A join/null/Deferred。
+同head串行39exact=原B21+A18，均各1命中通过，65输入SHA前后一致；原4工程全通过，
+实际baseaa42尺寸门禁、唯一composition成功路径exact及docs检查通过。
+仓外joint39与engineering-joint39收据保留逐项真实结果；未运行本地聚合/故障邻项。
+前置A run38836199049在12ee双host18/CI成功，仅为合B之前证据；Preview只核job/步骤。
+联合发布head仍须新的实际CI成功后归档，不以前置CI替代；0325归档正文保留历史，0326仍active。
