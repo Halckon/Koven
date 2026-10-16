@@ -1,6 +1,5 @@
 //! SPEC-0330 ordinary while flow; bounded successful source only.
-#[path = "../support/numeric_iteration_run.rs"]
-mod bounded_run;
+use super::bounded_iteration_run as bounded_run;
 
 use super::{OsStr, TestDirectory, fs, run};
 

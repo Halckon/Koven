@@ -1,6 +1,5 @@
 //! SPEC-0330 project counterpart for bounded while flow and cleanup.
-#[path = "../support/numeric_iteration_run.rs"]
-mod bounded_run;
+use super::bounded_iteration_run as bounded_run;
 
 use super::{TestProject, assert_no_build_temporaries, project_build};
 
