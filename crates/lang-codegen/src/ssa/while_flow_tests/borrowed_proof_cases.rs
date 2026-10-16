@@ -9,6 +9,8 @@ use super::{collect_sources, holder, verify_program};
 
 #[path = "borrowed_proof_contract.rs"]
 mod borrowed_proof_contract;
+#[path = "outer_borrowed_proof_contract.rs"]
+mod outer_borrowed_proof_contract;
 
 struct Spans {
     outer: Span,
@@ -18,6 +20,18 @@ struct Spans {
     continued: Span,
     bindings: [Span; 2],
     members: [Span; 2],
+}
+
+struct OuterSpans {
+    outer: Span,
+    inner: Span,
+    construct: Span,
+    bindings: [Span; 2],
+    member: Span,
+    items: [Span; 2],
+    additions: [Span; 3],
+    broken: Span,
+    returned: Span,
 }
 
 pub(super) fn borrowed_for_inside_while_source() -> String {
@@ -84,6 +98,10 @@ fn observe_borrowed_sources(relation: &str, sources: &[String; 2]) {
             let unit = index % 2 == 1;
             let spans = source_spans(&sources[index / 2], unit);
             borrowed_proof_contract::assert_borrowed_proof(&program, &spans, unit);
+        } else {
+            assert_eq!(relation, "while-inside-for");
+            let spans = outer_source_spans(&sources[index / 2], index % 2 == 1);
+            outer_borrowed_proof_contract::assert_outer_borrowed(&program, &spans);
         }
     }
 }
@@ -166,4 +184,101 @@ fn only<T>(mut values: impl Iterator<Item = T>) -> T {
     let value = values.next().expect("one real source node");
     assert!(values.next().is_none(), "source node is unique");
     value
+}
+
+fn outer_source_spans(source: &str, unit: bool) -> OuterSpans {
+    let text = if unit {
+        format!("package p\n{source}")
+    } else {
+        source.to_owned()
+    };
+    let mut sources = SourceMap::new();
+    let id = sources.add_source("outer-borrowed.ko", &text).unwrap();
+    let lexed = lex(&sources, id).unwrap();
+    assert!(lexed.diagnostics().is_empty());
+    let file = parse_file(&sources, &lexed).unwrap();
+    assert!(file.diagnostics().is_empty());
+    let ast = file.ast();
+    let inner = only(ast.statements().iter().filter_map(|(_, node)| {
+        matches!(node.payload(), Statement::While { .. }).then_some(node.span())
+    }));
+    let (outer, mut source) = only(ast.statements().iter().filter_map(|(_, node)| {
+        let Statement::For { source, .. } = node.payload() else {
+            return None;
+        };
+        Some((node.span(), *source))
+    }));
+    assert!(outer.start() < inner.start() && inner.end() < outer.end());
+    while let Expression::Group { expression } = ast.expressions().get(source).unwrap().payload() {
+        source = *expression;
+    }
+    let source = ast.expressions().get(source).unwrap();
+    assert!(matches!(source.payload(), Expression::Name));
+    assert_eq!(&text[source.span().start()..source.span().end()], "items");
+    let bindings = ["current", "items"].map(|expected| {
+        only(ast.items().iter().filter_map(|(_, node)| {
+            let Item::Variable {
+                name: NameMarker::Present(span),
+                ..
+            } = node.payload()
+            else {
+                return None;
+            };
+            (&text[span.start()..span.end()] == expected).then_some(*span)
+        }))
+    });
+    let expression = |predicate: fn(&Expression) -> bool| {
+        only(
+            ast.expressions()
+                .iter()
+                .filter_map(|(_, node)| predicate(node.payload()).then_some(node.span())),
+        )
+    };
+    let construct = expression(|node| matches!(node, Expression::Call { .. }));
+    let member = expression(|node| matches!(node, Expression::Member { .. }));
+    let broken = expression(|node| matches!(node, Expression::Break { .. }));
+    let returned = expression(|node| matches!(node, Expression::Return { .. }));
+    let mut items = ast
+        .expressions()
+        .iter()
+        .filter_map(|(_, node)| {
+            (matches!(node.payload(), Expression::Name)
+                && &text[node.span().start()..node.span().end()] == "item")
+                .then_some(node.span())
+        })
+        .collect::<Vec<_>>();
+    items.sort_by_key(|span| span.start());
+    let [inner_item, post_item] = items.as_slice() else {
+        panic!("two real item uses")
+    };
+    assert!(inner.start() < inner_item.start() && inner_item.end() < member.start());
+    assert!(member.end() < broken.start() && broken.end() < inner.end());
+    assert!(inner.end() < post_item.start() && post_item.end() < outer.end());
+    assert!(outer.end() < returned.start());
+    let additions = ast
+        .expressions()
+        .iter()
+        .filter_map(|(_, node)| {
+            matches!(
+                node.payload(),
+                Expression::Binary {
+                    operator: lang_frontend::parser::BinaryOperator::Add,
+                    ..
+                }
+            )
+            .then_some(node.span())
+        })
+        .collect::<Vec<_>>();
+    let additions: [Span; 3] = additions.try_into().expect("three source additions");
+    OuterSpans {
+        outer,
+        inner,
+        construct,
+        bindings,
+        member,
+        items: [*inner_item, *post_item],
+        additions,
+        broken,
+        returned,
+    }
 }
