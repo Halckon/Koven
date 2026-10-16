@@ -126,3 +126,7 @@ receiver call结果身份、carry/rebind及i128原值界限谓词在接口冻结
 后端拟复用checked双结果(value,failed)和原成功/Abort CFG；先以source数学值判界，
 LLVM内部i128不进入语言/ABI，失败result不得交付。native成功及有界Abort另审名单。
 新增FE target接CI时同步唯一/精确预算composition断言，实际base尺寸门禁不可省略。
+
+`eb26265f`后端首4exact各1命中真实红，29输入同；128/2/4/128次双入口观察均
+在转换调用span返回UnsupportedNode，FE/ownership前置均通过；LLVM生成尚未到达，
+不计IR验收。仓外backend4-red-receipt保留，后继先SSA/lower再LLVM，各自强化oracle。
