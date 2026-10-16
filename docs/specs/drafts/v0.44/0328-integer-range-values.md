@@ -101,3 +101,12 @@ helper 仅普通源码经真实 lex/parse/names/raw types/complete API，两入�
 显式身份以本入口真实 TypeRef 对比，Copyable 使用公开查询；Transferable 仅先观察普通
 泛型 bound 调用，完整所有权能力查询/存储、拒绝矩阵与值语义仍待后续，并非首三覆盖全 D。
 当前只有 tests-only 候选，尚未编译或执行；其余三项与第4节验收保留待采。
+
+首红固定 `86e4623f` / tree `3112d1b0`：三个 exact 各实际1命中且行为红，11输入前后相同，
+32个源码/入口观察收齐，无编译/解析前置失败。隐式4源码双入口均 Deferred(Call)，
+complete 在 Range 根保留 L0165；显式4源码 single 名称 L0080 并保留未完成 Range，
+unit 四例在 names.validate 拒绝，未调用后续 types。这是公开身份未注册的本片真实缺口。
+包含/相等8源码双入口父型均 Deferred(ControlJoin)，子 Range 的原诊断未丢失。
+不据此声称 Copyable/Transferable、存储或序列值语义已经实现；完整 raw 位于仓外
+`spec0328-evidence/red3-receipt.json`（SHA `18e2a3a78b9ca802c30325f82153bd8df1fd78cecb6c1156a4557d9e4d390ad5`）。
+仍保持 draft 与无生产变化，后续实现/剩余矩阵须另行按审定范围推进。
