@@ -136,6 +136,9 @@ fn branch_join_and_replacement_keep_current_proof_identity() {
     let read = holder(
         "while (current != null) {\nif (flag) { total = current.value } else { total = current.value }\ntotal = total + current.value\ncurrent = null\n}\nreturn total",
     );
+    let matched = holder(
+        "while (current != null) {\nwhen (flag) { true -> { total = current.value } else -> { total = current.value } }\ntotal = total + current.value\ncurrent = null\n}\nreturn total",
+    );
     let retested = holder(
         "while (current != null) {\nif (flag) { current = null }\nif (current != null) { total = current.value }\nbreak\n}\nreturn total",
     );
@@ -144,7 +147,12 @@ fn branch_join_and_replacement_keep_current_proof_identity() {
     );
     observe(
         "branch-join",
-        &[(read, false), (retested, false), (stale, true)],
+        &[
+            (read, false),
+            (matched, false),
+            (retested, false),
+            (stale, true),
+        ],
     );
 }
 
