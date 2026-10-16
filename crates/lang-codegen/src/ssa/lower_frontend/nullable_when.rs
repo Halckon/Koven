@@ -41,6 +41,9 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        if let Some(symbol) = plan.stable_symbol() {
+            self.reject_live_while_proof(symbol, span)?;
+        }
         // Defer subject ASAP cleanup until the discriminator has read its owner.
         // Group aliases share the same single evaluation and owner.
         let mut subject_expressions = vec![plan.subject()];
@@ -124,7 +127,14 @@ impl ExpressionLowerer<'_> {
                 self.bindings
                     .insert(symbol, LoweredValue::Value(branch_owner));
                 if proven {
-                    self.non_null_bindings.insert(symbol, view);
+                    let proof = super::NonNullProof::introduced(
+                        view,
+                        branch_owner,
+                        inner,
+                        super::non_null_proof::ProofScope::When(expression),
+                    );
+                    self.validate_non_null_proof(symbol, proof, &self.bindings, span)?;
+                    self.non_null_bindings.insert(symbol, proof);
                 }
             } else {
                 self.temporaries
@@ -207,9 +217,8 @@ impl ExpressionLowerer<'_> {
                 if proven
                     && !typed_entry.body_domain().is_non_null()
                     && let Some(symbol) = plan.stable_symbol()
-                    && let Some(view) = self.non_null_bindings.remove(&symbol)
                 {
-                    self.append(Operation::BorrowEnd { loan: view }, Vec::new(), span)?;
+                    self.end_non_null_proof(symbol, span)?;
                 }
                 let result = self.lower_control_body(entry.body)?;
                 if !matches!(result, LoweredValue::Diverged) {
@@ -217,11 +226,8 @@ impl ExpressionLowerer<'_> {
                         control: expression,
                         branch: index,
                     })?;
-                    if proven
-                        && let Some(symbol) = plan.stable_symbol()
-                        && let Some(view) = self.non_null_bindings.remove(&symbol)
-                    {
-                        self.append(Operation::BorrowEnd { loan: view }, Vec::new(), span)?;
+                    if proven && let Some(symbol) = plan.stable_symbol() {
+                        self.end_non_null_proof(symbol, span)?;
                     }
 
                     exits.push(self.branch_exit(result));
@@ -273,20 +279,20 @@ impl ExpressionLowerer<'_> {
         let symbol = typed
             .stable_symbol()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let inner = self.expression_ssa_type(expression, span)?;
         let proof = self
-            .non_null_bindings
-            .get(&symbol)
-            .copied()
+            .checked_non_null_proof(symbol, inner, span)?
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let Some(LoweredValue::Value(owner)) = self.bindings.get(&symbol).copied() else {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        };
+        self.reject_live_while_proof(symbol, span)?;
+        let owner = proof.owner;
         if fact.kind() != NullableWhenExtractionKind::Consume {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let inner = self.expression_ssa_type(expression, span)?;
         let (_, result) = self.append(
-            Operation::NullableTake { owner, proof },
+            Operation::NullableTake {
+                owner,
+                proof: proof.loan,
+            },
             vec![EntityType::Value(inner)],
             span,
         )?;

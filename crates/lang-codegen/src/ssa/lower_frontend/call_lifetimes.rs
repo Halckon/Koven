@@ -25,13 +25,10 @@ impl ExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         let ending_loans = self.owned.loans_ending_at(expression).collect::<Vec<_>>();
         for fact in &ending_loans {
-            let loan = self
-                .pending_call_loans
-                .remove(&(expression.index(), fact.argument().index()))
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.end_span()))?;
-            if let Some(loan) = loan {
-                self.append(Operation::BorrowEnd { loan }, Vec::new(), fact.end_span())?;
-            }
+            self.end_pending_source_loan(
+                (expression.index(), fact.argument().index()),
+                fact.end_span(),
+            )?;
         }
         if self
             .pending_call_loans
@@ -64,13 +61,7 @@ impl ExpressionLowerer<'_> {
             .map(|fact| (fact.call().index(), fact.argument().index()))
             .collect::<Vec<_>>();
         for key in &endings {
-            let loan = self
-                .pending_call_loans
-                .remove(key)
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-            if let Some(loan) = loan {
-                self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
-            }
+            self.end_pending_source_loan(*key, span)?;
             self.release_primitive_unit_operand(key.0, key.1);
         }
         let ranges = self
@@ -101,18 +92,21 @@ impl ExpressionLowerer<'_> {
         let views = self
             .non_null_bindings
             .iter()
-            .filter_map(|(&symbol, &loan)| {
+            .filter_map(|(&symbol, proof)| {
+                // While proofs retire only after the existing child and owner cleanup.
+                if proof.is_while_origin() {
+                    return None;
+                }
                 let retained = !is_return
                     && self
                         .loops
                         .last()
                         .is_some_and(|context| context.entry_views.contains_key(&symbol));
-                (!retained).then_some((symbol, loan))
+                (!retained).then_some(symbol)
             })
             .collect::<Vec<_>>();
-        for (symbol, loan) in views {
-            self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
-            self.non_null_bindings.remove(&symbol);
+        for symbol in views {
+            self.end_non_null_proof(symbol, span)?;
         }
         self.emit_drops(DropPoint::ControlTransfer(transfer))
     }

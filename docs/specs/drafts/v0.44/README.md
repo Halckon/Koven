@@ -22,3 +22,5 @@
 MapResult实际查询与显式borrow复制已验不代表这些一般边界已完成。
 [SPEC-0327](../../../archive/specs/0327-checked-integer-conversions.md)已按双host30exact实施CI有界归档；
 八整数转换前端至native及CI-only负控已验，归档head CI/main待验，其余v0.44合同不随之完成。
+
+[SPEC-0330](../../../archive/specs/0330-while-conservative-flow.md)已按 PR116 修复实现 CI 双 host129 exact 有界归档；归档 head CI/main 待验。0291/F 仍等待0330正常合并后再实施。

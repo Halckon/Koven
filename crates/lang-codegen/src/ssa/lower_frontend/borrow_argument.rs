@@ -1,4 +1,7 @@
 //! Value/Borrow argument evaluation and temporary-place carriers.
+mod nullable_field;
+mod owned_field;
+
 use super::{
     EntityId, EntityType, ExpressionLowerer, LoanId, LoanKind, LoweredValue, LoweringError,
     LoweringErrorKind, Operation, PlaceId, ValueId, error, place, span_key,
@@ -85,10 +88,8 @@ impl ExpressionLowerer<'_> {
                 .lower_short_range(argument, target, span)
                 .map(|loan| (loan, true));
         }
-        if let Some(non_null) = self.typed.non_null_use(argument)
-            && let Some(view) = self.non_null_bindings.get(&non_null.symbol()).copied()
-        {
-            return Ok((view, false));
+        if let Some(proof) = self.non_null_proof_for_expression(argument, span)? {
+            return Ok((proof.loan, false));
         }
         let fact = self
             .owned
@@ -196,6 +197,9 @@ impl ExpressionLowerer<'_> {
             }
             return Ok((loan, true));
         }
+        if let Some(loan) = self.lower_while_proof_field_borrow(argument, fact, span)? {
+            return Ok((loan, true));
+        }
         let place = self.lower_borrow_place(argument, fact.target(), span)?;
         let target = self.expression_ssa_type(argument, span)?;
         let (_, results) = self.append(
@@ -263,6 +267,12 @@ impl ExpressionLowerer<'_> {
                 span,
             )?;
             return Ok(place(results[0]));
+        }
+        if let LoanTarget::Place(path) = target
+            && !path.is_root()
+        {
+            let target = self.expression_ssa_type(argument, span)?;
+            return self.lower_owned_field_borrow_place(argument, path, target, span);
         }
         let owner = match target {
             LoanTarget::Place(place) if place.is_root() => self

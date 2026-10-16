@@ -1,5 +1,8 @@
 //! SPEC-0190 真实 `kovenc build/run` 单文件进程验收。
 
+#[path = "support/numeric_iteration_run.rs"]
+mod bounded_iteration_run;
+
 #[path = "native_cli/enum_case_borrow.rs"]
 mod enum_case_borrow;
 
@@ -9,6 +12,8 @@ mod checked_integer_conversion;
 mod integer_range;
 #[path = "native_cli/numeric_iteration.rs"]
 mod numeric_iteration;
+#[path = "native_cli/while_flow.rs"]
+mod while_flow;
 
 #[path = "native_cli/mutable_list_delivery.rs"]
 mod mutable_list_delivery;

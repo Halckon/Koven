@@ -166,6 +166,7 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_live_if_proof(span)?;
         let Some(left) = self.lower_string_view(left, span)? else {
             return Ok(LoweredValue::Diverged);
         };

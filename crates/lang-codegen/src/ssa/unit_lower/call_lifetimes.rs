@@ -1,7 +1,11 @@
 //! 未提交的同步调用前缀；ABI 地址槽随本帧结束，源码 owner 由 frontend drop facts 决定。
 use super::*;
 
+pub(super) mod nullable_child;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PendingCallFrame {
+    pub(super) nullable_children: Vec<nullable_child::PendingNullableChild>,
     pub(super) call: UnitExpressionId,
     pub(super) receiver: bool,
     pub(super) loan_arguments: Vec<(UnitExpressionId, Vec<usize>)>,
@@ -107,6 +111,13 @@ impl UnitExpressionLowerer<'_> {
         minimum_loop_depth: usize,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
+        self.validate_pending_nullable_children(
+            &self.pending_call_frames,
+            &self.pending_operands,
+            &self.nullable_proofs,
+            span,
+        )?;
         let mut retained = self.pending_operands.len();
         for frame_index in (0..self.pending_call_frames.len()).rev() {
             let frame = &self.pending_call_frames[frame_index];
@@ -125,6 +136,9 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                 };
                 self.end_short_call_loan(loan, span)?;
+                self.pending_call_frames[frame_index]
+                    .nullable_children
+                    .retain(|child| child.slot != index);
             }
             for &(owner, _) in self.pending_call_frames[frame_index].abi_slots.iter().rev() {
                 let value = require_value(

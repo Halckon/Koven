@@ -7,7 +7,6 @@ use crate::ssa::model::Operation;
 
 impl ExpressionLowerer<'_> {
     pub(super) fn emit_drops(&mut self, point: DropPoint) -> Result<(), LoweringError> {
-        self.end_result_bindings(point)?;
         let facts = self
             .owned
             .drops()
@@ -15,7 +14,27 @@ impl ExpressionLowerer<'_> {
             .copied()
             .filter(|fact| fact.point() == point)
             .collect::<Vec<_>>();
-        for fact in facts {
+        self.preflight_nullable_if_cleanup_groups(&facts)?;
+        self.preflight_nullable_numeric_cleanup(&facts)?;
+        self.preflight_nullable_borrowed_cleanup(&facts)?;
+        self.end_result_bindings(point)?;
+        let mut index = 0;
+        while index < facts.len() {
+            if let Some(consumed) = self.emit_nullable_if_cleanup_group(&facts[index..])? {
+                index += consumed;
+                continue;
+            }
+            let fact = facts[index];
+            index += 1;
+            if self.emit_outer_borrowed_drop(fact)? {
+                continue;
+            }
+            if self.emit_nullable_borrowed_cleanup(fact)? {
+                continue;
+            }
+            if self.emit_nullable_numeric_cleanup(fact)? {
+                continue;
+            }
             // Generic ownership facts precede monomorphization. A concrete Copyable
             // instance has no drop obligation; keep its binding/aliases intact.
             let template = match fact.target() {
@@ -67,13 +86,7 @@ impl ExpressionLowerer<'_> {
                     }
                     // nullable 分支证明是 owner 的共享视图。ASAP drop 可能恰好位于证明分支的
                     // 最后一次使用处，因此必须先结束视图，再消费 owner。
-                    if let Some(loan) = self.non_null_bindings.remove(&symbol) {
-                        self.append(
-                            Operation::BorrowEnd { loan },
-                            Vec::new(),
-                            fact.value_origin(),
-                        )?;
-                    }
+                    self.end_non_null_proof(symbol, fact.value_origin())?;
                     match self.bindings.remove(&symbol) {
                         Some(LoweredValue::Value(value)) => value,
                         Some(LoweredValue::Unit | LoweredValue::Diverged) | None => {

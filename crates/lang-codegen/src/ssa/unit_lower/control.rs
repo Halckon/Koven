@@ -1,6 +1,8 @@
 //! compilation-unit `if` 的 owner-aware CFG 与 branch-state 合流。
 
 mod branch;
+mod conditional;
+mod nullable_if;
 
 use std::collections::BTreeMap;
 
@@ -16,7 +18,7 @@ use lang_frontend::{
 use super::{
     LoweredValue, UnitExpressionLowerer, builtin_type,
     cfg::{BranchExit, carried_control_edge},
-    lowering_error, require_value, resolve_concrete_type,
+    lowering_error, resolve_concrete_type,
     type_lower::is_supported_storage_type,
 };
 use crate::ssa::{
@@ -90,6 +92,7 @@ impl UnitExpressionLowerer<'_> {
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let baseline_closures = self.closure_bindings.clone();
+        let baseline_frames = self.pending_call_frames.clone();
         let baseline_receiver = self.current_receiver;
         let baseline_consumed_receiver = self.consumed_receiver;
         let mut carried = self.carried_bindings(&baseline, span)?;
@@ -129,6 +132,7 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
 
+        self.pending_call_frames = baseline_frames.clone();
         self.block = right_block;
         self.current_receiver = baseline_receiver;
         self.consumed_receiver = baseline_consumed_receiver;
@@ -154,14 +158,17 @@ impl UnitExpressionLowerer<'_> {
                 consumed_receiver: self.consumed_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
+                nullable_proofs: self.nullable_proofs.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 capture_loans: self.capture_loans.clone(),
                 result_source_loans: self.result_source_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
+                pending_call_frames: self.pending_call_frames.clone(),
                 temporaries: self.temporaries.clone(),
             });
         }
 
+        self.pending_call_frames = baseline_frames;
         self.block = short_block;
         self.current_receiver = baseline_receiver;
         self.consumed_receiver = baseline_consumed_receiver;
@@ -194,10 +201,12 @@ impl UnitExpressionLowerer<'_> {
             consumed_receiver: self.consumed_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
+            nullable_proofs: self.nullable_proofs.clone(),
             closure_bindings: self.closure_bindings.clone(),
             capture_loans: self.capture_loans.clone(),
             result_source_loans: self.result_source_loans.clone(),
             pending_operands: self.pending_operands.clone(),
+            pending_call_frames: self.pending_call_frames.clone(),
             temporaries: self.temporaries.clone(),
         });
         self.merge_unit_exits(exits, span)
@@ -357,10 +366,12 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver,
             self.bindings.clone(),
             self.borrow_bindings.clone(),
+            self.nullable_proofs.clone(),
             self.result_source_loans.clone(),
             self.closure_bindings.clone(),
             self.capture_loans.clone(),
             self.pending_operands.clone(),
+            self.pending_call_frames.clone(),
             self.temporaries.clone(),
             UnitDropPoint::BranchExit {
                 control: UnitExpressionId::new(self.source_unit, expression),
@@ -393,9 +404,11 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver,
             baseline.clone(),
             baseline_borrows,
+            self.nullable_proofs.clone(),
             baseline_closures,
             self.capture_loans.clone(),
             self.pending_operands.clone(),
+            self.pending_call_frames.clone(),
             self.temporaries.clone(),
         ));
         let mut exits = Vec::new();
@@ -407,9 +420,11 @@ impl UnitExpressionLowerer<'_> {
                 unmatched_consumed_receiver,
                 unmatched_bindings,
                 unmatched_borrows,
+                unmatched_proofs,
                 unmatched_closures,
                 unmatched_captures,
                 unmatched_pending,
+                unmatched_frames,
                 unmatched_temporaries,
             ) = unmatched
                 .take()
@@ -422,10 +437,12 @@ impl UnitExpressionLowerer<'_> {
                     unmatched_consumed_receiver,
                     unmatched_bindings,
                     unmatched_borrows,
+                    unmatched_proofs,
                     self.result_source_loans.clone(),
                     unmatched_closures,
                     unmatched_captures,
                     unmatched_pending,
+                    unmatched_frames,
                     unmatched_temporaries,
                     UnitDropPoint::BranchExit {
                         control,
@@ -446,9 +463,11 @@ impl UnitExpressionLowerer<'_> {
             let mut next_consumed_receiver = unmatched_consumed_receiver;
             let mut next_bindings = unmatched_bindings;
             let mut next_borrows = unmatched_borrows;
+            let mut next_proofs = unmatched_proofs;
             let mut next_closures = unmatched_closures;
             let mut next_captures = unmatched_captures;
             let mut next_pending = unmatched_pending;
+            let mut next_frames = unmatched_frames;
             let mut next_temporaries = unmatched_temporaries;
             let mut matches = Vec::new();
             for condition in &entry.conditions {
@@ -457,9 +476,11 @@ impl UnitExpressionLowerer<'_> {
                 self.consumed_receiver = next_consumed_receiver;
                 self.bindings = next_bindings;
                 self.borrow_bindings = next_borrows;
+                self.nullable_proofs = next_proofs;
                 self.closure_bindings = next_closures;
                 self.capture_loans = next_captures;
                 self.pending_operands = next_pending;
+                self.pending_call_frames = next_frames;
                 let entry_temporaries = next_temporaries.keys().copied().collect::<Vec<_>>();
                 self.temporaries = next_temporaries;
                 let condition = self.lower_when_condition(subject, condition, entry.span)?;
@@ -472,6 +493,7 @@ impl UnitExpressionLowerer<'_> {
                 let after_condition = self.bindings.clone();
                 let after_condition_borrows = self.borrow_bindings.clone();
                 let after_condition_closures = self.closure_bindings.clone();
+                let after_condition_frames = self.pending_call_frames.clone();
                 let after_condition_receiver = self.current_receiver;
                 let after_condition_consumed_receiver = self.consumed_receiver;
                 let mut carried = self.carried_bindings(&after_condition, entry.span)?;
@@ -493,6 +515,7 @@ impl UnitExpressionLowerer<'_> {
                     .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, entry.span))?;
                 self.current_receiver = after_condition_receiver;
                 self.consumed_receiver = after_condition_consumed_receiver;
+                self.pending_call_frames = after_condition_frames.clone();
                 let matched_bindings = self.rebind_carried_control(
                     &after_condition,
                     matched,
@@ -507,17 +530,20 @@ impl UnitExpressionLowerer<'_> {
                     result: LoweredValue::Unit,
                     bindings: matched_bindings,
                     borrow_bindings: matched_borrows,
+                    nullable_proofs: self.nullable_proofs.clone(),
                     receiver: self.current_receiver,
                     consumed_receiver: self.consumed_receiver,
                     closure_bindings: after_condition_closures.clone(),
                     capture_loans: self.capture_loans.clone(),
                     result_source_loans: self.result_source_loans.clone(),
                     pending_operands: self.pending_operands.clone(),
+                    pending_call_frames: self.pending_call_frames.clone(),
                     temporaries: self.temporaries.clone(),
                 });
                 next_block = next;
                 self.current_receiver = after_condition_receiver;
                 self.consumed_receiver = after_condition_consumed_receiver;
+                self.pending_call_frames = after_condition_frames;
                 next_bindings = self.rebind_carried_control(
                     &after_condition,
                     next,
@@ -527,11 +553,13 @@ impl UnitExpressionLowerer<'_> {
                 )?;
                 next_borrows =
                     self.rebind_carried_loans(next, carried.len(), &carried_loans, entry.span)?;
+                next_proofs = self.nullable_proofs.clone();
                 next_receiver = self.current_receiver;
                 next_consumed_receiver = self.consumed_receiver;
                 next_closures = after_condition_closures;
                 next_captures = self.capture_loans.clone();
                 next_pending = self.pending_operands.clone();
+                next_frames = self.pending_call_frames.clone();
                 next_temporaries = self.temporaries.clone();
             }
 
@@ -543,10 +571,12 @@ impl UnitExpressionLowerer<'_> {
                 self.consumed_receiver,
                 self.bindings.clone(),
                 self.borrow_bindings.clone(),
+                self.nullable_proofs.clone(),
                 self.result_source_loans.clone(),
                 self.closure_bindings.clone(),
                 self.capture_loans.clone(),
                 self.pending_operands.clone(),
+                self.pending_call_frames.clone(),
                 self.temporaries.clone(),
                 UnitDropPoint::BranchExit {
                     control,
@@ -562,9 +592,11 @@ impl UnitExpressionLowerer<'_> {
                 next_consumed_receiver,
                 next_bindings,
                 next_borrows,
+                next_proofs,
                 next_closures,
                 next_captures,
                 next_pending,
+                next_frames,
                 next_temporaries,
             ));
         }
@@ -575,9 +607,11 @@ impl UnitExpressionLowerer<'_> {
             unmatched_consumed_receiver,
             unmatched_bindings,
             unmatched_borrows,
+            unmatched_proofs,
             unmatched_closures,
             unmatched_captures,
             unmatched_pending,
+            unmatched_frames,
             unmatched_temporaries,
         )) = unmatched
         {
@@ -600,9 +634,11 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver = unmatched_consumed_receiver;
             self.bindings = unmatched_bindings;
             self.borrow_bindings = unmatched_borrows;
+            self.nullable_proofs = unmatched_proofs;
             self.closure_bindings = unmatched_closures;
             self.capture_loans = unmatched_captures;
             self.pending_operands = unmatched_pending;
+            self.pending_call_frames = unmatched_frames;
             self.temporaries = unmatched_temporaries;
             self.emit_drops(UnitDropPoint::BranchExit {
                 control,
@@ -615,10 +651,12 @@ impl UnitExpressionLowerer<'_> {
                 consumed_receiver: self.consumed_receiver,
                 bindings: self.bindings.clone(),
                 borrow_bindings: self.borrow_bindings.clone(),
+                nullable_proofs: self.nullable_proofs.clone(),
                 closure_bindings: self.closure_bindings.clone(),
                 capture_loans: self.capture_loans.clone(),
                 result_source_loans: self.result_source_loans.clone(),
                 pending_operands: self.pending_operands.clone(),
+                pending_call_frames: self.pending_call_frames.clone(),
                 temporaries: self.temporaries.clone(),
             });
         }
@@ -672,56 +710,7 @@ impl UnitExpressionLowerer<'_> {
                 .get(&(tagged, case.type_symbol()))
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            let integer = self.ssa_builtin(BuiltinType::Int, span)?;
-            let boolean = self.ssa_builtin(BuiltinType::Boolean, span)?;
-            let (_, tag) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::TaggedDiscriminant { owner },
-                    vec![EntityType::Value(integer)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let (_, expected) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::Constant(ScalarConstant::Integer(
-                        i128::try_from(variant)
-                            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?,
-                    )),
-                    vec![EntityType::Value(integer)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let (_, matches) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::Compare {
-                        operator: ComparisonOperator::Equal,
-                        left: require_value(tag[0], span)?,
-                        right: require_value(expected[0], span)?,
-                    },
-                    vec![EntityType::Value(boolean)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            let matches = require_value(matches[0], span)?;
-            if !negated {
-                return Ok(matches);
-            }
-            let (_, results) = self
-                .function
-                .append_instruction(
-                    self.block,
-                    Operation::BooleanNot { operand: matches },
-                    vec![EntityType::Value(boolean)],
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            return require_value(results[0], span);
+            return self.lower_enum_tag_test(owner, variant, *negated, span);
         }
         let WhenCondition::Expression(expression) = condition else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -797,160 +786,5 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         Ok(result_required)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn lower_conditional(
-        &mut self,
-        expression: ExpressionId,
-        condition: ExpressionId,
-        then_branch: StatementId,
-        else_branch: Option<StatementId>,
-        then_index: usize,
-        else_index: usize,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let control = UnitExpressionId::new(self.source_unit, expression);
-        let result_required = self.control_result_required(expression, span)?;
-        let guard = self.map_borrow_condition(condition, span)?;
-        let baseline_guards = self.map_borrow_guards.clone();
-        let condition = self.require_expression_value(condition)?;
-        let baseline = self.bindings.clone();
-        let baseline_borrows = self.borrow_bindings.clone();
-        let baseline_closures = self.closure_bindings.clone();
-        let baseline_receiver = self.current_receiver;
-        let baseline_consumed_receiver = self.consumed_receiver;
-        let mut carried = self.carried_bindings(&baseline, span)?;
-        let mut carried_loans = self.carried_loans(&baseline_borrows, span)?;
-        self.carry_pending_operands(&mut carried, &mut carried_loans, span)?;
-        let then_block = self.add_carried_control_block(
-            &carried,
-            &carried_loans,
-            self.statement_span(then_branch)?,
-        )?;
-        let else_origin = else_branch
-            .map(|branch| self.statement_span(branch))
-            .transpose()?
-            .unwrap_or(span);
-        let else_block = self.add_carried_control_block(&carried, &carried_loans, else_origin)?;
-        self.function
-            .set_terminator(
-                self.block,
-                TerminatorKind::Conditional {
-                    condition,
-                    when_true: carried_control_edge(then_block, &carried, &carried_loans),
-                    when_false: carried_control_edge(else_block, &carried, &carried_loans),
-                },
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-
-        self.current_receiver = baseline_receiver;
-        self.consumed_receiver = baseline_consumed_receiver;
-        let then_baseline =
-            self.rebind_carried_control(&baseline, then_block, &carried, &carried_loans, span)?;
-        let then_borrows =
-            self.rebind_carried_loans(then_block, carried.len(), &carried_loans, span)?;
-        let then_captures = self.capture_loans.clone();
-        let then_pending = self.pending_operands.clone();
-        let then_temporaries = self.temporaries.clone();
-        let then_sources = self.result_source_loans.clone();
-        let then_receiver = self.current_receiver;
-        let then_consumed_receiver = self.consumed_receiver;
-        self.current_receiver = baseline_receiver;
-        self.consumed_receiver = baseline_consumed_receiver;
-        let else_baseline =
-            self.rebind_carried_control(&baseline, else_block, &carried, &carried_loans, span)?;
-        let else_borrows =
-            self.rebind_carried_loans(else_block, carried.len(), &carried_loans, span)?;
-        let else_captures = self.capture_loans.clone();
-        let else_pending = self.pending_operands.clone();
-        let else_temporaries = self.temporaries.clone();
-        let else_sources = self.result_source_loans.clone();
-        let else_receiver = self.current_receiver;
-        let else_consumed_receiver = self.consumed_receiver;
-        let mut exits = Vec::with_capacity(2);
-        if let Some(guard) = guard.filter(|guard| guard.non_null_when_true()) {
-            self.map_borrow_guards.insert(guard.symbol(), guard);
-        }
-        if let Some(exit) = self.lower_if_branch(
-            then_block,
-            then_branch,
-            then_receiver,
-            then_consumed_receiver,
-            then_baseline,
-            then_borrows,
-            then_sources,
-            baseline_closures.clone(),
-            then_captures,
-            then_pending,
-            then_temporaries,
-            UnitDropPoint::BranchExit {
-                control,
-                branch: then_index,
-            },
-            result_required,
-        )? {
-            exits.push(exit);
-        }
-        self.map_borrow_guards.clone_from(&baseline_guards);
-        if let Some(guard) = guard.filter(|guard| !guard.non_null_when_true()) {
-            self.map_borrow_guards.insert(guard.symbol(), guard);
-        }
-        if let Some(else_branch) = else_branch {
-            if let Some(exit) = self.lower_if_branch(
-                else_block,
-                else_branch,
-                else_receiver,
-                else_consumed_receiver,
-                else_baseline,
-                else_borrows,
-                else_sources.clone(),
-                baseline_closures.clone(),
-                else_captures,
-                else_pending,
-                else_temporaries,
-                UnitDropPoint::BranchExit {
-                    control,
-                    branch: else_index,
-                },
-                result_required,
-            )? {
-                exits.push(exit);
-            }
-        } else {
-            if result_required {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            self.block = else_block;
-            self.current_receiver = else_receiver;
-            self.consumed_receiver = else_consumed_receiver;
-            self.bindings = else_baseline;
-            self.borrow_bindings = else_borrows;
-            self.result_source_loans = else_sources;
-            self.closure_bindings = baseline_closures;
-            self.capture_loans = else_captures;
-            self.pending_operands = else_pending;
-            self.temporaries = else_temporaries;
-            self.emit_drops(UnitDropPoint::BranchExit {
-                control,
-                branch: else_index,
-            })?;
-            exits.push(BranchExit {
-                block: else_block,
-                result: LoweredValue::Unit,
-                receiver: self.current_receiver,
-                consumed_receiver: self.consumed_receiver,
-                bindings: self.bindings.clone(),
-                borrow_bindings: self.borrow_bindings.clone(),
-                closure_bindings: self.closure_bindings.clone(),
-                capture_loans: self.capture_loans.clone(),
-                result_source_loans: self.result_source_loans.clone(),
-                pending_operands: self.pending_operands.clone(),
-                temporaries: self.temporaries.clone(),
-            });
-        }
-        self.map_borrow_guards = baseline_guards;
-        self.merge_unit_exits(exits, span)
     }
 }

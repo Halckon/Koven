@@ -1,9 +1,13 @@
 //! Provider state occupies stable pending slots so every existing unit CFG rebinds it.
+#[path = "borrowed_while.rs"]
+mod borrowed_while;
+
 use super::*;
 use crate::ssa::{
     model::{EntityId, EntityType, LoanId, LoanKind, Operation, SsaTypeId, ValueId},
     provider,
 };
+use borrowed_while::BorrowedWhileProof;
 use lang_frontend::{
     ownership_checking::{UnitIterationSourceAccess, UnitLoanTarget},
     type_checking::{BuiltinType, UnitSequentialIterationBinding},
@@ -14,6 +18,7 @@ pub(super) struct IterationContext {
     pub(super) retained_start: usize,
     pub(super) outer_temporaries: BTreeSet<UnitExpressionId>,
     pub(super) state: IterationState,
+    pub(super) inherited_borrowed: Option<BorrowedWhileProof>,
 }
 
 #[derive(Clone, Copy)]
@@ -39,6 +44,7 @@ impl UnitExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_live_if_proof(span)?;
         let statement_id = UnitStatementId::new(self.source_unit, statement);
         let Some(plan) = self.owned.iteration(statement_id).cloned() else {
             // Source control transfer happens before AcquireProvider; no exit plan exists yet.
@@ -74,6 +80,7 @@ impl UnitExpressionLowerer<'_> {
         let element_type = self.iteration_type(descriptor.element_type(), span)?;
         let int_type = self.ssa_builtin(BuiltinType::Int, span)?;
         let bool_type = self.ssa_builtin(BuiltinType::Boolean, span)?;
+        let inherited = BorrowedWhileProof::qualify(self, &plan, container, int_type, span)?;
         let outer_temporaries = self.temporaries.keys().copied().collect();
         let retained_start = self.pending_operands.len();
         let source_loan = if descriptor.provider()
@@ -135,6 +142,9 @@ impl UnitExpressionLowerer<'_> {
                 }
             }
         };
+        if let Some(proof) = inherited {
+            proof.validate_source(self, source_loan, span)?;
+        }
         let preheader = self.block;
         let origin = Origin::Source(span);
         let snapshot = provider::snapshot(
@@ -153,7 +163,14 @@ impl UnitExpressionLowerer<'_> {
             EntityId::Value(snapshot.cursor()),
         ]);
         let baseline = self.bindings.clone();
-        let mut context = self.create_loop_context(&baseline, span)?;
+        if let Some(proof) = inherited {
+            proof.validate_snapshot(self, source_loan, &snapshot, span)?;
+        }
+        let mut context = if inherited.is_some() {
+            self.create_carried_loop_context(&baseline, span)?
+        } else {
+            self.create_loop_context(&baseline, span)?
+        };
         let entry = carried_control_edge(context.header, &context.carried, &context.loans);
         let slot = |entity| {
             entry
@@ -179,6 +196,9 @@ impl UnitExpressionLowerer<'_> {
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.block = context.header;
         self.bindings = self.rebind_loop(&baseline, self.block, &context, span)?;
+        if let Some(proof) = inherited {
+            proof.validate_header(self, &header, span)?;
+        }
         let header_state = self.loop_state();
         let body_block = self.add_carried_control_block(&context.carried, &context.loans, span)?;
         let false_block = self.add_carried_control_block(&context.carried, &context.loans, span)?;
@@ -207,6 +227,19 @@ impl UnitExpressionLowerer<'_> {
             descriptor.provider(),
         )
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let false_state = if let Some(proof) = inherited {
+            // Capture the real zero/exhaustion edge before its sibling can end
+            // any role. Never reconstruct a missing view from the body state.
+            self.restore_loop_state(&header_state);
+            self.block = false_block;
+            self.bindings = self.rebind_loop(&baseline, false_block, &context, span)?;
+            proof.validate_provider(self, &self.loop_state(), span)?;
+            let state = self.loop_state();
+            self.restore_loop_state(&header_state);
+            Some(state)
+        } else {
+            None
+        };
         self.block = body_block;
         self.bindings = self.rebind_loop(&baseline, body_block, &context, span)?;
         let element_slot = self.pending_operands.len();
@@ -221,6 +254,7 @@ impl UnitExpressionLowerer<'_> {
                 step: header.step,
                 int_type,
             },
+            inherited_borrowed: inherited,
         });
         match descriptor.binding() {
             UnitSequentialIterationBinding::Discard => {}
@@ -257,6 +291,9 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         self.loops.push(context);
+        if let Some(proof) = inherited {
+            proof.validate_element(self, &element, span)?;
+        }
         if self.lower_statement(body)? != LoweredValue::Diverged {
             self.record_natural_continue(span)?;
         }
@@ -264,15 +301,33 @@ impl UnitExpressionLowerer<'_> {
             .loops
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        if let Some(proof) = inherited {
+            if !context.breaks.is_empty() || context.proof_scope.is_some() {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            for jump in &context.continues {
+                proof.validate_provider(self, &jump.state, jump.span)?;
+            }
+        }
         self.finish_continues(&context, context.header)?;
-        self.block = false_block;
-        self.current_receiver = context.entry_receiver;
-        self.consumed_receiver = context.entry_consumed_receiver;
-        self.bindings = self.rebind_loop(&baseline, false_block, &context, span)?;
-        self.closure_bindings = context.entry_closure_bindings.clone();
+        if let Some(state) = false_state {
+            self.restore_loop_state(&state);
+        } else {
+            self.block = false_block;
+            self.current_receiver = context.entry_receiver;
+            self.consumed_receiver = context.entry_consumed_receiver;
+            self.bindings = self.rebind_loop(&baseline, false_block, &context, span)?;
+            self.closure_bindings = context.entry_closure_bindings.clone();
+        }
         self.loops.push(context);
+        let exhaustion = inherited
+            .map(|proof| proof.exhaustion_source(self, span))
+            .transpose()?;
         self.emit_drops(UnitDropPoint::LoopExit(statement_id))?;
         self.pending_operands.truncate(retained_start);
+        if let (Some(proof), Some((owner, source))) = (inherited, exhaustion) {
+            proof.validate_exhaustion(self, owner, source, span)?;
+        }
         let false_exit = self.loop_state();
         let context = self
             .loops
@@ -284,7 +339,15 @@ impl UnitExpressionLowerer<'_> {
             .map(branch_exit)
             .collect::<Vec<_>>();
         exits.push(false_exit);
+        if let Some(proof) = inherited {
+            for exit in &exits {
+                proof.validate_exit(self, exit, span)?;
+            }
+        }
         self.merge_loop_exits(exits, span)?;
+        if let Some(proof) = inherited {
+            proof.validate_exit(self, &self.loop_state(), span)?;
+        }
         Ok(LoweredValue::Unit)
     }
 
@@ -373,6 +436,11 @@ impl UnitExpressionLowerer<'_> {
             // Numeric providers test their terminal value after all continuing edges join.
             return Ok(());
         };
+        if let Some(proof) = context.inherited_borrowed {
+            // EndBinding/EndElement have run, but prepare_jump has not yet
+            // removed the exact rebound element slot. Check it while available.
+            proof.validate_element_cleanup(self, span)?;
+        }
         let cursor_index = start + 2;
         let Some(EntityId::Value(cursor)) = self.pending_operands.get(cursor_index).copied() else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));

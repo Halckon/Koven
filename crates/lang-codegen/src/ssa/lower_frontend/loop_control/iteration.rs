@@ -31,6 +31,7 @@ impl ExpressionLowerer<'_> {
             }
             return self.lower_numeric_for(statement, source, body, span, plan);
         }
+        self.qualify_borrowed_while_entry(statement, span)?;
         let container_type = self.resolve_type(descriptor.source_type(), span)?;
         let container_ssa_type = self
             .type_ids
@@ -375,6 +376,7 @@ impl ExpressionLowerer<'_> {
 
         self.loops.push(LoopContext {
             entry_views: self.non_null_bindings.clone(),
+            outer_borrowed_while: None,
             header: header_block,
             carried: carried.clone(),
             continues: Vec::new(),
@@ -444,7 +446,7 @@ impl ExpressionLowerer<'_> {
             let mut backedge_args = carried
                 .slots
                 .iter()
-                .map(|slot| loop_slot_entity(slot, &current_exit, span))
+                .map(|slot| loop_slot_entity(self, slot, &current_exit, span))
                 .collect::<Result<Vec<_>, _>>()?;
             if !is_carried_source {
                 backedge_args.push(EntityId::Loan(body_source));

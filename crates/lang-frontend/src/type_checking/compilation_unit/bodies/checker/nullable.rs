@@ -15,6 +15,41 @@ use crate::{
 use super::{BodyChecker, UnitExpressionId, flow::ConditionFacts, flow::FlowKey};
 
 impl BodyChecker<'_> {
+    // Keep the read narrowed; only the literal null receives storage's expected type.
+    pub(super) fn null_comparison_expected(
+        &self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        read_type: UnitTypeId,
+    ) -> Option<UnitTypeId> {
+        if matches!(
+            self.signatures.types().get(read_type),
+            Some(UnitTypeKind::Nullable(_))
+        ) {
+            return Some(read_type);
+        }
+        if matches!(
+            self.signatures.types().get(read_type),
+            Some(UnitTypeKind::Error | UnitTypeKind::Deferred(_))
+        ) {
+            return None;
+        }
+        let FlowKey::Symbol(symbol) = self.stable_flow_key(source, expression)? else {
+            return None;
+        };
+        let declared = self
+            .parts
+            .symbol_types
+            .get(&symbol)
+            .copied()
+            .or_else(|| self.signatures.symbol_type(symbol))?;
+        let UnitTypeKind::Nullable(inner) = self.signatures.types().get(declared)? else {
+            return None;
+        };
+        (*inner == read_type && self.flow_facts.get(&FlowKey::Symbol(symbol)) == Some(&read_type))
+            .then_some(declared)
+    }
+
     pub(super) fn record_nullable_facts(
         &mut self,
         source: SourceUnitId,

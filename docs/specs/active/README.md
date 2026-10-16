@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 active：无。
+当前 active 为0份。[0330 while 保守流事实](../../archive/specs/0330-while-conservative-flow.md)已按 PR116 实现 CI 双 host129 exact 有界归档；归档 head CI、正常合并与 main 核验待交付。
 
 [0329整数 Range owned 值 for](../../archive/specs/0329-integer-range-iteration.md)
 已按PR115实现CI双host37exact有界归档；归档head CI/main待验。

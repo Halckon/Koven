@@ -24,6 +24,7 @@ impl ExpressionLowerer<'_> {
         span: Span,
         plan: IterationOwnershipPlan,
     ) -> Result<LoweredValue, LoweringError> {
+        let inherited = self.qualify_numeric_while_entry(statement, span)?;
         let descriptor = plan.descriptor();
         if descriptor.statement() != statement {
             return Err(error(LoweringErrorKind::MissingFact, span));
@@ -61,6 +62,7 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        self.validate_numeric_while_pair(inherited, span)?;
         let first = self.numeric_projection(snapshot, 0, endpoint, span)?;
         let last = self.numeric_projection(snapshot, 1, endpoint, span)?;
         let empty = self.numeric_projection(snapshot, 2, boolean, span)?;
@@ -111,6 +113,7 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.block = header;
         self.bindings = self.rebind_linear_bindings(&baseline, header, &carried, span)?;
+        self.validate_numeric_while_pair(inherited, span)?;
         let current = match self
             .function
             .block(header)
@@ -131,6 +134,7 @@ impl ExpressionLowerer<'_> {
         }
         self.loops.push(LoopContext {
             entry_views: self.non_null_bindings.clone(),
+            outer_borrowed_while: None,
             header,
             carried: carried.clone(),
             continues: Vec::new(),
@@ -146,6 +150,7 @@ impl ExpressionLowerer<'_> {
             }),
         });
         if self.lower_statement(body)? != LoweredValue::Diverged {
+            self.validate_numeric_while_pair(inherited, span)?;
             let exit = plan
                 .exits()
                 .iter()
@@ -156,12 +161,14 @@ impl ExpressionLowerer<'_> {
         }
         self.block = exhaustion;
         self.bindings = self.rebind_linear_bindings(&baseline, exhaustion, &carried, span)?;
+        self.validate_numeric_while_pair(inherited, span)?;
         let exit = plan
             .exits()
             .iter()
             .find(|exit| matches!(exit.kind(), IterationExitKind::Exhaustion))
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         self.emit_iteration_exit_plan(exit, span)?;
+        self.validate_numeric_while_pair(inherited, span)?;
         let context = self
             .loops
             .pop()
@@ -169,7 +176,9 @@ impl ExpressionLowerer<'_> {
         let mut exits = context.breaks;
         exits.push(self.loop_exit());
         // Numeric snapshots are pure values; the normal merge still preserves outer loans/owners.
-        self.merge_exits(exits, &baseline, span)
+        let result = self.merge_exits(exits, &baseline, span)?;
+        self.validate_numeric_while_pair(inherited, span)?;
+        Ok(result)
     }
 
     fn numeric_projection(
@@ -228,6 +237,13 @@ impl ExpressionLowerer<'_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
             .plan
             .clone();
+        let inherited = self
+            .loops
+            .last()
+            .and_then(|context| context.entry_views.first_key_value())
+            .filter(|(_, proof)| proof.is_while_origin())
+            .map(|(&root, &proof)| (root, proof));
+        self.validate_numeric_while_pair(inherited, span)?;
         let exit = plan
             .exits()
             .iter()
@@ -243,6 +259,11 @@ impl ExpressionLowerer<'_> {
             .loops
             .last()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let inherited = context
+            .entry_views
+            .first_key_value()
+            .filter(|(_, proof)| proof.is_while_origin())
+            .map(|(&root, &proof)| (root, proof));
         let data = context
             .numeric_loop
             .as_ref()
@@ -256,6 +277,7 @@ impl ExpressionLowerer<'_> {
             context.header,
             context.carried.clone(),
         );
+        self.validate_numeric_while_pair(inherited, span)?;
         let boolean = self.ssa_builtin(BuiltinType::Boolean, span)?;
         let terminal = self.numeric_value(
             Operation::Compare {
@@ -271,7 +293,7 @@ impl ExpressionLowerer<'_> {
         let args = carried
             .slots
             .iter()
-            .map(|slot| loop_slot_entity(slot, &state, span))
+            .map(|slot| loop_slot_entity(self, slot, &state, span))
             .collect::<Result<Vec<_>, _>>()?;
         self.function
             .set_terminator(
@@ -292,6 +314,7 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.block = increment;
         self.bindings = self.rebind_linear_bindings(&baseline, increment, &carried, span)?;
+        self.validate_numeric_while_pair(inherited, span)?;
         // This block is reachable only when current != last; ascending current cannot overflow.
         let one = self.numeric_value(
             Operation::Constant(ScalarConstant::Integer(1)),
@@ -311,7 +334,7 @@ impl ExpressionLowerer<'_> {
         let mut args = carried
             .slots
             .iter()
-            .map(|slot| loop_slot_entity(slot, &state, span))
+            .map(|slot| loop_slot_entity(self, slot, &state, span))
             .collect::<Result<Vec<_>, _>>()?;
         args.push(EntityId::Value(next));
         self.function

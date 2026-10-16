@@ -1,6 +1,7 @@
 //! `while` / `loop` 的 backedge、jump 与 loop-carried binding lowering。
 
 mod iteration;
+mod nullable_while;
 mod numeric_iteration;
 
 use std::collections::BTreeMap;
@@ -53,7 +54,8 @@ impl ForLoopData {
 }
 
 pub(super) struct LoopContext {
-    pub(super) entry_views: BTreeMap<SymbolId, super::LoanId>,
+    pub(super) entry_views: BTreeMap<SymbolId, super::NonNullProof>,
+    pub(super) outer_borrowed_while: Option<super::outer_borrowed_while::Relation>,
     pub(super) header: BlockId,
     pub(super) carried: LinearBindings,
     pub(super) continues: Vec<LoopJump>,
@@ -81,6 +83,19 @@ impl ExpressionLowerer<'_> {
         body: StatementId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        let inherited = if let Some((descriptor, subject)) =
+            self.direct_nullable_while_condition(condition, span)?
+        {
+            match self.qualify_nullable_while_entry(statement, descriptor, subject, span)? {
+                nullable_while::NullableWhileEntry::Readonly(root, proof) => Some((root, proof)),
+                nullable_while::NullableWhileEntry::Direct(entry) => {
+                    return self
+                        .lower_direct_nullable_while(statement, condition, body, entry, span);
+                }
+            }
+        } else {
+            None
+        };
         let baseline = self.bindings.clone();
         let context = self.create_loop_header(&baseline, span)?;
         let condition = self.require_value(condition)?;
@@ -121,10 +136,22 @@ impl ExpressionLowerer<'_> {
             self.record_continue(span)?;
         }
         let context = self.loops.pop().expect("while context must be balanced");
+        if let Some((root, proof)) = inherited {
+            for jump in &context.continues {
+                self.validate_readonly_while_exit(root, proof, &jump.exit, jump.span)?;
+            }
+        }
         self.finish_loop_continues(&context)?;
+        for exit in context.breaks.iter().chain(std::iter::once(&false_exit)) {
+            self.validate_pending_field_loop_exit(&context.carried, exit, span)?;
+        }
         let mut exits = context.breaks;
         exits.push(false_exit);
-        self.finish_loop_exits(statement, exits, &baseline, span)
+        let result = self.finish_loop_exits(statement, exits, &baseline, inherited, None, span)?;
+        if let Some((root, proof)) = inherited {
+            self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
+        }
+        Ok(result)
     }
 
     pub(super) fn lower_loop(
@@ -142,7 +169,7 @@ impl ExpressionLowerer<'_> {
         }
         let context = self.loops.pop().expect("loop context must be balanced");
         self.finish_loop_continues(&context)?;
-        self.finish_loop_exits(statement, context.breaks, &baseline, span)
+        self.finish_loop_exits(statement, context.breaks, &baseline, None, None, span)
     }
 
     fn finish_loop_exits(
@@ -150,21 +177,40 @@ impl ExpressionLowerer<'_> {
         statement: StatementId,
         mut exits: Vec<BranchExit>,
         baseline: &BTreeMap<SymbolId, LoweredValue>,
+        inherited: Option<(SymbolId, super::NonNullProof)>,
+        provider: Option<&super::outer_borrowed_while::Relation>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if let Some(provider) = provider {
+            self.validate_outer_borrowed_exit_states(provider, &exits, span)?;
+        }
         // Different paths may already have consumed an owner; discharge each exit before joining.
         for exit in &mut exits {
+            if let Some(provider) = provider {
+                self.restore_outer_borrowed_state(provider, exit, span)?;
+            }
+            if let Some((root, proof)) = inherited {
+                self.validate_readonly_while_exit(root, proof, exit, span)?;
+            }
             self.block = exit.block;
             self.bindings.clone_from(&exit.bindings);
             self.temporaries.clone_from(&exit.temporaries);
             self.pending_call_loans.clone_from(&exit.loans);
             self.capture_loans.clone_from(&exit.capture_loans);
             self.borrow_bindings.clone_from(&exit.borrow_bindings);
+            self.result_source_loans
+                .clone_from(&exit.result_source_loans);
             self.non_null_bindings.clone_from(&exit.views);
             self.emit_drops(lang_frontend::ownership_checking::DropPoint::LoopExit(
                 statement,
             ))?;
+            if let Some(provider) = provider {
+                self.validate_outer_borrowed_exit_states(provider, &[self.loop_exit()], span)?;
+            }
             *exit = self.loop_exit();
+            if let Some((root, proof)) = inherited {
+                self.validate_readonly_while_exit(root, proof, exit, span)?;
+            }
         }
         self.merge_exits(exits, baseline, span)
     }
@@ -174,6 +220,9 @@ impl ExpressionLowerer<'_> {
     }
 
     pub(super) fn lower_break(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
+        if !self.retire_outer_borrowed_break(span)? {
+            self.retire_while_proofs(false, span)?;
+        }
         let exit = self.loop_exit();
         let context = self
             .loops
@@ -189,6 +238,7 @@ impl ExpressionLowerer<'_> {
     }
 
     fn record_continue(&mut self, span: Span) -> Result<(), LoweringError> {
+        self.retire_while_proofs(false, span)?;
         let jump = LoopJump {
             exit: self.loop_exit(),
             span,
@@ -207,8 +257,9 @@ impl ExpressionLowerer<'_> {
                 .carried
                 .slots
                 .iter()
-                .map(|slot| loop_slot_entity(slot, &jump.exit, jump.span))
+                .map(|slot| loop_slot_entity(self, slot, &jump.exit, jump.span))
                 .collect::<Result<Vec<_>, _>>()?;
+            self.validate_pending_field_edge(&context.carried, &jump.exit, &arguments, jump.span)?;
             self.function
                 .set_terminator(
                     jump.exit.block,
@@ -270,6 +321,7 @@ impl ExpressionLowerer<'_> {
         self.block = header;
         Ok(LoopContext {
             entry_views: self.non_null_bindings.clone(),
+            outer_borrowed_while: None,
             header,
             carried,
             continues: Vec::new(),
@@ -394,7 +446,7 @@ impl ExpressionLowerer<'_> {
             .carried
             .slots
             .iter()
-            .map(|slot| loop_slot_entity(slot, &current_exit, span))
+            .map(|slot| loop_slot_entity(self, slot, &current_exit, span))
             .collect::<Result<Vec<_>, _>>()?;
         if !is_carried_source {
             backedge_args.push(EntityId::Loan(body_source));
@@ -428,6 +480,8 @@ impl ExpressionLowerer<'_> {
         exit: &lang_frontend::ownership_checking::IterationExitPlan,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.preflight_outer_borrowed_iteration(exit, span)?;
+        self.preflight_borrowed_while_exit(exit, span)?;
         for action in exit.actions() {
             self.emit_iteration_cleanup_action(action, span)?;
         }
@@ -442,6 +496,9 @@ impl ExpressionLowerer<'_> {
         use lang_frontend::ownership_checking::{DropTarget, IterationCleanupAction as Action};
         match action {
             Action::Drop(fact) => {
+                if self.emit_outer_borrowed_drop(*fact)? {
+                    return Ok(());
+                }
                 if fact.condition().is_some()
                     && !super::map_loop_owner::supported_drop(
                         self.parsed,
@@ -458,13 +515,7 @@ impl ExpressionLowerer<'_> {
                 }
                 let owner = match fact.target() {
                     DropTarget::Named(symbol) => {
-                        if let Some(loan) = self.non_null_bindings.remove(&symbol) {
-                            self.append(
-                                Operation::BorrowEnd { loan },
-                                Vec::new(),
-                                fact.value_origin(),
-                            )?;
-                        }
+                        self.end_non_null_proof(symbol, fact.value_origin())?;
                         match self.bindings.remove(&symbol) {
                             Some(LoweredValue::Value(value)) => value,
                             _ if fact.condition().is_some()
@@ -574,8 +625,8 @@ impl ExpressionLowerer<'_> {
             }
             Action::EndCallLoan(fact) => {
                 let key = (fact.call().index(), fact.argument().index());
-                if let Some(Some(loan)) = self.pending_call_loans.remove(&key) {
-                    self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
+                if self.pending_call_loans.contains_key(&key) {
+                    self.end_pending_source_loan(key, span)?;
                 }
             }
             _ => {}
@@ -593,10 +644,25 @@ fn loop_edge(target: BlockId, carried: &LinearBindings) -> Edge {
 
 /// Resolve header slots from the exit snapshot, after nested CFG has rebound IDs.
 fn loop_slot_entity(
+    lowerer: &ExpressionLowerer<'_>,
     slot: &LinearBindingSlot,
     exit: &BranchExit,
     span: Span,
 ) -> Result<EntityId, LoweringError> {
+    for &(symbol, entry_proof) in &slot.views {
+        let proof = exit
+            .views
+            .get(&symbol)
+            .copied()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        lowerer.validate_non_null_proof(symbol, proof, &exit.bindings, span)?;
+        if entry_proof.inner != proof.inner
+            || entry_proof.origin != proof.origin
+            || slot.source != EntityId::Loan(entry_proof.loan)
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+    }
     let entity = if let Some(symbol) = slot.symbol {
         match exit.bindings.get(&symbol) {
             Some(LoweredValue::Value(value)) => Some(EntityId::Value(*value)),
@@ -608,8 +674,10 @@ fn loop_slot_entity(
         exit.loans.get(key).copied().flatten().map(EntityId::Loan)
     } else if let Some(key) = slot.captures.first() {
         exit.capture_loans.get(key).copied().map(EntityId::Loan)
-    } else if let Some(symbol) = slot.views.first() {
-        exit.views.get(symbol).copied().map(EntityId::Loan)
+    } else if let Some((symbol, _)) = slot.views.first() {
+        exit.views
+            .get(symbol)
+            .map(|proof| EntityId::Loan(proof.loan))
     } else if let Some(symbol) = slot.borrow_symbols.first() {
         exit.borrow_bindings
             .get(symbol)
@@ -628,5 +696,13 @@ fn loop_slot_entity(
     } else {
         None
     };
-    entity.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+    let entity = entity.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+    if slot.views.iter().any(|(symbol, _)| {
+        exit.views
+            .get(symbol)
+            .is_none_or(|proof| entity != EntityId::Loan(proof.loan))
+    }) {
+        return Err(error(LoweringErrorKind::MissingFact, span));
+    }
+    Ok(entity)
 }

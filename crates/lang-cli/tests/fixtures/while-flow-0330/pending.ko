@@ -1,0 +1,30 @@
+class Holder(val text: String, val value: Int)
+fun inspect(text: String, own marker: Int): Int { println(text); return marker }
+fun pending(own initial: Holder?, flag: Boolean): Int {
+    var current: Holder? = initial
+    while (current != null) {
+        val result = inspect(current.text, if (flag) {
+            while (current != null) { break }
+            current.value
+        } else { current.value })
+        return result + current.value
+    }
+    return 0
+}
+fun main(): Unit {
+    val first: Holder? = Holder("pending.true.text", 47)
+    val firstResult = pending(first, true)
+    if (firstResult == 94) { println("pending.true.ok") }
+    else { println("UNEXPECTED.pending.true") }
+    val second: Holder? = Holder("pending.false.text", 53)
+    val secondResult = pending(second, false)
+    if (secondResult == 106) { println("pending.false.ok") }
+    else { println("UNEXPECTED.pending.false") }
+    var empty: Holder? = Holder("UNEXPECTED.pending.empty.text", 59)
+    empty = null
+    val emptyResult = pending(empty, true)
+    if (emptyResult == 0) { println("pending.empty.ok") }
+    else { println("UNEXPECTED.pending.empty") }
+    println("pending.done")
+}
+fun entry(): Unit { main() }

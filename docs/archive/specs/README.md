@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 313 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 314 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -491,3 +491,5 @@
 - [SPEC-0328](0328-integer-range-values.md)：整数Range普通值/存储/in/序列相等；双host36exact有界归档，保留两次CI失败、macOS校准partial及nullable/borrow/for后继；归档head CI/main待验。
 
 - [SPEC-0329](0329-integer-range-iteration.md)：数值Range owned快照for与极值安全递增/退出清理；双host37exact实现CI有界验收，保留真实失败及平台限制；归档head CI/main待验。
+
+- [SPEC-0330](0330-while-conservative-flow.md)：while 保守流事实与必要 proof/清理运输；PR116 修复实现 CI 双 host129 exact 有界验收，保留首轮52失败及平台限制；归档 head CI/main 待验。

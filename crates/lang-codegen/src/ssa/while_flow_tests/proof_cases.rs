@@ -1,0 +1,937 @@
+//! Ordinary nullable-proof acceptance candidates. Initial negative controls pin stage;
+//! their complete diagnostic identities are tightened after first real observation.
+#[path = "borrowed_proof_cases.rs"]
+pub(in crate::ssa) mod borrowed_proof_cases;
+#[path = "if_cleanup_observation.rs"]
+mod if_cleanup_observation;
+
+use super::super::{integer_range_value_tests::collect_sources, verify::verify_program};
+
+fn observe(group: &str, cases: &[(String, bool)]) {
+    let sources = cases
+        .iter()
+        .map(|(source, _)| source.clone())
+        .collect::<Vec<_>>();
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), cases.len() * 2);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("PROOF LLVM group={group} case={index} {llvm}");
+                Ok(())
+            });
+            println!(
+                "PROOF OUTCOME group={group} source={} unit={} {result:?}",
+                index / 2,
+                index % 2 == 1
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    // Check the observed rejection controls before a still-red positive can stop this exact.
+    for (index, result) in outcomes.iter().enumerate() {
+        if cases[index / 2].1 {
+            let error = result
+                .as_ref()
+                .expect_err("stale read or conflicting child must be rejected");
+            assert_rejection(group, &cases[index / 2].0, index % 2 == 1, error);
+        }
+    }
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if !cases[index / 2].1 {
+            result.expect("ordinary nullable while proof reaches verified SSA and LLVM");
+        }
+    }
+}
+
+fn assert_rejection(group: &str, source: &str, unit: bool, error: &str) {
+    let offset = if unit { "package p\n".len() } else { 0 };
+    let primary = |start: usize, length: usize| {
+        format!(
+            "primary_span: Span {{ source_id: SourceId(0), start: {}, end: {} }}",
+            start + offset,
+            start + offset + length
+        )
+    };
+    if group == "pending-child" {
+        assert!(error.starts_with("ownership"), "{error}");
+        assert_eq!(
+            error.matches("Diagnostic { severity:").count(),
+            1,
+            "{error}"
+        );
+        assert_eq!(error.matches("code: L0135,").count(), 1, "{error}");
+        let mutation = source.find("current = null").unwrap();
+        let borrowed = source.find("current.text").unwrap();
+        assert!(
+            error.contains(&primary(mutation, "current".len())),
+            "{error}"
+        );
+        let label = format!(
+            "Label(DiagnosticLabel {{ span: Span {{ source_id: SourceId(0), start: {}, end: {} }}, message: DiagnosticText(\"conflicting loan starts here\") }})",
+            borrowed + offset,
+            borrowed + offset + "current.text".len()
+        );
+        assert!(error.contains(&label), "{error}");
+    } else {
+        assert!(error.starts_with("complete:"), "{error}");
+        let count = if group == "same-root" { 2 } else { 1 };
+        assert_eq!(
+            error.matches("Diagnostic { severity:").count(),
+            count,
+            "{error}"
+        );
+        assert_eq!(error.matches("code: L0165,").count(), count, "{error}");
+        for (start, _) in source.rmatch_indices("current.value").take(count) {
+            assert!(
+                error.contains(&primary(start, "current.value".len())),
+                "{error}"
+            );
+        }
+    }
+}
+
+fn holder(body: &str) -> String {
+    format!(
+        "class Holder(val value: Int)\nfun entry(own initial: Holder?, flag: Boolean): Int {{\nvar current: Holder? = initial\nvar total: Int = 0\n{body}\n}}"
+    )
+}
+
+#[test]
+fn normal_continue_and_group_conditions_reach_llvm() {
+    let normal =
+        holder("while (current != null) { total = current.value\ncurrent = null }\nreturn total");
+    let continued = normal.replace("current = null }", "current = null\ncontinue }");
+    let grouped = continued.replace("while (current != null)", "while (((current) != null))");
+    observe(
+        "normal-continue",
+        &[(normal, false), (continued, false), (grouped, false)],
+    );
+}
+
+#[test]
+fn break_return_and_outer_owner_reach_llvm() {
+    let broken = resource_break_source();
+    let returned = nullable_field_return_source();
+    observe("break-return", &[(broken, false), (returned, false)]);
+}
+
+#[test]
+fn branch_join_and_replacement_keep_current_proof_identity() {
+    let read = holder(
+        "while (current != null) {\nif (flag) { total = current.value } else { total = current.value }\ntotal = total + current.value\ncurrent = null\n}\nreturn total",
+    );
+    let matched = holder(
+        "while (current != null) {\nwhen (flag) {\ntrue -> { total = current.value }\nelse -> { total = current.value }\n}\ntotal = total + current.value\ncurrent = null\n}\nreturn total",
+    );
+    let retested = retested_after_branch_source();
+    let stale = holder(
+        "while (current != null) {\nif (flag) { current = null }\ntotal = current.value\nbreak\n}\nreturn total",
+    );
+    observe(
+        "branch-join",
+        &[
+            (read, false),
+            (matched, false),
+            (retested, false),
+            (stale, true),
+        ],
+    );
+}
+
+#[test]
+fn same_root_nested_loops_preserve_or_invalidate_outer_proof() {
+    let readonly = readonly_nested_source();
+    let written = written_nested_source();
+    let normal = written.replace("\ncontinue }", "\n}");
+    let stale = written.replace("\nreturn total\n}", "\nreturn current.value\n}");
+    observe(
+        "same-root",
+        &[
+            (readonly, false),
+            (written, false),
+            (normal, false),
+            (stale, true),
+        ],
+    );
+}
+
+#[test]
+fn different_root_and_borrowed_loops_preserve_outer_access() {
+    let different = different_root_source();
+    let numeric = numeric_nested_source();
+    let inner_borrow = borrowed_proof_cases::borrowed_for_inside_while_source();
+    let outer_borrow = borrowed_proof_cases::while_inside_borrowed_for_source();
+    observe(
+        "other-loops",
+        &[
+            (different, false),
+            (numeric, false),
+            (inner_borrow, false),
+            (outer_borrow, false),
+        ],
+    );
+}
+
+#[test]
+fn pending_field_child_survives_readonly_nested_control() {
+    let read = pending_child_source();
+    let conflict = r#"class Holder(val text: String, val value: Int)
+fun inspect(text: String, own marker: Int): Int { println(text); return marker }
+fun entry(own initial: Holder?, flag: Boolean): Int {
+    var current: Holder? = initial
+    while (current != null) {
+        val result = inspect(current.text, if (flag) {
+            while (current != null) { current = null; break }
+            0
+        } else { 0 })
+        return result
+    }
+    return 0
+}"#
+    .to_owned();
+    observe("pending-child", &[(read, false), (conflict, true)]);
+}
+
+#[test]
+fn owner_transfer_and_other_owner_assertion_preserve_cleanup() {
+    let transfer = owner_return_source();
+    let assertion = r#"class Holder(val value: Int)
+fun entry(own initial: Holder?, own other: Holder?): Int {
+    var current: Holder? = initial
+    while (current != null) {
+        val taken = other!!
+        return taken.value + current.value
+    }
+    return 0
+}"#
+    .to_owned();
+    observe("owner-transfer", &[(transfer, false), (assertion, false)]);
+}
+
+/// First implementation slice: both entrances are observed; only single-file proof birth
+/// is required here. The full dual-entrance matrix above remains the final contract.
+#[test]
+fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
+    let outcomes = direct_proof_observations();
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if index % 2 == 0 {
+            let program =
+                result.expect("single direct nullable while has a real per-iteration proof");
+            direct_contract::assert_direct_proof(&program, index / 2);
+        }
+    }
+}
+
+#[test]
+fn unit_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
+    let outcomes = direct_proof_observations();
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if index % 2 == 1 {
+            let program = result.expect("unit direct nullable while reaches verified LLVM");
+            direct_contract::assert_unit_direct_proof(&program, index / 2);
+        }
+    }
+}
+
+fn direct_proof_sources() -> [String; 5] {
+    let normal =
+        holder("while (current != null) { total = current.value\ncurrent = null }\nreturn total");
+    let continued = normal.replace("current = null }", "current = null\ncontinue }");
+    let grouped = continued.replace("while (current != null)", "while (((current) != null))");
+    let broken = holder("while (current != null) { total = current.value\nbreak }\nreturn total");
+    let returned = holder("while (current != null) { return current.value }\nreturn total");
+    [normal, continued, grouped, broken, returned]
+}
+
+fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>> {
+    let sources = direct_proof_sources();
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), sources.len() * 2);
+    observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            let status = result.as_ref().map(|_| ());
+            println!(
+                "DIRECT PROOF source={} unit={} {status:?}",
+                index / 2,
+                index % 2 == 1
+            );
+            result
+        })
+        .collect::<Vec<_>>()
+}
+
+#[path = "direct_contract.rs"]
+mod direct_contract;
+
+fn owner_return_source() -> String {
+    r#"class Holder(val value: Int)
+fun entry(own initial: Holder?): Holder? {
+    var current: Holder? = initial
+    while (current != null) { return current }
+    return null
+}"#
+    .to_owned()
+}
+
+#[test]
+fn nullable_owner_return_retires_proof_without_rewrapping_storage() {
+    let source = owner_return_source();
+    let grouped = source.replace("return current", "return ((current))");
+    let sources = [source, grouped];
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 4);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            println!(
+                "OWNER RETURN source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    for result in outcomes {
+        direct_contract::assert_owner_return(
+            &result.expect("original nullable owner safely returned"),
+        );
+    }
+}
+
+fn readonly_nested_source() -> String {
+    holder(
+        "while (current != null) {\ntotal = current.value\nwhile (current != null) { total = total + current.value\nbreak }\ntotal = total + current.value\nbreak\n}\nreturn total",
+    )
+}
+
+#[test]
+fn readonly_same_root_nested_while_preserves_the_outer_proof() {
+    let source = readonly_nested_source();
+    let grouped = source.replace(
+        "while (current != null) { total = total + current.value",
+        "while (((current) != null)) { total = total + current.value",
+    );
+    let sources = [source, grouped];
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 4);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            println!(
+                "READONLY NESTED source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    for (index, result) in outcomes.into_iter().enumerate() {
+        let program = result.expect("read-only inner while preserves the inherited proof");
+        readonly_nested_contract::assert_inherited_proof(
+            &program,
+            &sources[index / 2],
+            index % 2 == 1,
+        );
+    }
+}
+
+#[path = "readonly_nested_contract.rs"]
+mod readonly_nested_contract;
+
+fn written_nested_source() -> String {
+    holder(
+        "while (current != null) {\ntotal = current.value\nwhile (current != null) { total = total + current.value\ncurrent = null\ncontinue }\nreturn total\n}\nreturn total",
+    )
+}
+
+#[test]
+fn written_same_root_nested_while_retires_outer_and_rebirths_inner_proof() {
+    let continued = written_nested_source();
+    let normal = continued.replace("\ncontinue }", "\n}");
+    let grouped = |source: &str| {
+        source.replace(
+            "while (current != null) { total = total + current.value",
+            "while (((current) != null)) { total = total + current.value",
+        )
+    };
+    let continued_group = grouped(&continued);
+    let normal_group = grouped(&normal);
+    let sources = [continued, normal, continued_group, normal_group];
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 8);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            println!(
+                "WRITTEN NESTED source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    for (index, result) in outcomes.into_iter().enumerate() {
+        let program =
+            result.expect("head-killed inner guard safely retires then rebinds its proof");
+        written_nested_contract::assert_reborn_proof(&program, &sources[index / 2], index % 2 == 1);
+    }
+}
+
+#[path = "written_nested_contract.rs"]
+mod written_nested_contract;
+
+pub(in crate::ssa) fn different_root_source() -> String {
+    r#"class Holder(val value: Int)
+fun entry(own left: Holder?, own right: Holder?): Int {
+    var current: Holder? = left
+    var other: Holder? = right
+    var total: Int = 0
+    while (current != null) {
+        while (other != null) { total = total + other.value; other = null; continue }
+        return total + current.value
+    }
+    return total
+}"#
+    .to_owned()
+}
+
+#[test]
+fn distinct_root_nested_while_retires_only_the_inner_scope() {
+    let continued = different_root_source();
+    let normal = continued.replace("; continue }", " }");
+    let distinct_payload = continued
+        .replace(
+            "class Holder(val value: Int)",
+            "class Holder(val value: Int)\nclass Other(val value: Int)",
+        )
+        .replace("own right: Holder?", "own right: Other?")
+        .replace("var other: Holder?", "var other: Other?");
+    let empty = continued.replace(
+        "var other: Holder? = right",
+        "var other: Holder? = right\n    other = null",
+    );
+    let grouped =
+        |source: &str| source.replace("while (other != null)", "while (((other) != null))");
+    let continued_group = grouped(&continued);
+    let normal_group = grouped(&normal);
+    let sources = [
+        continued,
+        normal,
+        continued_group,
+        normal_group,
+        empty,
+        distinct_payload,
+    ];
+    let observations = collect_sources(&sources);
+    assert_eq!(observations.len(), 12);
+    let outcomes = observations
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("DISTINCT LLVM case={index} {llvm}");
+                println!(
+                    "DISTINCT SSA case={index} {}",
+                    crate::ssa::render::render_program(&program)
+                );
+                Ok(program)
+            });
+            println!(
+                "DISTINCT OUTCOME source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    for (index, result) in outcomes.into_iter().enumerate() {
+        let program = result.expect("independent nested scopes preserve the outer proof");
+        distinct_nested_contract::assert_distinct_scopes(
+            &program,
+            &sources[index / 2],
+            index % 2 == 1,
+        );
+    }
+}
+
+#[path = "distinct_nested_contract.rs"]
+mod distinct_nested_contract;
+
+#[test]
+fn root_assignment_delivers_move_only_rhs_before_later_control_flow() {
+    let string = r#"fun entry(own number: Int): Int {
+var text = "old"
+text = "new"
+println(text)
+return number + 1
+}"#
+    .to_owned();
+    let moved = string.replace("text = \"new\"", "val incoming = \"new\"\ntext = incoming");
+    let nullable = holder(
+        "current = null\nwhile (current != null) { total = total + current.value\ncurrent = null }\nreturn total + 1",
+    );
+    let grouped = nullable.replace("current = null", "current = (null)");
+    let copied =
+        "fun entry(own number: Int): Int { var value = 0; value = number; return value + number }"
+            .to_owned();
+    let compound =
+        "fun entry(own number: Int): Int { var value = 0; value += number; return value + number }"
+            .to_owned();
+    let sources = [string, moved, nullable, grouped, copied, compound];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(())
+            });
+            println!(
+                "ASSIGNMENT OUTCOME source={} unit={} {result:?}",
+                index / 2,
+                index % 2 == 1
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 12);
+    // Unit compound assignment is a pre-existing frontend Deferred boundary.
+    let error = outcomes[11]
+        .as_ref()
+        .expect_err("retain the observed compound boundary");
+    assert_eq!(
+        error,
+        "complete: Diagnostics([Diagnostic { severity: Error, code: L0165, message: DiagnosticText(\"type checking could not complete: assignment type checking is unresolved\"), primary_span: Span { source_id: SourceId(0), start: 59, end: 74 }, details: [] }])"
+    );
+    for result in outcomes.into_iter().take(11) {
+        result.expect("owned assignment delivery and Copyable controls reach LLVM");
+    }
+}
+
+fn resource_break_source() -> String {
+    r#"class Holder(val value: Int)
+class Guard(val text: String) { deinit() { println(this.text) } }
+fun entry(own initial: Holder?): Int {
+    val outer = Guard("outer")
+    var current: Holder? = initial
+    var total: Int = 0
+    while (current != null) {
+        val inner = Guard("inner")
+        total = current.value
+        break
+    }
+    println(outer.text)
+    return total
+}"#
+    .to_owned()
+}
+
+#[test]
+fn owned_local_field_borrow_matches_the_existing_unit_path() {
+    let broken = resource_break_source();
+    let direct = r#"class Guard(val text: String) { deinit() { println(this.text) } }
+fun entry(): Unit {
+val outer = Guard("outer")
+println(outer.text)
+}"#
+    .to_owned();
+    let grouped = direct.replace("println(outer.text)", "println((outer.text))");
+    let sources = [broken, direct, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            println!(
+                "OWNED FIELD source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 6);
+    for result in outcomes {
+        owned_field_contract::assert_field_loan(
+            &result.expect("ordinary local field loan reaches LLVM"),
+        );
+    }
+}
+
+#[path = "owned_field_contract.rs"]
+mod owned_field_contract;
+
+#[test]
+fn owned_local_field_borrow_preserves_unclosed_projection_boundaries() {
+    let sources = [
+        "class Inner(val text: String)\nclass Outer(val inner: Inner)\nfun entry(): Unit {\nval outer = Outer(Inner(\"text\"))\nprintln(outer.inner.text)\n}",
+        "class Holder<T>(val text: T)\nfun entry(): Unit {\nval holder = Holder(\"text\")\nprintln(holder.text)\n}",
+        "value class Holder(val text: String)\nfun entry(): Unit {\nval holder = Holder(\"text\")\nprintln(holder.text)\n}",
+        "class Holder(val text: String)\nfun inspect(own holder: Holder): Unit { println(holder.text) }\nfun entry(): Unit { inspect(Holder(\"text\")) }",
+        "class Holder(var first: String, val second: String)\nfun inspect(text: String): String { println(text)\nreturn \"next\" }\nfun entry(): Unit {\nval holder = Holder(\"first\", \"second\")\nval old = replace(&holder.first, inspect(holder.second))\n}",
+        "class Holder(val first: String, var second: String)\nfun inspect(text: String, own other: String): Unit { println(text)\nprintln(other) }\nfun entry(): Unit {\nval holder = Holder(\"first\", \"second\")\ninspect(holder.first, replace(&holder.second, \"next\"))\n}",
+
+    ].map(str::to_owned);
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let status = result.as_ref().map(|_| ());
+            println!(
+                "OWNED FIELD BOUNDARY source={} unit={} {status:?}",
+                index / 2,
+                index % 2 == 1
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 12);
+    for result in outcomes {
+        let error = result
+            .err()
+            .expect("nested/generic/inline/parameter/sibling boundaries remain rejected");
+        assert!(
+            error.starts_with("lower: LoweringError { kind: UnsupportedNode,"),
+            "{error}"
+        );
+    }
+}
+
+fn nullable_field_return_source() -> String {
+    r#"class Holder(val text: String)
+fun inspect(text: String): Int { println(text); return 7 }
+fun entry(own initial: Holder?): Int {
+    var current: Holder? = initial
+    while (current != null) { return inspect(current.text) }
+    return 0
+}"#
+    .to_owned()
+}
+
+#[test]
+fn nullable_proof_field_child_borrow_reaches_the_synchronous_call() {
+    let returned = nullable_field_return_source();
+    let direct = r#"class Holder(val text: String)
+fun entry(own initial: Holder?): Unit {
+    var current: Holder? = initial
+    while (current != null) { println(current.text); break }
+}"#
+    .to_owned();
+    let grouped = direct.replace("println(current.text)", "println((current.text))");
+    let sources = [returned, direct, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(program)
+            });
+            println!(
+                "NULLABLE FIELD CHILD source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 6);
+    for (index, result) in outcomes.into_iter().enumerate() {
+        nullable_field_contract::assert_field_child(
+            &result.expect("ordinary nullable field child reaches verified SSA and LLVM"),
+            index / 2 == 0,
+        );
+    }
+}
+
+#[path = "nullable_field_contract.rs"]
+mod nullable_field_contract;
+
+#[test]
+fn owned_source_call_arguments_adapt_to_nullable_parameters() {
+    let direct = r#"class Holder(val value: Int)
+fun take(own value: Holder?, flag: Boolean): Int {
+    var current: Holder? = value
+    while (current != null) { return current.value }
+    return 0
+}
+fun entry(flag: Boolean): Int {
+    return take(Holder(7), flag)
+}"#
+    .to_owned();
+    let grouped = direct.replace("take(Holder(7), flag)", "take(((Holder(7))), flag)");
+    let nullable_and_null = direct.replace(
+        "return take(Holder(7), flag)",
+        "val current: Holder? = Holder(7)\n    val present = take(current, flag)\n    return present + take(null, flag)",
+    );
+    let later_control = direct.replace(
+        "take(Holder(7), flag)",
+        "take(Holder(7), if (flag) { true } else { false })",
+    );
+    // Observe all eight real frontend/lower/verify/LLVM paths before requiring success.
+    observe(
+        "owned-nullable-call",
+        &[
+            (direct, false),
+            (grouped, false),
+            (nullable_and_null, false),
+            (later_control, false),
+        ],
+    );
+}
+
+#[test]
+fn nullable_field_value_argument_observes_empty_and_populated_call_frames() {
+    let first = r#"class Holder(val value: Int)
+fun pass(own value: Int): Int { return value }
+fun entry(own initial: Holder?): Int {
+    var current: Holder? = initial
+    while (current != null) { return pass(current.value) }
+    return 0
+}"#
+    .to_owned();
+    let prefix = r#"class Holder(val value: Int)
+fun pass(own marker: Int, own value: Int): Int { return marker + value }
+fun entry(own initial: Holder?): Int {
+    var current: Holder? = initial
+    while (current != null) { return pass(1, current.value) }
+    return 0
+}"#
+    .to_owned();
+    let outcomes = collect_sources(&[first, prefix])
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                Ok(())
+            });
+            println!(
+                "VALUE ARG FRAME source={} unit={} {result:?}",
+                index / 2,
+                index % 2 == 1
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.len(), 4);
+    for outcome in outcomes.iter().take(3) {
+        assert!(outcome.is_ok(), "accepted value argument: {outcome:?}");
+    }
+    assert_eq!(
+        outcomes[3].as_ref().unwrap_err(),
+        "lower: LoweringError { kind: UnsupportedNode, span: Some(Span { source_id: SourceId(0), start: 159, end: 166 }) }"
+    );
+}
+
+pub(in crate::ssa) fn pending_child_source() -> String {
+    r#"class Holder(val text: String, val value: Int)
+fun inspect(text: String, own marker: Int): Int { println(text); return marker }
+fun entry(own initial: Holder?, flag: Boolean): Int {
+    var current: Holder? = initial
+    while (current != null) {
+        val result = inspect(current.text, if (flag) {
+            while (current != null) { break }
+            current.value
+        } else { current.value })
+        return result + current.value
+    }
+    return 0
+}"#
+    .to_owned()
+}
+
+#[test]
+fn pending_nullable_field_child_preserves_readonly_call_prefix() {
+    let source = pending_child_source();
+    let grouped = source.replace(
+        "while (current != null) { break }",
+        "while (((current) != null)) { break }",
+    );
+    #[path = "pending_child_contract.rs"]
+    mod pending_child_contract;
+
+    let sources = [source, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("PENDING CHILD LLVM case={index} {llvm}");
+                println!(
+                    "PENDING CHILD SSA case={index} {}",
+                    crate::ssa::render::render_program(&program)
+                );
+                Ok(program)
+            });
+            println!(
+                "PENDING CHILD OUTCOME source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    // Retain all four real verify/render outcomes before querying any SSA identity.
+    assert_eq!(outcomes.len(), 4);
+    for (index, result) in outcomes.into_iter().enumerate() {
+        pending_child_contract::assert_pending_child(
+            &result.expect("pending child survives readonly argument control flow"),
+            &sources[index / 2],
+            index % 2 == 1,
+        );
+    }
+}
+
+pub(in crate::ssa) fn retested_after_branch_source() -> String {
+    holder(
+        "while (current != null) {\nif (flag) { current = null }\nif (current != null) { total = current.value }\nbreak\n}\nreturn total",
+    )
+}
+
+#[test]
+fn nullable_if_retest_after_conditional_replacement_reaches_llvm() {
+    let source = retested_after_branch_source();
+    let grouped = source.replace("if (current != null)", "if (((current) != null))");
+    let sources = [source, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                println!(
+                    "IF RETEST SSA case={index} {}",
+                    crate::ssa::render::render_program(&program)
+                );
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("IF RETEST LLVM case={index} {llvm}");
+                Ok(program)
+            });
+            println!(
+                "IF RETEST OUTCOME source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    // Finish all four real lowering/verify/render observations before querying identities.
+    assert_eq!(outcomes.len(), 4);
+    for (index, result) in outcomes.into_iter().enumerate() {
+        if_retest_contract::assert_retest(
+            &result.expect("conditional replacement permits a fresh nullable if proof"),
+            &sources[index / 2],
+            index % 2 == 1,
+        );
+    }
+}
+
+#[path = "if_retest_contract.rs"]
+mod if_retest_contract;
+
+pub(in crate::ssa) fn numeric_nested_source() -> String {
+    holder(
+        "while (current != null) {\nfor (item in 0..<2) { if (item == 0) { continue }\ntotal = total + current.value }\nreturn total + current.value\n}\nreturn total",
+    )
+}
+
+#[test]
+fn numeric_for_preserves_the_outer_nullable_while_proof() {
+    let source = numeric_nested_source();
+    let grouped = source.replace("in 0..<2", "in ((0..<2))");
+    let sources = [source, grouped];
+    let outcomes = collect_sources(&sources)
+        .into_iter()
+        .enumerate()
+        .map(|(index, result)| {
+            let result = result.and_then(|program| {
+                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .map_err(|error| format!("LLVM: {error:?}"))?;
+                println!("NUMERIC PROOF LLVM case={index} {llvm}");
+                Ok(program)
+            });
+            println!(
+                "NUMERIC PROOF OUTCOME source={} unit={} {:?}",
+                index / 2,
+                index % 2 == 1,
+                result.as_ref().map(|_| ())
+            );
+            result
+        })
+        .collect::<Vec<_>>();
+    // Collect every original/Group single/unit verify/render result before identities.
+    assert_eq!(outcomes.len(), 4);
+    for (index, result) in outcomes.into_iter().enumerate() {
+        numeric_proof_contract::assert_numeric_proof(
+            &result.expect("numeric for preserves the existing nullable while proof"),
+            &sources[index / 2],
+            index % 2 == 1,
+        );
+    }
+}
+
+#[path = "numeric_proof_contract.rs"]
+mod numeric_proof_contract;

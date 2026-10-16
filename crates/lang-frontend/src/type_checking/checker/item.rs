@@ -531,9 +531,7 @@ impl Checker<'_> {
             Statement::While {
                 condition, body, ..
             } => {
-                let boolean = self.builtin(BuiltinType::Boolean);
-                self.check_expression(condition, Some(boolean), None)?;
-                self.check_loop_body(body)?;
+                self.check_while_flow(condition, body)?;
                 Ok(StatementCheck {
                     ty: unit,
                     falls_through: true,

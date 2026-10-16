@@ -20,6 +20,33 @@ pub(super) enum FlowKey {
 type ConditionFacts = (BTreeMap<FlowKey, TypeId>, BTreeMap<FlowKey, TypeId>);
 
 impl Checker<'_> {
+    // A stable narrowed read still compares against its declared nullable storage.
+    // This expected type belongs only to the other, literal-null operand.
+    pub(super) fn null_comparison_expected(
+        &self,
+        expression: ExpressionId,
+        read_type: TypeId,
+    ) -> Option<TypeId> {
+        if matches!(self.kind(read_type), TypeKind::Nullable(_)) {
+            return Some(read_type);
+        }
+        if matches!(
+            self.kind(read_type),
+            TypeKind::Error | TypeKind::Deferred(_)
+        ) {
+            return None;
+        }
+        let FlowKey::Symbol(symbol) = self.stable_flow_key(expression)? else {
+            return None;
+        };
+        let declared = self.symbol_type(symbol)?;
+        let TypeKind::Nullable(inner) = self.kind(declared) else {
+            return None;
+        };
+        (*inner == read_type && self.flow_facts.get(&FlowKey::Symbol(symbol)) == Some(&read_type))
+            .then_some(declared)
+    }
+
     pub(super) fn collect_flow_metadata(&mut self) {
         let variables = self
             .ast()
@@ -166,8 +193,10 @@ impl Checker<'_> {
                 right,
                 ..
             } => {
-                let (left_true, left_false) = self.condition_facts(left)?;
+                let (mut left_true, left_false) = self.condition_facts(left)?;
                 let (right_true, right_false) = self.condition_facts(right)?;
+                let writes = self.expression_flow_writes(right)?;
+                left_true.retain(|key, _| !writes.contains(key));
                 let when_true = extend_facts(&left_true, &right_true);
                 let right_false_path = extend_facts(&left_true, &right_false);
                 let when_false = intersect_facts(&left_false, &right_false_path);
@@ -179,8 +208,10 @@ impl Checker<'_> {
                 right,
                 ..
             } => {
-                let (left_true, left_false) = self.condition_facts(left)?;
+                let (left_true, mut left_false) = self.condition_facts(left)?;
                 let (right_true, right_false) = self.condition_facts(right)?;
+                let writes = self.expression_flow_writes(right)?;
+                left_false.retain(|key, _| !writes.contains(key));
                 let right_true_path = extend_facts(&left_false, &right_true);
                 let when_true = intersect_facts(&left_true, &right_true_path);
                 let when_false = extend_facts(&left_false, &right_false);

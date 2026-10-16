@@ -23,6 +23,8 @@ use crate::ssa::{
 
 pub(super) struct LoweredCallArguments {
     pub(super) arguments: Vec<EntityId>,
+    pub(super) nullable_children:
+        Vec<super::call_lifetimes::nullable_child::CommittedNullableChild>,
     pub(super) created_loans: Vec<(LoanId, Span)>,
     pub(super) argument_loans: BTreeMap<UnitExpressionId, Vec<LoanId>>,
     pub(super) abi_owners: Vec<crate::ssa::model::ValueId>,
@@ -270,6 +272,7 @@ impl UnitExpressionLowerer<'_> {
         if let Some(receiver) = &receiver {
             self.pending_call_frames
                 .push(super::call_lifetimes::PendingCallFrame {
+                    nullable_children: Vec::new(),
                     call,
                     receiver: true,
                     loan_arguments: Vec::new(),
@@ -291,6 +294,8 @@ impl UnitExpressionLowerer<'_> {
         let Some(LoweredCallArguments {
             arguments,
             created_loans,
+            argument_loans,
+            nullable_children,
             abi_owners,
             ..
         }) = lowered_arguments?
@@ -384,9 +389,13 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        for (loan, end_span) in created_loans.into_iter().rev() {
-            self.end_short_call_loan(loan, end_span)?;
-        }
+        self.end_committed_call_loans(
+            call,
+            created_loans,
+            argument_loans,
+            nullable_children,
+            span,
+        )?;
         self.drop_abi_call_owners(abi_owners, span)?;
         if let Some(receiver) = receiver {
             for (loan, end_span) in receiver.created_loans.into_iter().rev() {
@@ -466,6 +475,7 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<Option<LoweredCallArguments>, LoweringError> {
         self.pending_call_frames
             .push(super::call_lifetimes::PendingCallFrame {
+                nullable_children: Vec::new(),
                 call,
                 receiver: false,
                 loan_arguments: Vec::new(),
@@ -724,10 +734,18 @@ impl UnitExpressionLowerer<'_> {
                 Ok((*argument, loans))
             })
             .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
+        let nullable_children = self.commit_pending_nullable_children(
+            call,
+            &arguments,
+            &argument_loans,
+            &created_loans,
+            span,
+        )?;
         self.preserve_short_range_ends();
         self.pending_operands.truncate(pending_start);
         Ok(Some(LoweredCallArguments {
             arguments,
+            nullable_children,
             created_loans,
             argument_loans,
             abi_owners,

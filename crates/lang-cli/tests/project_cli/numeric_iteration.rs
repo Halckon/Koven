@@ -1,6 +1,5 @@
 //! SPEC-0329 project counterpart for numeric Range values and storage.
-#[path = "../support/numeric_iteration_run.rs"]
-mod bounded_run;
+use super::bounded_iteration_run as bounded_run;
 
 use super::{TestProject, assert_no_build_temporaries, project_build};
 

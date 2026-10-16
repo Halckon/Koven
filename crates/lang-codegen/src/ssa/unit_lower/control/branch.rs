@@ -10,10 +10,12 @@ impl UnitExpressionLowerer<'_> {
         consumed_receiver: Option<super::super::ConsumedReceiver>,
         bindings: BTreeMap<UnitSymbolId, LoweredValue>,
         borrow_bindings: BTreeMap<UnitSymbolId, crate::ssa::model::LoanId>,
+        nullable_proofs: super::super::NullableProofs,
         result_source_loans: BTreeMap<UnitSymbolId, Vec<crate::ssa::model::LoanId>>,
         closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
         capture_loans: BTreeMap<(UnitExpressionId, usize), crate::ssa::model::LoanId>,
         pending_operands: Vec<EntityId>,
+        pending_call_frames: Vec<super::super::call_lifetimes::PendingCallFrame>,
         temporaries: BTreeMap<UnitExpressionId, ValueId>,
         drop_point: UnitDropPoint,
         result_required: bool,
@@ -24,10 +26,12 @@ impl UnitExpressionLowerer<'_> {
         let entry_symbols = bindings.keys().copied().collect();
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
+        self.nullable_proofs = nullable_proofs;
         self.result_source_loans = result_source_loans;
         self.closure_bindings = closure_bindings;
         self.capture_loans = capture_loans;
         self.pending_operands = pending_operands;
+        self.pending_call_frames = pending_call_frames;
         let entry_temporaries = temporaries.keys().copied().collect::<Vec<_>>();
         self.temporaries = temporaries;
         let result_expression = result_required
@@ -64,10 +68,12 @@ impl UnitExpressionLowerer<'_> {
             consumed_receiver: self.consumed_receiver,
             bindings: self.bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
+            nullable_proofs: self.nullable_proofs.clone(),
             closure_bindings: self.closure_bindings.clone(),
             capture_loans: self.capture_loans.clone(),
             result_source_loans: self.result_source_loans.clone(),
             pending_operands: self.pending_operands.clone(),
+            pending_call_frames: self.pending_call_frames.clone(),
             temporaries: self.temporaries.clone(),
         }))
     }

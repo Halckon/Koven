@@ -19,9 +19,7 @@ impl BodyChecker<'_> {
         return_type: UnitTypeId,
         return_span: Option<Span>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let boolean = self.builtin(BuiltinType::Boolean);
-        self.check_expression(source, condition, Some(boolean), None, return_type)?;
-        self.check_loop_body(source, body, return_type, return_span)?;
+        self.check_while_flow(source, condition, body, return_type, return_span)?;
         Ok(self.unit_statement())
     }
 

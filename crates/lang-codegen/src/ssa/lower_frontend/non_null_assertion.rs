@@ -135,9 +135,13 @@ impl ExpressionLowerer<'_> {
                 .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
                 .parameters[owner_slot],
         );
-        let (_, result) = self.append(
-            Operation::NullableTake { owner, proof },
-            vec![EntityType::Value(inner)],
+        self.validate_non_null_proof_types(
+            super::NonNullProof::introduced(
+                proof,
+                owner,
+                inner,
+                super::non_null_proof::ProofScope::Assertion(expression),
+            ),
             span,
         )?;
         let consumed_symbols = self
@@ -147,6 +151,17 @@ impl ExpressionLowerer<'_> {
                 matches!(binding, LoweredValue::Value(value) if *value == owner).then_some(symbol)
             })
             .collect::<Vec<_>>();
+        for &symbol in &consumed_symbols {
+            self.reject_live_while_proof(symbol, span)?;
+            if let Some(&existing) = self.non_null_bindings.get(&symbol) {
+                self.validate_non_null_proof(symbol, existing, &self.bindings, span)?;
+            }
+        }
+        let (_, result) = self.append(
+            Operation::NullableTake { owner, proof },
+            vec![EntityType::Value(inner)],
+            span,
+        )?;
         for symbol in consumed_symbols {
             self.bindings.remove(&symbol);
             self.non_null_bindings.remove(&symbol);

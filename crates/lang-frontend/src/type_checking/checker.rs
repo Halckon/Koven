@@ -32,6 +32,7 @@ mod trial;
 mod type_inference;
 mod type_ref;
 mod when;
+mod while_flow;
 
 use std::{
     collections::{BTreeMap, BTreeSet},

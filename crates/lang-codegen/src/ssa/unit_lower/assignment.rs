@@ -76,11 +76,26 @@ impl UnitExpressionLowerer<'_> {
             .get(&span_key(target_node.span()))
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, target_node.span()))?;
-        let target_type = self
-            .typed
-            .expression_type(UnitExpressionId::new(self.source_unit, target))
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, target_node.span()))?;
-        let target_ssa_type = self.expression_ssa_type(target, target_node.span())?;
+        let target_type = if operator == AssignmentOperator::Assign {
+            let expression_id = UnitExpressionId::new(self.source_unit, expression);
+            let descriptor = self
+                .typed
+                .assignment(expression_id)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if descriptor.expression() != expression_id
+                || descriptor.target() != UnitExpressionId::new(self.source_unit, target)
+                || descriptor.value() != UnitExpressionId::new(self.source_unit, value)
+                || descriptor.operator() != operator
+                || self.typed.symbol_type(symbol) != Some(descriptor.target_type())
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            descriptor.target_type()
+        } else {
+            self.typed
+                .expression_type(UnitExpressionId::new(self.source_unit, target))
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, target_node.span()))?
+        };
 
         let (assigned, transferred) = match operator {
             AssignmentOperator::Assign => match self.lower(value)? {
@@ -121,6 +136,7 @@ impl UnitExpressionLowerer<'_> {
                         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
                     }
                 };
+                let target_ssa_type = self.expression_ssa_type(target, target_node.span())?;
                 self.require_matching_assignment_type(value, target_ssa_type, span)?;
                 (
                     self.checked(
@@ -147,6 +163,7 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        self.reject_live_while_proof(symbol, span)?;
         self.bindings.insert(symbol, assigned);
         Ok(LoweredValue::Unit)
     }

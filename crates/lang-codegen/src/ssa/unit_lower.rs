@@ -19,6 +19,7 @@ mod control;
 mod deinit;
 mod deinit_borrow;
 mod enum_lower;
+mod enum_type_test;
 mod field_borrow;
 mod field_replace;
 mod handoff;
@@ -32,6 +33,7 @@ mod map_result;
 mod map_with;
 mod non_null_assertion;
 mod nullable_comparison;
+mod nullable_proof;
 mod ownership;
 mod ownership_primitive;
 mod range;
@@ -41,6 +43,7 @@ mod scalar;
 mod string_clone;
 mod type_lower;
 mod type_plan;
+mod while_proof;
 
 pub(crate) use handoff::lower_owned_unit_with_entry;
 #[cfg_attr(
@@ -52,6 +55,7 @@ pub(crate) use handoff::lower_owned_unit_with_entry;
 )]
 pub(crate) use handoff::lower_scalar_unit_with_entry;
 
+use nullable_proof::NullableProofs;
 use std::collections::BTreeMap;
 
 use lang_frontend::{
@@ -176,6 +180,8 @@ struct UnitExpressionLowerer<'a> {
     block: BlockId,
     bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
+    nullable_proofs: NullableProofs,
     map_borrow_guards:
         BTreeMap<UnitSymbolId, lang_frontend::type_checking::UnitNullComparisonDescriptor>,
     result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
@@ -234,6 +240,23 @@ impl UnitExpressionLowerer<'_> {
             })?;
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
+        // Reject unsupported If carriers/transfers before specialized dispatch can
+        // create a call frame, a temporary owner, or any SSA instruction.
+        if matches!(
+            node.payload(),
+            Expression::Call { .. }
+                | Expression::Lambda { .. }
+                | Expression::String { .. }
+                | Expression::Index { .. }
+                | Expression::NonNullAssert { .. }
+                | Expression::CallableReference { .. }
+                | Expression::Propagate { .. }
+                | Expression::Return { .. }
+                | Expression::Break { .. }
+                | Expression::Continue { .. }
+        ) {
+            self.reject_live_if_proof(span)?;
+        }
         if self.typed.range_size(unit_expression).is_some() {
             return self.lower_range_size(expression, span);
         }
@@ -286,6 +309,7 @@ impl UnitExpressionLowerer<'_> {
             Expression::This => self.lower_this(expression, span),
             Expression::Group { expression } => self.lower(*expression),
             Expression::NonNullAssert { .. } => self.lower_non_null_assertion(expression, span),
+            Expression::TypeTest { .. } => self.lower_enum_type_test(expression, span),
             Expression::Call {
                 callee, arguments, ..
             } => self.lower_call(expression, *callee, arguments, span),
@@ -393,26 +417,31 @@ impl UnitExpressionLowerer<'_> {
         value: Option<ExpressionId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.reject_live_if_proof(span)?;
         if self.function.carrier_return.is_some() {
             return self.lower_range_return(
                 value.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?,
                 span,
             );
         }
-        let mut result = match value {
-            Some(value) => self.lower(value)?,
-            None => LoweredValue::Unit,
+        let (mut result, nullable_owner_return) = match value {
+            Some(value) => self.lower_while_owner_return(value, span)?,
+            None => (LoweredValue::Unit, false),
         };
         if result == LoweredValue::Diverged {
             return Ok(result);
         }
         if let (Some(value_expression), LoweredValue::Value(lowered)) = (value, result) {
-            let (lowered, transferred) = self.adapt_owned_value_to_expected(
-                value_expression,
-                lowered,
-                self.return_type,
-                span,
-            )?;
+            let (lowered, transferred) = if nullable_owner_return {
+                (lowered, false)
+            } else {
+                self.adapt_owned_value_to_expected(
+                    value_expression,
+                    lowered,
+                    self.return_type,
+                    span,
+                )?
+            };
             if !transferred {
                 self.transfer_owned_expression(value_expression, lowered, span)?;
             }
@@ -435,6 +464,7 @@ impl UnitExpressionLowerer<'_> {
             expression,
         )))?;
         self.end_thunk_capture_views(span)?;
+        self.retire_while_proofs(true, span)?;
         let values = self.return_values(result, span)?;
         self.function
             .set_terminator(

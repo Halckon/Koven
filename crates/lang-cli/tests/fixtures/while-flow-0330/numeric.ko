@@ -1,0 +1,24 @@
+class Holder(val value: Int)
+
+fun numericWork(own initial: Holder?, flag: Boolean): Int {
+    var current: Holder? = initial
+    var total: Int = 0
+    while (current != null) {
+        for (item in 0..<2) {
+            if (item == 0) { continue }
+            total = total + current.value
+        }
+        return total + current.value
+    }
+    return total
+}
+
+fun main(): Unit {
+    val nonnull = numericWork(Holder(17), false)
+    if (nonnull == 34) { println("numeric.nonnull=34") }
+    else { println("UNEXPECTED.numeric.nonnull") }
+    val empty: Holder? = null
+    val zero = numericWork(empty, true)
+    if (zero == 0) { println("numeric.null=0") }
+    else { println("UNEXPECTED.numeric.null") }
+}

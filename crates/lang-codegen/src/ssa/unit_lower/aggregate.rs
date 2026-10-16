@@ -209,6 +209,9 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .aggregate_projection(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if let Some(value) = self.read_while_proof_int_field(expression, projection, span)? {
+            return Ok(value);
+        }
         if projection.kind() != UnitAggregateProjectionKind::Field
             || self.typed.copyability(projection.ty()) != Copyability::Copyable
             || self.typed.expression_type(id) != Some(projection.ty())

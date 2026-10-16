@@ -6,6 +6,8 @@ mod borrow_argument;
 mod borrow_result;
 mod call_lifetimes;
 mod checked;
+#[cfg(test)]
+mod cleanup_guard_harness;
 mod constant;
 mod constant_presence;
 mod container;
@@ -13,10 +15,12 @@ mod control;
 mod declarations;
 mod drops;
 mod enum_condition;
+mod enum_type_test;
 mod field_replace;
 mod instances;
 mod integer;
 mod integer_range;
+mod local_storage;
 mod loop_control;
 mod map;
 mod map_loop_owner;
@@ -25,15 +29,22 @@ mod map_result;
 mod map_with;
 mod nominal;
 mod non_null_assertion;
+mod non_null_proof;
+mod nullable_borrowed_cleanup;
 mod nullable_comparison;
+mod nullable_if_cleanup;
+mod nullable_numeric_cleanup;
 mod nullable_when;
 pub(super) mod orchestrate;
+mod outer_borrowed_while;
 mod ownership_primitive;
+mod pending_call;
 mod range;
 mod readonly_receiver;
 mod resource_deinit;
 mod source_closure;
 mod string_clone;
+mod while_proof;
 
 use std::collections::BTreeMap;
 
@@ -61,6 +72,8 @@ use super::model::{
     SsaTypeId, TerminatorKind, ValueId,
 };
 use instances::FunctionInstanceKey;
+use non_null_proof::NonNullProof;
+use pending_call::PendingCallLoans;
 
 pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
 use super::lowering_support::{error, string_literal};
@@ -122,9 +135,9 @@ struct ExpressionLowerer<'a> {
     bindings: BTreeMap<SymbolId, LoweredValue>,
     borrow_bindings: BTreeMap<SymbolId, LoanId>,
     result_source_loans: BTreeMap<SymbolId, Vec<LoanId>>,
-    non_null_bindings: BTreeMap<SymbolId, LoanId>,
+    non_null_bindings: BTreeMap<SymbolId, NonNullProof>,
     temporaries: BTreeMap<usize, ValueId>,
-    pending_call_loans: BTreeMap<(usize, usize), Option<LoanId>>,
+    pending_call_loans: PendingCallLoans,
     return_type: TypeId,
     readonly_receiver: Option<(lang_frontend::type_checking::NominalId, TypeId, LoanId)>,
     loops: Vec<loop_control::LoopContext>,
@@ -208,6 +221,7 @@ impl ExpressionLowerer<'_> {
             Expression::Lambda { .. } => self.lower_source_closure(expression, span),
             Expression::Name => self.lower_name(expression, span),
             Expression::NonNullAssert { .. } => self.lower_non_null_assertion(expression, span),
+            Expression::TypeTest { .. } => self.lower_enum_type_test(expression, span),
             Expression::Group { expression } => self.lower(expression),
             Expression::Prefix {
                 operator, operand, ..
@@ -532,24 +546,6 @@ impl ExpressionLowerer<'_> {
                 Ok(LoweredValue::Value(value(results[0])))
             }
         }
-    }
-
-    fn shared_owner_operand(
-        &mut self,
-        receiver: ExpressionId,
-        span: Span,
-    ) -> Result<EntityId, LoweringError> {
-        if let Some(non_null) = self.typed.non_null_use(receiver)
-            && let Some(view) = self.non_null_bindings.get(&non_null.symbol()).copied()
-        {
-            return Ok(EntityId::Loan(view));
-        }
-        self.require_value(receiver)
-            .map(EntityId::Value)
-            .map_err(|mut error| {
-                error.span.get_or_insert(span);
-                error
-            })
     }
 
     fn validate_construction_root(
@@ -991,6 +987,8 @@ impl ExpressionLowerer<'_> {
         if matches!(assigned, LoweredValue::Diverged) {
             return Ok(assigned);
         }
+        self.reject_live_while_proof(symbol, span)?;
+        self.deliver_assignment_rhs(operator, expression, assigned, span);
         self.bindings.insert(symbol, assigned);
         Ok(LoweredValue::Unit)
     }
@@ -1009,7 +1007,7 @@ impl ExpressionLowerer<'_> {
         }
         self.begin_map_loop_return(return_expression, span)?;
         let result = match expression {
-            Some(expression) => self.lower(expression)?,
+            Some(expression) => self.lower_while_owner_return(expression, span)?,
             None => LoweredValue::Unit,
         };
         if matches!(result, LoweredValue::Diverged) {
@@ -1034,6 +1032,7 @@ impl ExpressionLowerer<'_> {
         } else {
             self.emit_control_transfer_cleanup(return_expression)?;
         }
+        self.retire_while_proofs(true, span)?;
         self.end_thunk_capture_views(span)?;
         let values = return_values(self.typed, self.return_type, result, span)?;
         self.function
@@ -1158,7 +1157,13 @@ impl ExpressionLowerer<'_> {
             }
             let operand = match mapping.mode() {
                 ParameterMode::Value => {
-                    EntityId::Value(self.lower_value_argument(argument.value, argument.span)?)
+                    let owner = self.lower_value_argument(argument.value, argument.span)?;
+                    EntityId::Value(self.adapt_pending_source_value_argument(
+                        argument.value,
+                        owner,
+                        mapping.parameter_type(),
+                        argument.span,
+                    )?)
                 }
                 ParameterMode::Borrow => {
                     let (loan, ends_after_call) = if let Some((loan, sources)) = self
@@ -1169,10 +1174,11 @@ impl ExpressionLowerer<'_> {
                     } else {
                         self.lower_borrow_argument(expression, argument.value, argument.span)?
                     };
-                    self.pending_call_loans.insert(
+                    self.insert_pending_source_argument(
                         (expression.index(), argument.value.index()),
                         ends_after_call.then_some(loan),
-                    );
+                        argument.span,
+                    )?;
                     EntityId::Loan(loan)
                 }
                 ParameterMode::Inout => {
@@ -1198,21 +1204,20 @@ impl ExpressionLowerer<'_> {
                 .pending_call_loans
                 .get(&(expression.index(), argument.value.index()))
                 == Some(&None)
-                && let Some(non_null) = self.typed.non_null_use(argument.value)
+                && self.typed.non_null_use(argument.value).is_some()
             {
                 // 后续实参的 CFG 会重绑定视图；转发借用必须使用当前 block 的 loan。
-                let loan = self
-                    .non_null_bindings
-                    .get(&non_null.symbol())
-                    .copied()
+                let proof = self
+                    .non_null_proof_for_expression(argument.value, argument.span)?
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
-                ordered[mapping.parameter_index()] = Some(EntityId::Loan(loan));
+                ordered[mapping.parameter_index()] = Some(EntityId::Loan(proof.loan));
             }
         }
         let arguments = ordered
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        self.validate_pending_source_arguments(expression, &arguments, span)?;
         let return_type = self.resolve_type(descriptor.return_type(), span)?;
         let result_types = if builtin_type(self.typed, return_type) == Some(BuiltinType::Unit) {
             Vec::new()

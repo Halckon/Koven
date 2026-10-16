@@ -1,5 +1,7 @@
 //! compilation-unit CFG 中跨 edge 携带 value/loan 与出口合流的共享基元。
 
+mod nullable;
+mod pending_child;
 mod range;
 mod rebind;
 
@@ -26,7 +28,9 @@ pub(super) struct BranchExit {
     pub(super) consumed_receiver: Option<super::ConsumedReceiver>,
     pub(super) bindings: BTreeMap<UnitSymbolId, LoweredValue>,
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
+    pub(super) nullable_proofs: super::NullableProofs,
     pub(super) pending_operands: Vec<EntityId>,
+    pub(super) pending_call_frames: Vec<super::call_lifetimes::PendingCallFrame>,
     pub(super) temporaries: BTreeMap<UnitExpressionId, ValueId>,
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     pub(super) capture_loans: BTreeMap<(UnitExpressionId, usize), LoanId>,
@@ -65,6 +69,8 @@ pub(super) struct CarriedBinding {
 
 #[derive(Clone)]
 pub(super) struct CarriedAccess {
+    nullable_proofs: Vec<nullable::CarriedNullableProof>,
+    nullable_children: Vec<pending_child::CarriedNullableChild>,
     range_sources: Vec<(UnitSymbolId, usize)>,
     captures: Vec<(UnitExpressionId, usize)>,
     symbol: Option<UnitSymbolId>,
@@ -157,6 +163,8 @@ impl UnitExpressionLowerer<'_> {
                     .map(|entity| entity.ty)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 Ok(CarriedAccess {
+                    nullable_proofs: Vec::new(),
+                    nullable_children: Vec::new(),
                     range_sources: Vec::new(),
                     captures: Vec::new(),
                     symbol: Some(*symbol),
@@ -176,6 +184,8 @@ impl UnitExpressionLowerer<'_> {
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             carried.push(CarriedAccess {
+                nullable_proofs: Vec::new(),
+                nullable_children: Vec::new(),
                 range_sources: Vec::new(),
                 captures: Vec::new(),
                 symbol: None,
@@ -196,6 +206,8 @@ impl UnitExpressionLowerer<'_> {
                     .map(|entity| entity.ty)
                     .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 carried.push(CarriedAccess {
+                    nullable_proofs: Vec::new(),
+                    nullable_children: Vec::new(),
                     symbol: None,
                     receiver: None,
                     source: entity,
@@ -207,6 +219,7 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         self.carry_range_sources(&mut carried, span)?;
+        self.carry_nullable_proofs(&mut carried, span)?;
         Ok(carried)
     }
 
@@ -243,6 +256,8 @@ impl UnitExpressionLowerer<'_> {
                         slot.pending.push(index);
                     } else {
                         loans.push(CarriedAccess {
+                            nullable_proofs: Vec::new(),
+                            nullable_children: Vec::new(),
                             range_sources: Vec::new(),
                             captures: Vec::new(),
                             symbol: None,
@@ -275,6 +290,8 @@ impl UnitExpressionLowerer<'_> {
                 });
             }
         }
+        self.bind_nullable_columns(bindings, loans, span)?;
+        self.bind_pending_child_columns(bindings, loans, span)?;
         Ok(())
     }
 
@@ -341,16 +358,22 @@ impl UnitExpressionLowerer<'_> {
         mut exits: Vec<BranchExit>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        self.validate_nullable_exit_proofs(&exits, span)?;
+        self.validate_pending_child_exits(&exits, span)?;
         if exits.is_empty() {
             self.current_receiver = None;
             self.consumed_receiver = None;
             self.bindings.clear();
             self.borrow_bindings.clear();
+            self.nullable_proofs.clear();
             self.closure_bindings.clear();
             self.capture_loans.clear();
             self.result_source_loans.clear();
             self.temporaries.clear();
             self.pending_operands.clear();
+            for frame in &mut self.pending_call_frames {
+                frame.nullable_children.clear();
+            }
             return Ok(LoweredValue::Diverged);
         }
         if exits.len() == 1 {
@@ -360,11 +383,13 @@ impl UnitExpressionLowerer<'_> {
             self.consumed_receiver = first.consumed_receiver;
             self.bindings = first.bindings.clone();
             self.borrow_bindings = first.borrow_bindings.clone();
+            self.nullable_proofs = first.nullable_proofs.clone();
             self.closure_bindings = first.closure_bindings.clone();
             self.capture_loans = first.capture_loans.clone();
             self.result_source_loans = first.result_source_loans.clone();
             self.temporaries = first.temporaries.clone();
             self.pending_operands = first.pending_operands.clone();
+            self.pending_call_frames = first.pending_call_frames.clone();
             return Ok(first.result);
         }
         self.normalize_receiver_exits(&mut exits, span)?;
@@ -493,6 +518,11 @@ impl UnitExpressionLowerer<'_> {
                     .chain(exit.temporaries.values().copied().map(EntityId::Value))
                     .chain(exit.capture_loans.values().copied().map(EntityId::Loan))
                     .chain(range::arguments(&exit.result_source_loans))
+                    .chain(
+                        exit.nullable_proofs
+                            .values()
+                            .map(|proof| EntityId::Loan(proof.loan)),
+                    )
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -534,6 +564,26 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
         }
+        let source_offset =
+            first.pending_operands.len() + first.temporaries.len() + first.capture_loans.len();
+        let proof_offset = source_offset + range::keys(&first.result_source_loans).len();
+        self.validate_nullable_merge_columns(
+            &exits,
+            &edge_arguments,
+            &value_symbols,
+            usize::from(result_type.is_some()) + usize::from(first.receiver.is_some()),
+            &pending_indices[proof_offset..],
+            span,
+        )?;
+        self.validate_pending_child_merge_columns(
+            &exits,
+            &edge_arguments,
+            &value_symbols,
+            usize::from(result_type.is_some()) + usize::from(first.receiver.is_some()),
+            &pending_indices[..first.pending_operands.len()],
+            &pending_indices[proof_offset..],
+            span,
+        )?;
         let merge = self
             .function
             .add_block(parameter_types, Origin::Source(span))
@@ -556,6 +606,7 @@ impl UnitExpressionLowerer<'_> {
             .expect("new merge block exists")
             .parameters
             .clone();
+        self.pending_call_frames = first.pending_call_frames.clone();
         self.pending_operands = pending_indices[..first.pending_operands.len()]
             .iter()
             .map(|index| parameters[*index])
@@ -582,15 +633,17 @@ impl UnitExpressionLowerer<'_> {
                 Ok((*key, loan))
             })
             .collect::<Result<_, _>>()?;
-        let source_offset =
-            first.pending_operands.len() + first.temporaries.len() + first.capture_loans.len();
         self.result_source_loans = range::rebind(
             &first.result_source_loans,
-            pending_indices[source_offset..]
+            pending_indices[source_offset..proof_offset]
                 .iter()
                 .map(|index| parameters[*index]),
             span,
         )?;
+        let proof_parameters = pending_indices[proof_offset..]
+            .iter()
+            .map(|index| parameters[*index])
+            .collect::<Vec<_>>();
         let mut parameters = parameters.into_iter();
         let result = if result_type.is_some() {
             let EntityId::Value(value) = parameters
@@ -628,6 +681,18 @@ impl UnitExpressionLowerer<'_> {
             borrow_bindings.insert(symbol, loan);
         }
         self.block = merge;
+        self.nullable_proofs = self.rebind_merged_nullable_proofs(
+            first,
+            &bindings,
+            proof_parameters.into_iter(),
+            span,
+        )?;
+        self.validate_pending_nullable_children(
+            &self.pending_call_frames,
+            &self.pending_operands,
+            &self.nullable_proofs,
+            span,
+        )?;
         self.bindings = bindings;
         self.borrow_bindings = borrow_bindings;
         self.closure_bindings = first.closure_bindings.clone();
@@ -691,6 +756,7 @@ impl UnitExpressionLowerer<'_> {
         state: &BranchExit,
         span: Span,
     ) -> Result<Edge, LoweringError> {
+        self.validate_carried_nullable_edge(loans, state, span)?;
         let receiver = |expected: Option<super::ReceiverBinding>| {
             expected
                 .and_then(|expected| {
@@ -757,6 +823,11 @@ impl UnitExpressionLowerer<'_> {
                     .map(EntityId::Loan)
             } else if let Some(key) = slot.captures.first() {
                 state.capture_loans.get(key).copied().map(EntityId::Loan)
+            } else if let Some(role) = slot.nullable_proofs.first() {
+                state
+                    .nullable_proofs
+                    .get(&role.root)
+                    .map(|proof| EntityId::Loan(proof.loan))
             } else {
                 slot.pending
                     .first()
@@ -788,8 +859,19 @@ impl UnitExpressionLowerer<'_> {
             }) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
+            if slot.nullable_proofs.iter().any(|role| {
+                state
+                    .nullable_proofs
+                    .get(&role.root)
+                    .map(|proof| EntityId::Loan(proof.loan))
+                    != Some(entity)
+            }) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
             arguments.push(entity);
         }
+        self.validate_nullable_edge_columns(carried, loans, state, &arguments, span)?;
+        self.validate_pending_child_edge_columns(carried, loans, state, &arguments, span)?;
         Ok(Edge { target, arguments })
     }
 

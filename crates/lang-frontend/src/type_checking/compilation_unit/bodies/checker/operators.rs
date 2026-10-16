@@ -125,7 +125,7 @@ impl BodyChecker<'_> {
         ) {
             let left_result = self.check_expression(source, left, None, None, return_type)?;
             let (left_true, left_false) = self.condition_facts(source, left)?;
-            let baseline = self.flow_facts.clone();
+            let mut baseline = self.flow_facts.clone();
             let right_entry = if operator == BinaryOperator::LogicalAnd {
                 &left_true
             } else {
@@ -133,6 +133,8 @@ impl BodyChecker<'_> {
             };
             self.flow_facts = extend_facts(&baseline, right_entry);
             let right_result = self.check_expression(source, right, None, None, return_type);
+            let writes = self.expression_flow_writes(source, right)?;
+            baseline.retain(|key, _| !writes.contains(key));
             self.flow_facts = baseline;
             let right_result = right_result?;
             let boolean = self.builtin(BuiltinType::Boolean);
@@ -165,22 +167,14 @@ impl BodyChecker<'_> {
         let right_null = equality && self.is_null_literal(source, right)?;
         let (left_result, right_result) = if left_null && !right_null {
             let right_result = self.check_expression(source, right, None, None, return_type)?;
-            let expected = matches!(
-                self.signatures.types().get(right_result.ty),
-                Some(crate::type_checking::UnitTypeKind::Nullable(_))
-            )
-            .then_some(right_result.ty);
+            let expected = self.null_comparison_expected(source, right, right_result.ty);
             (
                 self.check_expression(source, left, expected, None, return_type)?,
                 right_result,
             )
         } else if right_null && !left_null {
             let left_result = self.check_expression(source, left, None, None, return_type)?;
-            let expected = matches!(
-                self.signatures.types().get(left_result.ty),
-                Some(crate::type_checking::UnitTypeKind::Nullable(_))
-            )
-            .then_some(left_result.ty);
+            let expected = self.null_comparison_expected(source, left, left_result.ty);
             (
                 left_result,
                 self.check_expression(source, right, expected, None, return_type)?,

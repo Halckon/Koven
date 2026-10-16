@@ -68,7 +68,10 @@ impl UnitExpressionLowerer<'_> {
         self.emit_drops(UnitDropPoint::AfterBinaryOperands(id))?;
         Ok(Some(result))
     }
-    fn emit_null_condition_drops(&mut self, expression: ExpressionId) -> Result<(), LoweringError> {
+    pub(super) fn emit_null_condition_drops(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<(), LoweringError> {
         let node = self
             .parsed
             .ast()
