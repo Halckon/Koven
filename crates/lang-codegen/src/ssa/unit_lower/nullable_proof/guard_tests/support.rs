@@ -483,3 +483,21 @@ pub(in crate::ssa::unit_lower) fn rebound(
     );
     matches[0]
 }
+
+pub(in crate::ssa::unit_lower) fn state(lowerer: &UnitExpressionLowerer<'_>) -> cfg::BranchExit {
+    cfg::BranchExit {
+        block: lowerer.block,
+        result: LoweredValue::Unit,
+        receiver: lowerer.current_receiver,
+        consumed_receiver: lowerer.consumed_receiver,
+        bindings: lowerer.bindings.clone(),
+        borrow_bindings: lowerer.borrow_bindings.clone(),
+        nullable_proofs: lowerer.nullable_proofs.clone(),
+        pending_operands: lowerer.pending_operands.clone(),
+        pending_call_frames: lowerer.pending_call_frames.clone(),
+        temporaries: lowerer.temporaries.clone(),
+        closure_bindings: lowerer.closure_bindings.clone(),
+        capture_loans: lowerer.capture_loans.clone(),
+        result_source_loans: lowerer.result_source_loans.clone(),
+    }
+}

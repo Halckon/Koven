@@ -425,3 +425,13 @@ fn unit_nullable_proof_guards_preserve_source_identity() {
         });
     }
 }
+
+pub(in crate::ssa::unit_lower) fn origin_in_scope(
+    proof: NullableProof,
+    scope: UnitStatementId,
+) -> NullableProofOrigin {
+    NullableProofOrigin {
+        scope: NullableProofScope::While(scope),
+        ..proof.origin
+    }
+}

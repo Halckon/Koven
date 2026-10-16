@@ -1,4 +1,7 @@
 //! Pending child roles reuse the existing owner, proof and pending access columns.
+#[cfg(test)]
+mod guard_tests;
+
 use super::super::call_lifetimes::{PendingCallFrame, nullable_child::PendingNullableChild};
 use super::*;
 
