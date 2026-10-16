@@ -1,4 +1,5 @@
 //! Value/Borrow argument evaluation and temporary-place carriers.
+mod nullable_field;
 mod owned_field;
 
 use super::{
@@ -194,6 +195,9 @@ impl ExpressionLowerer<'_> {
             if created.len() != 1 {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             }
+            return Ok((loan, true));
+        }
+        if let Some(loan) = self.lower_while_proof_field_borrow(argument, fact, span)? {
             return Ok((loan, true));
         }
         let place = self.lower_borrow_place(argument, fact.target(), span)?;

@@ -1,4 +1,6 @@
 //! 同步 shared 实参的 frontend loan 验证与 place 准备。
+mod nullable_field;
+
 use super::*;
 use crate::ssa::model::PlaceId;
 use crate::ssa::model::SsaTypeKind;
@@ -161,6 +163,9 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             return Ok((loan, Vec::new(), fact.end_span()));
+        }
+        if let Some(loan) = self.lower_while_proof_field_borrow(argument, fact, target, span)? {
+            return Ok((loan, vec![loan], fact.end_span()));
         }
         let previous = self.closure_binding_context;
         self.closure_binding_context |= self.typed.expression_type(argument_id).is_some_and(|ty| {
