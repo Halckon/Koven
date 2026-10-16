@@ -1,4 +1,6 @@
 //! Value/Borrow argument evaluation and temporary-place carriers.
+mod owned_field;
+
 use super::{
     EntityId, EntityType, ExpressionLowerer, LoanId, LoanKind, LoweredValue, LoweringError,
     LoweringErrorKind, Operation, PlaceId, ValueId, error, place, span_key,
@@ -261,6 +263,12 @@ impl ExpressionLowerer<'_> {
                 span,
             )?;
             return Ok(place(results[0]));
+        }
+        if let LoanTarget::Place(path) = target
+            && !path.is_root()
+        {
+            let target = self.expression_ssa_type(argument, span)?;
+            return self.lower_owned_field_borrow_place(argument, path, target, span);
         }
         let owner = match target {
             LoanTarget::Place(place) if place.is_root() => self
