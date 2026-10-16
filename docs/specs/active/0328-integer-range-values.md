@@ -179,3 +179,8 @@ Map.requireValue/get/remove实际消费32入口；调用顺序与连续半开/�
 逐源记录names、types、ownership、lower到达阶段；Map查询若前置拒绝单列，不用其他case覆盖。
 初始断言仅定位lower/LLVM缺口；注册身份、单次operand与实际PHI前驱待实现后收紧。
 仅真实前端→ownership→lower/verify及内存LLVM，不执行产物；for provider仍独立后继。
+
+`274b0d30` 首3各1命中真实红，40/32/8共80观察均通过names/types/complete/ownership，
+再被现有pending guard结构化拒绝；Map三种读取无前置拒绝，但尚未检验解除guard后的MapResult ABI。
+LLVM未到达、无native；37输入每轮前后相同。仓外backend-red3收据SHA
+`ce553cc11f923cc3869e94d6652ec62d62039443524a652216a1a55b8bb5c225`。
