@@ -1152,7 +1152,13 @@ impl ExpressionLowerer<'_> {
             }
             let operand = match mapping.mode() {
                 ParameterMode::Value => {
-                    EntityId::Value(self.lower_value_argument(argument.value, argument.span)?)
+                    let owner = self.lower_value_argument(argument.value, argument.span)?;
+                    EntityId::Value(self.adapt_pending_source_value_argument(
+                        argument.value,
+                        owner,
+                        mapping.parameter_type(),
+                        argument.span,
+                    )?)
                 }
                 ParameterMode::Borrow => {
                     let (loan, ends_after_call) = if let Some((loan, sources)) = self
