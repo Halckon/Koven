@@ -233,7 +233,7 @@ break Unsupported，未将 unit 观察计作成功；收据 SHA
 carrier 继续明确拒绝。原 42 入口矩阵及最终合同保留，unit 非空运输、复杂嵌套、
 子借用退出与 native 仍待后继逐项闭合；本阶段只作增量分支备份，不创建完成 PR。
 
-unit 同五个直接源码先于 `88e928d6` 采真实红，十入口全部先观察：single 五项
+unit 同五个直接源码于 `88e928d6` 采真实红，十入口全部先观察：single 五项
 SSA/LLVM 成功，unit 四项 InvalidSsa 与 break Unsupported；唯一 unit exact 失败。
 收据 SHA `8b3977c526d9055661e9826c29be89a4c2e198d38ee6688e4d95347cbd0901d3`。
 后继复用既有 carry/cleanup，让真实 NullableBranch 的成功 owner/view 配对产生
@@ -261,3 +261,20 @@ normal/continue/Group 组通过，其余六组仍行为红，未改正负 oracle
 不能描述为始终未支持的旧边界。复杂嵌套、borrowed child、pending 与 provider 携带
 仍须逐项闭合；本阶段仅五直接源码双入口有限闭合与分支增量备份，仍 active，
 没有执行 native、故障或校准，也不创建完成 PR 或宣称最终合同已完成。
+
+
+owner-return 退步随后独立修复：仅 return 的真实 Name/透明 Group、While-origin
+proof、声明返回型与 symbol nullable storage 精确一致的路径，先核每层 NonNullUse、
+真实 owner/view/inner 及 carrier 安全，再结束该根 proof。single 保留原 lower 和全部
+AfterExpression/ControlTransfer；unit 复核 lower 仍交付同原 owner 后跳过重复 wrap，
+仍恰一次原 ownership transfer。一般 Name/adapt/take 门未放宽，未决 child 不强行结束。
+固定 `c8e86f5e` 的十六项普通 exact 各 1 通过，87 输入逐轮稳定，收据 SHA
+`0803d31f9957cd011e9915e1647ad0a0508b67bd0b4b31441e075fe55480aab0`。
+前十四回归保留；原 owner-return/other!! 四入口通过，新 Name/Group 四入口另断
+Return 恰为 NullableBranch true-edge 的原 nullable owner、同 proof BorrowEnd 唯一且
+先于 Return、返回 owner 不被 Drop，并无 NullableTake/NullableWrap。single 已证退步
+恢复，unit 同源也闭合；这不是将原 42 其他复杂源码计作通过。
+同 head 四工程 fmt/check/clippy/build 全部 exit0、87 输入稳定，收据 SHA
+`a6374b2b634a09980291106cce46912b6c643a007636025de5e7b5996582d9dc`。
+保留前述失败与阶段记录；本批仍仅增量备份，复杂嵌套、child/pending/provider、
+最终 native 与 CI 尚待逐项验收，不归档、不创建完成 PR。
