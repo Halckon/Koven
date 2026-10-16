@@ -136,3 +136,6 @@ source/target由真实operand/result类型决定，双result为目标整数与Bo
 原arithmetic及unit pending operands/loan的carry/rebind保持；LLVM暂显式Unsupported。
 后继普通oracle锁128对源/目标、失败边与成功使用、receiver call结果身份；旧2lower边界
 改验真实SSA成功后LLVM明确拒绝。此SSA阶段尚未执行，不据此声称LLVM/native已实现。
+
+SSA候选首次actualbase尺寸检查发现render.rs 1001>1000；独立抽出原四个标量命名纯函数，
+不提高阈值、不挤行，保留首失败日志。此机械修不改renderer输出或转换语义。
