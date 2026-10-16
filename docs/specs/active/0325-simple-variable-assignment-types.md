@@ -125,3 +125,13 @@ Guide PR110未合期间只备份stacked分支，publisher按远端映射保留�
 同一修复head原17 exact各1命中通过、36输入SHA前后不变，原四工程检查全部通过；
 仓外 `size-repair17-receipt.json` 与 `engineering-size-repair17-receipt.json` 保存结果。
 原CI失败及历史本地结果保留；修复远端CI仍须对实际发布head独立验证。
+
+同次CI双host还发现 `resolved_roles_and_symbolic_types_keep_raw_value_facts` 的普通
+`n = identity(1)` 旧oracle仍要求Deferred；在738ba424本地单exact真实复现，改为single/unit
+精确Unit，其他roles与descriptor断言保留。静态反查另识别Guide litmus 01/03/11的四个
+普通局部赋值过期incomplete快照；各exact先红（single断言提前结束，未执行unit），随后
+只移除已完成的local快照，保留listOf、field、compound等未完成事实及原ownership检查。
+固定 `23bd90cdf9c446557d75078f2bd8557cb872e1f8` 同head统一21exact（原17+上述4）
+各1命中通过、38输入前后一致；四工程及真实base020ff完整尺寸检查通过。
+仓外 `ci-repair21-receipt.json`、`engineering-ci-repair21-receipt.json` 保留真实结果；
+新增litmus绿包含两入口分析/ownership，不是native执行。以上未冒充修复后的远端CI。
