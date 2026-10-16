@@ -59,6 +59,7 @@ mod trial;
 mod type_graph;
 mod type_refs;
 mod when;
+mod while_flow;
 
 use flow::FlowKey;
 
@@ -583,7 +584,17 @@ impl<'a> BodyChecker<'a> {
                 arguments,
                 ..
             } => {
-                if let Some(result) = self.check_intrinsic_ownership_primitive_call(
+                let invalidated = arguments
+                    .iter()
+                    .filter(|argument| {
+                        matches!(
+                            argument.mode_marker,
+                            Some(crate::parser::ParameterModeMarker::Inout(_))
+                        )
+                    })
+                    .filter_map(|argument| self.stable_flow_key(source, argument.value))
+                    .collect::<Vec<_>>();
+                let result = if let Some(result) = self.check_intrinsic_ownership_primitive_call(
                     source,
                     expression,
                     span,
@@ -626,7 +637,11 @@ impl<'a> BodyChecker<'a> {
                         &arguments,
                         return_type,
                     )?
+                };
+                for key in invalidated {
+                    self.flow_facts.remove(&key);
                 }
+                result
             }
             Expression::Return {
                 keyword_span,
