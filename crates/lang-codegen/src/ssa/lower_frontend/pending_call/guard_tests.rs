@@ -1,7 +1,10 @@
 //! CI-only carrier corruption after the real frontend and field producer succeed.
 use super::*;
 use crate::ssa::{
-    lower_frontend::{cleanup_guard_harness::Fixture, non_null_proof::ProofScope},
+    lower_frontend::{
+        cleanup_guard_harness::{Fixture, incoming, parameter},
+        non_null_proof::ProofScope,
+    },
     model::TerminatorKind,
     while_flow_tests::proof_cases::pending_child_source,
 };
@@ -12,6 +15,101 @@ fn rejected<T>(result: Result<T, LoweringError>, kind: LoweringErrorKind, span: 
     };
     assert_eq!(failure.kind, kind);
     assert_eq!(failure.span, Some(span));
+}
+
+/// Query actual edges as a simultaneous triple, never choose provenance by type.
+fn assert_real_triple_transport(
+    function: &Function,
+    block: BlockId,
+    current: [EntityId; 3],
+    birth_block: BlockId,
+    birth: [EntityId; 3],
+) {
+    use std::collections::BTreeSet;
+    let anchor = (birth_block, birth);
+    assert_eq!(
+        incoming(function, block).len(),
+        2,
+        "both actual argument-if predecessors"
+    );
+    let mut graph = BTreeMap::new();
+    let mut pending = vec![(block, current)];
+    while let Some(state @ (block, entities)) = pending.pop() {
+        if graph.contains_key(&state) {
+            continue;
+        }
+        for (role, entity) in entities.iter().enumerate() {
+            assert!(!entities[..role].contains(entity));
+            assert_eq!(
+                function.entity(*entity).unwrap().ty,
+                function.entity(birth[role]).unwrap().ty
+            );
+        }
+        if state == anchor {
+            graph.insert(state, Vec::new());
+            continue;
+        }
+        let columns = entities.map(|entity| {
+            let (defined, column) = parameter(function, entity);
+            assert_eq!(
+                defined, block,
+                "all three roles belong to the same current block"
+            );
+            column
+        });
+        let predecessors = incoming(function, block);
+        assert!(
+            !predecessors.is_empty(),
+            "only the actual producer can terminate the trace"
+        );
+        let mut parents = Vec::new();
+        for (parent, edge) in predecessors {
+            assert!(matches!(
+                function
+                    .block(parent)
+                    .unwrap()
+                    .terminator
+                    .as_ref()
+                    .unwrap()
+                    .kind,
+                TerminatorKind::Branch(_) | TerminatorKind::Conditional { .. }
+            ));
+            let entities = columns.map(|column| edge.arguments[column]);
+            for entity in entities {
+                assert_eq!(
+                    edge.arguments
+                        .iter()
+                        .filter(|argument| **argument == entity)
+                        .count(),
+                    1
+                );
+            }
+            parents.push((parent, entities));
+            pending.push((parent, entities));
+        }
+        graph.insert(state, parents);
+    }
+    assert!(
+        graph.contains_key(&anchor),
+        "same real owner/parent/field-child birth"
+    );
+    let mut anchored = BTreeSet::from([anchor]);
+    loop {
+        let before = anchored.len();
+        for (state, parents) in &graph {
+            if parents.iter().any(|parent| anchored.contains(parent)) {
+                anchored.insert(*state);
+            }
+        }
+        if anchored.len() == before {
+            break;
+        }
+    }
+    assert_eq!(
+        anchored.len(),
+        graph.len(),
+        "every loop-carried triple reaches the real birth"
+    );
 }
 
 struct State {
@@ -102,11 +200,15 @@ impl State {
         };
         let parameters = &function.block(call.block).unwrap().parameters;
         let matching = |ty| {
-            parameters
+            let candidates = parameters
                 .iter()
                 .copied()
-                .find(|entity| function.entity(*entity).unwrap().ty == ty)
-                .unwrap()
+                .filter(|entity| function.entity(*entity).unwrap().ty == ty)
+                .collect::<Vec<_>>();
+            let [entity] = candidates.as_slice() else {
+                panic!("exactly one current role column")
+            };
+            *entity
         };
         let EntityId::Value(owner) =
             matching(function.entity(EntityId::Value(birth.owner)).unwrap().ty)
@@ -118,6 +220,21 @@ impl State {
         else {
             unreachable!()
         };
+        assert_real_triple_transport(
+            function,
+            call.block,
+            [
+                EntityId::Value(owner),
+                EntityId::Loan(loan),
+                EntityId::Loan(child),
+            ],
+            projection.block,
+            [
+                EntityId::Value(birth.owner),
+                EntityId::Loan(birth.loan),
+                EntityId::Loan(*born_child),
+            ],
+        );
         assert_ne!(child, *born_child);
         assert_ne!(loan, birth.loan);
         assert_ne!(owner, birth.owner);
