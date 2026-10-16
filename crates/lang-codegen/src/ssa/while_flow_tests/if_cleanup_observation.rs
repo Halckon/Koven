@@ -9,9 +9,9 @@ use lang_frontend::{
         resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
-        CleanupCondition, CleanupConditionId, CleanupConditions, DropTarget, IterationOwnershipPlan,
-        UnitDropTarget, UnitIterationOwnershipPlan, check_compilation_unit_ownership,
-        check_ownership,
+        CleanupCondition, CleanupConditionId, CleanupConditions, DropTarget,
+        IterationOwnershipPlan, UnitDropTarget, UnitIterationOwnershipPlan,
+        check_compilation_unit_ownership, check_ownership,
     },
     parser::{Expression, ParsedFile, parse_file},
     source::{SourceMap, Span},
