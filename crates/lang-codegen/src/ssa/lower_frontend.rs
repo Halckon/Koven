@@ -5,6 +5,7 @@ mod binding;
 mod borrow_argument;
 mod borrow_result;
 mod call_lifetimes;
+mod checked;
 mod constant;
 mod constant_presence;
 mod container;
@@ -1224,71 +1225,6 @@ impl ExpressionLowerer<'_> {
             [entity] => Ok(LoweredValue::Value(value(*entity))),
             _ => Err(error(LoweringErrorKind::InvalidModel, span)),
         }
-    }
-
-    fn checked(
-        &mut self,
-        operator: CheckedArithmeticOperator,
-        left: ValueId,
-        right: ValueId,
-        ty: SsaTypeId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let boolean = self
-            .type_ids
-            .iter()
-            .find_map(|(frontend, ssa)| {
-                (builtin_type(self.typed, *frontend) == Some(BuiltinType::Boolean)).then_some(*ssa)
-            })
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let (_, results) = self.append(
-            Operation::CheckedArithmetic {
-                operator,
-                left,
-                right,
-            },
-            vec![EntityType::Value(ty), EntityType::Value(boolean)],
-            span,
-        )?;
-        let baseline = self.bindings.clone();
-        let carried = self.linear_binding_slots(&baseline, span)?;
-        let parameter_types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
-        let arguments = carried
-            .slots
-            .iter()
-            .map(|slot| slot.source)
-            .collect::<Vec<_>>();
-        let failure = self
-            .function
-            .add_block(parameter_types.clone(), Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        let success = self
-            .function
-            .add_block(parameter_types, Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        self.function
-            .set_terminator(
-                self.block,
-                TerminatorKind::Conditional {
-                    condition: value(results[1]),
-                    when_true: Edge {
-                        target: failure,
-                        arguments: arguments.clone(),
-                    },
-                    when_false: Edge {
-                        target: success,
-                        arguments,
-                    },
-                },
-                Origin::Source(span),
-            )
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        self.function
-            .set_terminator(failure, TerminatorKind::Abort, Origin::Source(span))
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        self.block = success;
-        self.bindings = self.rebind_linear_bindings(&baseline, success, &carried, span)?;
-        Ok(LoweredValue::Value(value(results[0])))
     }
 
     fn require_value(&mut self, expression: ExpressionId) -> Result<ValueId, LoweringError> {

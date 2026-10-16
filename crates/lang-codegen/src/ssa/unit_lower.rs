@@ -10,6 +10,7 @@ mod call;
 mod call_lifetimes;
 mod callable_abi;
 mod cfg;
+mod checked;
 mod closure;
 pub(crate) mod constant;
 mod construction;
