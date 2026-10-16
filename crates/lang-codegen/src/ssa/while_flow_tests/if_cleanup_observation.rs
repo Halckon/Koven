@@ -9,8 +9,9 @@ use lang_frontend::{
         resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
-        CleanupCondition, CleanupConditionId, CleanupConditions, DropTarget, UnitDropTarget,
-        check_compilation_unit_ownership, check_ownership,
+        CleanupCondition, CleanupConditionId, CleanupConditions, DropTarget, IterationOwnershipPlan,
+        UnitDropTarget, UnitIterationOwnershipPlan, check_compilation_unit_ownership,
+        check_ownership,
     },
     parser::{Expression, ParsedFile, parse_file},
     source::{SourceMap, Span},
@@ -136,6 +137,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
         );
         println!("IF CLEANUP UNIT TYPE TABLE {:#?}", typed.types().types());
         println!("CLEANUP UNIT ITERATION PLANS {:#?}", owned.iterations());
+        print_unit_iterations(owned.iterations());
         println!(
             "IF CLEANUP UNIT STORAGE {:#?}",
             typed.types().body_symbol_types()
@@ -240,6 +242,7 @@ fn observe_source(text: &str, unit: bool) -> Result<Observation, String> {
         println!("IF CLEANUP SINGLE CONDITION TABLE {table:#?}");
         println!("IF CLEANUP SINGLE CONDITION NODES {:#?}", table.nodes());
         println!("IF CLEANUP SINGLE SELECTORS {:#?}", table.selectors());
+        print_single_iterations(owned.iterations(), table);
         for (index, fact) in owned.drops().iter().enumerate() {
             println!(
                 "IF CLEANUP SINGLE DROP index={index} point={:?} target/root={:?} \
@@ -378,5 +381,159 @@ fn nullable_numeric_for_cleanup_facts_are_observed_before_lowering() {
         let observation = outcome.expect("ordinary numeric frontend prerequisites succeed");
         assert!(observation.nullable_current_storage, "{observation:?}");
         assert!(observation.current_drops > 0, "{observation:?}");
+    }
+}
+
+#[test]
+fn nullable_borrowed_for_cleanup_facts_are_observed_before_lowering() {
+    let relations = [
+        super::borrowed_proof_cases::borrowed_for_inside_while_sources(),
+        super::borrowed_proof_cases::while_inside_borrowed_for_sources(),
+    ];
+    let mut outcomes = Vec::new();
+    for (case, source) in relations.iter().flatten().enumerate() {
+        for unit in [false, true] {
+            println!("BORROWED CLEANUP BEGIN case={case} unit={unit}");
+            let outcome = observe_source(source, unit);
+            println!("BORROWED CLEANUP OUTCOME case={case} unit={unit} {outcome:?}");
+            outcomes.push(outcome);
+        }
+    }
+    // Observe both relations, changing only the for source Group, before any oracle.
+    assert_eq!(outcomes.len(), 8);
+    for outcome in outcomes {
+        let observation = outcome.expect("ordinary borrowed frontend prerequisites succeed");
+        assert!(observation.nullable_current_storage, "{observation:?}");
+        assert!(observation.current_drops > 0, "{observation:?}");
+    }
+}
+
+fn print_unit_iterations(plans: &[UnitIterationOwnershipPlan]) {
+    println!(
+        "CLEANUP UNIT ITERATION PUBLIC CAPABILITY: provider/source/root/element delivery, \
+         bindings and ordered exits/actions are published; Header/Exit owner phis, \
+         incoming conditions, exit conditions and their condition DAG are not published"
+    );
+    for plan in plans {
+        let descriptor = plan.descriptor();
+        let statement = descriptor.statement();
+        println!(
+            "CLEANUP UNIT ITERATION statement={statement:?} provider={:?} source={:?} \
+             source_type={:?} source_kind={:?} source/root={:?} source_access={:?} \
+             element_type={:?} element_delivery={:?} element_binding={:?}",
+            descriptor.provider(),
+            descriptor.source(),
+            descriptor.source_type(),
+            plan.source_kind(),
+            plan.source(),
+            plan.source_access(),
+            descriptor.element_type(),
+            descriptor.delivery(),
+            descriptor.binding(),
+        );
+        for binding in plan.bindings() {
+            println!(
+                "CLEANUP UNIT ELEMENT statement={statement:?} symbol={:?} mode={:?}",
+                binding.symbol(),
+                binding.kind(),
+            );
+        }
+        for exit in plan.exits() {
+            println!(
+                "CLEANUP UNIT EXIT statement={statement:?} kind={:?} point={:?} actions={:#?}",
+                exit.kind(),
+                exit.point(),
+                exit.actions(),
+            );
+        }
+    }
+}
+
+fn print_single_iterations(plans: &[IterationOwnershipPlan], table: &CleanupConditions) {
+    for plan in plans {
+        let descriptor = plan.descriptor();
+        let statement = descriptor.statement();
+        println!(
+            "CLEANUP SINGLE ITERATION statement={statement:?} provider={:?} source={:?} \
+             source_type={:?} source_kind={:?} source/root={:?} element_type={:?} \
+             element_delivery={:?} element_binding={:?}",
+            descriptor.provider(),
+            descriptor.source(),
+            descriptor.source_type(),
+            plan.source_kind(),
+            plan.source(),
+            descriptor.element_type(),
+            descriptor.delivery(),
+            descriptor.binding(),
+        );
+        for binding in plan.bindings() {
+            println!(
+                "CLEANUP SINGLE ELEMENT statement={statement:?} symbol={:?} mode={:?}",
+                binding.symbol(),
+                binding.kind(),
+            );
+        }
+        println!(
+            "CLEANUP SINGLE PHIS statement={statement:?} count={} incomings={}",
+            plan.closure_phis().len(),
+            plan.closure_phi_incomings().len(),
+        );
+        for phi in plan.closure_phis() {
+            println!(
+                "CLEANUP SINGLE PHI statement={statement:?} boundary={:?} root={:?} \
+                 owner/version={:?} owner_node={:?} selector={:?} selector_node={:?} \
+                 condition={:?} full={phi:#?}",
+                phi.boundary(),
+                phi.symbol(),
+                phi.owner(),
+                table.owner_value(phi.owner()),
+                phi.availability_selector(),
+                table.selector(phi.availability_selector()),
+                phi.availability_condition(),
+            );
+            print_condition(table, phi.availability_condition(), &mut BTreeSet::new());
+        }
+        for incoming in plan.closure_phi_incomings() {
+            println!(
+                "CLEANUP SINGLE INCOMING statement={statement:?} boundary={:?} kind={:?} \
+                 point={:?} condition={:?} bindings={:#?}",
+                incoming.boundary(),
+                incoming.kind(),
+                incoming.point(),
+                incoming.condition(),
+                incoming.bindings(),
+            );
+            print_condition(table, incoming.condition(), &mut BTreeSet::new());
+            for binding in incoming.bindings() {
+                println!(
+                    "CLEANUP SINGLE INCOMING BINDING target={:?} owner_node={:?} \
+                     available_when={:?}",
+                    binding.target(),
+                    table.owner_value(binding.target()),
+                    binding.available_when(),
+                );
+                print_condition(table, binding.available_when(), &mut BTreeSet::new());
+                for value in binding.values() {
+                    println!(
+                        "CLEANUP SINGLE INCOMING VALUE source={:?} owner_node={:?} condition={:?}",
+                        value.source(),
+                        table.owner_value(value.source()),
+                        value.condition(),
+                    );
+                    print_condition(table, value.condition(), &mut BTreeSet::new());
+                }
+            }
+        }
+        for exit in plan.exits() {
+            println!(
+                "CLEANUP SINGLE EXIT statement={statement:?} kind={:?} point={:?} \
+                 condition={:?} actions={:#?}",
+                exit.kind(),
+                exit.point(),
+                exit.condition(),
+                exit.actions(),
+            );
+            print_condition(table, exit.condition(), &mut BTreeSet::new());
+        }
     }
 }

@@ -1,5 +1,7 @@
 //! Ordinary nullable-proof acceptance candidates. Initial negative controls pin stage;
 //! their complete diagnostic identities are tightened after first real observation.
+#[path = "borrowed_proof_cases.rs"]
+mod borrowed_proof_cases;
 #[path = "if_cleanup_observation.rs"]
 mod if_cleanup_observation;
 
@@ -163,12 +165,8 @@ fn same_root_nested_loops_preserve_or_invalidate_outer_proof() {
 fn different_root_and_borrowed_loops_preserve_outer_access() {
     let different = different_root_source();
     let numeric = numeric_nested_source();
-    let inner_borrow = holder(
-        "val items = listOf(1, 2)\nwhile (current != null) {\nfor (item in items) { if (item == 1) { continue }\ntotal = total + item + current.value }\nreturn total + current.value\n}\nreturn total",
-    );
-    let outer_borrow = holder(
-        "val items = listOf(1, 2)\nfor (item in items) {\nwhile (current != null) { total = total + item + current.value\nbreak }\ntotal = total + item\n}\nreturn total",
-    );
+    let inner_borrow = borrowed_proof_cases::borrowed_for_inside_while_source();
+    let outer_borrow = borrowed_proof_cases::while_inside_borrowed_for_source();
     observe(
         "other-loops",
         &[
