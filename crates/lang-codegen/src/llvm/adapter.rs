@@ -5,6 +5,7 @@ mod call;
 mod callable;
 mod constant;
 mod integer;
+mod integer_conversion;
 mod map;
 mod module_lowering;
 mod range;
@@ -441,8 +442,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 left,
                 right,
             } => self.lower_checked(*operator, *left, *right, &results)?,
-            Operation::CheckedIntegerConvert { .. } => {
-                return Err(unsupported("checked integer conversion LLVM lowering is not implemented"));
+            Operation::CheckedIntegerConvert { operand } => {
+                self.lower_checked_integer_conversion(*operand, &results)?;
             }
             Operation::IntegerBitwise {
                 operator,
