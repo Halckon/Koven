@@ -171,12 +171,49 @@ fn assert_conversion(observations: &[Observation], source: BuiltinType, target: 
     }
 }
 
-// Initial rejection evidence only: exact source diagnostics will be frozen from raw observations.
-fn assert_source_rejection(observations: &[Observation]) {
+// Freeze the observed ordinary source diagnostics, including existing recovery additions.
+fn assert_source_rejection(
+    observations: &[Observation],
+    raw_expected: &[(&str, usize, usize)],
+    complete_expected: &[(&str, usize, usize)],
+) {
+    let identities = |diagnostics: &[Diagnostic]| {
+        diagnostics
+            .iter()
+            .map(|diagnostic| {
+                (
+                    diagnostic.code().to_string(),
+                    diagnostic.primary_span().start(),
+                    diagnostic.primary_span().end(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let expected = |items: &[(&str, usize, usize)]| {
+        items
+            .iter()
+            .map(|(code, start, end)| (code.to_string(), *start, *end))
+            .collect::<Vec<_>>()
+    };
     for observation in observations {
+        assert_eq!(
+            identities(&observation.raw),
+            expected(raw_expected),
+            "{observation:?}"
+        );
         match &observation.complete {
             Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) => {
-                assert!(!diagnostics.is_empty(), "{observation:?}");
+                assert_eq!(
+                    identities(diagnostics),
+                    expected(complete_expected),
+                    "{observation:?}"
+                );
+                for original in &observation.raw {
+                    assert!(
+                        diagnostics.contains(original),
+                        "original diagnostic must be preserved"
+                    );
+                }
             }
             other => panic!("source rejection required, got {other:?}: {observation:?}"),
         }
@@ -242,8 +279,18 @@ fn conversion_call_shape_rejects_arguments_and_type_arguments() {
         "value.toUnknown()",
     ]
     .map(|root| observe(&format!("fun reject(value: Int): Unit {{ {root} }}"), root));
-    for observations in cases {
-        assert_source_rejection(&observations);
+    for (index, observations) in cases.into_iter().enumerate() {
+        match index {
+            0 => assert_source_rejection(
+                &observations,
+                &[("L0121", 44, 45)],
+                &[("L0080", 37, 43), ("L0121", 44, 45)],
+            ),
+            1 => assert_source_rejection(&observations, &[("L0091", 37, 43)], &[("L0091", 37, 43)]),
+            2 => assert_source_rejection(&observations, &[], &[("L0080", 37, 49)]),
+            3 => assert_source_rejection(&observations, &[], &[("L0080", 37, 46)]),
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -255,8 +302,13 @@ fn non_integer_receivers_do_not_gain_conversion_members() {
             "value.toInt()",
         )
     });
-    for observations in cases {
-        assert_source_rejection(&observations);
+    for (observations, (start, end)) in
+        cases
+            .into_iter()
+            .zip([(39, 44), (40, 45), (38, 43), (41, 46), (40, 45), (38, 43)])
+    {
+        let expected = [("L0080", start, end)];
+        assert_source_rejection(&observations, &expected, &expected);
     }
 }
 
@@ -287,18 +339,9 @@ fn checked_conversion_calls_remain_outside_const_evaluation() {
     let constant = observe("const val VALUE: Long = 1.toLong()", "1.toLong()");
     // Until runtime selection succeeds, a const diagnostic cannot prove the const whitelist gate.
     assert_conversion(&runtime, BuiltinType::Int, BuiltinType::Long);
-    for observation in constant {
-        assert_eq!(
-            observation
-                .raw
-                .iter()
-                .map(|d| d.code().to_string())
-                .collect::<Vec<_>>(),
-            ["L0156"]
-        );
-        assert!(matches!(
-            observation.complete,
-            Err(FinalTypeAdmissionError::Diagnostics(_))
-        ));
-    }
+    assert_source_rejection(
+        &constant,
+        &[("L0156", 24, 34)],
+        &[("L0156", 24, 34), ("L0080", 26, 32)],
+    );
 }

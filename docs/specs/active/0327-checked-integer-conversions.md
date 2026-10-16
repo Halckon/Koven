@@ -98,3 +98,8 @@ const 对照先要求 runtime 成功，失败时不把成员不存在误计 cons
 
 `5ba8426b`六FE exact各1通过、21输入同；lower测试编译E0308误传validated而非recovery只读视图，
 第7命令0执行、第8未跑。现仅修helper公开types()访问，后端仍Unsupported，不计完整交付。
+
+`28b11c30`同head六FE+两lower-only exact各1通过，21输入同；128配对入口观察已收齐，
+identity/异型lower均在真实调用span返回UnsupportedNode，无emit/native；后端转换仍未交付。
+负例据raw收紧完整code/span并核原诊断保全；参数与const恢复附加L0080如实保留，
+不把此旧恢复现象修成任意gate豁免。下一步待A真实main同步后的共享inv与工程验收。
