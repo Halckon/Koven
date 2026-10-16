@@ -279,3 +279,23 @@ pub(super) fn directory_snapshot(root: &Path) -> Vec<(PathBuf, Option<Vec<u8>>)>
     entries.sort_by(|left, right| left.0.cmp(&right.0));
     entries
 }
+
+// SPEC-0326: ordinary build-only rejection probes.
+pub(super) fn control_join_probes() -> [Probe; 2] {
+    [
+        Probe {
+            name: "mixed_if.ko",
+            text: include_str!("../fixtures/control-join-0326/mixed_if.ko"),
+            code: "L0089",
+            primary: 68..72,
+            token: "else",
+        },
+        Probe {
+            name: "mixed_when.ko",
+            text: include_str!("../fixtures/control-join-0326/mixed_when.ko"),
+            code: "L0112",
+            primary: 90..96,
+            token: "\"text\"",
+        },
+    ]
+}
