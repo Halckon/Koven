@@ -181,18 +181,7 @@ fn same_root_nested_loops_preserve_or_invalidate_outer_proof() {
 
 #[test]
 fn different_root_and_borrowed_loops_preserve_outer_access() {
-    let different = r#"class Holder(val value: Int)
-fun entry(own left: Holder?, own right: Holder?): Int {
-    var current: Holder? = left
-    var other: Holder? = right
-    var total: Int = 0
-    while (current != null) {
-        while (other != null) { total = total + other.value; other = null; continue }
-        return total + current.value
-    }
-    return total
-}"#
-    .to_owned();
+    let different = different_root_source();
     let numeric = holder(
         "while (current != null) {\nfor (item in 0..<2) { if (item == 0) { continue }\ntotal = total + current.value }\nreturn total + current.value\n}\nreturn total",
     );
@@ -465,3 +454,37 @@ fn written_same_root_nested_while_retires_outer_and_rebirths_inner_proof() {
 
 #[path = "written_nested_contract.rs"]
 mod written_nested_contract;
+
+fn different_root_source() -> String {
+    r#"class Holder(val value: Int)
+fun entry(own left: Holder?, own right: Holder?): Int {
+    var current: Holder? = left
+    var other: Holder? = right
+    var total: Int = 0
+    while (current != null) {
+        while (other != null) { total = total + other.value; other = null; continue }
+        return total + current.value
+    }
+    return total
+}"#
+    .to_owned()
+}
+
+#[test]
+fn distinct_root_nested_while_retires_only_the_inner_scope() {
+    let continued = different_root_source();
+    let normal = continued.replace("; continue }", " }");
+    let grouped =
+        |source: &str| source.replace("while (other != null)", "while (((other) != null))");
+    let continued_group = grouped(&continued);
+    let normal_group = grouped(&normal);
+    observe(
+        "distinct-scopes",
+        &[
+            (continued, false),
+            (normal, false),
+            (continued_group, false),
+            (normal_group, false),
+        ],
+    );
+}
