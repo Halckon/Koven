@@ -1,5 +1,8 @@
 //! Ordinary nullable-proof acceptance candidates. Initial negative controls pin stage;
 //! their complete diagnostic identities are tightened after first real observation.
+#[path = "if_cleanup_observation.rs"]
+mod if_cleanup_observation;
+
 use super::super::{integer_range_value_tests::collect_sources, verify::verify_program};
 
 fn observe(group: &str, cases: &[(String, bool)]) {
