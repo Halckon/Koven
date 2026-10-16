@@ -291,7 +291,8 @@ fn unit_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
     let outcomes = direct_proof_observations();
     for (index, result) in outcomes.into_iter().enumerate() {
         if index % 2 == 1 {
-            result.expect("unit direct nullable while reaches verified LLVM");
+            let program = result.expect("unit direct nullable while reaches verified LLVM");
+            direct_contract::assert_unit_direct_proof(&program, index / 2);
         }
     }
 }
