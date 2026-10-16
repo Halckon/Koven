@@ -15,3 +15,6 @@
 0326作者（前端维护责任）继续跟踪变量初始化的falls-through传递，排序由项目负责人协调；
 [Int函数中val初始化全分支return的真实源码与L0088入口差异](../../../archive/specs/0326-closed-control-branch-join.md#5-已认领的后继终止性待办)仍开放。
 本片join根已为Nothing不代表声明/函数终止性全部一致；尚未另分Spec或宣称修复。
+
+[SPEC-0328](0328-integer-range-values.md)仅准备整数 Range 普通值首片；构造、包含性与序列相等
+尚未实施，数值 for 值 provider 由该 Spec 作者认领为独立后继，不以首片代替完整 D。
