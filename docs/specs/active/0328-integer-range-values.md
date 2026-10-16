@@ -142,3 +142,6 @@ README两处current Guide标签v0.44，不更改语言正文。
 两入口运算事实保存原 operand ID、类型和操作种类，随 trial 回滚/排序/validate/final admission 接线。
 ABI 完成前，lower 在规划前按真实类型使用与 descriptor 结构化拒绝，包含 nullable 包装；
 这只是阶段边界，后续必须关闭字段、容器元素/Map 值及普通参数/返回等承诺存储路径。
+
+首次 FE-stage8 在 cb2816cb 编译报两处 E0624：新兄弟模块不能访问原私有 operand 诊断方法。
+仅第1命令启动、0测试执行，35输入未变；第2–8未跑。后继只将两方法可见性改为 pub(super)，不改诊断或算法。

@@ -348,7 +348,7 @@ impl BodyChecker<'_> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn emit_binary_operand_error(
+    pub(super) fn emit_binary_operand_error(
         &mut self,
         source: SourceUnitId,
         operator_span: Span,

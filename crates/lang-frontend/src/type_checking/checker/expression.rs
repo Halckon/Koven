@@ -1118,7 +1118,7 @@ impl Checker<'_> {
         )
     }
 
-    fn emit_binary_operand_error(
+    pub(super) fn emit_binary_operand_error(
         &mut self,
         operator_span: Span,
         left: ExpressionId,
