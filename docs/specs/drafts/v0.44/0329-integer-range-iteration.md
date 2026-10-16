@@ -53,3 +53,13 @@
 新增integration target同步精确composition数量与唯一性，不宽跑aggregate。
 小提交binary/full-index format-patch、真实远端基线恢复逐树核验；不改Guide，不rebase既有历史。
 实现CI、归档head CI、normal merge/main证据分账。当前尚未运行本片测试或实施生产。
+
+## 5. 首批真实前端红证
+
+`7bbff35d` / tree `dc921f83` 三exact各1命中，12输入每轮前后同：两行为红、一对照绿。
+来源16源码×双入口与退出10源码×双入口全部已具Range类型，但raw/complete为L0159、计划缺失；
+不存在names/parse前置失败，尚未到ownership。Boolean/nullable三源码双入口精确L0159拒绝，
+Array/List/MutableList/View四源码双入口保留Borrow计划并complete通过。
+源码观测并不证明snapshot/运行次数/退出清理；完整六组矩阵仍须后继层次验收。
+冻结前cargo check一次E0608为helper公开table索引误用、0测试执行；改get后预检通过，旧日志保留。
+仓外red3收据SHA `7f5d09007961d35c0af974dcaa4b159b92db268d52fdfe6483e3b55a3ba5803c`。
