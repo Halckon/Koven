@@ -157,3 +157,8 @@ LLVM候选`c8e797a4`从原source符号扩展/零扩展到内部i128，比较目�
 `f214e61c`同6exact全绿，各实际1命中、47输入前后同；128动态参数IR的符号扩展、目标界、
 判界至cast顺序与Abort检查通过，两旧边界已真实LLVM成功。IR预期公式与实现同源，不能
 替代独立显式数值/native边界；仍无运行产物或越界Abort证据，Spec保持in-progress。
+
+`49c430ea`成功native2各1通过，54输入同：两入口各build/run一次，64对各4个显式交集值
+共256调用，以及动态同帧live/pending/borrow与receiver一次均按73行stdout/exit0严格断言。
+不计独立导出的子进程日志、不外推析构顺序；越界Abort尚未执行。新增FE integration target
+checked_integer_conversion仅1项，composition精确预算106→107并保留唯一性，待独立exact验收。
