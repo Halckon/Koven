@@ -64,3 +64,14 @@ Guide 与其他 Spec 发布由唯一 publisher 串行处理，本分支不改 03
 
 首轮 `56d2d9fb` 的第一命令在helper编译阶段E0599（DiagnosticCode无as_str）停止，
 0测试执行，其余两条未跑；原raw/input保留。改用既有Display/to_string，不计语言红证。
+
+
+## 4. 首批真实基线
+
+`b43c74ed85d73adf5b51f69c2d4e6f887a363e00`，2026-10-15 首3 exact各1命中，
+11输入SHA前后一致，2行为红/1控制绿。每项普通case的两入口raw/complete均在断言前收齐。
+Int/String、Int/Long的if两入口已有L0089；when两入口却回退Any且complete成功。
+同型Int与返回Nothing的error调用双序全部通过（仅前端分析）。null分支两入口已有L0083，
+if(null,Int)错误取Int；部分nullable组合虽得Int?仍保留该错误。说明需要处理分支预期上下文，
+不能仅删Any或只补join类型函数。原始仓外收据 `spec0326-evidence/first3-v2-receipt.json`。
+尚未执行总矩阵其余边界、CLI/native/工程验收；未实施生产。首轮E0599独立保留。
