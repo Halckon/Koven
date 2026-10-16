@@ -1,0 +1,857 @@
+// Ordinary successful values only. Bounds are explicit, not derived by bit shifts.
+fun convert0(value: Byte): Byte = value.toByte()
+fun check0(): Boolean {
+    val low: Byte = convert0(-128)
+    val expectedlow: Byte = -128
+    val high: Byte = convert0(127)
+    val expectedhigh: Byte = 127
+    val zero: Byte = convert0(0)
+    val expectedzero: Byte = 0
+    val one: Byte = convert0(1)
+    val expectedone: Byte = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert1(value: Byte): Short = value.toShort()
+fun check1(): Boolean {
+    val low: Short = convert1(-128)
+    val expectedlow: Short = -128
+    val high: Short = convert1(127)
+    val expectedhigh: Short = 127
+    val zero: Short = convert1(0)
+    val expectedzero: Short = 0
+    val one: Short = convert1(1)
+    val expectedone: Short = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert2(value: Byte): Int = value.toInt()
+fun check2(): Boolean {
+    val low: Int = convert2(-128)
+    val expectedlow: Int = -128
+    val high: Int = convert2(127)
+    val expectedhigh: Int = 127
+    val zero: Int = convert2(0)
+    val expectedzero: Int = 0
+    val one: Int = convert2(1)
+    val expectedone: Int = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert3(value: Byte): Long = value.toLong()
+fun check3(): Boolean {
+    val low: Long = convert3(-128)
+    val expectedlow: Long = -128L
+    val high: Long = convert3(127)
+    val expectedhigh: Long = 127L
+    val zero: Long = convert3(0)
+    val expectedzero: Long = 0L
+    val one: Long = convert3(1)
+    val expectedone: Long = 1L
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert4(value: Byte): UByte = value.toUByte()
+fun check4(): Boolean {
+    val low: UByte = convert4(0)
+    val expectedlow: UByte = 0u
+    val high: UByte = convert4(127)
+    val expectedhigh: UByte = 127u
+    val zero: UByte = convert4(0)
+    val expectedzero: UByte = 0u
+    val one: UByte = convert4(1)
+    val expectedone: UByte = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert5(value: Byte): UShort = value.toUShort()
+fun check5(): Boolean {
+    val low: UShort = convert5(0)
+    val expectedlow: UShort = 0u
+    val high: UShort = convert5(127)
+    val expectedhigh: UShort = 127u
+    val zero: UShort = convert5(0)
+    val expectedzero: UShort = 0u
+    val one: UShort = convert5(1)
+    val expectedone: UShort = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert6(value: Byte): UInt = value.toUInt()
+fun check6(): Boolean {
+    val low: UInt = convert6(0)
+    val expectedlow: UInt = 0u
+    val high: UInt = convert6(127)
+    val expectedhigh: UInt = 127u
+    val zero: UInt = convert6(0)
+    val expectedzero: UInt = 0u
+    val one: UInt = convert6(1)
+    val expectedone: UInt = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert7(value: Byte): ULong = value.toULong()
+fun check7(): Boolean {
+    val low: ULong = convert7(0)
+    val expectedlow: ULong = 0uL
+    val high: ULong = convert7(127)
+    val expectedhigh: ULong = 127uL
+    val zero: ULong = convert7(0)
+    val expectedzero: ULong = 0uL
+    val one: ULong = convert7(1)
+    val expectedone: ULong = 1uL
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert8(value: Short): Byte = value.toByte()
+fun check8(): Boolean {
+    val low: Byte = convert8(-128)
+    val expectedlow: Byte = -128
+    val high: Byte = convert8(127)
+    val expectedhigh: Byte = 127
+    val zero: Byte = convert8(0)
+    val expectedzero: Byte = 0
+    val one: Byte = convert8(1)
+    val expectedone: Byte = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert9(value: Short): Short = value.toShort()
+fun check9(): Boolean {
+    val low: Short = convert9(-32768)
+    val expectedlow: Short = -32768
+    val high: Short = convert9(32767)
+    val expectedhigh: Short = 32767
+    val zero: Short = convert9(0)
+    val expectedzero: Short = 0
+    val one: Short = convert9(1)
+    val expectedone: Short = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert10(value: Short): Int = value.toInt()
+fun check10(): Boolean {
+    val low: Int = convert10(-32768)
+    val expectedlow: Int = -32768
+    val high: Int = convert10(32767)
+    val expectedhigh: Int = 32767
+    val zero: Int = convert10(0)
+    val expectedzero: Int = 0
+    val one: Int = convert10(1)
+    val expectedone: Int = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert11(value: Short): Long = value.toLong()
+fun check11(): Boolean {
+    val low: Long = convert11(-32768)
+    val expectedlow: Long = -32768L
+    val high: Long = convert11(32767)
+    val expectedhigh: Long = 32767L
+    val zero: Long = convert11(0)
+    val expectedzero: Long = 0L
+    val one: Long = convert11(1)
+    val expectedone: Long = 1L
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert12(value: Short): UByte = value.toUByte()
+fun check12(): Boolean {
+    val low: UByte = convert12(0)
+    val expectedlow: UByte = 0u
+    val high: UByte = convert12(255)
+    val expectedhigh: UByte = 255u
+    val zero: UByte = convert12(0)
+    val expectedzero: UByte = 0u
+    val one: UByte = convert12(1)
+    val expectedone: UByte = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert13(value: Short): UShort = value.toUShort()
+fun check13(): Boolean {
+    val low: UShort = convert13(0)
+    val expectedlow: UShort = 0u
+    val high: UShort = convert13(32767)
+    val expectedhigh: UShort = 32767u
+    val zero: UShort = convert13(0)
+    val expectedzero: UShort = 0u
+    val one: UShort = convert13(1)
+    val expectedone: UShort = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert14(value: Short): UInt = value.toUInt()
+fun check14(): Boolean {
+    val low: UInt = convert14(0)
+    val expectedlow: UInt = 0u
+    val high: UInt = convert14(32767)
+    val expectedhigh: UInt = 32767u
+    val zero: UInt = convert14(0)
+    val expectedzero: UInt = 0u
+    val one: UInt = convert14(1)
+    val expectedone: UInt = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert15(value: Short): ULong = value.toULong()
+fun check15(): Boolean {
+    val low: ULong = convert15(0)
+    val expectedlow: ULong = 0uL
+    val high: ULong = convert15(32767)
+    val expectedhigh: ULong = 32767uL
+    val zero: ULong = convert15(0)
+    val expectedzero: ULong = 0uL
+    val one: ULong = convert15(1)
+    val expectedone: ULong = 1uL
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert16(value: Int): Byte = value.toByte()
+fun check16(): Boolean {
+    val low: Byte = convert16(-128)
+    val expectedlow: Byte = -128
+    val high: Byte = convert16(127)
+    val expectedhigh: Byte = 127
+    val zero: Byte = convert16(0)
+    val expectedzero: Byte = 0
+    val one: Byte = convert16(1)
+    val expectedone: Byte = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert17(value: Int): Short = value.toShort()
+fun check17(): Boolean {
+    val low: Short = convert17(-32768)
+    val expectedlow: Short = -32768
+    val high: Short = convert17(32767)
+    val expectedhigh: Short = 32767
+    val zero: Short = convert17(0)
+    val expectedzero: Short = 0
+    val one: Short = convert17(1)
+    val expectedone: Short = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert18(value: Int): Int = value.toInt()
+fun check18(): Boolean {
+    val low: Int = convert18(-2147483648)
+    val expectedlow: Int = -2147483648
+    val high: Int = convert18(2147483647)
+    val expectedhigh: Int = 2147483647
+    val zero: Int = convert18(0)
+    val expectedzero: Int = 0
+    val one: Int = convert18(1)
+    val expectedone: Int = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert19(value: Int): Long = value.toLong()
+fun check19(): Boolean {
+    val low: Long = convert19(-2147483648)
+    val expectedlow: Long = -2147483648L
+    val high: Long = convert19(2147483647)
+    val expectedhigh: Long = 2147483647L
+    val zero: Long = convert19(0)
+    val expectedzero: Long = 0L
+    val one: Long = convert19(1)
+    val expectedone: Long = 1L
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert20(value: Int): UByte = value.toUByte()
+fun check20(): Boolean {
+    val low: UByte = convert20(0)
+    val expectedlow: UByte = 0u
+    val high: UByte = convert20(255)
+    val expectedhigh: UByte = 255u
+    val zero: UByte = convert20(0)
+    val expectedzero: UByte = 0u
+    val one: UByte = convert20(1)
+    val expectedone: UByte = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert21(value: Int): UShort = value.toUShort()
+fun check21(): Boolean {
+    val low: UShort = convert21(0)
+    val expectedlow: UShort = 0u
+    val high: UShort = convert21(65535)
+    val expectedhigh: UShort = 65535u
+    val zero: UShort = convert21(0)
+    val expectedzero: UShort = 0u
+    val one: UShort = convert21(1)
+    val expectedone: UShort = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert22(value: Int): UInt = value.toUInt()
+fun check22(): Boolean {
+    val low: UInt = convert22(0)
+    val expectedlow: UInt = 0u
+    val high: UInt = convert22(2147483647)
+    val expectedhigh: UInt = 2147483647u
+    val zero: UInt = convert22(0)
+    val expectedzero: UInt = 0u
+    val one: UInt = convert22(1)
+    val expectedone: UInt = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert23(value: Int): ULong = value.toULong()
+fun check23(): Boolean {
+    val low: ULong = convert23(0)
+    val expectedlow: ULong = 0uL
+    val high: ULong = convert23(2147483647)
+    val expectedhigh: ULong = 2147483647uL
+    val zero: ULong = convert23(0)
+    val expectedzero: ULong = 0uL
+    val one: ULong = convert23(1)
+    val expectedone: ULong = 1uL
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert24(value: Long): Byte = value.toByte()
+fun check24(): Boolean {
+    val low: Byte = convert24(-128L)
+    val expectedlow: Byte = -128
+    val high: Byte = convert24(127L)
+    val expectedhigh: Byte = 127
+    val zero: Byte = convert24(0L)
+    val expectedzero: Byte = 0
+    val one: Byte = convert24(1L)
+    val expectedone: Byte = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert25(value: Long): Short = value.toShort()
+fun check25(): Boolean {
+    val low: Short = convert25(-32768L)
+    val expectedlow: Short = -32768
+    val high: Short = convert25(32767L)
+    val expectedhigh: Short = 32767
+    val zero: Short = convert25(0L)
+    val expectedzero: Short = 0
+    val one: Short = convert25(1L)
+    val expectedone: Short = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert26(value: Long): Int = value.toInt()
+fun check26(): Boolean {
+    val low: Int = convert26(-2147483648L)
+    val expectedlow: Int = -2147483648
+    val high: Int = convert26(2147483647L)
+    val expectedhigh: Int = 2147483647
+    val zero: Int = convert26(0L)
+    val expectedzero: Int = 0
+    val one: Int = convert26(1L)
+    val expectedone: Int = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert27(value: Long): Long = value.toLong()
+fun check27(): Boolean {
+    val low: Long = convert27(-9223372036854775808L)
+    val expectedlow: Long = -9223372036854775808L
+    val high: Long = convert27(9223372036854775807L)
+    val expectedhigh: Long = 9223372036854775807L
+    val zero: Long = convert27(0L)
+    val expectedzero: Long = 0L
+    val one: Long = convert27(1L)
+    val expectedone: Long = 1L
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert28(value: Long): UByte = value.toUByte()
+fun check28(): Boolean {
+    val low: UByte = convert28(0L)
+    val expectedlow: UByte = 0u
+    val high: UByte = convert28(255L)
+    val expectedhigh: UByte = 255u
+    val zero: UByte = convert28(0L)
+    val expectedzero: UByte = 0u
+    val one: UByte = convert28(1L)
+    val expectedone: UByte = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert29(value: Long): UShort = value.toUShort()
+fun check29(): Boolean {
+    val low: UShort = convert29(0L)
+    val expectedlow: UShort = 0u
+    val high: UShort = convert29(65535L)
+    val expectedhigh: UShort = 65535u
+    val zero: UShort = convert29(0L)
+    val expectedzero: UShort = 0u
+    val one: UShort = convert29(1L)
+    val expectedone: UShort = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert30(value: Long): UInt = value.toUInt()
+fun check30(): Boolean {
+    val low: UInt = convert30(0L)
+    val expectedlow: UInt = 0u
+    val high: UInt = convert30(4294967295L)
+    val expectedhigh: UInt = 4294967295u
+    val zero: UInt = convert30(0L)
+    val expectedzero: UInt = 0u
+    val one: UInt = convert30(1L)
+    val expectedone: UInt = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert31(value: Long): ULong = value.toULong()
+fun check31(): Boolean {
+    val low: ULong = convert31(0L)
+    val expectedlow: ULong = 0uL
+    val high: ULong = convert31(9223372036854775807L)
+    val expectedhigh: ULong = 9223372036854775807uL
+    val zero: ULong = convert31(0L)
+    val expectedzero: ULong = 0uL
+    val one: ULong = convert31(1L)
+    val expectedone: ULong = 1uL
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert32(value: UByte): Byte = value.toByte()
+fun check32(): Boolean {
+    val low: Byte = convert32(0u)
+    val expectedlow: Byte = 0
+    val high: Byte = convert32(127u)
+    val expectedhigh: Byte = 127
+    val zero: Byte = convert32(0u)
+    val expectedzero: Byte = 0
+    val one: Byte = convert32(1u)
+    val expectedone: Byte = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert33(value: UByte): Short = value.toShort()
+fun check33(): Boolean {
+    val low: Short = convert33(0u)
+    val expectedlow: Short = 0
+    val high: Short = convert33(255u)
+    val expectedhigh: Short = 255
+    val zero: Short = convert33(0u)
+    val expectedzero: Short = 0
+    val one: Short = convert33(1u)
+    val expectedone: Short = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert34(value: UByte): Int = value.toInt()
+fun check34(): Boolean {
+    val low: Int = convert34(0u)
+    val expectedlow: Int = 0
+    val high: Int = convert34(255u)
+    val expectedhigh: Int = 255
+    val zero: Int = convert34(0u)
+    val expectedzero: Int = 0
+    val one: Int = convert34(1u)
+    val expectedone: Int = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert35(value: UByte): Long = value.toLong()
+fun check35(): Boolean {
+    val low: Long = convert35(0u)
+    val expectedlow: Long = 0L
+    val high: Long = convert35(255u)
+    val expectedhigh: Long = 255L
+    val zero: Long = convert35(0u)
+    val expectedzero: Long = 0L
+    val one: Long = convert35(1u)
+    val expectedone: Long = 1L
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert36(value: UByte): UByte = value.toUByte()
+fun check36(): Boolean {
+    val low: UByte = convert36(0u)
+    val expectedlow: UByte = 0u
+    val high: UByte = convert36(255u)
+    val expectedhigh: UByte = 255u
+    val zero: UByte = convert36(0u)
+    val expectedzero: UByte = 0u
+    val one: UByte = convert36(1u)
+    val expectedone: UByte = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert37(value: UByte): UShort = value.toUShort()
+fun check37(): Boolean {
+    val low: UShort = convert37(0u)
+    val expectedlow: UShort = 0u
+    val high: UShort = convert37(255u)
+    val expectedhigh: UShort = 255u
+    val zero: UShort = convert37(0u)
+    val expectedzero: UShort = 0u
+    val one: UShort = convert37(1u)
+    val expectedone: UShort = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert38(value: UByte): UInt = value.toUInt()
+fun check38(): Boolean {
+    val low: UInt = convert38(0u)
+    val expectedlow: UInt = 0u
+    val high: UInt = convert38(255u)
+    val expectedhigh: UInt = 255u
+    val zero: UInt = convert38(0u)
+    val expectedzero: UInt = 0u
+    val one: UInt = convert38(1u)
+    val expectedone: UInt = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert39(value: UByte): ULong = value.toULong()
+fun check39(): Boolean {
+    val low: ULong = convert39(0u)
+    val expectedlow: ULong = 0uL
+    val high: ULong = convert39(255u)
+    val expectedhigh: ULong = 255uL
+    val zero: ULong = convert39(0u)
+    val expectedzero: ULong = 0uL
+    val one: ULong = convert39(1u)
+    val expectedone: ULong = 1uL
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert40(value: UShort): Byte = value.toByte()
+fun check40(): Boolean {
+    val low: Byte = convert40(0u)
+    val expectedlow: Byte = 0
+    val high: Byte = convert40(127u)
+    val expectedhigh: Byte = 127
+    val zero: Byte = convert40(0u)
+    val expectedzero: Byte = 0
+    val one: Byte = convert40(1u)
+    val expectedone: Byte = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert41(value: UShort): Short = value.toShort()
+fun check41(): Boolean {
+    val low: Short = convert41(0u)
+    val expectedlow: Short = 0
+    val high: Short = convert41(32767u)
+    val expectedhigh: Short = 32767
+    val zero: Short = convert41(0u)
+    val expectedzero: Short = 0
+    val one: Short = convert41(1u)
+    val expectedone: Short = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert42(value: UShort): Int = value.toInt()
+fun check42(): Boolean {
+    val low: Int = convert42(0u)
+    val expectedlow: Int = 0
+    val high: Int = convert42(65535u)
+    val expectedhigh: Int = 65535
+    val zero: Int = convert42(0u)
+    val expectedzero: Int = 0
+    val one: Int = convert42(1u)
+    val expectedone: Int = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert43(value: UShort): Long = value.toLong()
+fun check43(): Boolean {
+    val low: Long = convert43(0u)
+    val expectedlow: Long = 0L
+    val high: Long = convert43(65535u)
+    val expectedhigh: Long = 65535L
+    val zero: Long = convert43(0u)
+    val expectedzero: Long = 0L
+    val one: Long = convert43(1u)
+    val expectedone: Long = 1L
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert44(value: UShort): UByte = value.toUByte()
+fun check44(): Boolean {
+    val low: UByte = convert44(0u)
+    val expectedlow: UByte = 0u
+    val high: UByte = convert44(255u)
+    val expectedhigh: UByte = 255u
+    val zero: UByte = convert44(0u)
+    val expectedzero: UByte = 0u
+    val one: UByte = convert44(1u)
+    val expectedone: UByte = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert45(value: UShort): UShort = value.toUShort()
+fun check45(): Boolean {
+    val low: UShort = convert45(0u)
+    val expectedlow: UShort = 0u
+    val high: UShort = convert45(65535u)
+    val expectedhigh: UShort = 65535u
+    val zero: UShort = convert45(0u)
+    val expectedzero: UShort = 0u
+    val one: UShort = convert45(1u)
+    val expectedone: UShort = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert46(value: UShort): UInt = value.toUInt()
+fun check46(): Boolean {
+    val low: UInt = convert46(0u)
+    val expectedlow: UInt = 0u
+    val high: UInt = convert46(65535u)
+    val expectedhigh: UInt = 65535u
+    val zero: UInt = convert46(0u)
+    val expectedzero: UInt = 0u
+    val one: UInt = convert46(1u)
+    val expectedone: UInt = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert47(value: UShort): ULong = value.toULong()
+fun check47(): Boolean {
+    val low: ULong = convert47(0u)
+    val expectedlow: ULong = 0uL
+    val high: ULong = convert47(65535u)
+    val expectedhigh: ULong = 65535uL
+    val zero: ULong = convert47(0u)
+    val expectedzero: ULong = 0uL
+    val one: ULong = convert47(1u)
+    val expectedone: ULong = 1uL
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert48(value: UInt): Byte = value.toByte()
+fun check48(): Boolean {
+    val low: Byte = convert48(0u)
+    val expectedlow: Byte = 0
+    val high: Byte = convert48(127u)
+    val expectedhigh: Byte = 127
+    val zero: Byte = convert48(0u)
+    val expectedzero: Byte = 0
+    val one: Byte = convert48(1u)
+    val expectedone: Byte = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert49(value: UInt): Short = value.toShort()
+fun check49(): Boolean {
+    val low: Short = convert49(0u)
+    val expectedlow: Short = 0
+    val high: Short = convert49(32767u)
+    val expectedhigh: Short = 32767
+    val zero: Short = convert49(0u)
+    val expectedzero: Short = 0
+    val one: Short = convert49(1u)
+    val expectedone: Short = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert50(value: UInt): Int = value.toInt()
+fun check50(): Boolean {
+    val low: Int = convert50(0u)
+    val expectedlow: Int = 0
+    val high: Int = convert50(2147483647u)
+    val expectedhigh: Int = 2147483647
+    val zero: Int = convert50(0u)
+    val expectedzero: Int = 0
+    val one: Int = convert50(1u)
+    val expectedone: Int = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert51(value: UInt): Long = value.toLong()
+fun check51(): Boolean {
+    val low: Long = convert51(0u)
+    val expectedlow: Long = 0L
+    val high: Long = convert51(4294967295u)
+    val expectedhigh: Long = 4294967295L
+    val zero: Long = convert51(0u)
+    val expectedzero: Long = 0L
+    val one: Long = convert51(1u)
+    val expectedone: Long = 1L
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert52(value: UInt): UByte = value.toUByte()
+fun check52(): Boolean {
+    val low: UByte = convert52(0u)
+    val expectedlow: UByte = 0u
+    val high: UByte = convert52(255u)
+    val expectedhigh: UByte = 255u
+    val zero: UByte = convert52(0u)
+    val expectedzero: UByte = 0u
+    val one: UByte = convert52(1u)
+    val expectedone: UByte = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert53(value: UInt): UShort = value.toUShort()
+fun check53(): Boolean {
+    val low: UShort = convert53(0u)
+    val expectedlow: UShort = 0u
+    val high: UShort = convert53(65535u)
+    val expectedhigh: UShort = 65535u
+    val zero: UShort = convert53(0u)
+    val expectedzero: UShort = 0u
+    val one: UShort = convert53(1u)
+    val expectedone: UShort = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert54(value: UInt): UInt = value.toUInt()
+fun check54(): Boolean {
+    val low: UInt = convert54(0u)
+    val expectedlow: UInt = 0u
+    val high: UInt = convert54(4294967295u)
+    val expectedhigh: UInt = 4294967295u
+    val zero: UInt = convert54(0u)
+    val expectedzero: UInt = 0u
+    val one: UInt = convert54(1u)
+    val expectedone: UInt = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert55(value: UInt): ULong = value.toULong()
+fun check55(): Boolean {
+    val low: ULong = convert55(0u)
+    val expectedlow: ULong = 0uL
+    val high: ULong = convert55(4294967295u)
+    val expectedhigh: ULong = 4294967295uL
+    val zero: ULong = convert55(0u)
+    val expectedzero: ULong = 0uL
+    val one: ULong = convert55(1u)
+    val expectedone: ULong = 1uL
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert56(value: ULong): Byte = value.toByte()
+fun check56(): Boolean {
+    val low: Byte = convert56(0uL)
+    val expectedlow: Byte = 0
+    val high: Byte = convert56(127uL)
+    val expectedhigh: Byte = 127
+    val zero: Byte = convert56(0uL)
+    val expectedzero: Byte = 0
+    val one: Byte = convert56(1uL)
+    val expectedone: Byte = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert57(value: ULong): Short = value.toShort()
+fun check57(): Boolean {
+    val low: Short = convert57(0uL)
+    val expectedlow: Short = 0
+    val high: Short = convert57(32767uL)
+    val expectedhigh: Short = 32767
+    val zero: Short = convert57(0uL)
+    val expectedzero: Short = 0
+    val one: Short = convert57(1uL)
+    val expectedone: Short = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert58(value: ULong): Int = value.toInt()
+fun check58(): Boolean {
+    val low: Int = convert58(0uL)
+    val expectedlow: Int = 0
+    val high: Int = convert58(2147483647uL)
+    val expectedhigh: Int = 2147483647
+    val zero: Int = convert58(0uL)
+    val expectedzero: Int = 0
+    val one: Int = convert58(1uL)
+    val expectedone: Int = 1
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert59(value: ULong): Long = value.toLong()
+fun check59(): Boolean {
+    val low: Long = convert59(0uL)
+    val expectedlow: Long = 0L
+    val high: Long = convert59(9223372036854775807uL)
+    val expectedhigh: Long = 9223372036854775807L
+    val zero: Long = convert59(0uL)
+    val expectedzero: Long = 0L
+    val one: Long = convert59(1uL)
+    val expectedone: Long = 1L
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert60(value: ULong): UByte = value.toUByte()
+fun check60(): Boolean {
+    val low: UByte = convert60(0uL)
+    val expectedlow: UByte = 0u
+    val high: UByte = convert60(255uL)
+    val expectedhigh: UByte = 255u
+    val zero: UByte = convert60(0uL)
+    val expectedzero: UByte = 0u
+    val one: UByte = convert60(1uL)
+    val expectedone: UByte = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert61(value: ULong): UShort = value.toUShort()
+fun check61(): Boolean {
+    val low: UShort = convert61(0uL)
+    val expectedlow: UShort = 0u
+    val high: UShort = convert61(65535uL)
+    val expectedhigh: UShort = 65535u
+    val zero: UShort = convert61(0uL)
+    val expectedzero: UShort = 0u
+    val one: UShort = convert61(1uL)
+    val expectedone: UShort = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert62(value: ULong): UInt = value.toUInt()
+fun check62(): Boolean {
+    val low: UInt = convert62(0uL)
+    val expectedlow: UInt = 0u
+    val high: UInt = convert62(4294967295uL)
+    val expectedhigh: UInt = 4294967295u
+    val zero: UInt = convert62(0uL)
+    val expectedzero: UInt = 0u
+    val one: UInt = convert62(1uL)
+    val expectedone: UInt = 1u
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun convert63(value: ULong): ULong = value.toULong()
+fun check63(): Boolean {
+    val low: ULong = convert63(0uL)
+    val expectedlow: ULong = 0uL
+    val high: ULong = convert63(18446744073709551615uL)
+    val expectedhigh: ULong = 18446744073709551615uL
+    val zero: ULong = convert63(0uL)
+    val expectedzero: ULong = 0uL
+    val one: ULong = convert63(1uL)
+    val expectedone: ULong = 1uL
+    return low == expectedlow && high == expectedhigh && zero == expectedzero && one == expectedone
+}
+fun tick(): Int { println("tick"); return 1 }
+fun acceptOwned(own label: String, value: Long): Unit {
+    println(label)
+    if (value == 7L) { println("owned-ok") } else { println("bad-owned") }
+}
+fun acceptBorrow(label: String, value: Long): Unit {
+    println(label)
+    if (value == 7L) { println("borrow-ok") } else { println("bad-borrow") }
+}
+fun checkResources(number: Int): Unit {
+    val retained = "retained"
+    val retainedValue: Long = number.toLong()
+    println(retained)
+    if (retainedValue == 7L) { println("retained-ok") } else { println("bad-retained") }
+    acceptOwned("pending-owned", number.toLong())
+    val borrowed = "borrowed"
+    acceptBorrow(borrowed, number.toLong())
+    println(borrowed)
+}
+fun main(): Unit {
+    if (check0()) { println("Byte->Byte") } else { println("bad-0") }
+    if (check1()) { println("Byte->Short") } else { println("bad-1") }
+    if (check2()) { println("Byte->Int") } else { println("bad-2") }
+    if (check3()) { println("Byte->Long") } else { println("bad-3") }
+    if (check4()) { println("Byte->UByte") } else { println("bad-4") }
+    if (check5()) { println("Byte->UShort") } else { println("bad-5") }
+    if (check6()) { println("Byte->UInt") } else { println("bad-6") }
+    if (check7()) { println("Byte->ULong") } else { println("bad-7") }
+    if (check8()) { println("Short->Byte") } else { println("bad-8") }
+    if (check9()) { println("Short->Short") } else { println("bad-9") }
+    if (check10()) { println("Short->Int") } else { println("bad-10") }
+    if (check11()) { println("Short->Long") } else { println("bad-11") }
+    if (check12()) { println("Short->UByte") } else { println("bad-12") }
+    if (check13()) { println("Short->UShort") } else { println("bad-13") }
+    if (check14()) { println("Short->UInt") } else { println("bad-14") }
+    if (check15()) { println("Short->ULong") } else { println("bad-15") }
+    if (check16()) { println("Int->Byte") } else { println("bad-16") }
+    if (check17()) { println("Int->Short") } else { println("bad-17") }
+    if (check18()) { println("Int->Int") } else { println("bad-18") }
+    if (check19()) { println("Int->Long") } else { println("bad-19") }
+    if (check20()) { println("Int->UByte") } else { println("bad-20") }
+    if (check21()) { println("Int->UShort") } else { println("bad-21") }
+    if (check22()) { println("Int->UInt") } else { println("bad-22") }
+    if (check23()) { println("Int->ULong") } else { println("bad-23") }
+    if (check24()) { println("Long->Byte") } else { println("bad-24") }
+    if (check25()) { println("Long->Short") } else { println("bad-25") }
+    if (check26()) { println("Long->Int") } else { println("bad-26") }
+    if (check27()) { println("Long->Long") } else { println("bad-27") }
+    if (check28()) { println("Long->UByte") } else { println("bad-28") }
+    if (check29()) { println("Long->UShort") } else { println("bad-29") }
+    if (check30()) { println("Long->UInt") } else { println("bad-30") }
+    if (check31()) { println("Long->ULong") } else { println("bad-31") }
+    if (check32()) { println("UByte->Byte") } else { println("bad-32") }
+    if (check33()) { println("UByte->Short") } else { println("bad-33") }
+    if (check34()) { println("UByte->Int") } else { println("bad-34") }
+    if (check35()) { println("UByte->Long") } else { println("bad-35") }
+    if (check36()) { println("UByte->UByte") } else { println("bad-36") }
+    if (check37()) { println("UByte->UShort") } else { println("bad-37") }
+    if (check38()) { println("UByte->UInt") } else { println("bad-38") }
+    if (check39()) { println("UByte->ULong") } else { println("bad-39") }
+    if (check40()) { println("UShort->Byte") } else { println("bad-40") }
+    if (check41()) { println("UShort->Short") } else { println("bad-41") }
+    if (check42()) { println("UShort->Int") } else { println("bad-42") }
+    if (check43()) { println("UShort->Long") } else { println("bad-43") }
+    if (check44()) { println("UShort->UByte") } else { println("bad-44") }
+    if (check45()) { println("UShort->UShort") } else { println("bad-45") }
+    if (check46()) { println("UShort->UInt") } else { println("bad-46") }
+    if (check47()) { println("UShort->ULong") } else { println("bad-47") }
+    if (check48()) { println("UInt->Byte") } else { println("bad-48") }
+    if (check49()) { println("UInt->Short") } else { println("bad-49") }
+    if (check50()) { println("UInt->Int") } else { println("bad-50") }
+    if (check51()) { println("UInt->Long") } else { println("bad-51") }
+    if (check52()) { println("UInt->UByte") } else { println("bad-52") }
+    if (check53()) { println("UInt->UShort") } else { println("bad-53") }
+    if (check54()) { println("UInt->UInt") } else { println("bad-54") }
+    if (check55()) { println("UInt->ULong") } else { println("bad-55") }
+    if (check56()) { println("ULong->Byte") } else { println("bad-56") }
+    if (check57()) { println("ULong->Short") } else { println("bad-57") }
+    if (check58()) { println("ULong->Int") } else { println("bad-58") }
+    if (check59()) { println("ULong->Long") } else { println("bad-59") }
+    if (check60()) { println("ULong->UByte") } else { println("bad-60") }
+    if (check61()) { println("ULong->UShort") } else { println("bad-61") }
+    if (check62()) { println("ULong->UInt") } else { println("bad-62") }
+    if (check63()) { println("ULong->ULong") } else { println("bad-63") }
+    checkResources(7)
+    val once: Long = tick().toLong()
+    if (once == 1L) { println("done") } else { println("bad-tick") }
+}

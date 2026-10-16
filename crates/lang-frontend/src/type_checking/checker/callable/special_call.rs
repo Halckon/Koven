@@ -30,9 +30,13 @@ impl Checker<'_> {
         )? {
             return Ok(Some(result));
         }
-        if let Some(result) =
-            self.check_integer_inv_call(expression, call_span, callee, type_arguments, arguments)?
-        {
+        if let Some(result) = self.check_integer_operation_call(
+            expression,
+            call_span,
+            callee,
+            type_arguments,
+            arguments,
+        )? {
             return Ok(Some(result));
         }
         if let Some(result) =

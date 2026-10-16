@@ -1,13 +1,14 @@
 use std::fmt::{self, Write};
 
 use super::model::{
-    BinaryOperator, CallableSignature, CheckedArithmeticOperator, ClosureCaptureMode,
-    ClosureCaptureOperand, ComparisonOperator, Edge, EntityId, EntityType, Function,
-    IntegerBitwiseOperator, LoanKind, Module, Operation, Origin, PlaceAccess, Program,
-    ScalarConstant, SsaTypeId, SsaTypeKind, TerminatorKind,
+    CallableSignature, ClosureCaptureMode, ClosureCaptureOperand, Edge, EntityId, EntityType,
+    Function, LoanKind, Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId,
+    SsaTypeKind, TerminatorKind,
 };
 
 mod map;
+mod scalar_names;
+use scalar_names::{binary_name, checked_arithmetic_name, comparison_name, integer_bitwise_name};
 
 /// 生成只用于调试和测试的确定性 SSA 文本。
 pub(super) fn render_program(program: &Program) -> String {
@@ -410,6 +411,10 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write_entity_id(output, EntityId::Value(*left))?;
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*right))
+        }
+        Operation::CheckedIntegerConvert { operand } => {
+            output.write_str("checked.convert ")?;
+            write_entity_id(output, EntityId::Value(*operand))
         }
         Operation::IntegerNot { operand } => {
             output.write_str("bitwise.inv ")?;
@@ -867,48 +872,6 @@ fn write_constant(output: &mut String, constant: &ScalarConstant) -> fmt::Result
         ScalarConstant::Boolean(value) => write!(output, "{value}"),
         ScalarConstant::Char(value) => write!(output, "U+{value:04X}"),
         ScalarConstant::Integer(value) => write!(output, "{value}"),
-    }
-}
-
-const fn binary_name(operator: BinaryOperator) -> &'static str {
-    match operator {
-        BinaryOperator::Add => "add",
-        BinaryOperator::Subtract => "sub",
-        BinaryOperator::Multiply => "mul",
-        BinaryOperator::Equal => "eq",
-        BinaryOperator::LessThan => "lt",
-    }
-}
-
-const fn integer_bitwise_name(operator: IntegerBitwiseOperator) -> &'static str {
-    match operator {
-        IntegerBitwiseOperator::And => "and",
-        IntegerBitwiseOperator::Or => "or",
-        IntegerBitwiseOperator::Xor => "xor",
-        IntegerBitwiseOperator::Shl => "shl",
-        IntegerBitwiseOperator::Shr => "shr",
-        IntegerBitwiseOperator::Ushr => "ushr",
-    }
-}
-
-const fn checked_arithmetic_name(operator: CheckedArithmeticOperator) -> &'static str {
-    match operator {
-        CheckedArithmeticOperator::Add => "add",
-        CheckedArithmeticOperator::Subtract => "sub",
-        CheckedArithmeticOperator::Multiply => "mul",
-        CheckedArithmeticOperator::Divide => "div",
-        CheckedArithmeticOperator::Remainder => "rem",
-    }
-}
-
-const fn comparison_name(operator: ComparisonOperator) -> &'static str {
-    match operator {
-        ComparisonOperator::Equal => "eq",
-        ComparisonOperator::NotEqual => "ne",
-        ComparisonOperator::LessThan => "lt",
-        ComparisonOperator::LessThanOrEqual => "le",
-        ComparisonOperator::GreaterThan => "gt",
-        ComparisonOperator::GreaterThanOrEqual => "ge",
     }
 }
 

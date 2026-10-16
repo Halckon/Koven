@@ -1,3 +1,4 @@
+use crate::type_checking::integer::integer_member;
 use crate::{
     ast::{ExpressionId, TypeRefId},
     parser::{CallArgument, Expression},
@@ -11,7 +12,7 @@ use crate::{
 use super::{Checker, ExprCheck, TypeCheckingError};
 
 impl Checker<'_> {
-    pub(super) fn check_integer_inv_call(
+    pub(super) fn check_integer_operation_call(
         &mut self,
         expression: ExpressionId,
         call_span: Span,
@@ -29,9 +30,13 @@ impl Checker<'_> {
         else {
             return Ok(None);
         };
-        if safe || self.sources.slice(name_span)? != "inv" {
+        if safe {
             return Ok(None);
         }
+        let member = self.sources.slice(name_span)?;
+        let Some((operation_kind, target_builtin)) = integer_member(member) else {
+            return Ok(None);
+        };
         let receiver_result = self.check_expression(receiver, None, None)?;
         if !matches!(
             self.kind(receiver_result.ty),
@@ -52,7 +57,7 @@ impl Checker<'_> {
             ) {
                 self.emit(
                     self.unresolved_constant_code,
-                    "receiver has no inv member",
+                    &format!("receiver has no {member} member"),
                     name_span,
                 )?;
                 self.check_construction_operands(arguments)?;
@@ -66,7 +71,7 @@ impl Checker<'_> {
         if !type_arguments.is_empty() {
             self.emit(
                 self.type_argument_arity_code,
-                "integer inv accepts no type arguments",
+                &format!("integer {member} accepts no type arguments"),
                 name_span,
             )?;
             self.check_construction_operands(arguments)?;
@@ -84,7 +89,7 @@ impl Checker<'_> {
                 falls_through: receiver_result.falls_through,
             }));
         }
-        let return_type = receiver_result.ty;
+        let return_type = target_builtin.map_or(receiver_result.ty, |target| self.builtin(target));
         let function = self.types.intern(TypeKind::Function {
             move_only: false,
             parameters: Vec::<FunctionParameterType>::new(),
@@ -97,6 +102,8 @@ impl Checker<'_> {
                 expression,
                 receiver,
                 receiver_result.ty,
+                return_type,
+                operation_kind,
             ));
         Ok(Some(ExprCheck {
             ty: return_type,
