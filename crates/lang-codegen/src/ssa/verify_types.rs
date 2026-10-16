@@ -35,6 +35,15 @@ pub(super) fn verify_types(module: &Module, errors: &mut Vec<VerifyError>) {
     }
     verify_inline_type_cycles(module, errors);
     verify_container_type_cycles(module, errors);
+    for (&range, &endpoint) in &module.integer_ranges {
+        if !module.valid_integer_range_type(range, endpoint) {
+            push_type_error(
+                errors,
+                range,
+                "integer Range requires matching signed Int/Long endpoints and Boolean emptiness",
+            );
+        }
+    }
     for (&result, &value) in &module.map_results {
         if !module.valid_map_result_type(result, value) {
             push_type_error(

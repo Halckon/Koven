@@ -696,6 +696,7 @@ pub(crate) struct Module {
     pub(crate) functions: Vec<Function>,
     pub(super) deinits: BTreeMap<SsaTypeId, FunctionId>,
     pub(super) map_results: BTreeMap<SsaTypeId, SsaTypeId>,
+    pub(super) integer_ranges: BTreeMap<SsaTypeId, SsaTypeId>,
 }
 
 impl Module {
@@ -840,6 +841,7 @@ impl Program {
             functions: Vec::new(),
             deinits: BTreeMap::new(),
             map_results: BTreeMap::new(),
+            integer_ranges: BTreeMap::new(),
         });
         id
     }
