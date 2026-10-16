@@ -23,7 +23,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test type_borrow_result --test type_declaration_frontier --test type_iteration \
   --test type_map --test type_range_carrier --test type_range_construction \
   --test type_range_extension --test type_range_source_authority \
-  --test type_checking --test control_branch_join --test type_callable --test type_copyability --test multifile_type_checking \
+  --test type_checking --test while_flow_facts --test control_branch_join --test type_callable --test type_copyability --test multifile_type_checking \
   --test const_owned_compilation_unit_view --test const_owned_unit_view_compile_contracts \
   --test multifile_constant_ownership \
   --test owned_compilation_unit_view --test owned_unit_view_compile_contracts \
