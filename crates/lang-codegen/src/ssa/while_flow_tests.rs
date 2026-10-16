@@ -119,7 +119,7 @@ fun entry(own initial: Holder?): Unit {
     var current: Holder? = initial
     while (current != null) {
         val seen: Int = current.value
-        println(seen)
+        if (seen == 42) { println("seen") }
         return
     }
 }"#,
