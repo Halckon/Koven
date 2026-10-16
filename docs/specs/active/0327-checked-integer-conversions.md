@@ -168,3 +168,14 @@ CI-only另有两入口各9个普通越界Abort及7个独立exact畸形SSA verifi
 Abort helper仅子进程禁core、10秒后kill/reap自身Child，断原生SIGABRT/before且无after；
 无stderr/drop保证。composition成功stub唯一exact已实际Ran1/OK，107target各唯一；
 旧Unsupported拒绝测试已逐项改为真实LLVM成功，源码无遗留旧转换拒绝oracle。最终统一验证待跑。
+
+## 9. 完整实现候选的本地统一验收（待远端CI）
+
+`65e437ea` / tree `b8b9c206` 普通21exact各1命中全绿，64输入每轮前后同；含Linux云
+single/project两入口成功native，不是两host证据。fmt、workspace/all-targets check、
+frontend/codegen/cli三包all-targets clippy、cli build四工程均0；actualmain `5a32550a`
+尺寸、698文件docs、diff与composition唯一成功stub exact亦通过，预算107且新target恰1。
+仓外final21-v2与engineering收据锁完整argv/logSHA，不复写先前红/编译错误/尺寸失败。
+CI-only的7个synthetic verifier独立exact及两入口各9个普通越界Abort已编译，未本地执行；
+实际CI仍待验，不归档、不声称越界运行已通过。Abort每入口只形成一个libtest exact记录，
+通过后可结合固定9case循环断言核验，不宣称有18条独立子进程日志。
