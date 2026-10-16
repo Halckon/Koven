@@ -178,3 +178,18 @@ get missing、remove缺失及已有key移出后二次remove。requireValue保持
 native72行/exit0由已审断言证明，无独立导出子进程log，仅当前Linux云两入口。
 7个畸形SSA verifier exact仅编译，实际执行留CI；新增两个integration target精确预算107→109，
 其中canonical_type_tables由CI预核发现原共享回归未被选择而补齐。尚无本片远端CI结论，不归档。
+
+## 11. 旧 Range 门槛回归收口
+
+静态反查旧 frozen/complete/CLI/多文件尾表达式发现六个过期 oracle；`a829ef4e` 六exact各1真实红。
+Range值根现在为IntRange，原p34源码for仍唯一L0159（40..45），未启用数值provider。
+0324的L0165用户文案改由普通`1 to 2`未完成Call根（30..36）继续验证，旧历史Spec不改写。
+`aa46fe47` 统一25项24绿1红：多文件complete列表仍残留两个已完成Range根（实际7/预期9）；
+`e394d780` 仅删这两项，保留其余七项诊断及raw Range身份，不修改生产或放宽其他门槛。
+最终实跑 `e394d780` / tree `bc7e743b`：25普通exact各1绿、97输入前后相同，四工程均exit0；
+唯一composition成功路径、实际8a base尺寸与docs检查通过。两CLI补充exact合计8次build，
+同时锁Call L0165与p34 L0159的human/json、code/span/message/details，无新增产物执行。
+仓外final25-v2收据SHA `465fb4a07fc6ec0e7e61b4e74ca160106191b4027daf6f94ab11144cf84e9ff5`；
+工程收据SHA `b284554bc4f8c9e9ba3058674a5e80875179e61347d75933cd40dcbd8cba87a6`。
+远端待验35个唯一exact：本地25、CI-only verifier七项、既有CLI拒绝聚合三项；后者含run模式，
+本轮不在云本地执行。保留此前19绿及六红/24绿1红原始收据，尚未取得本片远端CI结论。
