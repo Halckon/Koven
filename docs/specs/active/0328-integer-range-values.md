@@ -145,3 +145,6 @@ ABI 完成前，lower 在规划前按真实类型使用与 descriptor 结构化�
 
 首次 FE-stage8 在 cb2816cb 编译报两处 E0624：新兄弟模块不能访问原私有 operand 诊断方法。
 仅第1命令启动、0测试执行，35输入未变；第2–8未跑。后继只将两方法可见性改为 pub(super)，不改诊断或算法。
+
+89b1b70e 的原六项 FE exact 各1命中成功；第7 lower 测试编译 E0277，原因是 expect_err 要求成功 Program 实现 Debug。
+该项0执行，第8未跑；改测试提取 err 后再 expect，不为测试给生产 Program 添加 Debug。原输入35项稳定。

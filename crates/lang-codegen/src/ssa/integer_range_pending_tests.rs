@@ -99,7 +99,9 @@ fn range_type_uses_reach_pending_abi_boundary() {
         }
     }
     for result in results {
-        let error = result.expect_err("Range value ABI is not implemented in this FE stage");
+        let error = result
+            .err()
+            .expect("Range value ABI is not implemented in this FE stage");
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
         assert!(error.span.is_some());
     }
