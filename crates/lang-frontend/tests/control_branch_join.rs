@@ -702,3 +702,15 @@ fn when_conflict_labels_track_actual_participating_branch() {
         assert_eq!(labels, [expected_label]);
     }
 }
+
+/// Observation only: completion of this command is not a regression pass.
+#[test]
+fn observe_nullable_case_join_delivery() {
+    for root in roots("null", "e").into_iter().chain(roots("e", "null")) {
+        let text = format!(
+            "enum class E<T> {{ A(value: T), B(value: T) }}\nfun test(flag: Boolean, e: E<Int>): Unit {{ if (e is E.A<Int>) {{ val result = {root}; val delivered: E<Int>? = result }} }}"
+        );
+        let observations = observe_text(&text, &root);
+        eprintln!("SPEC-0326 nullable case delivery observation only: {observations:?}");
+    }
+}
