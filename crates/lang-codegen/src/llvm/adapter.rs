@@ -441,6 +441,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 left,
                 right,
             } => self.lower_checked(*operator, *left, *right, &results)?,
+            Operation::CheckedIntegerConvert { .. } => {
+                return Err(unsupported("checked integer conversion LLVM lowering is not implemented"));
+            }
             Operation::IntegerBitwise {
                 operator,
                 left,

@@ -51,23 +51,23 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         match descriptor.kind() {
-            IntegerOperationKind::CheckedConvert => {
-                // Phase 2 identity exists; checked conversion lowering is a separate delivery.
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
             IntegerOperationKind::Invert
                 if descriptor.receiver_type() != descriptor.result_type() =>
             {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
-            IntegerOperationKind::Invert => {}
+            IntegerOperationKind::Invert | IntegerOperationKind::CheckedConvert => {}
         }
+        let kind = descriptor.kind();
         let operand = match self.lower(descriptor.receiver().expression())? {
             LoweredValue::Value(value) => value,
             LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
             LoweredValue::Unit => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         };
         let ty = self.expression_ssa_type(expression, span)?;
+        if kind == IntegerOperationKind::CheckedConvert {
+            return self.checked_operation(Operation::CheckedIntegerConvert { operand }, ty, span);
+        }
         self.append_scalar(Operation::IntegerNot { operand }, ty, span)
     }
 }

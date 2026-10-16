@@ -411,6 +411,10 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*right))
         }
+        Operation::CheckedIntegerConvert { operand } => {
+            output.write_str("checked.convert ")?;
+            write_entity_id(output, EntityId::Value(*operand))
+        }
         Operation::IntegerNot { operand } => {
             output.write_str("bitwise.inv ")?;
             write_entity_id(output, EntityId::Value(*operand))
