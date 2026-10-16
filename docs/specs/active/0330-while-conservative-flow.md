@@ -94,6 +94,7 @@ initializer 扫描、捕获资格及非法 RHS 诊断保全；5 个共享 exact 
 收据 SHA `83cd1deb0672f25aeefcec59666e0f8b40dc7080a94c9e247eadf37aade88016`；
 四工程 fmt/check workspace all-targets/clippy 三包 all-targets/build CLI 均实际 exit0，
 收据 SHA `86646148d6e3b285759893a7d8b9516fc0031227b89119068a84dd70792ae677`。
-实际 main 尺寸门禁与 docs 检查通过，历史三组行为红及全部原始观察留仓外。
+实际 main 尺寸门禁通过；阶段 docs 初次因架构入口 207 行超限失败，
+改为既有入口简短导航后重检。历史行为红与该文档失败的原始证据均留仓外。
 此包只作已授权阶段备份，仍 active；普通 lower/LLVM、CLI/native 与完整 CI 待后续。
 一般 nullable ABI 和普通 is 条件后端支持必须逐源采证，不能由前端绿推定已支持。
