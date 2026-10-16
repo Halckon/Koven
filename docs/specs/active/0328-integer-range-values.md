@@ -10,7 +10,7 @@
 | 基线 | 正常合入实际 main `8a02572fbb490deb614009a84228bf5e06347f52`，已继承 0325/0326/0327 |
 | 分支 | 本地 `feature/spec-0328-integer-range-values`；授权远端 `fix/spec-0328-integer-range-values` |
 | 规范 | [Range 身份](../../guide/03-types-generics.md#简单变量赋值与整数-range-身份)、[操作](../../guide/04-expressions-operators.md#整数-range-与显式整数转换) |
-| 当前阶段 | 六项普通前端真实红已采；身份/运算事实开始实施，SSA/LLVM/native 尚未完成 |
+| 当前阶段 | 前端、值SSA/LLVM与有限Linux native已本地验收；远端CI待验，for另片 |
 
 ## 1. 范围与拆片责任
 
@@ -25,7 +25,7 @@
 不以首片 done 宣称 D 全部完成，不预占后继编号。
 0327 已随实际 main 8a02572f 正常合入；其 main CI 异常仍优先处理。
 
-## 2. 已核接口缺口与候选表示
+## 2. 初始接口缺口与表示约束（历史起点）
 
 - `type_checking/model.rs` 的 BuiltinType 尚无这两个公开身份；名称环境、single/unit 类型表、
   TypeRef 解析、Copyability/Transferable 分类须一致接线，禁止按用户声明名字冒认。
@@ -90,51 +90,20 @@ helper 仅普通源码经真实 lex/parse/names/raw types/complete API，两入�
 不得抬阈值或挤行。最终工程、双 host CI、归档 head CI 与真实 main 验收分账。
 备份用 binary/full-index format-patch 增量及 base/head/tree/SHA/恢复说明；不修改 E 固定包。
 
-## 6. 首批三项采证候选
+## 6. 前端红证与真实主线同步
 
-现仅落 `integer_range_values.rs` 三个 ordinary exact：
-`implicit_range_construction_has_resolved_copyable_value`（4源码/8入口）、
-`explicit_range_identity_and_capabilities_are_available`（4源码/8入口）、
-`range_membership_and_equality_publish_boolean_results`（8源码/16入口）。
-每项在断言前收齐所有源码的 single/unit 观察；unit names.validate 拒绝时明确保存名称诊断，
-不绕该门调用 types。single 保留真实 recovery raw 与 complete。原始 API 异常另报。
-显式身份以本入口真实 TypeRef 对比，Copyable 使用公开查询；Transferable 仅先观察普通
-泛型 bound 调用，完整所有权能力查询/存储、拒绝矩阵与值语义仍待后续，并非首三覆盖全 D。
-当前只有 tests-only 候选，尚未编译或执行；其余三项与第4节验收保留待采。
+首红 `86e4623f` / tree `3112d1b0` 三exact各1行为红，11输入稳定；32入口观察收齐，
+无编译/解析前置失败。隐式构造Deferred(Call)/L0165；显式身份single L0080、unit四例停names门；
+包含/相等父Deferred(ControlJoin)，原Range诊断保留，能力/算法尚未穿过身份缺口。
+仓外red3收据SHA `18e2a3a78b9ca802c30325f82153bd8df1fd78cecb6c1156a4557d9e4d390ad5`。
+正常merge `8843af8e` 双父 `30504b87`/真实main `8a02572f`，只解索引/图冲突；
+E生产/归档及A终止性后继责任保留。独立 `74499028` 只修README_CN两处v0.44标签。
 
-首红固定 `86e4623f` / tree `3112d1b0`：三个 exact 各实际1命中且行为红，11输入前后相同，
-32个源码/入口观察收齐，无编译/解析前置失败。隐式4源码双入口均 Deferred(Call)，
-complete 在 Range 根保留 L0165；显式4源码 single 名称 L0080 并保留未完成 Range，
-unit 四例在 names.validate 拒绝，未调用后续 types。这是公开身份未注册的本片真实缺口。
-包含/相等8源码双入口父型均 Deferred(ControlJoin)，子 Range 的原诊断未丢失。
-不据此声称 Copyable/Transferable、存储或序列值语义已经实现；完整 raw 位于仓外
-`spec0328-evidence/red3-receipt.json`（SHA `18e2a3a78b9ca802c30325f82153bd8df1fd78cecb6c1156a4557d9e4d390ad5`）。
-仍保持 draft 与无生产变化，后续实现/剩余矩阵须另行按审定范围推进。
-
-
-## 7. 后三项与接口审查准备
-
-正常合并 `8843af8e` 双父为首红账本 `30504b87` 与真实 main `8a02572f`；
-冲突仅版本索引/生成图，E生产与归档、A终止性后继责任保留。独立 `74499028` 只修中文
-README两处current Guide标签v0.44，不更改语言正文。
-新增后三exact为 `range_values_cross_existing_storage_boundaries`、
-`invalid_range_endpoints_have_operand_diagnostics`、`range_identity_does_not_enable_extra_public_apis`。
-分别8源码/16入口、30源码/60入口、正控2与负控18源码/40入口；全部先收观察再断言。
-非法端点要求真实L0085及complete保留原诊断；额外API拒绝先以正控身份成功作门，
-未越过该门不声称非泛型/Hashable或额外成员拒绝已经验证，具体code/span后续收紧。
-此批未执行；字段/容器若出现独立既有前置边界须单列，不为通过Range测试扩大其他能力。
-
-候选接口次序：环境绑定两身份→两套类型表及Copyability/Transferable→构造typed事实→
-包含性/相等typed事实→合法事实到未实现backend的结构化拒绝。先锁事实中的真实operand
-与端点/结果类型和operator种类，再由后端消费；不按源码名字猜身份、不先清全局Deferred。
-本阶段尚无生产补丁；具体表示/ABI及共享调用方穷尽检查通过后再实施。
-
-`c8867978`后三exact实际各1红，11输入前后同，16/60/40入口观察全部收齐；无测试编译或
-解析前置失败。storage八个unit因Range身份缺失停names门；非法端点names-clean但两入口
-仍Deferred(Call)/L0165，缺少要求的L0085。额外API组在合法身份正控先红，18负控只观察，
-不计非泛型/Hashable/member拒绝验收。仓外 `next3-receipt.json` SHA
+后三exact `c8867978` 各1行为红，11输入稳定，storage16/非法端点60/API40入口完整；
+storage八unit停名称门；错型端点names-clean仍Deferred(Call)/L0165，缺预期L0085。
+API合法身份正控先红，18负控仅观察，不计非泛型/Hashable/member拒绝验收。
+无编译/解析前置失败，所有权/native未测。仓外next3收据SHA
 `7f9f7d4eafdfeb2506279810180f9911f18d54d307fe511b02ec251cb2787746`。
-所有权/运行时存储能力仍未测，包含性/相等算法仍被构造身份缺口阻挡，生产尚未改动。
 
 ## 7. 前端实施切片
 
@@ -184,3 +153,28 @@ Map.requireValue/get/remove实际消费32入口；调用顺序与连续半开/�
 再被现有pending guard结构化拒绝；Map三种读取无前置拒绝，但尚未检验解除guard后的MapResult ABI。
 LLVM未到达、无native；37输入每轮前后相同。仓外backend-red3收据SHA
 `ce553cc11f923cc3869e94d6652ec62d62039443524a652216a1a55b8bb5c225`。
+
+## 10. 后端值 ABI 与本地验收
+
+私有注册表把真实 Range TypeId 映射到 signed i32/i64 端点，底层使用 Copyable aggregate
+`{first,last,empty}`，不复用 View carrier，也不按显示名称识别。三种 SSA operation 核注册身份、
+operand/result与shape；双入口按真实descriptor/AST/source顺序各lower一次，!in/!=沿BooleanNot。
+LLVM半开仅nonempty块计算bound−1，empty块安全常量，ready真实PHI承接后续指令/外层边；
+闭区间不计算MAX+1，包含/相等直接使用empty与端点，不产生长度或逐元素循环。
+
+MapResult已有presence/payload布局实际承载Range get/remove，found后参与in/相等；native另验
+get missing、remove缺失及已有key移出后二次remove。requireValue保持显式borrow val再Copyable读取；
+构造/比较在辅助函数的Unit入口已通。原同函数包含Binary的四条源码仍因旧borrow-result全函数gate
+结构化Unsupported，作为后继borrow控制流责任保留，不以Range名称放宽；普通val直绑四例唯一L0163。
+一般Range?参数/返回/null八入口仍Unsupported；unit真实nullable表达式补intern仅修MissingFact，
+既有MapResult cache优先，不开启通用nullable ABI。数值Range for仍由本片作者另Spec继续认领。
+
+阶段9adc backend8各1全绿（收据877dcc10…392b0），Linux云两native入口严格68行断言成立；
+此前828ee的unit独立nullable null MissingFact保留为真实实现缺口，9adc微补丁后原矩阵通过。
+最终追加remove缺失使native预期72行；CFG helper空行问题在静审发现并修复，错误版未执行。
+最终实跑 `d9ce65ab` / tree `c2850805`：19普通exact各1绿、86输入前后相同；四工程均exit0。
+真实8a base尺寸1166文件/38旧债/0错误，docs699与唯一composition成功路径Ran1/OK。
+仓外final19收据SHA `b34dc2d2615b32ab0d474b4653f5eea176531e1f35824ee455ca67b11720811a`；
+native72行/exit0由已审断言证明，无独立导出子进程log，仅当前Linux云两入口。
+7个畸形SSA verifier exact仅编译，实际执行留CI；新增两个integration target精确预算107→109，
+其中canonical_type_tables由CI预核发现原共享回归未被选择而补齐。尚无本片远端CI结论，不归档。
