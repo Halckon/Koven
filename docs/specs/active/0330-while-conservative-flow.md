@@ -1,15 +1,15 @@
 # SPEC-0330: while 条件收窄与保守循环流事实
 
-> **性质**：实施草案 · **状态**：draft · **读取时机**：准备 while 的类型流事实实现与验收时 · **唯一真源**：本片实施范围；语义以 Guide 为准
+> **性质**：实施合同 · **状态**：in-progress · **读取时机**：准备 while 的类型流事实实现与验收时 · **唯一真源**：本片实施范围；语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | draft |
+| 状态 | in-progress |
 | Goal ID | `KOV-P2-0330` |
 | 基线 | 真实 main `3a79fef25c3e2dc8827a410f96b65f01b3fbb5e2`，已合0329 |
 | 分支 | 本地 `feature/spec-0330-while-flow`；授权远端 `fix/spec-0330-while-flow` |
-| 依赖 | [0325赋值](../../../archive/specs/0325-simple-variable-assignment-types.md)、[0326分支合并](../../../archive/specs/0326-closed-control-branch-join.md) |
-| 合同 | [Guide06稳定来源与流事实](../../../guide/06-blocks-control-flow.md#类型测试与流事实) |
+| 依赖 | [0325赋值](../../archive/specs/0325-simple-variable-assignment-types.md)、[0326分支合并](../../archive/specs/0326-closed-control-branch-join.md) |
+| 合同 | [Guide06稳定来源与流事实](../../guide/06-blocks-control-flow.md#类型测试与流事实) |
 
 ## 1. 范围
 
@@ -68,3 +68,19 @@ kill、零轮/false/break 不新增事实及不可变外层事实对照均保留
 后续普通采证补齐条件中 inout 的先后顺序、body inout、普通调用、
 嵌套循环与 continue，以及 enum case payload 的 while/if 对照。
 这些前端采证不替代后端/native 与完整退出清理验收。
+
+## 6. 条件副作用补证与最小实现
+
+`9df4e459` 后三普通 exact 各 1 命中行为红，8/6/4 观察的前置阶段均无诊断；
+先 inout 再重新判 null 的 while body 未收窄，嵌套/continue 与 enum payload 同样缺事实。
+条件先判 null 再 inout 的负控现状通过，但被 while 尚无收窄掩蔽，不能证明 kill 已正确。
+`c284006b` 共享条件 exact 采齐 14 观察后首负控行为红：if/OR/短路恢复/嵌套 AND
+可重新引入 inout 前的 Int 事实；正序重新证明与普通 inspect 未写控制保留观察。
+收据 SHA 分别 `26f54e5873e0361b073403c7411ec83b6720c2dee5d7d990245f6cd40f2516c1`、
+`1fd4dbc16918a933edd687ac83fbb33d8f184be4a7196c8d0e70e1a2dcb16272`。
+
+实现限定：纯 AST 扫描实际求值子树的 assignment/inout 候选，由各入口 stable key 解析；
+跳过 lambda 声明体，不做 callee 推演。while 头旧事实扣除条件/body 潜在写入，
+body 使用条件求值后的有效 baseline 与有序 true facts，出口只保留该头基线。
+共享 AND/OR 的右执行路径扣除右侧写入后再合事实；短路恢复也扣除右潜在写入，
+unit 显式 inout 调用边界与 single 对齐。不扩大 unknown-call 全清或 stable/capture 资格。

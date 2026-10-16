@@ -9,12 +9,14 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 ```mermaid
 flowchart TD
 ARCH(("已完成<br/>archive 313 份"))
+subgraph Gactive["现行 active"]
+  S0330["S0330<br/>while 条件收窄与保守循环流事实"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
 end
 subgraph Gdrafts_v044["v0.44（draft）"]
   S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
-  S0330["S0330<br/>while 条件收窄与保守循环流事实"]
 end
 ARCH --> S0291
 ARCH --> S0292
@@ -24,7 +26,7 @@ ARCH --> S0292
 
 | 节点 | 分区 | 文档 |
 |---|---|---|
+| SPEC-0330 | active | [0330-while-conservative-flow.md](active/0330-while-conservative-flow.md) |
 | SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](drafts/v0.44/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
-| SPEC-0330 | drafts/v0.44 | [0330-while-conservative-flow.md](drafts/v0.44/0330-while-conservative-flow.md) |
 | 已完成 Spec（313 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

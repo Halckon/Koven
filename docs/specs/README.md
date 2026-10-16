@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树 0 份。[0328](../archive/specs/0328-integer-range-values.md)已按PR114实现CI双host36exact有界归档；归档head CI/main待验，数值for已由0329有限归档，其余后继仍开放。
+- [Active 合同](active/README.md)：当前本树 1 份：[0330 while 保守流事实](active/0330-while-conservative-flow.md)实施中。[0328](../archive/specs/0328-integer-range-values.md)已按PR114实现CI双host36exact有界归档；归档head CI/main待验，数值for已由0329有限归档，其余后继仍开放。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
