@@ -1,4 +1,4 @@
-//! Ordinary source: verified conversion SSA reaches the explicit pending LLVM boundary.
+//! Ordinary source: identity and cross-width conversion preserve the real LLVM pipeline.
 use super::{
     lower_frontend::orchestrate::lower_scalar_file,
     unit_lower::lower_scalar_unit_with_entry,
@@ -20,7 +20,7 @@ use lang_frontend::{
 };
 
 #[test]
-fn single_conversion_identity_reaches_pending_llvm_boundary() {
+fn single_conversion_identity_reaches_verified_llvm() {
     for target in ["Int", "Long"] {
         let root = format!("value.to{target}()");
         let text = format!("fun entry(value: Int): {target} = {root}");
@@ -38,12 +38,12 @@ fn single_conversion_identity_reaches_pending_llvm_boundary() {
         let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
         assert!(owned.diagnostics().is_empty());
         let program = lower_scalar_file(&sources, &file, &names, &typed, &owned).unwrap();
-        assert_pending_llvm(&program);
+        assert_verified_llvm(&program);
     }
 }
 
 #[test]
-fn unit_conversion_identity_reaches_pending_llvm_boundary() {
+fn unit_conversion_identity_reaches_verified_llvm() {
     for target in ["Int", "Long"] {
         let root = format!("value.to{target}()");
         let text = format!("package p\nfun entry(value: Int): {target} = {root}");
@@ -80,16 +80,15 @@ fn unit_conversion_identity_reaches_pending_llvm_boundary() {
             declaration(&names, "p", "entry"),
         )
         .unwrap();
-        assert_pending_llvm(&program);
+        assert_verified_llvm(&program);
     }
 }
 
-fn assert_pending_llvm(program: &super::model::Program) {
+fn assert_verified_llvm(program: &super::model::Program) {
     verify_program(program).unwrap();
-    let error = crate::llvm::render_verified_program(program).unwrap_err();
-    println!("verified conversion SSA: {error:?}");
-    assert!(
-        matches!(error, crate::llvm::LlvmAdapterError::Unsupported(message)
-        if message == "checked integer conversion LLVM lowering is not implemented")
-    );
+    let llvm = crate::llvm::render_verified_program(program).unwrap();
+    println!("verified conversion LLVM: {llvm}");
+    assert!(llvm.contains("icmp slt i128"));
+    assert!(llvm.contains("icmp sgt i128"));
+    assert!(llvm.contains("call void @abort()"));
 }

@@ -148,3 +148,8 @@ MissingFact。第4首次实际进入LLVM并明确Unsupported。仅补真实Check
 `956da303`同6复验5绿1红，43输入前后同、各1命中；两入口128对SSA及receiver唯一call、
 live/pending普通样例通过，旧2边界到LLVM明确拒绝。第4实际LLVM Unsupported仍红，
 不计后端完整交付；carry仅限现样例与verifier/CFG，未宣称全部loan/owner组合覆盖。
+
+LLVM候选`c8e797a4`从原source符号扩展/零扩展到内部i128，比较目标闭界后形成failed，
+再以无poison截断产生仅成功路径可用的值。新增动态128对IR断言锁扩展符号、实际min/max、
+谓词先于cast和Abort；live/pending样例进一步锁原owner双边交付及成功参数重绑。尚未运行，
+本阶段仍无native值/越界Abort执行证据。

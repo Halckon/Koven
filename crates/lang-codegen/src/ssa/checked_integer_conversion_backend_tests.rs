@@ -144,13 +144,13 @@ fn checked_conversion_preserves_live_owner_and_pending_argument() {
 #[test]
 fn all_integer_pairs_generate_verified_dynamic_llvm() {
     let cases = pair_sources();
-    for (_, _, _, result) in cases {
+    for (unit, source, target, result) in cases {
         let program = checked_program(result);
         let llvm =
             crate::llvm::render_verified_program(&program).expect("real dynamic LLVM verifies");
-        assert!(!llvm.contains("poison"), "{llvm}");
+        println!("LLVM unit={unit} {source}->{target}\n{llvm}");
+        assert_dynamic_conversion_ir(&program, &llvm, &source, &target);
     }
-    // Signed/unsigned i128 bounds and failure-result non-delivery are frozen with the adapter patch.
 }
 
 fn integer_kind(name: &str) -> SsaTypeKind {
@@ -226,6 +226,39 @@ fn assert_conversion_cfg(program: &Program, source: &str, target: &str, receiver
                             .entities()
                             .contains(&EntityId::Value(*result))
                 );
+                for owner in function
+                    .instructions
+                    .iter()
+                    .filter(|i| matches!(i.operation, Operation::StringLiteral { .. }))
+                {
+                    let [original] = owner.results.as_slice() else {
+                        panic!("String literal owner");
+                    };
+                    let position = when_false
+                        .arguments
+                        .iter()
+                        .position(|argument| argument == original)
+                        .expect("live/pending owner carried on success");
+                    assert_eq!(when_true.arguments.get(position), Some(original));
+                    let rebound = success.parameters[position];
+                    assert_ne!(rebound, *original);
+                    assert!(success.instructions.iter().any(|id| {
+                        function
+                            .instruction(*id)
+                            .unwrap()
+                            .operation
+                            .entities()
+                            .contains(&rebound)
+                    }));
+                    assert!(success.instructions.iter().all(|id| {
+                        !function
+                            .instruction(*id)
+                            .unwrap()
+                            .operation
+                            .entities()
+                            .contains(original)
+                    }));
+                }
                 if receiver_call {
                     let calls = function
                         .instructions
@@ -243,4 +276,53 @@ fn assert_conversion_cfg(program: &Program, source: &str, target: &str, receiver
         }
     }
     assert_eq!(count, 1);
+}
+
+fn assert_dynamic_conversion_ir(program: &Program, llvm: &str, source: &str, target: &str) {
+    let SsaTypeKind::Integer {
+        bits: source_bits,
+        signed: source_signed,
+    } = integer_kind(source)
+    else {
+        unreachable!()
+    };
+    let SsaTypeKind::Integer {
+        bits: target_bits,
+        signed: target_signed,
+    } = integer_kind(target)
+    else {
+        unreachable!()
+    };
+    let minimum = if target_signed {
+        -(1_i128 << (target_bits - 1))
+    } else {
+        0
+    };
+    let maximum = (1_i128 << (target_bits - u16::from(target_signed))) - 1;
+    let conversion = program
+        .modules
+        .iter()
+        .flat_map(|m| &m.functions)
+        .flat_map(|f| &f.instructions)
+        .find(|i| matches!(i.operation, Operation::CheckedIntegerConvert { .. }))
+        .unwrap();
+    let [EntityId::Value(result), EntityId::Value(failed)] = conversion.results.as_slice() else {
+        unreachable!()
+    };
+    let name = format!("%v{}", result.index());
+    let extend = if source_signed { "sext" } else { "zext" };
+    let extension = format!("{name}.mathematical = {extend} i{source_bits} ");
+    let lower = format!("{name}.below = icmp slt i128 {name}.mathematical, {minimum}");
+    let upper = format!("{name}.above = icmp sgt i128 {name}.mathematical, {maximum}");
+    let failed_line = format!("%v{} = or i1 {name}.below, {name}.above", failed.index());
+    let cast = format!("{name} = trunc i128 {name}.mathematical to i{target_bits}");
+    let positions = [&extension, &lower, &upper, &failed_line, &cast].map(|part| {
+        llvm.find(part)
+            .unwrap_or_else(|| panic!("missing {part} in {llvm}"))
+    });
+    assert!(positions.windows(2).all(|p| p[0] < p[1]));
+    assert!(llvm.contains(&format!("br i1 %v{}, label", failed.index())));
+    assert!(llvm.contains("call void @abort()"));
+    assert!(llvm.contains("unreachable"));
+    assert!(!llvm.contains("poison"));
 }
