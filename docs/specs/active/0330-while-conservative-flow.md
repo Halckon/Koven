@@ -207,3 +207,28 @@ active fact 与实际 inner read 一致时用于裸 null，不改收窄 read 或
 本阶段 single metadata 保留真实 owner/inner/loan 配对；unit 仅空表运输 scaffold，
 没有新增 proof 出生。后续必须核实际 NullableBranch 出生、非空运输和回边关联、
 活跃子 loan、各出口与 owner 替换失效；当前仍不计 native、最终 CI 或本片完成。
+
+single 直接 proof 首片先锁五源码的 normal、continue、Group、break 与 Int return。
+`9159d9bd` 的十入口完整观察中 single 五项均 InvalidSsa，unit 四项 InvalidSsa、
+break 为 Unsupported；收据 SHA
+`e710a5d17daef7bb94d3db098d67ef688bdc520d894c80ff069458da45e5d9fe`。
+初候选 `11d53bbc` 同九项得到八旧回归绿、direct 红：入口 `flag: Boolean` 的真实
+Shared 参数 loan 被保守 carrier 门挡住，single 五项均整 while Unsupported。
+保留该失败收据 `e3cba5ac2ca16e18ec18e9ee6f791765582a5ad2a2f850befb1fe7fe9c9e1590`。
+后继只允许实际入口参数、Shared、Boolean 三重身份的独立 loan 保持原状，未清除或结束
+它；其余未决 carrier 门继续拒绝。新 CFG 入口另核 owned NullableHandle 的 inner
+确为 HeapOwner、原 owner Value 型正确，仍不扩大 Rc/String 等 handle 支持。
+
+固定 `e312370d` 的同九项全部各实际 1 命中通过，82 输入逐轮前后同。single 五源码
+通过 SSA verifier、内存 LLVM 与只读身份 oracle：真实 NullableBranch 的 owner/view
+配对、Int 字段读取先于同 loan 的 BorrowEnd 和同 owner 的 Drop；前三源码回边 owner
+列确为本轮 NullableNull，且不携带本轮 proof。旧 single nullable 六项及借用结果、
+`!!` 后续 transfer 两项普通回归均通过。十入口仍完整记录 unit 原四 InvalidSsa 与
+break Unsupported，未将 unit 观察计作成功；收据 SHA
+`ffdc515a143fef41734d98c77f782887aafd64f20f7293392d131949f4fd1cef`。
+同 head 四工程 fmt/check/clippy/build 全部 exit0、82 输入稳定，收据 SHA
+`3a1d9f966d731edf019d78d0507f02c22d50cce69541a96893bb9ac9a196de8d`。
+本片复用既有 carry/cleanup，只新增 While-origin 的有限出生/退休和直接 Int 字段读取；
+旧 If/When 的提前清理时序保留。已有 proof 入场、同根 retest/take、未决子借用和复杂
+carrier 继续明确拒绝。原 42 入口矩阵及最终合同保留，unit 非空运输、复杂嵌套、
+子借用退出与 native 仍待后继逐项闭合；本阶段只作增量分支备份，不创建完成 PR。
