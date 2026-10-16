@@ -749,50 +749,108 @@ fn inject_missing_holder_deinit_fault(module: &Module<'_>) -> (String, String) {
     (holder_drop_fn, holder_deinit_name)
 }
 
-#[allow(clippy::collapsible_if)]
 fn inject_premature_holder_free<'ctx>(context: &'ctx Context, module: &Module<'ctx>) -> String {
-    let mut target = None;
+    let deinit = holder_deinit(module);
+    let mut holders = Vec::new();
     for function in module.get_functions() {
-        let fn_name = function.get_name().to_str().unwrap_or("");
-        if fn_name.starts_with("koven.drop.") {
-            let mut free_call = None;
-            let mut field_drop = None;
-            for block in function.get_basic_blocks() {
-                for instruction in block.get_instructions() {
-                    if let Ok(call) = CallSiteValue::try_from(instruction) {
-                        if let Some(called) = call.get_called_fn_value() {
-                            let cname = called.get_name().to_str().unwrap_or("");
-                            if cname == "free" {
-                                free_call = Some(instruction);
-                            } else if cname.contains(".drop.t15") {
-                                field_drop = Some(instruction);
-                            }
-                        }
-                    }
+        for block in function.get_basic_blocks() {
+            for instruction in block.get_instructions() {
+                if let Ok(call) = CallSiteValue::try_from(instruction)
+                    && call.get_called_fn_value() == Some(deinit)
+                {
+                    holders.push((function, block, instruction));
                 }
-            }
-            if let (Some(free_inst), Some(drop_inst)) = (free_call, field_drop) {
-                target = Some((function, free_inst, drop_inst));
-                break;
             }
         }
     }
-    let (function, free_inst, drop_inst) =
-        target.expect("must find Holder drop function with field drop and free");
+    assert_eq!(holders.len(), 1, "exactly one Holder deinit call");
+    let (function, block, deinit_inst) = holders[0];
     let name = function.get_name().to_str().unwrap().to_owned();
-    let ptr_operand = free_inst
-        .get_operand(0)
-        .unwrap()
-        .value()
-        .unwrap()
-        .into_pointer_value();
+    assert!(name.starts_with("koven.drop."));
+    let owner = function.get_first_param().expect("Holder drop receiver");
+    let free_fn = module.get_function("free").expect("free declared");
+    let mut fields = Vec::new();
+    let mut frees = Vec::new();
+    for candidate_block in function.get_basic_blocks() {
+        for instruction in candidate_block.get_instructions() {
+            if let Ok(call) = CallSiteValue::try_from(instruction)
+                && let Some(called) = call.get_called_fn_value()
+            {
+                if called == free_fn {
+                    assert_eq!(
+                        instruction
+                            .get_operand(0)
+                            .and_then(|operand| operand.value()),
+                        Some(owner)
+                    );
+                    frees.push((candidate_block, instruction));
+                } else if called
+                    .get_name()
+                    .to_str()
+                    .unwrap()
+                    .starts_with("koven.drop.")
+                {
+                    assert_ne!(called, function, "field drop is not recursive self drop");
+                    assert_ne!(called, deinit);
+                    assert!(
+                        !called.get_basic_blocks().is_empty(),
+                        "field drop is defined"
+                    );
+                    fields.push((candidate_block, instruction));
+                }
+            }
+        }
+    }
+    assert_eq!(fields.len(), 1, "exactly one Holder field drop");
+    assert_eq!(frees.len(), 1, "exactly one Holder self free");
+    let (field_block, drop_inst) = fields[0];
+    let (free_block, free_inst) = frees[0];
+    assert_eq!(field_block, block);
+    assert_eq!(free_block, block);
+    let before: Vec<_> = block.get_instructions().collect();
+    let position = |instruction| {
+        before
+            .iter()
+            .position(|found| *found == instruction)
+            .unwrap()
+    };
+    assert!(position(deinit_inst) < position(drop_inst));
+    assert!(position(drop_inst) < position(free_inst));
+    let ptr_operand = owner.into_pointer_value();
     let builder = context.create_builder();
     builder.position_before(&drop_inst);
-    let free_fn = module.get_function("free").expect("free declared");
     builder
         .build_call(free_fn, &[ptr_operand.into()], "premature.free")
         .unwrap();
     free_inst.erase_from_basic_block();
+    let after: Vec<_> = block.get_instructions().collect();
+    let moved: Vec<_> = after
+        .iter()
+        .enumerate()
+        .filter_map(|(index, instruction)| {
+            let call = CallSiteValue::try_from(*instruction).ok()?;
+            (call.get_called_fn_value() == Some(free_fn)).then_some((index, *instruction))
+        })
+        .collect();
+    assert_eq!(moved.len(), 1, "mutation preserves exactly one self free");
+    assert_eq!(
+        moved[0]
+            .1
+            .get_operand(0)
+            .and_then(|operand| operand.value()),
+        Some(owner)
+    );
+    let deinit_position = after
+        .iter()
+        .position(|found| *found == deinit_inst)
+        .unwrap();
+    let field_position = after.iter().position(|found| *found == drop_inst).unwrap();
+    assert!(deinit_position < moved[0].0);
+    assert_eq!(
+        moved[0].0 + 1,
+        field_position,
+        "self free immediately precedes unchanged field drop"
+    );
     name
 }
 
