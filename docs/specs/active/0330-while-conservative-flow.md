@@ -331,3 +331,42 @@ normal 与 same-root 整组通过，其余四组仍行为红，38 观察为 17 �
 `4ecb455002bfa80bce3ca03c21b42958b2d88ea8b9b6ebc17e45bf624f114639`。
 本阶段仅增量备份；不同根/provider、复杂分支/资源退出、child/pending 与最终 native、
 CI 仍须本 Spec 后继闭合，继续 active，不创建完成 PR。
+
+不同根内层 scope 随后独立推进。原 continue、normal、两个 Group 与显式 null
+入口五源于 `e84223a0` 采十入口 lower Unsupported，收据 SHA
+`41645dc3186e81ee38296d153cfc60567e4ffc801c26af2b9c81dca96964efe7`。
+新增入口只允许一个真实活动 outer While proof 与不同根的 owned NullableHandle
+HeapOwner；两个 payload 独立核型。opaque 资格对象保持未知 carrier 拒绝，body
+新 birth 保留当前重绑后的 outer，false/body 分别从完整 condition state 恢复；
+各实际 continue、break/false 清理前后及 merge 核 outer origin/inner/current pair，
+不从入口快照恢复已消失 proof。inner 退休后恰剩 outer，不 bulk-end 外层。
+首次十九项旧十八绿，新十二观察中只有显式 null 源 single InvalidSsa，收据 SHA
+`ac2cf7a85b676e16dd2a1b195de7ffeb443f0f242ef57374f1a112f8afc30e58`。
+临时只读 trace 保留原验证拒绝，证实已 Drop 的 owner 因 assignment RHS temporary
+别名残留再次进入 checked 边；采后已撤。trace 收据 SHA
+`e8e221cb1a2b4e781d7d53e19ee81656f8be3793f8729de87f6c01d3101575d1`。
+独立 assignment 六源双入口首红确认 single 四个 MoveOnly 路径 InvalidSsa，unit
+对应四路成功；Copyable 双入口成功，compound single 成功、unit 保留既有 complete
+唯一 L0165（59..74）。收据 SHA
+`293572beda280c7061278f2f0724771193711516e681066b528fbbc19f56d6b9`。
+最小修复在原 live-proof 门之后，仅普通 Assign 的真实 Value、resolved RHS 明确
+MoveOnly 时复用既有 owner 交付清除同值旧 binding/temporary 别名，再安装目标。
+不新增类型转换、Drop 或错误传播，不改 compound、Copyable 或 verifier。
+有限编译预检曾因错误 Rust import 路径失败（零测试执行），机械修为现有导入后通过。
+固定 `dc8f598e` 二十项普通 exact 各 1 通过、92 输入逐轮稳定，收据 SHA
+`2574c6d90d20fa854c5154260c21319a906142a37e46d5980c3e9ed75c2bd641`。
+新增不同根六源含异型 Holder/Other，共十二入口 SSA/内存 LLVM 与全部身份断言通过：
+两真实 birth、独立 nullable/payload、outer 实际边列运输、inner read/end/Drop 与
+checked 成功 null 回边、inner false 出口重绑 outer loan 的最终读取和退休。
+显式 null 源仅证明编译路径，并非 native 零轮执行。assignment 十一成功与原 unit
+compound 精确拒绝均通过；原十八回归含 owner-return 保持绿。
+同 head 原其余六组各 1 命中，二绿四行为红，38 观察为 19 成功、13 lower、
+4 complete、2 ownership；收据 SHA
+`9ec48d4f64fb2b66776aeb6fdc99d04ce48dafe63380341ca8c2dc64fc218106`。
+加 owner-transfer 四成功，原 42 当前为 23/13/4/2，精确负控保持。
+同 head 四工程全部 exit0、92 输入稳定，收据 SHA
+`ba55d755a0c4cd86d7e168db870a1f38b6b1bcdcf583d8e1e35e6b69fea2dc7c`。
+剩余十三 lower 按当前源码为：普通 owned 字段 single 一路、nullable String 子字段
+借用两路、pending 子 loan 跨只读 control 两路、写后 if 重检两路、numeric for
+继承两路、borrowed for 内外 scope 四路。仍须独立验证根因与逐项闭合；本阶段仅
+分支备份，native/完整 CI 与完成 PR 尚待，不降低最终 while 合同。
