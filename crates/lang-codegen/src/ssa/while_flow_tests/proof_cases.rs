@@ -705,6 +705,39 @@ fun entry(own initial: Holder?): Unit {
 mod nullable_field_contract;
 
 #[test]
+fn owned_source_call_arguments_adapt_to_nullable_parameters() {
+    let direct = r#"class Holder(val value: Int)
+fun take(own value: Holder?, flag: Boolean): Int {
+    var current: Holder? = value
+    while (current != null) { return current.value }
+    return 0
+}
+fun entry(flag: Boolean): Int {
+    return take(Holder(7), flag)
+}"#
+    .to_owned();
+    let grouped = direct.replace("take(Holder(7), flag)", "take(((Holder(7))), flag)");
+    let nullable_and_null = direct.replace(
+        "return take(Holder(7), flag)",
+        "val current: Holder? = Holder(7)\n    val present = take(current, flag)\n    return present + take(null, flag)",
+    );
+    let later_control = direct.replace(
+        "take(Holder(7), flag)",
+        "take(Holder(7), if (flag) { true } else { false })",
+    );
+    // Observe all eight real frontend/lower/verify/LLVM paths before requiring success.
+    observe(
+        "owned-nullable-call",
+        &[
+            (direct, false),
+            (grouped, false),
+            (nullable_and_null, false),
+            (later_control, false),
+        ],
+    );
+}
+
+#[test]
 fn nullable_field_value_argument_observes_empty_and_populated_call_frames() {
     let first = r#"class Holder(val value: Int)
 fun pass(own value: Int): Int { return value }
