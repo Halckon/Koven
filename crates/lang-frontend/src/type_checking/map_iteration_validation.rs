@@ -162,13 +162,6 @@ pub(crate) fn validate_file_map_iteration(
 }
 
 /// 全表已有事实检查，不从裸 AST 增加 required roots。
-pub(crate) fn file_map_iteration_rows_valid(
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-) -> bool {
-    file_map_iteration_rows_error(parsed, names, typed).is_none()
-}
 pub(crate) fn file_map_iteration_rows_error(
     parsed: &ParsedFile,
     names: &NameResolution,
