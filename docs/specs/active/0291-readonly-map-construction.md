@@ -313,3 +313,19 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
   68观察通过由冻结 helper 的完整聚合判据及各 exact 成功证明，绿日志没有逐条观察
   输出。原 unit nullable-local-when 与 ordinary-own-when 两例现经过真实 raw、complete、
   ownership 全部判据；这只闭合前端前置，不证明 unit 后端提取或 nullable native。
+
+## 12. nullable Map 表示、只读 view 与消费提取的分层首红
+
+- `04e3aaa3` 仅新增四个普通测试模块与父注册，八份源码分别使用独立 single/unit
+  分析与 Program。三个 exact 各先收齐本层6/4/6条，再由串行 runner 收齐16；
+  A1/A2 的纯 nullable 声明不共享 A3 真实 nested MapRemove 的类型预注册。
+  首次 fmt 仅因父模块排序失败且未进入编译，修正后 fmt 与有限 check 通过；没有生产改动。
+- 固定 `04e3aaa3` / `25df7cf9`、1497输入，三项各实际命中1并为101，16观察完整。
+  所有 input oracle、真实 raw/complete/ownership 均通过；A3 的普通 nullable 声明与
+  真实 put/remove 三来源同源路径双入口通过 SSA verify/内存 LLVM。其余14条均停在
+  lower：独立声明仍缺普通 nullable storage，后续 view/consume 尚未进入对应证明或
+  提取行为，不能据此断言这些后门已有正确性实证。没有前置/harness失败。
+  收据 SHA-256：`56f98a84f8b1a6e67fd8683e93ddf6034d2b8d54c804f0a1923c288233af23b7`。
+- A3 只覆盖一种声明/producer 顺序，不能声称 canonical 注册顺序独立；反序与多源
+  顺序对照仍须后继验收。Map-only nullable storage、ordinary-if producer、唯一 owner
+  extraction 分片推进，保留既定 Guide 资格；本轮没有 native 或 CI 探针执行。
