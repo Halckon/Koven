@@ -81,3 +81,6 @@ mod unacquired;
 
 #[path = "map_borrowed/fact_identity.rs"]
 mod fact_identity;
+
+#[path = "map_borrowed/ordinary_borrow_source.rs"]
+mod ordinary_borrow_source;
