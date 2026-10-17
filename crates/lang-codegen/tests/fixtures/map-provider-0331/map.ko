@@ -1,0 +1,25 @@
+fun read(key: String, value: String): Unit {
+  println(key)
+  println(value)
+}
+fun makeMap(): Map<String, String> {
+  var source = mutableMapOf<String, String>()
+  source.put("z".clone(), "first".clone())
+  source.put("a".clone(), "second".clone())
+  val result = source.consume()
+  return result
+}
+fun scan(own source: Map<String, String>): Unit {
+  for ((key, value) in source) {
+    read(key, value)
+  }
+  println("exhausted")
+}
+fun entry(): Unit {
+  println("nonempty")
+  val populated = makeMap()
+  scan(populated)
+  println("empty")
+  val empty = mapOf<String, String>()
+  scan(empty)
+}
