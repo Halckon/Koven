@@ -1,6 +1,11 @@
 //! SPEC-0332 bounded ordinary sources; SSA/LLVM only, no native execution.
 use std::fmt::Debug;
 
+#[path = "rc_nullable_while_presence_identity.rs"]
+mod identity;
+#[path = "rc_nullable_while_presence_facts.rs"]
+mod identity_facts;
+
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -193,6 +198,17 @@ fn verify_entry_sources(
 }
 
 fn observe(case: &'static str, source_text: &str, unit: bool) -> Observation {
+    observe_with_identity(case, source_text, unit, false).0
+}
+
+fn observe_with_identity(
+    case: &'static str,
+    source_text: &str,
+    unit: bool,
+    inspect_identity: bool,
+) -> (Observation, Result<(), String>) {
+    let mut source_identity = Err("real FE identity query not reached".to_owned());
+    let mut identity = Err("real SSA identity query not reached".to_owned());
     let mut complete_ok = false;
     let mut ownership_ok = false;
     let mut lower_attempted = false;
@@ -247,6 +263,14 @@ fn observe(case: &'static str, source_text: &str, unit: bool) -> Observation {
                 .validate()
                 .map_err(|error| failure("ownership-validation", error))?;
             ownership_ok = true;
+            if inspect_identity {
+                source_identity =
+                    identity_facts::unit(&sources, &file, &names, &typed, owned.ownership(), case);
+                println!(
+                    "SPEC0332 PRESENCE FE IDENTITY case={case} unit={unit} query={:?}",
+                    source_identity.as_ref().map(|_| ())
+                );
+            }
             let entries = names
                 .names()
                 .index()
@@ -299,6 +323,14 @@ fn observe(case: &'static str, source_text: &str, unit: bool) -> Observation {
                 ));
             }
             ownership_ok = true;
+            if inspect_identity {
+                source_identity =
+                    identity_facts::single(&sources, &file, &names, &typed, &owned, case);
+                println!(
+                    "SPEC0332 PRESENCE FE IDENTITY case={case} unit={unit} query={:?}",
+                    source_identity.as_ref().map(|_| ())
+                );
+            }
             let entries = names
                 .symbols()
                 .iter()
@@ -323,6 +355,13 @@ fn observe(case: &'static str, source_text: &str, unit: bool) -> Observation {
             "SPEC0332 BOUNDED SSA case={case} unit={unit}\n{}",
             render_program(&program)
         );
+        if inspect_identity {
+            identity = source_identity
+                .as_ref()
+                .map_err(Clone::clone)
+                .and_then(|facts| identity::inspect_program(&program, entry, case, facts));
+            println!("SPEC0332 PRESENCE SSA IDENTITY case={case} unit={unit} query={identity:?}");
+        }
         verify_entry_sources(&sources, &program, entry, &function_spans)?;
         entry_identity_ok = true;
         verify_program(&program).map_err(|error| failure("ssa-verify", error))?;
@@ -331,15 +370,18 @@ fn observe(case: &'static str, source_text: &str, unit: bool) -> Observation {
         println!("SPEC0332 BOUNDED LLVM case={case} unit={unit}\n{llvm}");
         Ok(())
     })();
-    Observation {
-        case,
-        unit,
-        complete_ok,
-        ownership_ok,
-        lower_attempted,
-        entry_identity_ok,
-        outcome,
-    }
+    (
+        Observation {
+            case,
+            unit,
+            complete_ok,
+            ownership_ok,
+            lower_attempted,
+            entry_identity_ok,
+            outcome,
+        },
+        identity,
+    )
 }
 
 // Characterizes observed implementation debt; not a language rejection contract.
