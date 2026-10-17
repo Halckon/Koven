@@ -171,3 +171,6 @@ mod generic_body_types;
 
 #[path = "multifile_type_checking/generic_body_isolation.rs"]
 mod generic_body_isolation;
+
+#[path = "multifile_type_checking/package_dispatch_controls.rs"]
+mod package_dispatch_controls;

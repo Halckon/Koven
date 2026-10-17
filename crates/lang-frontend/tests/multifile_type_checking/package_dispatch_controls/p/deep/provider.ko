@@ -1,0 +1,3 @@
+package p.deep
+fun consume(value: Int): Int = value
+fun consume(value: Boolean): Int = 7

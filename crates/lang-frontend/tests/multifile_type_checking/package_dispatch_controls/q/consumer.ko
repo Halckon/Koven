@@ -1,0 +1,12 @@
+package q
+fun fromPackage(): Int {
+    val direct = p.consume(3)
+    val nested = p.deep.consume(4)
+    val overloaded = p.deep.consume(true)
+    return direct + nested + overloaded
+}
+class UserValue { fun consume(value: Int): Int = value }
+fun fromLocalValue(): Int {
+    val p = UserValue()
+    return p.consume(5)
+}

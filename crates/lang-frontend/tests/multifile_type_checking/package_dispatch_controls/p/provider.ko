@@ -1,0 +1,2 @@
+package p
+fun consume(value: Int): Int = value
