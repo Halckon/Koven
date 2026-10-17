@@ -341,3 +341,39 @@ impl Observation<'_> {
         )
     }
 }
+
+/// 新普通 query 只借用原观察；不重新分析、消费资格、克隆或改写事实。
+pub(super) enum Inspection<'a> {
+    Single {
+        fixture: &'a Fixture,
+        names: &'a NameResolution,
+        typed: &'a TypedFile,
+        owned: Option<&'a OwnershipCheckedFile>,
+    },
+    Unit {
+        fixture: &'a Fixture,
+        names: &'a ValidatedCompilationUnitNames,
+        typed: &'a CompilationUnitTypes,
+        owned: Option<&'a CompilationUnitOwnership>,
+    },
+}
+
+impl Observation<'_> {
+    pub(super) fn inspect(&self) -> Result<Inspection<'_>, &Blocked> {
+        let observed = self.result.as_ref()?;
+        Ok(match &observed.analysis {
+            Analysis::Single(analysis) => Inspection::Single {
+                fixture: &observed.fixture,
+                names: &analysis.names,
+                typed: &analysis.raw,
+                owned: analysis.owned.as_ref().ok().and_then(Option::as_ref),
+            },
+            Analysis::Unit(analysis) => Inspection::Unit {
+                fixture: &observed.fixture,
+                names: &analysis.names,
+                typed: &analysis.raw,
+                owned: analysis.owned.as_ref().ok().and_then(Option::as_ref),
+            },
+        })
+    }
+}

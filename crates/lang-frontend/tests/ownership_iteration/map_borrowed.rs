@@ -78,3 +78,6 @@ fn active_sources_reject_consume_and_owned_return() {
 
 #[path = "map_borrowed/unacquired.rs"]
 mod unacquired;
+
+#[path = "map_borrowed/fact_identity.rs"]
+mod fact_identity;
