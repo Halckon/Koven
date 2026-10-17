@@ -54,6 +54,8 @@ impl SourceSite {
         }
         let symbol = single_reference(names, sites.source_span)
             .ok_or("source reference does not resolve uniquely")?;
+        // 正常回边位于整个 For.body Block 完成之后。
+        let fallthrough = *body;
         let body = ast
             .statements()
             .get(*body)
@@ -61,9 +63,9 @@ impl SourceSite {
         let Statement::Block { elements } = body.payload() else {
             return Err("actual for body is not a block");
         };
-        let fallthrough = *elements.last().ok_or("actual body has no last statement")?;
+        let last = *elements.last().ok_or("actual body has no last statement")?;
         ast.statements()
-            .get(fallthrough)
+            .get(last)
             .map_err(|_| "missing actual last body statement")?;
 
         // 以函数 block 的真实子节点找声明，不靠源码名、日志数字或 span 猜测归属。
