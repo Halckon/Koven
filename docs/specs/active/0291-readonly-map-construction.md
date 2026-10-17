@@ -103,3 +103,25 @@ Phase4 用显式 owner 交付操作和 verifier 核输入、输出、K/V 与唯�
   原始日志和输入清单仓外保留，不将预期红或有限编译称为功能完成。
 - 共享布局全部消费者和 consume 分阶段资格仍在独立设计审查；完整工程、旧 Map
   兼容、native 与双平台 CI 均待后续实际实现和验收。
+
+## 6. 共享布局首片有限验收
+
+- `867a2e0b` 统一六字段 header、五字段 slot、完整组合布局预检与全部 slot/header
+  消费者；append/unlink 仅维护链，rehash 按原链搬迁并重建索引。MapResult、SSA
+  所有权门和 frontend 不变。静审核对容量/stride 上界、NONE、真实 CFG 末块和清理交付。
+- `6cef2cfe` 仅强化 header 查询，锁真实 Map/MutableMap 各一、相同 K/V 身份及
+  Int32/StringOwner 实例。该头固定1454输入，普通24 exact 各实际命中1并通过：
+  5项 SSA/内存 LLVM（含四组新 header 观察）及19项旧成功 native。覆盖原查询、
+  覆盖/删除/增长、unit basic/constant、泛型回调与调用/循环退出；不按测试名猜执行性质。
+  收据 SHA-256：`36f0897432e094fe0d8c9e436b634af2d42b0293e22cee9d1c923c0081edd640`。
+- 同头 fmt、workspace all-targets check、frontend/codegen/CLI all-targets clippy
+  `-D warnings`、CLI build 四项通过，输入前后稳定；收据 SHA-256：
+  `2cf449a72e8a26faa1f8b83b055ed7d22f14a80599529de4428839c6d460dd90`。
+  首次限定 rustfmt 因 PATH 缺工具退出127、首次提交因无身份退出128，均未运行测试；
+  使用既有工具链和单次既定提交身份后完成，未修改全局配置。
+- 旧 Map helper 静态反查253个唯一 exact，分143普通 SSA/LLVM、76成功原产物 native，
+  及19插桩、6有意 Abort、8私有合同反例、1专用环境测试；后34项仅交 CI。
+  本轮只执行上述24项，不能把全部静态清单或完整兼容 CI 记为通过。
+- 当前 header 与旧值语义回归绿不代替动态链顺序证明。链完整性、真实碰撞/墓碑、
+  覆盖触发增长与重新插入顺序的 CI-only 观察仍待实现/执行；consume、完整双平台 CI
+  及最终合并均未完成。本片仅增量分支备份，保留此前真实红证。
