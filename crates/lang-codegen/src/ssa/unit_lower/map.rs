@@ -171,10 +171,10 @@ impl UnitExpressionLowerer<'_> {
             |ty| resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span);
         let declared = concrete(storage)?;
         let Some(&nullable) = self.type_ids.get(&declared) else {
-            return Ok(None);
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let Some(&inner) = self.nullable_maps.get(&nullable) else {
-            return Ok(None);
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         let use_fact = self
             .typed

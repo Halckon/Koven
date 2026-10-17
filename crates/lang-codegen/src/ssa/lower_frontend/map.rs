@@ -199,10 +199,10 @@ impl ExpressionLowerer<'_> {
         }
         let declared = self.resolve_type(storage, span)?;
         let Some(&nullable) = self.type_ids.get(&declared) else {
-            return Ok(None);
+            return Err(error(LoweringErrorKind::MissingFact, span));
         };
         let Some(&inner) = self.nullable_maps.get(&nullable) else {
-            return Ok(None);
+            return Err(error(LoweringErrorKind::MissingFact, span));
         };
         // A recognized nullable Map read must not fall back to its wrapper Value.
         let use_fact = self
