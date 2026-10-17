@@ -12,9 +12,9 @@ fn ordered_map_headers_preserve_shared_six_field_storage() {
  values.put(9, 91)
  values.remove(9)
  values.put(9, 92)
- println(values.size)
+ if (values.size == 2) { println("values") }
  val empty = mapOf<Int, Int>()
- println(empty.size)
+ if (empty.size == 0) { println("empty") }
 }"#,
         r#"fun entry(): Unit {
  var values = mutableMapOf<String, String>()
@@ -23,9 +23,9 @@ fn ordered_map_headers_preserve_shared_six_field_storage() {
  values.put("second".clone(), "new".clone())
  values.remove("first")
  values.put("first".clone(), "again".clone())
- println(values.size)
+ if (values.size == 2) { println("values") }
  val empty = mapOf<String, String>()
- println(empty.size)
+ if (empty.size == 0) { println("empty") }
 }"#,
     ];
     let mut observations = Vec::new();
