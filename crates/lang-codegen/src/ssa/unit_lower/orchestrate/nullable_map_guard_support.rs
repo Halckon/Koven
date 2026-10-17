@@ -9,7 +9,7 @@ use crate::ssa::{
 };
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
+    name_resolution::{ScopeKind, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{ValidatedCompilationUnitOwnership, check_compilation_unit_ownership},
     parser::{ParsedFile, parse_file},
     type_checking::{
@@ -17,6 +17,8 @@ use lang_frontend::{
         complete_compilation_unit_types, standard_environments,
     },
 };
+
+use std::collections::BTreeSet;
 
 mod checkpoint;
 mod prelude;
@@ -33,6 +35,7 @@ pub(in crate::ssa::unit_lower) struct Fixture {
     pub owned: ValidatedCompilationUnitOwnership,
     pub program: Program,
     pub target: FunctionId,
+    target_declaration: DeclarationId,
     pub source: SourceUnitId,
     pub type_ids: BTreeMap<UnitTypeId, SsaTypeId>,
 }
@@ -150,6 +153,7 @@ impl Fixture {
             owned,
             program,
             target,
+            target_declaration,
             source,
             type_ids,
         }
@@ -169,20 +173,58 @@ impl Fixture {
             .iter()
             .find(|unit| unit.source_unit() == self.source)
             .unwrap();
-        let candidates = self
-            .typed
-            .types()
+        let typed = self.typed.types();
+        let signature = unit_callable_signature(
+            typed,
+            UnitCallableTarget::Declaration(self.target_declaration),
+        )
+        .unwrap();
+        let Origin::Source(function_span) = self.function().origin else {
+            panic!("actual target source origin")
+        };
+        // Parameters are published by signatures, not necessarily by body typing.
+        let candidates = typed
             .body_symbol_types()
             .keys()
             .copied()
+            .chain(
+                signature
+                    .parameters()
+                    .iter()
+                    .filter_map(|parameter| parameter.symbol()),
+            )
+            .collect::<BTreeSet<_>>()
+            .into_iter()
             .filter(|symbol| {
-                symbol.source_unit() == self.source
-                    && source.resolution().symbols()[symbol.symbol().index()].name() == name
+                if symbol.source_unit() != self.source {
+                    return false;
+                }
+                let resolution = source.resolution();
+                let data = &resolution.symbols()[symbol.symbol().index()];
+                if data.name() != name {
+                    return false;
+                }
+                let mut scope = Some(data.scope());
+                while let Some(id) = scope {
+                    let current = &resolution.scopes()[id.index()];
+                    if current.kind() == ScopeKind::Lambda {
+                        return false;
+                    }
+                    if current.kind() == ScopeKind::Function {
+                        return current.span() == Some(function_span);
+                    }
+                    scope = current.parent();
+                }
+                false
             })
             .collect::<Vec<_>>();
         let [symbol] = candidates.as_slice() else {
             panic!("unique actual source symbol {name}")
         };
+        assert!(
+            typed.symbol_type(*symbol).is_some(),
+            "actual typed source symbol {name}"
+        );
         *symbol
     }
 
