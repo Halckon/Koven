@@ -172,3 +172,32 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
   `c78cd85c424e5cc36ceeb64b3710340063af42c465f148f6e68bfc306eb6c884`。
 - 本批仅保全测试与诊断合同，consume 生产尚未实现；七项新探针和原34项 CI-only
   均未本地执行。完整工程与双平台 CI、consume 唯一交付及精确清理仍为后继验收门。
+
+## 8. consume 前端资格与旧回归有限验收
+
+- `870c01c5` 接入真实 consume descriptor、trial/final 身份校验与 single/unit
+  ownership 本地根资格。声明 storage、收窄 read、root 与结果同 K/V 分别保留；
+  无合法交付时不产生成功 receiver move，不改通用移动、drop 或 nullable when 算法。
+- 字段邻控六源双入口先完整采集：旧 Value 的 bare Field 在 single 无错、unit L0132，
+  this/own-this Field 双端均 L0132；首版 consume 六条均 L0130，五条优先级不符。
+  `94979f48` 仅收窄两 helper 的旧拒绝路由，single bare Field 仍按新资格 L0130；
+  不放开一般字段移动。首次测试注册 E0583 为零测试编译失败，`8b6082ff` 补真实模块路径。
+  字段首红收据 SHA-256：
+  `577be728746594e8018ab4c3f3f97828caf639f66c02d5d982641bf9b2135f6e`。
+- 固定 `94979f48` / `85ad55a2`、1482 输入，phase5 五 exact 各实际命中1，
+  exit 为0/0/101/0/0。68条观察中66条完整判据通过；唯一红 exact 内保留两条 unit
+  when 前置失败：consume 为 complete L0165（168..182），普通 own 近邻为原 L0084
+  （211..217），均未到 ownership。不能将此项记绿或据此排除 nullable 声明本地根。
+  收据 SHA-256：`f23cfe60e34d9288a6ea56fc55dce004be85d4fece1dc87b5ba33f2aa99a4cad`。
+- 同头43个旧 frontend exact 全部实际命中1并通过，涵盖 Map 类型/所有权/require/with、
+  最后使用、single/unit 共享类型与 unit 所有权；均普通源码/公共分析，无 native 或 facts 变异。
+  收据 SHA-256：`542002bb0b3d9ce3af6d15947943ecde583be86a6dc5dfa49a687ed1c6043421`。
+- 同头 fmt、workspace all-targets check、frontend/codegen/CLI all-targets clippy
+  `-D warnings`、CLI build 四项通过，输入前后稳定；收据 SHA-256：
+  `805cc0d6d67b0860c884639302537c929dcbd0c4e3afb1b9bd16e262b3a987de`。
+- 同头完整219个已审旧 Map 普通 exact 再验全部实际命中1并通过，143 SSA/内存 LLVM
+  与76未修改成功 native，1482输入前后稳定；原34项 CI-only 与新七项探针均未执行。
+  收据 SHA-256：`9bfa72f6d8983a1795b627f3ce0214ebe5ad9dfa5ce62154e2c3635b66dc2b34`。
+- 本批仅闭合上述 frontend 类型/资格及旧兼容范围。MapConsume 后端操作、六字段
+  同 allocation 交付、nullable if/when 精确 extraction/清理、动态链 CI 与最终双平台
+  验收仍待；不将普通回归全绿或 CI 候选编译通过记为完整 consume 或0291完成。
