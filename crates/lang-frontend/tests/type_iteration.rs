@@ -15,6 +15,9 @@ mod map_borrowed;
 #[path = "type_iteration/map_binding_controls.rs"]
 mod map_binding_controls;
 
+#[path = "type_iteration/pattern_recovery_neighbors.rs"]
+mod pattern_recovery_neighbors;
+
 fn checked(text: &str) -> (SourceMap, TypedFile) {
     let (sources, _, _, typed) = analyzed(text);
     (sources, typed)
