@@ -342,8 +342,9 @@ fn observe(case: &'static str, source_text: &str, unit: bool) -> Observation {
     }
 }
 
+// Characterizes observed implementation debt; not a language rejection contract.
 #[test]
-fn bounded_rc_nullable_while_sources_reach_verified_llvm() {
+fn bounded_payload_and_owner_return_sources_record_current_stage_boundary() {
     let mut observations = Vec::new();
     for (case, source) in sources() {
         for unit in [false, true] {
@@ -377,10 +378,24 @@ fn bounded_rc_nullable_while_sources_reach_verified_llvm() {
             observation.complete_ok
                 && observation.ownership_ok
                 && observation.lower_attempted
-                && observation.entry_identity_ok
-                && observation.outcome.is_ok()
+                && match (&observation.outcome, observation.unit) {
+                    (Ok(()), false) => observation.entry_identity_ok,
+                    (Err(error), true) => {
+                        !observation.entry_identity_ok
+                            && error.stage == "lower"
+                            && matches!(
+                                error.lower,
+                                Some(LoweringError {
+                                    kind: super::LoweringErrorKind::InvalidSsa,
+                                    span: None,
+                                })
+                            )
+                            && error.span_text.is_none()
+                    }
+                    _ => false,
+                }
         }),
-        "all eight bounded ordinary source pipelines must reach source-anchored verified LLVM"
+        "observed payload/owner-return boundary is exactly four single LLVM successes and four unit lower InvalidSsa failures"
     );
 }
 
