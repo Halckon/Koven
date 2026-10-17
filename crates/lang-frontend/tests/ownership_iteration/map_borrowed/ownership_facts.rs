@@ -1,5 +1,8 @@
 //! 当前 ownership 诊断、非 owner binding 与原 DropFact 查询。
 //! 不将全局 binding_kind(None) 视为 Shared，不由 drops 推断 provider/loan 动作顺序。
+#[path = "source_owner_phi.rs"]
+mod source_owner_phi;
+
 use super::{
     Report,
     cases::{Case, Expected, SourceKind},
@@ -106,10 +109,11 @@ pub(super) fn single(
             let kind = source.and_then(|source| owned.binding_kind(source));
             match source_kind {
                 SourceKind::Owned => {
-                    let valid = kind == Some(OwnershipBindingKind::Owned) && !drops.is_empty()
-                        && drops.iter().all(|fact| fact.owner()
-                            .and_then(|owner| owned.cleanup_conditions().owner_value(owner))
-                            .is_some_and(|value| matches!(value, CleanupOwnerValue::Parameter { symbol, .. } if Some(*symbol) == source)));
+                    let source_owner = source_owner_phi::query(fixture, sites, names, owned);
+                    let valid = kind == Some(OwnershipBindingKind::Owned)
+                        && !drops.is_empty()
+                        && source_owner.is_ok();
+                    report.note("owned named source grounded phi identity", &source_owner);
                     // 仅诊断实际 source drop 的 owner/condition 与同 source 的 phi 入边。
                     let conditions = owned.cleanup_conditions();
                     report.note("owned named source cleanup condition table", conditions);
@@ -159,7 +163,7 @@ pub(super) fn single(
                             }
                         }
                     }
-                    // named source 可以在循环后使用；本 fixture 的实际 ASAP 点仅记录。
+                    // 只核本 fixture 的参数根与实际 LoopExit；不泛化任意 phi 或 ASAP 点。
                     report.record(
                         "owned named source final cleanup",
                         valid,
