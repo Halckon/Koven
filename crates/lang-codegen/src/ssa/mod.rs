@@ -236,3 +236,6 @@ mod rc_nullable_while_observation_tests;
 
 #[cfg(test)]
 pub(crate) mod rc_nullable_while_bounded_tests;
+
+#[cfg(test)]
+mod map_iteration_stage_gate_tests;
