@@ -243,3 +243,42 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
   错误、借用迭代 provider 后继、动态链 CI 与最终双平台验收仍待；原34项 CI-only
   与新七项探针均未本地执行。
   不将本片普通值语义和静态同 buffer 身份证明升级为0291完成。
+
+## 10. lambda 创建作用域与失败 contextual trial 的独立收口
+
+- `66acf472` 以四源双入口观察短路 inout、循环潜在写、lambda 创建不泄漏/不清空
+  proof。八观察全部到达真实分析：六条控制通过；single 未调用的 lambda 内部 when
+  非空事实泄漏到外层，raw 无诊断且 complete 接受。unit 同例则为内层未收窄，
+  内层105..106与外层126..127两处 L0084；两端根因分别保留。
+  首红收据 SHA-256：`a96fef03466222ee57db35c55e88a177433b64781a15ab0f89d844c3043a3130`。
+- `71515105` 仅用15行统一 wrapper 保存/恢复 single lambda 创建点的 facts/versions，
+  原 inner 的所有成功/错误路径均返回后恢复，不撤销 body typed facts 或诊断，不改变
+  capture/return 规则。expression.rs 为1202行，尺寸 policy 只追加职责审阅，不提高额度。
+  原scope与九条成功/失败重载、无 expected、capture 邻控各实际命中1：九项通过；
+  scope 中 single 全判据转绿，仅 unit 原内层 when 缺口保持红。
+  收据 SHA-256：`8c0b65ecd47615f351e5d0dd0d005f17a20f5e991ebe46cc733de2aad555fb5b`。
+- `714920ff` 收紧 W7 complete 为完整原 L0123 相等，新增原失败 trial、成功 lambda、
+  同 call 普通错误 argument、独立错误声明四源双入口。新八观察成功 lambda 双端
+  通过，另六条被原 Internal 挡住；旧六观察中四条失效控制通过，W7 双端仍 Internal。
+  此时额外 L0080 最终保全尚未通过，不把已确认源码/原错误身份当成 complete 已绿。
+  收据 SHA-256：`e37e5e55f88963197a20f14520f51aa24760bd273c1220f2c13171c5977953c0`。
+- `0769cc71` 仅修共享 final-admission 的 Call→未提交 lambda 消费边界：真实 Name
+  源函数多候选、原 typed 精确 L0123 callee span、本 Call Error 且无 selection、
+  Group/Lambda 未提交类型资格共同成立时，才不将已回滚的 lambda body 当必需值 root。
+  其余实参、callee、type arguments 与独立声明继续遍历；不捕捉 Internal、不补 facts、
+  不放宽 L0124。局部 Symbols/Group 分支没有本批专项行为证据，不据静审外推全部覆盖。
+- 同头 `0769cc71` / `83d534dd`、1493输入，13个普通 exact 各实际命中1并通过：
+  新八与旧六观察完整通过，原 L0123 全量相等，普通 argument/独立声明的精确 L0080
+  保留，成功 lambda 与11项旧准入/重载邻控保持。收据 SHA-256：
+  `5fcd9a54c046b961b209648665b72161954d0f797dc6fb966a461e2e22da58a4`。
+- 同头定向 fmt、frontend all-targets check 与 clippy `-D warnings` 三项通过，
+  输入前后稳定；本批未重新运行全 workspace/codegen 工程或 native。
+  收据 SHA-256：`0a6eb7d5ead0996f90efa7540ee98281a2be82b30f3c6ec768023fb234ad16b8`。
+- 同头将先前scope10扣除已在13内的两重载控制，剩余八项重新验证：各实际命中1，
+  scope 为101、其余七项为0；scope 八观察中七条完整通过，唯一 unit 内层 when
+  缺口仍为原两处 L0084。1493输入稳定；与13合为21唯一普通 exact，20绿、1既有
+  unit 行为红，不能称全21绿。收据 SHA-256：
+  `e82fd3d759be3917673e123acd9da3111a9d35b6d905d3768a6de898e0c05ed0`。
+- 本批不补 unit when 剩余域或 nullable owner extraction，不新增成功 lambda/call facts，
+  不据普通源码正负控制声称私有损坏事实门已有 CI 反例实证；这些守卫与动态链、
+  provider、完整0291验收继续分别推进。
