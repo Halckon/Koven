@@ -383,3 +383,57 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
 - 本轮仅有限 codegen --tests check、fmt 与尺寸检查；未重跑完整工程或旧219回归。
   注册反序 CI 对照当前仅仓外候选静审，尚未安装或行为验收。普通 if 的当前
   view/owner 身份、consume 提取、native、完整旧回归与动态 CI 仍分别验收，当前不作 A 层或0291整体完成结论。
+
+## 15. Nullable Map 只读 view 与组合 local 首证
+
+本阶段保持 Map-only N/R 表示及来源权限；不扩大 `consume`、其他 Map 操作或 Guide 资格。
+
+- 原 B 的四个 `InvalidSsa` 经唯一普通 exact 的只读诊断采证：single 已有真实
+  `NullableBranch`/Shared Map view，但 `MapSize` 错取 nullable owner；unit 则为普通
+  Boolean 条件分支，尚无 view。首次 trace 预检因 `Program` 无 Debug 报 E0277，未执行；
+  改用既有 SSA renderer 后采齐四条 OperationContract，随后独立撤销 trace。
+  收据 `c9691b799a120e9b11a0a0a02003274436c0a360d85271b923d00e1c30535818` 保留原始错误与 SSA，不能将诊断打印作为生产修复。
+- single `af973d90` 仅在 MapSize 中校验真实 descriptor、root、declared storage、
+  narrowed read/KV 与当前 owner/proof.loan，使用当前 view 并沿原 CallReturn cleanup；
+  不改其他 Map operand 或 Consume。原 B 两入口 SSA/LLVM 转绿。
+- 新 B3 独立源码在 size 读取后将原 nullable owner 交给 `kept`，原 A/B/C 分区不动。
+  `493a4a99` 首证 single LLVM 成功、旧 unit InvalidSsa；收据 `bdfcdb77…e565`。
+- unit `10286687` 独立限定实际函数 body 顶层 If/Group 与 N Map 的普通只读 size，
+  由真实 NullableBranch 按极性产生 view；校验、兄弟分支恢复、condition cleanup、
+  proof retirement 沿当前实体处理。旧 While producer 门不扩；未知 carrier 仍拒绝。
+  stage6 收据 `8aee8eb2…5948`：六 exact 各实际 1，退出 `0/0/101/0/0/0`，
+  1505 输入前后稳定。原 B 四观察及 B3 双入口六条均完成 SSA/LLVM；A 六、Resource
+  八精确匹配及 dead-tail 双 LLVM 保持。C 六条原失败文本逐字保留，其中 C2 single
+  仍停声明 149..195，其余五条停 consume；不称 nullable consume 已闭合。
+- B1/B2 的真实 MapSize loan 在原 CallReturn NamedDrop 处 End→Drop；B3 两臂只运输
+  owner，view 在 If 结束，join 后 `kept` 的 AfterStatement 唯一 Drop。此前已按 raw
+  独立人工核验。`43a38d34` 增加六路径纯查询，锁真实 FE construction→MapConstruct→
+  NullableWrap→当前 owner/view、精确 MutableMap<Int32,Int32> 及每条 End/Drop；
+  首次 check 的四个 E0308（builtin 返回 Option）由 `30be5ae3` 两处结构化解包修正，
+  原失败日志保留、未执行错误版本。唯一 exact 实际1通过，六条 identity verified 齐全。
+- 注册反序 CI2 已安装并编译，真实 mapper 冷启动双顺序、N/R/KV/Resource qualification
+  留 CI 执行；本地未运行。`b290edbf` 的原工程四项与旧 Map 219（143 SSA、76 普通
+  native）均实际通过，收据分别 `48566a53…d5c8` / `56aaf89d…37bbe`。
+  这些受验身份早于后续 B 生产，不冒充最新头回归。
+- 组合 local 需求的 9 源/18 入口在 `ece1c860` 普通 collector 首证完整采齐：
+  收据 `8d832383…5f72`，实际 1/exit0，1509 输入稳定，18 个 input oracle 均空失败。
+  实际 9 LLVM/9 lower，无 verifier/LLVM 拒绝。K1/K2/K5/K6 双入口及 P2 unit 为
+  九项既有成功；P1 双、P2 single、P3 双为五项待推进。K3/K4 的两端四条拒绝保留
+  原 kind/span；其中 unit MissingFact 是历史缺陷，不立为永久能力合同。
+  Collector 通过仅表示前置与采集成立、K1 双成功保留，不表示其余源码行为全绿。
+- P2 实际仅 delivered 有 NamedDrop，seed/source 无自身 Drop；K4 由真实 scope/query
+  锁 inner 属 Lambda、action 属 main，不能以整体 lower 拒绝代替 planner 隔离证明。
+  新 formed-owned-local API 及可组合类型需求尚未实施；首句需求仍是中间桥。
+
+- 后继同头 `30be5ae3` / `6f63c0fd` 的1640输入包含完整CLI闭包；工程四项全0，
+  原 A/B/C、Resource、dead-tail、B3、identity 与 formed collector 共八 exact 各实际1，
+  退出0/0/101/0/0/0/0/0。C六条停点原样；identity与formed分类再次成立。
+  工程收据 SHA-256：`21ce227b1bb459d1a68e1e59a3c2e145e4534ec0c3f84da39aeb226d79b68f4d`。
+  八项收据 SHA-256：`4743c9e6838e7cc0ea87f42c48e39c530b15bcd535e6a6dabb5df63825cc5cad`。
+- 同头277旧普通回归全部实际各命中1并通过：旧Map219 + 0330的42普通lower/
+  12普通native + 既有consume4，三元组无重复；共187普通SSA/内存LLVM、90普通native，
+  不含故障、插桩或私有guard。原42边界分类仍由既有oracle锁定，未开放原拒绝合同。
+  收据 SHA-256：`ec93bedb52a1c8477530dde1f96afa24e68e89dc2f679aa7349416030c5bed57`。
+
+CI7 动态链、CI2 注册反序、If/N 私有拒绝门、nullable consume 提取及 provider 后继仍待；
+本阶段不作 SPEC-0291 完成或合并声明。
