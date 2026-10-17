@@ -74,3 +74,20 @@ MutableMap 为66..67。两 binding/read 为 Error、既有 sequential plan 数0�
 这是 Phase2 真实能力首红，不是 ownership/provider/SSA/native 验收。未改生产，未执行 CI-only。
 仓外收据 SHA256 `02f5cf1848c259b0e008b06e824be19c353f1423d069c4270abf5352548c0b8c`
 及5份 raw 已独核；后续以独立 Map 计划闭合事实交付，不改变本测试成功目标来消红。
+## 6. 联合前端片的工程选择
+
+Phase2 与真实 Map ownership 作为同一可发布原子片；中间提交仅源码保全，不新增
+长期 LSP typed-only fallback，也不把缺 sequential 计划回退普通 loop 视为成功。
+Map 使用独立 StatementId 计划，保留真实 source/K/V 与两个具名 symbol；required facts
+沿最终准入同一次实际消费的 For 根验证，不扫描未提交 trial/lambda 的全部 AST。
+非法 Map binding pattern 采用现有 L0160 类，primary 为真实完整 binding；包括单名称、
+单 `_`、解构数量非2或含 `_`。这是本片工程映射，不冒称 Guide 已规定该新场景精确码。
+L0118 保持 value-class 字段数量合同；parse/names/source/body 的既有根因优先保留。
+Map 本轮两个分量各有独立 Shared loan，复用现有逆声明序：先 value 后 key 的 EndBinding；
+不产生伪 element/field、EndElement 或 entry owner。混合嵌套共用同一退出序列。
+在真实 Map ownership/验证闭合但后端 provider 未实现时，两 lower 共享入口在任何
+source 执行或 Program 构建前，以原 UnsupportedNode 精确拒绝整个含 Map 计划的 typed
+source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮蔽。此保守阶段门不改变
+语言资格，也不宣称按 entry 可达子集筛选，后续真实 SSA provider 片才能撤除。
+该门只消费已通过身份和完整性验证的计划；多个计划时按既有 source 顺序及 StatementId
+选首个真实 For 的完整 span，保持错误位置确定性。
