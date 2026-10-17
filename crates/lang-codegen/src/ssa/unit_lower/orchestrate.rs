@@ -607,9 +607,13 @@ pub(super) fn lower_unit_from_facts(
         closure::finish_thunk(&mut lowerer, plan)?;
     }
 
-    verify_program(&program).map_err(|_| LoweringError {
-        kind: LoweringErrorKind::InvalidSsa,
-        span: None,
+    verify_program(&program).map_err(|_errors| {
+        #[cfg(test)]
+        eprintln!("NULLABLE MAP B unit_lower verify errors={_errors:#?}\nprogram={program:#?}");
+        LoweringError {
+            kind: LoweringErrorKind::InvalidSsa,
+            span: None,
+        }
     })?;
     Ok((program, entry_id))
 }
