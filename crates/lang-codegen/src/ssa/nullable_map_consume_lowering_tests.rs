@@ -14,6 +14,7 @@ use lang_frontend::{
 use super::model::{FunctionId, Program};
 use sources::{CASES, Case};
 
+mod resource;
 mod single;
 mod sources;
 mod unit;
