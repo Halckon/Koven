@@ -11,6 +11,7 @@ use sources::{CASES, Case};
 mod single;
 mod sources;
 mod unit;
+mod unreachable_storage;
 
 #[derive(Debug)]
 enum LowerOutcome {
