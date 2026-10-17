@@ -57,7 +57,7 @@
       "reason": "SPEC-0265 只增加迭代分析产物传递、独立loan owner冲突接线；provider算法单列dataflow/iteration。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅接入来源collector与正常delivery打包；有限图和callable判定分别在独立子模块。 SPEC-0288接手本轮：仅注册独立 dataflow/map 模块；Map 下标交付算法不放入父 checker。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法 SPEC-0331 本轮：仅注册 Map source helper、保存并传递 source-qualified Map 计划及真实 acquisition 模板；provider/source 算法留在 iteration 与 map_iteration_source 子模块。",
       "owner": "lang-frontend compilation-unit iteration",
       "split_plan": "后续按Checker输入构造与source单元分析归并边界拆分；本次仅接线provider产物，不搬迁调用/loan检查。",
-      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1248；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1189→1191 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1191→1202 行（+11）；原 max_lines=1248、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
+      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1248；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1189→1191 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1191→1206 行（+15）；原 max_lines=1248、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs": {
       "max_lines": 1155,
@@ -85,7 +85,7 @@
       "reason": "SPEC-0265 只增加迭代计划及验证witness存储、模块注册与validate接线；实现分别位于iteration和iteration_validation。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅在既有sealed产物登记同链只读callable事实，未增加另一份validated身份。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法 SPEC-0331 本轮：仅登记 Map 模型/验证模块并保存 typed 输入、acquisition 模板及成功发布的计划；完整校验仍由既有 basic/const validate 链调用专用子模块。",
       "owner": "lang-frontend compilation-unit iteration",
       "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
-      "review": "SPEC-0279 独立完整审阅核本次有界接线；超过1149行或扩展职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1090→1092 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1092→1103 行（+11）；原 max_lines=1149、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
+      "review": "SPEC-0279 独立完整审阅核本次有界接线；超过1149行或扩展职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1090→1092 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1092→1105 行（+13）；原 max_lines=1149、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/drop_planner.rs": {
       "max_lines": 1669,
@@ -106,7 +106,7 @@
       "reason": "SPEC-0265 注册独立iteration模块、传入statement identity及错误原子清空；算法未放入父checker。SPEC-0291 unit nullable-when仅增加私有flow版本字段/初始化并替换既有inout失效接线，算法留在flow/when子模块。 SPEC-0331 本轮：仅在既有完成点接入独立 Map 迭代表的错误原子清空与确定性排序；producer 与验证算法保留在专用子模块。",
       "owner": "lang-frontend compilation-unit iteration",
       "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
-      "review": "SPEC-0265 fresh review核本次有界增长。SPEC-0291独立审阅核对两行私有flow状态接线及12消费者成对恢复；max/baseline不升，超过精确上限或职责扩展前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1151→1153 行（+2）；原 max_lines=1226、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
+      "review": "SPEC-0265 fresh review核本次有界增长。SPEC-0291独立审阅核对两行私有flow状态接线及12消费者成对恢复；max/baseline不升，超过精确上限或职责扩展前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1151→1156 行（+5）；原 max_lines=1226、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/tests/multifile_constant_ownership.rs": {
       "max_lines": 1011,
@@ -148,7 +148,7 @@
       "reason": "仅7行size descriptor路由，读取实现复用既有string子模块；不在checker添加第二份算法。 SPEC-0279 仅接入只读callable来源状态、实际entry参数seed与最终打包；图、来源分析及return统计在单职责子模块。 SPEC-0281 仅增加 2 行诊断防护，避免 receiver 检查与 contract 检查重复报错。 SPEC-0288接手本轮：Map 调用 receiver/参数合同委托及下标路由，领域算法在 checker/map 模块。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法 SPEC-0331 本轮：登记独立 Map checker、保存真实 acquisition 模板、打包双 Shared binding 与 Map 产物，并在既有入口接入保留真实失败位置的验证；source/loan 与退出算法留在专用子模块。",
       "owner": "lang-frontend single ownership",
       "split_plan": "后续单文件checker路由按领域迁移，保持状态与事实交接一致。",
-      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1429；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1304→1306 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1306→1354 行（+48）；原 max_lines=1429、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
+      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1429；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1304→1306 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1306→1371 行（+65）；原 max_lines=1429、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner.rs": {
       "max_lines": 1681,
