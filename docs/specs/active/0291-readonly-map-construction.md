@@ -87,6 +87,19 @@ Phase4 用显式 owner 交付操作和 verifier 核输入、输出、K/V 与唯�
 
 ## 5. 初始实证
 
-当前仅从真实 main 建立独立 worktree，并只读核 Guide、旧稿与相关实现；尚未执行本片
-ordinary exact，未写生产代码。0330 源树保留，主线 CI 独立跟踪；新测试先内容审、再冻结
-输入与命中清单后执行。内部布局候选仍须独立审查全部实际消费者后才能实施。
+- 合同与测试基线从真实 main `37e80526` 建立，生产代码尚未修改；0330 源树保留。
+  `969d74e2` 重基合同，`39b0447b` / `5bedbc91` 分别加入布局和 consume 普通测试。
+- 首次固定 `5bedbc91` 的两 exact 均实际命中1。consume 四源×双入口全部采到
+  `Deferred(MemberAccess)`、空诊断，精确结果 Map<K,V> 判据失败，为真实类型行为红。
+  布局 fixture 的 `println(Int)` 触发两处 L0084，未输出 header；此项仅为前置源码错误。
+- `dd905eed` 仅将 size 观察改为比较后输出 String；同两 exact 重冻重跑，各实际命中1，
+  1453份输入前后稳定。consume 保持上述八条红观察；布局四组真实 SSA/内存 LLVM
+  全部完成，每组 Map/MutableMap header 均为 `[ptr,i64,i64,i64]`，最终六字段判据
+  以 4!=6 失败。这只锁定 header 缺口，不证明 slot 链或运行时插入顺序。
+- 两轮有限 `cargo check --locked --offline -p lang-frontend -p lang-codegen --tests`
+  成功；真实测试构建与唯一命中门已核，无 native、插桩或故障测试执行。
+  初始证据收据 SHA-256 为 `776033b3f2eab43f42a0c47dca16ab264cdd3c42d24887043667c47f26e15839`，
+  修正重跑为 `189add5afdce16fe019c5315bc90f9fae284642cbd7276f8b8197ffde42f1e85`；
+  原始日志和输入清单仓外保留，不将预期红或有限编译称为功能完成。
+- 共享布局全部消费者和 consume 分阶段资格仍在独立设计审查；完整工程、旧 Map
+  兼容、native 与双平台 CI 均待后续实际实现和验收。
