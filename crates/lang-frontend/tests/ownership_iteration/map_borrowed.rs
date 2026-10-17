@@ -75,3 +75,6 @@ fn borrowed_move_only_key_and_value_reject_owned_delivery() {
 fn active_sources_reject_consume_and_owned_return() {
     assert_cases(&CASES[6..], 4);
 }
+
+#[path = "map_borrowed/unacquired.rs"]
+mod unacquired;
