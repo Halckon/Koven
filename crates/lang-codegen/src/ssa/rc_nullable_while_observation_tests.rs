@@ -324,3 +324,38 @@ fn observe_rc_nullable_while_both_frontends() {
         "SPEC0332 COLLECTOR contract=preconditions-and-lower-attempt-only behavior_oracle=not-asserted"
     );
 }
+
+#[test]
+fn rc_nullable_while_both_frontends_reach_verified_llvm() {
+    // Preserve both real pipeline outcomes before applying the success oracle.
+    let observations = [observe(false), observe(true)];
+    for observation in &observations {
+        let unit = observation.unit;
+        println!(
+            "SPEC0332 STRICT PRECONDITIONS unit={unit} complete={} ownership={} frontend_anchor={} lower_attempted={}",
+            observation.complete_ok,
+            observation.ownership_ok,
+            observation.frontend_anchor_ok,
+            observation.lower_attempted
+        );
+        match &observation.outcome {
+            Ok(()) => {
+                println!("SPEC0332 STRICT OUTCOME unit={unit} stage=llvm-render-verify result=ok");
+            }
+            Err(error) => println!(
+                "SPEC0332 STRICT OUTCOME unit={unit} stage={} result=err detail={} lower={:?} span_text={:?}",
+                error.stage, error.detail, error.lower, error.span_text
+            ),
+        }
+    }
+    assert!(
+        observations.iter().all(|observation| {
+            observation.complete_ok
+                && observation.ownership_ok
+                && observation.frontend_anchor_ok
+                && observation.lower_attempted
+                && observation.outcome.is_ok()
+        }),
+        "both real inspect pipelines must pass frontend anchors, lowering, SSA verification and LLVM rendering"
+    );
+}
