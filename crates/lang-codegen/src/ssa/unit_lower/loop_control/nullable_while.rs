@@ -76,6 +76,35 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        // This proof-producing path supports exclusive heap owners only.
+        // Shared owners retain the existing ordinary while lowering.
+        let nullable = resolve_concrete_type(
+            self.typed,
+            descriptor.nullable_type(),
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        let nullable = *self
+            .type_ids
+            .get(&nullable)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let kind = self
+            .ssa_types
+            .get(nullable.index())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let SsaTypeKind::NullableHandle { inner } = kind else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        match self
+            .ssa_types
+            .get(inner.index())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+        {
+            SsaTypeKind::HeapOwner { .. } => {}
+            SsaTypeKind::SharedOwner { .. } => return Ok(None),
+            _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+        }
         Ok(Some((
             descriptor,
             UnitExpressionId::new(self.source_unit, subject),
