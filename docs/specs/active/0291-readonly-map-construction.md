@@ -282,3 +282,26 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
 - 本批不补 unit when 剩余域或 nullable owner extraction，不新增成功 lambda/call facts，
   不据普通源码正负控制声称私有损坏事实门已有 CI 反例实证；这些守卫与动态链、
   provider、完整0291验收继续分别推进。
+
+## 11. unit when 剩余域与创建点 flow 隔离的有限收口
+
+- `c6b7a03d` 复用既有 single 的 Boolean? null-first 与 null-last/comma 两份源码，
+  新增双入口四观察，原七源和全部判据保留。首红四条均到达真实分析：single 两条
+  通过；unit 仍读取 Nullable(Boolean)，缺真实 NonNullUse，分别报70..71/82..83
+  与62..63的 L0084。没有 Internal，不能把 positive complete 的失败另算保全通过。
+  收据 SHA-256：`96c8aef3292ca3d21e50bf7cb8a67f5132fa8aea4df854b1b3768ba4fae9d2d2`。
+- `a4bb128f` 仅为 unit checker 的 facts/versions 建立成对状态：when 区分条件 miss
+  的剩余域、选中 body 与可达出口；subject 版本见证仍有效时才授予非空事实。逗号
+  匹配路径取交集，写入即使此前无 fact 也推进失效版本，未知域保持保守。
+  lambda 创建、独立 callable/deinit 与 trial 同步隔离/恢复，保留 body typed facts
+  和诊断；enum else 不额外增加单 case 精度。没有新增公开 when plan 或后端提取。
+- 固定 `a4bb128f` / `de952ff5`、1493输入，17个已审普通 exact 各实际命中1并通过。
+  原七源14观察、scope八观察与 finite四观察完整通过；旧 unit Boolean/enum 有限域、
+  重复/else/分支诊断、nullable/while/短路失效及 W7 邻控保持原判据。
+  收据 SHA-256：`248e4a366f6de36b0b56a8eb3d542d527e3407b13f8f5058d5e726bbffbe5875`。
+- 定向 fmt 与 frontend --tests check 预检通过；磁盘余量不足后暂停新编译，正式
+  frontend 工程三项及原 consume 五项虽已准备清单，当前均未执行，不据17项通过
+  声称完整工程或 consume ownership 已重验。
+- 本批17项是直接风险邻控，deinit/initializer 隔离与版本饱和尚无独立动态专项，
+  null-middle+else 仍无新增 unit 实证。nullable Map storage、真实 owner extraction、
+  unit 后端 when、动态链 CI 与借用 provider 继续分别验收，不据此声称0291完成。
