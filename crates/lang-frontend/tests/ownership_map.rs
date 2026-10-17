@@ -13,6 +13,9 @@ use lang_frontend::{
     type_checking::{check_compilation_unit_types, check_types, standard_environments},
 };
 
+#[path = "ownership_map/consume.rs"]
+mod consume;
+
 fn checked(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("map.ko", text).unwrap();
