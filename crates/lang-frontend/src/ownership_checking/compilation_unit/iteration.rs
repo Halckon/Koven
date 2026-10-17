@@ -29,6 +29,7 @@ impl super::CompilationUnitOwnership {
         self.iterations
             .iter()
             .flat_map(|plan| plan.exits())
+            .chain(self.map_iterations.iter().flat_map(|plan| plan.exits()))
             .find(|exit| exit.point() == point)
             .map(UnitIterationExitPlan::actions)
     }

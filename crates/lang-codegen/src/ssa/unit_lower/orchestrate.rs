@@ -17,6 +17,32 @@ pub(super) fn lower_unit_from_facts(
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
     let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
+    // 两类 owned view 已验证完整事实；按规范 source/statement 顺序拒绝整组输入。
+    if let Some(descriptor) = typed
+        .map_iterations()
+        .iter()
+        .min_by_key(|descriptor| descriptor.statement())
+    {
+        let statement = descriptor.statement();
+        let parsed = parsed_by_source
+            .get(statement.source_unit().index())
+            .ok_or(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let node = parsed
+            .ast()
+            .statements()
+            .get(statement.statement())
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        return Err(lowering_error(
+            LoweringErrorKind::UnsupportedNode,
+            node.span(),
+        ));
+    }
     super::borrow_result::validate(&parsed_by_source, typed, owned)?;
     let instance_plan = plan_unit_instances_from_facts(
         &parsed_by_source,

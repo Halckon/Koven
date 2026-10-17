@@ -6,8 +6,35 @@ use super::{
 
 impl CompilationUnitOwnership {
     pub(super) fn iterations_are_valid(&self) -> bool {
-        if self.iterations.len() != self.iteration_templates.len() {
+        if self.iterations.len() != self.iteration_templates.len()
+            || !self.map_iteration_headers_are_valid()
+        {
             return false;
+        }
+        for (statement, _, _) in &self.iteration_required_exits {
+            let plans = self
+                .iterations
+                .iter()
+                .filter(|plan| plan.descriptor().statement() == *statement)
+                .count()
+                + self
+                    .map_iterations
+                    .iter()
+                    .filter(|plan| plan.descriptor().statement() == *statement)
+                    .count();
+            let templates = self
+                .iteration_templates
+                .iter()
+                .filter(|plan| plan.descriptor().statement() == *statement)
+                .count()
+                + self
+                    .map_iteration_templates
+                    .iter()
+                    .filter(|plan| plan.descriptor().statement() == *statement)
+                    .count();
+            if plans != 1 || templates != 1 {
+                return false;
+            }
         }
         for (index, plan) in self.iterations.iter().enumerate() {
             let statement = plan.descriptor().statement();
@@ -82,6 +109,10 @@ impl CompilationUnitOwnership {
             {
                 return false;
             }
+        }
+        for plan in self.iteration_validation_plans() {
+            let statement = plan.statement;
+            let numeric = plan.numeric;
             let expected = self
                 .iteration_required_exits
                 .iter()
@@ -108,11 +139,7 @@ impl CompilationUnitOwnership {
                     if *point != exit.point() {
                         continue;
                     }
-                    let Some(owner_plan) = self
-                        .iteration_templates
-                        .iter()
-                        .find(|candidate| candidate.descriptor().statement() == *owner)
-                    else {
+                    let Some(owner_plan) = self.iteration_validation_template(*owner) else {
                         return false;
                     };
                     if *kind != Exit::Exhaustion {
@@ -122,7 +149,9 @@ impl CompilationUnitOwnership {
                                 symbol: binding.symbol(),
                             });
                         }
-                        required_actions.push(Action::EndElement(*owner));
+                        if owner_plan.element {
+                            required_actions.push(Action::EndElement(*owner));
+                        }
                     }
                     if matches!(kind, Exit::Break(_) | Exit::Return(_) | Exit::Exhaustion) {
                         required_actions.push(Action::FinishProvider(*owner));
@@ -181,7 +210,7 @@ impl CompilationUnitOwnership {
                 let finish = positions(&Action::FinishProvider(statement));
                 let source = positions(&Action::EndSource(statement));
                 let exhausted = exit.kind() == Exit::Exhaustion;
-                if elements.len() != usize::from(!exhausted) {
+                if elements.len() != usize::from(!exhausted && plan.element) {
                     return false;
                 }
                 for binding in plan.bindings() {
@@ -190,11 +219,33 @@ impl CompilationUnitOwnership {
                         symbol: binding.symbol(),
                     });
                     if exhausted && !ends.is_empty()
-                        || !exhausted && (ends.len() != 1 || ends[0] >= elements[0])
+                        || !exhausted && (ends.len() != 1 || plan.element && ends[0] >= elements[0])
                     {
                         return false;
                     }
                 }
+                let binding_positions = plan
+                    .bindings()
+                    .iter()
+                    .flat_map(|binding| {
+                        positions(&Action::EndBinding {
+                            statement,
+                            symbol: binding.symbol(),
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                let round_start = if plan.element {
+                    elements.first().copied()
+                } else {
+                    binding_positions.iter().copied().min()
+                }
+                .unwrap_or(usize::MAX);
+                let round_end = if plan.element {
+                    elements.first().copied()
+                } else {
+                    binding_positions.iter().copied().max()
+                }
+                .unwrap_or(usize::MAX);
                 let terminal = matches!(
                     exit.kind(),
                     Exit::Break(_) | Exit::Return(_) | Exit::Exhaustion
@@ -205,8 +256,7 @@ impl CompilationUnitOwnership {
                     return false;
                 }
                 if terminal
-                    && (!numeric && finish[0] >= source[0]
-                        || !exhausted && elements[0] >= finish[0])
+                    && (!numeric && finish[0] >= source[0] || !exhausted && round_end >= finish[0])
                 {
                     return false;
                 }
@@ -265,9 +315,12 @@ impl CompilationUnitOwnership {
                     match action {
                         Action::EndCallLoan(fact) => {
                             if !self.loans().contains(fact)
-                                || actions[..position]
-                                    .iter()
-                                    .any(|action| matches!(action, Action::EndElement(_)))
+                                || actions[..position].iter().any(|action| {
+                                    matches!(
+                                        action,
+                                        Action::EndElement(_) | Action::EndBinding { .. }
+                                    )
+                                })
                             {
                                 return false;
                             }
@@ -279,9 +332,12 @@ impl CompilationUnitOwnership {
                                     super::UnitReceiverOwnershipKind::SharedLoan
                                         | super::UnitReceiverOwnershipKind::ExclusiveLoan
                                 )
-                                || actions[..position]
-                                    .iter()
-                                    .any(|action| matches!(action, Action::EndElement(_)))
+                                || actions[..position].iter().any(|action| {
+                                    matches!(
+                                        action,
+                                        Action::EndElement(_) | Action::EndBinding { .. }
+                                    )
+                                })
                             {
                                 return false;
                             }
@@ -304,7 +360,7 @@ impl CompilationUnitOwnership {
                                     .iter()
                                     .any(|binding| binding.symbol() == *symbol)
                                 && !exhausted
-                                && position >= elements[0]
+                                && position >= round_start
                             {
                                 return false;
                             }
@@ -323,7 +379,7 @@ impl CompilationUnitOwnership {
                                 .count();
                             if preceding != fact.preceding_drops()
                                 || (scopes.contains(&statement)
-                                    && (exhausted || position >= elements[0]))
+                                    && (exhausted || position >= round_start))
                                 || (!scopes.contains(&statement)
                                     && terminal
                                     && position <= source_boundary)
@@ -340,7 +396,7 @@ impl CompilationUnitOwnership {
                                     .find(|(owner, candidate, _)| {
                                         *owner == statement && *candidate == fact.target()
                                     })
-                                && ((!exhausted && *inside && position >= elements[0])
+                                && ((!exhausted && *inside && position >= round_start)
                                     || (matches!(exit.kind(), Exit::Return(_) | Exit::Break(_))
                                         && !*inside
                                         && position <= source_boundary))
@@ -408,5 +464,76 @@ impl CompilationUnitOwnership {
             }
         }
         true
+    }
+}
+
+struct IterationValidationPlan<'a> {
+    statement: crate::type_checking::UnitStatementId,
+    source: Option<&'a UnitLoanTarget>,
+    bindings: &'a [super::UnitOwnershipBindingDescriptor],
+    exits: &'a [super::UnitIterationExitPlan],
+    numeric: bool,
+    element: bool,
+}
+impl IterationValidationPlan<'_> {
+    fn source(&self) -> Option<&UnitLoanTarget> {
+        self.source
+    }
+    fn bindings(&self) -> &[super::UnitOwnershipBindingDescriptor] {
+        self.bindings
+    }
+    fn exits(&self) -> &[super::UnitIterationExitPlan] {
+        self.exits
+    }
+}
+impl<'a> From<&'a super::UnitIterationOwnershipPlan> for IterationValidationPlan<'a> {
+    fn from(plan: &'a super::UnitIterationOwnershipPlan) -> Self {
+        Self {
+            statement: plan.descriptor().statement(),
+            source: plan.source(),
+            bindings: plan.bindings(),
+            exits: plan.exits(),
+            numeric: plan.descriptor().delivery() == crate::type_checking::ParameterMode::Value,
+            element: true,
+        }
+    }
+}
+impl<'a> From<&'a super::UnitMapIterationOwnershipPlan> for IterationValidationPlan<'a> {
+    fn from(plan: &'a super::UnitMapIterationOwnershipPlan) -> Self {
+        Self {
+            statement: plan.descriptor().statement(),
+            source: plan.source(),
+            bindings: plan.bindings(),
+            exits: plan.exits(),
+            numeric: false,
+            element: false,
+        }
+    }
+}
+impl CompilationUnitOwnership {
+    fn iteration_validation_plans(&self) -> impl Iterator<Item = IterationValidationPlan<'_>> {
+        self.iterations
+            .iter()
+            .map(IterationValidationPlan::from)
+            .chain(
+                self.map_iterations
+                    .iter()
+                    .map(IterationValidationPlan::from),
+            )
+    }
+    fn iteration_validation_template(
+        &self,
+        statement: crate::type_checking::UnitStatementId,
+    ) -> Option<IterationValidationPlan<'_>> {
+        self.iteration_templates
+            .iter()
+            .find(|plan| plan.descriptor().statement() == statement)
+            .map(IterationValidationPlan::from)
+            .or_else(|| {
+                self.map_iteration_templates
+                    .iter()
+                    .find(|plan| plan.descriptor().statement() == statement)
+                    .map(IterationValidationPlan::from)
+            })
     }
 }

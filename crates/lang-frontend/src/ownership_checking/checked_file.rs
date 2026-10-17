@@ -23,6 +23,10 @@ pub struct OwnershipCheckedFile {
     cleanup_steps: Vec<(DropPoint, super::IterationCleanupAction)>,
     cleanup_conditions: super::CleanupConditions,
     iterations: Vec<super::IterationOwnershipPlan>,
+    pub(super) map_iterations: Vec<super::MapIterationOwnershipPlan>,
+    pub(super) map_iteration_templates: Vec<super::MapIterationOwnershipPlan>,
+    pub(super) map_iteration_descriptors: Vec<crate::type_checking::MapIterationDescriptor>,
+    pub(super) map_iteration_required_exits: Vec<super::map_iteration::MapIterationRequiredExit>,
     constant_materializations: Option<super::ValidatedConstantMaterializations>,
     non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     ownership_primitives: Vec<super::OwnershipPrimitiveOwnershipPlan>,
@@ -53,6 +57,10 @@ pub(crate) struct OwnershipCheckedParts {
     pub(crate) cleanup_steps: Vec<(DropPoint, super::IterationCleanupAction)>,
     pub(crate) cleanup_conditions: super::CleanupConditions,
     pub(crate) iterations: Vec<super::IterationOwnershipPlan>,
+    pub(crate) map_iterations: Vec<super::MapIterationOwnershipPlan>,
+    pub(crate) map_iteration_templates: Vec<super::MapIterationOwnershipPlan>,
+    pub(crate) map_iteration_descriptors: Vec<crate::type_checking::MapIterationDescriptor>,
+    pub(crate) map_iteration_required_exits: Vec<super::map_iteration::MapIterationRequiredExit>,
     pub(crate) constant_materializations: Option<super::ValidatedConstantMaterializations>,
     pub(crate) non_null_assertions: Vec<super::NonNullAssertionOwnershipPlan>,
     pub(crate) ownership_primitives: Vec<super::OwnershipPrimitiveOwnershipPlan>,
@@ -133,6 +141,25 @@ impl OwnershipCheckedFile {
             .find(|plan| plan.descriptor().statement() == statement)
     }
 
+    /// 实际可达的 Map provider；单独发布，不伪造顺序迭代事实。
+    #[must_use]
+    pub fn map_iterations(&self) -> &[super::MapIterationOwnershipPlan] {
+        &self.map_iterations
+    }
+    /// 按原始 For identity 查询 Map 生命周期。
+    #[must_use]
+    pub fn map_iteration(
+        &self,
+        statement: StatementId,
+    ) -> Option<&super::MapIterationOwnershipPlan> {
+        self.map_iterations
+            .binary_search_by_key(&statement.index(), |plan| {
+                plan.descriptor().statement().index()
+            })
+            .ok()
+            .map(|index| &self.map_iterations[index])
+    }
+
     /// 单文件常量物化能力；失败或 deferred 分析不发布半成品计划。
     #[must_use]
     pub fn constant_materializations(&self) -> Option<&super::ValidatedConstantMaterializations> {
@@ -185,6 +212,10 @@ impl OwnershipCheckedFile {
             environment_owner,
             constant_materializations: parts.constant_materializations,
             iterations: parts.iterations,
+            map_iterations: parts.map_iterations,
+            map_iteration_templates: parts.map_iteration_templates,
+            map_iteration_descriptors: parts.map_iteration_descriptors,
+            map_iteration_required_exits: parts.map_iteration_required_exits,
             cleanup_conditions: parts.cleanup_conditions,
             cleanup_steps: parts.cleanup_steps,
             nullable_whens: parts.nullable_whens,

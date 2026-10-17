@@ -358,6 +358,7 @@ impl UnitMapRemoveDescriptor {
 /// compilation-unit 中所有 Map 相关的结构化操作描述符集合。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct UnitMapDescriptors {
+    pub(crate) iterations: Vec<crate::type_checking::UnitMapIterationDescriptor>,
     pub(crate) constructions: Vec<UnitMapConstructionDescriptor>,
     pub(crate) consumes: Vec<UnitMapConsumeDescriptor>,
     pub(crate) sizes: Vec<UnitMapSizeDescriptor>,

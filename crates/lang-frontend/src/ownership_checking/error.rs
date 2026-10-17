@@ -114,6 +114,20 @@ pub enum OwnershipCheckingError {
         /// 原语 call expression 下标。
         expression: usize,
     },
+    /// Map provider 的 required typed/ownership facts 不完整或身份不一致。
+    InvalidMapIteration {
+        /// 单文件入口为 None，unit 为真实 source-qualified 下标。
+        source_unit: Option<usize>,
+        /// 实际消费的 For statement 下标。
+        statement: usize,
+    },
+    /// Map 只读验证器的真实失败，不以第一个 provider 代替失败位置。
+    InvalidMapIterationFacts {
+        /// 仅验证器明确返回 statement 时提供；否则保留 failure 的真实 span。
+        statement: Option<usize>,
+        /// 未改写的内部事实错误及其稳定原因。
+        failure: super::IterationFactError,
+    },
     /// AST typed ID 不满足 Parser 前置不变量。
     Ast(AstError),
     /// 输入源码或 Span 不满足前置不变量。
@@ -236,6 +250,23 @@ impl fmt::Display for OwnershipCheckingError {
                 formatter,
                 "invalid ownership primitive descriptor for expression {expression}"
             ),
+            Self::InvalidMapIteration {
+                source_unit,
+                statement,
+            } => write!(
+                formatter,
+                "invalid Map iteration facts in source unit {source_unit:?}, statement {statement}"
+            ),
+            Self::InvalidMapIterationFacts { statement, failure } => {
+                if let Some(statement) = statement {
+                    write!(
+                        formatter,
+                        "invalid Map iteration facts at statement {statement}: {failure}"
+                    )
+                } else {
+                    write!(formatter, "invalid Map iteration facts: {failure}")
+                }
+            }
             Self::Ast(error) => write!(formatter, "ownership AST error: {error}"),
             Self::Source(error) => write!(formatter, "ownership source error: {error}"),
             Self::DiagnosticCode(error) => {
@@ -255,6 +286,7 @@ impl fmt::Display for OwnershipCheckingError {
 impl Error for OwnershipCheckingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::InvalidMapIterationFacts { failure, .. } => Some(failure),
             Self::Ast(error) => Some(error),
             Self::Source(error) => Some(error),
             Self::DiagnosticCode(error) => Some(error),
@@ -277,7 +309,8 @@ impl Error for OwnershipCheckingError {
             | Self::InvalidUnitContainerConstruction { .. }
             | Self::InvalidUnitClosureCapture { .. }
             | Self::InvalidConstructionDescriptor { .. }
-            | Self::InvalidOwnershipPrimitive { .. } => None,
+            | Self::InvalidOwnershipPrimitive { .. }
+            | Self::InvalidMapIteration { .. } => None,
         }
     }
 }

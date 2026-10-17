@@ -395,7 +395,7 @@ impl Checker<'_> {
         Ok(flows)
     }
 
-    fn check_maybe_loop(
+    pub(super) fn check_maybe_loop(
         &mut self,
         mut prefix: Flows,
         body: StatementId,

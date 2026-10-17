@@ -35,7 +35,9 @@ pub(super) struct IterationExitRecord {
 #[derive(Clone, Debug)]
 pub(super) struct IterationFrame {
     statement: StatementId,
-    element_active: bool,
+    bindings_active: bool,
+    bindings: Vec<SymbolId>,
+    sequential_element: bool,
     borrowed: bool,
     pub(super) source_root: Option<SymbolId>,
     temporary: Option<(ExpressionId, Span, CleanupOwnerValueId)>,
@@ -57,15 +59,20 @@ impl DropPlanner<'_, '_> {
             .get(&statement.index())
             .is_none_or(|plan| plan.source().is_some());
         // Source 求值中的 return/abort 发生在 provider 建立之前。
-        if !self.expression(
-            source,
-            if borrowed {
-                ExpressionUse::Place
-            } else {
-                ExpressionUse::Read
-            },
-            state,
-        )? {
+        let source_continues = if self.checker.typed.map_iteration(statement).is_some() {
+            self.map_source_expression(source, state)?
+        } else {
+            self.expression(
+                source,
+                if borrowed {
+                    ExpressionUse::Place
+                } else {
+                    ExpressionUse::Read
+                },
+                state,
+            )?
+        };
+        if !source_continues {
             return Ok(false);
         }
         self.preallocate_closure_phis(statement)?;
@@ -78,11 +85,19 @@ impl DropPlanner<'_, '_> {
         );
         let temporary_owner = self
             .checker
-            .range_use(source)
-            .and_then(|fact| match fact.origin() {
-                crate::ownership_checking::LoanTarget::Temporary(owner) => Some(*owner),
+            .map_iterations
+            .get(&statement.index())
+            .and_then(|plan| match plan.source() {
+                Some(crate::ownership_checking::LoanTarget::Temporary(owner)) => Some(*owner),
                 _ => None,
             })
+            .or(self
+                .checker
+                .range_use(source)
+                .and_then(|fact| match fact.origin() {
+                    crate::ownership_checking::LoanTarget::Temporary(owner) => Some(*owner),
+                    _ => None,
+                }))
             .or(self.checker.temporary_element_owner(source)?)
             .unwrap_or(source);
         let temporary = if borrowed && self.is_move_only_temporary(temporary_owner) {
@@ -100,15 +115,41 @@ impl DropPlanner<'_, '_> {
         } else {
             None
         };
+        let map = self.checker.map_iterations.get(&statement.index());
+        let bindings = if let Some(plan) = map {
+            plan.bindings()
+                .iter()
+                .map(|binding| binding.symbol())
+                .collect()
+        } else {
+            self.checker
+                .iterations
+                .get(&statement.index())
+                .map(|plan| {
+                    plan.bindings()
+                        .iter()
+                        .map(|binding| binding.symbol())
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let source_root = if let Some(plan) = map {
+            match plan.source() {
+                Some(crate::ownership_checking::LoanTarget::Place(place)) => Some(place.root()),
+                _ => None,
+            }
+        } else if borrowed {
+            self.checker.place(source)?.map(|place| place.root())
+        } else {
+            None
+        };
         state.iterations.push(IterationFrame {
             statement,
-            element_active: false,
+            bindings_active: false,
+            bindings,
+            sequential_element: map.is_none(),
             borrowed,
-            source_root: if borrowed {
-                self.checker.place(source)?.map(|place| place.root())
-            } else {
-                None
-            },
+            source_root,
             temporary,
             scope_depth: self.scope_depth,
             loop_depth: self.loop_boundaries.len() + 1,
@@ -116,7 +157,7 @@ impl DropPlanner<'_, '_> {
         let mut body_state = state.clone();
         self.seed_phi_state(statement, IterationPhiBoundary::Header, &mut body_state);
         if let Some(frame) = body_state.iterations.last_mut() {
-            frame.element_active = true;
+            frame.bindings_active = true;
         }
         self.loop_boundaries.push(self.scope_depth);
         if self.statement(body, &mut body_state)? {
@@ -151,6 +192,18 @@ impl DropPlanner<'_, '_> {
         self.seed_phi_state(statement, IterationPhiBoundary::Exit, &mut exhaustion_state);
         *state = exhaustion_state;
         Ok(true)
+    }
+
+    fn map_source_expression(
+        &mut self,
+        expression: ExpressionId,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        if let Some(receiver) = self.checker.map_source_projection_receiver(expression)? {
+            self.map_source_expression(receiver, state)
+        } else {
+            self.expression(expression, ExpressionUse::Place, state)
+        }
     }
 
     pub(super) fn phi_root_conditions(
@@ -188,23 +241,23 @@ impl DropPlanner<'_, '_> {
             point,
             condition: state.path,
         });
-        if !frame.element_active {
+        if !frame.bindings_active {
             return;
         }
-        if let Some(plan) = self.checker.iterations.get(&frame.statement.index()) {
-            for binding in plan.bindings().iter().rev() {
-                self.cleanup.push((
-                    point,
-                    Action::EndBinding {
-                        statement: frame.statement,
-                        symbol: binding.symbol(),
-                    },
-                ));
-            }
+        for &symbol in frame.bindings.iter().rev() {
+            self.cleanup.push((
+                point,
+                Action::EndBinding {
+                    statement: frame.statement,
+                    symbol,
+                },
+            ));
         }
-        self.cleanup
-            .push((point, Action::EndElement(frame.statement)));
-        frame.element_active = false;
+        if frame.sequential_element {
+            self.cleanup
+                .push((point, Action::EndElement(frame.statement)));
+        }
+        frame.bindings_active = false;
         if let IterationExitKind::Continue(expression) = kind {
             self.record_phi_incoming(
                 frame.statement,
@@ -278,34 +331,102 @@ impl DropPlanner<'_, '_> {
                 .get(&statement.index())
                 .cloned()
                 .unwrap_or_default();
-            for &IterationExitRecord {
-                owner,
-                kind,
-                point,
-                condition,
-            } in &self.iteration_exits
-            {
-                if owner == statement {
-                    let exit = IterationExitPlan {
-                        kind,
-                        condition,
-                        point,
-                        actions: self
-                            .cleanup
-                            .iter()
-                            .filter(|(at, _)| *at == point)
-                            .map(|(_, action)| *action)
-                            .collect(),
-                    };
-                    if !plan.exits.contains(&exit) {
-                        plan.exits.push(exit);
-                    }
-                }
-            }
+            plan.exits = self.recorded_iteration_exits(statement);
             if !plan
                 .exits
                 .iter()
                 .any(|exit| exit.kind == IterationExitKind::Exhaustion)
+            {
+                return Vec::new();
+            }
+            plans.push(plan);
+        }
+        plans
+    }
+
+    fn recorded_iteration_exits(&self, statement: StatementId) -> Vec<IterationExitPlan> {
+        let mut exits = Vec::new();
+        for &IterationExitRecord {
+            owner,
+            kind,
+            point,
+            condition,
+        } in &self.iteration_exits
+        {
+            if owner != statement {
+                continue;
+            }
+            let exit = IterationExitPlan {
+                kind,
+                condition,
+                point,
+                actions: self
+                    .cleanup
+                    .iter()
+                    .filter(|(at, _)| *at == point)
+                    .map(|(_, action)| *action)
+                    .collect(),
+            };
+            if !exits.contains(&exit) {
+                exits.push(exit);
+            }
+        }
+        exits
+    }
+
+    pub(super) fn map_iteration_required_exits(
+        &self,
+    ) -> Vec<crate::ownership_checking::map_iteration::MapIterationRequiredExit> {
+        self.iteration_exits
+            .iter()
+            .filter(|exit| {
+                self.checker
+                    .map_iterations
+                    .contains_key(&exit.owner.index())
+            })
+            .map(
+                |exit| crate::ownership_checking::map_iteration::MapIterationRequiredExit {
+                    statement: exit.owner,
+                    kind: exit.kind,
+                    point: exit.point,
+                    condition: exit.condition,
+                },
+            )
+            .collect()
+    }
+
+    pub(super) fn map_iteration_plans(
+        &self,
+    ) -> Vec<crate::ownership_checking::MapIterationOwnershipPlan> {
+        if !self.checker.deferred.is_empty() || !self.checker.map_iteration_inputs_valid() {
+            return Vec::new();
+        }
+        let mut plans = Vec::new();
+        for template in self.checker.map_iterations.values() {
+            let statement = template.descriptor().statement();
+            let mut plan = template.clone();
+            let Some(origins) = self.loop_origins.get(&statement.index()) else {
+                return Vec::new();
+            };
+            let Some(graph) = self.loop_capture_graphs.get(&statement.index()) else {
+                return Vec::new();
+            };
+            let Some(phis) = self.loop_phis.get(&statement.index()) else {
+                return Vec::new();
+            };
+            plan.closure_flow = origins.clone();
+            plan.capture_graph = graph.clone();
+            plan.closure_phis = phis.clone();
+            plan.closure_phi_incomings = self
+                .loop_phi_incomings
+                .get(&statement.index())
+                .cloned()
+                .unwrap_or_default();
+            plan.exits = self.recorded_iteration_exits(statement);
+            if !plan
+                .exits
+                .iter()
+                .any(|exit| exit.kind() == IterationExitKind::Exhaustion)
             {
                 return Vec::new();
             }

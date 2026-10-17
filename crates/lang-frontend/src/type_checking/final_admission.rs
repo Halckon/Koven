@@ -141,7 +141,7 @@ pub fn complete_file_types<'a>(
         .chain(typed.diagnostics())
         .cloned()
         .collect::<Vec<_>>();
-    walk::check(
+    let visited_for = walk::check(
         sources,
         &[(
             parsed,
@@ -161,6 +161,25 @@ pub fn complete_file_types<'a>(
     diagnostics.dedup();
     if diagnostics.iter().any(|d| d.severity() == Severity::Error) {
         return Err(FinalTypeAdmissionError::Diagnostics(diagnostics));
+    }
+    if let Err(statement) = super::map_iteration_validation::complete_file_map_iterations(
+        parsed,
+        names,
+        typed,
+        &visited_for[0],
+    ) {
+        let span = parsed
+            .ast()
+            .statements()
+            .get(statement)
+            .map_err(TypeCheckingError::from)
+            .map_err(FinalTypeAdmissionInternalError::from)?
+            .span();
+        return Err(FinalTypeAdmissionInternalError::MissingRequiredFact {
+            span,
+            kind: "valid Map iteration source/binding/type identity",
+        }
+        .into());
     }
     Ok(FinalTypedFile { typed })
 }
@@ -196,7 +215,7 @@ pub fn complete_compilation_unit_types<'a>(
         ));
     }
     let definition_order = adapters::initializer_order(&files)?;
-    walk::check(sources, &files, &definition_order, &mut diagnostics)?;
+    let visited_for = walk::check(sources, &files, &definition_order, &mut diagnostics)?;
     let ordered =
         ordered_unit_diagnostics(sources, names.names().index().source_units(), &diagnostics)
             .map_err(CompilationUnitTypeError::from)
@@ -205,6 +224,37 @@ pub fn complete_compilation_unit_types<'a>(
     diagnostics.dedup();
     if diagnostics.iter().any(|d| d.severity() == Severity::Error) {
         return Err(FinalTypeAdmissionError::Diagnostics(diagnostics));
+    }
+    if let Err(statement) = super::map_iteration_validation::complete_unit_map_iterations(
+        inputs,
+        names,
+        typed,
+        &visited_for,
+    ) {
+        let source = names
+            .names()
+            .index()
+            .source_units()
+            .iter()
+            .find(|source| source.id() == statement.source_unit())
+            .ok_or(FinalTypeAdmissionInternalError::MismatchedAnalysisIdentity)?;
+        let parsed = inputs
+            .iter()
+            .find(|input| input.source_id() == source.source_id())
+            .map(|input| input.parsed())
+            .ok_or(FinalTypeAdmissionInternalError::MismatchedAnalysisIdentity)?;
+        let span = parsed
+            .ast()
+            .statements()
+            .get(statement.statement())
+            .map_err(TypeCheckingError::from)
+            .map_err(FinalTypeAdmissionInternalError::from)?
+            .span();
+        return Err(FinalTypeAdmissionInternalError::MissingRequiredFact {
+            span,
+            kind: "valid Map iteration source/binding/type identity",
+        }
+        .into());
     }
     Ok(FinalCompilationUnitTypes { typed })
 }

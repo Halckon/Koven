@@ -55,6 +55,46 @@ pub(super) fn analyze(
             )?;
         }
     }
+    // 全表逐项复核真实 For；不从未选择 AST 创建 required roots。
+    for plan in typed.map_iterations() {
+        let source = names
+            .names()
+            .index()
+            .source_units()
+            .iter()
+            .find(|source| source.id() == plan.statement().source_unit());
+        let parsed = source
+            .and_then(|source| {
+                inputs
+                    .iter()
+                    .find(|input| input.source_id() == source.source_id())
+            })
+            .map(|input| input.parsed());
+        if parsed.is_none_or(|parsed| {
+            !crate::type_checking::map_iteration_validation::validate_unit_map_iteration(
+                parsed,
+                names,
+                typed,
+                plan.statement(),
+            )
+        }) {
+            return Err(OwnershipCheckingError::InvalidMapIteration {
+                source_unit: Some(plan.statement().source_unit().index()),
+                statement: plan.statement().statement().index(),
+            });
+        }
+        for symbol in plan.bindings() {
+            insert_binding(
+                names,
+                &mut bindings,
+                UnitOwnershipBindingDescriptor::new(
+                    symbol,
+                    OwnershipBindingKind::Shared,
+                    unit_symbol_span(names, symbol)?,
+                ),
+            )?;
+        }
+    }
     let call_argument_contracts = contracts::collect_call_argument_contracts(inputs, names, typed)?;
     let call_receiver_contracts = contracts::collect_call_receiver_contracts(inputs, names, typed)?;
     let capture = capture::analyze(inputs, names, typed)?;

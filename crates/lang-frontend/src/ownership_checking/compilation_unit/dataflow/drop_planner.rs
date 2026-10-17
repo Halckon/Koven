@@ -53,6 +53,7 @@ pub(super) struct Analysis {
         crate::ownership_checking::UnitIterationCleanupAction,
     )>,
     pub(super) iterations: Vec<crate::ownership_checking::UnitIterationOwnershipPlan>,
+    pub(super) map_iterations: Vec<crate::ownership_checking::UnitMapIterationOwnershipPlan>,
     pub(super) iteration_required_exits: Vec<(
         UnitStatementId,
         crate::ownership_checking::UnitIterationExitKind,
@@ -81,6 +82,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         .collect();
     let planner = DropPlanner::new(checker, liveness).run()?;
     let iterations = planner.iteration_plans()?;
+    let map_iterations = planner.map_iteration_plans()?;
     let mut iteration_owner_scopes: Vec<_> = planner
         .iteration_scope_depths
         .iter()
@@ -139,6 +141,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         iteration_owner_scopes,
         iteration_loan_ends,
         iterations,
+        map_iterations,
         iteration_required_exits,
         drops,
         conditional_receiver_drops,

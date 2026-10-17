@@ -24,6 +24,19 @@ impl Checker<'_> {
         body: StatementId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let statement_id = UnitStatementId::new(self.source_unit, statement);
+        if !crate::type_checking::map_iteration_validation::validate_unit_map_iteration(
+            self.parsed,
+            self.names,
+            self.typed,
+            statement_id,
+        ) {
+            return Err(OwnershipCheckingError::InvalidMapIteration {
+                source_unit: Some(self.source_unit.index()),
+                statement: statement.index(),
+            });
+        }
+        let map_descriptor = self.typed.map_iteration(statement_id).copied();
         let numeric = self
             .typed
             .sequential_iteration(UnitStatementId::new(self.source_unit, statement))
@@ -33,17 +46,21 @@ impl Checker<'_> {
         if self.range_expression_is_proven(source) {
             self.allowed_borrow_call = Some(source);
         }
-        let checked = self.check_expression(
-            source,
-            state,
-            if numeric {
-                ExpressionUse::Read
-            } else {
-                ExpressionUse::Place {
-                    parameter_span: None,
-                }
-            },
-        );
+        let checked = if map_descriptor.is_some() {
+            self.check_map_iteration_source(source, state)
+        } else {
+            self.check_expression(
+                source,
+                state,
+                if numeric {
+                    ExpressionUse::Read
+                } else {
+                    ExpressionUse::Place {
+                        parameter_span: None,
+                    }
+                },
+            )
+        };
         self.allowed_borrow_call = previous;
         let mut prefix = checked?;
         if self.diagnostics.len() == errors && self.range_expression_is_proven(source) {
@@ -57,20 +74,38 @@ impl Checker<'_> {
         let Some(base) = prefix.next.as_mut() else {
             return Ok(prefix);
         };
+        if map_descriptor.is_some() && self.diagnostics.len() != errors {
+            base.origins.attach(&self.callable_sources.arena);
+            let headers = base.origins.begin_loop();
+            return self.check_maybe_loop(prefix, body, errors, &headers);
+        }
         let statement = UnitStatementId::new(self.source_unit, statement);
-        let descriptor = self.typed.sequential_iteration(statement).cloned().ok_or(
-            OwnershipCheckingError::InvalidUnitArgumentType {
+        let descriptor = self.typed.sequential_iteration(statement).cloned();
+        if descriptor.is_none() && map_descriptor.is_none() {
+            return Err(OwnershipCheckingError::InvalidUnitArgumentType {
                 source_unit: self.source_unit.index(),
                 expression: source.index(),
-            },
-        )?;
+            });
+        }
         let span = self.parsed.ast().expressions().get(source)?.span();
+        let map_source_access = if map_descriptor.is_some() {
+            self.place(source)?
+                .filter(|place| base.non_owning.contains_key(&place.root()))
+                .map(|_| UnitIterationSourceAccess::Shared)
+        } else {
+            None
+        };
         let target = if numeric {
             None
         } else {
             Some(if let Some(fact) = self.range_use(source) {
                 fact.origin().clone()
             } else if let Some(place) = self.place(source)? {
+                let place = if map_descriptor.is_some() {
+                    self.canonical_borrow_place(&place, base)
+                } else {
+                    place
+                };
                 if self.access_place(&place, AccessKind::SharedLoan, span, None, base)? {
                     base.loans.push(ActiveLoan {
                         owner: ActiveLoanOwner::IterationSource(statement),
@@ -82,17 +117,20 @@ impl Checker<'_> {
                 }
                 UnitLoanTarget::Place(place)
             } else {
-                let owner = self
-                    .temporary_projection_owner(source)?
-                    .or(self.temporary_expression_origin(source)?)
-                    .ok_or(OwnershipCheckingError::InvalidUnitArgumentPlace {
-                        source_unit: self.source_unit.index(),
-                        expression: source.index(),
-                    })?;
+                let owner = if map_descriptor.is_some() {
+                    self.map_iteration_temporary_owner(source)?
+                } else {
+                    self.temporary_projection_owner(source)?
+                        .or(self.temporary_expression_origin(source)?)
+                }
+                .ok_or(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                    source_unit: self.source_unit.index(),
+                    expression: source.index(),
+                })?;
                 UnitLoanTarget::Temporary(owner)
             })
         };
-        let source_access = match target.as_ref() {
+        let source_access = map_source_access.unwrap_or(match target.as_ref() {
             None => UnitIterationSourceAccess::Owned,
             Some(UnitLoanTarget::Place(place)) if base.non_owning.contains_key(&place.root()) => {
                 UnitIterationSourceAccess::Shared
@@ -121,8 +159,15 @@ impl Checker<'_> {
             ),
             Some(UnitLoanTarget::This(_)) => UnitIterationSourceAccess::Shared,
             Some(UnitLoanTarget::Temporary(_)) => UnitIterationSourceAccess::Temporary,
+        });
+        let symbols = if let Some(plan) = map_descriptor {
+            plan.bindings().to_vec()
+        } else {
+            descriptor
+                .as_ref()
+                .map(|plan| plan.binding().symbols().collect())
+                .unwrap_or_default()
         };
-        let symbols = descriptor.binding().symbols().collect::<Vec<_>>();
         let bindings = symbols
             .iter()
             .map(|symbol| {
@@ -134,13 +179,25 @@ impl Checker<'_> {
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
-        for binding in &bindings {
+        for (index, binding) in bindings.iter().enumerate() {
             let symbol = binding.symbol();
             base.moved.remove(&symbol);
             if !numeric {
                 base.non_owning.insert(symbol, binding.declaration_span());
                 base.loans.push(ActiveLoan {
-                    owner: ActiveLoanOwner::IterationElement(statement),
+                    owner: if map_descriptor.is_some() {
+                        ActiveLoanOwner::MapIterationBinding {
+                            statement,
+                            source: self.unit_expression(source),
+                            component: if index == 0 {
+                                crate::ownership_checking::MapIterationComponent::Key
+                            } else {
+                                crate::ownership_checking::MapIterationComponent::Value
+                            },
+                        }
+                    } else {
+                        ActiveLoanOwner::IterationElement(statement)
+                    },
                     target: ActiveLoanTarget::Place(UnitOwnershipPlace::new(symbol, Vec::new())),
                     kind: LoanKind::Shared,
                     reserved: false,
@@ -148,23 +205,67 @@ impl Checker<'_> {
                 });
             }
         }
-        self.iterations.insert(
-            statement,
-            UnitIterationOwnershipPlan {
-                descriptor,
-                source: target.map_or_else(
-                    || {
-                        crate::ownership_checking::IterationSource::OwnedSnapshot(
-                            self.unit_expression(source),
-                        )
+        if let Some(descriptor) = map_descriptor {
+            let origin = target.ok_or(OwnershipCheckingError::InvalidMapIteration {
+                source_unit: Some(self.source_unit.index()),
+                statement: statement.statement().index(),
+            })?;
+            let bindings: [crate::ownership_checking::UnitOwnershipBindingDescriptor; 2] = bindings
+                .try_into()
+                .map_err(|_| OwnershipCheckingError::InvalidMapIteration {
+                    source_unit: Some(self.source_unit.index()),
+                    statement: statement.statement().index(),
+                })?;
+            let loans = [
+                crate::ownership_checking::MapIterationComponent::Key,
+                crate::ownership_checking::MapIterationComponent::Value,
+            ]
+            .map(|component| crate::ownership_checking::MapIterationLoan {
+                statement,
+                source: descriptor.source(),
+                component,
+                binding: match component {
+                    crate::ownership_checking::MapIterationComponent::Key => {
+                        descriptor.key_binding()
+                    }
+                    crate::ownership_checking::MapIterationComponent::Value => {
+                        descriptor.value_binding()
+                    }
+                },
+                origin: origin.clone(),
+            });
+            if self.diagnostics.len() == errors {
+                self.map_iterations.insert(
+                    statement,
+                    crate::ownership_checking::UnitMapIterationOwnershipPlan {
+                        descriptor,
+                        source: crate::ownership_checking::IterationSource::BorrowedSource(origin),
+                        source_access,
+                        bindings,
+                        loans,
+                        exits: Vec::new(),
                     },
-                    crate::ownership_checking::IterationSource::BorrowedSource,
-                ),
-                source_access,
-                bindings,
-                exits: Vec::new(),
-            },
-        );
+                );
+            }
+        } else if let Some(descriptor) = descriptor {
+            self.iterations.insert(
+                statement,
+                UnitIterationOwnershipPlan {
+                    descriptor,
+                    source: target.map_or_else(
+                        || {
+                            crate::ownership_checking::IterationSource::OwnedSnapshot(
+                                self.unit_expression(source),
+                            )
+                        },
+                        crate::ownership_checking::IterationSource::BorrowedSource,
+                    ),
+                    source_access,
+                    bindings,
+                    exits: Vec::new(),
+                },
+            );
+        }
         let Some(mut next) = prefix.next.take() else {
             return Ok(prefix);
         };
@@ -209,6 +310,7 @@ impl Checker<'_> {
         next.loans.retain(|loan| {
             loan.owner != ActiveLoanOwner::IterationSource(statement)
                 && loan.owner != ActiveLoanOwner::IterationElement(statement)
+                && !matches!(loan.owner, ActiveLoanOwner::MapIterationBinding { statement: owner, .. } if owner == statement)
         });
         for symbol in symbols {
             next.non_owning.remove(&symbol);

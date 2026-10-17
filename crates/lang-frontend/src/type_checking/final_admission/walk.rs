@@ -24,7 +24,7 @@ pub(super) fn check<F: Facts + Sync>(
     files: &[(&ParsedFile, F)],
     definition_order: &[(usize, ItemId)],
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<()> {
+) -> Result<Vec<Vec<StatementId>>> {
     // 同一显式工作栈覆盖全部 source-set，跨文件依赖不引入宿主栈递归。
     thread::scope(|scope| {
         thread::Builder::new()
@@ -44,13 +44,14 @@ fn check_roots<F: Facts>(
     files: &[(&ParsedFile, F)],
     definition_order: &[(usize, ItemId)],
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<()> {
+) -> Result<Vec<Vec<StatementId>>> {
     let mut states = files
         .iter()
         .map(|(parsed, _)| FileState {
             uses: collect_expression_uses(parsed),
             expressions: vec![None; parsed.ast().expressions().len()],
             items: vec![None; parsed.ast().items().len()],
+            visited_for: BTreeSet::new(),
         })
         .collect::<Vec<_>>();
     let mut poisoned = BTreeSet::new();
@@ -71,6 +72,7 @@ fn check_roots<F: Facts>(
             uses: &state.uses,
             expressions: &mut state.expressions,
             items: &mut state.items,
+            visited_for: &mut state.visited_for,
         };
         for &item in items {
             if !checker.item(item)? && first_incomplete.is_none() {
@@ -102,12 +104,16 @@ fn check_roots<F: Facts>(
             kind: "root failure diagnostic",
         });
     }
-    Ok(())
+    Ok(states
+        .into_iter()
+        .map(|state| state.visited_for.into_iter().collect())
+        .collect())
 }
 struct FileState {
     uses: Vec<ExpressionUse>,
     expressions: Vec<Option<bool>>,
     items: Vec<Option<bool>>,
+    visited_for: BTreeSet<StatementId>,
 }
 struct Checker<'a, F: Facts> {
     sources: &'a SourceMap,
@@ -118,6 +124,7 @@ struct Checker<'a, F: Facts> {
     poisoned: &'a mut BTreeSet<F::Symbol>,
     expressions: &'a mut [Option<bool>],
     items: &'a mut [Option<bool>],
+    visited_for: &'a mut BTreeSet<StatementId>,
 }
 impl<F: Facts> Checker<'_, F> {
     fn missing(&self, span: Span, kind: &'static str) -> Internal {
@@ -391,6 +398,7 @@ impl<F: Facts> Checker<'_, F> {
                 body,
                 ..
             } => {
+                self.visited_for.insert(id);
                 complete &= self.expression(*source, false)?;
                 match binding {
                     ForBinding::Name(name) => complete &= self.binding(*name, complete, true)?,

@@ -1,4 +1,6 @@
 //! Compiler-bound unit provider；body 前确定 binding，失败不发布部分投影。
+#[path = "map_iteration.rs"]
+mod map_iteration;
 use super::{BodyChecker, ExpressionCheck};
 use crate::{
     ast::{ExpressionId, StatementId},
@@ -28,6 +30,26 @@ impl BodyChecker<'_> {
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let errors = self.diagnostics.len();
         let checked = self.check_expression(source, iteration_source, None, None, return_type)?;
+        if let Some((constructor, key, value)) = self.map_parts(checked.ty) {
+            self.check_map_iteration(
+                source,
+                statement,
+                binding,
+                iteration_source,
+                body,
+                return_type,
+                return_span,
+                checked.ty,
+                constructor,
+                key,
+                value,
+                errors,
+            )?;
+            return Ok(ExpressionCheck {
+                ty: self.builtin(BuiltinType::Unit),
+                falls_through: checked.falls_through,
+            });
+        }
         let provider = match self.signatures.types().get(checked.ty) {
             Some(UnitTypeKind::Builtin(BuiltinType::IntRange)) => Some((
                 crate::type_checking::IterationProvider::NumericRange(BuiltinType::Int),

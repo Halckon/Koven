@@ -33,6 +33,11 @@ pub(super) enum ActiveLoanOwner {
     Closure(UnitExpressionId),
     IterationSource(UnitStatementId),
     IterationElement(UnitStatementId),
+    MapIterationBinding {
+        statement: UnitStatementId,
+        source: UnitExpressionId,
+        component: crate::ownership_checking::MapIterationComponent,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

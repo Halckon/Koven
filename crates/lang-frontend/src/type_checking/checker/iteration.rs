@@ -1,3 +1,5 @@
+#[path = "map_iteration.rs"]
+mod map_iteration;
 use super::*;
 use crate::{
     parser::ForBinding,
@@ -17,6 +19,19 @@ impl Checker<'_> {
     ) -> Result<(), TypeCheckingError> {
         let diagnostic_start = self.diagnostics.len();
         let source_type = self.check_expression(source, None, None)?.ty;
+        if let Some((constructor, key, value)) = self.map_parts(source_type) {
+            return self.check_map_iteration(
+                statement,
+                binding,
+                source,
+                body,
+                source_type,
+                constructor,
+                key,
+                value,
+                diagnostic_start,
+            );
+        }
         let provider = match self.kind(source_type) {
             TypeKind::Builtin(BuiltinType::IntRange) => Some((
                 crate::type_checking::IterationProvider::NumericRange(BuiltinType::Int),

@@ -16,6 +16,7 @@ mod formed_tests;
 mod iteration;
 mod liveness;
 mod map;
+mod map_iteration_source;
 mod non_null_assertion;
 mod ownership_primitive;
 mod places;
@@ -78,6 +79,9 @@ pub(super) struct Analysis {
         crate::ownership_checking::UnitIterationCleanupAction,
     )>,
     pub(super) iterations: Vec<crate::ownership_checking::UnitIterationOwnershipPlan>,
+    pub(super) map_iterations: Vec<crate::ownership_checking::UnitMapIterationOwnershipPlan>,
+    pub(super) map_iteration_templates:
+        Vec<crate::ownership_checking::UnitMapIterationOwnershipPlan>,
     pub(super) iteration_templates: Vec<crate::ownership_checking::UnitIterationOwnershipPlan>,
     pub(super) iteration_required_exits: Vec<(
         crate::type_checking::UnitStatementId,
@@ -207,6 +211,8 @@ pub(super) fn analyze(
     let mut borrow_results = crate::ownership_checking::borrow_result::UnitBorrowResults::default();
     let mut drops = Vec::new();
     let mut iterations = Vec::new();
+    let mut map_iterations = Vec::new();
+    let mut map_iteration_templates = Vec::new();
     let mut iteration_conditional_scopes = Vec::new();
     let mut iteration_owner_scopes = Vec::new();
     let mut iteration_loan_ends = Vec::new();
@@ -268,6 +274,8 @@ pub(super) fn analyze(
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
         formed_owned_locals.extend(checker.formed_owned_locals);
+        map_iteration_templates.extend(checker.map_iterations.into_values());
+        map_iterations.extend(drop_analysis.map_iterations);
         iteration_templates.extend(checker.iterations.into_values());
         iterations.extend(drop_analysis.iterations);
         iteration_conditional_scopes.extend(drop_analysis.iteration_conditional_scopes);
@@ -344,6 +352,8 @@ pub(super) fn analyze(
         iteration_owner_scopes,
         iteration_loan_ends,
         iterations,
+        map_iterations,
+        map_iteration_templates,
         iteration_templates,
         iteration_required_exits,
         visited_lambdas,
@@ -413,6 +423,10 @@ struct Checker<'a> {
     iterations: BTreeMap<
         crate::type_checking::UnitStatementId,
         crate::ownership_checking::UnitIterationOwnershipPlan,
+    >,
+    map_iterations: BTreeMap<
+        crate::type_checking::UnitStatementId,
+        crate::ownership_checking::UnitMapIterationOwnershipPlan,
     >,
     visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
     constant_control: bool,
@@ -570,6 +584,7 @@ impl<'a> Checker<'a> {
         Ok(Self {
             callable_sources,
             iterations: BTreeMap::new(),
+            map_iterations: BTreeMap::new(),
             visited_lambdas: std::collections::BTreeSet::new(),
             constant_control: false,
             short_circuits: BTreeMap::new(),

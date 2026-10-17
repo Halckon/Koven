@@ -18,6 +18,7 @@ mod formed_tests;
 mod iteration;
 mod loan;
 mod map;
+mod map_iteration;
 mod nullable_when;
 mod ownership_primitive;
 mod range_construction;
@@ -114,6 +115,7 @@ pub(super) fn check(
 struct Checker<'a> {
     callable_sources: callable_provenance::Collection,
     iterations: BTreeMap<usize, super::IterationOwnershipPlan>,
+    map_iterations: BTreeMap<usize, super::MapIterationOwnershipPlan>,
     loop_has_exit: BTreeMap<usize, bool>,
     constant_materializations: BTreeMap<usize, super::ConstantMaterializationPlan>,
     non_null_assertions: BTreeMap<usize, super::NonNullAssertionOwnershipPlan>,
@@ -225,6 +227,7 @@ impl<'a> Checker<'a> {
         } = capture::analyze(parsed, names, typed)?;
         let mut checker = Self {
             iterations: BTreeMap::new(),
+            map_iterations: BTreeMap::new(),
             sources,
             parsed,
             names,
@@ -281,6 +284,29 @@ impl<'a> Checker<'a> {
     }
 
     fn run(mut self) -> Result<OwnershipCheckedFile, OwnershipCheckingError> {
+        let map_inputs_valid = self.map_iteration_inputs_valid();
+        if map_inputs_valid
+            && let Some((statement, reason)) =
+                crate::type_checking::map_iteration_validation::file_map_iteration_rows_error(
+                    self.parsed,
+                    self.names,
+                    self.typed,
+                )
+        {
+            return Err(OwnershipCheckingError::InvalidMapIterationFacts {
+                statement: Some(statement.index()),
+                failure: super::IterationFactError {
+                    span: self
+                        .parsed
+                        .ast()
+                        .statements()
+                        .get(statement)
+                        .ok()
+                        .map(|node| node.span()),
+                    reason,
+                },
+            });
+        }
         let liveness = drop_planner::capture_liveness(&self)?;
         self.expression_live_after = liveness.expression_after;
         self.statement_live_after = liveness.statement_after;
@@ -298,7 +324,7 @@ impl<'a> Checker<'a> {
             self.loans.clear();
             self.rc_effects.clear();
         }
-        let bindings = self
+        let mut bindings: Vec<_> = self
             .typed
             .parameter_bindings()
             .iter()
@@ -322,9 +348,31 @@ impl<'a> Checker<'a> {
             drops,
             loan_ends,
             iterations,
+            map_iterations,
+            map_iteration_required_exits,
             deferred,
             borrow_ends,
         } = drop_plan;
+        bindings.extend(
+            map_iterations
+                .iter()
+                .flat_map(|plan| plan.bindings().iter().copied()),
+        );
+        bindings.sort_by_key(|binding| binding.symbol().index());
+        let publish_maps = diagnostics.is_empty()
+            && self.deferred.is_empty()
+            && map_inputs_valid
+            && deferred.is_empty();
+        let map_iteration_descriptors = if publish_maps {
+            self.typed.map_iterations().to_vec()
+        } else {
+            Vec::new()
+        };
+        let map_iteration_templates = if publish_maps {
+            self.map_iterations.values().cloned().collect()
+        } else {
+            Vec::new()
+        };
         self.borrow_results.ends = borrow_ends;
         self.deferred.extend(deferred);
         if !self.deferred.is_empty() {
@@ -378,7 +426,7 @@ impl<'a> Checker<'a> {
         } else {
             self.formed_owned_locals.clear();
         }
-        Ok(OwnershipCheckedFile::new(
+        let owned = OwnershipCheckedFile::new(
             self.parsed.source_id(),
             self.typed.environment_owner().clone(),
             self.typed.analysis_owner().clone(),
@@ -390,6 +438,10 @@ impl<'a> Checker<'a> {
                 cleanup_steps,
                 cleanup_conditions,
                 iterations,
+                map_iterations,
+                map_iteration_templates,
+                map_iteration_descriptors,
+                map_iteration_required_exits,
                 constant_materializations,
                 non_null_assertions,
                 ownership_primitives,
@@ -421,7 +473,20 @@ impl<'a> Checker<'a> {
                 transferabilities: self.transferabilities,
                 deferred: self.deferred,
             },
-        ))
+        );
+        if owned.diagnostics().is_empty() && owned.deferred().is_empty() && map_inputs_valid {
+            super::map_iteration_validation::validate_map_iteration_facts(
+                self.parsed,
+                self.names,
+                self.typed,
+                &owned,
+            )
+            .map_err(|failure| OwnershipCheckingError::InvalidMapIterationFacts {
+                statement: None,
+                failure,
+            })?;
+        }
+        Ok(owned)
     }
 
     fn collect_mutability(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {

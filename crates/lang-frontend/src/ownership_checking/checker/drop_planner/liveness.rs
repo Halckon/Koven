@@ -174,6 +174,11 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                 if let Some(place) = self.checker.place(source)? {
                     provider_live.insert(place.root());
                 }
+                if let Some(map) = self.checker.typed.map_iteration(id) {
+                    for symbol in map.bindings() {
+                        provider_live.remove(&symbol);
+                    }
+                }
                 let mut header = provider_live.clone();
                 loop {
                     self.loop_stack.push((live_after.clone(), header.clone()));
@@ -181,6 +186,11 @@ impl<'a, 'checker> Liveness<'a, 'checker> {
                     self.loop_stack.pop();
                     let mut next = provider_live.clone();
                     next.extend(body_in);
+                    if let Some(map) = self.checker.typed.map_iteration(id) {
+                        for symbol in map.bindings() {
+                            next.remove(&symbol);
+                        }
+                    }
                     if next == header {
                         return self.expression(source, ExpressionUse::Read, next);
                     }

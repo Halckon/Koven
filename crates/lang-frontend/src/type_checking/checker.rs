@@ -516,6 +516,7 @@ impl<'a> Checker<'a> {
         if !self.diagnostics.is_empty() || !self.input_error_spans.is_empty() {
             self.clear_range_facts();
             self.iterations.clear();
+            self.map_descriptors.iterations.clear();
             self.ownership_primitives.clear();
             self.integer_operations.clear();
             self.integer_range_operations.clear();
@@ -527,6 +528,9 @@ impl<'a> Checker<'a> {
         self.integer_range_operations
             .sort_by_key(|fact| fact.expression().index());
         self.iterations.sort_by_key(|plan| plan.statement().index());
+        self.map_descriptors
+            .iterations
+            .sort_by_key(|plan| plan.statement());
         let copyabilities = self.all_copyabilities();
         let error = self.error_type();
         let expression_types = self

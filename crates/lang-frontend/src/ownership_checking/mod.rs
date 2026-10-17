@@ -15,7 +15,12 @@ mod error;
 mod handoff;
 mod iteration;
 mod iteration_source;
+mod map_iteration;
+mod map_iteration_validation;
 pub use iteration_source::IterationSource;
+pub use map_iteration::{
+    MapIterationComponent, MapIterationLoan, MapIterationOwnershipPlan, MapIterationSourceAccess,
+};
 mod model;
 mod non_null_assertion;
 mod nullable_when;

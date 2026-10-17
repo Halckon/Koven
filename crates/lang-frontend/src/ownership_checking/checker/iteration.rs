@@ -21,6 +21,22 @@ impl Checker<'_> {
         body: StatementId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        if (self.map_iteration_inputs_valid() || self.typed.map_iteration(statement).is_some())
+            && !crate::type_checking::map_iteration_validation::validate_file_map_iteration(
+                self.parsed,
+                self.names,
+                self.typed,
+                statement,
+            )
+        {
+            return Err(OwnershipCheckingError::InvalidMapIteration {
+                source_unit: None,
+                statement: statement.index(),
+            });
+        }
+        if let Some(descriptor) = self.typed.map_iteration(statement).copied() {
+            return self.check_map_iteration(descriptor, body, state);
+        }
         let numeric = self
             .typed
             .sequential_iteration(statement)
@@ -129,6 +145,19 @@ impl Checker<'_> {
                 closure_phi_incomings: Vec::new(),
             },
         );
+        self.check_iteration_body(statement, body, prefix, errors, &bindings, source_span)
+    }
+
+    /// Shared loop flow for actual Map and sequential providers; source is already evaluated.
+    pub(super) fn check_iteration_body(
+        &mut self,
+        statement: StatementId,
+        body: StatementId,
+        mut prefix: Flows,
+        errors: usize,
+        bindings: &[SymbolId],
+        source_span: Span,
+    ) -> Result<Flows, OwnershipCheckingError> {
         let Some(mut base) = prefix.next.take() else {
             return Ok(prefix);
         };
@@ -145,13 +174,13 @@ impl Checker<'_> {
                 self.reject_surviving_element_closure(
                     state,
                     &backedge_live,
-                    &bindings,
+                    bindings,
                     source_span,
                 )?;
             }
             if let Some(state) = &body_flows.breaks {
                 let exit_live = self.statement_live_after[statement.index()].clone();
-                self.reject_surviving_element_closure(state, &exit_live, &bindings, source_span)?;
+                self.reject_surviving_element_closure(state, &exit_live, bindings, source_span)?;
             }
         }
         let origins = base.origins.loop_exit(
@@ -177,8 +206,11 @@ impl Checker<'_> {
             state.loans.retain(|loan| {
                 loan.owner != ActiveLoanOwner::IterationSource(statement)
                     && loan.owner != ActiveLoanOwner::IterationElement(statement)
+                    && !matches!(loan.owner, ActiveLoanOwner::MapIterationBinding {
+                        statement: owner, ..
+                    } if owner == statement)
             });
-            for symbol in &bindings {
+            for symbol in bindings {
                 state.non_owning.remove(symbol);
                 state.moved.remove(symbol);
             }

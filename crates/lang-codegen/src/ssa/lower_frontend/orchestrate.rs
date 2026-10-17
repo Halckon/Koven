@@ -111,6 +111,22 @@ fn lower_scalar_file_product(
     owned: &OwnershipCheckedFile,
 ) -> Result<LoweredFile, LoweringError> {
     validate_inputs(sources, parsed, names, typed, owned)?;
+    // 完整 frontend 事实已验证；尚未支持的 Map provider 必须阻止整份文件 lowering。
+    if let Some(descriptor) = typed
+        .map_iterations()
+        .iter()
+        .min_by_key(|descriptor| descriptor.statement().index())
+    {
+        let node = parsed
+            .ast()
+            .statements()
+            .get(descriptor.statement())
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
+    }
     super::borrow_result::validate(parsed, typed, owned)?;
     if let Some(root) =
         owned.cleanup_steps().iter().find_map(|(_, action)| {
