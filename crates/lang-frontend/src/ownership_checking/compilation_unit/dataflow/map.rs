@@ -113,15 +113,20 @@ impl Checker<'_> {
         {
             core = *expression;
         }
+        // unit consume_place 在 access 校验后也拒绝裸 Field 根，不提交该根的 move。
         let rejected_projection = if let Some(place) = &place {
             (place.element().is_none()
-                && !place.fields().is_empty()
-                && self
-                    .typed
-                    .aggregate_projection(self.unit_expression(core))
-                    .is_some_and(|projection| {
-                        projection.kind() == UnitAggregateProjectionKind::Field
-                    }))
+                && (self.symbol_kind(place.root())
+                    == Some(crate::name_resolution::SymbolKind::Field)
+                    || (matches!(
+                        self.parsed.ast().expressions().get(core)?.payload(),
+                        Expression::Member { .. }
+                    ) && self
+                        .typed
+                        .aggregate_projection(self.unit_expression(core))
+                        .is_some_and(|projection| {
+                            projection.kind() == UnitAggregateProjectionKind::Field
+                        }))))
                 || self.element_place_descriptor(core)?.is_some()
         } else {
             false

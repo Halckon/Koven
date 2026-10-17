@@ -273,9 +273,13 @@ impl Checker<'_> {
         {
             core = *expression;
         }
+        // this.field 可归一为 Field 根；裸字段 Name 没有 Member 的 partial-move 保证。
         let rejected_projection = if let Some(place) = &place {
             (place.elements().is_empty()
-                && !place.fields().is_empty()
+                && matches!(
+                    self.parsed.ast().expressions().get(core)?.payload(),
+                    Expression::Member { .. }
+                )
                 && self
                     .typed
                     .aggregate_projection(core)
