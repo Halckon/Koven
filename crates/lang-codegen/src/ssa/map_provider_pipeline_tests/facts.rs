@@ -218,6 +218,9 @@ pub(super) fn single(
             (symbols, loan),
         );
     }
+    if report.identity_requested {
+        report.fe_identity = Some(super::query_inputs::single(fixture, names, typed, owned));
+    }
     // 仅观察这次 String 源的新 owner 拓扑，不套用旧 Int fixture 的 phi/Drop oracle。
     let phis = plan
         .closure_phis()
@@ -441,6 +444,9 @@ pub(super) fn unit(
                 && Some(loan.origin()) == plan.source(),
             (symbols, loan),
         );
+    }
+    if report.identity_requested {
+        report.fe_identity = Some(super::query_inputs::unit(fixture, names, typed, owned));
     }
     // unit 只读取其真实公开 plan/drop；不伪造不存在的 closure phi 产品。
     let drops = owned

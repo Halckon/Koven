@@ -5,6 +5,10 @@ mod facts;
 mod fixture;
 mod identity;
 mod pipeline;
+mod query_inputs;
+mod query_llvm;
+mod query_ssa;
+mod query_test;
 
 use fixture::{Failure, Fixture};
 
@@ -27,6 +31,8 @@ pub(crate) fn sources() -> [(&'static str, &'static str, &'static str); 2] {
 
 #[derive(Debug, Default)]
 struct Report {
+    identity_requested: bool,
+    fe_identity: Option<Result<query_inputs::Inputs, Failure>>,
     checks: Vec<(&'static str, bool, String)>,
 }
 
