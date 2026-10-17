@@ -324,11 +324,11 @@ subgraph Garchive["已完成（archive，314 份）"]
   S0329["S0329<br/>整数 Range 的 owned 值 for"]
   S0330["S0330<br/>while 条件收窄与保守循环流事实"]
 end
+subgraph Gactive["现行 active"]
+  S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
+end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
-end
-subgraph Gdrafts_v044["v0.44（draft）"]
-  S0291["S0291<br/>非空只读 Map 构造：MutableMap 立即消费式转换 consume()"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1336,7 +1336,6 @@ S0286 --> S0287
 S0287 --> S0288
 S0287 --> S0289
 S0288 --> S0290
-S0288 --> S0291
 S0288 --> S0294
 S0288 --> S0295
 S0288 --> S0296
@@ -1691,5 +1690,5 @@ S0320 --> S0321
 | SPEC-0328 | archive | [0328-integer-range-values.md](0328-integer-range-values.md) |
 | SPEC-0329 | archive | [0329-integer-range-iteration.md](0329-integer-range-iteration.md) |
 | SPEC-0330 | archive | [0330-while-conservative-flow.md](0330-while-conservative-flow.md) |
-| SPEC-0291 | drafts/v0.44 | [0291-readonly-map-construction.md](../../specs/drafts/v0.44/0291-readonly-map-construction.md) |
+| SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

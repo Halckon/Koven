@@ -3,9 +3,9 @@
 > **性质**：版本阶段索引 · **状态**：draft · **读取时机**：查找已启用合同对应的待重基实施草案时 · **唯一真源**：Guide 与各 Spec
 
 [Guide v0.44](../../../guide/README.md)已启用选定的类型、控制流、Range、转换与 Map 合同，
-不表示实现完成。[SPEC-0291](0291-readonly-map-construction.md)保留历史候选正文，须按
-新的 owned 本地 receiver、插入序共享布局与资源验收重基后再申请 active；旧“不改变布局”
-假设不能约束新的内部方案。此目录不授权其他 consume 家族或复制转换。
+不表示实现完成。[SPEC-0291](../../active/0291-readonly-map-construction.md)已从真实 main
+`37e80526` 重基为 active，落实 owned 本地 receiver、插入序共享布局与资源验收；旧历史
+候选通过固定提交追溯。本目录当前无待实施 draft，不授权其他 consume 家族或复制转换。
 [SPEC-0325](../../../archive/specs/0325-simple-variable-assignment-types.md)已有限归档并由PR111合入main `aa42bdc5`。
 [SPEC-0326](../../../archive/specs/0326-closed-control-branch-join.md)已按合B后的联合CI双host39exact有界归档；
 其余v0.44范围不因此获得实现完成状态。
@@ -23,4 +23,4 @@ MapResult实际查询与显式borrow复制已验不代表这些一般边界已�
 [SPEC-0327](../../../archive/specs/0327-checked-integer-conversions.md)已按双host30exact实施CI有界归档；
 八整数转换前端至native及CI-only负控已验，归档head CI/main待验，其余v0.44合同不随之完成。
 
-[SPEC-0330](../../../archive/specs/0330-while-conservative-flow.md)已按 PR116 修复实现 CI 双 host129 exact 有界归档；归档 head CI/main 待验。0291/F 仍等待0330正常合并后再实施。
+[SPEC-0330](../../../archive/specs/0330-while-conservative-flow.md)已按 PR116 修复实现 CI 双 host129 exact 有界归档；已由PR116正常合并为真实 main `37e80526`，main CI独立跟踪；0291现按该基线启动。
