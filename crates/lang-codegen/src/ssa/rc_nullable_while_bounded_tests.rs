@@ -100,10 +100,9 @@ fn source_functions(
                 name: NameMarker::Present(name),
                 ..
             } = node.payload()
+                && sources.slice(*name).ok() == Some(expected)
             {
-                if sources.slice(*name).ok() == Some(expected) {
-                    spans.push(node.span());
-                }
+                spans.push(node.span());
             }
         }
         let [span] = spans.as_slice() else {
