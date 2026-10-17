@@ -110,6 +110,55 @@ pub(super) fn single(
                         && drops.iter().all(|fact| fact.owner()
                             .and_then(|owner| owned.cleanup_conditions().owner_value(owner))
                             .is_some_and(|value| matches!(value, CleanupOwnerValue::Parameter { symbol, .. } if Some(*symbol) == source)));
+                    // 仅诊断实际 source drop 的 owner/condition 与同 source 的 phi 入边。
+                    let conditions = owned.cleanup_conditions();
+                    report.note("owned named source cleanup condition table", conditions);
+                    for fact in &drops {
+                        report.note(
+                            "owned named source drop owner/condition",
+                            (
+                                fact,
+                                fact.owner().and_then(|owner| conditions.owner_value(owner)),
+                                fact.condition()
+                                    .and_then(|condition| conditions.get(condition)),
+                            ),
+                        );
+                    }
+                    let plan = owned.map_iteration(sites.statement);
+                    report.note(
+                        "owned named source actual Map plan",
+                        (sites.statement, source, plan.is_some()),
+                    );
+                    if let Some(plan) = plan {
+                        let phis = plan
+                            .closure_phis()
+                            .iter()
+                            .filter(|phi| Some(phi.symbol()) == source)
+                            .collect::<Vec<_>>();
+                        report.note("owned named source matching phis", &phis);
+                        for incoming in plan.closure_phi_incomings() {
+                            for binding in incoming.bindings().iter().filter(|binding| {
+                                phis.iter().any(|phi| phi.owner() == binding.target())
+                            }) {
+                                let values = binding
+                                    .values()
+                                    .iter()
+                                    .map(|value| (value, conditions.owner_value(value.source())))
+                                    .collect::<Vec<_>>();
+                                report.note(
+                                    "owned named source phi incoming",
+                                    (
+                                        incoming.kind(),
+                                        incoming.point(),
+                                        incoming.boundary(),
+                                        incoming.condition(),
+                                        binding,
+                                        values,
+                                    ),
+                                );
+                            }
+                        }
+                    }
                     // named source 可以在循环后使用；本 fixture 的实际 ASAP 点仅记录。
                     report.record(
                         "owned named source final cleanup",
