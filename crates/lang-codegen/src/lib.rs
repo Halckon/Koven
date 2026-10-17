@@ -12,6 +12,8 @@ mod native_generated_owner_tests;
 #[cfg(test)]
 mod native_map_promotion_cases;
 #[cfg(test)]
+mod native_rc_nullable_while_tests;
+#[cfg(test)]
 mod native_sanitizer_tests;
 #[cfg(test)]
 mod native_tests;

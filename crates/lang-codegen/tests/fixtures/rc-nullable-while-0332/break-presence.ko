@@ -1,0 +1,20 @@
+fun inspect(own owner: Rc<Int>?): Rc<Int>? {
+    while (owner != null) {
+        println("break-body")
+        break
+    }
+    return owner
+}
+
+fun readResult(own owner: Rc<Int>?): Boolean {
+    return owner == null
+}
+
+fun entry(): Unit {
+    val present: Rc<Int>? = Rc(41)
+    val presentResult = readResult(inspect(present))
+    if (presentResult == false) { println("break-present-ok") } else { println("break-present-bad") }
+    val absent: Rc<Int>? = null
+    val absentResult = readResult(inspect(absent))
+    if (absentResult == true) { println("break-null-ok") } else { println("break-null-bad") }
+}

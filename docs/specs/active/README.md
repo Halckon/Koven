@@ -2,8 +2,9 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 active：[0291 非空只读 Map 构造与插入序共享存储](0291-readonly-map-construction.md)保留有界交付与待项；
-[0331 Map 双分量借用式插入序遍历](0331-map-borrowed-iteration.md)从 PR117 合并后的真实 main 启动，先冻结合同与普通类型红测。
+当前 active：[0291](0291-readonly-map-construction.md)保持有界交付待项；[0331 Map 双分量借用式插入序遍历](0331-map-borrowed-iteration.md)保留已备份父链并同步真实 main `a2a7e4b6` 后恢复，首轮联合事实验收仍有待核查询。
+
+[0332 Rc nullable while 回归修复](../../archive/specs/0332-rc-nullable-while-regression.md)已由PR118正常合并为main `a2a7e4b6`，main CI另验；额外Rc边界由[v0.44后继](../drafts/v0.44/README.md)独立承接。
 
 [0329整数 Range owned 值 for](../../archive/specs/0329-integer-range-iteration.md)
 已按PR115实现CI双host37exact有界归档；归档head CI/main待验。

@@ -230,3 +230,9 @@ mod numeric_iteration_tests;
 
 #[cfg(test)]
 mod while_flow_tests;
+
+#[cfg(test)]
+mod rc_nullable_while_observation_tests;
+
+#[cfg(test)]
+pub(crate) mod rc_nullable_while_bounded_tests;

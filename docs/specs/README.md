@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树2份，0291保留已交付存储/consume及待项；[0331 Map 双分量借用式插入序遍历](active/0331-map-borrowed-iteration.md)从 PR117 正常合并后的 main `864b6423` 启动，沿已启用 Guide 推进独立 provider，尚未验收。
+- [Active 合同](active/README.md)：当前本树2份，[0291](active/0291-readonly-map-construction.md)保留有界交付待项；[0331 Map 双分量借用式插入序遍历](active/0331-map-borrowed-iteration.md)保留原父链并同步 PR118 合并后的 main `a2a7e4b6` 后恢复。 [0332 Rc nullable while 回归修复](../archive/specs/0332-rc-nullable-while-regression.md)已正常合并，main CI另验；0331 provider尚未验收。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
