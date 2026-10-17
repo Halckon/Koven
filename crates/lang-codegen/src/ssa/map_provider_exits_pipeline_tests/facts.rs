@@ -569,7 +569,7 @@ fn single_exit(
         .collect::<Vec<_>>();
     report.check("single Guard lexical transfer Drop identity (never ASAP)",
         matches!(guards.as_slice(), [drop] if drop.point() == DropPoint::ControlTransfer(site.transfer)
-            && drop.value_origin() == site.guard_span
+            && drop.value_origin() == site.local
             && drop.owner().is_some_and(|owner| matches!(owned.cleanup_conditions().owner_value(owner), Some(CleanupOwnerValue::Expression { expression, origin }) if *expression == site.guard && *origin == site.guard_span))),
         &guards);
     report.check(
@@ -795,7 +795,7 @@ fn unit_exit(
         .filter(|drop| matches!(drop.target(), UnitDropTarget::Named(s) if Some(s) == local))
         .collect::<Vec<_>>();
     report.check("unit Guard lexical transfer Drop target/origin (no single owner API)",
-        matches!(guards.as_slice(), [drop] if drop.point() == UnitDropPoint::ControlTransfer(transfer) && drop.value_origin() == site.guard_span), &guards);
+        matches!(guards.as_slice(), [drop] if drop.point() == UnitDropPoint::ControlTransfer(transfer) && drop.value_origin() == site.local), &guards);
     report.check(
         "unit components are never formed owned locals or Named Drop owners",
         !owned.drops().iter().any(
