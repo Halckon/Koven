@@ -26,11 +26,11 @@ pub(crate) mod layout;
 mod layout_tests;
 mod map;
 #[cfg(test)]
-pub(crate) mod ordered_map_test_support;
-#[cfg(test)]
 mod nullable_tests;
 #[cfg(test)]
 mod object_tests;
+#[cfg(test)]
+pub(crate) mod ordered_map_test_support;
 mod runtime;
 #[cfg(test)]
 mod runtime_tests;
