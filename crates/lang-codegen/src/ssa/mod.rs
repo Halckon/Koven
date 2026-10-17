@@ -182,6 +182,9 @@ mod owned_null_cleanup_tests;
 mod owned_map_borrow_tests;
 
 #[cfg(test)]
+mod ordered_map_storage_tests;
+
+#[cfg(test)]
 mod owned_map_borrow_boundary_tests;
 
 #[cfg(test)]
