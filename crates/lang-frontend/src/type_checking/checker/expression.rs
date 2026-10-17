@@ -590,6 +590,21 @@ impl Checker<'_> {
         expected: Option<TypeId>,
         expected_span: Option<Span>,
     ) -> Result<ExprCheck, TypeCheckingError> {
+        // Checking a closure body does not execute it in the creation-site flow.
+        let outer_facts = self.flow_facts.clone();
+        let outer_versions = self.flow_versions.clone();
+        let result = self.check_lambda_inner(syntax, expected, expected_span);
+        self.flow_facts = outer_facts;
+        self.flow_versions = outer_versions;
+        result
+    }
+
+    fn check_lambda_inner(
+        &mut self,
+        syntax: LambdaSyntax,
+        expected: Option<TypeId>,
+        expected_span: Option<Span>,
+    ) -> Result<ExprCheck, TypeCheckingError> {
         let LambdaSyntax {
             span,
             move_span,
