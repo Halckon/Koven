@@ -149,13 +149,13 @@ pub(super) fn assert_identity(
     );
     assert_llvm(
         llvm,
-        function,
-        owner,
-        result,
-        source_type,
-        map_type,
-        drop,
-        &aliases,
+        ConsumeIdentity {
+            function,
+            source: (owner, source_type),
+            result: (result, map_type),
+            drop,
+            aliases: &aliases,
+        },
     );
     println!(
         "MAP CONSUME IDENTITY {label}: source={owner:?}, result={result:?}, puts={}, result aliases={}, unique Drop={:?}; six unchanged LLVM fields and pure transfer",
@@ -532,17 +532,22 @@ fn comma_parts(text: &str) -> Vec<&str> {
     parts
 }
 
-#[allow(clippy::too_many_arguments)]
-fn assert_llvm(
-    llvm: &str,
-    function: &Function,
-    source: ValueId,
-    result: ValueId,
-    source_type: SsaTypeId,
-    result_type: SsaTypeId,
-    drop: &Instruction,
-    aliases: &BTreeSet<EntityId>,
-) {
+struct ConsumeIdentity<'a> {
+    function: &'a Function,
+    source: (ValueId, SsaTypeId),
+    result: (ValueId, SsaTypeId),
+    drop: &'a Instruction,
+    aliases: &'a BTreeSet<EntityId>,
+}
+
+fn assert_llvm(llvm: &str, identity: ConsumeIdentity<'_>) {
+    let ConsumeIdentity {
+        function,
+        source: (source, source_type),
+        result: (result, result_type),
+        drop,
+        ..
+    } = identity;
     let source_ty = format!("%koven.map.t{}", source_type.index());
     let result_ty = format!("%koven.map.t{}", result_type.index());
     let headers: Vec<_> = [&source_ty, &result_ty]
@@ -600,13 +605,11 @@ fn assert_llvm(
     };
     check_llvm_alias(
         &body,
-        function,
+        &identity,
         dropped,
         drops[0],
-        result,
         result_header,
         &result_ty,
-        aliases,
         &mut BTreeSet::new(),
     );
 
@@ -645,18 +648,18 @@ fn llvm_names(line: &str) -> Vec<&str> {
 
 // LLVM can split a source SSA block while implementing put/get. Match the phi's value
 // inputs to the actual SSA predecessor parameter column, without guessing LLVM labels.
-#[allow(clippy::too_many_arguments)]
 fn check_llvm_alias(
     body: &LlvmBody<'_>,
-    function: &Function,
+    identity: &ConsumeIdentity<'_>,
     alias: ValueId,
     actual: &str,
-    result: ValueId,
     result_header: &str,
     result_ty: &str,
-    aliases: &BTreeSet<EntityId>,
     visiting: &mut BTreeSet<ValueId>,
 ) {
+    let function = identity.function;
+    let result = identity.result.0;
+    let aliases = identity.aliases;
     assert!(visiting.insert(alias));
     if alias == result {
         assert_eq!(actual, result_header);
@@ -698,13 +701,11 @@ fn check_llvm_alias(
             };
             check_llvm_alias(
                 body,
-                function,
+                identity,
                 input,
                 &spelling,
-                result,
                 result_header,
                 result_ty,
-                aliases,
                 visiting,
             );
             expected_inputs.push(spelling);
