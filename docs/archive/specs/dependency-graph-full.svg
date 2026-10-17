@@ -6,7 +6,7 @@
   </defs>
   <rect width="10576" height="9520" fill="#ffffff"/>
   <rect x="40" y="30" width="9784" height="9418" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="4932" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，314 份）</text>
+  <text x="4932" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，315 份）</text>
   <rect x="9888" y="30" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10028" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="10232" y="7974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1051,6 +1051,7 @@
   <path d="M 708 8220 C 708 8252, 1236 8270, 1236 8302" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 6504 C 1500 6536, 2292 6572, 2292 6604" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2292 6678 C 2292 6710, 972 6728, 972 6760" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 9684 138 C 9684 170, 1500 188, 1500 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2374,4 +2375,8 @@
   <text x="9684" y="87" text-anchor="middle" font-size="13">SPEC-0330</text>
   <text x="9684" y="105" text-anchor="middle" font-size="13">while 条件收窄与保守循</text>
   <text x="9684" y="123" text-anchor="middle" font-size="13">环流事实</text>
+  <rect x="1380" y="220" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1500" y="243" text-anchor="middle" font-size="13">SPEC-0332</text>
+  <text x="1500" y="261" text-anchor="middle" font-size="13">Rc nullable wh</text>
+  <text x="1500" y="279" text-anchor="middle" font-size="13">ile 既有路径回归修复</text>
 </svg>
