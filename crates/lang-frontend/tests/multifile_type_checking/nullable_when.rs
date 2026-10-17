@@ -1,5 +1,5 @@
 //! Ordinary source checks for the unit nullable-when flow gap (Phase 2 only).
-//! Fixtures are the seven existing single-file cases in tests/type_checking.rs.
+//! Fixtures reuse the existing single-file cases in tests/type_checking.rs.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -33,11 +33,19 @@ enum Case {
     ConditionWrite,
     InoutCondition,
     FailedTrials,
+    BooleanNullFirst,
+    BooleanNullLast,
 }
 
 impl Case {
     fn source(self) -> &'static str {
         match self {
+            Self::BooleanNullFirst => {
+                "fun extract(x: Boolean?): Boolean = when (x) { null -> false; true -> x; false -> x }"
+            }
+            Self::BooleanNullLast => {
+                "fun extract(x: Boolean?): Boolean = when (x) { true, false -> x; null -> false }"
+            }
             Self::Parameter => "fun extract(x: Int?): Int = when (x) { null -> 0; else -> x }",
             Self::UnselectedBodyWrite => {
                 "fun extract(input: Int?, replacement: Int?): Int {
@@ -86,7 +94,13 @@ fun use(): Unit {
     }
 
     fn positive(self) -> bool {
-        matches!(self, Self::Parameter | Self::UnselectedBodyWrite)
+        matches!(
+            self,
+            Self::Parameter
+                | Self::UnselectedBodyWrite
+                | Self::BooleanNullFirst
+                | Self::BooleanNullLast
+        )
     }
 
     fn builtin(self) -> BuiltinType {
@@ -145,6 +159,12 @@ fn nullable_when_mutation_and_failed_trials_do_not_restore_source_proofs() {
         ],
         6,
     );
+}
+
+#[test]
+fn nullable_boolean_finite_orders_keep_source_qualified_non_null_reads() {
+    // Exact existing single-file fixture bytes: null first, then null last with comma alternatives.
+    observe_matrix(&[Case::BooleanNullFirst, Case::BooleanNullLast], 4);
 }
 
 fn observe_matrix(cases: &[Case], expected_count: usize) {
@@ -318,6 +338,21 @@ fn observe_single(
                         && typed.non_null_use(target) == Some(*fact)
                 }),
         );
+        if matches!(case, Case::BooleanNullFirst | Case::BooleanNullLast) {
+            let expected_uses = if case == Case::BooleanNullFirst { 2 } else { 1 };
+            observation.check(
+                "all finite non-null body reads have exact descriptors",
+                typed.non_null_uses().len() == expected_uses
+                    && typed.non_null_uses().iter().all(|fact| {
+                        single_reference(file, &names, fact.expression()) == source_symbol
+                            && Some(fact.symbol()) == source_symbol
+                            && Some(fact.declared_type()) == storage
+                            && Some(fact.narrowed_type()) == inner
+                            && typed.expression_type(fact.expression()) == inner
+                            && typed.non_null_use(fact.expression()) == Some(*fact)
+                    }),
+            );
+        }
         observation.check(
             "one real single nullable-when plan",
             typed.nullable_whens().len() == 1
@@ -497,6 +532,24 @@ fn observe_unit(
                         && typed.non_null_use(target) == Some(*fact)
                 }),
         );
+        if matches!(case, Case::BooleanNullFirst | Case::BooleanNullLast) {
+            let expected_uses = if case == Case::BooleanNullFirst { 2 } else { 1 };
+            observation.check(
+                "all finite body descriptors retain real unit sources",
+                typed.non_null_uses().len() == expected_uses
+                    && typed.non_null_uses().iter().all(|fact| {
+                        fact.expression().source_unit() == source
+                            && fact.symbol().source_unit() == source
+                            && unit_reference(file, &names, source, fact.expression().expression())
+                                == source_symbol
+                            && Some(fact.symbol()) == source_symbol
+                            && Some(fact.declared_type()) == storage
+                            && Some(fact.narrowed_type()) == inner
+                            && typed.expression_type(fact.expression()) == inner
+                            && typed.non_null_use(fact.expression()) == Some(*fact)
+                    }),
+            );
+        }
     } else {
         observation.check(
             "no invalid proof on the precise body read",
@@ -637,12 +690,14 @@ fn when_targets(
             whens.len()
         ));
     };
-    let entry = if case == Case::MixedAlternatives {
-        entries
+    let entry = match case {
+        Case::MixedAlternatives | Case::BooleanNullLast => entries
             .first()
-            .filter(|entry| entry.conditions.len() == 2 && entry.else_span.is_none())
-    } else {
-        entries.iter().find(|entry| entry.else_span.is_some())
+            .filter(|entry| entry.conditions.len() == 2 && entry.else_span.is_none()),
+        Case::BooleanNullFirst => entries
+            .last()
+            .filter(|entry| entry.conditions.len() == 1 && entry.else_span.is_none()),
+        _ => entries.iter().find(|entry| entry.else_span.is_some()),
     };
     let entry = entry.ok_or("fixture target entry missing")?;
     Ok((*when, peel(file, *subject)?, body_read(file, entry.body)?))
