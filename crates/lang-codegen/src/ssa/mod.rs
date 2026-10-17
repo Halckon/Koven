@@ -242,3 +242,6 @@ mod map_iteration_stage_gate_tests;
 
 #[cfg(test)]
 pub(crate) mod map_provider_pipeline_tests;
+
+#[cfg(test)]
+pub(crate) mod map_provider_exits_pipeline_tests;
