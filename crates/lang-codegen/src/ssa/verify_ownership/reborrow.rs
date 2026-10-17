@@ -30,6 +30,8 @@ impl ReborrowDependencies {
                 Operation::SharedReborrow { source }
                 | Operation::SharedHeapFieldLoan { base: source, .. }
                 | Operation::BorrowCall { source, .. }
+                | Operation::MapIterationKeyLoan { source, .. }
+                | Operation::MapIterationValueLoan { source, .. }
                 | Operation::MapRequireValue { source, .. } => (source, true),
                 // Capture field views inherit a borrow parameter's function extent, but they still
                 // block an explicit parent end while active.

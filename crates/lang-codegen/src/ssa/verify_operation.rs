@@ -328,7 +328,12 @@ pub(super) fn verify_operation(
             index,
             value,
         } => container_replace_contract(module, function, *owner, *index, *value, &results),
-        Operation::MapConstruct { .. }
+        Operation::MapIterationFirst { .. }
+        | Operation::MapIterationHasNext { .. }
+        | Operation::MapIterationNext { .. }
+        | Operation::MapIterationKeyLoan { .. }
+        | Operation::MapIterationValueLoan { .. }
+        | Operation::MapConstruct { .. }
         | Operation::MapConsume { .. }
         | Operation::MapSize { .. }
         | Operation::MapContains { .. }

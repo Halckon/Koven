@@ -971,7 +971,12 @@ fn apply_operation(
                 errors,
             );
         }
-        Operation::MapConstruct { .. }
+        Operation::MapIterationFirst { .. }
+        | Operation::MapIterationHasNext { .. }
+        | Operation::MapIterationNext { .. }
+        | Operation::MapIterationKeyLoan { .. }
+        | Operation::MapIterationValueLoan { .. }
+        | Operation::MapConstruct { .. }
         | Operation::MapConsume { .. }
         | Operation::MapSize { .. }
         | Operation::MapContains { .. }
@@ -986,6 +991,7 @@ fn apply_operation(
                 function,
                 &instruction.operation,
                 aliases,
+                reborrows,
                 state,
                 location,
                 origin,

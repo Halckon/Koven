@@ -8,6 +8,7 @@ mod integer;
 mod integer_conversion;
 mod integer_range;
 mod map;
+mod map_iteration;
 mod module_lowering;
 mod range;
 mod root_exchange;
@@ -324,6 +325,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 | Operation::RangeCall { .. }
                 | Operation::BorrowCall { .. }
                 | Operation::MapRequireValue { .. }
+                | Operation::MapIterationKeyLoan { .. }
+                | Operation::MapIterationValueLoan { .. }
         ) {
             Vec::new()
         } else {
@@ -1052,6 +1055,13 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     self.value(*value)?,
                     &format!("replace.i{}", instruction.id.index()),
                 )?;
+            }
+            Operation::MapIterationFirst { .. }
+            | Operation::MapIterationHasNext { .. }
+            | Operation::MapIterationNext { .. }
+            | Operation::MapIterationKeyLoan { .. }
+            | Operation::MapIterationValueLoan { .. } => {
+                self.lower_map_iteration_operation(instruction)?;
             }
             Operation::MapRequireValue { .. } => self.lower_map_require_operation(instruction)?,
             Operation::MapWithValue { .. } => self.lower_map_with_operation(instruction)?,

@@ -6,6 +6,8 @@ use crate::ssa::model::{
     SsaTypeId, SsaTypeKind,
 };
 
+mod iteration;
+
 #[cfg(test)]
 mod require_tests;
 #[cfg(test)]
@@ -31,6 +33,13 @@ pub(super) fn verify_map_operation(
     results: &[EntityType],
 ) -> bool {
     match operation {
+        Operation::MapIterationFirst { .. }
+        | Operation::MapIterationHasNext { .. }
+        | Operation::MapIterationNext { .. }
+        | Operation::MapIterationKeyLoan { .. }
+        | Operation::MapIterationValueLoan { .. } => {
+            iteration::verify(module, function, operation, results)
+        }
         Operation::MapConsume { owner, map_type } => {
             let Some(EntityType::Value(source_type)) = function
                 .entity(EntityId::Value(*owner))

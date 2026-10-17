@@ -3,6 +3,27 @@ use super::*;
 
 pub(super) fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
     match operation {
+        Operation::MapIterationFirst { source } => {
+            write!(output, "map.iteration.first %l{}", source.index())
+        }
+        Operation::MapIterationHasNext { source, cursor }
+        | Operation::MapIterationNext { source, cursor }
+        | Operation::MapIterationKeyLoan { source, cursor }
+        | Operation::MapIterationValueLoan { source, cursor } => {
+            let name = match operation {
+                Operation::MapIterationHasNext { .. } => "has_next",
+                Operation::MapIterationNext { .. } => "next",
+                Operation::MapIterationKeyLoan { .. } => "key_loan",
+                Operation::MapIterationValueLoan { .. } => "value_loan",
+                _ => unreachable!("matched Map iteration operation"),
+            };
+            write!(
+                output,
+                "map.iteration.{name} %l{}, %v{}",
+                source.index(),
+                cursor.index()
+            )
+        }
         Operation::MapConsume { owner, map_type } => {
             output.write_str("map.consume ")?;
             write_entity_id(output, EntityId::Value(*owner))?;
