@@ -16,9 +16,31 @@ use lang_frontend::{
 use super::*;
 
 pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservation> {
+    observe_sources(
+        case.provider,
+        case.consumer,
+        |sources, file, names, typed, trace| inspect(case, sources, file, names, typed, trace),
+        case.counts[5],
+        trace,
+    )
+}
+
+pub(super) fn observe_sources(
+    provider_text: &str,
+    consumer_text: &str,
+    inspect: impl FnOnce(
+        &SourceMap,
+        (SourceUnitId, &ParsedFile),
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &mut Trace,
+    ),
+    assertion_count: usize,
+    trace: &mut Trace,
+) -> Outcome<LowerObservation> {
     let mut sources = SourceMap::new();
-    let provider = parsed(&mut sources, "p/provider.ko", case.provider, trace);
-    let consumer = parsed(&mut sources, "q/consumer.ko", case.consumer, trace);
+    let provider = parsed(&mut sources, "p/provider.ko", provider_text, trace);
+    let consumer = parsed(&mut sources, "q/consumer.ko", consumer_text, trace);
     let (provider, consumer) = (provider?, consumer?);
     let inputs = [
         SourceUnitInput::new("root", "p/provider.ko", provider.source_id(), &provider),
@@ -130,7 +152,6 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservatio
         (mains, consumer_calls),
     );
     inspect(
-        case,
         &sources,
         (provider_unit.id(), &provider),
         &names,
@@ -189,7 +210,7 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservatio
     );
     trace.check(
         "real qualified assertion ownership plans",
-        owned.non_null_assertions().len() == case.counts[5]
+        owned.non_null_assertions().len() == assertion_count
             && owned.non_null_assertions().iter().all(|plan| {
                 typed
                     .types()

@@ -8,6 +8,7 @@ use super::{
 use crate::ssa::{LoweringError, LoweringErrorKind};
 use sources::{CASES, Case};
 
+mod formed_locals;
 mod single;
 mod sources;
 mod unit;

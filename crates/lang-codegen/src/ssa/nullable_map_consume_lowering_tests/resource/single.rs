@@ -13,8 +13,24 @@ use lang_frontend::{
 use super::*;
 
 pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservation> {
+    observe_source(
+        case.path,
+        case.single,
+        |sources, parsed, names, typed, trace| inspect(case, sources, parsed, names, typed, trace),
+        case.counts[5],
+        trace,
+    )
+}
+
+pub(super) fn observe_source(
+    path: &str,
+    text: &str,
+    inspect: impl FnOnce(&SourceMap, &ParsedFile, &NameResolution, &TypedFile, &mut Trace),
+    assertion_count: usize,
+    trace: &mut Trace,
+) -> Outcome<LowerObservation> {
     let mut sources = SourceMap::new();
-    let parsed = parsed(&mut sources, case.path, case.single, trace)?;
+    let parsed = parsed(&mut sources, path, text, trace)?;
     let (environment, types) = standard_environments();
     let names = step(
         "names",
@@ -48,7 +64,7 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservatio
         trace,
     )?;
     let raw = diagnostics("raw type diagnostics", &sources, typed.diagnostics(), trace);
-    inspect(case, &sources, &parsed, &names, &typed, trace);
+    inspect(&sources, &parsed, &names, &typed, trace);
     let complete = step(
         "complete types",
         complete_file_types(&sources, &parsed, &names, &types, &typed)
@@ -94,7 +110,7 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservatio
     );
     trace.check(
         "real assertion ownership plans",
-        owned.non_null_assertions().len() == case.counts[5]
+        owned.non_null_assertions().len() == assertion_count
             && owned.non_null_assertions().iter().all(|plan| {
                 typed.non_null_assertions().contains(plan.descriptor())
                     && plan.non_null_transfer() == NonNullAssertionTransferKind::Consume
