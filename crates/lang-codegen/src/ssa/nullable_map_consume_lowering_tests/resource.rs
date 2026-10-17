@@ -1,8 +1,8 @@
-//! Resource baseline collection only. A passing collector is not a compatibility verdict.
-//! Every per-source/entry lowering verdict must be reviewed and frozen before production edits.
+//! Resource observations plus the reviewed, production-before storage baseline.
+//! The original collector alone remains insufficient for a compatibility verdict.
 
 use super::{
-    Failure, FunctionId, Outcome, ParsedFile, Program, SourceMap, Trace, admission_error,
+    Failure, FunctionId, Outcome, ParsedFile, Program, SourceMap, Span, Trace, admission_error,
     diagnostic_text, diagnostics, gate, origin, parsed, step,
 };
 use crate::ssa::{LoweringError, LoweringErrorKind};
@@ -18,6 +18,7 @@ enum LowerOutcome {
     LowerRejected {
         error: LoweringError,
         origin: Option<String>,
+        location: Option<ErrorLocation>,
     },
     VerifierRejected {
         detail: String,
@@ -27,11 +28,43 @@ enum LowerOutcome {
     },
 }
 
+#[derive(Debug)]
+struct ErrorLocation {
+    path: Result<String, String>,
+    text: Result<String, String>,
+}
+
+#[derive(Debug)]
+struct SelectedEntry {
+    name: String,
+    path: Result<String, String>,
+    span: Span,
+}
+
+fn selected_entry(sources: &SourceMap, name: &str, span: Span) -> SelectedEntry {
+    SelectedEntry {
+        name: name.to_owned(),
+        path: sources
+            .source_name(span.source_id())
+            .map(str::to_owned)
+            .map_err(|error| format!("{error:#?}")),
+        span,
+    }
+}
+
+#[derive(Debug)]
+struct LowerObservation {
+    // Captured from the same real declaration used as the explicit lowering entry.
+    entry: SelectedEntry,
+    outcome: LowerOutcome,
+}
+
+#[derive(Debug)]
 struct Observation {
     label: String,
     trace: Trace,
     // Err is a prerequisite failure. Ok records one of four actual lower outcomes.
-    outcome: Outcome<LowerOutcome>,
+    outcome: Outcome<LowerObservation>,
 }
 
 fn finish_lower(
@@ -44,6 +77,16 @@ fn finish_lower(
         Err(error) => {
             return LowerOutcome::LowerRejected {
                 origin: error.span.map(|span| origin(sources, span)),
+                location: error.span.map(|span| ErrorLocation {
+                    path: sources
+                        .source_name(span.source_id())
+                        .map(str::to_owned)
+                        .map_err(|error| format!("{error:#?}")),
+                    text: sources
+                        .slice(span)
+                        .map(str::to_owned)
+                        .map_err(|error| format!("{error:#?}")),
+                }),
                 error,
             };
         }
@@ -76,16 +119,22 @@ fn finish_lower(
     }
 }
 
-fn print_outcome(outcome: &Outcome<LowerOutcome>) {
+fn print_outcome(outcome: &Outcome<LowerObservation>) {
+    let outcome = match outcome {
+        Ok(observation) => &observation.outcome,
+        Err(failure) => {
+            println!(
+                "prerequisite failed stage={}; detail={}",
+                failure.stage, failure.detail,
+            );
+            return;
+        }
+    };
     match outcome {
-        Err(failure) => println!(
-            "prerequisite failed stage={}; detail={}",
-            failure.stage, failure.detail,
-        ),
-        Ok(LowerOutcome::VerifiedLlvm) => println!(
+        LowerOutcome::VerifiedLlvm => println!(
             "observed outcome=VerifiedLlvm; per-source compatibility verdict still pending review"
         ),
-        Ok(LowerOutcome::LowerRejected { error, origin }) => {
+        LowerOutcome::LowerRejected { error, origin, .. } => {
             let category = if error.kind == LoweringErrorKind::UnsupportedNode {
                 "unreviewed capability rejection"
             } else {
@@ -95,17 +144,16 @@ fn print_outcome(outcome: &Outcome<LowerOutcome>) {
                 "observed outcome=LowerRejected; category={category}; error={error:#?}; origin={origin:?}"
             );
         }
-        Ok(LowerOutcome::VerifierRejected { detail }) => println!(
+        LowerOutcome::VerifierRejected { detail } => println!(
             "observed outcome=VerifierRejected; unresolved verifier defect; detail={detail}"
         ),
-        Ok(LowerOutcome::LlvmRejected { detail }) => {
+        LowerOutcome::LlvmRejected { detail } => {
             println!("observed outcome=LlvmRejected; unresolved LLVM defect; detail={detail}")
         }
     }
 }
 
-#[test]
-fn nullable_map_resource_sources_collect_baseline_outcomes() {
+fn collect_observations() -> Vec<Observation> {
     let mut observations = Vec::with_capacity(8);
     for case in CASES {
         for unit in [false, true] {
@@ -139,8 +187,175 @@ fn nullable_map_resource_sources_collect_baseline_outcomes() {
         }),
         "all eight sources must pass input/FE/ownership gates and attempt real lowering"
     );
+    observations
+}
+
+#[test]
+fn nullable_map_resource_sources_collect_baseline_outcomes() {
+    let _ = collect_observations();
     println!(
         "COLLECTION ONLY: FE/ownership/input gates passed; eight lower outcomes recorded. \
          No per-source success or rejection contract has been accepted by this collector."
+    );
+}
+
+#[derive(Debug)]
+enum ExpectedLower {
+    VerifiedLlvm,
+    Unsupported {
+        path: &'static str,
+        start: usize,
+        end: usize,
+        text: &'static str,
+    },
+}
+
+#[derive(Debug)]
+struct Baseline {
+    label: &'static str,
+    entry_name: &'static str,
+    entry_path: &'static str,
+    lower: ExpectedLower,
+}
+
+// Frozen from the reviewed ordinary-source receipt at 34b15d14, before A storage changes.
+// R3/single is a planned capability advance: update its explicit expectation after review.
+// Never accommodate that advance through a wildcard Err, an ignored row, or a skipped test.
+const PRE_STORAGE_BASELINE: &[Baseline] = &[
+    Baseline {
+        label: "R0/single",
+        entry_name: "main",
+        entry_path: "r0_remove_only.ko",
+        lower: ExpectedLower::VerifiedLlvm,
+    },
+    Baseline {
+        label: "R0/unit",
+        entry_name: "entry",
+        entry_path: "q/consumer.ko",
+        lower: ExpectedLower::Unsupported {
+            path: "p/provider.ko",
+            start: 226,
+            end: 241,
+            text: "outer.remove(1)",
+        },
+    },
+    Baseline {
+        label: "R1/single",
+        entry_name: "main",
+        entry_path: "r1_ordinary_source_before_remove.ko",
+        lower: ExpectedLower::VerifiedLlvm,
+    },
+    Baseline {
+        label: "R1/unit",
+        entry_name: "entry",
+        entry_path: "q/consumer.ko",
+        lower: ExpectedLower::Unsupported {
+            path: "p/provider.ko",
+            start: 105,
+            end: 109,
+            text: "null",
+        },
+    },
+    Baseline {
+        label: "R2/single",
+        entry_name: "main",
+        entry_path: "r2_ordinary_source_after_remove.ko",
+        lower: ExpectedLower::VerifiedLlvm,
+    },
+    Baseline {
+        label: "R2/unit",
+        entry_name: "entry",
+        entry_path: "q/consumer.ko",
+        lower: ExpectedLower::Unsupported {
+            path: "p/provider.ko",
+            start: 226,
+            end: 241,
+            text: "outer.remove(1)",
+        },
+    },
+    Baseline {
+        label: "R3/single",
+        entry_name: "main",
+        entry_path: "r3_ordinary_null_only.ko",
+        lower: ExpectedLower::Unsupported {
+            path: "r3_ordinary_null_only.ko",
+            start: 95,
+            end: 99,
+            text: "null",
+        },
+    },
+    Baseline {
+        label: "R3/unit",
+        entry_name: "entry",
+        entry_path: "q/consumer.ko",
+        lower: ExpectedLower::Unsupported {
+            path: "p/provider.ko",
+            start: 105,
+            end: 109,
+            text: "null",
+        },
+    },
+];
+
+fn matches_lower(expected: &ExpectedLower, actual: &LowerOutcome) -> bool {
+    match (expected, actual) {
+        (ExpectedLower::VerifiedLlvm, LowerOutcome::VerifiedLlvm) => true,
+        (
+            ExpectedLower::Unsupported {
+                path,
+                start,
+                end,
+                text,
+            },
+            LowerOutcome::LowerRejected {
+                error,
+                location: Some(location),
+                ..
+            },
+        ) => {
+            error.kind == LoweringErrorKind::UnsupportedNode
+                && error
+                    .span
+                    .is_some_and(|span| span.start() == *start && span.end() == *end)
+                && location
+                    .path
+                    .as_ref()
+                    .is_ok_and(|actual| actual.as_str() == *path)
+                && location
+                    .text
+                    .as_ref()
+                    .is_ok_and(|actual| actual.as_str() == *text)
+        }
+        // Wrong stages, missing spans, provenance lookup errors, and other kinds all fail.
+        _ => false,
+    }
+}
+
+#[test]
+fn nullable_map_resource_sources_match_pre_storage_baseline() {
+    let observations = collect_observations();
+    assert_eq!(observations.len(), PRE_STORAGE_BASELINE.len());
+    let mut mismatches = Vec::new();
+    for (actual, expected) in observations.iter().zip(PRE_STORAGE_BASELINE) {
+        let matched = actual.label == expected.label
+            && actual.outcome.as_ref().is_ok_and(|observed| {
+                observed.entry.name == expected.entry_name
+                    && observed
+                        .entry
+                        .path
+                        .as_ref()
+                        .is_ok_and(|path| path.as_str() == expected.entry_path)
+                    && !observed.entry.span.is_empty()
+                    && matches_lower(&expected.lower, &observed.outcome)
+            });
+        println!("PRE-STORAGE BASELINE {}: matched={matched}", expected.label);
+        if !matched {
+            mismatches.push(format!("expected={expected:#?}; actual={actual:#?}"));
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "exact pre-storage baseline mismatches:\n{}",
+        mismatches.join("\n")
     );
 }

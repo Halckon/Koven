@@ -15,7 +15,7 @@ use lang_frontend::{
 
 use super::*;
 
-pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerOutcome> {
+pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservation> {
     let mut sources = SourceMap::new();
     let provider = parsed(&mut sources, "p/provider.ko", case.provider, trace);
     let consumer = parsed(&mut sources, "q/consumer.ko", case.consumer, trace);
@@ -215,19 +215,22 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerOutcome> {
     trace
         .stages
         .push("attempt lower SSA with real q.entry".to_owned());
-    Ok(finish_lower(
-        &sources,
-        crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+    Ok(LowerObservation {
+        entry: selected_entry(&sources, entry.name(), entry.name_span()),
+        outcome: finish_lower(
             &sources,
-            &inputs,
-            &names,
-            &types,
-            &typed,
-            &owned,
-            entry.id(),
+            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                &owned,
+                entry.id(),
+            ),
+            trace,
         ),
-        trace,
-    ))
+    })
 }
 
 fn named(

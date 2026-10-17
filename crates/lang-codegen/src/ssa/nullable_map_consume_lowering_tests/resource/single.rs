@@ -12,7 +12,7 @@ use lang_frontend::{
 
 use super::*;
 
-pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerOutcome> {
+pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservation> {
     let mut sources = SourceMap::new();
     let parsed = parsed(&mut sources, case.path, case.single, trace)?;
     let (environment, types) = standard_environments();
@@ -106,18 +106,21 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerOutcome> {
     trace
         .stages
         .push("attempt lower SSA with real main".to_owned());
-    Ok(finish_lower(
-        &sources,
-        crate::ssa::lower_scalar_file_with_entry(
+    Ok(LowerObservation {
+        entry: selected_entry(&sources, entry.name(), entry.span()),
+        outcome: finish_lower(
             &sources,
-            &parsed,
-            &names,
-            complete.types(),
-            &owned,
-            entry.id(),
+            crate::ssa::lower_scalar_file_with_entry(
+                &sources,
+                &parsed,
+                &names,
+                complete.types(),
+                &owned,
+                entry.id(),
+            ),
+            trace,
         ),
-        trace,
-    ))
+    })
 }
 
 fn named(
