@@ -148,3 +148,27 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
   全部实际命中1并通过（143 SSA/内存 LLVM、76成功原产物 native），34 CI-only 排除。
   219收据 SHA-256：`fa643d1667a1d4a364a43e3d6e636c1d5f8c00bf088c0b20d3adc4a192639c54`。
   这是已分类 Map 普通集合的兼容实证，仍不替代完整 CI 或新动态链探针验收。
+
+## 7. consume 前端首红与动态链 CI 候选
+
+- `e94b938f` 固定上述资格诊断选择；`e471d384` 增加三个普通 exact：用户自定义
+  consume 四入口控制、九源双入口交付观察、十三源双入口拒绝观察。所有真实阶段
+  先采集再断言，公共 facts 只读；nullable 的声明 storage、收窄 read 与 root 分别记录。
+- 首轮三项各实际命中1，结果为0/101/101；1479输入稳定。四个同名用户方法/工厂
+  控制断言通过；18条正例观察中14个 consume 在 complete 的 L0165 停止，普通
+  own 函数 if 双入口与 when single 三条通过；when unit 独立报 L0084（211..217），
+  仍将 receiver 读作 Nullable，ownership 未到达。26条负例均停 L0165，不能记作
+  已验证资格拒绝或移动事实。所有矩阵 parse/names 无错误。
+- unit when 的 else 非空事实传播为既有入口差异，保留同源近邻及最终修复责任；
+  不将此 L0084 混为 consume ownership 红，也不通过排除 nullable 本地根缩小 Guide。
+- `be6e1404` 加入七个 CI-only 动态链 exact：17份普通源码、240个独立期望快照，
+  原产物与仅 checkpoint 入口增加只读调用的产物分别验证。实际执行尚待 CI；
+  本地只编译，不能据候选或静审宣称插入链已动态验证。Clang 构建同步等待，无内部
+  总 deadline；自身 fixture run 有限等待，超时或回收失败明确作为基础设施失败。
+- 首次 fmt 仅 LLVM 测试模块注册排序失败，`76ba6ef9` 作2增2删机械修正；同头
+  fmt 与有限 check 通过。同三个普通 exact 再跑仍为0/101/101且输入稳定，分类同上。
+  两轮收据 SHA-256 分别为
+  `0c98b00afe5269ba864fd1ceae34bedae784f1de7ec566c6b4be1ec0042bc67a`、
+  `c78cd85c424e5cc36ceeb64b3710340063af42c465f148f6e68bfc306eb6c884`。
+- 本批仅保全测试与诊断合同，consume 生产尚未实现；七项新探针和原34项 CI-only
+  均未本地执行。完整工程与双平台 CI、consume 唯一交付及精确清理仍为后继验收门。
