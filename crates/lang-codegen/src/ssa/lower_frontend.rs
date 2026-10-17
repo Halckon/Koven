@@ -24,6 +24,7 @@ mod local_storage;
 mod loop_control;
 mod map;
 mod map_consume;
+mod map_iteration;
 mod map_loop_owner;
 mod map_require;
 mod map_result;
@@ -113,6 +114,7 @@ fn return_values(
 
 struct ExpressionLowerer<'a> {
     map_loop_owners: map_loop_owner::Carriers,
+    map_iteration_state: map_iteration::State,
     parsed: &'a ParsedFile,
     names: &'a NameResolution,
     typed: &'a TypedFile,
@@ -634,7 +636,13 @@ impl ExpressionLowerer<'_> {
                 condition, body, ..
             } => self.lower_while(statement, condition, body, span),
             Statement::Loop { body, .. } => self.lower_loop(statement, body, span),
-            Statement::For { source, body, .. } => self.lower_for(statement, source, body, span),
+            Statement::For { source, body, .. } => {
+                if self.typed.map_iteration(statement).is_some() {
+                    self.lower_map_iteration(statement, source, body, span)
+                } else {
+                    self.lower_for(statement, source, body, span)
+                }
+            }
             _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         }
     }

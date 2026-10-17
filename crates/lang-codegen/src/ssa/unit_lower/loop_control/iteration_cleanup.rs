@@ -21,7 +21,11 @@ impl UnitExpressionLowerer<'_> {
         self.validate_closure_drop_facts(&drops)?;
         for action in actions {
             match action {
-                Action::Drop(fact) => self.emit_drop_fact(*fact)?,
+                Action::Drop(fact) => {
+                    if !self.emit_map_source_drop(*fact)? {
+                        self.emit_drop_fact(*fact)?;
+                    }
+                }
                 Action::DropConditionalReceiver(fact) => {
                     if let Some(owner) = self.conditional_receiver_drop_owner(*fact)? {
                         self.consumed_receiver = self.current_receiver.map(Into::into);
@@ -41,6 +45,9 @@ impl UnitExpressionLowerer<'_> {
                 Action::EndBinding { statement, symbol } => {
                     let span = self.statement_span(statement.statement())?;
                     match self.iteration_context(*statement, span)?.state {
+                        IterationState::Map(_) => {
+                            self.map_end_binding(*statement, *symbol, span)?
+                        }
                         IterationState::Borrowed { element, .. } => {
                             let element = self.iteration_pending_loan(element, span)?;
                             let loan = self.borrow_bindings.remove(symbol).ok_or_else(|| {
@@ -69,6 +76,9 @@ impl UnitExpressionLowerer<'_> {
                 Action::EndElement(statement) => {
                     let span = self.statement_span(statement.statement())?;
                     match self.iteration_context(*statement, span)?.state {
+                        IterationState::Map(_) => {
+                            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                        }
                         IterationState::Borrowed { element, .. } => {
                             let loan = self.iteration_pending_loan(element, span)?;
                             self.iteration_end_loan(loan, span)?;
@@ -85,10 +95,22 @@ impl UnitExpressionLowerer<'_> {
                 }
                 Action::FinishProvider(statement) => {
                     let span = self.statement_span(statement.statement())?;
-                    self.iteration_context(*statement, span)?;
+                    if matches!(
+                        self.iteration_context(*statement, span)?.state,
+                        IterationState::Map(_)
+                    ) {
+                        self.map_finish_provider(*statement, span)?;
+                    }
                 }
                 Action::EndSource(statement) => {
                     let span = self.statement_span(statement.statement())?;
+                    if matches!(
+                        self.iteration_context(*statement, span)?.state,
+                        IterationState::Map(_)
+                    ) {
+                        self.map_end_source(*statement, span)?;
+                        continue;
+                    }
                     let IterationState::Borrowed { start, .. } =
                         self.iteration_context(*statement, span)?.state
                     else {
@@ -207,7 +229,11 @@ impl UnitExpressionLowerer<'_> {
             _ => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         }
     }
-    fn iteration_end_loan(&mut self, loan: LoanId, span: Span) -> Result<(), LoweringError> {
+    pub(super) fn iteration_end_loan(
+        &mut self,
+        loan: LoanId,
+        span: Span,
+    ) -> Result<(), LoweringError> {
         self.function
             .append_instruction(
                 self.block,

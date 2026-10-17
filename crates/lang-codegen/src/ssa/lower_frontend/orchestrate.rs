@@ -111,22 +111,7 @@ fn lower_scalar_file_product(
     owned: &OwnershipCheckedFile,
 ) -> Result<LoweredFile, LoweringError> {
     validate_inputs(sources, parsed, names, typed, owned)?;
-    // 完整 frontend 事实已验证；尚未支持的 Map provider 必须阻止整份文件 lowering。
-    if let Some(descriptor) = typed
-        .map_iterations()
-        .iter()
-        .min_by_key(|descriptor| descriptor.statement().index())
-    {
-        let node = parsed
-            .ast()
-            .statements()
-            .get(descriptor.statement())
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
-        return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
-    }
+    super::map_iteration::validate(parsed, names, typed, owned)?;
     super::borrow_result::validate(parsed, typed, owned)?;
     if let Some(root) =
         owned.cleanup_steps().iter().find_map(|(_, action)| {
@@ -692,6 +677,8 @@ fn lower_scalar_file_product(
         })
         .collect::<BTreeMap<_, _>>();
 
+    let map_iteration_storage = super::map_iteration::storage(module, &type_ids);
+
     for plan in plans {
         let function = module
             .functions
@@ -731,6 +718,11 @@ fn lower_scalar_file_product(
         }
         let mut lowerer = ExpressionLowerer {
             map_loop_owners: super::map_loop_owner::Carriers::new(&bindings),
+            map_iteration_state: super::map_iteration::State::new(
+                &bindings,
+                &borrow_bindings,
+                &map_iteration_storage,
+            ),
             parsed,
             names,
             typed,
@@ -804,6 +796,7 @@ fn lower_scalar_file_product(
         let entry = function.entry_block().expect("planned thunk entry exists");
         let mut lowerer = ExpressionLowerer {
             map_loop_owners: super::map_loop_owner::Carriers::default(),
+            map_iteration_state: super::map_iteration::State::default(),
             parsed,
             names,
             typed,

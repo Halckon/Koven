@@ -97,6 +97,7 @@ pub(super) fn intern_body_scalar_types(
     types: &mut UnitTypeLowering,
 ) -> Result<(), LoweringError> {
     let static_callees = static_call_callees(parsed, instance, typed)?;
+    intern_map_iteration_types(module, parsed, instance, typed, types)?;
     if typed
         .sequential_iterations()
         .iter()
@@ -217,6 +218,64 @@ pub(super) fn intern_body_scalar_types(
             && is_supported_storage_type(typed, concrete)
         {
             types.intern(module, typed, concrete, span)?;
+        }
+    }
+    Ok(())
+}
+
+/// Register the cursor/guard explicitly, then recheck each concrete Map against Module storage.
+fn intern_map_iteration_types(
+    module: &mut Module,
+    parsed: &ParsedFile,
+    instance: &UnitPlannedInstance,
+    typed: &CompilationUnitTypes,
+    types: &mut UnitTypeLowering,
+) -> Result<(), LoweringError> {
+    for descriptor in typed.map_iterations() {
+        if descriptor.statement().source_unit() != instance.source_unit() {
+            continue;
+        }
+        let span = parsed
+            .ast()
+            .statements()
+            .get(descriptor.statement().statement())
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?
+            .span();
+        if !span_contains(instance.span(), span) {
+            continue;
+        }
+        for builtin in [BuiltinType::ULong, BuiltinType::Boolean] {
+            let ty = typed
+                .types()
+                .builtin(builtin)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            types.intern(module, typed, ty, span)?;
+        }
+        let mut mapped = Vec::new();
+        for ty in [
+            descriptor.source_type(),
+            descriptor.key_type(),
+            descriptor.value_type(),
+        ] {
+            let concrete = resolve_concrete_type(
+                typed,
+                ty,
+                instance.substitutions(),
+                instance.key().static_self(),
+                span,
+            )?;
+            mapped.push(types.intern(module, typed, concrete, span)?);
+        }
+        let kind = match descriptor.kind() {
+            lang_frontend::type_checking::MapIterationKind::Map => {
+                crate::ssa::model::MapContainerKind::Map
+            }
+            lang_frontend::type_checking::MapIterationKind::MutableMap => {
+                crate::ssa::model::MapContainerKind::MutableMap
+            }
+        };
+        if module.map_container(mapped[0]) != Some((kind, mapped[1], mapped[2])) {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
     }
     Ok(())

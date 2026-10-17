@@ -239,6 +239,7 @@ impl Fixture {
         let mut lowerer = ExpressionLowerer {
             // C3 still has the genuine entry input seed even after input moved to source.
             map_loop_owners: map_loop_owner::Carriers::new(&plan.entry_bindings),
+            map_iteration_state: crate::ssa::lower_frontend::map_iteration::State::default(),
             parsed: &self.parsed,
             names: &self.names,
             typed: &self.typed,

@@ -134,6 +134,7 @@ impl Fixture {
         let block = function.entry_block().unwrap();
         let mut lowerer = ExpressionLowerer {
             map_loop_owners: map_loop_owner::Carriers::default(),
+            map_iteration_state: super::map_iteration::State::default(),
             parsed: &self.parsed,
             names: &self.names,
             typed: &self.typed,

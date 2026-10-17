@@ -23,6 +23,7 @@ pub(super) struct IterationContext {
 
 #[derive(Clone, Copy)]
 pub(super) enum IterationState {
+    Map(super::map_iteration::MapState),
     Borrowed {
         start: usize,
         element: usize,
@@ -368,7 +369,7 @@ impl UnitExpressionLowerer<'_> {
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
-    fn iteration_owner_loan(
+    pub(super) fn iteration_owner_loan(
         &mut self,
         owner: ValueId,
         ty: SsaTypeId,
@@ -395,7 +396,7 @@ impl UnitExpressionLowerer<'_> {
             span,
         )
     }
-    fn iteration_loan(
+    pub(super) fn iteration_loan(
         &mut self,
         operation: Operation,
         ty: SsaTypeId,
@@ -426,6 +427,9 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Ok(());
         };
+        if let IterationState::Map(state) = context.state {
+            return self.advance_map_iteration(state, span);
+        }
         let IterationState::Borrowed {
             start,
             step,
