@@ -4,15 +4,17 @@
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
+        NameResolution, SourceUnitId, SourceUnitInput, SymbolKind, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
-    ownership_checking::{check_compilation_unit_ownership, check_ownership},
+    ownership_checking::{
+        CompilationUnitOwnership, check_compilation_unit_ownership, check_ownership,
+    },
     parser::{ParsedFile, parse_file},
     source::SourceMap,
     type_checking::{
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        CompilationUnitTypes, TypedFile, check_compilation_unit_types, check_types,
+        complete_compilation_unit_types, complete_file_types, standard_environments,
     },
 };
 
@@ -21,13 +23,39 @@ use super::model::{FunctionId, Operation, Program};
 const SOURCE: &str = include_str!("../../tests/fixtures/map-consume-0291/owned-locals.ko");
 const CONSUMER: &str = "package q\nfun entry(): Unit { p.main() }";
 
-#[derive(Debug)]
-struct Failure {
-    stage: String,
-    detail: String,
+/// Fixed ordinary fixture inputs; the existing wrapper keeps its six-consume contract.
+pub(super) struct Fixture {
+    pub(super) source_name: &'static str,
+    pub(super) source: &'static str,
+    pub(super) consumer: &'static str,
+    pub(super) consumes: usize,
 }
 
-type Outcome<T> = Result<T, Failure>;
+const OWNED_LOCALS: Fixture = Fixture {
+    source_name: "map-consume-owned-locals.ko",
+    source: SOURCE,
+    consumer: CONSUMER,
+    consumes: 6,
+};
+
+type SingleInspector =
+    fn(&ParsedFile, &NameResolution, &TypedFile, &mut Vec<String>) -> Outcome<()>;
+type UnitInspector = fn(
+    SourceUnitId,
+    &ParsedFile,
+    &ValidatedCompilationUnitNames,
+    &CompilationUnitTypes,
+    &CompilationUnitOwnership,
+    &mut Vec<String>,
+) -> Outcome<()>;
+
+#[derive(Debug)]
+pub(super) struct Failure {
+    pub(super) stage: String,
+    pub(super) detail: String,
+}
+
+pub(super) type Outcome<T> = Result<T, Failure>;
 
 #[derive(Debug)]
 struct Observation {
@@ -53,7 +81,7 @@ fn step<T, E: std::fmt::Debug>(
     }
 }
 
-fn gate(
+pub(super) fn gate(
     stage: &str,
     valid: bool,
     detail: impl std::fmt::Debug,
@@ -82,6 +110,12 @@ fn parsed(
         stages,
     )?;
     let lexed = step(&format!("lex {name}"), lex(sources, source), stages)?;
+    gate(
+        &format!("lex diagnostics {name}"),
+        lexed.diagnostics().is_empty(),
+        lexed.diagnostics(),
+        stages,
+    )?;
     let parsed = step(
         &format!("parse {name}"),
         parse_file(sources, &lexed),
@@ -106,6 +140,7 @@ fn lowering_error(sources: &SourceMap, error: super::LoweringError) -> String {
 fn verify_and_render(
     program: &Program,
     entry: FunctionId,
+    expected_consumes: usize,
     stages: &mut Vec<String>,
 ) -> Outcome<()> {
     step("verify SSA", super::verify::verify_program(program), stages)?;
@@ -120,12 +155,12 @@ fn verify_and_render(
         .flat_map(|function| &function.instructions)
         .filter(|instruction| matches!(instruction.operation, Operation::MapConsume { .. }))
         .collect();
-    gate(
-        "six lowered consumes",
-        consumes.len() == 6,
+    let consumes_match = gate(
+        &format!("{expected_consumes} lowered consumes"),
+        consumes.len() == expected_consumes,
         &consumes,
         stages,
-    )?;
+    );
     let llvm = step(
         "in-memory LLVM with selected entry",
         crate::llvm::render_verified_program_with_entry(program, entry),
@@ -139,12 +174,29 @@ fn verify_and_render(
         "actual LLVM Map headers={headers:?}; bytes={}",
         llvm.len()
     ));
-    Ok(())
+    consumes_match
+}
+
+fn record_inspection(outcome: &Outcome<()>, stages: &mut Vec<String>) {
+    if let Err(failure) = outcome {
+        stages.push(format!(
+            "fixture input failed stage={}; detail={}",
+            failure.stage, failure.detail,
+        ));
+    }
 }
 
 fn observe_single(stages: &mut Vec<String>) -> Outcome<()> {
+    observe_single_fixture(&OWNED_LOCALS, |_, _, _, _| Ok(()), stages)
+}
+
+pub(super) fn observe_single_fixture(
+    fixture: &Fixture,
+    inspect: SingleInspector,
+    stages: &mut Vec<String>,
+) -> Outcome<()> {
     let mut sources = SourceMap::new();
-    let parsed = parsed(&mut sources, "map-consume-owned-locals.ko", SOURCE, stages)?;
+    let parsed = parsed(&mut sources, fixture.source_name, fixture.source, stages)?;
     let (environment, types) = standard_environments();
     let names = step(
         "names",
@@ -193,8 +245,8 @@ fn observe_single(stages: &mut Vec<String>) -> Outcome<()> {
         typed.map_consumes()
     ));
     gate(
-        "six real consume descriptors",
-        typed.map_consumes().len() == 6,
+        &format!("{} real consume descriptors", fixture.consumes),
+        typed.map_consumes().len() == fixture.consumes,
         typed.map_consumes(),
         stages,
     )?;
@@ -246,7 +298,7 @@ fn observe_single(stages: &mut Vec<String>) -> Outcome<()> {
         stages,
     )?;
     gate(
-        "complete preserves all six descriptors",
+        &format!("complete preserves all {} descriptors", fixture.consumes),
         complete.types().map_consumes() == typed.map_consumes(),
         complete.types().map_consumes(),
         stages,
@@ -268,6 +320,8 @@ fn observe_single(stages: &mut Vec<String>) -> Outcome<()> {
         owned.deferred(),
         stages,
     )?;
+    let inspected = inspect(&parsed, &names, complete.types(), stages);
+    record_inspection(&inspected, stages);
     let (program, function) = step(
         "lower SSA with real main",
         super::lower_scalar_file_with_entry(
@@ -281,18 +335,28 @@ fn observe_single(stages: &mut Vec<String>) -> Outcome<()> {
         .map_err(|error| lowering_error(&sources, error)),
         stages,
     )?;
-    verify_and_render(&program, function, stages)
+    let rendered = verify_and_render(&program, function, fixture.consumes, stages);
+    rendered?;
+    inspected
 }
 
 fn observe_unit(stages: &mut Vec<String>) -> Outcome<()> {
+    observe_unit_fixture(&OWNED_LOCALS, |_, _, _, _, _, _| Ok(()), stages)
+}
+
+pub(super) fn observe_unit_fixture(
+    fixture: &Fixture,
+    inspect: UnitInspector,
+    stages: &mut Vec<String>,
+) -> Outcome<()> {
     let mut sources = SourceMap::new();
     let provider = parsed(
         &mut sources,
         "p/provider.ko",
-        &format!("package p\n{SOURCE}"),
+        &format!("package p\n{}", fixture.source),
         stages,
     )?;
-    let consumer = parsed(&mut sources, "q/consumer.ko", CONSUMER, stages)?;
+    let consumer = parsed(&mut sources, "q/consumer.ko", fixture.consumer, stages)?;
     let inputs = [
         SourceUnitInput::new("root", "p/provider.ko", provider.source_id(), &provider),
         SourceUnitInput::new("root", "q/consumer.ko", consumer.source_id(), &consumer),
@@ -394,8 +458,8 @@ fn observe_unit(stages: &mut Vec<String>) -> Outcome<()> {
         typed.map_consumes()
     ));
     gate(
-        "six real consume descriptors",
-        typed.map_consumes().len() == 6,
+        &format!("{} real consume descriptors", fixture.consumes),
+        typed.map_consumes().len() == fixture.consumes,
         typed.map_consumes(),
         stages,
     )?;
@@ -460,7 +524,7 @@ fn observe_unit(stages: &mut Vec<String>) -> Outcome<()> {
         stages,
     )?;
     gate(
-        "complete preserves all six descriptors",
+        &format!("complete preserves all {} descriptors", fixture.consumes),
         complete.types().map_consumes() == typed.map_consumes(),
         complete.types().map_consumes(),
         stages,
@@ -496,6 +560,15 @@ fn observe_unit(stages: &mut Vec<String>) -> Outcome<()> {
             .map_err(|value| format!("{:?}", value.diagnostics())),
         stages,
     )?;
+    let inspected = inspect(
+        provider_unit.id(),
+        &provider,
+        &names,
+        typed.types(),
+        owned.ownership(),
+        stages,
+    );
+    record_inspection(&inspected, stages);
     let (program, function) = step(
         "lower SSA with real q.entry",
         super::unit_lower::lower_scalar_unit_with_entry(
@@ -510,7 +583,9 @@ fn observe_unit(stages: &mut Vec<String>) -> Outcome<()> {
         .map_err(|error| lowering_error(&sources, error)),
         stages,
     )?;
-    verify_and_render(&program, function, stages)
+    let rendered = verify_and_render(&program, function, fixture.consumes, stages);
+    rendered?;
+    inspected
 }
 
 #[test]

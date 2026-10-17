@@ -33,6 +33,8 @@ mod map_consume_lowering_tests;
 #[cfg(test)]
 mod map_promotion_contract_tests;
 #[cfg(test)]
+mod nullable_map_consume_fixture_tests;
+#[cfg(test)]
 mod nullable_map_consume_lowering_tests;
 mod types;
 pub(crate) mod unit_lower;
