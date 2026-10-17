@@ -887,3 +887,6 @@ fn inspect_unit_trials(
     );
     Ok(())
 }
+
+#[path = "nullable_when_scope.rs"]
+mod scope;
