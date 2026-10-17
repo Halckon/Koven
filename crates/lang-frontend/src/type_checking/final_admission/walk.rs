@@ -405,10 +405,29 @@ impl<F: Facts> Checker<'_, F> {
                 complete &= self.expression(*source, false)?;
                 match binding {
                     ForBinding::Name(name) => complete &= self.binding(*name, complete, true)?,
-                    ForBinding::Destructuring { names, .. } => {
-                        let source_complete = complete;
+                    ForBinding::Destructuring {
+                        names,
+                        left_paren_span,
+                        right_paren_span,
+                    } => {
+                        if let Some(right_paren_span) = right_paren_span {
+                            let pattern = self
+                                .sources
+                                .span(
+                                    left_paren_span.source_id(),
+                                    left_paren_span.start(),
+                                    right_paren_span.end(),
+                                )
+                                .map_err(TypeCheckingError::from)?;
+                            // 完整 pattern 的原根因恢复其 bindings；不扩大单个 marker 的错误。
+                            complete &= !self.diagnostics.iter().any(|diagnostic| {
+                                diagnostic.severity() == Severity::Error
+                                    && diagnostic.primary_span() == pattern
+                            });
+                        }
+                        let binding_complete = complete;
                         for name in names {
-                            complete &= self.binding(*name, source_complete, true)?;
+                            complete &= self.binding(*name, binding_complete, true)?;
                         }
                     }
                 }
