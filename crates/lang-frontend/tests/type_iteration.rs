@@ -9,6 +9,9 @@ use lang_frontend::{
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
+#[path = "type_iteration/map_borrowed.rs"]
+mod map_borrowed;
+
 fn checked(text: &str) -> (SourceMap, TypedFile) {
     let (sources, _, _, typed) = analyzed(text);
     (sources, typed)
