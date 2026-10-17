@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树1份，[0291 非空只读 Map 构造与插入序共享存储](active/0291-readonly-map-construction.md)从真实 main `37e80526` 启动；0330已由PR116正常合并，main CI独立跟踪。consume与Map插入序均已启用，本片不改Guide，实际Map借用provider另片。
+- [Active 合同](active/README.md)：当前本树2份，0291保留已交付存储/consume及待项；[0331 Map 双分量借用式插入序遍历](active/0331-map-borrowed-iteration.md)从 PR117 正常合并后的 main `864b6423` 启动，沿已启用 Guide 推进独立 provider，尚未验收。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 

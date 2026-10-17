@@ -326,6 +326,7 @@ subgraph Garchive["已完成（archive，314 份）"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
+  S0331["S0331<br/>Map 双分量借用式插入序遍历"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1343,6 +1344,7 @@ S0288 --> S0305
 S0289 --> S0292
 S0289 --> S0298
 S0290 --> S0294
+S0291 --> S0331
 S0293 --> S0304
 S0294 --> S0295
 S0294 --> S0297
@@ -1691,4 +1693,5 @@ S0320 --> S0321
 | SPEC-0329 | archive | [0329-integer-range-iteration.md](0329-integer-range-iteration.md) |
 | SPEC-0330 | archive | [0330-while-conservative-flow.md](0330-while-conservative-flow.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
+| SPEC-0331 | active | [0331-map-borrowed-iteration.md](../../specs/active/0331-map-borrowed-iteration.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |

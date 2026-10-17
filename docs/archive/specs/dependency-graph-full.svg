@@ -7,7 +7,7 @@
   <rect width="10576" height="9520" fill="#ffffff"/>
   <rect x="40" y="30" width="9784" height="9418" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="4932" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，314 份）</text>
-  <rect x="9888" y="30" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="9888" y="30" width="280" height="280" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10028" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="10232" y="7974" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10372" y="7994" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
@@ -1024,6 +1024,7 @@
   <path d="M 564 7889 C 5408 7889, 5408 8045, 10252 8045" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 7926 C 444 7958, 444 7976, 444 8008" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8082 C 180 8114, 180 8114, 180 8146" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 10028 138 C 10028 170, 10028 188, 10028 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 7044 138 C 7044 170, 1236 188, 1236 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8238 C 180 8270, 180 8270, 180 8302" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8238 C 180 8270, 444 8270, 444 8302" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -2374,4 +2375,8 @@
   <text x="9684" y="87" text-anchor="middle" font-size="13">SPEC-0330</text>
   <text x="9684" y="105" text-anchor="middle" font-size="13">while 条件收窄与保守循</text>
   <text x="9684" y="123" text-anchor="middle" font-size="13">环流事实</text>
+  <rect x="9908" y="220" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="10028" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0331</text>
+  <text x="10028" y="261" text-anchor="middle" font-size="13">Map 双分量借用式插入序遍</text>
+  <text x="10028" y="279" text-anchor="middle" font-size="13">历</text>
 </svg>
