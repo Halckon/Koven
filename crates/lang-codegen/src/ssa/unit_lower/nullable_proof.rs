@@ -1,6 +1,6 @@
 //! Private proof identity, distinct from the nullable root's owned storage.
 use super::*;
-use crate::ssa::model::SsaTypeKind;
+use crate::ssa::model::{Ownership, SsaTypeKind};
 
 #[cfg(test)]
 pub(super) mod guard_tests;
@@ -156,6 +156,24 @@ impl UnitExpressionLowerer<'_> {
                 .function
                 .entity(EntityId::Value(proof.owner))
                 .map(|entity| entity.ty);
+            let valid_storage = match owner_type {
+                Some(EntityType::Value(storage)) => match self.ssa_types.get(storage.index()) {
+                    Some(SsaTypeKind::NullableHandle { inner }) => *inner == proof.inner,
+                    Some(SsaTypeKind::Aggregate {
+                        ownership: Ownership::MoveOnly,
+                        ..
+                    }) if proof.if_scope().is_some() => {
+                        // Only registered nullable Map storage gains this ordinary If view.
+                        self.nullable_maps.get(&storage) == Some(&proof.inner)
+                            && matches!(
+                                self.ssa_types.get(proof.inner.index()),
+                                Some(SsaTypeKind::MapContainer { .. })
+                            )
+                    }
+                    _ => false,
+                },
+                _ => false,
+            };
             let identity = (proof.owner, proof.inner);
             if identities
                 .insert(proof.loan, identity)
@@ -172,9 +190,7 @@ impl UnitExpressionLowerer<'_> {
                         Some(TerminatorKind::NullableBranch { view, .. }) if *view == proof.origin.birth)
                 })
                 || bindings.get(root) != Some(&LoweredValue::Value(proof.owner))
-                || !matches!(owner_type, Some(EntityType::Value(ty))
-                    if self.ssa_types.get(ty.index())
-                        == Some(&SsaTypeKind::NullableHandle { inner: proof.inner }))
+                || !valid_storage
                 || self
                     .function
                     .entity(EntityId::Loan(proof.loan))
