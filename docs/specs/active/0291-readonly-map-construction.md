@@ -201,3 +201,45 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
 - 本批仅闭合上述 frontend 类型/资格及旧兼容范围。MapConsume 后端操作、六字段
   同 allocation 交付、nullable if/when 精确 extraction/清理、动态链 CI 与最终双平台
   验收仍待；不将普通回归全绿或 CI 候选编译通过记为完整 consume 或0291完成。
+
+## 9. 非 nullable 本地根 MapConsume 后端有限验收
+
+- `a31d0902` 固定六源双入口首红：Int/Int、String/String 的 owned val/var、
+  透明 Group 与直接丢弃结果，12条均完成真实 ownership 后在 consume 表达式报
+  lower MissingFact；无前置分析失败。收据 SHA-256：
+  `83fc3d26ea98397c7642a32ed0e8e5c21a5c74a29c809074bd51ef61a5f6a014`。
+- `8a7ac134` 增加显式 MapConsume：真实 descriptor、本地根、声明/read 类型、
+  同 K/V 与当前 Value 身份先闭合，再单次求值 receiver、交付旧 owner 并产生新 Map。
+  single 使用完整 checked ownership，unit 另核真实 Move receiver fact；活 carrier
+  沿严格门拒绝。SSA operation/ownership verifier、render 与 LLVM 分发同步接线。
+  LLVM 仅将同一 source header 的六字段重包到结果命名 struct，不复制条目或新增
+  allocation/free/hash/reinsert。Nullable storage 与 read 不同的提取仍未接入。
+- 首次 fmt 仅 verifier 的 let-else 排版失败，`2ce64d31` 修正；四个旧超限文件仅各增
+  一行分发，policy 只追加审阅说明，不提高额度或 baseline。原12入口随后全部 SSA/LLVM
+  通过（收据 `4624f36200566b631c26f75cdaf213bc46ebe4ce4e80c002ea6d0af2325615db`）。
+- `de888995` 加入完整六消费来源 fixture，single main 与真实跨文件 p/q unit entry
+  分别经过 complete、ownership、SSA verify 与内存 LLVM。`6847ea00` / `27fbba9c`
+  增加纯查询身份判据：真实源构造/put、唯一消费、源无后用/Drop、结果实际所有入边
+  与正常路径唯一 Drop，以及 LLVM 六字段来源/同 buffer 和纯重包窗口。原六源码未改。
+  stage4 首版未执行；审阅中关于 check_paths 八参数的判断已撤回（实际七参数），
+  后续仅以只读身份上下文收敛两个 helper 参数，未放宽判据或 lint。
+- 固定 `27fbba9c` / `02bd2fd1`、1491输入的四项 stage4-v2 各实际命中1，exit
+  为0/0/101/101：前两项原12身份及完整 fixture 双 LLVM 全通过；后两项保留独立
+  unit when 观察红。八条基础观察仅两条 unit 缺非空剩余域事实；六条失效/trial
+  观察中失败 overload 在 single/unit 都触 complete Internal MissingRequiredFact
+  （157..159），分别缺原 Error 诊断/表达式类型，不能计作 flow 行为红或改弱 oracle。
+  收据 SHA-256：`455845d5caa82ccc639ed346088dcbaae3cfa693c6cd9fdf486d5c887f17ab29`。
+- 同头普通 native 两 exact 各实际命中1并通过，既有未修改产物 helper 严格断言19行
+  stdout、空 stderr 与正常退出；没有独立子进程 stdout 文件。此为值语义实证，
+  不升级为动态链或释放计数证据；构建/运行 helper 无内部总 deadline。
+  收据 SHA-256：`5a31cf9d7320163947d64471234225ab15bec338bce8454895030567b2a68568`。
+- 同头原 fmt/check/clippy/build 四工程通过，1491输入前后稳定；收据 SHA-256：
+  `634492d57413750e59018167e756faa86b24b72768e982b7c051c476e98a09d1`。
+- 同头已审旧 Map 普通219项全部实际命中1并通过（143 SSA/内存 LLVM、76未修改
+  成功 native），1491输入前后稳定；收据 SHA-256：
+  `9dc5a44fd74a57c3fa07cc22b9d45075f67aac011b808903b74ffae26a88e054`。
+- 本片仅覆盖上述非 nullable 本地根交付。严格 carrier 门下的其他合法组合、nullable
+  if/when 的真实 owner extraction 与精确清理、unit when 剩余域及独立 complete
+  错误、借用迭代 provider 后继、动态链 CI 与最终双平台验收仍待；原34项 CI-only
+  与新七项探针均未本地执行。
+  不将本片普通值语义和静态同 buffer 身份证明升级为0291完成。
