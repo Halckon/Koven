@@ -17,6 +17,7 @@ use super::{BodyChecker, CompilationUnitTypeParts, FlowKey};
 pub(super) struct UnitTrialState {
     signatures: CompilationUnitSignatures,
     flow_facts: BTreeMap<FlowKey, UnitTypeId>,
+    flow_versions: BTreeMap<FlowKey, u64>,
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
 }
@@ -26,6 +27,7 @@ impl BodyChecker<'_> {
         UnitTrialState {
             signatures: self.signatures.clone(),
             flow_facts: self.flow_facts.clone(),
+            flow_versions: self.flow_versions.clone(),
             parts: self.parts.clone(),
             diagnostics: self.diagnostics.clone(),
         }
@@ -34,6 +36,7 @@ impl BodyChecker<'_> {
     pub(super) fn restore_trial_state(&mut self, state: UnitTrialState) {
         self.signatures = state.signatures;
         self.flow_facts = state.flow_facts;
+        self.flow_versions = state.flow_versions;
         self.parts = state.parts;
         self.diagnostics = state.diagnostics;
     }

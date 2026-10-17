@@ -29,6 +29,7 @@ impl BodyChecker<'_> {
         callable: &UnitCallableSignature,
     ) -> Result<(), CompilationUnitTypeError> {
         self.flow_facts.clear();
+        self.flow_versions.clear();
         let expected_span = match form {
             FunctionForm::Explicit { type_ref, .. } => Some(
                 self.file(source)

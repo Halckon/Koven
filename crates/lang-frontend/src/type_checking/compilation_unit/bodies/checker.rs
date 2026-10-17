@@ -98,6 +98,7 @@ pub(super) struct BodyChecker<'a> {
     symbols_by_span: BTreeMap<(SourceUnitId, usize, usize, u8), UnitSymbolId>,
     stable_flow_symbols: BTreeSet<UnitSymbolId>,
     flow_facts: BTreeMap<FlowKey, UnitTypeId>,
+    flow_versions: BTreeMap<FlowKey, u64>,
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
     current_return_span: Option<Span>,
@@ -183,6 +184,7 @@ impl<'a> BodyChecker<'a> {
             symbols_by_span,
             stable_flow_symbols,
             flow_facts: BTreeMap::new(),
+            flow_versions: BTreeMap::new(),
             parts: CompilationUnitTypeParts::default(),
             diagnostics: Vec::new(),
             current_return_span: None,
@@ -639,7 +641,7 @@ impl<'a> BodyChecker<'a> {
                     )?
                 };
                 for key in invalidated {
-                    self.flow_facts.remove(&key);
+                    self.invalidate_flow_key(key);
                 }
                 result
             }

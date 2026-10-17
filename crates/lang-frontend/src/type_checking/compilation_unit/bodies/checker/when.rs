@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-use super::flow::{extend_facts, intersect_facts};
+use super::flow::{intersect_facts, merge_flow_versions};
 use super::{BodyChecker, ExpressionCheck, flow::FlowKey};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -28,6 +28,7 @@ struct WhenConditionCheck {
     coverage: Vec<CoverageAtom>,
     facts: BTreeMap<FlowKey, UnitTypeId>,
     valid: bool,
+    non_null: bool,
 }
 
 impl BodyChecker<'_> {
@@ -53,7 +54,19 @@ impl BodyChecker<'_> {
         };
         let subject_key = subject.and_then(|subject| self.stable_flow_key(source, subject));
         let domain = subject_type.and_then(|ty| self.closed_domain(ty));
+        let nullable_inner = subject_type.and_then(|ty| match self.signatures.types().get(ty) {
+            Some(UnitTypeKind::Nullable(inner)) => Some(*inner),
+            _ => None,
+        });
+        let subject_source = subject_key.map(|key| (key, self.flow_version(key)));
         let baseline = self.flow_facts.clone();
+        let baseline_versions = self.flow_versions.clone();
+        let mut remaining_facts = baseline.clone();
+        let mut remaining_versions = baseline_versions.clone();
+        let mut remaining_domain = domain
+            .clone()
+            .map(WhenFlowDomain::Finite)
+            .unwrap_or(WhenFlowDomain::Nullable);
         let mut covered = BTreeMap::<CoverageAtom, Span>::new();
         let mut first_else = None;
         let mut has_else = false;
@@ -61,9 +74,18 @@ impl BodyChecker<'_> {
         let mut exits = Vec::new();
 
         for (entry_index, entry) in entries.iter().enumerate() {
+            self.flow_facts = remaining_facts.clone();
+            self.flow_versions = remaining_versions.clone();
             let mut entry_facts = None;
+            let mut entry_versions = None;
+            let mut body_domain = WhenFlowDomain::Empty;
+            let mut entry_source_valid = self.when_source_valid(subject_source);
             if let Some(else_span) = entry.else_span {
                 has_else = true;
+                body_domain = remaining_domain.clone();
+                remaining_domain = WhenFlowDomain::Empty;
+                entry_facts = Some(self.flow_facts.clone());
+                entry_versions = Some(self.flow_versions.clone());
                 if let Some(first) = first_else {
                     self.emit_maybe_label(
                         codes::DUPLICATE_WHEN_ELSE,
@@ -95,6 +117,42 @@ impl BodyChecker<'_> {
                         condition,
                         return_type,
                     )?;
+                    let source_valid = self.when_source_valid(subject_source);
+                    let (matched, missed) = split_domain(
+                        &remaining_domain,
+                        &checked.coverage,
+                        checked.non_null,
+                        checked.valid,
+                    );
+                    if !matched.is_empty() {
+                        let mut matched_facts = self.flow_facts.clone();
+                        entry_source_valid &= source_valid;
+                        if source_valid {
+                            if let (Some(key), Some(inner)) = (subject_key, nullable_inner)
+                                && matched.is_non_null()
+                            {
+                                matched_facts.entry(key).or_insert(inner);
+                            }
+                            matched_facts.extend(checked.facts);
+                        }
+                        entry_facts = Some(match entry_facts {
+                            None => matched_facts,
+                            Some(previous) => intersect_facts(&previous, &matched_facts),
+                        });
+                        entry_versions = Some(match entry_versions {
+                            None => self.flow_versions.clone(),
+                            Some(previous) => merge_flow_versions(&previous, &self.flow_versions),
+                        });
+                        body_domain = union_domain(body_domain, matched);
+                    }
+                    // Condition effects remain on the miss edge; a selected body never runs here.
+                    remaining_domain = missed;
+                    if let (Some(key), Some(inner)) = (subject_key, nullable_inner)
+                        && source_valid
+                        && remaining_domain.is_non_null()
+                    {
+                        self.flow_facts.entry(key).or_insert(inner);
+                    }
                     if checked.valid && !checked.coverage.is_empty() {
                         let mut first_previous = None;
                         let mut added = false;
@@ -116,17 +174,18 @@ impl BodyChecker<'_> {
                             )?;
                         }
                     }
-                    entry_facts = Some(match entry_facts {
-                        None => checked.facts,
-                        Some(previous) => intersect_facts(&previous, &checked.facts),
-                    });
                 }
             }
-            self.flow_facts = if let Some(ref facts) = entry_facts {
-                extend_facts(&baseline, facts)
-            } else {
-                baseline.clone()
-            };
+            remaining_facts = self.flow_facts.clone();
+            remaining_versions = self.flow_versions.clone();
+            self.flow_facts = entry_facts.unwrap_or_else(|| remaining_facts.clone());
+            self.flow_versions = entry_versions.unwrap_or_else(|| remaining_versions.clone());
+            if entry_source_valid
+                && let (Some(key), Some(inner)) = (subject_key, nullable_inner)
+                && body_domain.is_non_null()
+            {
+                self.flow_facts.entry(key).or_insert(inner);
+            }
             let branch_expected = if self.expression_use(source, expression) == ExpressionUse::Value
             {
                 self.control_branch_expected(source, entry.body, expected)?
@@ -140,8 +199,8 @@ impl BodyChecker<'_> {
                 expected_span,
                 return_type,
             )?;
-            if result.falls_through {
-                exits.push(self.flow_facts.clone());
+            if !body_domain.is_empty() && result.falls_through {
+                exits.push((self.flow_facts.clone(), self.flow_versions.clone()));
             }
             branches.push(result);
         }
@@ -155,14 +214,20 @@ impl BodyChecker<'_> {
             self.emit_non_exhaustive_when(keyword_span, domain.as_deref(), &covered)?;
         }
         if !exhaustive {
-            exits.push(baseline.clone());
+            exits.push((remaining_facts, remaining_versions));
         }
-        self.flow_facts = exits
+        let falls_through = !exits.is_empty();
+        (self.flow_facts, self.flow_versions) = exits
             .into_iter()
-            .reduce(|left, right| intersect_facts(&left, &right))
-            .unwrap_or(baseline);
-
-        let falls_through = !exhaustive || branches.iter().any(|branch| branch.falls_through);
+            .reduce(
+                |(left_facts, left_versions), (right_facts, right_versions)| {
+                    (
+                        intersect_facts(&left_facts, &right_facts),
+                        merge_flow_versions(&left_versions, &right_versions),
+                    )
+                },
+            )
+            .unwrap_or((baseline, baseline_versions));
         let ty = if !value_use {
             self.builtin(BuiltinType::Unit)
         } else if branches
@@ -256,6 +321,13 @@ impl BodyChecker<'_> {
                         primary,
                     )?;
                 }
+                let valid = valid && !self.is_error(result.ty) && !self.is_deferred(result.ty);
+                let non_null = valid
+                    && !is_null
+                    && !matches!(
+                        self.signatures.types().get(result.ty),
+                        Some(UnitTypeKind::Nullable(_))
+                    );
                 let coverage = if subject.is_some() && valid {
                     self.coverage_for_expression(source, *expression)?
                         .into_iter()
@@ -268,6 +340,7 @@ impl BodyChecker<'_> {
                     coverage,
                     facts,
                     valid,
+                    non_null,
                 })
             }
             WhenCondition::TypeTest {
@@ -295,6 +368,7 @@ impl BodyChecker<'_> {
                         coverage: Vec::new(),
                         facts: BTreeMap::new(),
                         valid: false,
+                        non_null: false,
                     });
                 };
                 let valid = self.is_error(target) || self.valid_type_test_relation(subject, target);
@@ -314,6 +388,13 @@ impl BodyChecker<'_> {
                         "invalid type-test target",
                     )?;
                 }
+                let valid = valid && !self.is_error(target) && !self.is_deferred(target);
+                let non_null = valid
+                    && !*negated
+                    && !matches!(
+                        self.signatures.types().get(target),
+                        Some(UnitTypeKind::Nullable(_))
+                    );
                 let mut coverage = match self.signatures.types().get(target) {
                     Some(UnitTypeKind::EnumCase { case, .. }) if valid => {
                         vec![CoverageAtom::Case(*case)]
@@ -335,6 +416,7 @@ impl BodyChecker<'_> {
                     coverage,
                     facts,
                     valid,
+                    non_null,
                 })
             }
             WhenCondition::Contains {
@@ -355,9 +437,15 @@ impl BodyChecker<'_> {
                     coverage: Vec::new(),
                     facts: BTreeMap::new(),
                     valid,
+                    non_null: false,
                 })
             }
         }
+    }
+
+    fn when_source_valid(&self, source: Option<(FlowKey, u64)>) -> bool {
+        source
+            .is_some_and(|(key, version)| version != u64::MAX && self.flow_version(key) == version)
     }
 
     fn closed_domain(&self, ty: UnitTypeId) -> Option<Vec<CoverageAtom>> {
@@ -575,5 +663,105 @@ impl BodyChecker<'_> {
         } else {
             joined.map_or_else(|| self.builtin(BuiltinType::Unit), |(ty, _)| ty)
         })
+    }
+}
+
+/// Private unit domain: enum atoms retain source-qualified unit symbols.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum WhenFlowDomain {
+    Empty,
+    Null,
+    NonNull,
+    Nullable,
+    Finite(Vec<CoverageAtom>),
+}
+
+impl WhenFlowDomain {
+    fn is_empty(&self) -> bool {
+        matches!(self, Self::Empty) || matches!(self, Self::Finite(atoms) if atoms.is_empty())
+    }
+
+    fn is_non_null(&self) -> bool {
+        matches!(self, Self::NonNull)
+            || matches!(self, Self::Finite(atoms) if !atoms.is_empty() && !atoms.contains(&CoverageAtom::Null))
+    }
+}
+
+fn split_domain(
+    input: &WhenFlowDomain,
+    coverage: &[CoverageAtom],
+    non_null: bool,
+    valid: bool,
+) -> (WhenFlowDomain, WhenFlowDomain) {
+    if input.is_empty() {
+        return (WhenFlowDomain::Empty, input.clone());
+    }
+    if !valid {
+        // Error recovery is neither coverage nor a new proof for the shared body.
+        return (input.clone(), input.clone());
+    }
+    if !coverage.is_empty() {
+        if let WhenFlowDomain::Finite(atoms) = input {
+            return (
+                WhenFlowDomain::Finite(
+                    atoms
+                        .iter()
+                        .copied()
+                        .filter(|atom| coverage.contains(atom))
+                        .collect(),
+                ),
+                WhenFlowDomain::Finite(
+                    atoms
+                        .iter()
+                        .copied()
+                        .filter(|atom| !coverage.contains(atom))
+                        .collect(),
+                ),
+            );
+        }
+        if coverage == [CoverageAtom::Null] {
+            return match input {
+                WhenFlowDomain::Null => (WhenFlowDomain::Null, WhenFlowDomain::Empty),
+                WhenFlowDomain::NonNull => (WhenFlowDomain::Empty, WhenFlowDomain::NonNull),
+                _ => (WhenFlowDomain::Null, WhenFlowDomain::NonNull),
+            };
+        }
+    }
+    let matched = if non_null {
+        match input {
+            WhenFlowDomain::Null => WhenFlowDomain::Empty,
+            WhenFlowDomain::Finite(atoms) => WhenFlowDomain::Finite(
+                atoms
+                    .iter()
+                    .copied()
+                    .filter(|atom| *atom != CoverageAtom::Null)
+                    .collect(),
+            ),
+            _ => WhenFlowDomain::NonNull,
+        }
+    } else {
+        input.clone()
+    };
+    // A nonliteral non-null match does not prove that its miss is null.
+    (matched, input.clone())
+}
+
+fn union_domain(left: WhenFlowDomain, right: WhenFlowDomain) -> WhenFlowDomain {
+    if left.is_empty() {
+        return right;
+    }
+    if right.is_empty() || left == right {
+        return left;
+    }
+    if let (WhenFlowDomain::Finite(left), WhenFlowDomain::Finite(right)) = (&left, &right) {
+        let mut atoms = left.clone();
+        atoms.extend(right.iter().filter(|atom| !left.contains(atom)).copied());
+        atoms.sort();
+        return WhenFlowDomain::Finite(atoms);
+    }
+    if left.is_non_null() && right.is_non_null() {
+        WhenFlowDomain::NonNull
+    } else {
+        WhenFlowDomain::Nullable
     }
 }

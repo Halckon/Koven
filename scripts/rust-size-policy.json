@@ -103,10 +103,10 @@
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": {
       "max_lines": 1226,
-      "reason": "SPEC-0265 注册独立iteration模块、传入statement identity及错误原子清空；算法未放入父checker。",
+      "reason": "SPEC-0265 注册独立iteration模块、传入statement identity及错误原子清空；算法未放入父checker。SPEC-0291 unit nullable-when仅增加私有flow版本字段/初始化并替换既有inout失效接线，算法留在flow/when子模块。",
       "owner": "lang-frontend compilation-unit iteration",
       "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
-      "review": "SPEC-0265 fresh review核本次有界增长；超过此精确上限或职责扩展需重新审阅。"
+      "review": "SPEC-0265 fresh review核本次有界增长。SPEC-0291独立审阅核对两行私有flow状态接线及12消费者成对恢复；max/baseline不升，超过精确上限或职责扩展前重新审阅。"
     },
     "crates/lang-frontend/tests/multifile_constant_ownership.rs": {
       "max_lines": 1011,

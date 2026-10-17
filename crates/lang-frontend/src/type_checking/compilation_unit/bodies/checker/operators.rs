@@ -125,7 +125,8 @@ impl BodyChecker<'_> {
         ) {
             let left_result = self.check_expression(source, left, None, None, return_type)?;
             let (left_true, left_false) = self.condition_facts(source, left)?;
-            let mut baseline = self.flow_facts.clone();
+            let baseline = self.flow_facts.clone();
+            let baseline_versions = self.flow_versions.clone();
             let right_entry = if operator == BinaryOperator::LogicalAnd {
                 &left_true
             } else {
@@ -134,8 +135,11 @@ impl BodyChecker<'_> {
             self.flow_facts = extend_facts(&baseline, right_entry);
             let right_result = self.check_expression(source, right, None, None, return_type);
             let writes = self.expression_flow_writes(source, right)?;
-            baseline.retain(|key, _| !writes.contains(key));
             self.flow_facts = baseline;
+            self.flow_versions = baseline_versions;
+            for key in writes {
+                self.invalidate_flow_key(key);
+            }
             let right_result = right_result?;
             let boolean = self.builtin(BuiltinType::Boolean);
             let ty = if self.is_builtin(left_result.ty, BuiltinType::Boolean)

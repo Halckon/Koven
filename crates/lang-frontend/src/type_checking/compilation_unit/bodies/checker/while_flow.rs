@@ -34,15 +34,18 @@ impl BodyChecker<'_> {
                 .into_iter()
                 .filter_map(|target| self.stable_flow_key(source, target)),
         );
-        let mut head = self.flow_facts.clone();
-        head.retain(|key, _| !writes.contains(key));
-        self.flow_facts = head.clone();
+        for key in writes {
+            self.invalidate_flow_key(key);
+        }
+        let head = self.flow_facts.clone();
+        let head_versions = self.flow_versions.clone();
         let boolean = self.builtin(BuiltinType::Boolean);
         self.check_expression(source, condition, Some(boolean), None, return_type)?;
         let (true_facts, _) = self.condition_facts(source, condition)?;
         self.flow_facts = flow::extend_facts(&self.flow_facts, &true_facts);
         let result = self.check_loop_body(source, body, return_type, return_span);
         self.flow_facts = head;
+        self.flow_versions = flow::merge_flow_versions(&head_versions, &self.flow_versions);
         result.map(|_| ())
     }
 }
