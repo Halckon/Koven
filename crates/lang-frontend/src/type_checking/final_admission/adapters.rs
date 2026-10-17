@@ -44,6 +44,7 @@ pub(super) trait Facts {
 
     fn static_qualifier(&self, span: Span) -> bool;
     fn static_candidate(&self, span: Span) -> bool;
+    fn rejected_function_overload(&self, callee_span: Span, no_match_code: DiagnosticCode) -> bool;
     fn rejected_bare_enum_case(
         &self,
         expression: ExpressionId,
@@ -391,6 +392,21 @@ impl Facts for Single<'_> {
         }
         selection
     }
+    fn rejected_function_overload(&self, callee_span: Span, no_match_code: DiagnosticCode) -> bool {
+        self.typed.diagnostics().iter().any(|diagnostic| {
+            diagnostic.severity() == Severity::Error
+                && diagnostic.code() == no_match_code
+                && diagnostic.primary_span() == callee_span
+        }) && self.names.references().iter().any(|reference| {
+            reference.span() == callee_span
+                && reference.namespace() == Namespace::Value
+                && matches!(reference.target(), ReferenceTarget::OverloadSet(symbols)
+                if symbols.len() > 1 && symbols.iter().all(|symbol| {
+                    self.names.symbols().get(symbol.index())
+                        .is_some_and(|symbol| symbol.kind() == SymbolKind::Function)
+                }))
+        })
+    }
     fn rejected_bare_enum_case(
         &self,
         expression: ExpressionId,
@@ -534,6 +550,51 @@ impl Facts for Unit<'_> {
             selection.types.push(constant.ty().index());
         }
         selection
+    }
+    fn rejected_function_overload(&self, callee_span: Span, no_match_code: DiagnosticCode) -> bool {
+        if !self.typed.diagnostics().iter().any(|diagnostic| {
+            diagnostic.severity() == Severity::Error
+                && diagnostic.code() == no_match_code
+                && diagnostic.primary_span() == callee_span
+        }) {
+            return false;
+        }
+        self.names.names().references().iter().any(|reference| {
+            reference.source_unit() == self.source
+                && reference.span() == callee_span
+                && reference.namespace() == Some(Namespace::Value)
+                && match reference.target() {
+                    UnitReferenceTarget::OverloadSet(declarations) => {
+                        declarations.len() > 1
+                            && declarations.iter().all(|id| {
+                                self.names
+                                    .names()
+                                    .index()
+                                    .declarations()
+                                    .iter()
+                                    .find(|declaration| declaration.id() == *id)
+                                    .is_some_and(|declaration| {
+                                        declaration.kind() == SymbolKind::Function
+                                    })
+                            })
+                    }
+                    UnitReferenceTarget::Symbols(symbols) => {
+                        symbols.len() > 1
+                            && symbols.iter().all(|id| {
+                                self.names
+                                    .names()
+                                    .source_units()
+                                    .iter()
+                                    .find(|source| source.source_unit() == id.source_unit())
+                                    .and_then(|source| {
+                                        source.resolution().symbols().get(id.symbol().index())
+                                    })
+                                    .is_some_and(|symbol| symbol.kind() == SymbolKind::Function)
+                            })
+                    }
+                    _ => false,
+                }
+        })
     }
     fn rejected_bare_enum_case(
         &self,
