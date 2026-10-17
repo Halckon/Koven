@@ -21,9 +21,9 @@ pub(super) struct IterationContext {
     pub(super) inherited_borrowed: Option<BorrowedWhileProof>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) enum IterationState {
-    Map(super::map_iteration::MapState),
+    Map(Box<super::map_iteration::MapState>),
     Borrowed {
         start: usize,
         element: usize,
@@ -427,7 +427,8 @@ impl UnitExpressionLowerer<'_> {
         else {
             return Ok(());
         };
-        if let IterationState::Map(state) = context.state {
+        if let IterationState::Map(state) = &context.state {
+            let state = **state;
             return self.advance_map_iteration(state, span);
         }
         let IterationState::Borrowed {

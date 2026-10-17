@@ -243,7 +243,7 @@ impl UnitExpressionLowerer<'_> {
             statement: statement_id,
             retained_start,
             outer_temporaries,
-            state: IterationState::Map(MapState {
+            state: IterationState::Map(Box::new(MapState {
                 source_slot,
                 cursor_slot,
                 key_slot,
@@ -256,7 +256,7 @@ impl UnitExpressionLowerer<'_> {
                     key_live: true,
                     value_live: true,
                 },
-            }),
+            })),
             inherited_borrowed: None,
         });
         self.loops.push(context);

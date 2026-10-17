@@ -8,8 +8,8 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .rev()
             .filter_map(|context| context.iteration.as_ref())
-            .find_map(|iteration| match iteration.state {
-                IterationState::Map(state) if iteration.statement == statement => Some(state),
+            .find_map(|iteration| match &iteration.state {
+                IterationState::Map(state) if iteration.statement == statement => Some(**state),
                 _ => None,
             })
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
@@ -152,11 +152,11 @@ impl UnitExpressionLowerer<'_> {
             .iter()
             .rev()
             .filter_map(|context| context.iteration.as_ref())
-            .find_map(|iteration| match iteration.state {
+            .find_map(|iteration| match &iteration.state {
                 IterationState::Map(state)
                     if fact.target() == UnitDropTarget::Named(state.carrier.root) =>
                 {
-                    Some((iteration.statement, state))
+                    Some((iteration.statement, **state))
                 }
                 _ => None,
             })
