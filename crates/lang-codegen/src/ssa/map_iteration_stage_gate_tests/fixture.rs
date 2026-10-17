@@ -1,11 +1,15 @@
 //! 普通 fixture、真实 AST 位置和阶段化结果；无生产 facts 构造器。
 
-use super::super::{LoweringError, LoweringErrorKind};
+use super::super::{
+    LoweringError, LoweringErrorKind,
+    model::{FunctionId, Origin, Program},
+    verify::verify_program,
+};
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     diagnostic::Diagnostic,
     lexer::lex,
-    parser::{ForBinding, NameMarker, ParsedFile, Statement, parse_file},
+    parser::{ForBinding, Item, NameMarker, ParsedFile, Statement, parse_file},
     source::{SourceMap, Span},
     type_checking::{IntrinsicTypeConstructor, MapIterationKind},
 };
@@ -89,6 +93,23 @@ impl Fixture {
         Ok(fixture)
     }
 
+    pub fn function_location(&self, name_span: Span) -> Option<Location> {
+        let spans = self
+            .files
+            .iter()
+            .filter(|file| file.parsed.source_id() == name_span.source_id())
+            .flat_map(|file| file.parsed.ast().items().iter())
+            .filter_map(|(_, node)| {
+                matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. } if *name == name_span)
+                    .then_some(node.span())
+            })
+            .collect::<Vec<_>>();
+        let [span] = spans.as_slice() else {
+            return None;
+        };
+        location(&self.sources, *span)
+    }
+
     fn add(
         &mut self,
         path: &str,
@@ -170,39 +191,113 @@ pub(super) fn location(sources: &SourceMap, span: Span) -> Option<Location> {
     })
 }
 
+/// 明确锁定每条观察的唯一合同；query 缺失不得把拒绝目标变成成功目标。
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Expectation {
+    Unsupported,
+    Verified,
+}
+
 #[derive(Debug)]
 pub(super) struct LowerOutcome {
-    expected: Option<Location>,
+    expectation: Expectation,
+    expected_rejection: Option<Location>,
     error: Option<LoweringError>,
-    actual: Option<Location>,
+    actual_rejection: Option<Location>,
+    success: Option<SuccessfulLower>,
+}
+
+#[derive(Debug)]
+struct SuccessfulLower {
+    entry: FunctionId,
+    expected_entry: Option<Location>,
+    actual_entry: Option<Location>,
+    entry_identity: Option<FunctionId>,
+    ssa_verifier: Result<(), String>,
+    verified_llvm_bytes: Result<usize, String>,
 }
 
 impl LowerOutcome {
-    pub fn new<T>(
+    pub fn new(
         sources: &SourceMap,
-        expected: Option<Location>,
-        result: Result<T, LoweringError>,
+        expectation: Expectation,
+        expected_rejection: Option<Location>,
+        expected_entry: Option<Location>,
+        result: Result<(Program, FunctionId), LoweringError>,
     ) -> Self {
-        let error = result.err();
-        let actual = error
+        let (error, success) = match result {
+            Err(error) => (Some(error), None),
+            Ok((program, entry)) => {
+                // 使用 lower 返回的真实 ID 查询本 Program，不按函数名或固定槽索引替代。
+                let function = program
+                    .module(entry.module())
+                    .and_then(|module| module.function(entry));
+                let actual_entry = function.and_then(|function| match &function.origin {
+                    Origin::Source(span) => location(sources, *span),
+                    Origin::Synthetic { .. } => None,
+                });
+                let entry_identity = function
+                    .filter(|_| expected_entry.is_some() && actual_entry == expected_entry)
+                    .map(|function| function.id());
+                // 来源 query 即使失败仍执行两条真实 verifier 路径；LLVM 入口会再次验证 SSA。
+                let ssa_verifier = verify_program(&program).map_err(|error| format!("{error:?}"));
+                let verified_llvm_bytes = crate::llvm::render_verified_program(&program)
+                    .map(|llvm| llvm.len())
+                    .map_err(|error| format!("{error:?}"));
+                (
+                    None,
+                    Some(SuccessfulLower {
+                        entry,
+                        expected_entry,
+                        actual_entry,
+                        entry_identity,
+                        ssa_verifier,
+                        verified_llvm_bytes,
+                    }),
+                )
+            }
+        };
+        let actual_rejection = error
             .and_then(|error| error.span)
             .and_then(|span| location(sources, span));
         Self {
-            expected,
+            expectation,
+            expected_rejection,
             error,
-            actual,
+            actual_rejection,
+            success,
         }
     }
 
     pub fn matches(&self) -> bool {
-        self.expected.as_ref().is_some_and(|expected| {
-            self.error
-                == Some(LoweringError {
-                    kind: LoweringErrorKind::UnsupportedNode,
-                    span: Some(expected.span),
-                })
-                && self.actual.as_ref() == Some(expected)
-                && expected.text == FOR_TEXT
-        })
+        match self.expectation {
+            Expectation::Unsupported => self.expected_rejection.as_ref().is_some_and(|expected| {
+                self.error
+                    == Some(LoweringError {
+                        kind: LoweringErrorKind::UnsupportedNode,
+                        span: Some(expected.span),
+                    })
+                    && self.actual_rejection.as_ref() == Some(expected)
+                    && expected.text == FOR_TEXT
+                    && self.success.is_none()
+            }),
+            Expectation::Verified => {
+                self.expected_rejection.is_none()
+                    && self.error.is_none()
+                    && self.success.as_ref().is_some_and(|success| {
+                        // 同一分析的真实返回 ID 与源身份；无跨分析裸 ID 比较。
+                        success
+                            .actual_entry
+                            .as_ref()
+                            .is_some_and(|actual| Some(actual) == success.expected_entry.as_ref())
+                            && success.entry_identity == Some(success.entry)
+                            && success.ssa_verifier.is_ok()
+                            && success
+                                .verified_llvm_bytes
+                                .as_ref()
+                                .is_ok_and(|bytes| *bytes > 0)
+                    })
+            }
+        }
     }
 }

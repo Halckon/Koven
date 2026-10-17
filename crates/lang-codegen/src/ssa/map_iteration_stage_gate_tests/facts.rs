@@ -13,11 +13,11 @@ use lang_frontend::{
         MapIterationSourceAccess, OwnershipBindingKind, OwnershipCheckedFile,
         UnitIterationSourceAccess, UnitLoanTarget,
     },
-    parser::{FunctionBody, FunctionForm, Item, NameMarker, Statement},
+    parser::{Expression, FunctionBody, FunctionForm, Item, NameMarker, Statement},
     source::Span,
     type_checking::{
-        BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, MapIterationKind, TypeKind,
-        TypedFile, UnitExpressionId, UnitStatementId, UnitTypeKind,
+        BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, MapIterationKind,
+        ParameterMode, TypeKind, TypedFile, UnitExpressionId, UnitStatementId, UnitTypeKind,
     },
 };
 
@@ -112,15 +112,44 @@ pub(super) fn single(
                 && arguments.as_slice() == [descriptor.key_type(), descriptor.value_type()]
                 && typed.types().get(descriptor.key_type()) == Some(&TypeKind::Builtin(BuiltinType::Int))
                 && typed.types().get(descriptor.value_type()) == Some(&TypeKind::Builtin(BuiltinType::String))), source_type);
-        let source = names.references().iter().find_map(|reference| {
-            if reference.span() == site.source_span
-                && let ReferenceTarget::Symbol(symbol) = reference.target()
-            {
-                Some(*symbol)
-            } else {
-                None
-            }
-        });
+        let references = names
+            .references()
+            .iter()
+            .filter_map(|reference| {
+                if reference.span() == site.source_span
+                    && let ReferenceTarget::Symbol(symbol) = reference.target()
+                {
+                    Some(*symbol)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        let source = if let [source] = references.as_slice() {
+            Some(*source)
+        } else {
+            None
+        };
+        let source_symbol =
+            source.and_then(|id| names.symbols().iter().find(|symbol| symbol.id() == id));
+        report.check(
+            "single direct Name and unique real Borrow parameter",
+            file.parsed
+                .ast()
+                .expressions()
+                .get(site.source)
+                .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+                && source_symbol.is_some_and(|symbol| {
+                    symbol.kind() == SymbolKind::ValueParameter
+                        && !symbol.is_synthetic()
+                        && symbol.span().source_id() == file.parsed.source_id()
+                })
+                && source.is_some_and(|source| {
+                    typed.parameter_mode(source) == Some(ParameterMode::Borrow)
+                        && typed.symbol_type(source) == Some(descriptor.source_type())
+                }),
+            (&references, source_symbol),
+        );
         report.check(
             "single actual Borrow source origin",
             matches!(plan.source(), Some(LoanTarget::Place(place))
@@ -182,10 +211,12 @@ pub(super) fn single(
             typed.map_iterations(),
         );
     }
-    // 本分析的真实 StatementId 决定首项；不能把源码字节顺序或函数名字替代 ID 合同。
+    // 本 fixture 的所有来源已逐项核为真实 Borrow/Shared 参数；MutableMap 已在硬资格内。
+    // 只在不支持的 Map Borrow 中按本分析真实 StatementId 取首项，不能选首个 Map 类描述符。
     let first = typed
         .map_iterations()
         .iter()
+        .filter(|descriptor| descriptor.kind() == MapIterationKind::Map)
         .min_by_key(|descriptor| descriptor.statement().index());
     let expected = first
         .and_then(|descriptor| {
@@ -195,8 +226,12 @@ pub(super) fn single(
         })
         .and_then(|site| location(&fixture.sources, site.span));
     report.check(
-        "single expected first full For",
-        expected.is_some(),
+        "single expected first unsupported Map Borrow full For",
+        expected.is_some()
+            == typed
+                .map_iterations()
+                .iter()
+                .any(|descriptor| descriptor.kind() == MapIterationKind::Map),
         (&first, &expected),
     );
     expected
@@ -274,15 +309,53 @@ pub(super) fn unit(
                     && arguments.as_slice() == [descriptor.key_type(), descriptor.value_type()]
                     && typed.types().get(descriptor.key_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
                     && typed.types().get(descriptor.value_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::String))), source_type);
-            let source = names.names().references().iter().find_map(|reference| {
-                if reference.span() == site.source_span
-                    && let UnitReferenceTarget::Symbol(symbol) = reference.target()
-                {
-                    Some(*symbol)
-                } else {
-                    None
-                }
+            let references = names
+                .names()
+                .references()
+                .iter()
+                .filter_map(|reference| {
+                    if reference.span() == site.source_span
+                        && let UnitReferenceTarget::Symbol(symbol) = reference.target()
+                    {
+                        Some(*symbol)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            let source = if let [source] = references.as_slice() {
+                Some(*source)
+            } else {
+                None
+            };
+            let source_symbol = source.and_then(|id| {
+                source_names
+                    .resolution()
+                    .symbols()
+                    .iter()
+                    .find(|symbol| symbol.id() == id.symbol())
             });
+            let parameters = typed
+                .signatures()
+                .declarations()
+                .iter()
+                .filter_map(|signature| signature.callable())
+                .flat_map(|callable| callable.parameters())
+                .filter(|parameter| source.is_some() && parameter.symbol() == source)
+                .collect::<Vec<_>>();
+            report.check(
+                "unit direct Name and unique real Borrow parameter",
+                file.parsed.ast().expressions().get(site.source).is_ok_and(|node| {
+                matches!(node.payload(), Expression::Name)
+            })
+                    && source_symbol.is_some_and(|symbol| {
+                        symbol.kind() == SymbolKind::ValueParameter && !symbol.is_synthetic()
+                            && symbol.span().source_id() == file.parsed.source_id()
+                    })
+                    && matches!(parameters.as_slice(), [parameter]
+                        if parameter.mode() == ParameterMode::Borrow && parameter.ty() == descriptor.source_type()),
+                (&references, source_symbol, parameters),
+            );
             report.check(
                 "unit actual Borrow source origin",
                 matches!(plan.source(), Some(UnitLoanTarget::Place(place))
@@ -345,10 +418,12 @@ pub(super) fn unit(
             &all_sites,
         );
     }
+    // 全部来源已核为 Borrow/Shared 参数；只对仍不支持的 Map Borrow 排序。
     // 每次 fresh 分析重新取 SourceUnitId/StatementId 最小项；不跨分析比较裸 ID。
     let first = typed
         .map_iterations()
         .iter()
+        .filter(|descriptor| descriptor.kind() == MapIterationKind::Map)
         .min_by_key(|descriptor| descriptor.statement());
     let expected = first
         .and_then(|descriptor| {
@@ -358,8 +433,12 @@ pub(super) fn unit(
         })
         .and_then(|(_, span)| location(&fixture.sources, *span));
     report.check(
-        "unit expected first source-qualified full For",
-        expected.is_some(),
+        "unit expected first unsupported source-qualified Map Borrow full For",
+        expected.is_some()
+            == typed
+                .map_iterations()
+                .iter()
+                .any(|descriptor| descriptor.kind() == MapIterationKind::Map),
         (&first, &expected),
     );
     expected

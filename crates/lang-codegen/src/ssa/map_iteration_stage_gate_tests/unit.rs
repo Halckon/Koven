@@ -1,7 +1,7 @@
 //! Basic/const 各自取得真实 capability；只读 query 不改写同轮阶段产物。
 use super::{
     Pathway, Report, facts,
-    fixture::{Fixture, LowerOutcome, Stopped, clean, stopped},
+    fixture::{Expectation, Fixture, LowerOutcome, Stopped, clean, stopped},
 };
 use lang_frontend::{
     name_resolution::{
@@ -22,6 +22,7 @@ pub(super) fn collect(
     reverse_inputs: bool,
     entry_name: &str,
     whole_set: bool,
+    expectation: Expectation,
     report: &mut Report,
 ) -> Result<LowerOutcome, Stopped> {
     let sources = &fixture.sources;
@@ -64,6 +65,12 @@ pub(super) fn collect(
         return Err(stopped("unit real entry identity", entries));
     };
     report.check("unit names and real entry", true, entry);
+    let expected_entry = fixture.function_location(entry.name_span());
+    report.check(
+        "unit real entry full source origin",
+        expected_entry.is_some(),
+        &expected_entry,
+    );
     if whole_set {
         let entry_source = names
             .names()
@@ -157,7 +164,13 @@ pub(super) fn collect(
                 true,
                 lowered.as_ref().err(),
             );
-            Ok(LowerOutcome::new(sources, expected, lowered))
+            Ok(LowerOutcome::new(
+                sources,
+                expectation,
+                expected,
+                expected_entry,
+                lowered,
+            ))
         }
         Pathway::Const => {
             // 没有常量声明也必须取得专用 capability；绝不借 basic view 或转换伪造。
@@ -237,7 +250,13 @@ pub(super) fn collect(
                 true,
                 lowered.as_ref().err(),
             );
-            Ok(LowerOutcome::new(sources, expected, lowered))
+            Ok(LowerOutcome::new(
+                sources,
+                expectation,
+                expected,
+                expected_entry,
+                lowered,
+            ))
         }
         Pathway::Single => Err(stopped(
             "unit fixture infrastructure",
