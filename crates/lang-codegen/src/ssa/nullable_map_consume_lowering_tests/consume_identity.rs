@@ -113,13 +113,14 @@ fn span(parsed: &ParsedFile, expression: ExpressionId) -> Outcome<Span> {
 }
 
 fn transparent(parsed: &ParsedFile, mut expression: ExpressionId) -> Outcome<ExpressionId> {
-    let mut seen = BTreeSet::new();
+    let mut seen = Vec::new();
     loop {
         gate(
             "consume identity: finite transparent source",
-            seen.insert(expression),
+            !seen.contains(&expression),
             expression,
         )?;
+        seen.push(expression);
         let node = parsed
             .ast()
             .expressions()
