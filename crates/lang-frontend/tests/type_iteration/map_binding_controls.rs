@@ -1,8 +1,7 @@
 //! SPEC-0331：六个 clean 非法 Map pattern 与一个 nominal 同名邻控。
 //! 单个普通 exact 先采齐 single/unit 十四路，再核完整原始诊断和 AST 身份。
 
-#[path = "map_binding_controls/analysis.rs"]
-mod analysis;
+use crate::map_binding_analysis as analysis;
 #[path = "map_binding_controls/facts.rs"]
 mod facts;
 

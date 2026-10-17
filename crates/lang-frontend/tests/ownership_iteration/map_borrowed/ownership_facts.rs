@@ -113,7 +113,7 @@ pub(super) fn single(
                     let valid = kind == Some(OwnershipBindingKind::Owned)
                         && !drops.is_empty()
                         && source_owner.is_ok();
-                    report.note("owned named source grounded phi identity", &source_owner);
+                    report.note("owned named source grounded phi identity", source_owner);
                     // 仅诊断实际 source drop 的 owner/condition 与同 source 的 phi 入边。
                     let conditions = owned.cleanup_conditions();
                     report.note("owned named source cleanup condition table", conditions);

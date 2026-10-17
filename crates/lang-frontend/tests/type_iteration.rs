@@ -1,4 +1,7 @@
 //! SPEC-0179：compiler-bound 借用迭代的 Phase 2 契约。
+#[path = "type_iteration/map_binding_controls/analysis.rs"]
+mod map_binding_analysis;
+
 use lang_frontend::{
     name_resolution::{NameResolution, resolve_names},
     parser::ParsedFile,

@@ -1,8 +1,7 @@
 //! SPEC-0331：完整 for pattern 恢复必须继续访问独立 body，且不级联污染 binding。
 //! 三个真实源的 single/unit 六次观察先全部收齐，再比较完整有序 Diagnostic。
 
-#[path = "map_binding_controls/analysis.rs"]
-mod analysis;
+use crate::map_binding_analysis as analysis;
 #[path = "pattern_recovery_neighbors/facts.rs"]
 mod facts;
 #[path = "pattern_recovery_neighbors/sites.rs"]
