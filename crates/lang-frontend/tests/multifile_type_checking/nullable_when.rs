@@ -543,10 +543,13 @@ fn record_admission(
                     && raw
                         .iter()
                         .all(|diagnostic| final_diagnostics.contains(diagnostic))
-                    && (case == Case::FailedTrials
-                        || final_diagnostics
+                    && if case == Case::FailedTrials {
+                        final_diagnostics.as_slice() == raw
+                    } else {
+                        final_diagnostics
                             .iter()
-                            .all(|diagnostic| diagnostic.code().to_string() != "L0165")),
+                            .all(|diagnostic| diagnostic.code().to_string() != "L0165")
+                    },
             );
         }
         Err(FinalTypeAdmissionError::Internal(_)) => {
@@ -818,8 +821,10 @@ fn inspect_single_trials(
             && matches!(reference.target(), ReferenceTarget::OverloadSet(candidates) if candidates.len() == 2)
     }));
     observation.check(
-        "failed overload retains actual diagnostics",
-        !typed.diagnostics().is_empty(),
+        "failed overload retains only the original exact L0123",
+        typed.diagnostics().len() == 1
+            && typed.diagnostics()[0].code().to_string() == "L0123"
+            && typed.diagnostics()[0].primary_span() == callee,
     );
     observation.check(
         "failed choose has no selected call",
@@ -862,8 +867,10 @@ fn inspect_unit_trials(
             && matches!(reference.target(), UnitReferenceTarget::OverloadSet(candidates) if candidates.len() == 2)
     }));
     observation.check(
-        "failed overload retains actual diagnostics",
-        !typed.diagnostics().is_empty(),
+        "failed overload retains only the original exact L0123",
+        typed.diagnostics().len() == 1
+            && typed.diagnostics()[0].code().to_string() == "L0123"
+            && typed.diagnostics()[0].primary_span() == callee,
     );
     observation.check(
         "failed choose has no selected call",

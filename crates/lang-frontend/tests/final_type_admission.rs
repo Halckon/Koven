@@ -379,3 +379,6 @@ mod static_recovery;
 
 #[path = "final_type_admission/simple_assignment.rs"]
 mod simple_assignment;
+
+#[path = "final_type_admission/failed_overload_trials.rs"]
+mod failed_overload_trials;
