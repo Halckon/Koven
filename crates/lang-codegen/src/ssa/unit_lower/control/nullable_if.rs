@@ -1,4 +1,7 @@
 //! Bounded nullable entries: While retests and direct Map-size or consume-first Ifs.
+#[cfg(test)]
+mod guard_tests;
+
 use super::super::unwrap_modified;
 use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key};
 use super::*;

@@ -1,6 +1,8 @@
 //! unit 实例规划、函数入口与完整 SSA module 组装。
 
 #[cfg(test)]
+pub(super) mod nullable_map_guard_support;
+#[cfg(test)]
 mod registration_tests;
 use super::*;
 

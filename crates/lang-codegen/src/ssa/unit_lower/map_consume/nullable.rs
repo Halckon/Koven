@@ -1,4 +1,7 @@
 //! Consume-first ordinary If extraction from the original nullable branch view only.
+#[cfg(test)]
+mod guard_tests;
+
 mod cleanup;
 mod source;
 
