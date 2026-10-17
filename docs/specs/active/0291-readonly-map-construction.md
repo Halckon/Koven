@@ -525,3 +525,35 @@ nullable consume 提取、CI7动态链、CI2反序及新增私有拒绝门、pro
 最终候选监测集合为420唯一 exact：普通353与CI-only67完全分离；实际CI尚待，
 不以本地普通通过代替合成门或双平台证据。provider后继、lambda形成类型的历史遗留
 与当前有界 nullable 路径之外的组合能力仍待，不作 SPEC-0291 完成、归档或合并声明。
+
+## 18. Draft PR 首轮真实 CI 与最小兼容修复
+
+- PR117 首轮 `39014157951` 双宿主均在 formed publication 私有测试的 names 前置失败：
+  `a.ko`/`b.ko` 与 package a/b 不匹配（L0146）。`51350423` 只把三条逻辑路径
+  改为 `a/a.ko`、`b/b.ko`、`a/error.ko`，不改源码、offset、来源顺序或守卫断言。
+  首轮监测每 host 仅10成功/1失败/409未到达；不得记为420完成。
+- 第二轮 `39014733415` 已通过上述前置，但两宿主各13失败：12旧跨文件调用在
+  FE 报 UnsupportedBody，以及 unit nullable consume 私有 guard 的 C3 参数查找失败。
+  12旧失败逐helper分为8普通与4计数/mixed CI-only；另1私有guard仅CI。
+- 普通三代表在修前各真实1/101，确认 `p.consume` 的 Package receiver 被 Map 名字
+  试探误当值，早于 ownership/formed planning。`befa4253` 仅在真实 source、终端
+  Name/Member span、namespace=None、Package 身份齐备时回原 qualified call 路由；
+  不按字符串猜包、不跳过任意 Declaration。三旧红消除，普通8与用户同名/真Map2通过。
+- `91e71b41` 只修 CI support：合并真实当前 callable 签名参数与 body symbols，
+  同 source/name、最近 Function origin、Lambda早拒、exactly-one 与实际类型门保持。
+  未改 production consume，也未本地执行该私有测试。
+- `7089066d` 新增普通 nested package/Int-Boolean overload/局部同名值身份 exact；
+  新1与旧10全部通过。工程4同头全0，收据 `764f68cd…abab7`。
+  同头全普通362各实际1通过（206 codegen SSA/LLVM、60 FE、96普通native），
+  收据 `e18d443ebcf84d934e8539f94fbc571de39d59fc70961e2c5c10aefffbc4d01f`；
+  2485输入与工具/清单/runner前后稳定。
+- 实际远端 `af6ba9e95236bbf03bdc90689aa2126802d1d46f` / tree `4414f633…f5c03`
+  的 PR CI `39016516293/a1` 终态 success：双宿主433 exact各实际1成功，含全部71项
+  CI-only及前两轮失败；15 jobs success、Tree-sitter仅paths skip，`reuse=false`。
+  合成 `e840c11d…63464` 的双父为 main `37e80526` 与实际远端 `af6ba9e9`，树相同。
+  正式收据 `89a82348da180063026eb02bfe35b230167c062f0c2ef9b8090b55988bbd63b0`。
+  校准 artifact：Linux pass；macOS partial（ASan unsupported、leak counter-only）；
+  Preview只核jobs/steps，不宣称独立审完每个artifact。后继docs头仍须验证合法CI/reuse。
+
+原两轮失败日志保留。新监测433=ordinary362+CI-only71，包含原420之外12旧消费者与
+新增普通身份控制；集合监测不代替全CI其他测试。provider/其余有界范围与合并条件不变。

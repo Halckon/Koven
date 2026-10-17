@@ -158,7 +158,7 @@ Resource wrapper。现行 pointer-like nullable 的 owned null 比较复用 Null
 多参数的实参映射、来源分流、验收与保留边界见[普通多参数借用](multi-parameter-borrow-results.md)。
 ## 哈希表与执行证据
 
-header 是 `{buffer, size, capacity, tombstones}`；槽位为 `{state, K, V}`，有 Empty/Occupied/Deleted 状态。
+Map/MutableMap header 为 `{buffer, size, capacity, tombstones, first, last}`；槽位为 `{state, K, V, prev, next}`，状态仍为 Empty/Occupied/Deleted。
 Int/Boolean/Char 使用确定性标量哈希，String 使用 UTF-8 字节哈希与相等性检查。
 初始容量 16，按 size+tombstones 的 75% 阈值扩容并移动条目；删除增加墓碑计数，复用减少计数，rehash 清零。
 探查最多扫描 capacity 个槽位，记录首个墓碑；整表都是墓碑时也能复用并终止。
@@ -181,7 +181,7 @@ Int/Boolean/Char 使用确定性标量哈希，String 使用 UTF-8 字节哈希�
 | M06 | single / Resource分类对照 / Array | Resource Map / Resource V | SSA/LLVM正例：T4；更广退出native未评估；后继同M04 |
 | M07 | single/unit / remove后窄化、Borrow、!! / 无 | Map Inout；独立结果owner / String、MoveOnly、Resource V | native正例：T5；single重入不外推unit；[结果借用](map-owned-result-borrow.md) |
 | M08 | unit / M07结果Borrow返回、key内嵌调用、下标 / 无 | 独立结果owner，不是entry loan | 拒绝：T6；0299后继仍开放，0307不自动关闭 |
-| M09 | single/unit / requireValue、withValue命中/缺失 / 无 | Shared receiver/slot / MoveOnly、Resource、pointer-like nullable V | native正例：T7；非空readonly命中未评估，无现行构造/转换入口；0291仍[draft](../specs/drafts/v0.44/README.md) |
+| M09 | single/unit / requireValue、withValue命中/缺失 / 无 | Shared receiver/slot / MoveOnly、Resource、pointer-like nullable V | native正例：T7；readonly consume后String命中/缺失已有普通native，其他组合不外推；[0291 active](../specs/active/0291-readonly-map-construction.md) |
 | M10 | single/unit / nullable旧查询、remove / 无 | get的Copyable nullable或MoveOnly V；remove的nullable V | 拒绝：T8；L0130/L0136或UnsupportedNode/Span；后继未选，不开放owned三态 |
 | M11 | single/unit / put T→T?、覆盖/null / 无 | owned、Inout / 现行pointer-niche V，含Resource | native正例：T7；非Map wrapper guard保留，不扩inline nullable |
 | M12 | single/unit / 缓存result再建Map / 无 | Int?/String?/MoveOnly Packet? storage | 拒绝：T9；aggregate不授权storage；后继未选 |
