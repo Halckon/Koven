@@ -74,10 +74,10 @@ struct Analysis {
     owned: OwnershipCheckedFile,
 }
 
-struct TestDirectory(PathBuf);
+pub(crate) struct TestDirectory(PathBuf);
 
 impl TestDirectory {
-    fn create() -> Self {
+    pub(crate) fn create() -> Self {
         let path = std::env::temp_dir().join(format!(
             "koven-native-facade-test-{}-{}",
             std::process::id(),
@@ -87,7 +87,7 @@ impl TestDirectory {
         Self(path)
     }
 
-    fn join(&self, name: &str) -> PathBuf {
+    pub(crate) fn join(&self, name: &str) -> PathBuf {
         self.0.join(name)
     }
 }
