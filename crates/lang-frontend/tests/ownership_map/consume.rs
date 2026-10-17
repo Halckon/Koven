@@ -24,6 +24,7 @@ use lang_frontend::{
 #[path = "../support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
+#[path = "consume/field_roots.rs"]
 mod field_roots;
 
 #[derive(Clone, Copy)]
