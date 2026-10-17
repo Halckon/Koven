@@ -343,7 +343,10 @@ fn nullable_map_resource_sources_preserve_compatibility() {
                     && !observed.entry.span.is_empty()
                     && matches_lower(&expected.lower, &observed.outcome)
             });
-        println!("RESOURCE COMPATIBILITY {}: matched={matched}", expected.label);
+        println!(
+            "RESOURCE COMPATIBILITY {}: matched={matched}",
+            expected.label
+        );
         if !matched {
             mismatches.push(format!("expected={expected:#?}; actual={actual:#?}"));
         }
