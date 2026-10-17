@@ -1,0 +1,9 @@
+fun checkpoint(m: Map<Int, Int>, own step: Int): Unit {
+    if (m.size >= 0) { println("checkpoint") }
+}
+fun entry(): Unit {
+    val m = mapOf<Int, Int>()
+    checkpoint(m, 0)
+    if (m.size == 0) { println("values") }
+    println("done")
+}

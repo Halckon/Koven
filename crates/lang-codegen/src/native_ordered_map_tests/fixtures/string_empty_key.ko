@@ -1,0 +1,23 @@
+fun checkpoint(m: MutableMap<String, Int>, own step: Int): Unit {
+    if (m.size >= 0) { println("checkpoint") }
+}
+fun entry(): Unit {
+    var m = mutableMapOf<String, Int>()
+    checkpoint(m, 0)
+    m.put("".clone(), 10)
+    checkpoint(m, 1)
+    m.put("a".clone(), 20)
+    checkpoint(m, 2)
+    m.put("aa".clone(), 30)
+    checkpoint(m, 3)
+    m.put("".clone(), 11)
+    checkpoint(m, 4)
+    m.put("aa".clone(), 31)
+    checkpoint(m, 5)
+    m.remove("")
+    checkpoint(m, 6)
+    m.put("".clone(), 12)
+    checkpoint(m, 7)
+    if (m.size == 3 && m.get("") == 12 && m.get("a") == 20 && m.get("aa") == 31) { println("values") }
+    println("done")
+}
