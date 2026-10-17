@@ -306,7 +306,7 @@ pub(super) fn check(program: &Program, identity: &Identity, text: &str) -> Outco
                     .and_then(|value| value.strip_suffix(" }"))
             })
             .collect();
-        headers.push(parts(*one(&definitions, "one complete LLVM map type")?)?);
+        headers.push(parts(one(&definitions, "one complete LLVM map type")?)?);
     }
     gate(
         "consume identity: six precise equal header fields",

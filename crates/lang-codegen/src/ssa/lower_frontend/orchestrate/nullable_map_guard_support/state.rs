@@ -2,6 +2,8 @@
 use super::super::super::pending_call::PendingFieldChild;
 use super::*;
 
+type PendingCallSnapshot = ((usize, usize), Option<LoanId>, Option<PendingFieldChild>);
+
 #[derive(Debug, PartialEq, Eq)]
 pub(in crate::ssa::lower_frontend) struct Snapshot {
     function: Function,
@@ -16,7 +18,7 @@ pub(in crate::ssa::lower_frontend) struct Snapshot {
     result_loans: BTreeMap<SymbolId, Vec<LoanId>>,
     captures: BTreeMap<(usize, usize), LoanId>,
     temporaries: BTreeMap<usize, ValueId>,
-    pending: Vec<((usize, usize), Option<LoanId>, Option<PendingFieldChild>)>,
+    pending: Vec<PendingCallSnapshot>,
 }
 
 impl Snapshot {
