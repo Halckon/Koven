@@ -23,6 +23,9 @@ use super::{
     unit_lower::lower_scalar_unit_with_entry, verify::verify_program,
 };
 
+#[path = "rc_nullable_while_identity_queries.rs"]
+mod identity;
+
 const SOURCE: &str =
     "fun inspect(own owner: Rc<Int>?): Rc<Int>? { while (owner != null) { break }; return owner }";
 
@@ -52,10 +55,16 @@ struct Observation {
 }
 
 fn observe(unit: bool) -> Observation {
+    observe_with_inspector(unit, false).0
+}
+
+fn observe_with_inspector(unit: bool, inspect_identity: bool) -> (Observation, Result<(), String>) {
     let mut complete_ok = false;
     let mut ownership_ok = false;
     let mut frontend_anchor_ok = false;
     let mut lower_attempted = false;
+    let mut source_identity = Err("source identity query not reached".to_owned());
+    let mut identity = Err("SSA identity query not reached".to_owned());
     let outcome = (|| {
         let mut sources = SourceMap::new();
         let (path, text) = if unit {
@@ -177,6 +186,14 @@ fn observe(unit: bool) -> Observation {
                     && *payload == UnitTypeKind::Builtin(BuiltinType::Int))
             }).unwrap_or(false);
             println!("SPEC0332 ANCHOR unit={unit} valid={frontend_anchor_ok}");
+            if inspect_identity {
+                source_identity =
+                    identity::unit_source(&file, &names, typed.types(), owned.ownership(), entry);
+                println!(
+                    "SPEC0332 SOURCE OWNER QUERY unit={unit} result={:?}",
+                    source_identity.as_ref().map(|_| ())
+                );
+            }
             lower_attempted = true;
             println!("SPEC0332 STAGE unit={unit} lower=attempt");
             lower_scalar_unit_with_entry(&sources, &inputs, &names, &types, &typed, &owned, entry)
@@ -242,6 +259,13 @@ fn observe(unit: bool) -> Observation {
                     && *payload == TypeKind::Builtin(BuiltinType::Int))
             }).unwrap_or(false);
             println!("SPEC0332 ANCHOR unit={unit} valid={frontend_anchor_ok}");
+            if inspect_identity {
+                source_identity = identity::single_source(&file, &names, &typed, &owned, entry);
+                println!(
+                    "SPEC0332 SOURCE OWNER QUERY unit={unit} result={:?}",
+                    source_identity.as_ref().map(|_| ())
+                );
+            }
             lower_attempted = true;
             println!("SPEC0332 STAGE unit={unit} lower=attempt");
             lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
@@ -271,6 +295,12 @@ fn observe(unit: bool) -> Observation {
             ));
         }
         println!("SPEC0332 SSA unit={unit}\n{}", render_program(&program));
+        if inspect_identity {
+            // A failed independent query must not suppress the real verifier/LLVM outcome.
+            identity =
+                source_identity.and_then(|source| identity::inspect(&program, entry, source));
+            println!("SPEC0332 ORIGINAL OWNER QUERY unit={unit} result={identity:?}");
+        }
         verify_program(&program).map_err(|error| failure("ssa-verify", error))?;
         println!("SPEC0332 STAGE unit={unit} ssa-verify=ok");
         // with_entry would add a NoArguments process bridge, unrelated to this function.
@@ -280,14 +310,17 @@ fn observe(unit: bool) -> Observation {
         println!("SPEC0332 STAGE unit={unit} llvm-render-verify=ok");
         Ok(())
     })();
-    Observation {
-        unit,
-        complete_ok,
-        ownership_ok,
-        frontend_anchor_ok,
-        lower_attempted,
-        outcome,
-    }
+    (
+        Observation {
+            unit,
+            complete_ok,
+            ownership_ok,
+            frontend_anchor_ok,
+            lower_attempted,
+            outcome,
+        },
+        identity,
+    )
 }
 
 #[test]
