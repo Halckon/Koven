@@ -17,7 +17,7 @@ use crate::ssa::{
 };
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{SymbolKind, resolve_names},
+    name_resolution::{ReferenceTarget, SymbolKind, resolve_names},
     ownership_checking::{DropTarget, check_ownership},
     parser::{Expression, FunctionBody, FunctionForm, NameMarker, Statement, parse_file},
     source::SourceMap,

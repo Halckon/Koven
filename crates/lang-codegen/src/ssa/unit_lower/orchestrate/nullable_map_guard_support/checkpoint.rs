@@ -684,7 +684,14 @@ pub(in crate::ssa::unit_lower) fn exit_text(exit: &cfg::BranchExit) -> String {
         (
             exit.block,
             exit.result,
-            exit.receiver,
+            exit.receiver.map(|receiver| (
+                receiver.owner,
+                receiver.mode,
+                receiver.template_ty,
+                receiver.ty,
+                receiver.entity,
+                receiver.origin,
+            )),
             exit.consumed_receiver
         ),
         (
