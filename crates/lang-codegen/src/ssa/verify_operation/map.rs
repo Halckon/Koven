@@ -32,8 +32,9 @@ pub(super) fn verify_map_operation(
 ) -> bool {
     match operation {
         Operation::MapConsume { owner, map_type } => {
-            let Some(EntityType::Value(source_type)) =
-                function.entity(EntityId::Value(*owner)).map(|entity| entity.ty)
+            let Some(EntityType::Value(source_type)) = function
+                .entity(EntityId::Value(*owner))
+                .map(|entity| entity.ty)
             else {
                 return false;
             };
