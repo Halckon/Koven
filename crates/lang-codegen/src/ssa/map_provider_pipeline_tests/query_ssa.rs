@@ -46,7 +46,9 @@ pub(super) fn instructions<'a>(
     Ok(result)
 }
 
-fn reachable(f: &Function) -> Result<(Vec<BlockId>, Vec<(BlockId, Edge)>), Failure> {
+type Reachable = (Vec<BlockId>, Vec<(BlockId, Edge)>);
+
+fn reachable(f: &Function) -> Result<Reachable, Failure> {
     let mut todo = vec![
         f.entry_block()
             .ok_or_else(|| failure("SSA entry block", f.id))?,
