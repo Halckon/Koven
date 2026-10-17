@@ -12,6 +12,7 @@ impl Checker<'_> {
         let diagnostic_count = self.diagnostics.len();
         let receiver = self.receivers_by_expression.get(&id.index()).copied();
         let mut receiver_expression = None;
+        let mut receiver_admitted = true;
         let mut flows = match receiver.map(CallReceiverDescriptor::origin) {
             Some(CallReceiverOrigin::Expression(expression)) => {
                 receiver_expression = Some(expression);
@@ -27,7 +28,15 @@ impl Checker<'_> {
                 if range {
                     self.allowed_borrow_call = Some(expression);
                 }
-                let checked = self.check_expression(expression, state, usage);
+                let checked = if self.typed.map_consume(id).is_some() {
+                    self.check_map_consume_receiver(expression, state)
+                        .map(|(flows, admitted)| {
+                            receiver_admitted = admitted;
+                            flows
+                        })
+                } else {
+                    self.check_expression(expression, state, usage)
+                };
                 self.allowed_borrow_call = previous;
                 let mut flows = checked?;
                 if range && self.diagnostics.len() == diagnostic_count && flows.next.is_some() {
@@ -76,7 +85,8 @@ impl Checker<'_> {
             }
             None => self.check_expression(callee, state, ExpressionUse::Read)?,
         };
-        if self.diagnostics.len() == diagnostic_count
+        if receiver_admitted
+            && self.diagnostics.len() == diagnostic_count
             && let (Some(receiver), Some(expression)) = (receiver, receiver_expression)
         {
             let span = self.parsed.ast().expressions().get(expression)?.span();

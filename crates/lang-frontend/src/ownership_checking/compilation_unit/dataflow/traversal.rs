@@ -696,6 +696,8 @@ impl Checker<'_> {
             });
         }
         let mut receiver_expression = None;
+        let consume = self.typed.map_consume(call).is_some();
+        let mut receiver_admitted = true;
         let mut flows = if let Some(contract) = receiver_contract {
             match contract.source() {
                 crate::type_checking::UnitCallReceiverOrigin::Expression(receiver) => {
@@ -728,7 +730,15 @@ impl Checker<'_> {
                     if range {
                         self.allowed_borrow_call = Some(receiver.expression());
                     }
-                    let checked = self.check_expression(receiver.expression(), state, usage);
+                    let checked = if consume {
+                        self.check_map_consume_receiver(receiver.expression(), state)
+                            .map(|(flows, admitted)| {
+                                receiver_admitted = admitted;
+                                flows
+                            })
+                    } else {
+                        self.check_expression(receiver.expression(), state, usage)
+                    };
                     self.allowed_borrow_call = previous;
                     let mut flows = checked?;
                     if range && self.diagnostics.len() == diagnostic_count && flows.next.is_some() {
@@ -749,7 +759,9 @@ impl Checker<'_> {
         } else {
             self.check_expression(callee, state, ExpressionUse::Read)?
         };
-        if let (Some(contract), Some(next)) = (receiver_contract, flows.next.as_mut()) {
+        if (!consume || (receiver_admitted && self.diagnostics.len() == diagnostic_count))
+            && let (Some(contract), Some(next)) = (receiver_contract, flows.next.as_mut())
+        {
             self.apply_receiver_contract(contract, next)?;
         }
         for (index, argument) in arguments.iter().enumerate() {

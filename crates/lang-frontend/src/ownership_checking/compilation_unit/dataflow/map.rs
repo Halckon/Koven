@@ -62,3 +62,111 @@ impl Checker<'_> {
         Ok(flows)
     }
 }
+
+impl Checker<'_> {
+    /// 不提交非法 outer receiver；子树自身的 move、诊断和控制流不回滚。
+    pub(super) fn check_map_consume_receiver(
+        &mut self,
+        receiver: crate::ast::ExpressionId,
+        state: State,
+    ) -> Result<(Flows, bool), OwnershipCheckingError> {
+        use crate::{
+            diagnostic::codes,
+            ownership_checking::OwnershipBindingKind,
+            parser::{Expression, VariableKind},
+            type_checking::UnitAggregateProjectionKind,
+        };
+        let errors = self.diagnostics.len();
+        let deferred = self.primitive_deferred.len();
+        let place = self.place(receiver)?;
+        let borrowed_root = place.as_ref().is_some_and(|place| {
+            place.is_root()
+                && (self
+                    .bindings
+                    .get(&place.root())
+                    .is_some_and(|binding| binding.kind() != OwnershipBindingKind::Owned)
+                    || state.non_owning.contains_key(&place.root()))
+        });
+        let local_root = place.as_ref().is_some_and(|place| {
+            place.is_root()
+                && self
+                    .names
+                    .names()
+                    .source_units()
+                    .get(place.root().source_unit().index())
+                    .is_some_and(|source| {
+                        crate::ownership_checking::ownership_primitive::is_local_variable(
+                            source.resolution(),
+                            place.root().symbol(),
+                        )
+                    })
+                && matches!(
+                    self.variable_kinds.get(&place.root()),
+                    Some(VariableKind::Val | VariableKind::Var)
+                )
+                && !self.bindings.contains_key(&place.root())
+                && !state.non_owning.contains_key(&place.root())
+        });
+        let mut core = receiver;
+        while let Expression::Group { expression } =
+            self.parsed.ast().expressions().get(core)?.payload()
+        {
+            core = *expression;
+        }
+        let rejected_projection = if let Some(place) = &place {
+            (place.element().is_none()
+                && !place.fields().is_empty()
+                && self
+                    .typed
+                    .aggregate_projection(self.unit_expression(core))
+                    .is_some_and(|projection| {
+                        projection.kind() == UnitAggregateProjectionKind::Field
+                    }))
+                || self.element_place_descriptor(core)?.is_some()
+        } else {
+            false
+        };
+        if local_root || borrowed_root || rejected_projection {
+            let flows = self.check_expression(
+                receiver,
+                state,
+                ExpressionUse::Consume {
+                    parameter_span: None,
+                },
+            )?;
+            let admitted = local_root
+                && self.diagnostics.len() == errors
+                && self.primitive_deferred.len() == deferred
+                && flows.next.is_some();
+            return Ok((flows, admitted));
+        }
+        let mut flows = self.check_expression(
+            receiver,
+            state,
+            ExpressionUse::Place {
+                parameter_span: None,
+            },
+        )?;
+        if self.diagnostics.len() != errors || self.primitive_deferred.len() != deferred {
+            return Ok((flows, false));
+        }
+        let Some(next) = flows.next.as_mut() else {
+            return Ok((flows, false));
+        };
+        let span = self.parsed.ast().expressions().get(receiver)?.span();
+        if let Some(place) = &place
+            && (!self.access_place(place, AccessKind::Move, span, None, next)?
+                || self.diagnostics.len() != errors)
+        {
+            return Ok((flows, false));
+        }
+        self.diagnostics.push(Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            codes::catalog()?.resolve(codes::INVALID_CONTAINER_MEMBER)?,
+            "MutableMap.consume requires an owned local val/var root",
+            span,
+        )?);
+        Ok((flows, false))
+    }
+}

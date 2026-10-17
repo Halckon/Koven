@@ -531,6 +531,9 @@ impl<F: Facts> Checker<'_, F> {
         let selection = self.facts.selection(id);
         let has_selection = selection.is_some();
         let mut complete = !self.existing_error(span);
+        if complete && !self.facts.valid_map_consume(self.sources, parsed, id) {
+            return Err(self.missing(span, "Map consume source/type identity"));
+        }
         match node.payload() {
             Expression::Error => complete = false,
             Expression::Name => {

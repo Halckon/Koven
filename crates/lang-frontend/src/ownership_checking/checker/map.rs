@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use crate::{
     ast::ExpressionId,
-    diagnostic::{Diagnostic, Severity},
-    parser::{AssignmentOperator, Expression, ParsedFile},
+    diagnostic::{Diagnostic, Severity, codes},
+    parser::{AssignmentOperator, Expression, ParsedFile, VariableKind},
     type_checking::{
         CallReceiverDescriptor, CallReceiverOrigin, ExpressionCategory, MapPutDescriptor,
         ParameterMode, TypedFile,
@@ -21,6 +21,23 @@ pub(super) fn populate_map_call_contracts(
     for construction in typed.map_constructions() {
         calls_by_expression
             .entry(construction.expression().index())
+            .or_default();
+    }
+
+    for consume in typed.map_consumes() {
+        receivers_by_expression.insert(
+            consume.expression().index(),
+            CallReceiverDescriptor {
+                origin: CallReceiverOrigin::Expression(consume.receiver()),
+                mode: ParameterMode::Value,
+                category: typed
+                    .expression_category(consume.receiver())
+                    .unwrap_or(ExpressionCategory::Place),
+                ty: consume.receiver_type(),
+            },
+        );
+        calls_by_expression
+            .entry(consume.expression().index())
             .or_default();
     }
 
@@ -217,5 +234,101 @@ impl Checker<'_> {
         }
         self.access_place(&place, AccessKind::Mutation, false, target_span, state)?;
         Ok(flows)
+    }
+}
+
+impl Checker<'_> {
+    /// 只改变 consume 外层 receiver 的交付选择；真实子树仍检查一次。
+    pub(super) fn check_map_consume_receiver(
+        &mut self,
+        receiver: ExpressionId,
+        state: State,
+    ) -> Result<(Flows, bool), OwnershipCheckingError> {
+        let errors = self.diagnostics.len();
+        let deferred = self.deferred.len();
+        let place = self.place(receiver)?;
+        let borrowed_root = place.as_ref().is_some_and(|place| {
+            place.is_root()
+                && (matches!(
+                    self.typed.parameter_mode(place.root()),
+                    Some(ParameterMode::Borrow | ParameterMode::Inout)
+                ) || state.non_owning.contains_key(&place.root()))
+        });
+        let local_root = place.as_ref().is_some_and(|place| {
+            place.is_root()
+                && crate::ownership_checking::ownership_primitive::is_local_variable(
+                    self.names,
+                    place.root(),
+                )
+                && matches!(
+                    self.variable_kinds.get(&place.root()),
+                    Some(VariableKind::Val | VariableKind::Var)
+                )
+                && self.typed.parameter_mode(place.root()).is_none()
+                && !state.non_owning.contains_key(&place.root())
+        });
+        let mut core = receiver;
+        while let Expression::Group { expression } =
+            self.parsed.ast().expressions().get(core)?.payload()
+        {
+            core = *expression;
+        }
+        let rejected_projection = if let Some(place) = &place {
+            (place.elements().is_empty()
+                && !place.fields().is_empty()
+                && self
+                    .typed
+                    .aggregate_projection(core)
+                    .is_some_and(|projection| {
+                        projection.kind() == crate::type_checking::AggregateProjectionKind::Field
+                    }))
+                || self.element_place_descriptor(core)?.is_some()
+        } else {
+            false
+        };
+        if local_root || borrowed_root || rejected_projection {
+            // Borrow/field/element paths already reject without committing the outer root move.
+            let flows = self.check_expression(receiver, state, ExpressionUse::Consume)?;
+            let admitted = local_root
+                && self.diagnostics.len() == errors
+                && self.deferred.len() == deferred
+                && flows.next.is_some();
+            return Ok((flows, admitted));
+        }
+
+        // Extra eligibility failures must not first execute Value/Consume and then undo it.
+        let mut flows = self.check_expression(receiver, state, ExpressionUse::Place)?;
+        if self.diagnostics.len() != errors || self.deferred.len() != deferred {
+            return Ok((flows, false));
+        }
+        let Some(next) = flows.next.as_mut() else {
+            return Ok((flows, false));
+        };
+        let span = self.parsed.ast().expressions().get(receiver)?.span();
+        if let Some(place) = &place {
+            // access_place(Move) retires this view. Restore only that field, after the
+            // real subtree has run; its other state changes and exits remain untouched.
+            let view = next.nullable_views.get(&place.root()).cloned();
+            let accessed = self.access_place(place, AccessKind::Move, true, span, next);
+            match view {
+                Some(view) => {
+                    next.nullable_views.insert(place.root(), view);
+                }
+                None => {
+                    next.nullable_views.remove(&place.root());
+                }
+            }
+            if !accessed? || self.diagnostics.len() != errors {
+                return Ok((flows, false));
+            }
+        }
+        self.diagnostics.push(Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            codes::catalog()?.resolve(codes::INVALID_CONTAINER_MEMBER)?,
+            "MutableMap.consume requires an owned local val/var root",
+            span,
+        )?);
+        Ok((flows, false))
     }
 }

@@ -1,3 +1,5 @@
+#[path = "map_consume.rs"]
+mod map_consume;
 #[path = "map_require.rs"]
 mod map_require;
 #[path = "map_with.rs"]
@@ -210,7 +212,7 @@ impl BodyChecker<'_> {
 
         if matches!(
             name,
-            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue"
+            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue" | "consume"
         ) {
             self.emit(
                 codes::INVALID_CONTAINER_MEMBER,
@@ -260,7 +262,7 @@ impl BodyChecker<'_> {
             .map_err(TypeCheckingError::from)?;
         if !matches!(
             name,
-            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue"
+            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue" | "consume"
         ) {
             return Ok(None);
         }
@@ -284,6 +286,19 @@ impl BodyChecker<'_> {
         }
 
         match name {
+            "consume" => Ok(Some(self.check_map_consume_call(
+                source,
+                expression,
+                receiver,
+                receiver_result,
+                constructor,
+                key_type,
+                value_type,
+                arguments,
+                call_span,
+                name_span,
+                return_type,
+            )?)),
             "withValue" => Ok(Some(self.check_map_with_call(
                 source,
                 expression,
