@@ -830,16 +830,9 @@ fn lower_scalar_file_product(
         lowerer.validate_map_loop_carriers()?;
     }
 
-    verify_program(&program).map_err(|_errors| {
-        #[cfg(test)]
-        eprintln!(
-            "NULLABLE MAP B lower_frontend verify errors={_errors:#?}\n{}",
-            crate::ssa::render::render_program(&program)
-        );
-        LoweringError {
-            kind: LoweringErrorKind::InvalidSsa,
-            span: None,
-        }
+    verify_program(&program).map_err(|_| LoweringError {
+        kind: LoweringErrorKind::InvalidSsa,
+        span: None,
     })?;
     Ok(LoweredFile {
         program,
