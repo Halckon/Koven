@@ -107,7 +107,8 @@ pub(in crate::ssa::nullable_map_consume_lowering_tests) fn inspect(
     )?;
     let int = typed
         .types()
-        .builtin(lang_frontend::type_checking::BuiltinType::Int);
+        .builtin(lang_frontend::type_checking::BuiltinType::Int)
+        .ok_or_else(|| missing("real Int builtin", "absent"))?;
     gate(
         "read identity: real declaration construction and MutableMap Int pair",
         transparent(parsed, initializer)? == construction.expression()
