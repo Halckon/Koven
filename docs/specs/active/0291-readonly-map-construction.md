@@ -478,3 +478,50 @@ CI7 动态链、CI2 注册反序、If/N 私有拒绝门、nullable consume 提�
 
 nullable consume 提取、CI7动态链、CI2反序及新增私有拒绝门、provider后继仍待；
 本阶段不作 SPEC-0291 完成或合并声明。
+
+## 17. 有界 nullable consume、独立身份与 CI 守卫
+
+- `750cce88` 为两端普通 If 的 consume-first 路径接入真实 N-only owner/view 提取：
+  资格绑定当前 callable/source/control/首句独立表达式或 val/var 初始化、真实 Move 与精确 K/V，
+  在完整 live/cleanup 预检之后由原 NullableTake 原子消费 wrapper/proof，再 MapConsume。
+  不先 BorrowEnd，不接受运输后的同型 view，不绕过已有 pending/borrow/capture 门；
+  非 nullable 路径、While 门与 verifier/LLVM 合同保持。新环境原 C 六入口全部真实
+  SSA/LLVM 成功，收据 `036ee7ba…a3c06`，不从流水线绿外推身份或清理时序。
+- 追加 String 借读完整 fixture 的 single main / unit q.entry→p.main 双 LLVM，
+  保留原六 descriptor/root/read/storage、complete/ownership 门；两项 String native 与
+  两项原 C 聚合 native 共四 exact、八产物路径，严格值输出/空 stderr/正常退出通过。
+  原 C3 保留 present→absent 两次调用。收据 `0fd311a8…c5e9b`、`1ac68f50…62575`、
+  `802e678f…a7003`；它们不证明 allocator/free 次数或动态插入链。
+- `d41ce457` / `c7c3d4f` 独立只读六路径 query 锁完整 FE 与 source/caller 身份、
+  原 branch/current owner/view→Take→MapConsume、全部 incoming/SCC 与正常两路径清理，
+  LLVM 两 owner phi 的真实前驱/br/tag 及六字段同来源。唯一 exact 实际1通过，
+  六 SSA/LLVM identity 均通过；收据 `8b6e0b42…45b31`。
+  首 E0277（ExpressionId 无 Ord）由等价 Vec 判重修正，原失败日志保留。
+  C2 的 Name/Group cleanup facts 实际为空，普通 query 不声称验证空点动态调用次序。
+- `fa50afba` 仅将已结构识别 Nullable<Map> 后四处缺 type_ids/N 登记改为原 span 的
+  MissingFact，避免普通 wrapper 回落到终局 InvalidSsa；其他候选资格不扩。
+  同头普通 stage10 各1通过，收据 `0c2d92e3…7e63e`，Resource/formed collector
+  仍按采集口径、精确兼容与硬18表分别记账。
+- 新增七项 CI-only 私有合同：formed 发布/assignment raw-history 回滚/最终清空三项，
+  single/unit If/N read-cleanup 与 nullable consume 各两项。后端四项 checkpoint 由真实
+  ordinary 成功产物、原 planner/ABI/source 与完整 prefix owner/place/loan 账恢复；
+  fresh 同目标正基线先成功，再单维损坏并断直接 guard 的 kind/span及无副作用。
+  无 TLS、公开 mutator 或终局 verifier 代替前置拒绝。空事实表及不可注入的 FE 私有
+  事实不冒称已有非空损坏覆盖；这些 exact 本地仅编译，实际行为待双宿主 CI。
+- CI4 首次有限 check 的缺 import/ReceiverBinding Debug 两项错误由测试域机械修正；
+  首工程 clippy 的 tuple complexity/显式 deref 两项由等价私有 alias/autoderef修正。
+  原失败日志保留，未执行编译失败版本；首工程 build 与353未启动。
+- 后继统一受验 `0217335c` / `c9e8aaa5`，2481完整 tracked 与工具/manifest/runner
+  前后绑定稳定。fmt、workspace all-targets check/clippy（-D warnings）、workspace
+  build 四项全0；收据
+  `af5823eb7422c8b694c857d28faef521ea1954f48616a03ff7569ffadfe8d96b`。
+  普通353唯一 exact 全部实际各命中1通过：200 codegen普通源码SSA/内存LLVM目标、
+  59 frontend目标、94正常native目标；包含新C身份/完整String fixture/native4，
+  以及header与Resource采集邻控。收据
+  `f8452eb17c30d236e85938f29f72d0376229bf463c3bddfd043f6fe4e2f1aad1`。
+  Resource/formed collector仍仅采证，既有精确成功/结构化拒绝由各自硬oracle锁定，
+  不把353目标通过解释为每个源码都lower成功。
+
+最终候选监测集合为420唯一 exact：普通353与CI-only67完全分离；实际CI尚待，
+不以本地普通通过代替合成门或双平台证据。provider后继、lambda形成类型的历史遗留
+与当前有界 nullable 路径之外的组合能力仍待，不作 SPEC-0291 完成、归档或合并声明。
