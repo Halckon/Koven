@@ -1,4 +1,4 @@
-//! Ordinary return-before-unsupported-storage observations; no presumed old lower verdict.
+//! Ordinary return-before-unsupported-storage compatibility, frozen from the old two-entry run.
 
 use lang_frontend::{
     ast::TypeRefId,
@@ -577,7 +577,7 @@ fn observe_unit(trace: &mut Trace) -> Outcome<LowerObservation> {
 }
 
 #[test]
-fn unreachable_nullable_map_storage_collect_before_baseline() {
+fn preserves_verified_dead_tail() {
     let mut observations = Vec::with_capacity(2);
     for unit in [false, true] {
         let mut trace = Trace::default();
@@ -621,8 +621,12 @@ fn unreachable_nullable_map_storage_collect_before_baseline() {
         }),
         "both ordinary inputs must pass FE/complete/ownership/input and actually attempt lower"
     );
-    println!(
-        "COLLECTION ONLY: two actual lower outcomes recorded; no old success or rejection \
-        verdict is assumed. Freeze the precise old table before the first-local planning change."
+    assert!(
+        observations.iter().all(|observation| observation
+            .outcome
+            .as_ref()
+            .is_ok_and(|observed| matches!(observed.outcome, LowerOutcome::VerifiedLlvm))),
+        "both previously verified dead-tail programs must preserve SSA/LLVM success"
     );
+    println!("DEAD-TAIL BASELINE: both actual entries preserve VerifiedLlvm");
 }
