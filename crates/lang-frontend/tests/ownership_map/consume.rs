@@ -24,6 +24,8 @@ use lang_frontend::{
 #[path = "../support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
+mod field_roots;
+
 #[derive(Clone, Copy)]
 enum Expected {
     Bound,
