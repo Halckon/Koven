@@ -12,14 +12,23 @@ use lang_frontend::{
 use super::*;
 
 pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<()> {
-    observe_impl(case, trace, false)
+    observe_impl(case, trace, false, false)
 }
 
 pub(super) fn observe_read_identity(case: &Case, trace: &mut Trace) -> Outcome<()> {
-    observe_impl(case, trace, true)
+    observe_impl(case, trace, true, false)
 }
 
-fn observe_impl(case: &Case, trace: &mut Trace, identity: bool) -> Outcome<()> {
+pub(super) fn observe_consume_identity(case: &Case, trace: &mut Trace) -> Outcome<()> {
+    observe_impl(case, trace, false, true)
+}
+
+fn observe_impl(
+    case: &Case,
+    trace: &mut Trace,
+    identity: bool,
+    consume_identity: bool,
+) -> Outcome<()> {
     let mut sources = SourceMap::new();
     let parsed = parsed(&mut sources, case.path, case.single, trace)?;
     let (environment, types) = standard_environments();
@@ -114,6 +123,18 @@ fn observe_impl(case: &Case, trace: &mut Trace, identity: bool) -> Outcome<()> {
         .map_err(|error| lowering_error(&sources, error)),
         trace,
     )?;
+    if consume_identity {
+        let facts = consume_identity::single_facts(
+            case,
+            &sources,
+            &parsed,
+            &names,
+            complete.types(),
+            &owned,
+            trace,
+        );
+        return consume_identity::finish(&program, function, facts, trace);
+    }
     // Preserve the complete ordinary pipeline even when the independent query fails.
     let queried = if identity {
         read_identity::inspect_single(

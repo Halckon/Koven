@@ -14,6 +14,7 @@ use lang_frontend::{
 use super::model::{FunctionId, Program};
 use sources::{CASES, Case};
 
+mod consume_identity;
 mod read_cross_join;
 mod read_identity;
 mod resource;
