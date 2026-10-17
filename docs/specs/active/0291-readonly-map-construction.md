@@ -63,6 +63,24 @@ Phase4 用显式 owner 交付操作和 verifier 核输入、输出、K/V 与唯�
 类型标签而丢弃旧 owner alias。Phase5 以共布局移交，Phase6 用真实普通源码验值与清理。
 各阶段先固定真实普通红证，再小实现与绿证；前端通过不等同后端完成。
 
+### consume 资格诊断的实现选择
+
+在真实类型/名称前置成功后，consume 仍只接受 owned 本地 `Item::Variable` 的 val/var
+根；同时核真实 Variable 身份与词法本地资格，不能把 ForBinding、全局或 own 参数当作
+本地声明。额外 receiver 形状不合资格且未先产生既有访问错误时，Phase3 使用 L0130
+表示本片新增操作资格拒绝；这不是对旧实现已有诊断的追认。Borrow/Inout、稳定字段/
+元素、已移动根及活 loan 保留既有 Value receiver 的诊断优先级，以实际普通对照锁定。
+
+拒绝路径仍单次检查 receiver 子树并保留真实退出/诊断，不能先成功消费外层 receiver
+再回滚整个状态，也不能直接返回而吞掉子表达式错误。single 的访问校验若暂改该根
+nullable-view，只恢复这一个受影响字段。unit 错误后全局清空交付事实只证明 fail-closed，
+不能把空表当作内部检查先于提交的证据，内部时序仍须逐行审与后继 CI 合同守卫。
+
+声明 storage 为 Nullable、当前已收窄为 MutableMap 的本地根，不因此新增资格拒绝。
+保留真实 read 型、声明 storage、root/non-null 身份；if/when 和普通 own 参数函数近邻
+分别取证，后端必须用真实 extraction/owner 交付闭合，不能把 storage 改写成 read 型。
+当前结构化未支持可分阶段登记，但最终0291交付不得据此暗缩 Guide 合同。
+
 ## 4. 小片顺序与验收
 
 1. 冻结本合同与布局消费者清单；双入口普通 consume 正例先采真实 Phase2 停点，
@@ -125,3 +143,8 @@ Phase4 用显式 owner 交付操作和 verifier 核输入、输出、K/V 与唯�
 - 当前 header 与旧值语义回归绿不代替动态链顺序证明。链完整性、真实碰撞/墓碑、
   覆盖触发增长与重新插入顺序的 CI-only 观察仍待实现/执行；consume、完整双平台 CI
   及最终合并均未完成。本片仅增量分支备份，保留此前真实红证。
+
+- 后续在同生产、仅账本不同的 `a9bbd4e3` 冻结1454输入，完整已审219普通 Map exact
+  全部实际命中1并通过（143 SSA/内存 LLVM、76成功原产物 native），34 CI-only 排除。
+  219收据 SHA-256：`fa643d1667a1d4a364a43e3d6e636c1d5f8c00bf088c0b20d3adc4a192639c54`。
+  这是已分类 Map 普通集合的兼容实证，仍不替代完整 CI 或新动态链探针验收。
