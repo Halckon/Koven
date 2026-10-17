@@ -329,6 +329,7 @@ pub(super) fn verify_operation(
             value,
         } => container_replace_contract(module, function, *owner, *index, *value, &results),
         Operation::MapConstruct { .. }
+        | Operation::MapConsume { .. }
         | Operation::MapSize { .. }
         | Operation::MapContains { .. }
         | Operation::MapGet { .. }

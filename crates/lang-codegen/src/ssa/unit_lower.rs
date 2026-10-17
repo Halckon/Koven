@@ -28,6 +28,7 @@ mod integer_range;
 mod loop_control;
 mod map;
 mod map_borrow;
+mod map_consume;
 mod map_require;
 mod map_result;
 mod map_with;

@@ -782,6 +782,7 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write_entity_id(output, EntityId::Value(*value))
         }
         Operation::MapConstruct { .. }
+        | Operation::MapConsume { .. }
         | Operation::MapSize { .. }
         | Operation::MapContains { .. }
         | Operation::MapRequireValue { .. }

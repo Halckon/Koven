@@ -1056,6 +1056,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             Operation::MapRequireValue { .. } => self.lower_map_require_operation(instruction)?,
             Operation::MapWithValue { .. } => self.lower_map_with_operation(instruction)?,
             Operation::MapConstruct { .. }
+            | Operation::MapConsume { .. }
             | Operation::MapSize { .. }
             | Operation::MapContains { .. }
             | Operation::MapGet { .. }

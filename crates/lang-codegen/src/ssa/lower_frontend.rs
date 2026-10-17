@@ -23,6 +23,7 @@ mod integer_range;
 mod local_storage;
 mod loop_control;
 mod map;
+mod map_consume;
 mod map_loop_owner;
 mod map_require;
 mod map_result;

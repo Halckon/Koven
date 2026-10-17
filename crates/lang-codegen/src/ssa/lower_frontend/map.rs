@@ -81,6 +81,9 @@ impl ExpressionLowerer<'_> {
         &mut self,
         expression: ExpressionId,
     ) -> Result<Option<LoweredValue>, LoweringError> {
+        if self.typed.map_consume(expression).is_some() {
+            return self.lower_map_consume(expression).map(Some);
+        }
         if self.typed.map_with_value(expression).is_some() {
             return self.lower_map_with_value(expression).map(Some);
         }

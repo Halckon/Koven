@@ -972,6 +972,7 @@ fn apply_operation(
             );
         }
         Operation::MapConstruct { .. }
+        | Operation::MapConsume { .. }
         | Operation::MapSize { .. }
         | Operation::MapContains { .. }
         | Operation::MapGet { .. }

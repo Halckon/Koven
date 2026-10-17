@@ -336,6 +336,7 @@ fn lower_scalar_file_product(
                 type_mapper.intern(module, names, typed, concrete, construction_span)?;
             }
         }
+        type_mapper.intern_map_consume_types(module, names, typed, parsed, substitutions, span)?;
         for remove in typed.map_removes() {
             let remove_span = parsed
                 .ast()

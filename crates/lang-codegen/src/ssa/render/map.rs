@@ -3,6 +3,12 @@ use super::*;
 
 pub(super) fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
     match operation {
+        Operation::MapConsume { owner, map_type } => {
+            output.write_str("map.consume ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_type_id(output, *map_type)
+        }
         Operation::MapConstruct { map_type } => {
             output.write_str("map.construct ")?;
             write_type_id(output, *map_type)

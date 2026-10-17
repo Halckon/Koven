@@ -31,6 +31,22 @@ pub(super) fn verify_map_operation(
     results: &[EntityType],
 ) -> bool {
     match operation {
+        Operation::MapConsume { owner, map_type } => {
+            let Some(EntityType::Value(source_type)) =
+                function.entity(EntityId::Value(*owner)).map(|entity| entity.ty)
+            else {
+                return false;
+            };
+            let Some((MapContainerKind::MutableMap, key, value)) =
+                module.map_container(source_type)
+            else {
+                return false;
+            };
+            module.map_container(*map_type) == Some((MapContainerKind::Map, key, value))
+                && module.type_ownership(source_type) == Some(Ownership::MoveOnly)
+                && module.type_ownership(*map_type) == Some(Ownership::MoveOnly)
+                && single_value_result(results) == Some(*map_type)
+        }
         Operation::MapConstruct { map_type } => {
             module.map_container(*map_type).is_some()
                 && single_value_result(results) == Some(*map_type)

@@ -25,6 +25,9 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<Option<LoweredValue>, LoweringError> {
         let id = UnitExpressionId::new(self.source_unit, expression);
+        if self.typed.map_consume(id).is_some() {
+            return self.lower_map_consume(expression, span).map(Some);
+        }
         if self.typed.map_with_value(id).is_some() {
             return self.lower_map_with_value(expression, span).map(Some);
         }
