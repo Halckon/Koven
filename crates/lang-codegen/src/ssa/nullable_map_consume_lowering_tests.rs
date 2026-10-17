@@ -47,6 +47,34 @@ pub(crate) fn ordinary_nullable_consume_sources() -> [(
     })
 }
 
+/// The unchanged ordinary B/C inputs shared by CI-only backend guard checks.
+#[cfg(test)]
+pub(in crate::ssa) fn nullable_map_guard_sources() -> [(
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+); 6] {
+    [
+        &CASES[3],
+        &CASES[4],
+        &read_cross_join::CROSS_JOIN,
+        &CASES[5],
+        &CASES[6],
+        &CASES[7],
+    ]
+    .map(|case| {
+        (
+            case.id,
+            case.path,
+            case.single,
+            case.provider,
+            case.consumer,
+        )
+    })
+}
+
 #[derive(Debug)]
 struct Failure {
     stage: String,

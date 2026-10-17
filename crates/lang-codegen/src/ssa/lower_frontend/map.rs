@@ -1,5 +1,8 @@
 //! Map 容器操作向 typed SSA 的 lowering。
 
+#[cfg(test)]
+mod guard_tests;
+
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{NameResolution, SymbolId},

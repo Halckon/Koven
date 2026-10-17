@@ -1,4 +1,7 @@
 //! Direct If-born nullable Map ownership extraction, before ordinary consume.
+#[cfg(test)]
+mod guard_tests;
+
 mod cleanup;
 mod source;
 
