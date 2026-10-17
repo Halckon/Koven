@@ -24,3 +24,11 @@ MapResult实际查询与显式borrow复制已验不代表这些一般边界已�
 八整数转换前端至native及CI-only负控已验，归档head CI/main待验，其余v0.44合同不随之完成。
 
 [SPEC-0330](../../../archive/specs/0330-while-conservative-flow.md)已按 PR116 修复实现 CI 双 host129 exact 有界归档；已由PR116正常合并为真实 main `37e80526`，main CI独立跟踪；0291现按该基线启动。
+
+## 已认领的 Rc 后端边界
+
+[SPEC-0332](../../../archive/specs/0332-rc-nullable-while-regression.md#5-额外探索输入的实现边界)
+只关闭PR116引入的SharedOwner错误专用分派。0332作者/后端维护责任继续跟踪unit nullable Rc
+payload投影与while体内原owner重复nullable包装；原四探索源及精确4+4阶段表保留，后继修复
+须以真实成功身份/清理证据更新该表，不将InvalidSsa视为语言限制。旧break/return整fixture
+在PR116前已失败，但旧内部根因未逐诊断；不冒称这两缺口都由PR116引入。排序由项目负责人协调。

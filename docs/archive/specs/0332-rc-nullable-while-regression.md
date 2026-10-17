@@ -1,14 +1,14 @@
 # SPEC-0332: Rc nullable while 既有路径回归修复
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：修复 nullable while 专用分派对 Rc 既有路径的影响时 · **唯一真源**：本片实施范围；语义以 Guide 为准
+> **性质**：实施合同 · **状态**：done · **读取时机**：修复 nullable while 专用分派对 Rc 既有路径的影响时 · **唯一真源**：本片实施范围；语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0332` |
 | 基线 | 真实 main `864b6423849156c36fdad5e342cbf4bd09c3868d` / tree `031f2ddf2e0dce4a5797b3e005bb11942f94fa52` |
 | 分支 | `fix/spec-0332-rc-nullable-while` |
-| 前置 Spec | [SPEC-0330 while 流事实](../../archive/specs/0330-while-conservative-flow.md) |
+| 前置 Spec | [SPEC-0330 while 流事实](0330-while-conservative-flow.md) |
 | 合同 | [Guide09空安全](../../guide/09-nullability-errors.md)、[Guide10所有权](../../guide/10-ownership-borrowing-drop.md)、[nullable ABI](../../adr/accepted/0017-nullable-handle-ssa-abi.md) |
 
 ## 1. 问题与边界
@@ -45,8 +45,8 @@
 
 ## 4. 当前状态
 
-本片实施与验收进行中，尚不代表完整验收或交付结论。额外探索输入的已观察阶段与
-独立 presence-only 代表范围见下一节；后续固定头门禁、完整工程与双宿主 CI 分别留证。
+本片已按§8的实现CI完成有界验收并归档，归档head CI、合并与main交付仍另验。
+额外探索输入的实现欠账与独立presence代表范围分别见§5；历史阶段证据按时间保留。
 
 ## 5. 额外探索输入的实现边界
 
@@ -124,6 +124,25 @@ exact含一个明确现状表，14个正常native exact含12个既有CLI控制�
 
 固定远端监视71项：上述61普通、9个既有私有guard及1个原collection-only。
 所有项有实际定义与无filter CI接线；collector成功只代表完整采证，不计能力成功oracle。
-双宿主CI尚待执行，不将本地普通结果代替远端私有门；本片仍active，未归档或合并。
+此固定头账本记录时双宿主CI尚待执行，本片仍active、未归档或合并；后续终态见§8。
 后继明确承担unit nullable Rc payload投影与while体内原owner返回重复包装欠账；
 修复时应更新§5精确表，不能将该表当永久语言限制。0331继续独立暂停。
+
+## 8. 修复实现 CI 与有界归档
+
+[PR118实现CI](https://github.com/Halckon/Koven/actions/runs/39029436538/attempts/1)
+于2026-10-17完成success。真实head `37a1ec67e70b6d3931e166ca930253b3fbc0fd9d`
+对应本地 `bc9b1a13` / tree `8da38ff5d8151be1fe9eb0cbfc454fa6db4b497b`；
+synthetic `c8e531296290ec40ad5dedb4104828169b5ca1d3` 同树，双父为真实main `864b6423`
+及该head，reuse=false。双host原始日志71项各一次ok，15jobs成功、Tree-sitter按路径跳过。
+71由61ordinary、9私有守卫与1collector组成，不把collector或§5现状表算全部输入能力成功。
+收据SHA `f975b5db2651873f55223bfbdb14c5ee036a8cb72145f065c82f2b4b9f564a83`。
+
+两校准artifact摘要均与上传日志匹配：clean-v1/v2通过，premature_holder_free由counter_order捕获；
+Linux校准pass、macOS保持partial（ASan不支持、泄漏仅counter-only），不外推动态检测覆盖。
+Preview仅审计producer/consumer四jobs及其steps成功，未独立下载preview包验证。
+
+本片仅关闭已证PR116引入的Rc nullable while分派回归及上述有界验收；§5的unit payload投影
+与体内原owner重复包装由本片作者/后端维护责任继续跟踪，已单列至[v0.44后继](../../specs/drafts/v0.44/README.md)，
+不得因0332归档删除原失败源或将阶段表视为语言合同。归档docs头的CI/reuse、合并与main验证
+仍分别待验；0291保持active，独立0331 Map provider不因本片关闭而视为完成。
