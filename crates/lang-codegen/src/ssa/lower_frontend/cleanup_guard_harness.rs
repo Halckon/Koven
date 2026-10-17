@@ -406,6 +406,7 @@ pub(super) fn outer_context(
     lowerer.loops.push(loop_control::LoopContext {
         entry_views: BTreeMap::new(),
         outer_borrowed_while: None,
+        map_loop: None,
         header,
         carried,
         continues: Vec::new(),

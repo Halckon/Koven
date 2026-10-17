@@ -1,6 +1,6 @@
-//! Narrow normal-exhaustion proof for the Map source itself.
-//! The shape was observed on the SPEC0331 ordinary owned String source, not
-//! inferred from an unrelated Sequential provider or a presence-bit name.
+//! Exact source-owner proof for the observed normal and direct-tail Map shapes.
+//! A source facts were first collected by the ordinary 12-path run on 9244391b.
+//! No shape is inferred from Sequential loops or accepted from a presence bit alone.
 use super::*;
 use lang_frontend::ownership_checking::{
     CleanupConditions, CleanupOwnerValue, CleanupSelection, CleanupSelectorSource, DropFact,
@@ -11,6 +11,17 @@ use lang_frontend::ownership_checking::{
 #[derive(Clone, Copy)]
 pub(super) struct Proof {
     pub(super) drop: DropFact,
+    transfer: Option<DropFact>,
+}
+
+impl Proof {
+    pub(super) fn at(self, point: DropPoint) -> Option<DropFact> {
+        if self.drop.point() == point {
+            Some(self.drop)
+        } else {
+            self.transfer.filter(|fact| fact.point() == point)
+        }
+    }
 }
 
 pub(super) fn qualify(
@@ -20,6 +31,7 @@ pub(super) fn qualify(
     plan: &MapIterationOwnershipPlan,
     symbol: SymbolId,
     body: StatementId,
+    body_exit: IterationExitKind,
 ) -> Result<Proof, LoweringError> {
     let descriptor = plan.descriptor();
     let node = parsed
@@ -32,16 +44,24 @@ pub(super) fn qualify(
         })?;
     let span = node.span();
     let missing = || error(LoweringErrorKind::MissingFact, span);
+    let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     let origin = names
         .symbols()
         .get(symbol.index())
         .ok_or_else(missing)?
         .span();
-    // A live source after this loop is valid FE output, but outside this
-    // exhaustion-only source-owner proof. Check lifetime shape before phis.
+    let transfer_point = match body_exit {
+        IterationExitKind::Break(expression) | IterationExitKind::Return(expression) => {
+            Some(DropPoint::ControlTransfer(expression))
+        }
+        IterationExitKind::Fallthrough | IterationExitKind::Continue(_) => None,
+        IterationExitKind::Exhaustion => return Err(missing()),
+    };
+    let exhaustion_point = DropPoint::LoopExit(descriptor.statement());
     let source_drops = owned
         .drops()
         .iter()
+        .copied()
         .filter(|fact| fact.target() == DropTarget::Named(symbol))
         .collect::<Vec<_>>();
     if source_drops
@@ -50,16 +70,24 @@ pub(super) fn qualify(
     {
         return Err(missing());
     }
-    if !matches!(source_drops.as_slice(), [fact]
-        if fact.point() == DropPoint::LoopExit(descriptor.statement()))
+    // A later source lifetime is legal frontend output, but is not this proof.
+    if source_drops.len() != 1 + usize::from(transfer_point.is_some())
+        || source_drops
+            .iter()
+            .any(|fact| fact.point() != exhaustion_point && Some(fact.point()) != transfer_point)
     {
-        return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        return Err(unsupported());
     }
+    let expected_incomings = if matches!(body_exit, IterationExitKind::Return(_)) {
+        2
+    } else {
+        3
+    };
     if plan.closure_phis().len() != 2
-        || plan.closure_phi_incomings().len() != 3
+        || plan.closure_phi_incomings().len() != expected_incomings
         || !plan.capture_graph().nodes().is_empty()
     {
-        return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        return Err(unsupported());
     }
     let conditions = owned.cleanup_conditions();
     let header = phi(conditions, plan, symbol, IterationPhiBoundary::Header, span)?;
@@ -92,74 +120,147 @@ pub(super) fn qualify(
             origin: actual_origin,
         }) if *actual == symbol && *actual_origin == origin => {}
         Some(CleanupOwnerValue::Parameter { .. }) | None => return Err(missing()),
-        Some(_) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+        Some(_) => return Err(unsupported()),
     }
-    let backedge = incoming(
-        conditions,
-        plan,
-        header,
-        IterationPhiIncomingKind::Fallthrough,
-        DropPoint::AfterStatement(body),
-        span,
-    )?;
-    let [value] = backedge.values() else {
-        return Err(missing());
-    };
-    if value.source() != header.owner()
-        || value.condition() != header.availability_condition()
-        || backedge.available_when() != header.availability_condition()
-    {
-        return Err(missing());
+    match body_exit {
+        IterationExitKind::Fallthrough | IterationExitKind::Continue(_) => {
+            let kind = match body_exit {
+                IterationExitKind::Continue(expression) => {
+                    IterationPhiIncomingKind::Continue(expression)
+                }
+                _ => IterationPhiIncomingKind::Fallthrough,
+            };
+            let backedge = incoming(
+                conditions,
+                plan,
+                header,
+                kind,
+                exit_shape::point(body_exit, descriptor.statement(), body),
+                span,
+            )?;
+            let [value] = backedge.values() else {
+                return Err(missing());
+            };
+            if value.source() != header.owner()
+                || value.condition() != header.availability_condition()
+                || backedge.available_when() != header.availability_condition()
+            {
+                return Err(missing());
+            }
+        }
+        IterationExitKind::Break(expression) => {
+            let broken = incoming(
+                conditions,
+                plan,
+                exit,
+                IterationPhiIncomingKind::Break(expression),
+                DropPoint::ControlTransfer(expression),
+                span,
+            )?;
+            absent(conditions, broken, span)?;
+        }
+        // Return has no phi incoming. The real result and terminator are verified
+        // by the Map carrier after the complete ControlTransfer actions execute.
+        IterationExitKind::Return(_) => {}
+        IterationExitKind::Exhaustion => return Err(missing()),
     }
     let exhausted = incoming(
         conditions,
         plan,
         exit,
         IterationPhiIncomingKind::Exhaustion,
-        DropPoint::LoopExit(descriptor.statement()),
+        exhaustion_point,
         span,
     )?;
-    if conditions.get(exhausted.available_when()).is_none() {
+    absent(conditions, exhausted, span)?;
+    let related = owned
+        .drops()
+        .iter()
+        .copied()
+        .filter(|fact| {
+            fact.target() == DropTarget::Named(symbol)
+                || fact.owner().is_some_and(|owner| {
+                    [seed.source(), header.owner(), exit.owner()].contains(&owner)
+                })
+        })
+        .collect::<Vec<_>>();
+    if related != source_drops {
         return Err(missing());
     }
-    if conditions.get(exhausted.available_when()) != Some(&CleanupCondition::Never)
-        || !exhausted.values().is_empty()
-    {
-        return Err(error(LoweringErrorKind::UnsupportedNode, span));
+    for fact in &source_drops {
+        if fact.owner() != Some(header.owner())
+            || fact.condition() != Some(header.availability_condition())
+            || fact.capture_slot().is_some()
+            || fact.instance_address().is_some()
+        {
+            return Err(missing());
+        }
     }
-    let fact = *unique(owned.drops().iter().filter(|fact| {
-        fact.target() == DropTarget::Named(symbol)
-            || fact
-                .owner()
-                .is_some_and(|owner| [seed.source(), header.owner(), exit.owner()].contains(&owner))
-    }))
-    .ok_or_else(missing)?;
-    if fact.target() != DropTarget::Named(symbol)
-        || fact.point() != DropPoint::LoopExit(descriptor.statement())
-        || fact.value_origin() != origin
-        || fact.owner() != Some(header.owner())
-        || fact.condition() != Some(header.availability_condition())
-        || fact.capture_slot().is_some()
-        || fact.instance_address().is_some()
-    {
-        return Err(missing());
-    }
-    let exhaustion = unique(
-        plan.exits()
+    let drop = unique(
+        source_drops
             .iter()
-            .filter(|exit| exit.kind() == IterationExitKind::Exhaustion),
+            .copied()
+            .filter(|fact| fact.point() == exhaustion_point),
     )
     .ok_or_else(missing)?;
-    if exhaustion.actions()
-        != [
-            IterationCleanupAction::FinishProvider(descriptor.statement()),
-            IterationCleanupAction::EndSource(descriptor.statement()),
-            IterationCleanupAction::Drop(fact),
-        ]
-    {
-        return Err(error(LoweringErrorKind::UnsupportedNode, span));
+    let transfer = transfer_point
+        .map(|point| {
+            unique(
+                source_drops
+                    .iter()
+                    .copied()
+                    .filter(|fact| fact.point() == point),
+            )
+            .ok_or_else(missing)
+        })
+        .transpose()?;
+    for (kind, fact) in [
+        (body_exit, transfer),
+        (IterationExitKind::Exhaustion, Some(drop)),
+    ] {
+        let exit =
+            unique(plan.exits().iter().filter(|exit| exit.kind() == kind)).ok_or_else(missing)?;
+        let actual = exit
+            .actions()
+            .iter()
+            .filter_map(|action| match action {
+                IterationCleanupAction::Drop(fact)
+                    if fact.target() == DropTarget::Named(symbol) =>
+                {
+                    Some(*fact)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if actual != fact.into_iter().collect::<Vec<_>>() {
+            return Err(missing());
+        }
+        if let Some(fact) = fact {
+            let terminal = [
+                IterationCleanupAction::FinishProvider(descriptor.statement()),
+                IterationCleanupAction::EndSource(descriptor.statement()),
+                IterationCleanupAction::Drop(fact),
+            ];
+            if !exit.actions().ends_with(&terminal)
+                || (kind == IterationExitKind::Exhaustion && exit.actions() != terminal)
+            {
+                return Err(unsupported());
+            }
+        }
     }
-    Ok(Proof { drop: fact })
+    Ok(Proof { drop, transfer })
+}
+
+fn absent(
+    conditions: &CleanupConditions,
+    incoming: &IterationPhiIncomingBinding,
+    span: Span,
+) -> Result<(), LoweringError> {
+    match conditions.get(incoming.available_when()) {
+        None => Err(error(LoweringErrorKind::MissingFact, span)),
+        Some(CleanupCondition::Never) if incoming.values().is_empty() => Ok(()),
+        _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
+    }
 }
 
 fn phi<'a>(
@@ -258,14 +359,24 @@ pub(in super::super) fn supported_drop(
     owned: &OwnershipCheckedFile,
     fact: DropFact,
 ) -> bool {
-    let DropPoint::LoopExit(statement) = fact.point() else {
-        return false;
+    let descriptor = match fact.point() {
+        DropPoint::LoopExit(statement) => typed.map_iteration(statement),
+        DropPoint::ControlTransfer(expression) => unique(typed.map_iterations().iter().filter(|descriptor| {
+            owned.map_iteration(descriptor.statement()).is_some_and(|plan| {
+                plan.exits().iter().any(|exit| {
+                    matches!(exit.kind(), IterationExitKind::Break(actual) | IterationExitKind::Return(actual) if actual == expression)
+                        && exit.point() == fact.point()
+                        && exit.actions().contains(&IterationCleanupAction::Drop(fact))
+                })
+            })
+        })),
+        _ => None,
     };
-    let Some(descriptor) = typed.map_iteration(statement) else {
+    let Some(descriptor) = descriptor else {
         return false;
     };
     qualify::qualify(parsed, names, typed, owned, *descriptor)
         .ok()
         .and_then(|qualified| qualified.owner)
-        .is_some_and(|proof| proof.drop == fact)
+        .is_some_and(|proof| proof.at(fact.point()) == Some(fact))
 }

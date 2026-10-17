@@ -1,5 +1,7 @@
 //! Bounded two-component Map provider; independent from Sequential snapshots.
 mod carrier;
+mod exit_shape;
+mod exits;
 mod qualify;
 mod source_owner;
 
@@ -11,6 +13,7 @@ use lang_frontend::ownership_checking::{
     MapIterationOwnershipPlan, MapIterationSourceAccess,
 };
 
+pub(super) use exits::Context;
 pub(super) use qualify::validate;
 pub(super) use source_owner::supported_drop;
 
@@ -58,8 +61,7 @@ fn unique<T>(mut values: impl Iterator<Item = T>) -> Option<T> {
     values.next().is_none().then_some(result)
 }
 
-/// A local frame is sufficient because qualification excludes every body CFG and
-/// enclosing loop. All supported block transport happens explicitly below.
+/// One path-local provider frame; false is rebuilt from its independent snapshot.
 struct Frame {
     statement: StatementId,
     source: Option<LoanId>,
@@ -96,6 +98,7 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
         let plan = qualified.plan.clone();
+        let body_exit = qualified.body_exit;
         let symbol = qualified.symbol;
         let owner_proof = qualified.owner;
         let parameter_origin = qualified.origin;
@@ -295,6 +298,9 @@ impl ExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+        self.block = exhausted;
+        self.bindings = self.rebind_linear_bindings(&baseline, exhausted, &carried, span)?;
+        let false_exit = self.branch_exit(LoweredValue::Unit);
         self.block = body_block;
         self.bindings = self.rebind_linear_bindings(&baseline, body_block, &carried, span)?;
         let body_parameters = self.map_iteration_parameters(body_block, span)?;
@@ -327,75 +333,80 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let mut frame = Frame {
-            statement,
-            source: Some(body_source),
-            components: [
-                (descriptor.key_binding(), Some(key)),
-                (descriptor.value_binding(), Some(value)),
-            ],
-            finished: false,
-        };
-        // The complete Fallthrough actions own the body-block cleanup point.
-        // Child statement cleanup still runs through the ordinary lowerer.
-        if self.lower_statement_inner(body)? == LoweredValue::Diverged || self.block != body_block {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let fallthrough = unique(
-            plan.exits()
-                .iter()
-                .filter(|exit| exit.kind() == IterationExitKind::Fallthrough),
-        )
-        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        self.emit_map_iteration_cleanup(fallthrough, &mut frame, None, span)?;
-        if frame.components.iter().any(|(_, loan)| loan.is_some())
-            || frame.source != Some(body_source)
-            || frame.finished
+        let body_owner =
+            self.map_iteration_owner(owner_proof, symbol, &carried, &body_parameters, span)?;
+        self.loops.push(loop_control::LoopContext {
+            entry_views: self.non_null_bindings.clone(),
+            outer_borrowed_while: None,
+            header,
+            carried: carried.clone(),
+            continues: Vec::new(),
+            breaks: Vec::new(),
+            for_loop: None,
+            numeric_loop: None,
+            map_loop: Some(Context {
+                plan: plan.clone(),
+                kind: body_exit,
+                body: body_block,
+                frame: Frame {
+                    statement,
+                    source: Some(body_source),
+                    components: [
+                        (descriptor.key_binding(), Some(key)),
+                        (descriptor.value_binding(), Some(value)),
+                    ],
+                    finished: false,
+                },
+                owner: body_owner,
+                cursor: body_cursor,
+                cursor_type,
+                next: None,
+                cleaned: false,
+                returned: None,
+                cleanup_start: None,
+            }),
+        });
+        // The exact selected exit owns the body cleanup point. A real transfer
+        // is already Diverged and must not acquire a synthetic fallthrough/Next.
+        let result = self.lower_statement_inner(body)?;
+        if self.block != body_block
+            || (result == LoweredValue::Diverged) == (body_exit == IterationExitKind::Fallthrough)
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let next = self.map_iteration_value(
-            Operation::MapIterationNext {
-                source: body_source,
-                cursor: body_cursor,
-            },
-            cursor_type,
-            span,
-        )?;
-        let mut backedge = self.map_iteration_carried_arguments(&carried, span)?;
-        backedge.extend([EntityId::Loan(body_source), EntityId::Value(next)]);
-        self.function
-            .set_terminator(
-                body_block,
-                TerminatorKind::Branch(Edge {
-                    target: header,
-                    arguments: backedge,
-                }),
-                Origin::Source(span),
-            )
-            .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        self.block = exhausted;
-        self.bindings = self.rebind_linear_bindings(&baseline, exhausted, &carried, span)?;
+        if result != LoweredValue::Diverged {
+            self.clean_map_iteration_body(IterationExitKind::Fallthrough, span)?;
+            self.advance_map_iteration_body(span)?;
+        }
+        let mut context = self
+            .loops
+            .pop()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let state = context
+            .map_loop
+            .take()
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if !state.cleaned
+            || !context.continues.is_empty()
+            || context.breaks.len() != usize::from(matches!(body_exit, IterationExitKind::Break(_)))
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        // Restore every ordinary owner/loan slot from the independent false edge.
+        self.merge_exits(vec![false_exit], &baseline, span)?;
         let exhausted_parameters = self.map_iteration_parameters(exhausted, span)?;
         let (exhausted_source, _) = roles(&exhausted_parameters, source_slot, cursor_slot, span)?;
-        frame.source = Some(exhausted_source);
-        let owner = owner_proof
-            .map(|proof| {
-                let slot = unique(
-                    carried
-                        .slots
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, slot)| slot.symbol == Some(symbol)),
-                )
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-                .0;
-                let Some(EntityId::Value(value)) = exhausted_parameters.get(slot) else {
-                    return Err(error(LoweringErrorKind::MissingFact, span));
-                };
-                Ok((proof, symbol, *value))
-            })
-            .transpose()?;
+        let mut frame = Frame {
+            statement,
+            source: Some(exhausted_source),
+            components: [
+                (descriptor.key_binding(), None),
+                (descriptor.value_binding(), None),
+            ],
+            finished: false,
+        };
+        let owner =
+            self.map_iteration_owner(owner_proof, symbol, &carried, &exhausted_parameters, span)?;
         let exhaustion = unique(
             plan.exits()
                 .iter()
@@ -409,12 +420,19 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        context.breaks.push(self.branch_exit(LoweredValue::Unit));
+        self.merge_exits(context.breaks, &baseline, span)?;
         carrier::Evidence {
             function: self.function,
             seed,
             source: source_loan,
             first,
-            next,
+            next: state.next,
+            body_exit,
+            body_owner,
+            returned: state.returned,
+            cleanup_start: state.cleanup_start,
+            continuation: self.block,
             key,
             value,
             blocks: [preheader, header, body_block, exhausted],
@@ -427,6 +445,33 @@ impl ExpressionLowerer<'_> {
         }
         .validate()?;
         Ok(LoweredValue::Unit)
+    }
+
+    fn map_iteration_owner(
+        &self,
+        proof: Option<source_owner::Proof>,
+        symbol: SymbolId,
+        carried: &LinearBindings,
+        parameters: &[EntityId],
+        span: Span,
+    ) -> Result<Option<(source_owner::Proof, SymbolId, ValueId)>, LoweringError> {
+        proof
+            .map(|proof| {
+                let slot = unique(
+                    carried
+                        .slots
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, slot)| slot.symbol == Some(symbol)),
+                )
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                .0;
+                let Some(EntityId::Value(value)) = parameters.get(slot) else {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                };
+                Ok((proof, symbol, *value))
+            })
+            .transpose()
     }
 
     fn map_iteration_value(
@@ -552,7 +597,7 @@ impl ExpressionLowerer<'_> {
                     self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
                 }
                 IterationCleanupAction::Drop(fact)
-                    if owner.is_some_and(|(proof, _, _)| proof.drop == *fact) =>
+                    if owner.is_some_and(|(proof, _, _)| proof.at(exit.point()) == Some(*fact)) =>
                 {
                     let (_, symbol, value) =
                         owner.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;

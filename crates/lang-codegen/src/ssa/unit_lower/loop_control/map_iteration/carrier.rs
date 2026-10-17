@@ -1,12 +1,16 @@
 //! Exact source-parameter and provider transport; no same-type or same-name owner substitution.
 use super::*;
 use crate::ssa::model::{Definition, Edge, Instruction};
-use lang_frontend::ownership_checking::UnitDropFact;
+use lang_frontend::{ownership_checking::UnitDropFact, parser::Expression};
 
 #[derive(Clone, Copy)]
 pub(super) struct MapCarrier {
     pub(super) root: UnitSymbolId,
     pub(super) drop: Option<UnitDropFact>,
+    transfer_drop: Option<UnitDropFact>,
+    pub(super) body_point: UnitDropPoint,
+    body_exit: UnitIterationExitKind,
+    pub(super) exhaustion_point: UnitDropPoint,
     header: BlockId,
     pub(super) body: BlockId,
     pub(super) exhaustion: BlockId,
@@ -109,6 +113,10 @@ impl MapCarrier {
         let carrier = Self {
             root: qualified.root,
             drop: qualified.source_drop,
+            transfer_drop: qualified.transfer_drop,
+            body_point: qualified.body_point,
+            body_exit: qualified.body_exit,
+            exhaustion_point: UnitDropPoint::LoopExit(qualified.statement),
             header,
             body,
             exhaustion,
@@ -265,18 +273,172 @@ impl MapCarrier {
         Ok(())
     }
 
-    pub(super) fn exhaustion_owner(
+    pub(super) fn validate_return(
         &self,
         lowerer: &UnitExpressionLowerer<'_>,
         span: Span,
-    ) -> Result<ValueId, LoweringError> {
+    ) -> Result<(), LoweringError> {
+        use lang_frontend::ownership_checking::UnitIterationCleanupAction;
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-        let EntityId::Value(owner) =
-            self.parameter(lowerer.function, self.exhaustion, self.seed_column, span)?
+        let UnitIterationExitKind::Return(expression) = self.body_exit else {
+            return Err(bad());
+        };
+        let node = lowerer
+            .parsed
+            .ast()
+            .expressions()
+            .get(expression.expression())
+            .map_err(|_| bad())?;
+        let Expression::Return {
+            value: Some(operand),
+            ..
+        } = node.payload()
         else {
             return Err(bad());
         };
-        if lowerer.block != self.exhaustion
+        let operand_span = lowerer
+            .parsed
+            .ast()
+            .expressions()
+            .get(*operand)
+            .map_err(|_| bad())?
+            .span();
+        let block = lowerer.function.block(self.body).ok_or_else(bad)?;
+        let Some(TerminatorKind::Return { values }) =
+            block.terminator.as_ref().map(|term| &term.kind)
+        else {
+            return Err(bad());
+        };
+        let [result] = values.as_slice() else {
+            return Err(bad());
+        };
+        let call = instruction(lowerer.function, EntityId::Value(*result), span)?;
+        let call_position = block
+            .instructions
+            .iter()
+            .position(|id| *id == call.id)
+            .ok_or_else(bad)?;
+        if call.block != self.body
+            || call.origin != Origin::Source(operand_span)
+            || !matches!(call.operation, Operation::DirectCall { receiver: None, .. })
+            || call.results.as_slice() != [EntityId::Value(*result)]
+        {
+            return Err(bad());
+        }
+        let actions = lowerer
+            .owned
+            .iteration_cleanup_at(self.body_point)
+            .ok_or_else(bad)?;
+        for action in actions {
+            let UnitIterationCleanupAction::Drop(fact) = action else {
+                continue;
+            };
+            let positions = block
+                .instructions
+                .iter()
+                .enumerate()
+                .filter_map(|(index, id)| {
+                    let instruction = lowerer.function.instruction(*id)?;
+                    (matches!(instruction.operation, Operation::Drop { .. })
+                        && instruction.origin == Origin::Source(fact.value_origin()))
+                    .then_some(index)
+                })
+                .collect::<Vec<_>>();
+            let [drop_position] = positions.as_slice() else {
+                return Err(bad());
+            };
+            if call_position >= *drop_position {
+                return Err(bad());
+            }
+        }
+        let mut component_ends = Vec::new();
+        for id in &block.instructions {
+            let projection = lowerer.function.instruction(*id).ok_or_else(bad)?;
+            if !matches!(
+                projection.operation,
+                Operation::MapIterationKeyLoan { .. } | Operation::MapIterationValueLoan { .. }
+            ) {
+                continue;
+            }
+            let [EntityId::Loan(loan)] = projection.results.as_slice() else {
+                return Err(bad());
+            };
+            let positions = block
+                .instructions
+                .iter()
+                .enumerate()
+                .filter_map(|(index, id)| {
+                    (lowerer.function.instruction(*id)?.operation
+                        == Operation::BorrowEnd { loan: *loan })
+                    .then_some(index)
+                })
+                .collect::<Vec<_>>();
+            let [position] = positions.as_slice() else {
+                return Err(bad());
+            };
+            component_ends.push(*position);
+        }
+        if component_ends.len() != 2
+            || component_ends
+                .iter()
+                .any(|position| *position <= call_position)
+            || block.instructions.iter().any(|id| {
+                lowerer
+                    .function
+                    .instruction(*id)
+                    .is_some_and(|instruction| {
+                        matches!(instruction.operation, Operation::MapIterationNext { .. })
+                    })
+            })
+        {
+            return Err(bad());
+        }
+        Ok(())
+    }
+
+    pub(super) fn terminal_block(
+        &self,
+        point: UnitDropPoint,
+        span: Span,
+    ) -> Result<BlockId, LoweringError> {
+        if point == self.exhaustion_point {
+            Ok(self.exhaustion)
+        } else if point == self.body_point
+            && matches!(
+                self.body_exit,
+                UnitIterationExitKind::Break(_) | UnitIterationExitKind::Return(_)
+            )
+        {
+            Ok(self.body)
+        } else {
+            Err(lowering_error(LoweringErrorKind::MissingFact, span))
+        }
+    }
+
+    pub(super) fn drop_at(&self, point: UnitDropPoint) -> Option<UnitDropFact> {
+        if point == self.exhaustion_point {
+            self.drop
+        } else if point == self.body_point {
+            self.transfer_drop
+        } else {
+            None
+        }
+    }
+
+    pub(super) fn terminal_owner(
+        &self,
+        lowerer: &UnitExpressionLowerer<'_>,
+        point: UnitDropPoint,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
+        let block = self.terminal_block(point, span)?;
+        let EntityId::Value(owner) =
+            self.parameter(lowerer.function, block, self.seed_column, span)?
+        else {
+            return Err(bad());
+        };
+        if lowerer.block != block
             || lowerer.bindings.get(&self.root) != Some(&LoweredValue::Value(owner))
         {
             return Err(bad());

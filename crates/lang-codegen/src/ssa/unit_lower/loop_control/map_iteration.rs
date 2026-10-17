@@ -12,7 +12,7 @@ use crate::ssa::model::{
 };
 use carrier::MapCarrier;
 use lang_frontend::{
-    ownership_checking::UnitIterationSourceAccess,
+    ownership_checking::{UnitIterationExitKind, UnitIterationSourceAccess},
     type_checking::{BuiltinType, MapIterationKind},
 };
 
@@ -22,7 +22,8 @@ pub(super) enum MapPhase {
         key_live: bool,
         value_live: bool,
     },
-    Exhaustion {
+    Terminal {
+        point: UnitDropPoint,
         finished: bool,
         source_ended: bool,
         owner_dropped: bool,
@@ -260,20 +261,41 @@ impl UnitExpressionLowerer<'_> {
             inherited_borrowed: None,
         });
         self.loops.push(context);
-        // lower_statement consumes the real body AfterStatement sequence exactly once.
-        if self.lower_statement(body)? == LoweredValue::Diverged {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        // A direct tail transfer already consumes its own cleanup. Never synthesize
+        // Fallthrough/Next after it; the independent false edge still needs lowering.
+        let result = self.lower_statement(body)?;
+        if result != LoweredValue::Diverged {
+            if qualified.body_exit != UnitIterationExitKind::Fallthrough {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            self.record_natural_continue(span)?;
+        } else if qualified.body_exit == UnitIterationExitKind::Fallthrough {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        self.record_natural_continue(span)?;
         let mut context = self
             .loops
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if !context.breaks.is_empty() || context.continues.len() != 1 {
+        let (breaks, continues) = match qualified.body_exit {
+            UnitIterationExitKind::Fallthrough | UnitIterationExitKind::Continue(_) => (0, 1),
+            UnitIterationExitKind::Break(_) => (1, 0),
+            UnitIterationExitKind::Return(_) => (0, 0),
+            UnitIterationExitKind::Exhaustion => {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+        };
+        if context.breaks.len() != breaks
+            || context.continues.len() != continues
+            || self.block != body_block
+        {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         self.finish_continues(&context, context.header)?;
-        carrier.validate_backedge(self, source_slot, cursor_slot, span)?;
+        if continues == 1 {
+            carrier.validate_backedge(self, source_slot, cursor_slot, span)?;
+        } else if matches!(qualified.body_exit, UnitIterationExitKind::Return(_)) {
+            carrier.validate_return(self, span)?;
+        }
         self.restore_loop_state(&false_state);
         let iteration = context
             .iteration
@@ -282,20 +304,27 @@ impl UnitExpressionLowerer<'_> {
         let IterationState::Map(state) = &mut iteration.state else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        state.phase = MapPhase::Exhaustion {
+        state.phase = MapPhase::Terminal {
+            point: UnitDropPoint::LoopExit(statement_id),
             finished: false,
             source_ended: false,
             owner_dropped: false,
         };
         self.loops.push(context);
         self.emit_drops(UnitDropPoint::LoopExit(statement_id))?;
-        self.map_validate_exhaustion(statement_id, span)?;
         self.pending_operands.truncate(retained_start);
         let exit = self.loop_state();
-        self.loops
+        let context = self
+            .loops
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        self.merge_loop_exits(vec![exit], span)?;
+        let mut exits = context
+            .breaks
+            .into_iter()
+            .map(branch_exit)
+            .collect::<Vec<_>>();
+        exits.push(exit);
+        self.merge_loop_exits(exits, span)?;
         Ok(LoweredValue::Unit)
     }
 

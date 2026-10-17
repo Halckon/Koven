@@ -13,6 +13,7 @@ pub(super) struct Qualified<'a> {
     pub(super) body: StatementId,
     pub(super) origin: Span,
     pub(super) owner: Option<source_owner::Proof>,
+    pub(super) body_exit: IterationExitKind,
 }
 
 pub(in super::super) fn validate(
@@ -152,63 +153,33 @@ pub(super) fn qualify<'a>(
             return Err(missing());
         }
     }
-    // AST is consulted only to bound backend shape. It never reconstructs facts.
-    if !straight_statement(parsed, typed, *body)? || has_enclosing_control(parsed, span) {
+    // AST only bounds capability. Phase 3 remains the source of exit/cleanup facts.
+    if has_enclosing_control(parsed, span) {
         return Err(unsupported());
     }
-    if plan.exits().iter().any(|exit| {
-        !matches!(
-            exit.kind(),
-            IterationExitKind::Fallthrough | IterationExitKind::Exhaustion
+    let body_exit = exit_shape::body_exit(parsed, names, typed, descriptor, *body, span)?;
+    if matches!(body_exit, IterationExitKind::Return(_)) {
+        let callable = unique(
+            typed
+                .callables()
+                .iter()
+                .filter(|callable| callable.parameter_symbols().contains(&Some(symbol))),
         )
-    }) {
-        return Err(unsupported());
+        .ok_or_else(missing)?;
+        if builtin_type(typed, callable.return_type()) != Some(BuiltinType::Int) {
+            return Err(unsupported());
+        }
     }
-    let fallthrough = unique(
-        plan.exits()
-            .iter()
-            .filter(|exit| exit.kind() == IterationExitKind::Fallthrough),
-    )
-    .ok_or_else(missing)?;
+    exit_shape::cleanup(owned, plan, *body, body_exit, span)?;
     let exhaustion = unique(
         plan.exits()
             .iter()
             .filter(|exit| exit.kind() == IterationExitKind::Exhaustion),
     )
     .ok_or_else(missing)?;
-    if plan.exits().len() != 2
-        || fallthrough.point() != DropPoint::AfterStatement(*body)
-        || exhaustion.point() != DropPoint::LoopExit(descriptor.statement())
-        || [fallthrough, exhaustion].iter().any(|exit| {
-            owned.cleanup_conditions().get(exit.condition()) != Some(&CleanupCondition::Always)
-        })
-    {
-        return Err(missing());
-    }
-    let expected = [
-        IterationCleanupAction::EndBinding {
-            statement: descriptor.statement(),
-            symbol: descriptor.value_binding(),
-        },
-        IterationCleanupAction::EndBinding {
-            statement: descriptor.statement(),
-            symbol: descriptor.key_binding(),
-        },
-    ];
-    if !fallthrough.actions().ends_with(&expected)
-        || fallthrough.actions()[..fallthrough.actions().len() - 2]
-            .iter()
-            .any(|action| !matches!(action, IterationCleanupAction::Drop(_)))
-        || !exhaustion.actions().starts_with(&[
-            IterationCleanupAction::FinishProvider(descriptor.statement()),
-            IterationCleanupAction::EndSource(descriptor.statement()),
-        ])
-    {
-        return Err(missing());
-    }
     let owner = if access == MapIterationSourceAccess::Owned {
         Some(source_owner::qualify(
-            parsed, names, owned, plan, symbol, *body,
+            parsed, names, owned, plan, symbol, *body, body_exit,
         )?)
     } else {
         if exhaustion.actions().len() != 2 || !plan.closure_phis().is_empty() {
@@ -222,6 +193,7 @@ pub(super) fn qualify<'a>(
         body: *body,
         origin: data.span(),
         owner,
+        body_exit,
     })
 }
 
@@ -247,7 +219,7 @@ fn has_enclosing_control(parsed: &ParsedFile, span: Span) -> bool {
     })
 }
 
-fn straight_statement(
+pub(super) fn straight_statement(
     parsed: &ParsedFile,
     typed: &TypedFile,
     statement: StatementId,

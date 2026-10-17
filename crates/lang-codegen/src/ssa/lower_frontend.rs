@@ -256,11 +256,9 @@ impl ExpressionLowerer<'_> {
             } => self.lower_when(expression, subject, &entries, span),
             Expression::Return { value, .. } => self.lower_return(expression, value, span),
             Expression::Break { .. } => {
-                if self
-                    .loops
-                    .last()
-                    .is_some_and(|c| c.for_loop.is_some() || c.numeric_loop.is_some())
-                {
+                if self.loops.last().is_some_and(|c| {
+                    c.for_loop.is_some() || c.numeric_loop.is_some() || c.map_loop.is_some()
+                }) {
                     self.lower_for_break(expression, span)
                 } else {
                     self.emit_control_transfer_cleanup(expression)?;
@@ -268,11 +266,9 @@ impl ExpressionLowerer<'_> {
                 }
             }
             Expression::Continue { .. } => {
-                if self
-                    .loops
-                    .last()
-                    .is_some_and(|c| c.for_loop.is_some() || c.numeric_loop.is_some())
-                {
+                if self.loops.last().is_some_and(|c| {
+                    c.for_loop.is_some() || c.numeric_loop.is_some() || c.map_loop.is_some()
+                }) {
                     self.lower_for_continue(expression, span)
                 } else {
                     self.emit_control_transfer_cleanup(expression)?;
@@ -1024,24 +1020,7 @@ impl ExpressionLowerer<'_> {
             return Ok(result);
         }
         self.prepare_map_loop_return(return_expression, span)?;
-        let for_return_exit = self.loops.iter().rev().find_map(|c| {
-            c.iteration_plan().and_then(|plan| {
-                plan.exits()
-                    .iter()
-                    .find(|e| {
-                        matches!(
-                            e.kind(),
-                            lang_frontend::ownership_checking::IterationExitKind::Return(expr) if expr == return_expression
-                        )
-                    })
-                    .cloned()
-            })
-        });
-        if let Some(exit) = for_return_exit {
-            self.emit_iteration_exit_plan(&exit, span)?;
-        } else {
-            self.emit_control_transfer_cleanup(return_expression)?;
-        }
+        self.emit_active_iteration_return_cleanup(return_expression, result, span)?;
         self.retire_while_proofs(true, span)?;
         self.end_thunk_capture_views(span)?;
         let values = return_values(self.typed, self.return_type, result, span)?;

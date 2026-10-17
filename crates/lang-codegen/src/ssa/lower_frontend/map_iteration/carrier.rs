@@ -7,7 +7,12 @@ pub(super) struct Evidence<'a> {
     pub(super) seed: EntityId,
     pub(super) source: LoanId,
     pub(super) first: ValueId,
-    pub(super) next: ValueId,
+    pub(super) next: Option<ValueId>,
+    pub(super) body_exit: IterationExitKind,
+    pub(super) body_owner: Option<(source_owner::Proof, SymbolId, ValueId)>,
+    pub(super) returned: Option<ValueId>,
+    pub(super) cleanup_start: Option<usize>,
+    pub(super) continuation: BlockId,
     pub(super) key: LoanId,
     pub(super) value: LoanId,
     pub(super) blocks: [BlockId; 4],
@@ -27,6 +32,11 @@ impl Evidence<'_> {
             source,
             first,
             next,
+            body_exit,
+            body_owner,
+            returned,
+            cleanup_start,
+            continuation,
             key,
             value,
             blocks,
@@ -151,30 +161,99 @@ impl Evidence<'_> {
             };
         let value_end = end_position(value)?;
         let key_end = end_position(key)?;
-        let next_instruction = definition(function, EntityId::Value(next)).ok_or_else(missing)?;
-        let next_position = body_instructions
-            .iter()
-            .position(|instruction| instruction.id == next_instruction.id)
-            .ok_or_else(missing)?;
-        if next_instruction.block != body
-            || next_instruction.operation
-                != (Operation::MapIterationNext {
-                    source: body_source,
-                    cursor: body_cursor,
-                })
-            || !(value_end < key_end && key_end < next_position)
-        {
+        if value_end >= key_end {
             return Err(missing());
         }
-        let Some(TerminatorKind::Branch(backedge)) = terminator(function, body) else {
-            return Err(missing());
+        let backedge = match body_exit {
+            IterationExitKind::Fallthrough | IterationExitKind::Continue(_) => {
+                let next = next.ok_or_else(missing)?;
+                let instruction =
+                    definition(function, EntityId::Value(next)).ok_or_else(missing)?;
+                let position = body_instructions
+                    .iter()
+                    .position(|i| i.id == instruction.id)
+                    .ok_or_else(missing)?;
+                if instruction.block != body
+                    || instruction.operation
+                        != (Operation::MapIterationNext {
+                            source: body_source,
+                            cursor: body_cursor,
+                        })
+                    || key_end >= position
+                    || returned.is_some()
+                {
+                    return Err(missing());
+                }
+                let Some(TerminatorKind::Branch(edge)) = terminator(function, body) else {
+                    return Err(missing());
+                };
+                if edge.target != header
+                    || edge.arguments.get(source_slot) != Some(&EntityId::Loan(body_source))
+                    || edge.arguments.get(cursor_slot) != Some(&EntityId::Value(next))
+                {
+                    return Err(missing());
+                }
+                Some(edge)
+            }
+            IterationExitKind::Break(_) | IterationExitKind::Return(_) => {
+                if next.is_some()
+                    || body_instructions
+                        .iter()
+                        .any(|i| matches!(i.operation, Operation::MapIterationNext { .. }))
+                    || end_position(body_source)? <= key_end
+                {
+                    return Err(missing());
+                }
+                match body_exit {
+                    IterationExitKind::Break(_) => {
+                        let Some(TerminatorKind::Branch(body_edge)) = terminator(function, body)
+                        else {
+                            return Err(missing());
+                        };
+                        let Some(TerminatorKind::Branch(false_edge)) =
+                            terminator(function, exhausted)
+                        else {
+                            return Err(missing());
+                        };
+                        if returned.is_some()
+                            || body_edge.target != continuation
+                            || false_edge.target != continuation
+                            || continuation == exhausted
+                        {
+                            return Err(missing());
+                        }
+                    }
+                    IterationExitKind::Return(_) => {
+                        let returned = returned.ok_or_else(missing)?;
+                        let Some(TerminatorKind::Return { values }) = terminator(function, body)
+                        else {
+                            return Err(missing());
+                        };
+                        let call =
+                            definition(function, EntityId::Value(returned)).ok_or_else(missing)?;
+                        let position = body_instructions
+                            .iter()
+                            .position(|i| i.id == call.id)
+                            .ok_or_else(missing)?;
+                        if values.as_slice() != [returned]
+                            || call.block != body
+                            || !matches!(
+                                call.operation,
+                                Operation::DirectCall { receiver: None, .. }
+                            )
+                            || position >= cleanup_start.ok_or_else(missing)?
+                            || cleanup_start.ok_or_else(missing)? > value_end
+                            || continuation != exhausted
+                        {
+                            return Err(missing());
+                        }
+                    }
+                    _ => return Err(missing()),
+                }
+                None
+            }
+            IterationExitKind::Exhaustion => return Err(missing()),
         };
-        if backedge.target != header
-            || backedge.arguments.get(source_slot) != Some(&EntityId::Loan(body_source))
-            || backedge.arguments.get(cursor_slot) != Some(&EntityId::Value(next))
-        {
-            return Err(missing());
-        }
         let exhausted_instructions = instructions(function, exhausted).ok_or_else(missing)?;
         if exhausted_instructions.iter().any(|instruction| {
             matches!(
@@ -207,7 +286,8 @@ impl Evidence<'_> {
             .ok_or_else(missing)?;
             if binding.source != seed
                 || entry.arguments.get(slot) != Some(&seed)
-                || backedge.arguments.get(slot) != body_parameters.get(slot)
+                || backedge
+                    .is_some_and(|edge| edge.arguments.get(slot) != body_parameters.get(slot))
                 || exhausted_parameters.get(slot) != Some(&EntityId::Value(dropped))
                 || proof.drop.value_origin() != parameter_origin
             {
@@ -226,8 +306,54 @@ impl Evidence<'_> {
             {
                 return Err(missing());
             }
+            let Some((body_proof, body_symbol, body_value)) = body_owner else {
+                return Err(missing());
+            };
+            if body_symbol != symbol
+                || body_parameters.get(slot) != Some(&EntityId::Value(body_value))
+            {
+                return Err(missing());
+            }
+            let body_drops = body_instructions
+                .iter()
+                .enumerate()
+                .filter(|(_, instruction)| {
+                    instruction.operation == Operation::Drop { owner: body_value }
+                })
+                .collect::<Vec<_>>();
+            if exit_shape::terminal(body_exit) {
+                let point = match body_exit {
+                    IterationExitKind::Break(expression)
+                    | IterationExitKind::Return(expression) => {
+                        DropPoint::ControlTransfer(expression)
+                    }
+                    _ => return Err(missing()),
+                };
+                let fact = body_proof.at(point).ok_or_else(missing)?;
+                let [(position, instruction)] = body_drops.as_slice() else {
+                    return Err(missing());
+                };
+                if fact.value_origin() != parameter_origin
+                    || *position <= end_position(body_source)?
+                    || instruction.origin != Origin::Source(parameter_origin)
+                {
+                    return Err(missing());
+                }
+            } else if !body_drops.is_empty() {
+                return Err(missing());
+            }
         } else if !matches!(seed, EntityId::Loan(_)) {
             return Err(missing());
+        }
+        if let EntityId::Loan(entry_loan) = seed {
+            if body_owner.is_some()
+                || body_instructions
+                    .iter()
+                    .chain(exhausted_instructions.iter())
+                    .any(|i| i.operation == Operation::BorrowEnd { loan: entry_loan })
+            {
+                return Err(missing());
+            }
         }
         Ok(())
     }

@@ -9,6 +9,7 @@ use lang_frontend::{
 impl UnitExpressionLowerer<'_> {
     pub(in super::super) fn emit_iteration_cleanup(
         &mut self,
+        point: UnitDropPoint,
         actions: &[Action],
     ) -> Result<(), LoweringError> {
         let drops = actions
@@ -46,7 +47,7 @@ impl UnitExpressionLowerer<'_> {
                     let span = self.statement_span(statement.statement())?;
                     match self.iteration_context(*statement, span)?.state {
                         IterationState::Map(_) => {
-                            self.map_end_binding(*statement, *symbol, span)?
+                            self.map_end_binding(*statement, *symbol, point, span)?
                         }
                         IterationState::Borrowed { element, .. } => {
                             let element = self.iteration_pending_loan(element, span)?;
@@ -99,7 +100,7 @@ impl UnitExpressionLowerer<'_> {
                         self.iteration_context(*statement, span)?.state,
                         IterationState::Map(_)
                     ) {
-                        self.map_finish_provider(*statement, span)?;
+                        self.map_finish_provider(*statement, point, span)?;
                     }
                 }
                 Action::EndSource(statement) => {
@@ -108,7 +109,7 @@ impl UnitExpressionLowerer<'_> {
                         self.iteration_context(*statement, span)?.state,
                         IterationState::Map(_)
                     ) {
-                        self.map_end_source(*statement, span)?;
+                        self.map_end_source(*statement, point, span)?;
                         continue;
                     }
                     let IterationState::Borrowed { start, .. } =
@@ -209,7 +210,7 @@ impl UnitExpressionLowerer<'_> {
                 }
             }
         }
-        Ok(())
+        self.map_validate_cleanup(point)
     }
     fn iteration_context(
         &self,

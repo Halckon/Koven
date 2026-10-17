@@ -7,14 +7,21 @@ use lang_frontend::{
         UnitLoanTarget, UnitMapIterationOwnershipPlan,
     },
     parser::{ParsedFile, StringPart},
-    type_checking::{IntrinsicTypeConstructor, MapIterationKind, UnitMapIterationDescriptor},
+    type_checking::{
+        CallableResultSource, IntrinsicTypeConstructor, MapIterationKind, UnitCallTarget,
+        UnitMapIterationDescriptor,
+    },
 };
 
 #[derive(Clone, Copy)]
 pub(super) struct QualifiedMap {
+    pub(super) statement: UnitStatementId,
     pub(super) root: UnitSymbolId,
     pub(super) parameter_slot: usize,
     pub(super) source_drop: Option<UnitDropFact>,
+    pub(super) transfer_drop: Option<UnitDropFact>,
+    pub(super) body_exit: UnitIterationExitKind,
+    pub(super) body_point: UnitDropPoint,
 }
 
 pub(super) fn validate(
@@ -143,11 +150,12 @@ pub(super) fn qualify(
                     (parameter.symbol() == Some(root)).then_some((
                         parameter,
                         index + usize::from(callable.receiver().is_some()),
+                        callable.return_type(),
                     ))
                 })
         })
         .collect::<Vec<_>>();
-    let [(parameter, parameter_slot)] = parameters.as_slice() else {
+    let [(parameter, parameter_slot, return_type)] = parameters.as_slice() else {
         return Err(missing());
     };
     if parameter.ty() != descriptor.source_type() {
@@ -224,7 +232,12 @@ pub(super) fn qualify(
         }
     }
     reject_nested(parsed, statement.statement(), span)?;
-    straight_statement(parsed, *body, span)?;
+    let body_exit = qualify_body(parsed, names, typed, descriptor, *body, span)?;
+    if matches!(body_exit, UnitIterationExitKind::Return(_))
+        && builtin_type(typed, *return_type) != Some(BuiltinType::Int)
+    {
+        return Err(unsupported());
+    }
     let body_span = parsed
         .ast()
         .statements()
@@ -247,48 +260,116 @@ pub(super) fn qualify(
             return Err(unsupported());
         }
     }
-    let source_drop = validate_cleanup(plan, owned, *body, root, symbol.span(), span)?;
+    let (source_drop, transfer_drop) =
+        validate_cleanup(plan, owned, *body, body_exit, root, symbol.span(), span)?;
+    let body_point = body_point(statement, *body, body_exit);
     Ok(QualifiedMap {
+        statement,
         root,
         parameter_slot: *parameter_slot,
         source_drop,
+        transfer_drop,
+        body_exit,
+        body_point,
     })
+}
+
+fn body_point(
+    statement: UnitStatementId,
+    body: StatementId,
+    kind: UnitIterationExitKind,
+) -> UnitDropPoint {
+    match kind {
+        UnitIterationExitKind::Continue(expression)
+        | UnitIterationExitKind::Break(expression)
+        | UnitIterationExitKind::Return(expression) => UnitDropPoint::ControlTransfer(expression),
+        _ => UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), body)),
+    }
 }
 
 fn validate_cleanup(
     plan: &UnitMapIterationOwnershipPlan,
     owned: &CompilationUnitOwnership,
     body: StatementId,
+    body_exit: UnitIterationExitKind,
     root: UnitSymbolId,
     origin: Span,
     span: Span,
-) -> Result<Option<UnitDropFact>, LoweringError> {
+) -> Result<(Option<UnitDropFact>, Option<UnitDropFact>), LoweringError> {
     let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
     let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
     let descriptor = plan.descriptor();
     let statement = descriptor.statement();
-    if plan.exits().iter().any(|exit| {
-        !matches!(
-            exit.kind(),
-            UnitIterationExitKind::Fallthrough | UnitIterationExitKind::Exhaustion
-        )
-    }) {
-        return Err(unsupported());
-    }
-    let [fallthrough, exhaustion] = plan.exits() else {
+    let [body_plan, exhaustion] = plan.exits() else {
         return Err(missing());
     };
-    if fallthrough.kind() != UnitIterationExitKind::Fallthrough
-        || fallthrough.point()
-            != UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), body))
+    if body_plan.kind() != body_exit
+        || body_plan.point() != body_point(statement, body, body_exit)
         || exhaustion.kind() != UnitIterationExitKind::Exhaustion
         || exhaustion.point() != UnitDropPoint::LoopExit(statement)
-        || owned.iteration_cleanup_at(fallthrough.point()) != Some(fallthrough.actions())
+        || owned.iteration_cleanup_at(body_plan.point()) != Some(body_plan.actions())
         || owned.iteration_cleanup_at(exhaustion.point()) != Some(exhaustion.actions())
     {
         return Err(missing());
     }
-    let expected = [
+    let drops = owned
+        .drops()
+        .iter()
+        .copied()
+        .filter(|fact| fact.target() == UnitDropTarget::Named(root))
+        .collect::<Vec<_>>();
+    let terminal_body = matches!(
+        body_exit,
+        UnitIterationExitKind::Break(_) | UnitIterationExitKind::Return(_)
+    );
+    let (source_drop, transfer_drop) = match plan.source_access() {
+        UnitIterationSourceAccess::Owned => {
+            if drops.iter().any(|drop| drop.value_origin() != origin) {
+                return Err(missing());
+            }
+            // First-red unit facts publish one LoopExit drop for Continue,
+            // and one independent drop per terminal path for Break/Return.
+            // Match actual points, not global table order or fixture identities.
+            let expected_count = 1 + usize::from(terminal_body);
+            if drops.len() != expected_count
+                || drops.iter().any(|drop| {
+                    drop.point() != exhaustion.point()
+                        && (!terminal_body || drop.point() != body_plan.point())
+                })
+            {
+                // A validated source kept alive beyond either edge requires its
+                // own lifetime proof; presence alone cannot authorize a Drop.
+                return Err(unsupported());
+            }
+            let at = |point| -> Result<UnitDropFact, LoweringError> {
+                let mut matches = drops.iter().copied().filter(|drop| drop.point() == point);
+                let drop = matches.next().ok_or_else(missing)?;
+                if matches.next().is_some() {
+                    return Err(missing());
+                }
+                Ok(drop)
+            };
+            (
+                Some(at(exhaustion.point())?),
+                terminal_body.then(|| at(body_plan.point())).transpose()?,
+            )
+        }
+        UnitIterationSourceAccess::Shared if drops.is_empty() => (None, None),
+        UnitIterationSourceAccess::Shared => return Err(missing()),
+        _ => return Err(unsupported()),
+    };
+    let terminal = [
+        Action::FinishProvider(statement),
+        Action::EndSource(statement),
+    ];
+    let mut exhaustion_actions = terminal.to_vec();
+    if let Some(drop) = source_drop {
+        exhaustion_actions.push(Action::Drop(drop));
+    }
+    if exhaustion.actions() != exhaustion_actions {
+        return Err(missing());
+    }
+    let mut body_suffix = vec![
         Action::EndBinding {
             statement,
             symbol: descriptor.value_binding(),
@@ -298,58 +379,190 @@ fn validate_cleanup(
             symbol: descriptor.key_binding(),
         },
     ];
-    if !fallthrough.actions().ends_with(&expected) {
+    if terminal_body {
+        body_suffix.extend(terminal);
+        if let Some(drop) = transfer_drop {
+            body_suffix.push(Action::Drop(drop));
+        }
+    }
+    if !body_plan.actions().ends_with(&body_suffix) {
         return Err(missing());
     }
-    // Existing straight-line local drops may precede the two components; no other provider can.
-    if fallthrough.actions()[..fallthrough.actions().len() - 2].iter().any(|action| {
+    let prefix = &body_plan.actions()[..body_plan.actions().len() - body_suffix.len()];
+    // Ordinary local owner drops are the only supported prefix; other provider/call
+    // actions need a separate capability proof, not reordered cleanup here.
+    if prefix.iter().any(|action| {
         !matches!(action, Action::Drop(fact) if fact.target() != UnitDropTarget::Named(root))
     }) { return Err(unsupported()); }
-    let drops = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|fact| fact.target() == UnitDropTarget::Named(root))
-        .collect::<Vec<_>>();
-    match plan.source_access() {
-        UnitIterationSourceAccess::Owned => {
-            let [drop] = drops.as_slice() else {
-                // Source delivery or a later lifetime boundary needs a separate owner proof.
-                // The sealed view has already rejected an actually missing ownership fact.
-                return Err(unsupported());
-            };
-            if drop.value_origin() != origin {
-                return Err(missing());
-            }
-            if drop.point() != UnitDropPoint::LoopExit(statement) {
-                // A legal own source kept live after this loop needs a separate owner proof.
-                return Err(unsupported());
-            }
-            if exhaustion.actions()
-                != [
-                    Action::FinishProvider(statement),
-                    Action::EndSource(statement),
-                    Action::Drop(*drop),
-                ]
-            {
-                return Err(missing());
-            }
-            Ok(Some(*drop))
+    Ok((source_drop, transfer_drop))
+}
+
+fn qualify_body(
+    parsed: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    descriptor: &UnitMapIterationDescriptor,
+    body: StatementId,
+    span: Span,
+) -> Result<UnitIterationExitKind, LoweringError> {
+    let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
+    let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
+    let node = parsed.ast().statements().get(body).map_err(|_| missing())?;
+    let Statement::Block { elements } = node.payload() else {
+        straight_statement(parsed, body, span)?;
+        return Ok(UnitIterationExitKind::Fallthrough);
+    };
+    let Some((&last, prefix)) = elements.split_last() else {
+        return Ok(UnitIterationExitKind::Fallthrough);
+    };
+    let last = parsed.ast().statements().get(last).map_err(|_| missing())?;
+    let Statement::Expression { expression } = last.payload() else {
+        straight_statement(parsed, body, span)?;
+        return Ok(UnitIterationExitKind::Fallthrough);
+    };
+    let node = parsed
+        .ast()
+        .expressions()
+        .get(*expression)
+        .map_err(|_| missing())?;
+    let expression_id = UnitExpressionId::new(descriptor.statement().source_unit(), *expression);
+    let kind = match node.payload() {
+        Expression::Continue { .. } => UnitIterationExitKind::Continue(expression_id),
+        Expression::Break { .. } => UnitIterationExitKind::Break(expression_id),
+        Expression::Return {
+            value: Some(value), ..
+        } => {
+            qualify_return_operand(parsed, names, typed, descriptor, *value, span)?;
+            UnitIterationExitKind::Return(expression_id)
         }
-        UnitIterationSourceAccess::Shared => {
-            if !drops.is_empty()
-                || exhaustion.actions()
-                    != [
-                        Action::FinishProvider(statement),
-                        Action::EndSource(statement),
-                    ]
-            {
-                return Err(missing());
-            }
-            Ok(None)
+        _ => {
+            straight_statement(parsed, body, span)?;
+            return Ok(UnitIterationExitKind::Fallthrough);
         }
-        _ => Err(unsupported()),
+    };
+    if builtin_type(typed, descriptor.key_type()) != Some(BuiltinType::String)
+        || builtin_type(typed, descriptor.value_type()) != Some(BuiltinType::String)
+    {
+        return Err(unsupported());
     }
+    for statement in prefix {
+        straight_statement(parsed, *statement, span)?;
+    }
+    Ok(kind)
+}
+
+fn qualify_return_operand(
+    parsed: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    descriptor: &UnitMapIterationDescriptor,
+    operand: ExpressionId,
+    span: Span,
+) -> Result<(), LoweringError> {
+    let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
+    let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
+    let node = parsed
+        .ast()
+        .expressions()
+        .get(operand)
+        .map_err(|_| missing())?;
+    let Expression::Call {
+        callee, arguments, ..
+    } = node.payload()
+    else {
+        return Err(unsupported());
+    };
+    if !matches!(
+        parsed
+            .ast()
+            .expressions()
+            .get(*callee)
+            .map_err(|_| missing())?
+            .payload(),
+        Expression::Name
+    ) || arguments.len() != 2
+    {
+        return Err(unsupported());
+    }
+    let call = typed
+        .call(UnitExpressionId::new(
+            descriptor.statement().source_unit(),
+            operand,
+        ))
+        .ok_or_else(missing)?;
+    let UnitCallTarget::Declaration(declaration) = call.target() else {
+        return Err(unsupported());
+    };
+    let signature = typed
+        .signatures()
+        .declaration(declaration)
+        .and_then(|item| item.callable())
+        .ok_or_else(missing)?;
+    if call.receiver().is_some()
+        || call.aborts()
+        || call.prints_line()
+        || call.result_source() != CallableResultSource::Owned
+        || builtin_type(typed, call.return_type()) != Some(BuiltinType::Int)
+        || signature.receiver().is_some()
+        || !signature.has_body()
+        || !signature.type_parameters().is_empty()
+        || !call.instance().type_arguments().is_empty()
+    {
+        return Err(unsupported());
+    }
+    if signature.target() != UnitCallableTarget::Declaration(declaration)
+        || signature.return_type() != call.return_type()
+        || signature.parameters().len() != 2
+        || call.arguments().len() != 2
+    {
+        return Err(missing());
+    }
+    for (index, (argument, symbol)) in arguments.iter().zip(descriptor.bindings()).enumerate() {
+        let argument_node = parsed
+            .ast()
+            .expressions()
+            .get(argument.value)
+            .map_err(|_| missing())?;
+        if !matches!(argument_node.payload(), Expression::Name) {
+            return Err(unsupported());
+        }
+        let references = names
+            .names()
+            .references()
+            .iter()
+            .filter(|reference| {
+                reference.source_unit() == descriptor.statement().source_unit()
+                    && reference.namespace() == Some(Namespace::Value)
+                    && reference.span() == argument_node.span()
+            })
+            .collect::<Vec<_>>();
+        let [reference] = references.as_slice() else {
+            return Err(missing());
+        };
+        if reference.target() != &UnitReferenceTarget::Symbol(symbol) {
+            return Err(unsupported());
+        }
+        let parameter = &signature.parameters()[index];
+        let mapping = call.arguments()[index];
+        if parameter.mode() != ParameterMode::Borrow
+            || mapping.mode() != ParameterMode::Borrow
+            || mapping.argument_index() != index
+            || mapping.parameter_index() != index
+            || mapping.crosses_thread()
+        {
+            return Err(unsupported());
+        }
+        if builtin_type(typed, parameter.ty()) != Some(BuiltinType::String)
+            || mapping.parameter_type() != parameter.ty()
+            || typed.expression_type(UnitExpressionId::new(
+                descriptor.statement().source_unit(),
+                argument.value,
+            )) != Some(parameter.ty())
+        {
+            return Err(missing());
+        }
+    }
+    Ok(())
 }
 
 fn contains(outer: Span, inner: Span) -> bool {
