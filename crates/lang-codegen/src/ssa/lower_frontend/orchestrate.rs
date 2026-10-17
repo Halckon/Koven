@@ -639,7 +639,7 @@ fn lower_scalar_file_product(
     }));
 
     for plan in &plans {
-        super::local_storage::Planner {
+        let mut storage = super::local_storage::Planner {
             module,
             mapper: &mut type_mapper,
             parsed,
@@ -647,8 +647,11 @@ fn lower_scalar_file_product(
             typed,
             owned,
             substitutions: &plan.substitutions,
+        };
+        if plan.source.is_some() {
+            storage.intern_entry_nullable_map(plan.body)?;
         }
-        .intern_body(plan.body)?;
+        storage.intern_body(plan.body)?;
     }
 
     let (type_ids, heap_payloads, enum_payloads) = type_mapper.into_parts();

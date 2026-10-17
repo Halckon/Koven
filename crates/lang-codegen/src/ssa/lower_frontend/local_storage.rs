@@ -6,9 +6,12 @@ use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{NameResolution, SymbolId, SymbolKind},
     ownership_checking::OwnershipCheckedFile,
-    parser::{Expression, Item, ParsedFile, Statement, StringPart, WhenCondition},
+    parser::{
+        Expression, Item, LiteralKind, ParsedFile, Statement, StringPart, VariableKind,
+        WhenCondition,
+    },
     source::Span,
-    type_checking::{TypeId, TypeKind, TypedFile},
+    type_checking::{IntrinsicCallable, IntrinsicTypeConstructor, TypeId, TypeKind, TypedFile},
 };
 
 use super::{
@@ -28,6 +31,156 @@ pub(super) struct Planner<'a> {
 }
 
 impl Planner<'_> {
+    /// Temporary entry-demand bridge; general local storage demand is not inferred here.
+    /// The first direct local has no preceding control, and only these initializers cannot exit.
+    pub(super) fn intern_entry_nullable_map(
+        &mut self,
+        body: FunctionPlanBody,
+    ) -> Result<(), LoweringError> {
+        let FunctionPlanBody::Block(block) = body else {
+            return Ok(());
+        };
+        let body = self
+            .parsed
+            .ast()
+            .statements()
+            .get(block)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        let Statement::Block { elements } = body.payload() else {
+            return Ok(());
+        };
+        let Some(&first) = elements.first() else {
+            return Ok(());
+        };
+        let first = self
+            .parsed
+            .ast()
+            .statements()
+            .get(first)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, body.span()))?;
+        let Statement::LocalVariable { declaration } = first.payload() else {
+            return Ok(());
+        };
+        let span = first.span();
+        let (item, _) = super::orchestrate::unwrap_modified(self.parsed, *declaration)?;
+        let Item::Variable {
+            kind: VariableKind::Val | VariableKind::Var,
+            name,
+            initializer,
+            ..
+        } = item
+        else {
+            return Ok(());
+        };
+        let init = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(initializer)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+        let construction = match init.payload() {
+            Expression::Literal(LiteralKind::Null) => None,
+            Expression::Call {
+                callee, arguments, ..
+            } if arguments.is_empty() => {
+                let callee = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(*callee)
+                    .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+                if !matches!(callee.payload(), Expression::Name) {
+                    return Ok(());
+                }
+                let Some(descriptor) = self.typed.map_construction(initializer) else {
+                    return Ok(());
+                };
+                Some(descriptor)
+            }
+            _ => return Ok(()),
+        };
+        let name = present_name(name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let symbol = self
+            .names
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.span() == name && symbol.kind() == SymbolKind::Variable)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, name))?;
+        if symbol.name() == "_" {
+            return Ok(());
+        }
+        let declared = self
+            .typed
+            .symbol_type(symbol.id())
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, name))?;
+        let Some(TypeKind::Nullable(template_inner)) = self.typed.types().get(declared) else {
+            return Ok(());
+        };
+        // This diagnostic bridge does not resolve unrelated nullable payloads.
+        if !matches!(
+            self.typed.types().get(*template_inner),
+            Some(TypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+                ..
+            })
+        ) {
+            return Ok(());
+        }
+        let resolve = |ty| resolve_concrete_type(self.typed, ty, self.substitutions, span);
+        let declared = resolve(declared)?;
+        let Some(TypeKind::Nullable(inner)) = self.typed.types().get(declared) else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let Some(TypeKind::Intrinsic {
+            constructor,
+            arguments,
+        }) = self.typed.types().get(*inner)
+        else {
+            return Ok(());
+        };
+        if !matches!(
+            constructor,
+            IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap
+        ) {
+            return Ok(());
+        }
+        let [key, val] = arguments.as_slice() else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let actual = self
+            .typed
+            .expression_type(initializer)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let actual = resolve(actual)?;
+        if let Some(descriptor) = construction {
+            let callable_matches = matches!(
+                (constructor, descriptor.callable()),
+                (IntrinsicTypeConstructor::Map, IntrinsicCallable::MapOf)
+                    | (
+                        IntrinsicTypeConstructor::MutableMap,
+                        IntrinsicCallable::MutableMapOf
+                    )
+            );
+            if descriptor.expression() != initializer
+                || !callable_matches
+                || actual != *inner
+                || resolve(descriptor.map_type())? != *inner
+                || resolve(descriptor.key_type())? != *key
+                || resolve(descriptor.value_type())? != *val
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+        } else if actual != declared {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        self.mapper
+            .intern(self.module, self.names, self.typed, declared, span)?;
+        Ok(())
+    }
+
     pub(super) fn intern_body(&mut self, body: FunctionPlanBody) -> Result<(), LoweringError> {
         match body {
             FunctionPlanBody::Expression(expression) => self.expression(expression),

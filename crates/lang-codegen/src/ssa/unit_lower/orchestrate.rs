@@ -310,6 +310,14 @@ pub(super) fn lower_unit_from_facts(
             typed,
             &mut types,
         )?;
+        type_plan::intern_entry_nullable_map_type(
+            module,
+            parsed_by_source[plan.instance.source_unit().index()],
+            plan,
+            names,
+            typed,
+            &mut types,
+        )?;
     }
     let callable_plans = closure::declare(module, &plans, callable_layouts)?;
     for (ty, demand) in runtime_type_demands {
