@@ -15,6 +15,9 @@ mod parser_test_assertions;
 
 use parser_test_assertions::parse_file_twice;
 
+#[path = "type_map/consume.rs"]
+mod consume;
+
 fn parsed(text: &str) -> (SourceMap, ParsedFile) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("map_test.ko", text).expect("source");

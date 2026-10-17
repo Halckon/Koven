@@ -18,6 +18,8 @@ mod container_remove_last_tests;
 mod container_size_tests;
 #[path = "unit_handoff_contract_tests.rs"]
 mod handoff_contracts;
+#[path = "unit_map_consume_tests.rs"]
+mod map_consume_tests;
 #[path = "unit_map_key_return_tests.rs"]
 mod map_key_return_tests;
 #[path = "unit_map_loop_owner_tests.rs"]

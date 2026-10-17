@@ -7,8 +7,8 @@ use crate::{
         NameResolution, Namespace, ReferenceTarget, SourceUnitId, SymbolId, SymbolKind,
         UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    parser::{Item, NameMarker, ParsedFile},
-    source::Span,
+    parser::{Expression, Item, NameMarker, ParsedFile},
+    source::{SourceMap, Span},
 };
 
 pub(super) enum Shape {
@@ -33,8 +33,18 @@ pub(super) trait Facts {
     fn type_ref_type(&self, type_ref: TypeRefId) -> Option<usize>;
     fn shape(&self, ty: usize) -> Option<Shape>;
     fn selection(&self, expression: ExpressionId) -> Option<Selection>;
+    fn valid_map_consume(
+        &self,
+        _sources: &SourceMap,
+        _parsed: &ParsedFile,
+        _expression: ExpressionId,
+    ) -> bool {
+        true
+    }
+
     fn static_qualifier(&self, span: Span) -> bool;
     fn static_candidate(&self, span: Span) -> bool;
+    fn rejected_function_overload(&self, callee_span: Span, no_match_code: DiagnosticCode) -> bool;
     fn rejected_bare_enum_case(
         &self,
         expression: ExpressionId,
@@ -105,6 +115,73 @@ impl LocalExpression for UnitExpressionId {
     fn local(self) -> ExpressionId {
         self.expression()
     }
+}
+
+// 消费描述符不替代真实 AST/reference；这里只验证已选事实，不重新执行 receiver。
+fn consume_receiver_matches(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    call: ExpressionId,
+    receiver: ExpressionId,
+) -> bool {
+    let Ok(node) = parsed.ast().expressions().get(call) else {
+        return false;
+    };
+    let Expression::Call {
+        callee,
+        type_arguments,
+        arguments,
+        ..
+    } = node.payload()
+    else {
+        return false;
+    };
+    if !type_arguments.is_empty() || !arguments.is_empty() {
+        return false;
+    }
+    matches!(parsed.ast().expressions().get(*callee).map(|node| node.payload()),
+        Ok(Expression::Member { receiver: actual, name_span, safe: false, .. })
+            if *actual == receiver && sources.slice(*name_span) == Ok("consume"))
+}
+
+fn direct_name_span(parsed: &ParsedFile, mut expression: ExpressionId) -> Option<Span> {
+    loop {
+        let node = parsed.ast().expressions().get(expression).ok()?;
+        match node.payload() {
+            Expression::Group { expression: inner } => expression = *inner,
+            Expression::Name => return Some(node.span()),
+            _ => return None,
+        }
+    }
+}
+
+macro_rules! valid_consume {
+    ($facts:expr, $sources:expr, $parsed:expr, $id:expr, $operation:expr, $kind:ident) => {{
+        let facts = $facts;
+        let typed = facts.typed;
+        let id = $id;
+        let operation = $operation;
+        let expected_root = direct_name_span($parsed, operation.receiver().local())
+            .and_then(|span| facts.referenced_symbol(span));
+        let source_valid = match operation.source() {
+            Some((root, storage)) => Some(root) == expected_root
+                && typed.symbol_type(root) == Some(storage)
+                && (storage == operation.receiver_type()
+                    || matches!(typed.types().get(storage), Some($kind::Nullable(inner)) if *inner == operation.receiver_type())),
+            None => expected_root.is_none(),
+        };
+        source_valid
+            && consume_receiver_matches($sources, $parsed, id.local(), operation.receiver().local())
+            && typed.map_consumes().iter().filter(|fact| fact.expression() == id).count() == 1
+            && typed.expression_type(operation.receiver()) == Some(operation.receiver_type())
+            && typed.expression_type(id) == Some(operation.result_type())
+            && matches!(typed.types().get(operation.receiver_type()),
+                Some($kind::Intrinsic { constructor: IntrinsicTypeConstructor::MutableMap, arguments })
+                    if arguments.as_slice() == [operation.key_type(), operation.value_type()])
+            && matches!(typed.types().get(operation.result_type()),
+                Some($kind::Intrinsic { constructor: IntrinsicTypeConstructor::Map, arguments })
+                    if arguments.as_slice() == [operation.key_type(), operation.value_type()])
+    }};
 }
 
 // 两套事实表具有相同的已发布 descriptor 合同；仅 identity 适配不同。
@@ -201,6 +278,20 @@ macro_rules! selected {
             result.receivers.push(operation.receiver().local());
             result.types.push(operation.payload_type().index());
         }
+        if let Some(operation) = typed.map_consume(id) {
+            selected = true;
+            result.static_callee = true;
+            result.receivers.push(operation.receiver().local());
+            result.types.extend([
+                operation.receiver_type().index(),
+                operation.result_type().index(),
+                operation.key_type().index(),
+                operation.value_type().index(),
+            ]);
+            if let Some((_, storage)) = operation.source() {
+                result.types.push(storage.index());
+            }
+        }
         if typed.ownership_primitive(id).is_some()
             || typed.container_append(id).is_some()
             || typed.container_clear(id).is_some()
@@ -261,6 +352,18 @@ macro_rules! shape {
 }
 impl Facts for Single<'_> {
     type Symbol = SymbolId;
+    fn valid_map_consume(
+        &self,
+        sources: &SourceMap,
+        parsed: &ParsedFile,
+        expression: ExpressionId,
+    ) -> bool {
+        let Some(operation) = self.typed.map_consume(expression) else {
+            return true;
+        };
+        valid_consume!(self, sources, parsed, expression, operation, TypeKind)
+    }
+
     fn expression_type(&self, expression: ExpressionId) -> Option<usize> {
         self.typed.expression_type(expression).map(TypeId::index)
     }
@@ -288,6 +391,21 @@ impl Facts for Single<'_> {
             selection.types.push(constant.ty().index());
         }
         selection
+    }
+    fn rejected_function_overload(&self, callee_span: Span, no_match_code: DiagnosticCode) -> bool {
+        self.typed.diagnostics().iter().any(|diagnostic| {
+            diagnostic.severity() == Severity::Error
+                && diagnostic.code() == no_match_code
+                && diagnostic.primary_span() == callee_span
+        }) && self.names.references().iter().any(|reference| {
+            reference.span() == callee_span
+                && reference.namespace() == Namespace::Value
+                && matches!(reference.target(), ReferenceTarget::OverloadSet(symbols)
+                if symbols.len() > 1 && symbols.iter().all(|symbol| {
+                    self.names.symbols().get(symbol.index())
+                        .is_some_and(|symbol| symbol.kind() == SymbolKind::Function)
+                }))
+        })
     }
     fn rejected_bare_enum_case(
         &self,
@@ -383,6 +501,20 @@ impl Facts for Single<'_> {
 }
 impl Facts for Unit<'_> {
     type Symbol = UnitSymbolId;
+    fn valid_map_consume(
+        &self,
+        sources: &SourceMap,
+        parsed: &ParsedFile,
+        expression: ExpressionId,
+    ) -> bool {
+        let id = UnitExpressionId::new(self.source, expression);
+        let Some(operation) = self.typed.map_consume(id) else {
+            return true;
+        };
+        operation.receiver().source_unit() == self.source
+            && valid_consume!(self, sources, parsed, id, operation, UnitTypeKind)
+    }
+
     fn expression_type(&self, expression: ExpressionId) -> Option<usize> {
         self.typed
             .expression_type(UnitExpressionId::new(self.source, expression))
@@ -418,6 +550,51 @@ impl Facts for Unit<'_> {
             selection.types.push(constant.ty().index());
         }
         selection
+    }
+    fn rejected_function_overload(&self, callee_span: Span, no_match_code: DiagnosticCode) -> bool {
+        if !self.typed.diagnostics().iter().any(|diagnostic| {
+            diagnostic.severity() == Severity::Error
+                && diagnostic.code() == no_match_code
+                && diagnostic.primary_span() == callee_span
+        }) {
+            return false;
+        }
+        self.names.names().references().iter().any(|reference| {
+            reference.source_unit() == self.source
+                && reference.span() == callee_span
+                && reference.namespace() == Some(Namespace::Value)
+                && match reference.target() {
+                    UnitReferenceTarget::OverloadSet(declarations) => {
+                        declarations.len() > 1
+                            && declarations.iter().all(|id| {
+                                self.names
+                                    .names()
+                                    .index()
+                                    .declarations()
+                                    .iter()
+                                    .find(|declaration| declaration.id() == *id)
+                                    .is_some_and(|declaration| {
+                                        declaration.kind() == SymbolKind::Function
+                                    })
+                            })
+                    }
+                    UnitReferenceTarget::Symbols(symbols) => {
+                        symbols.len() > 1
+                            && symbols.iter().all(|id| {
+                                self.names
+                                    .names()
+                                    .source_units()
+                                    .iter()
+                                    .find(|source| source.source_unit() == id.source_unit())
+                                    .and_then(|source| {
+                                        source.resolution().symbols().get(id.symbol().index())
+                                    })
+                                    .is_some_and(|symbol| symbol.kind() == SymbolKind::Function)
+                            })
+                    }
+                    _ => false,
+                }
+        })
     }
     fn rejected_bare_enum_case(
         &self,

@@ -24,6 +24,9 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let aggregate_presence = self.map_results.contains_key(&target);
         let operation = if let Some(&source) = self.borrow_bindings.get(&d.symbol()) {
+            if self.nullable_maps.contains_key(&target) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
             // Preserve the existing borrowed aggregate path and its Copyable gate.
             if aggregate_presence {
                 return Ok(None);
@@ -43,7 +46,7 @@ impl UnitExpressionLowerer<'_> {
         };
         let boolean = self.expression_ssa_type(expression, span)?;
         let result = self.append_scalar(operation, boolean, span)?;
-        // Aggregate flags mean present; pointer predicates mean absent.
+        // Old R flags mean present; NullableIsNull on handles or N means absent.
         let result = if d.non_null_when_true() != aggregate_presence {
             let LoweredValue::Value(operand) = result else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
@@ -152,6 +155,7 @@ impl UnitExpressionLowerer<'_> {
         let target = self.expression_ssa_type(leaf, origin)?;
         let aggregate_presence = self.map_results.contains_key(&target);
         if !aggregate_presence
+            && !self.nullable_maps.contains_key(&target)
             && !matches!(
                 self.ssa_types.get(target.index()),
                 Some(crate::ssa::model::SsaTypeKind::NullableHandle { .. })

@@ -199,6 +199,7 @@ impl Fixture {
             functions: module.functions.clone(),
             deinits: module.deinits.clone(),
             map_results: module.map_results.clone(),
+            nullable_maps: module.nullable_maps.clone(),
             integer_ranges: module.integer_ranges.clone(),
         };
         let mut abi_types = type_lower::UnitTypeLowering::new();
@@ -307,6 +308,7 @@ impl Fixture {
             type_ids: &self.type_ids,
             heap_payloads: &heap_payloads,
             map_results: &module.map_results,
+            nullable_maps: &module.nullable_maps,
             ssa_types: &module.types,
             enum_payloads: &enum_payloads,
             field_indices: &field_indices,

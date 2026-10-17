@@ -107,6 +107,15 @@ impl UnitTypeLowering {
         let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(ty) else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
+        if matches!(
+            typed.types().get(*inner),
+            Some(UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+                ..
+            })
+        ) {
+            return self.intern(module, typed, ty, span);
+        }
         let inner = self.intern(module, typed, *inner, span)?;
         let result = if matches!(
             module.type_kind(inner),
@@ -117,8 +126,48 @@ impl UnitTypeLowering {
             module.add_map_result_type(inner)
         }
         .map_err(|_| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        self.type_ids.insert(ty, result);
-        Ok(result)
+        self.record_type_identity(ty, result, span)
+    }
+
+    fn record_type_identity(
+        &mut self,
+        ty: UnitTypeId,
+        mapped: SsaTypeId,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        if let Some(existing) = self.type_ids.get(&ty) {
+            if *existing != mapped {
+                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+            }
+        } else {
+            self.type_ids.insert(ty, mapped);
+        }
+        Ok(mapped)
+    }
+
+    fn intern_nullable_map_storage(
+        &mut self,
+        module: &mut Module,
+        typed: &CompilationUnitTypes,
+        nullable_type: UnitTypeId,
+        inner_type: UnitTypeId,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        // The complete unit Resource/deinit planner runs before this mapper exists.
+        // Reuse the existing K/V gate before either nullable or inner cache can return.
+        let Some(UnitTypeKind::Intrinsic {
+            constructor,
+            arguments,
+        }) = typed.types().get(inner_type)
+        else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
+        let inner = self.intern_map(module, typed, *constructor, arguments, span)?;
+        self.record_type_identity(inner_type, inner, span)?;
+        let nullable = module
+            .add_nullable_map_type(inner)
+            .map_err(|_| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
+        self.record_type_identity(nullable_type, nullable, span)
     }
 
     fn intern_inner(
@@ -128,6 +177,18 @@ impl UnitTypeLowering {
         ty: UnitTypeId,
         span: Span,
     ) -> Result<SsaTypeId, LoweringError> {
+        if let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(ty)
+            && matches!(
+                typed.types().get(*inner),
+                Some(UnitTypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Map
+                        | IntrinsicTypeConstructor::MutableMap,
+                    ..
+                })
+            )
+        {
+            return self.intern_nullable_map_storage(module, typed, ty, *inner, span);
+        }
         if let Some(id) = self.type_ids.get(&ty).copied() {
             return Ok(id);
         }
@@ -622,6 +683,12 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
 
 fn is_supported_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
     match typed.types().get(ty) {
+        Some(UnitTypeKind::Intrinsic {
+            constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+            arguments,
+        }) => {
+            matches!(arguments.as_slice(), [key, val] if is_supported_storage_type(typed, *key) && is_supported_storage_type(typed, *val))
+        }
         Some(UnitTypeKind::Intrinsic {
             constructor: IntrinsicTypeConstructor::Rc | IntrinsicTypeConstructor::Box,
             arguments,

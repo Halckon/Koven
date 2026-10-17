@@ -457,6 +457,53 @@ impl<F: Facts> Checker<'_, F> {
             .facts
             .rejected_bare_enum_case(expression, name_span, code))
     }
+    fn rejected_contextual_call(&self, call: ExpressionId, callee: ExpressionId) -> Result<bool> {
+        if self.facts.selection(call).is_some()
+            || !matches!(
+                self.facts
+                    .expression_type(call)
+                    .and_then(|ty| self.facts.shape(ty)),
+                Some(Shape::Error)
+            )
+        {
+            return Ok(false);
+        }
+        let callee = self
+            .parsed
+            .ast()
+            .expressions()
+            .get(callee)
+            .map_err(TypeCheckingError::from)?;
+        // 只认真实源函数 overload 名称与其原 typed L0123；静态候选或祖先错误不足以授权。
+        if !matches!(callee.payload(), Expression::Name) {
+            return Ok(false);
+        }
+        let code = codes::catalog()
+            .and_then(|catalog| catalog.resolve(codes::NO_MATCHING_OVERLOAD))
+            .map_err(TypeCheckingError::from)?;
+        Ok(self.facts.rejected_function_overload(callee.span(), code))
+    }
+    fn uncommitted_lambda_argument(&self, mut id: ExpressionId) -> Result<bool> {
+        loop {
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(id)
+                .map_err(TypeCheckingError::from)?;
+            // None 只表示没有发布类型；已发布但缺 canonical type 不能冒充未提交事实。
+            if let Some(ty) = self.facts.expression_type(id)
+                && !matches!(self.facts.shape(ty), Some(Shape::Error))
+            {
+                return Ok(false);
+            }
+            match node.payload() {
+                Expression::Group { expression } => id = *expression,
+                Expression::Lambda { .. } => return Ok(true),
+                _ => return Ok(false),
+            }
+        }
+    }
     fn rejected_type_arguments(&self, call: ExpressionId, callee: ExpressionId) -> Result<bool> {
         if self.facts.selection(call).is_some()
             || !matches!(
@@ -531,6 +578,9 @@ impl<F: Facts> Checker<'_, F> {
         let selection = self.facts.selection(id);
         let has_selection = selection.is_some();
         let mut complete = !self.existing_error(span);
+        if complete && !self.facts.valid_map_consume(self.sources, parsed, id) {
+            return Err(self.missing(span, "Map consume source/type identity"));
+        }
         match node.payload() {
             Expression::Error => complete = false,
             Expression::Name => {
@@ -693,8 +743,17 @@ impl<F: Facts> Checker<'_, F> {
                 type_arguments,
                 ..
             } => {
+                let rejected_contextual_call = self.rejected_contextual_call(id, *callee)?;
                 for argument in arguments {
-                    complete &= self.expression(argument.value, false)?;
+                    if rejected_contextual_call
+                        && self.uncommitted_lambda_argument(argument.value)?
+                    {
+                        // 失败 trial 已回滚的 lambda body 不是已提交的消费 root；call 仍失败。
+                        // 其他实参、callee receiver 与 type arguments 继续按各自角色检查。
+                        complete = false;
+                    } else {
+                        complete &= self.expression(argument.value, false)?;
+                    }
                 }
                 let rejected_type_arguments = self.rejected_type_arguments(id, *callee)?;
                 for type_ref in type_arguments {

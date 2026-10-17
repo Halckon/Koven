@@ -171,10 +171,12 @@ impl BodyChecker<'_> {
                     let unit_type = self.builtin(BuiltinType::Unit);
                     let previous_return_span = self.current_return_span.take();
                     let previous_flow = std::mem::take(&mut self.flow_facts);
+                    let previous_versions = std::mem::take(&mut self.flow_versions);
                     self.callable_loop_bases.push(self.loop_depth);
                     let result = self.check_statement(source, body, unit_type, None);
                     self.callable_loop_bases.pop();
                     self.flow_facts = previous_flow;
+                    self.flow_versions = previous_versions;
                     self.current_return_span = previous_return_span;
                     self.current_receiver = previous;
                     self.current_receiver_mode = previous_mode;

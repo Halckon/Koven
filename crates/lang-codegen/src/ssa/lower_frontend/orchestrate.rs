@@ -1,5 +1,11 @@
 //! frontend 产物门禁、函数预声明与文件级 lowering 编排。
 
+#[cfg(test)]
+pub(in crate::ssa::lower_frontend) mod nullable_map_guard_support;
+
+#[cfg(test)]
+mod registration_tests;
+
 use std::collections::BTreeMap;
 
 use lang_frontend::{
@@ -336,6 +342,7 @@ fn lower_scalar_file_product(
                 type_mapper.intern(module, names, typed, concrete, construction_span)?;
             }
         }
+        type_mapper.intern_map_consume_types(module, names, typed, parsed, substitutions, span)?;
         for remove in typed.map_removes() {
             let remove_span = parsed
                 .ast()
@@ -638,7 +645,7 @@ fn lower_scalar_file_product(
     }));
 
     for plan in &plans {
-        super::local_storage::Planner {
+        let mut storage = super::local_storage::Planner {
             module,
             mapper: &mut type_mapper,
             parsed,
@@ -646,8 +653,11 @@ fn lower_scalar_file_product(
             typed,
             owned,
             substitutions: &plan.substitutions,
+        };
+        if plan.source.is_some() {
+            storage.intern_formed_nullable_maps(plan.item_id)?;
         }
-        .intern_body(plan.body)?;
+        storage.intern_body(plan.body)?;
     }
 
     let (type_ids, heap_payloads, enum_payloads) = type_mapper.into_parts();
@@ -720,6 +730,7 @@ fn lower_scalar_file_product(
             type_ids: &type_ids,
             heap_payloads: &heap_payloads,
             map_results: &module.map_results,
+            nullable_maps: &module.nullable_maps,
             ssa_types: &module.types,
             enum_payloads: &enum_payloads,
             substitutions: &plan.substitutions,
@@ -792,6 +803,7 @@ fn lower_scalar_file_product(
             type_ids: &type_ids,
             heap_payloads: &heap_payloads,
             map_results: &module.map_results,
+            nullable_maps: &module.nullable_maps,
             ssa_types: &module.types,
             enum_payloads: &enum_payloads,
             substitutions: &plan.substitutions,

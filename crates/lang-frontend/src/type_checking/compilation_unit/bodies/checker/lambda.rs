@@ -168,11 +168,17 @@ impl BodyChecker<'_> {
         expected: Option<UnitTypeId>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let previous_return_span = self.current_return_span;
+        // Creating a lambda does not execute its body. Preserve inbound facts for checking,
+        // then restore dynamic flow on both success and error without discarding typed parts.
+        let previous_flow = self.flow_facts.clone();
+        let previous_versions = self.flow_versions.clone();
         self.current_return_span = return_span;
         self.callable_loop_bases.push(self.loop_depth);
         let result = self.check_value_body(source, body, expected, return_span, return_type);
         self.callable_loop_bases.pop();
         self.current_return_span = previous_return_span;
+        self.flow_facts = previous_flow;
+        self.flow_versions = previous_versions;
         result
     }
 }

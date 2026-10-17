@@ -64,6 +64,7 @@ impl BodyChecker<'_> {
             .transpose()?;
 
         self.flow_facts.clear();
+        self.flow_versions.clear();
         self.current_return_span = None;
         let return_type = self.error_type();
         let before = self.diagnostics.len();

@@ -25,7 +25,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     ) -> Result<IntValue<'ctx>, LlvmAdapterError> {
         if self
             .module
-            .map_result_value(value_type(self.function, owner)?)
+            .presence_payload_type(value_type(self.function, owner)?)
             .is_some()
         {
             let present = self
@@ -45,7 +45,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         owner: ValueId,
     ) -> Result<inkwell::values::PointerValue<'ctx>, LlvmAdapterError> {
         let ty = value_type(self.function, owner)?;
-        let (inner, payload) = if let Some(inner) = self.module.map_result_value(ty) {
+        let (inner, payload) = if let Some(inner) = self.module.presence_payload_type(ty) {
             (
                 inner,
                 self.builder
@@ -186,6 +186,44 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     ) -> Result<(), LlvmAdapterError> {
         let results = value_results(instruction)?;
         match &instruction.operation {
+            Operation::MapConsume { owner, map_type } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("map consume", 1, results.len()));
+                };
+                let header = self.struct_value(*owner)?;
+                let target = self
+                    .dependencies
+                    .type_map
+                    .basic_type(*map_type)?
+                    .into_struct_type();
+                if header.get_type().count_fields() != 6
+                    || target.count_fields() != 6
+                    || header.get_type().get_field_types() != target.get_field_types()
+                {
+                    return Err(LlvmAdapterError::InvalidSsa(
+                        "map consume requires identical six-field headers".into(),
+                    ));
+                }
+                // Named structs differ, but every field (including the buffer) is unchanged.
+                let mut transferred = target.get_undef();
+                for index in 0..6 {
+                    let field = self.builder.build_extract_value(
+                        header,
+                        index,
+                        &format!("map.consume.field{index}"),
+                    )?;
+                    transferred = self
+                        .builder
+                        .build_insert_value(
+                            transferred,
+                            field,
+                            index,
+                            &format!("{}.field{index}", value_name(*result)),
+                        )?
+                        .into_struct_value();
+                }
+                self.values.insert(*result, transferred.into());
+            }
             Operation::MapConstruct { map_type } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("map construct", 1, results.len()));
@@ -328,7 +366,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 self.values.insert(*result, new_owner.into());
                 let removed_value = if self
                     .module
-                    .map_result_value(value_type(self.function, *removed)?)
+                    .presence_payload_type(value_type(self.function, *removed)?)
                     .is_some()
                 {
                     self.build_map_result(*removed, present, removed_value)?
@@ -342,6 +380,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         Ok(())
     }
 
+    // Physical presence/payload storage; operation authority comes from verified SSA.
     pub(super) fn build_map_result(
         &self,
         result: ValueId,

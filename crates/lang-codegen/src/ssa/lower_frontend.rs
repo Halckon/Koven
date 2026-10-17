@@ -23,6 +23,7 @@ mod integer_range;
 mod local_storage;
 mod loop_control;
 mod map;
+mod map_consume;
 mod map_loop_owner;
 mod map_require;
 mod map_result;
@@ -127,6 +128,7 @@ struct ExpressionLowerer<'a> {
     type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     map_results: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    nullable_maps: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     ssa_types: &'a [super::model::SsaTypeKind],
     enum_payloads: &'a BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>,
     substitutions: &'a BTreeMap<SymbolId, TypeId>,

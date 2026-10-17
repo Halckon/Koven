@@ -1,3 +1,5 @@
+#[path = "map_consume.rs"]
+mod map_consume;
 #[path = "map_require.rs"]
 mod map_require;
 #[path = "map_with.rs"]
@@ -205,7 +207,7 @@ impl Checker<'_> {
 
         if matches!(
             name,
-            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue"
+            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue" | "consume"
         ) {
             self.emit(
                 self.invalid_container_member_code,
@@ -244,7 +246,7 @@ impl Checker<'_> {
         let name = self.sources.slice(name_span)?;
         if !matches!(
             name,
-            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue"
+            "get" | "put" | "remove" | "contains" | "requireValue" | "withValue" | "consume"
         ) {
             return Ok(None);
         }
@@ -268,6 +270,17 @@ impl Checker<'_> {
         }
 
         match name {
+            "consume" => Ok(Some(self.check_map_consume_call(
+                expression,
+                receiver,
+                receiver_result,
+                constructor,
+                key_type,
+                value_type,
+                arguments,
+                call_span,
+                name_span,
+            )?)),
             "withValue" => Ok(Some(self.check_map_with_call(
                 expression,
                 receiver,

@@ -31,6 +31,9 @@ pub(crate) mod boxed_enum_tests;
 #[path = "native_map_tests.rs"]
 mod map_tests;
 
+#[path = "native_ordered_map_tests.rs"]
+mod ordered_map_tests;
+
 #[path = "native_borrow_result_tests.rs"]
 mod borrow_result_tests;
 

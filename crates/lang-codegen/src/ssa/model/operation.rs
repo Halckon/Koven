@@ -268,6 +268,11 @@ pub(crate) enum Operation {
     MapConstruct {
         map_type: SsaTypeId,
     },
+    /// Transfer a MutableMap owner into the same-K/V readonly Map owner.
+    MapConsume {
+        owner: ValueId,
+        map_type: SsaTypeId,
+    },
     MapSize {
         owner: EntityId,
     },
@@ -527,6 +532,7 @@ impl Operation {
                 EntityId::Value(*value),
             ],
             Self::MapConstruct { .. } => Vec::new(),
+            Self::MapConsume { owner, .. } => vec![EntityId::Value(*owner)],
             Self::MapSize { owner } => vec![*owner],
             Self::MapContains { owner, key } => vec![*owner, *key],
             Self::MapWithValue {

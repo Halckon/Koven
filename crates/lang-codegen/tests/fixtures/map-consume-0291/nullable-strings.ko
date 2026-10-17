@@ -1,0 +1,17 @@
+fun main(): Unit {
+  var seed = mutableMapOf<String, String>()
+  seed.put("key".clone(), "old".clone())
+  seed.put("key".clone(), "value".clone())
+  var source: MutableMap<String, String>? = seed
+  if (source != null) {
+    val result = ((source)).consume()
+    if (result.size == 1) { println("string size 1") }
+    if (result.withValue("key", { item -> println(item); return })) {
+      println("string found")
+    }
+    if (!result.withValue("missing", { item -> println(item); return })) {
+      println("string missing")
+    }
+  }
+  println("normal exit")
+}

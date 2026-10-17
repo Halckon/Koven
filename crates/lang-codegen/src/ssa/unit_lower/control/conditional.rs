@@ -22,7 +22,12 @@ impl UnitExpressionLowerer<'_> {
             .get(expression)
             .is_ok_and(|node| matches!(node.payload(), Expression::If { .. }));
         let nullable_if =
-            self.prepare_nullable_if_entry(control, condition, result_required, span)?;
+            match self.prepare_nullable_if_entry(control, condition, result_required, span)? {
+                Some(entry) => Some(entry),
+                None => {
+                    self.prepare_map_nullable_if_entry(control, condition, result_required, span)?
+                }
+            };
         let guard = self.map_borrow_condition(condition, span)?;
         let baseline_guards = self.map_borrow_guards.clone();
         let condition_value = nullable_if
@@ -38,35 +43,65 @@ impl UnitExpressionLowerer<'_> {
         let mut carried = self.carried_bindings(&baseline, span)?;
         let mut carried_loans = self.carried_loans(&baseline_borrows, span)?;
         self.carry_pending_operands(&mut carried, &mut carried_loans, span)?;
-        let (then_block, view) = if let Some(entry) = nullable_if {
-            let (block, view) = self.add_map_borrow_block(
-                &carried,
-                &carried_loans,
-                entry.inner,
-                self.statement_span(then_branch)?,
-            )?;
-            (block, Some(view))
-        } else {
-            (
-                self.add_carried_control_block(
-                    &carried,
-                    &carried_loans,
-                    self.statement_span(then_branch)?,
-                )?,
-                None,
-            )
-        };
+        let then_span = self.statement_span(then_branch)?;
         let else_origin = else_branch
             .map(|branch| self.statement_span(branch))
             .transpose()?
             .unwrap_or(span);
-        let else_block = self.add_carried_control_block(&carried, &carried_loans, else_origin)?;
+        let (then_block, else_block, view) = if let Some(entry) = nullable_if {
+            let (non_null, view) = self.add_map_borrow_block(
+                &carried,
+                &carried_loans,
+                entry.inner,
+                if entry.non_null_when_true {
+                    then_span
+                } else {
+                    else_origin
+                },
+            )?;
+            let null = self.add_carried_control_block(
+                &carried,
+                &carried_loans,
+                if entry.non_null_when_true {
+                    else_origin
+                } else {
+                    then_span
+                },
+            )?;
+            if entry.non_null_when_true {
+                (non_null, null, Some(view))
+            } else {
+                (null, non_null, Some(view))
+            }
+        } else {
+            (
+                self.add_carried_control_block(&carried, &carried_loans, then_span)?,
+                self.add_carried_control_block(&carried, &carried_loans, else_origin)?,
+                None,
+            )
+        };
         let header = self.block;
         let terminator = if let (Some(entry), Some(view)) = (nullable_if, view) {
             TerminatorKind::NullableBranch {
                 owner: entry.owner,
-                when_null: carried_control_edge(else_block, &carried, &carried_loans),
-                when_non_null: carried_control_edge(then_block, &carried, &carried_loans),
+                when_null: carried_control_edge(
+                    if entry.non_null_when_true {
+                        else_block
+                    } else {
+                        then_block
+                    },
+                    &carried,
+                    &carried_loans,
+                ),
+                when_non_null: carried_control_edge(
+                    if entry.non_null_when_true {
+                        then_block
+                    } else {
+                        else_block
+                    },
+                    &carried,
+                    &carried_loans,
+                ),
                 view,
             }
         } else {
@@ -84,7 +119,10 @@ impl UnitExpressionLowerer<'_> {
         self.current_receiver = baseline_receiver;
         self.consumed_receiver = baseline_consumed_receiver;
         self.pending_call_frames = baseline_frames.clone();
-        let (then_baseline, then_borrows) = if let (Some(entry), Some(view)) = (nullable_if, view) {
+        let (mut then_baseline, mut then_borrows) = if let Some((entry, view)) = nullable_if
+            .zip(view)
+            .filter(|(entry, _)| entry.non_null_when_true)
+        {
             self.enter_nullable_if_branch(
                 entry,
                 header,
@@ -103,6 +141,14 @@ impl UnitExpressionLowerer<'_> {
                 self.rebind_carried_loans(then_block, carried.len(), &carried_loans, span)?,
             )
         };
+        if nullable_if.is_some_and(|entry| !entry.non_null_when_true) {
+            self.block = then_block;
+            self.bindings = then_baseline;
+            self.borrow_bindings = then_borrows;
+            self.emit_direct_nullable_condition_drops(condition, span)?;
+            then_baseline = self.bindings.clone();
+            then_borrows = self.borrow_bindings.clone();
+        }
         let then_proofs = self.nullable_proofs.clone();
         let then_captures = self.capture_loans.clone();
         let then_pending = self.pending_operands.clone();
@@ -114,11 +160,29 @@ impl UnitExpressionLowerer<'_> {
         self.current_receiver = baseline_receiver;
         self.consumed_receiver = baseline_consumed_receiver;
         self.pending_call_frames = baseline_frames;
-        let mut else_baseline =
-            self.rebind_carried_control(&baseline, else_block, &carried, &carried_loans, span)?;
-        let mut else_borrows =
-            self.rebind_carried_loans(else_block, carried.len(), &carried_loans, span)?;
-        if nullable_if.is_some() {
+        let (mut else_baseline, mut else_borrows) = if let Some((entry, view)) = nullable_if
+            .zip(view)
+            .filter(|(entry, _)| !entry.non_null_when_true)
+        {
+            self.enter_nullable_if_branch(
+                entry,
+                header,
+                else_block,
+                view,
+                &baseline,
+                &carried,
+                &carried_loans,
+                condition,
+                span,
+            )?;
+            (self.bindings.clone(), self.borrow_bindings.clone())
+        } else {
+            (
+                self.rebind_carried_control(&baseline, else_block, &carried, &carried_loans, span)?,
+                self.rebind_carried_loans(else_block, carried.len(), &carried_loans, span)?,
+            )
+        };
+        if nullable_if.is_some_and(|entry| entry.non_null_when_true) {
             self.block = else_block;
             self.bindings = else_baseline;
             self.borrow_bindings = else_borrows;

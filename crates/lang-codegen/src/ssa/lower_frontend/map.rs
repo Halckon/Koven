@@ -1,12 +1,17 @@
 //! Map 容器操作向 typed SSA 的 lowering。
 
+#[cfg(test)]
+mod guard_tests;
+
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{NameResolution, SymbolId},
     ownership_checking::DropPoint,
     parser::Expression,
     source::Span,
-    type_checking::{IntrinsicTypeConstructor, TypeId, TypedFile},
+    type_checking::{
+        ExpressionCategory, IntrinsicTypeConstructor, MapSizeDescriptor, TypeId, TypedFile,
+    },
 };
 
 use super::{
@@ -14,7 +19,7 @@ use super::{
     nominal::NominalTypeMapper, span_key, value,
 };
 use crate::ssa::model::{
-    EntityId, EntityType, MapContainerKind, Module, Operation, SsaTypeId, ValueId,
+    EntityId, EntityType, MapContainerKind, Module, Operation, SsaTypeId, SsaTypeKind, ValueId,
 };
 
 struct PendingMapOperand {
@@ -81,6 +86,9 @@ impl ExpressionLowerer<'_> {
         &mut self,
         expression: ExpressionId,
     ) -> Result<Option<LoweredValue>, LoweringError> {
+        if self.typed.map_consume(expression).is_some() {
+            return self.lower_map_consume(expression).map(Some);
+        }
         if self.typed.map_with_value(expression).is_some() {
             return self.lower_map_with_value(expression).map(Some);
         }
@@ -133,7 +141,10 @@ impl ExpressionLowerer<'_> {
             span: None,
         })?;
         let span = self.expression_span(expression)?;
-        let owner = self.lower_map_owner(descriptor.receiver(), span)?;
+        let owner = match self.nullable_map_size_operand(expression, descriptor, span)? {
+            Some(owner) => owner,
+            None => self.lower_map_owner(descriptor.receiver(), span)?,
+        };
         let ty = self.expression_ssa_type(expression, span)?;
         let (_, results) = self.append(
             Operation::MapSize { owner },
@@ -142,6 +153,108 @@ impl ExpressionLowerer<'_> {
         )?;
         self.emit_drops(DropPoint::CallReturn(expression))?;
         Ok(LoweredValue::Value(value(results[0])))
+    }
+
+    /// Read an existing current proof only for registered nullable Map storage.
+    /// Birth and transport keep their existing proof-origin checks; this query
+    /// neither creates a proof nor retires it before the original cleanup point.
+    fn nullable_map_size_operand(
+        &self,
+        expression: ExpressionId,
+        descriptor: &MapSizeDescriptor,
+        span: Span,
+    ) -> Result<Option<EntityId>, LoweringError> {
+        let mut operand = descriptor.receiver();
+        let mut operands = Vec::new();
+        let root = loop {
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(operand)
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+            operands.push(operand);
+            match node.payload() {
+                Expression::Group { expression } => operand = *expression,
+                Expression::Name => {
+                    break self
+                        .references
+                        .get(&span_key(node.span()))
+                        .copied()
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                }
+                _ => return Ok(None),
+            }
+        };
+        let storage = self
+            .typed
+            .symbol_type(root)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if !matches!(self.typed.types().get(storage),
+        Some(lang_frontend::type_checking::TypeKind::Nullable(inner))
+            if matches!(self.typed.types().get(*inner),
+                Some(lang_frontend::type_checking::TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+                    ..
+                })))
+        {
+            return Ok(None);
+        }
+        let declared = self.resolve_type(storage, span)?;
+        let Some(&nullable) = self.type_ids.get(&declared) else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let Some(&inner) = self.nullable_maps.get(&nullable) else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        // A recognized nullable Map read must not fall back to its wrapper Value.
+        let use_fact = self
+            .typed
+            .non_null_use(descriptor.receiver())
+            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+        let proof = self
+            .non_null_proof_for_expression(descriptor.receiver(), span)?
+            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+        let narrowed = self.resolve_type(use_fact.narrowed_type(), span)?;
+        if descriptor.expression() != expression
+            || use_fact.symbol() != root
+            || use_fact.declared_type() != storage
+            || self.resolve_type(descriptor.map_type(), span)? != narrowed
+            || !matches!(self.typed.types().get(declared),
+                Some(lang_frontend::type_checking::TypeKind::Nullable(target)) if *target == narrowed)
+            || self.type_ids.get(&narrowed) != Some(&inner)
+            || proof.inner != inner
+            || self
+                .function
+                .entity(EntityId::Value(proof.owner))
+                .map(|entity| entity.ty)
+                != Some(EntityType::Value(nullable))
+            || !matches!(
+                self.ssa_types.get(inner.index()),
+                Some(SsaTypeKind::MapContainer { .. })
+            )
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        if self.borrow_bindings.contains_key(&root) {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        for operand in operands {
+            let fact = self
+                .typed
+                .non_null_use(operand)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if fact.expression() != operand
+                || fact.symbol() != root
+                || fact.declared_type() != storage
+                || fact.narrowed_type() != use_fact.narrowed_type()
+                || self.typed.expression_type(operand) != Some(fact.narrowed_type())
+                || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+        }
+        Ok(Some(EntityId::Loan(proof.loan)))
     }
 
     fn lower_map_contains(

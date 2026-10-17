@@ -156,6 +156,8 @@ mod lambdas;
 mod members;
 #[path = "multifile_type_checking/nullable_flow.rs"]
 mod nullable_flow;
+#[path = "multifile_type_checking/nullable_when.rs"]
+mod nullable_when;
 #[path = "multifile_type_checking/runtime_layout.rs"]
 mod runtime_layout;
 #[path = "multifile_type_checking/source_construction.rs"]
@@ -169,3 +171,6 @@ mod generic_body_types;
 
 #[path = "multifile_type_checking/generic_body_isolation.rs"]
 mod generic_body_isolation;
+
+#[path = "multifile_type_checking/package_dispatch_controls.rs"]
+mod package_dispatch_controls;

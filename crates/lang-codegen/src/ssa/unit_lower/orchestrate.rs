@@ -1,4 +1,9 @@
 //! unit 实例规划、函数入口与完整 SSA module 组装。
+
+#[cfg(test)]
+pub(super) mod nullable_map_guard_support;
+#[cfg(test)]
+mod registration_tests;
 use super::*;
 
 /// 共享 lowering 只读取本轮事实；调用方必须先验证完整分析身份链。
@@ -310,6 +315,15 @@ pub(super) fn lower_unit_from_facts(
             typed,
             &mut types,
         )?;
+        type_plan::intern_formed_nullable_map_types(
+            module,
+            parsed_by_source[plan.instance.source_unit().index()],
+            plan,
+            names,
+            typed,
+            owned,
+            &mut types,
+        )?;
     }
     let callable_plans = closure::declare(module, &plans, callable_layouts)?;
     for (ty, demand) in runtime_type_demands {
@@ -438,6 +452,7 @@ pub(super) fn lower_unit_from_facts(
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
             map_results: &module.map_results,
+            nullable_maps: &module.nullable_maps,
             ssa_types: &module.types,
             enum_payloads: types.enum_payloads(),
             field_indices: types.field_indices(),
@@ -563,6 +578,7 @@ pub(super) fn lower_unit_from_facts(
             type_ids: types.type_ids(),
             heap_payloads: types.heap_payloads(),
             map_results: &module.map_results,
+            nullable_maps: &module.nullable_maps,
             ssa_types: &module.types,
             enum_payloads: types.enum_payloads(),
             field_indices: types.field_indices(),

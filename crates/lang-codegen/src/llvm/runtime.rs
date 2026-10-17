@@ -615,7 +615,9 @@ impl<'ctx> RuntimeAbi<'ctx> {
                 .get_first_param()
                 .ok_or_else(|| LlvmAdapterError::Build("drop glue 缺少 owner 参数".to_owned()))?;
             match module.type_kind(*ty) {
-                Some(SsaTypeKind::Aggregate { .. }) if module.map_result_value(*ty).is_some() => {
+                Some(SsaTypeKind::Aggregate { .. })
+                    if module.presence_payload_type(*ty).is_some() =>
+                {
                     self.define_map_result_drop(module, *ty, *function, &builder, value)?;
                 }
                 Some(SsaTypeKind::Aggregate { fields, .. }) => {

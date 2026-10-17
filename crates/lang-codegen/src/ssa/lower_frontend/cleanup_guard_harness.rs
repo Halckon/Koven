@@ -149,6 +149,7 @@ impl Fixture {
             type_ids: &self.type_ids,
             heap_payloads: &heap_payloads,
             map_results: &module.map_results,
+            nullable_maps: &module.nullable_maps,
             ssa_types: &module.types,
             enum_payloads: &enum_payloads,
             substitutions: &substitutions,

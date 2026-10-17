@@ -15,6 +15,11 @@ pub(super) fn verify_map_ownership(
     errors: &mut Vec<VerifyError>,
 ) {
     match operation {
+        Operation::MapConsume { owner, .. } => {
+            check_and_consume_container_owner(
+                module, function, *owner, aliases, state, location, origin, errors,
+            );
+        }
         Operation::MapConstruct { .. } => {}
         Operation::MapResultUnwrap { result } => {
             require_value(module, function, *result, state, location, origin, errors);

@@ -7,7 +7,7 @@ use crate::{
     type_checking::{BuiltinType, TypeCheckingError, UnitTypeId},
 };
 
-use super::flow::{extend_facts, intersect_facts};
+use super::flow::{extend_facts, intersect_facts, merge_flow_versions};
 use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
 
 impl BodyChecker<'_> {
@@ -157,6 +157,7 @@ impl BodyChecker<'_> {
         let boolean = self.builtin(BuiltinType::Boolean);
         self.check_expression(source, condition, Some(boolean), None, return_type)?;
         let baseline = self.flow_facts.clone();
+        let baseline_versions = self.flow_versions.clone();
         let (true_facts, false_facts) = self.condition_facts(source, condition)?;
         self.flow_facts = extend_facts(&baseline, &true_facts);
         let then_expected = if else_branch.is_some() {
@@ -172,6 +173,7 @@ impl BodyChecker<'_> {
             return_type,
         )?;
         let then_facts = self.flow_facts.clone();
+        let then_versions = self.flow_versions.clone();
         let Some(else_branch) = else_branch else {
             let false_path = extend_facts(&baseline, &false_facts);
             self.flow_facts = if then_result.falls_through {
@@ -179,12 +181,18 @@ impl BodyChecker<'_> {
             } else {
                 false_path
             };
+            self.flow_versions = if then_result.falls_through {
+                merge_flow_versions(&then_versions, &baseline_versions)
+            } else {
+                baseline_versions
+            };
             return Ok(ExpressionCheck {
                 ty: self.builtin(BuiltinType::Unit),
                 falls_through: true,
             });
         };
         self.flow_facts = extend_facts(&baseline, &false_facts);
+        self.flow_versions = baseline_versions.clone();
         let else_expected = self.control_branch_expected(source, else_branch, expected)?;
         let else_result = self.check_value_body(
             source,
@@ -194,11 +202,18 @@ impl BodyChecker<'_> {
             return_type,
         )?;
         let else_facts = self.flow_facts.clone();
+        let else_versions = self.flow_versions.clone();
         self.flow_facts = match (then_result.falls_through, else_result.falls_through) {
             (true, true) => intersect_facts(&then_facts, &else_facts),
             (true, false) => then_facts,
             (false, true) => else_facts,
             (false, false) => baseline,
+        };
+        self.flow_versions = match (then_result.falls_through, else_result.falls_through) {
+            (true, true) => merge_flow_versions(&then_versions, &else_versions),
+            (true, false) => then_versions,
+            (false, true) => else_versions,
+            (false, false) => baseline_versions,
         };
         let ty = if let Some(join) = self.join_control_types(then_result.ty, else_result.ty) {
             join

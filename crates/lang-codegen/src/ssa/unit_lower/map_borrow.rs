@@ -139,7 +139,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        if self.map_results.get(&actual) != Some(&target)
+        if self.nullable_maps.get(&actual) != Some(&target)
+            && self.map_results.get(&actual) != Some(&target)
             && !matches!(self.ssa_types.get(actual.index()), Some(SsaTypeKind::NullableHandle { inner }) if *inner == target)
         {
             return Ok(None);

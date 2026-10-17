@@ -12,6 +12,14 @@ pub(super) fn collect(
     typed: &CompilationUnitTypes,
 ) -> Result<MapContracts, OwnershipCheckingError> {
     let mut calls = Vec::new();
+    for descriptor in typed.map_consumes() {
+        calls.push((
+            descriptor.expression(),
+            descriptor.receiver(),
+            ParameterMode::Value,
+            Vec::new(),
+        ));
+    }
     for descriptor in typed.map_contains_calls() {
         calls.push((
             descriptor.expression(),

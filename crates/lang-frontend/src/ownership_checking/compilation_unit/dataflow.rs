@@ -11,6 +11,8 @@ mod container;
 mod control;
 mod drop_planner;
 mod flow;
+#[cfg(test)]
+mod formed_tests;
 mod iteration;
 mod liveness;
 mod map;
@@ -86,6 +88,7 @@ pub(super) struct Analysis {
     pub(super) short_circuits: Option<Vec<super::constant::UnitShortCircuitPlan>>,
     pub(super) constant_materializations: Vec<super::constant::UnitConstantMaterializationPlan>,
     pub(super) diagnostics: Vec<Diagnostic>,
+    pub(super) formed_owned_locals: Vec<UnitSymbolId>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
     pub(super) value_deliveries: Vec<UnitValueDeliveryFact>,
@@ -187,6 +190,7 @@ pub(super) fn analyze(
         codes::catalog()?.resolve(codes::NON_TRANSFERABLE_DELIVERY)?;
     let mut callable_sources = callable_provenance::Collection::default();
     let mut diagnostics = Vec::new();
+    let mut formed_owned_locals = Vec::new();
     let mut constant_materializations = Vec::new();
     let mut short_circuits = Vec::new();
     let mut visited_lambdas = std::collections::BTreeSet::new();
@@ -263,6 +267,7 @@ pub(super) fn analyze(
         checker.constant_control = constant_control;
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
+        formed_owned_locals.extend(checker.formed_owned_locals);
         iteration_templates.extend(checker.iterations.into_values());
         iterations.extend(drop_analysis.iterations);
         iteration_conditional_scopes.extend(drop_analysis.iteration_conditional_scopes);
@@ -319,8 +324,12 @@ pub(super) fn analyze(
         Default::default()
     };
     if !diagnostics.is_empty() || !deferred.is_empty() {
+        formed_owned_locals.clear();
         borrow_return_origins.clear();
         borrow_results = Default::default();
+    } else {
+        formed_owned_locals.sort();
+        formed_owned_locals.dedup();
     }
     borrow_return_origins.sort_by_key(|fact| fact.expression());
     borrow_results.bindings.sort_by_key(|fact| fact.binding);
@@ -344,6 +353,7 @@ pub(super) fn analyze(
         ownership_primitives,
         field_replacements,
         diagnostics,
+        formed_owned_locals,
         loans,
         value_deliveries,
         receiver_facts,
@@ -438,6 +448,7 @@ struct Checker<'a> {
     statement_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
     codes: Codes,
     diagnostics: &'a mut Vec<Diagnostic>,
+    formed_owned_locals: Vec<UnitSymbolId>,
     loans: &'a mut Vec<UnitLoanFact>,
     value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
     receiver_facts: &'a mut Vec<UnitReceiverOwnershipFact>,
@@ -590,6 +601,7 @@ impl<'a> Checker<'a> {
             statement_live_after: Vec::new(),
             codes,
             diagnostics,
+            formed_owned_locals: Vec::new(),
             loans,
             value_deliveries,
             receiver_facts,
@@ -660,6 +672,7 @@ impl<'a> Checker<'a> {
             self.non_null_assertions.len(),
             self.ownership_primitives.len(),
             self.field_replacements.len(),
+            self.formed_owned_locals.len(),
         );
         let mut flows = self.check_expression(
             value,
@@ -724,7 +737,17 @@ impl<'a> Checker<'a> {
 
     fn rollback_facts(
         &mut self,
-        lengths: (usize, usize, usize, usize, usize, usize, usize, usize),
+        lengths: (
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+            usize,
+        ),
     ) {
         self.loans.truncate(lengths.0);
         self.value_deliveries.truncate(lengths.1);
@@ -734,6 +757,7 @@ impl<'a> Checker<'a> {
         self.non_null_assertions.truncate(lengths.5);
         self.ownership_primitives.truncate(lengths.6);
         self.field_replacements.truncate(lengths.7);
+        self.formed_owned_locals.truncate(lengths.8);
     }
 
     fn restore_flow_states(mut flows: Flows, entry: &State) -> Flows {

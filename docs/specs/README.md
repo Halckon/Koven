@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树0份。[0330 while 保守流事实](../archive/specs/0330-while-conservative-flow.md)已按 PR116 修复实现 CI 双 host129 exact（111普通、18 CI-only）有界归档；首轮52失败及修复保留，归档 head CI、正常合并与 main 核验待交付。F/0291 保持后继候选，合并0330后再启动。
+- [Active 合同](active/README.md)：当前本树1份，[0291 非空只读 Map 构造与插入序共享存储](active/0291-readonly-map-construction.md)从真实 main `37e80526` 启动；0330已由PR116正常合并，main CI独立跟踪。consume与Map插入序均已启用，本片不改Guide，实际Map借用provider另片。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -119,7 +119,7 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 ### 候选与导航
 
 - [v0.43 广义后继](drafts/v0.43/README.md#0298首片之外的开放后继)：0298 更广表达式/控制流/循环仍为候选；0292 consume 保持原 draft。
-- [v0.44 候选](drafts/v0.44/README.md)：0291 只读 Map 消费式转换保持原 draft；[Proposals](../proposals/README.md) 不自动批准实施，P2 预算继续延期。
+- [v0.44 候选](drafts/v0.44/README.md)：0291 已重基为 active，版本目录只保留阶段路由；[Proposals](../proposals/README.md) 不自动批准实施，P2 预算继续延期。
 - [演进历史基线](evolution-status.md) / [工程方法](../development/README.md)：前者保留历史检查点，当前交付只在本节维护。
 - [冻结库存](inventory.md)：active/archive 的独立声明与漏项检测，不由目录扫描自动生成。
 - [依赖图](dependency-graph.md) / [SVG](dependency-graph.svg)：由 `scripts/gen_spec_dag.py` 生成拓扑，不承载验收状态。

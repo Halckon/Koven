@@ -1,5 +1,5 @@
 use super::{IntrinsicCallable, TypeId, TypedFile};
-use crate::ast::ExpressionId;
+use crate::{ast::ExpressionId, name_resolution::SymbolId};
 
 /// 单文件中经过 Phase 2 类型检查的 Map 构造调用 (`mapOf()` / `mutableMapOf()`)。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -404,10 +404,80 @@ impl<E: Copy, T: Copy> MapRequireValueDescriptor<E, T> {
     }
 }
 
+/// 消费式 Map 移交的类型事实；root/storage 只保存来源，不授予移动资格。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MapConsumeDescriptor<E = ExpressionId, T = TypeId, S = SymbolId> {
+    expression: E,
+    receiver: E,
+    receiver_type: T,
+    result_type: T,
+    key_type: T,
+    value_type: T,
+    source: Option<(S, T)>,
+}
+
+impl<E: Copy, T: Copy, S: Copy> MapConsumeDescriptor<E, T, S> {
+    pub(crate) const fn new(
+        expression: E,
+        receiver: E,
+        receiver_type: T,
+        result_type: T,
+        key_type: T,
+        value_type: T,
+        source: Option<(S, T)>,
+    ) -> Self {
+        Self {
+            expression,
+            receiver,
+            receiver_type,
+            result_type,
+            key_type,
+            value_type,
+            source,
+        }
+    }
+    /// 实际调用身份。
+    #[must_use]
+    pub const fn expression(self) -> E {
+        self.expression
+    }
+    /// 保留分组在内的原 receiver 表达式。
+    #[must_use]
+    pub const fn receiver(self) -> E {
+        self.receiver
+    }
+    /// 当前读取所证明的 MutableMap 类型，不替代声明 storage。
+    #[must_use]
+    pub const fn receiver_type(self) -> T {
+        self.receiver_type
+    }
+    /// 同 K/V 的 owned Map 结果类型。
+    #[must_use]
+    pub const fn result_type(self) -> T {
+        self.result_type
+    }
+    /// 原 receiver 的精确 K identity。
+    #[must_use]
+    pub const fn key_type(self) -> T {
+        self.key_type
+    }
+    /// 原 receiver 的精确 V identity。
+    #[must_use]
+    pub const fn value_type(self) -> T {
+        self.value_type
+    }
+    /// 仅 Name/透明 Group 的真实根和声明 storage；None 不表示 owned temporary。
+    #[must_use]
+    pub const fn source(self) -> Option<(S, T)> {
+        self.source
+    }
+}
+
 /// 单文件中所有 Map 相关的结构化操作描述符集合。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct MapDescriptors {
     pub(crate) constructions: Vec<MapConstructionDescriptor>,
+    pub(crate) consumes: Vec<MapConsumeDescriptor>,
     pub(crate) sizes: Vec<MapSizeDescriptor>,
     pub(crate) contains_calls: Vec<MapContainsDescriptor>,
     pub(crate) gets: Vec<MapGetDescriptor>,
@@ -418,6 +488,20 @@ pub(crate) struct MapDescriptors {
 }
 
 impl TypedFile {
+    /// 所有消费式 Map 类型移交事实。
+    #[must_use]
+    pub fn map_consumes(&self) -> &[MapConsumeDescriptor] {
+        &self.map_descriptors.consumes
+    }
+    /// 按原调用身份查询消费式 Map 移交。
+    #[must_use]
+    pub fn map_consume(&self, expression: ExpressionId) -> Option<&MapConsumeDescriptor> {
+        self.map_descriptors
+            .consumes
+            .iter()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
+
     /// 文件中的确定槽位借用查询。
     pub fn map_require_values(&self) -> &[MapRequireValueDescriptor] {
         &self.map_descriptors.requires

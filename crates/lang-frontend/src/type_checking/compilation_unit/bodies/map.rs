@@ -1,5 +1,8 @@
 use super::{CompilationUnitTypes, UnitExpressionId, UnitTypeId};
-use crate::type_checking::IntrinsicCallable;
+use crate::{name_resolution::UnitSymbolId, type_checking::IntrinsicCallable};
+/// source-qualified 消费式 Map 类型移交。
+pub type UnitMapConsumeDescriptor =
+    crate::type_checking::MapConsumeDescriptor<UnitExpressionId, UnitTypeId, UnitSymbolId>;
 /// source-qualified 确定 Map 槽位借用。
 pub type UnitMapRequireValueDescriptor =
     crate::type_checking::MapRequireValueDescriptor<UnitExpressionId, UnitTypeId>;
@@ -356,6 +359,7 @@ impl UnitMapRemoveDescriptor {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct UnitMapDescriptors {
     pub(crate) constructions: Vec<UnitMapConstructionDescriptor>,
+    pub(crate) consumes: Vec<UnitMapConsumeDescriptor>,
     pub(crate) sizes: Vec<UnitMapSizeDescriptor>,
     pub(crate) contains_calls: Vec<UnitMapContainsDescriptor>,
     pub(crate) gets: Vec<UnitMapGetDescriptor>,
@@ -367,6 +371,20 @@ pub(crate) struct UnitMapDescriptors {
 }
 
 impl CompilationUnitTypes {
+    /// 编译单元中所有消费式 Map 类型移交事实。
+    #[must_use]
+    pub fn map_consumes(&self) -> &[UnitMapConsumeDescriptor] {
+        &self.map_descriptors.consumes
+    }
+    /// 按 source-qualified 调用身份查询消费式移交。
+    #[must_use]
+    pub fn map_consume(&self, expression: UnitExpressionId) -> Option<&UnitMapConsumeDescriptor> {
+        self.map_descriptors
+            .consumes
+            .iter()
+            .find(|descriptor| descriptor.expression() == expression)
+    }
+
     /// 编译单元中的确定槽位借用查询。
     pub fn map_require_values(&self) -> &[UnitMapRequireValueDescriptor] {
         &self.map_descriptors.requires

@@ -65,7 +65,7 @@ impl BodyChecker<'_> {
             return_type,
         )?;
         if let Some(key) = self.stable_flow_key(source, target) {
-            self.flow_facts.remove(&key);
+            self.invalidate_flow_key(key);
         }
         let falls_through = target_result.falls_through && value_result.falls_through;
         if self.is_error(target_result.ty) || self.is_error(value_result.ty) {

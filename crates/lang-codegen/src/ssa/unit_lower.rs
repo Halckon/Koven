@@ -28,6 +28,7 @@ mod integer_range;
 mod loop_control;
 mod map;
 mod map_borrow;
+mod map_consume;
 mod map_require;
 mod map_result;
 mod map_with;
@@ -169,6 +170,7 @@ struct UnitExpressionLowerer<'a> {
     type_ids: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     map_results: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    nullable_maps: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     ssa_types: &'a [crate::ssa::model::SsaTypeKind],
     enum_payloads: &'a BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
     field_indices: &'a BTreeMap<(UnitTypeId, UnitSymbolId), usize>,
@@ -240,6 +242,16 @@ impl UnitExpressionLowerer<'_> {
             })?;
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
+        // Only a fully witnessed consume may atomically retire an ordinary If view.
+        if matches!(node.payload(), Expression::Call { .. })
+            && self
+                .nullable_proofs
+                .values()
+                .any(|proof| proof.if_scope().is_some())
+            && let Some(value) = self.lower_nullable_map_consume(unit_expression, span)?
+        {
+            return Ok(value);
+        }
         // Reject unsupported If carriers/transfers before specialized dispatch can
         // create a call frame, a temporary owner, or any SSA instruction.
         if matches!(

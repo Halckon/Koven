@@ -91,6 +91,17 @@ pub(super) fn collect_stable_flow_symbols(
 }
 
 impl BodyChecker<'_> {
+    pub(super) fn flow_version(&self, key: FlowKey) -> u64 {
+        self.flow_versions.get(&key).copied().unwrap_or_default()
+    }
+
+    pub(super) fn invalidate_flow_key(&mut self, key: FlowKey) {
+        self.flow_facts.remove(&key);
+        let version = self.flow_versions.entry(key).or_default();
+        // MAX is a permanent invalid source witness, never a reusable snapshot version.
+        *version = version.saturating_add(1);
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_type_test(
         &mut self,
@@ -305,4 +316,16 @@ pub(super) fn intersect_facts(
     left.iter()
         .filter_map(|(key, ty)| (right.get(key) == Some(ty)).then_some((*key, *ty)))
         .collect()
+}
+
+pub(super) fn merge_flow_versions(
+    left: &BTreeMap<FlowKey, u64>,
+    right: &BTreeMap<FlowKey, u64>,
+) -> BTreeMap<FlowKey, u64> {
+    let mut merged = left.clone();
+    for (&key, &version) in right {
+        let previous = merged.entry(key).or_default();
+        *previous = (*previous).max(version);
+    }
+    merged
 }

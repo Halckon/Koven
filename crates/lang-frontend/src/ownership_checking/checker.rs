@@ -13,6 +13,8 @@ mod container;
 mod control;
 mod drop_planner;
 mod elvis;
+#[cfg(test)]
+mod formed_tests;
 mod iteration;
 mod loan;
 mod map;
@@ -139,6 +141,7 @@ struct Checker<'a> {
     current_borrow_return: Option<super::borrow_result::ReturnSource<SymbolId>>,
     borrow_return_origins: Vec<super::BorrowReturnOriginFact<ExpressionId, super::LoanTarget>>,
     diagnostics: Vec<Diagnostic>,
+    formed_owned_locals: Vec<SymbolId>,
     loans: Vec<LoanFact>,
     deferred: Vec<OwnershipDeferredFact>,
     captures: Vec<super::ClosureCaptureDescriptor>,
@@ -250,6 +253,7 @@ impl<'a> Checker<'a> {
             ownership_primitives: BTreeMap::new(),
             field_replacements: BTreeMap::new(),
             diagnostics: Vec::new(),
+            formed_owned_locals: Vec::new(),
             loans: Vec::new(),
             deferred: Vec::new(),
             captures,
@@ -367,6 +371,13 @@ impl<'a> Checker<'a> {
         } else {
             Vec::new()
         };
+        if diagnostics.is_empty() && self.typed.diagnostics().is_empty() && self.deferred.is_empty()
+        {
+            self.formed_owned_locals.sort();
+            self.formed_owned_locals.dedup();
+        } else {
+            self.formed_owned_locals.clear();
+        }
         Ok(OwnershipCheckedFile::new(
             self.parsed.source_id(),
             self.typed.environment_owner().clone(),
@@ -386,6 +397,7 @@ impl<'a> Checker<'a> {
                 nullable_whens,
                 loan_ends,
                 bindings,
+                formed_owned_locals: self.formed_owned_locals,
                 drops,
                 construction_plans,
                 string_effects: self
@@ -534,7 +546,15 @@ impl<'a> Checker<'a> {
                 if let VariableKind::BorrowVal(marker) = kind {
                     return self.check_borrow_binding(name, initializer, marker, state);
                 }
+                let diagnostic_count = self.diagnostics.len();
                 let mut flows = self.check_variable(name, initializer, state)?;
+                if matches!(kind, VariableKind::Val | VariableKind::Var)
+                    && flows.next.is_some()
+                    && self.diagnostics.len() == diagnostic_count
+                    && let Some(symbol) = self.marker_symbol(name)
+                {
+                    self.formed_owned_locals.push(symbol);
+                }
                 if let Some(next) = flows.next.as_mut()
                     && let Some(symbol) = self.marker_symbol(name)
                     && !self.statement_live_after[id.index()].contains(&symbol)
