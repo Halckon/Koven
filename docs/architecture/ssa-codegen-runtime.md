@@ -118,7 +118,7 @@ MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径
 出口携带完整 owner/loan/pending 状态，内层跳转仅结束本循环内的调用帧并移除其前缀槽位。
 循环结束保留外层 temporary；return 清理退出帧，Abort 不展开。Copyable 命名变量与已求值
 实参快照在循环入口分开携带，避免循环赋值改写旧实参；MoveOnly owner/loan alias 继续去重。
-while 条件包含 CFG 时从实际条件出口分支。基础入口的 temporary 循环限制仍保留。
+while 条件包含 CFG 时从实际条件出口分支。基础入口的 temporary 循环限制仍保留。 direct nullable while 仅将真实 HeapOwner 送专用 proof 路径；SharedOwner Rc 继续既有普通 while，缺映射不回退。原 owner 返回、四种有界退出的 presence 与正常 native 证据及 payload/体内返回欠账见[0332](../specs/active/0332-rc-nullable-while-regression.md)。
 隐式具体 MoveOnly Value `this` 在 frontend pending 队列中保留既有 `This(owner)` target，
 专用后端保留 current receiver 到实参全部完成再移交。参数 return 先清理后建实参，再清理
 receiver，Abort 不展开；CFG 将 receiver 与 pending 槽的 alias 重绑定到同一实体。
