@@ -20,7 +20,7 @@ pub(in crate::llvm) fn put<'ctx>(
     let (_, key_ty, val_ty) = module
         .map_container(map_type)
         .ok_or_else(|| LlvmAdapterError::InvalidSsa("put 目标类型不是 Map".to_owned()))?;
-    let slot_type = get_slot_type(context, types, key_ty, val_ty)?;
+    let slot_type = get_slot_type(context, types, runtime.size_type(), key_ty, val_ty)?;
     let slot_stride = get_slot_stride(llvm, slot_type);
 
     let old_buffer = builder
@@ -35,8 +35,17 @@ pub(in crate::llvm) fn put<'ctx>(
     let old_tombstones = builder
         .build_extract_value(map_header, 3, "old_tombstones")?
         .into_int_value();
+    let old_first = builder
+        .build_extract_value(map_header, 4, "old_first")?
+        .into_int_value();
+    let old_last = builder
+        .build_extract_value(map_header, 5, "old_last")?
+        .into_int_value();
 
     // 负载因子包含墓碑；rehash 后墓碑数量归零。
+    // A valid allocation has capacity * stride <= signed pointer-index MAX, stride >= 4,
+    // and size + tombstones <= capacity. The load-factor products and capacity doubling
+    // therefore fit size_t; allocate_buffer checks the grown physical byte count separately.
     let one = runtime.size_type().const_int(1, false);
     let size_plus_one = builder.build_int_add(old_size, one, "size_p1")?;
     let four = runtime.size_type().const_int(4, false);
@@ -56,19 +65,31 @@ pub(in crate::llvm) fn put<'ctx>(
     builder.position_at_end(grow_bb);
     let two = runtime.size_type().const_int(2, false);
     let new_cap = builder.build_int_mul(old_cap, two, "new_cap")?;
+    let new_buffer =
+        runtime.allocate_buffer(llvm, builder, function, new_cap, slot_stride, "grow_buf")?;
     let new_cap_bytes = builder.build_int_mul(
         new_cap,
         runtime.size_type().const_int(slot_stride, false),
         "new_cap_bytes",
     )?;
-    let new_buffer =
-        runtime.allocate_buffer(llvm, builder, function, new_cap, slot_stride, "grow_buf")?;
     builder.build_memset(new_buffer, 1, context.i8_type().const_zero(), new_cap_bytes)?;
 
-    // 将旧表的所有 Occupied 条目重哈希移动到新表
-    rehash_into(
-        context, builder, function, runtime, module, key_ty, val_ty, slot_type, old_buffer,
-        old_cap, new_buffer, new_cap,
+    // 按旧插入链搬迁 owner，并返回新物理 bucket 的首尾索引。
+    let grown_order = rehash_into(
+        context,
+        builder,
+        function,
+        runtime,
+        module,
+        RehashInput {
+            slot_type,
+            key_type: key_ty,
+            old_buffer,
+            old_first,
+            old_size,
+            new_buffer,
+            new_cap,
+        },
     )?;
     if slot_stride != 0
         && let Some(free_fn) = runtime.free()
@@ -94,6 +115,17 @@ pub(in crate::llvm) fn put<'ctx>(
         (&runtime.size_type().const_zero(), grow_done_bb),
     ]);
     let active_tombstones = active_tombstones.as_basic_value().into_int_value();
+    let active_first = builder.build_phi(runtime.size_type(), "active_first")?;
+    active_first.add_incoming(&[
+        (&old_first, pre_grow_bb),
+        (&grown_order.first, grow_done_bb),
+    ]);
+    let active_last = builder.build_phi(runtime.size_type(), "active_last")?;
+    active_last.add_incoming(&[(&old_last, pre_grow_bb), (&grown_order.last, grow_done_bb)]);
+    let active_order = OrderEnds {
+        first: active_first.as_basic_value().into_int_value(),
+        last: active_last.as_basic_value().into_int_value(),
+    };
 
     let mask = builder.build_int_sub(active_cap, one, "active_mask")?;
     let hash = build_key_hash(
@@ -116,10 +148,7 @@ pub(in crate::llvm) fn put<'ctx>(
     let idx_phi = builder.build_phi(runtime.size_type(), "put.idx")?;
     idx_phi.add_incoming(&[(&start_idx, insert_preheader_end)]);
     let first_free_phi = builder.build_phi(runtime.size_type(), "put.first_free")?;
-    first_free_phi.add_incoming(&[(
-        &runtime.size_type().const_int(u64::MAX, false),
-        insert_preheader_end,
-    )]);
+    first_free_phi.add_incoming(&[(&runtime.size_type().const_all_ones(), insert_preheader_end)]);
     let steps_phi = builder.build_phi(runtime.size_type(), "put.steps")?;
     steps_phi.add_incoming(&[(&runtime.size_type().const_zero(), insert_preheader_end)]);
 
@@ -138,7 +167,7 @@ pub(in crate::llvm) fn put<'ctx>(
     let found_tombstone = builder.build_int_compare(
         IntPredicate::NE,
         current_first_free,
-        runtime.size_type().const_int(u64::MAX, false),
+        runtime.size_type().const_all_ones(),
         "put.found_tombstone",
     )?;
     builder.build_conditional_branch(found_tombstone, write_slot, no_slot)?;
@@ -189,7 +218,7 @@ pub(in crate::llvm) fn put<'ctx>(
     let has_no_free = builder.build_int_compare(
         IntPredicate::EQ,
         current_first_free,
-        runtime.size_type().const_int(u64::MAX, false),
+        runtime.size_type().const_all_ones(),
         "no_free",
     )?;
     let updated_free = builder
@@ -267,7 +296,7 @@ pub(in crate::llvm) fn put<'ctx>(
     let has_tomb = builder.build_int_compare(
         IntPredicate::NE,
         current_first_free,
-        runtime.size_type().const_int(u64::MAX, false),
+        runtime.size_type().const_all_ones(),
         "has_tomb",
     )?;
     let target_idx = builder
@@ -319,6 +348,18 @@ pub(in crate::llvm) fn put<'ctx>(
     )?;
     builder.build_store(target_key_ptr, key)?;
     builder.build_store(target_val_ptr, value)?;
+    let inserted_order = order::append(
+        context,
+        builder,
+        function,
+        SlotTable {
+            slot_type,
+            buckets: active_buffer,
+        },
+        active_order,
+        target_idx,
+        "put.order",
+    )?;
     let new_size = builder.build_int_add(old_size, one, "new_size")?;
     let reused_tombstone = builder
         .build_select(
@@ -343,15 +384,31 @@ pub(in crate::llvm) fn put<'ctx>(
         (&active_tombstones, overwrite_bb),
         (&remaining_tombstones, write_done_bb),
     ]);
+    let final_first = builder.build_phi(runtime.size_type(), "final_first")?;
+    final_first.add_incoming(&[
+        (&active_order.first, overwrite_bb),
+        (&inserted_order.first, write_done_bb),
+    ]);
+    let final_last = builder.build_phi(runtime.size_type(), "final_last")?;
+    final_last.add_incoming(&[
+        (&active_order.last, overwrite_bb),
+        (&inserted_order.last, write_done_bb),
+    ]);
 
     let header_type = types.basic_type(map_type)?.into_struct_type();
     build_header(
         builder,
         header_type,
-        active_buffer,
-        final_size,
-        active_cap,
-        final_tombstones.as_basic_value().into_int_value(),
+        MapHeader {
+            buckets: active_buffer,
+            size: final_size,
+            capacity: active_cap,
+            tombstones: final_tombstones.as_basic_value().into_int_value(),
+            order: OrderEnds {
+                first: final_first.as_basic_value().into_int_value(),
+                last: final_last.as_basic_value().into_int_value(),
+            },
+        },
         name,
     )
 }
@@ -374,7 +431,7 @@ pub(in crate::llvm) fn remove<'ctx>(
     let (_, key_ty, val_ty) = module
         .map_container(map_type)
         .ok_or_else(|| LlvmAdapterError::InvalidSsa("remove 目标类型不是 Map".to_owned()))?;
-    let slot_type = get_slot_type(context, types, key_ty, val_ty)?;
+    let slot_type = get_slot_type(context, types, runtime.size_type(), key_ty, val_ty)?;
 
     let buffer = builder
         .build_extract_value(map_header, 0, "rem_buf")?
@@ -387,6 +444,12 @@ pub(in crate::llvm) fn remove<'ctx>(
         .into_int_value();
     let tombstones = builder
         .build_extract_value(map_header, 3, "rem.tombstones")?
+        .into_int_value();
+    let first = builder
+        .build_extract_value(map_header, 4, "rem.first")?
+        .into_int_value();
+    let last = builder
+        .build_extract_value(map_header, 5, "rem.last")?
         .into_int_value();
 
     let preheader = builder.get_insert_block().unwrap();
@@ -490,6 +553,18 @@ pub(in crate::llvm) fn remove<'ctx>(
     builder.position_at_end(do_remove);
     let value_ptr = builder.build_struct_gep(slot_type, slot_ptr, 2, "rem.value.ptr")?;
     let removed = builder.build_load(types.basic_type(val_ty)?, value_ptr, "rem.value")?;
+    let remaining_order = order::unlink(
+        context,
+        builder,
+        function,
+        SlotTable {
+            slot_type,
+            buckets: buffer,
+        },
+        OrderEnds { first, last },
+        current_idx,
+        "rem.order",
+    )?;
     if module.type_ownership(key_ty) == Some(crate::ssa::model::Ownership::MoveOnly) {
         runtime.emit_drop(builder, key_ty, slot_key)?;
     }
@@ -529,6 +604,20 @@ pub(in crate::llvm) fn remove<'ctx>(
         (&tombstones, loop_body),
         (&new_tombstones, do_remove_bb),
     ]);
+    let final_first = builder.build_phi(runtime.size_type(), "rem.final_first")?;
+    final_first.add_incoming(&[
+        (&first, preheader),
+        (&first, loop_check),
+        (&first, loop_body),
+        (&remaining_order.first, do_remove_bb),
+    ]);
+    let final_last = builder.build_phi(runtime.size_type(), "rem.final_last")?;
+    final_last.add_incoming(&[
+        (&last, preheader),
+        (&last, loop_check),
+        (&last, loop_body),
+        (&remaining_order.last, do_remove_bb),
+    ]);
 
     let absent = types.basic_type(val_ty)?.const_zero();
     let result = builder.build_phi(types.basic_type(val_ty)?, "rem.result")?;
@@ -550,10 +639,16 @@ pub(in crate::llvm) fn remove<'ctx>(
         build_header(
             builder,
             header_type,
-            buffer,
-            final_size,
-            capacity,
-            final_tombstones.as_basic_value().into_int_value(),
+            MapHeader {
+                buckets: buffer,
+                size: final_size,
+                capacity,
+                tombstones: final_tombstones.as_basic_value().into_int_value(),
+                order: OrderEnds {
+                    first: final_first.as_basic_value().into_int_value(),
+                    last: final_last.as_basic_value().into_int_value(),
+                },
+            },
             name,
         )?,
         present.as_basic_value().into_int_value(),

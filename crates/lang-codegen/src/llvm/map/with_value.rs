@@ -19,7 +19,7 @@ pub(in crate::llvm) fn with_value<'ctx>(
     let (_, key_type, value_type) = module
         .map_container(map_type)
         .ok_or_else(|| LlvmAdapterError::InvalidSsa("scoped source is not a Map".into()))?;
-    let slot_type = get_slot_type(context, types, key_type, value_type)?;
+    let slot_type = get_slot_type(context, types, runtime.size_type(), key_type, value_type)?;
     let prepared =
         crate::llvm::closure::prepare(builder, module, types, action_type, action, name)?;
     let slot = lookup::find_slot(

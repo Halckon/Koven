@@ -218,12 +218,19 @@ impl LayoutCalculator<'_, '_> {
                 self.record(ty, &fields)?
             }
             Some(SsaTypeKind::MapContainer { key, value, .. }) => {
-                let _ = self.dependency(*key)?;
-                let _ = self.dependency(*value)?;
+                let key = self.dependency(*key)?;
+                let value = self.dependency(*value)?;
+                let state = self.llvm_layout(self.context.i32_type().into());
+                let slot =
+                    self.record(ty, &[state, key, value, self.size_layout, self.size_layout])?;
+                self.check_quantity(ty, LayoutQuantity::Stride, slot.size)?;
+                self.checked(ty, LayoutQuantity::Stride, slot)?;
                 self.record(
                     ty,
                     &[
                         self.pointer_layout,
+                        self.size_layout,
+                        self.size_layout,
                         self.size_layout,
                         self.size_layout,
                         self.size_layout,

@@ -40,7 +40,7 @@ pub(super) fn owner<'ctx>(
     let (_, key, value) = module
         .map_container(map_type)
         .ok_or_else(|| LlvmAdapterError::InvalidSsa("map drop requires map type".to_owned()))?;
-    let slot_type = get_slot_type(context, types, key, value)?;
+    let slot_type = get_slot_type(context, types, runtime.size_type(), key, value)?;
     let buffer = builder
         .build_extract_value(header, 0, "map.drop.buffer")?
         .into_pointer_value();

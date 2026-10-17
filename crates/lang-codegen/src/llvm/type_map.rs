@@ -131,6 +131,8 @@ impl<'ctx> TypeMap<'ctx> {
                             size_type.into(),
                             size_type.into(),
                             size_type.into(),
+                            size_type.into(),
+                            size_type.into(),
                         ],
                         false,
                     );

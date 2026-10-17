@@ -19,7 +19,7 @@ pub(super) fn find_slot<'ctx>(
     let (_, key_ty, val_ty) = module
         .map_container(map_type)
         .ok_or_else(|| LlvmAdapterError::InvalidSsa("contains 目标类型不是 Map".to_owned()))?;
-    let slot_type = get_slot_type(context, types, key_ty, val_ty)?;
+    let slot_type = get_slot_type(context, types, runtime.size_type(), key_ty, val_ty)?;
 
     let buffer = builder
         .build_extract_value(map_header, 0, &format!("{name}.buffer"))?
@@ -191,7 +191,7 @@ pub(in crate::llvm) fn get<'ctx>(
     let (_, key_type, value_type) = module
         .map_container(map_type)
         .ok_or_else(|| LlvmAdapterError::InvalidSsa("get target is not a Map".into()))?;
-    let slot_type = get_slot_type(context, types, key_type, value_type)?;
+    let slot_type = get_slot_type(context, types, runtime.size_type(), key_type, value_type)?;
     let value_llvm_type = types.basic_type(value_type)?;
     let slot = find_slot(
         context, llvm, builder, function, types, runtime, module, map_type, map_header, key, name,
