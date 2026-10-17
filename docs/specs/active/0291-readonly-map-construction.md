@@ -305,3 +305,11 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
 - 本批17项是直接风险邻控，deinit/initializer 隔离与版本饱和尚无独立动态专项，
   null-middle+else 仍无新增 unit 实证。nullable Map storage、真实 owner extraction、
   unit 后端 when、动态链 CI 与借用 provider 继续分别验收，不据此声称0291完成。
+- 空间条件恢复后，在 docs-only 后继 `0bc04e4a` / `2fb07a01` 重冻1493输入，
+  原 frontend 工程三项实际全通过；收据 SHA-256：
+  `a94b36c0390c58f2f0b67ee5a9c64a8464d326caab586419f1fc0d9d027ad34a`。
+  原 consume 五 exact 各实际命中1并通过，输入前后稳定；收据 SHA-256：
+  `227a59f8de8d8f76b4fb40577c54267e97cf04209ff0eb5c6bc99d0ad95942dc`。
+  68观察通过由冻结 helper 的完整聚合判据及各 exact 成功证明，绿日志没有逐条观察
+  输出。原 unit nullable-local-when 与 ordinary-own-when 两例现经过真实 raw、complete、
+  ownership 全部判据；这只闭合前端前置，不证明 unit 后端提取或 nullable native。
