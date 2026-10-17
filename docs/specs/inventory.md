@@ -19,7 +19,7 @@ draft 按版本库存与 ADR 库存仍在 checker 中，本次不迁移。该文
 
 ```json
 {
-  "active": ["0291"],
+  "active": ["0291", "0332"],
   "archived": [
     "0001",
     "0002",

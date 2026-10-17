@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 active：[0291 非空只读 Map 构造与插入序共享存储](0291-readonly-map-construction.md)，已从合并0330后的真实 main 重基，先冻结内部布局与普通红测。
+当前 active：[0291 非空只读 Map 构造与插入序共享存储](0291-readonly-map-construction.md)保持有界交付后的待项；[0332 Rc nullable while 既有路径回归修复](0332-rc-nullable-while-regression.md)从实际 main `864b6423` 独立启动，先采三历史头双入口普通对照。
 
 [0329整数 Range owned 值 for](../../archive/specs/0329-integer-range-iteration.md)
 已按PR115实现CI双host37exact有界归档；归档head CI/main待验。

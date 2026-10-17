@@ -326,6 +326,7 @@ subgraph Garchive["已完成（archive，314 份）"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
+  S0332["S0332<br/>Rc nullable while 既有路径回归修复"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1370,6 +1371,7 @@ S0314 --> S0318
 S0315 --> S0317
 S0319 --> S0320
 S0320 --> S0321
+S0330 --> S0332
 ```
 
 ## 节点链接
@@ -1691,4 +1693,5 @@ S0320 --> S0321
 | SPEC-0329 | archive | [0329-integer-range-iteration.md](0329-integer-range-iteration.md) |
 | SPEC-0330 | archive | [0330-while-conservative-flow.md](0330-while-conservative-flow.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
+| SPEC-0332 | active | [0332-rc-nullable-while-regression.md](../../specs/active/0332-rc-nullable-while-regression.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
