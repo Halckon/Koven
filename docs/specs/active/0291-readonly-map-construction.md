@@ -329,3 +329,24 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
 - A3 只覆盖一种声明/producer 顺序，不能声称 canonical 注册顺序独立；反序与多源
   顺序对照仍须后继验收。Map-only nullable storage、ordinary-if producer、唯一 owner
   extraction 分片推进，保留既定 Guide 资格；本轮没有 native 或 CI 探针执行。
+
+## 13. Resource-bearing Map 的旧能力与预注册对照
+
+- `34b15d14` 新增四份真实源码、双入口八观察：独立 remove-only、ordinary nullable
+  声明在 remove 前/后、独立 null-only。各自独立分析，真实 Resource deinit、精确
+  Map K/V、remove→`!!` 的 Consume plan 和入口来源由公开事实查询，未修改产物。
+  固定1501输入，collector 实际命中1并通过，八条 input/FE/ownership 全成立；
+  collector 成功只证明采集完整，不是八种行为均支持。
+  收据 SHA-256：`4e5cc8aa4161663b5ae43052950cd4b5ce9f076cfab2c756ca9076332573864f`。
+- single 的 remove-only 及两份混合声明源均真实通过 SSA/LLVM；unit 前两类仍在
+  `outer.remove(1)`（remove-only、声明置后）或 `null`（声明置前）报
+  UnsupportedNode。独立 null-only 两端均拒绝。
+  没有 verifier/LLVM 失败。这证实不能以非 Resource 总门退化 single 既有能力；
+  unit 保留完整 deinit planner 原资格，不能用简化 boolean 代替。
+- `3955c885` / `47af8b31` 将八项真实入口与成功或 lower kind/span/path/text 固定为
+  独立旧能力 exact，实际命中1并通过，八条 matched=true，1501输入前后稳定。
+  收据 SHA-256：`e0f58b26af75d7ff4fc7c3e8f009c6f41431288b18b7132aa0d44acef0c4c4e6`。
+  single 独立 null-only 是 A 层拟推进项，后续改预期须显式审查；本轮仍无生产改动。
+- 源码声明先后不等于真实 mapper 注册反序，两端预扫描可能始终先登记 remove。
+  真正注册反序、普通 nullable Map 表示闭包、view/consume 提取、native 与动态 CI
+  继续分别验收。本轮仅有限 codegen --tests check 与两个普通 exact，不作整体完成结论。
