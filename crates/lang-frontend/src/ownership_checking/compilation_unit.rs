@@ -18,6 +18,8 @@ pub use iteration::*;
 mod dataflow;
 mod field_replace;
 #[cfg(test)]
+mod formed_tests;
+#[cfg(test)]
 mod materialization_tests;
 mod non_null_assertion;
 mod ownership_primitive;

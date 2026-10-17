@@ -54,10 +54,10 @@
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": {
       "max_lines": 1248,
-      "reason": "SPEC-0265 只增加迭代分析产物传递、独立loan owner冲突接线；provider算法单列dataflow/iteration。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅接入来源collector与正常delivery打包；有限图和callable判定分别在独立子模块。 SPEC-0288接手本轮：仅注册独立 dataflow/map 模块；Map 下标交付算法不放入父 checker。",
+      "reason": "SPEC-0265 只增加迭代分析产物传递、独立loan owner冲突接线；provider算法单列dataflow/iteration。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅接入来源collector与正常delivery打包；有限图和callable判定分别在独立子模块。 SPEC-0288接手本轮：仅注册独立 dataflow/map 模块；Map 下标交付算法不放入父 checker。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法",
       "owner": "lang-frontend compilation-unit iteration",
       "split_plan": "后续按Checker输入构造与source单元分析归并边界拆分；本次仅接线provider产物，不搬迁调用/loan检查。",
-      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1248；再次超出或增加职责前重新审阅。"
+      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1248；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1189→1191 行已逐行审阅，保留原上限与拆分计划"
     },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs": {
       "max_lines": 1155,
@@ -82,10 +82,10 @@
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit.rs": {
       "max_lines": 1149,
-      "reason": "SPEC-0265 只增加迭代计划及验证witness存储、模块注册与validate接线；实现分别位于iteration和iteration_validation。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅在既有sealed产物登记同链只读callable事实，未增加另一份validated身份。",
+      "reason": "SPEC-0265 只增加迭代计划及验证witness存储、模块注册与validate接线；实现分别位于iteration和iteration_validation。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅在既有sealed产物登记同链只读callable事实，未增加另一份validated身份。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法",
       "owner": "lang-frontend compilation-unit iteration",
       "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
-      "review": "SPEC-0279 独立完整审阅核本次有界接线；超过1149行或扩展职责前重新审阅。"
+      "review": "SPEC-0279 独立完整审阅核本次有界接线；超过1149行或扩展职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1090→1092 行已逐行审阅，保留原上限与拆分计划"
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/drop_planner.rs": {
       "max_lines": 1669,
@@ -145,10 +145,10 @@
     },
     "crates/lang-frontend/src/ownership_checking/checker.rs": {
       "max_lines": 1429,
-      "reason": "仅7行size descriptor路由，读取实现复用既有string子模块；不在checker添加第二份算法。 SPEC-0279 仅接入只读callable来源状态、实际entry参数seed与最终打包；图、来源分析及return统计在单职责子模块。 SPEC-0281 仅增加 2 行诊断防护，避免 receiver 检查与 contract 检查重复报错。 SPEC-0288接手本轮：Map 调用 receiver/参数合同委托及下标路由，领域算法在 checker/map 模块。",
+      "reason": "仅7行size descriptor路由，读取实现复用既有string子模块；不在checker添加第二份算法。 SPEC-0279 仅接入只读callable来源状态、实际entry参数seed与最终打包；图、来源分析及return统计在单职责子模块。 SPEC-0281 仅增加 2 行诊断防护，避免 receiver 检查与 contract 检查重复报错。 SPEC-0288接手本轮：Map 调用 receiver/参数合同委托及下标路由，领域算法在 checker/map 模块。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法",
       "owner": "lang-frontend single ownership",
       "split_plan": "后续单文件checker路由按领域迁移，保持状态与事实交接一致。",
-      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1429；再次超出或增加职责前重新审阅。"
+      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1429；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1304→1306 行已逐行审阅，保留原上限与拆分计划"
     },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner.rs": {
       "max_lines": 1681,

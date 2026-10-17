@@ -13,6 +13,8 @@ mod container;
 mod control;
 mod drop_planner;
 mod elvis;
+#[cfg(test)]
+mod formed_tests;
 mod iteration;
 mod loan;
 mod map;

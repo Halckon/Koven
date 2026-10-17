@@ -11,6 +11,8 @@ mod container;
 mod control;
 mod drop_planner;
 mod flow;
+#[cfg(test)]
+mod formed_tests;
 mod iteration;
 mod liveness;
 mod map;
