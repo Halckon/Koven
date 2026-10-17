@@ -1,5 +1,5 @@
 //! SPEC-0291: ordinary source through complete FE, ownership, SSA and in-memory LLVM.
-//! This first-red observer collects all twelve paths before asserting success.
+//! All twelve original paths are collected before success or identity assertions.
 
 use lang_frontend::{
     lexer::lex,
@@ -16,6 +16,8 @@ use lang_frontend::{
 };
 
 use super::model::Program;
+
+mod identity;
 
 const CASES: [(&str, &str); 6] = [
     (
@@ -75,11 +77,17 @@ const CASES: [(&str, &str); 6] = [
     ),
 ];
 
-#[derive(Debug)]
 struct Observation {
     label: String,
     stages: Vec<String>,
     outcome: Result<(), String>,
+    produced: Option<Produced>,
+}
+
+struct Produced {
+    program: Program,
+    llvm: String,
+    sources: SourceMap,
 }
 
 fn step<T, E: std::fmt::Debug>(
@@ -308,7 +316,7 @@ fn lowering_error(sources: &SourceMap, error: super::LoweringError) -> String {
     format!("{error:?}; real source origin={origin:?}")
 }
 
-fn observe(text: &str, unit: bool, stages: &mut Vec<String>) -> Result<(), String> {
+fn observe(text: &str, unit: bool, stages: &mut Vec<String>) -> Result<Produced, String> {
     let mut sources = SourceMap::new();
     let source = step("source", sources.add_source("consume.ko", text), stages)?;
     let lexed = step("lex", lex(&sources, source), stages)?;
@@ -344,7 +352,11 @@ fn observe(text: &str, unit: bool, stages: &mut Vec<String>) -> Result<(), Strin
         "actual LLVM Map headers: {headers:?}; bytes={}",
         llvm.len()
     ));
-    Ok(())
+    Ok(Produced {
+        program,
+        llvm,
+        sources,
+    })
 }
 
 #[test]
@@ -353,15 +365,19 @@ fn map_consume_owned_locals_reach_verified_llvm() {
     for (name, text) in CASES {
         for unit in [false, true] {
             let mut stages = Vec::new();
-            let outcome = observe(text, unit, &mut stages);
+            let (outcome, produced) = match observe(text, unit, &mut stages) {
+                Ok(produced) => (Ok(()), Some(produced)),
+                Err(error) => (Err(error), None),
+            };
             observations.push(Observation {
                 label: format!("{name}/{}", if unit { "unit" } else { "single" }),
                 stages,
                 outcome,
+                produced,
             });
         }
     }
-    // Explicitly read every field so strict Clippy does not depend on derived Debug.
+    // Preserve the complete original stage observations before any assertions.
     for observation in &observations {
         println!(
             "MAP CONSUME {}\n{}\noutcome={:?}",
@@ -375,6 +391,21 @@ fn map_consume_owned_locals_reach_verified_llvm() {
         observations
             .iter()
             .all(|observation| observation.outcome.is_ok()),
-        "all twelve ordinary-source observations must reach verified LLVM: {observations:#?}"
+        "all twelve ordinary-source observations must reach verified LLVM; see complete observations above"
     );
+    // Identity queries run only after every source and both entries were observed.
+    for (index, observation) in observations.iter().enumerate() {
+        let produced = observation
+            .produced
+            .as_ref()
+            .expect("successful real output");
+        let (_, text) = CASES[index / 2];
+        identity::assert_identity(
+            &observation.label,
+            text,
+            &produced.sources,
+            &produced.program,
+            &produced.llvm,
+        );
+    }
 }
