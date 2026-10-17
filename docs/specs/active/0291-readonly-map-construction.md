@@ -350,3 +350,36 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
 - 源码声明先后不等于真实 mapper 注册反序，两端预扫描可能始终先登记 remove。
   真正注册反序、普通 nullable Map 表示闭包、view/consume 提取、native 与动态 CI
   继续分别验收。本轮仅有限 codegen --tests check 与两个普通 exact，不作整体完成结论。
+
+## 14. Map-only nullable 表示与类型需求规划
+
+- `bcdcd44d` 引入独立 Map-only nullable 注册表：普通 nullable 与真实 MapRemove
+  共用 canonical storage，物理表示为 presence 加原六字段 Map header；操作来源资格
+  与旧 MapResult 注册表分开。Null/Wrap/Branch/Take、封装检查、条件 drop、LLVM
+  与两 mapper 同步；没有泛化其他 nullable payload。single 保留完整 Resource/KV
+  资格，unit 仍先经过既有完整 planner。有限 codegen --tests check 通过。
+- `1c9a4de1` 独立将 Resource R3/single 的拟推进期望改为 VerifiedLlvm，其余七项
+  旧成功或精确拒绝均保持。首轮 fmt 只在测试 println 换行失败；`5ece3e02` 修正，
+  旧 v1 清单未执行，v2 fmt/size 通过。
+- 固定 `5ece3e02` / `bbdb7c6d`、1501输入，A/B/C 与 Resource 四项均实际命中1，
+  均为101，所有观察及输入条件完整。A1/unit 新增真实 null declaration SSA/LLVM
+  成功，A3 双入口继续成功；A1/single 与 A2 双入口仍在普通声明需求规划处拒绝。
+  Resource 原三成功与四 unit 精确拒绝保留，仅 R3/single 拟推进期望仍失败。
+  B/unit 已到 InvalidSsa，须独立定位；C 仍有声明或 consume 提取拒绝，未计完成。
+  收据 SHA-256：`334d0d0a133ed3985600c1eca3382f1bd4d96fd363816d30ecc6d6007be304bd`。
+- `0a18dc62` 先在未补需求的头采 return 后 `MutableMap<Int, Int?>?` 死尾，
+  两端真实 SSA/LLVM 成功；`081e0487` 冻结原来源、entry 与双成功断言。
+  收据 SHA-256：`c8417d411458b5491ea26ff35502fc07373ff2b4ae9330e35b45c90c07e52f30`。
+- `9db446e4` 仅在 planned body 首条直接 val/var、直接 null 或真实零参 Map 构造上
+  补精确声明 storage 需求；原 nominal walker 不变。固定1502输入，五项各实际1，
+  exit 为0/101/101/0/0。A 的六入口全通过 SSA/LLVM，Resource 八项精确表全部匹配，
+  R3/single 推进成功且四项 unit 旧拒绝保持；死尾双入口继续成功。B 四入口均为
+  InvalidSsa/spanNone；C2/single 仍在后续 seed 初始化声明149..195拒绝，
+  其余五条 C 在 consume 处 UnsupportedNode，分别保留为后继缺口。
+  收据 SHA-256：`72e49d99386809bf96aedeeb6cb9000a80538a087fef7c9d22601a82a67b20c3`。
+- 首条声明仅是根因验证的中间范围，不能成为“首句才支持”的最终语言合同。
+  后继由本片继续收口为基于真实可达/受验初始化事实的可组合需求，普通前置语句
+  不应任意改变支持；不能将完整 typed 表扫描当可达性证明。
+- 本轮仅有限 codegen --tests check、fmt 与尺寸检查；未重跑完整工程或旧219回归。
+  注册反序 CI 对照当前仅仓外候选静审，尚未安装或行为验收。普通 if 的当前
+  view/owner 身份、consume 提取、native、完整旧回归与动态 CI 仍分别验收，当前不作 A 层或0291整体完成结论。
