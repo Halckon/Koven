@@ -597,3 +597,6 @@ fn source_return_and_dead_tail_do_not_acquire_map_providers() {
             .join("\n")
     );
 }
+
+#[path = "unacquired_query.rs"]
+mod exact;
