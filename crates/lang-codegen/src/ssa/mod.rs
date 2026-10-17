@@ -36,6 +36,8 @@ mod map_promotion_contract_tests;
 mod nullable_map_consume_fixture_tests;
 #[cfg(test)]
 mod nullable_map_consume_lowering_tests;
+#[cfg(test)]
+pub(crate) use nullable_map_consume_lowering_tests::ordinary_nullable_consume_sources;
 mod types;
 pub(crate) mod unit_lower;
 pub(crate) mod unit_plan;

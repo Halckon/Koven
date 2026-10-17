@@ -27,6 +27,25 @@ pub(in crate::ssa) fn registration_r1_source()
     resource::registration_r1_source()
 }
 
+/// Reuse the exact C1/C2/C3 sources in ordinary native tests without loading them twice.
+pub(crate) fn ordinary_nullable_consume_sources() -> [(
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+); 3] {
+    [&CASES[5], &CASES[6], &CASES[7]].map(|case| {
+        (
+            case.id,
+            case.path,
+            case.single,
+            case.provider,
+            case.consumer,
+        )
+    })
+}
+
 #[derive(Debug)]
 struct Failure {
     stage: String,
