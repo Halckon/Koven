@@ -832,7 +832,10 @@ fn lower_scalar_file_product(
 
     verify_program(&program).map_err(|_errors| {
         #[cfg(test)]
-        eprintln!("NULLABLE MAP B lower_frontend verify errors={_errors:#?}\nprogram={program:#?}");
+        eprintln!(
+            "NULLABLE MAP B lower_frontend verify errors={_errors:#?}\n{}",
+            crate::ssa::render::render_program(&program)
+        );
         LoweringError {
             kind: LoweringErrorKind::InvalidSsa,
             span: None,

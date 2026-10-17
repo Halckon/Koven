@@ -609,7 +609,10 @@ pub(super) fn lower_unit_from_facts(
 
     verify_program(&program).map_err(|_errors| {
         #[cfg(test)]
-        eprintln!("NULLABLE MAP B unit_lower verify errors={_errors:#?}\nprogram={program:#?}");
+        eprintln!(
+            "NULLABLE MAP B unit_lower verify errors={_errors:#?}\n{}",
+            crate::ssa::render::render_program(&program)
+        );
         LoweringError {
             kind: LoweringErrorKind::InvalidSsa,
             span: None,
