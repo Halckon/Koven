@@ -1,4 +1,4 @@
-//! Resource observations plus the reviewed, production-before storage baseline.
+//! Resource observations plus the reviewed Resource compatibility expectations.
 //! The original collector alone remains insufficient for a compatibility verdict.
 
 use super::{
@@ -218,10 +218,10 @@ struct Baseline {
     lower: ExpectedLower,
 }
 
-// Frozen from the reviewed ordinary-source receipt at 34b15d14, before A storage changes.
-// R3/single is a planned capability advance: update its explicit expectation after review.
-// Never accommodate that advance through a wildcard Err, an ignored row, or a skipped test.
-const PRE_STORAGE_BASELINE: &[Baseline] = &[
+// Preserve the reviewed pre-storage baseline except for the approved R3/single advance.
+// Original 34b15d14/3955c885 receipts and commits retain the old exact rejection.
+// Never allow wildcard errors, ignored rows, or skipped entries to hide a regression.
+const RESOURCE_COMPATIBILITY: &[Baseline] = &[
     Baseline {
         label: "R0/single",
         entry_name: "main",
@@ -277,12 +277,7 @@ const PRE_STORAGE_BASELINE: &[Baseline] = &[
         label: "R3/single",
         entry_name: "main",
         entry_path: "r3_ordinary_null_only.ko",
-        lower: ExpectedLower::Unsupported {
-            path: "r3_ordinary_null_only.ko",
-            start: 95,
-            end: 99,
-            text: "null",
-        },
+        lower: ExpectedLower::VerifiedLlvm,
     },
     Baseline {
         label: "R3/unit",
@@ -332,11 +327,11 @@ fn matches_lower(expected: &ExpectedLower, actual: &LowerOutcome) -> bool {
 }
 
 #[test]
-fn nullable_map_resource_sources_match_pre_storage_baseline() {
+fn nullable_map_resource_sources_preserve_compatibility() {
     let observations = collect_observations();
-    assert_eq!(observations.len(), PRE_STORAGE_BASELINE.len());
+    assert_eq!(observations.len(), RESOURCE_COMPATIBILITY.len());
     let mut mismatches = Vec::new();
-    for (actual, expected) in observations.iter().zip(PRE_STORAGE_BASELINE) {
+    for (actual, expected) in observations.iter().zip(RESOURCE_COMPATIBILITY) {
         let matched = actual.label == expected.label
             && actual.outcome.as_ref().is_ok_and(|observed| {
                 observed.entry.name == expected.entry_name
@@ -348,14 +343,14 @@ fn nullable_map_resource_sources_match_pre_storage_baseline() {
                     && !observed.entry.span.is_empty()
                     && matches_lower(&expected.lower, &observed.outcome)
             });
-        println!("PRE-STORAGE BASELINE {}: matched={matched}", expected.label);
+        println!("RESOURCE COMPATIBILITY {}: matched={matched}", expected.label);
         if !matched {
             mismatches.push(format!("expected={expected:#?}; actual={actual:#?}"));
         }
     }
     assert!(
         mismatches.is_empty(),
-        "exact pre-storage baseline mismatches:\n{}",
+        "exact Resource compatibility mismatches:\n{}",
         mismatches.join("\n")
     );
 }
