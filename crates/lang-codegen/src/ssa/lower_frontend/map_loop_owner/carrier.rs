@@ -46,6 +46,10 @@ pub(in super::super) struct Carriers {
 }
 
 impl Carriers {
+    pub(in super::super) fn has_loop_carriers(&self) -> bool {
+        !self.loops.is_empty() || self.active_return.is_some()
+    }
+
     pub(in super::super) fn new(bindings: &BTreeMap<SymbolId, LoweredValue>) -> Self {
         Self {
             parameter_seeds: bindings

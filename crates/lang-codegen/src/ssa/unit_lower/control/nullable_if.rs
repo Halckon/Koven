@@ -1,4 +1,4 @@
-//! Bounded nullable entries: same-root While retests and direct Map-size If statements.
+//! Bounded nullable entries: While retests and direct Map-size or consume-first Ifs.
 use super::super::unwrap_modified;
 use super::super::{ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key};
 use super::*;
@@ -15,6 +15,7 @@ pub(super) struct NullableIfEntry {
     pub(super) inner: SsaTypeId,
     pub(super) scope: UnitExpressionId,
     pub(super) non_null_when_true: bool,
+    consume: Option<super::super::map_consume::nullable::NullableMapConsumeWitness>,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -130,6 +131,7 @@ impl UnitExpressionLowerer<'_> {
             inner,
             scope: control,
             non_null_when_true: true,
+            consume: None,
         }))
     }
 
@@ -272,11 +274,22 @@ impl UnitExpressionLowerer<'_> {
         let Some(non_null_body) = non_null_body else {
             return Ok(None);
         };
-        if !self.map_if_has_only_size_reads(non_null_body, root, nullable, inner, span)?
-            || !self.map_if_body_is_empty(null_body, span)?
-        {
+        let size_only =
+            self.map_if_has_only_size_reads(non_null_body, root, nullable, inner, span)?;
+        if !self.map_if_body_is_empty(null_body, span)? {
             return Ok(None);
         }
+        let consume = if size_only {
+            None
+        } else {
+            let Some(witness) = self.nullable_map_consume_witness(control, span)? else {
+                return Ok(None);
+            };
+            if witness.root != root || witness.nullable != nullable || witness.inner != inner {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            Some(witness)
+        };
         // Do not inherit the While-only empty-call-frame or Boolean-provider exceptions.
         self.ensure_no_while_proof_carriers(span)?;
         if !self.pending_call_frames.is_empty()
@@ -308,11 +321,12 @@ impl UnitExpressionLowerer<'_> {
             inner,
             scope: control,
             non_null_when_true: descriptor.non_null_when_true(),
+            consume,
         }))
     }
 
     /// Follow the actual current source instance to its own top-level block elements.
-    fn is_direct_function_body_map_if(
+    pub(in crate::ssa::unit_lower) fn is_direct_function_body_map_if(
         &self,
         control: UnitExpressionId,
         span: Span,
@@ -389,7 +403,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(hits == 1)
     }
 
-    fn ungroup_map_if_expression(
+    pub(in crate::ssa::unit_lower) fn ungroup_map_if_expression(
         &self,
         mut expression: ExpressionId,
         span: Span,
@@ -408,7 +422,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    fn map_if_body_is_empty(
+    pub(in crate::ssa::unit_lower) fn map_if_body_is_empty(
         &self,
         body: Option<StatementId>,
         span: Span,
@@ -485,6 +499,11 @@ impl UnitExpressionLowerer<'_> {
         condition: ExpressionId,
         span: Span,
     ) -> Result<(), LoweringError> {
+        if let Some(witness) = entry.consume
+            && self.nullable_map_consume_witness(entry.scope, span)? != Some(witness)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         self.block = block;
         self.rebind_map_borrow_control(baseline, block, carried, loans, view, entry.inner, span)?;
         let column = self.nullable_owner_column(carried, entry.root, entry.owner, span)?;

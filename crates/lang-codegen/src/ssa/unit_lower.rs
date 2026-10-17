@@ -242,6 +242,16 @@ impl UnitExpressionLowerer<'_> {
             })?;
         let span = node.span();
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
+        // Only a fully witnessed consume may atomically retire an ordinary If view.
+        if matches!(node.payload(), Expression::Call { .. })
+            && self
+                .nullable_proofs
+                .values()
+                .any(|proof| proof.if_scope().is_some())
+            && let Some(value) = self.lower_nullable_map_consume(unit_expression, span)?
+        {
+            return Ok(value);
+        }
         // Reject unsupported If carriers/transfers before specialized dispatch can
         // create a call frame, a temporary owner, or any SSA instruction.
         if matches!(

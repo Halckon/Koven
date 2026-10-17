@@ -1,4 +1,5 @@
 //! The checked owned-local consume path; ordinary Map borrowing stays separate.
+mod nullable;
 
 use super::{nominal::NominalTypeMapper, *};
 use crate::ssa::model::{MapContainerKind, Module, SsaTypeKind};
@@ -26,10 +27,6 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         self.validate_map_consume_root(descriptor.receiver(), root, span)?;
-        // A narrowed nullable declaration needs its real extraction, not a relabelled binding.
-        if storage != descriptor.receiver_type() {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let receiver_type = self.resolve_type(descriptor.receiver_type(), span)?;
         let result_type = self.resolve_type(descriptor.result_type(), span)?;
         let key = self.resolve_type(descriptor.key_type(), span)?;
@@ -71,6 +68,9 @@ impl ExpressionLowerer<'_> {
             {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
+        }
+        if storage != descriptor.receiver_type() {
+            return self.lower_nullable_map_consume(descriptor, source_type, map_type, span);
         }
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
             return Err(error(LoweringErrorKind::MissingFact, span));

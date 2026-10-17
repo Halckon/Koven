@@ -26,6 +26,10 @@ pub(super) struct NullableProof {
 }
 
 impl NullableProof {
+    pub(super) fn birth_loan(self) -> LoanId {
+        self.origin.birth
+    }
+
     pub(super) fn while_scope(self) -> Option<UnitStatementId> {
         match self.origin.scope {
             NullableProofScope::While(scope) => Some(scope),

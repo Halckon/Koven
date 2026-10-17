@@ -64,6 +64,14 @@ impl NonNullProof {
         }
     }
 
+    /// A direct consumer must still check that this birth is the current branch view.
+    pub(super) fn if_origin(self) -> Option<(ExpressionId, LoanId)> {
+        match self.origin.introduced_by {
+            ProofScope::If(expression) => Some((expression, self.origin.birth)),
+            _ => None,
+        }
+    }
+
     pub(super) fn is_while_origin(self) -> bool {
         matches!(self.origin.introduced_by, ProofScope::While(_))
     }
