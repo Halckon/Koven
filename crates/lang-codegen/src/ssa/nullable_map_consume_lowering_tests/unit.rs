@@ -18,6 +18,14 @@ use lang_frontend::{
 use super::*;
 
 pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<()> {
+    observe_impl(case, trace, false)
+}
+
+pub(super) fn observe_read_identity(case: &Case, trace: &mut Trace) -> Outcome<()> {
+    observe_impl(case, trace, true)
+}
+
+fn observe_impl(case: &Case, trace: &mut Trace, identity: bool) -> Outcome<()> {
     let mut sources = SourceMap::new();
     // Parse both independent files before propagating either recoverable parse failure.
     let provider = parsed(&mut sources, "p/provider.ko", case.provider, trace);
@@ -206,7 +214,23 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<()> {
         .map_err(|error| lowering_error(&sources, error)),
         trace,
     )?;
-    verify_and_render(&program, function, trace)
+    // Preserve the complete ordinary pipeline even when the independent query fails.
+    let queried = if identity {
+        read_identity::inspect_unit(
+            &sources,
+            &files,
+            &names,
+            typed.types(),
+            owned.ownership(),
+            &program,
+            trace,
+        )
+    } else {
+        Ok(())
+    };
+    let rendered = verify_and_render(&program, function, trace);
+    rendered?;
+    queried
 }
 
 fn map_shape(

@@ -4,7 +4,7 @@
 
 use super::*;
 
-const CROSS_JOIN: Case = Case {
+pub(super) const CROSS_JOIN: Case = Case {
     id: "B3",
     label: "if_size_keep_nullable_owner",
     path: "b3_if_size_keep_nullable_owner.ko",

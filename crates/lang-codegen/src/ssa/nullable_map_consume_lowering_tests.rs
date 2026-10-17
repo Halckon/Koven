@@ -15,6 +15,7 @@ use super::model::{FunctionId, Program};
 use sources::{CASES, Case};
 
 mod read_cross_join;
+mod read_identity;
 mod resource;
 mod single;
 mod sources;

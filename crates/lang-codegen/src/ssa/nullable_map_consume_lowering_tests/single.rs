@@ -12,6 +12,14 @@ use lang_frontend::{
 use super::*;
 
 pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<()> {
+    observe_impl(case, trace, false)
+}
+
+pub(super) fn observe_read_identity(case: &Case, trace: &mut Trace) -> Outcome<()> {
+    observe_impl(case, trace, true)
+}
+
+fn observe_impl(case: &Case, trace: &mut Trace, identity: bool) -> Outcome<()> {
     let mut sources = SourceMap::new();
     let parsed = parsed(&mut sources, case.path, case.single, trace)?;
     let (environment, types) = standard_environments();
@@ -106,7 +114,23 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<()> {
         .map_err(|error| lowering_error(&sources, error)),
         trace,
     )?;
-    verify_and_render(&program, function, trace)
+    // Preserve the complete ordinary pipeline even when the independent query fails.
+    let queried = if identity {
+        read_identity::inspect_single(
+            &sources,
+            &parsed,
+            &names,
+            complete.types(),
+            &owned,
+            &program,
+            trace,
+        )
+    } else {
+        Ok(())
+    };
+    let rendered = verify_and_render(&program, function, trace);
+    rendered?;
+    queried
 }
 
 fn map_shape(
