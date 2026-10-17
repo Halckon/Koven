@@ -437,3 +437,44 @@ nullable-view，只恢复这一个受影响字段。unit 错误后全局清空�
 
 CI7 动态链、CI2 注册反序、If/N 私有拒绝门、nullable consume 提取及 provider 后继仍待；
 本阶段不作 SPEC-0291 完成或合并声明。
+
+## 16. 组合 local 需求、源码恢复与新环境复验
+
+- `OwnershipCheckedFile`、Parts 与完整 impl 自然迁入 `checked_file`，原公开 reexport
+  与私有字段边界不变；八项私有测试随职责迁移，CI exact 前缀改为
+  `ownership_checking::checked_file::iteration_validation_tests`，本地只编译。
+- 新只读 `formed_owned_locals` 保存真实具名 val/var 正常初始化后的历史 symbol 身份；
+  仅 flows.next 存在且无新增诊断时发布。assignment trial 长度回滚、最终错误/deferred
+  清空和排序去重均同步；该事实不授权当前存活、移动或 nullable proof。
+  类型需求按实际 planned Function/source/最近 callable scope 筛选并排除 Lambda scope，
+  经原完整 mapper 资格处理；替代首句桥，不扩大 Resource 或 lambda lowering 能力。
+- 旧环境 `12149779` / `c821d7bf` 源码在环境回滚后由原候选重建，两个 patch SHA
+  与原审一致，恢复后的两步完整 tree 分别仍为 `e77ece90` / `5690ee10`。
+  新本地提交 `6f1e0b67` / `7f6408c8` 已备份为实际远端 `a305983a` / `f99f34eb`，
+  2450 文件全树及父链核同。旧 raw 未恢复；旧 stage9 未完成独核、旧265无已验终态，
+  不因源码同树补记这些行为结果。
+- 新环境恢复固定 Rust 1.96.0 / LLVM 21.1.8，经备份哈希、官方签名与依赖核验；
+  LTO linker-tools 缺失边界保留。以下新证据均固定 `7f6408c8` / `5690ee10`，
+  2450 tracked 输入及 manifest/runner/工具身份执行前后稳定。
+- 新硬18 exact 实际命中1并通过：18个输入身份与 formed 全集/严格排序检查成立，
+  14个 SSA/LLVM 成功包含原9成功及 P1双/P2single/P3双五项推进。
+  K3双端精确 UnsupportedNode 移到真实 branch 42..48 / 52..58；K4保持原
+  single UnsupportedNode 88..92、unit MissingFact 98..102，均锁实际路径/text。
+  K4为遗留边界，不立为语言合同。收据 SHA-256：
+  `b2e7c535a127b7b35b856532a1ced9755be8973e2838c847ebd9ecaae7bf54f9`。
+- 新工程 fmt、workspace all-targets check/clippy（-D warnings）、workspace build 全0。
+  收据 `82f63b12b2fed42c4d17fa0c4a324b904676f17deabfd561b9135ccebfd1b09e`。
+  新盘点 FE59 全部各命中1并通过；其普通回滚/清空邻控不冒充私有破坏覆盖。
+  收据 `bb73d545a6c30f724f6b8681aed6679b854dbfefd91a0dfa75926e28d26a8a97`。
+- 新 stage9 各实际1，退出0/0/101/0/0/0/0/0/0；A、B、Resource、dead-tail、
+  B3、六路径身份及 formed 判据保持。C六输入身份无失败，全部停 consume 的
+  UnsupportedNode：C1 single123..139/unit133..149，C2 single220..240/unit230..250，
+  C3 single143..159/unit153..169。C2single声明需求已推进，提取仍未交付。
+  收据 `c44e12b9db5d4858163c9df281652824542b92fcd3569a1e192f2f69cb984b28`。
+- 新盘点 Map219、0330普通54与既有consume4共277唯一 exact 全部各命中1通过，
+  包含187普通SSA/内存LLVM及90正常native。选择由源码/helper重新盘点，
+  不称丢失旧清单的字节恢复。收据：
+  `829a0d413a79af404c470a5cfb37b53163c09386525c498c30560f3ee316f5ec`。
+
+nullable consume 提取、CI7动态链、CI2反序及新增私有拒绝门、provider后继仍待；
+本阶段不作 SPEC-0291 完成或合并声明。
