@@ -1,0 +1,19 @@
+empty int size 0
+empty int missing
+int size 2
+int overwritten 71
+int reinserted 81
+int removed missing
+int absent missing
+empty string size 0
+empty string missing
+string size 2
+alpha-new
+string overwritten found
+beta-reinserted
+string reinserted found
+string removed missing
+string absent missing
+discard int continued
+discard string continued
+normal exit

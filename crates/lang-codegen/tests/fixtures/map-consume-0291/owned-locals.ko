@@ -1,0 +1,62 @@
+fun main(): Unit {
+    val emptyIntSource = mutableMapOf<Int, Int>()
+    val emptyInts: Map<Int, Int> = (emptyIntSource).consume()
+    if (emptyInts.size == 0) { println("empty int size 0") }
+    if (emptyInts.get(99) == null) { println("empty int missing") }
+
+    var intSource = mutableMapOf<Int, Int>()
+    intSource.put(7, 70)
+    intSource.put(8, 80)
+    intSource.put(9, 90)
+    intSource.put(7, 71)
+    intSource.remove(8)
+    intSource.put(8, 81)
+    intSource.remove(9)
+    val ints: Map<Int, Int> = intSource.consume()
+    if (ints.size == 2) { println("int size 2") }
+    if (ints.get(7) == 71) { println("int overwritten 71") }
+    if (ints.get(8) == 81) { println("int reinserted 81") }
+    if (ints.get(9) == null) { println("int removed missing") }
+    if (ints.get(99) == null) { println("int absent missing") }
+
+    val emptyStringSource = mutableMapOf<String, String>()
+    val emptyStrings: Map<String, String> = emptyStringSource.consume()
+    if (emptyStrings.size == 0) { println("empty string size 0") }
+    if (!emptyStrings.withValue("absent", { item -> println(item); return })) {
+        println("empty string missing")
+    }
+
+    var stringSource = mutableMapOf<String, String>()
+    stringSource.put("alpha".clone(), "alpha-old".clone())
+    stringSource.put("beta".clone(), "beta-old".clone())
+    stringSource.put("gone".clone(), "gone-value".clone())
+    stringSource.put("alpha".clone(), "alpha-new".clone())
+    stringSource.remove("beta")
+    stringSource.put("beta".clone(), "beta-reinserted".clone())
+    stringSource.remove("gone")
+    val strings: Map<String, String> = (stringSource).consume()
+    if (strings.size == 2) { println("string size 2") }
+    if (strings.withValue("alpha", { item -> println(item); return })) {
+        println("string overwritten found")
+    }
+    if (strings.withValue("beta", { item -> println(item); return })) {
+        println("string reinserted found")
+    }
+    if (!strings.withValue("gone", { item -> println(item); return })) {
+        println("string removed missing")
+    }
+    if (!strings.withValue("absent", { item -> println(item); return })) {
+        println("string absent missing")
+    }
+
+    var discardedIntSource = mutableMapOf<Int, Int>()
+    discardedIntSource.put(3, 30)
+    discardedIntSource.consume()
+    println("discard int continued")
+
+    var discardedStringSource = mutableMapOf<String, String>()
+    discardedStringSource.put("discard".clone(), "discard-value".clone())
+    discardedStringSource.consume()
+    println("discard string continued")
+    println("normal exit")
+}
