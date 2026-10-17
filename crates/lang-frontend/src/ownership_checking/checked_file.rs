@@ -36,6 +36,7 @@ pub struct OwnershipCheckedFile {
     typed_analysis_owner: Arc<()>,
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<OwnershipBindingDescriptor>,
+    formed_owned_locals: Vec<SymbolId>,
     loans: Vec<LoanFact>,
     drops: Vec<DropFact>,
     construction_plans: Vec<ConstructionOwnershipPlan>,
@@ -61,6 +62,7 @@ pub(crate) struct OwnershipCheckedParts {
     pub(crate) loan_ends: Vec<LoanEndFact>,
     pub(crate) nullable_whens: Vec<super::NullableWhenOwnershipPlan>,
     pub(crate) bindings: Vec<OwnershipBindingDescriptor>,
+    pub(crate) formed_owned_locals: Vec<SymbolId>,
     pub(crate) loans: Vec<LoanFact>,
     pub(crate) drops: Vec<DropFact>,
     pub(crate) construction_plans: Vec<ConstructionOwnershipPlan>,
@@ -195,6 +197,7 @@ impl OwnershipCheckedFile {
             typed_analysis_owner,
             diagnostics,
             bindings: parts.bindings,
+            formed_owned_locals: parts.formed_owned_locals,
             loans: parts.loans,
             drops: parts.drops,
             construction_plans: parts.construction_plans,
@@ -233,6 +236,13 @@ impl OwnershipCheckedFile {
     #[must_use]
     pub fn bindings(&self) -> &[OwnershipBindingDescriptor] {
         &self.bindings
+    }
+
+    /// 返回某条分析路径正常完成初始化的具名 val/var local，按 symbol 排序去重。
+    /// 仅记录形成历史，不证明必执行、当前存活、owner 权限或 nullable proof。
+    #[must_use]
+    pub fn formed_owned_locals(&self) -> &[SymbolId] {
+        &self.formed_owned_locals
     }
 
     /// 查询参数 binding 能力。

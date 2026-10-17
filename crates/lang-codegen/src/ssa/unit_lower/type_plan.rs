@@ -3,15 +3,18 @@
 use std::collections::BTreeSet;
 
 use lang_frontend::{
-    name_resolution::{SymbolKind, ValidatedCompilationUnitNames},
+    name_resolution::{
+        NameResolution, ScopeId, ScopeKind, SymbolKind, ValidatedCompilationUnitNames,
+    },
+    ownership_checking::CompilationUnitOwnership,
     parser::{
         AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, ParsedFile,
-        PrefixOperator, Statement, VariableKind, WhenCondition,
+        PrefixOperator, WhenCondition,
     },
     source::Span,
     type_checking::{
-        BuiltinType, CompilationUnitTypes, IntrinsicCallable, IntrinsicTypeConstructor,
-        UnitCallTarget, UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
+        BuiltinType, CompilationUnitTypes, IntrinsicTypeConstructor, UnitCallTarget,
+        UnitExpressionId, UnitTypeId, UnitTypeKind, UnitTypeRefId,
     },
 };
 
@@ -219,171 +222,116 @@ pub(super) fn intern_body_scalar_types(
     Ok(())
 }
 
-/// Temporary entry-demand bridge, not general local reachability or storage planning.
-/// A direct first local and a null/empty-Map initializer have no preceding or operand exit.
-pub(super) fn intern_entry_nullable_map_type(
+/// Plan Map-only nullable storage from historical, normally formed local identities.
+/// The complete unit planner has already checked Resource/deinit eligibility.
+pub(super) fn intern_formed_nullable_map_types(
     module: &mut Module,
     parsed: &ParsedFile,
     plan: &super::FunctionPlan,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
     types: &mut UnitTypeLowering,
 ) -> Result<(), LoweringError> {
     if plan.instance.key().deinit_owner().is_some() {
         return Ok(());
     }
-    let super::FunctionPlanBody::Block(block) = &plan.body else {
-        return Ok(());
-    };
     let instance = &plan.instance;
-    let body = parsed
-        .ast()
-        .statements()
-        .get(*block)
-        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?;
-    let Statement::Block { elements } = body.payload() else {
-        return Ok(());
-    };
-    let Some(&first) = elements.first() else {
-        return Ok(());
-    };
-    let first = parsed
-        .ast()
-        .statements()
-        .get(first)
-        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, body.span()))?;
-    let Statement::LocalVariable { declaration } = first.payload() else {
-        return Ok(());
-    };
-    let span = first.span();
-    let (_, item, _) = super::unwrap_modified(parsed, *declaration)?;
-    let Item::Variable {
-        kind: VariableKind::Val | VariableKind::Var,
-        name,
-        initializer,
-        ..
-    } = item
-    else {
-        return Ok(());
-    };
-    let expression = UnitExpressionId::new(instance.source_unit(), initializer);
-    let init = parsed
-        .ast()
-        .expressions()
-        .get(initializer)
-        .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let construction = match init.payload() {
-        Expression::Literal(LiteralKind::Null) => None,
-        Expression::Call {
-            callee, arguments, ..
-        } if arguments.is_empty() => {
-            let callee = parsed
-                .ast()
-                .expressions()
-                .get(*callee)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            if !matches!(callee.payload(), Expression::Name) {
-                return Ok(());
-            }
-            let Some(descriptor) = typed.map_construction(expression) else {
-                return Ok(());
-            };
-            Some(descriptor)
-        }
-        _ => return Ok(()),
-    };
-    let name = super::present_name(name)
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let symbol = names
+    let (_, item, function_span) = super::unwrap_modified(parsed, plan.function_item)?;
+    if !matches!(item, Item::Function { .. }) {
+        return Err(lowering_error(
+            LoweringErrorKind::MissingFact,
+            function_span,
+        ));
+    }
+    let source = names
         .names()
         .source_units()
         .get(instance.source_unit().index())
-        .and_then(|source| {
-            source
-                .resolution()
-                .symbols()
-                .iter()
-                .find(|symbol| symbol.span() == name && symbol.kind() == SymbolKind::Variable)
-        })
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, name))?;
-    if symbol.name() == "_" {
-        return Ok(());
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, function_span))?;
+    let resolution = source.resolution();
+    if source.source_unit() != instance.source_unit()
+        || resolution.source_id() != parsed.source_id()
+    {
+        return Err(lowering_error(
+            LoweringErrorKind::MissingFact,
+            function_span,
+        ));
     }
-    let declared = typed
-        .body_symbol_types()
-        .iter()
-        .find(|(id, _)| id.source_unit() == instance.source_unit() && id.symbol() == symbol.id())
-        .map(|(_, ty)| *ty)
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, name))?;
-    let Some(UnitTypeKind::Nullable(template_inner)) = typed.types().get(declared) else {
-        return Ok(());
-    };
-    // This diagnostic bridge does not resolve unrelated nullable payloads.
-    if !matches!(
-        typed.types().get(*template_inner),
-        Some(UnitTypeKind::Intrinsic {
-            constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
-            ..
-        })
-    ) {
-        return Ok(());
-    }
-    let resolve = |ty| {
-        resolve_concrete_type(
-            typed,
-            ty,
-            instance.substitutions(),
-            instance.key().static_self(),
-            span,
-        )
-    };
-    let declared = resolve(declared)?;
-    let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(declared) else {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-    };
-    let Some(UnitTypeKind::Intrinsic {
-        constructor,
-        arguments,
-    }) = typed.types().get(*inner)
-    else {
-        return Ok(());
-    };
-    if !matches!(
-        constructor,
-        IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap
-    ) {
-        return Ok(());
-    }
-    let [key, val] = arguments.as_slice() else {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-    };
-    let actual = typed
-        .expression_type(expression)
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let actual = resolve(actual)?;
-    if let Some(descriptor) = construction {
-        let callable_matches = matches!(
-            (constructor, descriptor.callable()),
-            (IntrinsicTypeConstructor::Map, IntrinsicCallable::MapOf)
-                | (
-                    IntrinsicTypeConstructor::MutableMap,
-                    IntrinsicCallable::MutableMapOf
-                )
-        );
-        if descriptor.expression() != expression
-            || !callable_matches
-            || actual != *inner
-            || resolve(descriptor.map_type())? != *inner
-            || resolve(descriptor.key_type())? != *key
-            || resolve(descriptor.value_type())? != *val
+    for &id in owned.formed_owned_locals() {
+        if id.source_unit() != instance.source_unit() {
+            continue;
+        }
+        let symbol = resolution
+            .symbols()
+            .get(id.symbol().index())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, function_span))?;
+        let span = symbol.span();
+        if symbol.id() != id.symbol()
+            || symbol.kind() != SymbolKind::Variable
+            || symbol.is_synthetic()
+            || symbol.name() == "_"
+            || span.source_id() != parsed.source_id()
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-    } else if actual != declared {
-        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        if !formed_in_function(resolution, symbol.scope(), function_span)? {
+            continue;
+        }
+        let declared = typed
+            .symbol_type(id)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(declared) else {
+            continue;
+        };
+        if !matches!(
+            typed.types().get(*inner),
+            Some(UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+                ..
+            })
+        ) {
+            continue;
+        }
+        let declared = resolve_concrete_type(
+            typed,
+            declared,
+            instance.substitutions(),
+            instance.key().static_self(),
+            span,
+        )?;
+        // Do not skip unsupported formed locals or replace the mapper's K/V checks.
+        types.intern(module, typed, declared, span)?;
     }
-    types.intern(module, typed, declared, span)?;
     Ok(())
+}
+
+fn formed_in_function(
+    names: &NameResolution,
+    mut id: ScopeId,
+    function_span: Span,
+) -> Result<bool, LoweringError> {
+    for _ in 0..names.scopes().len() {
+        let scope = names
+            .scopes()
+            .get(id.index())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, function_span))?;
+        match scope.kind() {
+            ScopeKind::Function => return Ok(scope.span() == Some(function_span)),
+            ScopeKind::Lambda | ScopeKind::File | ScopeKind::Classifier | ScopeKind::Companion => {
+                return Ok(false);
+            }
+            _ => {
+                id = scope
+                    .parent()
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, function_span))?;
+            }
+        }
+    }
+    Err(lowering_error(
+        LoweringErrorKind::MissingFact,
+        function_span,
+    ))
 }
 
 /// Direct declaration calls lower their selected instance, never the callee's template Function value.

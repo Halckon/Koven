@@ -652,7 +652,7 @@ fn lower_scalar_file_product(
             substitutions: &plan.substitutions,
         };
         if plan.source.is_some() {
-            storage.intern_entry_nullable_map(plan.body)?;
+            storage.intern_formed_nullable_maps(plan.item_id)?;
         }
         storage.intern_body(plan.body)?;
     }

@@ -313,12 +313,13 @@ pub(super) fn lower_unit_from_facts(
             typed,
             &mut types,
         )?;
-        type_plan::intern_entry_nullable_map_type(
+        type_plan::intern_formed_nullable_map_types(
             module,
             parsed_by_source[plan.instance.source_unit().index()],
             plan,
             names,
             typed,
+            owned,
             &mut types,
         )?;
     }

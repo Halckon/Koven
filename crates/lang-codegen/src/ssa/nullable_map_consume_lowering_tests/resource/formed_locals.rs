@@ -1,14 +1,14 @@
-//! Ordinary baseline collector for composable local-storage planning, before a new FE fact.
+//! Historical ordinary collector plus an independent formed-local demand contract.
 //! All eighteen entries are collected before input/completeness or compatibility assertions.
 
 use super::{LowerOutcome, Observation, Trace, print_outcome};
 
 mod inputs;
+mod query;
 mod sources;
 mod syntax;
 
-#[test]
-fn nullable_map_formed_local_sources_collect_baseline_outcomes() {
+fn collect(with_formed_queries: bool) -> Vec<Observation> {
     let mut observations = Vec::new();
     for case in sources::CASES {
         for unit in [false, true] {
@@ -20,6 +20,11 @@ fn nullable_map_formed_local_sources_collect_baseline_outcomes() {
                     |sources, file, names, typed, trace| {
                         inputs::unit(case, sources, file, names, typed, trace)
                     },
+                    |sources, file, names, typed, owned, trace| {
+                        if with_formed_queries {
+                            inputs::unit_formed(case, sources, file, names, typed, owned, trace);
+                        }
+                    },
                     0,
                     &mut trace,
                 )
@@ -29,6 +34,11 @@ fn nullable_map_formed_local_sources_collect_baseline_outcomes() {
                     case.single,
                     |sources, parsed, names, typed, trace| {
                         inputs::single(case, sources, parsed, names, typed, trace)
+                    },
+                    |sources, parsed, names, _, owned, trace| {
+                        if with_formed_queries {
+                            inputs::single_formed(case, sources, parsed, names, owned, trace);
+                        }
                     },
                     0,
                     &mut trace,
@@ -53,8 +63,35 @@ fn nullable_map_formed_local_sources_collect_baseline_outcomes() {
         }
         print_outcome(&observation.outcome);
     }
-    // No source is skipped or asserted early; non-K1 lower outcomes are observations only.
+    // No source is skipped or asserted before all eighteen observations are printed.
     assert_eq!(observations.len(), 18);
+    let labels: Vec<_> = observations
+        .iter()
+        .map(|observation| observation.label.as_str())
+        .collect();
+    assert_eq!(
+        labels,
+        [
+            "P1/single",
+            "P1/unit",
+            "P2/single",
+            "P2/unit",
+            "P3/single",
+            "P3/unit",
+            "K1/single",
+            "K1/unit",
+            "K2/single",
+            "K2/unit",
+            "K3/single",
+            "K3/unit",
+            "K4/single",
+            "K4/unit",
+            "K5/single",
+            "K5/unit",
+            "K6/single",
+            "K6/unit",
+        ]
+    );
     assert!(
         observations
             .iter()
@@ -62,6 +99,13 @@ fn nullable_map_formed_local_sources_collect_baseline_outcomes() {
                 && observation.trace.input_failures.is_empty()),
         "all eighteen source/FE/input/ownership gates must pass and actual lowering must be attempted"
     );
+    observations
+}
+
+#[test]
+fn nullable_map_formed_local_sources_collect_baseline_outcomes() {
+    let observations = collect(false);
+    // Historical collection-only contract: non-K1 lower outcomes remain observations.
     let frozen: Vec<_> = observations
         .iter()
         .filter(|observation| matches!(observation.label.as_str(), "K1/single" | "K1/unit"))
@@ -87,6 +131,6 @@ fn nullable_map_formed_local_sources_collect_baseline_outcomes() {
         "the previously frozen K1 dead-tail LLVM successes must be preserved"
     );
     println!(
-        "COLLECTION ONLY: all eighteen ordinary entries attempted lowering; K1 retains two LLVM successes. Other outcomes await review; no formed-local API exists in this test slice."
+        "COLLECTION ONLY: all eighteen ordinary entries attempted lowering; K1 retains two LLVM successes. Other outcomes are observations only; this collector does not assert formed-local facts."
     );
 }

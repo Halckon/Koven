@@ -296,7 +296,19 @@ impl Checker<'_> {
                 {
                     return self.check_borrow_binding(*name, *initializer, *marker, state);
                 }
+                let diagnostic_count = self.diagnostics.len();
                 let mut flows = self.check_item(declaration, state)?;
+                if flows.next.is_some()
+                    && self.diagnostics.len() == diagnostic_count
+                    && let Item::Variable {
+                        kind: super::VariableKind::Val | super::VariableKind::Var,
+                        name,
+                        ..
+                    } = self.parsed.ast().items().get(declaration)?.payload()
+                    && let Some(symbol) = self.marker_symbol(*name).copied()
+                {
+                    self.formed_owned_locals.push(symbol);
+                }
                 if let Item::Variable { name, .. } = self
                     .parsed
                     .ast()

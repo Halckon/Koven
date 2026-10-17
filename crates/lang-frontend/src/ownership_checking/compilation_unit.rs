@@ -615,6 +615,7 @@ pub struct CompilationUnitOwnership {
     provenance: UnitOwnershipProvenance,
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<UnitOwnershipBindingDescriptor>,
+    formed_owned_locals: Vec<UnitSymbolId>,
     call_argument_contracts: Vec<UnitCallArgumentOwnershipContract>,
     call_receiver_contracts: Vec<UnitCallReceiverOwnershipContract>,
     receiver_facts: Vec<UnitReceiverOwnershipFact>,
@@ -779,6 +780,11 @@ impl CompilationUnitOwnership {
             },
             diagnostics: dataflow.diagnostics,
             bindings,
+            formed_owned_locals: if successful && dataflow.deferred.is_empty() {
+                dataflow.formed_owned_locals
+            } else {
+                Vec::new()
+            },
             call_argument_contracts,
             call_receiver_contracts,
             receiver_facts: dataflow.receiver_facts,
@@ -835,6 +841,13 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn bindings(&self) -> &[UnitOwnershipBindingDescriptor] {
         &self.bindings
+    }
+
+    /// 返回某条分析路径正常完成初始化的具名 val/var local，按 source/symbol 排序去重。
+    /// 仅记录形成历史，不证明必执行、当前存活、owner 权限或 nullable proof。
+    #[must_use]
+    pub fn formed_owned_locals(&self) -> &[UnitSymbolId] {
+        &self.formed_owned_locals
     }
 
     /// 查询 source-qualified 参数 binding 能力。

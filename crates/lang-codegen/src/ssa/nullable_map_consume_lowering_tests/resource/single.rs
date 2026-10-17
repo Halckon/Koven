@@ -3,7 +3,7 @@
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::{NameResolution, ReferenceTarget, SymbolId, SymbolKind, resolve_names},
-    ownership_checking::{NonNullAssertionTransferKind, check_ownership},
+    ownership_checking::{NonNullAssertionTransferKind, OwnershipCheckedFile, check_ownership},
     type_checking::{
         BuiltinType, Copyability, IntrinsicTypeConstructor, NominalKind, ParameterMode, TypeId,
         TypeKind, TypedFile, check_types, complete_file_types, standard_environments,
@@ -17,6 +17,7 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservatio
         case.path,
         case.single,
         |sources, parsed, names, typed, trace| inspect(case, sources, parsed, names, typed, trace),
+        |_, _, _, _, _, _| {},
         case.counts[5],
         trace,
     )
@@ -26,6 +27,14 @@ pub(super) fn observe_source(
     path: &str,
     text: &str,
     inspect: impl FnOnce(&SourceMap, &ParsedFile, &NameResolution, &TypedFile, &mut Trace),
+    inspect_owned: impl FnOnce(
+        &SourceMap,
+        &ParsedFile,
+        &NameResolution,
+        &TypedFile,
+        &OwnershipCheckedFile,
+        &mut Trace,
+    ),
     assertion_count: usize,
     trace: &mut Trace,
 ) -> Outcome<LowerObservation> {
@@ -117,6 +126,7 @@ pub(super) fn observe_source(
             }),
         owned.non_null_assertions(),
     );
+    inspect_owned(&sources, &parsed, &names, complete.types(), &owned, trace);
     clean?;
     complete_ownership?;
     trace

@@ -5,7 +5,9 @@ use lang_frontend::{
         SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget, UnitSymbolId,
         ValidatedCompilationUnitNames, index_compilation_unit, resolve_compilation_unit_names,
     },
-    ownership_checking::{NonNullAssertionTransferKind, check_compilation_unit_ownership},
+    ownership_checking::{
+        CompilationUnitOwnership, NonNullAssertionTransferKind, check_compilation_unit_ownership,
+    },
     type_checking::{
         BuiltinType, CompilationUnitTypes, Copyability, IntrinsicTypeConstructor, NominalKind,
         ParameterMode, UnitCallTarget, UnitExpressionId, UnitTypeId, UnitTypeKind,
@@ -20,6 +22,7 @@ pub(super) fn observe(case: &Case, trace: &mut Trace) -> Outcome<LowerObservatio
         case.provider,
         case.consumer,
         |sources, file, names, typed, trace| inspect(case, sources, file, names, typed, trace),
+        |_, _, _, _, _, _| {},
         case.counts[5],
         trace,
     )
@@ -33,6 +36,14 @@ pub(super) fn observe_sources(
         (SourceUnitId, &ParsedFile),
         &ValidatedCompilationUnitNames,
         &CompilationUnitTypes,
+        &mut Trace,
+    ),
+    inspect_owned: impl FnOnce(
+        &SourceMap,
+        (SourceUnitId, &ParsedFile),
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &CompilationUnitOwnership,
         &mut Trace,
     ),
     assertion_count: usize,
@@ -219,6 +230,14 @@ pub(super) fn observe_sources(
                     && plan.non_null_transfer() == NonNullAssertionTransferKind::Consume
             }),
         owned.non_null_assertions(),
+    );
+    inspect_owned(
+        &sources,
+        (provider_unit.id(), &provider),
+        &names,
+        typed.types(),
+        &owned,
+        trace,
     );
     clean?;
     complete_ownership?;
