@@ -217,7 +217,7 @@ pub(super) struct Parts {
 fn formed_history_final_gate_preserves_source_identity_and_clears_incomplete_results() {
     let a = format!("package a\n{BODY}");
     let b = format!("package b\n{BODY}");
-    let fixture = Fixture::new(&[("a.ko", &a), ("b.ko", &b)]);
+    let fixture = Fixture::new(&[("a/a.ko", &a), ("b/b.ko", &b)]);
     let baseline = fixture.shared();
     assert!(baseline.diagnostics().is_empty());
     assert!(baseline.deferred().is_empty());
@@ -323,7 +323,7 @@ fn formed_history_final_gate_preserves_source_identity_and_clears_incomplete_res
 
     // Natural ownership errors independently cover the upstream dataflow/shared gates.
     let erroneous = "package a\nfun identity(own item: String): String = item\nfun bad(item: String): Unit { val prefix = \"formed\"; val rejected = identity(item) }";
-    let fixture = Fixture::new(&[("error.ko", erroneous)]);
+    let fixture = Fixture::new(&[("a/error.ko", erroneous)]);
     let shared = fixture.shared();
     assert_eq!(shared.diagnostics().len(), 1);
     assert_eq!(shared.diagnostics()[0].code().to_string(), "L0133");
