@@ -383,3 +383,71 @@ fn bounded_rc_nullable_while_sources_reach_verified_llvm() {
         "all eight bounded ordinary source pipelines must reach source-anchored verified LLVM"
     );
 }
+
+/// Independent presence-only source bytes and golden output for later native reuse.
+pub(crate) fn presence_cases() -> [(&'static str, &'static str, &'static str); 4] {
+    [
+        (
+            "normal-presence",
+            include_str!("../../tests/fixtures/rc-nullable-while-0332/normal-presence.ko"),
+            include_str!("../../tests/fixtures/rc-nullable-while-0332/normal-presence.stdout"),
+        ),
+        (
+            "break-presence",
+            include_str!("../../tests/fixtures/rc-nullable-while-0332/break-presence.ko"),
+            include_str!("../../tests/fixtures/rc-nullable-while-0332/break-presence.stdout"),
+        ),
+        (
+            "continue-presence",
+            include_str!("../../tests/fixtures/rc-nullable-while-0332/continue-presence.ko"),
+            include_str!("../../tests/fixtures/rc-nullable-while-0332/continue-presence.stdout"),
+        ),
+        (
+            "return-presence",
+            include_str!("../../tests/fixtures/rc-nullable-while-0332/return-presence.ko"),
+            include_str!("../../tests/fixtures/rc-nullable-while-0332/return-presence.stdout"),
+        ),
+    ]
+}
+
+#[test]
+fn bounded_presence_rc_nullable_while_sources_reach_verified_llvm() {
+    let mut observations = Vec::new();
+    for (case, source, _golden) in presence_cases() {
+        for unit in [false, true] {
+            observations.push(observe(case, source, unit));
+        }
+    }
+    // All eight independent presence pipelines finish before the success oracle.
+    for observation in &observations {
+        let case = observation.case;
+        let unit = observation.unit;
+        println!(
+            "SPEC0332 PRESENCE PRECONDITIONS case={case} unit={unit} complete={} ownership={} lower_attempted={} entry_identity={}",
+            observation.complete_ok,
+            observation.ownership_ok,
+            observation.lower_attempted,
+            observation.entry_identity_ok
+        );
+        match &observation.outcome {
+            Ok(()) => println!(
+                "SPEC0332 PRESENCE OUTCOME case={case} unit={unit} stage=llvm-render-verify result=ok"
+            ),
+            Err(error) => println!(
+                "SPEC0332 PRESENCE OUTCOME case={case} unit={unit} stage={} result=err detail={} lower={:?} span_text={:?}",
+                error.stage, error.detail, error.lower, error.span_text
+            ),
+        }
+    }
+    assert_eq!(observations.len(), 8);
+    assert!(
+        observations.iter().all(|observation| {
+            observation.complete_ok
+                && observation.ownership_ok
+                && observation.lower_attempted
+                && observation.entry_identity_ok
+                && observation.outcome.is_ok()
+        }),
+        "all eight bounded presence pipelines must reach source-anchored verified LLVM"
+    );
+}
