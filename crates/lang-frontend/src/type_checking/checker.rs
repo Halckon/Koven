@@ -530,7 +530,7 @@ impl<'a> Checker<'a> {
         self.iterations.sort_by_key(|plan| plan.statement().index());
         self.map_descriptors
             .iterations
-            .sort_by_key(|plan| plan.statement());
+            .sort_by_key(|plan| plan.statement().index());
         let copyabilities = self.all_copyabilities();
         let error = self.error_type();
         let expression_types = self

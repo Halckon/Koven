@@ -15,7 +15,10 @@ use crate::{
         BuiltinType, DeferredReason, ExpressionUse, TypeCheckingError, collect_expression_uses,
     },
 };
-use std::{collections::BTreeSet, thread};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    thread,
+};
 
 type Result<T> = std::result::Result<T, Internal>;
 
@@ -51,7 +54,7 @@ fn check_roots<F: Facts>(
             uses: collect_expression_uses(parsed),
             expressions: vec![None; parsed.ast().expressions().len()],
             items: vec![None; parsed.ast().items().len()],
-            visited_for: BTreeSet::new(),
+            visited_for: BTreeMap::new(),
         })
         .collect::<Vec<_>>();
     let mut poisoned = BTreeSet::new();
@@ -106,14 +109,14 @@ fn check_roots<F: Facts>(
     }
     Ok(states
         .into_iter()
-        .map(|state| state.visited_for.into_iter().collect())
+        .map(|state| state.visited_for.into_values().collect())
         .collect())
 }
 struct FileState {
     uses: Vec<ExpressionUse>,
     expressions: Vec<Option<bool>>,
     items: Vec<Option<bool>>,
-    visited_for: BTreeSet<StatementId>,
+    visited_for: BTreeMap<usize, StatementId>,
 }
 struct Checker<'a, F: Facts> {
     sources: &'a SourceMap,
@@ -124,7 +127,7 @@ struct Checker<'a, F: Facts> {
     poisoned: &'a mut BTreeSet<F::Symbol>,
     expressions: &'a mut [Option<bool>],
     items: &'a mut [Option<bool>],
-    visited_for: &'a mut BTreeSet<StatementId>,
+    visited_for: &'a mut BTreeMap<usize, StatementId>,
 }
 impl<F: Facts> Checker<'_, F> {
     fn missing(&self, span: Span, kind: &'static str) -> Internal {
@@ -398,7 +401,7 @@ impl<F: Facts> Checker<'_, F> {
                 body,
                 ..
             } => {
-                self.visited_for.insert(id);
+                self.visited_for.insert(id.index(), id);
                 complete &= self.expression(*source, false)?;
                 match binding {
                     ForBinding::Name(name) => complete &= self.binding(*name, complete, true)?,

@@ -175,7 +175,7 @@ pub(crate) fn file_map_iteration_rows_error(
     typed: &TypedFile,
 ) -> Option<(StatementId, &'static str)> {
     for pair in typed.map_iterations().windows(2) {
-        if pair[0].statement() >= pair[1].statement() {
+        if pair[0].statement().index() >= pair[1].statement().index() {
             return Some((
                 pair[1].statement(),
                 "duplicate or unsorted Map typed descriptor",
@@ -301,13 +301,15 @@ pub(super) fn complete_file_map_iterations(
     visited: &[StatementId],
 ) -> Result<(), StatementId> {
     for pair in typed.map_iterations().windows(2) {
-        if pair[0].statement() >= pair[1].statement() {
+        if pair[0].statement().index() >= pair[1].statement().index() {
             return Err(pair[1].statement());
         }
     }
     for plan in typed.map_iterations() {
         if !validate_file_map_iteration(parsed, names, typed, plan.statement())
-            || visited.binary_search(&plan.statement()).is_err()
+            || visited
+                .binary_search_by_key(&plan.statement().index(), |statement| statement.index())
+                .is_err()
         {
             return Err(plan.statement());
         }
@@ -353,7 +355,9 @@ pub(super) fn complete_unit_map_iterations(
         };
         if visited.get(index).is_none_or(|statements| {
             statements
-                .binary_search(&plan.statement().statement())
+                .binary_search_by_key(&plan.statement().statement().index(), |statement| {
+                    statement.index()
+                })
                 .is_err()
         }) || !validate_unit_map_iteration(parsed, names, typed, plan.statement())
         {
