@@ -60,3 +60,17 @@ Map source 的 owned/Borrow/Inout/field/temporary 前端资格按 Guide，不以
 
 本合同建立时尚未运行0331首红或实现 provider。基线继承 PR117 已交付源码，main CI 独立跟踪。
 原始日志、完整清单与恢复包留仓外；本页只记录固定身份、简要结论与可追溯来源。
+
+## 5. 首轮普通类型红证
+
+固定输入 `a2dbea9ef5894059b2ae32eefe8d4401b2b6eb1c` / tree
+`3cfeadf3a47406dcd828f5c169cbf346b053d569`，2487 tracked 输入及工具/runner 前后稳定。
+有限 `cargo check --locked --offline -p lang-frontend --test type_iteration` 8.71s通过；
+唯一 ordinary exact `map_borrowed::map_and_mutable_map_named_borrowed_iteration_complete_in_both_entries`
+由同 target 的 locked/offline、`--exact --nocapture --test-threads=1` 运行，实际1项/exit101，编译25.84s。
+四观察先完整收齐：Map/MutableMap × single/unit 均通过 lex/parse/names，真实 source
+intrinsic K/V 为 Int/String；raw 与 complete 均唯一 L0159 拒绝 source `m`，Map 为59..60，
+MutableMap 为66..67。两 binding/read 为 Error、既有 sequential plan 数0，无前置或内部错误。
+这是 Phase2 真实能力首红，不是 ownership/provider/SSA/native 验收。未改生产，未执行 CI-only。
+仓外收据 SHA256 `02f5cf1848c259b0e008b06e824be19c353f1423d069c4270abf5352548c0b8c`
+及5份 raw 已独核；后续以独立 Map 计划闭合事实交付，不改变本测试成功目标来消红。
