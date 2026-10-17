@@ -1,6 +1,6 @@
 //! Ordinary source to verified LLVM layout observations; no native or IR mutation.
 
-use super::model::SsaTypeKind;
+use super::model::{MapContainerKind, SsaTypeKind};
 
 #[test]
 fn ordered_map_headers_preserve_shared_six_field_storage() {
@@ -47,6 +47,33 @@ fn ordered_map_headers_preserve_shared_six_field_storage() {
                 2,
                 "Map and MutableMap must remain distinct SSA types"
             );
+            let contracts: Vec<_> = maps
+                .iter()
+                .map(|index| match program.modules[0].types[*index] {
+                    SsaTypeKind::MapContainer { kind, key, value } => (kind, key, value),
+                    _ => unreachable!("filtered Map container type"),
+                })
+                .collect();
+            let mut kinds: Vec<_> = contracts.iter().map(|entry| entry.0).collect();
+            kinds.sort();
+            assert_eq!(kinds, [MapContainerKind::Map, MapContainerKind::MutableMap]);
+            assert_eq!(contracts[0].1, contracts[1].1, "same actual key type");
+            assert_eq!(contracts[0].2, contracts[1].2, "same actual value type");
+            for (_, key, value) in contracts {
+                assert_eq!(key, value, "fixture K/V are identical");
+                let actual = program.modules[0].type_kind(key).unwrap();
+                if source_index == 0 {
+                    assert_eq!(
+                        actual,
+                        &SsaTypeKind::Integer {
+                            bits: 32,
+                            signed: true
+                        }
+                    );
+                } else {
+                    assert_eq!(actual, &SsaTypeKind::StringOwner);
+                }
+            }
             let headers: Vec<Vec<String>> = maps
                 .into_iter()
                 .map(|index| {
