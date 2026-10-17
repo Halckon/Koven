@@ -1,5 +1,8 @@
 //! frontend 产物门禁、函数预声明与文件级 lowering 编排。
 
+#[cfg(test)]
+mod registration_tests;
+
 use std::collections::BTreeMap;
 
 use lang_frontend::{

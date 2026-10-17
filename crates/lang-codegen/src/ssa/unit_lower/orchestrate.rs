@@ -1,4 +1,7 @@
 //! unit 实例规划、函数入口与完整 SSA module 组装。
+
+#[cfg(test)]
+mod registration_tests;
 use super::*;
 
 /// 共享 lowering 只读取本轮事实；调用方必须先验证完整分析身份链。

@@ -13,6 +13,17 @@ mod sources;
 mod unit;
 mod unreachable_storage;
 
+/// Path, single-file text, provider text and consumer text from the existing R1 case.
+pub(super) fn registration_r1_source() -> (&'static str, &'static str, &'static str, &'static str) {
+    let case = CASES
+        .iter()
+        .find(|case| case.id == "R1")
+        .expect("frozen R1");
+    assert!(case.has_ordinary);
+    assert_eq!(case.counts, [2, 2, 1, 1, 0, 1]);
+    (case.path, case.single, case.provider, case.consumer)
+}
+
 #[derive(Debug)]
 enum LowerOutcome {
     VerifiedLlvm,

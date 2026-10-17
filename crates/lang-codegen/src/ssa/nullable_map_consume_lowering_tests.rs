@@ -19,6 +19,12 @@ mod single;
 mod sources;
 mod unit;
 
+/// Share the frozen R1 fixture without loading its module more than once.
+pub(in crate::ssa) fn registration_r1_source()
+-> (&'static str, &'static str, &'static str, &'static str) {
+    resource::registration_r1_source()
+}
+
 #[derive(Debug)]
 struct Failure {
     stage: String,
