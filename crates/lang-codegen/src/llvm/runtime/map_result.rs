@@ -1,4 +1,4 @@
-//! Owned Map result destroys its payload only on the present branch.
+//! Owned presence/payload storage destroys its payload only on the present branch.
 use super::{LlvmAdapterError, RuntimeAbi};
 use crate::ssa::model::{Module, SsaTypeId};
 use inkwell::{
@@ -16,8 +16,8 @@ impl<'ctx> RuntimeAbi<'ctx> {
         value: BasicValueEnum<'ctx>,
     ) -> Result<(), LlvmAdapterError> {
         let inner = module
-            .map_result_value(ty)
-            .ok_or_else(|| LlvmAdapterError::InvalidSsa("Map result payload missing".into()))?;
+            .presence_payload_type(ty)
+            .ok_or_else(|| LlvmAdapterError::InvalidSsa("presence payload missing".into()))?;
         let header = value.into_struct_value();
         let present = builder
             .build_extract_value(header, 0, "present")?

@@ -200,7 +200,7 @@ pub(super) fn verify_operation(
             replacement,
         } => value_type(function, *owner)
             .and_then(|owner| module.heap_payload(owner))
-            .filter(|payload| module.map_result_value(*payload).is_none())
+            .filter(|payload| module.presence_payload_type(*payload).is_none())
             .and_then(|payload| module.aggregate_fields(payload))
             .and_then(|fields| fields.get(*field).copied())
             .is_some_and(|field| {
@@ -353,7 +353,7 @@ pub(super) fn verify_operation(
             else {
                 return;
             };
-            module.map_result_value(target).is_none()
+            module.presence_payload_type(target).is_none()
                 && module
                     .aggregate_fields(target)
                     .and_then(|fields| fields.get(*field))
@@ -524,7 +524,7 @@ fn aggregate_construct_contract(
     fields: &[ValueId],
     results: &[EntityType],
 ) -> bool {
-    if module.map_result_value(aggregate).is_some()
+    if module.presence_payload_type(aggregate).is_some()
         && module.type_ownership(aggregate) == Some(Ownership::MoveOnly)
     {
         return false;
@@ -647,7 +647,7 @@ fn aggregate_explode_contract(
         return false;
     };
     module.type_ownership(aggregate) == Some(super::model::Ownership::MoveOnly)
-        && module.map_result_value(aggregate).is_none()
+        && module.presence_payload_type(aggregate).is_none()
         && module.aggregate_fields(aggregate).is_some_and(|fields| {
             results
                 == fields
@@ -756,7 +756,7 @@ fn heap_field_type(
     };
     module
         .heap_payload(target)
-        .filter(|payload| module.map_result_value(*payload).is_none())
+        .filter(|payload| module.presence_payload_type(*payload).is_none())
         .and_then(|payload| module.aggregate_fields(payload))
         .and_then(|fields| fields.get(field))
         .copied()
@@ -772,7 +772,7 @@ fn inline_field_type(
         return None;
     };
     module
-        .map_result_value(target)
+        .presence_payload_type(target)
         .is_none()
         .then_some(target)
         .and_then(|target| module.aggregate_fields(target))
@@ -799,7 +799,7 @@ fn field_place_contract(
     results: &[EntityType],
 ) -> bool {
     place_type(function, base)
-        .filter(|aggregate| module.map_result_value(*aggregate).is_none())
+        .filter(|aggregate| module.presence_payload_type(*aggregate).is_none())
         .and_then(|aggregate| module.aggregate_fields(aggregate))
         .and_then(|fields| fields.get(field))
         .is_some_and(|field| results == [EntityType::Place(*field)])

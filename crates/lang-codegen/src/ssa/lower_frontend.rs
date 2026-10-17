@@ -128,6 +128,7 @@ struct ExpressionLowerer<'a> {
     type_ids: &'a BTreeMap<TypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     map_results: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    nullable_maps: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     ssa_types: &'a [super::model::SsaTypeKind],
     enum_payloads: &'a BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>,
     substitutions: &'a BTreeMap<SymbolId, TypeId>,

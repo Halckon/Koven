@@ -182,7 +182,11 @@ pub(super) fn verify_map_operation(
             let owner_ty = value_type(function, *owner).unwrap();
             if results.len() == 2 {
                 results[0] == EntityType::Value(owner_ty)
-                    && matches!(results[1], EntityType::Value(res_ty) if module.map_result_value(res_ty) == Some(val_ty) || matches!(module.type_kind(res_ty), Some(SsaTypeKind::NullableHandle { inner }) if *inner == val_ty))
+                    && matches!(results[1], EntityType::Value(res_ty)
+                        if module.map_result_value(res_ty) == Some(val_ty)
+                            || (module.map_container(val_ty).is_some()
+                                && module.nullable_map_inner(res_ty) == Some(val_ty))
+                            || matches!(module.type_kind(res_ty), Some(SsaTypeKind::NullableHandle { inner }) if *inner == val_ty))
             } else {
                 false
             }

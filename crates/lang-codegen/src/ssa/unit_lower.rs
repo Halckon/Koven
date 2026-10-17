@@ -170,6 +170,7 @@ struct UnitExpressionLowerer<'a> {
     type_ids: &'a BTreeMap<UnitTypeId, SsaTypeId>,
     heap_payloads: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     map_results: &'a BTreeMap<SsaTypeId, SsaTypeId>,
+    nullable_maps: &'a BTreeMap<SsaTypeId, SsaTypeId>,
     ssa_types: &'a [crate::ssa::model::SsaTypeKind],
     enum_payloads: &'a BTreeMap<(SsaTypeId, UnitSymbolId), (usize, SsaTypeId)>,
     field_indices: &'a BTreeMap<(UnitTypeId, UnitSymbolId), usize>,

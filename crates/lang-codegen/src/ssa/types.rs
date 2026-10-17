@@ -251,7 +251,7 @@ impl Module {
         match self.type_kind(id)? {
             SsaTypeKind::NullableHandle { inner } => Some(*inner),
             _ => self
-                .map_result_value(id)
+                .presence_payload_type(id)
                 .filter(|_| self.type_ownership(id) == Some(Ownership::MoveOnly)),
         }
     }

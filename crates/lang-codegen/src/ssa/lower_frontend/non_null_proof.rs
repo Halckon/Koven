@@ -104,9 +104,10 @@ impl ExpressionLowerer<'_> {
                 ownership: Ownership::MoveOnly,
                 ..
             }) if !proof.is_while_origin() => {
-                // Existing Map results use registered owning aggregates for String
-                // and inline payloads. Preserve the verifier's exact inner identity.
-                self.map_results.get(&nullable) == Some(&proof.inner)
+                // Registered presence storage keeps the exact inner identity;
+                // Map-only nullable storage grants no scalar Map-result permission.
+                self.nullable_maps.get(&nullable) == Some(&proof.inner)
+                    || self.map_results.get(&nullable) == Some(&proof.inner)
             }
             _ => false,
         };

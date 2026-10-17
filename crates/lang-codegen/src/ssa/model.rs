@@ -696,6 +696,7 @@ pub(crate) struct Module {
     pub(crate) functions: Vec<Function>,
     pub(super) deinits: BTreeMap<SsaTypeId, FunctionId>,
     pub(super) map_results: BTreeMap<SsaTypeId, SsaTypeId>,
+    pub(super) nullable_maps: BTreeMap<SsaTypeId, SsaTypeId>,
     pub(super) integer_ranges: BTreeMap<SsaTypeId, SsaTypeId>,
 }
 
@@ -841,6 +842,7 @@ impl Program {
             functions: Vec::new(),
             deinits: BTreeMap::new(),
             map_results: BTreeMap::new(),
+            nullable_maps: BTreeMap::new(),
             integer_ranges: BTreeMap::new(),
         });
         id
@@ -902,6 +904,9 @@ pub(crate) enum ModelError {
     ExpectedAggregate {
         ty: SsaTypeId,
     },
+    ExpectedMapContainer {
+        ty: SsaTypeId,
+    },
     EmptyClosureCaptures,
     InvalidCallableReturnArity,
     InvalidCallableParameter,
@@ -956,6 +961,12 @@ impl fmt::Display for ModelError {
                 write!(formatter, "type {ty:?} is not a pointer-like owner")
             }
             Self::ExpectedAggregate { ty } => write!(formatter, "type {ty:?} is not an aggregate"),
+            Self::ExpectedMapContainer { ty } => {
+                write!(
+                    formatter,
+                    "type {ty:?} is not a defined MoveOnly Map container"
+                )
+            }
             Self::EmptyClosureCaptures => {
                 write!(formatter, "concrete closure must capture a value")
             }

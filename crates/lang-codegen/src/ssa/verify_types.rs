@@ -53,6 +53,19 @@ pub(super) fn verify_types(module: &Module, errors: &mut Vec<VerifyError>) {
             );
         }
     }
+    let mut nullable_map_inners = BTreeSet::new();
+    for (&nullable, &inner) in &module.nullable_maps {
+        if !module.valid_nullable_map_type(nullable, inner)
+            || module.map_results.contains_key(&nullable)
+            || !nullable_map_inners.insert(inner)
+        {
+            push_type_error(
+                errors,
+                nullable,
+                "nullable Map requires unique local MoveOnly Map storage, disjoint from Map results",
+            );
+        }
+    }
 }
 
 fn verify_named_identity(

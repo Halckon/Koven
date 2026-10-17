@@ -47,6 +47,15 @@ impl NominalTypeMapper {
         let Some(TypeKind::Nullable(inner)) = typed.types().get(ty) else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
+        if matches!(
+            typed.types().get(*inner),
+            Some(TypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+                ..
+            })
+        ) {
+            return self.intern(module, names, typed, ty, span);
+        }
         let inner = self.intern(module, names, typed, *inner, span)?;
         let result = if matches!(
             module.type_kind(inner),
@@ -57,10 +66,54 @@ impl NominalTypeMapper {
             module.add_map_result_type(inner)
         }
         .map_err(|_| error(LoweringErrorKind::UnsupportedNode, span))?;
-        self.type_ids.insert(ty, result);
+        self.record_type_identity(ty, result, span)?;
         self.map_result_types.insert(ty);
         Ok(result)
     }
+
+    fn record_type_identity(
+        &mut self,
+        ty: TypeId,
+        mapped: SsaTypeId,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        if let Some(existing) = self.type_ids.get(&ty) {
+            if *existing != mapped {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+        } else {
+            self.type_ids.insert(ty, mapped);
+        }
+        Ok(mapped)
+    }
+
+    fn intern_nullable_map_storage(
+        &mut self,
+        module: &mut Module,
+        names: &NameResolution,
+        typed: &TypedFile,
+        nullable_type: TypeId,
+        inner_type: TypeId,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        // Preserve the full inner Map Resource/K/V permission before any cache return.
+        // Resource deinit declarations still come from the existing declaration pass.
+        super::resource_deinit::validate_type(typed, inner_type, span)?;
+        let Some(TypeKind::Intrinsic {
+            constructor,
+            arguments,
+        }) = typed.types().get(inner_type)
+        else {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        };
+        let inner = self.intern_map(module, names, typed, *constructor, arguments, span)?;
+        self.record_type_identity(inner_type, inner, span)?;
+        let nullable = module
+            .add_nullable_map_type(inner)
+            .map_err(|_| error(LoweringErrorKind::UnsupportedNode, span))?;
+        self.record_type_identity(nullable_type, nullable, span)
+    }
+
     /// Naming may reference only canonical identities already accepted as concrete storage.
     pub(super) fn contains_type(&self, ty: TypeId) -> bool {
         self.type_ids.contains_key(&ty)
@@ -163,8 +216,20 @@ impl NominalTypeMapper {
         ty: TypeId,
         span: Span,
     ) -> Result<SsaTypeId, LoweringError> {
+        if let Some(TypeKind::Nullable(inner)) = typed.types().get(ty)
+            && matches!(
+                typed.types().get(*inner),
+                Some(TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Map
+                        | IntrinsicTypeConstructor::MutableMap,
+                    ..
+                })
+            )
+        {
+            return self.intern_nullable_map_storage(module, names, typed, ty, *inner, span);
+        }
         // Only results explicitly planned from Map descriptors may bypass the generic
-        // resource-wrapper rejection; unrelated Resource? signatures remain deferred.
+        // resource-wrapper rejection; Map payloads above use independent storage.
         if self.map_result_types.contains(&ty) {
             return self
                 .type_ids
