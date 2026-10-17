@@ -7,7 +7,7 @@ mod map_with;
 use crate::{
     ast::{ExpressionId, TypeRefId},
     diagnostic::codes,
-    name_resolution::SourceUnitId,
+    name_resolution::{SourceUnitId, UnitReferenceTarget},
     parser::{AssignmentOperator, CallArgument, Expression},
     source::Span,
     type_checking::{
@@ -264,6 +264,33 @@ impl BodyChecker<'_> {
             name,
             "get" | "put" | "remove" | "contains" | "requireValue" | "withValue" | "consume"
         ) {
+            return Ok(None);
+        }
+
+        let receiver_node = self
+            .file(source)
+            .ast()
+            .expressions()
+            .get(receiver)
+            .map_err(TypeCheckingError::from)?;
+        let receiver_name_span = match receiver_node.payload() {
+            Expression::Name => Some(receiver_node.span()),
+            Expression::Member {
+                name_span,
+                safe: false,
+                ..
+            } => Some(*name_span),
+            _ => None,
+        };
+        // A resolved package path is a namespace, never a runtime Map receiver.
+        if receiver_name_span.is_some_and(|span| {
+            self.names.names().references().iter().any(|reference| {
+                reference.source_unit() == source
+                    && reference.span() == span
+                    && reference.namespace().is_none()
+                    && matches!(reference.target(), UnitReferenceTarget::Package(_))
+            })
+        }) {
             return Ok(None);
         }
 
