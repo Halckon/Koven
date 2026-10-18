@@ -1,0 +1,45 @@
+class OuterGuard { deinit() { println("outer-drop") } }
+class InnerGuard { deinit() { println("inner-drop") } }
+fun read(key: String, value: String): Unit {
+  println(key)
+  println(value)
+}
+fun makeMap(): Map<String, String> {
+  var source = mutableMapOf<String, String>()
+  source.put("z".clone(), "first".clone())
+  source.put("a".clone(), "second".clone())
+  val result = source.consume()
+  return result
+}
+fun operand(outerKey: String, outerValue: String, innerKey: String, innerValue: String): Int {
+  println("operand")
+  read(outerKey, outerValue)
+  read(innerKey, innerValue)
+  return 7
+}
+fun scan(source: Map<String, String>): Int {
+  for ((outerKey, outerValue) in source) {
+    val outerGuard = OuterGuard()
+    println("outer")
+    read(outerKey, outerValue)
+    for ((innerKey, innerValue) in source) {
+      val innerGuard = InnerGuard()
+      println("pair")
+      return operand(outerKey, outerValue, innerKey, innerValue)
+    }
+  }
+  println("exhausted")
+  return 0
+}
+fun entry(): Unit {
+  println("nonempty")
+  val populated = makeMap()
+  val result = scan(populated)
+  if (result == 7) { println("returned-7") } else { println("unexpected-nonempty-result") }
+  if (populated.size == 2) { println("caller-size-2") } else { println("unexpected-nonempty-size") }
+  println("empty")
+  val empty = mapOf<String, String>()
+  val emptyResult = scan(empty)
+  if (emptyResult == 0) { println("returned-0") } else { println("unexpected-empty-result") }
+  if (empty.size == 0) { println("caller-size-0") } else { println("unexpected-empty-size") }
+}

@@ -6,6 +6,7 @@ mod facts;
 mod fixture;
 mod identity;
 mod nested;
+mod nested_exits;
 mod pipeline;
 mod query_cleanup;
 mod query_graph;
