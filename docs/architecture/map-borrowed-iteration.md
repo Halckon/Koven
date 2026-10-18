@@ -15,18 +15,14 @@ source 求值、分量与 source 清理由已验证事实交付，SSA verifier �
 | factory 初始化的 owned local Map / MutableMap，val/var；String/String | 正常耗尽；固定 A/B 形状中退出即清理，或保活至后续 size 查询 | `map-provider-local-sources-0331` |
 | Borrow Map / MutableMap 参数；Int/String | single/basic/const 正常耗尽及 whole-set 资格 | `map_iteration_stage_gate_tests`，只有 SSA/LLVM，不计新增 native |
 
-上述 fixture 目录均位于 `crates/lang-codegen/tests/fixtures/`；普通 single/basic native
-在该固定快照的本机复验为16项测试、56个 case×entry 产物，每个硬核 exit0、完整 golden
-及空 stderr。另15项普通 pipeline/身份测试保留独立 FE/SSA 查询并通过 LLVM verifier。
-具体命令及输入身份见0331本机账本；stdout 不证明精确动态分配/释放次数或无泄漏。
-local A/B 的独立同次 FE owner、全 incoming 与受保护 operand 深查询已补齐，见下节。
+上述fixture位于`crates/lang-codegen/tests/fixtures/`；固定60512的16项普通native测试/56个产物及
+15项pipeline历史复验见0331本机账本。普通stdout不证明动态释放次数或无泄漏，独立FE/SSA查询见下节。
 
 Group 的后续准入见下节；Field/Inout、direct Borrow-return continuation、
 更一般 source/CFG、nullable K/V 组合不由本表开放。body-local Guard 的析构
 正例不等于 Map 的 Resource 分量支持。Map Borrow 的直接退出
 补片和Unit闭包前端修复另见下节，本表不据云端摘要扩张。私有损坏事实与故障对照仅在
 GitHub Actions 执行，本次本机未运行；macOS sanitizer 合同仍为 partial。
-
 
 ## Unit 闭包赋值邻控
 
@@ -43,7 +39,6 @@ Pure 邻控。新重建的十份拒绝与五份合法源码均运行 single/unit
 本片不增加 closure native 支持，也不证明 opaque nullable/容器包装函数环境的一般资源
 分类；其他未验递归形状仍保留继承边界。
 
-
 ## Borrow Map 直接退出补片
 
 四份重建String/String fixture保留既有C/B/R固定尾及三分支conditional形状，来源改为
@@ -52,7 +47,6 @@ Pure 邻控。新重建的十份拒绝与五份合法源码均运行 single/unit
 已有同次独立只读查询；八路SSA/LLVM及八个native产物正常exit/golden/空stderr通过。
 fixture目录为`map-provider-borrow-exits-0331`。这是有界重建，不宣称原云提交/collector
 恢复、任意CFG或动态释放计数；原Field/Inout及Borrow-return来源阶段门保持，Group后续准入见下节。
-
 
 ## Resource 分量的有限遍历与退出
 
@@ -122,7 +116,6 @@ Unit用当前CFG loan建立provider，再以既有transport核所有入边到原
 anchor仅证明身份，不替代当前view。Borrow root不在callee结束，组件与provider按实际
 退出清理。owned参数、Field/Inout及一般CFG来源边界不由本片扩大。
 
-
 ## 横向覆盖矩阵（有限实证）
 
 N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完整笛卡尔积已验。
@@ -132,7 +125,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 | own Map/MutableMap参数 | String/String | N/C/B/R、固定三段条件 | N/C/B后size、多次Borrow调用、CFG后再Borrow及同根重复For已验；R与其他CFG组合不外推 |
 | Borrow Map/MutableMap参数 | String/String | N/C/B/R、固定条件、同根双层 | caller恢复及有限sequential已验；更一般条件/层数未验 |
 | 零参直接factory temporary | String/String | N/C/B/R固定尾 | hidden owner已验；其他payload/条件/一般factory未接通 |
-| factory-formed owned local val/var及moved alias | String/String | N/C/B/R即时Drop | G2有限退出片及原size guard；Resource、一般后用/复用/重赋值仍未闭合 |
+| factory-formed owned local val/var及moved alias | String/String、owned String字段Resource及混合Resource? | N/C/B/R；后用/复用/替换按末节实测组合 | 按真实Call、Move与epoch运输当前owner；其他birth/一般CFG仍未闭合 |
 | own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；更多既有Resource表示见后续G5片 |
 | Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定 |
 | Borrow参数等既有admission | Int/String等 | 部分N及有限sequential | 不把静态通用component cleanup接纳当全payload native实证 |
@@ -144,7 +137,6 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 其他合法operand、ABI及更一般CFG尚未系统验收，不能把有限ordinary lowering接纳外推全部支持。
 以上非Field/Inout的具体能力缺口不能统称Guide staging；普通Resource类的字段/泛型/接口、
 其他key/value与更一般source/CFG需分别验收，不能在本轮Break/Return通过后宣称F全矩阵闭合。
-
 
 ## own MutableMap 与透明 Group 来源
 
@@ -158,7 +150,6 @@ single/basic/const whole-set Group测试改为SSA/LLVM硬成功，保留全部�
 exit0/golden/空stderr。四个own MutableMap及其Group变体另核实际RootPlace、Drop的全部
 incoming回到原参数，以及每条正常退出恰一次Map Drop。不是所有payload/CFG组合的验收完成。
 
-
 ## 既有 Resource 表示的源资格
 
 `resource_forms` 的32源覆盖上表四类表示、Map/own MutableMap及N/C/B/R；源owner资格依赖
@@ -169,7 +160,6 @@ planner准入。Field/Inout来源资格和nullable结构/String?表示边界未�
 32源64条双入口FE/SSA/LLVM及64个普通native产物均通过，包含非空/空与混合nullable输入；
 完整golden只证明析构聚合数量/区间，不外推动态free或无泄漏。其他key/value/泛型/接口组合仍须
 按实际既有表示与独立证据验收；F整体缺口以0331单一账本为准。
-
 
 ## Pure own 参数的真实未来使用
 
@@ -187,12 +177,24 @@ single逐完整Header/Exit incoming证明当前owner仍连到真实own Parameter
 在第二LoopExit清理。所有Map Drop均在CFG循环之外。该有限片不宣称consume/重赋值/alias、
 一般条件/嵌套CFG或其他payload的完整覆盖；具体余项继续由SPEC0331 §45单一账本跟踪。
 
+## factory local 的形成、后用与 epoch
 
-## factory 形成与 Move 后 local 的即时退出
+`local_exits` 的24源覆盖Map/MutableMap、val/var/moved alias及N/C/B/R，48双入口与48普通native
+通过。`local_resources` 另以48源96双入口/native覆盖owned String字段Resource与混合Some/None；
+Resource owner在实际词法退出清理，Return先交付结果；所有源均实际运行非空/空scanner。
+`local_future` 的54源108双入口/native覆盖Pure local N/C/B后多次Borrow、size两臂合流后Borrow、
+同根第二For后Borrow；按真实最后使用清理，不套Resource词法寿命。`local_resource_future` 的24源
+48双入口/native覆盖Resource N/C/B后多次Borrow/size及第二For后Borrow；val/var/alias各分配8源，
+不是formation全积。size CFG两臂与第二For携带当前owner，最终Drop在tail及返回值求值之后。
 
-`local_exits` 的24源覆盖Map/MutableMap、val/var/moved alias及N/C/B/R；各运行非空/空输入。
-48条双入口FE/SSA/LLVM与48个普通native产物通过；独立查询锁实际Call birth、Move后的当前
-binding及完整incoming、终点Drop当前owner、Guard与loan清理和Return值。Formed身份独立于
-旧local A/B合同，不以声明邻接决定寿命。五个诊断邻控锁8条原For Unsupported及2条只读
-size-CFG SSA/LLVM成功（后两条未计native）。Resource local、后用/复用/重赋值及其他birth
-仍待验收；详细形成与诊断证据见[SPEC0331 §48](../specs/active/0331-map-borrowed-iteration.md#48-g2-local-形成与-move-退出的真实首红2026-10-18)。
+`local_reassignment` 的18源36双入口/native核首For前替换、两For间替换、替换后Move，包含Pure、
+Resource及nullable；另6源12双入口/native核Group，4源8双入口/native核新Pure值赋值完成后立即Drop。
+完整history区分实际事件：尚存旧值在RHS完成后清理，已死Pure不复活；outer Group与inner Call分别验证。
+当前provider仍用原零参factory合同。其他epoch普通实参Call的2源4双入口/native已验；Unit既有
+member/override/delegation路线另核真实resolved callee/receiver，不新增ABI。Single相同路线及
+companion在无For控制已有失败，属于共享调用前置，不能计为For支持或Guide staging。
+
+每个已验源独立查询原FE形成/Move、全部Header/Exit incoming与实际最后Drop，SSA另锁当前
+owner、Guard、K/V loan及所有受保护使用；普通native只证明exit0/完整golden/空stderr。
+原五源邻控为5条原For Unsupported与5条SSA/LLVM成功；Unit重绑另验两owner身份及1个native。当前实参、
+其他birth/非当前epoch专用Map或函数值Call、一般CFG等仍归0331缺口账本，不据本片称G2或F全闭合。

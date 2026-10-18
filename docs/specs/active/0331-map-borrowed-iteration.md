@@ -807,8 +807,8 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 
 | 组 | 实际范围与依赖 | 归属／当前状态 |
 |---|---|---|
-| G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，§48 Pure String/String即时N/C/B/R与factory alias首片；Resource/后用/复用/重赋值仍未闭合 |
-| G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，未闭合；条件依赖G7 |
+| G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，§48–52有限factory local的Resource/后用/复用/重赋值轴已接通；其他birth/一般CFG及新头CI仍逐项闭合 |
+| G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，未闭合；含current factory实参及Single成员/companion共享Call前置，条件依赖G7 |
 | G4 | own MutableMap参数N/C/B/R，复用已验证Value/Owned参数及原清理 | 0331，本节首片；d85e完整CI及三artifact独审通过 |
 | G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；d85e完整CI及三artifact独审通过，其他表示仍逐项验收 |
 | G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331 Return缺口未闭合；ABI前置另行明确验收，不能静默省略 |
@@ -984,3 +984,90 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   仅首initializer允许同end，replacement RHS仍按严格完成前清理旧值。修后串行验收仍在跑。
   三层Group RHS的12条及非当前epoch arity的4条邻控已接线，Group独立深身份/native仍待补；
   本检查点不作最终验收，不将旧头CI覆盖到当前未推送生产候选。
+
+## 52. G2 有限合同逐项闭合与调用前置（2026-10-18）
+
+| 合同 | 固定普通源 | 双入口SSA/LLVM / 普通native产物 | 实际独立证明 |
+|---|---|---|---|
+| Pure local即时N/C/B/R | 24 | 48 / 48 | §48已验；形成或Move后的当前owner与Return交付 |
+| Resource local N/C/B/R | 48 | 96 / 96 | 原Call形成、完整live owner、词法Drop及Guard；另4条重复For邻控 |
+| Pure local后用/同根复用 | 54 | 108 / 108 | 多次Borrow、size CFG两live臂、第二For及真正ASAP最后使用 |
+| Resource后用/重复For | 24 | 48 / 48 | 两种Resource表示×N/C/B×两continuation；formation各分配8源，非全积 |
+| local重新赋值 | 18 | 36 / 36 | Pure/Resource/nullable的三类历史，old/new Call与完整epoch边界 |
+| Group RHS | 6 | 12 / 12 | outer RHS完整替换点、每层type/category、inner Call实际owner身份 |
+| 非当前epoch普通实参 | 2 | 4 / 4 | 复用原普通Call delivery，不再对所有epoch套零参provider门 |
+| Pure替换后无后用 | 4 | 8 / 8 | 实际assignment安装事件与RHS同end仍不同epoch；新值ASAP在tail前Drop |
+| 非当前epoch既有Unit成员路线 | 6 For源＋3无For控制 | 9 Unit / 9 | 静态member/override/delegation，实际resolved callee/receiver与各epoch Drop |
+
+- 上表为分项实际通过；最终同一冻结源码的回归、工程门禁与新头远端CI仍须下段收据闭合。
+  `4dd2ec46`保存主修复与测试，不以先前`4bc23d38`已绿CI覆盖它。定时正常小提交，不新增备份。
+- 固定`4bc23d38`十六个tracked生产文件旧字节，用当前真实源码重验：Resource96、Pure后用108、
+  Resource后用48条均原For Unsupported；重新赋值36条为34 Unsupported、2 MissingFact，
+  Group12与arity4亦失败。所有原FE query false为0，Rust实际0通过/7失败/0忽略；候选字节已恢复。
+  这次原始结果与早期各首红分开保留，不能把Missing或收集器退出码改记全U/成功。
+- 调用路线独审发现旧新增门只接受Declaration、误拒Symbol及已解析委托，现按同次source plan
+  完整key对应的实际callee核出生；当前provider仍沿原零参资格。非当前专用Map/FunctionValue
+  等未验出生明确Unsupported，仍是0331实现缺口，不能冒称Guide staging或新ABI已交付。
+- member/companion/override/delegation的8份For源及4份无For控制首次双入口实际0通过/2失败/
+  0忽略：Unit member/override/delegation的6条For与3条控制SSA/LLVM成功；Single这三路线无For
+  已在Call Unsupported，companion无For两端分别complete L0165与lower MissingFact。完整24观察
+  和原source/golden保留；不把失败控制变成预期拒绝来算支持，也不将通用Call前置伪装For资格。
+  最终正验仅计已有Unit三路线，并补同次resolved route、实际SSA receiver/callee与owner Drop身份。
+- 当前距离F完成仍至少包括§45 G3 temporary/实际current factory实参与调用前置、G6其他payload
+  Return及String? ABI、G7一般Return operand/条件与checked组合、G8不同root/own/temp/三层嵌套；
+  G9其他root/consume/一般CFG及G10其他Move/birth/Borrow-result也未全验。它们属于0331，不转交D10。
+  Field/Inout保持Guide原延后边界，Mac sanitizer仍partial/requirements_met=false且UBSan未覆盖。
+
+## 53. Pure replacement 的安装事件与 ASAP Drop（2026-10-18）
+
+- 独立生产审计发现§51仍遗漏“已有For之后替换成不再读取的Pure owner”：旧RHS完成清理与
+  新值AfterExpression(assignment) ASAP Drop具有相同end，但属于不同FE事件。原83源中
+  `g2-local-reassign`的两入口也都在实际assignment MissingFact，不能据主矩阵36绿称完全闭合。
+- 先以`3da61cb7`小提交保存4源：Map/MutableMap×plain/三层Group RHS；每源实际非空/空
+  scanner。原源码与golden固定，8路全部完整FE后actual lower MissingFact，FE query false为0；
+  Rust实际0通过/1失败/0忽略。初版Single query误把新origin写成旧声明，已按真实assignment
+  origin校正，原首轮结果与校正后干净红测分别保留，不改source/golden消红。
+- `606ba6ed`仅保存真实DropEvent：保留AfterExpression的原ExpressionId，只有实际Assignment、
+  RHS id等于该epoch.rhs且完整span等于epoch.origin才表示安装；RHS完成仍清旧epoch。
+  in_formation先选实际epoch再比outer RHS与binding，Group不丢失完整边界。Pure仍按前端原
+  ASAP点清理，未转成Resource词法延寿。Single/Unit新Drop origin均为实际assignment。
+- 同一四源8路原FE/SSA/LLVM深查询全绿，Rust实际1通过/0失败/0忽略；source/golden哈希与
+  干净首红完全一致。SSA另核old owner完整incoming、new实际Call结果在赋值点唯一Drop，且
+  Drop在tail之前。独立4生产文件复审关闭原P2，未发现新生产finding；同4源8个single/unit
+  普通native产物亦严格通过exit0/完整golden/空stderr，最终冻结工程与总收据仍在验。
+- PR119的`4dd2ec46` CI `39137673283`双host在Clippy失败：5处helper重复注册、1处等价布尔
+  简化及5处8参查询函数；Targeted/Preview未运行。修正采用唯一共享模块和相关证据成对传递，
+  未加allow或删除断言；本机候选Clippy已绿，最终新头需重新完成工程和远端门禁。
+
+## 54. 旧 alias 原变量重绑的真实 Unit 邻控（2026-10-18）
+
+- `065fa0ce`首轮冻结实际27个Rust通过/1失败/0忽略、321个严格native通过；失败来自旧五源
+  邻控把`old-alias-rebound`的Unit真成功仍断言为Unsupported，非生产Missing或FE query失败。
+  原失败收据单独保留，不以收集器exit0算全绿，也不修改生产来拒绝真实成功。
+- 原源码保持`old=make();source=old;old=other();For(source);readMap(old)`，新增独立原FE/SSA
+  查询：For的qualified source与完整incoming始终到make经Move形成的owner；后续readMap的
+  RootPlace与Borrow到other的新owner。两owner family互斥，逐节点锚定实际factory，全部Uses
+  与恰好两Map Drop、精确origin及LoopExit/CallReturn清理顺序均锁定。
+- 定向实际Rust1通过/0失败/0忽略，十条观察为5 LLVM与5原For Unsupported；同原源码的
+  Unit native另1通过，严格exit0/完整`gap\nzero\n`/空stderr。Single该路线仍原For Unsupported，
+  是0331其他Move/形成历史缺口；该Unit邻控不扩充所有别名或一般CFG支持。
+- `639032cf`已独立审查通过，无生产改动或阻断finding；原fixture的两个Map均为空，native
+  不执行循环体，也不能单靠stdout区分owner，因此本片的身份与Drop次数由上述独立SSA查询补证。
+
+## 55. G2 本机冻结收据与剩余 F 诊断（2026-10-18）
+
+- 代码冻结`639032cf4d1e4623f4547ac5e9f6c9c171285c68`，32条串行命令全部通过：57个选定Rust
+  测试，0失败/0忽略；482个选定普通native产物严格exit0/完整golden/空stderr。482包含既有
+  G5/G9回归及3个无For的Unit调用控制，不是482种新增For组合。
+- 源码指纹覆盖crates、Cargo与rust-toolchain，前后均为
+  `382339ea4fa08312f6bf80f0f373d390f256c35e32094e088c9d0d04a738955d`；不包含本轮dirty文档。
+  与固定旧实现的308条source/golden观察完全相同；Pure安装事件另四源八路也与干净红测一致。
+- fmt、workspace all-targets check、Clippy -D warnings、workspace build均通过；文档结构检查
+  704 Markdown通过，尺寸护栏通过（38个既有超限，无新例外），whitespace通过。Rust/Cargo
+  1.96.0、LLVM/Clang21.1.8；普通native按合同由系统Apple clang21.0.0链接。
+- 同一冻结源码另跑原83源166观察：92 SSA/LLVM成功、72 lower Unsupported、2 ownership
+  诊断，实际Rust0通过/1失败/0忽略、exit101、无native。与修复前相比恰好原
+  `g2-local-reassign`两入口由MissingFact转为LLVM，其余阶段不变；原G2子集22/22 LLVM。
+  fixture哈希全符、临时注册finally恢复、源码指纹与正验相同。这是失败缺口诊断，不能说F全绿。
+- 本轮未运行本机故障、校准、合成事实或sanitizer executable；Mac保持partial/requirements_met=false，
+  UBSan未覆盖。新提交的双host完整CI与当前artifact独立验收仍须重新运行，不继承旧头结论。
