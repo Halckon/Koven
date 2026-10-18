@@ -245,7 +245,7 @@ fn guard(
         .iter()
         .filter(|reference| {
             reference.source_unit() == source
-                && reference.namespace() == Some(Namespace::Value)
+                && reference.namespace() == Some(Namespace::Type)
                 && reference.span() == callee.span()
         })
         .collect::<Vec<_>>();
