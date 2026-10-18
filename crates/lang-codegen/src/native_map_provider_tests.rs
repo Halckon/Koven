@@ -213,3 +213,6 @@ mod temporary_argument_cfg;
 
 #[path = "native_map_provider_control_flow_tests.rs"]
 mod ordinary_control_flow;
+
+#[path = "native_map_provider_stack_tests.rs"]
+mod stack_paths;
