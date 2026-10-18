@@ -18,6 +18,7 @@ mod query_test;
 mod temporary;
 mod temporary_exits;
 
+pub(crate) use borrowed::sources as borrowed_exit_sources;
 pub(crate) use conditional::sources as conditional_sources;
 pub(crate) use local_sources::native_sources as local_native_sources;
 pub(crate) use nested::sources as nested_sources;
