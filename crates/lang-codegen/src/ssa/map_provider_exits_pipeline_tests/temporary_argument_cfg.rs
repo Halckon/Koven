@@ -1,4 +1,4 @@
-//! Legal argument CFG is an explicit pending provider capability, never missing FE facts.
+//! Ordinary argument CFG delivers its actual Call owner to the existing provider entry.
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -51,31 +51,10 @@ fn observe(mutable: bool, unit: bool, control: bool) -> Result<(), Failure> {
     if !report.passed() {
         return Err(failure("original FE queries", report));
     }
-    if control {
-        let (program, _) = lowered?;
-        crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
-        crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
-        Ok(())
-    } else {
-        let Err(stopped) = lowered else {
-            return Err(failure(
-                "CFG provider pending boundary unexpectedly admitted",
-                (mutable, unit),
-            ));
-        };
-        if stopped.stage != "lower"
-            || !stopped.original.contains("kind: UnsupportedNode")
-            || !stopped
-                .original
-                .contains("for((key,value) in produce(if(flag){1}else{2}))")
-        {
-            return Err(failure(
-                "CFG pending boundary must retain original For UnsupportedNode",
-                stopped,
-            ));
-        }
-        Ok(())
-    }
+    let (program, _) = lowered?;
+    crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
+    crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
+    Ok(())
 }
 
 fn check(control: bool) {
@@ -99,6 +78,6 @@ fn ordinary_call_with_argument_cfg_reaches_both_pipelines() {
 }
 
 #[test]
-fn pending_provider_argument_cfg_is_unsupported_not_missing_fact() {
+fn provider_argument_cfg_reaches_both_pipelines() {
     check(false);
 }
