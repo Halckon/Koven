@@ -217,3 +217,9 @@ fn map_and_mutable_map_temporary_exits_reach_verified_llvm() {
          query 失败不遮真实阶段，缺事实/UnsupportedNode 不算成功；本首证不宣称全实体/全 edge 闭包或 native。\n{observations:#?}"
     );
 }
+
+/// 同字节六源与完整 golden，供后续独立准入的普通 native 测试复用。
+/// 保持 Case/Exit 私有，不改变首证 collector 的任何阶段或成功条件。
+pub(crate) fn native_sources() -> [(&'static str, &'static str, &'static str); 6] {
+    sources().map(|case| (case.label, case.text, case.golden))
+}

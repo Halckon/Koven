@@ -153,3 +153,6 @@ mod nested_tests;
 
 #[path = "native_map_provider_nested_exits_tests.rs"]
 mod nested_exits_tests;
+
+#[path = "native_map_provider_temporary_exits_tests.rs"]
+mod temporary_exits_tests;
