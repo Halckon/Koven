@@ -268,9 +268,13 @@ fn qualify_one<'a>(
     )
     .ok_or_else(missing)?;
     let owner = if access == MapIterationSourceAccess::Owned {
-        Some(source_owner::qualify(
-            parsed, names, owned, plan, symbol, *body, body_exit,
-        )?)
+        Some(
+            if typed.is_resource_type(descriptor.source_type()) == Some(true) {
+                resource::qualify(parsed, names, typed, owned, plan, symbol, body_exit)?
+            } else {
+                source_owner::qualify(parsed, names, owned, plan, symbol, *body, body_exit)?
+            },
+        )
     } else {
         if exhaustion.actions().len() != 2 || (tail.is_none() && !plan.closure_phis().is_empty()) {
             return Err(unsupported());

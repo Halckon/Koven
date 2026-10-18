@@ -323,7 +323,7 @@ pub(super) fn phi<'a>(
     Ok(phi)
 }
 
-fn incoming<'a>(
+pub(super) fn incoming<'a>(
     conditions: &CleanupConditions,
     plan: &'a MapIterationOwnershipPlan,
     phi: &IterationClosurePhiBinding,
@@ -377,6 +377,9 @@ pub(in super::super) fn supported_drop(
                         && exit.actions().contains(&IterationCleanupAction::Drop(fact))
                 })
             })
+        })),
+        DropPoint::AfterStatement(_) => unique(typed.map_iterations().iter().filter(|descriptor| {
+            owned.map_iteration(descriptor.statement()).is_some_and(|plan| plan.closure_phis().iter().any(|phi| Some(phi.owner()) == fact.owner()))
         })),
         _ => None,
     };

@@ -8,6 +8,7 @@ mod local_runtime;
 mod nested;
 mod nested_events;
 mod qualify;
+mod resource;
 mod source;
 mod source_owner;
 mod temporary;
@@ -49,6 +50,7 @@ pub(super) fn storage(module: &Module, types: &BTreeMap<TypeId, SsaTypeId>) -> S
 pub(super) struct State {
     entries: BTreeMap<SymbolId, EntityId>,
     locals: BTreeMap<SymbolId, local_runtime::Carrier>,
+    resources: BTreeMap<SymbolId, resource::Carrier>,
     storage: Storage,
 }
 impl State {
@@ -72,6 +74,7 @@ impl State {
                 .collect(),
             storage: storage.clone(),
             locals: BTreeMap::new(),
+            resources: BTreeMap::new(),
         }
     }
 }
@@ -500,8 +503,7 @@ impl ExpressionLowerer<'_> {
         if !frame.finished
             || frame.source.is_some()
             || owner.is_some_and(|(proof, source, value)| {
-                let live = matches!(source, SourceIdentity::Local { .. })
-                    && proof.at(exhaustion.point()).is_none();
+                let live = proof.at(exhaustion.point()).is_none();
                 source.current_owner(self) != live.then_some(value)
             })
         {
@@ -571,6 +573,7 @@ impl ExpressionLowerer<'_> {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
         }
+        self.retain_resource_map(owner, seed, span)?;
         Ok(LoweredValue::Unit)
     }
 

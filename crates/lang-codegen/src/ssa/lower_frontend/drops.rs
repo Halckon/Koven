@@ -26,6 +26,9 @@ impl ExpressionLowerer<'_> {
             }
             let fact = facts[index];
             index += 1;
+            if self.emit_resource_map_drop(fact)? {
+                continue;
+            }
             if self.emit_local_map_drop(fact)? {
                 continue;
             }

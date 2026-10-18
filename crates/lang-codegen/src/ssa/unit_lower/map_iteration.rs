@@ -3,6 +3,7 @@ mod conditional;
 mod local;
 mod nested;
 pub(super) use local::LocalContinuation;
+mod resource;
 mod source_identity;
 mod temporary;
 use super::*;
@@ -368,8 +369,18 @@ fn qualify_one(
             return Err(unsupported());
         }
     }
-    let (source_drop, transfer_drop) = if let Some(pair) = nested.filter(|pair| pair.tail.is_some())
+    let late_drop = if plan.source_access() == UnitIterationSourceAccess::Owned
+        && typed.is_resource_type(descriptor.source_type()) == Some(true)
     {
+        Some(resource::qualify(
+            parsed, names, typed, owned, plan, root, body_exit,
+        )?)
+    } else {
+        None
+    };
+    let (source_drop, transfer_drop) = if late_drop.is_some() {
+        (None, None)
+    } else if let Some(pair) = nested.filter(|pair| pair.tail.is_some()) {
         nested::validate_tail_cleanup(parsed, typed, owned, plan, pair, root, span)?;
         (None, None)
     } else if let Some(shape) = conditional.as_mut() {
@@ -399,7 +410,7 @@ fn qualify_one(
             slot: *parameter_slot,
         },
         source_drop,
-        late_drop: None,
+        late_drop,
         transfer_drop,
         body_exit,
         body_point,

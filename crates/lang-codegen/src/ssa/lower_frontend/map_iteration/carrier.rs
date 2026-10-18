@@ -348,8 +348,10 @@ impl Evidence<'_> {
                     instruction.operation == Operation::Drop { owner: dropped }
                 })
                 .collect::<Vec<_>>();
-            let live = matches!(symbol, SourceIdentity::Local { .. })
-                && matches!(proof.drop.point(), DropPoint::CallReturn(_));
+            let live = matches!(
+                proof.drop.point(),
+                DropPoint::CallReturn(_) | DropPoint::AfterStatement(_)
+            );
             if live {
                 if !drops.is_empty() {
                     return Err(missing());

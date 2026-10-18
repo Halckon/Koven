@@ -88,7 +88,10 @@ impl MapCarrier {
         // Preserve old Parameter/Temporary lifetime gates. Only the qualified Local
         // row separates owning storage from this provider's terminal Drop.
         match qualified.source {
-            SourceIdentity::Local { .. } => {
+            source
+                if matches!(source, SourceIdentity::Local { .. })
+                    || qualified.late_drop.is_some() =>
+            {
                 if !matches!(seed, EntityId::Value(_))
                     || qualified.source_drop.is_some() == qualified.late_drop.is_some()
                     || qualified.transfer_drop.is_some()
@@ -274,11 +277,16 @@ impl MapCarrier {
         {
             return Err(bad());
         }
-        if self.nested.is_some() || matches!(self.identity, SourceIdentity::Local { .. }) {
+        if self.nested.is_some()
+            || matches!(self.identity, SourceIdentity::Local { .. })
+            || self.late_drop.is_some()
+        {
             transport::from_anchor(lowerer.function, seed, self.anchor, span)?;
         }
         let valid_role = match self.identity {
-            SourceIdentity::Local { .. } => {
+            source
+                if matches!(source, SourceIdentity::Local { .. }) || self.late_drop.is_some() =>
+            {
                 self.owned
                     && matches!(seed, EntityId::Value(_))
                     && self.drop.is_some() != self.late_drop.is_some()
@@ -341,7 +349,10 @@ impl MapCarrier {
         {
             return Err(bad());
         }
-        if self.nested.is_some() || matches!(self.identity, SourceIdentity::Local { .. }) {
+        if self.nested.is_some()
+            || matches!(self.identity, SourceIdentity::Local { .. })
+            || self.late_drop.is_some()
+        {
             let incoming = transport::incoming(lowerer.function, self.header);
             if incoming.len() != 2
                 || incoming
