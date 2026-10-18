@@ -1,17 +1,13 @@
 //! Bound the Map body to normal straight-line execution or one direct tail transfer.
 //! This describes capability only; the exit/action/owner facts still come from Phase 3.
 use super::*;
-use lang_frontend::{
-    name_resolution::ReferenceTarget,
-    parser::NameMarker,
-    type_checking::{CallableResultSource, CallableTarget, MapIterationDescriptor},
-};
+use lang_frontend::type_checking::MapIterationDescriptor;
 
 pub(super) fn body_exit(
     parsed: &ParsedFile,
-    names: &NameResolution,
+    _names: &NameResolution,
     typed: &TypedFile,
-    descriptor: MapIterationDescriptor,
+    _descriptor: MapIterationDescriptor,
     body: StatementId,
     span: Span,
 ) -> Result<IterationExitKind, LoweringError> {
@@ -49,125 +45,11 @@ pub(super) fn body_exit(
     match node.payload() {
         Expression::Continue { .. } => Ok(IterationExitKind::Continue(*expression)),
         Expression::Break { .. } => Ok(IterationExitKind::Break(*expression)),
-        Expression::Return { value, .. } => {
-            if typed.is_resource_type(descriptor.value_type()) != Some(true) {
-                let Some(value) = value else {
-                    return Err(unsupported());
-                };
-                if [descriptor.key_type(), descriptor.value_type()]
-                    .iter()
-                    .any(|ty| builtin_type(typed, *ty) != Some(BuiltinType::String))
-                {
-                    return Err(unsupported());
-                }
-                return_operand(parsed, names, typed, descriptor, *value, span)?;
-            }
-            Ok(IterationExitKind::Return(*expression))
-        }
+        // Operand evaluation and concrete return ABI belong to ordinary lower_return.
+        // Complete FE has already checked the return contract and ownership delivery.
+        Expression::Return { .. } => Ok(IterationExitKind::Return(*expression)),
         _ => Err(unsupported()),
     }
-}
-
-pub(super) fn return_operand(
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    descriptor: MapIterationDescriptor,
-    value: ExpressionId,
-    span: Span,
-) -> Result<(), LoweringError> {
-    let missing = || error(LoweringErrorKind::MissingFact, span);
-    let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
-    let node = parsed
-        .ast()
-        .expressions()
-        .get(value)
-        .map_err(|_| missing())?;
-    let Expression::Call {
-        callee, arguments, ..
-    } = node.payload()
-    else {
-        return Err(unsupported());
-    };
-    let callee = parsed
-        .ast()
-        .expressions()
-        .get(*callee)
-        .map_err(|_| missing())?;
-    if callee.payload() != &Expression::Name || arguments.len() != 2 {
-        return Err(unsupported());
-    }
-    let call = typed.call(value).ok_or_else(missing)?;
-    let CallableTarget::Source(target) = call.target() else {
-        return Err(unsupported());
-    };
-    let symbol = names.symbols().get(target.index()).ok_or_else(missing)?;
-    let signature = unique(
-        typed
-            .callables()
-            .iter()
-            .filter(|signature| signature.symbol() == target),
-    )
-    .ok_or_else(missing)?;
-    if symbol.kind() != SymbolKind::Function
-        || !parsed.roots().iter().any(|root| {
-            parsed.ast().items().get(*root).is_ok_and(|node| {
-                matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. }
-                    if *name == symbol.span())
-            })
-        })
-        || call.receiver().is_some()
-        || call.aborts()
-        || call.result_source() != CallableResultSource::Owned
-        || !call.instance().type_arguments().is_empty()
-        || signature.owner().is_some()
-        || signature.receiver().is_some()
-        || !signature.type_parameters().is_empty()
-        || builtin_type(typed, call.return_type()) != Some(BuiltinType::Int)
-    {
-        return Err(unsupported());
-    }
-    if call.expression() != value
-        || typed.expression_type(value) != Some(call.return_type())
-        || call.arguments().len() != 2
-        || signature.return_type() != call.return_type()
-        || signature.parameters().len() != 2
-    {
-        return Err(missing());
-    }
-    for (index, argument) in arguments.iter().enumerate() {
-        let node = parsed
-            .ast()
-            .expressions()
-            .get(argument.value)
-            .map_err(|_| missing())?;
-        if node.payload() != &Expression::Name {
-            return Err(unsupported());
-        }
-        let reference = unique(
-            names
-                .references()
-                .iter()
-                .filter(|r| r.span() == node.span()),
-        )
-        .ok_or_else(missing)?;
-        if reference.target() != &ReferenceTarget::Symbol(descriptor.bindings()[index]) {
-            return Err(unsupported());
-        }
-        let actual = call.arguments()[index];
-        if actual.argument_index() != index
-            || actual.parameter_index() != index
-            || actual.mode() != ParameterMode::Borrow
-            || actual.crosses_thread()
-            || signature.parameters()[index].mode != ParameterMode::Borrow
-            || signature.parameters()[index].ty != actual.parameter_type()
-            || actual.parameter_type() != [descriptor.key_type(), descriptor.value_type()][index]
-            || typed.expression_type(argument.value) != Some(actual.parameter_type())
-        {
-            return Err(missing());
-        }
-    }
-    Ok(())
 }
 
 pub(super) fn point(

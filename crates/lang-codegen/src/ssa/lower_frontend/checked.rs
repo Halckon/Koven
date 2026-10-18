@@ -44,8 +44,8 @@ impl ExpressionLowerer<'_> {
             span,
         )?;
         let baseline = self.bindings.clone();
-        let mut carried = self.linear_binding_slots(&baseline, span)?;
-        self.carry_checked_map(&mut carried, span)?;
+        let carried = self.linear_binding_slots(&baseline, span)?;
+        self.carry_checked_map(&carried, span)?;
         let previous_block = self.block;
         let parameter_types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
         let arguments = carried

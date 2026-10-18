@@ -10,7 +10,7 @@ pub(super) fn parameter(
     owner: CleanupOwnerValueId,
     span: Span,
 ) -> Result<CleanupConditionId, LoweringError> {
-    rooted(owned, symbol, origin, None, owner, span)
+    rooted(owned, symbol, origin, None, owner, span, false)
 }
 
 pub(super) fn formed(
@@ -20,7 +20,19 @@ pub(super) fn formed(
     owner: CleanupOwnerValueId,
     span: Span,
 ) -> Result<CleanupConditionId, LoweringError> {
-    rooted(owned, symbol, birth.1, Some(birth.0), owner, span)
+    rooted(owned, symbol, birth.1, Some(birth.0), owner, span, false)
+}
+
+/// Generic body paths retain all published incoming edges, including multiple jumps.
+pub(super) fn flow(
+    owned: &OwnershipCheckedFile,
+    symbol: SymbolId,
+    origin: Span,
+    expression: Option<ExpressionId>,
+    owner: CleanupOwnerValueId,
+    span: Span,
+) -> Result<CleanupConditionId, LoweringError> {
+    rooted(owned, symbol, origin, expression, owner, span, true)
 }
 
 fn rooted(
@@ -30,6 +42,7 @@ fn rooted(
     expression: Option<ExpressionId>,
     owner: CleanupOwnerValueId,
     span: Span,
+    flow: bool,
 ) -> Result<CleanupConditionId, LoweringError> {
     let bad = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
@@ -131,9 +144,42 @@ fn rooted(
                         | IterationPhiIncomingKind::Break(e) => DropPoint::ControlTransfer(e),
                         IterationPhiIncomingKind::Exhaustion => DropPoint::LoopExit(*statement),
                     };
-                    let binding = super::incoming(conditions, plan, phi, kind, point, span)?;
+                    let binding = if flow {
+                        let selected = unique(
+                            plan.closure_phi_incomings()
+                                .iter()
+                                .filter(|i| i.kind() == kind),
+                        )
+                        .ok_or_else(bad)?;
+                        if selected.point() != point
+                            || selected.boundary() != *boundary
+                            || conditions.get(selected.condition()).is_none()
+                        {
+                            return Err(bad());
+                        }
+                        let [binding] = selected.bindings() else {
+                            return Err(bad());
+                        };
+                        if binding.target() != phi.owner()
+                            || binding.availability_selector() != phi.availability_selector()
+                            || binding.presence_source()
+                                != IterationPhiPresenceSource::StaticConditions
+                            || !binding.capture_slots_to_clear().is_empty()
+                            || !binding.root_sources().is_empty()
+                            || !binding.selector_writes().is_empty()
+                            || !binding.origins().is_empty()
+                        {
+                            return Err(bad());
+                        }
+                        binding
+                    } else {
+                        super::incoming(conditions, plan, phi, kind, point, span)?
+                    };
                     count += 1;
                     match binding.values() {
+                        [] if flow
+                            && conditions.get(binding.available_when())
+                                == Some(&CleanupCondition::Never) => {}
                         [] => return Err(unsupported()),
                         [value] if value.condition() == binding.available_when() => {
                             let header = super::phi(
@@ -158,7 +204,23 @@ fn rooted(
                         _ => return Err(bad()),
                     }
                 }
-                let expected = if *boundary == IterationPhiBoundary::Header {
+                let expected = if flow {
+                    usize::from(*boundary == IterationPhiBoundary::Header)
+                        + plan
+                            .exits()
+                            .iter()
+                            .filter(|exit| match boundary {
+                                IterationPhiBoundary::Header => matches!(
+                                    exit.kind(),
+                                    IterationExitKind::Fallthrough | IterationExitKind::Continue(_)
+                                ),
+                                IterationPhiBoundary::Exit => matches!(
+                                    exit.kind(),
+                                    IterationExitKind::Break(_) | IterationExitKind::Exhaustion
+                                ),
+                            })
+                            .count()
+                } else if *boundary == IterationPhiBoundary::Header {
                     1 + usize::from(plan.exits().iter().any(|e| {
                         matches!(
                             e.kind(),
@@ -183,10 +245,15 @@ fn rooted(
             _ => return Err(unsupported()),
         }
     }
-    if values
-        .iter()
-        .any(|(source, condition)| available.get(source) != Some(condition))
-    {
+    if values.iter().any(|(source, condition)| {
+        available.get(source).is_none_or(|known| {
+            if flow {
+                !implies(conditions, *condition, *known)
+            } else {
+                known != condition
+            }
+        })
+    }) {
         return Err(bad());
     }
     loop {
@@ -204,4 +271,125 @@ fn rooted(
         return Err(bad());
     }
     available.get(&owner).copied().ok_or_else(bad)
+}
+
+/// Incoming path conditions may narrow a live phi, but may never create presence.
+fn implies(
+    conditions: &CleanupConditions,
+    path: CleanupConditionId,
+    live: CleanupConditionId,
+) -> bool {
+    fn visit(
+        conditions: &CleanupConditions,
+        path: CleanupConditionId,
+        live: CleanupConditionId,
+        seen: &mut BTreeSet<CleanupConditionId>,
+    ) -> bool {
+        if path == live
+            || conditions.get(path) == Some(&CleanupCondition::Never)
+            || conditions.get(live) == Some(&CleanupCondition::Always)
+        {
+            return true;
+        }
+        if !seen.insert(path) {
+            return false;
+        }
+        let result = match (conditions.get(path), conditions.get(live)) {
+            (
+                Some(CleanupCondition::Choice { selector, branches }),
+                Some(CleanupCondition::Choice {
+                    selector: expected,
+                    branches: live_branches,
+                }),
+            ) => {
+                if selector == expected {
+                    branches.len() == live_branches.len()
+                        && branches
+                            .iter()
+                            .zip(live_branches)
+                            .all(|(branch, live)| visit(conditions, *branch, *live, seen))
+                } else {
+                    branches
+                        .iter()
+                        .all(|branch| visit(conditions, *branch, live, seen))
+                }
+            }
+            _ => false,
+        };
+        seen.remove(&path);
+        result
+    }
+    visit(conditions, path, live, &mut BTreeSet::new())
+}
+
+/// Compare immutable condition DAGs under this exact exit's saved control path.
+/// This reads selector identities; it never evaluates a source condition again.
+pub(in super::super) fn equal_on_path(
+    conditions: &CleanupConditions,
+    actual: CleanupConditionId,
+    expected: CleanupConditionId,
+    path: CleanupConditionId,
+) -> bool {
+    use lang_frontend::ownership_checking::CleanupSelectorId;
+    enum Value {
+        Known(bool),
+        Select(CleanupSelectorId, usize),
+    }
+    fn value(
+        conditions: &CleanupConditions,
+        id: CleanupConditionId,
+        selected: &BTreeMap<CleanupSelectorId, usize>,
+    ) -> Option<Value> {
+        match conditions.get(id)? {
+            CleanupCondition::Always => Some(Value::Known(true)),
+            CleanupCondition::Never => Some(Value::Known(false)),
+            CleanupCondition::Choice { selector, branches } => match selected.get(selector) {
+                Some(index) => value(conditions, *branches.get(*index)?, selected),
+                None => Some(Value::Select(*selector, branches.len())),
+            },
+        }
+    }
+    fn compare(
+        conditions: &CleanupConditions,
+        actual: CleanupConditionId,
+        expected: CleanupConditionId,
+        path: CleanupConditionId,
+        selected: &mut BTreeMap<CleanupSelectorId, usize>,
+    ) -> bool {
+        if actual == expected {
+            return true;
+        }
+        let Some(path_value) = value(conditions, path, selected) else {
+            return false;
+        };
+        if matches!(path_value, Value::Known(false)) {
+            return true;
+        }
+        let Some(actual_value) = value(conditions, actual, selected) else {
+            return false;
+        };
+        let Some(expected_value) = value(conditions, expected, selected) else {
+            return false;
+        };
+        let pick = match (path_value, actual_value, expected_value) {
+            (Value::Known(true), Value::Known(a), Value::Known(b)) => return a == b,
+            (Value::Select(selector, count), _, _)
+            | (_, Value::Select(selector, count), _)
+            | (_, _, Value::Select(selector, count)) => (selector, count),
+            _ => return false,
+        };
+        if pick.1 == 0 {
+            return false;
+        }
+        for branch in 0..pick.1 {
+            selected.insert(pick.0, branch);
+            if !compare(conditions, actual, expected, path, selected) {
+                selected.remove(&pick.0);
+                return false;
+            }
+        }
+        selected.remove(&pick.0);
+        true
+    }
+    compare(conditions, actual, expected, path, &mut BTreeMap::new())
 }

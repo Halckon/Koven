@@ -177,6 +177,29 @@ pub(super) fn qualify<'a>(
             return Err(unsupported());
         }
     }
+    let source_identity = SourceIdentity::Formed {
+        symbol: root,
+        producer: formation.producer,
+    };
+    if let Some(shape) = conditional::shape(parsed, names, typed, *d, body, source_identity, span)?
+    {
+        let owner = conditional::qualify(parsed, names, typed, owned, plan, shape, span)?;
+        return Ok(qualify::Qualified {
+            plan,
+            source: source_identity,
+            body,
+            origin: names
+                .symbols()
+                .get(root.index())
+                .ok_or_else(missing)?
+                .span(),
+            owner,
+            body_exit: IterationExitKind::Fallthrough,
+            conditional: Some(shape),
+            nested: None,
+            local: None,
+        });
+    }
     let body_exit = exit_shape::body_exit(parsed, names, typed, *d, body, span)?;
     exit_shape::cleanup(owned, plan, body, body_exit, span)?;
     let owner = if resource {

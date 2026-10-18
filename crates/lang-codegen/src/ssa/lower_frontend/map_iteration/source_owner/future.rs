@@ -106,6 +106,7 @@ pub(super) fn qualify(
         return Err(bad());
     }
     Ok(Proof {
+        flow: None,
         drop: *drop,
         transfer: None,
         conditional_return: None,

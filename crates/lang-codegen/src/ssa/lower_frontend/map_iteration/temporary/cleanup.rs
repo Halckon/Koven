@@ -214,6 +214,7 @@ pub(super) fn prove(
         }
     }
     Ok(source_owner::Proof {
+        flow: None,
         drop,
         transfer,
         conditional_return: None,
@@ -480,6 +481,7 @@ fn normal(
         return Err(missing());
     }
     Ok(source_owner::Proof {
+        flow: None,
         drop,
         transfer: None,
         conditional_return: None,

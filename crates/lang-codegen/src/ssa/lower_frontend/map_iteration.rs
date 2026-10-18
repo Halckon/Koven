@@ -451,7 +451,9 @@ impl ExpressionLowerer<'_> {
                     .and_then(|c| c.map_loop.as_ref())
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
                     .body)
-            || (result == LoweredValue::Diverged) == (body_exit == IterationExitKind::Fallthrough)
+            || (qualified.conditional.is_none()
+                && (result == LoweredValue::Diverged)
+                    == (body_exit == IterationExitKind::Fallthrough))
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
@@ -470,10 +472,14 @@ impl ExpressionLowerer<'_> {
         if !state.cleaned
             || !context.continues.is_empty()
             || context.breaks.len()
-                != usize::from(
-                    qualified.conditional.is_some()
-                        || matches!(body_exit, IterationExitKind::Break(_)),
-                )
+                != if qualified.conditional.is_some() {
+                    plan.exits()
+                        .iter()
+                        .filter(|exit| matches!(exit.kind(), IterationExitKind::Break(_)))
+                        .count()
+                } else {
+                    usize::from(matches!(body_exit, IterationExitKind::Break(_)))
+                }
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
@@ -509,14 +515,20 @@ impl ExpressionLowerer<'_> {
                 .filter(|exit| exit.kind() == IterationExitKind::Exhaustion),
         )
         .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        self.emit_map_iteration_cleanup(exhaustion, &mut frame, owner, span)?;
-        if !frame.finished
-            || frame.source.is_some()
-            || owner.is_some_and(|(proof, source, value)| {
-                let live = proof.at(exhaustion.point()).is_none();
-                source.current_owner(self) != live.then_some(value)
-            })
-        {
+        self.emit_map_iteration_cleanup(
+            exhaustion,
+            &mut frame,
+            owner,
+            qualified.conditional.is_some(),
+            span,
+        )?;
+        let owner_mismatch = if let Some((proof, source, value)) = owner {
+            let live = proof.at_checked(exhaustion.point(), self.owned)?.is_none();
+            source.current_owner(self) != live.then_some(value)
+        } else {
+            false
+        };
+        if !frame.finished || frame.source.is_some() || owner_mismatch {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         let parent = state.nested.as_ref().and_then(|nested| nested.parent);
@@ -547,6 +559,7 @@ impl ExpressionLowerer<'_> {
             self.merge_exits(context.breaks, &baseline, span)?;
         }
         let evidence = carrier::Evidence {
+            owned: self.owned,
             exhaustion_point: exhaustion.point(),
             function: self.function,
             conditional: state.conditional.as_ref(),
@@ -560,7 +573,10 @@ impl ExpressionLowerer<'_> {
             body_exit,
             // Conditional/nested validators start from the original body owner;
             // only a checked-success carrier records a replacement body role.
-            body_owner: if state.resumed.is_some() {
+            body_owner: if state.resumed.is_some()
+                && qualified.conditional.is_none()
+                && qualified.nested.is_none()
+            {
                 state.owner
             } else {
                 body_owner
@@ -714,8 +730,13 @@ impl ExpressionLowerer<'_> {
         exit: &IterationExitPlan,
         frame: &mut Frame,
         owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
+        flow: bool,
         span: Span,
     ) -> Result<(), LoweringError> {
+        let source_drop = owner
+            .map(|(proof, _, _)| proof.at_checked(exit.point(), self.owned))
+            .transpose()?
+            .flatten();
         for action in exit.actions() {
             match action {
                 IterationCleanupAction::EndBinding { statement, symbol }
@@ -759,9 +780,7 @@ impl ExpressionLowerer<'_> {
                         .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                     self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
                 }
-                IterationCleanupAction::Drop(fact)
-                    if owner.is_some_and(|(proof, _, _)| proof.at(exit.point()) == Some(*fact)) =>
-                {
+                IterationCleanupAction::Drop(fact) if source_drop == Some(*fact) => {
                     let (_, source, value) =
                         owner.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                     if frame.source.is_some()
@@ -778,14 +797,19 @@ impl ExpressionLowerer<'_> {
                     )?;
                 }
                 IterationCleanupAction::Drop(fact)
-                    if owner.is_some_and(|(_, source, _)| {
-                        matches!(source, SourceIdentity::Temporary(_))
-                    }) =>
+                    if !flow
+                        && owner.is_some_and(|(_, source, _)| {
+                            matches!(source, SourceIdentity::Temporary(_))
+                        }) =>
                 {
                     self.emit_temporary_map_local_drop(*fact, exit.point(), span)?;
                 }
-                IterationCleanupAction::Drop(_) => {
-                    self.emit_iteration_cleanup_action(action, span)?
+                IterationCleanupAction::Drop(fact) => {
+                    if flow {
+                        self.emit_flow_map_local_drop(*fact, span)?;
+                    } else {
+                        self.emit_iteration_cleanup_action(action, span)?;
+                    }
                 }
                 _ => return Err(error(LoweringErrorKind::MissingFact, span)),
             }

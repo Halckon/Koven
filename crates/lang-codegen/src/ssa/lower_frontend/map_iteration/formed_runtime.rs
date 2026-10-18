@@ -23,8 +23,21 @@ impl ExpressionLowerer<'_> {
             };
             if symbol != root
                 || qualified.local.is_some()
-                || qualified.owner.and_then(|proof| proof.at(fact.point())) != Some(fact)
+                || (qualified.conditional.is_some()
+                    && !qualified
+                        .plan
+                        .exits()
+                        .iter()
+                        .any(|exit| exit.point() == fact.point()))
             {
+                continue;
+            }
+            let matched = qualified
+                .owner
+                .map(|proof| proof.at_checked(fact.point(), self.owned))
+                .transpose()?
+                .flatten();
+            if matched != Some(fact) {
                 continue;
             }
             let span = self

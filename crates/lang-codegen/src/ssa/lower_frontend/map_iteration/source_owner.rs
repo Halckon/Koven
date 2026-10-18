@@ -2,7 +2,7 @@
 //! A source facts were first collected by the ordinary 12-path run on 9244391b.
 //! No shape is inferred from Sequential loops or accepted from a presence bit alone.
 mod future;
-mod provenance;
+pub(super) mod provenance;
 use super::*;
 use lang_frontend::ownership_checking::{
     CleanupConditions, CleanupOwnerValue, CleanupSelection, CleanupSelectorSource, DropFact,
@@ -12,12 +12,44 @@ use lang_frontend::ownership_checking::{
 
 #[derive(Clone, Copy)]
 pub(super) struct Proof {
+    pub(super) flow: Option<Flow>,
     pub(super) drop: DropFact,
     pub(super) transfer: Option<DropFact>,
     pub(super) conditional_return: Option<DropFact>,
 }
 
+/// A small capability handle into the same immutable ownership product.
+#[derive(Clone, Copy)]
+pub(super) struct Flow {
+    pub(super) statement: StatementId,
+    pub(super) source: SourceIdentity,
+    pub(super) span: Span,
+}
+
 impl Proof {
+    pub(super) fn at_checked(
+        self,
+        point: DropPoint,
+        owned: &OwnershipCheckedFile,
+    ) -> Result<Option<DropFact>, LoweringError> {
+        match self.flow {
+            Some(flow) => {
+                let plan = owned.map_iteration(flow.statement).ok_or_else(|| {
+                    error(LoweringErrorKind::MissingFact, self.drop.value_origin())
+                })?;
+                if plan.exits().iter().any(|exit| exit.point() == point) {
+                    conditional::source_drop(owned, flow, point)
+                } else {
+                    Ok(
+                        (self.drop.point() == point && owned.drops().contains(&self.drop))
+                            .then_some(self.drop),
+                    )
+                }
+            }
+            None => Ok(self.at(point)),
+        }
+    }
+
     pub(super) fn at(self, point: DropPoint) -> Option<DropFact> {
         if self.drop.point() == point {
             Some(self.drop)
@@ -290,6 +322,7 @@ fn qualify_with_birth(
         }
     }
     Ok(Proof {
+        flow: None,
         drop,
         transfer,
         conditional_return: None,
@@ -408,7 +441,11 @@ pub(in super::super) fn supported_drop(
         qualify::qualify(parsed, names, typed, owned, *descriptor)
             .ok()
             .and_then(|q| q.owner)
-            .is_some_and(|proof| proof.at(fact.point()) == Some(fact))
+            .is_some_and(|proof| {
+                proof
+                    .at_checked(fact.point(), owned)
+                    .is_ok_and(|actual| actual == Some(fact))
+            })
     })
 }
 
@@ -426,4 +463,59 @@ pub(super) fn formed_condition(
         .get(root.1)
         .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
     provenance::formed(owned, root.0, (root.1, node.span()), owner, span)
+}
+
+/// Validate the complete published owner graph against this precise source birth.
+pub(super) fn flow_condition(
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    owned: &OwnershipCheckedFile,
+    flow: Flow,
+    owner: lang_frontend::ownership_checking::CleanupOwnerValueId,
+    span: Span,
+) -> Result<lang_frontend::ownership_checking::CleanupConditionId, LoweringError> {
+    let bad = || error(LoweringErrorKind::MissingFact, span);
+    let plan = owned.map_iteration(flow.statement).ok_or_else(bad)?;
+    match flow.source {
+        SourceIdentity::Parameter(symbol) => {
+            let origin = names.symbols().get(symbol.index()).ok_or_else(bad)?.span();
+            provenance::flow(owned, symbol, origin, None, owner, span)
+        }
+        SourceIdentity::Local {
+            symbol,
+            initializer: producer,
+        }
+        | SourceIdentity::Formed { symbol, producer } => {
+            let node = parsed
+                .ast()
+                .expressions()
+                .get(producer)
+                .map_err(|_| bad())?;
+            provenance::flow(owned, symbol, node.span(), Some(producer), owner, span)
+        }
+        SourceIdentity::Temporary(expression) => {
+            let origin = parsed
+                .ast()
+                .expressions()
+                .get(expression)
+                .map_err(|_| bad())?
+                .span();
+            if owned.cleanup_conditions().owner_value(owner)
+                != Some(&CleanupOwnerValue::Expression { expression, origin })
+            {
+                return Err(bad());
+            }
+            let entry = unique(
+                plan.closure_phi_incomings()
+                    .iter()
+                    .filter(|incoming| incoming.kind() == IterationPhiIncomingKind::Entry),
+            )
+            .ok_or_else(bad)?;
+            if owned.cleanup_conditions().get(entry.condition()) != Some(&CleanupCondition::Always)
+            {
+                return Err(bad());
+            }
+            Ok(entry.condition())
+        }
+    }
 }

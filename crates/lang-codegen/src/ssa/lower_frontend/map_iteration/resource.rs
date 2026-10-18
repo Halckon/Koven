@@ -231,6 +231,7 @@ pub(super) fn qualify(
         return Err(bad());
     }
     Ok(source_owner::Proof {
+        flow: None,
         drop,
         transfer,
         conditional_return: None,
@@ -345,10 +346,13 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         let Some((proof, SourceIdentity::Parameter(root), _)) = owner.filter(|(p, _, _)| {
-            matches!(
-                p.drop.point(),
-                DropPoint::AfterStatement(_) | DropPoint::ControlTransfer(_)
-            )
+            // A flow proof describes this provider's already executed terminal
+            // Drops. It never grants the legacy future-lifetime capability.
+            p.flow.is_none()
+                && matches!(
+                    p.drop.point(),
+                    DropPoint::AfterStatement(_) | DropPoint::ControlTransfer(_)
+                )
         }) else {
             return Ok(());
         };

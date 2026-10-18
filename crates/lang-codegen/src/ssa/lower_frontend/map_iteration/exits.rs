@@ -1,6 +1,6 @@
-//! The bounded Map context participates in real jump/return dispatch.
-//! Only straight bodies or the qualified single-survivor If chain are admitted;
-//! ordinary BranchExit still owns the cumulative break/continue collections.
+//! The Map context participates in ordinary CFG and real jump/return dispatch.
+//! Path-local roles restore independently of cumulative exit evidence; ordinary
+//! BranchExit retains the actual break/continue collections.
 use super::*;
 
 pub(in super::super) struct Context {
@@ -21,7 +21,126 @@ pub(in super::super) struct Context {
     pub(super) resumed: Option<checked::Roles>,
 }
 
+// Ordinary CFG transport restores only these path fields. The qualification
+// plan, source proof and cumulative conditional/nested evidence stay in place.
+impl Context {
+    pub(in super::super) fn path_snapshot(&self) -> Option<control::map_frames::Snapshot> {
+        if self.nested.is_some() {
+            return None;
+        }
+        Some(control::map_frames::Snapshot {
+            statement: self.frame.statement,
+            source: self.frame.source,
+            components: self.frame.components,
+            finished: self.frame.finished,
+            owner: self
+                .owner
+                .map(|(_, source, owner)| (path_owner_root(source), owner)),
+            body: self.body,
+            cursor: self.cursor,
+            cursor_type: self.cursor_type,
+            kind: self.kind,
+            cleaned: self.cleaned,
+            next: self.next,
+            returned: self.returned,
+            cleanup_start: self.cleanup_start,
+        })
+    }
+
+    pub(in super::super) fn restore_path(
+        &mut self,
+        path: control::map_frames::Snapshot,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if self.nested.is_some()
+            || self.frame.statement != path.statement
+            || self.plan.descriptor().statement() != path.statement
+            || self.cursor_type != path.cursor_type
+            || self.owner.map(|(_, source, _)| path_owner_root(source))
+                != path.owner.map(|(root, _)| root)
+            || self.frame.components.map(|(symbol, _)| symbol)
+                != path.components.map(|(symbol, _)| symbol)
+        {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
+        if let (Some((_, _, owner)), Some((_, current))) = (&mut self.owner, path.owner) {
+            *owner = current;
+        }
+        self.frame.source = path.source;
+        self.frame.components = path.components;
+        self.frame.finished = path.finished;
+        self.body = path.body;
+        self.cursor = path.cursor;
+        self.kind = path.kind;
+        self.cleaned = path.cleaned;
+        self.next = path.next;
+        self.returned = path.returned;
+        self.cleanup_start = path.cleanup_start;
+        Ok(())
+    }
+}
+
+fn path_owner_root(source: SourceIdentity) -> control::map_frames::OwnerRoot {
+    use control::map_frames::OwnerRoot;
+    match source {
+        SourceIdentity::Parameter(symbol) => OwnerRoot::Parameter(symbol),
+        SourceIdentity::Local {
+            symbol,
+            initializer,
+        } => OwnerRoot::Local {
+            symbol,
+            initializer,
+        },
+        SourceIdentity::Formed { symbol, producer } => OwnerRoot::Formed { symbol, producer },
+        SourceIdentity::Temporary(expression) => OwnerRoot::Temporary(expression),
+    }
+}
+
 impl ExpressionLowerer<'_> {
+    /// A planned local Drop must consume its current ordinary CFG binding once.
+    /// Unlike the temporary-tail constructor proof this accepts a block parameter
+    /// whose producer was transported from an earlier dominating block.
+    pub(super) fn emit_flow_map_local_drop(
+        &mut self,
+        fact: lang_frontend::ownership_checking::DropFact,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        use lang_frontend::ownership_checking::DropTarget;
+        let missing = || error(LoweringErrorKind::MissingFact, span);
+        let owner = match fact.target() {
+            DropTarget::Named(symbol) => match self.bindings.get(&symbol).copied() {
+                Some(LoweredValue::Value(value)) => value,
+                _ => return Err(missing()),
+            },
+            DropTarget::Temporary(expression) => *self
+                .temporaries
+                .get(&expression.index())
+                .ok_or_else(missing)?,
+            _ => return Err(missing()),
+        };
+        let before = self
+            .function
+            .block(self.block)
+            .ok_or_else(missing)?
+            .instructions
+            .len();
+        self.emit_iteration_cleanup_action(&IterationCleanupAction::Drop(fact), span)?;
+        let emitted = &self
+            .function
+            .block(self.block)
+            .ok_or_else(missing)?
+            .instructions[before..];
+        let drops = emitted
+            .iter()
+            .filter_map(|id| self.function.instruction(*id))
+            .filter(|instruction| instruction.operation == Operation::Drop { owner })
+            .collect::<Vec<_>>();
+        if !matches!(drops.as_slice(), [instruction] if instruction.origin == Origin::Source(fact.value_origin()))
+        {
+            return Err(missing());
+        }
+        Ok(())
+    }
     pub(in super::super) fn lower_map_iteration_break(
         &mut self,
         expression: ExpressionId,
@@ -62,7 +181,9 @@ impl ExpressionLowerer<'_> {
             .and_then(|context| context.map_loop.take())
             .ok_or_else(missing)?;
         let conditional_roles = if let Some(conditional) = &state.conditional {
-            if !conditional.shape.kinds()[..4].contains(&kind) {
+            if conditional.shape.statement != state.plan.descriptor().statement()
+                || !state.plan.exits().iter().any(|exit| exit.kind() == kind)
+            {
                 return Err(missing());
             }
             let roles = conditional::transport::roles(self, &state, span)?;
@@ -83,7 +204,22 @@ impl ExpressionLowerer<'_> {
                 .instructions
                 .len(),
         );
-        self.emit_map_iteration_cleanup(exit, &mut state.frame, state.owner, span)?;
+        self.emit_map_iteration_cleanup(
+            exit,
+            &mut state.frame,
+            state.owner,
+            state.conditional.is_some(),
+            span,
+        )?;
+        let owner_mismatch = if let Some((proof, source, value)) = state.owner {
+            source.current_owner(self)
+                != proof
+                    .at_checked(exit.point(), self.owned)?
+                    .is_none()
+                    .then_some(value)
+        } else {
+            false
+        };
         if state
             .frame
             .components
@@ -91,9 +227,7 @@ impl ExpressionLowerer<'_> {
             .any(|(_, loan)| loan.is_some())
             || (exit_shape::terminal(kind) != state.frame.finished)
             || (exit_shape::terminal(kind) != state.frame.source.is_none())
-            || state.owner.is_some_and(|(proof, source, value)| {
-                source.current_owner(self) != proof.at(exit.point()).is_none().then_some(value)
-            })
+            || owner_mismatch
         {
             return Err(missing());
         }

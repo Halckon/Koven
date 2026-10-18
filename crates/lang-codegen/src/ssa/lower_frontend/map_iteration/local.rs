@@ -144,6 +144,7 @@ fn qualify_scope<'a>(
         body,
         origin: site.origin,
         owner: Some(source_owner::Proof {
+            flow: None,
             drop: proof.drop,
             transfer: None,
             conditional_return: None,

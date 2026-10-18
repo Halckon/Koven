@@ -1,462 +1,498 @@
-//! Exact FE decision chains and source-qualified incoming/Drop obligations.
+//! Complete plan exits and owner incoming provenance; no fixed arm or payload syntax.
 use super::*;
 use lang_frontend::ownership_checking::{
-    CleanupConditionId, CleanupConditions, CleanupOwnerValue, CleanupSelection, CleanupSelectorId,
-    CleanupSelectorSource, DropTarget, IterationClosurePhiBinding, IterationPhiBoundary,
-    IterationPhiIncoming, IterationPhiIncomingBinding, IterationPhiIncomingKind,
-    IterationPhiPresenceSource,
+    CleanupConditionId, CleanupOwnerValue, CleanupSelectorSource, DropFact, DropTarget,
+    IterationPhiBoundary, IterationPhiIncomingKind, IterationPhiPresenceSource,
 };
+use std::collections::BTreeSet;
+
+pub(in super::super) fn source_target(source: SourceIdentity) -> DropTarget {
+    match source {
+        SourceIdentity::Parameter(root)
+        | SourceIdentity::Local { symbol: root, .. }
+        | SourceIdentity::Formed { symbol: root, .. } => DropTarget::Named(root),
+        SourceIdentity::Temporary(source) => DropTarget::Temporary(source),
+    }
+}
+
+/// None is proved by the exact exit's complete actions, never a failed global search.
+pub(in super::super) fn source_drop(
+    owned: &OwnershipCheckedFile,
+    flow: source_owner::Flow,
+    point: DropPoint,
+) -> Result<Option<DropFact>, LoweringError> {
+    let plan = owned.map_iteration(flow.statement).ok_or(LoweringError {
+        kind: LoweringErrorKind::MissingFact,
+        span: Some(flow.span),
+    })?;
+    let missing = || error(LoweringErrorKind::MissingFact, flow.span);
+    let exit =
+        unique(plan.exits().iter().filter(|exit| exit.point() == point)).ok_or_else(missing)?;
+    let target = source_target(flow.source);
+    let facts = exit
+        .actions()
+        .iter()
+        .filter_map(|action| match action {
+            IterationCleanupAction::Drop(fact) if fact.target() == target => Some(*fact),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let selected = match facts.as_slice() {
+        [] => None,
+        [fact] if fact.point() == point && owned.drops().contains(fact) => Some(*fact),
+        _ => return Err(missing()),
+    };
+    let published = owned
+        .drops()
+        .iter()
+        .copied()
+        .filter(|fact| fact.point() == point && fact.target() == target)
+        .collect::<Vec<_>>();
+    if published != selected.into_iter().collect::<Vec<_>>() {
+        return Err(missing());
+    }
+    Ok(selected)
+}
 
 pub(in super::super) fn qualify(
     parsed: &ParsedFile,
     names: &NameResolution,
+    typed: &TypedFile,
     owned: &OwnershipCheckedFile,
     plan: &MapIterationOwnershipPlan,
-    symbol: SymbolId,
     shape: Shape,
     span: Span,
 ) -> Result<Option<source_owner::Proof>, LoweringError> {
     let missing = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
-    let conditions = owned.cleanup_conditions();
     let descriptor = plan.descriptor();
-    if plan.exits().len() != 5
-        || plan.closure_phi_incomings().len() != 5
-        || !plan.capture_graph().nodes().is_empty()
-    {
-        return Err(unsupported());
-    }
-    let local_drops: Vec<_> = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|fact| fact.target() == DropTarget::Named(shape.local.symbol))
-        .collect();
-    if local_drops.len() != 4 {
-        return Err(unsupported());
-    }
-    let local_owner = local_drops
-        .first()
-        .and_then(|fact| fact.owner())
-        .ok_or_else(missing)?;
-    if owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|fact| fact.owner() == Some(local_owner))
-        .collect::<Vec<_>>()
-        != local_drops
+    if descriptor.statement() != shape.statement
+        || owned.map_iteration(shape.statement) != Some(plan)
+        || typed.map_iteration(shape.statement) != Some(descriptor)
     {
         return Err(missing());
     }
-    let initializer_span = parsed
-        .ast()
-        .expressions()
-        .get(shape.local.initializer)
-        .map_err(|_| missing())?
-        .span();
-    if !matches!(conditions.owner_value(local_owner), Some(CleanupOwnerValue::Expression { expression, origin })
-        if *expression == shape.local.initializer && *origin == initializer_span)
-    {
-        return Err(missing());
+    if !plan.capture_graph().nodes().is_empty() {
+        return Err(unsupported());
     }
-    let proof = if plan.source_access() == MapIterationSourceAccess::Owned {
-        Some(source(owned, names, plan, symbol, shape, span)?)
-    } else {
-        if !plan.closure_phis().is_empty() {
+    for binding in plan
+        .closure_flow()
+        .header()
+        .iter()
+        .chain(plan.closure_flow().exit())
+    {
+        if source_target(shape.source) != DropTarget::Named(binding.symbol())
+            || !binding.origins().is_empty()
+        {
             return Err(unsupported());
         }
-        if owned
-            .drops()
-            .iter()
-            .any(|fact| fact.target() == DropTarget::Named(symbol))
-        {
-            return Err(missing());
-        }
-        None
+    }
+    let flow = source_owner::Flow {
+        statement: shape.statement,
+        source: shape.source,
+        span,
     };
-    for (index, kind) in shape.kinds().into_iter().enumerate() {
-        let exit =
-            unique(plan.exits().iter().filter(|exit| exit.kind() == kind)).ok_or_else(missing)?;
-        let point = exit_shape::point(kind, descriptor.statement(), shape.body);
-        if exit.point() != point
+    let target = source_target(shape.source);
+    let mut source_facts = Vec::new();
+    for exit in plan.exits() {
+        if plan
+            .exits()
+            .iter()
+            .filter(|other| other.kind() == exit.kind())
+            .count()
+            != 1
+            || exit.point() != exit_shape::point(exit.kind(), shape.statement, shape.body)
             || owned
                 .cleanup_steps()
                 .iter()
-                .filter_map(|(p, action)| (*p == point).then_some(*action))
+                .filter_map(|(point, action)| (*point == exit.point()).then_some(*action))
                 .collect::<Vec<_>>()
                 != exit.actions()
         {
             return Err(missing());
         }
-        path(conditions, exit.condition(), shape, index, span)?;
-        let mut actions = Vec::new();
-        if index != 4 {
-            actions.push(IterationCleanupAction::Drop(guard_drop(
-                owned,
-                shape,
-                point,
-                local_owner,
-                span,
-            )?));
-            actions.extend([
+        condition(parsed, owned, exit.condition(), span)?;
+        let source_drop = source_drop(owned, flow, exit.point())?;
+        if let Some(fact) = source_drop {
+            if !exit_shape::terminal(exit.kind()) {
+                return Err(missing());
+            }
+            source_facts.push(fact);
+        }
+        let mut suffix = Vec::new();
+        if exit.kind() != IterationExitKind::Exhaustion {
+            suffix.extend([
                 IterationCleanupAction::EndBinding {
-                    statement: descriptor.statement(),
+                    statement: shape.statement,
                     symbol: descriptor.value_binding(),
                 },
                 IterationCleanupAction::EndBinding {
-                    statement: descriptor.statement(),
+                    statement: shape.statement,
                     symbol: descriptor.key_binding(),
                 },
             ]);
         }
-        if exit_shape::terminal(kind) {
-            actions.extend([
-                IterationCleanupAction::FinishProvider(descriptor.statement()),
-                IterationCleanupAction::EndSource(descriptor.statement()),
+        if exit_shape::terminal(exit.kind()) {
+            suffix.extend([
+                IterationCleanupAction::FinishProvider(shape.statement),
+                IterationCleanupAction::EndSource(shape.statement),
             ]);
-            if let Some(proof) = proof {
-                actions.push(IterationCleanupAction::Drop(
-                    proof.at(point).ok_or_else(missing)?,
-                ));
+            if let Some(fact) = source_drop {
+                suffix.push(IterationCleanupAction::Drop(fact));
             }
         }
-        if exit.actions() != actions {
+        if !exit.actions().ends_with(&suffix) {
+            return Err(unsupported());
+        }
+        let prefix = &exit.actions()[..exit.actions().len() - suffix.len()];
+        if exit.kind() == IterationExitKind::Exhaustion && !prefix.is_empty() {
+            return Err(missing());
+        }
+        for action in prefix {
+            let IterationCleanupAction::Drop(fact) = action else {
+                return Err(unsupported());
+            };
+            if fact.target() == target
+                || fact.point() != exit.point()
+                || !owned.drops().contains(fact)
+                || fact.capture_slot().is_some()
+                || fact.instance_address().is_some()
+            {
+                return Err(missing());
+            }
+            // Body locals are proved by their own original Expression owner. Their
+            // runtime SSA value may be transported through ordinary block parameters.
+            let DropTarget::Named(root) = fact.target() else {
+                return Err(unsupported());
+            };
+            let symbol = names.symbols().get(root.index()).ok_or_else(missing)?;
+            let owner = fact.owner().ok_or_else(missing)?;
+            let Some(CleanupOwnerValue::Expression { expression, origin }) =
+                owned.cleanup_conditions().owner_value(owner)
+            else {
+                return Err(unsupported());
+            };
+            let producer = parsed
+                .ast()
+                .expressions()
+                .get(*expression)
+                .map_err(|_| missing())?;
+            if symbol.kind() != SymbolKind::Variable
+                || fact.value_origin() != symbol.span()
+                || producer.span() != *origin
+            {
+                return Err(missing());
+            }
+            if fact.condition().is_some_and(|condition| {
+                owned.cleanup_conditions().get(condition) != Some(&CleanupCondition::Always)
+            }) {
+                return Err(unsupported());
+            }
+        }
+    }
+    if plan
+        .exits()
+        .iter()
+        .filter(|exit| exit.kind() == IterationExitKind::Exhaustion)
+        .count()
+        != 1
+    {
+        return Err(missing());
+    }
+    let mut expected = vec![(
+        IterationPhiIncomingKind::Entry,
+        IterationPhiBoundary::Header,
+        DropPoint::AfterExpression(descriptor.source()),
+        None,
+    )];
+    for exit in plan.exits() {
+        let (kind, boundary) = match exit.kind() {
+            IterationExitKind::Continue(e) => (
+                IterationPhiIncomingKind::Continue(e),
+                IterationPhiBoundary::Header,
+            ),
+            IterationExitKind::Fallthrough => (
+                IterationPhiIncomingKind::Fallthrough,
+                IterationPhiBoundary::Header,
+            ),
+            IterationExitKind::Break(e) => (
+                IterationPhiIncomingKind::Break(e),
+                IterationPhiBoundary::Exit,
+            ),
+            IterationExitKind::Exhaustion => (
+                IterationPhiIncomingKind::Exhaustion,
+                IterationPhiBoundary::Exit,
+            ),
+            IterationExitKind::Return(_) => continue,
+        };
+        expected.push((kind, boundary, exit.point(), Some(exit.condition())));
+    }
+    if plan.closure_phi_incomings().len() != expected.len() {
+        return Err(missing());
+    }
+    let named_owned = plan.source_access() == MapIterationSourceAccess::Owned;
+    if (!named_owned && !plan.closure_phis().is_empty())
+        || (named_owned && plan.closure_phis().len() != 2)
+    {
+        return Err(unsupported());
+    }
+    for (kind, boundary, point, expected_condition) in expected {
+        let incoming = unique(
+            plan.closure_phi_incomings()
+                .iter()
+                .filter(|incoming| incoming.kind() == kind),
+        )
+        .ok_or_else(missing)?;
+        if incoming.point() != point
+            || incoming.boundary() != boundary
+            || expected_condition.is_some_and(|condition| incoming.condition() != condition)
+            || (kind == IterationPhiIncomingKind::Entry
+                && owned.cleanup_conditions().get(incoming.condition())
+                    != Some(&CleanupCondition::Always))
+        {
+            return Err(missing());
+        }
+        condition(parsed, owned, incoming.condition(), span)?;
+        if !named_owned {
+            if !incoming.bindings().is_empty() {
+                return Err(missing());
+            }
+            continue;
+        }
+        let DropTarget::Named(root) = target else {
+            return Err(missing());
+        };
+        let origin = names
+            .symbols()
+            .get(root.index())
+            .ok_or_else(missing)?
+            .span();
+        let phi = source_owner::phi(owned.cleanup_conditions(), plan, root, boundary, origin)?;
+        let [binding] = incoming.bindings() else {
+            return Err(missing());
+        };
+        if binding.target() != phi.owner()
+            || binding.availability_selector() != phi.availability_selector()
+            || binding.presence_source() != IterationPhiPresenceSource::StaticConditions
+            || !binding.capture_slots_to_clear().is_empty()
+            || !binding.root_sources().is_empty()
+            || !binding.selector_writes().is_empty()
+            || !binding.origins().is_empty()
+        {
+            return Err(missing());
+        }
+        condition(parsed, owned, binding.available_when(), span)?;
+        match binding.values() {
+            [] if owned.cleanup_conditions().get(binding.available_when())
+                == Some(&CleanupCondition::Never) => {}
+            [value] if value.condition() == binding.available_when() => {
+                source_owner::flow_condition(parsed, names, owned, flow, value.source(), span)?;
+            }
+            _ => return Err(missing()),
+        }
+        if boundary == IterationPhiBoundary::Header && binding.values().is_empty() {
             return Err(unsupported());
         }
     }
-    for (kind, boundary, point, index) in incoming_layout(plan, shape, span)? {
-        let incoming = incoming(plan, kind, boundary, point, span)?;
-        path(conditions, incoming.condition(), shape, index, span)?;
-        if proof.is_none() && !incoming.bindings().is_empty() {
+    if plan.source_access() == MapIterationSourceAccess::Shared {
+        if !source_facts.is_empty() {
             return Err(missing());
         }
+        return Ok(None);
     }
-    Ok(proof)
-}
-
-/// Only this bounded, ordered decision chain is supported. Unknown or cyclic
-/// nodes cannot pass: recursion consumes exactly one of at most three arms.
-fn path(
-    conditions: &CleanupConditions,
-    condition: CleanupConditionId,
-    shape: Shape,
-    exit: usize,
-    span: Span,
-) -> Result<(), LoweringError> {
-    let choices: &[usize] = match exit {
-        0 => &[0],
-        1 => &[1, 0],
-        2 => &[1, 1, 0],
-        3 => &[1, 1, 1],
-        4 => &[],
-        _ => return Err(error(LoweringErrorKind::MissingFact, span)),
-    };
-    let mut current = condition;
-    for (arm, &selected) in shape.arms.iter().zip(choices) {
-        let node = conditions
-            .get(current)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let CleanupCondition::Choice { selector, branches } = node else {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        let source = conditions
-            .selector(*selector)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        if source.source() != CleanupSelectorSource::Control(arm.control)
-            || source.origin() != arm.span
-        {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        }
-        if source.selection() != CleanupSelection::Branch
-            || source.branch_count() != 2
-            || branches.len() != 2
-        {
-            return Err(error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        match conditions.get(branches[1 - selected]) {
-            None => return Err(error(LoweringErrorKind::MissingFact, span)),
-            Some(CleanupCondition::Never) => {}
-            Some(_) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
-        }
-        current = branches[selected];
-    }
-    match conditions.get(current) {
-        Some(CleanupCondition::Always) => Ok(()),
-        None => Err(error(LoweringErrorKind::MissingFact, span)),
-        _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
-    }
-}
-
-fn present_path(
-    conditions: &CleanupConditions,
-    condition: CleanupConditionId,
-    selector: CleanupSelectorId,
-    shape: Shape,
-    exit: usize,
-    span: Span,
-) -> Result<(), LoweringError> {
-    let node = conditions
-        .get(condition)
-        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-    let CleanupCondition::Choice {
-        selector: actual,
-        branches,
-    } = node
-    else {
-        return Err(error(LoweringErrorKind::UnsupportedNode, span));
-    };
-    if *actual != selector {
-        return Err(error(LoweringErrorKind::MissingFact, span));
-    }
-    let [absent, present] = branches.as_slice() else {
-        return Err(error(LoweringErrorKind::UnsupportedNode, span));
-    };
-    match conditions.get(*absent) {
-        None => return Err(error(LoweringErrorKind::MissingFact, span)),
-        Some(CleanupCondition::Never) => {}
-        Some(_) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
-    }
-    path(conditions, *present, shape, exit, span)
-}
-
-fn incoming_layout(
-    plan: &MapIterationOwnershipPlan,
-    shape: Shape,
-    span: Span,
-) -> Result<
-    [(
-        IterationPhiIncomingKind,
-        IterationPhiBoundary,
-        DropPoint,
-        usize,
-    ); 5],
-    LoweringError,
-> {
-    let IterationExitKind::Continue(continued) = shape.arms[0].kind else {
-        return Err(error(LoweringErrorKind::MissingFact, span));
-    };
-    let IterationExitKind::Break(broken) = shape.arms[1].kind else {
-        return Err(error(LoweringErrorKind::MissingFact, span));
-    };
-    let statement = plan.descriptor().statement();
-    Ok([
-        (
-            IterationPhiIncomingKind::Entry,
-            IterationPhiBoundary::Header,
-            DropPoint::AfterExpression(plan.descriptor().source()),
-            4,
-        ),
-        (
-            IterationPhiIncomingKind::Continue(continued),
-            IterationPhiBoundary::Header,
-            DropPoint::ControlTransfer(continued),
-            0,
-        ),
-        (
-            IterationPhiIncomingKind::Break(broken),
-            IterationPhiBoundary::Exit,
-            DropPoint::ControlTransfer(broken),
-            1,
-        ),
-        (
-            IterationPhiIncomingKind::Fallthrough,
-            IterationPhiBoundary::Header,
-            DropPoint::AfterStatement(shape.body),
-            3,
-        ),
-        (
-            IterationPhiIncomingKind::Exhaustion,
-            IterationPhiBoundary::Exit,
-            DropPoint::LoopExit(statement),
-            4,
-        ),
-    ])
-}
-fn incoming(
-    plan: &MapIterationOwnershipPlan,
-    kind: IterationPhiIncomingKind,
-    boundary: IterationPhiBoundary,
-    point: DropPoint,
-    span: Span,
-) -> Result<&IterationPhiIncoming, LoweringError> {
-    let missing = || error(LoweringErrorKind::MissingFact, span);
-    let incoming = unique(
-        plan.closure_phi_incomings()
+    // A future Drop is selected only from the validated parameter provenance or
+    // the formed-local epoch ledger. An absent plan Drop never invents an owner.
+    let ledger = match shape.source {
+        SourceIdentity::Temporary(source) => owned
+            .drops()
             .iter()
-            .filter(|incoming| incoming.kind() == kind),
-    )
-    .ok_or_else(missing)?;
-    if incoming.boundary() != boundary || incoming.point() != point {
-        return Err(missing());
-    }
-    Ok(incoming)
-}
-fn binding<'a>(
-    incoming: &'a IterationPhiIncoming,
-    phi: &IterationClosurePhiBinding,
-    span: Span,
-) -> Result<&'a IterationPhiIncomingBinding, LoweringError> {
-    let missing = || error(LoweringErrorKind::MissingFact, span);
-    let [binding] = incoming.bindings() else {
-        return Err(missing());
-    };
-    if binding.target() != phi.owner()
-        || binding.availability_selector() != phi.availability_selector()
-        || binding.presence_source() != IterationPhiPresenceSource::StaticConditions
-        || !binding.capture_slots_to_clear().is_empty()
-        || !binding.root_sources().is_empty()
-        || !binding.selector_writes().is_empty()
-        || !binding.origins().is_empty()
-    {
-        return Err(missing());
-    }
-    Ok(binding)
-}
-fn source(
-    owned: &OwnershipCheckedFile,
-    names: &NameResolution,
-    plan: &MapIterationOwnershipPlan,
-    symbol: SymbolId,
-    shape: Shape,
-    span: Span,
-) -> Result<source_owner::Proof, LoweringError> {
-    let missing = || error(LoweringErrorKind::MissingFact, span);
-    let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
-    let conditions = owned.cleanup_conditions();
-    let origin = names
-        .symbols()
-        .get(symbol.index())
-        .ok_or_else(missing)?
-        .span();
-    // Screen the supported owner lifetime before demanding this phi topology.
-    // A live source after the loop is valid FE output outside this slice.
-    let drops: Vec<_> = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|fact| fact.target() == DropTarget::Named(symbol))
-        .collect();
-    if drops.iter().any(|fact| fact.value_origin() != origin) {
-        return Err(missing());
-    }
-    let points = [4, 1, 2].map(|index| {
-        exit_shape::point(
-            shape.kinds()[index],
-            plan.descriptor().statement(),
-            shape.body,
-        )
-    });
-    if drops.len() != 3 || drops.iter().any(|fact| !points.contains(&fact.point())) {
-        return Err(unsupported());
-    }
-    if plan.closure_phis().len() != 2 {
-        return Err(unsupported());
-    }
-    let header = source_owner::phi(conditions, plan, symbol, IterationPhiBoundary::Header, span)?;
-    let exit = source_owner::phi(conditions, plan, symbol, IterationPhiBoundary::Exit, span)?;
-    if header.owner() == exit.owner()
-        || header.availability_selector() == exit.availability_selector()
-    {
-        return Err(missing());
-    }
-    let mut entry_owner = None;
-    for (kind, boundary, point, index) in incoming_layout(plan, shape, span)? {
-        let incoming = incoming(plan, kind, boundary, point, span)?;
-        path(conditions, incoming.condition(), shape, index, span)?;
-        let binding = binding(
-            incoming,
-            if boundary == IterationPhiBoundary::Header {
-                header
-            } else {
-                exit
-            },
-            span,
-        )?;
-        if boundary == IterationPhiBoundary::Exit {
-            match conditions.get(binding.available_when()) {
-                None => return Err(missing()),
-                Some(CleanupCondition::Never) if binding.values().is_empty() => {}
-                Some(_) => return Err(unsupported()),
-            }
-        } else {
-            let [value] = binding.values() else {
-                return Err(missing());
-            };
-            if value.condition() != binding.available_when() {
-                return Err(missing());
-            }
-            if kind == IterationPhiIncomingKind::Entry {
-                match conditions.get(binding.available_when()) {
-                    None => return Err(missing()),
-                    Some(CleanupCondition::Always) => {}
-                    Some(_) => return Err(unsupported()),
-                }
-                match conditions.owner_value(value.source()) {
-                    Some(CleanupOwnerValue::Parameter {
-                        symbol: actual,
-                        origin: actual_origin,
-                    }) if *actual == symbol && *actual_origin == origin => {}
-                    None | Some(CleanupOwnerValue::Parameter { .. }) => return Err(missing()),
-                    Some(_) => return Err(unsupported()),
-                }
-                entry_owner = Some(value.source());
-            } else {
-                if value.source() != header.owner() {
-                    return Err(missing());
-                }
-                present_path(
-                    conditions,
-                    value.condition(),
-                    header.availability_selector(),
-                    shape,
-                    index,
-                    span,
-                )?;
-            }
+            .copied()
+            .filter(|fact| fact.target() == DropTarget::Temporary(source))
+            .collect::<Vec<_>>(),
+        SourceIdentity::Parameter(root) => owned
+            .drops()
+            .iter()
+            .copied()
+            .filter(|fact| fact.target() == DropTarget::Named(root))
+            .collect::<Vec<_>>(),
+        SourceIdentity::Local {
+            symbol,
+            initializer: producer,
         }
-    }
-    let entry_owner = entry_owner.ok_or_else(missing)?;
-    let related: Vec<_> = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|fact| {
-            fact.target() == DropTarget::Named(symbol)
-                || fact.owner().is_some_and(|owner| {
-                    [entry_owner, header.owner(), exit.owner()].contains(&owner)
-                })
-        })
-        .collect();
-    if related != drops {
-        return Err(missing());
-    }
-    let mut selected = Vec::new();
-    for index in [4, 1, 2] {
-        let kind = shape.kinds()[index];
-        let point = exit_shape::point(kind, plan.descriptor().statement(), shape.body);
-        let fact = unique(drops.iter().copied().filter(|fact| fact.point() == point))
-            .ok_or_else(missing)?;
-        if fact.owner() != Some(header.owner())
-            || fact.value_origin() != origin
-            || fact.capture_slot().is_some()
-            || fact.instance_address().is_some()
-        {
+        | SourceIdentity::Formed { symbol, producer } => {
+            let formation = formed::formation(
+                parsed,
+                names,
+                typed,
+                owned,
+                symbol,
+                descriptor.source_type(),
+                span,
+            )?;
+            if formation.producer != producer {
+                return Err(missing());
+            }
+            formed::drops(parsed, owned, symbol, &formation)?
+        }
+    };
+    for fact in &source_facts {
+        if !ledger.contains(fact) {
             return Err(missing());
         }
-        present_path(
-            conditions,
-            fact.condition().ok_or_else(missing)?,
-            header.availability_selector(),
-            shape,
-            index,
-            span,
-        )?;
-        selected.push(fact);
+        validate_source_fact(parsed, names, owned, flow, *fact, span)?;
     }
-    Ok(source_owner::Proof {
-        drop: selected[0],
-        transfer: Some(selected[1]),
-        conditional_return: Some(selected[2]),
-    })
+    // Future-use CFG owners need a separate late-lifetime proof. Do not treat
+    // absence of a source Drop at this provider as either death or permission.
+    if ledger.iter().any(|fact| {
+        !source_facts.contains(fact)
+            && validate_source_fact(parsed, names, owned, flow, *fact, span).is_ok()
+    }) {
+        return Err(unsupported());
+    }
+    let drop = source_facts.first().copied().ok_or_else(unsupported)?;
+    if matches!(shape.source, SourceIdentity::Temporary(_))
+        && (ledger.len() != source_facts.len()
+            || ledger
+                .iter()
+                .any(|fact| source_facts.iter().filter(|actual| *actual == fact).count() != 1))
+    {
+        return Err(missing());
+    }
+    Ok(Some(source_owner::Proof {
+        flow: Some(flow),
+        drop,
+        transfer: None,
+        conditional_return: None,
+    }))
+}
+
+fn validate_source_fact(
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    owned: &OwnershipCheckedFile,
+    flow: source_owner::Flow,
+    fact: DropFact,
+    span: Span,
+) -> Result<(), LoweringError> {
+    let missing = || error(LoweringErrorKind::MissingFact, span);
+    if fact.target() != source_target(flow.source)
+        || fact.capture_slot().is_some()
+        || fact.instance_address().is_some()
+    {
+        return Err(missing());
+    }
+    if let Some(actual) = fact.condition() {
+        condition(parsed, owned, actual, span)?;
+    }
+    let live = source_owner::flow_condition(
+        parsed,
+        names,
+        owned,
+        flow,
+        fact.owner().ok_or_else(missing)?,
+        span,
+    )?;
+    let plan = owned.map_iteration(flow.statement).ok_or_else(missing)?;
+    let context = unique(
+        plan.exits()
+            .iter()
+            .filter(|exit| exit.point() == fact.point()),
+    )
+    .map(|exit| exit.condition());
+    let condition_matches = match (fact.condition(), context) {
+        (Some(actual), Some(path)) => {
+            source_owner::provenance::equal_on_path(owned.cleanup_conditions(), actual, live, path)
+        }
+        (Some(actual), None) => actual == live,
+        (None, _) => owned.cleanup_conditions().get(live) == Some(&CleanupCondition::Always),
+    };
+    if !condition_matches {
+        return Err(missing());
+    }
+    match flow.source {
+        SourceIdentity::Parameter(root) => {
+            if fact.value_origin()
+                != names
+                    .symbols()
+                    .get(root.index())
+                    .ok_or_else(missing)?
+                    .span()
+            {
+                return Err(missing());
+            }
+        }
+        SourceIdentity::Temporary(expression) => {
+            if fact.value_origin()
+                != parsed
+                    .ast()
+                    .expressions()
+                    .get(expression)
+                    .map_err(|_| missing())?
+                    .span()
+            {
+                return Err(missing());
+            }
+        }
+        SourceIdentity::Local { .. } | SourceIdentity::Formed { .. } => {}
+    }
+    Ok(())
+}
+
+fn condition(
+    parsed: &ParsedFile,
+    owned: &OwnershipCheckedFile,
+    root: CleanupConditionId,
+    span: Span,
+) -> Result<(), LoweringError> {
+    fn visit(
+        parsed: &ParsedFile,
+        owned: &OwnershipCheckedFile,
+        id: CleanupConditionId,
+        path: &mut BTreeSet<CleanupConditionId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let missing = || error(LoweringErrorKind::MissingFact, span);
+        if !path.insert(id) {
+            return Err(missing());
+        }
+        if let CleanupCondition::Choice { selector, branches } =
+            owned.cleanup_conditions().get(id).ok_or_else(missing)?
+        {
+            let selector = owned
+                .cleanup_conditions()
+                .selector(*selector)
+                .ok_or_else(missing)?;
+            if selector.branch_count() != branches.len() || branches.is_empty() {
+                return Err(missing());
+            }
+            match selector.source() {
+                CleanupSelectorSource::Control(expression) => {
+                    if parsed
+                        .ast()
+                        .expressions()
+                        .get(expression)
+                        .map_err(|_| missing())?
+                        .span()
+                        != selector.origin()
+                    {
+                        return Err(missing());
+                    }
+                }
+                CleanupSelectorSource::IterationPhi { statement, .. } => {
+                    if owned.map_iteration(statement).is_none() {
+                        return Err(missing());
+                    }
+                }
+                CleanupSelectorSource::CaptureLoan { .. } => {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                }
+            }
+            for child in branches {
+                visit(parsed, owned, *child, path, span)?;
+            }
+        }
+        path.remove(&id);
+        Ok(())
+    }
+    visit(parsed, owned, root, &mut BTreeSet::new(), span)
 }

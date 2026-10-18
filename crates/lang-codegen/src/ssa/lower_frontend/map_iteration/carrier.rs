@@ -4,6 +4,7 @@ use crate::ssa::model::Instruction;
 
 #[derive(Clone, Copy)]
 pub(super) struct Evidence<'a> {
+    pub(super) owned: &'a OwnershipCheckedFile,
     pub(super) function: &'a Function,
     pub(super) exhaustion_point: DropPoint,
     pub(super) conditional: Option<&'a conditional::State>,
@@ -34,6 +35,7 @@ pub(super) struct Evidence<'a> {
 impl Evidence<'_> {
     pub(super) fn validate(self) -> Result<(), LoweringError> {
         let Self {
+            owned,
             function,
             exhaustion_point,
             conditional,
@@ -359,7 +361,7 @@ impl Evidence<'_> {
                     instruction.operation == Operation::Drop { owner: dropped }
                 })
                 .collect::<Vec<_>>();
-            let live = proof.at(exhaustion_point).is_none();
+            let live = proof.at_checked(exhaustion_point, owned)?.is_none();
             if live {
                 if !drops.is_empty() {
                     return Err(missing());
@@ -401,7 +403,7 @@ impl Evidence<'_> {
                     }
                     _ => return Err(missing()),
                 };
-                if let Some(fact) = body_proof.at(point) {
+                if let Some(fact) = body_proof.at_checked(point, owned)? {
                     let [(position, instruction)] = body_drops.as_slice() else {
                         return Err(missing());
                     };

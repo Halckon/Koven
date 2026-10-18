@@ -214,7 +214,15 @@ fn qualify_one<'a>(
     let conditional = if nested.is_some() {
         None
     } else {
-        conditional::shape(parsed, names, typed, descriptor, *body, span)?
+        conditional::shape(
+            parsed,
+            names,
+            typed,
+            descriptor,
+            *body,
+            SourceIdentity::Parameter(symbol),
+            span,
+        )?
     };
     let tail = nested.and_then(|pair| pair.tail);
     let body_exit = if let Some(pair) = nested {
@@ -226,11 +234,7 @@ fn qualify_one<'a>(
     } else {
         exit_shape::body_exit(parsed, names, typed, descriptor, *body, span)?
     };
-    if conditional.is_some()
-        || (matches!(body_exit, IterationExitKind::Return(_))
-            && typed.is_resource_type(descriptor.value_type()) != Some(true))
-        || tail.is_some_and(|shape| matches!(shape.kind, IterationExitKind::Return(_)))
-    {
+    if tail.is_some_and(|shape| matches!(shape.kind, IterationExitKind::Return(_))) {
         let callable = unique(
             typed
                 .callables()
@@ -243,7 +247,7 @@ fn qualify_one<'a>(
         }
     }
     if let Some(shape) = conditional {
-        let owner = conditional::qualify(parsed, names, owned, plan, symbol, shape, span)?;
+        let owner = conditional::qualify(parsed, names, typed, owned, plan, shape, span)?;
         return Ok(Qualified {
             plan,
             source: SourceIdentity::Parameter(symbol),

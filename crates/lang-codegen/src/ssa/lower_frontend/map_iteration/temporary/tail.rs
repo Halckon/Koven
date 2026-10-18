@@ -1,6 +1,6 @@
-//! One lexical Resource local and the real ordinary Int return operand.
+//! One lexical Resource local; ordinary lowering owns return operand delivery.
 use super::*;
-use lang_frontend::{name_resolution::Namespace, ownership_checking::ClosureCaptureSource};
+use lang_frontend::ownership_checking::ClosureCaptureSource;
 
 pub(super) fn guard(
     parsed: &ParsedFile,
@@ -8,7 +8,7 @@ pub(super) fn guard(
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
     body: StatementId,
-    kind: IterationExitKind,
+    _kind: IterationExitKind,
     span: Span,
 ) -> Result<nested::tail::Local, LoweringError> {
     let missing = || error(LoweringErrorKind::MissingFact, span);
@@ -58,76 +58,7 @@ pub(super) fn guard(
             }
         }
     }
-    if let IterationExitKind::Return(expression) = kind {
-        return_identity(parsed, names, typed, expression, span)?;
-    }
     Ok(guard)
-}
-
-fn return_identity(
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    expression: ExpressionId,
-    span: Span,
-) -> Result<(), LoweringError> {
-    let missing = || error(LoweringErrorKind::MissingFact, span);
-    let node = parsed
-        .ast()
-        .expressions()
-        .get(expression)
-        .map_err(|_| missing())?;
-    let Expression::Return {
-        value: Some(operand),
-        ..
-    } = node.payload()
-    else {
-        return Err(missing());
-    };
-    let node = parsed
-        .ast()
-        .expressions()
-        .get(*operand)
-        .map_err(|_| missing())?;
-    let Expression::Call { callee, .. } = node.payload() else {
-        return Err(missing());
-    };
-    let callee = parsed
-        .ast()
-        .expressions()
-        .get(*callee)
-        .map_err(|_| missing())?;
-    let call = typed.call(*operand).ok_or_else(missing)?;
-    let CallableTarget::Source(target) = call.target() else {
-        return Err(missing());
-    };
-    let signature = unique(
-        typed
-            .callables()
-            .iter()
-            .filter(|item| item.symbol() == target),
-    )
-    .ok_or_else(missing)?;
-    let reference = unique(names.references().iter().filter(|reference| {
-        reference.namespace() == Namespace::Value && reference.span() == callee.span()
-    }))
-    .ok_or_else(missing)?;
-    let selected = match reference.target() {
-        ReferenceTarget::Symbol(symbol) => *symbol == target,
-        ReferenceTarget::OverloadSet(symbols) => symbols.contains(&target),
-        _ => false,
-    };
-    if !selected
-        || call.expression() != *operand
-        || typed.expression_type(*operand) != Some(call.return_type())
-        || typed.expression_category(*operand) != Some(ExpressionCategory::Temporary)
-        || signature.return_type() != call.return_type()
-        || signature.result_source() != call.result_source()
-        || signature.result_source() != CallableResultSource::Owned
-    {
-        return Err(missing());
-    }
-    Ok(())
 }
 
 fn contains(outer: Span, inner: Span) -> bool {
