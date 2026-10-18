@@ -1,0 +1,28 @@
+fun read(key: String, value: String): Unit {
+  println(key)
+  println(value)
+}
+fun makeMutable(): MutableMap<String, String> {
+  println("make-mutable-nonempty")
+  var source = mutableMapOf<String, String>()
+  source.put("z".clone(), "first".clone())
+  source.put("a".clone(), "second".clone())
+  return source
+}
+fun makeEmptyMutable(): MutableMap<String, String> {
+  println("make-mutable-empty")
+  var source = mutableMapOf<String, String>()
+  return source
+}
+fun entry(): Unit {
+  println("nonempty")
+  for ((key, value) in makeMutable()) {
+    read(key, value)
+  }
+  println("nonempty-exhausted")
+  println("empty")
+  for ((key, value) in makeEmptyMutable()) {
+    read(key, value)
+  }
+  println("empty-exhausted")
+}

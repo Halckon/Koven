@@ -11,6 +11,7 @@ mod query_graph;
 mod query_inputs;
 mod query_ssa;
 mod query_test;
+mod temporary;
 
 pub(crate) use conditional::sources as conditional_sources;
 
