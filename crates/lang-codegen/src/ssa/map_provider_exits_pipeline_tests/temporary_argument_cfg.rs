@@ -6,7 +6,7 @@ use super::{
 };
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 
-fn source(mutable: bool, control: bool) -> String {
+pub(super) fn source(mutable: bool, control: bool) -> String {
     let kind = if mutable { "MutableMap" } else { "Map" };
     let factory = if mutable { "mutableMapOf" } else { "mapOf" };
     let body = if control {
@@ -52,8 +52,15 @@ fn observe(mutable: bool, unit: bool, control: bool) -> Result<(), Failure> {
         return Err(failure("original FE queries", report));
     }
     let (program, _) = lowered?;
+    report.query(
+        "actual ordinary argument CFG and returned owner identity",
+        &super::temporary_argument_cfg_query::check(&sources, &parsed, &program),
+    );
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
+    if !report.passed() {
+        return Err(failure("original CFG argument and owner queries", report));
+    }
     Ok(())
 }
 
