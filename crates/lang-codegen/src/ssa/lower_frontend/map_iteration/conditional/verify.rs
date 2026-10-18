@@ -165,7 +165,18 @@ pub(in super::super) fn validate(e: Evidence<'_>, state: &State) -> Result<(), L
     {
         return Err(missing());
     }
-    if !matches!(terminator(e.function, exhausted), Some(TerminatorKind::Branch(edge))
+    if e.continuation == exhausted {
+        // With one live exit ordinary merge reuses the exhaustion block. Its
+        // continuation is still open here; the caller emits subsequent code.
+        if state
+            .exits
+            .iter()
+            .any(|exit| matches!(exit.kind, IterationExitKind::Break(_)))
+            || terminator(e.function, exhausted).is_some()
+        {
+            return Err(missing());
+        }
+    } else if !matches!(terminator(e.function, exhausted), Some(TerminatorKind::Branch(edge))
         if edge.target == e.continuation)
     {
         return Err(missing());

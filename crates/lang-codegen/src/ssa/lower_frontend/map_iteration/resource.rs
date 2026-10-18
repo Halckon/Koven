@@ -239,7 +239,7 @@ pub(super) fn qualify(
 }
 
 // Resolve the callable scope independently of the number or kind of continuation statements.
-fn scope(
+pub(super) fn scope(
     parsed: &ParsedFile,
     statement: StatementId,
     origin: Span,
@@ -293,7 +293,7 @@ fn scope(
 }
 
 // The fact selects its real cleanup point; statement count and operand shape are irrelevant.
-fn normal_point(
+pub(super) fn normal_point(
     parsed: &ParsedFile,
     scope: StatementId,
     iteration: Span,
@@ -346,9 +346,9 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(), LoweringError> {
         let Some((proof, SourceIdentity::Parameter(root), _)) = owner.filter(|(p, _, _)| {
-            // A flow proof describes this provider's already executed terminal
-            // Drops. It never grants the legacy future-lifetime capability.
-            p.flow.is_none()
+            // Terminal flow Drops have already executed. Only a separately
+            // validated late Drop grants the future-lifetime carrier.
+            p.flow.is_none_or(|flow| flow.late == Some(p.drop))
                 && matches!(
                     p.drop.point(),
                     DropPoint::AfterStatement(_) | DropPoint::ControlTransfer(_)

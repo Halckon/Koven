@@ -91,6 +91,7 @@ pub(in super::super) fn qualify(
         statement: shape.statement,
         source: shape.source,
         span,
+        late: None,
     };
     let target = source_target(shape.source);
     let mut source_facts = Vec::new();
@@ -262,12 +263,9 @@ pub(in super::super) fn qualify(
         let DropTarget::Named(root) = target else {
             return Err(missing());
         };
-        let origin = names
-            .symbols()
-            .get(root.index())
-            .ok_or_else(missing)?
-            .span();
-        let phi = source_owner::phi(owned.cleanup_conditions(), plan, root, boundary, origin)?;
+        // A phi belongs to this provider boundary, whose public origin is the
+        // For span. The parameter/producer origin identifies the graph's seed.
+        let phi = source_owner::phi(owned.cleanup_conditions(), plan, root, boundary, span)?;
         let [binding] = incoming.bindings() else {
             return Err(missing());
         };
@@ -341,15 +339,50 @@ pub(in super::super) fn qualify(
         }
         validate_source_fact(parsed, names, owned, flow, *fact, span)?;
     }
-    // Future-use CFG owners need a separate late-lifetime proof. Do not treat
-    // absence of a source Drop at this provider as either death or permission.
-    if ledger.iter().any(|fact| {
-        !source_facts.contains(fact)
-            && validate_source_fact(parsed, names, owned, flow, *fact, span).is_ok()
-    }) {
-        return Err(unsupported());
-    }
-    let drop = source_facts.first().copied().ok_or_else(unsupported)?;
+    // Resource storage remains live across all non-return exits until its actual
+    // lexical Drop. This is an explicit capability, not an absent-plan inference.
+    let outside = ledger
+        .iter()
+        .copied()
+        .filter(|fact| !source_facts.contains(fact))
+        .collect::<Vec<_>>();
+    let late = match outside.as_slice() {
+        [] => None,
+        [fact] if typed.is_resource_type(descriptor.source_type()) == Some(true) => {
+            validate_source_fact(parsed, names, owned, flow, *fact, span)?;
+            let DropTarget::Named(root) = target else {
+                return Err(unsupported());
+            };
+            let origin = names
+                .symbols()
+                .get(root.index())
+                .ok_or_else(missing)?
+                .span();
+            let scope = resource::scope(parsed, shape.statement, origin, span)?;
+            if !resource::normal_point(parsed, scope, span, fact.point()) {
+                return Err(unsupported());
+            }
+            let exit = source_owner::phi(
+                owned.cleanup_conditions(),
+                plan,
+                root,
+                IterationPhiBoundary::Exit,
+                span,
+            )?;
+            // The complete incoming graph proves this provider's live Exit phi;
+            // the late fact must name that exact owner and its presence condition.
+            let live =
+                source_owner::flow_condition(parsed, names, owned, flow, exit.owner(), span)?;
+            if fact.owner() != Some(exit.owner()) || fact.condition() != Some(live) {
+                return Err(missing());
+            }
+            Some(*fact)
+        }
+        _ => return Err(unsupported()),
+    };
+    let drop = late
+        .or_else(|| source_facts.first().copied())
+        .ok_or_else(unsupported)?;
     if matches!(shape.source, SourceIdentity::Temporary(_))
         && (ledger.len() != source_facts.len()
             || ledger
@@ -359,7 +392,7 @@ pub(in super::super) fn qualify(
         return Err(missing());
     }
     Ok(Some(source_owner::Proof {
-        flow: Some(flow),
+        flow: Some(source_owner::Flow { late, ..flow }),
         drop,
         transfer: None,
         conditional_return: None,

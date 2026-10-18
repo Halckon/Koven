@@ -24,6 +24,8 @@ pub(super) struct Flow {
     pub(super) statement: StatementId,
     pub(super) source: SourceIdentity,
     pub(super) span: Span,
+    /// The unique same-epoch lexical Drop proved outside this provider's exits.
+    pub(super) late: Option<DropFact>,
 }
 
 impl Proof {
@@ -40,10 +42,10 @@ impl Proof {
                 if plan.exits().iter().any(|exit| exit.point() == point) {
                     conditional::source_drop(owned, flow, point)
                 } else {
-                    Ok(
-                        (self.drop.point() == point && owned.drops().contains(&self.drop))
-                            .then_some(self.drop),
-                    )
+                    flow.late
+                        .filter(|fact| fact.point() == point && owned.drops().contains(fact))
+                        .map(Some)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, flow.span))
                 }
             }
             None => Ok(self.at(point)),

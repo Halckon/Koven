@@ -28,7 +28,12 @@ impl ExpressionLowerer<'_> {
                         .plan
                         .exits()
                         .iter()
-                        .any(|exit| exit.point() == fact.point()))
+                        .any(|exit| exit.point() == fact.point())
+                    && !qualified
+                        .owner
+                        .and_then(|proof| proof.flow)
+                        .and_then(|flow| flow.late)
+                        .is_some_and(|late| late == fact))
             {
                 continue;
             }
