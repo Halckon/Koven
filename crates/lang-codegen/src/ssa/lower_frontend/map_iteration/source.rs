@@ -156,13 +156,12 @@ impl ExpressionLowerer<'_> {
                 };
                 let instance = FunctionInstanceKey::new(symbol, Vec::new());
                 let expected = *self.function_ids.get(&instance).ok_or_else(missing)?;
-                let preheader = self.block;
                 let LoweredValue::Value(owner) = self.lower(expression)? else {
                     return Err(missing());
                 };
-                if self.block != preheader {
-                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
-                }
+                // Ordinary argument lowering owns its CFG and loan cleanup. The
+                // provider starts only after that call has delivered this owner.
+                let preheader = self.block;
                 let seed = EntityId::Value(owner);
                 let instruction = carrier::definition(self.function, seed).ok_or_else(missing)?;
                 if instruction.block != preheader

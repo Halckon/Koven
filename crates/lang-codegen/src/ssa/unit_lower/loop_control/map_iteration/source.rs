@@ -64,13 +64,12 @@ impl UnitExpressionLowerer<'_> {
                 {
                     return Err(missing());
                 }
-                let preheader = self.block;
                 let LoweredValue::Value(owner) = self.lower(expression.expression())? else {
                     return Err(missing());
                 };
-                if self.block != preheader {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
+                // Reuse the ordinary argument CFG; provider acquisition begins
+                // at the actual selected Call's completed delivery block.
+                let preheader = self.block;
                 let seed = EntityId::Value(owner);
                 if identity.current(self, span)? != seed {
                     return Err(missing());
