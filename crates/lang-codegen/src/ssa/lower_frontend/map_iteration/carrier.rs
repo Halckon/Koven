@@ -15,6 +15,7 @@ pub(super) struct Evidence<'a> {
     pub(super) next: Option<ValueId>,
     pub(super) body_exit: IterationExitKind,
     pub(super) body_owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
+    pub(super) resumed: Option<checked::Roles>,
     pub(super) returned: Option<ValueId>,
     pub(super) cleanup_start: Option<usize>,
     pub(super) continuation: BlockId,
@@ -43,6 +44,7 @@ impl Evidence<'_> {
             next,
             body_exit,
             body_owner,
+            resumed,
             returned,
             cleanup_start,
             continuation,
@@ -191,6 +193,25 @@ impl Evidence<'_> {
                 roles.key,
                 roles.value,
             )
+        } else if let Some(current) = resumed {
+            for (actual, original) in [
+                (EntityId::Loan(current.source), EntityId::Loan(body_source)),
+                (
+                    EntityId::Value(current.cursor),
+                    EntityId::Value(body_cursor),
+                ),
+                (EntityId::Loan(current.key), EntityId::Loan(key)),
+                (EntityId::Loan(current.value), EntityId::Loan(value)),
+            ] {
+                nested::transport(function, actual, original, span)?;
+            }
+            (
+                cleanup_body,
+                current.source,
+                current.cursor,
+                current.key,
+                current.value,
+            )
         } else {
             if cleanup_body != body {
                 return Err(missing());
@@ -272,24 +293,11 @@ impl Evidence<'_> {
                         }
                     }
                     IterationExitKind::Return(_) => {
-                        let returned = returned.ok_or_else(missing)?;
                         let Some(TerminatorKind::Return { values }) = terminator(function, body)
                         else {
                             return Err(missing());
                         };
-                        let call =
-                            definition(function, EntityId::Value(returned)).ok_or_else(missing)?;
-                        let position = body_instructions
-                            .iter()
-                            .position(|i| i.id == call.id)
-                            .ok_or_else(missing)?;
-                        if values.as_slice() != [returned]
-                            || call.block != body
-                            || !matches!(
-                                call.operation,
-                                Operation::DirectCall { receiver: None, .. }
-                            )
-                            || position >= cleanup_start.ok_or_else(missing)?
+                        if values.as_slice() != returned.as_slice()
                             || cleanup_start.ok_or_else(missing)? > value_end
                             || continuation != exhausted
                         {
@@ -351,7 +359,9 @@ impl Evidence<'_> {
             let live = matches!(
                 proof.drop.point(),
                 DropPoint::CallReturn(_) | DropPoint::AfterStatement(_)
-            );
+            ) || matches!((body_exit, proof.drop.point(), proof.transfer),
+                    (IterationExitKind::Return(inner), DropPoint::ControlTransfer(outer), Some(transfer))
+                    if inner != outer && transfer.point() == DropPoint::ControlTransfer(inner));
             if live {
                 if !drops.is_empty() {
                     return Err(missing());
@@ -369,11 +379,15 @@ impl Evidence<'_> {
             let Some((body_proof, body_symbol, body_value)) = body_owner else {
                 return Err(missing());
             };
-            if body_symbol != symbol
-                || body_parameters.get(slot) != Some(&EntityId::Value(body_value))
-            {
+            if body_symbol != symbol {
                 return Err(missing());
             }
+            nested::transport(
+                function,
+                EntityId::Value(body_value),
+                *body_parameters.get(slot).ok_or_else(missing)?,
+                span,
+            )?;
             let body_drops = body_instructions
                 .iter()
                 .enumerate()

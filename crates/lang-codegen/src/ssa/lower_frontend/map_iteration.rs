@@ -1,5 +1,6 @@
 //! Bounded two-component Map provider; independent from Sequential snapshots.
 mod carrier;
+mod checked;
 mod conditional;
 mod exit_shape;
 mod exits;
@@ -433,6 +434,7 @@ impl ExpressionLowerer<'_> {
                 conditional: qualified.conditional.map(conditional::State::new),
                 nested,
                 nested_events: Vec::new(),
+                resumed: None,
             }),
         });
         // The exact selected exit owns the body cleanup point. A real transfer
@@ -440,7 +442,13 @@ impl ExpressionLowerer<'_> {
         let result = self.lower_statement_inner(body)?;
         if (qualified.conditional.is_none()
             && qualified.nested.is_none()
-            && self.block != body_block)
+            && self.block
+                != self
+                    .loops
+                    .last()
+                    .and_then(|c| c.map_loop.as_ref())
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                    .body)
             || (result == LoweredValue::Diverged) == (body_exit == IterationExitKind::Fallthrough)
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
@@ -547,7 +555,14 @@ impl ExpressionLowerer<'_> {
             first,
             next: state.next,
             body_exit,
-            body_owner,
+            // Conditional/nested validators start from the original body owner;
+            // only a checked-success carrier records a replacement body role.
+            body_owner: if state.resumed.is_some() {
+                state.owner
+            } else {
+                body_owner
+            },
+            resumed: state.resumed,
             returned: state.returned,
             cleanup_start: state.cleanup_start,
             continuation: self.block,

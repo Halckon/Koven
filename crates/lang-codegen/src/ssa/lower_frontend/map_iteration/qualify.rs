@@ -225,7 +225,8 @@ fn qualify_one<'a>(
         exit_shape::body_exit(parsed, names, typed, descriptor, *body, span)?
     };
     if conditional.is_some()
-        || matches!(body_exit, IterationExitKind::Return(_))
+        || (matches!(body_exit, IterationExitKind::Return(_))
+            && typed.is_resource_type(descriptor.value_type()) != Some(true))
         || tail.is_some_and(|shape| matches!(shape.kind, IterationExitKind::Return(_)))
     {
         let callable = unique(

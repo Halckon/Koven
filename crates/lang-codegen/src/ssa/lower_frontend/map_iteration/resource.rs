@@ -47,6 +47,7 @@ pub(super) fn qualify(
             IterationExitKind::Fallthrough
                 | IterationExitKind::Continue(_)
                 | IterationExitKind::Break(_)
+                | IterationExitKind::Return(_)
         )
         || typed.is_resource_type(d.source_type()) != Some(true)
         || builtin_type(typed, d.key_type()) != Some(BuiltinType::String)
@@ -69,12 +70,43 @@ pub(super) fn qualify(
         .copied()
         .filter(|f| f.target() == DropTarget::Named(symbol))
         .collect::<Vec<_>>();
-    let [drop] = drops.as_slice() else {
-        return Err(unsupported());
+    let returning = match body_exit {
+        IterationExitKind::Return(expression) => Some(expression),
+        _ => None,
     };
+    let transfer = returning
+        .map(|expression| {
+            let node = parsed
+                .ast()
+                .expressions()
+                .get(expression)
+                .map_err(|_| bad())?;
+            if !matches!(node.payload(), Expression::Return { .. })
+                || node.span().source_id() != span.source_id()
+                || node.span().start() <= span.start()
+                || node.span().end() >= span.end()
+            {
+                return Err(bad());
+            }
+            unique(
+                drops
+                    .iter()
+                    .copied()
+                    .filter(|d| d.point() == DropPoint::ControlTransfer(expression)),
+            )
+            .ok_or_else(bad)
+        })
+        .transpose()?;
+    if drops.len() != 1 + usize::from(returning.is_some()) {
+        return Err(unsupported());
+    }
+    let drop = unique(drops.iter().copied().filter(|d| Some(*d) != transfer)).ok_or_else(bad)?;
+    if !normal_point(parsed, scope, span, drop.point()) {
+        return Err(bad());
+    }
     let conditions = owned.cleanup_conditions();
     if plan.closure_phis().len() != 2
-        || plan.closure_phi_incomings().len() != 3
+        || plan.closure_phi_incomings().len() != if returning.is_some() { 2 } else { 3 }
         || !plan.capture_graph().nodes().is_empty()
     {
         return Err(unsupported());
@@ -101,9 +133,15 @@ pub(super) fn qualify(
     {
         return Err(bad());
     }
-    let backedge = unique(plan.exits().iter().filter(|e| e.kind() == body_exit)).ok_or_else(bad)?;
-    for (phi, kind, point) in [
-        (
+    let mut incoming_edges = vec![(
+        x,
+        IterationPhiIncomingKind::Exhaustion,
+        DropPoint::LoopExit(d.statement()),
+    )];
+    if returning.is_none() {
+        let backedge =
+            unique(plan.exits().iter().filter(|e| e.kind() == body_exit)).ok_or_else(bad)?;
+        incoming_edges.push((
             if matches!(body_exit, IterationExitKind::Break(_)) {
                 x
             } else {
@@ -117,13 +155,9 @@ pub(super) fn qualify(
                 _ => IterationPhiIncomingKind::Fallthrough,
             },
             backedge.point(),
-        ),
-        (
-            x,
-            IterationPhiIncomingKind::Exhaustion,
-            DropPoint::LoopExit(d.statement()),
-        ),
-    ] {
+        ));
+    }
+    for (phi, kind, point) in incoming_edges {
         let incoming = source_owner::incoming(conditions, plan, phi, kind, point, span)?;
         let [value] = incoming.values() else {
             return Err(bad());
@@ -134,6 +168,29 @@ pub(super) fn qualify(
         {
             return Err(bad());
         }
+    }
+    if let Some(fact) = transfer {
+        if fact.owner() != Some(h.owner()) || fact.condition() != Some(h.availability_condition()) {
+            return Err(bad());
+        }
+        let exit = unique(plan.exits().iter().filter(|e| e.kind() == body_exit)).ok_or_else(bad)?;
+        let suffix = [
+            IterationCleanupAction::EndBinding {
+                statement: d.statement(),
+                symbol: d.value_binding(),
+            },
+            IterationCleanupAction::EndBinding {
+                statement: d.statement(),
+                symbol: d.key_binding(),
+            },
+            IterationCleanupAction::FinishProvider(d.statement()),
+            IterationCleanupAction::EndSource(d.statement()),
+            IterationCleanupAction::Drop(fact),
+        ];
+        if exit.point() != fact.point() || !exit.actions().ends_with(&suffix)
+            || exit.actions()[..exit.actions().len()-suffix.len()].iter().any(|a|
+                !matches!(a, IterationCleanupAction::Drop(local) if local.target()!=DropTarget::Named(symbol)))
+        { return Err(bad()); }
     }
     let related = owned
         .drops()
@@ -146,18 +203,20 @@ pub(super) fn qualify(
         })
         .collect::<Vec<_>>();
     if related != drops
-        || drop.point() != DropPoint::AfterStatement(scope)
         || drop.value_origin() != origin
         || drop.owner() != Some(x.owner())
         || drop.condition() != Some(x.availability_condition())
-        || drop.capture_slot().is_some()
-        || drop.instance_address().is_some()
+        || drops.iter().any(|d| {
+            d.value_origin() != origin
+                || d.capture_slot().is_some()
+                || d.instance_address().is_some()
+        })
     {
         return Err(bad());
     }
     Ok(source_owner::Proof {
-        drop: *drop,
-        transfer: None,
+        drop,
+        transfer,
         conditional_return: None,
     })
 }
@@ -216,6 +275,46 @@ fn scope(
     Ok(*body)
 }
 
+// The fact selects its real cleanup point; statement count and operand shape are irrelevant.
+fn normal_point(
+    parsed: &ParsedFile,
+    scope: StatementId,
+    iteration: Span,
+    point: DropPoint,
+) -> bool {
+    if point == DropPoint::AfterStatement(scope) {
+        return true;
+    }
+    let DropPoint::ControlTransfer(expression) = point else {
+        return false;
+    };
+    let Ok(node) = parsed.ast().expressions().get(expression) else {
+        return false;
+    };
+    let Ok(body) = parsed.ast().statements().get(scope) else {
+        return false;
+    };
+    let at = node.span();
+    let inside = |outer: Span| {
+        outer.source_id() == at.source_id()
+            && outer.start() <= at.start()
+            && outer.end() >= at.end()
+    };
+    matches!(node.payload(), Expression::Return { .. })
+        && inside(body.span())
+        && at.start() >= iteration.end()
+        && !parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(_, n)| matches!(n.payload(), Expression::Lambda { .. }) && inside(n.span()))
+        && !parsed.ast().items().iter().any(|(_, n)| {
+            matches!(n.payload(), Item::Function { .. } | Item::Deinit { .. })
+                && n.span().start() >= body.span().start()
+                && inside(n.span())
+        })
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct Carrier {
     fact: DropFact,
@@ -229,9 +328,12 @@ impl ExpressionLowerer<'_> {
         seed: EntityId,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some((proof, SourceIdentity::Parameter(root), _)) =
-            owner.filter(|(p, _, _)| matches!(p.drop.point(), DropPoint::AfterStatement(_)))
-        else {
+        let Some((proof, SourceIdentity::Parameter(root), _)) = owner.filter(|(p, _, _)| {
+            matches!(
+                p.drop.point(),
+                DropPoint::AfterStatement(_) | DropPoint::ControlTransfer(_)
+            )
+        }) else {
             return Ok(());
         };
         let bad = || error(LoweringErrorKind::MissingFact, span);

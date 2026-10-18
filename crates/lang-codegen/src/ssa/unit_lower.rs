@@ -474,6 +474,11 @@ impl UnitExpressionLowerer<'_> {
         } else {
             self.end_pending_abi_call_slots(0, span)?;
         }
+        self.record_map_return_delivery(
+            UnitExpressionId::new(self.source_unit, expression),
+            result,
+            span,
+        )?;
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,

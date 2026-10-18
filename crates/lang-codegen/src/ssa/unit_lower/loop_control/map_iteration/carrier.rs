@@ -25,6 +25,7 @@ pub(super) struct MapCarrier {
     source_column: usize,
     cursor_column: usize,
     pub(super) conditional: Option<map_iteration::QualifiedConditional>,
+    pub(super) return_delivery: Option<(LoweredValue, BlockId, usize)>,
 }
 
 /// Read-only identities captured at the real provider birth; not a resumable lowering state.
@@ -94,7 +95,8 @@ impl MapCarrier {
             {
                 if !matches!(seed, EntityId::Value(_))
                     || qualified.source_drop.is_some() == qualified.late_drop.is_some()
-                    || qualified.transfer_drop.is_some()
+                    || (qualified.transfer_drop.is_some()
+                        && !matches!(qualified.body_exit, UnitIterationExitKind::Return(_)))
                     || qualified.conditional.is_some()
                     || qualified.nested.is_some()
                 {
@@ -163,6 +165,7 @@ impl MapCarrier {
             conditional: qualified.conditional,
             drop: qualified.source_drop,
             owned: matches!(seed, EntityId::Value(_)),
+            return_delivery: None,
             late_drop: qualified.late_drop,
             transfer_drop: qualified.transfer_drop,
             body_point: qualified.body_point,
@@ -378,7 +381,7 @@ impl MapCarrier {
         self.resumed.map_or(self.body, |roles| roles.block)
     }
 
-    fn current_entities(
+    pub(super) fn current_entities(
         &self,
         function: &crate::ssa::model::Function,
         block: BlockId,
@@ -414,42 +417,50 @@ impl MapCarrier {
             .expressions()
             .get(expression.expression())
             .map_err(|_| bad())?;
-        let Expression::Return {
-            value: Some(operand),
-            ..
-        } = node.payload()
-        else {
+        let Expression::Return { value: operand, .. } = node.payload() else {
             return Err(bad());
         };
-        let operand_span = lowerer
-            .parsed
-            .ast()
-            .expressions()
-            .get(*operand)
-            .map_err(|_| bad())?
-            .span();
-        let block = lowerer.function.block(self.body).ok_or_else(bad)?;
+        let block = lowerer.function.block(self.active_body()).ok_or_else(bad)?;
         let Some(TerminatorKind::Return { values }) =
             block.terminator.as_ref().map(|term| &term.kind)
         else {
             return Err(bad());
         };
-        let [result] = values.as_slice() else {
-            return Err(bad());
-        };
-        let call = instruction(lowerer.function, EntityId::Value(*result), span)?;
-        let call_position = block
-            .instructions
-            .iter()
-            .position(|id| *id == call.id)
-            .ok_or_else(bad)?;
-        if call.block != self.body
-            || call.origin != Origin::Source(operand_span)
-            || !matches!(call.operation, Operation::DirectCall { receiver: None, .. })
-            || call.results.as_slice() != [EntityId::Value(*result)]
+        let (delivered, delivery_block, cleanup_start) = self.return_delivery.ok_or_else(bad)?;
+        if delivery_block != block.id
+            || values != &lowerer.return_values(delivered, span)?
+            || values.len() != usize::from(operand.is_some())
         {
             return Err(bad());
         }
+        let producer = values
+            .first()
+            .map(|result| {
+                let entity = EntityId::Value(*result);
+                let data = lowerer.function.entity(entity).ok_or_else(bad)?;
+                match data.definition {
+                    Definition::InstructionResult { instruction, index } => {
+                        let producer = lowerer.function.instruction(instruction).ok_or_else(bad)?;
+                        if producer.results.get(index) != Some(&entity) {
+                            return Err(bad());
+                        }
+                        Ok(Some(producer))
+                    }
+                    Definition::BlockParameter { .. } => Ok(None),
+                }
+            })
+            .transpose()?
+            .flatten();
+        let operand_position = producer
+            .filter(|i| i.block == block.id)
+            .map(|i| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|id| *id == i.id)
+                    .ok_or_else(bad)
+            })
+            .transpose()?;
         let actions = lowerer
             .owned
             .iteration_cleanup_at(self.body_point)
@@ -472,30 +483,46 @@ impl MapCarrier {
             let [drop_position] = positions.as_slice() else {
                 return Err(bad());
             };
-            if call_position >= *drop_position {
+            if *drop_position < cleanup_start
+                || operand_position.is_some_and(|p| p >= *drop_position)
+            {
                 return Err(bad());
             }
         }
+        let components = if let Some(roles) = self.resumed {
+            vec![roles.key, roles.value]
+        } else {
+            lowerer
+                .function
+                .block(self.body)
+                .ok_or_else(bad)?
+                .instructions
+                .iter()
+                .filter_map(|id| {
+                    let i = lowerer.function.instruction(*id)?;
+                    if !matches!(
+                        i.operation,
+                        Operation::MapIterationKeyLoan { .. }
+                            | Operation::MapIterationValueLoan { .. }
+                    ) {
+                        return None;
+                    }
+                    match i.results.as_slice() {
+                        [EntityId::Loan(loan)] => Some(*loan),
+                        _ => None,
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
         let mut component_ends = Vec::new();
-        for id in &block.instructions {
-            let projection = lowerer.function.instruction(*id).ok_or_else(bad)?;
-            if !matches!(
-                projection.operation,
-                Operation::MapIterationKeyLoan { .. } | Operation::MapIterationValueLoan { .. }
-            ) {
-                continue;
-            }
-            let [EntityId::Loan(loan)] = projection.results.as_slice() else {
-                return Err(bad());
-            };
+        for loan in components {
             let positions = block
                 .instructions
                 .iter()
                 .enumerate()
                 .filter_map(|(index, id)| {
-                    (lowerer.function.instruction(*id)?.operation
-                        == Operation::BorrowEnd { loan: *loan })
-                    .then_some(index)
+                    (lowerer.function.instruction(*id)?.operation == Operation::BorrowEnd { loan })
+                        .then_some(index)
                 })
                 .collect::<Vec<_>>();
             let [position] = positions.as_slice() else {
@@ -504,9 +531,9 @@ impl MapCarrier {
             component_ends.push(*position);
         }
         if component_ends.len() != 2
-            || component_ends
-                .iter()
-                .any(|position| *position <= call_position)
+            || component_ends.iter().any(|position| {
+                *position < cleanup_start || operand_position.is_some_and(|p| *position <= p)
+            })
             || block.instructions.iter().any(|id| {
                 lowerer
                     .function
@@ -605,8 +632,7 @@ impl MapCarrier {
     ) -> Result<ValueId, LoweringError> {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         let block = self.terminal_block(point, span)?;
-        let EntityId::Value(owner) =
-            self.parameter(lowerer.function, block, self.seed_column, span)?
+        let EntityId::Value(owner) = self.current_entities(lowerer.function, block, span)?[0]
         else {
             return Err(bad());
         };

@@ -45,23 +45,23 @@ pub(super) fn body_exit(
         .expressions()
         .get(*expression)
         .map_err(|_| missing())?;
-    // Continue only ends component loans and transports the provider; its value type is irrelevant.
-    if !matches!(
-        node.payload(),
-        Expression::Continue { .. } | Expression::Break { .. }
-    ) && [descriptor.key_type(), descriptor.value_type()]
-        .iter()
-        .any(|ty| builtin_type(typed, *ty) != Some(BuiltinType::String))
-    {
-        return Err(unsupported());
-    }
+
     match node.payload() {
         Expression::Continue { .. } => Ok(IterationExitKind::Continue(*expression)),
         Expression::Break { .. } => Ok(IterationExitKind::Break(*expression)),
-        Expression::Return {
-            value: Some(value), ..
-        } => {
-            return_operand(parsed, names, typed, descriptor, *value, span)?;
+        Expression::Return { value, .. } => {
+            if typed.is_resource_type(descriptor.value_type()) != Some(true) {
+                let Some(value) = value else {
+                    return Err(unsupported());
+                };
+                if [descriptor.key_type(), descriptor.value_type()]
+                    .iter()
+                    .any(|ty| builtin_type(typed, *ty) != Some(BuiltinType::String))
+                {
+                    return Err(unsupported());
+                }
+                return_operand(parsed, names, typed, descriptor, *value, span)?;
+            }
             Ok(IterationExitKind::Return(*expression))
         }
         _ => Err(unsupported()),

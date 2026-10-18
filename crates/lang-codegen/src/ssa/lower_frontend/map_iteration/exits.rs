@@ -18,6 +18,7 @@ pub(in super::super) struct Context {
     pub(super) conditional: Option<conditional::State>,
     pub(super) nested: Option<nested::State>,
     pub(super) nested_events: Vec<nested_events::Event>,
+    pub(super) resumed: Option<checked::Roles>,
 }
 
 impl ExpressionLowerer<'_> {
@@ -190,14 +191,12 @@ impl ExpressionLowerer<'_> {
             .last()
             .is_some_and(|context| context.map_loop.is_some())
         {
-            let LoweredValue::Value(value) = result else {
-                return Err(error(LoweringErrorKind::MissingFact, span));
+            let value = match result {
+                LoweredValue::Value(value) => Some(value),
+                LoweredValue::Unit => None,
+                LoweredValue::Diverged => return Err(error(LoweringErrorKind::MissingFact, span)),
             };
-            if self.clean_nested_map_point(
-                IterationExitKind::Return(expression),
-                Some(value),
-                span,
-            )? {
+            if self.clean_nested_map_point(IterationExitKind::Return(expression), value, span)? {
                 return Ok(());
             }
             self.clean_map_iteration_body(IterationExitKind::Return(expression), span)?;
@@ -206,13 +205,13 @@ impl ExpressionLowerer<'_> {
                 .last_mut()
                 .and_then(|context| context.map_loop.as_mut())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-            state.returned = Some(value);
+            state.returned = value;
             if let Some(conditional) = &mut state.conditional {
                 conditional
                     .exits
                     .last_mut()
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-                    .returned = Some(value);
+                    .returned = value;
             }
             return Ok(());
         }

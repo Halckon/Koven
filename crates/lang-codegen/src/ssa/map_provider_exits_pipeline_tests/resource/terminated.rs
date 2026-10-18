@@ -1,6 +1,7 @@
 //! Direct Resource Map exits, built from ordinary sources without synthetic facts.
 mod fe;
 mod graph;
+pub(in super::super) mod returning;
 use super::super::{
     Report,
     fixture::{Failure, clean, failure},

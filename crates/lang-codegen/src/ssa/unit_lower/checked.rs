@@ -51,6 +51,7 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+        let previous_block = self.block;
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let mut carried = if self
@@ -86,6 +87,7 @@ impl UnitExpressionLowerer<'_> {
             self.rebind_carried_control(&baseline, success, &carried, &carried_loans, span)?;
         self.borrow_bindings =
             self.rebind_carried_loans(success, carried.len(), &carried_loans, span)?;
+        self.resume_checked_map(previous_block, &baseline_borrows, span)?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
     }
 }

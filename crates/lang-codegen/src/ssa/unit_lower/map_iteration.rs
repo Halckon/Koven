@@ -339,7 +339,8 @@ fn qualify_one(
         qualify_body(parsed, names, typed, descriptor, *body, span)?
     };
     if (conditional.is_some()
-        || matches!(body_exit, UnitIterationExitKind::Return(_))
+        || (matches!(body_exit, UnitIterationExitKind::Return(_))
+            && typed.is_resource_type(descriptor.value_type()) != Some(true))
         || nested
             .and_then(|pair| pair.tail)
             .is_some_and(|tail| matches!(tail.kind, UnitIterationExitKind::Return(_))))
@@ -369,7 +370,7 @@ fn qualify_one(
             return Err(unsupported());
         }
     }
-    let late_drop = if plan.source_access() == UnitIterationSourceAccess::Owned
+    let resource_proof = if plan.source_access() == UnitIterationSourceAccess::Owned
         && typed.is_resource_type(descriptor.source_type()) == Some(true)
     {
         Some(resource::qualify(
@@ -378,8 +379,9 @@ fn qualify_one(
     } else {
         None
     };
-    let (source_drop, transfer_drop) = if late_drop.is_some() {
-        (None, None)
+    let late_drop = resource_proof.map(|proof| proof.drop);
+    let (source_drop, transfer_drop) = if let Some(proof) = resource_proof {
+        (None, proof.transfer)
     } else if let Some(pair) = nested.filter(|pair| pair.tail.is_some()) {
         nested::validate_tail_cleanup(parsed, typed, owned, plan, pair, root, span)?;
         (None, None)
@@ -576,14 +578,16 @@ fn qualify_body(
     let kind = match node.payload() {
         Expression::Continue { .. } => UnitIterationExitKind::Continue(expression_id),
         Expression::Break { .. } => UnitIterationExitKind::Break(expression_id),
-        Expression::Return {
-            value: Some(value), ..
-        } => {
-            // A legal unsupported component representation is not a damaged call fact.
-            if !string_components {
-                return Err(unsupported());
+        Expression::Return { value, .. } => {
+            if typed.is_resource_type(descriptor.value_type()) != Some(true) {
+                let Some(value) = value else {
+                    return Err(unsupported());
+                };
+                if !string_components {
+                    return Err(unsupported());
+                }
+                qualify_return_operand(parsed, names, typed, descriptor, *value, span)?;
             }
-            qualify_return_operand(parsed, names, typed, descriptor, *value, span)?;
             UnitIterationExitKind::Return(expression_id)
         }
         _ => {
@@ -595,6 +599,7 @@ fn qualify_body(
         kind,
         UnitIterationExitKind::Continue(_) | UnitIterationExitKind::Break(_)
     ) && !string_components
+        && typed.is_resource_type(descriptor.value_type()) != Some(true)
     {
         return Err(unsupported());
     }

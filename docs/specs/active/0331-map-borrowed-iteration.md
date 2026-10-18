@@ -758,3 +758,33 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   合法邻控仍精确原For Unsupported，下一块继续处理。Source/payload/exit/continuation横向矩阵
   见Architecture，明确列own MutableMap参数、local/temporary payload与退出、一般return operand
   等合同内缺口，不能把它们包装成Guide专项延期或称F全部完成。
+
+
+## 44. Resource Return 的实际交付值与清理边界（2026-10-18）
+
+- 十五普通源×single/unit：三source模式各核Resource、混合Some/None、全None及Guard；另核own裸Unit、
+  Unit前缀后return、Int字面量、checked `3+4`、owned String及无Guard。每份entry运行空/非空，
+  caller核7/0或实际String/Unit输出。初构造中的println(Int)/return Unit表达式分别属L0084/L0087，
+  修正后才计生产红：精确`51e6c78a`十四tracked生产文件旧字节下，最终同套FE查询30路均原For
+  Unsupported，Rust实际0通过/1失败；finally逐字恢复，未合成损坏facts或执行本机故障对照。
+- Resource直接Return复用普通合法表达式lowering，不继承非Resource的固定双Borrow调用/Int gate；
+  原表示/source及条件/嵌套资格保持。own正常耗尽后的词法Drop与inner Return transferDrop分别严格
+  取原事实；single公开phi/incoming/Choice、Unit完整cleanup动作均未放松或按body语句数猜资格。
+- Unit普通Return在值交付与临时ABI loan结束后、emit_drops前记录实际LoweredValue及cleanup边界；
+  最终当前carrier核准确Return值、全部Drop/End在边界之后。InstructionResult按真实index核多结果
+  checked指令，不放松全局单结果查询。single/Unit checked成功边复用原block参数与全incoming
+  transport，保留原caller/source、cursor、K/V及owner身份；Abort沿原checked溢出语义终止。
+- 独立同次FE/SSA查询核原Return operand/callee/参数、实际值或String字节/checked arithmetic结果，
+  Guard构造/deinit、逆序loan/provider清理、每条可达正常Return的own Map唯一Drop，以及Shared
+  caller loan不在callee结束、Mutable post-put真实新owner。native marker仅证析构聚合数量/区间。
+  独审指出的single外Return Drop、Unit实际返回身份和多结果producer三项阻断均修复并逐项复审。
+  最终总回归另发现旧String conditional single MissingFact：将birth body owner误替换为最后arm当前owner；
+  修正为仅显式checked-resumed取当前role，conditional/nested保留原birth并沿既有独立运输校验，复审通过。
+- 最终定向34项ordinary Rust通过，0失败/忽略；20项native Rust测试共138个产物严格exit0/golden/
+  空stderr，其中本片30、Resource精选共98。原String/temporary/nested/conditional退出、checked整数、
+  history及sequential回归均通过；fmt/workspace all-targets check/clippy(-D warnings)/build四门
+  通过，运行前后输入摘要一致。Architecture/Tour/本账本随后仅同步事实，docs704与diffcheck通过。
+- `43c54817`完整CI run `39114665900` 16 jobs全绿，三项private Map exact在双host实际ok；独立只读
+  产物审查核12 Resource程序的24个ASan/LSan结果、两host generated16例及各自运行合同。Mac
+  sanitizer仍partial/requirements_met=false，UBSan未覆盖。这些旧头证据不覆盖本片Break/Return；
+  新头完整CI及产物审查仍待。横向矩阵继续列具体合同内缺口，0331仍active，不归档/合并或进入D10。

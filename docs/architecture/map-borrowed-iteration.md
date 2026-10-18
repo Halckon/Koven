@@ -2,8 +2,8 @@
 
 > **性质**：当前实现事实 · **状态**：current · **读取时机**：选择 Map 借用迭代来源和退出组合时 · **唯一真源**：代码与测试；验收见 [SPEC-0331](../specs/active/0331-map-borrowed-iteration.md)
 
-[SPEC-0331](../specs/active/0331-map-borrowed-iteration.md)仍在实施；以下为固定快照
-`60512fda0677b07abb77f10d88242f7a16edd1fb` 的有限支持，不改写 Guide 的来源资格。
+[SPEC-0331](../specs/active/0331-map-borrowed-iteration.md)仍在实施；首表保留固定快照
+`60512fda0677b07abb77f10d88242f7a16edd1fb` 的有限支持，后续补片分节列出；不改写 Guide 的来源资格。
 `for ((key, value) in source)`沿插入链取得两个独立 Shared loan，不构造 Pair 或 entry owner。
 source 求值、分量与 source 清理由已验证事实交付，SSA verifier 后再生成 LLVM。
 
@@ -54,7 +54,7 @@ fixture目录为`map-provider-borrow-exits-0331`。这是有界重建，不宣�
 恢复、任意CFG或动态释放计数；原Field/Inout/Group及Borrow-return来源阶段门保持。
 
 
-## Resource 分量的有限正常耗尽
+## Resource 分量的有限遍历与退出
 
 `map-provider-resource-0331` 的两份普通源码支持 own Map / Borrow MutableMap 参数、
 String key 与无字段/泛型/接口且有显式 deinit 的直接 class value，正常回边、continue和耗尽。owned Map
@@ -72,7 +72,12 @@ owner/source在回边保留，耗尽结束本层provider lease，own源按原词
 Resource break十三源覆盖own Map、Borrow Map/MutableMap及Resource/混合nullable/全None，
 另核own最后使用与无Guard控制。Break结束本层lease后，own owner沿Break/false完整合流保留至
 原词法scope Drop；后续size/readMap在End之后、Drop之前。双入口26条pipeline/native严格通过。
-Resource return仍未接通，四条合法邻控只证明原For结构化Unsupported，不计native支持。
+Resource return十五源覆盖上述三source模式及三种payload；另核own的裸Unit、Unit前缀、Int字面量、
+checked加法、owned String及无Guard控制。双入口30条pipeline/native严格通过，每份entry均运行空/非空。
+普通lowering先交付实际返回结果，再清理Guard、V/K、provider及本层source；own源在各正常退出恰一次Drop。
+checked成功边沿完整incoming运输当前source/cursor/K/V/owner，overflow Abort不新增unwind语义。
+Unit记录实际交付值和cleanup起点，精确匹配多结果指令的result槽；不借旧birth carrier或固定callee猜结果。
+无条件Resource Return仅复用既有合法表达式lowering；本片没有开放一般条件/嵌套checked CFG。
 普通continuation的五源双入口已核无后续语句、多调用/前缀、后续Borrow使用及CFG合流后再借用；
 single在真实清理点按当前binding逐全部incoming追溯原owner，不冻结旧block/value。十个正常native
 产物核严格输出；独立CFG查询要求每条正常Return恰一次Map Drop，并核后续Borrow的callee/参数/End。
@@ -134,12 +139,13 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 | Borrow Map/MutableMap参数 | String/String | N/C/B/R、固定条件、同根双层 | caller恢复及有限sequential已验；更一般条件/层数未验 |
 | 零参直接factory temporary | String/String | N/C/B/R固定尾 | hidden owner已验；其他payload/条件/一般factory未接通 |
 | factory-formed owned local val/var | String/String | N | 固定立即Drop/size guard；C/B/R、资源payload、一般后用尚缺 |
-| own Map参数 | String/直接空字段Resource或Resource? | N/C/B | 普通多调用/后续Borrow/size CFG；R尚缺，Resource仍限显式deinit且无泛型/接口 |
-| Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定，R尚缺 |
+| own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；Resource仍限显式deinit且无泛型/接口 |
+| Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定 |
 | Borrow参数等既有admission | Int/String等 | 部分N及有限sequential | 不把静态通用component cleanup接纳当全payload native实证 |
 | own MutableMap参数 | 各payload | 未接通 | 不能由owned local MutableMap或Borrow MutableMap替代 |
 | Field/Inout来源 | 现有类型 | 前端合同 | Guide37.4明确native延后；Group阶段门保持 |
 
-Return目前还限制直接双Borrow分量调用且Int结果；字面量、Unit等合法operand尚未普遍接通。
+非Resource Return仍限制直接双Borrow分量调用且Int结果。Resource本片另验Unit/Int/String及直接checked加法；
+其他合法operand、ABI及更一般CFG尚未系统验收，不能把有限ordinary lowering接纳外推全部支持。
 以上非Field/Inout的具体能力缺口不能统称Guide staging；普通Resource类的字段/泛型/接口、
-其他key/value与更一般source/CFG需分别验收，不能在本轮Break通过后宣称F全矩阵闭合。
+其他key/value与更一般source/CFG需分别验收，不能在本轮Break/Return通过后宣称F全矩阵闭合。

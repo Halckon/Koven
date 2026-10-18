@@ -375,7 +375,7 @@ pub(in super::super) fn supported_drop(
                     matches!(exit.kind(), IterationExitKind::Break(actual) | IterationExitKind::Return(actual) if actual == expression)
                         && exit.point() == fact.point()
                         && exit.actions().contains(&IterationCleanupAction::Drop(fact))
-                })
+                }) || plan.closure_phis().iter().any(|phi| Some(phi.owner()) == fact.owner())
             })
         })),
         DropPoint::AfterStatement(_) => unique(typed.map_iterations().iter().filter(|descriptor| {

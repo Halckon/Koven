@@ -23,8 +23,8 @@ use lang_frontend::{
     parser::{Expression, Item, NameMarker, ParsedFile},
     source::Span,
     type_checking::{
-        CallableTarget, CompilationUnitTypes, ParameterMode, TypedFile, UnitCallTarget,
-        UnitExpressionId, UnitStatementId,
+        BuiltinType, CallableTarget, CompilationUnitTypes, ParameterMode, TypeKind, TypedFile,
+        UnitCallTarget, UnitExpressionId, UnitStatementId, UnitTypeKind,
     },
 };
 
@@ -123,6 +123,32 @@ fn scan_name(input: &Input, parsed: &ParsedFile) -> Result<Span, Failure> {
     )
 }
 
+/// Both explicit returns belong to the original scan; implicit Unit exhaustion has no operand.
+fn return_values(
+    transfer: ExpressionId,
+    normal: DropPoint,
+    parsed: &ParsedFile,
+) -> Result<Vec<Option<ExpressionId>>, Failure> {
+    let mut sites = vec![transfer];
+    if let DropPoint::ControlTransfer(expression) = normal {
+        sites.push(expression);
+    }
+    sites
+        .into_iter()
+        .map(|id| {
+            let node = parsed
+                .ast()
+                .expressions()
+                .get(id)
+                .map_err(|e| failure("terminal original Return", e))?;
+            let Expression::Return { value, .. } = node.payload() else {
+                return Err(failure("terminal actual Return AST", node));
+            };
+            Ok(*value)
+        })
+        .collect()
+}
+
 pub(super) fn single(
     input: &Input,
     parsed: &ParsedFile,
@@ -169,6 +195,21 @@ pub(super) fn single(
         "terminal single original scan root",
         signature,
     )?;
+    if returning {
+        for operand in return_values(transfer, normal, parsed)? {
+            need(
+                match operand {
+                    Some(value) => typed.expression_type(value) == Some(signature.return_type()),
+                    None => {
+                        typed.types().get(signature.return_type())
+                            == Some(&TypeKind::Builtin(BuiltinType::Unit))
+                    }
+                },
+                "terminal single original Return operand matches scan result",
+                (operand, signature),
+            )?;
+        }
+    }
     let mode = if input.owned {
         ParameterMode::Value
     } else {
@@ -481,7 +522,9 @@ pub(super) fn single(
             .filter(|l| l.call() == id)
             .collect::<Vec<_>>();
         need(
-            matches!(call.arguments(), [a] if a.mode() == mode && a.argument_index() == 0 && a.parameter_index() == 0 && Some(a.parameter_type()) == typed.expression_type(arg.value))
+            call.return_type() == signature.return_type()
+                && typed.expression_type(id) == Some(signature.return_type())
+                && matches!(call.arguments(), [a] if a.mode() == mode && a.argument_index() == 0 && a.parameter_index() == 0 && Some(a.parameter_type()) == typed.expression_type(arg.value))
                 && if input.owned {
                     loans.is_empty()
                 } else {
@@ -541,6 +584,24 @@ pub(super) fn unit(
         "terminal unit original scan root",
         signature,
     )?;
+    if returning {
+        for operand in return_values(transfer, normal, parsed)? {
+            need(
+                match operand {
+                    Some(value) => {
+                        typed.expression_type(UnitExpressionId::new(root.source_unit(), value))
+                            == Some(signature.return_type())
+                    }
+                    None => {
+                        typed.types().get(signature.return_type())
+                            == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+                    }
+                },
+                "terminal unit original Return operand matches qualified scan result",
+                (operand, signature),
+            )?;
+        }
+    }
     let mode = if input.owned {
         ParameterMode::Value
     } else {
@@ -735,7 +796,9 @@ pub(super) fn unit(
             .filter(|l| l.call() == call.expression())
             .collect::<Vec<_>>();
         need(
-            matches!(call.arguments(), [a] if a.mode() == mode && a.parameter_index() == 0 && a.argument_index() == 0 && Some(a.parameter_type()) == typed.expression_type(arg_id))
+            call.return_type() == signature.return_type()
+                && typed.expression_type(call.expression()) == Some(signature.return_type())
+                && matches!(call.arguments(), [a] if a.mode() == mode && a.parameter_index() == 0 && a.argument_index() == 0 && Some(a.parameter_type()) == typed.expression_type(arg_id))
                 && matches!(contracts.as_slice(), [c] if c.argument() == arg_id && c.parameter_index() == 0 && c.kind() == if input.owned { UK::Value } else { UK::SharedLoan })
                 && if input.owned {
                     loans.is_empty()

@@ -1,5 +1,6 @@
 //! Ordered Map providers carry one source lease and an opaque u64 cursor in pending slots.
 mod carrier;
+mod checked;
 mod cleanup;
 mod conditional;
 mod local;
@@ -333,7 +334,7 @@ impl UnitExpressionLowerer<'_> {
         } else if matches!(qualified.body_exit, UnitIterationExitKind::Return(_))
             && qualified.nested.and_then(|pair| pair.tail).is_none()
         {
-            carrier.validate_return(self, span)?;
+            current_carrier.validate_return(self, span)?;
         }
         self.validate_nested_map_body(&mut context, span)?;
         if let Some(parent) = parent_transport {
@@ -474,6 +475,42 @@ impl UnitExpressionLowerer<'_> {
         )?;
         self.record_conditional_map_next(state, next, span)?;
         self.pending_operands[state.cursor_slot] = EntityId::Value(next);
+        Ok(())
+    }
+}
+
+impl UnitExpressionLowerer<'_> {
+    pub(in super::super) fn record_map_return_delivery(
+        &mut self,
+        expression: UnitExpressionId,
+        result: LoweredValue,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let boundary = self
+            .function
+            .block(self.block)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
+            .instructions
+            .len();
+        for context in &mut self.loops {
+            let Some(iteration) = &mut context.iteration else {
+                continue;
+            };
+            let IterationState::Map(state) = &mut iteration.state else {
+                continue;
+            };
+            if state.conditional.is_none()
+                && state.carrier.nested.is_none()
+                && state.carrier.body_point == UnitDropPoint::ControlTransfer(expression)
+                && state
+                    .carrier
+                    .return_delivery
+                    .replace((result, self.block, boundary))
+                    .is_some()
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+        }
         Ok(())
     }
 }

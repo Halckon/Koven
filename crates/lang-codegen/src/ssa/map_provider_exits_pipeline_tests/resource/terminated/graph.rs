@@ -1,4 +1,6 @@
-//! Read-only Break proof over original declarations, complete incoming columns and operands.
+//! Read-only terminal provider proof over original declarations and complete incoming columns.
+#[path = "return_graph.rs"]
+mod return_graph;
 use super::super::{
     continuation::graph::{check_local_guard, transport},
     identity::Input,
@@ -6,7 +8,7 @@ use super::super::{
 use crate::ssa::{
     map_provider_exits_pipeline_tests::{
         fixture::{Failure, failure, need},
-        query_graph::{Graph, Uses, loan, result, value},
+        query_graph::{Graph, Uses, result, value},
         query_inputs::one,
     },
     model::*,
@@ -24,6 +26,27 @@ pub(super) fn check(
     parsed: &ParsedFile,
     unit: bool,
 ) -> Result<(), Failure> {
+    check_kind(program, input, sources, parsed, unit, false)
+}
+
+pub(super) fn check_return(
+    program: &Program,
+    input: &Input,
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    unit: bool,
+) -> Result<(), Failure> {
+    check_kind(program, input, sources, parsed, unit, true)
+}
+
+fn check_kind(
+    program: &Program,
+    input: &Input,
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    unit: bool,
+    returning: bool,
+) -> Result<(), Failure> {
     let module = one(program.modules.iter(), "one original module")?;
     let scan = one(
         module
@@ -32,7 +55,11 @@ pub(super) fn check(
             .filter(|f| f.origin == Origin::Source(input.scan)),
         "original Break scan",
     )?;
-    let g = Graph::new(scan)?;
+    let g = if returning {
+        Graph::with_abort(scan)?
+    } else {
+        Graph::new(scan)?
+    };
     let [anchor] = g.block(scan.entry_block().unwrap())?.parameters.as_slice() else {
         return Err(failure("one original scan parameter", scan));
     };
@@ -81,18 +108,23 @@ pub(super) fn check(
     let body_span = parsed.ast().statements().get(input.body).unwrap().span();
     let broken = one(
         parsed.ast().expressions().iter().filter_map(|(_, node)| {
-            (matches!(node.payload(), Expression::Break { .. })
-                && node.span().start() > body_span.start()
+            ((if returning {
+                matches!(node.payload(), Expression::Return { .. })
+            } else {
+                matches!(node.payload(), Expression::Break { .. })
+            }) && node.span().start() > body_span.start()
                 && node.span().end() < body_span.end())
             .then_some(node.span())
         }),
         "original body Break",
     )?;
-    need(
-        g.term(key.block)?.origin == Origin::Source(input.for_span),
-        "actual For merge branch origin",
-        g.term(key.block)?,
-    )?;
+    if !returning {
+        need(
+            g.term(key.block)?.origin == Origin::Source(input.for_span),
+            "actual For merge branch origin",
+            g.term(key.block)?,
+        )?;
+    }
     let Operation::MapIterationFirst { source } = first.operation else {
         unreachable!()
     };
@@ -198,13 +230,12 @@ pub(super) fn check(
     )?;
     let xs = g.transported(when_false, EntityId::Loan(hs))?;
     let xc = g.transported(when_false, EntityId::Value(hc))?;
-    let body_end = one(
-        g.instructions
-            .iter()
-            .copied()
-            .filter(|i| i.operation == Operation::BorrowEnd { loan: bs }),
-        "exact Break EndSource",
-    )?;
+    let body_leases = if returning {
+        family(&g, EntityId::Loan(bs))?
+    } else {
+        BTreeSet::from([EntityId::Loan(bs)])
+    };
+    let body_end = one(g.instructions.iter().copied().filter(|i| matches!(i.operation, Operation::BorrowEnd { loan } if body_leases.contains(&EntityId::Loan(loan)))), "exact terminal EndSource")?;
     let false_end = one(
         g.instructions.iter().copied().filter(
             |i| matches!(i.operation, Operation::BorrowEnd { loan } if EntityId::Loan(loan)==xs),
@@ -212,11 +243,11 @@ pub(super) fn check(
         "exact exhaustion EndSource",
     )?;
     need(
-        body_end.block == key.block && false_end.block == when_false.target,
+        (returning || body_end.block == key.block) && false_end.block == when_false.target,
         "both actual exits end their own source",
         (body_end, false_end),
     )?;
-    let mut leases = BTreeSet::new();
+    let mut leases = body_leases;
     for entity in [EntityId::Loan(hs), EntityId::Loan(bs), xs] {
         leases.extend(transport(&g, entity, EntityId::Loan(source))?);
     }
@@ -228,7 +259,11 @@ pub(super) fn check(
     for &entity in &leases {
         uses.protect(entity);
     }
+    let mut cursors = BTreeSet::new();
     for cursor in [result(first)?, EntityId::Value(hc), EntityId::Value(bc), xc] {
+        cursors.extend(family(&g, cursor)?);
+    }
+    for &cursor in &cursors {
         uses.protect(cursor);
     }
     uses.permit(EntityId::Loan(source), first);
@@ -238,25 +273,26 @@ pub(super) fn check(
         uses.permit(EntityId::Loan(bs), instruction);
         uses.permit(EntityId::Value(bc), instruction);
     }
-    uses.permit(EntityId::Loan(bs), body_end);
+    if let Operation::BorrowEnd { loan } = body_end.operation {
+        uses.permit(EntityId::Loan(loan), body_end);
+    }
     uses.permit(xs, false_end);
     // No provider state may leak past either terminal cleanup or gain an extra edge.
     for (from, edge) in &g.edges {
         for &entity in &edge.arguments {
-            if leases.contains(&entity)
-                || [result(first)?, EntityId::Value(hc), EntityId::Value(bc), xc].contains(&entity)
-            {
+            if leases.contains(&entity) || cursors.contains(&entity) {
                 need(
                     (*from == first.block && edge.target == guard.block)
                         || (*from == guard.block
-                            && [key.block, when_false.target].contains(&edge.target)),
+                            && [key.block, when_false.target].contains(&edge.target))
+                        || (returning && body_leases_edge(&g, key.block, *from, edge.target)?),
                     "only proved provider state transport edges",
                     (from, edge, entity),
                 )?;
             }
         }
     }
-    let read = one(g.instructions.iter().copied().filter(|i| matches!(&i.operation, Operation::DirectCall { receiver: None, arguments, .. } if arguments.as_slice()==[result(key).unwrap(), result(val).unwrap()])), "actual K/V reader")?;
+    let read = one(g.instructions.iter().copied().filter(|i| matches!(&i.operation, Operation::DirectCall { callee, receiver: None, arguments } if module.function(*callee).is_some_and(|f|f.origin==Origin::Source(input.read)) && arguments.as_slice()==[result(key).unwrap(), result(val).unwrap()])), "actual original K/V reader")?;
     let Operation::DirectCall { callee, .. } = read.operation else {
         unreachable!()
     };
@@ -277,7 +313,7 @@ pub(super) fn check(
         "original String key storage",
         kt,
     )?;
-    for cursor in [result(first)?, EntityId::Value(hc), EntityId::Value(bc), xc] {
+    for &cursor in &cursors {
         need(scan.entity(cursor).is_some_and(|e| matches!(e.ty, EntityType::Value(t) if module.type_kind(t)==Some(&SsaTypeKind::Integer { bits:64, signed:false }))), "every actual provider cursor has unsigned index storage", cursor)?;
     }
     for (component, target, parameter) in [(key, kt, 0), (val, vt, 1)] {
@@ -301,18 +337,19 @@ pub(super) fn check(
     let mut ends = vec![];
     for component in [key, val] {
         let entity = result(component)?;
-        let end = one(
-            g.instructions.iter().copied().filter(|i| {
-                i.operation
-                    == Operation::BorrowEnd {
-                        loan: loan(component).unwrap(),
-                    }
-            }),
-            "unique actual component End",
-        )?;
-        uses.protect(entity);
+        let entities = if returning {
+            family(&g, entity)?
+        } else {
+            BTreeSet::from([entity])
+        };
+        let end = one(g.instructions.iter().copied().filter(|i| matches!(i.operation,Operation::BorrowEnd {loan} if entities.contains(&EntityId::Loan(loan)))), "unique actual component End")?;
+        for &entity in &entities {
+            uses.protect(entity);
+        }
         uses.permit(entity, read);
-        uses.permit(entity, end);
+        if let Operation::BorrowEnd { loan } = end.operation {
+            uses.permit(EntityId::Loan(loan), end);
+        }
         ends.push(end);
     }
     need(
@@ -323,56 +360,76 @@ pub(super) fn check(
         (&ends, body_end, broken),
     )?;
     need(
-        read.block == key.block
-            && ends.iter().all(|i| i.block == key.block)
-            && g.position(read)? < g.position(ends[1])?
+        ends.iter().all(|i| i.block == body_end.block)
             && g.position(ends[1])? < g.position(ends[0])?
             && g.position(ends[0])? < g.position(body_end)?,
-        "actual read/value End/key End/EndSource",
+        "actual value End/key End/EndSource",
         (&ends, body_end),
     )?;
-    check_local_guard(
-        &g,
-        module,
-        input,
-        sources,
-        parsed,
-        (read, ends[1]),
-        &mut uses,
-    )?;
+    if returning {
+        return_graph::check(
+            &g,
+            module,
+            input,
+            sources,
+            parsed,
+            &mut uses,
+            (key, val, read, ends[1], body_end),
+        )?;
+    } else {
+        need(
+            read.block == key.block
+                && ends[1].block == key.block
+                && g.position(read)? < g.position(ends[1])?,
+            "Break read before component cleanup",
+            read,
+        )?;
+        check_local_guard(
+            &g,
+            module,
+            input,
+            sources,
+            parsed,
+            (read, ends[1]),
+            &mut uses,
+        )?;
+    }
     let drops = g.instructions.iter().copied().filter(|i| matches!(i.operation, Operation::Drop { owner } if scan.entity(EntityId::Value(owner)).unwrap().ty.semantic_type()==map_type)).collect::<Vec<_>>();
     if input.owned {
-        let [drop] = drops.as_slice() else {
-            return Err(failure(
-                "one lexical Map Drop after Break/exhaustion merge",
-                &drops,
-            ));
-        };
-        let Operation::Drop { owner } = drop.operation else {
-            unreachable!()
-        };
         need(
-            drop.origin == Origin::Source(input.parameter),
-            "actual lexical Drop parameter identity",
-            drop,
+            drops.len() == if returning { 2 } else { 1 },
+            "exact distinct own terminal Map Drops",
+            &drops,
         )?;
-        originals.extend(transport(&g, EntityId::Value(owner), *anchor)?);
+        for drop in &drops {
+            let Operation::Drop { owner } = drop.operation else {
+                unreachable!()
+            };
+            need(
+                drop.origin == Origin::Source(input.parameter),
+                "actual Drop original parameter identity",
+                drop,
+            )?;
+            originals.extend(transport(&g, EntityId::Value(owner), *anchor)?);
+            uses.permit(EntityId::Value(owner), drop);
+        }
         for &entity in &originals {
             uses.protect(entity);
         }
-        uses.permit(EntityId::Value(owner), drop);
-        let merge = g.branch(key.block)?.target;
-        need(
-            g.branch(when_false.target)?.target == merge,
-            "Break and exhaustion reach same owner merge",
-            merge,
-        )?;
-        g.incoming_from(merge, &[key.block, when_false.target])?;
-        let merged_owner = g.transported(
-            g.branch(key.block)?,
-            g.transported(when_true, g.transported(entry, *anchor)?)?,
-        )?;
-        transport(&g, merged_owner, *anchor)?;
+        if !returning {
+            let merge = g.branch(key.block)?.target;
+            need(
+                g.branch(when_false.target)?.target == merge,
+                "Break and exhaustion reach same owner merge",
+                merge,
+            )?;
+            g.incoming_from(merge, &[key.block, when_false.target])?;
+            let merged_owner = g.transported(
+                g.branch(key.block)?,
+                g.transported(when_true, g.transported(entry, *anchor)?)?,
+            )?;
+            transport(&g, merged_owner, *anchor)?;
+        }
     } else {
         need(drops.is_empty() && !g.instructions.iter().any(|i| matches!(i.operation, Operation::BorrowEnd { loan } if originals.contains(&EntityId::Loan(loan)))), "callee never drops caller Map or ends original caller loan", scan.id)?;
     }
@@ -383,6 +440,47 @@ pub(super) fn check(
         caller(module, scan)?;
     }
     Ok(())
+}
+
+fn family(g: &Graph<'_>, anchor: EntityId) -> Result<BTreeSet<EntityId>, Failure> {
+    let mut entities = BTreeSet::from([anchor]);
+    loop {
+        let before = entities.len();
+        for (_, edge) in &g.edges {
+            for (&arg, &param) in edge.arguments.iter().zip(&g.block(edge.target)?.parameters) {
+                if entities.contains(&arg) {
+                    entities.insert(param);
+                }
+            }
+        }
+        if entities.len() == before {
+            break;
+        }
+    }
+    for &entity in &entities {
+        transport(g, entity, anchor)?;
+    }
+    Ok(entities)
+}
+
+// Checked return operands may add a real success/Abort split inside the body.
+fn body_leases_edge(
+    g: &Graph<'_>,
+    body: BlockId,
+    from: BlockId,
+    to: BlockId,
+) -> Result<bool, Failure> {
+    let mut pending = vec![body];
+    let mut reached = BTreeSet::new();
+    while let Some(block) = pending.pop() {
+        if !reached.insert(block) {
+            continue;
+        }
+        for (_, edge) in g.edges.iter().filter(|(b, _)| *b == block) {
+            pending.push(edge.target);
+        }
+    }
+    Ok(reached.contains(&from) && reached.contains(&to))
 }
 
 fn post_uses(

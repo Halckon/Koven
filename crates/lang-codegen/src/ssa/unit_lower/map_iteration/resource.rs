@@ -6,6 +6,12 @@ use lang_frontend::{
     type_checking::NominalKind,
 };
 
+#[derive(Clone, Copy)]
+pub(super) struct Proof {
+    pub(super) drop: UnitDropFact,
+    pub(super) transfer: Option<UnitDropFact>,
+}
+
 pub(super) fn qualify(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -14,7 +20,7 @@ pub(super) fn qualify(
     plan: &UnitMapIterationOwnershipPlan,
     root: UnitSymbolId,
     kind: UnitIterationExitKind,
-) -> Result<UnitDropFact, LoweringError> {
+) -> Result<Proof, LoweringError> {
     let d = plan.descriptor();
     let statement = d.statement();
     let span = parsed
@@ -58,6 +64,7 @@ pub(super) fn qualify(
             UnitIterationExitKind::Fallthrough
                 | UnitIterationExitKind::Continue(_)
                 | UnitIterationExitKind::Break(_)
+                | UnitIterationExitKind::Return(_)
         )
         || plan.source_access() != UnitIterationSourceAccess::Owned
         || typed.is_resource_type(d.source_type()) != Some(true)
@@ -78,12 +85,46 @@ pub(super) fn qualify(
         .copied()
         .filter(|f| f.target() == UnitDropTarget::Named(root))
         .collect::<Vec<_>>();
-    let [drop] = drops.as_slice() else {
-        return Err(unsupported());
+    let returning = match kind {
+        UnitIterationExitKind::Return(e) => Some(e),
+        _ => None,
     };
-    if drop.point()
-        != UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), scope))
-        || drop.value_origin() != origin
+    let transfer = returning
+        .map(|expression| {
+            if expression.source_unit() != statement.source_unit() {
+                return Err(bad());
+            }
+            let node = parsed
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .map_err(|_| bad())?;
+            if !matches!(node.payload(), Expression::Return { .. })
+                || node.span().source_id() != span.source_id()
+                || node.span().start() <= span.start()
+                || node.span().end() >= span.end()
+            {
+                return Err(bad());
+            }
+            let mut found = drops
+                .iter()
+                .copied()
+                .filter(|d| d.point() == UnitDropPoint::ControlTransfer(expression));
+            let fact = found.next().ok_or_else(bad)?;
+            if found.next().is_some() {
+                return Err(bad());
+            }
+            Ok(fact)
+        })
+        .transpose()?;
+    if drops.len() != 1 + usize::from(returning.is_some()) {
+        return Err(unsupported());
+    }
+    let mut normal = drops.iter().copied().filter(|d| Some(*d) != transfer);
+    let drop = normal.next().ok_or_else(bad)?;
+    if normal.next().is_some()
+        || drops.iter().any(|d| d.value_origin() != origin)
+        || !normal_point(parsed, scope, span, statement.source_unit(), drop.point())
     {
         return Err(bad());
     }
@@ -99,9 +140,9 @@ pub(super) fn qualify(
         return Err(bad());
     };
     let body_point = match kind {
-        UnitIterationExitKind::Continue(expression) | UnitIterationExitKind::Break(expression) => {
-            UnitDropPoint::ControlTransfer(expression)
-        }
+        UnitIterationExitKind::Continue(expression)
+        | UnitIterationExitKind::Break(expression)
+        | UnitIterationExitKind::Return(expression) => UnitDropPoint::ControlTransfer(expression),
         _ => UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), *body)),
     };
     let mut body_actions = vec![
@@ -114,11 +155,17 @@ pub(super) fn qualify(
             symbol: d.key_binding(),
         },
     ];
-    if matches!(kind, UnitIterationExitKind::Break(_)) {
+    if matches!(
+        kind,
+        UnitIterationExitKind::Break(_) | UnitIterationExitKind::Return(_)
+    ) {
         body_actions.extend([
             Action::FinishProvider(statement),
             Action::EndSource(statement),
         ]);
+    }
+    if let Some(fact) = transfer {
+        body_actions.push(Action::Drop(fact));
     }
     let exhaustion_actions = [
         Action::FinishProvider(statement),
@@ -139,7 +186,7 @@ pub(super) fn qualify(
     if prefix.iter().any(|action| !matches!(action, Action::Drop(fact) if fact.target()!=UnitDropTarget::Named(root))) {
         return Err(bad());
     }
-    Ok(*drop)
+    Ok(Proof { drop, transfer })
 }
 
 fn scope(
@@ -193,4 +240,48 @@ fn scope(
         return Err(bad());
     }
     Ok(*body)
+}
+
+// A cleanup Return must belong to the original callable, beyond the provider's AST.
+fn normal_point(
+    parsed: &ParsedFile,
+    scope: StatementId,
+    iteration: Span,
+    source_unit: lang_frontend::name_resolution::SourceUnitId,
+    point: UnitDropPoint,
+) -> bool {
+    if point == UnitDropPoint::AfterStatement(UnitStatementId::new(source_unit, scope)) {
+        return true;
+    }
+    let UnitDropPoint::ControlTransfer(expression) = point else {
+        return false;
+    };
+    if expression.source_unit() != source_unit {
+        return false;
+    }
+    let Ok(node) = parsed.ast().expressions().get(expression.expression()) else {
+        return false;
+    };
+    let Ok(body) = parsed.ast().statements().get(scope) else {
+        return false;
+    };
+    let at = node.span();
+    let inside = |outer: Span| {
+        outer.source_id() == at.source_id()
+            && outer.start() <= at.start()
+            && outer.end() >= at.end()
+    };
+    matches!(node.payload(), Expression::Return { .. })
+        && inside(body.span())
+        && at.start() >= iteration.end()
+        && !parsed
+            .ast()
+            .expressions()
+            .iter()
+            .any(|(_, n)| matches!(n.payload(), Expression::Lambda { .. }) && inside(n.span()))
+        && !parsed.ast().items().iter().any(|(_, n)| {
+            matches!(n.payload(), Item::Function { .. } | Item::Deinit { .. })
+                && n.span().start() >= body.span().start()
+                && inside(n.span())
+        })
 }
