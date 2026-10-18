@@ -327,10 +327,12 @@ impl Checker<'_> {
         bindings: &[UnitSymbolId],
         boundary: Span,
     ) -> Result<(), OwnershipCheckingError> {
-        let closures = live
-            .iter()
-            .filter_map(|symbol| state.closures.get(symbol))
-            .collect::<BTreeSet<_>>();
+        let closures = state.closure_tree(
+            live.iter()
+                .filter_map(|symbol| state.closures.get(symbol))
+                .flatten()
+                .copied(),
+        );
         if let Some(loan) = state.loans.iter().find(|loan| {
             matches!(&loan.owner, ActiveLoanOwner::Closure(closure) if closures.contains(closure))
                 && matches!(&loan.target, ActiveLoanTarget::Place(place) if bindings.contains(&place.root()))

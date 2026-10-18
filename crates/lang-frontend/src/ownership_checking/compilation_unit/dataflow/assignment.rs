@@ -18,7 +18,7 @@ impl Checker<'_> {
         mut state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
         let entry_state = state.clone();
-        let closure = self.closure_origin(value, &state)?;
+        let closure = self.closure_origins(value, &state)?;
         let source = self.expression_root_symbol(value)?;
         let root = self
             .place(target)?
@@ -83,6 +83,15 @@ impl Checker<'_> {
         let Some(state) = flows.next.as_mut() else {
             return Ok(flows);
         };
+        let closure = if closure.is_empty() {
+            state
+                .closure_results
+                .get(&self.unit_expression(value))
+                .cloned()
+                .unwrap_or_default()
+        } else {
+            closure
+        };
         if let Some(place) = place {
             if operator != AssignmentOperator::Assign {
                 self.access_place(&place, AccessKind::Read, target_span, None, state)?;
@@ -94,11 +103,11 @@ impl Checker<'_> {
                 let root = place.root();
                 if place.is_root() {
                     // Explicit replacement commits even inside an enclosing RHS for this root.
-                    self.release_closure_except(root, closure, state);
+                    self.release_closure_except(root, &closure, state);
                     if let Some(source) = source {
                         state.closures.remove(&source);
                     }
-                    if let Some(closure) = closure {
+                    if !closure.is_empty() {
                         state.closures.insert(root, closure);
                     }
                 }

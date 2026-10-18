@@ -197,7 +197,20 @@ impl Checker<'_> {
         }
         let mut flows = checked?;
         if let Some(next) = &mut flows.next {
-            let value = if self.callable_type(id).is_some() {
+            let callable = self.callable_type(id).is_some();
+            let closure_origins = if callable {
+                self.closure_result_origins(id, next)?
+            } else {
+                Default::default()
+            };
+            if matches!(expression, Expression::If { .. } | Expression::When { .. }) {
+                self.release_dead_control_closures(id, &closure_origins, next);
+            }
+            if callable {
+                next.closure_results
+                    .insert(self.unit_expression(id), closure_origins);
+            }
+            let value = if callable {
                 match expression {
                     Expression::Name => name.unwrap_or_default(),
                     Expression::Lambda { .. } => self

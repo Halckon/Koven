@@ -589,6 +589,28 @@ fn control_tail_local_hands_environment_to_result_before_scope_end() {
 #[test]
 fn evaluated_callee_keeps_capture_across_control_arguments() {
     for control in ["if(flag) 1 else 2", "when {flag -> 1; else -> 2}"] {
-        both(rejected(format!("fun release(own item: String): Int {{return 0}}\nfun run(own source: String, flag: Boolean): Unit {{val action: (Int,Int) -> Unit = {{a,b->read(source)}}; action({control},release(source))}}"),"L0135","release(source)","source"));
+        both(rejected(
+            format!(
+                "fun release(own item: String): Int {{return 0}}\nfun run(own source: String, flag: Boolean): Unit {{val action: (Int,Int) -> Unit = {{a,b->read(source)}}; action({control},release(source))}}"
+            ),
+            "L0135",
+            "release(source)",
+            "source",
+        ));
+    }
+}
+
+#[test]
+fn temporary_control_tail_borrow_argument_releases_after_call() {
+    for control in [
+        "if(flag) {val local: () -> Unit = {read(source)}; local} else ({})",
+        "when {flag -> {val local: () -> Unit = {read(source)}; local}; else -> ({})}",
+    ] {
+        both(Case {
+            body: format!(
+                "fun apply(action: () -> Unit): Unit {{}}\nfun run(own source: String, flag: Boolean): Unit {{apply({control}); take(source)}}"
+            ),
+            rejected: None,
+        });
     }
 }

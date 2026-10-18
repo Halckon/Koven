@@ -530,3 +530,36 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - 本机只做fmt、两crate测试编译、clippy/all-targets/-D warnings、no-run和list注册
   核对；没有运行上述反例。32次是待CI执行量，不记作本机通过数。新head远端完整
   CI及Linux动态证据另记，macOS sanitizer继续partial；F仍active。
+
+## 35. Guide 派生闭包生命周期义务与 Unit 修复（2026-10-18）
+
+原active20/10全文不能恢复；本节按现行Guide建立新验收，不声称字节恢复或等价。
+
+| 现行义务 | 新普通源码矩阵与硬oracle |
+|---|---|
+| Closure capture身份与普通闭包/Map分量不得逃逸 | K/V return；外层local跨fallthrough、break、continue；精确L0137/source span、全部执行facts清空、不能qualified |
+| 活跃Map source保护、return operand先交付 | 可变本地put/remove/consume、own参数release、return release(source)，精确L0135原source；break后put/remove/consume合法 |
+| Map退出结束本轮capture再分量 | K↔V替换各走B/C/R；同次真实lambda/For binding Shared/Borrow，原ControlTransfer，capture→value→key；B/R再finish→source，Continue保留provider |
+| ASAP与动态环境身份 | 旧Pure闭包在原声明AfterStatement唯一释放，新值在ControlTransfer/正常saved() CallReturn各唯一；single另核实际Create owner、slot、address、place value及无额外condition，不虚造Unit字段 |
+| 嵌套捕获按形成时环境传递 | K/V借用经move外层return/Value、直接literal、三层环境、形成后重绑定双向邻控；外层活过回边/B/C拒绝，同body调用完成合法 |
+| 分支选择与最后使用 | 分支赋值/条件initializer保留所有来源；普通own String在outer()前take冲突、后take合法，含If/When局部tail移交；不让Map自身source loan掩盖嵌套释放 |
+
+- 新测试首次发现真实Unit错误：K/V×return/Value四源single拒绝，Unit四源均无诊断且
+  错误发布能力；完整8观察真实红已保留。进一步branch赋值两源同样single拒、Unit
+  错误接受；合法own String条件结果调用后take又暴露Unit过长借用。它们区别于此前
+  fixture括号/mutable source、诊断span及Map EndBinding oracle修正，不混记生产红。
+- 窄修仅Unit checker：形成时冻结source-qualified嵌套环境；移动后转移binding关系，
+  分支保留可能来源与实际控制结果，escape及跨provider检查递归来源图；最后使用
+  按活跃根可达性释放，控制结果移交后去掉失效局部根。失败路径保留原回滚规则。
+  不改Guide、lowering或Field/Inout，不合并D10；现有Resource/Pure cleanup分界保持。
+- 共享普通harness只搬原15项的完整执行facts registry和同次analysis准入；原15源码、
+  拒绝元组及测试名保持。新矩阵显式进入stage，唯一frontend integration数118，仍
+  10次Cargo调用；纯静态选择检查先红后绿，stub/失败注入suite仍只交CI。
+- 独审进一步要求控制交付闭合：实际普通源证明过宽dead-root清扫会提前释放已求值
+  callee，现严格只交接已移动且不再活跃的根；临时Borrow实参在CallReturn按实际控制
+  尾值释放，不能只扫描字面lambda。两项保留真实红与邻控绿，属于本轮审计修正，
+  不冒称旧远端四源缺陷。形成结果表只记录callable表达式，不给普通标量增加空表项。
+- 当前普通前端五target实际214项全部通过：旧matrix15、新matrix18、多文件135、
+  closure39、Unit recovery7，0失败/忽略。新18项包含56源×两入口112观察；原15项
+  另30观察，Unit7保持各自输入。后续固定实现头工程/normal SSA/native复验另记，
+  故障反例和sanitizer导出只编译，实际CI不得以收集器exit0代替逐项通过。

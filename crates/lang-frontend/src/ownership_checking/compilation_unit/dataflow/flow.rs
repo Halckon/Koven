@@ -1,6 +1,6 @@
 //! Body-local ownership 控制流状态与保守合并。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     name_resolution::UnitSymbolId,
@@ -55,12 +55,33 @@ pub(super) struct State {
     pub(super) moved: BTreeMap<UnitSymbolId, Span>,
     pub(super) this_moved: Option<Span>,
     pub(super) loans: Vec<ActiveLoan>,
-    pub(super) closures: BTreeMap<UnitSymbolId, UnitExpressionId>,
+    pub(super) closures: BTreeMap<UnitSymbolId, BTreeSet<UnitExpressionId>>,
+    pub(super) closure_results: BTreeMap<UnitExpressionId, BTreeSet<UnitExpressionId>>,
+    /// Freeze captured environments at formation; later source rebinding cannot change them.
+    pub(super) closure_captures: BTreeMap<UnitExpressionId, BTreeSet<UnitExpressionId>>,
     /// Keep the old closure environment alive until the whole replacement RHS completes.
     pub(super) replacements: Vec<UnitSymbolId>,
     pub(super) non_owning: BTreeMap<UnitSymbolId, Span>,
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, UnitOwnershipPlace>,
     pub(super) immutable_captures: BTreeMap<UnitSymbolId, Span>,
+}
+
+impl State {
+    pub(super) fn closure_tree(
+        &self,
+        roots: impl IntoIterator<Item = UnitExpressionId>,
+    ) -> BTreeSet<UnitExpressionId> {
+        let mut pending = roots.into_iter().collect::<Vec<_>>();
+        let mut seen = BTreeSet::new();
+        while let Some(closure) = pending.pop() {
+            if seen.insert(closure)
+                && let Some(captured) = self.closure_captures.get(&closure)
+            {
+                pending.extend(captured);
+            }
+        }
+        seen
+    }
 }
 
 #[derive(Default)]
@@ -98,6 +119,13 @@ pub(super) fn merge_optional_state(target: &mut Option<State>, source: Option<St
 
 pub(super) fn merge_state(target: &mut State, source: State) {
     target.origins.merge(&source.origins);
+    for (closure, captured) in source.closure_captures {
+        target
+            .closure_captures
+            .entry(closure)
+            .or_default()
+            .extend(captured);
+    }
     // A loan live on any reachable incoming edge must still constrain later access.
     // In particular, a branch-selected closure may retain a shared loan until activation.
     for loan in source.loans {
@@ -105,9 +133,16 @@ pub(super) fn merge_state(target: &mut State, source: State) {
             target.loans.push(loan);
         }
     }
-    target
-        .closures
-        .retain(|symbol, closure| source.closures.get(symbol) == Some(closure));
+    for (symbol, origins) in source.closures {
+        target.closures.entry(symbol).or_default().extend(origins);
+    }
+    for (expression, origins) in source.closure_results {
+        target
+            .closure_results
+            .entry(expression)
+            .or_default()
+            .extend(origins);
+    }
     target
         .borrow_bindings
         .retain(|symbol, origin| source.borrow_bindings.get(symbol) == Some(origin));

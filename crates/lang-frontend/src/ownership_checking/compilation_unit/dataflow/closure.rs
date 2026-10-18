@@ -12,6 +12,8 @@ use crate::ownership_checking::{
     UnitOwnershipPlace,
 };
 
+use std::collections::BTreeSet;
+
 use super::{
     AccessKind, ActiveLoan, ActiveLoanOwner, ActiveLoanTarget, Checker, Flows,
     OwnershipBindingKind, OwnershipCheckingError, State,
@@ -40,6 +42,18 @@ impl Checker<'_> {
                 )?;
             }
         }
+        let captured_closures = captures
+            .iter()
+            .filter_map(|capture| {
+                if let UnitClosureCaptureSource::Symbol(symbol) = capture.source() {
+                    state.closures.get(&symbol)
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .copied()
+            .collect();
         for capture in &captures {
             match (capture.mode(), capture.source(), capture.effect()) {
                 (ClosureCaptureMode::Shared, UnitClosureCaptureSource::Symbol(symbol), _) => {
@@ -113,6 +127,8 @@ impl Checker<'_> {
                         &mut state,
                     )? {
                         state.moved.insert(symbol, capture.reference_span());
+                        // The nested environment now belongs to the formed outer value.
+                        state.closures.remove(&symbol);
                     }
                 }
                 (
@@ -176,6 +192,7 @@ impl Checker<'_> {
         if self.diagnostics.len() != diagnostic_count {
             return Ok(Flows::next(entry_state));
         }
+        state.closure_captures.insert(lambda_id, captured_closures);
         Ok(Flows::next(state))
     }
 
@@ -197,19 +214,74 @@ impl Checker<'_> {
         Ok(())
     }
 
-    pub(super) fn closure_origin(
+    pub(super) fn closure_origins(
         &self,
         expression: ExpressionId,
         state: &State,
-    ) -> Result<Option<UnitExpressionId>, OwnershipCheckingError> {
+    ) -> Result<BTreeSet<UnitExpressionId>, OwnershipCheckingError> {
         let node = self.parsed.ast().expressions().get(expression)?;
-        match node.payload() {
-            Expression::Lambda { .. } => Ok(Some(self.unit_expression(expression))),
-            Expression::Group { expression } => self.closure_origin(*expression, state),
-            Expression::Name => Ok(self
+        Ok(match node.payload() {
+            Expression::Lambda { .. } => BTreeSet::from([self.unit_expression(expression)]),
+            Expression::Group { expression } => self.closure_origins(*expression, state)?,
+            Expression::Name => self
                 .reference_symbol(node.span())
-                .and_then(|symbol| state.closures.get(&symbol).copied())),
-            _ => Ok(None),
+                .and_then(|s| state.closures.get(&s).cloned())
+                .unwrap_or_default(),
+            _ => state
+                .closure_results
+                .get(&self.unit_expression(expression))
+                .cloned()
+                .unwrap_or_default(),
+        })
+    }
+
+    pub(super) fn closure_result_origins(
+        &self,
+        expression: ExpressionId,
+        state: &State,
+    ) -> Result<BTreeSet<UnitExpressionId>, OwnershipCheckingError> {
+        match self.parsed.ast().expressions().get(expression)?.payload() {
+            Expression::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                let mut result = self.closure_body_origins(*then_branch, state)?;
+                if let Some(body) = else_branch {
+                    result.extend(self.closure_body_origins(*body, state)?);
+                }
+                Ok(result)
+            }
+            Expression::When { entries, .. } => {
+                let mut result = BTreeSet::new();
+                for entry in entries {
+                    result.extend(self.closure_body_origins(entry.body, state)?);
+                }
+                Ok(result)
+            }
+            _ => self.closure_origins(expression, state),
+        }
+    }
+
+    fn closure_body_origins(
+        &self,
+        body: StatementId,
+        state: &State,
+    ) -> Result<BTreeSet<UnitExpressionId>, OwnershipCheckingError> {
+        match self.parsed.ast().statements().get(body)?.payload() {
+            Statement::Expression { expression } => Ok(state
+                .closure_results
+                .get(&self.unit_expression(*expression))
+                .cloned()
+                .unwrap_or_default()),
+            Statement::ControlBody { elements } => {
+                if let Some(tail) = elements.last() {
+                    self.closure_body_origins(*tail, state)
+                } else {
+                    Ok(BTreeSet::new())
+                }
+            }
+            _ => Ok(BTreeSet::new()),
         }
     }
 
@@ -234,25 +306,74 @@ impl Checker<'_> {
         state: &mut State,
     ) {
         if !state.replacements.contains(&symbol) {
-            self.release_closure_except(symbol, None, state);
+            self.release_closure_except(symbol, &BTreeSet::new(), state);
         }
     }
 
     pub(super) fn release_closure_except(
         &self,
         symbol: crate::name_resolution::UnitSymbolId,
-        retained: Option<UnitExpressionId>,
+        retained: &BTreeSet<UnitExpressionId>,
         state: &mut State,
     ) {
         let Some(closure) = state.closures.remove(&symbol) else {
             return;
         };
-        if retained == Some(closure) || state.closures.values().any(|&other| other == closure) {
-            return;
+        for origin in closure {
+            self.release_unheld_closure(origin, retained, state);
         }
-        state
-            .loans
-            .retain(|loan| loan.owner != ActiveLoanOwner::Closure(closure));
+    }
+
+    fn release_unheld_closure(
+        &self,
+        closure: UnitExpressionId,
+        retained: &BTreeSet<UnitExpressionId>,
+        state: &mut State,
+    ) {
+        let mut pending = vec![closure];
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some(current) = pending.pop() {
+            if !seen.insert(current)
+                || state
+                    .closure_tree(
+                        state
+                            .closures
+                            .values()
+                            .flatten()
+                            .copied()
+                            .chain(retained.iter().copied()),
+                    )
+                    .contains(&current)
+            {
+                continue;
+            }
+            state
+                .loans
+                .retain(|loan| loan.owner != ActiveLoanOwner::Closure(current));
+            if let Some(captured) = state.closure_captures.remove(&current) {
+                pending.extend(captured);
+            }
+        }
+    }
+
+    pub(super) fn release_dead_control_closures(
+        &self,
+        control: ExpressionId,
+        retained: &BTreeSet<UnitExpressionId>,
+        state: &mut State,
+    ) {
+        loop {
+            let dead=state.closures.keys().copied().filter(|symbol| {
+                state.moved.contains_key(symbol) && !self.expression_live_after[control.index()].contains(symbol) && !state.replacements.contains(symbol)
+                    && !state.loans.iter().any(|loan|matches!(&loan.target,ActiveLoanTarget::Place(place) if place.root()==*symbol))
+            }).collect::<Vec<_>>();
+            if dead.is_empty() {
+                break;
+            }
+            for symbol in dead {
+                self.release_closure_except(symbol, retained, state);
+            }
+        }
     }
 
     pub(super) fn release_last_closure_use(
@@ -271,71 +392,16 @@ impl Checker<'_> {
                 self.release_closure(symbol, state);
             }
         } else {
-            let mut temporaries = Vec::new();
-            self.direct_closure_origins(expression, &mut temporaries)?;
             for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
                 .into_iter()
                 .flatten()
             {
-                for &closure in &temporaries {
-                    if !state.closures.values().any(|&other| other == closure) {
-                        state
-                            .loans
-                            .retain(|loan| loan.owner != ActiveLoanOwner::Closure(closure));
-                    }
+                // The completed argument owns its actual result, including a consumed branch-local tail.
+                let temporaries = self.closure_origins(expression, state)?;
+                for closure in temporaries {
+                    self.release_unheld_closure(closure, &BTreeSet::new(), state);
                 }
             }
-        }
-        Ok(())
-    }
-
-    /// Only anonymous result temporaries end with this expression's completed use.
-    /// A named branch result keeps its existing owner/capture lifetime.
-    fn direct_closure_origins(
-        &self,
-        expression: ExpressionId,
-        origins: &mut Vec<UnitExpressionId>,
-    ) -> Result<(), OwnershipCheckingError> {
-        match self.parsed.ast().expressions().get(expression)?.payload() {
-            Expression::Lambda { .. } => origins.push(self.unit_expression(expression)),
-            Expression::Group { expression } => {
-                self.direct_closure_origins(*expression, origins)?
-            }
-            Expression::If {
-                then_branch,
-                else_branch,
-                ..
-            } => {
-                self.direct_closure_body_origins(*then_branch, origins)?;
-                if let Some(branch) = else_branch {
-                    self.direct_closure_body_origins(*branch, origins)?;
-                }
-            }
-            Expression::When { entries, .. } => {
-                for entry in entries {
-                    self.direct_closure_body_origins(entry.body, origins)?;
-                }
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn direct_closure_body_origins(
-        &self,
-        body: StatementId,
-        origins: &mut Vec<UnitExpressionId>,
-    ) -> Result<(), OwnershipCheckingError> {
-        match self.parsed.ast().statements().get(body)?.payload() {
-            Statement::Expression { expression } => {
-                self.direct_closure_origins(*expression, origins)?
-            }
-            Statement::ControlBody { elements } => {
-                if let Some(&tail) = elements.last() {
-                    self.direct_closure_body_origins(tail, origins)?;
-                }
-            }
-            _ => {}
         }
         Ok(())
     }
@@ -345,14 +411,50 @@ impl Checker<'_> {
         expression: ExpressionId,
         state: &State,
     ) -> Result<(), OwnershipCheckingError> {
-        let Some(lambda) = self.closure_origin(expression, state)? else {
+        let mut pending = self
+            .closure_origins(expression, state)?
+            .into_iter()
+            .collect::<Vec<_>>();
+        let mut seen = std::collections::BTreeSet::new();
+        let mut borrowed = None;
+        while let Some(lambda) = pending.pop() {
+            if !seen.insert(lambda) {
+                continue;
+            }
+            let captures = self
+                .captures
+                .iter()
+                .filter(|c| c.lambda() == lambda)
+                .collect::<Vec<_>>();
+            if captures
+                .iter()
+                .any(|c| c.mode() == ClosureCaptureMode::Shared)
+            {
+                borrowed = Some(lambda);
+                break;
+            }
+            if let Some(captured) = state.closure_captures.get(&lambda) {
+                pending.extend(captured);
+            } else {
+                // Directly delivered lambdas are checked before their environment is formed.
+                pending.extend(
+                    captures
+                        .iter()
+                        .filter_map(|c| {
+                            if let UnitClosureCaptureSource::Symbol(s) = c.source() {
+                                state.closures.get(&s)
+                            } else {
+                                None
+                            }
+                        })
+                        .flatten()
+                        .copied(),
+                );
+            }
+        }
+        let Some(lambda) = borrowed else {
             return Ok(());
         };
-        if !self.captures.iter().any(|capture| {
-            capture.lambda() == lambda && capture.mode() == ClosureCaptureMode::Shared
-        }) {
-            return Ok(());
-        }
         let primary = self.parsed.ast().expressions().get(expression)?.span();
         let lambda_span = self
             .parsed
@@ -377,7 +479,8 @@ impl Checker<'_> {
         expression: ExpressionId,
         state: &State,
     ) -> Result<(), OwnershipCheckingError> {
-        let closure = self.closure_origin(expression, state)?;
+        let origins = self.closure_origins(expression, state)?;
+        let closure = (origins.len() == 1).then(|| *origins.first().unwrap());
         let transferability = closure
             .and_then(|lambda| {
                 self.closures

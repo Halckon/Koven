@@ -198,3 +198,10 @@ function-value callee 的命名 root 在实参求值期间登记 pending borrow�
 提前析构 closure，正常路径在 CallReturn 按活性清理，提前退出沿用 ControlTransfer 事实。
 仍被 live closure shared capture 的来源不会在普通分支退出时析构；最后一个 closure 结束后
 再按来源活性发布清理。此为前端事实，不表示 native 已支持带捕获的 borrowed closure。
+
+Unit checker 的 closure binding 当前保留 source-qualified 可能来源集合，形成时另冻结被
+捕获环境的来源图；该检查元数据不授予额外availability或执行能力。If/When结果保存实际
+尾值来源并把已移动且不再活跃的局部binding交给结果；释放按活跃根递归，避免原binding或重绑定
+污染形成快照。逃逸与跨Map provider生存检查递归到内层shared capture。对应普通回归为
+`map_closure_lifetime_matrix`；同次分析的精确capture/ASAP事实与原Unit Resource邻控分账，
+这不表示带capture的Map循环已进入native支持范围。
