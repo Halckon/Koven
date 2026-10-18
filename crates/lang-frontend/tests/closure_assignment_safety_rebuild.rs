@@ -250,12 +250,65 @@ fn observe(case: &Case, unit: bool) -> Result<bool, String> {
         if !owned.deferred().is_empty() {
             return Err(format!("ownership deferred {:?}", owned.deferred()));
         }
+        if !owned.is_compatible_with(&names, &typed) {
+            return Err("ownership original analysis identity".into());
+        }
         let qualified = owned.diagnostics().is_empty()
             && validate_iteration_facts(&file, &names, &typed, &owned).is_ok();
-        let facts_empty = owned.captures().is_empty()
-            && owned.drops().is_empty()
-            && owned.loans().is_empty()
-            && owned.map_iterations().is_empty();
+        // Declaration bindings and structural closure descriptors are not execution permits.
+        // Default cleanup conditions contain only Always/Never sentinels, with no owners or choices.
+        let facts = [
+            ("captures", owned.captures().is_empty()),
+            ("drops", owned.drops().is_empty()),
+            ("loans", owned.loans().is_empty()),
+            ("map iterations", owned.map_iterations().is_empty()),
+            ("sequential iterations", owned.iterations().is_empty()),
+            ("formed locals", owned.formed_owned_locals().is_empty()),
+            ("construction", owned.construction_plans().is_empty()),
+            ("rc effects", owned.rc_effects().is_empty()),
+            ("string effects", owned.string_effects().is_empty()),
+            (
+                "non-null assertions",
+                owned.non_null_assertions().is_empty(),
+            ),
+            (
+                "ownership primitives",
+                owned.ownership_primitives().is_empty(),
+            ),
+            ("field replacement", owned.field_replacements().is_empty()),
+            (
+                "borrow return origins",
+                owned.borrow_return_origins().is_empty(),
+            ),
+            (
+                "borrow bindings",
+                owned.borrow_results().bindings().is_empty(),
+            ),
+            ("borrow ends", owned.borrow_results().ends().is_empty()),
+            ("borrow uses", owned.borrow_results().call_uses().is_empty()),
+            (
+                "range return origins",
+                owned.borrow_results().range_return_origins().is_empty(),
+            ),
+            (
+                "forwarded source loans",
+                owned.borrow_results().forwarded_source_loans().is_empty(),
+            ),
+            ("range uses", owned.borrow_results().range_uses().is_empty()),
+            ("loan ends", owned.loan_ends().is_empty()),
+            ("cleanup steps", owned.cleanup_steps().is_empty()),
+            (
+                "cleanup conditions",
+                owned.cleanup_conditions() == &Default::default(),
+            ),
+            (
+                "cleanup selectors",
+                owned.cleanup_conditions().selectors().is_empty(),
+            ),
+            ("nullable when", owned.nullable_whens().is_empty()),
+        ];
+        let facts_empty = facts.iter().all(|(_, empty)| *empty);
+        println!("single executable fact registry {facts:?}");
         let matched = assess(
             case,
             owned.diagnostics(),
@@ -303,10 +356,60 @@ fn observe(case: &Case, unit: bool) -> Result<bool, String> {
                 owned.deferred()
             ));
         }
-        let facts_empty = owned.captures().is_empty()
-            && owned.drops().is_empty()
-            && owned.loans().is_empty()
-            && owned.map_iterations().is_empty();
+        // Declaration bindings and structural closure descriptors are not execution permits.
+        // Default cleanup conditions contain only Always/Never sentinels, with no owners or choices.
+        let facts = [
+            ("captures", owned.captures().is_empty()),
+            ("drops", owned.drops().is_empty()),
+            ("loans", owned.loans().is_empty()),
+            ("map iterations", owned.map_iterations().is_empty()),
+            ("sequential iterations", owned.iterations().is_empty()),
+            ("formed locals", owned.formed_owned_locals().is_empty()),
+            ("construction", owned.construction_plans().is_empty()),
+            ("rc effects", owned.rc_effects().is_empty()),
+            ("string effects", owned.string_effects().is_empty()),
+            (
+                "non-null assertions",
+                owned.non_null_assertions().is_empty(),
+            ),
+            (
+                "ownership primitives",
+                owned.ownership_primitives().is_empty(),
+            ),
+            ("field replacement", owned.field_replacements().is_empty()),
+            (
+                "borrow return origins",
+                owned.borrow_return_origins().is_empty(),
+            ),
+            (
+                "borrow bindings",
+                owned.borrow_results().bindings().is_empty(),
+            ),
+            ("borrow ends", owned.borrow_results().ends().is_empty()),
+            ("borrow uses", owned.borrow_results().call_uses().is_empty()),
+            (
+                "range return origins",
+                owned.borrow_results().range_return_origins().is_empty(),
+            ),
+            (
+                "forwarded source loans",
+                owned.borrow_results().forwarded_source_loans().is_empty(),
+            ),
+            ("range uses", owned.borrow_results().range_uses().is_empty()),
+            ("value deliveries", owned.value_deliveries().is_empty()),
+            ("receiver facts", owned.receiver_facts().is_empty()),
+            (
+                "conditional receiver delivery",
+                owned.conditional_receiver_deliveries().is_empty(),
+            ),
+            (
+                "conditional receiver drop",
+                owned.conditional_receiver_drops().is_empty(),
+            ),
+            ("delegations", owned.delegations().is_empty()),
+        ];
+        let facts_empty = facts.iter().all(|(_, empty)| *empty);
+        println!("unit executable fact registry {facts:?}");
         let diagnostics = owned.diagnostics().to_vec();
         let captures = owned.captures().len();
         let qualified = owned.validate().is_ok();
