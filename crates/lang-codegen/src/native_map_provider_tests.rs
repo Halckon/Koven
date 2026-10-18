@@ -216,3 +216,6 @@ mod ordinary_control_flow;
 
 #[path = "native_map_provider_stack_tests.rs"]
 mod stack_paths;
+
+#[path = "native_map_provider_formation_tests.rs"]
+mod formation_paths;

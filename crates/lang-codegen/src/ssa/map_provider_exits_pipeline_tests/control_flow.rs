@@ -614,13 +614,20 @@ fn ordinary_future_source_transfer_reaches_verified_llvm() {
                     "actual future-transfer For",
                 )?;
                 let mut report = Report::default();
+                let mut identity = None;
                 let result = if unit {
                     pipeline::unit_observed(
                         &sources,
                         &parsed,
                         "provider.ko",
                         &mut report,
-                        |names, _, owned, report| {
+                        |names, typed, owned, report| {
+                            let observed = super::local_exits::formation::unit(
+                                &sources, &parsed, names, typed, owned,
+                            );
+                            report
+                                .query("future-transfer qualified original identities", &observed);
+                            identity = Some(observed);
                             let resolution =
                                 names.names().source_units().first().unwrap().resolution();
                             let symbols = resolution
@@ -638,7 +645,12 @@ fn ordinary_future_source_transfer_reaches_verified_llvm() {
                         &sources,
                         &parsed,
                         &mut report,
-                        |names, _, owned, report| {
+                        |names, typed, owned, report| {
+                            let observed = super::local_exits::formation::single(
+                                &sources, &parsed, names, typed, owned,
+                            );
+                            report.query("future-transfer Single original identities", &observed);
+                            identity = Some(observed);
                             let symbols = names
                                 .symbols()
                                 .iter()
@@ -650,6 +662,24 @@ fn ordinary_future_source_transfer_reaches_verified_llvm() {
                         },
                     )
                 };
+                if let (Some(Ok(input)), Ok((program, _))) = (&identity, &result) {
+                    report.query(
+                        "future-transfer exact live current Value delivered once",
+                        &super::local_exits::formation::check(&sources, &parsed, program, input),
+                    );
+                }
+                if let Ok((program, _)) = &result {
+                    report.query(
+                        "future-transfer actual SSA verifier",
+                        &crate::ssa::verify::verify_program(program).map_err(|e| failure("SSA", e)),
+                    );
+                    report.query(
+                        "future-transfer actual LLVM renderer",
+                        &crate::llvm::render_verified_program(program)
+                            .map(|_| ())
+                            .map_err(|e| failure("LLVM", e)),
+                    );
+                }
                 let sealed = if unit {
                     "unit full ownership validator"
                 } else {
@@ -667,9 +697,7 @@ fn ordinary_future_source_transfer_reaches_verified_llvm() {
                 {
                     return Err(failure("future-transfer sealed original FE", &report));
                 }
-                let (program, _) = result?;
-                crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
-                crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
+                result?;
                 Ok(())
             })();
             println!(

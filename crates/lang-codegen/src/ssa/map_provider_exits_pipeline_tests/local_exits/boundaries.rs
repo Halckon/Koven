@@ -1,5 +1,6 @@
 //! Legal alternate formation histories must not be mistaken for missing frontend facts.
 mod alias;
+pub(in super::super) mod formation;
 use super::super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -82,6 +83,7 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
         spans[0]
     );
     let mut report = Report::default();
+    let mut identity = None;
     let result = if unit {
         pipeline::unit_observed(
             &sources,
@@ -90,6 +92,12 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                let observed = formation::unit(&sources, &parsed, names, typed, owned);
+                report.query(
+                    "alternate original qualified formation identities",
+                    &observed,
+                );
+                identity = Some(observed);
                 if label == "old-alias-rebound" {
                     report.query(
                         "rebound alias original Unit identities",
@@ -104,7 +112,18 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
             &parsed,
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::single(&sources, &parsed, names, typed, owned, report)
+                source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                if label == "old-alias-rebound" {
+                    println!(
+                        "ALTERNATE SINGLE OLD ALIAS plans={:#?} drops={:#?} conditions={:#?}",
+                        owned.map_iterations(),
+                        owned.drops(),
+                        owned.cleanup_conditions()
+                    );
+                }
+                let observed = formation::single(&sources, &parsed, names, typed, owned);
+                report.query("alternate original Single formation identities", &observed);
+                identity = Some(observed);
             },
         )
     };
@@ -112,21 +131,44 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
         "G2 ALTERNATE unit={unit} source={source:?} report={report:#?} result={:?}",
         result.as_ref().map(|(_, id)| id)
     );
-    if unit
-        && label == "old-alias-rebound"
+    if label == "old-alias-rebound"
         && let Ok((program, _)) = &result
     {
         report.query(
             "rebound alias actual SSA owner separation",
-            &alias::graph(&sources, &parsed, program),
+            &identity
+                .as_ref()
+                .ok_or_else(|| failure("alias original input bridge", "absent"))
+                .and_then(|v| {
+                    v.as_ref()
+                        .map_err(|e| failure("alias same-analysis FE bridge", e))
+                })
+                .and_then(formation::alias_drop_origins)
+                .and_then(|origins| alias::graph(&sources, &parsed, program, origins)),
+        );
+    }
+    if let (Some(Ok(input)), Ok((program, _))) = (&identity, &result) {
+        report.query(
+            "alternate exact current owners and complete graph",
+            &formation::check(&sources, &parsed, program, input),
+        );
+    }
+    if let Ok((program, _)) = &result {
+        report.query(
+            "alternate actual SSA verifier",
+            &verify_program(program).map_err(|e| failure("SSA", e)),
+        );
+        report.query(
+            "alternate actual LLVM renderer",
+            &crate::llvm::render_verified_program(program)
+                .map(|_| ())
+                .map_err(|e| failure("LLVM", e)),
         );
     }
     if !report.passed() {
         return Err(failure("alternate original FE", report));
     }
-    let (program, _) = result?;
-    verify_program(&program).map_err(|e| failure("SSA", e))?;
-    crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
+    result?;
     Ok("verified LLVM")
 }
 

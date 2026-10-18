@@ -451,6 +451,7 @@ pub(super) fn graph(
     sources: &SourceMap,
     parsed: &ParsedFile,
     program: &Program,
+    drop_origins: (Span, Span),
 ) -> Result<(), Failure> {
     let site = site(sources, parsed)?;
     let module = one(program.modules.iter(), "alias original module")?;
@@ -755,8 +756,8 @@ pub(super) fn graph(
     )?;
     need(
         old_drop.id != new_drop.id
-            && old_drop.origin == Origin::Source(site.alias)
-            && new_drop.origin == Origin::Source(span(parsed, site.assignment))
+            && old_drop.origin == Origin::Source(drop_origins.0)
+            && new_drop.origin == Origin::Source(drop_origins.1)
             && source_end.block == old_drop.block
             && g.position(old_drop)? == g.position(source_end)? + 1
             && read_map.block == old_drop.block

@@ -8,6 +8,7 @@ mod conditional;
 mod control_flow;
 mod facts;
 mod fixture;
+mod formation_runtime;
 mod future_use;
 mod history;
 mod identity;
@@ -39,9 +40,11 @@ mod temporary_forms;
 
 pub(crate) use borrowed::sources as borrowed_exit_sources;
 pub(crate) use conditional::sources as conditional_sources;
+pub(crate) use control_flow::future_transfer_sources;
 pub(crate) use control_flow::neighbor_sources as ordinary_control_flow_neighbor_sources;
 pub(crate) use control_flow::return_sources as ordinary_return_sources;
 pub(crate) use control_flow::sources as ordinary_control_flow_sources;
+pub(crate) use formation_runtime::sources as formation_runtime_sources;
 pub(crate) use future_use::sources as future_use_sources;
 pub(crate) use history::{sanitizer_ir as history_sanitizer_ir, sources as history_sources};
 pub(crate) use local_sources::native_sources as local_native_sources;
@@ -242,3 +245,4 @@ pub(crate) use local_reassignment::{
 pub(crate) use local_reassignment::completed_epoch_sources as local_completed_epoch_sources;
 
 pub(crate) use local_exits::alias_rebound_source as local_alias_rebound_source;
+pub(crate) use local_exits::alternate_sources as alternate_local_sources;
