@@ -150,3 +150,6 @@ mod temporary_tests;
 
 #[path = "native_map_provider_nested_tests.rs"]
 mod nested_tests;
+
+#[path = "native_map_provider_nested_exits_tests.rs"]
+mod nested_exits_tests;
