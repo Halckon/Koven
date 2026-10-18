@@ -162,3 +162,6 @@ mod local_sources_tests;
 
 #[path = "native_map_provider_borrow_exits_tests.rs"]
 mod borrow_exits_tests;
+
+#[path = "native_map_provider_resource_tests.rs"]
+mod resource_tests;
