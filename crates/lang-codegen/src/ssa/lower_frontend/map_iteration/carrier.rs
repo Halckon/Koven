@@ -345,15 +345,14 @@ impl Evidence<'_> {
         } else if !matches!(seed, EntityId::Loan(_)) {
             return Err(missing());
         }
-        if let EntityId::Loan(entry_loan) = seed {
-            if body_owner.is_some()
+        if let EntityId::Loan(entry_loan) = seed
+            && (body_owner.is_some()
                 || body_instructions
                     .iter()
                     .chain(exhausted_instructions.iter())
-                    .any(|i| i.operation == Operation::BorrowEnd { loan: entry_loan })
-            {
-                return Err(missing());
-            }
+                    .any(|i| i.operation == Operation::BorrowEnd { loan: entry_loan }))
+        {
+            return Err(missing());
         }
         Ok(())
     }
