@@ -1,4 +1,8 @@
 //! Existing represented payloads and Int keys retain a real temporary owner per For.
+mod ast;
+mod cleanup;
+mod facts;
+mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -60,7 +64,7 @@ pub(crate) fn sources() -> Vec<Case> {
                 ""
             };
             let read_key = if integer {
-                "val actualKey:Int=key;println(\"int-key\")"
+                "val actualKey:Int=key;if(actualKey==1){println(\"int-one\")}else{if(actualKey==2){println(\"int-two\")}else{error(\"bad-int-key\")}}"
             } else {
                 "println(key)"
             };
@@ -86,7 +90,7 @@ fun entry():Unit{{println("nonempty");for((key,value) in produce()){{read(key,va
             );
             let mut golden = String::from("nonempty\nfactory-start\nfactory-ready\n");
             let keys = if integer {
-                vec!["int-key", "int-key"]
+                vec!["int-one", "int-two"]
             } else if representation == 3 {
                 vec!["z", "n", "a"]
             } else {
@@ -146,6 +150,10 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                report.query(
+                    "represented temporary original qualified FE identities",
+                    &facts::unit(case, &sources, &parsed, names, typed, owned),
+                );
             },
         )
     } else {
@@ -155,6 +163,10 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                report.query(
+                    "represented temporary original single FE identities",
+                    &facts::single(case, &sources, &parsed, names, typed, owned),
+                );
             },
         )
     };
@@ -164,11 +176,15 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
         result.as_ref().map(|(_, id)| id)
     );
     let (program, _) = result?;
-    if !report.passed() {
-        return Err(failure("original FE observations", report));
-    }
+    report.query(
+        "represented temporary actual SSA identities and storage",
+        &graph::check(case, &sources, &parsed, &program),
+    );
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
+    if !report.passed() {
+        return Err(failure("original FE/SSA observations", report));
+    }
     Ok(())
 }
 

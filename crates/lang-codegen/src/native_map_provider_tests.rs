@@ -198,3 +198,6 @@ mod local_reassignment;
 
 #[path = "native_map_provider_local_resource_future_tests.rs"]
 mod local_resource_future;
+
+#[path = "native_map_provider_temporary_forms_tests.rs"]
+mod temporary_forms;
