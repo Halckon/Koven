@@ -23,8 +23,8 @@ local A/B 的独立全实体/全 incoming 深查询仍待，不用 collector 取
 
 Group 仍由真实源码阶段门精确拒绝；Field/Inout、direct Borrow-return continuation、
 更一般 source/CFG、nullable/Resource K/V 组合不由本表开放。body-local Guard 的析构
-正例不等于 Map 的 Resource 分量支持。Map Borrow 的直接退出扩展及 Unit 闭包赋值修复
-属于尚未纳入该快照的后续源码；本表不据云端摘要宣称支持。私有损坏事实与故障对照仅在
+正例不等于 Map 的 Resource 分量支持。Map Borrow 的直接退出扩展
+尚未恢复；本表不据云端摘要宣称支持。Unit 闭包前端修复另见下节。私有损坏事实与故障对照仅在
 GitHub Actions 执行，本次本机未运行；macOS sanitizer 合同仍为 partial。
 
 
@@ -35,7 +35,10 @@ lambda 身份；alias/self assignment 保留对应捕获来源。Drop planner �
 旧环境的 owned capture，且新环境先登记再决定共享来源的最后使用；Map return 先结束
 当前闭包 capture，再结束对应分量 loan。已知具体环境的资源分类先查询实际 owned
 captures，不能因普通函数类型 `() -> Unit` 没有记录环境资源信息而提前释放 Resource。
-四个恢复源码的新普通 harness 已核这些 Phase 3 事实；不据此增加 closure native 支持，
-也不把它当作尚未恢复的原 active20 或完整四源 collector。分类仅补具体环境的直接
-owned capture；若它再拥有一个普通函数类型闭包，内层实际Resource来源未递归保留，
-属于继承的未封闭边界，不能从本片推导一般递归资源环境支持。
+四个恢复源码的新普通 harness 已核这些 Phase 3 事实。已知嵌套环境的资源证明在消费
+捕获前计算，随当前 binding 运输；替换、移动及合流同时维护来源和证明，不把 lambda
+历史记录当作当前可用性。两份 Resource 嵌套源分别核 RHS 替换点和作用域清理，另有
+Pure 邻控。新重建的十份拒绝与五份合法源码均运行 single/unit 两入口，核原诊断 Span、
+执行事实撤销及同次身份；它们不是原 active20/10 或完整四源 collector 的字节恢复。
+本片不增加 closure native 支持，也不证明 opaque nullable/容器包装函数环境的一般资源
+分类；其他未验递归形状仍保留继承边界。

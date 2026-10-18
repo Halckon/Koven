@@ -335,3 +335,40 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - Borrow直接退出/Resource后端扩展、local深查询、原active20与10合法邻控完整内容仍缺，
   本机新四源/现有共享回归不能替代它们。完整双host远端CI、独立审计剩余边界及F最终验收
   另记；0331继续active，Mac sanitizer仍partial，D10未开始。
+
+
+## 28. 本机重建闭包安全矩阵与已知嵌套 Resource 修复（2026-10-18）
+
+- §27 的嵌套风险已转为真实普通源码首红：inner 的 move 环境拥有 Resource，outer 的
+  普通 `() -> Unit` 环境再拥有 inner。固定60512与恢复后6ef两版均在完整 RHS 前清理；
+  另一个词法退出源也在最后调用点过早清理。三项新邻控首轮1通过/2失败，包含带无关
+  Resource 声明的 Pure 环境 ASAP 邻控，不用类型名称或源码形状代替资源证明。
+- `b692d2eb` 在捕获 Consume 前读取实际环境资源，随当前 binding 保存具体 closure
+  的 ASAP 证明；赋值、移动和相同来源合流同步维护，缺证明保守不 ASAP，不把历史
+  lambda AST 缓存当当前可用性。Resource 两源分别严格核 AfterExpression(RHS) 与
+  词法 AfterStatement，Pure 邻控保留原 ASAP；三项全过。opaque nullable/容器包装
+  函数环境的一般资源分类仍未覆盖，不能升级为任意递归环境支持。
+- `closure_assignment_safety_rebuild` 是新写的15份普通源码，非原 active20/10 恢复。
+  十份拒绝各走 single/unit，要求唯一原诊断码及精确原 Span、执行事实撤销且不可资格化；
+  五份合法邻控各走两入口，要求捕获事实和同次身份资格。literal/alias/self replacement、
+  被捕获源 move/mutation、Map K/V owned delivery/move capture 与 closure owned escape/
+  field storage 均有明确来源。固定60512同 harness 为10通过/5失败；本机修复后15/0，
+  即20项拒绝和10项合法观察，不把内部观察数冒作30个Rust测试。
+- 审计要求补全执行事实 registry 和 single 原分析身份。错误地要求 cleanup nodes 为空
+  曾得5通过/10失败；默认表本来保留 Always/Never，因此改为完整 Default 结构相等，
+  含所有 owner/selector/slot 内部表；还核常量物化能力已撤销。旧失败日志保留。
+  最终新矩阵15/0、multifile135/0、closure39/0、恢复/嵌套7/0，共196个Rust测试通过。
+- 受验源码`fb156025ed2c365f0572c9a244a3cb486cf73df1`（tree `50da465194d529445b1bd6ad01a0ae85de1305a6`）
+  再执行§26同44个ordinary exact，均实际1/exit0，native56产物仍硬核exit0/golden/
+  空stderr；31项provider运行前后tracked输入摘要相同。合240个不同Rust测试，0失败/
+  0ignored；不是完整前端/全CI，也不证明native closure或精确动态释放次数。
+- 新两target接入stage无过滤且各一次；与composition合114个唯一frontend integration、
+  10次Cargo调用（修正原文105的旧计数）。仅运行对应纯静态Python选择合同1项通过；
+  不在本机执行整个含故障对照的policy suite。完整远端双host CI另记，不提前勾通过。
+- 同版四项工程fmt/check/clippy/build全通过，Clippy使用workspace/all-targets及-D warnings；
+  文档704页检查通过，Rust尺寸门相对main通过，仍报告38个旧超限文件，不清零旧欠账。
+- fresh-context只读独审覆盖shared资源证明运输、恢复范围、事实/身份oracle、CI接线；
+  已修并复审所有本片finding，未发现新阻断问题。主仓库既有脏状态摘要保持不变。
+  raw留仓外current-final/publication，简要命令/收据与binary/full-index格式补丁保留
+  本机任务目录；不上传大日志。Borrow直接退出、Resource后端扩展、local深查询仍待。
+  F继续active；未运行本机故障注入或sanitizer对照，macOS sanitizer仍partial，D10未开始。
