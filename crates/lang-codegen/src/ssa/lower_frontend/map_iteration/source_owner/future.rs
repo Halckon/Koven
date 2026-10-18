@@ -66,9 +66,7 @@ pub(super) fn qualify(
     let origin = names.symbols().get(symbol.index()).ok_or_else(bad)?.span();
     let conditions = owned.cleanup_conditions();
     let live = |owner| match birth {
-        Some(birth) => {
-            super::formed_condition(parsed, owned, (symbol, birth.producer), owner, span)
-        }
+        Some(birth) => super::formed_condition(parsed, owned, (symbol, birth.birth), owner, span),
         None => super::provenance::parameter(owned, symbol, origin, owner, span),
     };
     for boundary in [IterationPhiBoundary::Header, IterationPhiBoundary::Exit] {
@@ -107,7 +105,7 @@ pub(super) fn qualify(
     }
     Ok(Proof {
         flow: None,
-        drop: *drop,
+        disposition: source_owner::Disposition::Drop(*drop),
         transfer: None,
         conditional_return: None,
     })

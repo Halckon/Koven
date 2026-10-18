@@ -1,7 +1,9 @@
 //! Ordinary formed locals consume actual source and terminal cleanup facts.
 use super::*;
-use crate::ssa::map_source::{Formation, named_formation};
+use crate::ssa::map_source::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
+mod parameter;
 use lang_frontend::parser::VariableKind;
+pub(in super::super) use parameter::entry_parameter;
 
 pub(in super::super) fn formation(
     parsed: &ParsedFile,
@@ -26,6 +28,11 @@ pub(in super::super) fn formation(
                 .get(source.index())
                 .and_then(|unit| unit.resolution().symbols().get(root.symbol().index()))
                 .ok_or_else(bad)?;
+            if symbol.kind() == SymbolKind::ValueParameter {
+                let (_, marker) =
+                    entry_parameter(parsed, names, typed, owned, root, storage, span)?;
+                return Ok(BindingDeclaration::EntryParameter { marker });
+            }
             if symbol.kind() != SymbolKind::Variable {
                 return Err(unsupported());
             }
@@ -58,7 +65,10 @@ pub(in super::super) fn formation(
             if typed.expression_type(UnitExpressionId::new(source, *initializer)) != Some(storage) {
                 return Err(bad());
             }
-            Ok((*marker, *initializer))
+            Ok(BindingDeclaration::Local {
+                marker: *marker,
+                initializer: *initializer,
+            })
         },
         |span| {
             let references = names
@@ -82,10 +92,21 @@ pub(in super::super) fn formation(
         typed
             .map_puts()
             .iter()
-            .map(|d| d.receiver())
-            .chain(typed.map_removes().iter().map(|d| d.receiver()))
-            .filter(|id| id.source_unit() == source)
-            .map(|id| id.expression()),
+            .filter(|d| d.expression().source_unit() == source)
+            .map(|d| OwnerUpdate {
+                expression: d.expression().expression(),
+                receiver: d.receiver().expression(),
+            })
+            .chain(
+                typed
+                    .map_removes()
+                    .iter()
+                    .filter(|d| d.expression().source_unit() == source)
+                    .map(|d| OwnerUpdate {
+                        expression: d.expression().expression(),
+                        receiver: d.receiver().expression(),
+                    }),
+            ),
     )
 }
 
@@ -137,7 +158,10 @@ pub(super) fn qualify(
         MapIterationKind::Map => IntrinsicTypeConstructor::Map,
         MapIterationKind::MutableMap => IntrinsicTypeConstructor::MutableMap,
     };
-    if !matches!(typed.types().get(descriptor.source_type()),Some(UnitTypeKind::Intrinsic{constructor:actual,arguments}) if *actual==constructor && arguments.as_slice()==[descriptor.key_type(),descriptor.value_type()])
+    if !matches!(typed.types().get(descriptor.source_type()),
+        Some(UnitTypeKind::Intrinsic { constructor: actual, arguments })
+            if *actual == constructor
+                && arguments.as_slice() == [descriptor.key_type(), descriptor.value_type()])
     {
         return Err(bad());
     }
@@ -171,16 +195,21 @@ pub(super) fn qualify(
         descriptor.source_type(),
         span,
     )?;
-    let producer = UnitExpressionId::new(statement.source_unit(), formation.producer);
-    local::factory(
-        parsed,
-        names,
-        typed,
-        owned,
-        producer,
-        descriptor.source_type(),
-        span,
-    )?;
+    if let Birth::Call(producer) = formation.birth {
+        local::factory(
+            parsed,
+            names,
+            typed,
+            owned,
+            UnitExpressionId::new(statement.source_unit(), producer),
+            descriptor.source_type(),
+            span,
+        )?;
+    }
+    let source = SourceIdentity::Formed {
+        root,
+        birth: formation.birth,
+    };
     // Other epochs retain ordinary call delivery, not provider capability.
     // Only the current epoch can be an already-proved alias Name.
     for epoch in &formation.history {
@@ -209,15 +238,9 @@ pub(super) fn qualify(
             return Err(unsupported());
         }
     }
-    if let Some(qualified) = conditional::qualify(
-        parsed,
-        names,
-        typed,
-        owned,
-        plan,
-        (body, SourceIdentity::Formed { root, producer }),
-        span,
-    )? {
+    if let Some(qualified) =
+        conditional::qualify(parsed, names, typed, owned, plan, (body, source), span)?
+    {
         return Ok(qualified);
     }
     let body_exit = qualify_body(parsed, names, typed, descriptor, body, span)?;
@@ -256,7 +279,8 @@ pub(super) fn qualify(
     };
     Ok(QualifiedMap {
         statement,
-        source: SourceIdentity::Formed { root, producer },
+        future_transfer: None,
+        source,
         source_drop,
         transfer_drop,
         late_drop,

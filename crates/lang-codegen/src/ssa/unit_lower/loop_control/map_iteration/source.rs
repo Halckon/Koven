@@ -22,37 +22,37 @@ impl UnitExpressionLowerer<'_> {
                 transport::from_anchor(self.function, current, anchor, span)?;
                 current
             }
-            SourceIdentity::Local { root, initializer }
-            | SourceIdentity::Formed {
-                root,
-                producer: initializer,
-            } => {
+            SourceIdentity::Local { root, initializer } => {
                 if access != UnitIterationSourceAccess::Owned {
                     return Err(missing());
                 }
                 let current = identity.current(self, span)?;
-                let formation = map_iteration::formed::formation(
-                    self.parsed,
-                    self.names,
-                    self.typed,
-                    self.owned,
-                    root,
-                    self.typed
-                        .expression_type(initializer)
-                        .ok_or_else(missing)?,
-                    span,
-                )?;
-                if formation.producer != initializer.expression() {
-                    return Err(missing());
-                }
                 let anchor = local::validate_birth(self, root, initializer, current, span)?;
-                if matches!(identity, SourceIdentity::Local { .. })
-                    && (current != anchor
-                        || carrier::instruction(self.function, anchor, span)?.block != self.block)
+                if current != anchor
+                    || carrier::instruction(self.function, anchor, span)?.block != self.block
                 {
                     return Err(missing());
                 }
-                if self.bindings.values().filter(|value| matches!(value, LoweredValue::Value(owner) if EntityId::Value(*owner) == current)).count() != 1 {
+                current
+            }
+            SourceIdentity::Formed { root, birth } => {
+                if access != UnitIterationSourceAccess::Owned {
+                    return Err(missing());
+                }
+                let current = identity.current(self, span)?;
+                local::validate_formed_birth(self, root, birth, current, span)?;
+                if self
+                    .bindings
+                    .values()
+                    .filter(|v| {
+                        **v == match current {
+                            EntityId::Value(v) => LoweredValue::Value(v),
+                            _ => LoweredValue::Diverged,
+                        }
+                    })
+                    .count()
+                    != 1
+                {
                     return Err(missing());
                 }
                 current
@@ -320,7 +320,7 @@ impl UnitExpressionLowerer<'_> {
             )?;
             let SourceIdentity::Formed {
                 root: actual,
-                producer,
+                birth,
             } = qualified.source
             else {
                 continue;
@@ -359,17 +359,23 @@ impl UnitExpressionLowerer<'_> {
                 continue;
             }
             relevant = true;
-            if ![
+            let mut claimed = [
                 qualified.source_drop,
                 qualified.late_drop,
                 qualified.transfer_drop,
             ]
             .into_iter()
-            .any(|candidate| candidate == Some(fact))
+            .any(|candidate| candidate == Some(fact));
+            if !claimed
+                && let Some(shape) = qualified.conditional
+                && plan.exits().iter().any(|exit| exit.point() == fact.point())
             {
+                claimed = shape.drop_at(self.owned, qualified.source, fact.point())? == Some(fact);
+            }
+            if !claimed {
                 continue;
             }
-            if formation.producer != producer.expression()
+            if formation.birth != birth
                 || self.borrow_bindings.contains_key(&root)
                 || self
                     .bindings
@@ -378,7 +384,7 @@ impl UnitExpressionLowerer<'_> {
             {
                 return Err(bad());
             }
-            local::validate_birth(self, root, producer, EntityId::Value(owner), span)?;
+            local::validate_formed_birth(self, root, birth, EntityId::Value(owner), span)?;
             return Ok(());
         }
         if relevant {
@@ -432,7 +438,9 @@ pub(super) fn validate_ordinary_birth(
         || call.origin != Origin::Source(node.span())
         || lowerer.function.entity(seed).map(|e| e.ty) != Some(EntityType::Value(ty))
         || !matches!(&call.operation, Operation::DirectCall { callee: actual, receiver, arguments }
-            if *actual == callee && receiver.is_some() == descriptor.receiver().is_some() && arguments.len() == descriptor.arguments().len())
+            if *actual == callee
+                && receiver.is_some() == descriptor.receiver().is_some()
+                && arguments.len() == descriptor.arguments().len())
     {
         return Err(bad());
     }

@@ -16,6 +16,7 @@ pub(super) struct Child {
 pub(super) struct Evidence<'a> {
     pub(super) parsed: &'a ParsedFile,
     pub(super) names: &'a NameResolution,
+    pub(super) typed: &'a TypedFile,
     pub(super) owned: &'a OwnershipCheckedFile,
     pub(super) function: &'a Function,
     pub(super) exhaustion_point: DropPoint,
@@ -48,6 +49,7 @@ impl Evidence<'_> {
         let Self {
             parsed: _,
             names: _,
+            typed: _,
             owned,
             function,
             exhaustion_point,
@@ -349,7 +351,7 @@ impl Evidence<'_> {
                 || backedge
                     .is_some_and(|edge| edge.arguments.get(slot) != body_parameters.get(slot))
                 || exhausted_parameters.get(slot) != Some(&EntityId::Value(dropped))
-                || proof.drop.value_origin() != source_origin
+                || proof.origin() != source_origin
             {
                 return Err(missing());
             }

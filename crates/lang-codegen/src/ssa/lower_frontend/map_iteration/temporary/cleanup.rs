@@ -215,7 +215,7 @@ pub(super) fn prove(
     }
     Ok(source_owner::Proof {
         flow: None,
-        drop,
+        disposition: source_owner::Disposition::Drop(drop),
         transfer,
         conditional_return: None,
     })
@@ -482,7 +482,7 @@ fn normal(
     }
     Ok(source_owner::Proof {
         flow: None,
-        drop,
+        disposition: source_owner::Disposition::Drop(drop),
         transfer: None,
         conditional_return: None,
     })

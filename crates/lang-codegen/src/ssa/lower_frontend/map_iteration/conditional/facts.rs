@@ -217,6 +217,7 @@ pub(in super::super) fn qualify(
                         actions::binding_condition(
                             parsed,
                             names,
+                            typed,
                             owned,
                             *root,
                             value.source(),
@@ -230,6 +231,13 @@ pub(in super::super) fn qualify(
                 return Err(unsupported());
             }
         }
+    }
+
+    // Non-provider roots may survive this loop under a different binding epoch.
+    // Validate their complete published terminal facts before generic Drop support
+    // can consume them; a malformed owner never falls through to staging.
+    for fact in owned.drops().iter().copied() {
+        formed::retained::proof((parsed, names, typed, owned), plan, fact, span)?;
     }
 
     if plan.source_access() == MapIterationSourceAccess::Shared {
@@ -255,9 +263,8 @@ pub(in super::super) fn qualify(
             .collect::<Vec<_>>(),
         SourceIdentity::Local {
             symbol,
-            initializer: producer,
-        }
-        | SourceIdentity::Formed { symbol, producer } => {
+            initializer,
+        } => {
             let formation = formed::formation(
                 parsed,
                 names,
@@ -267,7 +274,22 @@ pub(in super::super) fn qualify(
                 descriptor.source_type(),
                 span,
             )?;
-            if formation.producer != producer {
+            if formation.birth != crate::ssa::map_source::Birth::Call(initializer) {
+                return Err(missing());
+            }
+            formed::drops(parsed, owned, symbol, &formation)?
+        }
+        SourceIdentity::Formed { symbol, birth } => {
+            let formation = formed::formation(
+                parsed,
+                names,
+                typed,
+                owned,
+                symbol,
+                descriptor.source_type(),
+                span,
+            )?;
+            if formation.birth != birth {
                 return Err(missing());
             }
             formed::drops(parsed, owned, symbol, &formation)?
@@ -343,8 +365,14 @@ pub(in super::super) fn qualify(
     };
     let drop = late
         .or_else(|| source_facts.first().copied())
-        .or_else(|| inherited.then(|| outside.first().copied()).flatten())
-        .ok_or_else(unsupported)?;
+        .or_else(|| inherited.then(|| outside.first().copied()).flatten());
+    let disposition = if let Some(drop) = drop {
+        source_owner::Disposition::Drop(drop)
+    } else {
+        source_owner::Disposition::Delivery(source_owner::delivery::qualify(
+            parsed, names, typed, owned, flow, span,
+        )?)
+    };
     if matches!(shape.source, SourceIdentity::Temporary(_))
         && (ledger.len() != source_facts.len()
             || ledger
@@ -355,7 +383,7 @@ pub(in super::super) fn qualify(
     }
     Ok(Some(source_owner::Proof {
         flow: Some(source_owner::Flow { late, ..flow }),
-        drop,
+        disposition,
         transfer: None,
         conditional_return: None,
     }))

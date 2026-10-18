@@ -68,11 +68,12 @@ impl MapCarrier {
                 transport::from_anchor(function, seed, anchor, span)?;
                 anchor
             }
-            SourceIdentity::Local { root, initializer }
-            | SourceIdentity::Formed {
-                root,
-                producer: initializer,
-            } => super::local::validate_birth(lowerer, root, initializer, seed, span)?,
+            SourceIdentity::Local { root, initializer } => {
+                super::local::validate_birth(lowerer, root, initializer, seed, span)?
+            }
+            SourceIdentity::Formed { root, birth } => {
+                super::local::validate_formed_birth(lowerer, root, birth, seed, span)?
+            }
             SourceIdentity::Temporary(expression) => {
                 source::validate_temporary_birth(lowerer, expression, seed, preheader, span)?;
                 seed

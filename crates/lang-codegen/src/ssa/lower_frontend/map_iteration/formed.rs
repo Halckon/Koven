@@ -1,6 +1,7 @@
 //! General ordinary local formation uses original Expression ownership, not a lexical carrier.
+pub(super) mod retained;
 use super::*;
-use crate::ssa::map_source::{Formation, named_formation};
+use crate::ssa::map_source::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
 use lang_frontend::{
     name_resolution::ReferenceTarget,
     ownership_checking::{IterationSource, MapIterationComponent, OwnershipBindingKind},
@@ -25,6 +26,35 @@ pub(super) fn formation(
         root,
         |root| {
             let symbol = names.symbols().get(root.index()).ok_or_else(missing)?;
+            if symbol.kind() == SymbolKind::ValueParameter {
+                let function = parsed
+                    .ast()
+                    .items()
+                    .iter()
+                    .filter(|(_, node)| {
+                        matches!(node.payload(), Item::Function { .. })
+                            && node.span().start() <= span.start()
+                            && span.end() <= node.span().end()
+                    })
+                    .min_by_key(|(_, node)| node.span().end() - node.span().start())
+                    .ok_or_else(unsupported)?;
+                let Item::Function { parameters, .. } = function.1.payload() else {
+                    return Err(missing());
+                };
+                if !parameters
+                    .iter()
+                    .any(|p| p.name == NameMarker::Present(symbol.span()))
+                    || symbol.is_synthetic()
+                    || typed.symbol_type(root) != Some(storage)
+                    || typed.parameter_mode(root) != Some(ParameterMode::Value)
+                    || owned.binding_kind(root) != Some(OwnershipBindingKind::Owned)
+                {
+                    return Err(missing());
+                }
+                return Ok(BindingDeclaration::EntryParameter {
+                    marker: symbol.span(),
+                });
+            }
             if symbol.kind() != SymbolKind::Variable {
                 return Err(unsupported());
             }
@@ -57,7 +87,10 @@ pub(super) fn formation(
             if typed.expression_type(item.2) != Some(storage) {
                 return Err(missing());
             }
-            Ok((item.1, item.2))
+            Ok(BindingDeclaration::Local {
+                marker: item.1,
+                initializer: item.2,
+            })
         },
         |span| {
             let reference = unique(names.references().iter().filter(|r| r.span() == span))
@@ -71,8 +104,14 @@ pub(super) fn formation(
         typed
             .map_puts()
             .iter()
-            .map(|d| d.receiver())
-            .chain(typed.map_removes().iter().map(|d| d.receiver())),
+            .map(|d| OwnerUpdate {
+                expression: d.expression(),
+                receiver: d.receiver(),
+            })
+            .chain(typed.map_removes().iter().map(|d| OwnerUpdate {
+                expression: d.expression(),
+                receiver: d.receiver(),
+            })),
     )
 }
 
@@ -142,15 +181,9 @@ pub(super) fn qualify<'a>(
         }
     }
     let formation = formation(parsed, names, typed, owned, root, d.source_type(), span)?;
-    local::producer(
-        parsed,
-        names,
-        typed,
-        owned,
-        formation.producer,
-        d.source_type(),
-        span,
-    )?;
+    if let Birth::Call(producer) = formation.birth {
+        local::producer(parsed, names, typed, owned, producer, d.source_type(), span)?;
+    }
     // Other epochs retain ordinary call delivery, not provider capability.
     // Only the current epoch can be an already-proved alias Name.
     for epoch in &formation.history {
@@ -179,7 +212,7 @@ pub(super) fn qualify<'a>(
     }
     let source_identity = SourceIdentity::Formed {
         symbol: root,
-        producer: formation.producer,
+        birth: formation.birth,
     };
     if let Some(shape) = conditional::shape(parsed, names, typed, *d, body, source_identity, span)?
     {
@@ -227,7 +260,7 @@ pub(super) fn qualify<'a>(
         plan,
         source: SourceIdentity::Formed {
             symbol: root,
-            producer: formation.producer,
+            birth: formation.birth,
         },
         body,
         origin: names
@@ -295,7 +328,7 @@ pub(super) fn drops(
                     let available = source_owner::formed_condition(
                         parsed,
                         owned,
-                        (root, producer),
+                        (root, Birth::Call(producer)),
                         owner,
                         point.span,
                     )?;

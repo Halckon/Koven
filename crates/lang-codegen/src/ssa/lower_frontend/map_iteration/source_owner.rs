@@ -1,7 +1,9 @@
 //! Exact source-owner proof for the observed normal and direct-tail Map shapes.
 //! A source facts were first collected by the ordinary 12-path run on 9244391b.
 //! No shape is inferred from Sequential loops or accepted from a presence bit alone.
+pub(super) mod delivery;
 mod future;
+pub(super) use delivery::Delivery;
 pub(super) mod provenance;
 use super::*;
 use lang_frontend::ownership_checking::{
@@ -13,9 +15,16 @@ use lang_frontend::ownership_checking::{
 #[derive(Clone, Copy)]
 pub(super) struct Proof {
     pub(super) flow: Option<Flow>,
-    pub(super) drop: DropFact,
+    pub(super) disposition: Disposition,
     pub(super) transfer: Option<DropFact>,
     pub(super) conditional_return: Option<DropFact>,
+}
+
+/// Ownership retention requires one explicit, validated terminal disposition.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Disposition {
+    Drop(DropFact),
+    Delivery(Delivery),
 }
 
 /// A small capability handle into the same immutable ownership product.
@@ -36,9 +45,9 @@ impl Proof {
     ) -> Result<Option<DropFact>, LoweringError> {
         match self.flow {
             Some(flow) => {
-                let plan = owned.map_iteration(flow.statement).ok_or_else(|| {
-                    error(LoweringErrorKind::MissingFact, self.drop.value_origin())
-                })?;
+                let plan = owned
+                    .map_iteration(flow.statement)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, self.origin()))?;
                 if plan.exits().iter().any(|exit| exit.point() == point) {
                     conditional::source_drop(owned, flow, point)
                 } else {
@@ -52,9 +61,21 @@ impl Proof {
         }
     }
 
+    pub(super) fn drop(self) -> Option<DropFact> {
+        match self.disposition {
+            Disposition::Drop(fact) => Some(fact),
+            Disposition::Delivery(_) => None,
+        }
+    }
+    pub(super) fn origin(self) -> Span {
+        match self.disposition {
+            Disposition::Drop(fact) => fact.value_origin(),
+            Disposition::Delivery(delivery) => delivery.origin,
+        }
+    }
     pub(super) fn at(self, point: DropPoint) -> Option<DropFact> {
-        if self.drop.point() == point {
-            Some(self.drop)
+        if self.drop().is_some_and(|drop| drop.point() == point) {
+            self.drop()
         } else {
             self.transfer
                 .into_iter()
@@ -190,7 +211,7 @@ fn qualify_with_birth(
         return Err(missing());
     };
     let available = if let Some(birth) = birth {
-        formed_condition(parsed, owned, (symbol, birth.producer), seed.source(), span)?
+        formed_condition(parsed, owned, (symbol, birth.birth), seed.source(), span)?
     } else {
         provenance::parameter(owned, symbol, origin, seed.source(), span)?
     };
@@ -325,7 +346,7 @@ fn qualify_with_birth(
     }
     Ok(Proof {
         flow: None,
-        drop,
+        disposition: source_owner::Disposition::Drop(drop),
         transfer,
         conditional_return: None,
     })
@@ -455,16 +476,42 @@ pub(in super::super) fn supported_drop(
 pub(super) fn formed_condition(
     parsed: &ParsedFile,
     owned: &OwnershipCheckedFile,
-    root: (SymbolId, ExpressionId),
+    root: (SymbolId, crate::ssa::map_source::Birth<SymbolId>),
     owner: lang_frontend::ownership_checking::CleanupOwnerValueId,
     span: Span,
 ) -> Result<lang_frontend::ownership_checking::CleanupConditionId, LoweringError> {
-    let node = parsed
-        .ast()
-        .expressions()
-        .get(root.1)
-        .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
-    provenance::formed(owned, root.0, (root.1, node.span()), owner, span)
+    birth_condition(parsed, owned, root, owner, span, false)
+}
+
+pub(super) fn birth_condition(
+    parsed: &ParsedFile,
+    owned: &OwnershipCheckedFile,
+    root: (SymbolId, crate::ssa::map_source::Birth<SymbolId>),
+    owner: lang_frontend::ownership_checking::CleanupOwnerValueId,
+    span: Span,
+    flow: bool,
+) -> Result<lang_frontend::ownership_checking::CleanupConditionId, LoweringError> {
+    use crate::ssa::map_source::Birth;
+    match root.1 {
+        Birth::Call(expression) => {
+            let origin = parsed
+                .ast()
+                .expressions()
+                .get(expression)
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+                .span();
+            if flow {
+                provenance::flow(owned, root.0, origin, Some(expression), owner, span)
+            } else {
+                provenance::formed(owned, root.0, (expression, origin), owner, span)
+            }
+        }
+        Birth::EntryParameter {
+            root: parameter,
+            origin,
+            ..
+        } => provenance::entry(owned, root.0, (parameter, origin), owner, span, flow),
+    }
 }
 
 /// Validate the complete published owner graph against this precise source birth.
@@ -485,15 +532,17 @@ pub(super) fn flow_condition(
         }
         SourceIdentity::Local {
             symbol,
-            initializer: producer,
-        }
-        | SourceIdentity::Formed { symbol, producer } => {
-            let node = parsed
-                .ast()
-                .expressions()
-                .get(producer)
-                .map_err(|_| bad())?;
-            provenance::flow(owned, symbol, node.span(), Some(producer), owner, span)
+            initializer,
+        } => birth_condition(
+            parsed,
+            owned,
+            (symbol, crate::ssa::map_source::Birth::Call(initializer)),
+            owner,
+            span,
+            true,
+        ),
+        SourceIdentity::Formed { symbol, birth } => {
+            birth_condition(parsed, owned, (symbol, birth), owner, span, true)
         }
         SourceIdentity::Temporary(expression) => {
             let origin = parsed

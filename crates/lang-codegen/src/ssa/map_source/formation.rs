@@ -13,9 +13,39 @@ pub(in super::super) struct BindingEpoch {
     pub(in super::super) origin: Span,
 }
 
+/// A real ownership birth, before aliases and mutation produce the current owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in super::super) enum Birth<R> {
+    Call(ExpressionId),
+    EntryParameter {
+        root: R,
+        reference: ExpressionId,
+        origin: Span,
+    },
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(in super::super) enum BindingDeclaration {
+    Local {
+        marker: Span,
+        initializer: ExpressionId,
+    },
+    EntryParameter {
+        marker: Span,
+    },
+}
+
+/// Both IDs come from one actual typed Map mutation descriptor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in super::super) struct OwnerUpdate {
+    pub(in super::super) expression: ExpressionId,
+    pub(in super::super) receiver: ExpressionId,
+}
+
 #[derive(Clone, Debug)]
 pub(in super::super) struct Formation<R> {
-    pub(in super::super) producer: ExpressionId,
+    pub(in super::super) birth: Birth<R>,
+    pub(in super::super) updates: Vec<OwnerUpdate>,
     /// The current root first, followed by roots consumed by its initializer chain.
     pub(in super::super) roots: Vec<R>,
     /// Original first-root declaration marker; single-file Drop provenance uses it.
@@ -44,10 +74,10 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
     parsed: &ParsedFile,
     statement: Span,
     root: R,
-    mut declaration: impl FnMut(R) -> Result<(Span, ExpressionId), LoweringError>,
+    mut declaration: impl FnMut(R) -> Result<BindingDeclaration, LoweringError>,
     mut reference: impl FnMut(Span) -> Result<R, LoweringError>,
     mut expression_type: impl FnMut(ExpressionId) -> Option<T>,
-    updates: impl Iterator<Item = ExpressionId>,
+    updates: impl Iterator<Item = OwnerUpdate>,
 ) -> Result<Formation<R>, LoweringError> {
     let missing = || error(LoweringErrorKind::MissingFact, statement);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, statement);
@@ -109,8 +139,8 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
             })
         })
         .collect::<Vec<_>>();
-    // These remain actual mutation receivers, never assignment targets. Their
-    // existing Unsupported boundary does not claim mutation history is proved.
+    // Mutation history is separate from binding history: put/remove preserve the
+    // root while replacing its SSA owner. The caller proves their actual edges.
     let updates = updates.collect::<Vec<_>>();
     let mut roots = Vec::new();
     let mut current = root;
@@ -120,6 +150,8 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
     let mut replacement = None;
     let mut root_declaration = None;
     let mut history = Vec::new();
+    let mut selected_updates = Vec::new();
+    let mut last_reference = None;
     loop {
         // Repeated symbols can describe a legal but different ownership graph;
         // this bounded alias proof must not turn that graph into MissingFact.
@@ -127,7 +159,40 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
             return Err(unsupported());
         }
         roots.push(current);
-        let (marker, declared) = declaration(current)?;
+        let declared_binding = declaration(current)?;
+        if let BindingDeclaration::EntryParameter { marker } = declared_binding {
+            let parameter_reference = last_reference.ok_or_else(unsupported)?;
+            collect_updates(
+                parsed,
+                &updates,
+                &mut selected_updates,
+                (marker.end(), cutoff, current),
+                &same_callable,
+                &mut expression_type,
+                &mut reference,
+            )?;
+            return Ok(Formation {
+                birth: Birth::EntryParameter {
+                    root: current,
+                    reference: parameter_reference,
+                    origin: marker,
+                },
+                updates: sorted_updates(parsed, selected_updates)?,
+                roots,
+                declaration: root_declaration.ok_or_else(missing)?,
+                history,
+                binding: binding.ok_or_else(missing)?,
+                origin: origin.ok_or_else(missing)?,
+                replacement,
+            });
+        }
+        let BindingDeclaration::Local {
+            marker,
+            initializer: declared,
+        } = declared_binding
+        else {
+            return Err(missing());
+        };
         let declared_node = parsed
             .ast()
             .expressions()
@@ -225,29 +290,15 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                 }
             }
         }
-        let binding_end = outer.span().end();
-        for &update in &updates {
-            let outer = parsed
-                .ast()
-                .expressions()
-                .get(update)
-                .map_err(|_| missing())?;
-            if !same_callable(outer.span())
-                || binding_end >= outer.span().start()
-                || outer.span().end() >= cutoff.start()
-            {
-                continue;
-            }
-            let update = transparent_expression(parsed, update, &mut expression_type)?;
-            let node = parsed
-                .ast()
-                .expressions()
-                .get(update)
-                .map_err(|_| missing())?;
-            if node.payload() == &Expression::Name && reference(node.span())? == current {
-                return Err(unsupported());
-            }
-        }
+        collect_updates(
+            parsed,
+            &updates,
+            &mut selected_updates,
+            (outer.span().end(), cutoff, current),
+            &same_callable,
+            &mut expression_type,
+            &mut reference,
+        )?;
         let initializer = transparent_expression(parsed, initializer, &mut expression_type)?;
         let node = parsed
             .ast()
@@ -257,7 +308,8 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
         match node.payload() {
             Expression::Call { .. } => {
                 return Ok(Formation {
-                    producer: initializer,
+                    birth: Birth::Call(initializer),
+                    updates: sorted_updates(parsed, selected_updates)?,
                     roots,
                     declaration: root_declaration.ok_or_else(missing)?,
                     history,
@@ -270,11 +322,83 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                 // Resolve the consumed owner as it existed at this exact Move
                 // reference. A later rebinding of that old root is another epoch.
                 cutoff = node.span();
+                last_reference = Some(initializer);
                 current = reference(cutoff)?;
             }
             _ => return Err(unsupported()),
         }
     }
+}
+
+fn collect_updates<R: Copy + Eq, T: Copy + Eq>(
+    parsed: &ParsedFile,
+    updates: &[OwnerUpdate],
+    selected: &mut Vec<OwnerUpdate>,
+    window: (usize, Span, R),
+    same_callable: &impl Fn(Span) -> bool,
+    typed: &mut impl FnMut(ExpressionId) -> Option<T>,
+    reference: &mut impl FnMut(Span) -> Result<R, LoweringError>,
+) -> Result<(), LoweringError> {
+    let (start, cutoff, root) = window;
+    for &update in updates {
+        let operation = parsed
+            .ast()
+            .expressions()
+            .get(update.expression)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, cutoff))?;
+        let at = operation.span();
+        if !same_callable(at) || start >= at.start() || at.end() >= cutoff.start() {
+            continue;
+        }
+        let receiver = transparent_expression(parsed, update.receiver, &mut *typed)?;
+        let node = parsed
+            .ast()
+            .expressions()
+            .get(receiver)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, cutoff))?;
+        if node.payload() == &Expression::Name && reference(node.span())? == root {
+            if conditional_write(parsed, at) {
+                return Err(error(LoweringErrorKind::UnsupportedNode, cutoff));
+            }
+            selected.push(update);
+        }
+    }
+    Ok(())
+}
+
+fn sorted_updates(
+    parsed: &ParsedFile,
+    mut updates: Vec<OwnerUpdate>,
+) -> Result<Vec<OwnerUpdate>, LoweringError> {
+    updates.sort_by_key(|u| {
+        parsed
+            .ast()
+            .expressions()
+            .get(u.expression)
+            .ok()
+            .map(|n| n.span().start())
+    });
+    for pair in updates.windows(2) {
+        let a = parsed
+            .ast()
+            .expressions()
+            .get(pair[0].expression)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?
+            .span();
+        let b = parsed
+            .ast()
+            .expressions()
+            .get(pair[1].expression)
+            .map_err(|_| error(LoweringErrorKind::MissingFact, a))?
+            .span();
+        if a.end() >= b.start() {
+            return Err(error(LoweringErrorKind::UnsupportedNode, b));
+        }
+    }
+    Ok(updates)
 }
 
 fn contains(outer: Span, inner: Span) -> bool {

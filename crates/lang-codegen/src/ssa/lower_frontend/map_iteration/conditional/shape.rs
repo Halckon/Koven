@@ -22,56 +22,11 @@ pub(in super::super) fn shape(
     {
         return Err(missing());
     }
-    let body_span = parsed
-        .ast()
-        .statements()
-        .get(body)
-        .map_err(|_| missing())?
-        .span();
-    let inside = |outer: Span, inner: Span| {
-        outer.source_id() == inner.source_id()
-            && outer.start() <= inner.start()
-            && inner.end() <= outer.end()
-    };
-    let has_control = parsed.ast().expressions().iter().any(|(_, candidate)| {
-        inside(body_span, candidate.span())
-            && matches!(
-                candidate.payload(),
-                Expression::If { .. } | Expression::When { .. }
-            )
-            && !parsed.ast().expressions().iter().any(|(_, owner)| {
-                matches!(owner.payload(), Expression::Lambda { .. })
-                    && inside(body_span, owner.span())
-                    && inside(owner.span(), candidate.span())
-            })
-            && !parsed.ast().statements().iter().any(|(id, owner)| {
-                id != descriptor.statement()
-                    && matches!(owner.payload(), Statement::For { .. })
-                    && inside(body_span, owner.span())
-                    && inside(owner.span(), candidate.span())
-            })
-    });
-    let has_provider = parsed.ast().statements().iter().any(|(id, candidate)| {
-        id != descriptor.statement()
-            && inside(body_span, candidate.span())
-            && matches!(candidate.payload(), Statement::For { .. })
-    });
-    let has_parent = parsed.ast().statements().iter().any(|(id, parent)| {
-        let Statement::For { body, .. } = parent.payload() else {
-            return false;
-        };
-        id != descriptor.statement()
-            && parsed
-                .ast()
-                .statements()
-                .get(*body)
-                .is_ok_and(|body| inside(body.span(), node.span()))
-    });
-    Ok(
-        (has_control || has_provider || has_parent).then_some(Shape {
-            statement: descriptor.statement(),
-            body,
-            source,
-        }),
-    )
+    // Every acquired provider uses the same full plan/body proof. A normal body
+    // does not require a different lifetime or transport representation.
+    Ok(Some(Shape {
+        statement: descriptor.statement(),
+        body,
+        source,
+    }))
 }

@@ -87,7 +87,7 @@ fn path_owner_root(source: SourceIdentity) -> control::map_frames::OwnerRoot {
             symbol,
             initializer,
         },
-        SourceIdentity::Formed { symbol, producer } => OwnerRoot::Formed { symbol, producer },
+        SourceIdentity::Formed { symbol, birth } => OwnerRoot::Formed { symbol, birth },
         SourceIdentity::Temporary(expression) => OwnerRoot::Temporary(expression),
     }
 }
@@ -121,7 +121,7 @@ impl ExpressionLowerer<'_> {
             .instructions
             .len();
         conditional::local::validate(
-            (self.parsed, self.names, self.owned),
+            (self.parsed, self.names, self.typed, self.owned),
             self.function,
             fact,
             owner,

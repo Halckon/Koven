@@ -297,6 +297,7 @@ pub(super) fn qualify(
     }
     Ok(QualifiedMap {
         statement,
+        future_transfer: None,
         source: SourceIdentity::Local {
             root,
             initializer: *initializer,

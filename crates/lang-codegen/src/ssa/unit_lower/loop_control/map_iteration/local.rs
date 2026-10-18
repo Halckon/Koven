@@ -1,6 +1,8 @@
 //! Local birth and the single exact post-provider size/drop obligation.
 mod completed;
+mod formed_birth;
 use super::*;
+pub(super) use formed_birth::validate_formed_birth;
 use lang_frontend::ownership_checking::UnitDropFact;
 
 pub(super) fn validate_birth(
@@ -80,8 +82,11 @@ fn validate_call_owner(
         source::validate_ordinary_birth(lowerer, initializer, *anchor, span)?;
     }
     transport::from_anchor(lowerer.function, current, *anchor, span)?;
-    if lowerer.bindings.iter().any(|(other, value)| *other != root && matches!(value, LoweredValue::Value(v) if EntityId::Value(*v) == current || EntityId::Value(*v) == *anchor))
-        || lowerer
+    if lowerer.bindings.iter().any(|(other, value)| {
+        *other != root
+            && matches!(value, LoweredValue::Value(v)
+            if EntityId::Value(*v) == current || EntityId::Value(*v) == *anchor)
+    }) || lowerer
         .temporaries
         .values()
         .any(|value| EntityId::Value(*value) == current || EntityId::Value(*value) == *anchor)

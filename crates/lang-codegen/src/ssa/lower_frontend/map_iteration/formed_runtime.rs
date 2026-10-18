@@ -1,5 +1,7 @@
 //! The current formed owner traces to its actual Call; local Move does not create a new SSA owner.
+mod transport;
 use super::*;
+use crate::ssa::map_source::Birth;
 use lang_frontend::ownership_checking::{DropFact, DropTarget};
 
 impl ExpressionLowerer<'_> {
@@ -14,11 +16,7 @@ impl ExpressionLowerer<'_> {
         for descriptor in self.typed.map_iterations() {
             let qualified =
                 qualify::qualify(self.parsed, self.names, self.typed, self.owned, *descriptor)?;
-            let SourceIdentity::Formed {
-                symbol,
-                producer: initializer,
-            } = qualified.source
-            else {
+            let SourceIdentity::Formed { symbol, birth } = qualified.source else {
                 continue;
             };
             if symbol != root
@@ -61,11 +59,32 @@ impl ExpressionLowerer<'_> {
                 descriptor.source_type(),
                 span,
             )?;
-            if formation.producer != initializer {
+            if formation.birth != birth {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
             self.formed_map_anchor(&formation, Some(owner), span)?;
             return Ok(true);
+        }
+        for descriptor in self.typed.map_iterations() {
+            let span = self
+                .parsed
+                .ast()
+                .statements()
+                .get(descriptor.statement())
+                .map_err(|_| error(LoweringErrorKind::MissingFact, fact.value_origin()))?
+                .span();
+            let Some(plan) = self.owned.map_iteration(descriptor.statement()) else {
+                continue;
+            };
+            if let Some(formation) = formed::retained::proof(
+                (self.parsed, self.names, self.typed, self.owned),
+                plan,
+                fact,
+                span,
+            )? {
+                self.formed_map_anchor(&formation, Some(owner), span)?;
+                return Ok(true);
+            }
         }
         Ok(false)
     }
@@ -77,14 +96,67 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<ValueId, LoweringError> {
         let bad = || error(LoweringErrorKind::MissingFact, span);
-        let birth_span = self.expression_span(formation.producer)?;
-        let instruction = unique(self.function.instructions.iter().filter(|i| {
-            i.origin == Origin::Source(birth_span)
-                && matches!(i.operation, Operation::DirectCall { .. })
-        }))
-        .ok_or_else(bad)?;
-        let [EntityId::Value(anchor)] = instruction.results.as_slice() else {
-            return Err(bad());
+        let anchor = match formation.birth {
+            Birth::Call(producer) => {
+                let birth_span = self.expression_span(producer)?;
+                let instruction = unique(self.function.instructions.iter().filter(|i| {
+                    i.origin == Origin::Source(birth_span)
+                        && matches!(i.operation, Operation::DirectCall { .. })
+                }))
+                .ok_or_else(bad)?;
+                let [EntityId::Value(anchor)] = instruction.results.as_slice() else {
+                    return Err(bad());
+                };
+                let call = self.typed.call(producer).ok_or_else(bad)?;
+                let lang_frontend::type_checking::CallableTarget::Source(target) = call.target()
+                else {
+                    return Err(bad());
+                };
+                let callee = self
+                    .function_ids
+                    .get(&FunctionInstanceKey::new(target, Vec::new()))
+                    .ok_or_else(bad)?;
+                if instruction.operation
+                    != (Operation::DirectCall {
+                        callee: *callee,
+                        receiver: None,
+                        arguments: Vec::new(),
+                    })
+                {
+                    return Err(bad());
+                }
+                *anchor
+            }
+            Birth::EntryParameter {
+                root,
+                reference,
+                origin,
+            } => {
+                let symbol = self.names.symbols().get(root.index()).ok_or_else(bad)?;
+                if symbol.span() != origin
+                    || self.typed.parameter_mode(root) != Some(ParameterMode::Value)
+                    || self
+                        .references
+                        .get(&span_key(self.expression_span(reference)?))
+                        != Some(&root)
+                {
+                    return Err(bad());
+                }
+                let EntityId::Value(anchor) = *self
+                    .map_iteration_state
+                    .entries
+                    .get(&root)
+                    .ok_or_else(bad)?
+                else {
+                    return Err(bad());
+                };
+                let entry = self.function.entry_block().ok_or_else(bad)?;
+                if !matches!(self.function.entity(EntityId::Value(anchor)).map(|e|e.definition),Some(Definition::BlockParameter{block,..}) if block==entry)
+                {
+                    return Err(bad());
+                }
+                anchor
+            }
         };
         let current = if let Some(owner) = dropped {
             owner
@@ -98,20 +170,15 @@ impl ExpressionLowerer<'_> {
         if self
             .temporaries
             .values()
-            .any(|v| *v == current || *v == *anchor)
+            .any(|v| *v == current || *v == anchor)
             || self.bindings.iter().any(|(root, value)| {
                 Some(root) != formation.roots.first()
-                    && matches!(value,LoweredValue::Value(v) if *v==current||*v==*anchor)
+                    && matches!(value,LoweredValue::Value(v) if *v==current||*v==anchor)
             })
         {
             return Err(bad());
         }
-        nested::transport(
-            self.function,
-            EntityId::Value(current),
-            EntityId::Value(*anchor),
-            span,
-        )?;
-        Ok(*anchor)
+        transport::check(self, formation, current, anchor, span)?;
+        Ok(anchor)
     }
 }

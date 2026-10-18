@@ -9,6 +9,7 @@ impl UnitExpressionLowerer<'_> {
         function_span: Span,
     ) -> Result<(), LoweringError> {
         self.finish_local_map_continuation(function_span)?;
+        self.finish_map_transfers(function_span)?;
         let mut previous_success = None;
         let mut descriptors = self.typed.map_iterations().iter().collect::<Vec<_>>();
         descriptors.sort_by_key(|descriptor| descriptor.statement());

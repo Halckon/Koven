@@ -136,6 +136,7 @@ pub(super) fn validate(
                     let live = binding_condition(
                         parsed,
                         names,
+                        typed,
                         owned,
                         root,
                         fact.owner().ok_or_else(missing)?,
@@ -292,16 +293,84 @@ pub(super) fn binding_birth(
     Ok((Some(expression), origin))
 }
 
+pub(super) fn binding_anchor(
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    typed: &TypedFile,
+    owned: &OwnershipCheckedFile,
+    root: SymbolId,
+    span: Span,
+) -> Result<crate::ssa::map_source::Birth<SymbolId>, LoweringError> {
+    use crate::ssa::map_source::Birth;
+    let missing = || error(LoweringErrorKind::MissingFact, span);
+    let storage = typed.symbol_type(root).ok_or_else(missing)?;
+    let symbol = names.symbols().get(root.index()).ok_or_else(missing)?;
+    if symbol.kind() == SymbolKind::Variable
+        && symbol.span().end() < span.start()
+        && matches!(
+            typed.types().get(storage),
+            Some(lang_frontend::type_checking::TypeKind::Intrinsic {
+                constructor: lang_frontend::type_checking::IntrinsicTypeConstructor::Map
+                    | lang_frontend::type_checking::IntrinsicTypeConstructor::MutableMap,
+                ..
+            })
+        )
+    {
+        return Ok(formed::formation(parsed, names, typed, owned, root, storage, span)?.birth);
+    }
+    let (expression, origin) = binding_birth(parsed, names, root, span)?;
+    match expression {
+        Some(expression) => Ok(Birth::Call(expression)),
+        None => {
+            // Parameter births outside aliases use their real provider Name reference.
+            let reference = parsed
+                .ast()
+                .expressions()
+                .iter()
+                .find_map(|(id, node)| {
+                    (node.payload() == &Expression::Name
+                        && names.references().iter().any(|r| {
+                            r.span() == node.span()
+                                && r.target()
+                                    == &lang_frontend::name_resolution::ReferenceTarget::Symbol(
+                                        root,
+                                    )
+                        }))
+                    .then_some(id)
+                })
+                .ok_or_else(missing)?;
+            Ok(Birth::EntryParameter {
+                root,
+                reference,
+                origin,
+            })
+        }
+    }
+}
+
 pub(super) fn binding_condition(
     parsed: &ParsedFile,
     names: &NameResolution,
+    typed: &TypedFile,
     owned: &OwnershipCheckedFile,
     root: SymbolId,
     owner: lang_frontend::ownership_checking::CleanupOwnerValueId,
     span: Span,
 ) -> Result<lang_frontend::ownership_checking::CleanupConditionId, LoweringError> {
     use lang_frontend::ownership_checking::CleanupOwnerValue;
-    let (expression, origin) = binding_birth(parsed, names, root, span)?;
+    let birth = binding_anchor(parsed, names, typed, owned, root, span)?;
+    let (expression, origin) = match birth {
+        crate::ssa::map_source::Birth::Call(expression) => (
+            Some(expression),
+            parsed
+                .ast()
+                .expressions()
+                .get(expression)
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?
+                .span(),
+        ),
+        crate::ssa::map_source::Birth::EntryParameter { origin, .. } => (None, origin),
+    };
     let missing = || error(LoweringErrorKind::MissingFact, span);
     match owned
         .cleanup_conditions()
@@ -332,7 +401,7 @@ pub(super) fn binding_condition(
                 .ok_or_else(missing)
         }
         CleanupOwnerValue::IterationPhi { .. } | CleanupOwnerValue::Parameter { .. } => {
-            source_owner::provenance::flow(owned, root, origin, expression, owner, span)
+            source_owner::birth_condition(parsed, owned, (root, birth), owner, span, true)
         }
         _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
     }

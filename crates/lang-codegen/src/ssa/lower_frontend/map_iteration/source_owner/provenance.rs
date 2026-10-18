@@ -10,7 +10,7 @@ pub(super) fn parameter(
     owner: CleanupOwnerValueId,
     span: Span,
 ) -> Result<CleanupConditionId, LoweringError> {
-    rooted(owned, symbol, origin, None, owner, span, false)
+    rooted(owned, symbol, (symbol, origin, None), owner, span, false)
 }
 
 pub(super) fn formed(
@@ -20,7 +20,14 @@ pub(super) fn formed(
     owner: CleanupOwnerValueId,
     span: Span,
 ) -> Result<CleanupConditionId, LoweringError> {
-    rooted(owned, symbol, birth.1, Some(birth.0), owner, span, false)
+    rooted(
+        owned,
+        symbol,
+        (symbol, birth.1, Some(birth.0)),
+        owner,
+        span,
+        false,
+    )
 }
 
 /// Generic body paths retain all published incoming edges, including multiple jumps.
@@ -32,18 +39,36 @@ pub(in super::super) fn flow(
     owner: CleanupOwnerValueId,
     span: Span,
 ) -> Result<CleanupConditionId, LoweringError> {
-    rooted(owned, symbol, origin, expression, owner, span, true)
+    rooted(
+        owned,
+        symbol,
+        (symbol, origin, expression),
+        owner,
+        span,
+        true,
+    )
+}
+
+pub(super) fn entry(
+    owned: &OwnershipCheckedFile,
+    symbol: SymbolId,
+    birth: (SymbolId, Span),
+    owner: CleanupOwnerValueId,
+    span: Span,
+    flow: bool,
+) -> Result<CleanupConditionId, LoweringError> {
+    rooted(owned, symbol, (birth.0, birth.1, None), owner, span, flow)
 }
 
 fn rooted(
     owned: &OwnershipCheckedFile,
     symbol: SymbolId,
-    origin: Span,
-    expression: Option<ExpressionId>,
+    anchor: (SymbolId, Span, Option<ExpressionId>),
     owner: CleanupOwnerValueId,
     span: Span,
     flow: bool,
 ) -> Result<CleanupConditionId, LoweringError> {
+    let (seed_root, origin, expression) = anchor;
     let bad = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     let conditions = owned.cleanup_conditions();
@@ -60,7 +85,7 @@ fn rooted(
             CleanupOwnerValue::Parameter {
                 symbol: actual,
                 origin: at,
-            } if expression.is_none() && *actual == symbol && *at == origin => {
+            } if expression.is_none() && *actual == seed_root && *at == origin => {
                 // The public Entry binding publishes the Always ID; do not invent one by index.
                 let entry = owned
                     .map_iterations()

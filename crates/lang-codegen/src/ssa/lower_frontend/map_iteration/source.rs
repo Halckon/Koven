@@ -12,7 +12,7 @@ pub(super) enum SourceIdentity {
     /// Current owner follows an original Call through normal binding/CFG transport.
     Formed {
         symbol: SymbolId,
-        producer: ExpressionId,
+        birth: crate::ssa::map_source::Birth<SymbolId>,
     },
     Temporary(ExpressionId),
 }
@@ -110,38 +110,23 @@ impl ExpressionLowerer<'_> {
                 symbol,
                 initializer,
             } => self.local_map_seed(symbol, initializer, container, span),
-            SourceIdentity::Formed { symbol, producer } => {
+            SourceIdentity::Formed { symbol, birth } => {
                 let formation = formed::formation(
                     self.parsed,
                     self.names,
                     self.typed,
                     self.owned,
                     symbol,
-                    self.typed.expression_type(producer).ok_or_else(missing)?,
+                    self.typed.symbol_type(symbol).ok_or_else(missing)?,
                     span,
                 )?;
-                if formation.producer != producer {
+                if formation.birth != birth {
                     return Err(missing());
                 }
-                let anchor = self.formed_map_anchor(&formation, None, span)?;
-                let instruction = carrier::definition(self.function, EntityId::Value(anchor))
-                    .ok_or_else(missing)?;
-                let call = self.typed.call(producer).ok_or_else(missing)?;
-                let CallableTarget::Source(target) = call.target() else {
-                    return Err(missing());
-                };
-                let callee = *self
-                    .function_ids
-                    .get(&FunctionInstanceKey::new(target, Vec::new()))
-                    .ok_or_else(missing)?;
-                if instruction.operation
-                    != (Operation::DirectCall {
-                        callee,
-                        receiver: None,
-                        arguments: Vec::new(),
-                    })
-                    || self.function.entity(EntityId::Value(anchor)).map(|e| e.ty)
-                        != Some(EntityType::Value(container))
+                self.formed_map_anchor(&formation, None, span)?;
+                let owner = source.current_owner(self).ok_or_else(missing)?;
+                if self.function.entity(EntityId::Value(owner)).map(|e| e.ty)
+                    != Some(EntityType::Value(container))
                 {
                     return Err(missing());
                 }

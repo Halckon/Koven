@@ -123,7 +123,7 @@ pub(super) fn qualify(
         Some(birth) => source_owner::formed_condition(
             parsed,
             owned,
-            (symbol, birth.producer),
+            (symbol, birth.birth),
             seed.source(),
             span,
         )?,
@@ -209,11 +209,11 @@ pub(super) fn qualify(
         })
         .collect::<Vec<_>>();
     let (drop_owner, drop_condition) = if let Some(birth) = birth {
-        source_owner::formed_condition(parsed, owned, (symbol, birth.producer), h.owner(), span)?;
-        source_owner::formed_condition(parsed, owned, (symbol, birth.producer), x.owner(), span)?;
+        source_owner::formed_condition(parsed, owned, (symbol, birth.birth), h.owner(), span)?;
+        source_owner::formed_condition(parsed, owned, (symbol, birth.birth), x.owner(), span)?;
         let owner = drop.owner().ok_or_else(bad)?;
         let condition =
-            source_owner::formed_condition(parsed, owned, (symbol, birth.producer), owner, span)?;
+            source_owner::formed_condition(parsed, owned, (symbol, birth.birth), owner, span)?;
         (owner, condition)
     } else {
         (x.owner(), x.availability_condition())
@@ -232,7 +232,7 @@ pub(super) fn qualify(
     }
     Ok(source_owner::Proof {
         flow: None,
-        drop,
+        disposition: source_owner::Disposition::Drop(drop),
         transfer,
         conditional_return: None,
     })
@@ -348,11 +348,13 @@ impl ExpressionLowerer<'_> {
         let Some((proof, SourceIdentity::Parameter(root), _)) = owner.filter(|(p, _, _)| {
             // Terminal flow Drops have already executed. Only a separately
             // validated late Drop grants the future-lifetime carrier.
-            p.flow.is_none_or(|flow| flow.late == Some(p.drop))
-                && matches!(
-                    p.drop.point(),
-                    DropPoint::AfterStatement(_) | DropPoint::ControlTransfer(_)
-                )
+            p.flow.is_none_or(|flow| flow.late == p.drop())
+                && p.drop().is_some_and(|drop| {
+                    matches!(
+                        drop.point(),
+                        DropPoint::AfterStatement(_) | DropPoint::ControlTransfer(_)
+                    )
+                })
         }) else {
             return Ok(());
         };
@@ -375,7 +377,7 @@ impl ExpressionLowerer<'_> {
             .insert(
                 root,
                 Carrier {
-                    fact: proof.drop,
+                    fact: proof.drop().ok_or_else(bad)?,
                     anchor,
                 },
             )

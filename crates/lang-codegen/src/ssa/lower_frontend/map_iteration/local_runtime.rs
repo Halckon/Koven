@@ -153,7 +153,7 @@ impl ExpressionLowerer<'_> {
         };
         if symbol != proof.root
             || initializer != proof.initializer
-            || owner_proof.drop != proof.drop
+            || owner_proof.drop() != Some(proof.drop)
             || evidence.continuation != evidence.blocks[3]
             || self.block != evidence.continuation
         {

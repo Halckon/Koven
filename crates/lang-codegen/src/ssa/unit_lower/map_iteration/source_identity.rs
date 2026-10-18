@@ -14,7 +14,7 @@ pub(in super::super) enum SourceIdentity {
     /// A formed local with ordinary exit cleanup, separate from the old size-continuation row.
     Formed {
         root: UnitSymbolId,
-        producer: UnitExpressionId,
+        birth: crate::ssa::map_source::Birth<UnitSymbolId>,
     },
     Temporary(UnitExpressionId),
 }

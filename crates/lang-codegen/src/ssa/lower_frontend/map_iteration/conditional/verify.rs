@@ -252,7 +252,7 @@ fn check_exit(e: Evidence<'_>, state: &State, exit: &Exit) -> Result<(), Lowerin
                     }
                 } else {
                     local::validate(
-                        (e.parsed, e.names, e.owned),
+                        (e.parsed, e.names, e.typed, e.owned),
                         e.function,
                         *fact,
                         owner,

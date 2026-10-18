@@ -81,8 +81,9 @@ pub(super) fn qualify(
                     && contains(enclosing.span(), node.span())
             })
     });
+    let future_transfer = transfer::qualify(parsed, names, typed, owned, plan, source)?;
     let nesting = nested::relationship(parsed, typed, owned, plan.descriptor().statement())?;
-    if !has_if && nesting.is_none() {
+    if !has_if && nesting.is_none() && future_transfer.is_none() {
         return Ok(None);
     }
     // Mixed non-Map loops and non-ordinary control families retain their existing gate.
@@ -116,7 +117,7 @@ pub(super) fn qualify(
         plan.source_access(),
         UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Temporary
     );
-    if owns_source && facts.is_empty() {
+    if owns_source && facts.is_empty() && future_transfer.is_none() {
         // A validated source transferred after this provider can have no Drop.
         // Its later lifetime requires a separate capability, not a missing fact.
         return Err(if matches!(source, SourceIdentity::Temporary(_)) {
@@ -303,7 +304,8 @@ pub(super) fn qualify(
                     | UnitIterationExitKind::Exhaustion
             ) && shape.drop_at(owned, source, exit.point())?.is_none()
                 && !retained
-                && (late_drop.is_none() || matches!(exit.kind(), UnitIterationExitKind::Return(_)))
+                && ((late_drop.is_none() && future_transfer.is_none())
+                    || matches!(exit.kind(), UnitIterationExitKind::Return(_)))
             {
                 return Err(bad());
             }
@@ -312,6 +314,7 @@ pub(super) fn qualify(
     Ok(Some(QualifiedMap {
         statement,
         source,
+        future_transfer,
         source_drop: shape.drop_at(owned, source, UnitDropPoint::LoopExit(statement))?,
         late_drop,
         transfer_drop: None,
@@ -352,10 +355,10 @@ fn source_facts(
     }
     let (root, producer) = match source {
         SourceIdentity::Parameter { root, .. } => (root, None),
-        SourceIdentity::Formed { root, producer } => (root, Some(producer)),
+        SourceIdentity::Formed { root, birth } => (root, Some(birth)),
         _ => return Err(bad()),
     };
-    if let Some(producer) = producer {
+    if let Some(birth) = producer {
         let formation = formed::formation(
             parsed,
             names,
@@ -365,9 +368,7 @@ fn source_facts(
             plan.descriptor().source_type(),
             span,
         )?;
-        if producer.source_unit() != root.source_unit()
-            || producer.expression() != formation.producer
-        {
+        if birth != formation.birth {
             return Err(bad());
         }
         return Ok((

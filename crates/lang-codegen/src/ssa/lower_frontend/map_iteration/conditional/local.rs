@@ -3,13 +3,18 @@ use super::*;
 use lang_frontend::ownership_checking::{DropFact, DropTarget};
 
 pub(in super::super) fn validate(
-    frontend: (&ParsedFile, &NameResolution, &OwnershipCheckedFile),
+    frontend: (
+        &ParsedFile,
+        &NameResolution,
+        &TypedFile,
+        &OwnershipCheckedFile,
+    ),
     function: &Function,
     fact: DropFact,
     owner: ValueId,
     span: Span,
 ) -> Result<(), LoweringError> {
-    let (parsed, names, owned) = frontend;
+    let (parsed, names, typed, owned) = frontend;
     let missing = || error(LoweringErrorKind::MissingFact, span);
     let DropTarget::Named(root) = fact.target() else {
         return Err(error(LoweringErrorKind::UnsupportedNode, span));
@@ -25,6 +30,7 @@ pub(in super::super) fn validate(
     actions::binding_condition(
         parsed,
         names,
+        typed,
         owned,
         root,
         fact.owner().ok_or_else(missing)?,

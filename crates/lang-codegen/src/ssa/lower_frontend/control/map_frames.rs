@@ -14,7 +14,7 @@ pub(in super::super) enum OwnerRoot {
     },
     Formed {
         symbol: SymbolId,
-        producer: ExpressionId,
+        birth: crate::ssa::map_source::Birth<SymbolId>,
     },
     Temporary(ExpressionId),
 }

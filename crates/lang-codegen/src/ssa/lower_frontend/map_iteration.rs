@@ -38,6 +38,16 @@ pub(super) fn supported_drop(
     local::supported_drop(parsed, names, typed, owned, fact)
         || source_owner::supported_drop(parsed, names, typed, owned, fact)
         || conditional::supported_local_drop(parsed, names, typed, owned, fact)
+        || typed.map_iterations().iter().any(|d| {
+            let Some(plan) = owned.map_iteration(d.statement()) else {
+                return false;
+            };
+            let Ok(node) = parsed.ast().statements().get(d.statement()) else {
+                return false;
+            };
+            formed::retained::proof((parsed, names, typed, owned), plan, fact, node.span())
+                .is_ok_and(|proof| proof.is_some())
+        })
 }
 
 type Storage = BTreeMap<SsaTypeId, (MapContainerKind, SsaTypeId, SsaTypeId)>;
@@ -516,6 +526,7 @@ impl ExpressionLowerer<'_> {
         let evidence = carrier::Evidence {
             parsed: self.parsed,
             names: self.names,
+            typed: self.typed,
             owned: self.owned,
             exhaustion_point: exhaustion.point(),
             function: self.function,

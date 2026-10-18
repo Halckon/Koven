@@ -248,6 +248,7 @@ pub(super) fn qualify(
     }
     Ok(QualifiedMap {
         statement,
+        future_transfer: None,
         source: SourceIdentity::Temporary(source),
         source_drop: Some(*source_drop),
         late_drop: None,
@@ -381,6 +382,7 @@ fn qualify_transfer(
     )?;
     Ok(Some(QualifiedMap {
         statement,
+        future_transfer: None,
         source: SourceIdentity::Temporary(source),
         source_drop: Some(source_drop),
         late_drop: None,

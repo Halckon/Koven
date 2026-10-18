@@ -8,6 +8,7 @@ pub(super) use local::LocalContinuation;
 mod resource;
 mod source_identity;
 mod temporary;
+pub(super) mod transfer;
 use super::*;
 use lang_frontend::{
     ownership_checking::{
@@ -30,6 +31,7 @@ pub(super) struct QualifiedMap {
     pub(super) source_drop: Option<UnitDropFact>,
     pub(super) late_drop: Option<UnitDropFact>,
     pub(super) transfer_drop: Option<UnitDropFact>,
+    pub(super) future_transfer: Option<transfer::QualifiedTransfer>,
     pub(super) body_exit: UnitIterationExitKind,
     pub(super) body_point: UnitDropPoint,
     pub(super) conditional: Option<QualifiedConditional>,
@@ -362,6 +364,7 @@ fn qualify_one(
             slot: *parameter_slot,
         },
         source_drop,
+        future_transfer: None,
         late_drop,
         transfer_drop,
         body_exit,
@@ -550,7 +553,7 @@ fn qualify_body(
     Ok(kind)
 }
 
-fn contains(outer: Span, inner: Span) -> bool {
+pub(super) fn contains(outer: Span, inner: Span) -> bool {
     outer.source_id() == inner.source_id()
         && outer.start() <= inner.start()
         && inner.end() <= outer.end()
