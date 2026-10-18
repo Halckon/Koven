@@ -186,3 +186,6 @@ mod future_use;
 
 #[path = "native_map_provider_local_exits_tests.rs"]
 mod local_exits;
+
+#[path = "native_map_provider_local_resources_tests.rs"]
+mod local_resources;

@@ -934,3 +934,12 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   的finding已修复复核。其后仅追加验收文档；新头完整远端CI与当前产物独审须单独绑定。
   本片仅覆盖Pure String/String factory形成与Move后local的即时N/C/B/R；Resource local、
   local未来使用/重复遍历/重赋值及其他形成来源仍在§45，不提升为G2或F整体完成。
+
+
+## 49. G2 Resource local 的形成与词法退出（2026-10-18）
+
+- 固定`4bc23d38`生产源码的真实首红：48份普通源，Map/MutableMap×val/var/moved alias×
+  N/C/B/R×有owned String字段Resource/混合Some/None的Resource?。每源entry运行非空/空
+  factory，含Guard及Return真实Int交付。96双入口均完整FE后在原For Unsupported，
+  FE query false为0；Rust实际0通过/1失败/0忽略。尚未运行native，深身份查询仍在补齐。
+  这是新红测试检查点，不表示Resource local资格已接通；继续消费真实词法Drop，不改Guide。
