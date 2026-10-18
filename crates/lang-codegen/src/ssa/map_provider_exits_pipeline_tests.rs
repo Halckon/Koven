@@ -192,3 +192,5 @@ fn map_and_mutable_map_unconditional_exits_reach_verified_llvm() {
          原阶段失败保持失败，UnsupportedNode 不是成功 oracle。\n{observations:#?}"
     );
 }
+
+mod local_exits;

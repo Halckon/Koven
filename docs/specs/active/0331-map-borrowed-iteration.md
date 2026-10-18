@@ -892,3 +892,13 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   测试独审指出的size条件链已补齐：原size/count→0常量→Equal/Boolean→实际If双臂及
   merge完整incoming，后续Borrow使用合流后当前owner；结果全部用途独立核验，48路重绿且复审。
   single caller只声称Value契约/原root引用/无loan，不虚构Unit才公开的Move交付表。
+
+
+## 48. G2 local 形成与 Move 退出的真实首红（2026-10-18）
+
+- 在固定`6b089590`生产源码上新增24份普通源：Map/MutableMap×val/var/moved alias×N/C/B/R。
+  每份含实际非空/空零参factory及各自scanner，声明与For之间保留println，不以邻接形状准入。
+  每轮有Guard；Return实际交付第二个Borrow分量调用的Int结果。48双入口观察均通过完整FE
+  后在原For Unsupported，FE查询false为0，Rust实际0通过/1失败/0忽略；尚未运行native。
+- 本地红测试检查点仅保存源码与输入身份；当前尚未修改G2生产逻辑，不表示支持已接通。
+  下一步依据实际Expression形成owner、alias Move保留的原birth与Header/Exit完整incoming推进。
