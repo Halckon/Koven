@@ -210,3 +210,6 @@ mod temporary_delivery;
 
 #[path = "native_map_provider_temporary_argument_cfg_tests.rs"]
 mod temporary_argument_cfg;
+
+#[path = "native_map_provider_control_flow_tests.rs"]
+mod ordinary_control_flow;
