@@ -204,4 +204,10 @@ mod local_future;
 pub(crate) use local_future::sources as local_future_sources;
 
 mod local_reassignment;
+pub(crate) use local_reassignment::grouped_sources as local_grouped_reassignment_sources;
 pub(crate) use local_reassignment::sources as local_reassignment_sources;
+
+pub(crate) use local_reassignment::ordinary_epoch_sources as local_ordinary_epoch_sources;
+
+mod local_resource_future;
+pub(crate) use local_resource_future::sources as local_resource_future_sources;

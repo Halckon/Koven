@@ -20,3 +20,41 @@ fn unit_local_reassignments_preserve_value_histories() {
         assert_result(&case.label, "unit", &run, &case.golden);
     }
 }
+
+#[test]
+fn single_grouped_replacements_preserve_value_histories() {
+    let cases = crate::ssa::map_provider_exits_pipeline_tests::local_grouped_reassignment_sources();
+    assert_eq!(cases.len(), 6);
+    for case in cases {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+#[test]
+fn unit_grouped_replacements_preserve_value_histories() {
+    let cases = crate::ssa::map_provider_exits_pipeline_tests::local_grouped_reassignment_sources();
+    assert_eq!(cases.len(), 6);
+    for case in cases {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+
+#[test]
+fn single_ordinary_epoch_arguments_preserve_replacement_order() {
+    for (label, source, golden) in
+        crate::ssa::map_provider_exits_pipeline_tests::local_ordinary_epoch_sources()
+    {
+        let run = emit_link_and_run("provider.ko", &source, "entry");
+        assert_result(label, "single", &run, golden);
+    }
+}
+#[test]
+fn unit_ordinary_epoch_arguments_preserve_replacement_order() {
+    for (label, source, golden) in
+        crate::ssa::map_provider_exits_pipeline_tests::local_ordinary_epoch_sources()
+    {
+        let run = run_unit(label, &source);
+        assert_result(label, "unit", &run, golden);
+    }
+}

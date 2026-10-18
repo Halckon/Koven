@@ -181,22 +181,32 @@ pub(super) fn qualify(
         descriptor.source_type(),
         span,
     )?;
+    // Other epochs retain ordinary call delivery, not provider capability.
+    // Only the current epoch can be an already-proved alias Name.
     for epoch in &formation.history {
-        match crate::ssa::map_source::epoch_call(parsed, epoch.rhs) {
-            Ok(producer) => {
-                let producer = UnitExpressionId::new(statement.source_unit(), producer);
-                local::factory(
-                    parsed,
-                    names,
-                    typed,
-                    owned,
-                    producer,
-                    descriptor.source_type(),
-                    span,
-                )?;
-            }
-            Err(failure) if failure.kind == LoweringErrorKind::UnsupportedNode => {}
-            Err(failure) => return Err(failure),
+        let outer = parsed
+            .ast()
+            .expressions()
+            .get(epoch.rhs)
+            .map_err(|_| bad())?;
+        if outer.span() == formation.binding {
+            continue;
+        }
+        let call = crate::ssa::map_source::epoch_call(parsed, epoch.rhs)?;
+        let call = UnitExpressionId::new(statement.source_unit(), call);
+        if typed.map_construction(call).is_some()
+            || typed.map_consume(call).is_some()
+            || typed.map_with_value(call).is_some()
+        {
+            return Err(unsupported());
+        }
+        let ordinary = typed.call(call).ok_or_else(bad)?;
+        if !matches!(
+            ordinary.target(),
+            lang_frontend::type_checking::UnitCallTarget::Declaration(_)
+                | lang_frontend::type_checking::UnitCallTarget::Symbol(_)
+        ) {
+            return Err(unsupported());
         }
     }
     let body_exit = qualify_body(parsed, names, typed, descriptor, body, span)?;

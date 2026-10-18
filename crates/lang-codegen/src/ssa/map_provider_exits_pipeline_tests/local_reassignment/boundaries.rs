@@ -1,8 +1,7 @@
 //! Ordinary legal neighbors distinguish transparent RHS groups from unproved epoch arity.
 use super::*;
-use lang_frontend::parser::{ParsedFile, Statement};
 
-fn grouped_sources() -> Vec<Case> {
+pub(crate) fn grouped_sources() -> Vec<Case> {
     let cases = super::sources()
         .into_iter()
         .filter(|case| case.history == 1)
@@ -36,7 +35,8 @@ fun makeWithArg(number:Int):Map<String,Resource>{val actual:Int=number;println("
     }).collect()
 }
 
-fn observe(label: &str, source: &str, golden: Option<&str>, unit: bool) -> Result<(), Failure> {
+fn observe(label: &str, source: &str, grouped: Option<&Case>, unit: bool) -> Result<(), Failure> {
+    let golden = grouped.map(|case| case.golden.as_str());
     println!(
         "LOCAL REASSIGN NEIGHBOR INPUT case={label} unit={unit} source={source:?} golden={golden:?}"
     );
@@ -60,6 +60,12 @@ fn observe(label: &str, source: &str, golden: Option<&str>, unit: bool) -> Resul
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                if let Some(case) = grouped {
+                    report.query(
+                        "grouped RHS original qualified epoch identity",
+                        &super::facts::unit(case, &sources, &parsed, names, typed, owned),
+                    );
+                }
                 report.check(
                     "neighbor original qualified descriptor count",
                     typed.map_iterations().len() == expected
@@ -80,6 +86,12 @@ fn observe(label: &str, source: &str, golden: Option<&str>, unit: bool) -> Resul
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                if let Some(case) = grouped {
+                    report.query(
+                        "grouped RHS original single epoch identity",
+                        &super::facts::single(case, &sources, &parsed, names, typed, owned),
+                    );
+                }
                 report.check(
                     "neighbor original descriptor count",
                     typed.map_iterations().len() == expected
@@ -99,33 +111,19 @@ fn observe(label: &str, source: &str, golden: Option<&str>, unit: bool) -> Resul
         "LOCAL REASSIGN NEIGHBOR LOWER case={label} unit={unit} report={report:#?} outcome={:?}",
         lowered.as_ref().map(|(_, entry)| entry)
     );
-    if golden.is_none() {
-        let expected_span = original_for(&parsed)?;
-        let precise = match &lowered {
-            Err(error) => {
-                error.stage == "lower"
-                    && error.original.contains("kind: UnsupportedNode")
-                    && error
-                        .original
-                        .contains(&format!("span: Some({expected_span:?})"))
-                    && !error.original.contains("MissingFact")
-            }
-            Ok(_) => false,
-        };
-        report.check(
-            "legal unproved other-epoch arity is Unsupported at original For",
-            precise,
-            (&lowered.as_ref().map(|(_, entry)| entry), expected_span),
+    let (program, _) = lowered?;
+    if let Some(case) = grouped {
+        report.query(
+            "grouped RHS independent SSA identities",
+            &super::graph::check(case, &sources, &parsed, &program, unit),
         );
-    } else {
-        let (program, _) = lowered?;
-        let verified =
-            crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA verifier", e));
-        report.query("grouped RHS actual SSA verifier", &verified);
-        let llvm =
-            crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e));
-        report.query("grouped RHS actual LLVM verifier", &llvm);
     }
+    let verified =
+        crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA verifier", e));
+    report.query("neighbor actual SSA verifier", &verified);
+    let llvm =
+        crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e));
+    report.query("neighbor actual LLVM verifier", &llvm);
     println!("LOCAL REASSIGN NEIGHBOR FINAL case={label} unit={unit} report={report:#?}");
     if report.passed() {
         Ok(())
@@ -134,21 +132,12 @@ fn observe(label: &str, source: &str, golden: Option<&str>, unit: bool) -> Resul
     }
 }
 
-fn original_for(parsed: &ParsedFile) -> Result<lang_frontend::source::Span, Failure> {
-    super::super::query_inputs::one(
-        parsed.ast().statements().iter().filter_map(|(_, node)| {
-            matches!(node.payload(), Statement::For { .. }).then_some(node.span())
-        }),
-        "one actual original arity-neighbor For",
-    )
-}
-
 #[test]
 fn grouped_replacement_rhs_preserves_both_verified_pipelines() {
     let mut observations = Vec::new();
     for case in grouped_sources() {
         for unit in [false, true] {
-            let result = observe(&case.label, &case.source, Some(&case.golden), unit);
+            let result = observe(&case.label, &case.source, Some(&case), unit);
             println!(
                 "LOCAL REASSIGN GROUP CASE {} unit={unit} result={result:?}",
                 case.label
@@ -164,7 +153,7 @@ fn grouped_replacement_rhs_preserves_both_verified_pipelines() {
 }
 
 #[test]
-fn legal_other_epoch_arity_remains_precise_unsupported() {
+fn ordinary_other_epoch_arguments_keep_validated_call_delivery() {
     let mut observations = Vec::new();
     for (label, source) in arity_sources() {
         for unit in [false, true] {
@@ -178,4 +167,18 @@ fn legal_other_epoch_arity_remains_precise_unsupported() {
         observations.iter().all(|(_, _, result)| result.is_ok()),
         "{observations:#?}"
     );
+}
+
+pub(crate) fn ordinary_epoch_sources() -> Vec<(&'static str, String, &'static str)> {
+    arity_sources()
+        .into_iter()
+        .map(|(label, source)| {
+            let golden = if label == "future-arity-epoch" {
+                "k\nvalue\nguard-drop\nbetween\narity\nresource-drop\ntail\nresource-drop\n"
+            } else {
+                "arity\nformed\nresource-drop\nk\nvalue\nguard-drop\ntail\nresource-drop\n"
+            };
+            (label, source, golden)
+        })
+        .collect()
 }

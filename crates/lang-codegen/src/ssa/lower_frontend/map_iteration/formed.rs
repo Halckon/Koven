@@ -151,15 +151,30 @@ pub(super) fn qualify<'a>(
         d.source_type(),
         span,
     )?;
-    // Every other epoch is validated before lowering as well. Unmeasured calls
-    // keep their original Unsupported boundary instead of failing a later birth check.
+    // Other epochs retain ordinary call delivery, not provider capability.
+    // Only the current epoch can be an already-proved alias Name.
     for epoch in &formation.history {
-        match crate::ssa::map_source::epoch_call(parsed, epoch.rhs) {
-            Ok(producer) => {
-                local::producer(parsed, names, typed, owned, producer, d.source_type(), span)?
-            }
-            Err(failure) if failure.kind == LoweringErrorKind::UnsupportedNode => {}
-            Err(failure) => return Err(failure),
+        let outer = parsed
+            .ast()
+            .expressions()
+            .get(epoch.rhs)
+            .map_err(|_| missing())?;
+        if outer.span() == formation.binding {
+            continue;
+        }
+        let call = crate::ssa::map_source::epoch_call(parsed, epoch.rhs)?;
+        if typed.map_construction(call).is_some()
+            || typed.map_consume(call).is_some()
+            || typed.map_with_value(call).is_some()
+        {
+            return Err(unsupported());
+        }
+        let ordinary = typed.call(call).ok_or_else(missing)?;
+        if !matches!(
+            ordinary.target(),
+            lang_frontend::type_checking::CallableTarget::Source(_)
+        ) {
+            return Err(unsupported());
         }
     }
     let body_exit = exit_shape::body_exit(parsed, names, typed, *d, body, span)?;
@@ -224,13 +239,13 @@ pub(super) fn drops(
         let point = crate::ssa::map_source::drop_span(parsed, fact.point())
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, fact.value_origin()))?;
         let epoch = crate::ssa::map_source::epoch_at(parsed, formation, point)?;
-        if fact.value_origin() != formation.declaration
-            || fact.capture_slot().is_some()
-            || fact.instance_address().is_some()
-        {
+        if fact.capture_slot().is_some() || fact.instance_address().is_some() {
             return Err(bad());
         }
         if crate::ssa::map_source::in_formation(parsed, formation, point)? {
+            if fact.value_origin() != formation.declaration {
+                return Err(bad());
+            }
             facts.push(fact);
         } else {
             let producer = crate::ssa::map_source::epoch_call(parsed, epoch.rhs)?;
@@ -243,7 +258,8 @@ pub(super) fn drops(
                         .expressions()
                         .get(producer)
                         .map_err(|_| bad())?;
-                    if *expression != producer
+                    if fact.value_origin() != epoch.origin
+                        || *expression != producer
                         || *origin != node.span()
                         || fact
                             .condition()
@@ -260,7 +276,9 @@ pub(super) fn drops(
                         owner,
                         point,
                     )?;
-                    if fact.condition() != Some(available) {
+                    if fact.value_origin() != formation.declaration
+                        || fact.condition() != Some(available)
+                    {
                         return Err(bad());
                     }
                 }

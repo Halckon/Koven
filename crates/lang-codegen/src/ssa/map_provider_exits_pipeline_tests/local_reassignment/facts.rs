@@ -86,6 +86,24 @@ pub(super) fn single(
                 init,
             )?;
         }
+        let rhs_type = typed
+            .expression_type(site.rhs)
+            .ok_or_else(|| failure("canonical RHS type", site.rhs))?;
+        let chain = ast::rhs_chain(parsed, site.rhs_outer);
+        need(
+            chain.last() == Some(&site.rhs),
+            "complete Group chain reaches actual canonical Call",
+            &chain,
+        )?;
+        for id in chain {
+            need(
+                typed.expression_type(id) == Some(rhs_type)
+                    && typed.expression_category(id)
+                        == Some(lang_frontend::type_checking::ExpressionCategory::Temporary),
+                "every single RHS Group layer preserves exact represented type and Temporary category",
+                id,
+            )?;
+        }
         for (epoch, id) in [site.birth, site.rhs].into_iter().enumerate() {
             let call = typed
                 .call(id)
@@ -113,7 +131,7 @@ pub(super) fn single(
             &drops,
         )?;
         let old_point = if case.payload != 0 {
-            DropPoint::AfterExpression(site.rhs)
+            DropPoint::AfterExpression(site.rhs_outer)
         } else if case.history == 1 {
             DropPoint::LoopExit(site.loops[0].statement)
         } else {
@@ -298,6 +316,25 @@ pub(super) fn unit(
                 init,
             )?;
         }
+        let rhs_type = typed
+            .expression_type(UnitExpressionId::new(u, site.rhs))
+            .ok_or_else(|| failure("qualified canonical RHS type", site.rhs))?;
+        let chain = ast::rhs_chain(parsed, site.rhs_outer);
+        need(
+            chain.last() == Some(&site.rhs),
+            "qualified complete Group chain reaches canonical Call",
+            &chain,
+        )?;
+        for id in chain {
+            let id = UnitExpressionId::new(u, id);
+            need(
+                typed.expression_type(id) == Some(rhs_type)
+                    && typed.expression_category(id)
+                        == Some(lang_frontend::type_checking::ExpressionCategory::Temporary),
+                "every qualified RHS Group layer preserves represented type and Temporary category",
+                id,
+            )?;
+        }
         for (epoch, id) in [site.birth, site.rhs].into_iter().enumerate() {
             let id = UnitExpressionId::new(u, id);
             let call = typed
@@ -334,7 +371,7 @@ pub(super) fn unit(
             &drops,
         )?;
         let old_point = if case.payload != 0 {
-            UnitDropPoint::AfterExpression(UnitExpressionId::new(u, site.rhs))
+            UnitDropPoint::AfterExpression(UnitExpressionId::new(u, site.rhs_outer))
         } else if case.history == 1 {
             UnitDropPoint::LoopExit(UnitStatementId::new(u, site.loops[0].statement))
         } else {

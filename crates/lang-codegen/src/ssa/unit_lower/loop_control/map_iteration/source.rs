@@ -383,7 +383,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(bad());
         }
         if let Some(producer) = other_epoch {
-            local::validate_birth(
+            local::validate_other_epoch_birth(
                 self,
                 root,
                 producer,
@@ -393,4 +393,58 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(())
     }
+}
+
+/// Other binding epochs use the normal, already validated call emitter. Their
+/// arguments do not grant provider-source capability or require a new ABI.
+pub(super) fn validate_ordinary_birth(
+    lowerer: &UnitExpressionLowerer<'_>,
+    expression: UnitExpressionId,
+    seed: EntityId,
+    span: Span,
+) -> Result<(), LoweringError> {
+    let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
+    let node = lowerer
+        .parsed
+        .ast()
+        .expressions()
+        .get(expression.expression())
+        .map_err(|_| bad())?;
+    let descriptor = lowerer.typed.call(expression).ok_or_else(bad)?;
+    if !matches!(
+        descriptor.target(),
+        UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+    ) {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    let resolved = lowerer
+        .source_plan
+        .call_site(lowerer.source_token, expression)
+        .ok_or_else(bad)?;
+    let callee = *lowerer.function_ids.get(resolved.key()).ok_or_else(bad)?;
+    let call = carrier::instruction(lowerer.function, seed, span)?;
+    let ty = lowerer.iteration_type(descriptor.return_type(), span)?;
+    if expression.source_unit() != lowerer.source_unit
+        || descriptor.expression() != expression
+        || descriptor.result_source() != lang_frontend::type_checking::CallableResultSource::Owned
+        || call.origin != Origin::Source(node.span())
+        || lowerer.function.entity(seed).map(|e| e.ty) != Some(EntityType::Value(ty))
+        || !matches!(&call.operation, Operation::DirectCall { callee: actual, receiver, arguments }
+            if *actual == callee && receiver.is_some() == descriptor.receiver().is_some() && arguments.len() == descriptor.arguments().len())
+    {
+        return Err(bad());
+    }
+    let calls = lowerer
+        .function
+        .instructions
+        .iter()
+        .filter(|i| {
+            i.origin == Origin::Source(node.span())
+                && matches!(i.operation, Operation::DirectCall { .. })
+        })
+        .collect::<Vec<_>>();
+    if !matches!(calls.as_slice(), [actual] if actual.id == call.id) {
+        return Err(bad());
+    }
+    Ok(())
 }

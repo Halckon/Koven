@@ -26,6 +26,7 @@ pub(in super::super) struct Site {
     pub birth: ExpressionId,
     pub assignment: ExpressionId,
     pub target: ExpressionId,
+    pub rhs_outer: ExpressionId,
     pub rhs: ExpressionId,
     pub alias: Option<(Span, ExpressionId)>,
     pub factories: [Span; 2],
@@ -60,6 +61,8 @@ pub(in super::super) fn sites(
         let (local,decl)=one(parsed.ast().statements().iter().filter_map(|(id,n)|{let Statement::LocalVariable{declaration}=n.payload() else{return None;};let item=parsed.ast().items().get(*declaration).ok()?;matches!(item.payload(),Item::Variable{name:NameMarker::Present(name),..} if sources.slice(*name)==Ok("source") && inside(n.span(),scan)).then_some((item,id))}),"actual source declaration statement")?;
         let Item::Variable{name:NameMarker::Present(binding),initializer:birth,kind:VariableKind::Var,..}=local.payload() else{return Err(failure("original var source initializer",local))};
         let (assignment,target,rhs)=one(parsed.ast().expressions().iter().filter_map(|(id,n)|{let Expression::Assignment{operator:AssignmentOperator::Assign,target,value,..}=n.payload() else{return None;};(inside(n.span(),scan) && sources.slice(expression(parsed,*target))==Ok("source")).then_some((id,*target,*value))}),"actual replacement RHS expression")?;
+        let rhs_outer=rhs;
+        let rhs=*rhs_chain(parsed,rhs_outer).last().unwrap();
         let alias=parsed.ast().items().iter().filter_map(|(_,n)|{let Item::Variable{name:NameMarker::Present(name),initializer,kind:VariableKind::Val,..}=n.payload() else{return None;};(inside(n.span(),scan) && sources.slice(*name)==Ok("alias")).then_some((*name,*initializer))}).collect::<Vec<_>>();
         need(alias.len()==usize::from(case.history==2),"exact moved alias history",&alias)?;
         if let Some((_,init))=alias.first(){need(sources.slice(expression(parsed,*init))==Ok("source") && expression(parsed,*init).start()>expression(parsed,assignment).end(),"alias moves replacement epoch only",init)?;}
@@ -73,6 +76,21 @@ pub(in super::super) fn sites(
             Ok(Loop{statement,span,source,body,epoch,marker})
         }).collect::<Result<Vec<_>,Failure>>()?;
         need(loops.iter().map(|l|l.epoch).collect::<Vec<_>>()==if case.history==1{vec![0,1]}else{vec![1]},"old/new loop chronology",&loops)?;
-        Ok(Site{scan,scope,declaration:decl,binding:*binding,birth:*birth,assignment,target,rhs,alias:alias.first().copied(),factories,loops})
+        Ok(Site{scan,scope,declaration:decl,binding:*binding,birth:*birth,assignment,target,rhs_outer,rhs,alias:alias.first().copied(),factories,loops})
     }).collect()
+}
+
+// Keep every real Group ID; only the final actual Call may grant producer identity.
+pub(in super::super) fn rhs_chain(parsed: &ParsedFile, outer: ExpressionId) -> Vec<ExpressionId> {
+    let mut chain = vec![outer];
+    while let Expression::Group { expression } = parsed
+        .ast()
+        .expressions()
+        .get(*chain.last().unwrap())
+        .unwrap()
+        .payload()
+    {
+        chain.push(*expression);
+    }
+    chain
 }

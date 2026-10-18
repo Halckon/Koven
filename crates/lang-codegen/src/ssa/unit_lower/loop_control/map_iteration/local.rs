@@ -10,6 +10,27 @@ pub(super) fn validate_birth(
     current: EntityId,
     span: Span,
 ) -> Result<EntityId, LoweringError> {
+    validate_call_owner(lowerer, root, (initializer, true), current, span)
+}
+
+pub(super) fn validate_other_epoch_birth(
+    lowerer: &UnitExpressionLowerer<'_>,
+    root: UnitSymbolId,
+    initializer: UnitExpressionId,
+    current: EntityId,
+    span: Span,
+) -> Result<EntityId, LoweringError> {
+    validate_call_owner(lowerer, root, (initializer, false), current, span)
+}
+
+fn validate_call_owner(
+    lowerer: &UnitExpressionLowerer<'_>,
+    root: UnitSymbolId,
+    birth: (UnitExpressionId, bool),
+    current: EntityId,
+    span: Span,
+) -> Result<EntityId, LoweringError> {
+    let (initializer, provider) = birth;
     let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
     if root.source_unit() != lowerer.source_unit
         || initializer.source_unit() != lowerer.source_unit
@@ -18,6 +39,19 @@ pub(super) fn validate_birth(
         || !matches!(current, EntityId::Value(_))
     {
         return Err(bad());
+    }
+    // A different epoch is not a provider. Reuse the ordinary direct-call
+    // route, and report other unimplemented birth kinds before looking for an
+    // instruction belonging to that route.
+    if !provider {
+        let call = lowerer.typed.call(initializer).ok_or_else(bad)?;
+        if !matches!(
+            call.target(),
+            lang_frontend::type_checking::UnitCallTarget::Declaration(_)
+                | lang_frontend::type_checking::UnitCallTarget::Symbol(_)
+        ) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
     }
     let node = lowerer
         .parsed
@@ -40,7 +74,11 @@ pub(super) fn validate_birth(
     let [anchor @ EntityId::Value(_)] = birth.results.as_slice() else {
         return Err(bad());
     };
-    source::validate_temporary_birth(lowerer, initializer, *anchor, birth.block, span)?;
+    if provider {
+        source::validate_temporary_birth(lowerer, initializer, *anchor, birth.block, span)?;
+    } else {
+        source::validate_ordinary_birth(lowerer, initializer, *anchor, span)?;
+    }
     transport::from_anchor(lowerer.function, current, *anchor, span)?;
     if lowerer.bindings.iter().any(|(other, value)| *other != root && matches!(value, LoweredValue::Value(v) if EntityId::Value(*v) == current || EntityId::Value(*v) == *anchor))
         || lowerer

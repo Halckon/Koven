@@ -127,7 +127,7 @@ fn legal_alternate_histories_do_not_become_missing_facts() {
     let mut outcomes = Vec::new();
     for (label, source) in sources() {
         for unit in [false, true] {
-            let expected = if label == "prefix-cfg" {
+            let expected = if matches!(label, "prefix-cfg" | "reassigned") {
                 "verified LLVM"
             } else {
                 "original For Unsupported"

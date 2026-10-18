@@ -1,13 +1,14 @@
 //! Legal source replacement histories: ordinary FE/lowering observations precede repairs.
+mod boundaries;
 mod facts;
 mod graph;
 mod sources;
-mod boundaries;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
     pipeline, source_forms,
 };
+pub(crate) use boundaries::grouped_sources;
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 pub(crate) use sources::{Case, sources};
 
@@ -135,3 +136,5 @@ fn reassigned_sources_preserve_actual_value_histories() {
         "{observations:#?}"
     );
 }
+
+pub(crate) use boundaries::ordinary_epoch_sources;
