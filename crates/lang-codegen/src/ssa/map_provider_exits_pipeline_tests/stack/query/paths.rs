@@ -31,10 +31,10 @@ pub(super) fn check(
 ) -> Result<(), Failure> {
     let mut roots = Vec::new();
     for l in layers {
-        if let Some(seed) = l.owner {
-            if !roots.contains(&seed) {
-                roots.push(seed);
-            }
+        if let Some(seed) = l.owner
+            && !roots.contains(&seed)
+        {
+            roots.push(seed);
         }
     }
     let entry = g.function.entry_block().unwrap();

@@ -389,24 +389,24 @@ fn calls(
                     .map(|s| s.span())
                 })
                 .transpose()?;
-            if actual.mode() == ParameterMode::Borrow {
-                if let Some(root) = root {
-                    let loan = one(
-                        owned
-                            .loans()
-                            .iter()
-                            .filter(|l| l.call() == id && l.argument() == argument.value),
-                        "stack Call real Shared loan",
-                    )?;
-                    need(
-                        loan.kind() == LoanKind::Shared
-                            && matches!(loan.target(),LoanTarget::Place(p) if p.is_root() && p.root()==root)
-                            && loan.begin_span() == n.span()
-                            && loan.end_span() == node.span(),
-                        "stack original synchronous argument loan",
-                        loan,
-                    )?;
-                }
+            if actual.mode() == ParameterMode::Borrow
+                && let Some(root) = root
+            {
+                let loan = one(
+                    owned
+                        .loans()
+                        .iter()
+                        .filter(|l| l.call() == id && l.argument() == argument.value),
+                    "stack Call real Shared loan",
+                )?;
+                need(
+                    loan.kind() == LoanKind::Shared
+                        && matches!(loan.target(),LoanTarget::Place(p) if p.is_root() && p.root()==root)
+                        && loan.begin_span() == n.span()
+                        && loan.end_span() == node.span(),
+                    "stack original synchronous argument loan",
+                    loan,
+                )?;
             }
             args.push((n.span(), marker, actual.mode() == ParameterMode::Borrow));
         }

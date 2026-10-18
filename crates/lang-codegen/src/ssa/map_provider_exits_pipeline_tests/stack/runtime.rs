@@ -1,10 +1,10 @@
 //! Nonempty and independently empty execution paths, without relying on entry destruction order.
 use super::Case;
 
-const OUTER: [(&str, &str); 2] = [("outer-a", "outer-first"), ("outer-b", "outer-last")];
+pub(super) const OUTER: [(&str, &str); 2] = [("outer-a", "outer-first"), ("outer-b", "outer-last")];
 const INNER: [(&str, &str); 2] = [("inner-a", "inner-first"), ("inner-stop", "inner-last")];
 
-fn maker(name: &str, kind: &str, resource: bool, pairs: &[(&str, &str)]) -> String {
+pub(super) fn maker(name: &str, kind: &str, resource: bool, pairs: &[(&str, &str)]) -> String {
     let value = if resource { "R" } else { "String" };
     let mut puts = String::new();
     for &(key, text) in pairs {
@@ -65,7 +65,7 @@ fn read_pair(golden: &mut String, pair: (&str, &str)) {
     golden.push('\n');
 }
 
-fn scan_golden(
+pub(super) fn scan_golden(
     golden: &mut String,
     outer: &[(&str, &str)],
     inner: &[(&str, &str)],
@@ -90,7 +90,13 @@ fn scan_golden(
     false
 }
 
-fn result(code: &mut String, golden: &mut String, call: &str, suffix: &str, returned: bool) {
+pub(super) fn result(
+    code: &mut String,
+    golden: &mut String,
+    call: &str,
+    suffix: &str,
+    returned: bool,
+) {
     let (expected, marker) = if returned {
         (7, "returned")
     } else {
@@ -113,13 +119,12 @@ fn after(
     golden: &mut String,
     root: &str,
     pairs: &[(&str, &str)],
-    mutable: bool,
     resource: bool,
     insert: bool,
     extra: (&str, &str),
 ) {
     size(code, golden, root, pairs.len());
-    if mutable && insert {
+    if insert {
         let value = if resource {
             format!("R(\"{}\".clone())", extra.1)
         } else {
@@ -132,7 +137,7 @@ fn after(
     for &pair in pairs {
         read_pair(golden, pair);
     }
-    if mutable && insert {
+    if insert {
         read_pair(golden, extra);
     }
     golden.push_str("post-read\n");
@@ -219,9 +224,8 @@ pub(crate) fn sources() -> Vec<Case> {
                             &mut golden,
                             &format!("outer{phase}"),
                             outer,
-                            mutable,
                             resource,
-                            phase == 0,
+                            mutable && phase == 0,
                             ("outer-post", "outer-added"),
                         );
                     }
@@ -232,9 +236,8 @@ pub(crate) fn sources() -> Vec<Case> {
                             &mut golden,
                             &format!("inner{phase}"),
                             pairs,
-                            mutable,
                             resource,
-                            phase == 0 || (mode == 1 && phase == 1),
+                            mutable && (phase == 0 || (mode == 1 && phase == 1)),
                             ("inner-post", "inner-added"),
                         );
                     }

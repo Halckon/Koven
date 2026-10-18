@@ -61,14 +61,14 @@ pub(super) fn provider_calls(
                     "stack actual original K/V argument cannot exchange roles",
                     (call, actual, slot),
                 )?;
-                if let Ok(producer) = g.definition(argument) {
-                    if matches!(producer.operation, Operation::SharedReborrow { .. }) {
-                        need(
-                            at(producer, argument_span),
-                            "stack original argument Shared reborrow span",
-                            producer,
-                        )?;
-                    }
+                if let Ok(producer) = g.definition(argument)
+                    && matches!(producer.operation, Operation::SharedReborrow { .. })
+                {
+                    need(
+                        at(producer, argument_span),
+                        "stack original argument Shared reborrow span",
+                        producer,
+                    )?;
                 }
                 uses.permit(argument, actual);
             }
@@ -273,22 +273,21 @@ pub(super) fn callers(
                         kind: LoanKind::Shared,
                     } => {
                         let root = g.definition(EntityId::Place(*place))?;
-                        if let Operation::RootPlace { owner } = root.operation {
-                            if let Some(index) = roots
+                        if let Operation::RootPlace { owner } = root.operation
+                            && let Some(index) = roots
                                 .iter()
                                 .position(|r| r.owners.contains(&EntityId::Value(owner)))
-                            {
-                                need(
-                                    state.owners[index] == Some(EntityId::Value(owner)),
-                                    "stack caller Borrow uses current owner",
-                                    i,
-                                )?;
-                                need(
-                                    state.loans.insert(result(i)?, index).is_none(),
-                                    "stack caller distinct Borrow birth",
-                                    i,
-                                )?;
-                            }
+                        {
+                            need(
+                                state.owners[index] == Some(EntityId::Value(owner)),
+                                "stack caller Borrow uses current owner",
+                                i,
+                            )?;
+                            need(
+                                state.loans.insert(result(i)?, index).is_none(),
+                                "stack caller distinct Borrow birth",
+                                i,
+                            )?;
                         }
                     }
                     Operation::SharedReborrow { source } => {
