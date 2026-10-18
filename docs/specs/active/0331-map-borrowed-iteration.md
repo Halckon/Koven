@@ -168,3 +168,10 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - 工程 conditional-v1 的 fmt/check 成功，clippy 因两个常量错误 ok_or_else 与一处非最简布尔表达式失败，build 未运行；收据 `f19c801fd3377b2cb56eb1ece52d00a068eb37e4fb3edfaf6ae5cbaf1c760a8e` 保留。独审三文件机械微修保持条件/短路次序、MissingFact/None 及所有 oracle，不加 allow；固定 rustfmt 输出与候选逐字相同。`3155acf9/84efc68a` 工程 conditional-v2 四项全 0，收据 `6d6a2d8839a4faab5a76ec901195c67f0e60b48828ba54b6d63aa9dfe5f27cdc`；check/clippy/build 分别 20.76/31.45/20.13 秒。该工程终态已独审。
 - 同头 regression26 收据 `ddce9b794e22e7380f632bfd51b1d64830a19d5941c98297a5a37d2d9184b677` 的 26 个唯一 ordinary exact 各实际 1/0，首编 49.02 秒：原 final20 完整保留，追加条件 pipeline 一项、native 两项、consume 邻控三项。旧 normal/无条件出口及其独立身份、条件四格 pipeline/四 native 产物、原成功/拒绝分类均保持。130 raw、2609 输入前后及工具/runner 绑定按后端 1–5/16–23、前端 6–15/24–26 分工独审；受验头与后继文档头分开记录。
 - 条件专用独立 FE→SSA 全实体/全 incoming 身份 query 尚在仓外准备，不以原 pipeline verifier 或 native 输出替代该查询；新增 LLVM 实体查询、动态内存计数也未宣称。temporary、嵌套及其他合同来源、nullable/Resource 分量组合、私有负控与真实双 host CI 继续待验。0331 保持 active，本节有限条件控制流成功不勾总合同。
+
+## 15. 条件出口的独立身份查询与同头复验（阶段记录）
+
+- `54f1b232/6fa65988` 仅安装七个测试文件，新增六个职责模块共 2773 行，既有 observer 净增 53 行；生产、Graph/Uses、原来源和 golden 未改。旧 exact 关闭深查询时保持原执行次序，四份同次 FE/SSA 产物全部采集，查询错误不遮后续 verifier/LLVM。仓外首版补齐 read/operand 索引前的双参数检查后才安装；有限 check 20.68 秒通过。
+- identity1 收据 `8ff36c7f382c15ee16cbe284ffa067129d6847c5e1786e4249a5643d3fee4c23` 实际唯一 1/0，真实 test 编译 48.14 秒；四格 49+56+49+56=210 项报告全真。同次公开 FE 查询锁五出口、真实 Choice/双 phi 与所有 incoming、Guard 四点及 source 三点清理；unit 只核自身公开事实。独立 SSA 查询锁当前 source/cursor/K/V/Guard 的完整边列及全部用途、两处 Next、Break/耗尽合流、Return 原 operand 值和清理顺序、入口 Borrow 保护及真实 factory/consumer 实参来源。5 raw、2615 输入前后和工具/runner 绑定已独审。本次新增的是 FE/SSA 实体证据，LLVM 仍沿原 render/verify，未新增动态释放计数或泄漏证明。
+- 同头工程 conditional-v3 四项全 0，收据 `d1b005ac826bcece71a5f3de02764c516120846b77c5daabd5b468adfbdf479c`；check/build 分别复用 0.06/0.07 秒，clippy 实际 32.32 秒。regression27 收据 `3a55717d1a71bee2e353bcdf0ecf01aebcb052844ee6b3aad1cc504fcda034f5` 的 27 个唯一 ordinary exact 各实际 1/0，严格为原 26 项加本次深查询；135 raw 按后端 1–5/16–23/27 与前端 6–15/24–26 分工独审，2615 输入及工具绑定稳定。本轮测试复用已有编译产物，不重复宣称新编译；后继文档头不冒称行为重跑。
+- 本节结清 §14 所列固定条件源的独立 FE/SSA 查询待项；范围仍是直接具名参数两种 mode 与该有限三 If 控制形状。temporary、嵌套及其他合同来源、nullable/Resource 分量组合、私有负控和双 host CI 继续待验，0331 保持 active。
