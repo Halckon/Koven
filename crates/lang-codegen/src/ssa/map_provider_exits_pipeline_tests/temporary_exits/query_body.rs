@@ -125,7 +125,7 @@ impl Body<'_, '_> {
                         == g.function.entity(EntityId::Loan(l)).map(|e| e.ty)
                 })
                 && if self.exit == Exit::Return {
-                    matches!(consumer.return_types.as_slice(), [t] if self.module.type_kind(*t) == Some(&SsaTypeKind::Integer { bits: 64, signed: true }))
+                    matches!(consumer.return_types.as_slice(), [t] if self.module.type_kind(*t) == Some(&SsaTypeKind::Integer { bits: 32, signed: true }))
                 } else {
                     consumer.return_types.is_empty()
                 },

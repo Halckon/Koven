@@ -600,7 +600,7 @@ pub(super) fn check(
             let g = Graph::new(scan)?;
             query_callers::signature(scan, &[], scan.return_types.as_slice())?;
             need(
-                matches!(scan.return_types.as_slice(),[t] if module.type_kind(*t)==Some(&SsaTypeKind::Integer{bits:64,signed:true})),
+                matches!(scan.return_types.as_slice(),[t] if module.type_kind(*t)==Some(&SsaTypeKind::Integer{bits:32,signed:true})),
                 "temporary exits SSA scanner sole Int result",
                 scan,
             )?;

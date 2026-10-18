@@ -53,7 +53,7 @@ pub(super) fn signature(
 fn int(module: &Module, t: SsaTypeId) -> bool {
     module.type_kind(t)
         == Some(&SsaTypeKind::Integer {
-            bits: 64,
+            bits: 32,
             signed: true,
         })
 }
