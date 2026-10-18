@@ -1,4 +1,5 @@
 //! Original AST anchors plus normalized snapshots from the same public FE products.
+mod conditions;
 mod incoming;
 mod representation;
 mod single;

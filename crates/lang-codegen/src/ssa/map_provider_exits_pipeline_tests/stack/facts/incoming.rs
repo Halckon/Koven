@@ -39,6 +39,7 @@ pub(super) fn check(
                 .filter(|v| v.kind() == kind),
             "stack unique original owner incoming",
         )?;
+        conditions::path(parsed, site, edge, owned)?;
         let phis = p
             .closure_phis()
             .iter()
@@ -72,10 +73,23 @@ pub(super) fn check(
                 (phi, binding),
             )?;
             if table.get(binding.available_when()) == Some(&C::Never) {
+                let header = one(
+                    p.closure_phis()
+                        .iter()
+                        .filter(|h| h.boundary() == B::Header && h.symbol() == phi.symbol()),
+                    "stack absent Exit original Header owner",
+                )?;
+                let dropped=p.exits().iter().filter(|exit|exit.point()==point).flat_map(|exit|exit.actions()).any(|action|{
+                    matches!(action,lang_frontend::ownership_checking::IterationCleanupAction::Drop(drop)
+                        if drop.target()==lang_frontend::ownership_checking::DropTarget::Named(phi.symbol())
+                            && drop.owner()==Some(header.owner())
+                            && drop.condition()==Some(header.availability_condition())
+                            && owned.drops().contains(drop))
+                });
                 need(
-                    binding.values().is_empty(),
-                    "stack absent owner incoming has no phantom value",
-                    binding,
+                    binding.values().is_empty() && kind == K::Exhaustion && dropped,
+                    "stack absent Exit has no value and consumes its exact current Header once",
+                    (edge, binding, header),
                 )?;
                 continue;
             }
@@ -172,10 +186,16 @@ pub(super) fn check(
                 });
                 let current = child.unwrap_or(header);
                 need(
-                    value.source() == current.owner()
-                        && binding.available_when() == current.availability_condition(),
+                    value.source() == current.owner(),
                     "stack every live incoming transports exact lexical current Header/completed-child Exit owner",
                     (edge, binding, current),
+                )?;
+                conditions::conjunction(
+                    parsed,
+                    owned,
+                    binding.available_when(),
+                    edge.condition(),
+                    current.availability_condition(),
                 )?;
             }
         }
