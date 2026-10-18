@@ -810,7 +810,7 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 | G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，未闭合；在G9当前owner寿命基础上推进 |
 | G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，未闭合；条件依赖G7 |
 | G4 | own MutableMap参数N/C/B/R，复用已验证Value/Owned参数及原清理 | 0331，本节首片；新头CI待绑定 |
-| G5 | 有字段Resource、结构性Resource、非String key；先复用既有storage/Drop表示 | 0331，下一片；nullable结构ABI不据此新增 |
+| G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；新头CI待绑定，其他表示仍逐项验收 |
 | G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331 Return缺口未闭合；ABI前置另行明确验收，不能静默省略 |
 | G7 | 一般合法Return operand、单If/两live arm、条件/checked组合；需逐路径cleanup | 0331，未闭合；不把普通合法表达式改成白名单 |
 | G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，未闭合；在单层source/CFG事实之后推进 |
@@ -831,3 +831,28 @@ Inout/Field。Group共用纯透明映射：每层type/category相同，descripto
 独审发现的名单可能静默缩减、Unit mode缺查询均已补齐复核；初轮clippy失败日志保留。
 参考红用精确`3d333853`的10个tracked生产文件旧字节执行最终测试，82观察均停于原For Unsupported，
 Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障、校准、合成损坏或sanitizer。
+
+
+## 46. G5 以完整源清理事实准入既有 Resource 表示（2026-10-18）
+
+- 两入口Resource源owner资格去掉Map-only、String key、直接空字段显式deinit class的重复白名单。
+  上层仍验证真实intrinsic kind/K/V、Value/Owned参数root；此处消费Resource分类及原完整清理事实。
+  single Header/Exit phi、全部incoming/Choice、Drop来源和词法scope、Return transfer，以及Unit
+  自身完整cleanup序列均不放松。具体表示及deinit可达性继续由既有mapper/planner准入，不新增ABI。
+- 32份普通源：有owned String字段的Resource、结构性Payload(Resource)、Int key Resource、
+  nullable有字段Resource；各自Map/own MutableMap×N/C/B/R。每源entry真实运行非空/空，含Guard，
+  正常路径在For后再Borrow readMap；nullable源混合Some/None。源码名单32/64与唯一标签硬锁。
+  精确`92396a32`两生产文件旧字节下最终64观察均完整FE/公开validator后原For Unsupported，
+  Rust真实0通过/1失败/0忽略；finally逐字恢复。每份原源码/golden SHA保留仓外，不提交大日志。
+- 独立查询锁实际storage key/value、nullable/结构性层、owned String字段与原Resource.deinit来源，
+  实际read实参必须是当前K/V loan结果，保持精确Shared ABI，唯一End在read之后，不能取出组件owner。
+  通用owner查询核First→BorrowBegin→原参数RootPlace、每个MapDrop全部incoming至原anchor；
+  所有MapDrop均不在任何CFG循环，所有简单正常退出路径恰一次Drop，合起来覆盖有限迭代后退出。
+  独审发现的循环路径证据缺口已补齐复核。native marker仅证明析构聚合数量/区间，不证明逐对象free。
+- Field/Inout native边界、一般nullable结构/String? ABI及Borrow-result continuation前置保持。
+  G2/G3/G6/G7/G8/G9及G10 alias等具体缺口继续由§45单一账本跟踪，不因本片支持提升为F完成。
+- 最终19项ordinary Rust及2项native Rust均通过，0失败/忽略；64个native产物严格exit0/golden/
+  空stderr。64条最终green的原源码/golden SHA与reference red逐项一致；工程fmt/workspace
+  all-targets check/clippy(-D warnings)/build通过，运行前后源输入摘要相同。docs704与diffcheck通过。
+  G4/Group首片另有82个已验native产物，本阶段新增合计146个，不重复计入此前Resource98个产物。
+  新头完整远端CI和当前产物独审仍需单独绑定，Mac sanitizer仍partial；不把旧头成功继承到新片。

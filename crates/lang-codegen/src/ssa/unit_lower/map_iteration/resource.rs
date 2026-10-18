@@ -1,10 +1,7 @@
-//! Bounded lexical retention of a real owned Map<String, empty Resource class> parameter.
+//! Lexical retention of a real owned Map/MutableMap parameter with represented Resource storage.
 //! Uses the unit's own complete facts; no single-file owner/selector facts are synthesized.
 use super::*;
-use lang_frontend::{
-    parser::{FunctionBody, FunctionForm},
-    type_checking::NominalKind,
-};
+use lang_frontend::parser::{FunctionBody, FunctionForm};
 
 #[derive(Clone, Copy)]
 pub(super) struct Proof {
@@ -41,40 +38,16 @@ pub(super) fn qualify(
         .and_then(|s| s.resolution().symbols().get(root.symbol().index()))
         .ok_or_else(bad)?
         .span();
-    // Reuse the existing nullable Map payload ABI; never replace the descriptor/loan type.
-    let value_type = match typed.types().get(d.value_type()) {
-        Some(UnitTypeKind::Nullable(inner)) => *inner,
-        _ => d.value_type(),
-    };
-    let Some(UnitTypeKind::Nominal {
-        declaration,
-        arguments,
-    }) = typed.types().get(value_type)
-    else {
-        return Err(unsupported());
-    };
-    let nominal = typed
-        .signatures()
-        .declaration(*declaration)
-        .and_then(|s| s.nominal())
-        .ok_or_else(bad)?;
-    if d.kind() != MapIterationKind::Map
-        || !matches!(
-            kind,
-            UnitIterationExitKind::Fallthrough
-                | UnitIterationExitKind::Continue(_)
-                | UnitIterationExitKind::Break(_)
-                | UnitIterationExitKind::Return(_)
-        )
-        || plan.source_access() != UnitIterationSourceAccess::Owned
+    // Keep the unit's real owned Resource facts; representation admission belongs
+    // to existing storage planning, not a nominal-shape/key whitelist here.
+    if !matches!(
+        kind,
+        UnitIterationExitKind::Fallthrough
+            | UnitIterationExitKind::Continue(_)
+            | UnitIterationExitKind::Break(_)
+            | UnitIterationExitKind::Return(_)
+    ) || plan.source_access() != UnitIterationSourceAccess::Owned
         || typed.is_resource_type(d.source_type()) != Some(true)
-        || builtin_type(typed, d.key_type()) != Some(BuiltinType::String)
-        || !arguments.is_empty()
-        || nominal.kind() != NominalKind::Class
-        || !nominal.has_deinit()
-        || !nominal.fields().is_empty()
-        || !nominal.type_parameters().is_empty()
-        || !nominal.interfaces().is_empty()
     {
         return Err(unsupported());
     }

@@ -30,7 +30,7 @@ fn chain(parsed: &ParsedFile, outer: ExpressionId) -> Vec<ExpressionId> {
     ids
 }
 
-pub(super) fn single(
+pub(in super::super) fn single(
     _sources: &SourceMap,
     parsed: &ParsedFile,
     names: &NameResolution,
@@ -121,7 +121,7 @@ pub(super) fn single(
     }
 }
 
-pub(super) fn unit(
+pub(in super::super) fn unit(
     _sources: &SourceMap,
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,

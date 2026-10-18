@@ -7,7 +7,6 @@ use lang_frontend::{
         IterationPhiIncomingKind,
     },
     parser::{FunctionBody, FunctionForm},
-    type_checking::NominalKind,
 };
 
 pub(super) fn qualify(
@@ -32,34 +31,16 @@ pub(super) fn qualify(
     let bad = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     let origin = names.symbols().get(symbol.index()).ok_or_else(bad)?.span();
-    // Map storage already defines nullable class handles and their conditional drop glue.
-    // Inspect only the representation's inner class; component loans keep their nullable type.
-    let value_type = match typed.types().get(d.value_type()) {
-        Some(TypeKind::Nullable(inner)) => *inner,
-        _ => d.value_type(),
-    };
-    let Some(TypeKind::Nominal { nominal, arguments }) = typed.types().get(value_type) else {
-        return Err(unsupported());
-    };
-    if d.kind() != lang_frontend::type_checking::MapIterationKind::Map
-        || !matches!(
-            body_exit,
-            IterationExitKind::Fallthrough
-                | IterationExitKind::Continue(_)
-                | IterationExitKind::Break(_)
-                | IterationExitKind::Return(_)
-        )
+    // Source ownership depends on validated Resource classification and its complete
+    // cleanup graph. Existing storage planning owns payload/key representation admission.
+    if !matches!(
+        body_exit,
+        IterationExitKind::Fallthrough
+            | IterationExitKind::Continue(_)
+            | IterationExitKind::Break(_)
+            | IterationExitKind::Return(_)
+    ) || plan.source_access() != MapIterationSourceAccess::Owned
         || typed.is_resource_type(d.source_type()) != Some(true)
-        || builtin_type(typed, d.key_type()) != Some(BuiltinType::String)
-        || !arguments.is_empty()
-        || !typed.nominals().iter().any(|n| {
-            n.id() == *nominal
-                && n.kind() == NominalKind::Class
-                && n.has_deinit()
-                && n.fields().is_empty()
-                && n.type_parameters().is_empty()
-                && n.interfaces().is_empty()
-        })
     {
         return Err(unsupported());
     }

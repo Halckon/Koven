@@ -177,3 +177,6 @@ mod resource_continuation_tests;
 
 #[path = "native_map_provider_source_forms_tests.rs"]
 mod source_forms;
+
+#[path = "native_map_provider_resource_forms_tests.rs"]
+mod resource_forms;

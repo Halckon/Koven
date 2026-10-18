@@ -139,10 +139,11 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 | Borrow Map/MutableMap参数 | String/String | N/C/B/R、固定条件、同根双层 | caller恢复及有限sequential已验；更一般条件/层数未验 |
 | 零参直接factory temporary | String/String | N/C/B/R固定尾 | hidden owner已验；其他payload/条件/一般factory未接通 |
 | factory-formed owned local val/var | String/String | N | 固定立即Drop/size guard；C/B/R、资源payload、一般后用尚缺 |
-| own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；Resource仍限显式deinit且无泛型/接口 |
+| own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；更多既有Resource表示见后续G5片 |
 | Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定 |
 | Borrow参数等既有admission | Int/String等 | 部分N及有限sequential | 不把静态通用component cleanup接纳当全payload native实证 |
-| own MutableMap参数 | String/String | N/C/B/R | 本节后续G4首片；其他payload另验 |
+| own MutableMap参数 | String/String | N/C/B/R | G4首片；已验Resource表示另见下行 |
+| own Map/MutableMap参数 | String/有String字段Resource、结构性Payload(Resource)、Int/Resource、String/nullable字段Resource | N/C/B/R | G5复用既有表示；每源含非空/空、Guard与后续Borrow readMap |
 | Field/Inout来源 | 现有类型 | 前端合同 | Guide37.4明确native延后；不由Group准入扩大 |
 
 非Resource Return仍限制直接双Borrow分量调用且Int结果。Resource本片另验Unit/Int/String及直接checked加法；
@@ -162,3 +163,15 @@ single/basic/const whole-set Group测试改为SSA/LLVM硬成功，保留全部�
 41源共82条双入口SSA/LLVM通过，37组对照各自LLVM字节相等；82个普通native产物硬核
 exit0/golden/空stderr。四个own MutableMap及其Group变体另核实际RootPlace、Drop的全部
 incoming回到原参数，以及每条正常退出恰一次Map Drop。不是所有payload/CFG组合的验收完成。
+
+
+## 既有 Resource 表示的源资格
+
+`resource_forms` 的32源覆盖上表四类表示、Map/own MutableMap及N/C/B/R；源owner资格依赖
+已验证Resource分类和完整cleanup事实，具体key/value表示继续由既有storage mapper/deinit
+planner准入。Field/Inout来源资格和nullable结构/String?表示边界未改，不增加任意source/CFG支持。
+独立SSA查询核实际storage/原Resource.deinit、当前K/V reader实参与Shared ABI/End，核实际First
+来源及每个Drop的全部incoming。MapDrop不得处于任何CFG循环，所有简单正常退出路径均一次Drop。
+32源64条双入口FE/SSA/LLVM及64个普通native产物均通过，包含非空/空与混合nullable输入；
+完整golden只证明析构聚合数量/区间，不外推动态free或无泄漏。其他key/value/泛型/接口组合仍须
+按实际既有表示与独立证据验收；F整体缺口以0331单一账本为准。

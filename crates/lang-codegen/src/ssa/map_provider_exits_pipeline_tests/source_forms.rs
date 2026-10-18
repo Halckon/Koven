@@ -1,6 +1,6 @@
 //! Source mode and transparent Group must preserve the original provider program.
-mod facts;
-mod graph;
+pub(super) mod facts;
+pub(super) mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -174,7 +174,7 @@ pub(crate) fn sources() -> Vec<Case> {
     }
     cases
 }
-fn observe(text: &str, unit: bool) -> Result<String, Failure> {
+fn observe(text: &str, unit: bool, expected_owned_mutable: bool) -> Result<String, Failure> {
     let mut sources = SourceMap::new();
     let id = sources
         .add_source("provider.ko", text)
@@ -209,7 +209,9 @@ fn observe(text: &str, unit: bool) -> Result<String, Failure> {
         result.as_ref().map(|(_, id)| id)
     );
     let (program, _) = result?;
-    graph::owned_mutable(&sources, &parsed, &program)?;
+    if expected_owned_mutable {
+        graph::owned_map(&sources, &parsed, &program, true)?;
+    }
     assert!(report.passed(), "{report:#?}");
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))
@@ -219,8 +221,13 @@ fn owned_mutable_and_group_sources_preserve_verified_programs() {
     let mut results = Vec::new();
     for case in sources() {
         for unit in [false, true] {
-            let direct = case.direct.as_ref().map(|s| observe(s, unit));
-            let result = observe(&case.source, unit);
+            let owned_mutable = case.label.starts_with("own-mutable-")
+                || case.label.starts_with("group-own-mutable-");
+            let direct = case
+                .direct
+                .as_ref()
+                .map(|s| observe(s, unit, owned_mutable));
+            let result = observe(&case.source, unit, owned_mutable);
             let same = match (&direct, &result) {
                 (Some(Ok(a)), Ok(b)) => a == b,
                 (None, Ok(_)) => true,

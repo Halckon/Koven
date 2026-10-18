@@ -8,10 +8,11 @@ use crate::ssa::model::*;
 use lang_frontend::parser::{Item, NameMarker};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(super) fn owned_mutable(
+pub(in super::super) fn owned_map(
     sources: &SourceMap,
     parsed: &lang_frontend::parser::ParsedFile,
     program: &Program,
+    mutable: bool,
 ) -> Result<(), Failure> {
     let scan = parsed
         .ast()
@@ -24,22 +25,13 @@ pub(super) fn owned_mutable(
             } if sources.slice(*name) == Ok("scan") => Some(n.span()),
             _ => None,
         });
-    let Some(scan) = scan else { return Ok(()) };
+    let scan = scan.ok_or_else(|| failure("original owned scan AST", parsed.source_id()))?;
     let function = program
         .modules
         .iter()
         .flat_map(|m| &m.functions)
         .find(|f| f.origin == Origin::Source(scan))
         .ok_or_else(|| failure("original scan", scan))?;
-    let expected = parsed.ast().items().iter().any(|(_, n)| {
-        n.span() == scan
-            && sources
-                .slice(n.span())
-                .is_ok_and(|text| text.contains("own source: MutableMap<String, String>"))
-    });
-    if !expected {
-        return Ok(());
-    }
     let &anchor = function
         .block(function.entry_block().unwrap())
         .unwrap()
@@ -49,8 +41,8 @@ pub(super) fn owned_mutable(
     let ty = function.entity(anchor).unwrap().ty;
     let module = program.module(function.id.module()).unwrap();
     need(
-        matches!(ty,EntityType::Value(t) if matches!(module.type_kind(t),Some(SsaTypeKind::MapContainer {kind:MapContainerKind::MutableMap,..}))),
-        "actual owned MutableMap parameter ABI",
+        matches!(ty,EntityType::Value(t) if matches!(module.type_kind(t),Some(SsaTypeKind::MapContainer {kind,..}) if *kind==if mutable{MapContainerKind::MutableMap}else{MapContainerKind::Map})),
+        "actual owned Map parameter ABI",
         ty,
     )?;
     let graph = Graph::with_abort(function)?;
@@ -63,8 +55,33 @@ pub(super) fn owned_mutable(
         .collect::<Vec<_>>();
     need(
         roots.len() == 1,
-        "owned MutableMap original parameter root",
+        "owned Map original parameter root",
         &roots,
+    )?;
+    let first = super::super::query_inputs::one(
+        graph
+            .instructions
+            .iter()
+            .copied()
+            .filter(|i| matches!(i.operation, Operation::MapIterationFirst { .. })),
+        "actual provider First",
+    )?;
+    let Operation::MapIterationFirst { source } = first.operation else {
+        unreachable!()
+    };
+    let birth = graph.definition(EntityId::Loan(source))?;
+    let Operation::BorrowBegin {
+        place,
+        kind: LoanKind::Shared,
+    } = birth.operation
+    else {
+        return Err(failure("provider original source acquisition", birth));
+    };
+    let root = graph.definition(EntityId::Place(place))?;
+    need(
+        roots[0].id == root.id,
+        "actual provider First roots the original parameter",
+        (root, first),
     )?;
     let mut drops = BTreeSet::new();
     for i in &graph.instructions {
@@ -75,7 +92,35 @@ pub(super) fn owned_mutable(
             drops.insert(i.id);
         }
     }
-    need(!drops.is_empty(), "owned MutableMap real Drop", &drops)?;
+    need(!drops.is_empty(), "owned Map real Drop", &drops)?;
+    // A cycle may execute arbitrarily often; source Drop must be outside every cycle.
+    for instruction in graph.instructions.iter().filter(|i| drops.contains(&i.id)) {
+        let block = instruction.block;
+        let mut pending = graph
+            .edges
+            .iter()
+            .filter(|(from, _)| *from == block)
+            .map(|(_, e)| e.target)
+            .collect::<Vec<_>>();
+        let mut seen = BTreeSet::new();
+        while let Some(next) = pending.pop() {
+            need(
+                next != block,
+                "source Drop is outside all CFG cycles",
+                instruction,
+            )?;
+            if seen.insert(next) {
+                pending.extend(
+                    graph
+                        .edges
+                        .iter()
+                        .filter(|(from, _)| *from == next)
+                        .map(|(_, e)| e.target),
+                );
+            }
+        }
+    }
+
     let mut pending = vec![(function.entry_block().unwrap(), 0, BTreeSet::new())];
     let mut returns = 0;
     while let Some((block, count, mut visited)) = pending.pop() {
@@ -92,7 +137,7 @@ pub(super) fn owned_mutable(
             returns += 1;
             need(
                 count == 1,
-                "every normal return drops original MutableMap once",
+                "every normal return drops original Map once",
                 (block, count),
             )?;
         }
