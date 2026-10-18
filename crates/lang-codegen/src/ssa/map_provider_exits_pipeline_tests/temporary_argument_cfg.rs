@@ -44,7 +44,10 @@ fn observe(mutable: bool, unit: bool, control: bool) -> Result<(), Failure> {
             source_forms::facts::single(&sources, &parsed, n, t, o, r);
         })
     };
-    println!("ARGUMENT CFG LOWER mutable={mutable} unit={unit} control={control} report={report:#?} outcome={:?}", lowered.as_ref().map(|(_, entry)| entry));
+    println!(
+        "ARGUMENT CFG LOWER mutable={mutable} unit={unit} control={control} report={report:#?} outcome={:?}",
+        lowered.as_ref().map(|(_, entry)| entry)
+    );
     if !report.passed() {
         return Err(failure("original FE queries", report));
     }
@@ -55,13 +58,21 @@ fn observe(mutable: bool, unit: bool, control: bool) -> Result<(), Failure> {
         Ok(())
     } else {
         let Err(stopped) = lowered else {
-            return Err(failure("CFG provider pending boundary unexpectedly admitted", (mutable, unit)));
+            return Err(failure(
+                "CFG provider pending boundary unexpectedly admitted",
+                (mutable, unit),
+            ));
         };
         if stopped.stage != "lower"
             || !stopped.original.contains("kind: UnsupportedNode")
-            || !stopped.original.contains("for((key,value) in produce(if(flag){1}else{2}))")
+            || !stopped
+                .original
+                .contains("for((key,value) in produce(if(flag){1}else{2}))")
         {
-            return Err(failure("CFG pending boundary must retain original For UnsupportedNode", stopped));
+            return Err(failure(
+                "CFG pending boundary must retain original For UnsupportedNode",
+                stopped,
+            ));
         }
         Ok(())
     }
@@ -72,7 +83,9 @@ fn check(control: bool) {
     for mutable in [false, true] {
         for unit in [false, true] {
             let result = observe(mutable, unit, control);
-            println!("ARGUMENT CFG CASE mutable={mutable} unit={unit} control={control} result={result:?}");
+            println!(
+                "ARGUMENT CFG CASE mutable={mutable} unit={unit} control={control} result={result:?}"
+            );
             outcomes.push(result);
         }
     }

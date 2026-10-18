@@ -66,9 +66,10 @@ impl Evidence<'_> {
             let call = definition(function, seed).ok_or_else(missing)?;
             if call.block != preheader
                 || call.origin != Origin::Source(source_origin)
-                || !matches!(&call.operation, Operation::DirectCall {
-                    receiver: None, ..
-                })
+                || !matches!(
+                    &call.operation,
+                    Operation::DirectCall { receiver: None, .. }
+                )
                 || unique(function.instructions.iter().filter(|instruction| {
                     instruction.origin == Origin::Source(source_origin)
                         && matches!(instruction.operation, Operation::DirectCall { .. })

@@ -1,4 +1,7 @@
 //! A real selected factory takes an evaluated argument through the ordinary call ABI.
+mod ast;
+mod facts;
+mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -79,11 +82,19 @@ fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
             &mut report,
             |n, t, o, r| {
                 source_forms::facts::unit(&sources, &parsed, n, t, o, r);
+                r.query(
+                    "argument original qualified overload and Borrow facts",
+                    &facts::unit(case, &sources, &parsed, n, t, o, control),
+                );
             },
         )
     } else {
         pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
             source_forms::facts::single(&sources, &parsed, n, t, o, r);
+            r.query(
+                "argument original overload and Borrow facts",
+                &facts::single(case, &sources, &parsed, n, t, o, control),
+            );
         })
     };
     println!(
@@ -92,6 +103,10 @@ fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
+    report.query(
+        "argument independent selected Call and current owner graph",
+        &graph::check(case, &sources, &parsed, &program, control),
+    );
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
     if !report.passed() {

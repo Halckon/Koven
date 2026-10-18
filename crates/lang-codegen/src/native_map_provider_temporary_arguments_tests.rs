@@ -19,7 +19,12 @@ fn run(unit: bool) {
             } else {
                 emit_link_and_run("provider.ko", source, "entry")
             };
-            assert_result(&label, if unit { "unit" } else { "single" }, &output, golden);
+            assert_result(
+                &label,
+                if unit { "unit" } else { "single" },
+                &output,
+                golden,
+            );
         }
     }
 }
