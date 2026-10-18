@@ -32,7 +32,7 @@ pub(super) fn callee(
         .iter()
         .filter(|r| r.span() == span)
         .collect::<Vec<_>>();
-    matches!(references.as_slice(), [reference] if reference.namespace() == Some(namespace) && match reference.target() {
+    matches!(references.as_slice(), [reference] if reference.namespace() == namespace && match reference.target() {
         ReferenceTarget::Symbol(id) => *id == selected,
         ReferenceTarget::OverloadSet(ids) => ids.contains(&selected),
         _ => false,
