@@ -1,6 +1,12 @@
 //! Two unchanged conditional sources × single/unit-basic. All four observations precede one assert.
 //! No native run and no expectation that UnsupportedNode is a successful outcome.
 mod ast;
+mod query_calls;
+mod query_cleanup;
+mod query_conditions;
+mod query_inputs;
+mod query_ssa;
+mod query_test;
 mod single;
 mod unit;
 
@@ -51,6 +57,7 @@ fn observe(
     source_hash: &str,
     text: &str,
     unit: bool,
+    deep_identity: bool,
 ) -> Observation {
     let mut report = Report::default();
     // Hash is the externally verified frozen-fixture identity, not a runtime hashing claim.
@@ -60,6 +67,7 @@ fn observe(
     let outcome = ast::Input::new(text, map).and_then(|input| {
         let anchors = ast::collect(&input);
         report.query("conditional actual source AST anchors", &anchors);
+        let mut identity_inputs = None;
         let (program, entry) = if unit {
             pipeline::unit_observed(
                 &input.sources,
@@ -68,6 +76,14 @@ fn observe(
                 &mut report,
                 |names, typed, owned, report| {
                     unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+                    if deep_identity {
+                        let queried = anchors
+                            .as_ref()
+                            .map_err(|e| failure("conditional identity AST prerequisite", e))
+                            .and_then(|a| query_inputs::unit(&input, a, names, typed, owned));
+                        report.query("conditional identity same-run FE bridge", &queried);
+                        identity_inputs = Some(queried);
+                    }
                 },
             )
         } else {
@@ -77,6 +93,14 @@ fn observe(
                 &mut report,
                 |names, typed, owned, report| {
                     single::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+                    if deep_identity {
+                        let queried = anchors
+                            .as_ref()
+                            .map_err(|e| failure("conditional identity AST prerequisite", e))
+                            .and_then(|a| query_inputs::single(&input, a, names, typed, owned));
+                        report.query("conditional identity same-run FE bridge", &queried);
+                        identity_inputs = Some(queried);
+                    }
                 },
             )
         }?;
@@ -95,6 +119,35 @@ fn observe(
             "conditional returned entry and reachable source functions",
             &reachable,
         );
+        if deep_identity {
+            let inputs = identity_inputs.unwrap_or_else(|| {
+                Err(failure(
+                    "conditional identity same-run bridge missing",
+                    (label, unit),
+                ))
+            });
+            let queried = anchors
+                .as_ref()
+                .map_err(|e| failure("conditional identity AST prerequisite", e))
+                .and_then(|a| {
+                    inputs
+                        .as_ref()
+                        .map_err(|e| failure("conditional identity FE prerequisite", e))
+                        .and_then(|i| query_ssa::check(&program, &input, a, i, unit))
+                });
+            report.query(
+                "conditional identity complete SSA roles and all incoming",
+                &queried,
+            );
+            let calls = anchors
+                .as_ref()
+                .map_err(|e| failure("conditional identity AST prerequisite", e))
+                .and_then(|a| query_calls::check(&program, &input, a));
+            report.query(
+                "conditional identity actual entry and consumer operands",
+                &calls,
+            );
+        }
         crate::ssa::verify::verify_program(&program)
             .map_err(|e| verify_failure(&input.sources, e))?;
         report.check("conditional SSA verifier", true, entry);
@@ -117,7 +170,7 @@ fn map_and_mutable_map_conditional_exits_reach_verified_llvm() {
     let mut observations = Vec::new();
     for (label, map, hash, source, _golden) in sources() {
         for unit in [false, true] {
-            observations.push(observe(label, map, hash, source, unit));
+            observations.push(observe(label, map, hash, source, unit, false));
         }
     }
     for observation in &observations {
