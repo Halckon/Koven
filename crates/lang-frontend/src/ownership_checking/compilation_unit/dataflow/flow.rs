@@ -56,6 +56,8 @@ pub(super) struct State {
     pub(super) this_moved: Option<Span>,
     pub(super) loans: Vec<ActiveLoan>,
     pub(super) closures: BTreeMap<UnitSymbolId, UnitExpressionId>,
+    /// Keep the old closure environment alive until the whole replacement RHS completes.
+    pub(super) replacements: Vec<UnitSymbolId>,
     pub(super) non_owning: BTreeMap<UnitSymbolId, Span>,
     pub(super) borrow_bindings: BTreeMap<UnitSymbolId, UnitOwnershipPlace>,
     pub(super) immutable_captures: BTreeMap<UnitSymbolId, Span>,

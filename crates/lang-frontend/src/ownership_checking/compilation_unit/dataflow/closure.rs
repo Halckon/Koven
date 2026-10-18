@@ -233,10 +233,21 @@ impl Checker<'_> {
         symbol: crate::name_resolution::UnitSymbolId,
         state: &mut State,
     ) {
+        if !state.replacements.contains(&symbol) {
+            self.release_closure_except(symbol, None, state);
+        }
+    }
+
+    pub(super) fn release_closure_except(
+        &self,
+        symbol: crate::name_resolution::UnitSymbolId,
+        retained: Option<UnitExpressionId>,
+        state: &mut State,
+    ) {
         let Some(closure) = state.closures.remove(&symbol) else {
             return;
         };
-        if state.closures.values().any(|&other| other == closure) {
+        if retained == Some(closure) || state.closures.values().any(|&other| other == closure) {
             return;
         }
         state

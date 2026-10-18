@@ -620,7 +620,7 @@ impl Checker<'_> {
                         },
                     );
                 }
-                self.check_assignment(target, operator, value, state)
+                self.check_assignment(id, target, operator, value, state)
             }
             Expression::Member {
                 receiver,
