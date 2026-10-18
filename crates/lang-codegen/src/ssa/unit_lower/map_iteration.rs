@@ -591,7 +591,11 @@ fn qualify_body(
             return Ok(UnitIterationExitKind::Fallthrough);
         }
     };
-    if !matches!(kind, UnitIterationExitKind::Continue(_)) && !string_components {
+    if !matches!(
+        kind,
+        UnitIterationExitKind::Continue(_) | UnitIterationExitKind::Break(_)
+    ) && !string_components
+    {
         return Err(unsupported());
     }
     for statement in prefix {

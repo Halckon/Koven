@@ -4,6 +4,7 @@ pub(super) mod continuation;
 pub(super) mod continued;
 mod identity;
 pub(super) mod nullable;
+pub(super) mod terminated;
 
 use super::{
     Report,

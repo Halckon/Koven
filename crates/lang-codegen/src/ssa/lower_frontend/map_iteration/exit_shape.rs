@@ -46,10 +46,12 @@ pub(super) fn body_exit(
         .get(*expression)
         .map_err(|_| missing())?;
     // Continue only ends component loans and transports the provider; its value type is irrelevant.
-    if !matches!(node.payload(), Expression::Continue { .. })
-        && [descriptor.key_type(), descriptor.value_type()]
-            .iter()
-            .any(|ty| builtin_type(typed, *ty) != Some(BuiltinType::String))
+    if !matches!(
+        node.payload(),
+        Expression::Continue { .. } | Expression::Break { .. }
+    ) && [descriptor.key_type(), descriptor.value_type()]
+        .iter()
+        .any(|ty| builtin_type(typed, *ty) != Some(BuiltinType::String))
     {
         return Err(unsupported());
     }

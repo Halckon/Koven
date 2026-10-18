@@ -10,7 +10,7 @@ use crate::ssa::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(super) fn transport(
+pub(in super::super) fn transport(
     g: &Graph<'_>,
     current: EntityId,
     anchor: EntityId,
@@ -451,7 +451,7 @@ pub(super) fn check(
     Ok(())
 }
 
-fn check_local_guard(
+pub(in super::super) fn check_local_guard(
     g: &Graph<'_>,
     module: &Module,
     input: &Input,

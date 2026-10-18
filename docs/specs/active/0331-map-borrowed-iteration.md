@@ -733,3 +733,28 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   inner→原Resource.deinit身份补证已闭合。三份旧boundary拒绝oracle已迁为各自硬成功，原fixture保留。
   完整CI仍须绑定新提交，Mac sanitizer合同保持partial。Resource break/return仍未接通；0331继续
   active，不归档、不合并、不启动D10。
+
+
+## 43. Resource Break 与词法 owner 合流（2026-10-18）
+
+- 十三普通源×双入口：own Map、Borrow Map/MutableMap分别核Resource、混合Some/None、全None，
+  本轮Guard及Break后size分支→readMap→多调用；另三own last-use和无Guard控制。每源entry均调用
+  非空/空Map。首红26次完整FE后原For Unsupported；最终FE/SSA查询又在精确`43c54817`六生产
+  文件旧字节上重验全部26拒绝，Rust实际0通过/1失败，finally逐字恢复，不使用合成事实损坏。
+- Break复用既有逆序body cleanup/Finish/EndSource，无Next；single公开Break incoming携Header
+  owner至Exit，unit消费自己的完整动作。single两处原terminal假设修正：按实际Drop fact要求当前
+  owner为原当前值或不存在；Break/false合流后读取真实binding、逐全部incoming回溯seed，再保留
+  原scope Drop。carrier无terminal Drop仍限已证明AfterStatement寿命的Break且body零source Drop。
+- 同次原AST/root/类型/实际caller交付、single完整phi/Choice/incoming与两入口完整cleanup已核；
+  独立SSA核Guard构造/type/deinit、read→Guard Drop→V/K End→source End、双边运输及每条正常
+  Return恰一次own Map Drop。Borrow不Drop caller owner或结束原caller loan，Mutable post-put
+  size沿MapPut交付的新owner。native只读首项但最终完整资源析构聚合数量吻合；不外推逐对象free。
+- 查询曾错把合流Branch要求为Break span、unit BorrowEnd要求为Break span，以及Borrow readMap
+  要求新loan birth。实际合同分别是For合流span、unit provider For span和原caller loan的合法转发；
+  修正为各入口精确来源与全incoming identity，未用任意span/loan放宽。原失败日志保留。
+- 最终定向19项ordinary Rust通过，0失败/忽略；68个普通native产物（新增26）严格exit0/golden/
+  空stderr。Resource全组、原String退出/history/sequential回归与fmt/check/clippy all-targets
+  (-D warnings)/build通过，输入摘要前后一致；独审提出的两处生产阻断均修复复核。四条Return
+  合法邻控仍精确原For Unsupported，下一块继续处理。Source/payload/exit/continuation横向矩阵
+  见Architecture，明确列own MutableMap参数、local/temporary payload与退出、一般return operand
+  等合同内缺口，不能把它们包装成Guide专项延期或称F全部完成。

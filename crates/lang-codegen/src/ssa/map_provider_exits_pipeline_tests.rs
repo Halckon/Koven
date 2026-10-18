@@ -33,6 +33,7 @@ pub(crate) use resource::continuation::sources as resource_continuation_sources;
 pub(crate) use resource::continued::sources as resource_continue_sources;
 pub(crate) use resource::nullable::sources as resource_nullable_sources;
 pub(crate) use resource::sources as resource_sources;
+pub(crate) use resource::terminated::sources as resource_break_sources;
 pub(crate) use sequential::sources as sequential_sources;
 pub(crate) use temporary::sources as temporary_sources;
 pub(crate) use temporary_exits::native_sources as temporary_exit_sources;

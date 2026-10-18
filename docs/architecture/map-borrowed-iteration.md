@@ -69,7 +69,10 @@ own/shared continue及后续CFG/source使用；presence只由原借用参数的 
 Resource continue七源覆盖own Map及Borrow Map/MutableMap，单轮Guard先Drop，再逆序结束V/K并Next；
 owner/source在回边保留，耗尽结束本层provider lease，own源按原词法scope唯一Drop。Shared caller的
 原loan不在callee结束，caller返回后put/size恢复权限。双入口14条pipeline及14个正常native产物通过。
-Resource break/return仍为未完成能力，八条合法邻控只证明原For的结构化Unsupported，不计native支持。
+Resource break十三源覆盖own Map、Borrow Map/MutableMap及Resource/混合nullable/全None，
+另核own最后使用与无Guard控制。Break结束本层lease后，own owner沿Break/false完整合流保留至
+原词法scope Drop；后续size/readMap在End之后、Drop之前。双入口26条pipeline/native严格通过。
+Resource return仍未接通，四条合法邻控只证明原For结构化Unsupported，不计native支持。
 普通continuation的五源双入口已核无后续语句、多调用/前缀、后续Borrow使用及CFG合流后再借用；
 single在真实清理点按当前binding逐全部incoming追溯原owner，不冻结旧block/value。十个正常native
 产物核严格输出；独立CFG查询要求每条正常Return恰一次Map Drop，并核后续Borrow的callee/参数/End。
@@ -119,3 +122,24 @@ pipeline与20个普通native产物通过，Mutable caller随后put及size检查�
 Unit用当前CFG loan建立provider，再以既有transport核所有入边到原参数root；entry
 anchor仅证明身份，不替代当前view。Borrow root不在callee结束，组件与provider按实际
 退出清理。owned参数、Field/Inout及一般CFG来源边界不由本片扩大。
+
+
+## 横向覆盖矩阵（有限实证）
+
+N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完整笛卡尔积已验。
+
+| source | payload | 已验exit | continuation与当前缺口 |
+|---|---|---|---|
+| own Map参数 | String/String | N/C/B/R、固定三段条件 | Drop限LoopExit/对应transfer；后续source使用尚缺 |
+| Borrow Map/MutableMap参数 | String/String | N/C/B/R、固定条件、同根双层 | caller恢复及有限sequential已验；更一般条件/层数未验 |
+| 零参直接factory temporary | String/String | N/C/B/R固定尾 | hidden owner已验；其他payload/条件/一般factory未接通 |
+| factory-formed owned local val/var | String/String | N | 固定立即Drop/size guard；C/B/R、资源payload、一般后用尚缺 |
+| own Map参数 | String/直接空字段Resource或Resource? | N/C/B | 普通多调用/后续Borrow/size CFG；R尚缺，Resource仍限显式deinit且无泛型/接口 |
+| Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定，R尚缺 |
+| Borrow参数等既有admission | Int/String等 | 部分N及有限sequential | 不把静态通用component cleanup接纳当全payload native实证 |
+| own MutableMap参数 | 各payload | 未接通 | 不能由owned local MutableMap或Borrow MutableMap替代 |
+| Field/Inout来源 | 现有类型 | 前端合同 | Guide37.4明确native延后；Group阶段门保持 |
+
+Return目前还限制直接双Borrow分量调用且Int结果；字面量、Unit等合法operand尚未普遍接通。
+以上非Field/Inout的具体能力缺口不能统称Guide staging；普通Resource类的字段/泛型/接口、
+其他key/value与更一般source/CFG需分别验收，不能在本轮Break通过后宣称F全矩阵闭合。

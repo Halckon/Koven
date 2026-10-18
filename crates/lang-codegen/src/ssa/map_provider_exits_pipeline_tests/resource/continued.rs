@@ -85,7 +85,7 @@ fn resource_continue_reaches_both_verified_pipelines() {
 }
 
 #[test]
-fn resource_break_return_neighbors_keep_original_for_boundary() {
+fn resource_return_neighbors_keep_original_for_boundary() {
     use super::super::{
         Report,
         fixture::{clean, failure},
@@ -99,7 +99,7 @@ fn resource_break_return_neighbors_keep_original_for_boundary() {
     let cases = sources();
     let mut observed = Vec::new();
     for index in [0, 5] {
-        for returning in [false, true] {
+        for returning in [true] {
             let original = &cases[index].source;
             let text = if returning {
                 let start = original.find("fun scan(").unwrap();
@@ -167,7 +167,7 @@ fn resource_break_return_neighbors_keep_original_for_boundary() {
             }
         }
     }
-    assert_eq!(observed.len(), 8);
+    assert_eq!(observed.len(), 4);
     assert!(
         observed.iter().all(|(_, _, _, r)| matches!(r, Ok(true))),
         "{observed:#?}"

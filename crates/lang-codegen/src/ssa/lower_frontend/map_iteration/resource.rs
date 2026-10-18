@@ -44,7 +44,9 @@ pub(super) fn qualify(
     if d.kind() != lang_frontend::type_checking::MapIterationKind::Map
         || !matches!(
             body_exit,
-            IterationExitKind::Fallthrough | IterationExitKind::Continue(_)
+            IterationExitKind::Fallthrough
+                | IterationExitKind::Continue(_)
+                | IterationExitKind::Break(_)
         )
         || typed.is_resource_type(d.source_type()) != Some(true)
         || builtin_type(typed, d.key_type()) != Some(BuiltinType::String)
@@ -102,11 +104,16 @@ pub(super) fn qualify(
     let backedge = unique(plan.exits().iter().filter(|e| e.kind() == body_exit)).ok_or_else(bad)?;
     for (phi, kind, point) in [
         (
-            h,
+            if matches!(body_exit, IterationExitKind::Break(_)) {
+                x
+            } else {
+                h
+            },
             match body_exit {
                 IterationExitKind::Continue(expression) => {
                     IterationPhiIncomingKind::Continue(expression)
                 }
+                IterationExitKind::Break(expression) => IterationPhiIncomingKind::Break(expression),
                 _ => IterationPhiIncomingKind::Fallthrough,
             },
             backedge.point(),
@@ -222,7 +229,7 @@ impl ExpressionLowerer<'_> {
         seed: EntityId,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some((proof, SourceIdentity::Parameter(root), current)) =
+        let Some((proof, SourceIdentity::Parameter(root), _)) =
             owner.filter(|(p, _, _)| matches!(p.drop.point(), DropPoint::AfterStatement(_)))
         else {
             return Ok(());
@@ -231,11 +238,14 @@ impl ExpressionLowerer<'_> {
         let EntityId::Value(anchor) = seed else {
             return Err(bad());
         };
-        if self.bindings.get(&root) != Some(&LoweredValue::Value(current))
-            || self.borrow_bindings.contains_key(&root)
-        {
+        let Some(LoweredValue::Value(current)) = self.bindings.get(&root).copied() else {
+            return Err(bad());
+        };
+        if self.borrow_bindings.contains_key(&root) {
             return Err(bad());
         }
+        // Break may merge the retained owner with the independent exhaustion edge.
+        // Prove the actual current binding through every incoming to the original seed.
         nested::transport(self.function, EntityId::Value(current), seed, span)?;
         if self
             .map_iteration_state

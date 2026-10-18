@@ -90,10 +90,9 @@ impl ExpressionLowerer<'_> {
             .any(|(_, loan)| loan.is_some())
             || (exit_shape::terminal(kind) != state.frame.finished)
             || (exit_shape::terminal(kind) != state.frame.source.is_none())
-            || (exit_shape::terminal(kind)
-                && state
-                    .owner
-                    .is_some_and(|(_, source, _)| source.current_owner(self).is_some()))
+            || state.owner.is_some_and(|(proof, source, value)| {
+                source.current_owner(self) != proof.at(exit.point()).is_none().then_some(value)
+            })
         {
             return Err(missing());
         }

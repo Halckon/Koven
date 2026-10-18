@@ -389,13 +389,19 @@ impl Evidence<'_> {
                     }
                     _ => return Err(missing()),
                 };
-                let fact = body_proof.at(point).ok_or_else(missing)?;
-                let [(position, instruction)] = body_drops.as_slice() else {
-                    return Err(missing());
-                };
-                if fact.value_origin() != source_origin
-                    || *position <= end_position(body_source)?
-                    || instruction.origin != Origin::Source(source_origin)
+                if let Some(fact) = body_proof.at(point) {
+                    let [(position, instruction)] = body_drops.as_slice() else {
+                        return Err(missing());
+                    };
+                    if fact.value_origin() != source_origin
+                        || *position <= end_position(body_source)?
+                        || instruction.origin != Origin::Source(source_origin)
+                    {
+                        return Err(missing());
+                    }
+                } else if !matches!(body_exit, IterationExitKind::Break(_))
+                    || !matches!(body_proof.drop.point(), DropPoint::AfterStatement(_))
+                    || !body_drops.is_empty()
                 {
                     return Err(missing());
                 }

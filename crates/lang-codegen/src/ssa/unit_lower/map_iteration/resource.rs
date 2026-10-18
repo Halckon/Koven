@@ -55,7 +55,9 @@ pub(super) fn qualify(
     if d.kind() != MapIterationKind::Map
         || !matches!(
             kind,
-            UnitIterationExitKind::Fallthrough | UnitIterationExitKind::Continue(_)
+            UnitIterationExitKind::Fallthrough
+                | UnitIterationExitKind::Continue(_)
+                | UnitIterationExitKind::Break(_)
         )
         || plan.source_access() != UnitIterationSourceAccess::Owned
         || typed.is_resource_type(d.source_type()) != Some(true)
@@ -97,10 +99,12 @@ pub(super) fn qualify(
         return Err(bad());
     };
     let body_point = match kind {
-        UnitIterationExitKind::Continue(expression) => UnitDropPoint::ControlTransfer(expression),
+        UnitIterationExitKind::Continue(expression) | UnitIterationExitKind::Break(expression) => {
+            UnitDropPoint::ControlTransfer(expression)
+        }
         _ => UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), *body)),
     };
-    let body_actions = [
+    let mut body_actions = vec![
         Action::EndBinding {
             statement,
             symbol: d.value_binding(),
@@ -110,6 +114,12 @@ pub(super) fn qualify(
             symbol: d.key_binding(),
         },
     ];
+    if matches!(kind, UnitIterationExitKind::Break(_)) {
+        body_actions.extend([
+            Action::FinishProvider(statement),
+            Action::EndSource(statement),
+        ]);
+    }
     let exhaustion_actions = [
         Action::FinishProvider(statement),
         Action::EndSource(statement),

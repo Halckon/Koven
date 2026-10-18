@@ -48,3 +48,18 @@ fn unit_nullable_resource_components_exit_with_exact_presence_and_drops() {
         assert_result(case.label, "unit", &run, &case.golden);
     }
 }
+
+#[test]
+fn single_resource_break_exits_with_lexical_drops() {
+    for case in crate::ssa::map_provider_exits_pipeline_tests::resource_break_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(case.label, "single", &run, &case.golden);
+    }
+}
+#[test]
+fn unit_resource_break_exits_with_lexical_drops() {
+    for case in crate::ssa::map_provider_exits_pipeline_tests::resource_break_sources() {
+        let run = run_unit(case.label, &case.source);
+        assert_result(case.label, "unit", &run, &case.golden);
+    }
+}
