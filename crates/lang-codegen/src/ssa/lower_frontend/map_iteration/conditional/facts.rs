@@ -291,12 +291,12 @@ pub(in super::super) fn qualify(
         // Inspect every fact, preserving malformed ancestor evidence as Missing
         // even if a different fact describes an unsupported future lifetime.
         let retained = retained::ancestor_fact((parsed, names, typed, owned), flow, *fact, span)?;
+        if retained {
+            validate_source_fact(parsed, names, owned, flow, *fact, span)?;
+        }
         inherited &= retained;
     }
     let late = if inherited {
-        for fact in &outside {
-            validate_source_fact(parsed, names, owned, flow, *fact, span)?;
-        }
         let nonlocal = outside
             .iter()
             .copied()

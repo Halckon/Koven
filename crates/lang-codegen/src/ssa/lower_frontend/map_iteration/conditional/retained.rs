@@ -63,12 +63,16 @@ pub(super) fn ancestor_fact(
         }
         // A terminal Drop belongs to the ancestor's actual EndSource segment,
         // even when this same point also retires the nested provider.
-        if let Some(exit) = unique(
-            ancestor
-                .exits()
-                .iter()
-                .filter(|exit| exit.point() == fact.point()),
-        ) && actions::source_drop(owned, ancestor, flow.source, exit, span)? == Some(fact)
+        let mut exits = ancestor
+            .exits()
+            .iter()
+            .filter(|exit| exit.point() == fact.point());
+        let exit = exits.next();
+        if exits.next().is_some() {
+            return Err(missing());
+        }
+        if let Some(exit) = exit
+            && actions::source_drop(owned, ancestor, flow.source, exit, span)? == Some(fact)
         {
             return Ok(true);
         }
