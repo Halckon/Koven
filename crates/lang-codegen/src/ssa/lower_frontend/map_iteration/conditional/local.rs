@@ -2,7 +2,7 @@
 use super::*;
 use lang_frontend::ownership_checking::{DropFact, DropTarget};
 
-pub(super) fn validate(
+pub(in super::super) fn validate(
     frontend: (&ParsedFile, &NameResolution, &OwnershipCheckedFile),
     function: &Function,
     fact: DropFact,
