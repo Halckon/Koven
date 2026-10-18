@@ -179,6 +179,8 @@ pub(super) struct ValueState {
     /// 已求值调用前缀的借用必须跨越后续实参中的分支与嵌套调用。
     pub(super) pending_borrows: Vec<(ExpressionId, UnitSymbolId)>,
     pub(super) closures: BTreeMap<UnitSymbolId, ExpressionId>,
+    /// Concrete current environments only; a proof never grants owner availability.
+    pub(super) closure_asap: BTreeMap<UnitSymbolId, bool>,
     pub(super) this: Option<OwnedThis>,
 }
 
@@ -191,8 +193,13 @@ impl ValueState {
         self.position(symbol).map(|index| self.values.remove(index))
     }
 
+    pub(super) fn take_closure(&mut self, symbol: UnitSymbolId) -> Option<ExpressionId> {
+        self.closure_asap.remove(&symbol);
+        self.closures.remove(&symbol)
+    }
+
     pub(super) fn take(&mut self, symbol: UnitSymbolId) -> Option<OwnedValue> {
-        self.closures.remove(&symbol);
+        self.take_closure(symbol);
         self.remove_value(symbol)
     }
 
@@ -236,6 +243,14 @@ pub(super) fn merge_value_states(mut states: Vec<ValueState>) -> ValueState {
             }
         }
     }
+    // Purity needs the same current environment and proof on every incoming path.
+    let closures = &merged.closures;
+    merged.closure_asap.retain(|symbol, pure| {
+        states.iter().all(|state| {
+            state.closures.get(symbol) == closures.get(symbol)
+                && state.closure_asap.get(symbol) == Some(pure)
+        })
+    });
     if !states.iter().all(|state| state.this.is_some()) {
         merged.this = None;
     } else if let Some(value) = merged.this.as_mut() {

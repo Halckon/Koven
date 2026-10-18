@@ -44,6 +44,7 @@ impl DropPlanner<'_, '_> {
             return Ok(true);
         }
         let closure = self.closure_origin(initializer, state)?;
+        let closure_asap = self.closure_value_asap(initializer, state)?;
         if !self.expression(initializer, DropExpressionUse::Consume, state)? {
             return Ok(false);
         }
@@ -59,6 +60,9 @@ impl DropPlanner<'_, '_> {
             });
             if let Some(closure) = closure {
                 state.closures.insert(symbol, closure);
+                state
+                    .closure_asap
+                    .insert(symbol, closure_asap == Some(true));
             }
             if !self.liveness.statement_after[id.index()].contains(&symbol) {
                 self.drop_named_asap(PlannerDropPoint::AfterStatement(id), symbol, state);

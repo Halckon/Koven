@@ -79,6 +79,7 @@ impl DropPlanner<'_, '_> {
         } else {
             None
         };
+        let closure_asap = self.closure_value_asap(value, state)?;
         if let Some(root) = root {
             state.replacements.push(root);
         }
@@ -125,7 +126,7 @@ impl DropPlanner<'_, '_> {
                 self.expression(target, DropExpressionUse::Read, state)?;
             }
             let old = state.remove_value(symbol);
-            let old_closure = state.closures.remove(&symbol);
+            let old_closure = state.take_closure(symbol);
             if self.checker.is_move_only_variable(symbol) {
                 state.insert(OwnedValue {
                     symbol,
@@ -138,6 +139,9 @@ impl DropPlanner<'_, '_> {
                 });
                 if let Some(closure) = closure {
                     state.closures.insert(symbol, closure);
+                    state
+                        .closure_asap
+                        .insert(symbol, closure_asap == Some(true));
                 }
             }
             // The replacement can borrow the same source as the old environment.

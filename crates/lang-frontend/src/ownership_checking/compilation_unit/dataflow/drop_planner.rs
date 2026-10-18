@@ -1242,7 +1242,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 return;
             }
         }
-        let closure = state.closures.remove(&symbol);
+        let closure = state.take_closure(symbol);
         if let Some(value) = state.remove_value(symbol) {
             self.drop_owned_value(point, value, closure, state);
         }
