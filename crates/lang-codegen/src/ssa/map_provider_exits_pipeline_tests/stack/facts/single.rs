@@ -222,6 +222,9 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::stack) fn collect(
                 "stack exact original exit point and real condition",
                 exit,
             )?;
+            if let E::Return(expression) | E::Break(expression) = exit.kind() {
+                conditions::transfer(parsed, owned, expression, exit.condition())?;
+            }
             let complete = owned
                 .cleanup_steps()
                 .iter()

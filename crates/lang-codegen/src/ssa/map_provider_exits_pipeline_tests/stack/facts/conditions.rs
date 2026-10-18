@@ -89,19 +89,171 @@ pub(super) fn path(
             expected.push((selector, selected));
         }
     }
+    truth(parsed, owned, edge.condition(), &expected)
+}
+
+/// Ground each Return/Break at the actual innermost provider, even when cleanup is
+/// also present in enclosing For plans. A child transfer's own If cannot vanish
+/// merely because the owner being cleaned belongs to an outer provider.
+pub(super) fn transfer(
+    parsed: &ParsedFile,
+    owned: &OwnershipCheckedFile,
+    expression: ExpressionId,
+    condition: CleanupConditionId,
+) -> Result<(), Failure> {
+    let transferred = parsed.ast().expressions().get(expression).unwrap();
+    need(
+        matches!(
+            transferred.payload(),
+            Expression::Return { .. } | Expression::Break { .. }
+        ),
+        "stack exact original finite transfer AST",
+        transferred,
+    )?;
+    let function = one(
+        parsed.roots().iter().filter_map(|id| {
+            let node = parsed.ast().items().get(*id).ok()?;
+            (matches!(node.payload(), Item::Function { .. })
+                && inside(transferred.span(), node.span()))
+            .then_some(node.span())
+        }),
+        "stack transfer actual callable scope",
+    )?;
+    let region = parsed
+        .ast()
+        .statements()
+        .iter()
+        .filter_map(|(_, node)| {
+            let Statement::For { body, .. } = node.payload() else {
+                return None;
+            };
+            let body = parsed.ast().statements().get(*body).ok()?.span();
+            inside(transferred.span(), body).then_some(body)
+        })
+        .min_by_key(|body| body.end() - body.start())
+        .unwrap_or(function);
+    let mut expected = Vec::new();
+    for (id, node) in parsed.ast().expressions().iter() {
+        let Expression::If {
+            then_branch,
+            else_branch,
+            ..
+        } = node.payload()
+        else {
+            continue;
+        };
+        if !inside(node.span(), function) {
+            continue;
+        }
+        let then = parsed.ast().statements().get(*then_branch).unwrap().span();
+        let other = else_branch.map(|s| parsed.ast().statements().get(s).unwrap().span());
+        let selected = if inside(transferred.span(), then) {
+            Some(0)
+        } else if other.is_some_and(|other| inside(transferred.span(), other)) {
+            Some(1)
+        } else if inside(node.span(), region) && node.span().end() <= transferred.span().start() {
+            let in_child = parsed.ast().statements().iter().any(|(_, child)| {
+                let Statement::For { body, .. } = child.payload() else {
+                    return false;
+                };
+                let body = parsed.ast().statements().get(*body).unwrap().span();
+                inside(child.span(), region) && inside(node.span(), body)
+            });
+            if in_child {
+                continue;
+            }
+            match (
+                transfers(parsed, *then_branch),
+                else_branch.is_some_and(|other| transfers(parsed, other)),
+            ) {
+                (true, false) => Some(1),
+                (false, true) => Some(0),
+                (false, false) => None,
+                (true, true) => {
+                    return Err(failure(
+                        "stack transfer cannot follow a direct If with two transferring arms",
+                        (node, transferred),
+                    ));
+                }
+            }
+        } else {
+            None
+        };
+        if let Some(selected) = selected {
+            expected.push((control(owned.cleanup_conditions(), id)?, selected));
+        }
+    }
+    truth(parsed, owned, condition, &expected)
+}
+
+fn transfers(parsed: &ParsedFile, statement: StatementId) -> bool {
+    match parsed.ast().statements().get(statement).unwrap().payload() {
+        Statement::Block { elements } | Statement::ControlBody { elements } => {
+            elements.last().is_some_and(|s| transfers(parsed, *s))
+        }
+        Statement::Expression { expression } => match parsed
+            .ast()
+            .expressions()
+            .get(*expression)
+            .unwrap()
+            .payload()
+        {
+            Expression::Return { .. } | Expression::Break { .. } | Expression::Continue { .. } => {
+                true
+            }
+            Expression::If {
+                then_branch,
+                else_branch: Some(other),
+                ..
+            } => transfers(parsed, *then_branch) && transfers(parsed, *other),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+fn control(
+    table: &CleanupConditions,
+    expression: ExpressionId,
+) -> Result<CleanupSelectorId, Failure> {
+    one(
+        table
+            .nodes()
+            .iter()
+            .filter_map(|node| match node {
+                C::Choice { selector, .. } => Some(*selector),
+                _ => None,
+            })
+            .filter(|id| {
+                table.selector(*id).is_some_and(|s| {
+                    s.source() == CleanupSelectorSource::Control(expression)
+                        && s.selection() == CleanupSelection::Branch
+                })
+            })
+            .collect::<BTreeSet<_>>()
+            .into_iter(),
+        "stack actual AST control selector identity",
+    )
+}
+fn truth(
+    parsed: &ParsedFile,
+    owned: &OwnershipCheckedFile,
+    condition: CleanupConditionId,
+    expected: &[(CleanupSelectorId, usize)],
+) -> Result<(), Failure> {
+    let table = owned.cleanup_conditions();
     let mut support = BTreeSet::new();
-    collect(table, edge.condition(), &mut support)?;
-    support.extend(expected.iter().map(|(s, _)| *s));
+    collect(table, condition, &mut support)?;
+    support.extend(expected.iter().map(|(selector, _)| *selector));
     registry(parsed, owned, &support)?;
     for choices in assignments(table, &support)? {
-        let actual = eval(table, edge.condition(), &choices)?;
-        let expected = expected
+        let actual = eval(table, condition, &choices)?;
+        let original = expected
             .iter()
             .all(|(selector, branch)| choices.get(selector) == Some(branch));
         need(
-            actual == expected,
-            "stack incoming condition equals actual surviving AST branch path",
-            (edge, &choices, actual, expected),
+            actual == original,
+            "stack condition equals actual original AST branch path",
+            (condition, expected, &choices, actual, original),
         )?;
     }
     Ok(())

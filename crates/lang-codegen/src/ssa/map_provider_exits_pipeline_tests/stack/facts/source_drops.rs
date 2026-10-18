@@ -290,14 +290,15 @@ fn scope_point(
         parsed.roots().iter().filter_map(|id| {
             let node = parsed.ast().items().get(*id).ok()?;
             match node.payload() {
-                Item::Function { form, .. } if node.span() == function => match form {
-                    lang_frontend::parser::FunctionForm::ImplicitUnitBlock(body)
-                    | lang_frontend::parser::FunctionForm::Explicit {
-                        body: lang_frontend::parser::FunctionBody::Block(body),
-                        ..
-                    } => Some(*body),
-                    _ => None,
-                },
+                Item::Function {
+                    form:
+                        lang_frontend::parser::FunctionForm::ImplicitUnitBlock(body)
+                        | lang_frontend::parser::FunctionForm::Explicit {
+                            body: lang_frontend::parser::FunctionBody::Block(body),
+                            ..
+                        },
+                    ..
+                } if node.span() == function => Some(*body),
                 _ => None,
             }
         }),
