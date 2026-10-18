@@ -235,20 +235,21 @@ impl UnitExpressionLowerer<'_> {
                 continue;
             }
             relevant_parameter = true;
-            if ![
+            let mut claimed = [
                 qualified.source_drop,
                 qualified.late_drop,
                 qualified.transfer_drop,
             ]
             .into_iter()
-            .chain(
-                qualified
-                    .conditional
-                    .into_iter()
-                    .flat_map(|condition| condition.drops),
-            )
-            .any(|candidate| candidate == Some(fact))
+            .any(|candidate| candidate == Some(fact));
+            if !claimed
+                && let Some(condition) = qualified.conditional
+                && plan.exits().iter().any(|exit| exit.point() == fact.point())
             {
+                claimed =
+                    condition.drop_at(self.owned, qualified.source, fact.point())? == Some(fact);
+            }
+            if !claimed {
                 continue;
             }
             let entry = self.function.entry_block().ok_or_else(|| {

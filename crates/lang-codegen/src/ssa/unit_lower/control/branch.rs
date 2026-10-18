@@ -34,7 +34,6 @@ impl UnitExpressionLowerer<'_> {
         self.pending_call_frames = pending_call_frames;
         let entry_temporaries = temporaries.keys().copied().collect::<Vec<_>>();
         self.temporaries = temporaries;
-        self.enter_map_conditional_arm(drop_point, self.statement_span(statement)?)?;
         let result_expression = result_required
             .then(|| self.control_tail_expression(statement))
             .transpose()?;

@@ -13,7 +13,7 @@ impl UnitExpressionLowerer<'_> {
             .rev()
             .filter_map(|context| context.iteration.as_ref())
             .find_map(|iteration| match &iteration.state {
-                IterationState::Map(state) if iteration.statement == statement => Some(**state),
+                IterationState::Map(state) if iteration.statement == statement => Some(state.path),
                 _ => None,
             })
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
@@ -46,7 +46,7 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         let state = self.map_state(statement, span)?;
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-        if !state.carrier.is_body_point(point) {
+        if !state.is_body_point(self.owned, point, span)? {
             return Err(bad());
         }
         let MapPhase::Body {
@@ -94,7 +94,7 @@ impl UnitExpressionLowerer<'_> {
             MapPhase::Body {
                 key_live: false,
                 value_live: false,
-            } => state.carrier.is_body_point(point),
+            } => state.is_body_point(self.owned, point, span)?,
             MapPhase::Terminal {
                 point: actual,
                 finished: false,
@@ -164,7 +164,7 @@ impl UnitExpressionLowerer<'_> {
                 IterationState::Map(state)
                     if fact.target() == state.carrier.identity.drop_target() =>
                 {
-                    Some((iteration.statement, **state))
+                    Some((iteration.statement, state.path))
                 }
                 _ => None,
             })
@@ -173,7 +173,7 @@ impl UnitExpressionLowerer<'_> {
         };
         let span = fact.value_origin();
         let point = fact.point();
-        if state.carrier.drop_at(point) != Some(fact)
+        if state.carrier.drop_at(self.owned, point)? != Some(fact)
             || !matches!(state.phase, MapPhase::Terminal {
                 point: actual, finished: true, source_ended: true, owner_dropped: false,
             } if actual == point)
@@ -230,10 +230,12 @@ impl UnitExpressionLowerer<'_> {
             let IterationState::Map(state) = &iteration.state else {
                 continue;
             };
-            if !state.carrier.is_body_point(point) && point != state.carrier.exhaustion_point {
+            let span = self.statement_span(iteration.statement.statement())?;
+            if !state.is_body_point(self.owned, point, span)?
+                && point != state.carrier.exhaustion_point
+            {
                 continue;
             }
-            let span = self.statement_span(iteration.statement.statement())?;
             let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
             if self.borrow_bindings.contains_key(&state.key_binding)
                 || self.borrow_bindings.contains_key(&state.value_binding)
@@ -244,12 +246,12 @@ impl UnitExpressionLowerer<'_> {
                 MapPhase::Body {
                     key_live: false,
                     value_live: false,
-                } if state.carrier.is_body_point(point) => {
+                } if state.is_body_point(self.owned, point, span)? => {
                     // FinishProvider/EndSource are mandatory for terminal exits.
                     if state.terminal_block(point, span).is_ok() {
                         return Err(bad());
                     }
-                    self.validate_map_state_current(**state, state.body_block(), span)?;
+                    self.validate_map_state_current(state.path, state.body_block(), span)?;
                 }
                 MapPhase::Terminal {
                     point: actual,
@@ -258,13 +260,13 @@ impl UnitExpressionLowerer<'_> {
                     owner_dropped,
                 } if actual == point => {
                     if self.block != state.terminal_block(point, span)?
-                        || owner_dropped != state.carrier.drop_at(point).is_some()
+                        || owner_dropped != state.carrier.drop_at(self.owned, point)?.is_some()
                     {
                         return Err(bad());
                     }
                     if state.carrier.owned && !owner_dropped {
                         self.validate_map_state_current(
-                            **state,
+                            state.path,
                             state.terminal_block(point, span)?,
                             span,
                         )?;

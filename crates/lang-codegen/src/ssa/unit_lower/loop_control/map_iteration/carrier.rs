@@ -95,7 +95,6 @@ impl MapCarrier {
                     || qualified.source_drop.is_some() == qualified.late_drop.is_some()
                     || (qualified.transfer_drop.is_some()
                         && !matches!(qualified.body_exit, UnitIterationExitKind::Return(_)))
-                    || qualified.conditional.is_some()
                     || qualified.nested.is_some()
                 {
                     return Err(bad());
@@ -112,6 +111,11 @@ impl MapCarrier {
             }
         }
         let source_birth = instruction(function, EntityId::Loan(source), span)?;
+        if qualified.conditional.is_some_and(|shape| {
+            shape.statement != qualified.statement || shape.source != qualified.source
+        }) {
+            return Err(bad());
+        }
         if source_birth.block != preheader
             || (matches!(qualified.source, SourceIdentity::Local { .. })
                 && source_birth.origin != Origin::Source(span))
@@ -594,38 +598,24 @@ impl MapCarrier {
     }
 
     pub(super) fn is_body_point(&self, point: UnitDropPoint) -> bool {
-        point == self.body_point
-            || self.nested_return_point() == Some(point)
-            || self.conditional.is_some_and(|shape| {
-                shape.transfers.iter().any(|kind| match kind {
-                    UnitIterationExitKind::Continue(expression)
-                    | UnitIterationExitKind::Break(expression)
-                    | UnitIterationExitKind::Return(expression) => {
-                        point == UnitDropPoint::ControlTransfer(*expression)
-                    }
-                    _ => false,
-                })
-            })
+        point == self.body_point || self.nested_return_point() == Some(point)
     }
 
-    pub(super) fn drop_at(&self, point: UnitDropPoint) -> Option<UnitDropFact> {
+    pub(super) fn drop_at(
+        &self,
+        owned: &lang_frontend::ownership_checking::CompilationUnitOwnership,
+        point: UnitDropPoint,
+    ) -> Result<Option<UnitDropFact>, LoweringError> {
         if let Some(shape) = self.conditional {
-            for (kind, drop) in shape.transfers.into_iter().zip(shape.drops) {
-                if let UnitIterationExitKind::Break(expression)
-                | UnitIterationExitKind::Return(expression) = kind
-                    && point == UnitDropPoint::ControlTransfer(expression)
-                {
-                    return drop;
-                }
-            }
+            return shape.drop_at(owned, self.identity, point);
         }
-        if point == self.exhaustion_point {
+        Ok(if point == self.exhaustion_point {
             self.drop
         } else if point == self.body_point {
             self.transfer_drop
         } else {
             None
-        }
+        })
     }
 
     pub(super) fn terminal_owner(

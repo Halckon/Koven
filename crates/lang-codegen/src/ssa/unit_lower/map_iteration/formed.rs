@@ -209,6 +209,17 @@ pub(super) fn qualify(
             return Err(unsupported());
         }
     }
+    if let Some(qualified) = conditional::qualify(
+        parsed,
+        names,
+        typed,
+        owned,
+        plan,
+        (body, SourceIdentity::Formed { root, producer }),
+        span,
+    )? {
+        return Ok(qualified);
+    }
     let body_exit = qualify_body(parsed, names, typed, descriptor, body, span)?;
     let (source_drop, transfer_drop, late_drop) = if resource {
         let proof = resource::qualify(

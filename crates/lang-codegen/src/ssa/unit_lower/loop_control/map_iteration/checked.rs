@@ -16,10 +16,15 @@ impl UnitExpressionLowerer<'_> {
         let IterationState::Map(state) = &iteration.state else {
             return Ok(());
         };
-        let state = **state;
+        let state = state.path;
+        if state.conditional.is_some() {
+            if state.carrier.nested.is_some() {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            return self.resume_conditional_map_checked(state, from, before_borrows, span);
+        }
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         if state.carrier.active_body() != from
-            || state.conditional.is_some()
             || state.carrier.nested.is_some()
             || !matches!(
                 state.phase,

@@ -6,6 +6,7 @@ mod conditional;
 mod local;
 mod nested;
 mod source;
+mod state;
 mod transport;
 use super::super::map_iteration;
 use super::{
@@ -23,6 +24,7 @@ use lang_frontend::{
     type_checking::{BuiltinType, MapIterationKind},
 };
 use map_iteration::SourceIdentity;
+pub(super) use state::MapRuntime;
 
 #[derive(Clone, Copy)]
 pub(super) enum MapPhase {
@@ -256,7 +258,6 @@ impl UnitExpressionLowerer<'_> {
                 ConditionalState::new(
                     self,
                     shape,
-                    qualified.source.parameter_root(span)?,
                     source_slot,
                     cursor_slot,
                     cursor_type,
@@ -270,21 +271,24 @@ impl UnitExpressionLowerer<'_> {
             statement: statement_id,
             retained_start,
             outer_temporaries,
-            state: IterationState::Map(Box::new(MapState {
-                source_slot,
-                cursor_slot,
-                key_slot,
-                value_slot,
-                key_binding: descriptor.key_binding(),
-                value_binding: descriptor.value_binding(),
-                cursor_type,
-                carrier,
-                conditional,
-                nested: nested::NestedState::default(),
-                phase: MapPhase::Body {
-                    key_live: true,
-                    value_live: true,
+            state: IterationState::Map(Box::new(MapRuntime {
+                path: MapState {
+                    source_slot,
+                    cursor_slot,
+                    key_slot,
+                    value_slot,
+                    key_binding: descriptor.key_binding(),
+                    value_binding: descriptor.value_binding(),
+                    cursor_type,
+                    carrier,
+                    conditional,
+                    nested: nested::NestedState::default(),
+                    phase: MapPhase::Body {
+                        key_live: true,
+                        value_live: true,
+                    },
                 },
+                evidence: conditional::Evidence::default(),
             })),
             inherited_borrowed: None,
         });
@@ -297,7 +301,9 @@ impl UnitExpressionLowerer<'_> {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             self.record_natural_continue(span)?;
-        } else if qualified.body_exit == UnitIterationExitKind::Fallthrough {
+        } else if qualified.conditional.is_none()
+            && qualified.body_exit == UnitIterationExitKind::Fallthrough
+        {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         let mut context = self
@@ -305,7 +311,7 @@ impl UnitExpressionLowerer<'_> {
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let (breaks, continues) = if qualified.conditional.is_some() {
-            (1, 2)
+            (context.breaks.len(), context.continues.len())
         } else {
             match qualified.body_exit {
                 UnitIterationExitKind::Fallthrough | UnitIterationExitKind::Continue(_) => (0, 1),
@@ -492,6 +498,7 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
             .instructions
             .len();
+        self.record_conditional_return_delivery(expression, result, boundary, span)?;
         for context in &mut self.loops {
             let Some(iteration) = &mut context.iteration else {
                 continue;

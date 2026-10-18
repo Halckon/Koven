@@ -57,12 +57,11 @@ pub(super) struct QualifiedGuard {
     pub(super) origin: Span,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct QualifiedConditional {
-    pub(super) controls: [UnitExpressionId; 3],
-    pub(super) transfers: [UnitIterationExitKind; 3],
-    pub(super) drops: [Option<UnitDropFact>; 3],
-    pub(super) local: Option<(UnitSymbolId, UnitExpressionId)>,
+    pub(super) statement: UnitStatementId,
+    pub(super) body: UnitStatementId,
+    pub(super) source: SourceIdentity,
 }
 
 pub(super) fn validate(
@@ -315,26 +314,33 @@ fn qualify_one(
     if nested.is_none() {
         reject_nested(parsed, statement.statement(), span)?;
     }
-    let mut conditional = if nested.is_some() {
-        None
-    } else {
-        conditional::qualify_body(parsed, names, typed, descriptor, *body, span)?
+    let source_identity = SourceIdentity::Parameter {
+        root,
+        slot: *parameter_slot,
     };
+    if nested.is_none()
+        && let Some(qualified) = conditional::qualify(
+            parsed,
+            names,
+            typed,
+            owned,
+            plan,
+            (*body, source_identity),
+            span,
+        )?
+    {
+        return Ok(qualified);
+    }
     let body_exit = if let Some(pair) = nested {
         pair.tail
             .filter(|_| pair.inner == statement)
             .map_or(UnitIterationExitKind::Fallthrough, |tail| tail.kind)
-    } else if conditional.is_some() {
-        UnitIterationExitKind::Fallthrough
     } else {
         qualify_body(parsed, names, typed, descriptor, *body, span)?
     };
-    if (conditional.is_some()
-        || (matches!(body_exit, UnitIterationExitKind::Return(_))
-            && typed.is_resource_type(descriptor.value_type()) != Some(true))
-        || nested
-            .and_then(|pair| pair.tail)
-            .is_some_and(|tail| matches!(tail.kind, UnitIterationExitKind::Return(_))))
+    if nested
+        .and_then(|pair| pair.tail)
+        .is_some_and(|tail| matches!(tail.kind, UnitIterationExitKind::Return(_)))
         && builtin_type(typed, *return_type) != Some(BuiltinType::Int)
     {
         return Err(unsupported());
@@ -376,7 +382,7 @@ fn qualify_one(
     } else {
         None
     };
-    let pure_late = if conditional.is_none() && nested.is_none() {
+    let pure_late = if nested.is_none() {
         future_use::qualify(parsed, names, typed, owned, plan, (body_exit, None), span)?
     } else {
         None
@@ -387,22 +393,6 @@ fn qualify_one(
     } else if let Some(pair) = nested.filter(|pair| pair.tail.is_some()) {
         nested::validate_tail_cleanup(parsed, typed, owned, plan, pair, root, span)?;
         (None, None)
-    } else if let Some(shape) = conditional.as_mut() {
-        (
-            conditional::validate_cleanup(
-                parsed,
-                names,
-                typed,
-                plan,
-                owned,
-                *body,
-                root,
-                symbol.span(),
-                shape,
-                span,
-            )?,
-            None,
-        )
     } else {
         validate_cleanup(
             plan,
@@ -426,7 +416,7 @@ fn qualify_one(
         transfer_drop,
         body_exit,
         body_point,
-        conditional,
+        conditional: None,
         nested,
     })
 }
@@ -568,14 +558,13 @@ fn validate_cleanup(
 
 fn qualify_body(
     parsed: &ParsedFile,
-    names: &ValidatedCompilationUnitNames,
-    typed: &CompilationUnitTypes,
+    _names: &ValidatedCompilationUnitNames,
+    _typed: &CompilationUnitTypes,
     descriptor: &UnitMapIterationDescriptor,
     body: StatementId,
     span: Span,
 ) -> Result<UnitIterationExitKind, LoweringError> {
     let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
-    let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
     let node = parsed.ast().statements().get(body).map_err(|_| missing())?;
     let Statement::Block { elements } = node.payload() else {
         straight_statement(parsed, body, span)?;
@@ -595,154 +584,20 @@ fn qualify_body(
         .get(*expression)
         .map_err(|_| missing())?;
     let expression_id = UnitExpressionId::new(descriptor.statement().source_unit(), *expression);
-    let string_components = builtin_type(typed, descriptor.key_type()) == Some(BuiltinType::String)
-        && builtin_type(typed, descriptor.value_type()) == Some(BuiltinType::String);
     let kind = match node.payload() {
         Expression::Continue { .. } => UnitIterationExitKind::Continue(expression_id),
         Expression::Break { .. } => UnitIterationExitKind::Break(expression_id),
-        Expression::Return { value, .. } => {
-            if typed.is_resource_type(descriptor.value_type()) != Some(true) {
-                let Some(value) = value else {
-                    return Err(unsupported());
-                };
-                if !string_components {
-                    return Err(unsupported());
-                }
-                qualify_return_operand(parsed, names, typed, descriptor, *value, span)?;
-            }
-            UnitIterationExitKind::Return(expression_id)
-        }
+        // Ordinary return lowering owns operand evaluation and the selected ABI.
+        Expression::Return { .. } => UnitIterationExitKind::Return(expression_id),
         _ => {
             straight_statement(parsed, body, span)?;
             return Ok(UnitIterationExitKind::Fallthrough);
         }
     };
-    if !matches!(
-        kind,
-        UnitIterationExitKind::Continue(_) | UnitIterationExitKind::Break(_)
-    ) && !string_components
-        && typed.is_resource_type(descriptor.value_type()) != Some(true)
-    {
-        return Err(unsupported());
-    }
     for statement in prefix {
         straight_statement(parsed, *statement, span)?;
     }
     Ok(kind)
-}
-
-fn qualify_return_operand(
-    parsed: &ParsedFile,
-    names: &ValidatedCompilationUnitNames,
-    typed: &CompilationUnitTypes,
-    descriptor: &UnitMapIterationDescriptor,
-    operand: ExpressionId,
-    span: Span,
-) -> Result<(), LoweringError> {
-    let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
-    let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
-    let node = parsed
-        .ast()
-        .expressions()
-        .get(operand)
-        .map_err(|_| missing())?;
-    let Expression::Call {
-        callee, arguments, ..
-    } = node.payload()
-    else {
-        return Err(unsupported());
-    };
-    if !matches!(
-        parsed
-            .ast()
-            .expressions()
-            .get(*callee)
-            .map_err(|_| missing())?
-            .payload(),
-        Expression::Name
-    ) || arguments.len() != 2
-    {
-        return Err(unsupported());
-    }
-    let call = typed
-        .call(UnitExpressionId::new(
-            descriptor.statement().source_unit(),
-            operand,
-        ))
-        .ok_or_else(missing)?;
-    let UnitCallTarget::Declaration(declaration) = call.target() else {
-        return Err(unsupported());
-    };
-    let signature = typed
-        .signatures()
-        .declaration(declaration)
-        .and_then(|item| item.callable())
-        .ok_or_else(missing)?;
-    if call.receiver().is_some()
-        || call.aborts()
-        || call.prints_line()
-        || call.result_source() != CallableResultSource::Owned
-        || builtin_type(typed, call.return_type()) != Some(BuiltinType::Int)
-        || signature.receiver().is_some()
-        || !signature.has_body()
-        || !signature.type_parameters().is_empty()
-        || !call.instance().type_arguments().is_empty()
-    {
-        return Err(unsupported());
-    }
-    if signature.target() != UnitCallableTarget::Declaration(declaration)
-        || signature.return_type() != call.return_type()
-        || signature.parameters().len() != 2
-        || call.arguments().len() != 2
-    {
-        return Err(missing());
-    }
-    for (index, (argument, symbol)) in arguments.iter().zip(descriptor.bindings()).enumerate() {
-        let argument_node = parsed
-            .ast()
-            .expressions()
-            .get(argument.value)
-            .map_err(|_| missing())?;
-        if !matches!(argument_node.payload(), Expression::Name) {
-            return Err(unsupported());
-        }
-        let references = names
-            .names()
-            .references()
-            .iter()
-            .filter(|reference| {
-                reference.source_unit() == descriptor.statement().source_unit()
-                    && reference.namespace() == Some(Namespace::Value)
-                    && reference.span() == argument_node.span()
-            })
-            .collect::<Vec<_>>();
-        let [reference] = references.as_slice() else {
-            return Err(missing());
-        };
-        if reference.target() != &UnitReferenceTarget::Symbol(symbol) {
-            return Err(unsupported());
-        }
-        let parameter = &signature.parameters()[index];
-        let mapping = call.arguments()[index];
-        if parameter.mode() != ParameterMode::Borrow
-            || mapping.mode() != ParameterMode::Borrow
-            || mapping.argument_index() != index
-            || mapping.parameter_index() != index
-            || mapping.crosses_thread()
-        {
-            return Err(unsupported());
-        }
-        if builtin_type(typed, parameter.ty()) != Some(BuiltinType::String)
-            || mapping.parameter_type() != parameter.ty()
-            || typed.expression_type(UnitExpressionId::new(
-                descriptor.statement().source_unit(),
-                argument.value,
-            )) != Some(parameter.ty())
-        {
-            return Err(missing());
-        }
-    }
-    Ok(())
 }
 
 fn contains(outer: Span, inner: Span) -> bool {

@@ -96,7 +96,7 @@ impl UnitExpressionLowerer<'_> {
                 let guard = tail.guards[index];
                 (fact.target()
                     == lang_frontend::ownership_checking::UnitDropTarget::Named(guard.symbol))
-                .then_some((**state, guard))
+                .then_some((state.path, guard))
             });
         let Some((state, guard)) = found else {
             return Ok(false);

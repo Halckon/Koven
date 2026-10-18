@@ -1,6 +1,5 @@
-//! Validate the actual conditional edges and independent cleanup/Next/Return witnesses.
+//! Dynamic exact-point cleanup, backedge and Return evidence from the ordinary CFG.
 use super::*;
-
 impl UnitExpressionLowerer<'_> {
     pub(in super::super) fn validate_conditional_map_cleanup(
         &mut self,
@@ -9,428 +8,375 @@ impl UnitExpressionLowerer<'_> {
         let Some((statement, state)) = self.conditional_map() else {
             return Ok(());
         };
-        let branch = state.conditional.ok_or(LoweringError {
-            kind: LoweringErrorKind::MissingFact,
-            span: None,
-        })?;
-        let Some(index) = branch.point_index(state.carrier, point) else {
-            return Ok(());
-        };
         let span = self.statement_span(statement.statement())?;
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-        let witness = branch.exits[index].ok_or_else(bad)?;
-        let block = self.function.block(witness.roles.block).ok_or_else(bad)?;
-        if self.block != witness.roles.block || witness.cleanup_end.is_some() {
+        let Some(index) = state.conditional.ok_or_else(bad)?.cleanup else {
+            return Ok(());
+        };
+        let runtime = self
+            .loops
+            .iter()
+            .rev()
+            .filter_map(|c| c.iteration.as_ref())
+            .find_map(|i| match &i.state {
+                IterationState::Map(s) if i.statement == statement => Some(s.as_ref()),
+                _ => None,
+            })
+            .ok_or_else(bad)?;
+        let witness = runtime.evidence.starts.get(index).ok_or_else(bad)?;
+        if witness.point != point {
+            return Ok(());
+        }
+        if self.block != witness.roles.block
+            || runtime.evidence.cleanups.iter().any(|(i, _)| *i == index)
+        {
             return Err(bad());
         }
-        let actions = self.owned.iteration_cleanup_at(point).ok_or_else(bad)?;
-        let mut operations = Vec::new();
-        for action in actions {
-            let expected = match action {
-                Action::Drop(fact) => {
-                    let actual = block
-                        .instructions
-                        .get(witness.cleanup_start + operations.len())
-                        .and_then(|id| self.function.instruction(*id))
-                        .ok_or_else(bad)?;
-                    let Operation::Drop { owner } = actual.operation else {
-                        return Err(bad());
-                    };
-                    if actual.origin != Origin::Source(fact.value_origin()) {
-                        return Err(bad());
-                    }
-                    let (local, _) = branch.shape.local.ok_or_else(bad)?;
-                    match fact.target() {
-                        lang_frontend::ownership_checking::UnitDropTarget::Named(symbol)
-                            if symbol == state.carrier.identity.parameter_root(span)?
-                                && EntityId::Value(owner) == witness.roles.seed => {}
-                        lang_frontend::ownership_checking::UnitDropTarget::Named(symbol)
-                            if symbol == local && witness.roles.local == Some(owner) => {}
-                        _ => return Err(bad()),
-                    }
-                    Operation::Drop { owner }
-                }
-                Action::EndBinding {
-                    statement: actual,
-                    symbol,
-                } if *actual == statement => {
-                    let loan = if *symbol == state.value_binding {
-                        witness.roles.value
-                    } else if *symbol == state.key_binding {
-                        witness.roles.key
-                    } else {
-                        None
-                    };
-                    Operation::BorrowEnd {
-                        loan: loan.ok_or_else(bad)?,
-                    }
-                }
-                Action::FinishProvider(actual) if *actual == statement => continue,
-                Action::EndSource(actual) if *actual == statement => Operation::BorrowEnd {
-                    loan: witness.roles.source,
-                },
-                _ => return Err(bad()),
-            };
-            operations.push(expected);
-        }
+        let block = self.function.block(self.block).ok_or_else(bad)?;
         let actual = block
             .instructions
-            .get(witness.cleanup_start..)
-            .ok_or_else(bad)?;
-        if actual.len() != operations.len()
-            || actual.iter().zip(&operations).any(|(id, expected)| {
-                self.function
-                    .instruction(*id)
-                    .is_none_or(|instruction| instruction.operation != *expected)
-            })
-        {
+            .get(witness.position..)
+            .ok_or_else(bad)?
+            .iter()
+            .map(|id| self.function.instruction(*id).ok_or_else(bad))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut previous = None;
+        for (operation, origin) in &witness.operations {
+            let positions = actual
+                .iter()
+                .enumerate()
+                .filter_map(|(p, i)| {
+                    (i.operation == *operation && origin.as_ref().is_none_or(|o| &i.origin == o))
+                        .then_some(p)
+                })
+                .collect::<Vec<_>>();
+            let [position] = positions.as_slice() else {
+                return Err(bad());
+            };
+            if previous.is_some_and(|p| p >= *position) {
+                return Err(bad());
+            }
+            previous = Some(*position);
+        }
+        // Other public actions are emitted by the same general action dispatcher;
+        // their call/receiver/capture protocol is not duplicated in this provider.
+        if !witness.delegated && actual.len() != witness.operations.len() {
             return Err(bad());
         }
         let end = block.instructions.len();
-        self.conditional_map_mut(statement, span)?.exits[index]
-            .as_mut()
-            .ok_or_else(bad)?
-            .cleanup_end = Some(end);
+        self.conditional_runtime_mut(statement, span)?
+            .evidence
+            .cleanups
+            .push((index, end));
         Ok(())
     }
-
-    pub(super) fn conditional_map_local_birth(
-        &self,
-        branch: ConditionalState,
+    pub(in super::super) fn record_conditional_return_delivery(
+        &mut self,
+        expression: UnitExpressionId,
+        result: LoweredValue,
+        position: usize,
         span: Span,
-    ) -> Result<ValueId, LoweringError> {
-        use lang_frontend::ownership_checking::ConstructionRootKind;
-        let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-        let (symbol, expression) = branch.shape.local.ok_or_else(bad)?;
-        let Some(LoweredValue::Value(owner)) = self.bindings.get(&symbol).copied() else {
-            return Err(bad());
-        };
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression.expression())
-            .map_err(|_| bad())?;
-        let descriptor = self.typed.construction(expression).ok_or_else(bad)?;
-        let plans = self
-            .owned
-            .construction_plans()
+    ) -> Result<(), LoweringError> {
+        let point = UnitDropPoint::ControlTransfer(expression);
+        let targets = self
+            .loops
             .iter()
-            .filter(|plan| plan.construction() == expression)
-            .collect::<Vec<_>>();
-        let [plan] = plans.as_slice() else {
-            return Err(bad());
-        };
-        let obligation = plan.root_obligation().ok_or_else(bad)?;
-        let ty = self.expression_ssa_type(expression.expression(), span)?;
-        let instruction = carrier::instruction(self.function, EntityId::Value(owner), span)?;
-        let actual_type = match (obligation.kind(), &instruction.operation) {
-            (ConstructionRootKind::HeapOwner, Operation::HeapAllocate { owner, .. }) => *owner,
-            (ConstructionRootKind::SharedOwner, Operation::SharedAllocate { owner, .. }) => *owner,
-            (ConstructionRootKind::Inline, Operation::AggregateConstruct { aggregate, .. }) => {
-                *aggregate
-            }
-            (ConstructionRootKind::Inline, Operation::TaggedConstruct { tagged, .. }) => *tagged,
-            _ => return Err(bad()),
-        };
-        if expression.source_unit() != self.source_unit
-            || symbol.source_unit() != self.source_unit
-            || instruction.block != branch.birth.block
-            || instruction.block != self.block
-            || instruction.origin != Origin::Source(node.span())
-            || actual_type != ty
-            || self
-                .function
-                .entity(EntityId::Value(owner))
-                .map(|data| data.ty)
-                != Some(EntityType::Value(ty))
-            || descriptor.result_type() != obligation.result_type()
-            || plan.target() != descriptor.target()
-        {
-            return Err(bad());
-        }
-        Ok(owner)
-    }
-
-    pub(super) fn validate_conditional_map_return(
-        &self,
-        state: MapState,
-        witness: ExitWitness,
-        span: Span,
-    ) -> Result<ValueId, LoweringError> {
-        let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-        let branch = state.conditional.ok_or_else(bad)?;
-        let UnitIterationExitKind::Return(expression) = branch.shape.transfers[2] else {
-            return Err(bad());
-        };
-        if witness.point != UnitDropPoint::ControlTransfer(expression) || witness.next.is_some() {
-            return Err(bad());
-        }
-        let node = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(expression.expression())
-            .map_err(|_| bad())?;
-        let lang_frontend::parser::Expression::Return {
-            value: Some(operand),
-            ..
-        } = node.payload()
-        else {
-            return Err(bad());
-        };
-        let operand_span = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(*operand)
-            .map_err(|_| bad())?
-            .span();
-        let block = self.function.block(witness.roles.block).ok_or_else(bad)?;
-        let Some(TerminatorKind::Return { values }) =
-            block.terminator.as_ref().map(|term| &term.kind)
-        else {
-            return Err(bad());
-        };
-        let [result] = values.as_slice() else {
-            return Err(bad());
-        };
-        let call = carrier::instruction(self.function, EntityId::Value(*result), span)?;
-        let position = block
-            .instructions
-            .iter()
-            .position(|id| *id == call.id)
-            .ok_or_else(bad)?;
-        let (Some(key), Some(value)) = (witness.roles.key, witness.roles.value) else {
-            return Err(bad());
-        };
-        if call.block != witness.roles.block
-            || call.origin != Origin::Source(operand_span)
-            || position >= witness.cleanup_start
-            || !matches!(&call.operation, Operation::DirectCall { receiver: None, arguments, .. }
-                if arguments.as_slice() == [EntityId::Loan(key), EntityId::Loan(value)])
-            || call.results.as_slice() != [EntityId::Value(*result)]
-            || block.instructions.iter().any(|id| {
-                self.function.instruction(*id).is_some_and(|instruction| {
-                    matches!(instruction.operation, Operation::MapIterationNext { .. })
-                })
+            .filter_map(|c| c.iteration.as_ref())
+            .filter_map(|i| match &i.state {
+                IterationState::Map(s) if s.conditional.is_some() => Some(i.statement),
+                _ => None,
             })
-        {
-            return Err(bad());
+            .collect::<Vec<_>>();
+        for statement in targets {
+            let plan = self
+                .owned
+                .map_iteration(statement)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let exits = plan
+                .exits()
+                .iter()
+                .filter(|e| e.point() == point)
+                .collect::<Vec<_>>();
+            let exit = match exits.as_slice() {
+                [] => continue,
+                [e] => *e,
+                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            };
+            if exit.kind() != UnitIterationExitKind::Return(expression) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            let block = self.block;
+            let runtime = self.conditional_runtime_mut(statement, span)?;
+            if runtime.evidence.returns.iter().any(|r| r.point == point) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            runtime.evidence.returns.push(ReturnDelivery {
+                point,
+                result,
+                block,
+                position,
+            });
         }
-        Ok(*result)
+        Ok(())
     }
-
-    pub(in super::super) fn validate_conditional_map_body(
+    fn conditional_return(
         &self,
-        context: &LoopContext,
+        witness: &CleanupStart,
+        evidence: &Evidence,
         span: Span,
     ) -> Result<(), LoweringError> {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-        let Some(iteration) = &context.iteration else {
+        let returned = evidence
+            .returns
+            .iter()
+            .filter(|r| r.point == witness.point)
+            .collect::<Vec<_>>();
+        let [returned] = returned.as_slice() else {
             return Err(bad());
         };
-        let IterationState::Map(state) = &iteration.state else {
+        let block = self.function.block(witness.roles.block).ok_or_else(bad)?;
+        let Some(TerminatorKind::Return { values }) = block.terminator.as_ref().map(|t| &t.kind)
+        else {
             return Err(bad());
         };
-        let Some(branch) = state.conditional else {
-            return Ok(());
-        };
-        if branch.completed != 3
-            || branch.checkpoint.is_some()
-            || context.continues.len() != 2
-            || context.breaks.len() != 1
-            || branch.exits[4].is_some()
+        if returned.block != block.id
+            || returned.position > witness.position
+            || *values != self.return_values(returned.result, span)?
         {
             return Err(bad());
         }
-        let mut previous = branch.birth;
-        for index in 0..3 {
-            let [Some(when_true), Some(when_false)] = branch.transports[index] else {
-                return Err(bad());
-            };
-            if when_true.from != previous
-                || when_false.from != previous
-                || when_true.to.block == when_false.to.block
+        for value in values {
+            let entity = EntityId::Value(*value);
+            let data = self.function.entity(entity).ok_or_else(bad)?;
+            if let crate::ssa::model::Definition::InstructionResult { instruction, index } =
+                data.definition
             {
-                return Err(bad());
+                let producer = self.function.instruction(instruction).ok_or_else(bad)?;
+                if producer.results.get(index) != Some(&entity) {
+                    return Err(bad());
+                }
+                if producer.block == block.id
+                    && block
+                        .instructions
+                        .iter()
+                        .position(|id| *id == instruction)
+                        .is_none_or(|p| p >= returned.position)
+                {
+                    return Err(bad());
+                }
             }
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(branch.shape.controls[index].expression())
-                .map_err(|_| bad())?;
-            let header = self.function.block(previous.block).ok_or_else(bad)?;
-            let terminator = header.terminator.as_ref().ok_or_else(bad)?;
-            let TerminatorKind::Conditional {
-                condition,
-                when_true: true_edge,
-                when_false: false_edge,
-            } = &terminator.kind
-            else {
-                return Err(bad());
-            };
-            if terminator.origin != Origin::Source(node.span())
-                || previous.transported(self.function, true_edge, span)? != when_true.to
-                || previous.transported(self.function, false_edge, span)? != when_false.to
-            {
-                return Err(bad());
-            }
-            let condition = carrier::instruction(self.function, EntityId::Value(*condition), span)?;
-            if condition.block != previous.block
-                || !matches!(condition.operation,
-                Operation::StringEqual { left: EntityId::Loan(loan), .. } if Some(loan) == previous.key)
-            {
-                return Err(bad());
-            }
-            let witness = branch.exits[index].ok_or_else(bad)?;
-            if witness.roles != when_true.to || witness.cleanup_end.is_none() {
-                return Err(bad());
-            }
-            previous = when_false.to;
         }
-        let tail = branch.exits[3].ok_or_else(bad)?;
-        if tail.roles != previous
-            || tail.roles != branch.roles
-            || tail.cleanup_end.is_none()
-            || tail.point != state.carrier.body_point
-        {
-            return Err(bad());
-        }
-        for (jump, index) in context.continues.iter().zip([0, 3]) {
-            let witness = branch.exits[index].ok_or_else(bad)?;
-            if jump.state.block != witness.roles.block {
-                return Err(bad());
-            }
-            self.validate_conditional_map_backedge(**state, witness, &jump.state, span)?;
-        }
-        let breaking = branch.exits[1].ok_or_else(bad)?;
-        let returned = branch.exits[2].ok_or_else(bad)?;
-        if context.breaks[0].state.block != breaking.roles.block
-            || breaking.next.is_some()
-            || breaking.returned.is_some()
-            || returned.next.is_some()
-            || returned.returned
-                != Some(self.validate_conditional_map_return(**state, returned, span)?)
-            || context
-                .breaks
-                .iter()
-                .chain(&context.continues)
-                .any(|jump| jump.state.block == returned.roles.block)
-        {
+        if block.instructions.iter().any(|id| {
+            self.function
+                .instruction(*id)
+                .is_some_and(|i| matches!(i.operation, Operation::MapIterationNext { .. }))
+        }) {
             return Err(bad());
         }
         Ok(())
     }
-
-    fn validate_conditional_map_backedge(
+    fn conditional_backedge(
         &self,
         state: MapState,
-        witness: ExitWitness,
+        index: usize,
+        evidence: &Evidence,
         jump: &BranchExit,
         span: Span,
     ) -> Result<(), LoweringError> {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-        let next = witness.next.ok_or_else(bad)?;
+        let witness = evidence.starts.get(index).ok_or_else(bad)?;
+        let nexts = evidence
+            .nexts
+            .iter()
+            .filter(|(i, _)| *i == index)
+            .collect::<Vec<_>>();
+        let [(_, next)] = nexts.as_slice() else {
+            return Err(bad());
+        };
+        let ends = evidence
+            .cleanups
+            .iter()
+            .filter(|(i, _)| *i == index)
+            .collect::<Vec<_>>();
+        let [(_, end)] = ends.as_slice() else {
+            return Err(bad());
+        };
         let block = self.function.block(witness.roles.block).ok_or_else(bad)?;
-        let Some(TerminatorKind::Branch(edge)) = block.terminator.as_ref().map(|term| &term.kind)
-        else {
+        let Some(TerminatorKind::Branch(edge)) = block.terminator.as_ref().map(|t| &t.kind) else {
             return Err(bad());
         };
         let [seed, source, cursor] = state.carrier.header_entities(self.function, span)?;
         if edge.target != state.carrier.header
-            || transport_entity(self.function, edge, witness.roles.seed, span)? != seed
-            || transport_entity(
+            || jump.block != block.id
+            || transport::along(self.function, edge, witness.roles.seed, span)? != seed
+            || transport::along(
                 self.function,
                 edge,
                 EntityId::Loan(witness.roles.source),
                 span,
             )? != source
-            || transport_entity(self.function, edge, EntityId::Value(next), span)? != cursor
+            || transport::along(self.function, edge, EntityId::Value(*next), span)? != cursor
             || jump.pending_operands.get(state.source_slot)
                 != Some(&EntityId::Loan(witness.roles.source))
-            || jump.pending_operands.get(state.cursor_slot) != Some(&EntityId::Value(next))
-            || witness
-                .roles
-                .key
-                .is_some_and(|loan| edge.arguments.contains(&EntityId::Loan(loan)))
-            || witness
-                .roles
-                .value
-                .is_some_and(|loan| edge.arguments.contains(&EntityId::Loan(loan)))
+            || jump.pending_operands.get(state.cursor_slot) != Some(&EntityId::Value(*next))
+            || [witness.roles.key, witness.roles.value]
+                .into_iter()
+                .flatten()
+                .any(|l| edge.arguments.contains(&EntityId::Loan(l)))
         {
             return Err(bad());
         }
-        let advance = carrier::instruction(self.function, EntityId::Value(next), span)?;
-        let position = block
-            .instructions
-            .iter()
-            .position(|id| *id == advance.id)
-            .ok_or_else(bad)?;
-        if advance.block != witness.roles.block
-            || Some(position) != witness.cleanup_end
+        let advance = carrier::instruction(self.function, EntityId::Value(*next), span)?;
+        if advance.block != block.id
+            || block.instructions.get(*end) != Some(&advance.id)
+            || *end + 1 != block.instructions.len()
             || advance.operation
                 != (Operation::MapIterationNext {
                     source: witness.roles.source,
                     cursor: witness.roles.cursor,
                 })
-            || position + 1 != block.instructions.len()
         {
             return Err(bad());
         }
         Ok(())
     }
-
+    pub(in super::super) fn validate_conditional_map_body(
+        &self,
+        context: &LoopContext,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.validate_conditional_evidence(context, false, span)
+    }
     pub(in super::super) fn validate_conditional_map_complete(
         &self,
         context: &LoopContext,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.validate_conditional_evidence(context, true, span)
+    }
+    fn validate_conditional_evidence(
+        &self,
+        context: &LoopContext,
+        complete: bool,
+        span: Span,
+    ) -> Result<(), LoweringError> {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-        let Some(iteration) = &context.iteration else {
+        let iteration = context.iteration.as_ref().ok_or_else(bad)?;
+        let IterationState::Map(runtime) = &iteration.state else {
             return Err(bad());
         };
-        let IterationState::Map(state) = &iteration.state else {
-            return Err(bad());
-        };
+        let state = runtime.path;
         let Some(branch) = state.conditional else {
             return Ok(());
         };
-        if branch
-            .exits
+        let evidence = &runtime.evidence;
+        let plan = self
+            .owned
+            .map_iteration(iteration.statement)
+            .ok_or_else(bad)?;
+        let expected = plan
+            .exits()
             .iter()
-            .any(|witness| witness.is_none_or(|witness| witness.cleanup_end.is_none()))
+            .filter(|e| complete || e.kind() != UnitIterationExitKind::Exhaustion)
+            .collect::<Vec<_>>();
+        if evidence.starts.len() != expected.len() || evidence.cleanups.len() != expected.len() {
+            return Err(bad());
+        }
+        for exit in expected {
+            let witnesses = evidence
+                .starts
+                .iter()
+                .enumerate()
+                .filter(|(_, w)| w.point == exit.point() && w.kind == exit.kind())
+                .collect::<Vec<_>>();
+            let [(index, witness)] = witnesses.as_slice() else {
+                return Err(bad());
+            };
+            if evidence.cleanups.iter().filter(|(i, _)| i == index).count() != 1 {
+                return Err(bad());
+            }
+            match exit.kind() {
+                UnitIterationExitKind::Fallthrough | UnitIterationExitKind::Continue(_) => {
+                    let jumps = context
+                        .continues
+                        .iter()
+                        .filter(|j| j.state.block == witness.roles.block)
+                        .collect::<Vec<_>>();
+                    let [jump] = jumps.as_slice() else {
+                        return Err(bad());
+                    };
+                    self.conditional_backedge(state, *index, evidence, &jump.state, span)?;
+                }
+                UnitIterationExitKind::Break(_) => {
+                    if context
+                        .breaks
+                        .iter()
+                        .filter(|j| j.state.block == witness.roles.block)
+                        .count()
+                        != 1
+                        || evidence.nexts.iter().any(|(i, _)| i == index)
+                    {
+                        return Err(bad());
+                    }
+                }
+                UnitIterationExitKind::Return(_) => {
+                    if evidence.nexts.iter().any(|(i, _)| i == index)
+                        || context
+                            .breaks
+                            .iter()
+                            .chain(&context.continues)
+                            .any(|j| j.state.block == witness.roles.block)
+                    {
+                        return Err(bad());
+                    }
+                    self.conditional_return(witness, evidence, span)?;
+                }
+                UnitIterationExitKind::Exhaustion => {
+                    if witness.roles.block != state.carrier.exhaustion
+                        || witness.roles.key.is_some()
+                        || witness.roles.value.is_some()
+                        || evidence.nexts.iter().any(|(i, _)| i == index)
+                    {
+                        return Err(bad());
+                    }
+                }
+            }
+        }
+        let continue_count = evidence
+            .starts
+            .iter()
+            .filter(|w| {
+                matches!(
+                    w.kind,
+                    UnitIterationExitKind::Fallthrough | UnitIterationExitKind::Continue(_)
+                )
+            })
+            .count();
+        let break_count = evidence
+            .starts
+            .iter()
+            .filter(|w| matches!(w.kind, UnitIterationExitKind::Break(_)))
+            .count();
+        if context.continues.len() != continue_count
+            || context.breaks.len() != break_count
+            || evidence.nexts.len() != continue_count
         {
             return Err(bad());
         }
-        let exhausted = branch.exits[4].ok_or_else(bad)?;
-        let breaking = branch.exits[1].ok_or_else(bad)?;
-        if exhausted.roles.block != state.carrier.exhaustion
-            || self.block != exhausted.roles.block
-            || exhausted.point != state.carrier.exhaustion_point
-            || exhausted.roles.key.is_some()
-            || exhausted.roles.value.is_some()
-            || exhausted.roles.local.is_some()
-            || exhausted.next.is_some()
-            || exhausted.returned.is_some()
-            || context.breaks.len() != 1
-            || context.breaks[0].state.block != breaking.roles.block
-            || self
-                .function
-                .block(exhausted.roles.block)
-                .is_none_or(|block| {
-                    block.instructions.iter().any(|id| {
-                        self.function.instruction(*id).is_some_and(|instruction| {
-                            matches!(
-                                instruction.operation,
-                                Operation::MapIterationKeyLoan { .. }
-                                    | Operation::MapIterationValueLoan { .. }
-                                    | Operation::MapIterationNext { .. }
-                            )
-                        })
-                    })
-                })
+        for t in &evidence.transports {
+            let edges = transport::incoming(self.function, t.to.block)
+                .into_iter()
+                .filter(|(b, _)| *b == t.from.block)
+                .collect::<Vec<_>>();
+            let [(_, edge)] = edges.as_slice() else {
+                return Err(bad());
+            };
+            if t.from.transported(self.function, edge, span)? != t.to {
+                return Err(bad());
+            }
+        }
+        if branch.shape.statement != iteration.statement
+            || branch.shape.source != state.carrier.identity
         {
             return Err(bad());
         }

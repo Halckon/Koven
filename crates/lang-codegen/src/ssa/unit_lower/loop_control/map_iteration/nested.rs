@@ -182,8 +182,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(bad());
         }
-        self.validate_map_state_current(**state, state.carrier.body, span)?;
-        let roles = ParentRoles::read(self, **state, span)?;
+        self.validate_map_state_current(state.path, state.carrier.body, span)?;
+        let roles = ParentRoles::read(self, state.path, span)?;
         for (loan, operation) in [
             (
                 roles.key,
@@ -260,7 +260,7 @@ impl UnitExpressionLowerer<'_> {
         // Restore path-local roles only. The parent's exits/evidence are never rolled back.
         state.phase = checkpoint.phase;
         state.carrier.resumed = Some(roles);
-        let state = **state;
+        let state = state.path;
         self.validate_map_state_current(state, roles.block, span)
     }
 

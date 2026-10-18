@@ -66,7 +66,7 @@ impl UnitExpressionLowerer<'_> {
                         && (state.carrier.is_body_point(point)
                             || state.carrier.exhaustion_point == point) =>
                 {
-                    Some((iteration.statement, **state))
+                    Some((iteration.statement, state.path))
                 }
                 _ => None,
             })
