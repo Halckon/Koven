@@ -108,7 +108,10 @@ pub(in super::super) fn proof(
     if !future && !ancestor_fact((parsed, names, typed, owned), flow, fact, storage, span)? {
         let resource = typed.is_resource_type(storage).ok_or_else(missing)?;
         let scope = resource::scope(parsed, plan.descriptor().statement(), origin, span)?;
-        if !resource || !resource::normal_point(parsed, scope, span, fact.point()) {
+        if !resource
+            || (!resource::normal_point(parsed, scope, span, fact.point())
+                && !replacement_point(formation.as_ref(), fact.point()))
+        {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
     }

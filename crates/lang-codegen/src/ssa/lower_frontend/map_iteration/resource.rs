@@ -90,9 +90,8 @@ pub(super) fn qualify(
         return Err(unsupported());
     }
     let drop = unique(drops.iter().copied().filter(|d| Some(*d) != transfer)).ok_or_else(bad)?;
-    let replacement = birth.and_then(|f| f.replacement);
     if !normal_point(parsed, scope, span, drop.point())
-        && !matches!((replacement, drop.point()), (Some(expected), DropPoint::AfterExpression(actual)) if expected == actual)
+        && !formed::replacement_point(birth, drop.point())
     {
         return Err(bad());
     }

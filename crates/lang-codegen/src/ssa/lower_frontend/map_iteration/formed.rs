@@ -303,6 +303,13 @@ pub(super) fn qualify<'a>(
     })
 }
 
+/// Finishing the next replacement RHS still cleans the current binding epoch.
+/// The enclosing assignment installs the new owner only after this exact event.
+pub(super) fn replacement_point(formation: Option<&Formation<SymbolId>>, point: DropPoint) -> bool {
+    matches!((formation.and_then(|f|f.replacement),point),
+        (Some(expected),DropPoint::AfterExpression(actual)) if expected==actual)
+}
+
 /// Partition one named root by real binding/replacement events, never by spelling or adjacency.
 pub(super) fn drops(
     parsed: &ParsedFile,

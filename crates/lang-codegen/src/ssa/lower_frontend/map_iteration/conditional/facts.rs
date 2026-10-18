@@ -248,19 +248,25 @@ pub(in super::super) fn qualify(
     }
     // A future Drop is selected only from the validated parameter provenance or
     // the formed-local epoch ledger. An absent plan Drop never invents an owner.
-    let ledger = match shape.source {
-        SourceIdentity::Temporary(source) => owned
-            .drops()
-            .iter()
-            .copied()
-            .filter(|fact| fact.target() == DropTarget::Temporary(source))
-            .collect::<Vec<_>>(),
-        SourceIdentity::Parameter(root) => owned
-            .drops()
-            .iter()
-            .copied()
-            .filter(|fact| fact.target() == DropTarget::Named(root))
-            .collect::<Vec<_>>(),
+    let (ledger, formation) = match shape.source {
+        SourceIdentity::Temporary(source) => (
+            owned
+                .drops()
+                .iter()
+                .copied()
+                .filter(|fact| fact.target() == DropTarget::Temporary(source))
+                .collect::<Vec<_>>(),
+            None,
+        ),
+        SourceIdentity::Parameter(root) => (
+            owned
+                .drops()
+                .iter()
+                .copied()
+                .filter(|fact| fact.target() == DropTarget::Named(root))
+                .collect::<Vec<_>>(),
+            None,
+        ),
         SourceIdentity::Local {
             symbol,
             initializer,
@@ -277,7 +283,10 @@ pub(in super::super) fn qualify(
             if formation.birth != crate::ssa::map_source::Birth::Call(initializer) {
                 return Err(missing());
             }
-            formed::drops(parsed, owned, symbol, &formation)?
+            (
+                formed::drops(parsed, owned, symbol, &formation)?,
+                Some(formation),
+            )
         }
         SourceIdentity::Formed { symbol, birth } => {
             let formation = formed::formation(
@@ -292,7 +301,10 @@ pub(in super::super) fn qualify(
             if formation.birth != birth {
                 return Err(missing());
             }
-            formed::drops(parsed, owned, symbol, &formation)?
+            (
+                formed::drops(parsed, owned, symbol, &formation)?,
+                Some(formation),
+            )
         }
     };
     for fact in &source_facts {
@@ -347,7 +359,9 @@ pub(in super::super) fn qualify(
                     .ok_or_else(missing)?;
                 if resource {
                     let scope = resource::scope(parsed, shape.statement, origin, span)?;
-                    if !resource::normal_point(parsed, scope, span, fact.point()) {
+                    if !resource::normal_point(parsed, scope, span, fact.point())
+                        && !formed::replacement_point(formation.as_ref(), fact.point())
+                    {
                         return Err(unsupported());
                     }
                 } else {
