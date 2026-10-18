@@ -26,7 +26,10 @@ pub(in super::super) fn validate(
     let mut descriptors = typed.map_iterations().iter().collect::<Vec<_>>();
     descriptors.sort_by_key(|descriptor| descriptor.statement().index());
     for descriptor in descriptors {
-        qualify(parsed, names, typed, owned, *descriptor)?;
+        trace(
+            "preflight qualification",
+            qualify(parsed, names, typed, owned, *descriptor),
+        )?;
     }
     Ok(())
 }
@@ -70,7 +73,10 @@ pub(super) fn qualify<'a>(
         .get(*source)
         .map_err(|_| missing())?;
     if plan.source_access() == MapIterationSourceAccess::Temporary {
-        return temporary::qualify(parsed, names, typed, owned, plan, *body, span);
+        return trace(
+            "temporary qualification",
+            temporary::qualify(parsed, names, typed, owned, plan, *body, span),
+        );
     }
     if source_node.payload() != &Expression::Name {
         return Err(unsupported());

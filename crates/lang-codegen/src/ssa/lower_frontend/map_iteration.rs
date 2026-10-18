@@ -60,6 +60,15 @@ impl State {
     }
 }
 
+// Temporary diagnostic only: preserve each original Result and its error.
+fn trace<T>(_stage: &str, result: Result<T, LoweringError>) -> Result<T, LoweringError> {
+    #[cfg(test)]
+    if let Err(original) = &result {
+        eprintln!("SPEC0331 TEMPORARY SINGLE TRACE stage={_stage} original={original:?}");
+    }
+    result
+}
+
 fn unique<T>(mut values: impl Iterator<Item = T>) -> Option<T> {
     let result = values.next()?;
     values.next().is_none().then_some(result)
@@ -86,10 +95,15 @@ impl ExpressionLowerer<'_> {
             .typed
             .map_iteration(statement)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let qualified =
-            qualify::qualify(self.parsed, self.names, self.typed, self.owned, descriptor)?;
+        let qualified = trace(
+            "runtime qualification",
+            qualify::qualify(self.parsed, self.names, self.typed, self.owned, descriptor),
+        )?;
         if descriptor.source() != source || qualified.body != body {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+            return trace(
+                "local identity guard 1",
+                Err(error(LoweringErrorKind::MissingFact, span)),
+            );
         }
         if !self.loops.is_empty()
             || self.thunk_expression.is_some()
@@ -115,9 +129,9 @@ impl ExpressionLowerer<'_> {
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
             })
         };
-        let container = mapped(descriptor.source_type())?;
-        let key_type = mapped(descriptor.key_type())?;
-        let value_type = mapped(descriptor.value_type())?;
+        let container = trace("source type", mapped(descriptor.source_type()))?;
+        let key_type = trace("key type", mapped(descriptor.key_type()))?;
+        let value_type = trace("value type", mapped(descriptor.value_type()))?;
         let expected_kind = match descriptor.kind() {
             lang_frontend::type_checking::MapIterationKind::Map => MapContainerKind::Map,
             lang_frontend::type_checking::MapIterationKind::MutableMap => {
@@ -133,10 +147,16 @@ impl ExpressionLowerer<'_> {
                     value: value_type,
                 })
         {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+            return trace(
+                "local identity guard 2",
+                Err(error(LoweringErrorKind::MissingFact, span)),
+            );
         }
-        let cursor_type = self.ssa_builtin(BuiltinType::ULong, span)?;
-        let bool_type = self.ssa_builtin(BuiltinType::Boolean, span)?;
+        let cursor_type = trace("cursor type", self.ssa_builtin(BuiltinType::ULong, span))?;
+        let bool_type = trace(
+            "condition type",
+            self.ssa_builtin(BuiltinType::Boolean, span),
+        )?;
         if self.ssa_types.get(cursor_type.index())
             != Some(&SsaTypeKind::Integer {
                 bits: 64,
@@ -144,9 +164,15 @@ impl ExpressionLowerer<'_> {
             })
             || self.ssa_types.get(bool_type.index()) != Some(&SsaTypeKind::Boolean)
         {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+            return trace(
+                "local identity guard 3",
+                Err(error(LoweringErrorKind::MissingFact, span)),
+            );
         }
-        let seed = self.map_iteration_seed(source_identity, container, source_origin, span)?;
+        let seed = trace(
+            "source seed",
+            self.map_iteration_seed(source_identity, container, source_origin, span),
+        )?;
         let source_loan = match (plan.source_access(), seed) {
             (
                 MapIterationSourceAccess::Owned | MapIterationSourceAccess::Temporary,
@@ -155,7 +181,10 @@ impl ExpressionLowerer<'_> {
                 if self.function.entity(seed).map(|entity| entity.ty)
                     != Some(EntityType::Value(container))
                 {
-                    return Err(error(LoweringErrorKind::MissingFact, span));
+                    return trace(
+                        "local identity guard 4",
+                        Err(error(LoweringErrorKind::MissingFact, span)),
+                    );
                 }
                 if source_identity.current_owner(self) != Some(owner) {
                     let kind = match source_identity {
@@ -183,7 +212,10 @@ impl ExpressionLowerer<'_> {
             }
             (MapIterationSourceAccess::Shared, EntityId::Loan(loan)) => {
                 let SourceIdentity::Parameter(symbol) = source_identity else {
-                    return Err(error(LoweringErrorKind::MissingFact, span));
+                    return trace(
+                        "local identity guard 5",
+                        Err(error(LoweringErrorKind::MissingFact, span)),
+                    );
                 };
                 if self.borrow_bindings.get(&symbol) != Some(&loan)
                     || self.function.entity(seed).map(|entity| entity.ty)
@@ -192,7 +224,10 @@ impl ExpressionLowerer<'_> {
                             target: container,
                         })
                 {
-                    return Err(error(LoweringErrorKind::MissingFact, span));
+                    return trace(
+                        "local identity guard 6",
+                        Err(error(LoweringErrorKind::MissingFact, span)),
+                    );
                 }
                 self.map_iteration_loan(
                     Operation::SharedReborrow { source: loan },
@@ -210,7 +245,10 @@ impl ExpressionLowerer<'_> {
             span,
         )?;
         let baseline = self.bindings.clone();
-        let mut carried = self.linear_binding_slots(&baseline, span)?;
+        let mut carried = trace(
+            "linear source slots",
+            self.linear_binding_slots(&baseline, span),
+        )?;
         for (&binding, &lowered) in &baseline {
             let LoweredValue::Value(owner) = lowered else {
                 continue;
@@ -334,14 +372,20 @@ impl ExpressionLowerer<'_> {
                 .insert(descriptor.value_binding(), value)
                 .is_some()
         {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+            return trace(
+                "local identity guard 7",
+                Err(error(LoweringErrorKind::MissingFact, span)),
+            );
         }
-        let body_owner = self.map_iteration_owner(
-            owner_proof,
-            source_identity,
-            &carried,
-            &body_parameters,
-            span,
+        let body_owner = trace(
+            "body owner",
+            self.map_iteration_owner(
+                owner_proof,
+                source_identity,
+                &carried,
+                &body_parameters,
+                span,
+            ),
         )?;
         self.loops.push(loop_control::LoopContext {
             entry_views: self.non_null_bindings.clone(),
@@ -377,15 +421,24 @@ impl ExpressionLowerer<'_> {
         });
         // The exact selected exit owns the body cleanup point. A real transfer
         // is already Diverged and must not acquire a synthetic fallthrough/Next.
-        let result = self.lower_statement_inner(body)?;
+        let result = trace("body lowering", self.lower_statement_inner(body))?;
         if (qualified.conditional.is_none() && self.block != body_block)
             || (result == LoweredValue::Diverged) == (body_exit == IterationExitKind::Fallthrough)
         {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+            return trace(
+                "local identity guard 8",
+                Err(error(LoweringErrorKind::MissingFact, span)),
+            );
         }
         if result != LoweredValue::Diverged {
-            self.clean_map_iteration_body(IterationExitKind::Fallthrough, span)?;
-            self.advance_map_iteration_body(span)?;
+            trace(
+                "body cleanup",
+                self.clean_map_iteration_body(IterationExitKind::Fallthrough, span),
+            )?;
+            trace(
+                "body next and backedge",
+                self.advance_map_iteration_body(span),
+            )?;
         }
         let mut context = self
             .loops
@@ -403,10 +456,16 @@ impl ExpressionLowerer<'_> {
                         || matches!(body_exit, IterationExitKind::Break(_)),
                 )
         {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+            return trace(
+                "local identity guard 9",
+                Err(error(LoweringErrorKind::MissingFact, span)),
+            );
         }
         // Restore every ordinary owner/loan slot from the independent false edge.
-        self.merge_exits(vec![false_exit], &baseline, span)?;
+        trace(
+            "restore false edge",
+            self.merge_exits(vec![false_exit], &baseline, span),
+        )?;
         let exhausted_parameters = self.map_iteration_parameters(exhausted, span)?;
         let (exhausted_source, _) = roles(&exhausted_parameters, source_slot, cursor_slot, span)?;
         let mut frame = Frame {
@@ -418,12 +477,15 @@ impl ExpressionLowerer<'_> {
             ],
             finished: false,
         };
-        let owner = self.map_iteration_owner(
-            owner_proof,
-            source_identity,
-            &carried,
-            &exhausted_parameters,
-            span,
+        let owner = trace(
+            "false owner",
+            self.map_iteration_owner(
+                owner_proof,
+                source_identity,
+                &carried,
+                &exhausted_parameters,
+                span,
+            ),
         )?;
         let exhaustion = unique(
             plan.exits()
@@ -431,38 +493,50 @@ impl ExpressionLowerer<'_> {
                 .filter(|exit| exit.kind() == IterationExitKind::Exhaustion),
         )
         .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        self.emit_map_iteration_cleanup(exhaustion, &mut frame, owner, span)?;
+        trace(
+            "exhaustion cleanup",
+            self.emit_map_iteration_cleanup(exhaustion, &mut frame, owner, span),
+        )?;
         if !frame.finished
             || frame.source.is_some()
             || owner.is_some_and(|(_, source, _)| source.current_owner(self).is_some())
         {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+            return trace(
+                "local identity guard 10",
+                Err(error(LoweringErrorKind::MissingFact, span)),
+            );
         }
         context.breaks.push(self.branch_exit(LoweredValue::Unit));
-        self.merge_exits(context.breaks, &baseline, span)?;
-        carrier::Evidence {
-            function: self.function,
-            conditional: state.conditional.as_ref(),
-            seed,
-            source: source_loan,
-            first,
-            next: state.next,
-            body_exit,
-            body_owner,
-            returned: state.returned,
-            cleanup_start: state.cleanup_start,
-            continuation: self.block,
-            key,
-            value,
-            blocks: [preheader, header, body_block, exhausted],
-            carried: &carried,
-            source_slot,
-            cursor_slot,
-            owner,
-            source_origin,
-            span,
-        }
-        .validate()?;
+        trace(
+            "merge continuation",
+            self.merge_exits(context.breaks, &baseline, span),
+        )?;
+        trace(
+            "final carrier",
+            carrier::Evidence {
+                function: self.function,
+                conditional: state.conditional.as_ref(),
+                seed,
+                source: source_loan,
+                first,
+                next: state.next,
+                body_exit,
+                body_owner,
+                returned: state.returned,
+                cleanup_start: state.cleanup_start,
+                continuation: self.block,
+                key,
+                value,
+                blocks: [preheader, header, body_block, exhausted],
+                carried: &carried,
+                source_slot,
+                cursor_slot,
+                owner,
+                source_origin,
+                span,
+            }
+            .validate(),
+        )?;
         Ok(LoweredValue::Unit)
     }
 
@@ -486,10 +560,16 @@ impl ExpressionLowerer<'_> {
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
                 .0;
                 let Some(EntityId::Value(value)) = parameters.get(slot) else {
-                    return Err(error(LoweringErrorKind::MissingFact, span));
+                    return trace(
+                        "local identity guard 11",
+                        Err(error(LoweringErrorKind::MissingFact, span)),
+                    );
                 };
                 if source.current_owner(self) != Some(*value) {
-                    return Err(error(LoweringErrorKind::MissingFact, span));
+                    return trace(
+                        "local identity guard 12",
+                        Err(error(LoweringErrorKind::MissingFact, span)),
+                    );
                 }
                 Ok((proof, source, *value))
             })
@@ -594,14 +674,20 @@ impl ExpressionLowerer<'_> {
                         .position(|(binding, _)| binding == symbol)
                         .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                     if index == 0 && frame.components[1].1.is_some() {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
+                        return trace(
+                            "local identity guard 13",
+                            Err(error(LoweringErrorKind::MissingFact, span)),
+                        );
                     }
                     let loan = frame.components[index]
                         .1
                         .take()
                         .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                     if self.borrow_bindings.remove(symbol) != Some(loan) {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
+                        return trace(
+                            "local identity guard 14",
+                            Err(error(LoweringErrorKind::MissingFact, span)),
+                        );
                     }
                     self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
                 }
@@ -612,13 +698,19 @@ impl ExpressionLowerer<'_> {
                         || frame.source.is_none()
                         || frame.components.iter().any(|(_, loan)| loan.is_some())
                     {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
+                        return trace(
+                            "local identity guard 15",
+                            Err(error(LoweringErrorKind::MissingFact, span)),
+                        );
                     }
                     frame.finished = true;
                 }
                 IterationCleanupAction::EndSource(statement) if *statement == frame.statement => {
                     if !frame.finished {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
+                        return trace(
+                            "local identity guard 16",
+                            Err(error(LoweringErrorKind::MissingFact, span)),
+                        );
                     }
                     let loan = frame
                         .source
@@ -635,7 +727,10 @@ impl ExpressionLowerer<'_> {
                         || !frame.finished
                         || source.current_owner(self) != Some(value)
                     {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
+                        return trace(
+                            "local identity guard 17",
+                            Err(error(LoweringErrorKind::MissingFact, span)),
+                        );
                     }
                     source.take_owner(self, value, span)?;
                     self.append(
