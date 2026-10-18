@@ -9,6 +9,14 @@ impl DropPlanner<'_, '_> {
         let Some(ty) = self.checker.typed.symbol_type(symbol) else {
             return false;
         };
+        // A known closure environment can own resources even when its ordinary
+        // function type has no resource information. Preserve that concrete obligation.
+        if let Some(&closure) = state.closures.get(&symbol) {
+            return self.checker.captures_of(closure).all(|capture| {
+                capture.mode() != crate::ownership_checking::ClosureCaptureMode::Owned
+                    || self.checker.typed.is_resource_type(capture.ty()) == Some(false)
+            });
+        }
         if let Some(resource) = self.checker.typed.is_resource_type(ty) {
             return !resource;
         }
