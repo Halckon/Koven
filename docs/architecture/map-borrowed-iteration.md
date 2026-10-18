@@ -122,19 +122,19 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 
 | source | payload | 已验exit | continuation与当前缺口 |
 |---|---|---|---|
-| own Map/MutableMap参数 | String/String | N/C/B/R、固定三段条件 | N/C/B后size、多次Borrow调用、CFG后再Borrow及同根重复For已验；R与其他CFG组合不外推 |
-| Borrow Map/MutableMap参数 | String/String | N/C/B/R、固定条件、同根双层 | caller恢复及有限sequential已验；更一般条件/层数未验 |
-| 直接factory temporary | String/String；字段/结构Resource、Resource?、Int键Resource/String | 零参固定尾N/C/B/R与五表示N；普通Borrow/own/具名重排N，空Map实参if | 实参复用原求值/形参ABI；Resource转移与同K/V Borrow邻控已验；条件退出/其他CFG待验 |
+| own Map/MutableMap参数 | String/String | N/C/B/R、普通单If C/B/R及两live arm | N/C/B后size、多次Borrow调用、CFG后再Borrow及同根重复For已验；其他CFG组合不外推 |
+| Borrow Map/MutableMap参数 | String/String | N/C/B/R、普通单If C/B/R、两live arm、同根双层 | caller恢复及有限sequential已验；其他条件/层数组合未验 |
+| 直接factory temporary | String/String；字段/结构Resource、Resource?、Int键Resource/String | 零参固定尾N/C/B/R与五表示N；普通实参N及空Map实参if；String/String单If C/B/R与两live arm | 实参复用原求值/形参ABI；Resource另验Return内if/checked；其他payload/CFG组合不外推 |
 | factory-formed owned local val/var及moved alias | String/String、owned String字段Resource及混合Resource? | N/C/B/R；后用/复用/替换按末节实测组合 | 按真实Call、Move与epoch运输当前owner；其他birth/一般CFG仍未闭合 |
 | own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；更多既有Resource表示见后续G5片 |
 | Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定 |
-| Borrow参数等既有admission | Int/String等 | 部分N及有限sequential | 不把静态通用component cleanup接纳当全payload native实证 |
+| Borrow参数等既有admission | Int/Int、Int/String、String/pure MoveOnly inline payload等 | 部分N、有限sequential及非nullable Return | Return的具体operand见§61测试；不把通用component cleanup接纳当全payload实证 |
 | own MutableMap参数 | String/String | N/C/B/R | G4首片；已验Resource表示另见下行 |
 | own Map/MutableMap参数 | String/有String字段Resource、结构性Payload(Resource)、Int/Resource、String/nullable字段Resource | N/C/B/R | G5复用既有表示；每源含非空/空、Guard与后续Borrow readMap |
 | Field/Inout来源 | 现有类型 | 前端合同 | Guide37.4明确native延后；不由Group准入扩大 |
 
-非Resource Return仍限制直接双Borrow分量调用且Int结果。Resource本片另验Unit/Int/String及直接checked加法；
-其他合法operand、ABI及更一般CFG尚未系统验收，不能把有限ordinary lowering接纳外推全部支持。
+Return现经普通operand lowering；有限Int/Unit/owned String、非nullable Borrow分量及checked邻控，
+合计52源104条双入口SSA/LLVM与104个native已验，见[§61](../specs/active/0331-map-borrowed-iteration.md#61-g3g7-共享普通控制流与非-nullable-return-有限验收2026-10-18)。String? ABI、未来own转移无Drop及其他CFG不外推。
 以上非Field/Inout的具体能力缺口不能统称Guide staging；普通Resource类的字段/泛型/接口、
 其他key/value与更一般source/CFG需分别验收，不能在本轮Break/Return通过后宣称F全矩阵闭合。
 

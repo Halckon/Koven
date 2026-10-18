@@ -90,7 +90,10 @@ fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
   支持矩阵另列own MutableMap的String/String四种退出、透明Group、既有Resource表示、
   Pure own参数后用/同根重复For、零参temporary的已验Resource/Resource?/Int键normal，以及local的N/C/B/R、词法清理、
   后续Borrow/重复遍历与重新赋值epoch；temporary另验普通Borrow/owned Resource交付、具名实参重排、
-  Int/Boolean重载及空Map工厂的实参if。条件退出及其他形成/调用路线仍见矩阵，不能推断一般支持。
+  Int/Boolean重载及空Map工厂的实参if。参数和temporary的String/String另验普通单if的C/B/R与两live arm，
+  有限Resource邻控覆盖多break、return operand中的if及checked；Int/Unit/owned String返回也有
+  [双入口回归](../../crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/control_flow.rs)。
+  这些不构成所有source、payload、条件或返回ABI组合的支持，具体范围仍见矩阵。
 - 集合 `forEach`/`map`/`filter` 与未列出的集合/格式化 API 仍未交付。词频里的 `decimal`
   是本页实现的普通函数，不是标准库格式化接口。
 

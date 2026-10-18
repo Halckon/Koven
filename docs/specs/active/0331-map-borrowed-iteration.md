@@ -808,11 +808,11 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 | 组 | 实际范围与依赖 | 归属／当前状态 |
 |---|---|---|
 | G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，§48–52有限factory local的Resource/后用/复用/重赋值轴已接通；其他birth/一般CFG及新头CI仍逐项闭合 |
-| G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，§56/59/60有限normal表示、普通实参交付及空Map实参CFG已验；条件退出与其他callable仍待，依赖G7及共享Call前置 |
+| G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，§56/59/60 normal表示、实参交付/CFG及§61有限String/String条件C/B/R、Resource Return内if/checked已验；其他callable与组合仍待 |
 | G4 | own MutableMap参数N/C/B/R，复用已验证Value/Owned参数及原清理 | 0331，本节首片；d85e完整CI及三artifact独审通过 |
 | G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；d85e完整CI及三artifact独审通过，其他表示仍逐项验收 |
-| G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331 Return缺口未闭合；ABI前置另行明确验收，不能静默省略 |
-| G7 | 一般合法Return operand、单If/两live arm、条件/checked组合；需逐路径cleanup | 0331，未闭合；不把普通合法表达式改成白名单 |
+| G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331，§61有限非nullable Borrow Int/Int、Int/String及pure MoveOnly inline payload Return已验；String? ABI前置仍独立待验，不外推原83源全矩阵 |
+| G7 | 一般合法Return operand、单If/两live arm、条件/checked组合；需逐路径cleanup | 0331，§61有限普通Return operand、单If/两live arm及checked已验；其他控制流/source/寿命组合仍待，不设AST白名单 |
 | G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，未闭合；在单层source/CFG事实之后推进 |
 | G9 | 非Resource own参数在N/C/B后继续使用；须真实last-use寿命，不能套Resource词法延寿 | 0331，§47有限未来使用片；consume/其他root及一般CFG仍逐项验收 |
 | G10 | 透明Group、moved alias与Borrow-result；后两者分别依赖Move/continuation事实 | 0331，Group及§48 factory local alias首片；其他Move/birth与Borrow-result前置仍在 |
@@ -1224,3 +1224,48 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   该64项已按G3两项、G6二十二项、G7二十项、G8十四项及共享String?六项分组，分组不等于新头通过。
   G3条件C/B/R与hidden-owner逐路径cleanup、其他callable前置及G6/G7/G8仍继续在F内；G2/G9/G10
   其他形成/后用/continuation边界未外推。新头完整CI与独审尚待，不归档/合并、不提前开始D10。
+
+
+## 61. G3/G7 共享普通控制流与非 nullable Return 有限验收（2026-10-18）
+
+- 原固定三段条件及双Borrow调用/Int Return门不能覆盖普通合法源码。本片改用现有普通CFG，
+  将当前source loan、cursor、K/V和真实owner随路径运输；每个join核完整且唯一的incoming，
+  所有身份回到原参数或实际形成/epoch。路径快照仅恢复路径字段，不回滚累计exit/cleanup证据。
+  Return使用普通operand lowering和既有表示；没有增加新的Guide语义、nullable ABI或D10管线。
+- single与unit均逐项核原FE plan、实际exit/action、source End与owner Drop顺序，再衔接真实
+  Next或Return。移除固定三If、调用数量与结果Int资格门，不以另一份源码形状表代替。Resource
+  词法晚Drop只由同epoch、完整ExitPhi availability及实际scope/normal point证明；未来own转移
+  无Drop继续精确Unsupported，缺失或不一致事实不能被当成成功的None。
+- `2810c878`保存原24份普通控制流源红：两入口48条For Unsupported，另4条无For LLVM。
+  `f7d3b89b`保存14份普通Return合法v2红：28条For Unsupported；早期Unit值Return v1的L0087
+  是fixture错误，单独保留，不能冒充生产红。原38份源码及golden从红到最终绿保持字节不变。
+- `87212593`接通single普通CFG，`5cc5151a`接通unit，`64daef4b`修实际For span、单live耗尽
+  continuation与Resource词法晚Drop证明；`ac94022a`保存完整邻控、深query和native，`ad67d91a`
+  仅作等价let-chain及格式修正。独立生产/测试复审已核上述证明、清理及所有入边，未余阻断finding。
+- 最终52份正向源包括两容器的Borrow/own/temporary String/String单If C/B/R与两live arm，
+  Borrow的Int/Unit/owned String普通Return、Int/Int literal Return、Int/String checked Return与pure
+  MoveOnly inline payload；邻控另有多continue、owned Resource多break、temporary Resource的Return
+  内if/checked、Borrow Resource checked、temporary Unit/String及own Int/String checked Return/break。
+  每源两入口，共104条provider
+  SSA/LLVM与深query、104个严格native；另4条无For正控及4条未来own转移精确拒绝分列统计。
+  深query核原AST operand/条件/形参身份、If真假arm的分别可达producer、完整merge incoming、
+  source/cursor固定点及原cleanup。Return内if native精确核true=8、false=7、empty=0；Resource
+  用相同deinit marker核清理窗口与次数，不假定Map各entry间未保证的析构顺序。
+- 前轮真实失败独立留存：首次库编译8错误、测试编译6错误均未运行测试；首轮runtime为Rust
+  2通过/3失败、76/104正向成功，另两条L0130边界fixture改为合法own sink；次轮4通过/1失败、
+  102/104，剩余single owned Resource多break由实际晚Drop证明修复。回归收集器曾因预期Rust
+  数量错停止，实际已执行项通过；后续fmt及四处collapsible_if Clippy失败亦保留原日志。没有
+  用收集器退出0替代用例结果，没有删除失败历史或以allow跳过lint。
+- `ad67d91a5c4fdfacd8cbb876b9b967bbce97d39e`冻结最终普通验收：42/42条命令通过，71个
+  唯一Rust测试0失败/0忽略（包括精确拒绝边界），322个全局唯一严格native全部exit0、完整
+  golden与空stderr。新块104之外的218为本轮实际重跑的既有普通回归；不计重复产物。
+  2942个源码输入文件运行前后摘要同为
+  `acc03877bd6617c222b8c8ea8ae87239331fbb8ad3e4a2b7ef1b387b73b61044`。
+  fmt、workspace all-targets check、Clippy -D warnings、build、704文档、whitespace与尺寸门通过：
+  1692手写Rust文件、38项既有超限；control.rs历史1304→1345行增长明确独审，新内聚helper465行。
+  第二位审阅者逐条复核42份原日志SHA、实际测试名、native唯一集合及内存提交快照，findings为空。
+- 文档提交只同步有限事实，不扩展测试结论。新头完整CI与artifact身份另按PR119核对，不继承
+  `1c9e7626`或其他旧头的绿色结论。本机仅运行真实源码普通测试，故障注入、校准、合成损坏及
+  sanitizer故障对照留GitHub Actions；Mac sanitizer仍partial/requirements_met=false，UBSan未覆盖。
+  本轮未重跑原83源166观察，不能将旧64项诊断重新计作当前通过或拒绝；String? ABI、其他
+  callable/source/CFG及G2/G8/G9/G10余项继续在F内，0331保持active，不归档/合并，不提前开始D10。
