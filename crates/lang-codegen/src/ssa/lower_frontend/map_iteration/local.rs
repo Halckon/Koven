@@ -151,7 +151,7 @@ fn qualify_scope<'a>(
         }),
         body_exit: IterationExitKind::Fallthrough,
         conditional: None,
-        nested: None,
+        nesting: nested::Nesting { parent: None },
         local: Some(proof),
     })
 }

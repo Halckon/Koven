@@ -10,7 +10,7 @@ pub(super) fn prove(
     plan: &MapIterationOwnershipPlan,
     body: StatementId,
     kind: IterationExitKind,
-    guard: Option<nested::tail::Local>,
+    guard: Option<super::super::guard::Local>,
     span: Span,
 ) -> Result<source_owner::Proof, LoweringError> {
     let missing = || error(LoweringErrorKind::MissingFact, span);
@@ -227,7 +227,7 @@ fn ordinary(fact: DropFact) -> bool {
 
 fn guard_drop(
     owned: &OwnershipCheckedFile,
-    guard: nested::tail::Local,
+    guard: super::super::guard::Local,
     point: DropPoint,
     span: Span,
 ) -> Result<DropFact, LoweringError> {

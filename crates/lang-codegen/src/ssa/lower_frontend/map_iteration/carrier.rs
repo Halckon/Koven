@@ -3,13 +3,24 @@ use super::*;
 use crate::ssa::model::Instruction;
 
 #[derive(Clone, Copy)]
+pub(super) struct Child {
+    pub(super) statement: StatementId,
+    pub(super) blocks: [BlockId; 4],
+    pub(super) source: LoanId,
+    pub(super) first: ValueId,
+    pub(super) source_slot: usize,
+    pub(super) cursor_slot: usize,
+}
+
+#[derive(Clone, Copy)]
 pub(super) struct Evidence<'a> {
+    pub(super) parsed: &'a ParsedFile,
+    pub(super) names: &'a NameResolution,
     pub(super) owned: &'a OwnershipCheckedFile,
     pub(super) function: &'a Function,
     pub(super) exhaustion_point: DropPoint,
     pub(super) conditional: Option<&'a conditional::State>,
-    pub(super) nested: Option<&'a nested::State>,
-    pub(super) events: &'a [nested_events::Event],
+    pub(super) children: &'a [Child],
     pub(super) cleanup_body: BlockId,
     pub(super) seed: EntityId,
     pub(super) source: LoanId,
@@ -35,12 +46,13 @@ pub(super) struct Evidence<'a> {
 impl Evidence<'_> {
     pub(super) fn validate(self) -> Result<(), LoweringError> {
         let Self {
+            parsed: _,
+            names: _,
             owned,
             function,
             exhaustion_point,
             conditional,
-            nested,
-            events: _,
+            children: _,
             cleanup_body,
             seed,
             source,
@@ -185,20 +197,7 @@ impl Evidence<'_> {
         if let Some(state) = conditional {
             return conditional::validate(self, state);
         }
-        if let Some(nested) = nested.filter(|nested| nested.pair.tail.is_some()) {
-            nested.validate_tail_transport(self)?;
-            return nested_events::validate(self, nested);
-        }
-        let (body, body_source, body_cursor, key, value) = if let Some(nested) = nested {
-            let roles = nested.validate(self)?;
-            (
-                cleanup_body,
-                roles.source,
-                roles.cursor,
-                roles.key,
-                roles.value,
-            )
-        } else if let Some(current) = resumed {
+        let (body, body_source, body_cursor, key, value) = if let Some(current) = resumed {
             for (actual, original) in [
                 (EntityId::Loan(current.source), EntityId::Loan(body_source)),
                 (

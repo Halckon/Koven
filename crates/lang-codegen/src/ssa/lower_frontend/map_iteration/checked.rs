@@ -40,9 +40,6 @@ impl ExpressionLowerer<'_> {
             let Some(state) = &context.map_loop else {
                 continue;
             };
-            if state.nested.is_some() {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            }
             let actual = state.path_snapshot().ok_or_else(missing)?;
             let before = *carried
                 .map_paths
@@ -198,9 +195,6 @@ impl ExpressionLowerer<'_> {
             let Some(state) = &context.map_loop else {
                 continue;
             };
-            if state.nested.is_some() {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            }
             let actual = state.path_snapshot().ok_or_else(missing)?;
             let before = *carried
                 .map_paths

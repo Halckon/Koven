@@ -196,7 +196,7 @@ pub(super) fn qualify<'a>(
             owner,
             body_exit: IterationExitKind::Fallthrough,
             conditional: Some(shape),
-            nested: None,
+            nesting: nested::Nesting { parent: None },
             local: None,
         });
     }
@@ -238,7 +238,7 @@ pub(super) fn qualify<'a>(
         owner: Some(owner),
         body_exit,
         conditional: None,
-        nested: None,
+        nesting: nested::Nesting { parent: None },
         local: None,
     })
 }

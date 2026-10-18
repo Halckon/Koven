@@ -81,6 +81,10 @@ pub(super) struct LinearBindingSlot {
 }
 
 impl LinearBindingSlot {
+    pub(super) fn has_map_role(&self) -> bool {
+        !self.map_sources.is_empty() || !self.map_cursors.is_empty()
+    }
+
     pub(super) fn new(symbol: Option<SymbolId>, source: EntityId, ty: EntityType) -> Self {
         Self {
             symbol,

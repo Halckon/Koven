@@ -15,7 +15,7 @@ pub(super) struct Qualified<'a> {
     pub(super) owner: Option<source_owner::Proof>,
     pub(super) body_exit: IterationExitKind,
     pub(super) conditional: Option<conditional::Shape>,
-    pub(super) nested: Option<nested::Pair>,
+    pub(super) nesting: nested::Nesting,
     pub(super) local: Option<local::Proof>,
 }
 
@@ -40,33 +40,9 @@ pub(super) fn qualify<'a>(
     owned: &'a OwnershipCheckedFile,
     descriptor: MapIterationDescriptor,
 ) -> Result<Qualified<'a>, LoweringError> {
-    let nested = nested::qualify::pair(parsed, names, typed, owned, descriptor)?;
-    let qualified = qualify_one(parsed, names, typed, owned, descriptor, nested)?;
-    if let Some(pair) = nested {
-        let other = if descriptor.statement() == pair.outer {
-            pair.inner
-        } else {
-            pair.outer
-        };
-        let other = typed
-            .map_iteration(other)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, qualified.origin))?;
-        // The sorted descriptor is the capability admission unit for the pair.
-        // Preserve corruption diagnostics, but do not leak the partner's later U span.
-        let current_span = parsed
-            .ast()
-            .statements()
-            .get(descriptor.statement())
-            .map_err(|_| error(LoweringErrorKind::MissingFact, qualified.origin))?
-            .span();
-        qualify_one(parsed, names, typed, owned, *other, nested).map_err(|failure| {
-            if failure.kind == LoweringErrorKind::UnsupportedNode {
-                error(LoweringErrorKind::UnsupportedNode, current_span)
-            } else {
-                failure
-            }
-        })?;
-    }
+    let nesting = nested::nesting(parsed, typed, owned, descriptor.statement())?;
+    let mut qualified = qualify_one(parsed, names, typed, owned, descriptor)?;
+    qualified.nesting = nesting;
     Ok(qualified)
 }
 
@@ -76,7 +52,6 @@ fn qualify_one<'a>(
     typed: &TypedFile,
     owned: &'a OwnershipCheckedFile,
     descriptor: MapIterationDescriptor,
-    nested: Option<nested::Pair>,
 ) -> Result<Qualified<'a>, LoweringError> {
     let node = parsed
         .ast()
@@ -140,9 +115,6 @@ fn qualify_one<'a>(
     }
     let data = names.symbols().get(symbol.index()).ok_or_else(missing)?;
     if data.kind() == SymbolKind::Variable {
-        if nested.is_some() {
-            return Err(unsupported());
-        }
         return match local::qualify(parsed, names, typed, owned, plan, *body, span) {
             Err(failure) if failure.kind == LoweringErrorKind::UnsupportedNode => {
                 formed::qualify(parsed, names, typed, owned, plan, *body, span)
@@ -207,45 +179,23 @@ fn qualify_one<'a>(
             return Err(missing());
         }
     }
-    // AST only bounds capability. Phase 3 remains the source of exit/cleanup facts.
-    if nested.is_none() && has_enclosing_control(parsed, span) {
+    if has_enclosing_control(parsed, span) {
         return Err(unsupported());
     }
-    let conditional = if nested.is_some() {
-        None
-    } else {
-        conditional::shape(
-            parsed,
-            names,
-            typed,
-            descriptor,
-            *body,
-            SourceIdentity::Parameter(symbol),
-            span,
-        )?
-    };
-    let tail = nested.and_then(|pair| pair.tail);
-    let body_exit = if let Some(pair) = nested {
-        pair.tail
-            .filter(|_| descriptor.statement() == pair.inner)
-            .map_or(IterationExitKind::Fallthrough, |shape| shape.kind)
-    } else if conditional.is_some() {
+    let conditional = conditional::shape(
+        parsed,
+        names,
+        typed,
+        descriptor,
+        *body,
+        SourceIdentity::Parameter(symbol),
+        span,
+    )?;
+    let body_exit = if conditional.is_some() {
         IterationExitKind::Fallthrough
     } else {
         exit_shape::body_exit(parsed, names, typed, descriptor, *body, span)?
     };
-    if tail.is_some_and(|shape| matches!(shape.kind, IterationExitKind::Return(_))) {
-        let callable = unique(
-            typed
-                .callables()
-                .iter()
-                .filter(|callable| callable.parameter_symbols().contains(&Some(symbol))),
-        )
-        .ok_or_else(missing)?;
-        if builtin_type(typed, callable.return_type()) != Some(BuiltinType::Int) {
-            return Err(unsupported());
-        }
-    }
     if let Some(shape) = conditional {
         let owner = conditional::qualify(parsed, names, typed, owned, plan, shape, span)?;
         return Ok(Qualified {
@@ -256,18 +206,11 @@ fn qualify_one<'a>(
             owner,
             body_exit,
             conditional,
-            nested,
+            nesting: nested::Nesting { parent: None },
             local: None,
         });
     }
-    if let Some(pair) = nested.filter(|pair| pair.tail.is_some()) {
-        nested::tail::validate_cleanup(owned, pair, pair.tail.ok_or_else(missing)?)?;
-    } else {
-        exit_shape::cleanup(owned, plan, *body, body_exit, span)?;
-        if nested.is_some() {
-            nested::qualify::cleanup(owned, plan, *body, span)?;
-        }
-    }
+    exit_shape::cleanup(owned, plan, *body, body_exit, span)?;
     let exhaustion = unique(
         plan.exits()
             .iter()
@@ -283,7 +226,7 @@ fn qualify_one<'a>(
             },
         )
     } else {
-        if exhaustion.actions().len() != 2 || (tail.is_none() && !plan.closure_phis().is_empty()) {
+        if exhaustion.actions().len() != 2 || !plan.closure_phis().is_empty() {
             return Err(unsupported());
         }
         None
@@ -296,7 +239,7 @@ fn qualify_one<'a>(
         owner,
         body_exit,
         conditional: None,
-        nested,
+        nesting: nested::Nesting { parent: None },
         local: None,
     })
 }
@@ -312,14 +255,26 @@ pub(super) fn has_enclosing_control(parsed: &ParsedFile, span: Span) -> bool {
         contains(node.span())
             && matches!(
                 node.payload(),
-                Statement::For { .. } | Statement::While { .. } | Statement::Loop { .. }
+                Statement::While { .. } | Statement::Loop { .. }
             )
     }) || parsed.ast().expressions().iter().any(|(_, node)| {
         contains(node.span())
-            && matches!(
-                node.payload(),
-                Expression::If { .. } | Expression::When { .. } | Expression::Lambda { .. }
-            )
+            && match node.payload() {
+                Expression::Lambda { .. } => true,
+                Expression::If { .. } | Expression::When { .. } => {
+                    !parsed.ast().statements().iter().any(|(_, parent)| {
+                        let Statement::For { body, .. } = parent.payload() else {
+                            return false;
+                        };
+                        parsed.ast().statements().get(*body).is_ok_and(|body| {
+                            contains(body.span())
+                                && body.span().start() <= node.span().start()
+                                && node.span().end() <= body.span().end()
+                        })
+                    })
+                }
+                _ => false,
+            }
     })
 }
 

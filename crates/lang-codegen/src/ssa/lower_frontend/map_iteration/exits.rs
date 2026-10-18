@@ -16,8 +16,8 @@ pub(in super::super) struct Context {
     pub(super) returned: Option<ValueId>,
     pub(super) cleanup_start: Option<usize>,
     pub(super) conditional: Option<conditional::State>,
-    pub(super) nested: Option<nested::State>,
-    pub(super) nested_events: Vec<nested_events::Event>,
+    pub(super) nesting: nested::Nesting,
+    pub(super) children: Vec<carrier::Child>,
     pub(super) resumed: Option<checked::Roles>,
 }
 
@@ -25,9 +25,6 @@ pub(in super::super) struct Context {
 // plan, source proof and cumulative conditional/nested evidence stay in place.
 impl Context {
     pub(in super::super) fn path_snapshot(&self) -> Option<control::map_frames::Snapshot> {
-        if self.nested.is_some() {
-            return None;
-        }
         Some(control::map_frames::Snapshot {
             statement: self.frame.statement,
             source: self.frame.source,
@@ -52,8 +49,7 @@ impl Context {
         path: control::map_frames::Snapshot,
         span: Span,
     ) -> Result<(), LoweringError> {
-        if self.nested.is_some()
-            || self.frame.statement != path.statement
+        if self.frame.statement != path.statement
             || self.plan.descriptor().statement() != path.statement
             || self.cursor_type != path.cursor_type
             || self.owner.map(|(_, source, _)| path_owner_root(source))
@@ -124,7 +120,39 @@ impl ExpressionLowerer<'_> {
             .ok_or_else(missing)?
             .instructions
             .len();
-        self.emit_iteration_cleanup_action(&IterationCleanupAction::Drop(fact), span)?;
+        conditional::local::validate(
+            (self.parsed, self.names, self.owned),
+            self.function,
+            fact,
+            owner,
+            span,
+        )?;
+        if !self
+            .loops
+            .iter()
+            .filter_map(|context| context.map_loop.as_ref())
+            .any(|state| {
+                state.conditional.is_some()
+                    && state.body == self.block
+                    && !state.cleaned
+                    && state.plan.exits().iter().any(|exit| {
+                        exit.point() == fact.point()
+                            && exit.actions().contains(&IterationCleanupAction::Drop(fact))
+                    })
+            })
+        {
+            return Err(missing());
+        }
+        let DropTarget::Named(root) = fact.target() else {
+            return Err(missing());
+        };
+        self.end_non_null_proof(root, fact.value_origin())?;
+        if self.bindings.remove(&root) != Some(LoweredValue::Value(owner)) {
+            return Err(missing());
+        }
+        self.append(Operation::Drop { owner }, Vec::new(), fact.value_origin())?;
+        self.release_owner_capture_loans(owner, fact.value_origin())?;
+
         let emitted = &self
             .function
             .block(self.block)
@@ -171,8 +199,13 @@ impl ExpressionLowerer<'_> {
         kind: IterationExitKind,
         span: Span,
     ) -> Result<(), LoweringError> {
-        if self.clean_nested_map_point(kind, None, span)? {
-            return Ok(());
+        if self
+            .loops
+            .last()
+            .and_then(|context| context.map_loop.as_ref())
+            .is_some_and(|state| state.conditional.is_some())
+        {
+            return self.clean_map_flow_point(kind, None, span);
         }
         let missing = || error(LoweringErrorKind::MissingFact, span);
         let mut state = self
@@ -180,18 +213,6 @@ impl ExpressionLowerer<'_> {
             .last_mut()
             .and_then(|context| context.map_loop.take())
             .ok_or_else(missing)?;
-        let conditional_roles = if let Some(conditional) = &state.conditional {
-            if conditional.shape.statement != state.plan.descriptor().statement()
-                || !state.plan.exits().iter().any(|exit| exit.kind() == kind)
-            {
-                return Err(missing());
-            }
-            let roles = conditional::transport::roles(self, &state, span)?;
-            state.kind = kind;
-            Some(roles)
-        } else {
-            None
-        };
         if state.kind != kind || self.block != state.body || state.cleaned {
             return Err(missing());
         }
@@ -230,21 +251,6 @@ impl ExpressionLowerer<'_> {
             || owner_mismatch
         {
             return Err(missing());
-        }
-        if let Some(roles) = conditional_roles {
-            state
-                .conditional
-                .as_mut()
-                .ok_or_else(missing)?
-                .exits
-                .push(conditional::Exit {
-                    kind,
-                    block: self.block,
-                    roles,
-                    cleanup_start: state.cleanup_start.ok_or_else(missing)?,
-                    next: None,
-                    returned: None,
-                });
         }
         state.cleaned = true;
         self.loops.last_mut().ok_or_else(missing)?.map_loop = Some(state);
@@ -330,8 +336,17 @@ impl ExpressionLowerer<'_> {
                 LoweredValue::Unit => None,
                 LoweredValue::Diverged => return Err(error(LoweringErrorKind::MissingFact, span)),
             };
-            if self.clean_nested_map_point(IterationExitKind::Return(expression), value, span)? {
-                return Ok(());
+            if self
+                .loops
+                .last()
+                .and_then(|context| context.map_loop.as_ref())
+                .is_some_and(|state| state.conditional.is_some())
+            {
+                return self.clean_map_flow_point(
+                    IterationExitKind::Return(expression),
+                    value,
+                    span,
+                );
             }
             self.clean_map_iteration_body(IterationExitKind::Return(expression), span)?;
             let state = self

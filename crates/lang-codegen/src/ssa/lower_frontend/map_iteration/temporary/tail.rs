@@ -10,7 +10,7 @@ pub(super) fn guard(
     body: StatementId,
     _kind: IterationExitKind,
     span: Span,
-) -> Result<nested::tail::Local, LoweringError> {
+) -> Result<super::super::guard::Local, LoweringError> {
     let missing = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     let body_node = parsed.ast().statements().get(body).map_err(|_| missing())?;
@@ -23,7 +23,7 @@ pub(super) fn guard(
     let Some((&first, rest)) = prefix.split_first() else {
         return Err(unsupported());
     };
-    let guard = nested::tail::qualify_guard(parsed, names, typed, owned, first, span)?;
+    let guard = super::super::guard::local(parsed, names, typed, owned, first, span)?;
     for statement in rest {
         let node = parsed
             .ast()

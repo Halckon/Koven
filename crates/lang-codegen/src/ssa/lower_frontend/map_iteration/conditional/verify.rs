@@ -2,7 +2,6 @@
 use super::super::carrier::{Evidence, instructions, terminator};
 use super::*;
 use crate::ssa::model::Definition;
-use lang_frontend::ownership_checking::CleanupOwnerValue;
 use std::collections::BTreeSet;
 
 pub(in super::super) fn validate(e: Evidence<'_>, state: &State) -> Result<(), LoweringError> {
@@ -70,19 +69,15 @@ pub(in super::super) fn validate(e: Evidence<'_>, state: &State) -> Result<(), L
         if [header, exhausted, e.continuation].contains(&block) {
             return Err(missing());
         }
-        if instructions(e.function, block)
-            .ok_or_else(missing)?
-            .iter()
-            .any(|instruction| {
-                matches!(
-                    instruction.operation,
-                    Operation::MapIterationNext { .. }
-                        | Operation::MapIterationFirst { .. }
-                        | Operation::MapIterationHasNext { .. }
-                )
-            })
-        {
-            return Err(missing());
+        for instruction in instructions(e.function, block).ok_or_else(missing)? {
+            if matches!(
+                instruction.operation,
+                Operation::MapIterationNext { .. }
+                    | Operation::MapIterationFirst { .. }
+                    | Operation::MapIterationHasNext { .. }
+            ) {
+                validate_child(e, instruction)?;
+            }
         }
         match terminator(e.function, block).ok_or_else(missing)? {
             TerminatorKind::Branch(edge) => pending.push(edge.target),
@@ -200,28 +195,35 @@ fn check_exit(e: Evidence<'_>, state: &State, exit: &Exit) -> Result<(), Lowerin
     if exit.cleanup_start > body.len() {
         return Err(missing());
     }
-    let descriptor = plan.descriptor();
-    let source_target = facts::source_target(state.shape.source);
     let mut at = exit.cleanup_start;
     for action in expected.actions() {
+        let frame = |statement| {
+            unique(
+                exit.frames
+                    .iter()
+                    .filter(|frame| frame.statement == statement),
+            )
+            .ok_or_else(missing)
+        };
         let operation = match action {
-            IterationCleanupAction::FinishProvider(statement)
-                if *statement == state.shape.statement =>
-            {
+            IterationCleanupAction::FinishProvider(statement) => {
+                frame(*statement)?;
                 continue;
             }
-            IterationCleanupAction::EndSource(statement) if *statement == state.shape.statement => {
-                Operation::BorrowEnd {
-                    loan: exit.roles.source,
-                }
-            }
-            IterationCleanupAction::EndBinding { statement, symbol }
-                if *statement == state.shape.statement =>
-            {
+            IterationCleanupAction::EndSource(statement) => Operation::BorrowEnd {
+                loan: frame(*statement)?.roles.source,
+            },
+            IterationCleanupAction::EndBinding { statement, symbol } => {
+                let roles = frame(*statement)?.roles;
+                let descriptor = e
+                    .owned
+                    .map_iteration(*statement)
+                    .ok_or_else(missing)?
+                    .descriptor();
                 let loan = if *symbol == descriptor.key_binding() {
-                    exit.roles.key
+                    roles.key
                 } else if *symbol == descriptor.value_binding() {
-                    exit.roles.value
+                    roles.value
                 } else {
                     return Err(missing());
                 };
@@ -235,41 +237,26 @@ fn check_exit(e: Evidence<'_>, state: &State, exit: &Exit) -> Result<(), Lowerin
                 if instruction.origin != Origin::Source(fact.value_origin()) {
                     return Err(missing());
                 }
-                if fact.target() == source_target {
-                    let (proof, _, _) = e.body_owner.ok_or_else(missing)?;
-                    if exit.roles.owner != Some(owner)
-                        || proof.at_checked(expected.point(), e.owned)? != Some(*fact)
+                let mut source_owner = None;
+                for frame in &exit.frames {
+                    if let Some((proof, _, current)) = frame.owner
+                        && proof.at_checked(expected.point(), e.owned)? == Some(*fact)
                     {
+                        if source_owner.replace(current).is_some() {
+                            return Err(missing());
+                        }
+                    }
+                }
+                if let Some(current) = source_owner {
+                    if current != owner {
                         return Err(missing());
                     }
                 } else {
-                    let Some(CleanupOwnerValue::Expression { origin, .. }) = fact
-                        .owner()
-                        .and_then(|owner| e.owned.cleanup_conditions().owner_value(owner))
-                    else {
-                        return Err(missing());
-                    };
-                    let ty = e
-                        .function
-                        .entity(EntityId::Value(owner))
-                        .ok_or_else(missing)?
-                        .ty;
-                    let birth = unique(e.function.instructions.iter().filter_map(|instruction| {
-                        let [EntityId::Value(birth)] = instruction.results.as_slice() else {
-                            return None;
-                        };
-                        (instruction.origin == Origin::Source(*origin)
-                            && e.function
-                                .entity(EntityId::Value(*birth))
-                                .map(|data| data.ty)
-                                == Some(ty))
-                        .then_some(*birth)
-                    }))
-                    .ok_or_else(missing)?;
-                    nested::transport(
+                    local::validate(
+                        (e.parsed, e.names, e.owned),
                         e.function,
-                        EntityId::Value(owner),
-                        EntityId::Value(birth),
+                        *fact,
+                        owner,
                         e.span,
                     )?;
                 }
@@ -281,6 +268,9 @@ fn check_exit(e: Evidence<'_>, state: &State, exit: &Exit) -> Result<(), Lowerin
             return Err(missing());
         }
         at += 1;
+    }
+    if at != exit.cleanup_end {
+        return Err(missing());
     }
     if exit_shape::terminal(exit.kind) {
         if exit.next.is_some() || at != body.len() {
@@ -365,6 +355,78 @@ fn check_exit(e: Evidence<'_>, state: &State, exit: &Exit) -> Result<(), Lowerin
             .any(|instruction| instruction.operation == Operation::BorrowEnd { loan: entry })
     {
         return Err(missing());
+    }
+    Ok(())
+}
+
+/// A nested provider is already checked by its own carrier. Still bind each
+/// encountered operation to that concrete child's source/cursor in this graph.
+fn validate_child(
+    e: Evidence<'_>,
+    instruction: &crate::ssa::model::Instruction,
+) -> Result<(), LoweringError> {
+    let missing = || error(LoweringErrorKind::MissingFact, e.span);
+    let source = match instruction.operation {
+        Operation::MapIterationFirst { source }
+        | Operation::MapIterationHasNext { source, .. }
+        | Operation::MapIterationNext { source, .. } => source,
+        _ => return Err(missing()),
+    };
+    let candidates = e
+        .children
+        .iter()
+        .filter(|child| {
+            nested::transport(
+                e.function,
+                EntityId::Loan(source),
+                EntityId::Loan(child.source),
+                e.span,
+            )
+            .is_ok()
+        })
+        .collect::<Vec<_>>();
+    let [child] = candidates.as_slice() else {
+        return Err(missing());
+    };
+    if e.children
+        .iter()
+        .filter(|other| other.statement == child.statement)
+        .count()
+        != 1
+    {
+        return Err(missing());
+    }
+    match instruction.operation {
+        Operation::MapIterationFirst { .. } => {
+            if instruction.block != child.blocks[0]
+                || instruction.results != [EntityId::Value(child.first)]
+            {
+                return Err(missing());
+            }
+        }
+        Operation::MapIterationHasNext { cursor, .. } => {
+            let parameters = &e
+                .function
+                .block(child.blocks[1])
+                .ok_or_else(missing)?
+                .parameters;
+            if instruction.block != child.blocks[1]
+                || parameters.get(child.source_slot) != Some(&EntityId::Loan(source))
+                || parameters.get(child.cursor_slot) != Some(&EntityId::Value(cursor))
+            {
+                return Err(missing());
+            }
+        }
+        Operation::MapIterationNext { cursor, .. } => {
+            let parameters = &e
+                .function
+                .block(child.blocks[2])
+                .ok_or_else(missing)?
+                .parameters;
+            let anchor = *parameters.get(child.cursor_slot).ok_or_else(missing)?;
+            nested::transport(e.function, EntityId::Value(cursor), anchor, e.span)?;
+        }
+        _ => return Err(missing()),
     }
     Ok(())
 }

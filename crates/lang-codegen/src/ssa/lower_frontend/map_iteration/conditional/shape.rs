@@ -51,20 +51,27 @@ pub(in super::super) fn shape(
                     && inside(owner.span(), candidate.span())
             })
     });
-    if has_control
-        && parsed.ast().statements().iter().any(|(_, owner)| {
-            inside(body_span, owner.span())
-                && matches!(
-                    owner.payload(),
-                    Statement::For { .. } | Statement::While { .. } | Statement::Loop { .. }
-                )
-        })
-    {
-        return Err(error(LoweringErrorKind::UnsupportedNode, span));
-    }
-    Ok(has_control.then_some(Shape {
-        statement: descriptor.statement(),
-        body,
-        source,
-    }))
+    let has_provider = parsed.ast().statements().iter().any(|(id, candidate)| {
+        id != descriptor.statement()
+            && inside(body_span, candidate.span())
+            && matches!(candidate.payload(), Statement::For { .. })
+    });
+    let has_parent = parsed.ast().statements().iter().any(|(id, parent)| {
+        let Statement::For { body, .. } = parent.payload() else {
+            return false;
+        };
+        id != descriptor.statement()
+            && parsed
+                .ast()
+                .statements()
+                .get(*body)
+                .is_ok_and(|body| inside(body.span(), node.span()))
+    });
+    Ok(
+        (has_control || has_provider || has_parent).then_some(Shape {
+            statement: descriptor.statement(),
+            body,
+            source,
+        }),
+    )
 }

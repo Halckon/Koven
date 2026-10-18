@@ -119,6 +119,43 @@ impl ExpressionLowerer<'_> {
             .collect()
     }
 
+    pub(in super::super) fn map_current_private_slot(
+        &self,
+        slot: &LinearBindingSlot,
+        span: Span,
+    ) -> Result<EntityId, LoweringError> {
+        let missing = || error(LoweringErrorKind::MissingFact, span);
+        let mut actual = None;
+        for (cursor, keys) in [(false, &slot.map_sources), (true, &slot.map_cursors)].iter() {
+            for statement in *keys {
+                let state = self
+                    .loops
+                    .iter()
+                    .filter_map(|context| context.map_loop.as_ref())
+                    .find(|state| {
+                        state
+                            .path_snapshot()
+                            .is_some_and(|path| path.statement.index() == *statement)
+                    })
+                    .ok_or_else(missing)?;
+                let path = state.path_snapshot().ok_or_else(missing)?;
+                let entity = if *cursor {
+                    EntityId::Value(path.cursor)
+                } else {
+                    path.source(span)?
+                };
+                if actual
+                    .replace(entity)
+                    .is_some_and(|before| before != entity)
+                    || self.function.entity(entity).map(|data| data.ty) != Some(slot.ty)
+                {
+                    return Err(missing());
+                }
+            }
+        }
+        actual.ok_or_else(missing)
+    }
+
     pub(super) fn carry_map_paths(
         &self,
         paths: &Paths,

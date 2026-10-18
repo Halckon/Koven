@@ -1,8 +1,8 @@
 //! Complete plan exits and owner incoming provenance; no fixed arm or payload syntax.
 use super::*;
 use lang_frontend::ownership_checking::{
-    CleanupConditionId, CleanupOwnerValue, CleanupSelectorSource, DropFact, DropTarget,
-    IterationPhiBoundary, IterationPhiIncomingKind, IterationPhiPresenceSource,
+    CleanupConditionId, CleanupSelectorSource, DropFact, DropTarget, IterationPhiBoundary,
+    IterationPhiIncomingKind, IterationPhiPresenceSource,
 };
 use std::collections::BTreeSet;
 
@@ -28,30 +28,7 @@ pub(in super::super) fn source_drop(
     let missing = || error(LoweringErrorKind::MissingFact, flow.span);
     let exit =
         unique(plan.exits().iter().filter(|exit| exit.point() == point)).ok_or_else(missing)?;
-    let target = source_target(flow.source);
-    let facts = exit
-        .actions()
-        .iter()
-        .filter_map(|action| match action {
-            IterationCleanupAction::Drop(fact) if fact.target() == target => Some(*fact),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let selected = match facts.as_slice() {
-        [] => None,
-        [fact] if fact.point() == point && owned.drops().contains(fact) => Some(*fact),
-        _ => return Err(missing()),
-    };
-    let published = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|fact| fact.point() == point && fact.target() == target)
-        .collect::<Vec<_>>();
-    if published != selected.into_iter().collect::<Vec<_>>() {
-        return Err(missing());
-    }
-    Ok(selected)
+    actions::source_drop(owned, plan, flow.source, exit, flow.span)
 }
 
 pub(in super::super) fn qualify(
@@ -75,17 +52,32 @@ pub(in super::super) fn qualify(
     if !plan.capture_graph().nodes().is_empty() {
         return Err(unsupported());
     }
-    for binding in plan
+    let symbols = plan
+        .closure_flow()
+        .header()
+        .iter()
+        .map(|binding| binding.symbol())
+        .collect::<Vec<_>>();
+    if plan
         .closure_flow()
         .header()
         .iter()
         .chain(plan.closure_flow().exit())
+        .any(|binding| !binding.origins().is_empty())
+        || symbols
+            .iter()
+            .enumerate()
+            .any(|(index, symbol)| symbols[..index].contains(symbol))
+        || plan
+            .closure_flow()
+            .exit()
+            .iter()
+            .map(|binding| binding.symbol())
+            .collect::<Vec<_>>()
+            != symbols
+        || plan.closure_phis().len() != symbols.len() * 2
     {
-        if source_target(shape.source) != DropTarget::Named(binding.symbol())
-            || !binding.origins().is_empty()
-        {
-            return Err(unsupported());
-        }
+        return Err(unsupported());
     }
     let flow = source_owner::Flow {
         statement: shape.statement,
@@ -120,76 +112,14 @@ pub(in super::super) fn qualify(
             }
             source_facts.push(fact);
         }
-        let mut suffix = Vec::new();
-        if exit.kind() != IterationExitKind::Exhaustion {
-            suffix.extend([
-                IterationCleanupAction::EndBinding {
-                    statement: shape.statement,
-                    symbol: descriptor.value_binding(),
-                },
-                IterationCleanupAction::EndBinding {
-                    statement: shape.statement,
-                    symbol: descriptor.key_binding(),
-                },
-            ]);
-        }
-        if exit_shape::terminal(exit.kind()) {
-            suffix.extend([
-                IterationCleanupAction::FinishProvider(shape.statement),
-                IterationCleanupAction::EndSource(shape.statement),
-            ]);
-            if let Some(fact) = source_drop {
-                suffix.push(IterationCleanupAction::Drop(fact));
-            }
-        }
-        if !exit.actions().ends_with(&suffix) {
-            return Err(unsupported());
-        }
-        let prefix = &exit.actions()[..exit.actions().len() - suffix.len()];
-        if exit.kind() == IterationExitKind::Exhaustion && !prefix.is_empty() {
-            return Err(missing());
-        }
-        for action in prefix {
-            let IterationCleanupAction::Drop(fact) = action else {
-                return Err(unsupported());
-            };
-            if fact.target() == target
-                || fact.point() != exit.point()
-                || !owned.drops().contains(fact)
-                || fact.capture_slot().is_some()
-                || fact.instance_address().is_some()
-            {
-                return Err(missing());
-            }
-            // Body locals are proved by their own original Expression owner. Their
-            // runtime SSA value may be transported through ordinary block parameters.
-            let DropTarget::Named(root) = fact.target() else {
-                return Err(unsupported());
-            };
-            let symbol = names.symbols().get(root.index()).ok_or_else(missing)?;
-            let owner = fact.owner().ok_or_else(missing)?;
-            let Some(CleanupOwnerValue::Expression { expression, origin }) =
-                owned.cleanup_conditions().owner_value(owner)
-            else {
-                return Err(unsupported());
-            };
-            let producer = parsed
-                .ast()
-                .expressions()
-                .get(*expression)
-                .map_err(|_| missing())?;
-            if symbol.kind() != SymbolKind::Variable
-                || fact.value_origin() != symbol.span()
-                || producer.span() != *origin
-            {
-                return Err(missing());
-            }
-            if fact.condition().is_some_and(|condition| {
-                owned.cleanup_conditions().get(condition) != Some(&CleanupCondition::Always)
-            }) {
-                return Err(unsupported());
-            }
-        }
+        actions::validate(
+            (parsed, names, typed, owned),
+            plan,
+            shape,
+            exit,
+            source_drop,
+            span,
+        )?;
     }
     if plan
         .exits()
@@ -231,12 +161,6 @@ pub(in super::super) fn qualify(
     if plan.closure_phi_incomings().len() != expected.len() {
         return Err(missing());
     }
-    let named_owned = plan.source_access() == MapIterationSourceAccess::Owned;
-    if (!named_owned && !plan.closure_phis().is_empty())
-        || (named_owned && plan.closure_phis().len() != 2)
-    {
-        return Err(unsupported());
-    }
     for (kind, boundary, point, expected_condition) in expected {
         let incoming = unique(
             plan.closure_phi_incomings()
@@ -254,44 +178,60 @@ pub(in super::super) fn qualify(
             return Err(missing());
         }
         condition(parsed, owned, incoming.condition(), span)?;
-        if !named_owned {
-            if !incoming.bindings().is_empty() {
+        if incoming.bindings().len() != symbols.len() {
+            return Err(missing());
+        }
+        for root in &symbols {
+            let phi = source_owner::phi(owned.cleanup_conditions(), plan, *root, boundary, span)?;
+            let binding = unique(
+                incoming
+                    .bindings()
+                    .iter()
+                    .filter(|binding| binding.target() == phi.owner()),
+            )
+            .ok_or_else(missing)?;
+            if binding.availability_selector() != phi.availability_selector()
+                || binding.presence_source() != IterationPhiPresenceSource::StaticConditions
+                || !binding.capture_slots_to_clear().is_empty()
+                || !binding.root_sources().is_empty()
+                || !binding.selector_writes().is_empty()
+                || !binding.origins().is_empty()
+            {
                 return Err(missing());
             }
-            continue;
-        }
-        let DropTarget::Named(root) = target else {
-            return Err(missing());
-        };
-        // A phi belongs to this provider boundary, whose public origin is the
-        // For span. The parameter/producer origin identifies the graph's seed.
-        let phi = source_owner::phi(owned.cleanup_conditions(), plan, root, boundary, span)?;
-        let [binding] = incoming.bindings() else {
-            return Err(missing());
-        };
-        if binding.target() != phi.owner()
-            || binding.availability_selector() != phi.availability_selector()
-            || binding.presence_source() != IterationPhiPresenceSource::StaticConditions
-            || !binding.capture_slots_to_clear().is_empty()
-            || !binding.root_sources().is_empty()
-            || !binding.selector_writes().is_empty()
-            || !binding.origins().is_empty()
-        {
-            return Err(missing());
-        }
-        condition(parsed, owned, binding.available_when(), span)?;
-        match binding.values() {
-            [] if owned.cleanup_conditions().get(binding.available_when())
-                == Some(&CleanupCondition::Never) => {}
-            [value] if value.condition() == binding.available_when() => {
-                source_owner::flow_condition(parsed, names, owned, flow, value.source(), span)?;
+            condition(parsed, owned, binding.available_when(), span)?;
+            match binding.values() {
+                [] if owned.cleanup_conditions().get(binding.available_when())
+                    == Some(&CleanupCondition::Never) => {}
+                [value] if value.condition() == binding.available_when() => {
+                    if target == DropTarget::Named(*root) {
+                        source_owner::flow_condition(
+                            parsed,
+                            names,
+                            owned,
+                            flow,
+                            value.source(),
+                            span,
+                        )?;
+                    } else {
+                        actions::binding_condition(
+                            parsed,
+                            names,
+                            owned,
+                            *root,
+                            value.source(),
+                            span,
+                        )?;
+                    }
+                }
+                _ => return Err(missing()),
             }
-            _ => return Err(missing()),
-        }
-        if boundary == IterationPhiBoundary::Header && binding.values().is_empty() {
-            return Err(unsupported());
+            if boundary == IterationPhiBoundary::Header && binding.values().is_empty() {
+                return Err(unsupported());
+            }
         }
     }
+
     if plan.source_access() == MapIterationSourceAccess::Shared {
         if !source_facts.is_empty() {
             return Err(missing());
@@ -346,42 +286,69 @@ pub(in super::super) fn qualify(
         .copied()
         .filter(|fact| !source_facts.contains(fact))
         .collect::<Vec<_>>();
-    let late = match outside.as_slice() {
-        [] => None,
-        [fact] if typed.is_resource_type(descriptor.source_type()) == Some(true) => {
+    let inherited = !outside.is_empty()
+        && outside
+            .iter()
+            .all(|fact| actions::ancestor_drop(parsed, owned, shape.statement, *fact));
+    let late = if inherited {
+        for fact in &outside {
             validate_source_fact(parsed, names, owned, flow, *fact, span)?;
-            let DropTarget::Named(root) = target else {
-                return Err(unsupported());
-            };
-            let origin = names
-                .symbols()
-                .get(root.index())
-                .ok_or_else(missing)?
-                .span();
-            let scope = resource::scope(parsed, shape.statement, origin, span)?;
-            if !resource::normal_point(parsed, scope, span, fact.point()) {
-                return Err(unsupported());
-            }
-            let exit = source_owner::phi(
-                owned.cleanup_conditions(),
-                plan,
-                root,
-                IterationPhiBoundary::Exit,
-                span,
-            )?;
-            // The complete incoming graph proves this provider's live Exit phi;
-            // the late fact must name that exact owner and its presence condition.
-            let live =
-                source_owner::flow_condition(parsed, names, owned, flow, exit.owner(), span)?;
-            if fact.owner() != Some(exit.owner()) || fact.condition() != Some(live) {
-                return Err(missing());
-            }
-            Some(*fact)
         }
-        _ => return Err(unsupported()),
+        let nonlocal = outside
+            .iter()
+            .copied()
+            .filter(|fact| !plan.exits().iter().any(|exit| exit.point() == fact.point()))
+            .collect::<Vec<_>>();
+        match nonlocal.as_slice() {
+            [] => None,
+            [fact] => Some(*fact),
+            _ => return Err(unsupported()),
+        }
+    } else {
+        match outside.as_slice() {
+            [] => None,
+            [fact] if typed.is_resource_type(descriptor.source_type()) == Some(true) => {
+                validate_source_fact(parsed, names, owned, flow, *fact, span)?;
+                let DropTarget::Named(root) = target else {
+                    return Err(unsupported());
+                };
+                let origin = names
+                    .symbols()
+                    .get(root.index())
+                    .ok_or_else(missing)?
+                    .span();
+                if !actions::ancestor_drop(parsed, owned, shape.statement, *fact) {
+                    let scope = resource::scope(parsed, shape.statement, origin, span)?;
+                    if !resource::normal_point(parsed, scope, span, fact.point()) {
+                        return Err(unsupported());
+                    }
+                    let exit = source_owner::phi(
+                        owned.cleanup_conditions(),
+                        plan,
+                        root,
+                        IterationPhiBoundary::Exit,
+                        span,
+                    )?;
+                    let live = source_owner::flow_condition(
+                        parsed,
+                        names,
+                        owned,
+                        flow,
+                        exit.owner(),
+                        span,
+                    )?;
+                    if fact.owner() != Some(exit.owner()) || fact.condition() != Some(live) {
+                        return Err(missing());
+                    }
+                }
+                Some(*fact)
+            }
+            _ => return Err(unsupported()),
+        }
     };
     let drop = late
         .or_else(|| source_facts.first().copied())
+        .or_else(|| inherited.then(|| outside.first().copied()).flatten())
         .ok_or_else(unsupported)?;
     if matches!(shape.source, SourceIdentity::Temporary(_))
         && (ledger.len() != source_facts.len()

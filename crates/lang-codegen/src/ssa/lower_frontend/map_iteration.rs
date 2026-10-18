@@ -1,15 +1,16 @@
 //! Bounded two-component Map provider; independent from Sequential snapshots.
 mod carrier;
 mod checked;
+mod cleanup;
 mod conditional;
 mod exit_shape;
 mod exits;
 mod formed;
 mod formed_runtime;
+mod guard;
 mod local;
 mod local_runtime;
 mod nested;
-mod nested_events;
 mod qualify;
 mod resource;
 mod source;
@@ -36,7 +37,7 @@ pub(super) fn supported_drop(
 ) -> bool {
     local::supported_drop(parsed, names, typed, owned, fact)
         || source_owner::supported_drop(parsed, names, typed, owned, fact)
-        || nested::tail::supported_drop(parsed, names, typed, owned, fact)
+        || conditional::supported_local_drop(parsed, names, typed, owned, fact)
 }
 
 type Storage = BTreeMap<SsaTypeId, (MapContainerKind, SsaTypeId, SsaTypeId)>;
@@ -113,11 +114,14 @@ impl ExpressionLowerer<'_> {
         if descriptor.source() != source || qualified.body != body {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        if (!self.loops.is_empty() && qualified.nested.is_none())
-            || self.thunk_expression.is_some()
+        self.validate_map_parent(qualified.nesting, span)?;
+        if self.thunk_expression.is_some()
             || self.readonly_receiver.is_some()
             || !self.pending_call_loans.is_empty()
-            || !self.temporaries.is_empty()
+            || self
+                .temporaries
+                .iter()
+                .any(|(&key, &value)| !self.active_map_temporary(key, value))
             || !self.non_null_bindings.is_empty()
             || !self.capture_loans.is_empty()
             || !self.result_source_loans.is_empty()
@@ -171,13 +175,7 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let seed = self.map_iteration_seed(
-            source_identity,
-            container,
-            source_origin,
-            qualified.nested,
-            span,
-        )?;
+        let seed = self.map_iteration_seed(source_identity, container, source_origin, span)?;
         let source_loan = match (plan.source_access(), seed) {
             (
                 MapIterationSourceAccess::Owned | MapIterationSourceAccess::Temporary,
@@ -265,13 +263,21 @@ impl ExpressionLowerer<'_> {
                 .slots
                 .push(LinearBindingSlot::new(Some(binding), entity, ty));
         }
-        let nested_checkpoint = self.prepare_map_nested(
-            qualified.nested,
-            statement,
-            source_identity,
-            &mut carried,
-            span,
-        )?;
+        // An entry Borrow source has a real caller column too. Reuse ordinary
+        // bindings so all later providers see the transported current root loan.
+        if let (SourceIdentity::Parameter(symbol), EntityId::Loan(loan)) = (source_identity, seed) {
+            let entity = EntityId::Loan(loan);
+            if !carried.slots.iter().any(|slot| slot.source == entity) {
+                let ty = self
+                    .function
+                    .entity(entity)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                    .ty;
+                let mut slot = LinearBindingSlot::new(None, entity, ty);
+                slot.borrow_symbols.push(symbol);
+                carried.slots.push(slot);
+            }
+        }
         let source_slot = carried.slots.len();
         let cursor_slot = source_slot + 1;
         let mut types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
@@ -313,8 +319,6 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.block = header;
         self.bindings = self.rebind_linear_bindings(&baseline, header, &carried, span)?;
-        let parent_header =
-            self.rebind_map_parent(nested_checkpoint, None, preheader, header, span)?;
         let header_parameters = self.map_iteration_parameters(header, span)?;
         let (header_source, header_cursor) =
             roles(&header_parameters, source_slot, cursor_slot, span)?;
@@ -345,13 +349,9 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.block = exhausted;
         self.bindings = self.rebind_linear_bindings(&baseline, exhausted, &carried, span)?;
-        let parent_exhausted =
-            self.rebind_map_parent(nested_checkpoint, parent_header, header, exhausted, span)?;
         let false_exit = self.branch_exit(LoweredValue::Unit);
         self.block = body_block;
         self.bindings = self.rebind_linear_bindings(&baseline, body_block, &carried, span)?;
-        let parent_body =
-            self.rebind_map_parent(nested_checkpoint, parent_header, header, body_block, span)?;
         let body_parameters = self.map_iteration_parameters(body_block, span)?;
         let (body_source, body_cursor) = roles(&body_parameters, source_slot, cursor_slot, span)?;
         let key = self.map_iteration_loan(
@@ -389,21 +389,6 @@ impl ExpressionLowerer<'_> {
             &body_parameters,
             span,
         )?;
-        let parent = nested::parent(
-            nested_checkpoint,
-            [preheader, header, body_block, exhausted],
-            parent_header,
-            parent_body,
-            parent_exhausted,
-            span,
-        )?;
-        let nested = self.map_nested_state(
-            qualified.nested,
-            source_identity,
-            (body_source, body_cursor, [key, value]),
-            parent,
-            span,
-        )?;
         self.loops.push(loop_control::LoopContext {
             entry_views: self.non_null_bindings.clone(),
             outer_borrowed_while: None,
@@ -434,8 +419,8 @@ impl ExpressionLowerer<'_> {
                 returned: None,
                 cleanup_start: None,
                 conditional: qualified.conditional.map(conditional::State::new),
-                nested,
-                nested_events: Vec::new(),
+                nesting: qualified.nesting,
+                children: Vec::new(),
                 resumed: None,
             }),
         });
@@ -443,7 +428,6 @@ impl ExpressionLowerer<'_> {
         // is already Diverged and must not acquire a synthetic fallthrough/Next.
         let result = self.lower_statement_inner(body)?;
         if (qualified.conditional.is_none()
-            && qualified.nested.is_none()
             && self.block
                 != self
                     .loops
@@ -465,7 +449,7 @@ impl ExpressionLowerer<'_> {
             .loops
             .pop()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let mut state = context
+        let state = context
             .map_loop
             .take()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
@@ -487,10 +471,6 @@ impl ExpressionLowerer<'_> {
         if self.merge_exits(vec![false_exit], &baseline, span)? != LoweredValue::Unit {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        self.restore_map_parent_false(
-            state.nested.as_ref().and_then(|nested| nested.parent),
-            span,
-        )?;
         let exhausted_parameters = self.map_iteration_parameters(exhausted, span)?;
         let (exhausted_source, _) = roles(&exhausted_parameters, source_slot, cursor_slot, span)?;
         let mut frame = Frame {
@@ -531,40 +511,16 @@ impl ExpressionLowerer<'_> {
         if !frame.finished || frame.source.is_some() || owner_mismatch {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let parent = state.nested.as_ref().and_then(|nested| nested.parent);
-        if let Some(parent) = parent.filter(|_| {
-            qualified.nested.is_some_and(|pair| {
-                pair.tail
-                    .is_some_and(|shape| matches!(shape.kind, IterationExitKind::Break(_)))
-                    && statement == pair.inner
-            })
-        }) {
-            let [broken] = <[control::BranchExit; 1]>::try_from(context.breaks)
-                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
-            let false_exit = self.branch_exit(LoweredValue::Unit);
-            let parent =
-                self.merge_map_nested_break(parent, broken, false_exit, &baseline, &carried, span)?;
-            state
-                .nested
-                .as_mut()
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-                .parent = Some(parent);
-            self.restore_map_parent(Some(parent), span)?;
-        } else {
-            self.restore_map_parent(parent, span)?;
-            if qualified.nested.is_some() && !context.breaks.is_empty() {
-                return Err(error(LoweringErrorKind::MissingFact, span));
-            }
-            context.breaks.push(self.branch_exit(LoweredValue::Unit));
-            self.merge_exits(context.breaks, &baseline, span)?;
-        }
+        context.breaks.push(self.branch_exit(LoweredValue::Unit));
+        self.merge_exits(context.breaks, &baseline, span)?;
         let evidence = carrier::Evidence {
+            parsed: self.parsed,
+            names: self.names,
             owned: self.owned,
             exhaustion_point: exhaustion.point(),
             function: self.function,
             conditional: state.conditional.as_ref(),
-            nested: state.nested.as_ref(),
-            events: &state.nested_events,
+            children: &state.children,
             cleanup_body: state.body,
             seed,
             source: source_loan,
@@ -573,10 +529,7 @@ impl ExpressionLowerer<'_> {
             body_exit,
             // Conditional/nested validators start from the original body owner;
             // only a checked-success carrier records a replacement body role.
-            body_owner: if state.resumed.is_some()
-                && qualified.conditional.is_none()
-                && qualified.nested.is_none()
-            {
+            body_owner: if state.resumed.is_some() && qualified.conditional.is_none() {
                 state.owner
             } else {
                 body_owner
@@ -607,7 +560,33 @@ impl ExpressionLowerer<'_> {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
         }
-        self.retain_resource_map(owner, seed, span)?;
+        if let Some(parent) = self
+            .loops
+            .last_mut()
+            .and_then(|context| context.map_loop.as_mut())
+        {
+            parent.children.extend(state.children.iter().copied());
+            parent.children.push(carrier::Child {
+                statement,
+                blocks: [preheader, header, body_block, exhausted],
+                source: source_loan,
+                first,
+                source_slot,
+                cursor_slot,
+            });
+        }
+        if !self
+            .loops
+            .iter()
+            .filter_map(|context| context.map_loop.as_ref())
+            .any(|active| {
+                active
+                    .owner
+                    .is_some_and(|(_, source, _)| source == source_identity)
+            })
+        {
+            self.retain_resource_map(owner, seed, span)?;
+        }
         Ok(LoweredValue::Unit)
     }
 
@@ -690,10 +669,9 @@ impl ExpressionLowerer<'_> {
         carried
             .slots
             .iter()
-            .enumerate()
-            .map(|(column, slot)| {
-                if let Some(entity) = self.map_nested_private_argument(column, span)? {
-                    return Ok(entity);
+            .map(|slot| {
+                if slot.has_map_role() {
+                    return self.map_current_private_slot(slot, span);
                 }
                 if let Some(symbol) = slot.symbol {
                     return match self.bindings.get(&symbol) {
@@ -733,86 +711,97 @@ impl ExpressionLowerer<'_> {
         flow: bool,
         span: Span,
     ) -> Result<(), LoweringError> {
+        for action in exit.actions() {
+            self.emit_map_cleanup_action(action, exit.point(), frame, owner, flow, span)?;
+        }
+        Ok(())
+    }
+
+    fn emit_map_cleanup_action(
+        &mut self,
+        action: &IterationCleanupAction,
+        point: DropPoint,
+        frame: &mut Frame,
+        owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
+        flow: bool,
+        span: Span,
+    ) -> Result<(), LoweringError> {
         let source_drop = owner
-            .map(|(proof, _, _)| proof.at_checked(exit.point(), self.owned))
+            .map(|(proof, _, _)| proof.at_checked(point, self.owned))
             .transpose()?
             .flatten();
-        for action in exit.actions() {
-            match action {
-                IterationCleanupAction::EndBinding { statement, symbol }
-                    if *statement == frame.statement =>
-                {
-                    let index = frame
-                        .components
-                        .iter()
-                        .position(|(binding, _)| binding == symbol)
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                    if index == 0 && frame.components[1].1.is_some() {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
-                    }
-                    let loan = frame.components[index]
-                        .1
-                        .take()
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                    if self.borrow_bindings.remove(symbol) != Some(loan) {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
-                    }
-                    self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
+        match action {
+            IterationCleanupAction::EndBinding { statement, symbol }
+                if *statement == frame.statement =>
+            {
+                let index = frame
+                    .components
+                    .iter()
+                    .position(|(binding, _)| binding == symbol)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                if index == 0 && frame.components[1].1.is_some() {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
                 }
-                IterationCleanupAction::FinishProvider(statement)
-                    if *statement == frame.statement =>
-                {
-                    if frame.finished
-                        || frame.source.is_none()
-                        || frame.components.iter().any(|(_, loan)| loan.is_some())
-                    {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
-                    }
-                    frame.finished = true;
+                let loan = frame.components[index]
+                    .1
+                    .take()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                if self.borrow_bindings.remove(symbol) != Some(loan) {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
                 }
-                IterationCleanupAction::EndSource(statement) if *statement == frame.statement => {
-                    if !frame.finished {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
-                    }
-                    let loan = frame
-                        .source
-                        .take()
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                    self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
-                }
-                IterationCleanupAction::Drop(fact) if source_drop == Some(*fact) => {
-                    let (_, source, value) =
-                        owner.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                    if frame.source.is_some()
-                        || !frame.finished
-                        || source.current_owner(self) != Some(value)
-                    {
-                        return Err(error(LoweringErrorKind::MissingFact, span));
-                    }
-                    source.take_owner(self, value, span)?;
-                    self.append(
-                        Operation::Drop { owner: value },
-                        Vec::new(),
-                        fact.value_origin(),
-                    )?;
-                }
-                IterationCleanupAction::Drop(fact)
-                    if !flow
-                        && owner.is_some_and(|(_, source, _)| {
-                            matches!(source, SourceIdentity::Temporary(_))
-                        }) =>
-                {
-                    self.emit_temporary_map_local_drop(*fact, exit.point(), span)?;
-                }
-                IterationCleanupAction::Drop(fact) => {
-                    if flow {
-                        self.emit_flow_map_local_drop(*fact, span)?;
-                    } else {
-                        self.emit_iteration_cleanup_action(action, span)?;
-                    }
-                }
-                _ => return Err(error(LoweringErrorKind::MissingFact, span)),
+                self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
             }
+            IterationCleanupAction::FinishProvider(statement) if *statement == frame.statement => {
+                if frame.finished
+                    || frame.source.is_none()
+                    || frame.components.iter().any(|(_, loan)| loan.is_some())
+                {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                frame.finished = true;
+            }
+            IterationCleanupAction::EndSource(statement) if *statement == frame.statement => {
+                if !frame.finished {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                let loan = frame
+                    .source
+                    .take()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
+            }
+            IterationCleanupAction::Drop(fact) if source_drop == Some(*fact) => {
+                let (_, source, value) =
+                    owner.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                if frame.source.is_some()
+                    || !frame.finished
+                    || source.current_owner(self) != Some(value)
+                {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                source.take_owner(self, value, span)?;
+                self.append(
+                    Operation::Drop { owner: value },
+                    Vec::new(),
+                    fact.value_origin(),
+                )?;
+            }
+            IterationCleanupAction::Drop(fact)
+                if !flow
+                    && owner.is_some_and(|(_, source, _)| {
+                        matches!(source, SourceIdentity::Temporary(_))
+                    }) =>
+            {
+                self.emit_temporary_map_local_drop(*fact, point, span)?;
+            }
+            IterationCleanupAction::Drop(fact) => {
+                if flow {
+                    self.emit_flow_map_local_drop(*fact, span)?;
+                } else {
+                    self.emit_iteration_cleanup_action(action, span)?;
+                }
+            }
+            _ => return Err(error(LoweringErrorKind::MissingFact, span)),
         }
         Ok(())
     }

@@ -77,7 +77,6 @@ impl ExpressionLowerer<'_> {
         source: SourceIdentity,
         container: SsaTypeId,
         origin: Span,
-        _nested: Option<nested::Pair>,
         span: Span,
     ) -> Result<EntityId, LoweringError> {
         let missing = || error(LoweringErrorKind::MissingFact, span);
@@ -176,7 +175,7 @@ impl ExpressionLowerer<'_> {
                     || self.function.entity(seed).map(|entity| entity.ty)
                         != Some(EntityType::Value(container))
                     || source.current_owner(self) != Some(owner)
-                    || self.temporaries.len() != 1
+                    || self.temporaries.iter().any(|(&key, &value)| key != expression.index() && !self.active_map_temporary(key, value))
                     || !self.pending_call_loans.is_empty()
                     || !self.capture_loans.is_empty()
                     || !self.result_source_loans.is_empty()

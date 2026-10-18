@@ -11,7 +11,7 @@ pub(super) fn edges(
     let [preheader, header, body, exhausted] = evidence.blocks;
     if evidence.body_exit != IterationExitKind::Fallthrough
         || evidence.conditional.is_some()
-        || evidence.nested.is_some()
+        || !evidence.children.is_empty()
         || evidence.continuation != exhausted
         || evidence
             .carried

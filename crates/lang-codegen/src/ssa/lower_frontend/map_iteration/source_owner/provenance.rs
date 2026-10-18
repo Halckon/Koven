@@ -24,7 +24,7 @@ pub(super) fn formed(
 }
 
 /// Generic body paths retain all published incoming edges, including multiple jumps.
-pub(super) fn flow(
+pub(in super::super) fn flow(
     owned: &OwnershipCheckedFile,
     symbol: SymbolId,
     origin: Span,
@@ -114,10 +114,7 @@ fn rooted(
                         })
                         .ok_or_else(bad)?,
                 )?;
-                if phi.owner() != current
-                    || plan.closure_phis().len() != 2
-                    || !plan.capture_graph().nodes().is_empty()
-                {
+                if phi.owner() != current || !plan.capture_graph().nodes().is_empty() {
                     return Err(unsupported());
                 }
                 available.insert(current, phi.availability_condition());
@@ -157,9 +154,13 @@ fn rooted(
                         {
                             return Err(bad());
                         }
-                        let [binding] = selected.bindings() else {
-                            return Err(bad());
-                        };
+                        let binding = unique(
+                            selected
+                                .bindings()
+                                .iter()
+                                .filter(|binding| binding.target() == phi.owner()),
+                        )
+                        .ok_or_else(bad)?;
                         if binding.target() != phi.owner()
                             || binding.availability_selector() != phi.availability_selector()
                             || binding.presence_source()
@@ -192,7 +193,8 @@ fn rooted(
                                     _ => return Err(bad()),
                                 },
                             )?;
-                            if kind != IterationPhiIncomingKind::Entry
+                            if !flow
+                                && kind != IterationPhiIncomingKind::Entry
                                 && value.source() != header.owner()
                             {
                                 return Err(bad());
