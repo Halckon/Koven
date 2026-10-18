@@ -10,7 +10,15 @@ pub(super) fn parameter(
     owner: CleanupOwnerValueId,
     span: Span,
 ) -> Result<CleanupConditionId, LoweringError> {
-    rooted(owned, symbol, (symbol, origin, None), owner, span, false)
+    rooted(
+        owned,
+        symbol,
+        (symbol, origin, None),
+        owner,
+        span,
+        false,
+        None,
+    )
 }
 
 pub(super) fn formed(
@@ -27,6 +35,7 @@ pub(super) fn formed(
         owner,
         span,
         false,
+        None,
     )
 }
 
@@ -46,6 +55,7 @@ pub(in super::super) fn flow(
         owner,
         span,
         true,
+        None,
     )
 }
 
@@ -57,7 +67,35 @@ pub(super) fn entry(
     span: Span,
     flow: bool,
 ) -> Result<CleanupConditionId, LoweringError> {
-    rooted(owned, symbol, (birth.0, birth.1, None), owner, span, flow)
+    rooted(
+        owned,
+        symbol,
+        (birth.0, birth.1, None),
+        owner,
+        span,
+        flow,
+        None,
+    )
+}
+
+/// Every published incoming path must pass this already proved Exit owner.
+/// Reaching the same birth along another path cannot substitute for continuation.
+pub(in super::super) fn from_exit(
+    owned: &OwnershipCheckedFile,
+    symbol: SymbolId,
+    owner: CleanupOwnerValueId,
+    exit: CleanupOwnerValueId,
+    span: Span,
+) -> Result<CleanupConditionId, LoweringError> {
+    rooted(
+        owned,
+        symbol,
+        (symbol, span, None),
+        owner,
+        span,
+        true,
+        Some(exit),
+    )
 }
 
 fn rooted(
@@ -67,6 +105,7 @@ fn rooted(
     owner: CleanupOwnerValueId,
     span: Span,
     flow: bool,
+    cut: Option<CleanupOwnerValueId>,
 ) -> Result<CleanupConditionId, LoweringError> {
     let (seed_root, origin, expression) = anchor;
     let bad = || error(LoweringErrorKind::MissingFact, span);
@@ -81,11 +120,39 @@ fn rooted(
         if available.contains_key(&current) {
             continue;
         }
+        if cut == Some(current) {
+            let Some(CleanupOwnerValue::IterationPhi {
+                statement,
+                boundary: IterationPhiBoundary::Exit,
+                symbol: actual,
+                origin,
+            }) = conditions.owner_value(current)
+            else {
+                return Err(bad());
+            };
+            if *actual != symbol {
+                return Err(bad());
+            }
+            let plan = owned.map_iteration(*statement).ok_or_else(bad)?;
+            let phi = super::phi(
+                conditions,
+                plan,
+                symbol,
+                IterationPhiBoundary::Exit,
+                *origin,
+            )?;
+            if phi.owner() != current {
+                return Err(bad());
+            }
+            available.insert(current, phi.availability_condition());
+            seeds.insert(current);
+            continue;
+        }
         match conditions.owner_value(current).ok_or_else(bad)? {
             CleanupOwnerValue::Parameter {
                 symbol: actual,
                 origin: at,
-            } if expression.is_none() && *actual == seed_root && *at == origin => {
+            } if cut.is_none() && expression.is_none() && *actual == seed_root && *at == origin => {
                 // The public Entry binding publishes the Always ID; do not invent one by index.
                 let entry = owned
                     .map_iterations()
@@ -104,7 +171,7 @@ fn rooted(
             CleanupOwnerValue::Expression {
                 expression: actual,
                 origin: at,
-            } if expression == Some(*actual) && *at == origin => {
+            } if cut.is_none() && expression == Some(*actual) && *at == origin => {
                 let entry = owned
                     .map_iterations()
                     .iter()

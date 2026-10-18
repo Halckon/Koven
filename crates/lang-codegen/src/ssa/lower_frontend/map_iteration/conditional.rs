@@ -4,6 +4,7 @@ mod facts;
 pub(super) mod local;
 mod retained;
 mod shape;
+mod successor;
 pub(super) mod transport;
 mod verify;
 

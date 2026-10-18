@@ -389,10 +389,19 @@ pub(in super::super) fn qualify(
                 )?;
                 let live =
                     source_owner::flow_condition(parsed, names, owned, flow, exit.owner(), span)?;
-                if (resource
-                    && (fact.owner() != Some(exit.owner()) || fact.condition() != Some(live)))
-                    || owned.cleanup_conditions().get(live) == Some(&CleanupCondition::Never)
+                if resource
+                    && (fact.owner() != Some(exit.owner()) || fact.condition() != Some(live))
+                    && !super::successor::terminal(
+                        (parsed, names, typed, owned),
+                        flow,
+                        *fact,
+                        formation.as_ref(),
+                        span,
+                    )?
                 {
+                    return Err(missing());
+                }
+                if owned.cleanup_conditions().get(live) == Some(&CleanupCondition::Never) {
                     return Err(missing());
                 }
                 Some(*fact)
