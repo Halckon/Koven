@@ -908,3 +908,11 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   指出合法重赋值/参数Move等其他形成历史可能被误判MissingFact，须修正分类后再验收；
   不能据本片称通用formed-local或G2完成。根据用户新要求，Mac后续只做正常小提交/push
   与必要验收收据，不再生成额外format-patch/压缩包/备份清单；已有文件保留。
+
+- 后续G2修正检查点关闭上述诊断finding：五类真实合法历史×双入口的红对照实际8条Missing、
+  2条原For U；修后硬锁重赋值/参数Move/旧alias重绑/put前缀8条原For U，prefix size-CFG
+  2条完整SSA/LLVM成功。写入按真实assignment/mutation receiver及同callable、实际root引用
+  失效声明历史；同一producer的ID/span/type/condition损坏仍Missing。形成后的当前value
+  逐所有incoming回原Call，不再要求与birth同块或数值ID相等，旧local A/B专用合同保持。
+  主24源48路强化FE/SSA/LLVM再次通过；Drop锁terminal当前owner列、N/C回边锁body当前列，
+  独审无剩余阻断。prefix-CFG两路不是新增native证据；最终冻结回归与native重验待绑定。

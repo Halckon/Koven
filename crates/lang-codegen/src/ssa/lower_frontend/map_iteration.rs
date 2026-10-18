@@ -191,9 +191,9 @@ impl ExpressionLowerer<'_> {
                 if source_identity.current_owner(self) != Some(owner) {
                     let kind = match source_identity {
                         SourceIdentity::Parameter(_) => LoweringErrorKind::UnsupportedNode,
-                        SourceIdentity::Local { .. } | SourceIdentity::Temporary(_) => {
-                            LoweringErrorKind::MissingFact
-                        }
+                        SourceIdentity::Local { .. }
+                        | SourceIdentity::Formed { .. }
+                        | SourceIdentity::Temporary(_) => LoweringErrorKind::MissingFact,
                     };
                     return Err(error(kind, span));
                 }

@@ -25,8 +25,10 @@ pub(super) fn formation(
         root,
         |root| {
             let symbol = names.symbols().get(root.index()).ok_or_else(missing)?;
-            if symbol.kind() != SymbolKind::Variable
-                || symbol.is_synthetic()
+            if symbol.kind() != SymbolKind::Variable {
+                return Err(unsupported());
+            }
+            if symbol.is_synthetic()
                 || typed.symbol_type(root) != Some(storage)
                 || !owned.formed_owned_locals().contains(&root)
             {
@@ -66,6 +68,11 @@ pub(super) fn formation(
             }
         },
         |id| typed.expression_type(id).zip(typed.expression_category(id)),
+        typed
+            .map_puts()
+            .iter()
+            .map(|d| d.receiver())
+            .chain(typed.map_removes().iter().map(|d| d.receiver())),
     )
 }
 
@@ -96,8 +103,12 @@ pub(super) fn qualify<'a>(
     {
         return Err(missing());
     }
+    match typed.is_resource_type(d.source_type()) {
+        Some(false) => {}
+        Some(true) => return Err(unsupported()),
+        None => return Err(missing()),
+    }
     if qualify::has_enclosing_control(parsed, span)
-        || typed.is_resource_type(d.source_type()) != Some(false)
         || [d.key_type(), d.value_type()]
             .iter()
             .any(|t| builtin_type(typed, *t) != Some(BuiltinType::String))
@@ -154,9 +165,9 @@ pub(super) fn qualify<'a>(
     )?;
     Ok(qualify::Qualified {
         plan,
-        source: SourceIdentity::Local {
+        source: SourceIdentity::Formed {
             symbol: root,
-            initializer: formation.producer,
+            producer: formation.producer,
         },
         body,
         origin: names

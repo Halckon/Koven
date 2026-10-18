@@ -50,8 +50,9 @@ impl UnitExpressionLowerer<'_> {
                     return Err(missing());
                 }
                 let anchor = local::validate_birth(self, root, initializer, current, span)?;
-                if current != anchor
-                    || carrier::instruction(self.function, anchor, span)?.block != self.block
+                if matches!(identity, SourceIdentity::Local { .. })
+                    && (current != anchor
+                        || carrier::instruction(self.function, anchor, span)?.block != self.block)
                 {
                     return Err(missing());
                 }

@@ -9,13 +9,20 @@ pub(super) enum SourceIdentity {
         symbol: SymbolId,
         initializer: ExpressionId,
     },
+    /// Current owner follows an original Call through normal binding/CFG transport.
+    Formed {
+        symbol: SymbolId,
+        producer: ExpressionId,
+    },
     Temporary(ExpressionId),
 }
 
 impl SourceIdentity {
     pub(super) fn matches_slot(self, slot: &LinearBindingSlot) -> bool {
         match self {
-            Self::Parameter(symbol) | Self::Local { symbol, .. } => slot.symbol == Some(symbol),
+            Self::Parameter(symbol) | Self::Local { symbol, .. } | Self::Formed { symbol, .. } => {
+                slot.symbol == Some(symbol)
+            }
             Self::Temporary(expression) => {
                 slot.symbol.is_none() && slot.temporaries.as_slice() == [expression.index()]
             }
@@ -24,7 +31,7 @@ impl SourceIdentity {
 
     pub(super) fn current_owner(self, lowerer: &ExpressionLowerer<'_>) -> Option<ValueId> {
         match self {
-            Self::Parameter(symbol) | Self::Local { symbol, .. } => {
+            Self::Parameter(symbol) | Self::Local { symbol, .. } | Self::Formed { symbol, .. } => {
                 match lowerer.bindings.get(&symbol) {
                     Some(LoweredValue::Value(owner)) => Some(*owner),
                     _ => None,
@@ -44,7 +51,7 @@ impl SourceIdentity {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         match self {
-            Self::Parameter(symbol) | Self::Local { symbol, .. } => {
+            Self::Parameter(symbol) | Self::Local { symbol, .. } | Self::Formed { symbol, .. } => {
                 lowerer.bindings.remove(&symbol);
             }
             Self::Temporary(expression) => {
@@ -103,23 +110,44 @@ impl ExpressionLowerer<'_> {
             SourceIdentity::Local {
                 symbol,
                 initializer,
-            } => {
+            } => self.local_map_seed(symbol, initializer, container, span),
+            SourceIdentity::Formed { symbol, producer } => {
                 let formation = formed::formation(
                     self.parsed,
                     self.names,
                     self.typed,
                     self.owned,
                     symbol,
-                    self.typed
-                        .expression_type(initializer)
-                        .ok_or_else(missing)?,
+                    self.typed.expression_type(producer).ok_or_else(missing)?,
                     span,
                 )?;
-                if formation.producer != initializer {
+                if formation.producer != producer {
                     return Err(missing());
                 }
-                self.formed_map_anchor(&formation, None, span)?;
-                self.local_map_seed(symbol, initializer, container, span)
+                let anchor = self.formed_map_anchor(&formation, None, span)?;
+                let instruction = carrier::definition(self.function, EntityId::Value(anchor))
+                    .ok_or_else(missing)?;
+                let call = self.typed.call(producer).ok_or_else(missing)?;
+                let CallableTarget::Source(target) = call.target() else {
+                    return Err(missing());
+                };
+                let callee = *self
+                    .function_ids
+                    .get(&FunctionInstanceKey::new(target, Vec::new()))
+                    .ok_or_else(missing)?;
+                if instruction.operation
+                    != (Operation::DirectCall {
+                        callee,
+                        receiver: None,
+                        arguments: Vec::new(),
+                    })
+                    || self.function.entity(EntityId::Value(anchor)).map(|e| e.ty)
+                        != Some(EntityType::Value(container))
+                {
+                    return Err(missing());
+                }
+                let owner = source.current_owner(self).ok_or_else(missing)?;
+                Ok(EntityId::Value(owner))
             }
             SourceIdentity::Temporary(expression) => {
                 let call = self.typed.call(expression).ok_or_else(missing)?;

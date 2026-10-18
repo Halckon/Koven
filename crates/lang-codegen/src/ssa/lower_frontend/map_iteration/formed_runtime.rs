@@ -14,9 +14,9 @@ impl ExpressionLowerer<'_> {
         for descriptor in self.typed.map_iterations() {
             let qualified =
                 qualify::qualify(self.parsed, self.names, self.typed, self.owned, *descriptor)?;
-            let SourceIdentity::Local {
+            let SourceIdentity::Formed {
                 symbol,
-                initializer,
+                producer: initializer,
             } = qualified.source
             else {
                 continue;

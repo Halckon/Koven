@@ -21,6 +21,7 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
     mut declaration: impl FnMut(R) -> Result<(Span, ExpressionId), LoweringError>,
     mut reference: impl FnMut(Span) -> Result<R, LoweringError>,
     mut expression_type: impl FnMut(ExpressionId) -> Option<T>,
+    updates: impl Iterator<Item = ExpressionId>,
 ) -> Result<Formation<R>, LoweringError> {
     let missing = || LoweringError {
         kind: LoweringErrorKind::MissingFact,
@@ -56,6 +57,15 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
         })
         .min_by_key(|span| span.end() - span.start())
         .ok_or_else(unsupported)?;
+    // These real writes invalidate declaration-only producer history. Their current
+    // assignment/mutation producer needs a separate ownership proof, not MissingFact.
+    let mut updates = updates.collect::<Vec<_>>();
+    updates.extend(parsed.ast().expressions().iter().filter_map(
+        |(_, node)| match node.payload() {
+            Expression::Assignment { target, .. } => Some(*target),
+            _ => None,
+        },
+    ));
     let mut roots = Vec::new();
     let mut current = root;
     loop {
@@ -75,6 +85,28 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
             || outer.span().end() >= statement.start()
         {
             return Err(unsupported());
+        }
+        for &update in &updates {
+            let outer = parsed
+                .ast()
+                .expressions()
+                .get(update)
+                .map_err(|_| missing())?;
+            if !contains(scope, outer.span())
+                || marker.end() >= outer.span().start()
+                || outer.span().end() >= statement.start()
+            {
+                continue;
+            }
+            let update = transparent_expression(parsed, update, &mut expression_type)?;
+            let node = parsed
+                .ast()
+                .expressions()
+                .get(update)
+                .map_err(|_| missing())?;
+            if matches!(node.payload(), Expression::Name) && reference(node.span())? == current {
+                return Err(unsupported());
+            }
         }
         let initializer = transparent_expression(parsed, initializer, &mut expression_type)?;
         let node = parsed

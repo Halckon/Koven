@@ -26,8 +26,10 @@ pub(in super::super) fn formation(
                 .get(source.index())
                 .and_then(|unit| unit.resolution().symbols().get(root.symbol().index()))
                 .ok_or_else(bad)?;
+            if symbol.kind() != SymbolKind::Variable {
+                return Err(unsupported());
+            }
             if root.source_unit() != source
-                || symbol.kind() != SymbolKind::Variable
                 || symbol.is_synthetic()
                 || typed.symbol_type(root) != Some(storage)
                 || !owned.formed_owned_locals().contains(&root)
@@ -77,6 +79,13 @@ pub(in super::super) fn formation(
             let id = UnitExpressionId::new(source, id);
             typed.expression_type(id).zip(typed.expression_category(id))
         },
+        typed
+            .map_puts()
+            .iter()
+            .map(|d| d.receiver())
+            .chain(typed.map_removes().iter().map(|d| d.receiver()))
+            .filter(|id| id.source_unit() == source)
+            .map(|id| id.expression()),
     )
 }
 

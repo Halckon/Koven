@@ -1,5 +1,7 @@
 //! Real local formation and Move sources; red observations precede capability changes.
+mod boundaries;
 mod facts;
+mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -163,6 +165,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     if !report.passed() {
         return Err(failure("original FE query", report));
     }
+    graph::check(case, &sources, &parsed, &program)?;
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
     Ok(())
