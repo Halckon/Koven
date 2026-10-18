@@ -38,8 +38,8 @@ mod temporary_forms;
 
 pub(crate) use borrowed::sources as borrowed_exit_sources;
 pub(crate) use conditional::sources as conditional_sources;
-pub(crate) use control_flow::return_sources as ordinary_return_sources;
 pub(crate) use control_flow::neighbor_sources as ordinary_control_flow_neighbor_sources;
+pub(crate) use control_flow::return_sources as ordinary_return_sources;
 pub(crate) use control_flow::sources as ordinary_control_flow_sources;
 pub(crate) use future_use::sources as future_use_sources;
 pub(crate) use history::{sanitizer_ir as history_sanitizer_ir, sources as history_sources};

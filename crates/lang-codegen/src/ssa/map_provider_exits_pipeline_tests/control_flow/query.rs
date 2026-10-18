@@ -121,16 +121,14 @@ fn factory_calls(module: &Module, sources: &SourceMap, parsed: &ParsedFile) -> R
         if let Expression::Call {
             callee, arguments, ..
         } = node.payload()
+            && sources.slice(parsed.ast().expressions().get(*callee).unwrap().span()) == Ok("make")
         {
-            if sources.slice(parsed.ast().expressions().get(*callee).unwrap().span()) == Ok("make")
-            {
-                need(
-                    arguments.len() == 1,
-                    "ordinary factory original argument arity",
-                    node,
-                )?;
-                expected.insert((node.span().start(), node.span().end()));
-            }
+            need(
+                arguments.len() == 1,
+                "ordinary factory original argument arity",
+                node,
+            )?;
+            expected.insert((node.span().start(), node.span().end()));
         }
     }
     let mut actual = BTreeSet::new();
@@ -441,17 +439,17 @@ pub(super) fn check(
             }
         }
         for i in &g.instructions {
-            if let Operation::SharedReborrow { source } = i.operation {
-                if let Some(&(index, _)) = component.get(&EntityId::Loan(source)) {
-                    let current = result(i)?;
-                    need(
-                        scan.entity(current).unwrap().ty
-                            == scan.entity(EntityId::Loan(source)).unwrap().ty,
-                        "actual component reborrow Shared type",
-                        i,
-                    )?;
-                    seeds.insert(current, (index, current));
-                }
+            if let Operation::SharedReborrow { source } = i.operation
+                && let Some(&(index, _)) = component.get(&EntityId::Loan(source))
+            {
+                let current = result(i)?;
+                need(
+                    scan.entity(current).unwrap().ty
+                        == scan.entity(EntityId::Loan(source)).unwrap().ty,
+                    "actual component reborrow Shared type",
+                    i,
+                )?;
+                seeds.insert(current, (index, current));
             }
         }
         if before == seeds.len() {
@@ -536,10 +534,10 @@ pub(super) fn check(
     need(ends.iter().any(|i| i.block == when_false.target && matches!(i.operation, Operation::BorrowEnd { loan } if EntityId::Loan(loan) == normal_source)),
         "false HasNext edge ends its exact current lease", normal_source)?;
     for i in &g.instructions {
-        if let Operation::BorrowEnd { loan } = i.operation {
-            if component.contains_key(&EntityId::Loan(loan)) {
-                uses.permit(EntityId::Loan(loan), i);
-            }
+        if let Operation::BorrowEnd { loan } = i.operation
+            && component.contains_key(&EntityId::Loan(loan))
+        {
+            uses.permit(EntityId::Loan(loan), i);
         }
     }
     for &block in &g.blocks {

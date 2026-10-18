@@ -359,13 +359,12 @@ fn check_exit(e: Evidence<'_>, state: &State, exit: &Exit) -> Result<(), Lowerin
             }
         }
     }
-    if let EntityId::Loan(entry) = e.seed {
-        if body
+    if let EntityId::Loan(entry) = e.seed
+        && body
             .iter()
             .any(|instruction| instruction.operation == Operation::BorrowEnd { loan: entry })
-        {
-            return Err(missing());
-        }
+    {
+        return Err(missing());
     }
     Ok(())
 }
