@@ -292,3 +292,46 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - 本机未运行故障注入、校准、合成损坏、sanitizer故障对照；这些只交GitHub Actions。
   macOS sanitizer仍为partial，本轮未新增sanitizer验收。完整工程/双host远端CI、独立审计
   及F最终闭环尚待，不归档0331、不勾总合同；D10未开始。
+
+## 27. Unit 闭包生产补丁逐字恢复与本机新回归（2026-10-18）
+
+- 原作者和独立审查者提供两新文件全文、五旧文件完整diff及base/candidate SHA；五个
+  旧base与本机固定快照逐字核同，七个candidate全部匹配。按原difflib算法重建的生产patch
+  SHA256精确为`a9847b02ed483bb08d29d78c9ba6fa08af5568b1ce210555108933174d3c8da8`。
+  独立恢复提交`36a60f62c6f685e360ea34d55942652126143502`只含七生产文件；原c5bf
+  commit及完整父树仍未恢复，不能冒称恢复tree `4b2b58f3`或云最后707d9b97。
+- 原四份普通源码由传输文本逐字保留，另写`unit_closure_assignment_recovery` harness，
+  明确不是原532行collector恢复；保留普通`() -> Unit`、Resource的`deinit()`与
+  OwnedReplacement精确`AfterExpression(RHS)`判据。首编因外部不可构造UnitSymbolId报
+  E0624，未运行；仅改为从同次公开qualified name reference取真实ID后，实际0通过/4失败。
+  tests-only保全提交`9ae17f82`先于生产恢复。安装七文件后实际3通过/1失败；唯一旧Resource
+  capture仍在声明AfterStatement过早析构。没有更换源码、改move函数类型或放宽RHS oracle。
+- 新窄修`fbb81c0d120b4f634845ce9ae785097950f677c1`只给unit planner的is_asap_owner
+  增加8行：已知具体closure环境先核实际owned captures的Resource分类，随后保留原静态
+  类型fallback。它是原补丁之外的新实现；原普通函数类型的non-resource答案不能抹掉实际
+  capture义务。四源回归4/0，另multifile_ownership_checking135/0与ownership_closures39/0，
+  三target合178通过、0失败、0ignored；这些于提交前相同源码工作树执行，随后保存窄修。
+- `fbb81c0d`再执行§26完全相同的44个ordinary exact，均实际1/exit0，native56个产物
+  仍严格exit0/golden/空stderr；31项provider运行前后2775个tracked输入摘要一致。
+  合计该版源码222个不同测试通过，不等于frontend全量或完整CI。四项工程亦通过：
+  `cargo fmt --all -- --check`；`cargo check --locked --offline --workspace --all-targets`；
+  `cargo clippy --locked --offline --workspace --all-targets -- -D warnings`；
+  `cargo build --locked --offline --workspace`。没有执行CI-only负控或故障helper。
+- 逐项命令与结果在仓外`post-recovery`收据中；codegen-results SHA256
+  `0a981c915657d039d0f382d5b70710adade9d804c9add46198e75f1553907c4b`，
+  regression-results SHA256
+  `866de98642b95006b3774e7d88430a38e2b52f33717a511326962695a0f17c05`，
+  engineering-results SHA256
+  `84e2a415a37cc781873b2e7698cc64ae433fcfc514bfcf48a01229ccdfa1eaa0`。
+  简要收据与`git format-patch --binary --full-index`备份保留本机任务目录
+  `/Users/ckfei/Documents/Codex/2026-10-18/task/spec0331-mac-evidence/`；大体积raw留仓外，
+  不提交或上传。生产旧尺寸欠账drop_planner.rs由1628降至1492行，dataflow.rs由1206降至
+  1092行，仍超过1000软限；两新模块160/161行、新harness227行，未扩旧大文件欠账。
+- 依据本机上层AGENTS §15做fresh-context只读独审，范围为恢复七文件、新8行、四源
+  新harness及文档，未发现该窄片的新增阻断问题。审查指出继承风险：外层closure拥有普通函数类型inner，inner实际拥有
+  Resource时，直接capture.ty仍被判Pure，形成外层时inner origin又已被take删除；该普通
+  嵌套源未见前置gate阻挡，但本轮未执行，不称已复现动态提前析构。它早于两片补丁存在，
+  不把限定四源窄修升级为一般递归环境资源分类；后继须独立普通首红与来源证明。
+- Borrow直接退出/Resource后端扩展、local深查询、原active20与10合法邻控完整内容仍缺，
+  本机新四源/现有共享回归不能替代它们。完整双host远端CI、独立审计剩余边界及F最终验收
+  另记；0331继续active，Mac sanitizer仍partial，D10未开始。

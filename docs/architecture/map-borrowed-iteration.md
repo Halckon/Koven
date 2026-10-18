@@ -27,3 +27,15 @@ Group 仍由真实源码阶段门精确拒绝；Field/Inout、direct Borrow-retu
 属于尚未纳入该快照的后续源码；本表不据云端摘要宣称支持。私有损坏事实与故障对照仅在
 GitHub Actions 执行，本次本机未运行；macOS sanitizer 合同仍为 partial。
 
+
+## Unit 闭包赋值邻控
+
+Phase 3 的普通 root 赋值保持旧闭包环境至完整 RHS 完成，随后交接 replacement 的真实
+lambda 身份；alias/self assignment 保留对应捕获来源。Drop planner 在同一 RHS 点处理
+旧环境的 owned capture，且新环境先登记再决定共享来源的最后使用；Map return 先结束
+当前闭包 capture，再结束对应分量 loan。已知具体环境的资源分类先查询实际 owned
+captures，不能因普通函数类型 `() -> Unit` 没有记录环境资源信息而提前释放 Resource。
+四个恢复源码的新普通 harness 已核这些 Phase 3 事实；不据此增加 closure native 支持，
+也不把它当作尚未恢复的原 active20 或完整四源 collector。分类仅补具体环境的直接
+owned capture；若它再拥有一个普通函数类型闭包，内层实际Resource来源未递归保留，
+属于继承的未封闭边界，不能从本片推导一般递归资源环境支持。
