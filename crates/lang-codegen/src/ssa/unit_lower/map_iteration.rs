@@ -337,13 +337,6 @@ fn qualify_one(
     } else {
         qualify_body(parsed, names, typed, descriptor, *body, span)?
     };
-    if nested.is_none()
-        && descriptor.kind() == MapIterationKind::Map
-        && parameter.mode() == ParameterMode::Borrow
-        && (conditional.is_some() || body_exit != UnitIterationExitKind::Fallthrough)
-    {
-        return Err(unsupported());
-    }
     if (conditional.is_some()
         || matches!(body_exit, UnitIterationExitKind::Return(_))
         || nested

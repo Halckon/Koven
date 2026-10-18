@@ -224,13 +224,6 @@ fn qualify_one<'a>(
     } else {
         exit_shape::body_exit(parsed, names, typed, descriptor, *body, span)?
     };
-    if descriptor.kind() == MapIterationKind::Map
-        && mode == ParameterMode::Borrow
-        && tail.is_none()
-        && (conditional.is_some() || body_exit != IterationExitKind::Fallthrough)
-    {
-        return Err(unsupported());
-    }
     if conditional.is_some()
         || matches!(body_exit, IterationExitKind::Return(_))
         || tail.is_some_and(|shape| matches!(shape.kind, IterationExitKind::Return(_)))
