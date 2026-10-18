@@ -1,5 +1,5 @@
 //! Enumerate finite abstract CFG states; backedges close only with identical live roles.
-use super::super::facts::{Action, Cleanup};
+use super::super::facts::{Action, Cleanup, SourceDropPoint};
 use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -14,6 +14,8 @@ struct State {
     stack: Vec<usize>,
     events: Vec<Action>,
     returned: Option<(usize, EntityId)>,
+    lexical_return: Option<(usize, EntityId)>,
+    drop_return: Option<Span>,
     end_origins: Vec<(usize, Origin)>,
 }
 struct ReturnSite {
@@ -54,6 +56,8 @@ pub(super) fn check(
         stack: Vec::new(),
         events: Vec::new(),
         returned: None,
+        lexical_return: None,
+        drop_return: None,
         end_origins: Vec::new(),
     };
     let returns = parsed
@@ -74,6 +78,26 @@ pub(super) fn check(
                     span: n.span(),
                     value: parsed.ast().expressions().get(*value).unwrap().span(),
                 })
+        })
+        .collect::<Vec<_>>();
+    let Origin::Source(function_scope) = g.function.origin else {
+        return Err(failure("stack lexical source callable", g.function.id));
+    };
+    let lexical_returns = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(_, node)| {
+            let Expression::Return {
+                value: Some(value), ..
+            } = node.payload()
+            else {
+                return None;
+            };
+            facts::inside(node.span(), function_scope).then(|| ReturnSite {
+                span: node.span(),
+                value: parsed.ast().expressions().get(*value).unwrap().span(),
+            })
         })
         .collect::<Vec<_>>();
     let mut pending = vec![(entry, start)];
@@ -107,6 +131,21 @@ pub(super) fn check(
                         i,
                     )?;
                     state.returned = Some((r, result(i)?));
+                }
+            }
+            for (r, site) in lexical_returns.iter().enumerate() {
+                if at(i, site.value)
+                    && i.results.len() == 1
+                    && matches!(result(i)?, EntityId::Value(_))
+                    && g.function.return_types.as_slice()
+                        == [g.function.entity(result(i)?).unwrap().ty.semantic_type()]
+                {
+                    need(
+                        state.lexical_return.is_none(),
+                        "stack original lexical Return operand has one actual Value producer",
+                        (i, &state),
+                    )?;
+                    state.lexical_return = Some((r, result(i)?));
                 }
             }
             for (r, &seed) in roots.iter().enumerate() {
@@ -403,6 +442,23 @@ pub(super) fn check(
                         }
                         let marker = one(markers.into_iter(), "stack original owner root marker")?;
                         need(at(i, marker), "stack source Drop original birth marker", i)?;
+                        let proof=one(inputs.source_drops.iter().filter(|drop|drop.root==marker&&drop.function==function_scope).filter(|drop|match &drop.point{
+                            SourceDropPoint::Return{span,operand:Some(operand)}=>state.lexical_return.is_some_and(|(r,_)|lexical_returns[r].span==*span&&lexical_returns[r].value==*operand),
+                            SourceDropPoint::Return{span,operand:None}=>g.term(block).is_ok_and(|t|t.origin==Origin::Source(*span)&&matches!(&t.kind,TerminatorKind::Return{values} if values.is_empty())),
+                            SourceDropPoint::LoopExit(span)=>layers.iter().any(|l|l.site.ast.span==*span&&state.events.contains(&Action::End(l.index))&&!state.events.contains(&Action::Value(l.index))&&!state.events.contains(&Action::Key(l.index))),
+                            SourceDropPoint::Break(span)=>inputs.cleanups.iter().any(|c|c.kind==3&&c.point==*span&&{let mut candidate=state.events.clone();candidate.push(Action::Drop(marker));actions(c)==candidate}),
+                            SourceDropPoint::ScopeEnd(span)=>g.term(block).is_ok_and(|t|t.origin==Origin::Source(*span)&&matches!(&t.kind,TerminatorKind::Return{values} if values.is_empty())),
+                        }),"stack source Drop occurs at exact observed global FE point after its actual operand")?;
+                        if let SourceDropPoint::Return { span, .. }
+                        | SourceDropPoint::ScopeEnd(span) = proof.point
+                        {
+                            need(
+                                state.drop_return.is_none_or(|prior| prior == span),
+                                "stack all source Drops belong to same actual Return",
+                                (proof, &state),
+                            )?;
+                            state.drop_return = Some(span);
+                        }
                         let event = Action::Drop(marker);
                         let mut candidate = state.events.clone();
                         candidate.push(event.clone());
@@ -430,6 +486,33 @@ pub(super) fn check(
         match &term.kind {
             TerminatorKind::Return { values } => {
                 finite_returns += 1;
+                if let Some(span) = state.drop_return {
+                    need(
+                        term.origin == Origin::Source(span),
+                        "stack lexical source Drop is followed by its exact original Return",
+                        (term, &state),
+                    )?;
+                    if let Some((r, value)) = state.lexical_return {
+                        need(
+                            lexical_returns[r].span == span
+                                && values
+                                    .iter()
+                                    .copied()
+                                    .map(EntityId::Value)
+                                    .collect::<Vec<_>>()
+                                    == [value],
+                            "stack lexical Return delivers its pre-Drop actual operand",
+                            (term, &state),
+                        )?;
+                    } else {
+                        need(
+                            values.is_empty(),
+                            "stack bare Unit Return has no fabricated operand",
+                            term,
+                        )?;
+                    }
+                }
+
                 if let Some((r, value)) = state.returned {
                     need(
                         values
@@ -627,6 +710,9 @@ fn transport(g: &Graph<'_>, edge: &Edge, state: &mut State) -> Result<(), Failur
         .collect::<Result<_, Failure>>()?;
     if let Some((r, id)) = state.returned {
         state.returned = Some((r, map(id)?));
+    }
+    if let Some((r, id)) = state.lexical_return {
+        state.lexical_return = Some((r, map(id)?));
     }
     Ok(())
 }

@@ -3,6 +3,7 @@ mod conditions;
 mod incoming;
 mod representation;
 mod single;
+mod source_drops;
 mod unit;
 use super::super::{
     fixture::{Failure, failure, need},
@@ -68,6 +69,12 @@ pub(super) struct Call {
     pub span: Span,
     pub callee: Span,
     pub arguments: Vec<(Span, Option<Span>, bool)>,
+    pub loans: Vec<Option<CallLoan>>,
+}
+#[derive(Clone, Debug)]
+pub(super) struct CallLoan {
+    pub begin: Span,
+    pub end: Span,
 }
 #[derive(Clone, Debug)]
 pub(super) struct Representation {
@@ -86,6 +93,19 @@ pub(super) struct NameInput {
     pub span: Span,
     pub marker: Span,
 }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum SourceDropPoint {
+    LoopExit(Span),
+    Return { span: Span, operand: Option<Span> },
+    Break(Span),
+    ScopeEnd(Span),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct SourceDrop {
+    pub root: Span,
+    pub function: Span,
+    pub point: SourceDropPoint,
+}
 #[derive(Clone, Debug)]
 pub(super) struct Inputs {
     pub sites: Vec<Site>,
@@ -93,6 +113,7 @@ pub(super) struct Inputs {
     pub calls: Vec<Call>,
     pub guards: Vec<GuardInput>,
     pub names: Vec<NameInput>,
+    pub source_drops: Vec<SourceDrop>,
 }
 
 pub(super) fn inside(inner: Span, outer: Span) -> bool {

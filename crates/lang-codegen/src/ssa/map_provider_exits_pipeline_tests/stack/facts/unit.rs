@@ -319,6 +319,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::stack) fn collect(
             representation: representation::unit(parsed, names, typed, d.value_type())?,
         });
     }
+    let source_drops = source_drops::unit(parsed, names, owned, &sites)?;
     let calls = calls(parsed, names, typed, owned)?;
     let guards = representation::unit_guards(parsed, names, typed, owned, &anchors)?;
     let name_inputs = names_snapshot(parsed, names)?;
@@ -328,6 +329,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::stack) fn collect(
         calls,
         guards,
         names: name_inputs,
+        source_drops,
     })
 }
 
@@ -384,6 +386,7 @@ fn calls(
             call,
         )?;
         let mut args = Vec::new();
+        let mut loans = Vec::new();
         for (index, argument) in arguments.iter().enumerate() {
             let n = parsed.ast().expressions().get(argument.value).unwrap();
             let actual = &call.arguments()[index];
@@ -425,31 +428,62 @@ fn calls(
                     .map(|s| s.span())
                 })
                 .transpose()?;
-            if root.is_some() {
-                let contract = one(
-                    owned.call_argument_contracts_for(id).filter(|c| {
-                        c.argument() == UnitExpressionId::new(source.source_unit(), argument.value)
-                    }),
-                    "stack qualified original argument ownership",
-                )?;
+            let contract = one(
+                owned.call_argument_contracts_for(id).filter(|c| {
+                    c.argument() == UnitExpressionId::new(source.source_unit(), argument.value)
+                }),
+                "stack qualified original argument ownership",
+            )?;
+            need(
+                contract.parameter_index() == index
+                    && contract.parameter_type() == actual.parameter_type()
+                    && contract.argument_span() == n.span()
+                    && contract.call_span() == node.span()
+                    && contract.kind()
+                        == if actual.mode() == ParameterMode::Borrow {
+                            Kind::SharedLoan
+                        } else {
+                            Kind::Value
+                        },
+                "stack qualified precise original Borrow/Value argument contract",
+                contract,
+            )?;
+            let endpoint = if actual.mode() == ParameterMode::Borrow {
                 need(
-                    contract.parameter_index() == index
-                        && contract.kind()
-                            == if actual.mode() == ParameterMode::Borrow {
-                                Kind::SharedLoan
-                            } else {
-                                Kind::Value
-                            },
-                    "stack qualified precise Borrow/Value delivery",
+                    contract.loan_begin_span() == n.span(),
+                    "stack qualified real argument Borrow start",
                     contract,
                 )?;
-            }
+                let actual_loans = owned
+                    .loans()
+                    .iter()
+                    .filter(|loan| loan.call() == id && loan.argument() == contract.argument())
+                    .collect::<Vec<_>>();
+                need(
+                    actual_loans.len() <= 1,
+                    "stack qualified original argument has at most one published loan",
+                    &actual_loans,
+                )?;
+                if let Some(loan) = actual_loans.first() {
+                    need(loan.kind()==LoanKind::Shared&&loan.begin_span()==contract.loan_begin_span()&&loan.end_span()==contract.call_span()
+                        &&root.is_none_or(|root|matches!(loan.target(),UnitLoanTarget::Place(p) if p.is_root()&&p.root()==root)),
+                        "stack qualified published loan agrees with original synchronous contract",loan)?;
+                }
+                Some(CallLoan {
+                    begin: contract.loan_begin_span(),
+                    end: contract.call_span(),
+                })
+            } else {
+                None
+            };
+            loans.push(endpoint);
             args.push((n.span(), marker, actual.mode() == ParameterMode::Borrow));
         }
         result.push(Call {
             span: node.span(),
             callee: parsed.ast().items().get(declaration.root()).unwrap().span(),
             arguments: args,
+            loans,
         });
     }
     Ok(result)

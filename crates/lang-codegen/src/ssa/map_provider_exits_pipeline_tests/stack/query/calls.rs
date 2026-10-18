@@ -20,6 +20,7 @@ pub(super) fn provider_calls(
             }),
             "stack exact original source Call once",
         )?;
+        synchronous_loans(g, call, actual)?;
         let Operation::DirectCall {
             callee,
             receiver,
@@ -239,6 +240,7 @@ pub(super) fn callers(
                 "stack caller exact selected declaration",
                 actual,
             )?;
+            synchronous_loans(&g, call, actual)?;
         }
         if roots.is_empty() {
             continue;
@@ -407,4 +409,98 @@ fn transport(g: &Graph<'_>, edge: &Edge, entity: EntityId) -> Result<EntityId, F
     } else {
         Ok(entity)
     }
+}
+
+// A forwarded existing component/parameter loan has no new SSA lifetime to
+// end. Only a real argument-born BorrowBegin/SharedReborrow is checked here.
+fn synchronous_loans(
+    g: &Graph<'_>,
+    call: &facts::Call,
+    actual: &Instruction,
+) -> Result<(), Failure> {
+    let Operation::DirectCall { arguments, .. } = &actual.operation else {
+        return Err(failure("stack actual synchronous source Call", actual));
+    };
+    need(
+        call.loans.len() == arguments.len(),
+        "stack full original Call loan endpoint slots",
+        call,
+    )?;
+    let mut fresh = Vec::new();
+    for (&argument, endpoint) in arguments.iter().zip(&call.loans) {
+        let Some(endpoint) = endpoint else {
+            continue;
+        };
+        let EntityId::Loan(loan) = argument else {
+            return Err(failure(
+                "stack actual Borrow argument loan",
+                (call, actual, argument),
+            ));
+        };
+        let Ok(birth) = g.definition(argument) else {
+            continue;
+        };
+        if !matches!(
+            birth.operation,
+            Operation::BorrowBegin { .. } | Operation::SharedReborrow { .. }
+        ) {
+            continue;
+        }
+        need(
+            at(birth, endpoint.begin)
+                && birth.block == actual.block
+                && g.position(birth)? < g.position(actual)?,
+            "stack actual new argument loan begins at original FE argument before Call",
+            (call, birth, actual),
+        )?;
+        need(
+            !fresh.contains(&loan),
+            "stack real argument-born loan identity is unique",
+            actual,
+        )?;
+        fresh.push(loan);
+        let end = one(
+            g.instructions
+                .iter()
+                .copied()
+                .filter(|i| i.operation == Operation::BorrowEnd { loan }),
+            "stack actual new argument has one synchronous End",
+        )?;
+        need(
+            at(end, endpoint.end)
+                && end.block == actual.block
+                && g.position(actual)? < g.position(end)?,
+            "stack new argument End has exact original FE CallReturn endpoint",
+            (call, actual, end),
+        )?;
+    }
+    if fresh.is_empty() {
+        return Ok(());
+    }
+    let operations = g.ops(actual.block)?;
+    let mut remaining = fresh;
+    for instruction in operations.iter().skip(g.position(actual)? + 1) {
+        if remaining.is_empty() {
+            break;
+        }
+        let Operation::BorrowEnd { loan } = instruction.operation else {
+            return Err(failure(
+                "stack new synchronous loan cannot cross a later operation",
+                (actual, instruction, remaining),
+            ));
+        };
+        let index = one(
+            remaining
+                .iter()
+                .enumerate()
+                .filter_map(|(index, &id)| (id == loan).then_some(index)),
+            "stack CallReturn ends only its actual new argument loans",
+        )?;
+        remaining.remove(index);
+    }
+    need(
+        remaining.is_empty(),
+        "stack all real new argument loans end at this CallReturn boundary",
+        (actual, remaining),
+    )
 }

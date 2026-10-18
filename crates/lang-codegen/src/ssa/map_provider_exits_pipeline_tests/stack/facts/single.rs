@@ -307,6 +307,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::stack) fn collect(
             representation: representation::single(parsed, names, typed, d.value_type())?,
         });
     }
+    let source_drops = source_drops::single(parsed, names, owned, &sites)?;
     let calls = calls(parsed, names, typed, owned)?;
     let guards = representation::single_guards(parsed, names, typed, owned, &anchors)?;
     let name_inputs = names_snapshot(parsed, names)?;
@@ -316,6 +317,7 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests::stack) fn collect(
         calls,
         guards,
         names: name_inputs,
+        source_drops,
     })
 }
 
@@ -356,6 +358,7 @@ fn calls(
             call,
         )?;
         let mut args = Vec::new();
+        let mut loans = Vec::new();
         for (index, argument) in arguments.iter().enumerate() {
             let n = parsed.ast().expressions().get(argument.value).unwrap();
             let actual = &call.arguments()[index];
@@ -389,31 +392,44 @@ fn calls(
                     .map(|s| s.span())
                 })
                 .transpose()?;
-            if actual.mode() == ParameterMode::Borrow
-                && let Some(root) = root
-            {
+            let endpoint = if actual.mode() == ParameterMode::Borrow {
                 let loan = one(
                     owned
                         .loans()
                         .iter()
                         .filter(|l| l.call() == id && l.argument() == argument.value),
-                    "stack Call real Shared loan",
+                    "stack original synchronous argument loan",
+                )?;
+                need(loan.kind()==LoanKind::Shared&&loan.begin_span()==n.span()&&loan.end_span()==node.span()
+                    && root.is_none_or(|root|matches!(loan.target(),LoanTarget::Place(p) if p.is_root()&&p.root()==root)),
+                    "stack original Borrow argument root/begin/CallReturn endpoint",loan)?;
+                let end = one(
+                    owned
+                        .loan_ends()
+                        .iter()
+                        .filter(|end| end.call() == id && end.argument() == argument.value),
+                    "stack original argument exact loan end fact",
                 )?;
                 need(
-                    loan.kind() == LoanKind::Shared
-                        && matches!(loan.target(),LoanTarget::Place(p) if p.is_root() && p.root()==root)
-                        && loan.begin_span() == n.span()
-                        && loan.end_span() == node.span(),
-                    "stack original synchronous argument loan",
-                    loan,
+                    end.point() == lang_frontend::ownership_checking::LoanEndPoint::CallReturn(id),
+                    "stack synchronous original LoanEndPoint CallReturn",
+                    end,
                 )?;
-            }
+                Some(CallLoan {
+                    begin: loan.begin_span(),
+                    end: loan.end_span(),
+                })
+            } else {
+                None
+            };
+            loans.push(endpoint);
             args.push((n.span(), marker, actual.mode() == ParameterMode::Borrow));
         }
         result.push(Call {
             span: node.span(),
             callee: callable(parsed, callee.span())?,
             arguments: args,
+            loans,
         });
     }
     Ok(result)
