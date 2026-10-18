@@ -163,7 +163,7 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
 
 `bash scripts/check_integration.sh`依次选择core、ownership_iteration、stage、尚未覆盖的guide_litmus、
 真实CLI教程。独立stage/Guide入口保留，不增加任意skip开关。core包含lang-std源码资产，
-组合为117个唯一frontend integration和10次Cargo调用；接线与失败传播由Python合同测试核验。
+组合为118个唯一frontend integration和10次Cargo调用；接线与失败传播由Python合同测试核验。
 SPEC-0290 补齐 PR69 改动目标中的 23 个遗漏选择；stage policy 锁定相关 25 个目标
 （含此前已选择的 2 个）各恰一次且不带过滤器。range/N1a 测试进入门禁不表示启用其语义，
 脚本接线与 Python policy 通过也不表示新增 Rust 目标已实际运行。
