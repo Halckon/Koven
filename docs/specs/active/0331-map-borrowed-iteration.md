@@ -1124,3 +1124,19 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - 四项新CI回归覆盖继承过期deadline、单一窗口不刷新、首错保留/成功路径写失败及最终
   空候选越时。按用户限制仅待GitHub Actions执行，本机只做Python语法解析和只读审查，
   不把上述Rust/native绿算作这些Python行为已通过。新头完整CI和当前产物仍须重新验收。
+
+## 58. 阶段预算修复的新头 CI 与当前产物（2026-10-18）
+
+- `b95919dc93a4c5aeb98bd1bd800633dca3095421` 的 PR run `39145122284` 完整终态为 success，
+  双host Targeted、Preview producer/independent consumer及最终CI门均成功；不改写§57失败记录。
+- 三份当前artifact只读独审核对run、完整head、synthetic
+  `fb7e2c66fc23e5a5d12c658d6b74d0059a2a2855`、下载SHA256与输入身份：Linux sanitizer
+  `12142414961`、Linux generated `12143557148`、Mac generated `12143830755`。
+  Linux 12组provider×plain/ASan/LSan的36次clean、generated的24 native及校准、checker、
+  13对reduction因果对照通过；未发现非预期失败。
+- Mac original-clean本次实际export/native exit0、精确golden；reduction在独立120秒窗口内
+  8.499秒完成，9→5 operations、717→551 bytes、三次确认。合同仍为partial、
+  requirements_met=false，ASan/LSan未验收，UBSan仍未覆盖。
+- Docs job `117727348468` 日志逐名确认§57四项新增Python回归均为ok，整套395 tests为OK。
+  本机只读审查这些CI产物与日志，未执行产物、故障、校准、reduction或mock测试。
+  此CI结论仅属于b95919dc；后续实参代码必须在其新头重新运行完整CI，不继承本轮全绿。
