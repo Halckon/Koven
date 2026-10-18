@@ -1071,3 +1071,56 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   fixture哈希全符、临时注册finally恢复、源码指纹与正验相同。这是失败缺口诊断，不能说F全绿。
 - 本轮未运行本机故障、校准、合成事实或sanitizer executable；Mac保持partial/requirements_met=false，
   UBSan未覆盖。新提交的双host完整CI与当前artifact独立验收仍须重新运行，不继承旧头结论。
+
+## 56. G3 既有表示 temporary normal 的首红与窄修（2026-10-18）
+
+- `783f5c03`先保存10源：Map/MutableMap×owned String字段Resource、structural Resource、
+  Int-key Resource、混合Some/None的Resource?、Int-key String；每源两个不同factory的
+  temporary For，真实非空和空输入。20条双入口均完整FE后原For Unsupported，FE query false为0，
+  Rust实际0通过/1失败/0忽略，无native；原source/golden哈希保留。
+- `07a32b36`仅去除两入口temporary qualifier的String/String硬门，既有type/storage mapper
+  继续决定实际表示资格；actual selected callable、Owned result、零参、source/Drop身份、完整
+  cleanup与所有控制门保持。Resource temporary在原LoopExit清理，不沿named Resource的词法
+  carrier延寿；Pure亦未新增延寿。独立生产审查未发现阻断。
+- 同原10源20条初步SSA/LLVM通过，source/golden完全一致；20个普通native严格exit0/完整golden/
+  空stderr，两个Rust测试均通过。完整FE/SSA独立身份查询和最终冻结工程回归仍在补证，不能
+  据首绿关闭G3。factory实际参数、条件C/B/R及其他callable/CFG合同仍待逐项闭合。
+- 用户指定后续顺序：本机完成F、完整CI与审计后再最终合并；D10交云端从准确merged main
+  SHA启动。本机不提前开始D10，F余项不转交D10。
+- 独立fixture审查发现Int key原来只打印相同marker，不能观测键值/顺序；v2对真实1/2分别
+  输出int-one/int-two，其他值error。4份Int源与golden明确强化，v1红/绿和限制保留；v2在
+  `783f5c03`原两生产文件参考上重跑20个首For Unsupported、FE query false为0，候选字节随后恢复。
+  这不是原输入不变的消红：最终v2只与自身干净红测逐条核source/golden。
+- `78176a3e`补独立原FE/SSA与actualstorage查询：两site的canonical Call/selectedcallee、
+  Temporary Drop、single三条完整incoming及Unit自身cleanup，SSA逐当前owner/source/cursor列
+  锚定真实factory结果、全部Uses/KV Shared ABI和精确两次Map Drop。另补实际factory内部
+  MapConstruct→每次MapPut owner/result→可选MapConsume→原Return完整链；empty必须返回
+  自身唯一空构造。不能只计操作数量，两个owner族互斥，Drop在aftermarker及下一个factory前。
+  原factory链finding已独立复审关闭，无新阻断；未修改输入或生产来修query。
+- 同一Rust源码指纹`3a69a597e77fd5ba5584c545c75692dc39b884ed6a36e3cb2cbc8a93e7eb7529`
+  前后相同；17条命令全部通过，23个唯一Rust测试0失败/0忽略、36个严格native（20新增+16既有
+  temporary回归）。v2原10源20双入口/40实际site身份与20native通过，Int值及插入顺序可观察，
+  Resource析构只核数量/时点、不假定条目间析构次序。fmt/check/clippy/build、704文档、尺寸
+  护栏38既有超限和whitespace通过。这份有限normal验收仍不关闭G3或F。
+
+- 同源码另跑原83源166观察：98 LLVM、66 lower Unsupported、2 ownership，实际Rust
+  0通过/1失败/0忽略，exit101、无native。仅原temporary Resource、Resource?、Int-key的
+  6入口从Unsupported转LLVM，其余阶段不变；原G3子集现6 LLVM/4 Unsupported，后者是
+  factory实参与条件源。原83源摘要全符、临时注册finally恢复；失败诊断不能算F全绿。
+
+## 57. cb647 Mac generated 合同失败与阶段预算（2026-10-18）
+
+- PR119 CI `39141747243`的Mac Targeted在generated reduction失败，Preview跳过；Linux Targeted
+  及其当前产物内容独审通过，不能据此说双host全绿或Mac partial-pass。Mac artifact
+  `12142466462`（329016字节，SHA256 `92e3c5085097ebb5f88135ed56576d4d8aa90181d96a97a53c240f84c04ac852`）
+  对应fixed head `cb647242`、synthetic `fd59154e666a45278929ba62a1e0eebb1022b871`，只读审计核实
+  16个case已通过；checker阶段301.269秒，继承旧300秒deadline，原clean目录只有7输入文件、
+  没有export.command/result。故首次export前被预算守卫拒绝，非已证实的编译器语义反例。
+- `ab8f7aaa`把既有reduction 120秒deadline移到阶段入口且只设一次，涵盖clean/fault baseline、
+  minimize、三次确认及1-minimal；保留32候选、生成执行300秒、checker各构建900秒及全部
+  故障对照。预算provenance和整阶段elapsed在失败也保存，最终同deadline到期不能标
+  is_1_minimal=true。附加budget写入失败不覆盖原异常，成功路径留证失败仍失败。独立复审
+  关闭该首错保留finding，无新阻断。不是增加预算或跳过校准来消红。
+- 四项新CI回归覆盖继承过期deadline、单一窗口不刷新、首错保留/成功路径写失败及最终
+  空候选越时。按用户限制仅待GitHub Actions执行，本机只做Python语法解析和只读审查，
+  不把上述Rust/native绿算作这些Python行为已通过。新头完整CI和当前产物仍须重新验收。

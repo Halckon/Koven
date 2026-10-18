@@ -11,7 +11,7 @@ source 求值、分量与 source 清理由已验证事实交付，SSA verifier �
 |---|---|---|
 | own Map / Borrow MutableMap 参数；String/String | 正常耗尽、无条件 continue/break/return、有界条件退出 | `map-provider-0331`、`map-provider-exits-0331`、`map-provider-conditional-0331` |
 | Borrow Map / MutableMap；String/String | 同根两层共享遍历，以及固定内层无条件 continue/break/return | `map-provider-nested-0331`、`map-provider-nested-exits-0331` |
-| 零参 Owned factory temporary Map / MutableMap；String/String | 正常耗尽、固定尾 continue/break/return，hidden owner 保活至 provider 结束 | `map-provider-temporary-0331`、`map-provider-temporary-exits-0331` |
+| 零参 Owned factory temporary Map / MutableMap；String/String及已验表示 | String/String正常及固定尾C/B/R；新增五种表示仅正常耗尽 | `map-provider-temporary-0331`、`map-provider-temporary-exits-0331`、`temporary_forms` |
 | factory 初始化的 owned local Map / MutableMap，val/var；String/String | 正常耗尽；固定 A/B 形状中退出即清理，或保活至后续 size 查询 | `map-provider-local-sources-0331` |
 | Borrow Map / MutableMap 参数；Int/String | single/basic/const 正常耗尽及 whole-set 资格 | `map_iteration_stage_gate_tests`，只有 SSA/LLVM，不计新增 native |
 
@@ -124,7 +124,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 |---|---|---|---|
 | own Map/MutableMap参数 | String/String | N/C/B/R、固定三段条件 | N/C/B后size、多次Borrow调用、CFG后再Borrow及同根重复For已验；R与其他CFG组合不外推 |
 | Borrow Map/MutableMap参数 | String/String | N/C/B/R、固定条件、同根双层 | caller恢复及有限sequential已验；更一般条件/层数未验 |
-| 零参直接factory temporary | String/String | N/C/B/R固定尾 | hidden owner已验；其他payload/条件/一般factory未接通 |
+| 零参直接factory temporary | String/String；字段/结构Resource、Resource?、Int键Resource/String | String/String固定尾N/C/B/R；另10源20双入口/native仅N | 两site实际factory返回链与hidden owner已验；实参、条件及其他CFG待验 |
 | factory-formed owned local val/var及moved alias | String/String、owned String字段Resource及混合Resource? | N/C/B/R；后用/复用/替换按末节实测组合 | 按真实Call、Move与epoch运输当前owner；其他birth/一般CFG仍未闭合 |
 | own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；更多既有Resource表示见后续G5片 |
 | Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定 |

@@ -88,7 +88,7 @@ fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
   具体 kind/access、退出和嵌套范围见[Map 支持矩阵](../architecture/map-borrowed-iteration.md)。
   这些是后端回归来源，尚未新增本页公开 CLI 合同；Field/Inout 原生按 Guide 延后。
   支持矩阵另列own MutableMap的String/String四种退出、透明Group、既有Resource表示、
-  Pure own参数后用/同根重复For，以及factory形成或Move到local后的N/C/B/R、Resource词法清理、
+  Pure own参数后用/同根重复For、零参temporary的已验Resource/Resource?/Int键normal，以及local的N/C/B/R、词法清理、
   后续Borrow/重复遍历与重新赋值epoch。当前provider仍限已验零参factory；其他形成和调用
   路线缺口见矩阵，不能据有限组合推断一般支持。
 - 集合 `forEach`/`map`/`filter` 与未列出的集合/格式化 API 仍未交付。词频里的 `decimal`
