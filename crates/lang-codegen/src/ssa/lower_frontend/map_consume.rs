@@ -1,4 +1,5 @@
 //! The checked owned-local consume path; ordinary Map borrowing stays separate.
+mod entry_borrows;
 mod nullable;
 
 use super::{nominal::NominalTypeMapper, *};
@@ -106,8 +107,14 @@ impl ExpressionLowerer<'_> {
         if self.non_null_bindings.contains_key(&root) || self.borrow_bindings.contains_key(&root) {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
-        // This bounded slice does not relax the existing proof/capture/provider carrier gate.
-        self.ensure_no_unresolved_while_proof_carriers(span)
+        // Preserve the original gate, including its Boolean-entry compatibility.
+        match self.ensure_no_unresolved_while_proof_carriers(span) {
+            Ok(()) => Ok(()),
+            Err(previous) if previous.kind == LoweringErrorKind::UnsupportedNode => {
+                self.ensure_map_consume_entry_strings(root, span)
+            }
+            Err(previous) => Err(previous),
+        }
     }
 
     fn validate_map_consume_root(
