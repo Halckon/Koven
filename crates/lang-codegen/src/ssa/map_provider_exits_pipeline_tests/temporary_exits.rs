@@ -223,3 +223,10 @@ fn map_and_mutable_map_temporary_exits_reach_verified_llvm() {
 pub(crate) fn native_sources() -> [(&'static str, &'static str, &'static str); 6] {
     sources().map(|case| (case.label, case.text, case.golden))
 }
+
+// Independent deep identity query; the original collector never enters this path.
+mod query_body;
+mod query_callers;
+mod query_inputs;
+mod query_ssa;
+mod query_test;
