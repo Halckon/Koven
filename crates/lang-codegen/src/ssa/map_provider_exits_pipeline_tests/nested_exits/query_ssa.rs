@@ -117,12 +117,14 @@ pub(super) fn check(
         (pre, oh, ob, oe, ih, ib, ie),
     )?;
     g.incoming_from(pre, &[])?;
+    let continue_incoming = [ob, ib];
+    let terminal_incoming = [ob];
     g.incoming_from(
         ih,
         if f.exit == Exit::Continue {
-            &[ob, ib]
+            &continue_incoming
         } else {
-            &[ob]
+            &terminal_incoming
         },
     )?;
     for (block, from) in [(ob, oh), (oe, oh), (ib, ih), (ie, ih)] {
