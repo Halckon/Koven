@@ -120,12 +120,8 @@ pub(super) fn qualify<'a>(
     {
         return Err(missing());
     }
-    if [descriptor.key_type(), descriptor.value_type()]
-        .iter()
-        .any(|ty| builtin_type(typed, *ty) != Some(BuiltinType::String))
-    {
-        return Err(unsupported());
-    }
+    // Storage planning admits the represented key/value layout. Temporary lifetime
+    // proof depends on this Call owner and its cleanup, not a String/String syntax gate.
     for (index, component) in [MapIterationComponent::Key, MapIterationComponent::Value]
         .into_iter()
         .enumerate()

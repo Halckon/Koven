@@ -70,11 +70,11 @@ pub(super) fn qualify(
         || !signature.type_parameters().is_empty()
         || !signature.has_body()
         || signature.result_source() != CallableResultSource::Owned
-        || builtin_type(typed, descriptor.key_type()) != Some(BuiltinType::String)
-        || builtin_type(typed, descriptor.value_type()) != Some(BuiltinType::String)
     {
         return Err(unsupported());
     }
+    // The shared storage planner owns represented payload admission; this proof
+    // consumes the Unit Call/source/Drop identities independently of the payload shape.
     if call.expression() != source
         || call.return_type() != descriptor.source_type()
         || !call.arguments().is_empty()
