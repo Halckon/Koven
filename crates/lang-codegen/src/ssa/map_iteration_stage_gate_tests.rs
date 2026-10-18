@@ -3,6 +3,7 @@
 
 mod facts;
 mod fixture;
+mod group;
 mod single;
 mod unit;
 
