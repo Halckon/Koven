@@ -66,12 +66,6 @@ fn resource_scope_staging_neighbors_keep_exact_for_boundary() {
                 "../../../../tests/fixtures/map-provider-resource-0331/boundary-nullable.ko"
             ),
         ),
-        (
-            "extra-continuation",
-            include_str!(
-                "../../../../tests/fixtures/map-provider-resource-0331/boundary-extra-continuation.ko"
-            ),
-        ),
     ];
     let mut results = Vec::new();
     for (case, text) in cases {
@@ -80,7 +74,7 @@ fn resource_scope_staging_neighbors_keep_exact_for_boundary() {
         }
     }
     assert!(
-        results.len() == 6 && results.iter().all(|(_, _, r)| matches!(r, Ok(true))),
+        results.len() == 4 && results.iter().all(|(_, _, r)| matches!(r, Ok(true))),
         "all ordinary boundary sources must reach exact lowering rejection: {results:#?}"
     );
 }

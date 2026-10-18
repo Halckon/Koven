@@ -1,6 +1,7 @@
 //! Newly rebuilt finite Map<String, Resource> normal-exhaustion pipelines.
 //! Resource values remain container-owned; the loop creates Shared component loans.
 mod boundaries;
+pub(super) mod continuation;
 mod identity;
 
 use super::{

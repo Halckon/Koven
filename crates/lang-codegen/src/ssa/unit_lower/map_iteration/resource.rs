@@ -153,45 +153,18 @@ fn scope(
     let [body] = bodies.as_slice() else {
         return Err(bad());
     };
+    // The validated Drop names the actual callable scope. Continuation statements
+    // are lowered normally; their AST shape cannot grant or revoke source ownership.
     let node = parsed.ast().statements().get(*body).map_err(|_| bad())?;
-    let Statement::Block { elements } = node.payload() else {
-        return Err(bad());
-    };
-    let [first, marker] = elements.as_slice() else {
-        return Err(bad());
-    };
-    if *first != statement {
-        return Err(bad());
-    }
-    let Statement::Expression { expression } = parsed
+    let iteration = parsed
         .ast()
         .statements()
-        .get(*marker)
-        .map_err(|_| bad())?
-        .payload()
-    else {
-        return Err(bad());
-    };
-    let Expression::Call {
-        callee, arguments, ..
-    } = parsed
-        .ast()
-        .expressions()
-        .get(*expression)
-        .map_err(|_| bad())?
-        .payload()
-    else {
-        return Err(bad());
-    };
-    if parsed
-        .ast()
-        .expressions()
-        .get(*callee)
-        .map_err(|_| bad())?
-        .payload()
-        != &Expression::Name
-        || arguments.len() != 1
-        || !matches!(parsed.ast().expressions().get(arguments[0].value).map_err(|_| bad())?.payload(), Expression::String { parts } if parts.iter().all(|p| matches!(p, StringPart::Text(_))))
+        .get(statement)
+        .map_err(|_| bad())?;
+    if !matches!(node.payload(), Statement::Block { .. })
+        || node.span().source_id() != iteration.span().source_id()
+        || node.span().start() > iteration.span().start()
+        || node.span().end() < iteration.span().end()
     {
         return Err(bad());
     }

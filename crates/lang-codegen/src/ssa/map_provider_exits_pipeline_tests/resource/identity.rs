@@ -34,7 +34,7 @@ pub(super) struct Input {
     pub scan: Span,
     pub parameter: Span,
     pub read: Span,
-    pub marker: Span,
+    pub marker: Option<Span>,
     pub statement: StatementId,
     pub source: ExpressionId,
     pub source_span: Span,
@@ -88,32 +88,40 @@ pub(super) fn ast(sources: &SourceMap, parsed: &ParsedFile, owned: bool) -> Resu
     else {
         return Err(failure("resource scope block", scope));
     };
-    let [statement, marker] = elements.as_slice() else {
-        return Err(failure("resource fixed two statements", elements));
-    };
+    let statement = one(
+        elements.iter().copied().filter(|id| {
+            parsed
+                .ast()
+                .statements()
+                .get(*id)
+                .is_ok_and(|node| matches!(node.payload(), Statement::For { .. }))
+        }),
+        "one actual scanner For",
+    )?;
     let node = parsed
         .ast()
         .statements()
-        .get(*statement)
+        .get(statement)
         .map_err(|e| failure("resource For", e))?;
     let Statement::For { source, body, .. } = node.payload() else {
         return Err(failure("resource actual For", node));
     };
-    let Statement::Expression { expression } = parsed
-        .ast()
-        .statements()
-        .get(*marker)
-        .map_err(|e| failure("resource marker", e))?
-        .payload()
-    else {
-        return Err(failure("resource marker expression", marker));
-    };
-    let marker = parsed
-        .ast()
-        .expressions()
-        .get(*expression)
-        .map_err(|e| failure("resource marker call", e))?
-        .span();
+    let marker = elements
+        .iter()
+        .skip_while(|id| **id != statement)
+        .skip(1)
+        .find_map(|id| {
+            let node = parsed.ast().statements().get(*id).ok()?;
+            let Statement::Expression { expression } = node.payload() else {
+                return None;
+            };
+            parsed
+                .ast()
+                .expressions()
+                .get(*expression)
+                .ok()
+                .map(|node| node.span())
+        });
     let source_span = parsed
         .ast()
         .expressions()
@@ -131,7 +139,7 @@ pub(super) fn ast(sources: &SourceMap, parsed: &ParsedFile, owned: bool) -> Resu
         parameter,
         read,
         marker,
-        statement: *statement,
+        statement,
         source: *source,
         source_span,
         scope,
@@ -722,7 +730,9 @@ pub(super) fn ssa(program: &Program, input: &Input, unit: bool) -> Result<(), Fa
     )?;
     let marker = one(
         g.instructions.iter().copied().filter(|i| {
-            i.origin == Origin::Source(input.marker)
+            input
+                .marker
+                .is_some_and(|marker| i.origin == Origin::Source(marker))
                 && matches!(i.operation, Operation::PrintString { .. })
         }),
         "resource real post-provider marker call",

@@ -657,3 +657,28 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   acceptance为partial、requirements_met=false；missing deinit与premature free仍被
   普通输出/计数对照拒绝，不将Mac提升为完整sanitizer pass。完整ZIP摘要及只读核验
   收据留工作区`spec0331-mac-evidence/ci-c5a1-artifact-audit.json`，不上传大日志。
+
+
+## 40. Resource 普通 continuation 的真实红绿与词法 owner 运输（2026-10-18）
+
+- 原“额外普通println”拒绝属于未完成能力，不是Guide专项延期豁免。五份普通源覆盖原边界fixture、
+  无后续语句、循环前缀与多调用、后续source Borrow，以及size分支合流后再Borrow；每份entry均调用
+  非空与空Map。最终测试/查询在精确`4b4a74a5`两生产文件旧字节上重验，十观察均完整前端成功后
+  在原For返回UnsupportedNode；Rust实际0通过/1失败，finally逐字恢复候选，非合成损坏负控。
+- 两生产模块删除“恰For+单字面量调用”的AST准入。真实parameter origin仍锁唯一callable scope，
+  只消费该scope的完整Drop/owner/phi/incoming事实；普通前后语句由现有lowering处理。
+  single在词法Drop点读取当前binding，沿全部CFG incoming到原anchor，不要求仍在旧block或使用旧ValueId。
+  Unit继续用其自身qualified事实和现有carrier，不合并lowering或开放新的Resource表示/来源。
+- 同次FE原root/签名、Header/Exit完整incoming/Choice/Drop及caller Value交付复用独立查询；
+  新SSA查询从原AST查真实callee，核provider每条边的owner/source/cursor、K/V真实read与逆序End、
+  后续readMap的RootPlace/BorrowBegin/实际参数/End。每条正常Return须在EndSource后恰一次Map Drop。
+  五源十pipeline和十个正常native产物严格exit0/golden/空stderr通过；stdout仅证明聚合析构marker，
+  不外推逐对象内存计数、泄漏或sanitizer结果。
+- 当前候选定向9项ordinary Rust测试全过（Resource组3、新native2、旧Resource native2、history1、
+  sequential1），0失败/忽略；native合计14产物，新增10。fmt/workspace all-targets check/clippy
+  (-D warnings)/build四项通过。独审发现的后续Borrow实参与全Return必达Drop查询缺口已补齐复核。
+  测试查询曾把String临时Drop误算Map Drop、漏列真实MapSize用途，原失败日志保留，修正的是查询而非生产。
+- 固定旧头`4b4a74a5`的run `39109969588`双host完整16jobs成功，三份新产物已独立核内容：Linux12组
+  Resource的24个ASan/LSan结果、generated-owner16例与24运行记录通过；Mac generated-owner为partial，
+  8个counter运行记录通过，requirements_met=false。旧CI不覆盖本节后继改动，当前CI执行另记。
+  R1 Resource continue与R2 nullable component继续待处理，0331仍active，不归档、不合并、不启动D10。

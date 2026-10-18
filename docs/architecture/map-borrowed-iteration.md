@@ -58,11 +58,14 @@ fixture目录为`map-provider-borrow-exits-0331`。这是有界重建，不宣�
 
 `map-provider-resource-0331` 的两份普通源码支持 own Map / Borrow MutableMap 参数、
 String key 与无字段/泛型/接口且有显式 deinit 的直接 class value，正常回边和耗尽。owned Map
-仅接通函数体恰为 For 加一个字面量 println 的形状：single 消费公开 Header/Exit phi、
+以真实callable scope的Drop为依据，不限制循环前后普通语句的数量或调用形状：single 消费公开 Header/Exit phi、
 完整 incoming/Choice 与唯一 AfterStatement(scope) Drop，在 source loan 结束后保留实际
 当前 owner 至该词法点；unit 独立消费 qualified scope Drop 并运输自身 carrier。
-Borrow MutableMap 不取得或清理 caller owner。owned Map 的更长 continuation、continue、nullable
-Resource 分量仍由真实 well-typed 邻控保留原 For 的 UnsupportedNode。
+Borrow MutableMap 不取得或清理 caller owner。owned Map 的continue、nullable Resource分量仍由真实well-typed邻控保留原For的UnsupportedNode。
+普通continuation的五源双入口已核无后续语句、多调用/前缀、后续Borrow使用及CFG合流后再借用；
+single在真实清理点按当前binding逐全部incoming追溯原owner，不冻结旧block/value。十个正常native
+产物核严格输出；独立CFG查询要求每条正常Return恰一次Map Drop，并核后续Borrow的callee/参数/End。
+多重early-return等尚未验的组合不由五源外推。
 
 两份源×双入口四路经独立原 AST/name/参数/caller、完整 SSA incoming/operand 使用及
 词法 Drop 查询后通过 verifier/LLVM；四个普通 native 产物 exit0/完整 golden/空 stderr。

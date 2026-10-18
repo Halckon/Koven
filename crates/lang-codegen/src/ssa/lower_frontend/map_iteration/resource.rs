@@ -6,7 +6,7 @@ use lang_frontend::{
         CleanupCondition, CleanupOwnerValue, DropFact, DropTarget, IterationPhiBoundary,
         IterationPhiIncomingKind,
     },
-    parser::{FunctionBody, FunctionForm, StringPart},
+    parser::{FunctionBody, FunctionForm},
     type_checking::NominalKind,
 };
 
@@ -146,7 +146,7 @@ pub(super) fn qualify(
     })
 }
 
-// The only continuation is a single direct call with text literals, then callable exit.
+// Resolve the callable scope independently of the number or kind of continuation statements.
 fn scope(
     parsed: &ParsedFile,
     statement: StatementId,
@@ -182,45 +182,18 @@ fn scope(
     let [body] = bodies.as_slice() else {
         return Err(bad());
     };
+    // The validated Drop names the actual callable scope. Continuation statements
+    // are lowered normally; their AST shape cannot grant or revoke source ownership.
     let node = parsed.ast().statements().get(*body).map_err(|_| bad())?;
-    let Statement::Block { elements } = node.payload() else {
-        return Err(bad());
-    };
-    let [first, marker] = elements.as_slice() else {
-        return Err(bad());
-    };
-    if *first != statement {
-        return Err(bad());
-    }
-    let Statement::Expression { expression } = parsed
+    let iteration = parsed
         .ast()
         .statements()
-        .get(*marker)
-        .map_err(|_| bad())?
-        .payload()
-    else {
-        return Err(bad());
-    };
-    let Expression::Call {
-        callee, arguments, ..
-    } = parsed
-        .ast()
-        .expressions()
-        .get(*expression)
-        .map_err(|_| bad())?
-        .payload()
-    else {
-        return Err(bad());
-    };
-    if parsed
-        .ast()
-        .expressions()
-        .get(*callee)
-        .map_err(|_| bad())?
-        .payload()
-        != &Expression::Name
-        || arguments.len() != 1
-        || !matches!(parsed.ast().expressions().get(arguments[0].value).map_err(|_| bad())?.payload(), Expression::String { parts } if parts.iter().all(|p| matches!(p, StringPart::Text(_))))
+        .get(statement)
+        .map_err(|_| bad())?;
+    if !matches!(node.payload(), Statement::Block { .. })
+        || node.span().source_id() != iteration.span().source_id()
+        || node.span().start() > iteration.span().start()
+        || node.span().end() < iteration.span().end()
     {
         return Err(bad());
     }
@@ -230,9 +203,7 @@ fn scope(
 #[derive(Clone, Copy)]
 pub(super) struct Carrier {
     fact: DropFact,
-    current: ValueId,
     anchor: ValueId,
-    block: BlockId,
 }
 
 impl ExpressionLowerer<'_> {
@@ -264,9 +235,7 @@ impl ExpressionLowerer<'_> {
                 root,
                 Carrier {
                     fact: proof.drop,
-                    current,
                     anchor,
-                    block: self.block,
                 },
             )
             .is_some()
@@ -286,26 +255,25 @@ impl ExpressionLowerer<'_> {
             return Ok(false);
         };
         let bad = || error(LoweringErrorKind::MissingFact, fact.value_origin());
+        let Some(LoweredValue::Value(current)) = self.bindings.get(&root).copied() else {
+            return Err(bad());
+        };
         if state.fact != fact
-            || self.block != state.block
-            || self.bindings.get(&root) != Some(&LoweredValue::Value(state.current))
             || self.borrow_bindings.contains_key(&root)
-            || self.temporaries.values().any(|v| *v == state.current)
+            || self.temporaries.values().any(|v| *v == current)
         {
             return Err(bad());
         }
         nested::transport(
             self.function,
-            EntityId::Value(state.current),
+            EntityId::Value(current),
             EntityId::Value(state.anchor),
             fact.value_origin(),
         )?;
         self.bindings.remove(&root);
         self.map_iteration_state.resources.remove(&root);
         self.append(
-            Operation::Drop {
-                owner: state.current,
-            },
+            Operation::Drop { owner: current },
             Vec::new(),
             fact.value_origin(),
         )?;
