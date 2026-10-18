@@ -218,3 +218,5 @@ pub(crate) use local_reassignment::{
 };
 
 pub(crate) use local_reassignment::completed_epoch_sources as local_completed_epoch_sources;
+
+pub(crate) use local_exits::alias_rebound_source as local_alias_rebound_source;

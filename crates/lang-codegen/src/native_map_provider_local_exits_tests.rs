@@ -19,3 +19,11 @@ fn unit_local_formation_exits_normally() {
         assert_result(&case.label, "unit", &run, &case.golden);
     }
 }
+
+#[test]
+fn unit_rebound_original_root_keeps_both_owners_separate() {
+    let (label, source, golden) =
+        crate::ssa::map_provider_exits_pipeline_tests::local_alias_rebound_source();
+    let run = run_unit(label, &source);
+    assert_result(label, "unit", &run, golden);
+}

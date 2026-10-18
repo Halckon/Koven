@@ -1,4 +1,5 @@
 //! Legal alternate formation histories must not be mistaken for missing frontend facts.
+mod alias;
 use super::super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -60,7 +61,7 @@ fun makeMutable():MutableMap<String,String>{return mutableMapOf<String,String>()
     }).collect()
 }
 
-fn observe(source: &str, unit: bool) -> Result<&'static str, Failure> {
+fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failure> {
     let mut sources = SourceMap::new();
     let id = sources
         .add_source("provider.ko", source)
@@ -84,7 +85,13 @@ fn observe(source: &str, unit: bool) -> Result<&'static str, Failure> {
             "provider.ko",
             &mut report,
             |names, typed, owned, report| {
-                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report)
+                source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                if label == "old-alias-rebound" {
+                    report.query(
+                        "rebound alias original Unit identities",
+                        &alias::unit_facts(&sources, &parsed, names, typed, owned),
+                    );
+                }
             },
         )
     } else {
@@ -101,6 +108,15 @@ fn observe(source: &str, unit: bool) -> Result<&'static str, Failure> {
         "G2 ALTERNATE unit={unit} source={source:?} report={report:#?} result={:?}",
         result.as_ref().map(|(_, id)| id)
     );
+    if unit
+        && label == "old-alias-rebound"
+        && let Ok((program, _)) = &result
+    {
+        report.query(
+            "rebound alias actual SSA owner separation",
+            &alias::graph(&sources, &parsed, program),
+        );
+    }
     if !report.passed() {
         return Err(failure("alternate original FE", report));
     }
@@ -127,12 +143,14 @@ fn legal_alternate_histories_do_not_become_missing_facts() {
     let mut outcomes = Vec::new();
     for (label, source) in sources() {
         for unit in [false, true] {
-            let expected = if matches!(label, "prefix-cfg" | "reassigned") {
+            let expected = if matches!(label, "prefix-cfg" | "reassigned")
+                || (label == "old-alias-rebound" && unit)
+            {
                 "verified LLVM"
             } else {
                 "original For Unsupported"
             };
-            let result = observe(&source, unit).and_then(|actual| {
+            let result = observe(label, &source, unit).and_then(|actual| {
                 if actual == expected {
                     Ok(actual)
                 } else {
@@ -150,4 +168,14 @@ fn legal_alternate_histories_do_not_become_missing_facts() {
         outcomes.len() == 10 && outcomes.iter().all(|(_, _, r)| r.is_ok()),
         "{outcomes:#?}"
     );
+}
+
+pub(crate) fn alias_rebound_source() -> (&'static str, String, &'static str) {
+    let selected = sources()
+        .into_iter()
+        .filter(|(label, _)| *label == "old-alias-rebound")
+        .collect::<Vec<_>>();
+    assert_eq!(selected.len(), 1);
+    let (label, source) = selected.into_iter().next().unwrap();
+    (label, source, "gap\nzero\n")
 }
