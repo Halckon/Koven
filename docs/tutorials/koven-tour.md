@@ -141,6 +141,11 @@ Map 的返回表达式也有窄范围支持：[已有回归源码](../../crates/
 这是 single/unit 后端 native 的代表源码，不是 Map 遍历，也不是本页新增的公开 CLI 合同；
 不能外推所有容器、嵌套循环或任意返回表达式。具体范围见[Map owner 与循环](../architecture/map-loop-owner-carry.md)。
 
+Map 双分量借用遍历已有 single/unit 后端的有限嵌套回归：同根与不同 root、own Resource、
+temporary/nullable payload，以及三层遍历的内层 break 和全层 return 清理。
+来源、类型与退出组合见[当前矩阵](../architecture/map-borrowed-iteration.md)；Field/Inout 和
+String? ABI 边界仍保留，这些后端回归不增加本页公开 CLI 的可执行合同。
+
 ## root-replace-swap
 
 这里只对完整 `var` root 做原地置换，不推导字段或容器 element place 的支持范围。

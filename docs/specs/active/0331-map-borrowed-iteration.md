@@ -813,7 +813,7 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 | G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；d85e完整CI及三artifact独审通过，其他表示仍逐项验收 |
 | G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331，§61有限非nullable Borrow Int/Int、Int/String及pure MoveOnly inline payload Return已验；String? ABI前置仍独立待验，不外推原83源全矩阵 |
 | G7 | 一般合法Return operand、单If/两live arm、条件/checked组合；需逐路径cleanup | 0331，§61有限普通Return operand、单If/两live arm及checked已验；其他控制流/source/寿命组合仍待，不设AST白名单 |
-| G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，未闭合；在单层source/CFG事实之后推进 |
+| G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，§62逐层frame有限82观察/68 native已验；精确词法Drop/调用终点查询加强、最终回归与新头CI仍待 |
 | G9 | 非Resource own参数在N/C/B后继续使用；须真实last-use寿命，不能套Resource词法延寿 | 0331，§47有限未来使用片；consume/其他root及一般CFG仍逐项验收 |
 | G10 | 透明Group、moved alias与Borrow-result；后两者分别依赖Move/continuation事实 | 0331，Group及§48 factory local alias首片；其他Move/birth与Borrow-result前置仍在 |
 
@@ -1269,3 +1269,44 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   sanitizer故障对照留GitHub Actions；Mac sanitizer仍partial/requirements_met=false，UBSan未覆盖。
   本轮未重跑原83源166观察，不能将旧64项诊断重新计作当前通过或拒绝；String? ABI、其他
   callable/source/CFG及G2/G8/G9/G10余项继续在F内，0331保持active，不归档/合并，不提前开始D10。
+
+## 62. G8 逐层 Map frame 与原83源重新对账（2026-10-18，验收进行中）
+
+- 精确`f95b1cb8367070c2f432ea86768826ead41805d4`重新运行原83源，原字节和普通helper未改：
+  166个唯一观察为126 LLVM、38 lower Unsupported、2 ownership L0164，即63源双入口LLVM、
+  19源双入口lower拒绝、1源双入口L0164。diagnostic Rust实际0通过/1失败/0忽略，没有运行native；
+  不能把收集器或部分成功当作全通过。旧64 Unsupported不再是当前分类。
+- 19个lowering源按实际失败阶段为12个nullable String ABI前置与7个G8；不能将ABI失败继续记在For。
+  G2、G9与Group原合法邻控未观察回退；G3/G6/G7共13源、26观察从旧Unsupported转LLVM。
+  原83同源、阶段分类与全部原始日志摘要已由独立审阅者核对。f95 PR完整CI `39160455835`
+  的16/16 jobs success及三artifact独审只绑定f95，不继承给以下G8源码。
+- `d8df1e4b`保存原7个G8正式fixture，双入口首红14 For Unsupported；此后源码保持原字节。
+  `b4cfb251`/`77a6a41d`分别保存Single、Unit逐层候选，`12c5d018`保存深查询与runtime源，
+  均明确标记未验收。每个实际active provider独立运输source、cursor、K/V和owner；路径快照只恢复
+  当前路径，不回滚累计证据。Return完整公开actions只dispatch一次，按真实provider归属记录。
+  原固定双层专用路径退出本片职责，未合并Single/Unit lowering管线或提前D10。
+- 原12个runtime v3源覆盖Map/MutableMap、不同Borrow root、own同根和Borrow Resource同根，
+  normal/条件Return，每源运行非空、独立空内层、空外层。v1 Mutable caller的val/put L0134是
+  fixture错误，另留真实失败；v2修合法性，v3加强inner后原outer K/V读取，参考红24 For Unsupported。
+  首实跑Rust2/2/0，26/38完成SSA/LLVM，12 Single拒绝；原因是Flow局部Drop回退旧Sequential
+  carrier误分类Guard。窄修后38/38到达LLVM，尚有6项条件presence查询误断；`d79712de`以原registry
+  的全selector赋值证明available_when等价于path与当前presence交集，同字节四tests/38观察全绿，
+  12源双入口24严格native通过。编译可见性错误与各次查询失败独立保留。
+- `f62c911a`另注册4个own Resource同根源、18个temporary/nullable Resource/三层源；三类后者
+  分别覆盖N、内层条件Break、全层条件Return，每源含对应非空与两类空路径。own Resource首红
+  为Unit4成功、Single2 MissingFact/2 Unsupported。`1b310ebb`按实际祖层Exit phi、condition、
+  scope normal point和完整Drop账本区分终端/词法清理；`e909927b`另修两处独审发现的MissingFact
+  传播接缝，生产库check成功。未在本机运行损坏事实或故障对照。
+  以下首批82/68绑定`1b310ebb`编译输入；e909两处错误传播修正后仅库check通过，尚未重跑82/68。
+- 首份完整G8运行实际Rust6/0/0：原7源加34个runtime源，82个唯一观察全部通过当时冻结的深查询、
+  SSA verifier和LLVM；34源双入口68个唯一native均exit0、完整stdout golden、空stderr。
+  原12与新增own4的source/golden哈希逐项等各自首红；原7fixture未改。temporary Break销毁未读
+  Resource尾项，三层Break只结束最近层且中外层继续读原K/V，Return先求值再清内/中/外Guard。
+  nullable native只区分Some/None，精确payload来源另由实际source/cursor/loan查询约束；不假定
+  Map各entry之间析构顺序，也不据stdout声明动态free或无泄漏。
+- 独审已关闭两处生产Missing传播finding；新增精确全局Resource词法DropPoint与尾Return operand
+  查询仍在加强。调用终点只约束caller实际新建loan；同步转发provider K/V不要求新建子loan或End。
+  当前82/68不外推加强版或最终工程回归。a314 CI曾因6项Clippy失败，f62仅余生产一项；均已作
+  最小修正，不加allow，后继新头CI待核。最终原83重跑、普通回归、完整新头CI与独审尚未完成，
+  0331保持active；Field/Inout、String? ABI与其他未验组合不扩大，Mac sanitizer仍partial/
+  requirements_met=false、UBSan未覆盖，不归档或合并，不提前D10。
