@@ -123,14 +123,13 @@ pub(super) fn qualify(
     {
         return Err(bad());
     }
-    match typed.is_resource_type(descriptor.source_type()) {
-        Some(false) => {}
-        Some(true) => return Err(unsupported()),
-        None => return Err(bad()),
-    }
-    if [descriptor.key_type(), descriptor.value_type()]
-        .iter()
-        .any(|t| builtin_type(typed, *t) != Some(BuiltinType::String))
+    let resource = typed
+        .is_resource_type(descriptor.source_type())
+        .ok_or_else(bad)?;
+    if !resource
+        && [descriptor.key_type(), descriptor.value_type()]
+            .iter()
+            .any(|t| builtin_type(typed, *t) != Some(BuiltinType::String))
     {
         return Err(unsupported());
     }
@@ -183,14 +182,21 @@ pub(super) fn qualify(
         span,
     )?;
     let body_exit = qualify_body(parsed, names, typed, descriptor, body, span)?;
-    let (source_drop, transfer_drop) =
-        validate_cleanup(plan, owned, (body, body_exit), root, origin, None, span)?;
+    let (source_drop, transfer_drop, late_drop) = if resource {
+        let proof = resource::qualify(parsed, names, typed, owned, plan, root, body_exit)?;
+        (None, proof.transfer, Some(proof.drop))
+    } else {
+        let late = future_use::qualify(parsed, names, typed, owned, plan, body_exit, span)?;
+        let (source_drop, transfer_drop) =
+            validate_cleanup(plan, owned, (body, body_exit), root, origin, late, span)?;
+        (source_drop, transfer_drop, late)
+    };
     Ok(QualifiedMap {
         statement,
         source: SourceIdentity::Formed { root, producer },
         source_drop,
         transfer_drop,
-        late_drop: None,
+        late_drop,
         body_exit,
         body_point: body_point(statement, body, body_exit),
         conditional: None,

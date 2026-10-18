@@ -7,10 +7,11 @@ pub(super) fn qualify(
     names: &NameResolution,
     owned: &OwnershipCheckedFile,
     plan: &MapIterationOwnershipPlan,
-    symbol: SymbolId,
+    root: (SymbolId, Option<ExpressionId>),
     body_exit: IterationExitKind,
     span: Span,
 ) -> Result<Proof, LoweringError> {
+    let (symbol, birth) = root;
     let bad = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     if !matches!(
@@ -57,12 +58,15 @@ pub(super) fn qualify(
     }
     let origin = names.symbols().get(symbol.index()).ok_or_else(bad)?.span();
     let conditions = owned.cleanup_conditions();
+    let live = |owner| match birth {
+        Some(birth) => super::formed_condition(parsed, owned, (symbol, birth), owner, span),
+        None => super::provenance::parameter(owned, symbol, origin, owner, span),
+    };
     for boundary in [IterationPhiBoundary::Header, IterationPhiBoundary::Exit] {
         let phi = super::phi(conditions, plan, symbol, boundary, span)?;
-        super::provenance::parameter(owned, symbol, origin, phi.owner(), span)?;
+        live(phi.owner())?;
     }
-    let condition =
-        super::provenance::parameter(owned, symbol, origin, drop.owner().ok_or_else(bad)?, span)?;
+    let condition = live(drop.owner().ok_or_else(bad)?)?;
     if drop.value_origin() != origin
         || drop.condition() != Some(condition)
         || drop.capture_slot().is_some()

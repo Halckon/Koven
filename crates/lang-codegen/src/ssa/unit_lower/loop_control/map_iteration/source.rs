@@ -288,3 +288,92 @@ impl UnitExpressionLowerer<'_> {
         Ok(())
     }
 }
+
+impl UnitExpressionLowerer<'_> {
+    /// A formed root's final cleanup must still transport the exact selected Call owner.
+    pub(in super::super::super) fn validate_formed_map_drop(
+        &self,
+        fact: lang_frontend::ownership_checking::UnitDropFact,
+        owner: ValueId,
+    ) -> Result<(), LoweringError> {
+        let UnitDropTarget::Named(root) = fact.target() else {
+            return Ok(());
+        };
+        let bad = || lowering_error(LoweringErrorKind::MissingFact, fact.value_origin());
+        let mut relevant = false;
+        for descriptor in self.typed.map_iterations() {
+            if descriptor.statement().source_unit() != self.source_unit {
+                continue;
+            }
+            let Some(plan) = self.owned.map_iteration(descriptor.statement()) else {
+                continue;
+            };
+            if !matches!(plan.source(), Some(UnitLoanTarget::Place(place)) if place.is_root() && place.root() == root)
+            {
+                continue;
+            }
+            let qualified = map_iteration::qualify(
+                self.parsed,
+                self.names,
+                self.typed,
+                self.owned,
+                descriptor,
+            )?;
+            let SourceIdentity::Formed {
+                root: actual,
+                producer,
+            } = qualified.source
+            else {
+                continue;
+            };
+            if actual != root {
+                continue;
+            }
+            relevant = true;
+            if ![
+                qualified.source_drop,
+                qualified.late_drop,
+                qualified.transfer_drop,
+            ]
+            .into_iter()
+            .any(|candidate| candidate == Some(fact))
+            {
+                continue;
+            }
+            let span = self
+                .parsed
+                .ast()
+                .statements()
+                .get(descriptor.statement().statement())
+                .map_err(|_| bad())?
+                .span();
+            let formation = map_iteration::formed::formation(
+                self.parsed,
+                self.names,
+                self.typed,
+                self.owned,
+                root,
+                descriptor.source_type(),
+                span,
+            )?;
+            if formation.producer != producer.expression()
+                || formation.roots.iter().skip(1).any(|root| {
+                    self.bindings.contains_key(root) || self.borrow_bindings.contains_key(root)
+                })
+                || self.borrow_bindings.contains_key(&root)
+                || self
+                    .bindings
+                    .values()
+                    .any(|v| *v == LoweredValue::Value(owner))
+            {
+                return Err(bad());
+            }
+            local::validate_birth(self, root, producer, EntityId::Value(owner), span)?;
+            return Ok(());
+        }
+        if relevant {
+            return Err(bad());
+        }
+        Ok(())
+    }
+}

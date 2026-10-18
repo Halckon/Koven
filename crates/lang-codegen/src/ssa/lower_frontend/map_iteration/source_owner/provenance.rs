@@ -10,6 +10,27 @@ pub(super) fn parameter(
     owner: CleanupOwnerValueId,
     span: Span,
 ) -> Result<CleanupConditionId, LoweringError> {
+    rooted(owned, symbol, origin, None, owner, span)
+}
+
+pub(super) fn formed(
+    owned: &OwnershipCheckedFile,
+    symbol: SymbolId,
+    birth: (ExpressionId, Span),
+    owner: CleanupOwnerValueId,
+    span: Span,
+) -> Result<CleanupConditionId, LoweringError> {
+    rooted(owned, symbol, birth.1, Some(birth.0), owner, span)
+}
+
+fn rooted(
+    owned: &OwnershipCheckedFile,
+    symbol: SymbolId,
+    origin: Span,
+    expression: Option<ExpressionId>,
+    owner: CleanupOwnerValueId,
+    span: Span,
+) -> Result<CleanupConditionId, LoweringError> {
     let bad = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     let conditions = owned.cleanup_conditions();
@@ -26,8 +47,26 @@ pub(super) fn parameter(
             CleanupOwnerValue::Parameter {
                 symbol: actual,
                 origin: at,
-            } if *actual == symbol && *at == origin => {
+            } if expression.is_none() && *actual == symbol && *at == origin => {
                 // The public Entry binding publishes the Always ID; do not invent one by index.
+                let entry = owned
+                    .map_iterations()
+                    .iter()
+                    .flat_map(|p| p.closure_phi_incomings())
+                    .flat_map(|i| i.bindings())
+                    .flat_map(|b| b.values())
+                    .find(|v| v.source() == current)
+                    .ok_or_else(bad)?;
+                if conditions.get(entry.condition()) != Some(&CleanupCondition::Always) {
+                    return Err(bad());
+                }
+                available.insert(current, entry.condition());
+                seeds.insert(current);
+            }
+            CleanupOwnerValue::Expression {
+                expression: actual,
+                origin: at,
+            } if expression == Some(*actual) && *at == origin => {
                 let entry = owned
                     .map_iterations()
                     .iter()
@@ -138,7 +177,9 @@ pub(super) fn parameter(
                 }
                 parents.insert(current, inputs);
             }
-            CleanupOwnerValue::Parameter { .. } => return Err(bad()),
+            CleanupOwnerValue::Parameter { .. } | CleanupOwnerValue::Expression { .. } => {
+                return Err(bad());
+            }
             _ => return Err(unsupported()),
         }
     }

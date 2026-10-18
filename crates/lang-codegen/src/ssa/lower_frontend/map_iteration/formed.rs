@@ -103,15 +103,14 @@ pub(super) fn qualify<'a>(
     {
         return Err(missing());
     }
-    match typed.is_resource_type(d.source_type()) {
-        Some(false) => {}
-        Some(true) => return Err(unsupported()),
-        None => return Err(missing()),
-    }
+    let resource = typed
+        .is_resource_type(d.source_type())
+        .ok_or_else(missing)?;
     if qualify::has_enclosing_control(parsed, span)
-        || [d.key_type(), d.value_type()]
-            .iter()
-            .any(|t| builtin_type(typed, *t) != Some(BuiltinType::String))
+        || (!resource
+            && [d.key_type(), d.value_type()]
+                .iter()
+                .any(|t| builtin_type(typed, *t) != Some(BuiltinType::String)))
     {
         return Err(unsupported());
     }
@@ -154,15 +153,27 @@ pub(super) fn qualify<'a>(
     )?;
     let body_exit = exit_shape::body_exit(parsed, names, typed, *d, body, span)?;
     exit_shape::cleanup(owned, plan, body, body_exit, span)?;
-    let owner = source_owner::qualify_formed(
-        parsed,
-        names,
-        owned,
-        plan,
-        (root, formation.producer),
-        body,
-        body_exit,
-    )?;
+    let owner = if resource {
+        resource::qualify(
+            parsed,
+            names,
+            typed,
+            owned,
+            plan,
+            (root, Some(formation.producer)),
+            body_exit,
+        )?
+    } else {
+        source_owner::qualify_formed(
+            parsed,
+            names,
+            owned,
+            plan,
+            (root, formation.producer),
+            body,
+            body_exit,
+        )?
+    };
     Ok(qualify::Qualified {
         plan,
         source: SourceIdentity::Formed {

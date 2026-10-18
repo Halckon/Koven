@@ -115,10 +115,7 @@ fn qualify_with_birth(
             .iter()
             .any(|fact| fact.point() != exhaustion_point && Some(fact.point()) != transfer_point)
     {
-        if birth.is_some() {
-            return Err(unsupported());
-        }
-        return future::qualify(parsed, names, owned, plan, symbol, body_exit, span);
+        return future::qualify(parsed, names, owned, plan, root, body_exit, span);
     }
     let expected_incomings = if matches!(body_exit, IterationExitKind::Return(_)) {
         2
@@ -152,18 +149,7 @@ fn qualify_with_birth(
         return Err(missing());
     };
     let available = if let Some(birth) = birth {
-        let node = parsed
-            .ast()
-            .expressions()
-            .get(birth)
-            .map_err(|_| missing())?;
-        if !matches!(conditions.owner_value(seed.source()), Some(CleanupOwnerValue::Expression { expression, origin })
-            if *expression == birth && *origin == node.span())
-            || conditions.get(seed.condition()) != Some(&CleanupCondition::Always)
-        {
-            return Err(missing());
-        }
-        seed.condition()
+        formed_condition(parsed, owned, (symbol, birth), seed.source(), span)?
     } else {
         provenance::parameter(owned, symbol, origin, seed.source(), span)?
     };
@@ -417,4 +403,20 @@ pub(in super::super) fn supported_drop(
             .and_then(|q| q.owner)
             .is_some_and(|proof| proof.at(fact.point()) == Some(fact))
     })
+}
+
+/// Resolve the complete live FE graph to the real local producer, including prior providers.
+pub(super) fn formed_condition(
+    parsed: &ParsedFile,
+    owned: &OwnershipCheckedFile,
+    root: (SymbolId, ExpressionId),
+    owner: lang_frontend::ownership_checking::CleanupOwnerValueId,
+    span: Span,
+) -> Result<lang_frontend::ownership_checking::CleanupConditionId, LoweringError> {
+    let node = parsed
+        .ast()
+        .expressions()
+        .get(root.1)
+        .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+    provenance::formed(owned, root.0, (root.1, node.span()), owner, span)
 }

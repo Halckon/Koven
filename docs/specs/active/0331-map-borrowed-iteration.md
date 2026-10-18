@@ -951,3 +951,11 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   size条件两live臂合流后Borrow、同根第二For后Borrow。每源非空/空factory与scanner实际调用。
   当前Resource候选仍未修改Pure未来使用资格时，108双入口全部完整FE后原For Unsupported，
   Rust真实0通过/1失败/0忽略；尚无本片native验收。此红测试检查点不声明能力已接通。
+
+- 生产候选检查点：Resource原48源96SSA/LLVM及96普通native产物首绿；新增合法同根
+  两For邻控在single实际2条Missing、unit2条成功，修后四路均完整SSA/LLVM成功。
+  formed live证明沿原Expression的ID/span经全部Header/Exit incoming至真实最后Drop，
+  不再用本For Exit冒充最终owner；Parameter旧路径不变。Unit最终Formed Drop认领精确
+  source/late/transfer fact，再核原Call与全部incoming。Pure local后用108条SSA/LLVM首绿，
+  native及新增原FE深查询仍在验；Resource强图36条Unit清理origin查询与terminal当前owner
+  列finding正在修正，故本检查点不声明最终验收或F完成。

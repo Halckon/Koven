@@ -273,7 +273,7 @@ fn qualify_one<'a>(
     let owner = if access == MapIterationSourceAccess::Owned {
         Some(
             if typed.is_resource_type(descriptor.source_type()) == Some(true) {
-                resource::qualify(parsed, names, typed, owned, plan, symbol, body_exit)?
+                resource::qualify(parsed, names, typed, owned, plan, (symbol, None), body_exit)?
             } else {
                 source_owner::qualify(parsed, names, owned, plan, symbol, *body, body_exit)?
             },

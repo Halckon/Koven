@@ -357,6 +357,7 @@ impl UnitExpressionLowerer<'_> {
                 ));
             }
         };
+        self.validate_formed_map_drop(fact, owner)?;
         self.validate_pure_map_parameter_drop(fact, owner)?;
         self.function
             .append_instruction(

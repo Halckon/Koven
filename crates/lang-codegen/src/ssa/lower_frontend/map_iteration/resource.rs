@@ -1,4 +1,4 @@
-//! One normal owned Resource Map parameter, retained to its real callable scope drop.
+//! An owned Resource Map retains its real parameter or formed birth through lexical cleanup.
 //! Presence is proved from Parameter -> Header -> Exit incoming values, never a bit alone.
 use super::*;
 use lang_frontend::{
@@ -15,9 +15,10 @@ pub(super) fn qualify(
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
     plan: &MapIterationOwnershipPlan,
-    symbol: SymbolId,
+    root: (SymbolId, Option<ExpressionId>),
     body_exit: IterationExitKind,
 ) -> Result<source_owner::Proof, LoweringError> {
+    let (symbol, birth) = root;
     let d = plan.descriptor();
     let span = parsed
         .ast()
@@ -108,10 +109,20 @@ pub(super) fn qualify(
     let [seed] = entry.values() else {
         return Err(bad());
     };
-    if conditions.get(entry.available_when()) != Some(&CleanupCondition::Always)
-        || seed.condition() != entry.available_when()
-        || !matches!(conditions.owner_value(seed.source()), Some(CleanupOwnerValue::Parameter { symbol: s, origin: o }) if *s == symbol && *o == origin)
-    {
+    let available = match birth {
+        Some(birth) => {
+            source_owner::formed_condition(parsed, owned, (symbol, birth), seed.source(), span)?
+        }
+        None => {
+            if conditions.get(entry.available_when()) != Some(&CleanupCondition::Always)
+                || !matches!(conditions.owner_value(seed.source()), Some(CleanupOwnerValue::Parameter { symbol: s, origin: o }) if *s == symbol && *o == origin)
+            {
+                return Err(bad());
+            }
+            entry.available_when()
+        }
+    };
+    if seed.condition() != entry.available_when() || seed.condition() != available {
         return Err(bad());
     }
     let mut incoming_edges = vec![(
@@ -183,10 +194,20 @@ pub(super) fn qualify(
                 || f.target() == DropTarget::Named(symbol)
         })
         .collect::<Vec<_>>();
+    let (drop_owner, drop_condition) = if let Some(birth) = birth {
+        source_owner::formed_condition(parsed, owned, (symbol, birth), h.owner(), span)?;
+        source_owner::formed_condition(parsed, owned, (symbol, birth), x.owner(), span)?;
+        let owner = drop.owner().ok_or_else(bad)?;
+        let condition =
+            source_owner::formed_condition(parsed, owned, (symbol, birth), owner, span)?;
+        (owner, condition)
+    } else {
+        (x.owner(), x.availability_condition())
+    };
     if related != drops
         || drop.value_origin() != origin
-        || drop.owner() != Some(x.owner())
-        || drop.condition() != Some(x.availability_condition())
+        || drop.owner() != Some(drop_owner)
+        || drop.condition() != Some(drop_condition)
         || drops.iter().any(|d| {
             d.value_origin() != origin
                 || d.capture_slot().is_some()
