@@ -1,6 +1,7 @@
 //! Ordered Map providers carry one source lease and an opaque u64 cursor in pending slots.
 mod carrier;
 mod cleanup;
+mod conditional;
 use super::super::map_iteration;
 use super::{
     iteration::{IterationContext, IterationState},
@@ -11,6 +12,7 @@ use crate::ssa::model::{
     ValueId,
 };
 use carrier::MapCarrier;
+use conditional::ConditionalState;
 use lang_frontend::{
     ownership_checking::{UnitIterationExitKind, UnitIterationSourceAccess},
     type_checking::{BuiltinType, MapIterationKind},
@@ -41,6 +43,7 @@ pub(super) struct MapState {
     cursor_type: SsaTypeId,
     carrier: MapCarrier,
     phase: MapPhase,
+    conditional: Option<ConditionalState>,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -240,6 +243,22 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        let conditional = qualified
+            .conditional
+            .map(|shape| {
+                ConditionalState::new(
+                    self,
+                    shape,
+                    qualified.root,
+                    source_slot,
+                    cursor_slot,
+                    cursor_type,
+                    key,
+                    value,
+                    span,
+                )
+            })
+            .transpose()?;
         context.iteration = Some(IterationContext {
             statement: statement_id,
             retained_start,
@@ -253,6 +272,7 @@ impl UnitExpressionLowerer<'_> {
                 value_binding: descriptor.value_binding(),
                 cursor_type,
                 carrier,
+                conditional,
                 phase: MapPhase::Body {
                     key_live: true,
                     value_live: true,
@@ -276,22 +296,28 @@ impl UnitExpressionLowerer<'_> {
             .loops
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let (breaks, continues) = match qualified.body_exit {
-            UnitIterationExitKind::Fallthrough | UnitIterationExitKind::Continue(_) => (0, 1),
-            UnitIterationExitKind::Break(_) => (1, 0),
-            UnitIterationExitKind::Return(_) => (0, 0),
-            UnitIterationExitKind::Exhaustion => {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        let (breaks, continues) = if qualified.conditional.is_some() {
+            (1, 2)
+        } else {
+            match qualified.body_exit {
+                UnitIterationExitKind::Fallthrough | UnitIterationExitKind::Continue(_) => (0, 1),
+                UnitIterationExitKind::Break(_) => (1, 0),
+                UnitIterationExitKind::Return(_) => (0, 0),
+                UnitIterationExitKind::Exhaustion => {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
             }
         };
         if context.breaks.len() != breaks
             || context.continues.len() != continues
-            || self.block != body_block
+            || (qualified.conditional.is_none() && self.block != body_block)
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         self.finish_continues(&context, context.header)?;
-        if continues == 1 {
+        if qualified.conditional.is_some() {
+            self.validate_conditional_map_body(&context, span)?;
+        } else if continues == 1 {
             carrier.validate_backedge(self, source_slot, cursor_slot, span)?;
         } else if matches!(qualified.body_exit, UnitIterationExitKind::Return(_)) {
             carrier.validate_return(self, span)?;
@@ -304,6 +330,7 @@ impl UnitExpressionLowerer<'_> {
         let IterationState::Map(state) = &mut iteration.state else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
+        self.restore_conditional_map_exhaustion(state, span)?;
         state.phase = MapPhase::Terminal {
             point: UnitDropPoint::LoopExit(statement_id),
             finished: false,
@@ -318,6 +345,7 @@ impl UnitExpressionLowerer<'_> {
             .loops
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        self.validate_conditional_map_complete(&context, span)?;
         let mut exits = context
             .breaks
             .into_iter()
@@ -389,13 +417,7 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        state.carrier.validate_current(
-            self,
-            state.source_slot,
-            state.cursor_slot,
-            state.carrier.body,
-            span,
-        )?;
+        self.validate_map_state_current(state, state.body_block(), span)?;
         let source = self.map_pending_source(state.source_slot, span)?;
         let cursor = self.map_pending_cursor(state.cursor_slot, state.cursor_type, span)?;
         let next = self.map_iteration_value(
@@ -403,6 +425,7 @@ impl UnitExpressionLowerer<'_> {
             state.cursor_type,
             span,
         )?;
+        self.record_conditional_map_next(state, next, span)?;
         self.pending_operands[state.cursor_slot] = EntityId::Value(next);
         Ok(())
     }

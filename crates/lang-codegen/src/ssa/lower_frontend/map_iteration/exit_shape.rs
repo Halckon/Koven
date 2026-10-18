@@ -64,7 +64,7 @@ pub(super) fn body_exit(
     }
 }
 
-fn return_operand(
+pub(super) fn return_operand(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,

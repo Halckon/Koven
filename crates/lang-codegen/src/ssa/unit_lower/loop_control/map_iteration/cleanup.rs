@@ -3,7 +3,11 @@ use super::*;
 use lang_frontend::ownership_checking::{UnitDropFact, UnitDropTarget};
 
 impl UnitExpressionLowerer<'_> {
-    fn map_state(&self, statement: UnitStatementId, span: Span) -> Result<MapState, LoweringError> {
+    pub(super) fn map_state(
+        &self,
+        statement: UnitStatementId,
+        span: Span,
+    ) -> Result<MapState, LoweringError> {
         self.loops
             .iter()
             .rev()
@@ -14,7 +18,7 @@ impl UnitExpressionLowerer<'_> {
             })
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
-    fn set_map_phase(
+    pub(super) fn set_map_phase(
         &mut self,
         statement: UnitStatementId,
         phase: MapPhase,
@@ -42,7 +46,7 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         let state = self.map_state(statement, span)?;
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-        if point != state.carrier.body_point {
+        if !state.carrier.is_body_point(point) {
             return Err(bad());
         }
         let MapPhase::Body {
@@ -89,7 +93,7 @@ impl UnitExpressionLowerer<'_> {
             MapPhase::Body {
                 key_live: false,
                 value_live: false,
-            } => point == state.carrier.body_point,
+            } => state.carrier.is_body_point(point),
             MapPhase::Terminal {
                 point: actual,
                 finished: false,
@@ -104,10 +108,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let block = state.carrier.terminal_block(point, span)?;
-        state
-            .carrier
-            .validate_current(self, state.source_slot, state.cursor_slot, block, span)?;
+        let block = state.terminal_block(point, span)?;
+        self.validate_map_state_current(state, block, span)?;
         self.set_map_phase(
             statement,
             MapPhase::Terminal {
@@ -133,10 +135,8 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let block = state.carrier.terminal_block(point, span)?;
-        state
-            .carrier
-            .validate_current(self, state.source_slot, state.cursor_slot, block, span)?;
+        let block = state.terminal_block(point, span)?;
+        self.validate_map_state_current(state, block, span)?;
         self.iteration_end_loan(self.map_pending_source(state.source_slot, span)?, span)?;
         self.set_map_phase(
             statement,
@@ -179,7 +179,7 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let owner = state.carrier.terminal_owner(self, point, span)?;
+        let owner = self.map_terminal_owner(state, point, span)?;
         let source = self.map_pending_source(state.source_slot, span)?;
         let last = self
             .function
@@ -217,7 +217,7 @@ impl UnitExpressionLowerer<'_> {
 
     /// Called after the complete action list, before break truncation or Return.
     pub(in super::super) fn map_validate_cleanup(
-        &self,
+        &mut self,
         point: UnitDropPoint,
     ) -> Result<(), LoweringError> {
         for iteration in self
@@ -228,7 +228,7 @@ impl UnitExpressionLowerer<'_> {
             let IterationState::Map(state) = &iteration.state else {
                 continue;
             };
-            if point != state.carrier.body_point && point != state.carrier.exhaustion_point {
+            if !state.carrier.is_body_point(point) && point != state.carrier.exhaustion_point {
                 continue;
             }
             let span = self.statement_span(iteration.statement.statement())?;
@@ -242,18 +242,12 @@ impl UnitExpressionLowerer<'_> {
                 MapPhase::Body {
                     key_live: false,
                     value_live: false,
-                } if point == state.carrier.body_point => {
+                } if state.carrier.is_body_point(point) => {
                     // FinishProvider/EndSource are mandatory for terminal exits.
-                    if state.carrier.terminal_block(point, span).is_ok() {
+                    if state.terminal_block(point, span).is_ok() {
                         return Err(bad());
                     }
-                    state.carrier.validate_current(
-                        self,
-                        state.source_slot,
-                        state.cursor_slot,
-                        state.carrier.body,
-                        span,
-                    )?;
+                    self.validate_map_state_current(**state, state.body_block(), span)?;
                 }
                 MapPhase::Terminal {
                     point: actual,
@@ -261,7 +255,7 @@ impl UnitExpressionLowerer<'_> {
                     source_ended: true,
                     owner_dropped,
                 } if actual == point => {
-                    if self.block != state.carrier.terminal_block(point, span)?
+                    if self.block != state.terminal_block(point, span)?
                         || owner_dropped != state.carrier.drop_at(point).is_some()
                     {
                         return Err(bad());
@@ -270,6 +264,6 @@ impl UnitExpressionLowerer<'_> {
                 _ => return Err(bad()),
             }
         }
-        Ok(())
+        self.validate_conditional_map_cleanup(point)
     }
 }

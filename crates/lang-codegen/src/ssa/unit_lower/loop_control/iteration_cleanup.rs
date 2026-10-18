@@ -12,6 +12,7 @@ impl UnitExpressionLowerer<'_> {
         point: UnitDropPoint,
         actions: &[Action],
     ) -> Result<(), LoweringError> {
+        self.begin_conditional_map_cleanup(point)?;
         let drops = actions
             .iter()
             .filter_map(|action| match action {

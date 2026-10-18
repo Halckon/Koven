@@ -14,6 +14,7 @@ pub(super) struct Qualified<'a> {
     pub(super) origin: Span,
     pub(super) owner: Option<source_owner::Proof>,
     pub(super) body_exit: IterationExitKind,
+    pub(super) conditional: Option<conditional::Shape>,
 }
 
 pub(in super::super) fn validate(
@@ -157,8 +158,13 @@ pub(super) fn qualify<'a>(
     if has_enclosing_control(parsed, span) {
         return Err(unsupported());
     }
-    let body_exit = exit_shape::body_exit(parsed, names, typed, descriptor, *body, span)?;
-    if matches!(body_exit, IterationExitKind::Return(_)) {
+    let conditional = conditional::shape(parsed, names, typed, descriptor, *body, span)?;
+    let body_exit = if conditional.is_some() {
+        IterationExitKind::Fallthrough
+    } else {
+        exit_shape::body_exit(parsed, names, typed, descriptor, *body, span)?
+    };
+    if conditional.is_some() || matches!(body_exit, IterationExitKind::Return(_)) {
         let callable = unique(
             typed
                 .callables()
@@ -169,6 +175,18 @@ pub(super) fn qualify<'a>(
         if builtin_type(typed, callable.return_type()) != Some(BuiltinType::Int) {
             return Err(unsupported());
         }
+    }
+    if let Some(shape) = conditional {
+        let owner = conditional::qualify(parsed, names, owned, plan, symbol, shape, span)?;
+        return Ok(Qualified {
+            plan,
+            symbol,
+            body: *body,
+            origin: data.span(),
+            owner,
+            body_exit,
+            conditional,
+        });
     }
     exit_shape::cleanup(owned, plan, *body, body_exit, span)?;
     let exhaustion = unique(
@@ -194,6 +212,7 @@ pub(super) fn qualify<'a>(
         origin: data.span(),
         owner,
         body_exit,
+        conditional: None,
     })
 }
 

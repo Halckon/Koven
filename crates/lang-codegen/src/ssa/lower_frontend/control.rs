@@ -181,7 +181,8 @@ impl ExpressionLowerer<'_> {
         }
         let condition = self.require_value(condition)?;
         let baseline = self.bindings.clone();
-        let carried = self.linear_binding_slots(&baseline, span)?;
+        let mut carried = self.linear_binding_slots(&baseline, span)?;
+        let map_checkpoint = self.checkpoint_map_if(expression, &mut carried, span)?;
         let then_block =
             self.add_linear_binding_block(&carried, self.statement_span(then_branch)?)?;
         let else_origin = else_branch
@@ -208,6 +209,7 @@ impl ExpressionLowerer<'_> {
         ] {
             self.block = block;
             self.bindings = self.rebind_linear_bindings(&baseline, block, &carried, span)?;
+            self.enter_map_if_arm(map_checkpoint.as_ref(), branch, span)?;
             let result = match statement {
                 Some(statement) => self.lower_control_body(statement)?,
                 None => LoweredValue::Unit,
@@ -226,7 +228,9 @@ impl ExpressionLowerer<'_> {
             discard_exit_results(&mut exits);
         }
         self.retire_non_common_if_while_proofs(&mut exits, span)?;
-        self.merge_exits(exits, &baseline, span)
+        let result = self.merge_exits(exits, &baseline, span)?;
+        self.finish_map_if(map_checkpoint.as_ref(), result, span)?;
+        Ok(result)
     }
 
     fn lower_nullable_if(

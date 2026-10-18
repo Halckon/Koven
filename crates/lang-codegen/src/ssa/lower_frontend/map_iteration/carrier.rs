@@ -2,8 +2,10 @@
 use super::*;
 use crate::ssa::model::Instruction;
 
+#[derive(Clone, Copy)]
 pub(super) struct Evidence<'a> {
     pub(super) function: &'a Function,
+    pub(super) conditional: Option<&'a conditional::State>,
     pub(super) seed: EntityId,
     pub(super) source: LoanId,
     pub(super) first: ValueId,
@@ -28,6 +30,7 @@ impl Evidence<'_> {
     pub(super) fn validate(self) -> Result<(), LoweringError> {
         let Self {
             function,
+            conditional,
             seed,
             source,
             first,
@@ -148,6 +151,9 @@ impl Evidence<'_> {
         }
         if key == value {
             return Err(missing());
+        }
+        if let Some(state) = conditional {
+            return conditional::validate(self, state);
         }
         let body_instructions = instructions(function, body).ok_or_else(missing)?;
         let end_position =
@@ -358,7 +364,7 @@ impl Evidence<'_> {
     }
 }
 
-fn definition(function: &Function, entity: EntityId) -> Option<&Instruction> {
+pub(super) fn definition(function: &Function, entity: EntityId) -> Option<&Instruction> {
     let Definition::InstructionResult {
         instruction,
         index: 0,
@@ -369,14 +375,14 @@ fn definition(function: &Function, entity: EntityId) -> Option<&Instruction> {
     let instruction = function.instruction(instruction)?;
     (instruction.results.as_slice() == [entity]).then_some(instruction)
 }
-fn terminator(function: &Function, block: BlockId) -> Option<&TerminatorKind> {
+pub(super) fn terminator(function: &Function, block: BlockId) -> Option<&TerminatorKind> {
     function
         .block(block)?
         .terminator
         .as_ref()
         .map(|terminator| &terminator.kind)
 }
-fn instructions(function: &Function, block: BlockId) -> Option<Vec<&Instruction>> {
+pub(super) fn instructions(function: &Function, block: BlockId) -> Option<Vec<&Instruction>> {
     function
         .block(block)?
         .instructions

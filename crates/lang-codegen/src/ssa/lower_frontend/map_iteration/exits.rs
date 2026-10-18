@@ -1,5 +1,6 @@
 //! The bounded Map context participates in real jump/return dispatch.
-//! No nested/body CFG is admitted, so no new general BranchExit state is needed.
+//! Only straight bodies or the qualified single-survivor If chain are admitted;
+//! ordinary BranchExit still owns the cumulative break/continue collections.
 use super::*;
 
 pub(in super::super) struct Context {
@@ -14,6 +15,7 @@ pub(in super::super) struct Context {
     pub(super) cleaned: bool,
     pub(super) returned: Option<ValueId>,
     pub(super) cleanup_start: Option<usize>,
+    pub(super) conditional: Option<conditional::State>,
 }
 
 impl ExpressionLowerer<'_> {
@@ -53,6 +55,16 @@ impl ExpressionLowerer<'_> {
             .last_mut()
             .and_then(|context| context.map_loop.take())
             .ok_or_else(missing)?;
+        let conditional_roles = if let Some(conditional) = &state.conditional {
+            if !conditional.shape.kinds()[..4].contains(&kind) {
+                return Err(missing());
+            }
+            let roles = conditional::transport::roles(self, &state, span)?;
+            state.kind = kind;
+            Some(roles)
+        } else {
+            None
+        };
         if state.kind != kind || self.block != state.body || state.cleaned {
             return Err(missing());
         }
@@ -79,6 +91,21 @@ impl ExpressionLowerer<'_> {
                     .is_some_and(|(_, symbol, _)| self.bindings.contains_key(&symbol)))
         {
             return Err(missing());
+        }
+        if let Some(roles) = conditional_roles {
+            state
+                .conditional
+                .as_mut()
+                .ok_or_else(missing)?
+                .exits
+                .push(conditional::Exit {
+                    kind,
+                    block: self.block,
+                    roles,
+                    cleanup_start: state.cleanup_start.ok_or_else(missing)?,
+                    next: None,
+                    returned: None,
+                });
         }
         state.cleaned = true;
         self.loops.last_mut().ok_or_else(missing)?.map_loop = Some(state);
@@ -134,11 +161,15 @@ impl ExpressionLowerer<'_> {
                 Origin::Source(span),
             )
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        self.loops
+        let state = self
+            .loops
             .last_mut()
             .and_then(|context| context.map_loop.as_mut())
-            .ok_or_else(missing)?
-            .next = Some(next);
+            .ok_or_else(missing)?;
+        state.next = Some(next);
+        if let Some(conditional) = &mut state.conditional {
+            conditional.exits.last_mut().ok_or_else(missing)?.next = Some(next);
+        }
         Ok(())
     }
 
@@ -159,11 +190,19 @@ impl ExpressionLowerer<'_> {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
             self.clean_map_iteration_body(IterationExitKind::Return(expression), span)?;
-            self.loops
+            let state = self
+                .loops
                 .last_mut()
                 .and_then(|context| context.map_loop.as_mut())
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-                .returned = Some(value);
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            state.returned = Some(value);
+            if let Some(conditional) = &mut state.conditional {
+                conditional
+                    .exits
+                    .last_mut()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                    .returned = Some(value);
+            }
             return Ok(());
         }
         let exit = self.loops.iter().rev().find_map(|context| {

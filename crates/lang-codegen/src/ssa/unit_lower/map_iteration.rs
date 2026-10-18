@@ -1,4 +1,5 @@
 //! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
+mod conditional;
 use super::*;
 use lang_frontend::{
     ownership_checking::{
@@ -22,6 +23,15 @@ pub(super) struct QualifiedMap {
     pub(super) transfer_drop: Option<UnitDropFact>,
     pub(super) body_exit: UnitIterationExitKind,
     pub(super) body_point: UnitDropPoint,
+    pub(super) conditional: Option<QualifiedConditional>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct QualifiedConditional {
+    pub(super) controls: [UnitExpressionId; 3],
+    pub(super) transfers: [UnitIterationExitKind; 3],
+    pub(super) drops: [Option<UnitDropFact>; 3],
+    pub(super) local: Option<(UnitSymbolId, UnitExpressionId)>,
 }
 
 pub(super) fn validate(
@@ -232,8 +242,13 @@ pub(super) fn qualify(
         }
     }
     reject_nested(parsed, statement.statement(), span)?;
-    let body_exit = qualify_body(parsed, names, typed, descriptor, *body, span)?;
-    if matches!(body_exit, UnitIterationExitKind::Return(_))
+    let mut conditional = conditional::qualify_body(parsed, names, typed, descriptor, *body, span)?;
+    let body_exit = if conditional.is_some() {
+        UnitIterationExitKind::Fallthrough
+    } else {
+        qualify_body(parsed, names, typed, descriptor, *body, span)?
+    };
+    if (conditional.is_some() || matches!(body_exit, UnitIterationExitKind::Return(_)))
         && builtin_type(typed, *return_type) != Some(BuiltinType::Int)
     {
         return Err(unsupported());
@@ -260,8 +275,25 @@ pub(super) fn qualify(
             return Err(unsupported());
         }
     }
-    let (source_drop, transfer_drop) =
-        validate_cleanup(plan, owned, *body, body_exit, root, symbol.span(), span)?;
+    let (source_drop, transfer_drop) = if let Some(shape) = conditional.as_mut() {
+        (
+            conditional::validate_cleanup(
+                parsed,
+                names,
+                typed,
+                plan,
+                owned,
+                *body,
+                root,
+                symbol.span(),
+                shape,
+                span,
+            )?,
+            None,
+        )
+    } else {
+        validate_cleanup(plan, owned, *body, body_exit, root, symbol.span(), span)?
+    };
     let body_point = body_point(statement, *body, body_exit);
     Ok(QualifiedMap {
         statement,
@@ -271,6 +303,7 @@ pub(super) fn qualify(
         transfer_drop,
         body_exit,
         body_point,
+        conditional,
     })
 }
 

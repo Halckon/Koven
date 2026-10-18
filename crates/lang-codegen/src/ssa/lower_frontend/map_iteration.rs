@@ -1,5 +1,6 @@
 //! Bounded two-component Map provider; independent from Sequential snapshots.
 mod carrier;
+mod conditional;
 mod exit_shape;
 mod exits;
 mod qualify;
@@ -62,6 +63,7 @@ fn unique<T>(mut values: impl Iterator<Item = T>) -> Option<T> {
 }
 
 /// One path-local provider frame; false is rebuilt from its independent snapshot.
+#[derive(Clone, Copy)]
 struct Frame {
     statement: StatementId,
     source: Option<LoanId>,
@@ -364,12 +366,13 @@ impl ExpressionLowerer<'_> {
                 cleaned: false,
                 returned: None,
                 cleanup_start: None,
+                conditional: qualified.conditional.map(conditional::State::new),
             }),
         });
         // The exact selected exit owns the body cleanup point. A real transfer
         // is already Diverged and must not acquire a synthetic fallthrough/Next.
         let result = self.lower_statement_inner(body)?;
-        if self.block != body_block
+        if (qualified.conditional.is_none() && self.block != body_block)
             || (result == LoweredValue::Diverged) == (body_exit == IterationExitKind::Fallthrough)
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
@@ -388,7 +391,11 @@ impl ExpressionLowerer<'_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         if !state.cleaned
             || !context.continues.is_empty()
-            || context.breaks.len() != usize::from(matches!(body_exit, IterationExitKind::Break(_)))
+            || context.breaks.len()
+                != usize::from(
+                    qualified.conditional.is_some()
+                        || matches!(body_exit, IterationExitKind::Break(_)),
+                )
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
@@ -424,6 +431,7 @@ impl ExpressionLowerer<'_> {
         self.merge_exits(context.breaks, &baseline, span)?;
         carrier::Evidence {
             function: self.function,
+            conditional: state.conditional.as_ref(),
             seed,
             source: source_loan,
             first,

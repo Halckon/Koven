@@ -11,7 +11,8 @@ use lang_frontend::ownership_checking::{
 #[derive(Clone, Copy)]
 pub(super) struct Proof {
     pub(super) drop: DropFact,
-    transfer: Option<DropFact>,
+    pub(super) transfer: Option<DropFact>,
+    pub(super) conditional_return: Option<DropFact>,
 }
 
 impl Proof {
@@ -19,7 +20,10 @@ impl Proof {
         if self.drop.point() == point {
             Some(self.drop)
         } else {
-            self.transfer.filter(|fact| fact.point() == point)
+            self.transfer
+                .into_iter()
+                .chain(self.conditional_return)
+                .find(|fact| fact.point() == point)
         }
     }
 }
@@ -248,7 +252,11 @@ pub(super) fn qualify(
             }
         }
     }
-    Ok(Proof { drop, transfer })
+    Ok(Proof {
+        drop,
+        transfer,
+        conditional_return: None,
+    })
 }
 
 fn absent(
@@ -263,7 +271,7 @@ fn absent(
     }
 }
 
-fn phi<'a>(
+pub(super) fn phi<'a>(
     conditions: &CleanupConditions,
     plan: &'a MapIterationOwnershipPlan,
     symbol: SymbolId,

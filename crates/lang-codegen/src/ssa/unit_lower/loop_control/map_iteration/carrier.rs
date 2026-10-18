@@ -11,12 +11,13 @@ pub(super) struct MapCarrier {
     pub(super) body_point: UnitDropPoint,
     body_exit: UnitIterationExitKind,
     pub(super) exhaustion_point: UnitDropPoint,
-    header: BlockId,
+    pub(super) header: BlockId,
     pub(super) body: BlockId,
     pub(super) exhaustion: BlockId,
     seed_column: usize,
     source_column: usize,
     cursor_column: usize,
+    pub(super) conditional: Option<map_iteration::QualifiedConditional>,
 }
 
 /// Read-only identities captured at the real provider birth; not a resumable lowering state.
@@ -112,6 +113,7 @@ impl MapCarrier {
         };
         let carrier = Self {
             root: qualified.root,
+            conditional: qualified.conditional,
             drop: qualified.source_drop,
             transfer_drop: qualified.transfer_drop,
             body_point: qualified.body_point,
@@ -415,7 +417,43 @@ impl MapCarrier {
         }
     }
 
+    pub(super) fn header_entities(
+        &self,
+        function: &crate::ssa::model::Function,
+        span: Span,
+    ) -> Result<[EntityId; 3], LoweringError> {
+        Ok([
+            self.parameter(function, self.header, self.seed_column, span)?,
+            self.parameter(function, self.header, self.source_column, span)?,
+            self.parameter(function, self.header, self.cursor_column, span)?,
+        ])
+    }
+
+    pub(super) fn is_body_point(&self, point: UnitDropPoint) -> bool {
+        point == self.body_point
+            || self.conditional.is_some_and(|shape| {
+                shape.transfers.iter().any(|kind| match kind {
+                    UnitIterationExitKind::Continue(expression)
+                    | UnitIterationExitKind::Break(expression)
+                    | UnitIterationExitKind::Return(expression) => {
+                        point == UnitDropPoint::ControlTransfer(*expression)
+                    }
+                    _ => false,
+                })
+            })
+    }
+
     pub(super) fn drop_at(&self, point: UnitDropPoint) -> Option<UnitDropFact> {
+        if let Some(shape) = self.conditional {
+            for (kind, drop) in shape.transfers.into_iter().zip(shape.drops) {
+                if let UnitIterationExitKind::Break(expression)
+                | UnitIterationExitKind::Return(expression) = kind
+                    && point == UnitDropPoint::ControlTransfer(expression)
+                {
+                    return drop;
+                }
+            }
+        }
         if point == self.exhaustion_point {
             self.drop
         } else if point == self.body_point {
@@ -447,7 +485,7 @@ impl MapCarrier {
     }
 }
 
-fn instruction(
+pub(super) fn instruction(
     function: &crate::ssa::model::Function,
     result: EntityId,
     span: Span,
