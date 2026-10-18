@@ -813,7 +813,7 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 | G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；d85e完整CI及三artifact独审通过，其他表示仍逐项验收 |
 | G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331，§61有限非nullable Borrow Int/Int、Int/String及pure MoveOnly inline payload Return已验；String? ABI前置仍独立待验，不外推原83源全矩阵 |
 | G7 | 一般合法Return operand、单If/两live arm、条件/checked组合；需逐路径cleanup | 0331，§61有限普通Return operand、单If/两live arm及checked已验；其他控制流/source/寿命组合仍待，不设AST白名单 |
-| G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，§62逐层frame有限82观察/68 native已验；精确词法Drop/调用终点查询加强、最终回归与新头CI仍待 |
+| G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，§62逐层frame、精确词法Drop/调用终点82观察/68 native及最终普通回归已验；完整新头CI与artifact独审仍待 |
 | G9 | 非Resource own参数在N/C/B后继续使用；须真实last-use寿命，不能套Resource词法延寿 | 0331，§47有限未来使用片；consume/其他root及一般CFG仍逐项验收 |
 | G10 | 透明Group、moved alias与Borrow-result；后两者分别依赖Move/continuation事实 | 0331，Group及§48 factory local alias首片；其他Move/birth与Borrow-result前置仍在 |
 
@@ -1270,7 +1270,7 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   本轮未重跑原83源166观察，不能将旧64项诊断重新计作当前通过或拒绝；String? ABI、其他
   callable/source/CFG及G2/G8/G9/G10余项继续在F内，0331保持active，不归档/合并，不提前开始D10。
 
-## 62. G8 逐层 Map frame 与原83源重新对账（2026-10-18，验收进行中）
+## 62. G8 逐层 Map frame 与原83源重新对账（2026-10-18，本机有限验收通过）
 
 - 精确`f95b1cb8367070c2f432ea86768826ead41805d4`重新运行原83源，原字节和普通helper未改：
   166个唯一观察为126 LLVM、38 lower Unsupported、2 ownership L0164，即63源双入口LLVM、
@@ -1297,16 +1297,34 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   为Unit4成功、Single2 MissingFact/2 Unsupported。`1b310ebb`按实际祖层Exit phi、condition、
   scope normal point和完整Drop账本区分终端/词法清理；`e909927b`另修两处独审发现的MissingFact
   传播接缝，生产库check成功。未在本机运行损坏事实或故障对照。
-  以下首批82/68绑定`1b310ebb`编译输入；e909两处错误传播修正后仅库check通过，尚未重跑82/68。
+  以下首批82/68绑定`1b310ebb`编译输入；当时e909两处错误传播修正后仅库check通过，后继复验见下。
 - 首份完整G8运行实际Rust6/0/0：原7源加34个runtime源，82个唯一观察全部通过当时冻结的深查询、
   SSA verifier和LLVM；34源双入口68个唯一native均exit0、完整stdout golden、空stderr。
   原12与新增own4的source/golden哈希逐项等各自首红；原7fixture未改。temporary Break销毁未读
   Resource尾项，三层Break只结束最近层且中外层继续读原K/V，Return先求值再清内/中/外Guard。
   nullable native只区分Some/None，精确payload来源另由实际source/cursor/loan查询约束；不假定
   Map各entry之间析构顺序，也不据stdout声明动态free或无泄漏。
-- 独审已关闭两处生产Missing传播finding；新增精确全局Resource词法DropPoint与尾Return operand
-  查询仍在加强。调用终点只约束caller实际新建loan；同步转发provider K/V不要求新建子loan或End。
-  当前82/68不外推加强版或最终工程回归。a314 CI曾因6项Clippy失败，f62仅余生产一项；均已作
-  最小修正，不加allow，后继新头CI待核。最终原83重跑、普通回归、完整新头CI与独审尚未完成，
-  0331保持active；Field/Inout、String? ABI与其他未验组合不扩大，Mac sanitizer仍partial/
-  requirements_met=false、UBSan未覆盖，不归档或合并，不提前D10。
+- 独审已关闭两处生产Missing传播finding。`726efc76`、`18337269`加强精确全局Resource词法
+  DropPoint、原AST各Return/Break路径、尾Return operand与实际调用终点查询；其中曾有4项Single
+  条件合取查询误断，及一项collapsible_match Clippy失败，分别保留原始红记录后修正。调用终点只
+  约束caller实际新建loan；同步转发provider K/V不要求新建子loan或End。
+- `01ada8af`完整CI `39167328229`两宿主Clippy通过，但ordinary Resource normal查询在Single
+  mutable借用参数误拒绝，Linux 2246通过/1失败，Mac 2245通过/1失败/1忽略；下游sanitizer与
+  generated验收未完成，不称全绿。`7f21e1c6`仅修该查询的真实entry seed运输，保留完整入边、
+  原source/cursor/K/V锚点及所有caller loan的BorrowEnd禁令；生产代码、源与golden未改。
+  原四入口首红Rust0/1/0、SSA/LLVM全成功而query3/4；修后同四入口query全部成功。
+- 固定`7f21e1c64cb39db6536092327ae175c2a6b4164a`最终普通验收46/46条命令通过，86个
+  唯一Rust测试0失败/0忽略、394个全局唯一严格native全部exit0、完整stdout golden、空stderr。
+  其中G8六Rust/82观察及六Rust/68 native重新通过全部加强查询；ordinary Resource normal四入口
+  与四native另列，不把旧首批结果当最终结果。fmt、workspace all-targets check和严格Clippy
+  -D warnings、build、704文档、whitespace与尺寸门通过：1702手写Rust文件、38项既有超限。
+  control.rs历史1345→1349仅增加Map role getter，既有1520例外上限未提高，新helper均低于1000行。
+  2959个输入文件前后SHA-256同为
+  `20bc10f00f375cf06e8ec02aa8d82e5babcfac494f3403cfe2e642606e52d8fd`。
+- 同头原83源166唯一观察实得140 LLVM、24 lower Unsupported、2 ownership L0164，即70源
+  双入口LLVM、12源nullable String ABI前置拒绝、1源Borrow-result continuation L0164。原7个G8
+  从14条For拒绝转LLVM；原63源双入口成功无回退。diagnostic Rust实际0通过/1失败/0忽略，exit101，
+  没有运行native，不能记为83源全通过。临时helper注册已恢复，83源原字节与总输入指纹前后相同。
+- 本机有限G8不等于F完整收尾；完整新头CI及对应artifact独审仍待，不继承f95绿色。0331保持
+  active；Field/Inout、String? ABI与其他未验组合不扩大，Mac sanitizer仍partial/
+  requirements_met=false、UBSan未覆盖。本机未运行故障注入、校准或合成损坏；不归档、合并或提前D10。

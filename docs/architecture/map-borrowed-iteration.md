@@ -134,7 +134,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 | Field/Inout来源 | 现有类型 | 前端合同 | Guide37.4明确native延后；不由Group准入扩大 |
 
 Return的52源104条双入口SSA/LLVM及104个native见[§61](../specs/active/0331-map-borrowed-iteration.md#61-g3g7-共享普通控制流与非-nullable-return-有限验收2026-10-18)；G8另有原7源与34个非空/空路径runtime源，共82条双入口SSA/LLVM、68个严格native通过。
-G8按每层当前source/cursor/K/V/owner及最近Break/全层Return验收；精确词法Drop/调用终点查询加强仍在进行。String? ABI、未来own转移无Drop及其他CFG不外推。
+G8按每层当前source/cursor/K/V/owner、最近Break/全层Return、精确词法Drop与调用终点验收；固定7f21e1c6复验82/68通过。String? ABI、未来own转移无Drop及其他CFG不外推。
 以上非Field/Inout的具体能力缺口不能统称Guide staging；普通Resource类的字段/泛型/接口、
 其他key/value与更一般source/CFG需分别验收，不能在本轮Break/Return通过后宣称F全矩阵闭合。
 
