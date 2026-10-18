@@ -1,11 +1,11 @@
-//! Exact source-parameter and provider transport; no same-type or same-name owner substitution.
+//! Exact source identity and provider transport; no same-type or same-name owner substitution.
 use super::*;
 use crate::ssa::model::{Definition, Edge, Instruction};
 use lang_frontend::{ownership_checking::UnitDropFact, parser::Expression};
 
 #[derive(Clone, Copy)]
 pub(super) struct MapCarrier {
-    pub(super) root: UnitSymbolId,
+    pub(super) identity: SourceIdentity,
     pub(super) drop: Option<UnitDropFact>,
     transfer_drop: Option<UnitDropFact>,
     pub(super) body_point: UnitDropPoint,
@@ -54,18 +54,28 @@ impl MapCarrier {
         } = *birth;
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         let function = &lowerer.function;
-        let entry = function.entry_block().ok_or_else(bad)?;
-        if function
-            .block(entry)
-            .and_then(|block| block.parameters.get(qualified.parameter_slot))
-            .copied()
-            != Some(seed)
-            || function.entity(seed).map(|entity| entity.definition)
-                != Some(Definition::BlockParameter {
-                    block: entry,
-                    index: qualified.parameter_slot,
-                })
-            || edge.target != header
+        match qualified.source {
+            SourceIdentity::Parameter { slot, .. } => {
+                let entry = function.entry_block().ok_or_else(bad)?;
+                if function
+                    .block(entry)
+                    .and_then(|block| block.parameters.get(slot))
+                    .copied()
+                    != Some(seed)
+                    || function.entity(seed).map(|entity| entity.definition)
+                        != Some(Definition::BlockParameter {
+                            block: entry,
+                            index: slot,
+                        })
+                {
+                    return Err(bad());
+                }
+            }
+            SourceIdentity::Temporary(expression) => {
+                source::validate_temporary_birth(lowerer, expression, seed, preheader, span)?;
+            }
+        }
+        if edge.target != header
             || !matches!(function.block(preheader).and_then(|block| block.terminator.as_ref()).map(|term| &term.kind), Some(TerminatorKind::Branch(actual)) if actual == edge)
         {
             return Err(bad());
@@ -112,7 +122,7 @@ impl MapCarrier {
             }
         };
         let carrier = Self {
-            root: qualified.root,
+            identity: qualified.source,
             conditional: qualified.conditional,
             drop: qualified.source_drop,
             transfer_drop: qualified.transfer_drop,
@@ -171,6 +181,12 @@ impl MapCarrier {
                 carrier.parameter(function, successor.target, column, span)?;
             }
         }
+        if lowerer.block != header
+            || carrier.identity.current(lowerer, span)?
+                != carrier.parameter(function, header, carrier.seed_column, span)?
+        {
+            return Err(bad());
+        }
         Ok(carrier)
     }
 
@@ -218,12 +234,13 @@ impl MapCarrier {
         {
             return Err(bad());
         }
-        match (seed, self.drop) {
-            (EntityId::Value(owner), Some(_))
-                if lowerer.bindings.get(&self.root) == Some(&LoweredValue::Value(owner)) => {}
-            (EntityId::Loan(loan), None)
-                if lowerer.borrow_bindings.get(&self.root) == Some(&loan) => {}
-            _ => return Err(bad()),
+        if self.identity.current(lowerer, span)? != seed
+            || !matches!(
+                (seed, self.drop),
+                (EntityId::Value(_), Some(_)) | (EntityId::Loan(_), None)
+            )
+        {
+            return Err(bad());
         }
         Ok(())
     }
@@ -244,7 +261,11 @@ impl MapCarrier {
         else {
             return Err(bad());
         };
-        if edge.target != self.header {
+        if edge.target != self.header
+            || lowerer.block != self.body
+            || self.identity.current(lowerer, span)?
+                != self.parameter(lowerer.function, self.body, self.seed_column, span)?
+        {
             return Err(bad());
         }
         for column in [self.seed_column, self.source_column] {
@@ -476,8 +497,7 @@ impl MapCarrier {
         else {
             return Err(bad());
         };
-        if lowerer.block != block
-            || lowerer.bindings.get(&self.root) != Some(&LoweredValue::Value(owner))
+        if lowerer.block != block || self.identity.current(lowerer, span)? != EntityId::Value(owner)
         {
             return Err(bad());
         }

@@ -9,7 +9,7 @@ use lang_frontend::{
 
 pub(super) struct Qualified<'a> {
     pub(super) plan: &'a MapIterationOwnershipPlan,
-    pub(super) symbol: SymbolId,
+    pub(super) source: SourceIdentity,
     pub(super) body: StatementId,
     pub(super) origin: Span,
     pub(super) owner: Option<source_owner::Proof>,
@@ -69,6 +69,9 @@ pub(super) fn qualify<'a>(
         .expressions()
         .get(*source)
         .map_err(|_| missing())?;
+    if plan.source_access() == MapIterationSourceAccess::Temporary {
+        return temporary::qualify(parsed, names, typed, owned, plan, *body, span);
+    }
     if source_node.payload() != &Expression::Name {
         return Err(unsupported());
     }
@@ -180,7 +183,7 @@ pub(super) fn qualify<'a>(
         let owner = conditional::qualify(parsed, names, owned, plan, symbol, shape, span)?;
         return Ok(Qualified {
             plan,
-            symbol,
+            source: SourceIdentity::Parameter(symbol),
             body: *body,
             origin: data.span(),
             owner,
@@ -207,7 +210,7 @@ pub(super) fn qualify<'a>(
     };
     Ok(Qualified {
         plan,
-        symbol,
+        source: SourceIdentity::Parameter(symbol),
         body: *body,
         origin: data.span(),
         owner,
@@ -216,7 +219,7 @@ pub(super) fn qualify<'a>(
     })
 }
 
-fn has_enclosing_control(parsed: &ParsedFile, span: Span) -> bool {
+pub(super) fn has_enclosing_control(parsed: &ParsedFile, span: Span) -> bool {
     let contains = |outer: Span| {
         outer != span
             && outer.source_id() == span.source_id()

@@ -300,7 +300,7 @@ impl UnitExpressionLowerer<'_> {
         };
         let actual = Roles::read(
             self,
-            state.carrier.root,
+            state.carrier.identity.parameter_root(span)?,
             state.source_slot,
             state.cursor_slot,
             state.cursor_type,
@@ -553,7 +553,7 @@ impl UnitExpressionLowerer<'_> {
         )?;
         let roles = Roles::read(
             self,
-            state.carrier.root,
+            state.carrier.identity.parameter_root(span)?,
             state.source_slot,
             state.cursor_slot,
             state.cursor_type,
@@ -581,7 +581,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
         if self.block != state.terminal_block(point, span)?
-            || self.bindings.get(&state.carrier.root) != Some(&LoweredValue::Value(owner))
+            || state.carrier.identity.current(self, span)? != EntityId::Value(owner)
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }

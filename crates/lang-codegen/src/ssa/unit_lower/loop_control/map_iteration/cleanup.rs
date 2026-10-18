@@ -1,6 +1,6 @@
 //! Consume the public action order once; component/source IDs always come from current slots.
 use super::*;
-use lang_frontend::ownership_checking::{UnitDropFact, UnitDropTarget};
+use lang_frontend::ownership_checking::UnitDropFact;
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn map_state(
@@ -161,7 +161,7 @@ impl UnitExpressionLowerer<'_> {
             .filter_map(|context| context.iteration.as_ref())
             .find_map(|iteration| match &iteration.state {
                 IterationState::Map(state)
-                    if fact.target() == UnitDropTarget::Named(state.carrier.root) =>
+                    if fact.target() == state.carrier.identity.drop_target() =>
                 {
                     Some((iteration.statement, **state))
                 }
@@ -198,7 +198,8 @@ impl UnitExpressionLowerer<'_> {
             .and_then(|block| block.instructions.last())
             .and_then(|id| self.function.instruction(*id));
         if last.map(|instruction| &instruction.operation) != Some(&Operation::Drop { owner })
-            || self.bindings.contains_key(&state.carrier.root)
+            || last.map(|instruction| &instruction.origin) != Some(&Origin::Source(span))
+            || state.carrier.identity.is_registered(self)
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }

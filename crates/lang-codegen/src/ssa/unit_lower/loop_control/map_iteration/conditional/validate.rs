@@ -42,7 +42,7 @@ impl UnitExpressionLowerer<'_> {
                     let (local, _) = branch.shape.local.ok_or_else(bad)?;
                     match fact.target() {
                         lang_frontend::ownership_checking::UnitDropTarget::Named(symbol)
-                            if symbol == state.carrier.root
+                            if symbol == state.carrier.identity.parameter_root(span)?
                                 && EntityId::Value(owner) == witness.roles.seed => {}
                         lang_frontend::ownership_checking::UnitDropTarget::Named(symbol)
                             if symbol == local && witness.roles.local == Some(owner) => {}

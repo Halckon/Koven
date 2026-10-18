@@ -1,5 +1,7 @@
 //! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
 mod conditional;
+mod source_identity;
+mod temporary;
 use super::*;
 use lang_frontend::{
     ownership_checking::{
@@ -13,12 +15,12 @@ use lang_frontend::{
         UnitMapIterationDescriptor,
     },
 };
+pub(super) use source_identity::SourceIdentity;
 
 #[derive(Clone, Copy)]
 pub(super) struct QualifiedMap {
     pub(super) statement: UnitStatementId,
-    pub(super) root: UnitSymbolId,
-    pub(super) parameter_slot: usize,
+    pub(super) source: SourceIdentity,
     pub(super) source_drop: Option<UnitDropFact>,
     pub(super) transfer_drop: Option<UnitDropFact>,
     pub(super) body_exit: UnitIterationExitKind,
@@ -103,6 +105,9 @@ pub(super) fn qualify(
         .expressions()
         .get(*source)
         .map_err(|_| missing())?;
+    if matches!(source_node.payload(), Expression::Call { .. }) {
+        return temporary::qualify(parsed, names, typed, owned, descriptor, *body, span);
+    }
     if !matches!(source_node.payload(), Expression::Name) {
         return Err(unsupported());
     }
@@ -297,8 +302,10 @@ pub(super) fn qualify(
     let body_point = body_point(statement, *body, body_exit);
     Ok(QualifiedMap {
         statement,
-        root,
-        parameter_slot: *parameter_slot,
+        source: SourceIdentity::Parameter {
+            root,
+            slot: *parameter_slot,
+        },
         source_drop,
         transfer_drop,
         body_exit,

@@ -8,7 +8,7 @@ pub(in super::super) struct Context {
     pub(super) kind: IterationExitKind,
     pub(super) body: BlockId,
     pub(super) frame: Frame,
-    pub(super) owner: Option<(source_owner::Proof, SymbolId, ValueId)>,
+    pub(super) owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
     pub(super) cursor: ValueId,
     pub(super) cursor_type: SsaTypeId,
     pub(super) next: Option<ValueId>,
@@ -88,7 +88,7 @@ impl ExpressionLowerer<'_> {
             || (exit_shape::terminal(kind)
                 && state
                     .owner
-                    .is_some_and(|(_, symbol, _)| self.bindings.contains_key(&symbol)))
+                    .is_some_and(|(_, source, _)| source.current_owner(self).is_some()))
         {
             return Err(missing());
         }

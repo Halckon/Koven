@@ -11,7 +11,7 @@ pub(super) struct Evidence<'a> {
     pub(super) first: ValueId,
     pub(super) next: Option<ValueId>,
     pub(super) body_exit: IterationExitKind,
-    pub(super) body_owner: Option<(source_owner::Proof, SymbolId, ValueId)>,
+    pub(super) body_owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
     pub(super) returned: Option<ValueId>,
     pub(super) cleanup_start: Option<usize>,
     pub(super) continuation: BlockId,
@@ -21,8 +21,8 @@ pub(super) struct Evidence<'a> {
     pub(super) carried: &'a LinearBindings,
     pub(super) source_slot: usize,
     pub(super) cursor_slot: usize,
-    pub(super) owner: Option<(source_owner::Proof, SymbolId, ValueId)>,
-    pub(super) parameter_origin: Span,
+    pub(super) owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
+    pub(super) source_origin: Span,
     pub(super) span: Span,
 }
 
@@ -47,11 +47,28 @@ impl Evidence<'_> {
             source_slot,
             cursor_slot,
             owner,
-            parameter_origin,
+            source_origin,
             span,
         } = self;
         let missing = || error(LoweringErrorKind::MissingFact, span);
         let [preheader, header, body, exhausted] = blocks;
+        if let Some((_, SourceIdentity::Temporary(_), _)) = owner {
+            let call = definition(function, seed).ok_or_else(missing)?;
+            if call.block != preheader
+                || call.origin != Origin::Source(source_origin)
+                || !matches!(&call.operation, Operation::DirectCall {
+                    receiver: None, arguments, ..
+                } if arguments.is_empty())
+                || unique(function.instructions.iter().filter(|instruction| {
+                    instruction.origin == Origin::Source(source_origin)
+                        && matches!(instruction.operation, Operation::DirectCall { .. })
+                }))
+                .map(|instruction| instruction.id)
+                    != Some(call.id)
+            {
+                return Err(missing());
+            }
+        }
         let parameters = |block| {
             function
                 .block(block)
@@ -287,7 +304,7 @@ impl Evidence<'_> {
                     .slots
                     .iter()
                     .enumerate()
-                    .filter(|(_, slot)| slot.symbol == Some(symbol)),
+                    .filter(|(_, slot)| symbol.matches_slot(slot)),
             )
             .ok_or_else(missing)?;
             if binding.source != seed
@@ -295,7 +312,7 @@ impl Evidence<'_> {
                 || backedge
                     .is_some_and(|edge| edge.arguments.get(slot) != body_parameters.get(slot))
                 || exhausted_parameters.get(slot) != Some(&EntityId::Value(dropped))
-                || proof.drop.value_origin() != parameter_origin
+                || proof.drop.value_origin() != source_origin
             {
                 return Err(missing());
             }
@@ -308,8 +325,7 @@ impl Evidence<'_> {
                     }),
             )
             .ok_or_else(missing)?;
-            if drop_position <= source_end || instruction.origin != Origin::Source(parameter_origin)
-            {
+            if drop_position <= source_end || instruction.origin != Origin::Source(source_origin) {
                 return Err(missing());
             }
             let Some((body_proof, body_symbol, body_value)) = body_owner else {
@@ -339,9 +355,9 @@ impl Evidence<'_> {
                 let [(position, instruction)] = body_drops.as_slice() else {
                     return Err(missing());
                 };
-                if fact.value_origin() != parameter_origin
+                if fact.value_origin() != source_origin
                     || *position <= end_position(body_source)?
-                    || instruction.origin != Origin::Source(parameter_origin)
+                    || instruction.origin != Origin::Source(source_origin)
                 {
                     return Err(missing());
                 }

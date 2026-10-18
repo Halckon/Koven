@@ -2,6 +2,7 @@
 mod carrier;
 mod cleanup;
 mod conditional;
+mod source;
 use super::super::map_iteration;
 use super::{
     iteration::{IterationContext, IterationState},
@@ -17,6 +18,7 @@ use lang_frontend::{
     ownership_checking::{UnitIterationExitKind, UnitIterationSourceAccess},
     type_checking::{BuiltinType, MapIterationKind},
 };
+use map_iteration::SourceIdentity;
 
 #[derive(Clone, Copy)]
 pub(super) enum MapPhase {
@@ -94,41 +96,10 @@ impl UnitExpressionLowerer<'_> {
         }
         let cursor_type = self.ssa_builtin(BuiltinType::ULong, span)?;
         let bool_type = self.ssa_builtin(BuiltinType::Boolean, span)?;
-        let entry = self
-            .function
-            .entry_block()
-            .and_then(|block| self.function.block(block))
-            .and_then(|block| block.parameters.get(qualified.parameter_slot))
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let source_loan = match (plan.source_access(), entry) {
-            (UnitIterationSourceAccess::Owned, EntityId::Value(seed)) => {
-                if self.bindings.get(&qualified.root) != Some(&LoweredValue::Value(seed)) {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
-                if self.function.entity(entry).map(|data| data.ty)
-                    != Some(EntityType::Value(container))
-                {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                }
-                self.iteration_owner_loan(seed, container, span)?
-            }
-            (UnitIterationSourceAccess::Shared, EntityId::Loan(seed)) => {
-                if self.borrow_bindings.get(&qualified.root) != Some(&seed) {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
-                if self.function.entity(entry).map(|data| data.ty)
-                    != Some(EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target: container,
-                    })
-                {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                }
-                self.iteration_loan(Operation::SharedReborrow { source: seed }, container, span)?
-            }
-            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
-        };
+        // Snapshot the outer frame before evaluating the hidden source owner.
+        let outer_temporaries = self.temporaries.keys().copied().collect();
+        let (entry, source_loan) =
+            self.map_source_seed(qualified.source, plan.source_access(), container, span)?;
         let preheader = self.block;
         let cursor = self.map_iteration_value(
             Operation::MapIterationFirst {
@@ -138,7 +109,6 @@ impl UnitExpressionLowerer<'_> {
             span,
         )?;
         let retained_start = self.pending_operands.len();
-        let outer_temporaries = self.temporaries.keys().copied().collect();
         let source_slot = self.pending_operands.len();
         let cursor_slot = source_slot + 1;
         self.pending_operands
@@ -249,7 +219,7 @@ impl UnitExpressionLowerer<'_> {
                 ConditionalState::new(
                     self,
                     shape,
-                    qualified.root,
+                    qualified.source.parameter_root(span)?,
                     source_slot,
                     cursor_slot,
                     cursor_type,

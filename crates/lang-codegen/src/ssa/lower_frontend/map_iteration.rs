@@ -4,7 +4,9 @@ mod conditional;
 mod exit_shape;
 mod exits;
 mod qualify;
+mod source;
 mod source_owner;
+mod temporary;
 
 use super::*;
 use crate::ssa::model::{Definition, MapContainerKind, Module, SsaTypeKind};
@@ -16,6 +18,7 @@ use lang_frontend::ownership_checking::{
 
 pub(super) use exits::Context;
 pub(super) use qualify::validate;
+use source::SourceIdentity;
 pub(super) use source_owner::supported_drop;
 
 type Storage = BTreeMap<SsaTypeId, (MapContainerKind, SsaTypeId, SsaTypeId)>;
@@ -101,9 +104,9 @@ impl ExpressionLowerer<'_> {
         }
         let plan = qualified.plan.clone();
         let body_exit = qualified.body_exit;
-        let symbol = qualified.symbol;
+        let source_identity = qualified.source;
         let owner_proof = qualified.owner;
-        let parameter_origin = qualified.origin;
+        let source_origin = qualified.origin;
         let mapped = |ty| {
             self.resolve_type(ty, span).and_then(|ty| {
                 self.type_ids
@@ -143,28 +146,23 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let seed = *self
-            .map_iteration_state
-            .entries
-            .get(&symbol)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let entry = self
-            .function
-            .entry_block()
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        if !matches!(self.function.entity(seed).map(|entity| entity.definition), Some(Definition::BlockParameter { block, .. }) if block == entry)
-        {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        }
+        let seed = self.map_iteration_seed(source_identity, container, source_origin, span)?;
         let source_loan = match (plan.source_access(), seed) {
-            (MapIterationSourceAccess::Owned, EntityId::Value(owner)) => {
+            (
+                MapIterationSourceAccess::Owned | MapIterationSourceAccess::Temporary,
+                EntityId::Value(owner),
+            ) => {
                 if self.function.entity(seed).map(|entity| entity.ty)
                     != Some(EntityType::Value(container))
                 {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
-                if self.bindings.get(&symbol) != Some(&LoweredValue::Value(owner)) {
-                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                if source_identity.current_owner(self) != Some(owner) {
+                    let kind = match source_identity {
+                        SourceIdentity::Parameter(_) => LoweringErrorKind::UnsupportedNode,
+                        SourceIdentity::Temporary(_) => LoweringErrorKind::MissingFact,
+                    };
+                    return Err(error(kind, span));
                 }
                 let (_, places) = self.append(
                     Operation::RootPlace { owner },
@@ -184,6 +182,9 @@ impl ExpressionLowerer<'_> {
                 )?
             }
             (MapIterationSourceAccess::Shared, EntityId::Loan(loan)) => {
+                let SourceIdentity::Parameter(symbol) = source_identity else {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                };
                 if self.borrow_bindings.get(&symbol) != Some(&loan)
                     || self.function.entity(seed).map(|entity| entity.ty)
                         != Some(EntityType::Loan {
@@ -335,8 +336,13 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let body_owner =
-            self.map_iteration_owner(owner_proof, symbol, &carried, &body_parameters, span)?;
+        let body_owner = self.map_iteration_owner(
+            owner_proof,
+            source_identity,
+            &carried,
+            &body_parameters,
+            span,
+        )?;
         self.loops.push(loop_control::LoopContext {
             entry_views: self.non_null_bindings.clone(),
             outer_borrowed_while: None,
@@ -412,8 +418,13 @@ impl ExpressionLowerer<'_> {
             ],
             finished: false,
         };
-        let owner =
-            self.map_iteration_owner(owner_proof, symbol, &carried, &exhausted_parameters, span)?;
+        let owner = self.map_iteration_owner(
+            owner_proof,
+            source_identity,
+            &carried,
+            &exhausted_parameters,
+            span,
+        )?;
         let exhaustion = unique(
             plan.exits()
                 .iter()
@@ -423,7 +434,7 @@ impl ExpressionLowerer<'_> {
         self.emit_map_iteration_cleanup(exhaustion, &mut frame, owner, span)?;
         if !frame.finished
             || frame.source.is_some()
-            || owner.is_some_and(|(_, symbol, _)| self.bindings.contains_key(&symbol))
+            || owner.is_some_and(|(_, source, _)| source.current_owner(self).is_some())
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
@@ -448,7 +459,7 @@ impl ExpressionLowerer<'_> {
             source_slot,
             cursor_slot,
             owner,
-            parameter_origin,
+            source_origin,
             span,
         }
         .validate()?;
@@ -458,11 +469,11 @@ impl ExpressionLowerer<'_> {
     fn map_iteration_owner(
         &self,
         proof: Option<source_owner::Proof>,
-        symbol: SymbolId,
+        source: SourceIdentity,
         carried: &LinearBindings,
         parameters: &[EntityId],
         span: Span,
-    ) -> Result<Option<(source_owner::Proof, SymbolId, ValueId)>, LoweringError> {
+    ) -> Result<Option<(source_owner::Proof, SourceIdentity, ValueId)>, LoweringError> {
         proof
             .map(|proof| {
                 let slot = unique(
@@ -470,14 +481,17 @@ impl ExpressionLowerer<'_> {
                         .slots
                         .iter()
                         .enumerate()
-                        .filter(|(_, slot)| slot.symbol == Some(symbol)),
+                        .filter(|(_, slot)| source.matches_slot(slot)),
                 )
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
                 .0;
                 let Some(EntityId::Value(value)) = parameters.get(slot) else {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 };
-                Ok((proof, symbol, *value))
+                if source.current_owner(self) != Some(*value) {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                Ok((proof, source, *value))
             })
             .transpose()
     }
@@ -538,8 +552,16 @@ impl ExpressionLowerer<'_> {
                         _ => Err(error(LoweringErrorKind::MissingFact, span)),
                     };
                 }
-                // Only original non-entry borrow bindings can be present here; all
-                // richer temporary/call/view state was explicitly rejected at entry.
+                if let [key] = slot.temporaries.as_slice() {
+                    return self
+                        .temporaries
+                        .get(key)
+                        .copied()
+                        .map(EntityId::Value)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span));
+                }
+                // Only original non-entry borrow bindings or this qualified source's
+                // exact temporary owner can be present; other state is rejected at entry.
                 let loans = slot
                     .borrow_symbols
                     .iter()
@@ -558,7 +580,7 @@ impl ExpressionLowerer<'_> {
         &mut self,
         exit: &IterationExitPlan,
         frame: &mut Frame,
-        owner: Option<(source_owner::Proof, SymbolId, ValueId)>,
+        owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
         span: Span,
     ) -> Result<(), LoweringError> {
         for action in exit.actions() {
@@ -607,14 +629,15 @@ impl ExpressionLowerer<'_> {
                 IterationCleanupAction::Drop(fact)
                     if owner.is_some_and(|(proof, _, _)| proof.at(exit.point()) == Some(*fact)) =>
                 {
-                    let (_, symbol, value) =
+                    let (_, source, value) =
                         owner.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                     if frame.source.is_some()
                         || !frame.finished
-                        || self.bindings.remove(&symbol) != Some(LoweredValue::Value(value))
+                        || source.current_owner(self) != Some(value)
                     {
                         return Err(error(LoweringErrorKind::MissingFact, span));
                     }
+                    source.take_owner(self, value, span)?;
                     self.append(
                         Operation::Drop { owner: value },
                         Vec::new(),

@@ -5,7 +5,7 @@ pub(in super::super::super) struct Checkpoint {
     control: ExpressionId,
     from: BlockId,
     frame: Frame,
-    owner: Option<(source_owner::Proof, SymbolId, ValueId)>,
+    owner: Option<(source_owner::Proof, SourceIdentity, ValueId)>,
     roles: Roles,
     arguments: Vec<EntityId>,
 }
@@ -25,9 +25,9 @@ pub(in super::super) fn roles(
     };
     if lowerer.borrow_bindings.get(&key_symbol) != Some(&key)
         || lowerer.borrow_bindings.get(&value_symbol) != Some(&value)
-        || state.owner.is_some_and(|(_, symbol, owner)| {
-            lowerer.bindings.get(&symbol) != Some(&LoweredValue::Value(owner))
-        })
+        || state
+            .owner
+            .is_some_and(|(_, symbol, owner)| symbol.current_owner(lowerer) != Some(owner))
     {
         return Err(missing());
     }

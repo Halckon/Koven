@@ -135,7 +135,7 @@ pub(in super::super) fn validate(e: Evidence<'_>, state: &State) -> Result<(), L
                 .slots
                 .iter()
                 .enumerate()
-                .filter(|(_, slot)| slot.symbol == Some(symbol)),
+                .filter(|(_, slot)| symbol.matches_slot(slot)),
         )
         .ok_or_else(missing)?;
         let Some(TerminatorKind::Branch(entry)) = terminator(e.function, preheader) else {
@@ -148,7 +148,7 @@ pub(in super::super) fn validate(e: Evidence<'_>, state: &State) -> Result<(), L
                 != e.body_owner
                     .map(|(_, _, owner)| EntityId::Value(owner))
                     .as_ref()
-            || proof.drop.value_origin() != e.parameter_origin
+            || proof.drop.value_origin() != e.source_origin
         {
             return Err(missing());
         }
@@ -156,7 +156,7 @@ pub(in super::super) fn validate(e: Evidence<'_>, state: &State) -> Result<(), L
             |(_, instruction)| instruction.operation == Operation::Drop { owner: dropped },
         ))
         .ok_or_else(missing)?;
-        if position <= source_end || instruction.origin != Origin::Source(e.parameter_origin) {
+        if position <= source_end || instruction.origin != Origin::Source(e.source_origin) {
             return Err(missing());
         }
     } else if !matches!(e.seed, EntityId::Loan(_)) {
@@ -265,7 +265,7 @@ fn check_exit(e: Evidence<'_>, shape: Shape, exit: &Exit) -> Result<(), Lowering
             let fact = proof.at(point);
             if fact.is_none()
                 || *owner_drop <= *source_end
-                || body[*owner_drop].origin != Origin::Source(e.parameter_origin)
+                || body[*owner_drop].origin != Origin::Source(e.source_origin)
                 || body[*owner_drop].operation != (Operation::Drop { owner })
             {
                 return Err(missing());
@@ -375,7 +375,7 @@ fn check_exit(e: Evidence<'_>, shape: Shape, exit: &Exit) -> Result<(), Lowering
                     .slots
                     .iter()
                     .enumerate()
-                    .filter(|(_, slot)| slot.symbol == Some(symbol)),
+                    .filter(|(_, slot)| symbol.matches_slot(slot)),
             )
             .ok_or_else(missing)?;
             if edge.arguments.get(slot) != exit.roles.owner.map(EntityId::Value).as_ref() {
