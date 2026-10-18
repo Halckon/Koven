@@ -5,14 +5,14 @@ use super::super::{
     fixture::{Failure, clean, failure},
     pipeline, source_forms,
 };
-use crate::ssa::{LoweringErrorKind, verify::verify_program};
+use crate::ssa::verify::verify_program;
 use lang_frontend::{
     lexer::lex,
     parser::{Statement, parse_file},
     source::SourceMap,
 };
 
-fn sources() -> Vec<(&'static str, String)> {
+pub(crate) fn sources() -> Vec<(&'static str, String)> {
     let common = r#"fun read(key:String,value:String):Unit{println(key);println(value)}
 fun readMap(source:Map<String,String>):Unit{if(source.size==0){println("zero")}else{println("nonzero")}}
 fun make():Map<String,String>{return mapOf<String,String>()}
@@ -77,6 +77,10 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
         .filter_map(|(_, n)| matches!(n.payload(), Statement::For { .. }).then_some(n.span()))
         .collect::<Vec<_>>();
     assert_eq!(spans.len(), 1);
+    println!(
+        "G2 ALTERNATE ORIGINAL FOR case={label} unit={unit} span={:?}",
+        spans[0]
+    );
     let mut report = Report::default();
     let result = if unit {
         pipeline::unit_observed(
@@ -120,46 +124,18 @@ fn observe(label: &str, source: &str, unit: bool) -> Result<&'static str, Failur
     if !report.passed() {
         return Err(failure("alternate original FE", report));
     }
-    match result {
-        Ok((program, _)) => {
-            verify_program(&program).map_err(|e| failure("SSA", e))?;
-            crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
-            Ok("verified LLVM")
-        }
-        Err(e)
-            if e.stage == "lower"
-                && e.original
-                    .contains(&format!("kind: {:?}", LoweringErrorKind::UnsupportedNode))
-                && e.original.contains(&format!("span: Some({:?})", spans[0])) =>
-        {
-            Ok("original For Unsupported")
-        }
-        Err(e) => Err(e),
-    }
+    let (program, _) = result?;
+    verify_program(&program).map_err(|e| failure("SSA", e))?;
+    crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
+    Ok("verified LLVM")
 }
 
 #[test]
-fn legal_alternate_histories_do_not_become_missing_facts() {
+fn legal_alternate_histories_reach_verified_llvm() {
     let mut outcomes = Vec::new();
-    for (label, source) in sources() {
+    for (label, source) in super::alternate_sources() {
         for unit in [false, true] {
-            let expected = if matches!(label, "prefix-cfg" | "reassigned")
-                || (label == "old-alias-rebound" && unit)
-            {
-                "verified LLVM"
-            } else {
-                "original For Unsupported"
-            };
-            let result = observe(label, &source, unit).and_then(|actual| {
-                if actual == expected {
-                    Ok(actual)
-                } else {
-                    Err(failure(
-                        "locked alternate formation boundary",
-                        (label, actual, expected),
-                    ))
-                }
-            });
+            let result = observe(label, &source, unit);
             println!("G2 ALTERNATE CASE {label} unit={unit} result={result:?}");
             outcomes.push((label, unit, result));
         }

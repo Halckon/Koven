@@ -1,6 +1,6 @@
 //! Real local formation and Move sources; red observations precede capability changes.
 mod boundaries;
-pub(crate) use boundaries::alias_rebound_source;
+pub(crate) use boundaries::{alias_rebound_source, sources as alternate_sources};
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
 mod graph;
 use super::{

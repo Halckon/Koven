@@ -568,13 +568,8 @@ fn ordinary_factory_without_for_reaches_both_pipelines() {
     assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
 }
 
-#[test]
-fn ordinary_future_source_transfer_keeps_original_for_boundary() {
-    use lang_frontend::{
-        ownership_checking::{DropTarget, UnitDropTarget},
-        parser::Statement,
-    };
-    let mut outcomes = Vec::new();
+pub(crate) fn future_transfer_sources() -> Vec<(bool, String)> {
+    let mut cases = Vec::new();
     for mutable in [false, true] {
         let kind = if mutable { "MutableMap" } else { "Map" };
         let transfer = if mutable {
@@ -589,6 +584,19 @@ fn ordinary_future_source_transfer_keeps_original_for_boundary() {
              fun entry():Unit{{val input={factory}<String,String>();scan(input)}}\n",
             factory = if mutable { "mutableMapOf" } else { "mapOf" }
         );
+        cases.push((mutable, text));
+    }
+    cases
+}
+
+#[test]
+fn ordinary_future_source_transfer_reaches_verified_llvm() {
+    use lang_frontend::{
+        ownership_checking::{DropTarget, UnitDropTarget},
+        parser::Statement,
+    };
+    let mut outcomes = Vec::new();
+    for (mutable, text) in future_transfer_sources() {
         for unit in [false, true] {
             let observed = (|| -> Result<(), Failure> {
                 let mut sources = SourceMap::new();
@@ -647,19 +655,21 @@ fn ordinary_future_source_transfer_keeps_original_for_boundary() {
                 } else {
                     "single full iteration validator"
                 };
-                let rejected = matches!(&result, Err(e) if e.stage=="lower" && e.original.contains("UnsupportedNode") && e.original.contains(&format!("{for_span:?}")));
-                if !rejected
-                    || !report.passed()
+                println!(
+                    "ORDINARY CFG FUTURE TRANSFER ORIGINAL mutable={mutable} unit={unit} for_span={for_span:?} report={report:#?} result={:?}",
+                    result.as_ref().map(|(_, entry)| entry)
+                );
+                if !report.passed()
                     || !report
                         .checks
                         .iter()
                         .any(|(name, pass, _)| *name == sealed && *pass)
                 {
-                    return Err(failure(
-                        "future-transfer exact Unsupported after sealed FE",
-                        (&report, result.as_ref().map(|(_, entry)| entry)),
-                    ));
+                    return Err(failure("future-transfer sealed original FE", &report));
                 }
+                let (program, _) = result?;
+                crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
+                crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
                 Ok(())
             })();
             println!(
