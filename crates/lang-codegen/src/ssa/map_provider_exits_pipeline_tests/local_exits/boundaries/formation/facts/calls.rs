@@ -12,13 +12,12 @@ fn selected(at: Span, calls: &[(Span, Span)]) -> Option<Span> {
     calls.iter().find_map(|(s, t)| (*s == at).then_some(*t))
 }
 pub(super) fn single(
+    sources: &SourceMap,
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
-    site: &Site,
-    selected_calls: &[(Span, Span)],
-    components: [Span; 2],
+    (site, selected_calls, components): (&Site, &[(Span, Span)], [Span; 2]),
 ) -> Result<Vec<CallUse>, Failure> {
     let marker = |id| Ok(names.symbols()[root_ref(names, parsed, id)?.index()].span());
     let mut result = vec![];
@@ -102,12 +101,27 @@ pub(super) fn single(
             } else {
                 None
             };
+            let literal = literal(sources, parsed, argument.value)?;
+            if literal.is_some() {
+                need(
+                    typed.expression_type(argument.value).is_some_and(|ty| {
+                        typed.types().get(ty)
+                            == Some(&lang_frontend::type_checking::TypeKind::Builtin(
+                                lang_frontend::type_checking::BuiltinType::String,
+                            ))
+                    }) && typed.expression_category(argument.value)
+                        == Some(lang_frontend::type_checking::ExpressionCategory::Temporary),
+                    "formation original literal actual String type/Temporary category",
+                    argument,
+                )?;
+            }
             args.push(Argument {
                 at: arg,
                 root,
                 borrow,
                 birth,
                 endpoint,
+                literal,
             });
         }
         result.push(CallUse {
@@ -120,13 +134,12 @@ pub(super) fn single(
     Ok(result)
 }
 pub(super) fn unit(
+    sources: &SourceMap,
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
-    site: &Site,
-    selected_calls: &[(Span, Span)],
-    components: [Span; 2],
+    (site, selected_calls, components): (&Site, &[(Span, Span)], [Span; 2]),
 ) -> Result<Vec<CallUse>, Failure> {
     let source = one(
         names.names().source_units().iter(),
@@ -251,12 +264,30 @@ pub(super) fn unit(
             } else {
                 None
             };
+            let literal = literal(sources, parsed, argument.value)?;
+            if literal.is_some() {
+                need(
+                    typed
+                        .expression_type(expression(argument.value))
+                        .is_some_and(|ty| {
+                            typed.types().get(ty)
+                                == Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(
+                                    lang_frontend::type_checking::BuiltinType::String,
+                                ))
+                        })
+                        && typed.expression_category(expression(argument.value))
+                            == Some(lang_frontend::type_checking::ExpressionCategory::Temporary),
+                    "formation qualified original literal String/Temporary",
+                    argument,
+                )?;
+            }
             args.push(Argument {
                 at: arg,
                 root,
                 borrow,
                 birth,
                 endpoint,
+                literal,
             });
         }
         result.push(CallUse {
@@ -267,4 +298,48 @@ pub(super) fn unit(
         });
     }
     Ok(result)
+}
+
+// All frozen literal-print witnesses use ordinary, non-interpolated text with
+// no escapes. Prove that identity before recording decoded UTF-8 bytes; this
+// does not borrow the lowering decoder as an oracle.
+fn literal(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    id: ExpressionId,
+) -> Result<Option<Vec<u8>>, Failure> {
+    let node = parsed.ast().expressions().get(id).unwrap();
+    let Expression::String { parts } = node.payload() else {
+        return Ok(None);
+    };
+    let mut bytes = vec![];
+    for part in parts {
+        let lang_frontend::parser::StringPart::Text(at) = part else {
+            return Err(failure(
+                "formation fixed literal has no interpolation",
+                part,
+            ));
+        };
+        let text = sources
+            .slice(*at)
+            .map_err(|e| failure("formation original literal text bytes", e))?;
+        need(
+            !text.contains('\\'),
+            "formation literal has identity UTF-8 decoding without escapes",
+            at,
+        )?;
+        bytes.extend_from_slice(text.as_bytes());
+    }
+    let source = sources
+        .slice(node.span())
+        .map_err(|e| failure("formation original quoted literal bytes", e))?;
+    need(
+        source
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .is_some_and(|text| text.as_bytes() == bytes),
+        "formation decoded bytes exactly cover original quoted String AST",
+        node.span(),
+    )?;
+    Ok(Some(bytes))
 }

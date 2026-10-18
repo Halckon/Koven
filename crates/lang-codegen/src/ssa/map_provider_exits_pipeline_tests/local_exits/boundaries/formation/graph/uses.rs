@@ -56,6 +56,18 @@ pub(super) fn check(
         "formation exact VEnd then KEnd actual cleanup",
         &component_ends,
     )?;
+    for call in input.uses.iter().filter(|call| call.print) {
+        one(
+            g.instructions.iter().copied().filter(|i| {
+                i.origin == Origin::Source(call.at)
+                    && matches!(
+                        i.operation,
+                        Operation::PrintString { .. } | Operation::PrintLiteral { .. }
+                    )
+            }),
+            "formation each actual original println has exactly one instruction",
+        )?;
+    }
     for i in &g.instructions {
         match &i.operation {
             Operation::DirectCall {
@@ -279,13 +291,58 @@ fn argument_use(
                 root,
             ));
         };
-        let birth = argument
-            .birth
-            .ok_or_else(|| failure("formation original named root birth", argument))?;
-        g.anchored(
-            EntityId::Value(owner),
-            &[birth_seed(g, module, input, birth)?],
-        )?;
+        if argument.root.is_none() {
+            let bytes = argument.literal.as_ref().ok_or_else(|| {
+                failure(
+                    "formation original temporary Borrow must be exact literal",
+                    argument,
+                )
+            })?;
+            let producer = g.definition(EntityId::Value(owner))?;
+            need(
+                producer.origin == Origin::Source(argument.at)
+                    && matches!(&producer.operation,Operation::StringLiteral{bytes:actual,..} if actual==bytes)
+                    && module.type_kind(
+                        g.function
+                            .entity(EntityId::Value(owner))
+                            .unwrap()
+                            .ty
+                            .semantic_type(),
+                    ) == Some(&SsaTypeKind::StringOwner)
+                    && root.origin == Origin::Source(argument.at)
+                    && producer.block == call.block
+                    && root.block == call.block
+                    && g.position(producer)? < g.position(root)?
+                    && g.position(root)? < g.position(begin)?,
+                "formation exact original literal bytes/String type/span/root before Borrow",
+                (producer, root, begin, call),
+            )?;
+            // The protected literal owner must be consumed once after its
+            // synchronous print loan ends, never passed to another use.
+            let drop = one(
+                g.instructions
+                    .iter()
+                    .copied()
+                    .filter(|i| i.operation == Operation::Drop { owner }),
+                "formation literal owner unique actual Drop",
+            )?;
+            need(
+                drop.origin == Origin::Source(argument.at) && drop.block == call.block,
+                "formation original literal Drop origin and block",
+                drop,
+            )?;
+            uses.permit(EntityId::Value(owner), root);
+            uses.permit(EntityId::Value(owner), drop);
+        } else {
+            let birth = argument
+                .birth
+                .ok_or_else(|| failure("formation original named root birth", argument))?;
+            g.anchored(
+                EntityId::Value(owner),
+                &[birth_seed(g, module, input, birth)?],
+            )?;
+            uses.permit(EntityId::Value(owner), root);
+        }
         let endpoint = argument
             .endpoint
             .ok_or_else(|| failure("formation same-analysis original Borrow endpoint", argument))?;
@@ -294,12 +351,25 @@ fn argument_use(
             "formation actual Borrow starts at original argument",
             begin,
         )?;
-        uses.permit(EntityId::Value(owner), root);
         uses.protect(EntityId::Place(place));
         uses.permit(EntityId::Place(place), begin);
         uses.permit(entity, call);
         let end = exact_end(g, current, call, endpoint)?;
         uses.permit(entity, end);
+        if argument.literal.is_some() {
+            let drop = one(
+                g.instructions
+                    .iter()
+                    .copied()
+                    .filter(|i| i.operation == Operation::Drop { owner }),
+                "formation literal actual Drop after CallReturn",
+            )?;
+            need(
+                g.position(end)? < g.position(drop)?,
+                "formation original literal Drop follows unique synchronous loan End",
+                (end, drop),
+            )?;
+        }
         child_ends.push(current);
     } else {
         need(

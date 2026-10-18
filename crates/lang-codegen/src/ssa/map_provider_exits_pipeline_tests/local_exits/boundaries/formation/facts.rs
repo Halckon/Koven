@@ -431,8 +431,18 @@ pub(in super::super::super::super) fn single(
     }
     let representation = representation::single(parsed, names, typed, p.descriptor().value_type())?;
     let guard = representation::single_guard(parsed, names, typed, owned, &site)?;
-    let components = (*p.descriptor().bindings()).map(|s| names.symbols()[s.index()].span());
-    let uses = calls::single(parsed, names, typed, owned, &site, &selected, components)?;
+    let components = p
+        .descriptor()
+        .bindings()
+        .map(|s| names.symbols()[s.index()].span());
+    let uses = calls::single(
+        sources,
+        parsed,
+        names,
+        typed,
+        owned,
+        (&site, &selected, components),
+    )?;
     let clones = typed
         .string_operations()
         .iter()
@@ -659,7 +669,14 @@ pub(in super::super::super::super) fn unit(
         symbol_span(p.descriptor().key_binding())?,
         symbol_span(p.descriptor().value_binding())?,
     ];
-    let uses = calls::unit(parsed, names, typed, owned, &site, &selected, components)?;
+    let uses = calls::unit(
+        sources,
+        parsed,
+        names,
+        typed,
+        owned,
+        (&site, &selected, components),
+    )?;
     let clones = typed
         .string_operations()
         .iter()

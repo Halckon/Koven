@@ -42,6 +42,7 @@ struct Argument {
     borrow: bool,
     birth: Option<Birth>,
     endpoint: Option<(Span, Span)>,
+    literal: Option<Vec<u8>>,
 }
 #[derive(Clone, Debug)]
 struct Drop {
