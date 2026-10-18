@@ -943,3 +943,11 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   factory，含Guard及Return真实Int交付。96双入口均完整FE后在原For Unsupported，
   FE query false为0；Rust实际0通过/1失败/0忽略。尚未运行native，深身份查询仍在补齐。
   这是新红测试检查点，不表示Resource local资格已接通；继续消费真实词法Drop，不改Guide。
+
+
+## 50. G2 Pure local 的真实后用与同根复用（2026-10-18）
+
+- 新54份普通源：Map/MutableMap×val/var/moved alias×N/C/B×多次Borrow后size、
+  size条件两live臂合流后Borrow、同根第二For后Borrow。每源非空/空factory与scanner实际调用。
+  当前Resource候选仍未修改Pure未来使用资格时，108双入口全部完整FE后原For Unsupported，
+  Rust真实0通过/1失败/0忽略；尚无本片native验收。此红测试检查点不声明能力已接通。

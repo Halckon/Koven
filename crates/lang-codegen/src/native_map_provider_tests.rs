@@ -189,3 +189,6 @@ mod local_exits;
 
 #[path = "native_map_provider_local_resources_tests.rs"]
 mod local_resources;
+
+#[path = "native_map_provider_local_future_tests.rs"]
+mod local_future;

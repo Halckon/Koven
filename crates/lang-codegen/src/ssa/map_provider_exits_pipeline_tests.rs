@@ -199,3 +199,6 @@ pub(crate) use local_exits::sources as local_exits_sources;
 
 mod local_resources;
 pub(crate) use local_resources::sources as local_resource_sources;
+
+mod local_future;
+pub(crate) use local_future::sources as local_future_sources;
