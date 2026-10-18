@@ -121,8 +121,8 @@ pub(super) fn qualify_body(
                 .statements()
                 .get(*statement)
                 .map_err(|_| bad())?;
-            if !matches!(node.payload(), Statement::Expression { .. })
-                && !(index < first.0 && matches!(node.payload(), Statement::LocalVariable { .. }))
+            if !(matches!(node.payload(), Statement::Expression { .. })
+                || index < first.0 && matches!(node.payload(), Statement::LocalVariable { .. }))
             {
                 return Err(unsupported());
             }

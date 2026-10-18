@@ -595,7 +595,7 @@ impl UnitExpressionLowerer<'_> {
         let Some((statement, state)) = self.conditional_map() else {
             return Ok(());
         };
-        let branch = state.conditional.ok_or_else(|| LoweringError {
+        let branch = state.conditional.ok_or(LoweringError {
             kind: LoweringErrorKind::MissingFact,
             span: None,
         })?;
