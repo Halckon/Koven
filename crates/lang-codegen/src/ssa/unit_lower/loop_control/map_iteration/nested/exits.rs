@@ -316,7 +316,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(in crate::ssa::unit_lower) fn nested_parent_return_completed(
+    pub(super) fn nested_parent_return_completed(
         &self,
         state: MapState,
         span: Span,
