@@ -164,12 +164,19 @@ impl ExpressionLowerer<'_> {
             if delivery.argument != argument {
                 continue;
             }
+            let provider_span = self
+                .parsed
+                .ast()
+                .statements()
+                .get(descriptor.statement())
+                .map_err(|_| bad())?
+                .span();
             let exit = super::phi(
                 self.owned.cleanup_conditions(),
                 qualified.plan,
                 delivery.root,
                 IterationPhiBoundary::Exit,
-                span,
+                provider_span,
             )?;
             if exit.owner() != delivery.owner {
                 return Err(bad());
