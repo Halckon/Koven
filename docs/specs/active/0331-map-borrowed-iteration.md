@@ -563,3 +563,16 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   closure39、Unit recovery7，0失败/忽略。新18项包含56源×两入口112观察；原15项
   另30观察，Unit7保持各自输入。后续固定实现头工程/normal SSA/native复验另记，
   故障反例和sanitizer导出只编译，实际CI不得以收集器exit0代替逐项通过。
+
+## 36. Resource provider 的 Linux 动态验收接线（2026-10-18）
+
+- CI 新导出一项exact Rust test，消费§33六份原Resource history的single/unit实际
+  完整FE/validator/SSA/LLVM和C entry，共12程序。每项先plain严格exit0、完整golden、
+  空stderr，再导出raw与所有Koven definition带ASan属性的IR；保存源码/golden/函数表、
+  plain命令/状态/stdout/stderr，不改写原IR去模拟provider成功。
+- Linux脚本精确校验12个唯一case；动态执行前先写全部输入SHA账本，失败/超时保留
+  身份。每项分别运行ASan与原raw IR经C worker/join adapter的默认根扫描LSan，计划
+  12+12动态产物。沿用现有有界helper、strict oracle和完整CI artifact上传。
+- fresh独审的“失败前未写身份账本”finding已修复复审；静态选择测试实际通过。
+  本机仅编译/静态检查，未运行导出test或sanitizer对照；24产物均待Linux CI实测，
+  不计本机pass，macOS sanitizer仍partial，UBSan仍未覆盖。F不归档、不合并、不进入D10。

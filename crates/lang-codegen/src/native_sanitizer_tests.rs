@@ -1,4 +1,5 @@
 //! SPEC-0266: export actual Koven IR for bounded, Linux-only sanitizer execution.
+mod map_provider;
 use std::{
     fs,
     path::PathBuf,

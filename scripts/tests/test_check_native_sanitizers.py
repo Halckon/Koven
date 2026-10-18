@@ -345,5 +345,22 @@ int main(int argc, char **argv) {
                     GATE.assert_detected(result, "LeakSanitizer", "detected memory leaks")
 
 
+class StaticProviderSelectionContracts(unittest.TestCase):
+    def test_resource_provider_export_is_registered_and_linux_consumes_every_case(self):
+        # Read-only wiring check; no exporter, sanitizer, mutation or stub execution.
+        gate = (ROOT / "scripts/check_native_sanitizers.py").read_text()
+        bridge = (ROOT / "crates/lang-codegen/src/native_sanitizer_tests.rs").read_text()
+        exporter = (ROOT / "crates/lang-codegen/src/native_sanitizer_tests/map_provider.rs").read_text()
+        self.assertIn("mod map_provider;", bridge)
+        self.assertIn("fn map_provider_resource_histories_export_real_ir()", exporter)
+        self.assertIn('for unit in [false, true]', exporter)
+        self.assertIn('history_sanitizer_ir(&case, unit)', exporter)
+        self.assertIn('assert_eq!(manifest.lines().count(), 12)', exporter)
+        self.assertIn('assert_export_ran(provider_export.stdout.decode(), PROVIDER_EXPORT_TEST)', gate)
+        self.assertIn('len(labels) != 12 or set(labels) != expected_labels', gate)
+        self.assertIn('check_map(output, artifacts, clang, symbolizer, asan_env, lsan_entry)', gate)
+        self.assertLess(gate.index('provider-identities.json'), gate.index('    for label in labels:'))
+
+
 if __name__ == "__main__":
     unittest.main()

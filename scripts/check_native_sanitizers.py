@@ -14,6 +14,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPORT_TEST = "native_sanitizer_tests::asan_instruments_generated_user_runtime_and_drop"
+PROVIDER_EXPORT_TEST = "native_sanitizer_tests::map_provider::map_provider_resource_histories_export_real_ir"
 MAP_EXPORT_TEST = "native_sanitizer_tests::map_sanitizer_program_exports_ir_and_runs_clean"
 CASES = {"clean", "user", "runtime", "drop", "leak"}
 
@@ -346,6 +347,30 @@ def check_linux(directory):
                          timeout=900, env={"KOVEN_SANITIZER_MAP_ARTIFACTS": str(map_dir)})
     assert_export_ran(map_export.stdout.decode(), MAP_EXPORT_TEST)
     summary.extend(check_map(directory, map_dir, clang, symbolizer, asan_env, lsan_entry))
+    # Twelve actual Resource provider programs: all six finite histories through both lowering entries.
+    provider_dir = directory / "provider-fixtures"
+    provider_export = checked(["cargo", "test", "--locked", "--offline", "-p", "lang-codegen", "--lib",
+                               PROVIDER_EXPORT_TEST, "--", "--exact", "--nocapture"], directory,
+                              "export-provider", timeout=900,
+                              env={"KOVEN_SANITIZER_PROVIDER_ARTIFACTS": str(provider_dir)})
+    assert_export_ran(provider_export.stdout.decode(), PROVIDER_EXPORT_TEST)
+    labels = (provider_dir / "manifest.txt").read_text().splitlines()
+    expected_labels = {f"{history}-{mode}-resource-{entry}"
+                       for history in ("singleton", "overwrite", "growth")
+                       for mode in ("own-map", "borrow-mutable") for entry in ("single", "unit")}
+    if len(labels) != 12 or set(labels) != expected_labels:
+        raise AssertionError("Resource provider sanitizer manifest must contain exactly all twelve original cases")
+    # Bind all inputs before executing the first dynamic case; failures retain the complete ledger.
+    identities = [dict(case=label, files={name: hashlib.sha256((provider_dir / label / name).read_bytes()).hexdigest()
+                  for name in ("map-program.ko", "map.expected.stdout", "map.raw.ll", "map.asan.ll", "map.functions")})
+                  for label in labels]
+    (directory / "provider-identities.json").write_text(json.dumps(identities, indent=2) + "\n")
+    for label in labels:
+        artifacts = provider_dir / label
+        output = directory / f"provider-{label}"
+        output.mkdir()
+        for result in check_map(output, artifacts, clang, symbolizer, asan_env, lsan_entry):
+            summary.append(f"{label}: {result}")
     (directory / "acceptance.txt").write_text("\n".join(summary) + "\nUBSan on Koven LLVM IR: NOT COVERED\n")
     print("\n".join(summary))
     print(f"Linux sanitizer artifacts: {directory}")

@@ -185,3 +185,42 @@ fn storage_histories_reach_both_real_provider_pipelines() {
     assert_eq!(results.len(), 42);
     assert!(results.iter().all(|r| r.2), "{results:#?}");
 }
+
+/// CI sanitizer exporter consumes exactly these original Resource cases through both real entries.
+pub(crate) fn sanitizer_ir(case: &Case, unit: bool) -> String {
+    let mut sources = SourceMap::new();
+    let id = sources.add_source("provider.ko", &case.source).unwrap();
+    let lexed = lex(&sources, id).unwrap();
+    assert!(lexed.diagnostics().is_empty());
+    let parsed = parse_file(&sources, &lexed).unwrap();
+    assert!(parsed.diagnostics().is_empty());
+    let mut report = Report::default();
+    let (program, entry) = if unit {
+        pipeline::unit_observed(
+            &sources,
+            &parsed,
+            "provider.ko",
+            &mut report,
+            |_, typed, owned, r| {
+                r.check(
+                    "one actual Resource unit provider",
+                    typed.map_iterations().len() == 1 && owned.map_iterations().len() == 1,
+                    owned.map_iterations(),
+                );
+            },
+        )
+    } else {
+        pipeline::single_observed(&sources, &parsed, &mut report, |_, typed, owned, r| {
+            r.check(
+                "one actual Resource single provider",
+                typed.map_iterations().len() == 1 && owned.map_iterations().len() == 1,
+                owned.map_iterations(),
+            );
+        })
+    }
+    .expect("complete real provider pipeline");
+    assert!(report.passed(), "{report:#?}");
+    super::super::verify::verify_program(&program).expect("original Resource SSA");
+    crate::llvm::render_verified_program_with_entry(&program, entry)
+        .expect("original Resource LLVM with actual entry")
+}
