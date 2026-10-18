@@ -93,3 +93,9 @@ SSA 查询全部可达 block/incoming 的 owner/source/cursor 列、两分量/re
 Borrow MutableMap，Resource覆盖不涉及remove的单项/覆盖/增长两种既有owner模式。
 双入口42条pipeline及42个普通native产物通过。它们补充0291链探针，而非用探针代替
 For执行；Resource marker只证明聚合数量和清理区间，不扩nullable或保证跨entry析构序。
+
+Resource 的空字段 payload 仍按 ADR-0008 获得独立 `malloc(1)` handle；heap runtime 保存真实
+target-derived payload size，仅在该大小非零时发出初始化 store。零字节 store 没有业务数据
+可写，LLVM 21 ASan 却会检查 `ptr + size - 1`，因此不能把它留在合法空对象构造中。
+OOM、provider、deinit 与 free 路径保持；该修复不增加字段或改变源/golden 来规避检测。
+普通 native 验收不替代 Linux ASan/LSan；动态通过须绑定新提交的完整 CI 产物。

@@ -596,3 +596,24 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   2812个tracked输入摘要相同：
   `36102a802121e921e3e44633fb8069c2731958bb49f340d16e40c572ba7b274d`。
   新test-only基线修复的当前完整远端CI另记；Mac仍partial，F继续active。
+
+## 38. 清洁 Resource ASan 构造失败修复（2026-10-18）
+
+- `b4312439` 的 run `39106217801` Linux 在首个 Resource singleton/single 的清洁
+  ASan 产物退出86，stdout只有before-factory，stderr为DEADLYSIGNAL/nested bug。
+  证据artifact `12128673371` ZIP SHA256为
+  `4d707fed6cb8e188642cfb16f2664a7c28f4f1684ae55a8e1dbbf8430125b6c3`；本机只读解包与
+  反汇编，不运行下载产物。Mac generated contracts步骤成功但证据上传CreateArtifact
+  ENOTFOUND，不能据此声称校准artifact已核；Preview均skipped，两类失败分别保留。
+- 原始LLVM给空Resource执行`malloc(1)`后仍store空struct。失败ELF的factory在
+  `0x11711f`计算ptr-1，`0x11719e`调用size=0的`__asan_report_store_n`；这是分配的左
+  redzone，位置在Map插入前，与输出停点一致。报告器nested bug内部无栈，不进一步推定。
+  槽位56字节、初始16槽896字节、Resource指针、consume及drop静态核查无对应前置错误。
+- runtime保留真实target payload size，以max(size,1)分配，为零时省去物理初始化store。
+  唯一handle、OOM、deinit/free、原源码/golden及ASan属性保持。现有普通heap IR exact先
+  实测0通过/1失败；修复后runtime 5通过、普通历史native 2通过，均0失败/忽略，后者
+  为原21源×双入口42产物。非零payload初始化store及两个空owner的独立分配仍被核验。
+- fresh只读独审核最小修复无新增阻断；另指出既有Rc独立control block仍有空payload
+  store风险，本片不宣称该相邻路径或所有零字节访问已闭合。
+- 新头的工程门与完整远端CI须重新绑定，旧315/316项收据不自动继承。未在Mac执行
+  exporter、故障、校准或sanitizer动态检查；Mac仍partial，F继续active，D10未开始。

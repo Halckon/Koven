@@ -238,6 +238,14 @@ fn heap_owner_uses_checked_system_allocation_and_recursive_unique_drop_glue() {
     assert_eq!(first, second);
 
     assert_eq!(first.matches("call ptr @malloc(i64 1)").count(), 2);
+    assert!(
+        !first.contains("store %koven.t2 "),
+        "empty payloads retain allocations without zero-byte stores: {first}"
+    );
+    assert!(
+        first.contains("store %koven.t4 "),
+        "nonempty payload is initialized"
+    );
     assert!(first.contains("declare ptr @malloc(i64)"));
     assert!(first.contains("declare void @abort() #0"));
     assert!(first.contains("attributes #0 = { noreturn }"));
