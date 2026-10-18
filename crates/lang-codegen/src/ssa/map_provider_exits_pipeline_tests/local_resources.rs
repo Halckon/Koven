@@ -1,4 +1,7 @@
 //! Factory-formed Resource Map locals retain their original owner through all exits.
+mod boundaries;
+mod facts;
+mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -156,6 +159,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                facts::unit(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
                     "G2 Resource two actual qualified Map plans",
                     typed.map_iterations().len() == 2 && owned.map_iterations().len() == 2,
@@ -178,6 +182,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                facts::single(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
                     "G2 Resource two actual single Map plans",
                     typed.map_iterations().len() == 2 && owned.map_iterations().len() == 2,
@@ -203,6 +208,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     if !report.passed() {
         return Err(failure("original Resource FE queries", report));
     }
+    graph::check(case, &sources, &parsed, &program, unit)?;
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
     Ok(())

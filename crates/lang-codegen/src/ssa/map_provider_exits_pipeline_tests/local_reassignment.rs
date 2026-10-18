@@ -1,4 +1,6 @@
 //! Legal source replacement histories: ordinary FE/lowering observations precede repairs.
+mod facts;
+mod graph;
 mod sources;
 use super::{
     Report,
@@ -37,6 +39,10 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                report.query(
+                    "reassignment independent unit facts",
+                    &facts::unit(case, &sources, &parsed, names, typed, owned),
+                );
                 report.check(
                     "reassignment original qualified descriptor count",
                     typed.map_iterations().len() == expected,
@@ -60,6 +66,10 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                report.query(
+                    "reassignment independent single facts",
+                    &facts::single(case, &sources, &parsed, names, typed, owned),
+                );
                 report.check(
                     "reassignment original descriptor count",
                     typed.map_iterations().len() == expected,

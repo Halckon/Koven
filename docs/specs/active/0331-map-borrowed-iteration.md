@@ -968,3 +968,9 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   make/other具有不同键值、start/ready与Resource marker以识别真实producer。36双入口
   全部完整FE后在原For Unsupported，Rust真实0通过/1失败/0忽略；尚未本片native验收。
   专属原FE/SSA深查询待补，不能把该红观察提升为重新赋值支持。
+
+- 深查询检查点：Resource主96观察与四条合法repeat邻控完整通过；Pure local后用108观察
+  已接独立原FE深查询并与强化当前owner SSA图一同通过，108普通native产物首绿。
+  测试独审指出的terminal current列及首后用source链缺口已修复复核；最终冻结回归仍待。
+  重新赋值专属查询另核真实old/new形成、全部incoming、Drop边界与Unit assignment-origin，
+  当前仅完成接线，仍须对应生产支持与真实绿，不能据本检查点外推G2整体完成。

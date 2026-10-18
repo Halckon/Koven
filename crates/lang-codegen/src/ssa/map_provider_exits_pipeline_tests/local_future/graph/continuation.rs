@@ -10,6 +10,7 @@ pub(super) fn check<'a, 'p>(
     q: &Query<'a, 'p>,
     site: &Site,
     form: usize,
+    expected_current: EntityId,
     owners: &BTreeSet<EntityId>,
     uses: &mut Uses,
 ) -> Result<Last<'p>, Failure> {
@@ -152,6 +153,31 @@ pub(super) fn check<'a, 'p>(
             size,
         )?;
         uses.permit(owner, size);
+    }
+    match form {
+        0 => need(
+            calls[0].2 == expected_current,
+            "first future Borrow uses exact provider continuation current",
+            calls[0].0,
+        )?,
+        1 => {
+            let [size] = sizes.as_slice() else {
+                return Err(failure("first future size use", &sizes));
+            };
+            need(
+                size.operation
+                    == Operation::MapSize {
+                        owner: expected_current,
+                    },
+                "first future size uses exact provider continuation current",
+                size,
+            )?;
+        }
+        _ => need(
+            calls[0].2 == expected_current,
+            "final Borrow uses exact second For continuation current",
+            calls[0].0,
+        )?,
     }
     condition::check(q, site, form, &sizes, &calls, uses)?;
     let last_loop = site.loops.last().unwrap();

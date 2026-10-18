@@ -1,4 +1,5 @@
 //! Real local formation plus future uses: preserve every public FE/lowering observation.
+mod facts;
 mod graph;
 mod sources;
 use super::{
@@ -33,6 +34,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                facts::unit(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
                     "local future original unit descriptor count",
                     typed.map_iterations().len() == if case.form == 2 { 4 } else { 2 },
@@ -56,6 +58,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                facts::single(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
                     "local future original single descriptor count",
                     typed.map_iterations().len() == if case.form == 2 { 4 } else { 2 },

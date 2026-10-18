@@ -126,8 +126,11 @@ pub(super) fn check(
             (call, formed, first),
         )?;
         let mut ends = vec![];
+        let mut current = anchor;
         for loop_site in &site.loops {
-            ends.push(provider::check(&q, loop_site, &owners, &mut uses)?);
+            let evidence = provider::check(&q, loop_site, current, &owners, &mut uses)?;
+            current = evidence.current;
+            ends.push(evidence.ends);
         }
         need(
             g.instructions
@@ -153,7 +156,7 @@ pub(super) fn check(
             drop,
         )?;
         uses.permit(EntityId::Value(owner), drop);
-        let last = continuation::check(&q, &site, case.form, &owners, &mut uses)?;
+        let last = continuation::check(&q, &site, case.form, current, &owners, &mut uses)?;
         need(
             last.owner == EntityId::Value(owner),
             "final Drop consumes actual last-use current owner",

@@ -1,12 +1,18 @@
 //! One provider's actual columns, current owner, component loans and Guard cleanup.
 use super::*;
 
+pub(super) struct Evidence<'p> {
+    pub ends: Vec<&'p Instruction>,
+    pub current: EntityId,
+}
+
 pub(super) fn check<'a, 'p>(
     q: &Query<'a, 'p>,
     site: &LoopSite,
+    expected_seed: EntityId,
     owners: &BTreeSet<EntityId>,
     uses: &mut Uses,
-) -> Result<Vec<&'p Instruction>, Failure> {
+) -> Result<Evidence<'p>, Failure> {
     let g = q.g;
     let op = |predicate: fn(&Operation) -> bool| {
         one(
@@ -37,8 +43,8 @@ pub(super) fn check<'a, 'p>(
         return Err(failure("actual provider source owner", root));
     };
     need(
-        owners.contains(&EntityId::Value(owner)),
-        "provider root is current original factory owner",
+        owners.contains(&EntityId::Value(owner)) && EntityId::Value(owner) == expected_seed,
+        "provider RootPlace uses exact prior continuation current owner",
         root,
     )?;
     uses.permit(EntityId::Value(owner), root);
@@ -192,6 +198,7 @@ pub(super) fn check<'a, 'p>(
         "false source End uses actual exhausted state",
         exhausted,
     )?;
+    let mut current = xo;
     if broken {
         let body_end = one(
             ends.iter()
@@ -213,6 +220,7 @@ pub(super) fn check<'a, 'p>(
             "actual Break merge keeps both current-owner columns",
             mo,
         )?;
+        current = mo;
     }
     for &end in &ends {
         if let Operation::BorrowEnd { loan } = end.operation {
@@ -283,7 +291,7 @@ pub(super) fn check<'a, 'p>(
             next[0],
         )?;
     }
-    Ok(ends)
+    Ok(Evidence { ends, current })
 }
 
 fn local_guard(
