@@ -511,3 +511,22 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - fresh-context独审核实际增长/墓碑、三source模式、完整集合与Resource边界，无新
   阻断。fmt/check/clippy(workspace/all-targets、-D warnings)/build四项通过。Map私有
   负控、新安全义务矩阵及当前head完整CI仍待，F继续active，不合并或进入D10。
+
+## 34. Map 私有拒绝合同的 CI 注册（2026-10-18）
+
+- 新增三项 CI 专用 Rust 测试，正常 lib 模块注册：single/unit 各八种前端私有
+  Map 事实损坏，以及两入口各八种真实 lowering 后 SSA 损坏，共拟执行32次拒绝观察。
+  基线均来自真实合法源码和完整准入，每个 fault 从原产物恢复后单独损坏；不手造
+  Map 计划来替代生产 checker，也不把验证器的修复视作成功。
+- 前端核缺计划、外源/loan、K/V类型与binding交换、缺Exhaustion、结束顺序及提前
+  EndSource；single 精确首个拒绝原因及原For span，unit 在实际header/完整cleanup
+  guard拒绝且不能发布owned capability，拒绝后保留恢复输入。
+- SSA 核错误游标类型、伪造游标来源、错误source类型、提前EndSource、key或value
+  活跃时Next、错误K分量类型，以及同类型新lease配原cursor的来源不匹配。精确核
+  原指令ID、origin、错误kind/reason；新增合法当前块reborrow避免靠遗漏CFG运输拒绝。
+- 独审发现并修正缺Exhaustion的首序oracle（先拒绝孤立cleanup），并补同类型lease
+  门，未发现需生产修复的证据。既有core脚本的frontend `--lib`、codegen全选会在
+  双host CI消费三项，不新增忽略或本机跳过分支。
+- 本机只做fmt、两crate测试编译、clippy/all-targets/-D warnings、no-run和list注册
+  核对；没有运行上述反例。32次是待CI执行量，不记作本机通过数。新head远端完整
+  CI及Linux动态证据另记，macOS sanitizer继续partial；F仍active。

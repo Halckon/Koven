@@ -2,6 +2,7 @@
 //! 不执行 native，不以当前 lower 的 UnsupportedNode 债务作为通过条件。
 
 mod borrowed;
+mod ci_contracts;
 mod conditional;
 mod facts;
 mod fixture;
