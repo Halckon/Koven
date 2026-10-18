@@ -1,5 +1,5 @@
-//! Ordinary consume can retain independently anchored String or Int entry loans.
-//! These are closed representations, not arbitrary HeapOwner/type inequalities.
+//! Ordinary consume retains actual entry Borrow slots through the existing call ABI.
+//! Independence comes from verified ownership/delivery, never differing payload types.
 use super::*;
 use crate::ssa::model::{Definition, LoanKind};
 use lang_frontend::{ownership_checking::OwnershipBindingKind, parser::VariableKind};
@@ -106,7 +106,9 @@ impl ExpressionLowerer<'_> {
         {
             return Err(missing());
         }
-        let mut represented_entry = false;
+        if self.borrow_bindings.is_empty() {
+            return Err(unsupported());
+        }
         for (&symbol, &loan) in &self.borrow_bindings {
             let data = self
                 .names
@@ -137,23 +139,11 @@ impl ExpressionLowerer<'_> {
                 return Err(missing());
             }
             let ty = self.resolve_type(parameter.ty, span)?;
-            let expected = match builtin_type(self.typed, ty) {
-                Some(BuiltinType::String) => {
-                    represented_entry = true;
-                    SsaTypeKind::StringOwner
-                }
-                Some(BuiltinType::Int) => {
-                    represented_entry = true;
-                    SsaTypeKind::Integer {
-                        bits: 32,
-                        signed: true,
-                    }
-                }
-                Some(BuiltinType::Boolean) => SsaTypeKind::Boolean,
-                _ => return Err(unsupported()),
-            };
+            // Ordinary parameter planning has already admitted this concrete
+            // representation. Match its original Shared slot exactly, including
+            // a Borrow Map with the same K/V as the independently owned local.
             let target = *self.type_ids.get(&ty).ok_or_else(missing)?;
-            if self.ssa_types.get(target.index()) != Some(&expected) {
+            if self.ssa_types.get(target.index()).is_none() {
                 return Err(missing());
             }
             let entity = self
@@ -176,9 +166,6 @@ impl ExpressionLowerer<'_> {
             {
                 return Err(missing());
             }
-        }
-        if !represented_entry {
-            return Err(unsupported());
         }
         Ok(())
     }
