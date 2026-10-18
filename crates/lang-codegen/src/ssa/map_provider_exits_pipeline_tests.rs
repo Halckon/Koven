@@ -5,6 +5,7 @@ mod borrowed;
 mod conditional;
 mod facts;
 mod fixture;
+mod history;
 mod identity;
 mod local_sources;
 mod nested;
@@ -21,6 +22,7 @@ mod temporary_exits;
 
 pub(crate) use borrowed::sources as borrowed_exit_sources;
 pub(crate) use conditional::sources as conditional_sources;
+pub(crate) use history::sources as history_sources;
 pub(crate) use local_sources::native_sources as local_native_sources;
 pub(crate) use nested::sources as nested_sources;
 pub(crate) use nested_exits::native_sources as nested_exit_sources;

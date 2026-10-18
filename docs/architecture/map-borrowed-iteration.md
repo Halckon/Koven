@@ -85,3 +85,11 @@ SSA 查询全部可达 block/incoming 的 owner/source/cursor 列、两分量/re
 分支是真实 Abort，只有此测试显式允许它；其他图查询保留原严格终止合同。
 四次完整 SSA/LLVM 通过；普通 local native 的四个产物也在同版固定头复验。该查询
 没有合成事实、调用 lower 私有资格证明或据 arena 数字认身份，不扩大 local/CFG 支持。
+
+## provider 的普通顺序历史
+
+`map_provider_exits_pipeline_tests::history` 共21份正常源码，在单项、覆盖保位、删除
+重插、增长、碰撞墓碑之后调用真实provider；String/String覆盖own Map、Borrow Map与
+Borrow MutableMap，Resource覆盖不涉及remove的单项/覆盖/增长两种既有owner模式。
+双入口42条pipeline及42个普通native产物通过。它们补充0291链探针，而非用探针代替
+For执行；Resource marker只证明聚合数量和清理区间，不扩nullable或保证跨entry析构序。

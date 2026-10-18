@@ -493,3 +493,21 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - 此片只补CI执行选择；原active20/10历史全文仍不能映射，后续按Guide安全义务建立
   可审查新矩阵，不把原字节缺失当永久阻断，也不声称恢复或等价。真实provider顺序
   历史native与Map专用私有负控分别补证；新head完整双host CI另记，F不标done或合并。
+
+## 33. 真实 provider 顺序历史与 owner 普通验收（2026-10-18）
+
+- 新增普通source集合21份：单项/覆盖保位/删除重插置尾/20键增长/碰撞墓碑五历史，
+  各走own Map、Borrow Map及Borrow MutableMap；Resource仅前三种不涉及remove的
+  singleton/overwrite/growth，各走own Map/Borrow MutableMap，共15+6。不扩Resource
+  remove的nullable结果路径；已有empty、各退出与嵌套证据保持原集合。
+- 源码直接调用put/remove/consume再实际For；20个不同键按当前阈值触发16→32扩容，
+  a/q/A初始碰撞且删除a/A留下墓碑。golden按独立逻辑顺序及marker合同指定，不读取
+  编译产物推期望；同一实际source集合完整交给两入口pipeline与独立普通native。
+- pipeline首次42格全部完整FE/validator/SSA/LLVM成功；sourcebuilder等价简化后重跑
+  仍42格通过。两项native测试42产物逐个exit0/完整golden/空stderr，0失败/忽略。
+  Resource覆盖的旧值在before-scan前清理；own剩余值在exhausted后/after-scan前，
+  Borrow剩余值在after-scan后清理；marker证明聚合数量及区间，不冒称逐对象身份或
+  跨entry析构顺序，也不替代Linux动态检测或内存计数。
+- fresh-context独审核实际增长/墓碑、三source模式、完整集合与Resource边界，无新
+  阻断。fmt/check/clippy(workspace/all-targets、-D warnings)/build四项通过。Map私有
+  负控、新安全义务矩阵及当前head完整CI仍待，F继续active，不合并或进入D10。
