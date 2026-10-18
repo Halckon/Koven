@@ -372,3 +372,8 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   raw留仓外current-final/publication，简要命令/收据与binary/full-index格式补丁保留
   本机任务目录；不上传大日志。Borrow直接退出、Resource后端扩展、local深查询仍待。
   F继续active；未运行本机故障注入或sanitizer对照，macOS sanitizer仍partial，D10未开始。
+
+- 首次当前head PR119 run39097655959真实失败：docs policy 的 composition 总数仍锁112，
+  实际新增两目标后为114；389项Python中1项失败。clippy/test/四preview均跳过，
+  code-evidence和CI Passed失败，不能计通过。修正总数并追加两目标各一次硬断言；
+  该helper含stub与失败注入分支，只交远端执行，本机不运行其整个class/suite。
