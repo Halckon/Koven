@@ -160,6 +160,7 @@ pub(super) fn qualify<'a>(
         owner: Some(proof),
         body_exit: IterationExitKind::Fallthrough,
         conditional: None,
+        nested: None,
     })
 }
 

@@ -64,6 +64,7 @@ impl ExpressionLowerer<'_> {
         source: SourceIdentity,
         container: SsaTypeId,
         origin: Span,
+        nested: Option<nested::Pair>,
         span: Span,
     ) -> Result<EntityId, LoweringError> {
         let missing = || error(LoweringErrorKind::MissingFact, span);
@@ -79,6 +80,15 @@ impl ExpressionLowerer<'_> {
                     Some(Definition::BlockParameter { block, .. }) if block == entry)
                 {
                     return Err(missing());
+                }
+                if nested.is_some() {
+                    let EntityId::Loan(_) = seed else {
+                        return Err(missing());
+                    };
+                    let current =
+                        EntityId::Loan(*self.borrow_bindings.get(&symbol).ok_or_else(missing)?);
+                    nested::transport(self.function, current, seed, span)?;
+                    return Ok(current);
                 }
                 Ok(seed)
             }

@@ -3,6 +3,7 @@ mod carrier;
 mod conditional;
 mod exit_shape;
 mod exits;
+mod nested;
 mod qualify;
 mod source;
 mod source_owner;
@@ -91,7 +92,7 @@ impl ExpressionLowerer<'_> {
         if descriptor.source() != source || qualified.body != body {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        if !self.loops.is_empty()
+        if (!self.loops.is_empty() && qualified.nested.is_none())
             || self.thunk_expression.is_some()
             || self.readonly_receiver.is_some()
             || !self.pending_call_loans.is_empty()
@@ -146,7 +147,13 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let seed = self.map_iteration_seed(source_identity, container, source_origin, span)?;
+        let seed = self.map_iteration_seed(
+            source_identity,
+            container,
+            source_origin,
+            qualified.nested,
+            span,
+        )?;
         let source_loan = match (plan.source_access(), seed) {
             (
                 MapIterationSourceAccess::Owned | MapIterationSourceAccess::Temporary,
@@ -232,6 +239,13 @@ impl ExpressionLowerer<'_> {
                 .slots
                 .push(LinearBindingSlot::new(Some(binding), entity, ty));
         }
+        let nested_checkpoint = self.prepare_map_nested(
+            qualified.nested,
+            statement,
+            source_identity,
+            &mut carried,
+            span,
+        )?;
         let source_slot = carried.slots.len();
         let cursor_slot = source_slot + 1;
         let mut types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
@@ -273,6 +287,8 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.block = header;
         self.bindings = self.rebind_linear_bindings(&baseline, header, &carried, span)?;
+        let parent_header =
+            self.rebind_map_parent(nested_checkpoint, None, preheader, header, span)?;
         let header_parameters = self.map_iteration_parameters(header, span)?;
         let (header_source, header_cursor) =
             roles(&header_parameters, source_slot, cursor_slot, span)?;
@@ -303,9 +319,13 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.block = exhausted;
         self.bindings = self.rebind_linear_bindings(&baseline, exhausted, &carried, span)?;
+        let parent_exhausted =
+            self.rebind_map_parent(nested_checkpoint, parent_header, header, exhausted, span)?;
         let false_exit = self.branch_exit(LoweredValue::Unit);
         self.block = body_block;
         self.bindings = self.rebind_linear_bindings(&baseline, body_block, &carried, span)?;
+        let parent_body =
+            self.rebind_map_parent(nested_checkpoint, parent_header, header, body_block, span)?;
         let body_parameters = self.map_iteration_parameters(body_block, span)?;
         let (body_source, body_cursor) = roles(&body_parameters, source_slot, cursor_slot, span)?;
         let key = self.map_iteration_loan(
@@ -343,6 +363,21 @@ impl ExpressionLowerer<'_> {
             &body_parameters,
             span,
         )?;
+        let parent = nested::parent(
+            nested_checkpoint,
+            [preheader, header, body_block, exhausted],
+            parent_header,
+            parent_body,
+            parent_exhausted,
+            span,
+        )?;
+        let nested = self.map_nested_state(
+            qualified.nested,
+            source_identity,
+            (body_source, body_cursor, [key, value]),
+            parent,
+            span,
+        )?;
         self.loops.push(loop_control::LoopContext {
             entry_views: self.non_null_bindings.clone(),
             outer_borrowed_while: None,
@@ -373,12 +408,15 @@ impl ExpressionLowerer<'_> {
                 returned: None,
                 cleanup_start: None,
                 conditional: qualified.conditional.map(conditional::State::new),
+                nested,
             }),
         });
         // The exact selected exit owns the body cleanup point. A real transfer
         // is already Diverged and must not acquire a synthetic fallthrough/Next.
         let result = self.lower_statement_inner(body)?;
-        if (qualified.conditional.is_none() && self.block != body_block)
+        if (qualified.conditional.is_none()
+            && qualified.nested.is_none()
+            && self.block != body_block)
             || (result == LoweredValue::Diverged) == (body_exit == IterationExitKind::Fallthrough)
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
@@ -406,7 +444,9 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         // Restore every ordinary owner/loan slot from the independent false edge.
-        self.merge_exits(vec![false_exit], &baseline, span)?;
+        if self.merge_exits(vec![false_exit], &baseline, span)? != LoweredValue::Unit {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
         let exhausted_parameters = self.map_iteration_parameters(exhausted, span)?;
         let (exhausted_source, _) = roles(&exhausted_parameters, source_slot, cursor_slot, span)?;
         let mut frame = Frame {
@@ -438,11 +478,17 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        self.restore_map_parent(state.nested.as_ref().and_then(|nested| nested.parent), span)?;
+        if qualified.nested.is_some() && !context.breaks.is_empty() {
+            return Err(error(LoweringErrorKind::MissingFact, span));
+        }
         context.breaks.push(self.branch_exit(LoweredValue::Unit));
         self.merge_exits(context.breaks, &baseline, span)?;
         carrier::Evidence {
             function: self.function,
             conditional: state.conditional.as_ref(),
+            nested: state.nested.as_ref(),
+            cleanup_body: state.body,
             seed,
             source: source_loan,
             first,
@@ -545,7 +591,11 @@ impl ExpressionLowerer<'_> {
         carried
             .slots
             .iter()
-            .map(|slot| {
+            .enumerate()
+            .map(|(column, slot)| {
+                if let Some(entity) = self.map_nested_private_argument(column, span)? {
+                    return Ok(entity);
+                }
                 if let Some(symbol) = slot.symbol {
                     return match self.bindings.get(&symbol) {
                         Some(LoweredValue::Value(owner)) => Ok(EntityId::Value(*owner)),

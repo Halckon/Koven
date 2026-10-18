@@ -13,6 +13,10 @@ pub(super) struct MapCarrier {
     pub(super) exhaustion_point: UnitDropPoint,
     pub(super) header: BlockId,
     pub(super) body: BlockId,
+    pub(super) resumed: Option<nested::ParentRoles>,
+    pub(super) nested: Option<map_iteration::QualifiedNested>,
+    pub(super) anchor: EntityId,
+    preheader: BlockId,
     pub(super) exhaustion: BlockId,
     seed_column: usize,
     source_column: usize,
@@ -54,27 +58,22 @@ impl MapCarrier {
         } = *birth;
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         let function = &lowerer.function;
-        match qualified.source {
+        let anchor = match qualified.source {
             SourceIdentity::Parameter { slot, .. } => {
                 let entry = function.entry_block().ok_or_else(bad)?;
-                if function
-                    .block(entry)
-                    .and_then(|block| block.parameters.get(slot))
-                    .copied()
-                    != Some(seed)
-                    || function.entity(seed).map(|entity| entity.definition)
-                        != Some(Definition::BlockParameter {
-                            block: entry,
-                            index: slot,
-                        })
-                {
+                let anchor = transport::parameter(function, entry, slot, span)?;
+                if qualified.nested.is_some() {
+                    transport::from_anchor(function, seed, anchor, span)?;
+                } else if anchor != seed {
                     return Err(bad());
                 }
+                anchor
             }
             SourceIdentity::Temporary(expression) => {
                 source::validate_temporary_birth(lowerer, expression, seed, preheader, span)?;
+                seed
             }
-        }
+        };
         if edge.target != header
             || !matches!(function.block(preheader).and_then(|block| block.terminator.as_ref()).map(|term| &term.kind), Some(TerminatorKind::Branch(actual)) if actual == edge)
         {
@@ -131,6 +130,10 @@ impl MapCarrier {
             exhaustion_point: UnitDropPoint::LoopExit(qualified.statement),
             header,
             body,
+            resumed: None,
+            nested: qualified.nested,
+            anchor,
+            preheader,
             exhaustion,
             seed_column: slot(seed)?,
             source_column: slot(EntityId::Loan(source))?,
@@ -226,13 +229,14 @@ impl MapCarrier {
         if lowerer.block != block {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
-        let seed = self.parameter(lowerer.function, block, self.seed_column, span)?;
-        let source = self.parameter(lowerer.function, block, self.source_column, span)?;
-        let cursor = self.parameter(lowerer.function, block, self.cursor_column, span)?;
+        let [seed, source, cursor] = self.current_entities(lowerer.function, block, span)?;
         if lowerer.pending_operands.get(source_slot) != Some(&source)
             || lowerer.pending_operands.get(cursor_slot) != Some(&cursor)
         {
             return Err(bad());
+        }
+        if self.nested.is_some() {
+            transport::from_anchor(lowerer.function, seed, self.anchor, span)?;
         }
         if self.identity.current(lowerer, span)? != seed
             || !matches!(
@@ -253,30 +257,27 @@ impl MapCarrier {
         span: Span,
     ) -> Result<(), LoweringError> {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
+        let body = self.active_body();
+        let [seed, source, cursor] = self.current_entities(lowerer.function, body, span)?;
         let Some(TerminatorKind::Branch(edge)) = lowerer
             .function
-            .block(self.body)
+            .block(body)
             .and_then(|block| block.terminator.as_ref())
             .map(|term| &term.kind)
         else {
             return Err(bad());
         };
         if edge.target != self.header
-            || lowerer.block != self.body
-            || self.identity.current(lowerer, span)?
-                != self.parameter(lowerer.function, self.body, self.seed_column, span)?
+            || lowerer.block != body
+            || self.identity.current(lowerer, span)? != seed
         {
             return Err(bad());
         }
-        for column in [self.seed_column, self.source_column] {
-            if edge.arguments.get(column).copied()
-                != Some(self.parameter(lowerer.function, self.body, column, span)?)
-            {
+        for (column, entity) in [(self.seed_column, seed), (self.source_column, source)] {
+            if edge.arguments.get(column).copied() != Some(entity) {
                 return Err(bad());
             }
         }
-        let source = self.parameter(lowerer.function, self.body, self.source_column, span)?;
-        let cursor = self.parameter(lowerer.function, self.body, self.cursor_column, span)?;
         let (EntityId::Loan(source), EntityId::Value(cursor)) = (source, cursor) else {
             return Err(bad());
         };
@@ -286,14 +287,52 @@ impl MapCarrier {
             .copied()
             .ok_or_else(bad)?;
         let advance = instruction(lowerer.function, next, span)?;
-        if advance.block != self.body
+        if advance.block != body
             || advance.operation != (Operation::MapIterationNext { source, cursor })
             || lowerer.pending_operands.get(source_slot) != Some(&EntityId::Loan(source))
             || lowerer.pending_operands.get(cursor_slot) != Some(&next)
         {
             return Err(bad());
         }
+        if self.nested.is_some() {
+            let incoming = transport::incoming(lowerer.function, self.header);
+            if incoming.len() != 2
+                || incoming
+                    .iter()
+                    .filter(|(block, _)| *block == self.preheader)
+                    .count()
+                    != 1
+                || incoming.iter().filter(|(block, _)| *block == body).count() != 1
+            {
+                return Err(bad());
+            }
+            transport::from_anchor(lowerer.function, seed, self.anchor, span)?;
+        }
         Ok(())
+    }
+
+    pub(super) fn active_body(&self) -> BlockId {
+        self.resumed.map_or(self.body, |roles| roles.block)
+    }
+
+    fn current_entities(
+        &self,
+        function: &crate::ssa::model::Function,
+        block: BlockId,
+        span: Span,
+    ) -> Result<[EntityId; 3], LoweringError> {
+        if let Some(roles) = self.resumed.filter(|roles| roles.block == block) {
+            return Ok([
+                roles.caller,
+                EntityId::Loan(roles.source),
+                EntityId::Value(roles.cursor),
+            ]);
+        }
+        Ok([
+            self.parameter(function, block, self.seed_column, span)?,
+            self.parameter(function, block, self.source_column, span)?,
+            self.parameter(function, block, self.cursor_column, span)?,
+        ])
     }
 
     pub(super) fn validate_return(

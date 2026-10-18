@@ -15,6 +15,7 @@ pub(super) struct Qualified<'a> {
     pub(super) owner: Option<source_owner::Proof>,
     pub(super) body_exit: IterationExitKind,
     pub(super) conditional: Option<conditional::Shape>,
+    pub(super) nested: Option<nested::Pair>,
 }
 
 pub(in super::super) fn validate(
@@ -37,6 +38,44 @@ pub(super) fn qualify<'a>(
     typed: &TypedFile,
     owned: &'a OwnershipCheckedFile,
     descriptor: MapIterationDescriptor,
+) -> Result<Qualified<'a>, LoweringError> {
+    let nested = nested::qualify::pair(parsed, typed, owned, descriptor)?;
+    let qualified = qualify_one(parsed, names, typed, owned, descriptor, nested)?;
+    if let Some(pair) = nested {
+        let other = if descriptor.statement() == pair.outer {
+            pair.inner
+        } else {
+            pair.outer
+        };
+        let other = typed
+            .map_iteration(other)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, qualified.origin))?;
+        // The sorted descriptor is the capability admission unit for the pair.
+        // Preserve corruption diagnostics, but do not leak the partner's later U span.
+        let current_span = parsed
+            .ast()
+            .statements()
+            .get(descriptor.statement())
+            .map_err(|_| error(LoweringErrorKind::MissingFact, qualified.origin))?
+            .span();
+        qualify_one(parsed, names, typed, owned, *other, nested).map_err(|failure| {
+            if failure.kind == LoweringErrorKind::UnsupportedNode {
+                error(LoweringErrorKind::UnsupportedNode, current_span)
+            } else {
+                failure
+            }
+        })?;
+    }
+    Ok(qualified)
+}
+
+fn qualify_one<'a>(
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    typed: &TypedFile,
+    owned: &'a OwnershipCheckedFile,
+    descriptor: MapIterationDescriptor,
+    nested: Option<nested::Pair>,
 ) -> Result<Qualified<'a>, LoweringError> {
     let node = parsed
         .ast()
@@ -118,8 +157,10 @@ pub(super) fn qualify<'a>(
     }
     if !matches!(
         (descriptor.kind(), mode),
-        (MapIterationKind::Map, ParameterMode::Value)
-            | (MapIterationKind::MutableMap, ParameterMode::Borrow)
+        (
+            MapIterationKind::Map,
+            ParameterMode::Value | ParameterMode::Borrow
+        ) | (MapIterationKind::MutableMap, ParameterMode::Borrow)
     ) {
         return Err(unsupported());
     }
@@ -158,15 +199,25 @@ pub(super) fn qualify<'a>(
         }
     }
     // AST only bounds capability. Phase 3 remains the source of exit/cleanup facts.
-    if has_enclosing_control(parsed, span) {
+    if nested.is_none() && has_enclosing_control(parsed, span) {
         return Err(unsupported());
     }
-    let conditional = conditional::shape(parsed, names, typed, descriptor, *body, span)?;
-    let body_exit = if conditional.is_some() {
+    let conditional = if nested.is_some() {
+        None
+    } else {
+        conditional::shape(parsed, names, typed, descriptor, *body, span)?
+    };
+    let body_exit = if conditional.is_some() || nested.is_some() {
         IterationExitKind::Fallthrough
     } else {
         exit_shape::body_exit(parsed, names, typed, descriptor, *body, span)?
     };
+    if descriptor.kind() == MapIterationKind::Map
+        && mode == ParameterMode::Borrow
+        && (conditional.is_some() || body_exit != IterationExitKind::Fallthrough)
+    {
+        return Err(unsupported());
+    }
     if conditional.is_some() || matches!(body_exit, IterationExitKind::Return(_)) {
         let callable = unique(
             typed
@@ -189,9 +240,13 @@ pub(super) fn qualify<'a>(
             owner,
             body_exit,
             conditional,
+            nested,
         });
     }
     exit_shape::cleanup(owned, plan, *body, body_exit, span)?;
+    if nested.is_some() {
+        nested::qualify::cleanup(owned, plan, *body, span)?;
+    }
     let exhaustion = unique(
         plan.exits()
             .iter()
@@ -216,6 +271,7 @@ pub(super) fn qualify<'a>(
         owner,
         body_exit,
         conditional: None,
+        nested,
     })
 }
 

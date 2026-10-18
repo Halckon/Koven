@@ -1,5 +1,6 @@
 //! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
 mod conditional;
+mod nested;
 mod source_identity;
 mod temporary;
 use super::*;
@@ -26,6 +27,13 @@ pub(super) struct QualifiedMap {
     pub(super) body_exit: UnitIterationExitKind,
     pub(super) body_point: UnitDropPoint,
     pub(super) conditional: Option<QualifiedConditional>,
+    pub(super) nested: Option<QualifiedNested>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) struct QualifiedNested {
+    pub(super) outer: UnitStatementId,
+    pub(super) inner: UnitStatementId,
 }
 
 #[derive(Clone, Copy)]
@@ -63,6 +71,20 @@ pub(super) fn qualify(
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     descriptor: &UnitMapIterationDescriptor,
+) -> Result<QualifiedMap, LoweringError> {
+    if let Some(pair) = nested::pair(parsed, descriptor.statement())? {
+        return nested::qualify(parsed, names, typed, owned, descriptor, pair);
+    }
+    qualify_one(parsed, names, typed, owned, descriptor, None)
+}
+
+fn qualify_one(
+    parsed: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    descriptor: &UnitMapIterationDescriptor,
+    nested: Option<QualifiedNested>,
 ) -> Result<QualifiedMap, LoweringError> {
     let statement = descriptor.statement();
     let node = parsed
@@ -106,6 +128,9 @@ pub(super) fn qualify(
         .get(*source)
         .map_err(|_| missing())?;
     if matches!(source_node.payload(), Expression::Call { .. }) {
+        if nested.is_some() {
+            return Err(unsupported());
+        }
         return temporary::qualify(parsed, names, typed, owned, descriptor, *body, span);
     }
     if !matches!(source_node.payload(), Expression::Name) {
@@ -208,7 +233,7 @@ pub(super) fn qualify(
             OwnershipBindingKind::Owned,
             UnitIterationSourceAccess::Owned
         ) | (
-            MapIterationKind::MutableMap,
+            MapIterationKind::Map | MapIterationKind::MutableMap,
             ParameterMode::Borrow,
             OwnershipBindingKind::Shared,
             UnitIterationSourceAccess::Shared
@@ -246,13 +271,32 @@ pub(super) fn qualify(
             return Err(missing());
         }
     }
-    reject_nested(parsed, statement.statement(), span)?;
-    let mut conditional = conditional::qualify_body(parsed, names, typed, descriptor, *body, span)?;
-    let body_exit = if conditional.is_some() {
+    if nested.is_some()
+        && (parameter.mode() != ParameterMode::Borrow
+            || builtin_type(typed, descriptor.key_type()) != Some(BuiltinType::String)
+            || builtin_type(typed, descriptor.value_type()) != Some(BuiltinType::String))
+    {
+        return Err(unsupported());
+    }
+    if nested.is_none() {
+        reject_nested(parsed, statement.statement(), span)?;
+    }
+    let mut conditional = if nested.is_some() {
+        None
+    } else {
+        conditional::qualify_body(parsed, names, typed, descriptor, *body, span)?
+    };
+    let body_exit = if nested.is_some() || conditional.is_some() {
         UnitIterationExitKind::Fallthrough
     } else {
         qualify_body(parsed, names, typed, descriptor, *body, span)?
     };
+    if descriptor.kind() == MapIterationKind::Map
+        && parameter.mode() == ParameterMode::Borrow
+        && (conditional.is_some() || body_exit != UnitIterationExitKind::Fallthrough)
+    {
+        return Err(unsupported());
+    }
     if (conditional.is_some() || matches!(body_exit, UnitIterationExitKind::Return(_)))
         && builtin_type(typed, *return_type) != Some(BuiltinType::Int)
     {
@@ -311,6 +355,7 @@ pub(super) fn qualify(
         body_exit,
         body_point,
         conditional,
+        nested,
     })
 }
 

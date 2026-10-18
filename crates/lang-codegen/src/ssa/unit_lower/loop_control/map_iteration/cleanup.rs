@@ -76,6 +76,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(bad());
         };
         let loan = self.map_pending_source(slot, span)?;
+        self.validate_nested_component(state, symbol, loan, span)?;
         if self.borrow_bindings.remove(&symbol) != Some(loan) {
             return Err(bad());
         }

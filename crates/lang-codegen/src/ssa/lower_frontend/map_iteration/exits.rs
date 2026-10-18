@@ -16,6 +16,7 @@ pub(in super::super) struct Context {
     pub(super) returned: Option<ValueId>,
     pub(super) cleanup_start: Option<usize>,
     pub(super) conditional: Option<conditional::State>,
+    pub(super) nested: Option<nested::State>,
 }
 
 impl ExpressionLowerer<'_> {

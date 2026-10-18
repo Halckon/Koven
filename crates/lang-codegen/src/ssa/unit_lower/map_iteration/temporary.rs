@@ -227,5 +227,6 @@ pub(super) fn qualify(
         body_exit: UnitIterationExitKind::Fallthrough,
         body_point,
         conditional: None,
+        nested: None,
     })
 }

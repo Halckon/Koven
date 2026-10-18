@@ -6,20 +6,28 @@ use lang_frontend::type_checking::{UnitCallTarget, UnitCallableTarget};
 impl UnitExpressionLowerer<'_> {
     pub(super) fn map_source_seed(
         &mut self,
-        identity: SourceIdentity,
+        qualified: map_iteration::QualifiedMap,
         access: UnitIterationSourceAccess,
         container: SsaTypeId,
         span: Span,
     ) -> Result<(EntityId, LoanId), LoweringError> {
         let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
+        let identity = qualified.source;
         let seed = match identity {
-            SourceIdentity::Parameter { slot, .. } => self
-                .function
-                .entry_block()
-                .and_then(|entry| self.function.block(entry))
-                .and_then(|block| block.parameters.get(slot))
-                .copied()
-                .ok_or_else(missing)?,
+            SourceIdentity::Parameter { slot, .. } => {
+                let entry = self.function.entry_block().ok_or_else(missing)?;
+                let anchor = transport::parameter(self.function, entry, slot, span)?;
+                if qualified
+                    .nested
+                    .is_some_and(|pair| pair.inner == qualified.statement)
+                {
+                    let current = identity.current(self, span)?;
+                    transport::from_anchor(self.function, current, anchor, span)?;
+                    current
+                } else {
+                    anchor
+                }
+            }
             SourceIdentity::Temporary(expression) => {
                 if access != UnitIterationSourceAccess::Temporary
                     || expression.source_unit() != self.source_unit

@@ -6,6 +6,8 @@ use crate::ssa::model::Instruction;
 pub(super) struct Evidence<'a> {
     pub(super) function: &'a Function,
     pub(super) conditional: Option<&'a conditional::State>,
+    pub(super) nested: Option<&'a nested::State>,
+    pub(super) cleanup_body: BlockId,
     pub(super) seed: EntityId,
     pub(super) source: LoanId,
     pub(super) first: ValueId,
@@ -31,6 +33,8 @@ impl Evidence<'_> {
         let Self {
             function,
             conditional,
+            nested,
+            cleanup_body,
             seed,
             source,
             first,
@@ -172,6 +176,21 @@ impl Evidence<'_> {
         if let Some(state) = conditional {
             return conditional::validate(self, state);
         }
+        let (body, body_source, body_cursor, key, value) = if let Some(nested) = nested {
+            let roles = nested.validate(self)?;
+            (
+                cleanup_body,
+                roles.source,
+                roles.cursor,
+                roles.key,
+                roles.value,
+            )
+        } else {
+            if cleanup_body != body {
+                return Err(missing());
+            }
+            (body, body_source, body_cursor, key, value)
+        };
         let body_instructions = instructions(function, body).ok_or_else(missing)?;
         let end_position =
             |loan| {

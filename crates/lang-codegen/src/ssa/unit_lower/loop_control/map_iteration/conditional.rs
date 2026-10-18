@@ -231,7 +231,7 @@ fn transport_entity(
 impl MapState {
     pub(super) fn body_block(self) -> BlockId {
         self.conditional
-            .map_or(self.carrier.body, |state| state.roles.block)
+            .map_or(self.carrier.active_body(), |state| state.roles.block)
     }
 
     pub(super) fn terminal_block(
