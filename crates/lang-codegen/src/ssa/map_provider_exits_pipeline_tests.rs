@@ -202,3 +202,6 @@ pub(crate) use local_resources::sources as local_resource_sources;
 
 mod local_future;
 pub(crate) use local_future::sources as local_future_sources;
+
+mod local_reassignment;
+pub(crate) use local_reassignment::sources as local_reassignment_sources;

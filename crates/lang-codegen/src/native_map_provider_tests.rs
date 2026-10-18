@@ -192,3 +192,6 @@ mod local_resources;
 
 #[path = "native_map_provider_local_future_tests.rs"]
 mod local_future;
+
+#[path = "native_map_provider_local_reassignment_tests.rs"]
+mod local_reassignment;

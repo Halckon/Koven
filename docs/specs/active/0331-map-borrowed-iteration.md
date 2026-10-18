@@ -959,3 +959,12 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   source/late/transfer fact，再核原Call与全部incoming。Pure local后用108条SSA/LLVM首绿，
   native及新增原FE深查询仍在验；Resource强图36条Unit清理origin查询与terminal当前owner
   列finding正在修正，故本检查点不声明最终验收或F完成。
+
+
+## 51. G2 local 重新赋值的真实首红（2026-10-18）
+
+- 18份普通源覆盖Map/MutableMap×Pure String/String、字段Resource、混合nullable Resource×
+  首For前替换、首For后替换再For、替换后Move到alias再For。每源非空/空factory实际调用，
+  make/other具有不同键值、start/ready与Resource marker以识别真实producer。36双入口
+  全部完整FE后在原For Unsupported，Rust真实0通过/1失败/0忽略；尚未本片native验收。
+  专属原FE/SSA深查询待补，不能把该红观察提升为重新赋值支持。
