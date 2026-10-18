@@ -5,6 +5,7 @@ mod conditional;
 mod facts;
 mod fixture;
 mod identity;
+mod nested;
 mod pipeline;
 mod query_cleanup;
 mod query_graph;
