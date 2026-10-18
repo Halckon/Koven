@@ -29,18 +29,13 @@ impl DropPlanner<'_, '_> {
         ) {
             return false;
         }
-        if self
-            .checker
+        self.checker
             .typed
             .signatures()
             .declarations()
             .iter()
             .filter_map(|declaration| declaration.nominal())
             .all(|nominal| !nominal.has_deinit())
-        {
-            return true;
-        }
-        false
     }
 
     /// Read the replacement environment before Consume removes its captured owners.
