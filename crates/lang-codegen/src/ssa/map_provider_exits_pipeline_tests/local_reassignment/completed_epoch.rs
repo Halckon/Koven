@@ -411,7 +411,7 @@ fn observed(case: &Case, unit_mode: bool) -> Result<(), Failure> {
     let (program, _) = lowered?;
     report.query(
         "completed event actual SSA identity",
-        &graph(case, &sources, &parsed, &program, unit_mode),
+        &graph(case, &sources, &parsed, &program),
     );
     report.query(
         "completed event SSA verifier",
@@ -505,7 +505,6 @@ fn graph(
     sources: &SourceMap,
     parsed: &ParsedFile,
     program: &Program,
-    unit_mode: bool,
 ) -> Result<(), Failure> {
     let module = one(program.modules.iter(), "completed event one module")?;
     for s in sites(sources, parsed)? {
@@ -689,11 +688,7 @@ fn graph(
             new_drop.block == new.block
                 && g.position(new_drop)? == g.position(new)? + 1
                 && new_drop.origin
-                    == Origin::Source(if unit_mode {
-                        span(parsed, s.assignment)
-                    } else {
-                        s.binding
-                    }),
+                    == Origin::Source(span(parsed, s.assignment)),
             "new complete installation ASAP Drop has its own event origin",
             new_drop,
         )?;

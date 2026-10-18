@@ -89,70 +89,89 @@ pub(super) fn future_reference(
         })
 }
 
-/// A replacement RHS finishes while the old binding still owns its value.
-/// Its cleanup belongs to that old epoch; the new epoch begins after this point.
+/// Preserve the actual FE event: finishing an RHS and finishing its enclosing
+/// assignment have the same end offset, but install different binding epochs.
+#[derive(Clone, Copy)]
+pub(super) struct DropEvent {
+    pub span: lang_frontend::source::Span,
+    after_expression: Option<ExpressionId>,
+}
+impl DropEvent {
+    fn installs(self, parsed: &ParsedFile, epoch: &formation::BindingEpoch) -> bool {
+        self.after_expression.is_some_and(|id| {
+            parsed.ast().expressions().get(id).is_ok_and(|node| {
+                node.span() == epoch.origin
+                    && matches!(node.payload(), Expression::Assignment { value, .. } if *value == epoch.rhs)
+            })
+        })
+    }
+}
+
+/// Select the actual epoch first; span equality alone cannot distinguish the
+/// replaced owner's RHS cleanup from the new owner's immediate ASAP cleanup.
 pub(super) fn in_formation<R>(
     parsed: &ParsedFile,
     formation: &Formation<R>,
-    point: lang_frontend::source::Span,
+    event: DropEvent,
 ) -> Result<bool, LoweringError> {
-    let bad = || LoweringError {
-        kind: LoweringErrorKind::MissingFact,
-        span: Some(point),
-    };
-    if point.source_id() != formation.binding.source_id() {
-        return Err(bad());
-    }
-    let end = formation
-        .replacement
-        .map(|id| {
-            parsed
-                .ast()
-                .expressions()
-                .get(id)
-                .map(|n| n.span().end())
-                .map_err(|_| bad())
-        })
-        .transpose()?;
-    Ok(point.end() > formation.binding.end() && end.is_none_or(|end| point.end() <= end))
+    let epoch = epoch_at(parsed, formation, event)?;
+    let rhs = parsed
+        .ast()
+        .expressions()
+        .get(epoch.rhs)
+        .map_err(|_| LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: Some(event.span),
+        })?;
+    Ok(rhs.span() == formation.binding
+        && (event.span.end() > formation.binding.end() || event.installs(parsed, epoch)))
 }
 
-pub(super) fn drop_span(
+pub(super) fn drop_event(
     parsed: &ParsedFile,
     point: lang_frontend::ownership_checking::DropPoint,
-) -> Option<lang_frontend::source::Span> {
+) -> Option<DropEvent> {
     use lang_frontend::ownership_checking::DropPoint as P;
-    match point {
-        P::AfterExpression(e) | P::CallReturn(e) | P::ControlTransfer(e) => {
-            parsed.ast().expressions().get(e).ok().map(|n| n.span())
+    let (span, after_expression) = match point {
+        P::AfterExpression(e) => (parsed.ast().expressions().get(e).ok()?.span(), Some(e)),
+        P::CallReturn(e) | P::ControlTransfer(e) => {
+            (parsed.ast().expressions().get(e).ok()?.span(), None)
         }
         P::AfterStatement(s) | P::LoopExit(s) => {
-            parsed.ast().statements().get(s).ok().map(|n| n.span())
+            (parsed.ast().statements().get(s).ok()?.span(), None)
         }
-        _ => None,
-    }
+        _ => return None,
+    };
+    Some(DropEvent {
+        span,
+        after_expression,
+    })
 }
 
-pub(super) fn unit_drop_span(
+pub(super) fn unit_drop_event(
     parsed: &ParsedFile,
     point: lang_frontend::ownership_checking::UnitDropPoint,
-) -> Option<lang_frontend::source::Span> {
+) -> Option<DropEvent> {
     use lang_frontend::ownership_checking::UnitDropPoint as P;
-    match point {
-        P::AfterExpression(e) | P::CallReturn(e) | P::ControlTransfer(e) => parsed
-            .ast()
-            .expressions()
-            .get(e.expression())
-            .ok()
-            .map(|n| n.span()),
-        P::AfterStatement(s) | P::LoopExit(s) => parsed
-            .ast()
-            .statements()
-            .get(s.statement())
-            .ok()
-            .map(|n| n.span()),
-        _ => None,
-    }
+    let (span, after_expression) = match point {
+        P::AfterExpression(e) => (
+            parsed.ast().expressions().get(e.expression()).ok()?.span(),
+            Some(e.expression()),
+        ),
+        P::CallReturn(e) | P::ControlTransfer(e) => (
+            parsed.ast().expressions().get(e.expression()).ok()?.span(),
+            None,
+        ),
+        P::AfterStatement(s) | P::LoopExit(s) => (
+            parsed.ast().statements().get(s.statement()).ok()?.span(),
+            None,
+        ),
+        _ => return None,
+    };
+    Some(DropEvent {
+        span,
+        after_expression,
+    })
 }
 
 /// Every root Drop belongs to exactly one actual initializer/replacement event.
@@ -160,11 +179,11 @@ pub(super) fn unit_drop_span(
 pub(super) fn epoch_at<'a, R>(
     parsed: &ParsedFile,
     formation: &'a Formation<R>,
-    point: lang_frontend::source::Span,
+    event: DropEvent,
 ) -> Result<&'a formation::BindingEpoch, LoweringError> {
     let bad = || LoweringError {
         kind: LoweringErrorKind::MissingFact,
-        span: Some(point),
+        span: Some(event.span),
     };
     let mut selected = None;
     let mut end = None;
@@ -175,12 +194,13 @@ pub(super) fn epoch_at<'a, R>(
             .get(epoch.rhs)
             .map_err(|_| bad())?
             .span();
-        if at.source_id() != point.source_id() {
+        if at.source_id() != event.span.source_id() {
             return Err(bad());
         }
-        // An unused initializer drops at its declaration boundary, which may
-        // share the RHS end. Replacement RHS cleanup still precedes installation.
-        if (at.end() < point.end() || (index == 0 && at.end() == point.end()))
+        // AfterExpression(assignment) proves installation. AfterExpression(rhs)
+        // still owns the old value even though both events have the same end.
+        if (at.end() < event.span.end()
+            || (at.end() == event.span.end() && (index == 0 || event.installs(parsed, epoch))))
             && end.is_none_or(|end| at.end() > end)
         {
             selected = Some(epoch);

@@ -345,7 +345,7 @@ impl UnitExpressionLowerer<'_> {
             if !map_iteration::formed::drops(self.parsed, self.owned, root, &formation)?
                 .contains(&fact)
             {
-                let point = crate::ssa::map_source::unit_drop_span(self.parsed, fact.point())
+                let point = crate::ssa::map_source::unit_drop_event(self.parsed, fact.point())
                     .ok_or_else(bad)?;
                 let epoch = crate::ssa::map_source::epoch_at(self.parsed, &formation, point)?;
                 let call = crate::ssa::map_source::epoch_call(self.parsed, epoch.rhs)?;

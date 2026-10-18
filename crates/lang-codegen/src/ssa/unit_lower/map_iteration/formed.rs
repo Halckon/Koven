@@ -270,7 +270,7 @@ pub(in super::super) fn drops(
         .filter(|f| f.target() == UnitDropTarget::Named(root))
     {
         let point =
-            crate::ssa::map_source::unit_drop_span(parsed, fact.point()).ok_or_else(|| {
+            crate::ssa::map_source::unit_drop_event(parsed, fact.point()).ok_or_else(|| {
                 lowering_error(LoweringErrorKind::UnsupportedNode, fact.value_origin())
             })?;
         let epoch = crate::ssa::map_source::epoch_at(parsed, formation, point)?;

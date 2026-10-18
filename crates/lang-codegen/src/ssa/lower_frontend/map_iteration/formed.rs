@@ -236,7 +236,7 @@ pub(super) fn drops(
         .filter(|f| f.target() == lang_frontend::ownership_checking::DropTarget::Named(root))
     {
         let bad = || error(LoweringErrorKind::MissingFact, fact.value_origin());
-        let point = crate::ssa::map_source::drop_span(parsed, fact.point())
+        let point = crate::ssa::map_source::drop_event(parsed, fact.point())
             .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, fact.value_origin()))?;
         let epoch = crate::ssa::map_source::epoch_at(parsed, formation, point)?;
         if fact.capture_slot().is_some() || fact.instance_address().is_some() {
@@ -274,7 +274,7 @@ pub(super) fn drops(
                         owned,
                         (root, producer),
                         owner,
-                        point,
+                        point.span,
                     )?;
                     if fact.value_origin() != formation.declaration
                         || fact.condition() != Some(available)
