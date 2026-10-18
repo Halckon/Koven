@@ -86,7 +86,14 @@ pub(super) fn qualify<'a>(
             .filter(|reference| reference.span() == callee_node.span()),
     )
     .ok_or_else(missing)?;
-    if reference.target() != &ReferenceTarget::Symbol(target)
+    // Name resolution publishes function overload sets even for one declaration;
+    // the typed Call already identifies the selected factory.
+    let matches_factory = match reference.target() {
+        ReferenceTarget::Symbol(symbol) => *symbol == target,
+        ReferenceTarget::OverloadSet(symbols) => symbols.contains(&target),
+        _ => false,
+    };
+    if !matches_factory
         || call.expression() != source
         || !call.arguments().is_empty()
         || call.return_type() != descriptor.source_type()
