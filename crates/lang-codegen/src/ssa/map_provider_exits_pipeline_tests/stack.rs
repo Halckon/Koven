@@ -2,6 +2,8 @@
 mod facts;
 mod query;
 mod runtime;
+mod runtime_owned_resource;
+mod runtime_variants;
 
 use super::{
     Report,
@@ -15,6 +17,8 @@ use lang_frontend::{
 };
 
 pub(crate) use runtime::sources as runtime_sources;
+pub(crate) use runtime_owned_resource::sources as owned_resource_sources;
+pub(crate) use runtime_variants::sources as variant_sources;
 
 pub(crate) struct Case {
     pub label: String,
@@ -183,8 +187,21 @@ fn depth_three_and_inner_conditional_stack_reach_verified_llvm() {
 
 #[test]
 fn populated_empty_inner_and_empty_outer_stack_reach_both_pipelines() {
-    let cases = runtime_sources();
-    assert_eq!(cases.len(), 12);
+    runtime_group(runtime_sources(), 12);
+}
+
+#[test]
+fn owned_resource_same_root_preserves_source_and_cleanup_identity() {
+    runtime_group(owned_resource_sources(), 4);
+}
+
+#[test]
+fn temporary_nullable_and_three_layers_preserve_each_exit() {
+    runtime_group(variant_sources(), 18);
+}
+
+fn runtime_group(cases: Vec<Case>, count: usize) {
+    assert_eq!(cases.len(), count);
     let mut observations = Vec::new();
     for case in cases {
         for unit in [false, true] {
@@ -200,6 +217,6 @@ fn populated_empty_inner_and_empty_outer_stack_reach_both_pipelines() {
             observations.push(result);
         }
     }
-    assert_eq!(observations.len(), 24);
+    assert_eq!(observations.len(), count * 2);
     assert!(observations.iter().all(Result::is_ok), "{observations:#?}");
 }

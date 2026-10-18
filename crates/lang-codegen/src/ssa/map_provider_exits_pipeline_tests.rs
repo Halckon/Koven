@@ -56,7 +56,10 @@ pub(crate) use resource::terminated::sources as resource_break_sources;
 pub(crate) use resource_forms::sources as resource_form_sources;
 pub(crate) use sequential::sources as sequential_sources;
 pub(crate) use source_forms::sources as source_form_sources;
-pub(crate) use stack::runtime_sources as stack_runtime_sources;
+pub(crate) use stack::{
+    Case as StackCase, owned_resource_sources as stack_owned_resource_sources,
+    runtime_sources as stack_runtime_sources, variant_sources as stack_variant_sources,
+};
 pub(crate) use temporary::sources as temporary_sources;
 pub(crate) use temporary_argument_cfg_runtime::sources as temporary_argument_cfg_sources;
 pub(crate) use temporary_arguments::sources as temporary_argument_sources;
