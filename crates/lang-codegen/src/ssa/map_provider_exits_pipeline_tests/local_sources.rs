@@ -1,6 +1,7 @@
 //! 两份本地 named 源的四次 fresh；复杂 owner/Drop 拓扑先采实际事实，不推定。
 //! 仅普通 source → frontend/validator → SSA/LLVM；不执行 native。
 mod ast;
+mod deep;
 mod single;
 mod unit;
 
@@ -52,6 +53,7 @@ fn observe(
     source_hash: &str,
     text: &str,
     unit: bool,
+    deep_query: bool,
 ) -> Observation {
     let mut report = Report::default();
     // SHA 是仓外核验的冻结输入标识，不声称此处运行时计算哈希或执行 native。
@@ -72,6 +74,13 @@ fn observe(
                 &mut report,
                 |names, typed, owned, report| {
                     unit::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+                    if deep_query {
+                        let query = anchors
+                            .as_ref()
+                            .map_err(|e| failure("local deep AST", e))
+                            .and_then(|a| deep::unit(&input, a, names, typed, owned));
+                        report.query("local independent unit last-use obligations", &query);
+                    }
                 },
             )
         } else {
@@ -81,6 +90,16 @@ fn observe(
                 &mut report,
                 |names, typed, owned, report| {
                     single::observe(&input, anchors.as_ref().ok(), names, typed, owned, report);
+                    if deep_query {
+                        let query = anchors
+                            .as_ref()
+                            .map_err(|e| failure("local deep AST", e))
+                            .and_then(|a| deep::single(&input, a, names, typed, owned));
+                        report.query(
+                            "local independent single owner phi and all incoming",
+                            &query,
+                        );
+                    }
                 },
             )
         }?;
@@ -98,6 +117,16 @@ fn observe(
             "local actual entry and all ten reachable source functions",
             &reachable,
         );
+        if deep_query {
+            let query = anchors
+                .as_ref()
+                .map_err(|e| failure("local deep AST", e))
+                .and_then(|a| deep::ssa(&input, a, &program));
+            report.query(
+                "local complete SSA transport and exact last-use consumers",
+                &query,
+            );
+        }
         // 独立 query 失败仍保留原 SSA verifier / LLVM 错误；不替换其成功判据。
         crate::ssa::verify::verify_program(&program)
             .map_err(|e| verify_failure(&input.sources, e))?;
@@ -121,7 +150,7 @@ fn owned_local_formation_and_later_use_sources_reach_verified_llvm() {
     let mut observations = Vec::new();
     for (label, later, source_hash, source, _predicted_golden) in sources() {
         for unit in [false, true] {
-            observations.push(observe(label, later, source_hash, source, unit));
+            observations.push(observe(label, later, source_hash, source, unit, false));
         }
     }
     for observation in &observations {
@@ -148,4 +177,21 @@ fn owned_local_formation_and_later_use_sources_reach_verified_llvm() {
 /// 保持 sources 私有，不改变首证 collector 的任何阶段或成功条件。
 pub(crate) fn native_sources() -> [(&'static str, &'static str, &'static str); 2] {
     sources().map(|(label, _, _, source, golden)| (label, source, golden))
+}
+
+#[test]
+fn local_sources_preserve_all_incoming_and_last_use_owner_identity() {
+    let observations = sources()
+        .into_iter()
+        .flat_map(|(label, later, hash, source, _)| {
+            [false, true].map(|unit| observe(label, later, hash, source, unit, true))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        observations.len() == 4
+            && observations
+                .iter()
+                .all(|o| o.report.passed() && o.outcome.is_ok()),
+        "ordinary sources must retain same-analysis FE owner topology, all SSA incoming and last-use identity, and independent SSA/LLVM success: {observations:#?}"
+    );
 }

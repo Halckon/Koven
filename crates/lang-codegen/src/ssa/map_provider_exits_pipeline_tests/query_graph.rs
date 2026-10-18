@@ -15,6 +15,16 @@ pub(super) struct Graph<'a> {
 
 impl<'a> Graph<'a> {
     pub fn new(function: &'a Function) -> Result<Self, Failure> {
+        Self::collect(function, false)
+    }
+
+    /// Local later-use fixtures contain real `error` calls after size failure.
+    /// Keep the existing graph entry strict for all other identity queries.
+    pub fn with_abort(function: &'a Function) -> Result<Self, Failure> {
+        Self::collect(function, true)
+    }
+
+    fn collect(function: &'a Function, allow_abort: bool) -> Result<Self, Failure> {
         let mut graph = Self {
             function,
             blocks: vec![],
@@ -62,6 +72,7 @@ impl<'a> Graph<'a> {
                     ..
                 } => vec![when_true, when_false],
                 TerminatorKind::Return { .. } => vec![],
+                TerminatorKind::Abort if allow_abort => vec![],
                 _ => return Err(failure("identity SSA unexpected fixture terminator", term)),
             };
             for edge in edges {
