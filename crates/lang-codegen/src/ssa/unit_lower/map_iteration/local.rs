@@ -125,7 +125,24 @@ pub(super) fn qualify(
     };
     // Completed SSA checks cover one callable. Keep the family at its actual
     // function-body block, never an unrelated nested block with its own whitelist.
-    let functions = parsed.ast().items().iter().filter(|(_, node)| matches!(node.payload(), Item::Function { body: FunctionBody::Block(actual), .. } if actual == block)).count();
+    let functions = parsed
+        .ast()
+        .items()
+        .iter()
+        .filter(|(_, node)| {
+            let Item::Function { form, .. } = node.payload() else {
+                return false;
+            };
+            match form {
+                FunctionForm::ImplicitUnitBlock(actual)
+                | FunctionForm::Explicit {
+                    body: FunctionBody::Block(actual),
+                    ..
+                } => actual == block,
+                _ => false,
+            }
+        })
+        .count();
     if functions != 1 {
         return Err(unsupported());
     }
