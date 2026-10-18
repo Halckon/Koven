@@ -61,7 +61,7 @@ pub(super) fn qualify(
     {
         return Err(unsupported());
     }
-    let scope = scope(parsed, statement.statement(), origin)?;
+    let scope = scope(parsed, statement.statement(), origin, span)?;
     let drops = owned
         .drops()
         .iter()
@@ -122,8 +122,9 @@ fn scope(
     parsed: &ParsedFile,
     statement: StatementId,
     origin: Span,
+    span: Span,
 ) -> Result<StatementId, LoweringError> {
-    let bad = || lowering_error(LoweringErrorKind::UnsupportedNode, origin);
+    let bad = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
     let bodies = parsed
         .roots()
         .iter()
