@@ -1,6 +1,14 @@
 //! 同根双层正常遍历两源 × single/unit-basic；四次 fresh 观察后统一硬成功。
 //! Map Borrow 独立记账；golden 是预测，复杂 owner/exit/cleanup 先完整观察，不预填拓扑。
 mod ast;
+mod query_body;
+mod query_callers;
+mod query_cleanup;
+mod query_graph;
+mod query_inputs;
+mod query_ssa;
+mod query_tail;
+mod query_test;
 mod single;
 mod unit;
 
