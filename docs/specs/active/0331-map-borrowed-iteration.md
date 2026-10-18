@@ -480,3 +480,16 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   704页文档检查通过；首轮Tour新链接遗漏borrow已修正重验。Rust尺寸门相对main通过，
   仍保留38个历史超限文件，新查询模块均低于1000行。日志仓外，binary/full-index
   格式补丁及逐项稳定收据保留本机任务目录，不上传大日志。
+
+## 32. F 收尾 CI 消费者补选（2026-10-18）
+
+- 归档前逐条对账发现stage未选三个共享ownership消费者：constants、structural、
+  nullable_when。helper逐项分类为真实合法/非法源码的普通前端分析与只读facts；
+  structural的TypeEnvironment为正常输入设置，不合成或损坏已有产物。46项普通测试
+  在当前生产源码实际16/26/4通过，0失败/忽略；未运行故障、校准或sanitizer对照。
+- 先加独立纯静态选择测试，只读取真实stage文本，首次三项均缺失而失败；补三target
+  后同测试通过。完整composition从114变117个唯一frontend integration，仍10次Cargo
+  调用；含stub/失败注入的composition suite仅交CI，本机未运行。
+- 此片只补CI执行选择；原active20/10历史全文仍不能映射，后续按Guide安全义务建立
+  可审查新矩阵，不把原字节缺失当永久阻断，也不声称恢复或等价。真实provider顺序
+  历史native与Map专用私有负控分别补证；新head完整双host CI另记，F不标done或合并。
