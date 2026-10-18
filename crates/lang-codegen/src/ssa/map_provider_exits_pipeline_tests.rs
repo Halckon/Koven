@@ -5,6 +5,7 @@ mod borrowed;
 mod ci_baseline;
 mod ci_contracts;
 mod conditional;
+mod control_flow;
 mod facts;
 mod fixture;
 mod future_use;
