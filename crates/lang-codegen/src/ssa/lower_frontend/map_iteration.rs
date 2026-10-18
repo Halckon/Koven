@@ -545,6 +545,7 @@ impl ExpressionLowerer<'_> {
             self.merge_exits(context.breaks, &baseline, span)?;
         }
         let evidence = carrier::Evidence {
+            exhaustion_point: exhaustion.point(),
             function: self.function,
             conditional: state.conditional.as_ref(),
             nested: state.nested.as_ref(),

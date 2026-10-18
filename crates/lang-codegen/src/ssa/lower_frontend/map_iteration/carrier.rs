@@ -5,6 +5,7 @@ use crate::ssa::model::Instruction;
 #[derive(Clone, Copy)]
 pub(super) struct Evidence<'a> {
     pub(super) function: &'a Function,
+    pub(super) exhaustion_point: DropPoint,
     pub(super) conditional: Option<&'a conditional::State>,
     pub(super) nested: Option<&'a nested::State>,
     pub(super) events: &'a [nested_events::Event],
@@ -34,6 +35,7 @@ impl Evidence<'_> {
     pub(super) fn validate(self) -> Result<(), LoweringError> {
         let Self {
             function,
+            exhaustion_point,
             conditional,
             nested,
             events: _,
@@ -356,12 +358,7 @@ impl Evidence<'_> {
                     instruction.operation == Operation::Drop { owner: dropped }
                 })
                 .collect::<Vec<_>>();
-            let live = matches!(
-                proof.drop.point(),
-                DropPoint::CallReturn(_) | DropPoint::AfterStatement(_)
-            ) || matches!((body_exit, proof.drop.point(), proof.transfer),
-                    (IterationExitKind::Return(inner), DropPoint::ControlTransfer(outer), Some(transfer))
-                    if inner != outer && transfer.point() == DropPoint::ControlTransfer(inner));
+            let live = proof.at(exhaustion_point).is_none();
             if live {
                 if !drops.is_empty() {
                     return Err(missing());
@@ -414,7 +411,6 @@ impl Evidence<'_> {
                         return Err(missing());
                     }
                 } else if !matches!(body_exit, IterationExitKind::Break(_))
-                    || !matches!(body_proof.drop.point(), DropPoint::AfterStatement(_))
                     || !body_drops.is_empty()
                 {
                     return Err(missing());

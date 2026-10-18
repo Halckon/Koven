@@ -1,5 +1,6 @@
 //! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
 mod conditional;
+mod future_use;
 mod local;
 mod nested;
 pub(super) use local::LocalContinuation;
@@ -369,7 +370,12 @@ fn qualify_one(
     } else {
         None
     };
-    let late_drop = resource_proof.map(|proof| proof.drop);
+    let pure_late = if conditional.is_none() && nested.is_none() {
+        future_use::qualify(parsed, names, typed, owned, plan, body_exit, span)?
+    } else {
+        None
+    };
+    let late_drop = resource_proof.map(|proof| proof.drop).or(pure_late);
     let (source_drop, transfer_drop) = if let Some(proof) = resource_proof {
         (None, proof.transfer)
     } else if let Some(pair) = nested.filter(|pair| pair.tail.is_some()) {
@@ -392,7 +398,15 @@ fn qualify_one(
             None,
         )
     } else {
-        validate_cleanup(plan, owned, *body, body_exit, root, symbol.span(), span)?
+        validate_cleanup(
+            plan,
+            owned,
+            (*body, body_exit),
+            root,
+            symbol.span(),
+            pure_late,
+            span,
+        )?
     };
     let body_point = body_point(statement, *body, body_exit);
     Ok(QualifiedMap {
@@ -427,14 +441,15 @@ fn body_point(
 fn validate_cleanup(
     plan: &UnitMapIterationOwnershipPlan,
     owned: &CompilationUnitOwnership,
-    body: StatementId,
-    body_exit: UnitIterationExitKind,
+    body: (StatementId, UnitIterationExitKind),
     root: UnitSymbolId,
     origin: Span,
+    late: Option<UnitDropFact>,
     span: Span,
 ) -> Result<(Option<UnitDropFact>, Option<UnitDropFact>), LoweringError> {
     let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
     let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
+    let (body, body_exit) = body;
     let descriptor = plan.descriptor();
     let statement = descriptor.statement();
     let [body_plan, exhaustion] = plan.exits() else {
@@ -460,6 +475,12 @@ fn validate_cleanup(
         UnitIterationExitKind::Break(_) | UnitIterationExitKind::Return(_)
     );
     let (source_drop, transfer_drop) = match plan.source_access() {
+        UnitIterationSourceAccess::Owned if late.is_some() => {
+            if drops.as_slice() != late.as_slice() {
+                return Err(missing());
+            }
+            (None, None)
+        }
         UnitIterationSourceAccess::Owned => {
             if drops.iter().any(|drop| drop.value_origin() != origin) {
                 return Err(missing());

@@ -180,3 +180,6 @@ mod source_forms;
 
 #[path = "native_map_provider_resource_forms_tests.rs"]
 mod resource_forms;
+
+#[path = "native_map_provider_future_use_tests.rs"]
+mod future_use;

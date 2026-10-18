@@ -1,6 +1,8 @@
 //! Exact source-owner proof for the observed normal and direct-tail Map shapes.
 //! A source facts were first collected by the ordinary 12-path run on 9244391b.
 //! No shape is inferred from Sequential loops or accepted from a presence bit alone.
+mod future;
+mod provenance;
 use super::*;
 use lang_frontend::ownership_checking::{
     CleanupConditions, CleanupOwnerValue, CleanupSelection, CleanupSelectorSource, DropFact,
@@ -80,7 +82,7 @@ pub(super) fn qualify(
             .iter()
             .any(|fact| fact.point() != exhaustion_point && Some(fact.point()) != transfer_point)
     {
-        return Err(unsupported());
+        return future::qualify(parsed, names, owned, plan, symbol, body_exit, span);
     }
     let expected_incomings = if matches!(body_exit, IterationExitKind::Return(_)) {
         2
@@ -113,18 +115,9 @@ pub(super) fn qualify(
     let [seed] = entry.values() else {
         return Err(missing());
     };
-    if conditions.get(entry.available_when()) != Some(&CleanupCondition::Always)
-        || seed.condition() != entry.available_when()
-    {
+    let available = provenance::parameter(owned, symbol, origin, seed.source(), span)?;
+    if seed.condition() != entry.available_when() || seed.condition() != available {
         return Err(missing());
-    }
-    match conditions.owner_value(seed.source()) {
-        Some(CleanupOwnerValue::Parameter {
-            symbol: actual,
-            origin: actual_origin,
-        }) if *actual == symbol && *actual_origin == origin => {}
-        Some(CleanupOwnerValue::Parameter { .. }) | None => return Err(missing()),
-        Some(_) => return Err(unsupported()),
     }
     match body_exit {
         IterationExitKind::Fallthrough | IterationExitKind::Continue(_) => {
@@ -367,27 +360,10 @@ pub(in super::super) fn supported_drop(
     owned: &OwnershipCheckedFile,
     fact: DropFact,
 ) -> bool {
-    let descriptor = match fact.point() {
-        DropPoint::LoopExit(statement) => typed.map_iteration(statement),
-        DropPoint::ControlTransfer(expression) => unique(typed.map_iterations().iter().filter(|descriptor| {
-            owned.map_iteration(descriptor.statement()).is_some_and(|plan| {
-                plan.exits().iter().any(|exit| {
-                    matches!(exit.kind(), IterationExitKind::Break(actual) | IterationExitKind::Return(actual) if actual == expression)
-                        && exit.point() == fact.point()
-                        && exit.actions().contains(&IterationCleanupAction::Drop(fact))
-                }) || plan.closure_phis().iter().any(|phi| Some(phi.owner()) == fact.owner())
-            })
-        })),
-        DropPoint::AfterStatement(_) => unique(typed.map_iterations().iter().filter(|descriptor| {
-            owned.map_iteration(descriptor.statement()).is_some_and(|plan| plan.closure_phis().iter().any(|phi| Some(phi.owner()) == fact.owner()))
-        })),
-        _ => None,
-    };
-    let Some(descriptor) = descriptor else {
-        return false;
-    };
-    qualify::qualify(parsed, names, typed, owned, *descriptor)
-        .ok()
-        .and_then(|qualified| qualified.owner)
-        .is_some_and(|proof| proof.at(fact.point()) == Some(fact))
+    typed.map_iterations().iter().any(|descriptor| {
+        qualify::qualify(parsed, names, typed, owned, *descriptor)
+            .ok()
+            .and_then(|q| q.owner)
+            .is_some_and(|proof| proof.at(fact.point()) == Some(fact))
+    })
 }

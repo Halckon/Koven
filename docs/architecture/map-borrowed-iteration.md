@@ -135,7 +135,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 
 | source | payload | 已验exit | continuation与当前缺口 |
 |---|---|---|---|
-| own Map参数 | String/String | N/C/B/R、固定三段条件 | Drop限LoopExit/对应transfer；后续source使用尚缺 |
+| own Map/MutableMap参数 | String/String | N/C/B/R、固定三段条件 | N/C/B后size、多次Borrow调用、CFG后再Borrow及同根重复For已验；R与其他CFG组合不外推 |
 | Borrow Map/MutableMap参数 | String/String | N/C/B/R、固定条件、同根双层 | caller恢复及有限sequential已验；更一般条件/层数未验 |
 | 零参直接factory temporary | String/String | N/C/B/R固定尾 | hidden owner已验；其他payload/条件/一般factory未接通 |
 | factory-formed owned local val/var | String/String | N | 固定立即Drop/size guard；C/B/R、资源payload、一般后用尚缺 |
@@ -175,3 +175,20 @@ planner准入。Field/Inout来源资格和nullable结构/String?表示边界未�
 32源64条双入口FE/SSA/LLVM及64个普通native产物均通过，包含非空/空与混合nullable输入；
 完整golden只证明析构聚合数量/区间，不外推动态free或无泄漏。其他key/value/泛型/接口组合仍须
 按实际既有表示与独立证据验收；F整体缺口以0331单一账本为准。
+
+
+## Pure own 参数的真实未来使用
+
+`future_use` 的24份普通源覆盖Map/MutableMap、N/C/B，以及最后size、多次Borrow调用、
+size分支后再Borrow、同根第二次For。每源实际调用非空/空输入；双入口48条原FE/SSA/LLVM
+及48个普通native产物通过。Pure source不进入Resource词法carrier，也不依赖邻接语句形状。
+
+single逐完整Header/Exit incoming证明当前owner仍连到真实own Parameter，live链拒绝空/Never
+边及无原参数锚点的循环；重复For的Entry消费前一Exit的实际owner与availability。Unit使用
+自己的validated source/cleanup与当前SSA binding，全incoming回溯原入口anchor。最终Drop必须
+精确等于准入计划的source/late/transfer fact，再核实际当前owner；根名或旧birth身份不能代替。
+
+独立查询核provider与K/V的全部受保护使用、Guard/deinit、N/C/B清理与Next、每条正常退出
+唯一Map Drop。size/调用的Drop在真实最后使用及ABI loan结束之后、后续marker之前；重复For
+在第二LoopExit清理。所有Map Drop均在CFG循环之外。该有限片不宣称consume/重赋值/alias、
+一般条件/嵌套CFG或其他payload的完整覆盖；具体余项继续由SPEC0331 §45单一账本跟踪。

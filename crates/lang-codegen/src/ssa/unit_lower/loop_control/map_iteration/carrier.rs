@@ -66,11 +66,7 @@ impl MapCarrier {
             SourceIdentity::Parameter { slot, .. } => {
                 let entry = function.entry_block().ok_or_else(bad)?;
                 let anchor = transport::parameter(function, entry, slot, span)?;
-                if qualified.nested.is_some() || matches!(seed, EntityId::Loan(_)) {
-                    transport::from_anchor(function, seed, anchor, span)?;
-                } else if anchor != seed {
-                    return Err(bad());
-                }
+                transport::from_anchor(function, seed, anchor, span)?;
                 anchor
             }
             SourceIdentity::Local { root, initializer } => {
@@ -281,7 +277,7 @@ impl MapCarrier {
             return Err(bad());
         }
         if self.nested.is_some()
-            || (matches!(self.identity, SourceIdentity::Parameter { .. }) && !self.owned)
+            || matches!(self.identity, SourceIdentity::Parameter { .. })
             || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {
@@ -354,7 +350,7 @@ impl MapCarrier {
             return Err(bad());
         }
         if self.nested.is_some()
-            || (matches!(self.identity, SourceIdentity::Parameter { .. }) && !self.owned)
+            || matches!(self.identity, SourceIdentity::Parameter { .. })
             || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {

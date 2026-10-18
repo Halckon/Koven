@@ -70,7 +70,7 @@ impl ExpressionLowerer<'_> {
         source: SourceIdentity,
         container: SsaTypeId,
         origin: Span,
-        nested: Option<nested::Pair>,
+        _nested: Option<nested::Pair>,
         span: Span,
     ) -> Result<EntityId, LoweringError> {
         let missing = || error(LoweringErrorKind::MissingFact, span);
@@ -87,16 +87,18 @@ impl ExpressionLowerer<'_> {
                 {
                     return Err(missing());
                 }
-                if nested.is_some() {
-                    let EntityId::Loan(_) = seed else {
-                        return Err(missing());
-                    };
-                    let current =
-                        EntityId::Loan(*self.borrow_bindings.get(&symbol).ok_or_else(missing)?);
-                    nested::transport(self.function, current, seed, span)?;
-                    return Ok(current);
-                }
-                Ok(seed)
+                let current = match seed {
+                    EntityId::Value(_) => match self.bindings.get(&symbol) {
+                        Some(LoweredValue::Value(owner)) => EntityId::Value(*owner),
+                        _ => return Err(missing()),
+                    },
+                    EntityId::Loan(_) => {
+                        EntityId::Loan(*self.borrow_bindings.get(&symbol).ok_or_else(missing)?)
+                    }
+                    _ => return Err(missing()),
+                };
+                nested::transport(self.function, current, seed, span)?;
+                Ok(current)
             }
             SourceIdentity::Local {
                 symbol,
@@ -138,5 +140,54 @@ impl ExpressionLowerer<'_> {
                 Ok(seed)
             }
         }
+    }
+}
+
+impl ExpressionLowerer<'_> {
+    pub(in super::super) fn validate_pure_map_parameter_drop(
+        &self,
+        fact: lang_frontend::ownership_checking::DropFact,
+        owner: ValueId,
+    ) -> Result<bool, LoweringError> {
+        use lang_frontend::ownership_checking::DropTarget;
+        let DropTarget::Named(root) = fact.target() else {
+            return Ok(false);
+        };
+        let Some(&anchor) = self.map_iteration_state.entries.get(&root) else {
+            return Ok(false);
+        };
+        let candidate = self.typed.map_iterations().iter().any(|descriptor| {
+            self.typed.is_resource_type(descriptor.source_type()) == Some(false)
+                && self
+                    .owned
+                    .map_iteration(descriptor.statement())
+                    .is_some_and(|plan| {
+                        matches!(plan.source(), Some(LoanTarget::Place(place))
+                        if place.is_root() && place.root() == root)
+                    })
+        });
+        if !candidate
+            || !source_owner::supported_drop(self.parsed, self.names, self.typed, self.owned, fact)
+        {
+            return Ok(false);
+        }
+        let bad = || error(LoweringErrorKind::MissingFact, fact.value_origin());
+        if !matches!(anchor, EntityId::Value(_))
+            || self.borrow_bindings.contains_key(&root)
+            || self.temporaries.values().any(|&v| v == owner)
+            || self
+                .bindings
+                .values()
+                .any(|v| *v == LoweredValue::Value(owner))
+        {
+            return Err(bad());
+        }
+        nested::transport(
+            self.function,
+            EntityId::Value(owner),
+            anchor,
+            fact.value_origin(),
+        )?;
+        Ok(true)
     }
 }

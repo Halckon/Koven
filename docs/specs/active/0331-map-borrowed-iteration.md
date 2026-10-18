@@ -809,12 +809,12 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 |---|---|---|
 | G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，未闭合；在G9当前owner寿命基础上推进 |
 | G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，未闭合；条件依赖G7 |
-| G4 | own MutableMap参数N/C/B/R，复用已验证Value/Owned参数及原清理 | 0331，本节首片；新头CI待绑定 |
-| G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；新头CI待绑定，其他表示仍逐项验收 |
+| G4 | own MutableMap参数N/C/B/R，复用已验证Value/Owned参数及原清理 | 0331，本节首片；d85e完整CI及三artifact独审通过 |
+| G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；d85e完整CI及三artifact独审通过，其他表示仍逐项验收 |
 | G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331 Return缺口未闭合；ABI前置另行明确验收，不能静默省略 |
 | G7 | 一般合法Return operand、单If/两live arm、条件/checked组合；需逐路径cleanup | 0331，未闭合；不把普通合法表达式改成白名单 |
 | G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，未闭合；在单层source/CFG事实之后推进 |
-| G9 | 非Resource own参数在N/C/B后继续使用；须真实last-use寿命，不能套Resource词法延寿 | 0331，未闭合；下一阶段owner未来使用基础 |
+| G9 | 非Resource own参数在N/C/B后继续使用；须真实last-use寿命，不能套Resource词法延寿 | 0331，§47有限未来使用片；consume/其他root及一般CFG仍逐项验收 |
 | G10 | 透明Group、moved alias与Borrow-result；后两者分别依赖Move/continuation事实 | 0331，Group首片；alias未闭合，Borrow-result FE前置仍在 |
 
 G4仅在原kind/intrinsic K/V与mode/binding/access完全匹配后接通Value MutableMap，继续排除
@@ -856,3 +856,31 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   all-targets check/clippy(-D warnings)/build通过，运行前后源输入摘要相同。docs704与diffcheck通过。
   G4/Group首片另有82个已验native产物，本阶段新增合计146个，不重复计入此前Resource98个产物。
   新头完整远端CI和当前产物独审仍需单独绑定，Mac sanitizer仍partial；不把旧头成功继承到新片。
+
+
+## 47. G9 Pure own 参数的当前 owner 与 ASAP 未来使用（2026-10-18）
+
+- 24份普通源：Map/own MutableMap×N/C/B×最后size、多次Borrow调用、size分支后再Borrow、
+  同根第二次For。每份entry均实际运行非空/空输入；48条原FE/深身份/SSA/LLVM观察及48个
+  正常native产物通过。Pure源继续遵守真实last-use，不套Resource词法延寿或local size邻接白名单。
+- single遍历公开owner图的全部Header/Exit incoming，Entry须连原Parameter或前一Exit，
+  其余须连本层Header；availability精确相等，live证明拒绝空/Never边和未锚定循环。
+  最终Drop.owner与当前/最终phi分别证明，重复For保留前一Exit真实availability。Unit消费
+  自己的validated事实，以当前binding而非旧birth建立provider，全incoming回溯原参数anchor。
+- 独立原FE查询锁实际scope/参数mode、源类型/root、完整phi/Entry/回边/Break/Exhaustion、
+  Guard及最终Drop；SSA查询核First/source、所有incoming及受保护操作数、Guard实际deinit、
+  逆序V/K End/Finish/EndSource与Next。size/调用在真正last-use与ABI loan End之后、
+  后续marker之前Drop；重复For在第二LoopExit Drop。全部Map Drop在CFG循环之外，
+  所有简单正常Return恰一次，合起来覆盖有限迭代后退出；stdout不外推动态free/无泄漏。
+- 固定精确`d85e3437`十tracked生产文件旧字节执行最终同套测试，48观察均完整FE后原For
+  Unsupported，FE查询false为0，Rust真实0通过/1失败/0忽略，finally逐字恢复候选。
+  独审发现Unit只按同root准入计划认领Drop过宽，已改为source/late/transfer fact精确匹配；
+  相关参数存在却无计划认领时MissingFact，再逐全部incoming验证当前owner，复审通过。
+- `d85e3437`完整PR CI `39123400972/a1`现为success，当前三artifact独立只读核验无不符：
+  Linux十二组plain/ASan/LSan、两host generated合法/非法与校准证据吻合；未执行下载产物。
+  Mac仍partial/requirements_met=false，UBSan未覆盖。本片新头CI需另行绑定，不能继承旧头绿。
+- G9本片不关闭consume/重赋值、其他owner roots、一般CFG及其他payload；G2/local/alias
+  是下一独立块。§45继续是唯一剩余账本，F仍active，不归档/合并或进入D10，不改Guide。
+
+- 本地防丢失检查点：新增size/原If/双臂合流深查询48观察已通过且独审关闭finding；
+  最终冻结源码后的完整定向回归、工程四门与新头CI仍待绑定。本检查点提交不表示F完成。

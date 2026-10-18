@@ -7,6 +7,7 @@ mod ci_contracts;
 mod conditional;
 mod facts;
 mod fixture;
+mod future_use;
 mod history;
 mod identity;
 mod local_sources;
@@ -27,6 +28,7 @@ mod temporary_exits;
 
 pub(crate) use borrowed::sources as borrowed_exit_sources;
 pub(crate) use conditional::sources as conditional_sources;
+pub(crate) use future_use::sources as future_use_sources;
 pub(crate) use history::{sanitizer_ir as history_sanitizer_ir, sources as history_sources};
 pub(crate) use local_sources::native_sources as local_native_sources;
 pub(crate) use nested::sources as nested_sources;

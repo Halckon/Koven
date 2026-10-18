@@ -1,6 +1,7 @@
 //! Source evaluation and factory identity are established before a provider is created.
 use super::*;
 use crate::ssa::unit_plan::UnitFunctionInstanceKey;
+use lang_frontend::ownership_checking::{UnitDropTarget, UnitLoanTarget};
 use lang_frontend::type_checking::{UnitCallTarget, UnitCallableTarget};
 
 impl UnitExpressionLowerer<'_> {
@@ -17,17 +18,9 @@ impl UnitExpressionLowerer<'_> {
             SourceIdentity::Parameter { slot, .. } => {
                 let entry = self.function.entry_block().ok_or_else(missing)?;
                 let anchor = transport::parameter(self.function, entry, slot, span)?;
-                if access == UnitIterationSourceAccess::Shared
-                    || qualified
-                        .nested
-                        .is_some_and(|pair| pair.inner == qualified.statement)
-                {
-                    let current = identity.current(self, span)?;
-                    transport::from_anchor(self.function, current, anchor, span)?;
-                    current
-                } else {
-                    anchor
-                }
+                let current = identity.current(self, span)?;
+                transport::from_anchor(self.function, current, anchor, span)?;
+                current
             }
             SourceIdentity::Local { root, initializer } => {
                 if access != UnitIterationSourceAccess::Owned {
@@ -75,8 +68,8 @@ impl UnitExpressionLowerer<'_> {
                     }
                     _ => return Err(missing()),
                 };
-                // Borrow seeds are the current, anchor-proven CFG view. Owned parameters
-                // retain the existing entry/lifetime capability boundary.
+                // Both owned and Borrow seeds use the current, anchor-proven CFG view;
+                // the published source plan independently determines its lifetime.
                 if !current {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
@@ -179,4 +172,94 @@ pub(super) fn validate_temporary_birth(
         return Err(missing());
     }
     Ok(())
+}
+
+impl UnitExpressionLowerer<'_> {
+    pub(in super::super::super) fn validate_pure_map_parameter_drop(
+        &self,
+        fact: lang_frontend::ownership_checking::UnitDropFact,
+        owner: ValueId,
+    ) -> Result<(), LoweringError> {
+        let UnitDropTarget::Named(root) = fact.target() else {
+            return Ok(());
+        };
+        let mut relevant_parameter = false;
+        for descriptor in self.typed.map_iterations() {
+            if descriptor.statement().source_unit() != self.source_unit
+                || self.typed.is_resource_type(descriptor.source_type()) != Some(false)
+            {
+                continue;
+            }
+            let Some(plan) = self.owned.map_iteration(descriptor.statement()) else {
+                // A type descriptor in another callable may never acquire a provider.
+                // Only an actual ownership plan for this root can claim its Drop.
+                continue;
+            };
+            if !matches!(plan.source(),Some(UnitLoanTarget::Place(place)) if place.is_root()&&place.root()==root)
+            {
+                continue;
+            }
+            let qualified = map_iteration::qualify(
+                self.parsed,
+                self.names,
+                self.typed,
+                self.owned,
+                descriptor,
+            )?;
+            let SourceIdentity::Parameter { root: actual, slot } = qualified.source else {
+                continue;
+            };
+            if actual != root {
+                continue;
+            }
+            relevant_parameter = true;
+            if ![
+                qualified.source_drop,
+                qualified.late_drop,
+                qualified.transfer_drop,
+            ]
+            .into_iter()
+            .chain(
+                qualified
+                    .conditional
+                    .into_iter()
+                    .flat_map(|condition| condition.drops),
+            )
+            .any(|candidate| candidate == Some(fact))
+            {
+                continue;
+            }
+            let entry = self.function.entry_block().ok_or_else(|| {
+                lowering_error(LoweringErrorKind::MissingFact, fact.value_origin())
+            })?;
+            let anchor = transport::parameter(self.function, entry, slot, fact.value_origin())?;
+            if !matches!(anchor, EntityId::Value(_))
+                || self.borrow_bindings.contains_key(&root)
+                || self.temporaries.values().any(|&v| v == owner)
+                || self
+                    .bindings
+                    .values()
+                    .any(|v| *v == LoweredValue::Value(owner))
+            {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    fact.value_origin(),
+                ));
+            }
+            transport::from_anchor(
+                self.function,
+                EntityId::Value(owner),
+                anchor,
+                fact.value_origin(),
+            )?;
+            return Ok(());
+        }
+        if relevant_parameter {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                fact.value_origin(),
+            ));
+        }
+        Ok(())
+    }
 }
