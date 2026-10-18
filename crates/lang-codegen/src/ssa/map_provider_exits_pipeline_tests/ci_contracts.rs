@@ -1,60 +1,9 @@
 //! CI-only: corrupt one dimension of real lowered Map SSA. Never execute locally.
-use super::{Report, pipeline};
+use super::ci_baseline::baseline;
 use crate::ssa::{
     model::*,
     verify::{VerifyErrorKind, VerifyLocation, verify_program},
 };
-use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
-
-const SOURCE: &str = r#"
-fun scan(first: Map<String, String>, second: Map<Int, String>): Unit {
-  for ((key, value) in first) { println(key); println(value) }
-  for ((key, value) in second) { println(value) }
-}
-fun entry(): Unit {
-  val first = mapOf<String, String>()
-  val second = mapOf<Int, String>()
-  scan(first, second)
-}
-"#;
-
-fn baseline(unit: bool) -> Program {
-    let mut sources = SourceMap::new();
-    let id = sources.add_source("provider.ko", SOURCE).unwrap();
-    let lexed = lex(&sources, id).unwrap();
-    assert!(lexed.diagnostics().is_empty());
-    let parsed = parse_file(&sources, &lexed).unwrap();
-    assert!(parsed.diagnostics().is_empty());
-    let mut report = Report::default();
-    let (program, _) = if unit {
-        pipeline::unit_observed(
-            &sources,
-            &parsed,
-            "provider.ko",
-            &mut report,
-            |_, _, owned, r| {
-                r.check(
-                    "original two unit Map providers",
-                    owned.map_iterations().len() == 2,
-                    owned.map_iterations(),
-                );
-            },
-        )
-    } else {
-        pipeline::single_observed(&sources, &parsed, &mut report, |_, _, owned, r| {
-            r.check(
-                "original two single Map providers",
-                owned.map_iterations().len() == 2,
-                owned.map_iterations(),
-            );
-        })
-    }
-    .unwrap();
-    assert!(report.passed(), "{report:#?}");
-    verify_program(&program).expect("unmodified real SSA must pass before corruption");
-    crate::llvm::render_verified_program(&program).expect("unmodified real LLVM must pass");
-    program
-}
 
 fn loan(entity: EntityId) -> LoanId {
     let EntityId::Loan(id) = entity else {
@@ -108,11 +57,11 @@ fn map_real_lowered_ssa_private_damage_has_precise_rejections() {
                     .iter()
                     .filter(|i| matches!(i.operation, Operation::MapIterationFirst { .. }))
                     .count()
-                    == 2
+                    == 1
             })
             .collect::<Vec<_>>();
         let [function] = functions.as_slice() else {
-            panic!("one actual two-provider function")
+            panic!("one actual provider function")
         };
         let function = (*function).clone();
         let fid = function.id();
@@ -187,16 +136,16 @@ fn map_real_lowered_ssa_private_damage_has_precise_rejections() {
                     )
                 }
                 2 => {
-                    // The second entry parameter is a real dominating Map<Int,String> loan.
-                    let other = loan(f.blocks[0].parameters[1]);
-                    let Operation::MapIterationKeyLoan { source, .. } =
-                        &mut f.instructions[key.id.index()].operation
+                    // A real, dominating active String loan cannot serve as a Map provider source.
+                    let wrong = loan(key.results[0]);
+                    let Operation::MapIterationValueLoan { source, .. } =
+                        &mut f.instructions[val.id.index()].operation
                     else {
                         unreachable!()
                     };
-                    *source = other;
+                    *source = wrong;
                     (
-                        key.id,
+                        val.id,
                         VerifyErrorKind::OperationContract { reason: TYPE_ERROR },
                     )
                 }

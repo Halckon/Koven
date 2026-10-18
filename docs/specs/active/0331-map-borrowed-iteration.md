@@ -576,3 +576,23 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - fresh独审的“失败前未写身份账本”finding已修复复审；静态选择测试实际通过。
   本机仅编译/静态检查，未运行导出test或sanitizer对照；24产物均待Linux CI实测，
   不计本机pass，macOS sanitizer仍partial，UBSan仍未覆盖。F不归档、不合并、不进入D10。
+
+## 37. CI 私有反例的无损基线纠正（2026-10-18）
+
+- `52dc7720` 的Linux run `39104193603` 实测codegen 2146通过/1失败；private exact
+  的single八项已精确拒绝，随后Unit在第二个For的baseline就遇UnsupportedNode，
+  未到Unit损坏观察。后置word-frequency/sanitizer/generated-owner产物未生成，不能
+  继承旧绿色或计作通过。CI原红由主线程独立保留。
+- 普通无损exact分离后，双Map都改String/String仍在Unit第二个仅读value的For失败；
+  因此不能把原因只归为Int key。本片不扩这个组合，基线改为已支持的一参Map、
+  单provider且key/value都读取的真实源，保留两入口完整FE/validator/SSA/LLVM成功前置。
+  新ordinary exact本机实际1通过/0失败/忽略，含两次完整pipeline；未执行损坏对照。
+- 八维私有拒绝保留：fault2仅将原ValueLoan.source替为同块已定义且活跃的真实key
+  String loan，精确原ValueLoan指令/For origin/类型合同错误；不再宣称它覆盖另一
+  泛型Map变体。同型新lease的平衡合法前置及原cursor不匹配oracle保持，其余六维
+  保持。fresh独审确认不依赖第二个provider，不改成宽泛Err或绕过能力门。
+- 此前固定`b998178a`/tree `39f7a42c2fdd502ba7d1fbdcda203f8533e1dde2`实际315项
+  ordinary Rust通过，0失败/忽略，22项native共110产物；四工程门全部通过。前后
+  2812个tracked输入摘要相同：
+  `36102a802121e921e3e44633fb8069c2731958bb49f340d16e40c572ba7b274d`。
+  新test-only基线修复的当前完整远端CI另记；Mac仍partial，F继续active。
