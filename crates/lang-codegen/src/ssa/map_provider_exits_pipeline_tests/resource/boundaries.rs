@@ -53,20 +53,10 @@ fn observe(text: &str, unit: bool) -> Result<bool, Failure> {
 
 #[test]
 fn resource_scope_staging_neighbors_keep_exact_for_boundary() {
-    let cases = [
-        (
-            "continue",
-            include_str!(
-                "../../../../tests/fixtures/map-provider-resource-0331/boundary-continue.ko"
-            ),
-        ),
-        (
-            "nullable",
-            include_str!(
-                "../../../../tests/fixtures/map-provider-resource-0331/boundary-nullable.ko"
-            ),
-        ),
-    ];
+    let cases = [(
+        "nullable",
+        include_str!("../../../../tests/fixtures/map-provider-resource-0331/boundary-nullable.ko"),
+    )];
     let mut results = Vec::new();
     for (case, text) in cases {
         for unit in [false, true] {
@@ -74,7 +64,7 @@ fn resource_scope_staging_neighbors_keep_exact_for_boundary() {
         }
     }
     assert!(
-        results.len() == 4 && results.iter().all(|(_, _, r)| matches!(r, Ok(true))),
+        results.len() == 2 && results.iter().all(|(_, _, r)| matches!(r, Ok(true))),
         "all ordinary boundary sources must reach exact lowering rejection: {results:#?}"
     );
 }

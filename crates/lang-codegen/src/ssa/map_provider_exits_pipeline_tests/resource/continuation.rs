@@ -1,4 +1,5 @@
 //! Real Resource Map continuations: lexical owner lifetime is independent of statement shape.
+mod borrowed;
 mod graph;
 use super::super::{
     Report,
@@ -9,6 +10,7 @@ use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
 
 pub(crate) struct Case {
     pub label: &'static str,
+    pub owned: bool,
     pub source: String,
     pub golden: String,
 }
@@ -68,6 +70,7 @@ pub(crate) fn sources() -> Vec<Case> {
         );
         cases.push(Case {
             label,
+            owned: true,
             source,
             golden,
         });
@@ -75,7 +78,7 @@ pub(crate) fn sources() -> Vec<Case> {
     cases
 }
 
-fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
+pub(super) fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     let mut sources = SourceMap::new();
     let id = sources
         .add_source("provider.ko", &case.source)
@@ -84,7 +87,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     clean(&sources, "lex diagnostics", lexed.diagnostics())?;
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse diagnostics", parsed.diagnostics())?;
-    let input = super::identity::ast(&sources, &parsed, true)?;
+    let input = super::identity::ast(&sources, &parsed, case.owned)?;
     let mut report = Report::default();
     let outcome = if unit {
         pipeline::unit_observed(
@@ -119,7 +122,11 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     );
     let (program, _) = outcome?;
     assert!(report.passed(), "{report:#?}");
-    graph::check(&program, &input, &sources, &parsed)?;
+    if case.owned {
+        graph::check(&program, &input, &sources, &parsed)?;
+    } else {
+        borrowed::check(&program, &input, &parsed)?;
+    }
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA verifier", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e))?;
     Ok(())

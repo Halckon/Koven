@@ -57,11 +57,15 @@ fixture目录为`map-provider-borrow-exits-0331`。这是有界重建，不宣�
 ## Resource 分量的有限正常耗尽
 
 `map-provider-resource-0331` 的两份普通源码支持 own Map / Borrow MutableMap 参数、
-String key 与无字段/泛型/接口且有显式 deinit 的直接 class value，正常回边和耗尽。owned Map
+String key 与无字段/泛型/接口且有显式 deinit 的直接 class value，正常回边、continue和耗尽。owned Map
 以真实callable scope的Drop为依据，不限制循环前后普通语句的数量或调用形状：single 消费公开 Header/Exit phi、
 完整 incoming/Choice 与唯一 AfterStatement(scope) Drop，在 source loan 结束后保留实际
 当前 owner 至该词法点；unit 独立消费 qualified scope Drop 并运输自身 carrier。
-Borrow MutableMap 不取得或清理 caller owner。owned Map 的continue、nullable Resource分量仍由真实well-typed邻控保留原For的UnsupportedNode。
+Borrow MutableMap 不取得或清理 caller owner。nullable Resource分量仍由真实well-typed邻控保留原For的UnsupportedNode。
+Resource continue七源覆盖own Map及Borrow Map/MutableMap，单轮Guard先Drop，再逆序结束V/K并Next；
+owner/source在回边保留，耗尽结束本层provider lease，own源按原词法scope唯一Drop。Shared caller的
+原loan不在callee结束，caller返回后put/size恢复权限。双入口14条pipeline及14个正常native产物通过。
+Resource break/return仍为未完成能力，八条合法邻控只证明原For的结构化Unsupported，不计native支持。
 普通continuation的五源双入口已核无后续语句、多调用/前缀、后续Borrow使用及CFG合流后再借用；
 single在真实清理点按当前binding逐全部incoming追溯原owner，不冻结旧block/value。十个正常native
 产物核严格输出；独立CFG查询要求每条正常Return恰一次Map Drop，并核后续Borrow的callee/参数/End。

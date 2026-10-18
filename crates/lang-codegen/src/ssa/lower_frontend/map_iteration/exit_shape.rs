@@ -40,17 +40,19 @@ pub(super) fn body_exit(
     let Statement::Expression { expression } = node.payload() else {
         return Err(unsupported());
     };
-    if [descriptor.key_type(), descriptor.value_type()]
-        .iter()
-        .any(|ty| builtin_type(typed, *ty) != Some(BuiltinType::String))
-    {
-        return Err(unsupported());
-    }
     let node = parsed
         .ast()
         .expressions()
         .get(*expression)
         .map_err(|_| missing())?;
+    // Continue only ends component loans and transports the provider; its value type is irrelevant.
+    if !matches!(node.payload(), Expression::Continue { .. })
+        && [descriptor.key_type(), descriptor.value_type()]
+            .iter()
+            .any(|ty| builtin_type(typed, *ty) != Some(BuiltinType::String))
+    {
+        return Err(unsupported());
+    }
     match node.payload() {
         Expression::Continue { .. } => Ok(IterationExitKind::Continue(*expression)),
         Expression::Break { .. } => Ok(IterationExitKind::Break(*expression)),

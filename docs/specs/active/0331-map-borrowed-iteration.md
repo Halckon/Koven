@@ -682,3 +682,29 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   Resource的24个ASan/LSan结果、generated-owner16例与24运行记录通过；Mac generated-owner为partial，
   8个counter运行记录通过，requirements_met=false。旧CI不覆盖本节后继改动，当前CI执行另记。
   R1 Resource continue与R2 nullable component继续待处理，0331仍active，不归档、不合并、不启动D10。
+
+
+## 41. Resource continue 与 Shared caller 权限恢复（2026-10-18）
+
+- R1先用真实五源十观察取得lower Unsupported；补Shared两源后，在精确`5e9d8c9a`四生产文件旧
+  字节上重验七源双入口14次Unsupported，Rust实际0通过/1失败，所有前置FE查询成立，finally逐字恢复。
+  五源own Map含原continue fixture、最后使用/后续CFG使用及有/无本轮Guard；Borrow Map与MutableMap
+  各含非空/空调用，caller随后size，Mutable再put并核size==3。引用红证的wrapper曾误把失败汇总的
+  unit=false当Report false；原执行结果未改，修正仓外判据后七源重跑留最终收据。
+- Continue只逆序结束组件并运输provider，不要求K/V为String；既有B/R类型边界保留。single Resource
+  proof消费公开Continue incoming，Header/Exit仍回到原parameter；unit按自身ControlTransfer事实，允许
+  已验证body-local Drop前缀，末尾仍严格V/K End且禁止Drop source。两入口复用原回边carrier/清理，
+  不新增AST白名单或合并D10，不增加Resource来源/字段等表示资格。
+- 独立同次FE桥核原root/caller交付与完整清理，SSA核Guard原AST构造→真实HeapAllocate/type/deinit/
+  Drop、read→Guard Drop→V End→K End→Next；Next锚实际Continue span，false边cursor也入完整用途查询。
+  每条normal Return对own source恰一次词法Map Drop。Shared路径另核本层reborrow与原caller loan分离，
+  caller两次真实BorrowBegin/Call/End，post-put的size使用MapPut交付的新owner；初次query误要求旧owner
+  ID导致两SharedMutable观察失败，按实际SSA操作合同修正查询，无生产变更。
+- 新B/R合法邻控八观察暴露Unit继承分类缺陷：Resource return在既有String能力门前进入operand检查，
+  错报MissingFact。首轮资源组实际4通过/1失败，后续native未跑；窄修将能力门移到该operand检查之前，
+  与single同在原For报Unsupported。B/R仍未接通，不用拒绝邻控通过宣称实现完成。
+- 最终定向14项ordinary Rust全过，0失败/忽略；新continue七源14pipeline及14正常native产物全部
+  通过。所选native合计28产物（本片14、R3十、原Resource四），均严格exit0/golden/空stderr。
+  原String三退出、history42路、sequential20路与旧Resource等回归通过；fmt/workspace all-targets
+  check/clippy(-D warnings)/build四门通过。输入摘要前后一致，独审finding及最小Shared补证已闭合。
+  普通marker仍不替代逐对象内存计数/泄漏证明；本片尚无新提交CI。R2继续待验，0331保持active。

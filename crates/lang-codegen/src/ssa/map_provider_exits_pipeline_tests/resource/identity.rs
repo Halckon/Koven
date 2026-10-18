@@ -41,6 +41,7 @@ pub(super) struct Input {
     pub scope: StatementId,
     pub body: StatementId,
     pub for_span: Span,
+    pub continued: Option<ExpressionId>,
 }
 
 pub(super) fn ast(sources: &SourceMap, parsed: &ParsedFile, owned: bool) -> Result<Input, Failure> {
@@ -133,6 +134,20 @@ pub(super) fn ast(sources: &SourceMap, parsed: &ParsedFile, owned: bool) -> Resu
         "resource original source text",
         source_span,
     )?;
+    let body_span = parsed.ast().statements().get(*body).unwrap().span();
+    let continued = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| {
+            (matches!(node.payload(), Expression::Continue { .. })
+                && node.span().source_id() == body_span.source_id()
+                && node.span().start() > body_span.start()
+                && node.span().end() < body_span.end())
+            .then_some(id)
+        })
+        .collect::<Vec<_>>();
+    need(continued.len() <= 1, "actual optional Continue", &continued)?;
     Ok(Input {
         owned,
         scan,
@@ -145,6 +160,7 @@ pub(super) fn ast(sources: &SourceMap, parsed: &ParsedFile, owned: bool) -> Resu
         scope,
         body: *body,
         for_span: node.span(),
+        continued: continued.first().copied(),
     })
 }
 
@@ -219,7 +235,9 @@ pub(super) fn single(
         )?;
     }
     let fallthrough = one(
-        p.exits().iter().filter(|e| e.kind() == E::Fallthrough),
+        p.exits()
+            .iter()
+            .filter(|e| e.kind() == input.continued.map_or(E::Fallthrough, E::Continue)),
         "resource single fallthrough",
     )?;
     let exhausted = one(
@@ -228,18 +246,21 @@ pub(super) fn single(
     )?;
     need(
         p.exits().len() == 2
-            && fallthrough.point() == DropPoint::AfterStatement(input.body)
-            && fallthrough.actions()
-                == [
-                    A::EndBinding {
-                        statement: input.statement,
-                        symbol: d.value_binding(),
-                    },
-                    A::EndBinding {
-                        statement: input.statement,
-                        symbol: d.key_binding(),
-                    },
-                ]
+            && fallthrough.point()
+                == input.continued.map_or(
+                    DropPoint::AfterStatement(input.body),
+                    DropPoint::ControlTransfer,
+                )
+            && fallthrough.actions().ends_with(&[
+                A::EndBinding {
+                    statement: input.statement,
+                    symbol: d.value_binding(),
+                },
+                A::EndBinding {
+                    statement: input.statement,
+                    symbol: d.key_binding(),
+                },
+            ])
             && exhausted.point() == DropPoint::LoopExit(input.statement)
             && exhausted.actions()
                 == [
@@ -248,6 +269,18 @@ pub(super) fn single(
                 ],
         "resource single exact cleanup, without component/source Drop",
         p.exits(),
+    )?;
+    let body_drops = owned
+        .drops()
+        .iter()
+        .copied()
+        .filter(|f| f.point() == fallthrough.point())
+        .map(A::Drop)
+        .collect::<Vec<_>>();
+    need(
+        fallthrough.actions()[..fallthrough.actions().len() - 2] == body_drops,
+        "single full body-local Drop prefix",
+        fallthrough,
     )?;
     let drops = owned
         .drops()
@@ -300,7 +333,11 @@ pub(super) fn single(
         }
         for (kind, phi, point) in [
             (K::Entry, h, DropPoint::AfterExpression(input.source)),
-            (K::Fallthrough, h, fallthrough.point()),
+            (
+                input.continued.map_or(K::Fallthrough, K::Continue),
+                h,
+                fallthrough.point(),
+            ),
             (K::Exhaustion, x, exhausted.point()),
         ] {
             let edge = one(
@@ -455,7 +492,12 @@ pub(super) fn unit(
         (signature, p),
     )?;
     let fallthrough = one(
-        p.exits().iter().filter(|e| e.kind() == UE::Fallthrough),
+        p.exits().iter().filter(|e| {
+            e.kind()
+                == input.continued.map_or(UE::Fallthrough, |e| {
+                    UE::Continue(UnitExpressionId::new(root.source_unit(), e))
+                })
+        }),
         "resource unit fallthrough",
     )?;
     let exhausted = one(
@@ -465,25 +507,41 @@ pub(super) fn unit(
     need(
         p.exits().len() == 2
             && fallthrough.point()
-                == UnitDropPoint::AfterStatement(UnitStatementId::new(
-                    root.source_unit(),
-                    input.body,
-                ))
-            && fallthrough.actions()
-                == [
-                    UA::EndBinding {
-                        statement,
-                        symbol: d.value_binding(),
+                == input.continued.map_or(
+                    UnitDropPoint::AfterStatement(UnitStatementId::new(
+                        root.source_unit(),
+                        input.body,
+                    )),
+                    |e| {
+                        UnitDropPoint::ControlTransfer(UnitExpressionId::new(root.source_unit(), e))
                     },
-                    UA::EndBinding {
-                        statement,
-                        symbol: d.key_binding(),
-                    },
-                ]
+                )
+            && fallthrough.actions().ends_with(&[
+                UA::EndBinding {
+                    statement,
+                    symbol: d.value_binding(),
+                },
+                UA::EndBinding {
+                    statement,
+                    symbol: d.key_binding(),
+                },
+            ])
             && exhausted.point() == UnitDropPoint::LoopExit(statement)
             && exhausted.actions() == [UA::FinishProvider(statement), UA::EndSource(statement)],
         "resource unit exact cleanup without source/component Drop",
         p.exits(),
+    )?;
+    let body_drops = owned
+        .drops()
+        .iter()
+        .copied()
+        .filter(|f| f.point() == fallthrough.point())
+        .map(UA::Drop)
+        .collect::<Vec<_>>();
+    need(
+        fallthrough.actions()[..fallthrough.actions().len() - 2] == body_drops,
+        "unit full body-local Drop prefix",
+        fallthrough,
     )?;
     let drops = owned
         .drops()

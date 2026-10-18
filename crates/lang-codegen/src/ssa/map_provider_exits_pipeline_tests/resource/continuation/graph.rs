@@ -10,7 +10,7 @@ use crate::ssa::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-fn transport(
+pub(super) fn transport(
     g: &Graph<'_>,
     current: EntityId,
     anchor: EntityId,
@@ -96,11 +96,20 @@ pub(super) fn check(
     let val = op(|o| matches!(o, Operation::MapIterationValueLoan { .. }))?;
     let next = op(|o| matches!(o, Operation::MapIterationNext { .. }))?;
     need(
-        [first, guard, key, val, next]
+        [first, guard, key, val]
             .iter()
             .all(|i| i.origin == Origin::Source(input.for_span)),
         "original AST For origins",
         input.for_span,
+    )?;
+    let next_origin = input
+        .continued
+        .map(|id| parsed.ast().expressions().get(id).unwrap().span())
+        .unwrap_or(input.for_span);
+    need(
+        next.origin == Origin::Source(next_origin),
+        "Next actual normal/Continue origin",
+        next,
     )?;
     let Operation::MapIterationFirst { source } = first.operation else {
         unreachable!()
@@ -215,6 +224,20 @@ pub(super) fn check(
         }
     }
     let mut uses = Uses::default();
+    for cursor in [
+        result(first)?,
+        EntityId::Value(hc),
+        EntityId::Value(bc),
+        result(next)?,
+        g.transported(when_false, EntityId::Value(hc))?,
+    ] {
+        uses.protect(cursor);
+    }
+    uses.permit(EntityId::Value(hc), guard);
+    for i in [key, val, next] {
+        uses.permit(EntityId::Value(bc), i);
+    }
+
     for owner in &owners {
         uses.protect(*owner);
     }
@@ -284,6 +307,15 @@ pub(super) fn check(
             && g.position(ends[0])? < g.position(next)?,
         "read/value End/key End/Next",
         &ends,
+    )?;
+    check_local_guard(
+        &g,
+        module,
+        input,
+        sources,
+        parsed,
+        (read, ends[1]),
+        &mut uses,
     )?;
     uses.check(&g, None)?;
     let mut post_calls = BTreeSet::new();
@@ -416,5 +448,133 @@ pub(super) fn check(
             pending.push((edge.target, ended, dropped));
         }
     }
+    Ok(())
+}
+
+fn check_local_guard(
+    g: &Graph<'_>,
+    module: &Module,
+    input: &Input,
+    sources: &lang_frontend::source::SourceMap,
+    parsed: &lang_frontend::parser::ParsedFile,
+    body_uses: (&Instruction, &Instruction),
+    uses: &mut Uses,
+) -> Result<(), Failure> {
+    let (read, value_end) = body_uses;
+    use lang_frontend::parser::{Item, NameMarker};
+    let body_span = parsed.ast().statements().get(input.body).unwrap().span();
+    let locals = parsed
+        .ast()
+        .items()
+        .iter()
+        .filter_map(|(_, node)| {
+            let Item::Variable {
+                name: NameMarker::Present(name),
+                initializer,
+                ..
+            } = node.payload()
+            else {
+                return None;
+            };
+            (node.span().start() > body_span.start()
+                && node.span().end() < body_span.end()
+                && sources.slice(*name) == Ok("local"))
+            .then_some((*name, *initializer))
+        })
+        .collect::<Vec<_>>();
+    let allocations = g
+        .instructions
+        .iter()
+        .copied()
+        .filter(|i| i.block == read.block && matches!(i.operation, Operation::HeapAllocate { .. }))
+        .collect::<Vec<_>>();
+    if locals.is_empty() {
+        need(
+            allocations.is_empty(),
+            "no unrequested local owner",
+            &allocations,
+        )?;
+        return Ok(());
+    }
+    let [(name, initializer)] = locals.as_slice() else {
+        return Err(failure("one original Guard binding", locals));
+    };
+    let origin = parsed.ast().expressions().get(*initializer).unwrap().span();
+    need(
+        sources.slice(origin) == Ok("Guard()"),
+        "original Guard constructor",
+        origin,
+    )?;
+    let [allocation] = allocations.as_slice() else {
+        return Err(failure("unique actual Guard allocation", allocations));
+    };
+    let Operation::HeapAllocate { owner: ty, payload } = allocation.operation else {
+        unreachable!()
+    };
+    need(
+        allocation.origin == Origin::Source(origin),
+        "Guard allocation original expression",
+        allocation,
+    )?;
+    let class = one(
+        parsed.roots().iter().filter_map(|id| {
+            let n = parsed.ast().items().get(*id).ok()?;
+            let Item::Classifier(class) = n.payload() else {
+                return None;
+            };
+            matches!(class.name,NameMarker::Present(name) if sources.slice(name)==Ok("Guard"))
+                .then_some(class)
+        }),
+        "original Guard class",
+    )?;
+    let body = class
+        .body
+        .as_ref()
+        .ok_or_else(|| failure("Guard body", class))?;
+    let [deinit] = body.members.as_slice() else {
+        return Err(failure("one actual deinit", body));
+    };
+    let member = parsed.ast().items().get(*deinit).unwrap();
+    need(
+        matches!(member.payload(), Item::Deinit { .. }),
+        "original deinit member",
+        member,
+    )?;
+    let actual = module
+        .deinits
+        .get(&ty)
+        .and_then(|id| module.function(*id))
+        .ok_or_else(|| failure("actual Guard type drop glue", ty))?;
+    need(
+        actual.origin == Origin::Source(member.span()),
+        "actual Guard type/deinit identity",
+        actual,
+    )?;
+    let payload = g.definition(EntityId::Value(payload))?;
+    need(
+        payload.origin == Origin::Source(origin)
+            && payload.block == read.block
+            && matches!(&payload.operation,Operation::AggregateConstruct{fields,..} if fields.is_empty()),
+        "actual zero-field Guard payload",
+        payload,
+    )?;
+    let owner = value(allocation)?;
+    let drop = one(
+        g.instructions
+            .iter()
+            .copied()
+            .filter(|i| i.operation == Operation::Drop { owner }),
+        "unique body-local Guard Drop",
+    )?;
+    need(
+        drop.block == read.block
+            && drop.origin == Origin::Source(*name)
+            && g.position(read)? < g.position(drop)?
+            && g.position(drop)? < g.position(value_end)?,
+        "actual read/Guard Drop/value End order",
+        drop,
+    )?;
+    uses.protect(EntityId::Value(owner));
+    uses.permit(EntityId::Value(owner), drop);
     Ok(())
 }

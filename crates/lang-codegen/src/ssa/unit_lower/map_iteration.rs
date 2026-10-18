@@ -571,12 +571,18 @@ fn qualify_body(
         .get(*expression)
         .map_err(|_| missing())?;
     let expression_id = UnitExpressionId::new(descriptor.statement().source_unit(), *expression);
+    let string_components = builtin_type(typed, descriptor.key_type()) == Some(BuiltinType::String)
+        && builtin_type(typed, descriptor.value_type()) == Some(BuiltinType::String);
     let kind = match node.payload() {
         Expression::Continue { .. } => UnitIterationExitKind::Continue(expression_id),
         Expression::Break { .. } => UnitIterationExitKind::Break(expression_id),
         Expression::Return {
             value: Some(value), ..
         } => {
+            // A legal unsupported component representation is not a damaged call fact.
+            if !string_components {
+                return Err(unsupported());
+            }
             qualify_return_operand(parsed, names, typed, descriptor, *value, span)?;
             UnitIterationExitKind::Return(expression_id)
         }
@@ -585,9 +591,7 @@ fn qualify_body(
             return Ok(UnitIterationExitKind::Fallthrough);
         }
     };
-    if builtin_type(typed, descriptor.key_type()) != Some(BuiltinType::String)
-        || builtin_type(typed, descriptor.value_type()) != Some(BuiltinType::String)
-    {
+    if !matches!(kind, UnitIterationExitKind::Continue(_)) && !string_components {
         return Err(unsupported());
     }
     for statement in prefix {

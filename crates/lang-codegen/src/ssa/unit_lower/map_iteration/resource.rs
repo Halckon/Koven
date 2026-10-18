@@ -48,7 +48,10 @@ pub(super) fn qualify(
         .and_then(|s| s.nominal())
         .ok_or_else(bad)?;
     if d.kind() != MapIterationKind::Map
-        || kind != UnitIterationExitKind::Fallthrough
+        || !matches!(
+            kind,
+            UnitIterationExitKind::Fallthrough | UnitIterationExitKind::Continue(_)
+        )
         || plan.source_access() != UnitIterationSourceAccess::Owned
         || typed.is_resource_type(d.source_type()) != Some(true)
         || builtin_type(typed, d.key_type()) != Some(BuiltinType::String)
@@ -88,8 +91,10 @@ pub(super) fn qualify(
     let [body_plan, exhaustion] = plan.exits() else {
         return Err(bad());
     };
-    let body_point =
-        UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), *body));
+    let body_point = match kind {
+        UnitIterationExitKind::Continue(expression) => UnitDropPoint::ControlTransfer(expression),
+        _ => UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), *body)),
+    };
     let body_actions = [
         Action::EndBinding {
             statement,
@@ -104,15 +109,19 @@ pub(super) fn qualify(
         Action::FinishProvider(statement),
         Action::EndSource(statement),
     ];
-    if body_plan.kind() != UnitIterationExitKind::Fallthrough
+    if body_plan.kind() != kind
         || body_plan.point() != body_point
-        || body_plan.actions() != body_actions
+        || !body_plan.actions().ends_with(&body_actions)
         || exhaustion.kind() != UnitIterationExitKind::Exhaustion
         || exhaustion.point() != UnitDropPoint::LoopExit(statement)
         || exhaustion.actions() != exhaustion_actions
         || owned.iteration_cleanup_at(body_point) != Some(body_plan.actions())
         || owned.iteration_cleanup_at(exhaustion.point()) != Some(exhaustion.actions())
     {
+        return Err(bad());
+    }
+    let prefix = &body_plan.actions()[..body_plan.actions().len() - body_actions.len()];
+    if prefix.iter().any(|action| !matches!(action, Action::Drop(fact) if fact.target()!=UnitDropTarget::Named(root))) {
         return Err(bad());
     }
     Ok(*drop)

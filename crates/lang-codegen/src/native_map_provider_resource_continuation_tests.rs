@@ -18,3 +18,18 @@ fn unit_resource_continuations_exit_with_lexical_drops() {
         assert_result(case.label, "unit", &run, &case.golden);
     }
 }
+
+#[test]
+fn single_resource_continue_exits_with_lexical_drops() {
+    for case in crate::ssa::map_provider_exits_pipeline_tests::resource_continue_sources() {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(case.label, "single", &run, &case.golden);
+    }
+}
+#[test]
+fn unit_resource_continue_exits_with_lexical_drops() {
+    for case in crate::ssa::map_provider_exits_pipeline_tests::resource_continue_sources() {
+        let run = run_unit(case.label, &case.source);
+        assert_result(case.label, "unit", &run, &case.golden);
+    }
+}

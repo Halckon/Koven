@@ -2,6 +2,7 @@
 //! Resource values remain container-owned; the loop creates Shared component loans.
 mod boundaries;
 pub(super) mod continuation;
+pub(super) mod continued;
 mod identity;
 
 use super::{

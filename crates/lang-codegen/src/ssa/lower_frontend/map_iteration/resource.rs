@@ -36,7 +36,10 @@ pub(super) fn qualify(
         return Err(unsupported());
     };
     if d.kind() != lang_frontend::type_checking::MapIterationKind::Map
-        || body_exit != IterationExitKind::Fallthrough
+        || !matches!(
+            body_exit,
+            IterationExitKind::Fallthrough | IterationExitKind::Continue(_)
+        )
         || typed.is_resource_type(d.source_type()) != Some(true)
         || builtin_type(typed, d.key_type()) != Some(BuiltinType::String)
         || !arguments.is_empty()
@@ -90,17 +93,17 @@ pub(super) fn qualify(
     {
         return Err(bad());
     }
-    let fallthrough = unique(
-        plan.exits()
-            .iter()
-            .filter(|e| e.kind() == IterationExitKind::Fallthrough),
-    )
-    .ok_or_else(bad)?;
+    let backedge = unique(plan.exits().iter().filter(|e| e.kind() == body_exit)).ok_or_else(bad)?;
     for (phi, kind, point) in [
         (
             h,
-            IterationPhiIncomingKind::Fallthrough,
-            fallthrough.point(),
+            match body_exit {
+                IterationExitKind::Continue(expression) => {
+                    IterationPhiIncomingKind::Continue(expression)
+                }
+                _ => IterationPhiIncomingKind::Fallthrough,
+            },
+            backedge.point(),
         ),
         (
             x,
