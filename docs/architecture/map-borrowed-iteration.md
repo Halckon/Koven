@@ -22,7 +22,7 @@ source 求值、分量与 source 清理由已验证事实交付，SSA verifier �
 local A/B 的独立全实体/全 incoming 深查询仍待，不用 collector 取代。
 
 Group 仍由真实源码阶段门精确拒绝；Field/Inout、direct Borrow-return continuation、
-更一般 source/CFG、nullable/Resource K/V 组合不由本表开放。body-local Guard 的析构
+更一般 source/CFG、nullable K/V 组合不由本表开放。body-local Guard 的析构
 正例不等于 Map 的 Resource 分量支持。Map Borrow 的直接退出
 补片和Unit闭包前端修复另见下节，本表不据云端摘要扩张。私有损坏事实与故障对照仅在
 GitHub Actions 执行，本次本机未运行；macOS sanitizer 合同仍为 partial。
@@ -52,3 +52,19 @@ Pure 邻控。新重建的十份拒绝与五份合法源码均运行 single/unit
 已有同次独立只读查询；八路SSA/LLVM及八个native产物正常exit/golden/空stderr通过。
 fixture目录为`map-provider-borrow-exits-0331`。这是有界重建，不宣称原云提交/collector
 恢复、任意CFG或动态释放计数；原Field/Inout/Group及Borrow-return来源阶段门保持。
+
+
+## Resource 分量的有限正常耗尽
+
+`map-provider-resource-0331` 的两份普通源码支持 own Map / Borrow MutableMap 参数、
+String key 与无字段/泛型/接口且有显式 deinit 的直接 class value，正常回边和耗尽。owned Map
+仅接通函数体恰为 For 加一个字面量 println 的形状：single 消费公开 Header/Exit phi、
+完整 incoming/Choice 与唯一 AfterStatement(scope) Drop，在 source loan 结束后保留实际
+当前 owner 至该词法点；unit 独立消费 qualified scope Drop 并运输自身 carrier。
+Borrow MutableMap 不取得或清理 caller owner。owned Map 的更长 continuation、continue、nullable
+Resource 分量仍由真实 well-typed 邻控保留原 For 的 UnsupportedNode。
+
+两份源×双入口四路经独立原 AST/name/参数/caller、完整 SSA incoming/operand 使用及
+词法 Drop 查询后通过 verifier/LLVM；四个普通 native 产物 exit0/完整 golden/空 stderr。
+测试明确区分 single Borrow 的支配入口 loan 与需要运输的列，不虚构额外 seed 列；
+该片不是云端 Resource 提交的字节恢复，不扩称一般 Resource CFG 或无泄漏。

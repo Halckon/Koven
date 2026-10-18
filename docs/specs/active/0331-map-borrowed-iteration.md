@@ -408,3 +408,39 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - 本片最终fresh-context复审确认来源/caller证据finding关闭，未发现该有界组合新阻断；
   fmt/check/clippy(-D warnings)/build四项全通过，文档704页检查通过。旧日志和新的逐项
   收据、格式补丁均保留任务仓外；不据stdout扩称无泄漏或精确动态析构次数。
+
+
+## 30. 本机 Resource Map 正常耗尽重建（2026-10-18）
+
+- `c38dba63` 两份普通源码先有真实后端首红；`e783c00e` 仅接通 own Map 的直接
+  String/无字段、无泛型或接口的 deinit class value、正常耗尽与固定两语句 scope。single 核公开 phi 的
+  Header/Exit、全 incoming、Choice 与唯一 AfterStatement(scope) Drop，沿真实 carrier
+  保留当前 owner；unit 独立使用 qualified scope fact。Borrow MutableMap 复用原
+  Shared 路径，不清理 caller owner。新增两个生产模块分别约320/200行，不合并双 lower。
+- `e862fc0a` 增两项普通 native 测试、四产物全部 exit0/golden/空stderr。源码与实现是
+  本机有界重建，未取得云原 Resource 补丁，不称原提交恢复。owned Map 的continue、nullable 与额外
+  continuation 三份合法邻控×双入口均 FE/ownership/完整validator成功后，在原 For
+  精确 UnsupportedNode；`98125167` 修正两条 scope-helper 的错误诊断 Span。
+- `8e790b4c` 含两项 Resource Rust 测试：增强原正例四路同次只读查询，新增六条边界观察。原 AST 参数/
+  reference root、实际 caller selected signature/Value或Shared交接、原root Move/loan，
+  single原 phi/incoming/Choice/词法Drop 与 unit自身事实均独立核验。SSA 按原scan函数
+  查询所有实际入边、owner/source/cursor/两分量、read的真实operand及value→key结束顺序；
+  false边 source结束先于marker，owned唯一Drop消费当前false owner并在marker后。
+  单Borrow支配入口loan不冒充transport列；所有保护entity核完整instruction使用集合。
+- 修复测试API误用 `UnitCallableSignature.declaration()`，改从外层真实 declaration
+  signature取身份；后续测试曾真实失败于marker操作种类、Borrow seed列与诊断Span，
+  均保存原日志、按公开API/原源码校正后复跑。未以collector exit0冒充全部检查通过。
+- 固定 `8e790b4c8382b9fac047ac35d3e449752e6055d1` / tree
+  `dd7f444f64d0eceea7659a3d65dc83eb083723d6` 串行51项 ordinary exact全部通过，
+  0失败/忽略；tracked输入运行前后SHA256均
+  `f84adbd88cbb1378267ecb3ce0a148235a2ee1f4c9d60f47f83948484ab963fd`。
+  其中20项native测试共68产物（原56、Borrow8、Resource4）；17项pipeline/身份、
+  3项阶段/whole/Group、10项前端邻控及1项Resource边界测试分别记账。
+- fresh-context独审覆盖生产资格/lexical owner运输、同次FE和caller身份、所有SSA
+  incoming/operand、真实邻控边界；finding均修复复审，无本片新阻断。此前PR119
+  `a2cf1f27` 的绿色CI不覆盖本片；local深查询和新head完整远端CI仍待。F保持active，
+  macOS sanitizer保持partial，未执行本机故障对照，不进入D10。
+
+- 最终工程 fmt/check/clippy(workspace/all-targets、-D warnings)/build 四项通过；初次
+  fmt发现一处测试reexport顺序，机械修正后重验。704页文档检查与相对main的Rust
+  尺寸门通过，仍报告38个旧超限文件。大日志留仓外，格式补丁保留任务目录。
