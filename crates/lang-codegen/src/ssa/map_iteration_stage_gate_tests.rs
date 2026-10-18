@@ -1,5 +1,5 @@
 //! SPEC-0331 最小 provider 资格的普通源码阶段门。
-//! Map Borrow 精确拒绝，MutableMap Borrow 须完成 SSA/LLVM；不构造/变异 facts，不执行 native。
+//! 两种 Borrow normal 均须完成 SSA/LLVM；原始 source 字节保留，不构造/变异 facts，不执行 native。
 
 mod facts;
 mod fixture;
@@ -7,7 +7,7 @@ mod group;
 mod single;
 mod unit;
 
-use fixture::{Expectation, Fixture, SourceCase};
+use fixture::{Fixture, SourceCase};
 use lang_frontend::type_checking::{IntrinsicTypeConstructor, MapIterationKind};
 
 const MAP: SourceCase = SourceCase {
@@ -89,20 +89,16 @@ fn observe(
     reverse_inputs: bool,
     entry_name: &str,
     whole_set: bool,
-    expectation: Expectation,
 ) -> Observation {
     let mut report = Report::default();
     let result = Fixture::new(cases).and_then(|fixture| match pathway {
-        Pathway::Single => {
-            single::collect(&fixture, entry_name, whole_set, expectation, &mut report)
-        }
+        Pathway::Single => single::collect(&fixture, entry_name, whole_set, &mut report),
         Pathway::Basic | Pathway::Const => unit::collect(
             &fixture,
             pathway,
             reverse_inputs,
             entry_name,
             whole_set,
-            expectation,
             &mut report,
         ),
     });
@@ -130,38 +126,26 @@ fn assert_observations(observations: &[Observation], expected: usize) {
     assert_eq!(observations.len(), expected);
     assert!(
         observations.iter().all(Observation::passed),
-        "Map Borrow 必须完整 frontend 成功后精确 UnsupportedNode；\
-         MutableMap Borrow 必须返回真实入口并通过 SSA 与完整 LLVM；\
+        "Map 和 MutableMap Borrow 必须完整 frontend 成功；\
+         二者必须返回真实入口并通过 SSA 与完整 LLVM；\
          前置失败保留原 stage，代表 LOWER_NOT_ATTEMPTED，不能冒充能力结果。\n{observations:#?}",
     );
 }
 
 #[test]
-fn map_borrow_rejects_and_mutable_map_borrow_verifies_in_three_pathways() {
-    let observations = [
-        (MAP, Expectation::Unsupported),
-        (MUTABLE, Expectation::Verified),
-    ]
-    .into_iter()
-    .flat_map(|(case, expectation)| {
-        [Pathway::Single, Pathway::Basic, Pathway::Const].map(|pathway| {
-            observe(
-                case.path,
-                &[case],
-                pathway,
-                false,
-                "scan",
-                false,
-                expectation,
-            )
+fn map_and_mutable_map_borrow_normal_verify_in_three_pathways() {
+    let observations = [MAP, MUTABLE]
+        .into_iter()
+        .flat_map(|case| {
+            [Pathway::Single, Pathway::Basic, Pathway::Const]
+                .map(|pathway| observe(case.path, &[case], pathway, false, "scan", false))
         })
-    })
-    .collect::<Vec<_>>();
+        .collect::<Vec<_>>();
     assert_observations(&observations, 6);
 }
 
 #[test]
-fn whole_typed_source_set_rejects_unused_map_loops_in_actual_identity_order() {
+fn whole_typed_source_set_verifies_unused_borrow_map_loops() {
     let mut observations = Vec::new();
     // 单文件也锁整个 typed file；entry 体为空，两个 Map 函数从未被 entry 调用。
     let text = WHOLE.iter().map(|case| case.text).collect::<String>();
@@ -175,7 +159,6 @@ fn whole_typed_source_set_rejects_unused_map_loops_in_actual_identity_order() {
                 reverse_inputs,
                 "entry",
                 true,
-                Expectation::Unsupported,
             ));
         }
     }

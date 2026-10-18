@@ -1,7 +1,7 @@
 //! Single 原始 names/raw/complete/ownership/完整 validator → 真实 lower。
 use super::{
     Observation, Report, facts,
-    fixture::{Expectation, Fixture, LowerOutcome, Stopped, clean, stopped},
+    fixture::{Fixture, LowerOutcome, Stopped, clean, stopped},
 };
 use lang_frontend::{
     name_resolution::{SymbolKind, resolve_names},
@@ -11,15 +11,8 @@ use lang_frontend::{
 
 pub(super) fn collect_whole_file(text: &str) -> Observation {
     let mut report = Report::default();
-    let result = Fixture::single_whole(text).and_then(|fixture| {
-        collect(
-            &fixture,
-            "entry",
-            true,
-            Expectation::Unsupported,
-            &mut report,
-        )
-    });
+    let result = Fixture::single_whole(text)
+        .and_then(|fixture| collect(&fixture, "entry", true, &mut report));
     Observation {
         label: "whole-file/Single".to_owned(),
         report,
@@ -31,7 +24,6 @@ pub(super) fn collect(
     fixture: &Fixture,
     entry_name: &str,
     whole_set: bool,
-    expectation: Expectation,
     report: &mut Report,
 ) -> Result<LowerOutcome, Stopped> {
     let [file] = fixture.files.as_slice() else {
@@ -112,7 +104,7 @@ pub(super) fn collect(
         true,
         owned.deferred(),
     );
-    let expected = facts::single(fixture, file, &names, &raw, &owned, whole_set, report);
+    facts::single(fixture, file, &names, &raw, &owned, whole_set, report);
     // 完整公共 validator 独立于上述只读 oracle，必须成功才允许进入 lower。
     validate_iteration_facts(parsed, &names, complete.types(), &owned)
         .map_err(|error| stopped("single full iteration validator", error))?;
@@ -135,11 +127,5 @@ pub(super) fn collect(
         true,
         lowered.as_ref().err(),
     );
-    Ok(LowerOutcome::new(
-        sources,
-        expectation,
-        expected,
-        expected_entry,
-        lowered,
-    ))
+    Ok(LowerOutcome::new(sources, expected_entry, lowered))
 }

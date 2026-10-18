@@ -1,7 +1,7 @@
 //! Basic/const 各自取得真实 capability；只读 query 不改写同轮阶段产物。
 use super::{
     Pathway, Report, facts,
-    fixture::{Expectation, Fixture, LowerOutcome, Stopped, clean, stopped},
+    fixture::{Fixture, LowerOutcome, Stopped, clean, stopped},
 };
 use lang_frontend::{
     name_resolution::{
@@ -22,7 +22,6 @@ pub(super) fn collect(
     reverse_inputs: bool,
     entry_name: &str,
     whole_set: bool,
-    expectation: Expectation,
     report: &mut Report,
 ) -> Result<LowerOutcome, Stopped> {
     let sources = &fixture.sources;
@@ -140,7 +139,7 @@ pub(super) fn collect(
                 owned.is_compatible_with(&typed),
                 owned.deferred(),
             );
-            let expected = facts::unit(fixture, &names, typed.types(), &owned, whole_set, report);
+            facts::unit(fixture, &names, typed.types(), &owned, whole_set, report);
             // validate() 公开入口包括完整 iterations_are_valid；view factory 另验来源身份。
             let owned = owned
                 .validate()
@@ -164,13 +163,7 @@ pub(super) fn collect(
                 true,
                 lowered.as_ref().err(),
             );
-            Ok(LowerOutcome::new(
-                sources,
-                expectation,
-                expected,
-                expected_entry,
-                lowered,
-            ))
+            Ok(LowerOutcome::new(sources, expected_entry, lowered))
         }
         Pathway::Const => {
             // 没有常量声明也必须取得专用 capability；绝不借 basic view 或转换伪造。
@@ -206,7 +199,7 @@ pub(super) fn collect(
                 owned.is_compatible_with(&typed),
                 owned.ownership().deferred(),
             );
-            let expected = facts::unit(
+            facts::unit(
                 fixture,
                 &names,
                 typed.types(),
@@ -250,13 +243,7 @@ pub(super) fn collect(
                 true,
                 lowered.as_ref().err(),
             );
-            Ok(LowerOutcome::new(
-                sources,
-                expectation,
-                expected,
-                expected_entry,
-                lowered,
-            ))
+            Ok(LowerOutcome::new(sources, expected_entry, lowered))
         }
         Pathway::Single => Err(stopped(
             "unit fixture infrastructure",

@@ -1,7 +1,7 @@
 //! 公共只读事实 oracle；query 失败只记录，不能短路已经具备资格的 lower。
 use super::{
     Report,
-    fixture::{FOR_TEXT, File, Fixture, Location, location, loop_sites},
+    fixture::{FOR_TEXT, File, Fixture, loop_sites},
 };
 use lang_frontend::{
     name_resolution::{
@@ -64,12 +64,12 @@ pub(super) fn single(
     owned: &OwnershipCheckedFile,
     whole_set: bool,
     report: &mut Report,
-) -> Option<Location> {
+) {
     let sites = match loop_sites(file) {
         Ok(sites) => sites,
         Err(error) => {
             report.check("AST query", false, error);
-            return None;
+            return;
         }
     };
     let count = if whole_set { 2 } else { 1 };
@@ -211,30 +211,6 @@ pub(super) fn single(
             typed.map_iterations(),
         );
     }
-    // 本 fixture 的所有来源已逐项核为真实 Borrow/Shared 参数；MutableMap 已在硬资格内。
-    // 只在不支持的 Map Borrow 中按本分析真实 StatementId 取首项，不能选首个 Map 类描述符。
-    let first = typed
-        .map_iterations()
-        .iter()
-        .filter(|descriptor| descriptor.kind() == MapIterationKind::Map)
-        .min_by_key(|descriptor| descriptor.statement().index());
-    let expected = first
-        .and_then(|descriptor| {
-            sites
-                .iter()
-                .find(|site| site.statement == descriptor.statement())
-        })
-        .and_then(|site| location(&fixture.sources, site.span));
-    report.check(
-        "single expected first unsupported Map Borrow full For",
-        expected.is_some()
-            == typed
-                .map_iterations()
-                .iter()
-                .any(|descriptor| descriptor.kind() == MapIterationKind::Map),
-        (&first, &expected),
-    );
-    expected
 }
 
 pub(super) fn unit(
@@ -244,7 +220,7 @@ pub(super) fn unit(
     owned: &CompilationUnitOwnership,
     whole_set: bool,
     report: &mut Report,
-) -> Option<Location> {
+) {
     let count = if whole_set { 2 } else { 1 };
     report.check(
         "unit exact typed/owned Map counts",
@@ -418,28 +394,4 @@ pub(super) fn unit(
             &all_sites,
         );
     }
-    // 全部来源已核为 Borrow/Shared 参数；只对仍不支持的 Map Borrow 排序。
-    // 每次 fresh 分析重新取 SourceUnitId/StatementId 最小项；不跨分析比较裸 ID。
-    let first = typed
-        .map_iterations()
-        .iter()
-        .filter(|descriptor| descriptor.kind() == MapIterationKind::Map)
-        .min_by_key(|descriptor| descriptor.statement());
-    let expected = first
-        .and_then(|descriptor| {
-            all_sites
-                .iter()
-                .find(|(statement, _)| *statement == descriptor.statement())
-        })
-        .and_then(|(_, span)| location(&fixture.sources, *span));
-    report.check(
-        "unit expected first unsupported source-qualified Map Borrow full For",
-        expected.is_some()
-            == typed
-                .map_iterations()
-                .iter()
-                .any(|descriptor| descriptor.kind() == MapIterationKind::Map),
-        (&first, &expected),
-    );
-    expected
 }

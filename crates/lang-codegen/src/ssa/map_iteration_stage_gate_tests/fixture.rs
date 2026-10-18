@@ -1,7 +1,7 @@
 //! 普通 fixture、真实 AST 位置和阶段化结果；无生产 facts 构造器。
 
 use super::super::{
-    LoweringError, LoweringErrorKind,
+    LoweringError,
     model::{FunctionId, Origin, Program},
     verify::verify_program,
 };
@@ -191,19 +191,10 @@ pub(super) fn location(sources: &SourceMap, span: Span) -> Option<Location> {
     })
 }
 
-/// 明确锁定每条观察的唯一合同；query 缺失不得把拒绝目标变成成功目标。
-#[derive(Clone, Copy, Debug)]
-pub(super) enum Expectation {
-    Unsupported,
-    Verified,
-}
-
+/// 每条原始观察现在只接受真实 SSA/LLVM 成功；前置 query 失败仍独立失败。
 #[derive(Debug)]
 pub(super) struct LowerOutcome {
-    expectation: Expectation,
-    expected_rejection: Option<Location>,
     error: Option<LoweringError>,
-    actual_rejection: Option<Location>,
     success: Option<SuccessfulLower>,
 }
 
@@ -220,8 +211,6 @@ struct SuccessfulLower {
 impl LowerOutcome {
     pub fn new(
         sources: &SourceMap,
-        expectation: Expectation,
-        expected_rejection: Option<Location>,
         expected_entry: Option<Location>,
         result: Result<(Program, FunctionId), LoweringError>,
     ) -> Self {
@@ -257,47 +246,23 @@ impl LowerOutcome {
                 )
             }
         };
-        let actual_rejection = error
-            .and_then(|error| error.span)
-            .and_then(|span| location(sources, span));
-        Self {
-            expectation,
-            expected_rejection,
-            error,
-            actual_rejection,
-            success,
-        }
+        Self { error, success }
     }
 
     pub fn matches(&self) -> bool {
-        match self.expectation {
-            Expectation::Unsupported => self.expected_rejection.as_ref().is_some_and(|expected| {
-                self.error
-                    == Some(LoweringError {
-                        kind: LoweringErrorKind::UnsupportedNode,
-                        span: Some(expected.span),
-                    })
-                    && self.actual_rejection.as_ref() == Some(expected)
-                    && expected.text == FOR_TEXT
-                    && self.success.is_none()
-            }),
-            Expectation::Verified => {
-                self.expected_rejection.is_none()
-                    && self.error.is_none()
-                    && self.success.as_ref().is_some_and(|success| {
-                        // 同一分析的真实返回 ID 与源身份；无跨分析裸 ID 比较。
-                        success
-                            .actual_entry
-                            .as_ref()
-                            .is_some_and(|actual| Some(actual) == success.expected_entry.as_ref())
-                            && success.entry_identity == Some(success.entry)
-                            && success.ssa_verifier.is_ok()
-                            && success
-                                .verified_llvm_bytes
-                                .as_ref()
-                                .is_ok_and(|bytes| *bytes > 0)
-                    })
-            }
-        }
+        self.error.is_none()
+            && self.success.as_ref().is_some_and(|success| {
+                // 同一分析的真实返回 ID 与源身份；无跨分析裸 ID 比较。
+                success
+                    .actual_entry
+                    .as_ref()
+                    .is_some_and(|actual| Some(actual) == success.expected_entry.as_ref())
+                    && success.entry_identity == Some(success.entry)
+                    && success.ssa_verifier.is_ok()
+                    && success
+                        .verified_llvm_bytes
+                        .as_ref()
+                        .is_ok_and(|bytes| *bytes > 0)
+            })
     }
 }
