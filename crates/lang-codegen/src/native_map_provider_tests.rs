@@ -138,3 +138,6 @@ fn run_unit(case: &str, source_text: &str) -> Output {
         .output()
         .expect("linked Map provider executable must launch")
 }
+
+#[path = "native_map_provider_exits_tests.rs"]
+mod exits_tests;
