@@ -1,18 +1,33 @@
 //! Shared K/V lineage, optional ordinary reborrows and complete body cleanup.
-use super::*;
-use std::collections::BTreeMap;
+use super::{
+    fixture::{Failure, failure, need},
+    query_graph::{Graph, Uses, loan, result},
+    query_inputs::one,
+};
+use crate::ssa::model::*;
+use lang_frontend::source::Span;
+use std::collections::{BTreeMap, BTreeSet};
+
+/// Original AST ranges and represented types for one normal Map body.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Body {
+    pub block: BlockId,
+    pub span: Span,
+    pub read: Span,
+    pub arguments: [Span; 2],
+    pub types: [SsaTypeId; 2],
+}
 
 pub(super) fn check<'ir>(
-    q: &Query<'_, 'ir>,
-    site: &ast::Site,
-    block: BlockId,
-    roles: Roles,
-    key_type: SsaTypeId,
-    value_type: SsaTypeId,
+    g: &Graph<'ir>,
+    reader: &Function,
+    site: Body,
+    source: LoanId,
+    cursor: ValueId,
     uses: &mut Uses,
 ) -> Result<&'ir Instruction, Failure> {
-    let g = q.g;
-    let ops = g.ops(block)?;
+    let [key_type, value_type] = site.types;
+    let ops = g.ops(site.block)?;
     let key = one(
         ops.iter()
             .copied()
@@ -32,21 +47,9 @@ pub(super) fn check<'ir>(
         "temporary form actual body Next",
     )?;
     need(
-        key.operation
-            == Operation::MapIterationKeyLoan {
-                source: roles.source,
-                cursor: roles.cursor,
-            }
-            && val.operation
-                == Operation::MapIterationValueLoan {
-                    source: roles.source,
-                    cursor: roles.cursor,
-                }
-            && next.operation
-                == Operation::MapIterationNext {
-                    source: roles.source,
-                    cursor: roles.cursor,
-                }
+        key.operation == Operation::MapIterationKeyLoan { source, cursor }
+            && val.operation == Operation::MapIterationValueLoan { source, cursor }
+            && next.operation == Operation::MapIterationNext { source, cursor }
             && [key, val, next]
                 .iter()
                 .all(|i| i.origin == Origin::Source(site.span)),
@@ -54,12 +57,12 @@ pub(super) fn check<'ir>(
         (key, val, next),
     )?;
     let roots = [loan(key)?, loan(val)?];
-    let reader_entry = q.reader.block(q.reader.entry_block().unwrap()).unwrap();
+    let reader_entry = reader.block(reader.entry_block().unwrap()).unwrap();
     need(
-        q.reader.receiver.is_none()
-            && q.reader.borrow_return.is_none()
-            && q.reader.carrier_return.is_none()
-            && q.reader.return_types.is_empty()
+        reader.receiver.is_none()
+            && reader.borrow_return.is_none()
+            && reader.carrier_return.is_none()
+            && reader.return_types.is_empty()
             && reader_entry.parameters.len() == 2
             && roots.iter().zip([key_type, value_type]).enumerate().all(
                 |(index, (&root, target))| {
@@ -68,11 +71,11 @@ pub(super) fn check<'ir>(
                         target,
                     };
                     g.function.entity(EntityId::Loan(root)).unwrap().ty == ty
-                        && q.reader.entity(reader_entry.parameters[index]).unwrap().ty == ty
+                        && reader.entity(reader_entry.parameters[index]).unwrap().ty == ty
                 },
             ),
         "temporary form reader Shared ABI preserves actual represented key/value",
-        q.reader.id,
+        reader.id,
     )?;
     let mut lineage = BTreeMap::<LoanId, (usize, Option<LoanId>)>::new();
     let mut live = BTreeSet::new();
@@ -91,8 +94,8 @@ pub(super) fn check<'ir>(
                     instruction,
                 )?;
                 uses.protect(EntityId::Loan(current));
-                uses.permit(EntityId::Loan(roles.source), instruction);
-                uses.permit(EntityId::Value(roles.cursor), instruction);
+                uses.permit(EntityId::Loan(source), instruction);
+                uses.permit(EntityId::Value(cursor), instruction);
             }
             Operation::SharedReborrow { source } => {
                 let (index, _) = *lineage
@@ -101,8 +104,7 @@ pub(super) fn check<'ir>(
                 let current = loan(instruction)?;
                 need(
                     live.contains(source)
-                        && instruction.origin
-                            == Origin::Source(ast::expression(q.parsed, site.arguments[index]))
+                        && instruction.origin == Origin::Source(site.arguments[index])
                         && g.function.entity(EntityId::Loan(current)).unwrap().ty
                             == g.function.entity(EntityId::Loan(*source)).unwrap().ty
                         && lineage.insert(current, (index, Some(*source))).is_none()
@@ -119,11 +121,10 @@ pub(super) fn check<'ir>(
                 arguments,
             } => {
                 need(
-                    *callee == q.reader.id
+                    *callee == reader.id
                         && receiver.is_none()
                         && arguments.len() == 2
-                        && instruction.origin
-                            == Origin::Source(ast::expression(q.parsed, site.read))
+                        && instruction.origin == Origin::Source(site.read)
                         && instruction.results.is_empty()
                         && calls == 0,
                     "temporary form actual original reader Call",
@@ -160,7 +161,7 @@ pub(super) fn check<'ir>(
                             == Origin::Source(if parent.is_none() {
                                 site.span
                             } else {
-                                ast::expression(q.parsed, site.read)
+                                site.read
                             }),
                     "temporary form derived Borrow ends before parent after real read",
                     instruction,
@@ -178,12 +179,12 @@ pub(super) fn check<'ir>(
                         && live.is_empty()
                         && ended_roots.as_slice() == [roots[1], roots[0]]
                         && g.function.entity(result(instruction)?).unwrap().ty
-                            == g.function.entity(EntityId::Value(roles.cursor)).unwrap().ty,
+                            == g.function.entity(EntityId::Value(cursor)).unwrap().ty,
                     "temporary form read then derived Ends/VEnd/KEnd then real Next",
                     instruction,
                 )?;
-                uses.permit(EntityId::Loan(roles.source), instruction);
-                uses.permit(EntityId::Value(roles.cursor), instruction);
+                uses.permit(EntityId::Loan(source), instruction);
+                uses.permit(EntityId::Value(cursor), instruction);
                 uses.protect(result(instruction)?);
             }
             _ => {

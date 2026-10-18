@@ -1,6 +1,5 @@
 //! Existing represented payloads and Int keys retain a real temporary owner per For.
 mod ast;
-mod cleanup;
 mod facts;
 mod graph;
 use super::{

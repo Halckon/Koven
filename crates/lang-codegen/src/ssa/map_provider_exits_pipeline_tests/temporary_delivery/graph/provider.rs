@@ -1,7 +1,6 @@
 //! The hidden returned owner keeps exact three-column identity through every loop edge.
-#[path = "../../temporary_forms/graph/body.rs"]
-mod body;
 use super::*;
+use crate::ssa::map_provider_exits_pipeline_tests::query_map_normal_body as body;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Roles {
@@ -41,12 +40,6 @@ impl Roles {
         })
     }
 }
-struct Query<'a, 'ir> {
-    g: &'a Graph<'ir>,
-    reader: &'ir Function,
-    parsed: &'a ParsedFile,
-}
-
 pub(super) fn check<'ir>(
     g: &Graph<'ir>,
     module: &'ir Module,
@@ -162,14 +155,18 @@ pub(super) fn check<'ir>(
     )?;
     let current = header.via(g, when_true)?;
     let exit = header.via(g, when_false)?;
-    let q = Query { g, reader, parsed };
     let next = body::check(
-        &q,
-        site,
-        when_true.target,
-        current,
-        key_type,
-        value_type,
+        g,
+        reader,
+        body::Body {
+            block: when_true.target,
+            span: site.span,
+            read: ast::expression(parsed, site.read),
+            arguments: site.arguments.map(|id| ast::expression(parsed, id)),
+            types: [key_type, value_type],
+        },
+        current.source,
+        current.cursor,
         uses,
     )?;
     let back = g.branch(when_true.target)?;

@@ -2,8 +2,9 @@
 use super::super::{
     fixture::{Failure, failure, need},
     query_inputs::one,
+    query_temporary_cleanup as cleanup,
 };
-use super::{Case, ast, cleanup};
+use super::{Case, ast};
 use lang_frontend::{
     name_resolution::{
         NameResolution, ReferenceTarget, SymbolId, UnitReferenceTarget,
@@ -199,7 +200,13 @@ pub(super) fn single(
             )?;
             bindings.push(binding);
         }
-        owners.push(cleanup::single(site, owned)?);
+        owners.push(cleanup::single(
+            site.statement,
+            site.source,
+            site.body,
+            site.call,
+            owned,
+        )?);
     }
     need(
         owners[0] != owners[1]
@@ -406,7 +413,13 @@ pub(super) fn unit(
             )?;
             bindings.push(binding);
         }
-        cleanup::unit(site, statement, source, owned)?;
+        cleanup::unit(
+            UnitStatementId::new(unit, site.body),
+            site.call,
+            statement,
+            source,
+            owned,
+        )?;
     }
     need(
         bindings

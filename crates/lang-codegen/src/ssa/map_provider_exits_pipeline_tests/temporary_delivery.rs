@@ -1,7 +1,5 @@
 //! Existing ordinary parameter delivery is shared by no-For controls and temporary sources.
 mod ast;
-#[path = "temporary_forms/cleanup.rs"]
-mod cleanup;
 mod facts;
 mod graph;
 use super::{

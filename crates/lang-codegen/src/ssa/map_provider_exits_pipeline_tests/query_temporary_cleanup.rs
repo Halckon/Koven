@@ -1,10 +1,10 @@
 //! The original temporary Call owns one LoopExit obligation in each public FE product.
-use super::super::{
+use super::{
     fixture::{Failure, failure, need},
     query_inputs::one,
 };
-use super::ast::Site;
 use lang_frontend::{
+    ast::{ExpressionId, StatementId},
     ownership_checking::{
         CleanupCondition as C, CleanupOwnerValue as O, CleanupOwnerValueId,
         CompilationUnitOwnership, DropPoint, DropTarget, IterationCleanupAction as A,
@@ -12,21 +12,28 @@ use lang_frontend::{
         OwnershipCheckedFile, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
         UnitIterationExitKind as UE,
     },
+    source::Span,
     type_checking::{UnitExpressionId, UnitStatementId},
 };
 
 pub(super) fn single(
-    site: &Site,
+    statement: StatementId,
+    source: ExpressionId,
+    body: StatementId,
+    call: Span,
     owned: &OwnershipCheckedFile,
 ) -> Result<CleanupOwnerValueId, Failure> {
-    let p = owned
-        .map_iteration(site.statement)
-        .ok_or_else(|| failure("temporary form actual cleanup plan", site))?;
+    let p = owned.map_iteration(statement).ok_or_else(|| {
+        failure(
+            "temporary form actual cleanup plan",
+            (statement, source, body, call),
+        )
+    })?;
     let drop = one(
         owned
             .drops()
             .iter()
-            .filter(|d| d.target() == DropTarget::Temporary(site.source)),
+            .filter(|d| d.target() == DropTarget::Temporary(source)),
         "temporary form unique original Call Drop",
     )?;
     let owner = drop
@@ -34,12 +41,12 @@ pub(super) fn single(
         .ok_or_else(|| failure("temporary form actual cleanup owner", drop))?;
     let table = owned.cleanup_conditions();
     need(
-        drop.point() == DropPoint::LoopExit(site.statement)
-            && drop.value_origin() == site.call
+        drop.point() == DropPoint::LoopExit(statement)
+            && drop.value_origin() == call
             && drop.condition().is_none()
             && drop.capture_slot().is_none()
             && drop.instance_address().is_none()
-            && matches!(table.owner_value(owner), Some(O::Expression {expression, origin}) if *expression == site.source && *origin == site.call),
+            && matches!(table.owner_value(owner), Some(O::Expression {expression, origin}) if *expression == source && *origin == call),
         "temporary form unique Call-origin owner and precise LoopExit",
         (drop, table.owner_value(owner)),
     )?;
@@ -47,24 +54,24 @@ pub(super) fn single(
     let expected = [
         (
             E::Fallthrough,
-            DropPoint::AfterStatement(site.body),
+            DropPoint::AfterStatement(body),
             vec![
                 A::EndBinding {
-                    statement: site.statement,
+                    statement,
                     symbol: d.value_binding(),
                 },
                 A::EndBinding {
-                    statement: site.statement,
+                    statement,
                     symbol: d.key_binding(),
                 },
             ],
         ),
         (
             E::Exhaustion,
-            DropPoint::LoopExit(site.statement),
+            DropPoint::LoopExit(statement),
             vec![
-                A::FinishProvider(site.statement),
-                A::EndSource(site.statement),
+                A::FinishProvider(statement),
+                A::EndSource(statement),
                 A::Drop(*drop),
             ],
         ),
@@ -94,13 +101,9 @@ pub(super) fn single(
         )?;
     }
     for (kind, point, boundary) in [
-        (K::Entry, DropPoint::AfterExpression(site.source), B::Header),
-        (
-            K::Fallthrough,
-            DropPoint::AfterStatement(site.body),
-            B::Header,
-        ),
-        (K::Exhaustion, DropPoint::LoopExit(site.statement), B::Exit),
+        (K::Entry, DropPoint::AfterExpression(source), B::Header),
+        (K::Fallthrough, DropPoint::AfterStatement(body), B::Header),
+        (K::Exhaustion, DropPoint::LoopExit(statement), B::Exit),
     ] {
         let incoming = one(
             p.closure_phi_incomings()
@@ -121,7 +124,8 @@ pub(super) fn single(
 }
 
 pub(super) fn unit(
-    site: &Site,
+    body: UnitStatementId,
+    call: Span,
     statement: UnitStatementId,
     source: UnitExpressionId,
     owned: &CompilationUnitOwnership,
@@ -138,14 +142,14 @@ pub(super) fn unit(
         "temporary form qualified unique original Call Drop",
     )?;
     need(
-        drop.point() == UnitDropPoint::LoopExit(statement) && drop.value_origin() == site.call,
+        drop.point() == UnitDropPoint::LoopExit(statement) && drop.value_origin() == call,
         "temporary form qualified Call-origin LoopExit",
         drop,
     )?;
     let expected = [
         (
             UE::Fallthrough,
-            UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), site.body)),
+            UnitDropPoint::AfterStatement(body),
             vec![
                 UA::EndBinding {
                     statement,

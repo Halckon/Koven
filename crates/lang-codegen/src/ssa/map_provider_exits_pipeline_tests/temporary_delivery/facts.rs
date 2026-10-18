@@ -2,8 +2,9 @@
 use super::super::{
     fixture::{Failure, failure, need},
     query_inputs::one,
+    query_temporary_cleanup as cleanup,
 };
-use super::{Case, Delivery, ast, cleanup};
+use super::{Case, Delivery, ast};
 use lang_frontend::{
     name_resolution::{
         NameResolution, ReferenceTarget, UnitReferenceTarget, ValidatedCompilationUnitNames,
@@ -194,7 +195,7 @@ pub(super) fn single(
                 (loan, reference),
             )?;
         }
-        cleanup::single(site, owned)?;
+        cleanup::single(site.statement, site.source, site.body, site.call, owned)?;
     } else {
         let root = symbol(input.control_root.unwrap())?;
         let size_id = input.size.unwrap();
@@ -473,7 +474,13 @@ pub(super) fn unit(
                 (loan, reference),
             )?;
         }
-        cleanup::unit(site, statement, expression(input.call), owned)?;
+        cleanup::unit(
+            UnitStatementId::new(unit, site.body),
+            site.call,
+            statement,
+            expression(input.call),
+            owned,
+        )?;
     } else {
         let root = one(
             names

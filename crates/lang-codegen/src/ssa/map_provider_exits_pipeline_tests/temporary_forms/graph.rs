@@ -1,5 +1,4 @@
 //! Each actual factory Call keeps its own hidden owner through every provider edge.
-mod body;
 mod representation;
 use super::{Case, ast};
 use crate::ssa::{
@@ -7,6 +6,7 @@ use crate::ssa::{
         fixture::{Failure, failure, need},
         query_graph::{Graph, Uses, function, loan, result, value},
         query_inputs::one,
+        query_map_normal_body as body,
     },
     model::*,
 };
@@ -320,12 +320,17 @@ impl<'ir> Query<'_, 'ir> {
         g.incoming_from(when_true.target, &[has.block])?;
         g.incoming_from(when_false.target, &[has.block])?;
         let next = body::check(
-            self,
-            site,
-            when_true.target,
-            body_roles,
-            key_type,
-            value_type,
+            g,
+            self.reader,
+            body::Body {
+                block: when_true.target,
+                span: site.span,
+                read: ast::expression(self.parsed, site.read),
+                arguments: site.arguments.map(|id| ast::expression(self.parsed, id)),
+                types: [key_type, value_type],
+            },
+            body_roles.source,
+            body_roles.cursor,
             uses,
         )?;
         let back = g.branch(when_true.target)?;
