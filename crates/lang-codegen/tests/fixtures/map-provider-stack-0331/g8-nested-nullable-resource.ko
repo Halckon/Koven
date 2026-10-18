@@ -1,0 +1,9 @@
+class R{deinit(){println("resource-drop")}}
+class Guard{deinit(){println("guard-drop")}}
+fun read(key:String,value:R?):Unit{println(key);println("value")}
+fun operand(key:String,value:R?):Int{read(key,value);return 7}
+fun make():Map<String,R?>{return mapOf<String,R?>()}
+fun makeMutable():MutableMap<String,R?>{return mutableMapOf<String,R?>()}
+fun readMap(source:Map<String,R?>):Unit{if(source.size==0){println("zero")}else{println("nonzero")}}
+fun scan(source:Map<String,R?>):Unit{for((key,value) in source){for((k,v) in source){read(k,v)};read(key,value)}}
+fun entry():Unit{val s=make();scan(s)}
