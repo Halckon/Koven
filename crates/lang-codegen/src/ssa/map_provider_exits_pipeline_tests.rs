@@ -211,3 +211,10 @@ pub(crate) use local_reassignment::ordinary_epoch_sources as local_ordinary_epoc
 
 mod local_resource_future;
 pub(crate) use local_resource_future::sources as local_resource_future_sources;
+
+pub(crate) use local_reassignment::{
+    ordinary_route_controls as local_ordinary_route_controls,
+    ordinary_route_sources as local_ordinary_route_sources,
+};
+
+pub(crate) use local_reassignment::completed_epoch_sources as local_completed_epoch_sources;

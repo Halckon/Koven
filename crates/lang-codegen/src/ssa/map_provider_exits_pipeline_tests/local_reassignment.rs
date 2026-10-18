@@ -3,6 +3,7 @@ mod boundaries;
 mod completed_epoch;
 mod facts;
 mod graph;
+mod ordinary_routes;
 mod sources;
 use super::{
     Report,
@@ -10,7 +11,9 @@ use super::{
     pipeline, source_forms,
 };
 pub(crate) use boundaries::grouped_sources;
+pub(crate) use completed_epoch::sources as completed_epoch_sources;
 use lang_frontend::{lexer::lex, parser::parse_file, source::SourceMap};
+pub(crate) use ordinary_routes::{ordinary_route_controls, ordinary_route_sources};
 pub(crate) use sources::{Case, sources};
 
 fn observe(case: &Case, unit: bool) -> Result<(), Failure> {

@@ -58,3 +58,41 @@ fn unit_ordinary_epoch_arguments_preserve_replacement_order() {
         assert_result(label, "unit", &run, golden);
     }
 }
+
+#[test]
+fn unit_ordinary_epoch_routes_preserve_replacement_order() {
+    let cases = crate::ssa::map_provider_exits_pipeline_tests::local_ordinary_route_sources();
+    assert_eq!(cases.len(), 6);
+    for (label, source, golden) in cases {
+        let run = run_unit(&label, &source);
+        assert_result(&label, "unit", &run, &golden);
+    }
+}
+#[test]
+fn unit_ordinary_route_controls_preserve_existing_delivery() {
+    let cases = crate::ssa::map_provider_exits_pipeline_tests::local_ordinary_route_controls();
+    assert_eq!(cases.len(), 3);
+    for (label, source, golden) in cases {
+        let run = run_unit(&label, &source);
+        assert_result(&label, "unit", &run, &golden);
+    }
+}
+
+#[test]
+fn single_completed_replacements_drop_the_installed_owner_asap() {
+    let cases = crate::ssa::map_provider_exits_pipeline_tests::local_completed_epoch_sources();
+    assert_eq!(cases.len(), 4);
+    for case in cases {
+        let run = emit_link_and_run("provider.ko", &case.source, "entry");
+        assert_result(&case.label, "single", &run, &case.golden);
+    }
+}
+#[test]
+fn unit_completed_replacements_drop_the_installed_owner_asap() {
+    let cases = crate::ssa::map_provider_exits_pipeline_tests::local_completed_epoch_sources();
+    assert_eq!(cases.len(), 4);
+    for case in cases {
+        let run = run_unit(&case.label, &case.source);
+        assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
