@@ -241,10 +241,9 @@ fn check_exit(e: Evidence<'_>, state: &State, exit: &Exit) -> Result<(), Lowerin
                 for frame in &exit.frames {
                     if let Some((proof, _, current)) = frame.owner
                         && proof.at_checked(expected.point(), e.owned)? == Some(*fact)
+                        && source_owner.replace(current).is_some()
                     {
-                        if source_owner.replace(current).is_some() {
-                            return Err(missing());
-                        }
+                        return Err(missing());
                     }
                 }
                 if let Some(current) = source_owner {

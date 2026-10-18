@@ -286,10 +286,13 @@ pub(in super::super) fn qualify(
         .copied()
         .filter(|fact| !source_facts.contains(fact))
         .collect::<Vec<_>>();
-    let inherited = !outside.is_empty()
-        && outside
-            .iter()
-            .all(|fact| actions::ancestor_drop(parsed, owned, shape.statement, *fact));
+    let mut inherited = !outside.is_empty();
+    for fact in &outside {
+        // Inspect every fact, preserving malformed ancestor evidence as Missing
+        // even if a different fact describes an unsupported future lifetime.
+        let retained = retained::ancestor_fact((parsed, names, typed, owned), flow, *fact, span)?;
+        inherited &= retained;
+    }
     let late = if inherited {
         for fact in &outside {
             validate_source_fact(parsed, names, owned, flow, *fact, span)?;
@@ -317,29 +320,21 @@ pub(in super::super) fn qualify(
                     .get(root.index())
                     .ok_or_else(missing)?
                     .span();
-                if !actions::ancestor_drop(parsed, owned, shape.statement, *fact) {
-                    let scope = resource::scope(parsed, shape.statement, origin, span)?;
-                    if !resource::normal_point(parsed, scope, span, fact.point()) {
-                        return Err(unsupported());
-                    }
-                    let exit = source_owner::phi(
-                        owned.cleanup_conditions(),
-                        plan,
-                        root,
-                        IterationPhiBoundary::Exit,
-                        span,
-                    )?;
-                    let live = source_owner::flow_condition(
-                        parsed,
-                        names,
-                        owned,
-                        flow,
-                        exit.owner(),
-                        span,
-                    )?;
-                    if fact.owner() != Some(exit.owner()) || fact.condition() != Some(live) {
-                        return Err(missing());
-                    }
+                let scope = resource::scope(parsed, shape.statement, origin, span)?;
+                if !resource::normal_point(parsed, scope, span, fact.point()) {
+                    return Err(unsupported());
+                }
+                let exit = source_owner::phi(
+                    owned.cleanup_conditions(),
+                    plan,
+                    root,
+                    IterationPhiBoundary::Exit,
+                    span,
+                )?;
+                let live =
+                    source_owner::flow_condition(parsed, names, owned, flow, exit.owner(), span)?;
+                if fact.owner() != Some(exit.owner()) || fact.condition() != Some(live) {
+                    return Err(missing());
                 }
                 Some(*fact)
             }

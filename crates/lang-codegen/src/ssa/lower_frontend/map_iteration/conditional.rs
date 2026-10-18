@@ -2,6 +2,7 @@
 mod actions;
 mod facts;
 pub(super) mod local;
+mod retained;
 mod shape;
 pub(super) mod transport;
 mod verify;

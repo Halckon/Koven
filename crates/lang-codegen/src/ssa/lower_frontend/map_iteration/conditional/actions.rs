@@ -10,32 +10,7 @@ pub(super) fn source_drop(
     span: Span,
 ) -> Result<Option<DropFact>, LoweringError> {
     let missing = || error(LoweringErrorKind::MissingFact, span);
-    // The complete point may also clean ancestor providers. Compare the whole
-    // published ledger before selecting this frame's source segment, so an
-    // absent action cannot be mistaken for a retained owner or staging limit.
-    let published = owned
-        .drops()
-        .iter()
-        .filter(|fact| fact.point() == exit.point())
-        .collect::<Vec<_>>();
-    let emitted = exit
-        .actions()
-        .iter()
-        .filter_map(|action| match action {
-            IterationCleanupAction::Drop(fact) => Some(fact),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if published.len() != emitted.len()
-        || published
-            .iter()
-            .any(|fact| emitted.iter().filter(|actual| actual == &fact).count() != 1)
-        || emitted
-            .iter()
-            .any(|fact| published.iter().filter(|actual| actual == &fact).count() != 1)
-    {
-        return Err(missing());
-    }
+    validate_drop_ledger(owned, exit.point(), exit.actions(), span)?;
     if !matches!(
         plan.source_access(),
         MapIterationSourceAccess::Owned | MapIterationSourceAccess::Temporary
@@ -66,50 +41,40 @@ pub(super) fn source_drop(
     Ok(selected)
 }
 
-pub(super) fn ancestor_drop(
-    parsed: &ParsedFile,
+/// Every real Drop at one point occurs once in its complete public sequence.
+pub(super) fn validate_drop_ledger(
     owned: &OwnershipCheckedFile,
-    statement: StatementId,
-    fact: DropFact,
-) -> bool {
-    let Ok(current) = parsed.ast().statements().get(statement) else {
-        return false;
-    };
-    owned.map_iterations().iter().any(|plan| {
-        let parent = plan.descriptor().statement();
-        if parent == statement || plan.source_access() != MapIterationSourceAccess::Owned {
-            return false;
-        }
-        let Ok(ancestor) = parsed.ast().statements().get(parent) else {
-            return false;
-        };
-        let Statement::For { body, .. } = ancestor.payload() else {
-            return false;
-        };
-        let Ok(body) = parsed.ast().statements().get(*body) else {
-            return false;
-        };
-        if !inside(body.span(), current.span()) {
-            return false;
-        }
-        plan.exits().iter().any(|exit| {
-            if exit.point() != fact.point() {
-                return false;
-            }
-            let mut ended = false;
-            exit.actions().iter().any(|action| match action {
-                IterationCleanupAction::EndSource(actual) => {
-                    ended = *actual == parent;
-                    false
-                }
-                IterationCleanupAction::Drop(actual) => ended && *actual == fact,
-                _ => {
-                    ended = false;
-                    false
-                }
-            })
+    point: DropPoint,
+    actions: &[IterationCleanupAction],
+    span: Span,
+) -> Result<(), LoweringError> {
+    let missing = || error(LoweringErrorKind::MissingFact, span);
+    // The complete point may also clean ancestor providers. Compare the whole
+    // published ledger before selecting this frame's source segment, so an
+    // absent action cannot be mistaken for a retained owner or staging limit.
+    let published = owned
+        .drops()
+        .iter()
+        .filter(|fact| fact.point() == point)
+        .collect::<Vec<_>>();
+    let emitted = actions
+        .iter()
+        .filter_map(|action| match action {
+            IterationCleanupAction::Drop(fact) => Some(fact),
+            _ => None,
         })
-    })
+        .collect::<Vec<_>>();
+    if published.len() != emitted.len()
+        || published
+            .iter()
+            .any(|fact| emitted.iter().filter(|actual| actual == &fact).count() != 1)
+        || emitted
+            .iter()
+            .any(|fact| published.iter().filter(|actual| actual == &fact).count() != 1)
+    {
+        return Err(missing());
+    }
+    Ok(())
 }
 
 pub(super) fn validate(
