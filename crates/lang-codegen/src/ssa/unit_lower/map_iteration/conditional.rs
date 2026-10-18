@@ -1,4 +1,5 @@
 //! Ordinary body CFG consumes the exact source-qualified public cleanup plan.
+mod cleanup;
 use super::*;
 use lang_frontend::ownership_checking::UnitIterationExitPlan;
 
@@ -49,22 +50,11 @@ impl QualifiedConditional {
         point: UnitDropPoint,
     ) -> Result<Option<UnitDropFact>, LoweringError> {
         let exit = self.exit_at(owned, source, point)?;
-        let mut drops = exit.actions().iter().filter_map(|action| match action {
-            Action::Drop(fact) if fact.target() == source.drop_target() => Some(*fact),
-            _ => None,
-        });
-        let drop = drops.next();
-        if drops.next().is_some() {
-            return Err(LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            });
-        }
-        Ok(drop)
+        cleanup::source_drop(owned, self.statement, exit)
     }
 }
 
-/// Bind an ordinary If/IfElse body to its validated source/epoch and all actual exits.
+/// Bind an ordinary CFG or nested provider body to its source/epoch and all actual exits.
 pub(super) fn qualify(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -91,15 +81,16 @@ pub(super) fn qualify(
                     && contains(enclosing.span(), node.span())
             })
     });
-    if !has_if {
+    let nesting = nested::relationship(parsed, typed, owned, plan.descriptor().statement())?;
+    if !has_if && nesting.is_none() {
         return Ok(None);
     }
-    // Nested providers and the existing non-ordinary control families retain their own gate.
+    // Mixed non-Map loops and non-ordinary control families retain their existing gate.
     if parsed.ast().statements().iter().any(|(_, node)| {
         contains(body_span, node.span())
             && matches!(
                 node.payload(),
-                Statement::For { .. } | Statement::While { .. } | Statement::Loop { .. }
+                Statement::While { .. } | Statement::Loop { .. }
             )
     }) || parsed.ast().expressions().iter().any(|(_, node)| {
         contains(body_span, node.span())
@@ -116,7 +107,11 @@ pub(super) fn qualify(
         body: UnitStatementId::new(statement.source_unit(), body),
         source,
     };
-    let (facts, origin) = source_facts(parsed, names, typed, owned, plan, source, span)?;
+    let (facts, origin) = if plan.source_access() == UnitIterationSourceAccess::Shared {
+        (Vec::new(), span)
+    } else {
+        source_facts(parsed, names, typed, owned, plan, source, span)?
+    };
     let owns_source = matches!(
         plan.source_access(),
         UnitIterationSourceAccess::Owned | UnitIterationSourceAccess::Temporary
@@ -187,7 +182,7 @@ pub(super) fn qualify(
         if exit.point() != point {
             return Err(bad());
         }
-        validate_exit(owned, plan, shape, exit, &facts, span)?;
+        cleanup::validate_exit(parsed, owned, plan, shape, exit, &facts, span)?;
     }
     if exhaustion != 1 {
         return Err(bad());
@@ -195,8 +190,25 @@ pub(super) fn qualify(
     let outside = facts
         .iter()
         .copied()
-        .filter(|fact| !plan.exits().iter().any(|exit| exit.point() == fact.point()))
-        .collect::<Vec<_>>();
+        .filter_map(|fact| {
+            let Some(exit) = plan
+                .exits()
+                .iter()
+                .find(|exit| exit.point() == fact.point())
+            else {
+                return Some(Ok(fact));
+            };
+            match cleanup::source_drop(owned, statement, exit) {
+                Ok(Some(selected)) if selected == fact => None,
+                Ok(_) => match cleanup::retained_by_ancestor(parsed, owned, statement, fact) {
+                    Ok(true) => None,
+                    Ok(false) => Some(Err(bad())),
+                    Err(error) => Some(Err(error)),
+                },
+                Err(error) => Some(Err(error)),
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     if outside.len() > 1 {
         return Err(unsupported());
     }
@@ -208,8 +220,9 @@ pub(super) fn qualify(
         let point = crate::ssa::map_source::unit_drop_event(parsed, fact.point())
             .map(|event| event.span)
             .ok_or_else(bad)?;
+        let retained = cleanup::retained_by_ancestor(parsed, owned, statement, fact)?;
         if point.source_id() != span.source_id()
-            || point.end() < span.end()
+            || (!retained && point.end() < span.end())
             || contains(body_span, point)
         {
             return Err(bad());
@@ -241,7 +254,8 @@ pub(super) fn qualify(
             .min_by_key(|(_, at)| at.end() - at.start())
             .ok_or_else(bad)?;
         if !contains(scope.1, point)
-            || (point.start() < span.end()
+            || (!retained
+                && point.start() < span.end()
                 && fact.point()
                     != UnitDropPoint::AfterStatement(UnitStatementId::new(
                         statement.source_unit(),
@@ -253,7 +267,7 @@ pub(super) fn qualify(
         let resource = typed
             .is_resource_type(plan.descriptor().source_type())
             .ok_or_else(bad)?;
-        if !resource {
+        if !resource && !retained {
             let root = match source {
                 SourceIdentity::Parameter { root, .. } | SourceIdentity::Formed { root, .. } => {
                     root
@@ -274,12 +288,21 @@ pub(super) fn qualify(
     }
     if owns_source {
         for exit in plan.exits() {
+            let mut retained = false;
+            for fact in facts
+                .iter()
+                .copied()
+                .filter(|fact| fact.point() == exit.point())
+            {
+                retained |= cleanup::retained_by_ancestor(parsed, owned, statement, fact)?;
+            }
             if matches!(
                 exit.kind(),
                 UnitIterationExitKind::Break(_)
                     | UnitIterationExitKind::Return(_)
                     | UnitIterationExitKind::Exhaustion
             ) && shape.drop_at(owned, source, exit.point())?.is_none()
+                && !retained
                 && (late_drop.is_none() || matches!(exit.kind(), UnitIterationExitKind::Return(_)))
             {
                 return Err(bad());
@@ -296,7 +319,7 @@ pub(super) fn qualify(
         body_exit: UnitIterationExitKind::Fallthrough,
         body_point: UnitDropPoint::AfterStatement(shape.body),
         conditional: Some(shape),
-        nested: None,
+        nested: nesting,
     }))
 }
 
@@ -368,103 +391,4 @@ fn source_facts(
             .collect(),
         origin,
     ))
-}
-
-fn validate_exit(
-    owned: &CompilationUnitOwnership,
-    plan: &UnitMapIterationOwnershipPlan,
-    shape: QualifiedConditional,
-    exit: &UnitIterationExitPlan,
-    source_facts: &[UnitDropFact],
-    span: Span,
-) -> Result<(), LoweringError> {
-    let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-    let d = plan.descriptor();
-    let statement = d.statement();
-    let drop = shape.drop_at(owned, shape.source, exit.point())?;
-    if drop.is_some_and(|fact| !source_facts.contains(&fact)) {
-        return Err(bad());
-    }
-    if plan.source_access() == UnitIterationSourceAccess::Shared && drop.is_some() {
-        return Err(bad());
-    }
-    let terminal = matches!(
-        exit.kind(),
-        UnitIterationExitKind::Break(_)
-            | UnitIterationExitKind::Return(_)
-            | UnitIterationExitKind::Exhaustion
-    );
-    let mut required = Vec::new();
-    if exit.kind() != UnitIterationExitKind::Exhaustion {
-        required.extend([
-            Action::EndBinding {
-                statement,
-                symbol: d.value_binding(),
-            },
-            Action::EndBinding {
-                statement,
-                symbol: d.key_binding(),
-            },
-        ]);
-    }
-    if terminal {
-        required.extend([
-            Action::FinishProvider(statement),
-            Action::EndSource(statement),
-        ]);
-    }
-    let mut completed = 0;
-    for action in exit.actions() {
-        match action {
-            Action::Drop(fact) => {
-                if fact.point() != exit.point() || !owned.drops().contains(fact) {
-                    return Err(bad());
-                }
-                if fact.target() == shape.source.drop_target()
-                    && (!terminal || Some(*fact) != drop || completed != required.len())
-                {
-                    return Err(bad());
-                }
-            }
-            Action::EndCallLoan(_) | Action::EndReceiverLoan(_) => {}
-            Action::EndBinding { .. } | Action::FinishProvider(_) | Action::EndSource(_) => {
-                if required.get(completed) != Some(action) {
-                    return Err(bad());
-                }
-                completed += 1;
-            }
-            _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
-        }
-    }
-    if completed != required.len() {
-        return Err(bad());
-    }
-    if source_facts
-        .iter()
-        .any(|fact| fact.point() == exit.point() && Some(*fact) != drop)
-    {
-        return Err(bad());
-    }
-    let listed = exit
-        .actions()
-        .iter()
-        .filter_map(|action| match action {
-            Action::Drop(fact) => Some(*fact),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let actual = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|fact| fact.point() == exit.point())
-        .collect::<Vec<_>>();
-    if actual.len() != listed.len()
-        || actual
-            .iter()
-            .any(|fact| listed.iter().filter(|listed| *listed == fact).count() != 1)
-    {
-        return Err(bad());
-    }
-    Ok(())
 }

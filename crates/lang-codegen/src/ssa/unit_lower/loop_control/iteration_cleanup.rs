@@ -12,7 +12,6 @@ impl UnitExpressionLowerer<'_> {
         point: UnitDropPoint,
         actions: &[Action],
     ) -> Result<(), LoweringError> {
-        self.begin_nested_map_cleanup(point, actions)?;
         self.begin_conditional_map_cleanup(point)?;
         let drops = actions
             .iter()
@@ -25,7 +24,7 @@ impl UnitExpressionLowerer<'_> {
         for action in actions {
             match action {
                 Action::Drop(fact) => {
-                    if !self.emit_nested_guard_drop(*fact)? && !self.emit_map_source_drop(*fact)? {
+                    if !self.emit_map_source_drop(*fact)? {
                         self.emit_drop_fact(*fact)?;
                     }
                 }
@@ -213,7 +212,7 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         self.map_validate_cleanup(point)?;
-        self.finish_nested_map_cleanup(point)
+        Ok(())
     }
     fn iteration_context(
         &self,

@@ -38,16 +38,7 @@ pub(super) struct QualifiedMap {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct QualifiedNested {
-    pub(super) outer: UnitStatementId,
-    pub(super) inner: UnitStatementId,
-    pub(super) tail: Option<QualifiedNestedTail>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) struct QualifiedNestedTail {
-    pub(super) kind: UnitIterationExitKind,
-    pub(super) guards: [QualifiedGuard; 2],
-    pub(super) operand: Option<UnitExpressionId>,
+    pub(super) parent: Option<UnitStatementId>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -92,10 +83,7 @@ pub(super) fn qualify(
     owned: &CompilationUnitOwnership,
     descriptor: &UnitMapIterationDescriptor,
 ) -> Result<QualifiedMap, LoweringError> {
-    if let Some(pair) = nested::pair(parsed, names, typed, owned, descriptor.statement())? {
-        return nested::qualify(parsed, names, typed, owned, descriptor, pair);
-    }
-    qualify_one(parsed, names, typed, owned, descriptor, None)
+    qualify_one(parsed, names, typed, owned, descriptor)
 }
 
 fn qualify_one(
@@ -104,7 +92,6 @@ fn qualify_one(
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     descriptor: &UnitMapIterationDescriptor,
-    nested: Option<QualifiedNested>,
 ) -> Result<QualifiedMap, LoweringError> {
     let statement = descriptor.statement();
     let node = parsed
@@ -152,9 +139,6 @@ fn qualify_one(
         .get(canonical)
         .map_err(|_| missing())?;
     if matches!(source_node.payload(), Expression::Call { .. }) {
-        if nested.is_some() {
-            return Err(unsupported());
-        }
         return temporary::qualify(parsed, names, typed, owned, descriptor, *body, span);
     }
     if !matches!(source_node.payload(), Expression::Name) {
@@ -197,9 +181,6 @@ fn qualify_one(
         {
             return Err(missing());
         }
-        if nested.is_some() {
-            return Err(unsupported());
-        }
         let syntax = || local::Syntax {
             body: *body,
             root,
@@ -237,12 +218,11 @@ fn qualify_one(
                     (parameter.symbol() == Some(root)).then_some((
                         parameter,
                         index + usize::from(callable.receiver().is_some()),
-                        callable.return_type(),
                     ))
                 })
         })
         .collect::<Vec<_>>();
-    let [(parameter, parameter_slot, return_type)] = parameters.as_slice() else {
+    let [(parameter, parameter_slot)] = parameters.as_slice() else {
         return Err(missing());
     };
     if parameter.ty() != descriptor.source_type() {
@@ -304,47 +284,23 @@ fn qualify_one(
             return Err(missing());
         }
     }
-    if nested.is_some()
-        && (parameter.mode() != ParameterMode::Borrow
-            || builtin_type(typed, descriptor.key_type()) != Some(BuiltinType::String)
-            || builtin_type(typed, descriptor.value_type()) != Some(BuiltinType::String))
-    {
-        return Err(unsupported());
-    }
-    if nested.is_none() {
-        reject_nested(parsed, statement.statement(), span)?;
-    }
+    reject_nested(parsed, statement.statement(), span)?;
     let source_identity = SourceIdentity::Parameter {
         root,
         slot: *parameter_slot,
     };
-    if nested.is_none()
-        && let Some(qualified) = conditional::qualify(
-            parsed,
-            names,
-            typed,
-            owned,
-            plan,
-            (*body, source_identity),
-            span,
-        )?
-    {
+    if let Some(qualified) = conditional::qualify(
+        parsed,
+        names,
+        typed,
+        owned,
+        plan,
+        (*body, source_identity),
+        span,
+    )? {
         return Ok(qualified);
     }
-    let body_exit = if let Some(pair) = nested {
-        pair.tail
-            .filter(|_| pair.inner == statement)
-            .map_or(UnitIterationExitKind::Fallthrough, |tail| tail.kind)
-    } else {
-        qualify_body(parsed, names, typed, descriptor, *body, span)?
-    };
-    if nested
-        .and_then(|pair| pair.tail)
-        .is_some_and(|tail| matches!(tail.kind, UnitIterationExitKind::Return(_)))
-        && builtin_type(typed, *return_type) != Some(BuiltinType::Int)
-    {
-        return Err(unsupported());
-    }
+    let body_exit = qualify_body(parsed, names, typed, descriptor, *body, span)?;
     let body_span = parsed
         .ast()
         .statements()
@@ -382,17 +338,11 @@ fn qualify_one(
     } else {
         None
     };
-    let pure_late = if nested.is_none() {
-        future_use::qualify(parsed, names, typed, owned, plan, (body_exit, None), span)?
-    } else {
-        None
-    };
+    let pure_late =
+        future_use::qualify(parsed, names, typed, owned, plan, (body_exit, None), span)?;
     let late_drop = resource_proof.map(|proof| proof.drop).or(pure_late);
     let (source_drop, transfer_drop) = if let Some(proof) = resource_proof {
         (None, proof.transfer)
-    } else if let Some(pair) = nested.filter(|pair| pair.tail.is_some()) {
-        nested::validate_tail_cleanup(parsed, typed, owned, plan, pair, root, span)?;
-        (None, None)
     } else {
         validate_cleanup(
             plan,
@@ -417,7 +367,7 @@ fn qualify_one(
         body_exit,
         body_point,
         conditional: None,
-        nested,
+        nested: None,
     })
 }
 
@@ -616,7 +566,7 @@ fn reject_nested(
             && contains(node.span(), span)
             && matches!(
                 node.payload(),
-                Statement::For { .. } | Statement::While { .. } | Statement::Loop { .. }
+                Statement::While { .. } | Statement::Loop { .. }
             )
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -626,7 +576,7 @@ fn reject_nested(
         if contains(node.span(), span)
             && matches!(
                 node.payload(),
-                Expression::If { .. } | Expression::When { .. } | Expression::Lambda { .. }
+                Expression::When { .. } | Expression::Lambda { .. }
             )
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));

@@ -1,4 +1,5 @@
 //! Ordinary branch checkpoints are Copy path state; evidence is separately owned and append-only.
+mod stack;
 mod validate;
 use super::*;
 use crate::ssa::model::Edge;
@@ -261,7 +262,7 @@ impl UnitExpressionLowerer<'_> {
                 _ => None,
             })
     }
-    fn conditional_runtime_mut(
+    pub(super) fn conditional_runtime_mut(
         &mut self,
         statement: UnitStatementId,
         span: Span,
@@ -438,16 +439,12 @@ impl UnitExpressionLowerer<'_> {
         });
         self.validate_map_live_components(self.map_state(branch.shape.statement, span)?, span)
     }
-    pub(in super::super::super) fn checkpoint_map_conditional(
+    fn checkpoint_map_frame(
         &mut self,
-        _control: UnitExpressionId,
-        _result_required: bool,
-        _has_else: bool,
+        statement: UnitStatementId,
+        state: MapState,
         span: Span,
     ) -> Result<Option<MapBranchCheckpoint>, LoweringError> {
-        let Some((statement, state)) = self.conditional_map() else {
-            return Ok(None);
-        };
         let roles = Roles::read(
             self,
             state.carrier.identity,
@@ -466,7 +463,7 @@ impl UnitExpressionLowerer<'_> {
             phase: state.phase,
         }))
     }
-    pub(in super::super::super) fn enter_map_conditional_arm(
+    fn enter_map_frame_arm(
         &mut self,
         checkpoint: Option<MapBranchCheckpoint>,
         target: BlockId,
@@ -510,7 +507,7 @@ impl UnitExpressionLowerer<'_> {
         });
         Ok(())
     }
-    pub(in super::super::super) fn map_conditional_exits(
+    fn map_frame_exits(
         &self,
         checkpoint: Option<MapBranchCheckpoint>,
         exits: &[BranchExit],
@@ -525,7 +522,7 @@ impl UnitExpressionLowerer<'_> {
             .map(|e| Roles::from_exit(state, e, span))
             .collect()
     }
-    pub(in super::super::super) fn finish_map_conditional_merge(
+    fn finish_map_frame_merge(
         &mut self,
         checkpoint: Option<MapBranchCheckpoint>,
         exits: Vec<Roles>,
@@ -624,6 +621,10 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(())
     }
+    pub(super) fn map_cached_seed(&self, state: MapState) -> Option<EntityId> {
+        state.conditional.map(|branch| branch.roles.seed)
+    }
+
     pub(super) fn map_terminal_owner(
         &self,
         state: MapState,
@@ -643,13 +644,12 @@ impl UnitExpressionLowerer<'_> {
         }
         Ok(owner)
     }
-    pub(in super::super) fn begin_conditional_map_cleanup(
+    fn begin_map_frame_cleanup(
         &mut self,
+        statement: UnitStatementId,
+        state: MapState,
         point: UnitDropPoint,
     ) -> Result<(), LoweringError> {
-        let Some((statement, state)) = self.conditional_map() else {
-            return Ok(());
-        };
         let span = self.statement_span(statement.statement())?;
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         let branch = state.conditional.ok_or_else(bad)?;

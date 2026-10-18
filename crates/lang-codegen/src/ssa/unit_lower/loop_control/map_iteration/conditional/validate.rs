@@ -1,13 +1,12 @@
 //! Dynamic exact-point cleanup, backedge and Return evidence from the ordinary CFG.
 use super::*;
 impl UnitExpressionLowerer<'_> {
-    pub(in super::super) fn validate_conditional_map_cleanup(
+    pub(super) fn validate_map_frame_cleanup(
         &mut self,
+        statement: UnitStatementId,
+        state: MapState,
         point: UnitDropPoint,
     ) -> Result<(), LoweringError> {
-        let Some((statement, state)) = self.conditional_map() else {
-            return Ok(());
-        };
         let span = self.statement_span(statement.statement())?;
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         let Some(index) = state.conditional.ok_or_else(bad)?.cleanup else {

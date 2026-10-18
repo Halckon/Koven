@@ -15,3 +15,14 @@ impl std::ops::DerefMut for MapRuntime {
         &mut self.path
     }
 }
+
+/// Exact successful checked edge for the legacy direct body path.
+#[derive(Clone, Copy)]
+pub(super) struct ResumedRoles {
+    pub(super) block: BlockId,
+    pub(super) caller: EntityId,
+    pub(super) source: LoanId,
+    pub(super) cursor: ValueId,
+    pub(super) key: LoanId,
+    pub(super) value: LoanId,
+}

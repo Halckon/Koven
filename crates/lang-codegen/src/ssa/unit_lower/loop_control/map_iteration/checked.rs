@@ -7,25 +7,35 @@ impl UnitExpressionLowerer<'_> {
         before_borrows: &std::collections::BTreeMap<UnitSymbolId, LoanId>,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(context) = self.loops.last() else {
-            return Ok(());
-        };
-        let Some(iteration) = &context.iteration else {
-            return Ok(());
-        };
-        let IterationState::Map(state) = &iteration.state else {
-            return Ok(());
-        };
-        let state = state.path;
-        if state.conditional.is_some() {
-            if state.carrier.nested.is_some() {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        let states = self
+            .loops
+            .iter()
+            .filter_map(|c| c.iteration.as_ref())
+            .filter_map(|i| match &i.state {
+                IterationState::Map(s) => Some((i.statement, s.path)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for (statement, state) in states {
+            if state.conditional.is_some() {
+                self.resume_conditional_map_checked(state, from, before_borrows, span)?;
+                continue;
             }
-            return self.resume_conditional_map_checked(state, from, before_borrows, span);
+            self.resume_direct_map_checked(statement, state, from, before_borrows, span)?;
         }
+        Ok(())
+    }
+
+    fn resume_direct_map_checked(
+        &mut self,
+        statement: UnitStatementId,
+        state: MapState,
+        from: BlockId,
+        before_borrows: &std::collections::BTreeMap<UnitSymbolId, LoanId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         if state.carrier.active_body() != from
-            || state.carrier.nested.is_some()
             || !matches!(
                 state.phase,
                 MapPhase::Body {
@@ -37,14 +47,13 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let previous = state.carrier.current_entities(self.function, from, span)?;
-        let current = nested::ParentRoles {
+        let current = state::ResumedRoles {
             block: self.block,
             caller: state.carrier.identity.current(self, span)?,
             source: self.map_pending_source(state.source_slot, span)?,
             cursor: self.map_pending_cursor(state.cursor_slot, state.cursor_type, span)?,
             key: self.map_pending_source(state.key_slot, span)?,
             value: self.map_pending_source(state.value_slot, span)?,
-            guard: None,
         };
         for (now, old) in [
             (current.caller, previous[0]),
@@ -66,15 +75,9 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(bad());
         }
-        let Some(IterationState::Map(actual)) = self
-            .loops
-            .last_mut()
-            .and_then(|c| c.iteration.as_mut())
-            .map(|i| &mut i.state)
-        else {
-            return Err(bad());
-        };
-        actual.carrier.resumed = Some(current);
+        self.conditional_runtime_mut(statement, span)?
+            .carrier
+            .resumed = Some(current);
         Ok(())
     }
 }

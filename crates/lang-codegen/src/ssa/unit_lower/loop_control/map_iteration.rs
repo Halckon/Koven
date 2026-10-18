@@ -4,7 +4,6 @@ mod checked;
 mod cleanup;
 mod conditional;
 mod local;
-mod nested;
 mod source;
 mod state;
 mod transport;
@@ -52,7 +51,6 @@ pub(super) struct MapState {
     carrier: MapCarrier,
     phase: MapPhase,
     conditional: Option<ConditionalState>,
-    nested: nested::NestedState,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -65,12 +63,10 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<LoweredValue, LoweringError> {
         self.reject_live_if_proof(span)?;
         self.finish_local_map_continuation(span)?;
-        if !self.pending_call_frames.is_empty()
-            || !self.temporaries.is_empty()
-            || !self.nullable_proofs.is_empty()
-        {
+        if !self.pending_call_frames.is_empty() || !self.nullable_proofs.is_empty() {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        self.validate_map_parent_temporaries(span)?;
         let statement_id = UnitStatementId::new(self.source_unit, statement);
         let plan = self
             .owned
@@ -83,7 +79,7 @@ impl UnitExpressionLowerer<'_> {
         }
         let qualified =
             map_iteration::qualify(self.parsed, self.names, self.typed, self.owned, descriptor)?;
-        let parent_checkpoint = self.checkpoint_nested_map(qualified, span)?;
+        self.validate_map_nesting(qualified, span)?;
         if qualified.nested.is_some()
             && (!self.capture_loans.is_empty()
                 || !self.result_source_loans.is_empty()
@@ -115,6 +111,7 @@ impl UnitExpressionLowerer<'_> {
         let outer_temporaries = self.temporaries.keys().copied().collect();
         let (entry, source_loan) =
             self.map_source_seed(qualified, plan.source_access(), container, span)?;
+        let parent_checkpoint = self.checkpoint_map_stack(span)?;
         let preheader = self.block;
         let cursor = self.map_iteration_value(
             Operation::MapIterationFirst {
@@ -140,6 +137,7 @@ impl UnitExpressionLowerer<'_> {
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         self.block = context.header;
         self.bindings = self.rebind_loop(&baseline, self.block, &context, span)?;
+        let parent_header = self.transport_map_stack(&parent_checkpoint, &entry_edge, span)?;
         let header_state = self.loop_state();
         let body_block = self.add_carried_control_block(&context.carried, &context.loans, span)?;
         let false_block = self.add_carried_control_block(&context.carried, &context.loans, span)?;
@@ -191,40 +189,18 @@ impl UnitExpressionLowerer<'_> {
             span,
         };
         let carrier = MapCarrier::new(self, &birth)?;
-        let parent_transport = parent_checkpoint
-            .map(|checkpoint| {
-                nested::ParentTransport::new(
-                    self,
-                    checkpoint,
-                    nested::Edges {
-                        entry: &entry_edge,
-                        body: &true_edge,
-                        exhaustion: &false_edge,
-                    },
-                    source_loan,
-                    span,
-                )
-            })
-            .transpose()?;
-        if let Some(parent) = parent_transport {
-            parent.enter_header(self, span)?;
-        }
         // Save the real false-edge owner/source state before body cleanup changes bindings.
         self.restore_loop_state(&header_state);
         self.block = false_block;
         self.bindings = self.rebind_loop(&baseline, false_block, &context, span)?;
         carrier.validate_current(self, source_slot, cursor_slot, false_block, span)?;
-        if let Some(parent) = parent_transport {
-            parent.enter_exhaustion(self, span)?;
-        }
+        let parent_false = self.transport_map_stack(&parent_header, &false_edge, span)?;
         let false_state = self.loop_state();
         self.restore_loop_state(&header_state);
         self.block = body_block;
         self.bindings = self.rebind_loop(&baseline, body_block, &context, span)?;
         carrier.validate_current(self, source_slot, cursor_slot, body_block, span)?;
-        if let Some(parent) = parent_transport {
-            parent.enter_body(self, span)?;
-        }
+        self.transport_map_stack(&parent_header, &true_edge, span)?;
         let source = self.map_pending_source(source_slot, span)?;
         let cursor = self.map_pending_cursor(cursor_slot, cursor_type, span)?;
         let key = self.iteration_loan(
@@ -282,7 +258,6 @@ impl UnitExpressionLowerer<'_> {
                     cursor_type,
                     carrier,
                     conditional,
-                    nested: nested::NestedState::default(),
                     phase: MapPhase::Body {
                         key_live: true,
                         value_live: true,
@@ -337,19 +312,12 @@ impl UnitExpressionLowerer<'_> {
             self.validate_conditional_map_body(&context, span)?;
         } else if continues == 1 {
             current_carrier.validate_backedge(self, source_slot, cursor_slot, span)?;
-        } else if matches!(qualified.body_exit, UnitIterationExitKind::Return(_))
-            && qualified.nested.and_then(|pair| pair.tail).is_none()
-        {
+        } else if matches!(qualified.body_exit, UnitIterationExitKind::Return(_)) {
             current_carrier.validate_return(self, span)?;
         }
-        self.validate_nested_map_body(&mut context, span)?;
-        if let Some(parent) = parent_transport {
-            parent.validate_body_exit(self, qualified.body_exit, span)?;
-        }
+        self.validate_map_stack_backedges(&parent_header, &context, span)?;
         self.restore_loop_state(&false_state);
-        if let Some(parent) = parent_transport {
-            parent.enter_exhaustion(self, span)?;
-        }
+        self.restore_map_stack(&parent_false, span)?;
         let iteration = context
             .iteration
             .as_mut()
@@ -366,46 +334,27 @@ impl UnitExpressionLowerer<'_> {
         };
         self.loops.push(context);
         self.emit_drops(UnitDropPoint::LoopExit(statement_id))?;
-        if qualified.nested.is_some() && self.pending_operands.len() != retained_start + 2 {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
         self.pending_operands.truncate(retained_start);
-        if let Some(parent) = parent_transport {
-            parent.validate_retained(self, span)?;
-        }
         let exit = self.loop_state();
         let context = self
             .loops
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         self.validate_conditional_map_complete(&context, span)?;
-        self.validate_nested_map_complete(&context, span)?;
         let mut exits = context
             .breaks
             .into_iter()
             .map(branch_exit)
             .collect::<Vec<_>>();
         exits.push(exit);
-        if qualified.nested.is_some() && exits.len() != breaks + 1 {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
+        let parent_exits = self.map_conditional_exits(&parent_checkpoint, &exits, span)?;
         self.merge_loop_exits(exits, span)?;
-        if let Some(parent) = parent_transport {
-            parent.enter_continuation(self, breaks == 1, span)?;
-        }
-        if qualified.nested.is_some() {
-            if (breaks == 0 && self.block != false_block)
-                || self.pending_operands.len() != retained_start
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            transport::from_anchor(
-                self.function,
-                qualified.source.current(self, span)?,
-                carrier.anchor,
-                span,
-            )?;
-        }
+        self.finish_map_conditional_merge(
+            &parent_checkpoint,
+            parent_exits,
+            LoweredValue::Unit,
+            span,
+        )?;
         self.finish_local_map_loop(qualified, carrier, false_block, retained_start, span)?;
         Ok(LoweredValue::Unit)
     }
@@ -507,7 +456,6 @@ impl UnitExpressionLowerer<'_> {
                 continue;
             };
             if state.conditional.is_none()
-                && state.carrier.nested.is_none()
                 && state.carrier.body_point == UnitDropPoint::ControlTransfer(expression)
                 && state
                     .carrier

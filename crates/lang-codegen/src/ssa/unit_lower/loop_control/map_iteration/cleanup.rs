@@ -1,4 +1,5 @@
 //! Consume the public action order once; component/source IDs always come from current slots.
+mod retained;
 use super::*;
 use lang_frontend::ownership_checking::UnitDropFact;
 
@@ -76,7 +77,6 @@ impl UnitExpressionLowerer<'_> {
             return Err(bad());
         };
         let loan = self.map_pending_source(slot, span)?;
-        self.validate_nested_component(state, symbol, loan, span)?;
         if self.borrow_bindings.remove(&symbol) != Some(loan) {
             return Err(bad());
         }
@@ -155,28 +155,39 @@ impl UnitExpressionLowerer<'_> {
         &mut self,
         fact: UnitDropFact,
     ) -> Result<bool, LoweringError> {
-        let Some((statement, state)) = self
-            .loops
-            .iter()
-            .rev()
-            .filter_map(|context| context.iteration.as_ref())
-            .find_map(|iteration| match &iteration.state {
-                IterationState::Map(state)
-                    if fact.target() == state.carrier.identity.drop_target() =>
-                {
-                    Some((iteration.statement, state.path))
-                }
-                _ => None,
-            })
-        else {
-            return Ok(false);
-        };
         let span = fact.value_origin();
         let point = fact.point();
-        if state.carrier.drop_at(self.owned, point)? != Some(fact)
-            || !matches!(state.phase, MapPhase::Terminal {
-                point: actual, finished: true, source_ended: true, owner_dropped: false,
-            } if actual == point)
+        let mut related = false;
+        let mut candidates = Vec::new();
+        for iteration in self.loops.iter().filter_map(|c| c.iteration.as_ref()) {
+            let IterationState::Map(state) = &iteration.state else {
+                continue;
+            };
+            if fact.target() != state.carrier.identity.drop_target() {
+                continue;
+            }
+            related = true;
+            let participates = if let Some(shape) = state.carrier.conditional {
+                let plan = self
+                    .owned
+                    .map_iteration(shape.statement)
+                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                plan.exits().iter().any(|e| e.point() == point)
+            } else {
+                point == state.carrier.exhaustion_point || point == state.carrier.body_point
+            };
+            if participates && state.carrier.drop_at(self.owned, point)? == Some(fact) {
+                candidates.push((iteration.statement, state.path));
+            }
+        }
+        let (statement, state) = match candidates.as_slice() {
+            [] if !related => return Ok(false),
+            [(statement, state)] => (*statement, *state),
+            _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        };
+        if !matches!(state.phase, MapPhase::Terminal {
+            point: actual, finished: true, source_ended: true, owner_dropped: false,
+        } if actual == point)
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
@@ -264,7 +275,15 @@ impl UnitExpressionLowerer<'_> {
                     {
                         return Err(bad());
                     }
-                    if state.carrier.owned && !owner_dropped {
+                    if state.carrier.owned
+                        && !owner_dropped
+                        && !self.map_owner_retired_by_ancestor(
+                            iteration.statement,
+                            state.path,
+                            point,
+                            span,
+                        )?
+                    {
                         self.validate_map_state_current(
                             state.path,
                             state.terminal_block(point, span)?,

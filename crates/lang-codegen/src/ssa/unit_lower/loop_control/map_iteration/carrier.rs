@@ -16,8 +16,7 @@ pub(super) struct MapCarrier {
     pub(super) exhaustion_point: UnitDropPoint,
     pub(super) header: BlockId,
     pub(super) body: BlockId,
-    pub(super) resumed: Option<nested::ParentRoles>,
-    pub(super) nested: Option<map_iteration::QualifiedNested>,
+    pub(super) resumed: Option<state::ResumedRoles>,
     pub(super) anchor: EntityId,
     preheader: BlockId,
     pub(super) exhaustion: BlockId,
@@ -79,34 +78,52 @@ impl MapCarrier {
                 seed
             }
         };
+        let terminator = function
+            .block(preheader)
+            .and_then(|block| block.terminator.as_ref())
+            .map(|term| &term.kind);
         if edge.target != header
-            || !matches!(function.block(preheader).and_then(|block| block.terminator.as_ref()).map(|term| &term.kind), Some(TerminatorKind::Branch(actual)) if actual == edge)
+            || !matches!(terminator, Some(TerminatorKind::Branch(actual)) if actual == edge)
         {
             return Err(bad());
         }
-        // Preserve old Parameter/Temporary lifetime gates. Only the qualified Local
-        // row separates owning storage from this provider's terminal Drop.
-        match qualified.source {
-            source
-                if matches!(source, SourceIdentity::Local { .. })
-                    || qualified.late_drop.is_some() =>
+        // A generic handle binds every actual terminal to this source-qualified plan.
+        // Owning storage can be retained for a later provider or lexical scope.
+        if let Some(shape) = qualified.conditional {
+            if shape.statement != qualified.statement
+                || shape.source != qualified.source
+                || shape.drop_at(
+                    lowerer.owned,
+                    qualified.source,
+                    UnitDropPoint::LoopExit(qualified.statement),
+                )? != qualified.source_drop
+                || (matches!(seed, EntityId::Loan(_))
+                    && (qualified.source_drop.is_some() || qualified.late_drop.is_some()))
             {
-                if !matches!(seed, EntityId::Value(_))
-                    || qualified.source_drop.is_some() == qualified.late_drop.is_some()
-                    || (qualified.transfer_drop.is_some()
-                        && !matches!(qualified.body_exit, UnitIterationExitKind::Return(_)))
-                    || qualified.nested.is_some()
-                {
-                    return Err(bad());
-                }
+                return Err(bad());
             }
-            _ => {
-                if !matches!(
-                    (seed, qualified.source_drop),
-                    (EntityId::Value(_), Some(_)) | (EntityId::Loan(_), None)
-                ) || qualified.late_drop.is_some()
+        } else {
+            match qualified.source {
+                source
+                    if matches!(source, SourceIdentity::Local { .. })
+                        || qualified.late_drop.is_some() =>
                 {
-                    return Err(bad());
+                    if !matches!(seed, EntityId::Value(_))
+                        || qualified.source_drop.is_some() == qualified.late_drop.is_some()
+                        || (qualified.transfer_drop.is_some()
+                            && !matches!(qualified.body_exit, UnitIterationExitKind::Return(_)))
+                    {
+                        return Err(bad());
+                    }
+                }
+                _ => {
+                    if !matches!(
+                        (seed, qualified.source_drop),
+                        (EntityId::Value(_), Some(_)) | (EntityId::Loan(_), None)
+                    ) || qualified.late_drop.is_some()
+                    {
+                        return Err(bad());
+                    }
                 }
             }
         }
@@ -176,7 +193,6 @@ impl MapCarrier {
             header,
             body,
             resumed: None,
-            nested: qualified.nested,
             anchor,
             preheader,
             exhaustion,
@@ -282,29 +298,33 @@ impl MapCarrier {
         {
             return Err(bad());
         }
-        if self.nested.is_some()
-            || matches!(
-                self.identity,
-                SourceIdentity::Parameter { .. } | SourceIdentity::Formed { .. }
-            )
-            || matches!(self.identity, SourceIdentity::Local { .. })
+        if matches!(
+            self.identity,
+            SourceIdentity::Parameter { .. } | SourceIdentity::Formed { .. }
+        ) || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {
             transport::from_anchor(lowerer.function, seed, self.anchor, span)?;
         }
-        let valid_role = match self.identity {
-            source
-                if matches!(source, SourceIdentity::Local { .. }) || self.late_drop.is_some() =>
-            {
-                self.owned
-                    && matches!(seed, EntityId::Value(_))
-                    && self.drop.is_some() != self.late_drop.is_some()
-            }
-            _ => {
-                matches!(
-                    (seed, self.drop),
-                    (EntityId::Value(_), Some(_)) | (EntityId::Loan(_), None)
-                ) && self.late_drop.is_none()
+        let valid_role = if self.conditional.is_some() {
+            self.owned == matches!(seed, EntityId::Value(_))
+                && (!matches!(seed, EntityId::Loan(_)) || self.drop.is_none())
+        } else {
+            match self.identity {
+                source
+                    if matches!(source, SourceIdentity::Local { .. })
+                        || self.late_drop.is_some() =>
+                {
+                    self.owned
+                        && matches!(seed, EntityId::Value(_))
+                        && self.drop.is_some() != self.late_drop.is_some()
+                }
+                _ => {
+                    matches!(
+                        (seed, self.drop),
+                        (EntityId::Value(_), Some(_)) | (EntityId::Loan(_), None)
+                    ) && self.late_drop.is_none()
+                }
             }
         };
         if self.identity.current(lowerer, span)? != seed || !valid_role {
@@ -358,12 +378,10 @@ impl MapCarrier {
         {
             return Err(bad());
         }
-        if self.nested.is_some()
-            || matches!(
-                self.identity,
-                SourceIdentity::Parameter { .. } | SourceIdentity::Formed { .. }
-            )
-            || matches!(self.identity, SourceIdentity::Local { .. })
+        if matches!(
+            self.identity,
+            SourceIdentity::Parameter { .. } | SourceIdentity::Formed { .. }
+        ) || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {
             let incoming = transport::incoming(lowerer.function, self.header);
@@ -563,25 +581,15 @@ impl MapCarrier {
     ) -> Result<BlockId, LoweringError> {
         if point == self.exhaustion_point {
             Ok(self.exhaustion)
-        } else if (point == self.body_point
+        } else if point == self.body_point
             && matches!(
                 self.body_exit,
                 UnitIterationExitKind::Break(_) | UnitIterationExitKind::Return(_)
-            ))
-            || self.nested_return_point() == Some(point)
+            )
         {
             Ok(self.active_body())
         } else {
             Err(lowering_error(LoweringErrorKind::MissingFact, span))
-        }
-    }
-
-    fn nested_return_point(&self) -> Option<UnitDropPoint> {
-        match self.nested?.tail?.kind {
-            UnitIterationExitKind::Return(expression) => {
-                Some(UnitDropPoint::ControlTransfer(expression))
-            }
-            _ => None,
         }
     }
 
@@ -598,7 +606,7 @@ impl MapCarrier {
     }
 
     pub(super) fn is_body_point(&self, point: UnitDropPoint) -> bool {
-        point == self.body_point || self.nested_return_point() == Some(point)
+        point == self.body_point
     }
 
     pub(super) fn drop_at(
