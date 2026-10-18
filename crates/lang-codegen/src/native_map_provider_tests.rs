@@ -204,3 +204,6 @@ mod temporary_forms;
 
 #[path = "native_map_provider_temporary_arguments_tests.rs"]
 mod temporary_arguments;
+
+#[path = "native_map_provider_temporary_delivery_tests.rs"]
+mod temporary_delivery;
