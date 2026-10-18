@@ -194,14 +194,7 @@ expression temporary。
 `preceding_drops` 指明同一 point 中先执行的普通 drop 数量，保留后建 local、实参、receiver、
 旧 local 的清理顺序；Copyable 实例不生成 receiver 析构。
 
-function-value callee 的命名 root 在实参求值期间登记 pending borrow；最后一次源码读取不再
-提前析构 closure，正常路径在 CallReturn 按活性清理，提前退出沿用 ControlTransfer 事实。
-仍被 live closure shared capture 的来源不会在普通分支退出时析构；最后一个 closure 结束后
-再按来源活性发布清理。此为前端事实，不表示 native 已支持带捕获的 borrowed closure。
-
-Unit checker 的 closure binding 当前保留 source-qualified 可能来源集合，形成时另冻结被
-捕获环境的来源图；该检查元数据不授予额外availability或执行能力。If/When结果保存实际
-尾值来源并把已移动且不再活跃的局部binding交给结果；释放按活跃根递归，避免原binding或重绑定
-污染形成快照。逃逸与跨Map provider生存检查递归到内层shared capture。对应普通回归为
-`map_closure_lifetime_matrix`；同次分析的精确capture/ASAP事实与原Unit Resource邻控分账，
-这不表示带capture的Map循环已进入native支持范围。
+function-value callee 在实参求值期间保持capture；正常CallReturn按活性清理，提前退出沿用ControlTransfer，live shared capture来源随最后closure结束后再清理。
+Unit checker保留source-qualified closure来源集合及形成时的嵌套环境图；这些检查元数据不授予availability或执行能力，escape与跨Map provider检查递归到shared capture。
+If/When保存实际尾值来源，交接已移动且不再活跃的局部根；释放按活跃根递归，防原binding或重绑定污染快照，并保留已求值callee与replacement保护。
+`map_closure_lifetime_matrix`核同次capture/ASAP事实，原Unit Resource/Pure邻控独立保持；这些前端事实不表示带capture的Map循环已进入native范围。
