@@ -12,6 +12,8 @@ mod query_inputs;
 mod query_ssa;
 mod query_test;
 
+pub(crate) use conditional::sources as conditional_sources;
+
 use fixture::{Failure, Fixture};
 
 /// 同字节源码和拟议 stdout，供后续独立获准的 native 测试复用。

@@ -141,3 +141,6 @@ fn run_unit(case: &str, source_text: &str) -> Output {
 
 #[path = "native_map_provider_exits_tests.rs"]
 mod exits_tests;
+
+#[path = "native_map_provider_conditional_tests.rs"]
+mod conditional_tests;
