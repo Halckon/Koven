@@ -11,7 +11,7 @@ source 求值、分量与 source 清理由已验证事实交付，SSA verifier �
 |---|---|---|
 | own Map / Borrow MutableMap 参数；String/String | 正常耗尽、无条件 continue/break/return、有界条件退出 | `map-provider-0331`、`map-provider-exits-0331`、`map-provider-conditional-0331` |
 | Borrow Map / MutableMap；String/String | 同根两层共享遍历，以及固定内层无条件 continue/break/return | `map-provider-nested-0331`、`map-provider-nested-exits-0331` |
-| Owned factory temporary Map / MutableMap；String/String及已验表示 | 零参String/String正常及固定尾C/B/R、五种表示normal；单Int Borrow实参String/String normal | `map-provider-temporary-0331`、`map-provider-temporary-exits-0331`、`temporary_forms`、`temporary_arguments` |
+| Owned factory temporary Map / MutableMap；String/String及已验表示 | 零参固定尾C/B/R与五表示normal；普通实参交付normal、空Map实参if | `temporary_forms`、`temporary_arguments`、`temporary_delivery`、`temporary_argument_cfg_runtime`及原fixture |
 | factory 初始化的 owned local Map / MutableMap，val/var；String/String | 正常耗尽；固定 A/B 形状中退出即清理，或保活至后续 size 查询 | `map-provider-local-sources-0331` |
 | Borrow Map / MutableMap 参数；Int/String | single/basic/const 正常耗尽及 whole-set 资格 | `map_iteration_stage_gate_tests`，只有 SSA/LLVM，不计新增 native |
 
@@ -124,7 +124,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 |---|---|---|---|
 | own Map/MutableMap参数 | String/String | N/C/B/R、固定三段条件 | N/C/B后size、多次Borrow调用、CFG后再Borrow及同根重复For已验；R与其他CFG组合不外推 |
 | Borrow Map/MutableMap参数 | String/String | N/C/B/R、固定条件、同根双层 | caller恢复及有限sequential已验；更一般条件/层数未验 |
-| 零参直接factory temporary | String/String；字段/结构Resource、Resource?、Int键Resource/String | String/String固定尾N/C/B/R；另10源20双入口/native仅N | 两site实际factory返回链与hidden owner已验；实参、条件及其他CFG待验 |
+| 直接factory temporary | String/String；字段/结构Resource、Resource?、Int键Resource/String | 零参固定尾N/C/B/R与五表示N；普通Borrow/own/具名重排N，空Map实参if | 实参复用原求值/形参ABI；Resource转移与同K/V Borrow邻控已验；条件退出/其他CFG待验 |
 | factory-formed owned local val/var及moved alias | String/String、owned String字段Resource及混合Resource? | N/C/B/R；后用/复用/替换按末节实测组合 | 按真实Call、Move与epoch运输当前owner；其他birth/一般CFG仍未闭合 |
 | own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；更多既有Resource表示见后续G5片 |
 | Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定 |
@@ -190,11 +190,11 @@ Resource owner在实际词法退出清理，Return先交付结果；所有源均
 `local_reassignment` 的18源36双入口/native核首For前替换、两For间替换、替换后Move，包含Pure、
 Resource及nullable；另6源12双入口/native核Group，4源8双入口/native核新Pure值赋值完成后立即Drop。
 完整history区分实际事件：尚存旧值在RHS完成后清理，已死Pure不复活；outer Group与inner Call分别验证。
-当前local provider仍用零参factory合同；temporary单Int实参见上表。其他epoch普通实参Call的2源4双入口/native已验；Unit既有
+当前local provider仍用零参factory合同；temporary普通实参交付及空Map实参if见上表。其他epoch普通实参Call的2源4双入口/native已验；Unit既有
 member/override/delegation路线另核真实resolved callee/receiver，不新增ABI。Single相同路线及
 companion在无For控制已有失败，属于共享调用前置，不能计为For支持或Guide staging。
 
 每个已验源独立查询原FE形成/Move、全部Header/Exit incoming与实际最后Drop，SSA另锁当前
 owner、Guard、K/V loan及所有受保护使用；普通native只证明exit0/完整golden/空stderr。
-原五源邻控为5条原For Unsupported与5条SSA/LLVM成功；Unit重绑另验两owner身份及1个native。当前实参、
+原五源邻控为5条原For Unsupported与5条SSA/LLVM成功；Unit重绑另验两owner身份及1个native。其他实参组合、
 其他birth/非当前epoch专用Map或函数值Call、一般CFG等仍归0331缺口账本，不据本片称G2或F全闭合。

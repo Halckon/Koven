@@ -808,7 +808,7 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 | 组 | 实际范围与依赖 | 归属／当前状态 |
 |---|---|---|
 | G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，§48–52有限factory local的Resource/后用/复用/重赋值轴已接通；其他birth/一般CFG及新头CI仍逐项闭合 |
-| G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，未闭合；含current factory实参及Single成员/companion共享Call前置，条件依赖G7 |
+| G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，§56/59/60有限normal表示、普通实参交付及空Map实参CFG已验；条件退出与其他callable仍待，依赖G7及共享Call前置 |
 | G4 | own MutableMap参数N/C/B/R，复用已验证Value/Owned参数及原清理 | 0331，本节首片；d85e完整CI及三artifact独审通过 |
 | G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；d85e完整CI及三artifact独审通过，其他表示仍逐项验收 |
 | G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331 Return缺口未闭合；ABI前置另行明确验收，不能静默省略 |
@@ -1175,3 +1175,52 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   0通过/1失败/0忽略、exit101，无native。仅原`g3-temp-nonzero-arg`两入口由Unsupported转LLVM，
   其余阶段不变；原source摘要全符，临时注册finally恢复，前后指纹与正验完全一致。
   失败诊断独立保留，不能用收集器退出0或上述有限正验宣称全部F用例通过。
+
+
+## 60. G3 通用普通实参交付与实参 CFG（2026-10-18）
+
+- `03bf858aa1f388df693d1114d5df72c5972884b7` 的完整PR run `39147744620` 为success，16 jobs通过；
+  push run `39147740042`亦success。三份当前artifact独审绑定同run/head与synthetic
+  `ceec6d4d66bf529d9112e494eb2134ba36dad3d2`：Linux sanitizer `12143778468`、generated
+  `12144237845`、Mac generated `12144860932`。Linux12组36次plain/ASan/LSan clean，generated/
+  calibration/checker/13对reduction核实；Mac16病例通过、original-clean实际export/native精确golden，
+  reduction三次确认完成，仍partial/requirements_met=false。此结论只属03bf，不继承给以下代码。
+- 单Int是§59的有限验收切片，不是新的生产参数白名单。`b6ae3df0`把原4份CFG实参源提升为成功合同，
+  原红4For Unsupported、4无For LLVM。`87e20516`令普通expression lowering先完成，再在实际完成block
+  获取preheader，仍逐项核唯一实际DirectCall/callee/result/origin与hidden owner；两端8观察同源转绿。
+  未重求值实参，也未新造CFG或改变原owner/pending/cleanup门。
+- `ee95b355`新增6For+6无For源：Borrow/owned Resource混合、同K/V Borrow Map、具名实参重排；
+  双入口首轮20 LLVM、4 single Map consume Unsupported，不能把共享consume前置算For拒绝。
+  `5b893c8b`仅泛化原owned-local consume入口Borrow证明：actual callable/parameter symbol/slot/
+  Borrow mode/Shared binding与原Entry Loan及既有mapper具体target精确匹配，移除builtin类型表。
+  当前唯一局部owner/无alias、receiver前后验证和pending/capture/result-source等原门保持；不依赖类型
+  不同推断独立，也不假设入口loans互不别名，不改ABI、Guide或Field/Inout staging。
+- 同12源24观察SSA/LLVM及24严格唯一native通过；Resource借用临时值在CallReturn后清理，own payload
+  实际转移到Map，named参数按源码right/own/left求值、按声明slot交付。独立完整生产/fixture/query复审
+  均无阻断。深query首轮E0382编译失败、次轮2项查询失败保留：完整CallArgument span不同于value span，
+  Pure control实际DropPoint为CallReturn(size)，修精确query后24 CASE/GRAPH成功、Rust2/0/0；source/
+  golden从红到绿未改。8次同根Borrow后Move邻控来自4不同源码×2入口，各唯一L0135；local Borrow-result
+  continuation邻控精确保留Single consume Unsupported/Unit LLVM，早期未隔离consume的两版失败另留收据。
+- CFG runtime v1仅else输出two，不能证明false实参恰为2；限制及16 native原结果独立保留。v2新增8份
+  wrapped源码严格检查1/2/其他error，原4份source不变。b6两source实现的干净参考红为8For Unsupported/
+  8无For LLVM，candidate同字节16 SSA/LLVM与16严格唯一native通过。此片只有empty String/String
+  Map/MutableMap，不计非空或Resource CFG。独立fixture/native复审已关闭原oracle缺口。
+- `35dc9386`与`f7b68c59`保存独立深query：实际形参交付、factory owner与provider全部incoming/Uses；
+  CFG另外核If两原literal方向、Unit原flag的完整当前运输及runtime wrapper的Boolean Value→RootPlace→
+  Shared Borrow→实际scanner→唯一End/正常Return。CFG首轮AST arm误要求Block，实际Rust0/3/0；
+  精确改为parser的ControlBody并补上述真实身份后，同24观察全绿、Rust3/0/0，独立复审关闭finding。
+  source/golden及生产字节未改。这里只是empty Map CFG，不外推Resource/nonempty或条件退出。
+- 同冻结源码首轮有限回归40个唯一Rust与84个严格唯一native通过，fmt/check通过；Clippy真实exit101，
+  两处path加载共享cleanup/body触发duplicate_mod，后续build/docs/size/whitespace未运行。该失败及原始
+  输入指纹独立保留，不称工程全绿；后继须改为真正共享模块引用后重新冻结验收，不能加allow掩盖。
+- `eb1a4b9a`将cleanup与normal K/V body提为各一个共享查询模块，两消费者只use；独立move-aware
+  复审核7项cleanup/9项body断言及完整函数、10处Uses在ID/span映射后保持，无lint allow。
+  最终Rust源码指纹前后同为`8d9a7e0a33938e4277b117f2a713a5b3ff3c89796eff0233f24a0457ef5c1035`，
+  27条命令全部通过：40个唯一Rust测试0失败/0忽略、84个全局唯一严格native（原44+generic24+CFG16），
+  fmt/check/Clippy -D warnings/build、704文档、1686手写Rust文件/38既有超限和whitespace通过。
+  40中包括2个边界测试，不能把预期ownership/Unsupported观察算作正向provider能力；旧2项CFG诊断
+  现已提升为同源成功合同。driver起始HEAD为f7b，运行期间仅提交同字节共享模块到eb1，源码未变化。
+- 本轮未重跑原83源诊断；§59的100 LLVM/64 Unsupported/2 ownership只属其旧固定头。
+  该64项已按G3两项、G6二十二项、G7二十项、G8十四项及共享String?六项分组，分组不等于新头通过。
+  G3条件C/B/R与hidden-owner逐路径cleanup、其他callable前置及G6/G7/G8仍继续在F内；G2/G9/G10
+  其他形成/后用/continuation边界未外推。新头完整CI与独审尚待，不归档/合并、不提前开始D10。
