@@ -1,5 +1,7 @@
 //! Newly rebuilt ordinary Borrow Map exits; not a restoration of the unavailable cloud collector.
 //! Both actual pipelines and verifiers must succeed before the separate native targets run.
+mod identity;
+
 use super::{
     Report,
     fixture::{Failure, clean, failure, verify_failure},
@@ -57,7 +59,7 @@ pub(crate) fn sources() -> [(&'static str, &'static str, &'static str); 4] {
     ]
 }
 
-fn observe(text: &str, unit: bool, report: &mut Report) -> Result<(), Failure> {
+fn observe(label: &str, text: &str, unit: bool, report: &mut Report) -> Result<(), Failure> {
     let mut sources = SourceMap::new();
     let source = sources
         .add_source("provider.ko", text)
@@ -66,13 +68,19 @@ fn observe(text: &str, unit: bool, report: &mut Report) -> Result<(), Failure> {
     clean(&sources, "lex diagnostics", lexed.diagnostics())?;
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse diagnostics", parsed.diagnostics())?;
+    let expected_calls = if label == "map-borrow-conditional" {
+        5
+    } else {
+        2
+    };
     let (program, entry) = if unit {
         pipeline::unit_observed(
             &sources,
             &parsed,
             "provider.ko",
             report,
-            |_, typed, owned, report| {
+            |names, typed, owned, report| {
+                identity::unit(&parsed, names, typed, owned, expected_calls, report);
                 let plans = owned.map_iterations();
                 report.check(
                     "unit one real borrowed Map provider",
@@ -112,7 +120,8 @@ fn observe(text: &str, unit: bool, report: &mut Report) -> Result<(), Failure> {
             },
         )?
     } else {
-        pipeline::single_observed(&sources, &parsed, report, |_, typed, owned, report| {
+        pipeline::single_observed(&sources, &parsed, report, |names, typed, owned, report| {
+            identity::single(&parsed, names, typed, owned, expected_calls, report);
             let plans = owned.map_iterations();
             report.check(
                 "single one real borrowed Map provider",
@@ -164,7 +173,7 @@ fn borrowed_map_direct_exits_reach_verified_llvm_in_both_entries() {
     for (label, text, _) in sources() {
         for unit in [false, true] {
             let mut report = Report::default();
-            let outcome = observe(text, unit, &mut report);
+            let outcome = observe(label, text, unit, &mut report);
             println!(
                 "SPEC0331 BORROW EXIT case={label} unit={unit} outcome={outcome:?} report={report:#?}"
             );
