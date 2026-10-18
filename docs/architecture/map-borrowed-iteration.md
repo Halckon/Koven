@@ -11,7 +11,7 @@ source 求值、分量与 source 清理由已验证事实交付，SSA verifier �
 |---|---|---|
 | own Map / Borrow MutableMap 参数；String/String | 正常耗尽、无条件 continue/break/return、有界条件退出 | `map-provider-0331`、`map-provider-exits-0331`、`map-provider-conditional-0331` |
 | Borrow Map / MutableMap；String/String | 同根两层共享遍历，以及固定内层无条件 continue/break/return | `map-provider-nested-0331`、`map-provider-nested-exits-0331` |
-| 零参 Owned factory temporary Map / MutableMap；String/String及已验表示 | String/String正常及固定尾C/B/R；新增五种表示仅正常耗尽 | `map-provider-temporary-0331`、`map-provider-temporary-exits-0331`、`temporary_forms` |
+| Owned factory temporary Map / MutableMap；String/String及已验表示 | 零参String/String正常及固定尾C/B/R、五种表示normal；单Int Borrow实参String/String normal | `map-provider-temporary-0331`、`map-provider-temporary-exits-0331`、`temporary_forms`、`temporary_arguments` |
 | factory 初始化的 owned local Map / MutableMap，val/var；String/String | 正常耗尽；固定 A/B 形状中退出即清理，或保活至后续 size 查询 | `map-provider-local-sources-0331` |
 | Borrow Map / MutableMap 参数；Int/String | single/basic/const 正常耗尽及 whole-set 资格 | `map_iteration_stage_gate_tests`，只有 SSA/LLVM，不计新增 native |
 
@@ -190,7 +190,7 @@ Resource owner在实际词法退出清理，Return先交付结果；所有源均
 `local_reassignment` 的18源36双入口/native核首For前替换、两For间替换、替换后Move，包含Pure、
 Resource及nullable；另6源12双入口/native核Group，4源8双入口/native核新Pure值赋值完成后立即Drop。
 完整history区分实际事件：尚存旧值在RHS完成后清理，已死Pure不复活；outer Group与inner Call分别验证。
-当前provider仍用原零参factory合同。其他epoch普通实参Call的2源4双入口/native已验；Unit既有
+当前local provider仍用零参factory合同；temporary单Int实参见上表。其他epoch普通实参Call的2源4双入口/native已验；Unit既有
 member/override/delegation路线另核真实resolved callee/receiver，不新增ABI。Single相同路线及
 companion在无For控制已有失败，属于共享调用前置，不能计为For支持或Guide staging。
 

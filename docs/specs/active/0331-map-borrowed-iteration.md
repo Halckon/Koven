@@ -1140,3 +1140,38 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - Docs job `117727348468` 日志逐名确认§57四项新增Python回归均为ok，整套395 tests为OK。
   本机只读审查这些CI产物与日志，未执行产物、故障、校准、reduction或mock测试。
   此CI结论仅属于b95919dc；后续实参代码必须在其新头重新运行完整CI，不继承本轮全绿。
+
+## 59. G3 实际工厂实参的普通调用与 hidden owner（2026-10-18）
+
+- `7224d7a0`先保存2份For源及2份无For邻控，Map/MutableMap各一份；`argument()`打印后返回1，
+  实际所选`produce(Int)`检查参数值并返回非空Map，同名Boolean重载打印不同marker并返回空Map。
+  首轮8观察完整FE，4For均原For Unsupported；无For为3 LLVM、1 single Map在consume拒绝，
+  Rust 0通过/2失败/0忽略。该共享前置不能归因于For，也不替换成预期拒绝。
+- `8abc0647`仅在既有普通owned-local consume fallback中加入精确入口Borrow signed i32；
+  callable/signature/entry block与slot、Shared binding和实际loan身份逐一核对，String/Boolean兼容、
+  无owner别名与无pending/capture/result-source等限制保持；不改全局while proof gate、不结束或重建loan。
+  同源中间结果为4无For LLVM、4For仍原位置Unsupported，Rust 1通过/1失败；独立完整审查无阻断。
+- `c124fa52`移除temporary的零参硬门，核对AST/typed/所选signature的arity，复用普通调用的
+  原始参数映射、源码求值顺序及Value/Borrow交付；provider只核该实际callee/result/type/origin和
+  当前hidden owner，不重求值实参。保留单preheader及既有temporary/pending/cleanup合同。
+  两端同源8观察SSA/LLVM和8普通native通过，所有source/control/golden与首红SHA256相同。
+- 独立审查发现合法`if`实参产生CFG时误报MissingFact。`ce224d8f`保存实际红测：4无For LLVM、
+  4For MissingFact，FE query false为0、Rust 1通过/1失败。随后把离开preheader的能力拒绝与
+  callee/owner等事实检查分开；同源4For精确Unsupported、4无For LLVM，两Rust通过并独立复审。
+  初稿误用println(Int)的FE失败另保留，不冒充lowering首红；4个预期U不计正向provider能力。
+- `821ea0bd`补原FE和实际SSA深query：selected Int/Boolean重载、原parameter symbol/slot/Mode、
+  argument Call的实际Value→RootPlace→Shared Borrow→factory参数→唯一End完整uses；该End先于
+  provider source loan。工厂内actual construct→每次put owner/result→可选consume→唯一正常Return
+  完整owner链；provider三列全部incoming/回边逐节点锚定该Call、K/V Shared ABI/reborrow与End、
+  唯一源owner Drop在source End后及after前。无For另核同实参交付、真实size/drop且无provider操作。
+  独立query与fixture/native审查均无阻断，未为查询修改源码或golden。
+- 同一Rust输入指纹`b1e69072461248a1f1f2432eaf0a8bd84f3760cf999df2026262add97324c13b`
+  前后相同：22条命令全部通过，31个唯一Rust测试0失败/0忽略（含上述2项CFG诊断），44个
+  严格native为8新增+36既有temporary回归；fmt/check/clippy/build、704文档、尺寸护栏38既有超限
+  及whitespace通过。仅证明单Int Borrow实参、String/String Map/MutableMap的normal有限块。
+  CFG实参、其他参数/交付、条件C/B/R、其他callable与余下§45缺口继续在F内，不关闭G3或F，
+  不提前进入D10，也不把b959的CI结论继承到新头。Guide和Field/Inout native staging未改。
+- 同源码另跑原83源166观察为100 LLVM、64 lower Unsupported、2 ownership；Rust实际
+  0通过/1失败/0忽略、exit101，无native。仅原`g3-temp-nonzero-arg`两入口由Unsupported转LLVM，
+  其余阶段不变；原source摘要全符，临时注册finally恢复，前后指纹与正验完全一致。
+  失败诊断独立保留，不能用收集器退出0或上述有限正验宣称全部F用例通过。
