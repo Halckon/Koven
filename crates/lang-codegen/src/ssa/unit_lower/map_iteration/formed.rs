@@ -100,7 +100,7 @@ pub(super) fn qualify(
     let local::Syntax {
         body,
         root,
-        origin,
+        origin: _,
         span,
     } = syntax;
     let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
@@ -181,14 +181,56 @@ pub(super) fn qualify(
         descriptor.source_type(),
         span,
     )?;
+    for epoch in &formation.history {
+        match crate::ssa::map_source::epoch_call(parsed, epoch.rhs) {
+            Ok(producer) => {
+                let producer = UnitExpressionId::new(statement.source_unit(), producer);
+                local::factory(
+                    parsed,
+                    names,
+                    typed,
+                    owned,
+                    producer,
+                    descriptor.source_type(),
+                    span,
+                )?;
+            }
+            Err(failure) if failure.kind == LoweringErrorKind::UnsupportedNode => {}
+            Err(failure) => return Err(failure),
+        }
+    }
     let body_exit = qualify_body(parsed, names, typed, descriptor, body, span)?;
     let (source_drop, transfer_drop, late_drop) = if resource {
-        let proof = resource::qualify(parsed, names, typed, owned, plan, root, body_exit)?;
+        let proof = resource::qualify(
+            parsed,
+            names,
+            typed,
+            owned,
+            plan,
+            (root, Some(&formation)),
+            body_exit,
+        )?;
         (None, proof.transfer, Some(proof.drop))
     } else {
-        let late = future_use::qualify(parsed, names, typed, owned, plan, body_exit, span)?;
-        let (source_drop, transfer_drop) =
-            validate_cleanup(plan, owned, (body, body_exit), root, origin, late, span)?;
+        let late = future_use::qualify(
+            parsed,
+            names,
+            typed,
+            owned,
+            plan,
+            (body_exit, Some(&formation)),
+            span,
+        )?;
+        let epoch_drops = drops(parsed, owned, root, &formation)?;
+        let (source_drop, transfer_drop) = validate_cleanup(
+            plan,
+            owned,
+            (body, body_exit),
+            (root, Some(&epoch_drops)),
+            formation.origin,
+            late,
+            span,
+        )?;
         (source_drop, transfer_drop, late)
     };
     Ok(QualifiedMap {
@@ -202,4 +244,35 @@ pub(super) fn qualify(
         conditional: None,
         nested: None,
     })
+}
+
+pub(in super::super) fn drops(
+    parsed: &ParsedFile,
+    owned: &CompilationUnitOwnership,
+    root: UnitSymbolId,
+    formation: &Formation<UnitSymbolId>,
+) -> Result<Vec<UnitDropFact>, LoweringError> {
+    let mut facts = Vec::new();
+    for fact in owned
+        .drops()
+        .iter()
+        .copied()
+        .filter(|f| f.target() == UnitDropTarget::Named(root))
+    {
+        let point =
+            crate::ssa::map_source::unit_drop_span(parsed, fact.point()).ok_or_else(|| {
+                lowering_error(LoweringErrorKind::UnsupportedNode, fact.value_origin())
+            })?;
+        let epoch = crate::ssa::map_source::epoch_at(parsed, formation, point)?;
+        if fact.value_origin() != epoch.origin {
+            return Err(lowering_error(
+                LoweringErrorKind::MissingFact,
+                fact.value_origin(),
+            ));
+        }
+        if crate::ssa::map_source::in_formation(parsed, formation, point)? {
+            facts.push(fact);
+        }
+    }
+    Ok(facts)
 }

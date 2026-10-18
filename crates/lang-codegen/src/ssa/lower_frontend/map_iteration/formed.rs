@@ -151,6 +151,17 @@ pub(super) fn qualify<'a>(
         d.source_type(),
         span,
     )?;
+    // Every other epoch is validated before lowering as well. Unmeasured calls
+    // keep their original Unsupported boundary instead of failing a later birth check.
+    for epoch in &formation.history {
+        match crate::ssa::map_source::epoch_call(parsed, epoch.rhs) {
+            Ok(producer) => {
+                local::producer(parsed, names, typed, owned, producer, d.source_type(), span)?
+            }
+            Err(failure) if failure.kind == LoweringErrorKind::UnsupportedNode => {}
+            Err(failure) => return Err(failure),
+        }
+    }
     let body_exit = exit_shape::body_exit(parsed, names, typed, *d, body, span)?;
     exit_shape::cleanup(owned, plan, body, body_exit, span)?;
     let owner = if resource {
@@ -160,7 +171,7 @@ pub(super) fn qualify<'a>(
             typed,
             owned,
             plan,
-            (root, Some(formation.producer)),
+            (root, Some(&formation)),
             body_exit,
         )?
     } else {
@@ -169,7 +180,7 @@ pub(super) fn qualify<'a>(
             names,
             owned,
             plan,
-            (root, formation.producer),
+            (root, &formation),
             body,
             body_exit,
         )?
@@ -192,4 +203,70 @@ pub(super) fn qualify<'a>(
         nested: None,
         local: None,
     })
+}
+
+/// Partition one named root by real binding/replacement events, never by spelling or adjacency.
+pub(super) fn drops(
+    parsed: &ParsedFile,
+    owned: &OwnershipCheckedFile,
+    root: SymbolId,
+    formation: &Formation<SymbolId>,
+) -> Result<Vec<lang_frontend::ownership_checking::DropFact>, LoweringError> {
+    use lang_frontend::ownership_checking::{CleanupCondition, CleanupOwnerValue};
+    let mut facts = Vec::new();
+    for fact in owned
+        .drops()
+        .iter()
+        .copied()
+        .filter(|f| f.target() == lang_frontend::ownership_checking::DropTarget::Named(root))
+    {
+        let bad = || error(LoweringErrorKind::MissingFact, fact.value_origin());
+        let point = crate::ssa::map_source::drop_span(parsed, fact.point())
+            .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, fact.value_origin()))?;
+        let epoch = crate::ssa::map_source::epoch_at(parsed, formation, point)?;
+        if fact.value_origin() != formation.declaration
+            || fact.capture_slot().is_some()
+            || fact.instance_address().is_some()
+        {
+            return Err(bad());
+        }
+        if crate::ssa::map_source::in_formation(parsed, formation, point)? {
+            facts.push(fact);
+        } else {
+            let producer = crate::ssa::map_source::epoch_call(parsed, epoch.rhs)?;
+            let owner = fact.owner().ok_or_else(bad)?;
+            let conditions = owned.cleanup_conditions();
+            match conditions.owner_value(owner).ok_or_else(bad)? {
+                CleanupOwnerValue::Expression { expression, origin } => {
+                    let node = parsed
+                        .ast()
+                        .expressions()
+                        .get(producer)
+                        .map_err(|_| bad())?;
+                    if *expression != producer
+                        || *origin != node.span()
+                        || fact
+                            .condition()
+                            .is_some_and(|c| conditions.get(c) != Some(&CleanupCondition::Always))
+                    {
+                        return Err(bad());
+                    }
+                }
+                CleanupOwnerValue::IterationPhi { .. } => {
+                    let available = source_owner::formed_condition(
+                        parsed,
+                        owned,
+                        (root, producer),
+                        owner,
+                        point,
+                    )?;
+                    if fact.condition() != Some(available) {
+                        return Err(bad());
+                    }
+                }
+                _ => return Err(bad()),
+            }
+        }
+    }
+    Ok(facts)
 }

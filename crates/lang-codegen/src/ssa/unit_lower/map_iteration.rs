@@ -365,13 +365,19 @@ fn qualify_one(
         && typed.is_resource_type(descriptor.source_type()) == Some(true)
     {
         Some(resource::qualify(
-            parsed, names, typed, owned, plan, root, body_exit,
+            parsed,
+            names,
+            typed,
+            owned,
+            plan,
+            (root, None),
+            body_exit,
         )?)
     } else {
         None
     };
     let pure_late = if conditional.is_none() && nested.is_none() {
-        future_use::qualify(parsed, names, typed, owned, plan, body_exit, span)?
+        future_use::qualify(parsed, names, typed, owned, plan, (body_exit, None), span)?
     } else {
         None
     };
@@ -402,7 +408,7 @@ fn qualify_one(
             plan,
             owned,
             (*body, body_exit),
-            root,
+            (root, None),
             symbol.span(),
             pure_late,
             span,
@@ -442,7 +448,7 @@ fn validate_cleanup(
     plan: &UnitMapIterationOwnershipPlan,
     owned: &CompilationUnitOwnership,
     body: (StatementId, UnitIterationExitKind),
-    root: UnitSymbolId,
+    root: (UnitSymbolId, Option<&[UnitDropFact]>),
     origin: Span,
     late: Option<UnitDropFact>,
     span: Span,
@@ -450,6 +456,7 @@ fn validate_cleanup(
     let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
     let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
     let (body, body_exit) = body;
+    let (root, formation) = root;
     let descriptor = plan.descriptor();
     let statement = descriptor.statement();
     let [body_plan, exhaustion] = plan.exits() else {
@@ -464,12 +471,16 @@ fn validate_cleanup(
     {
         return Err(missing());
     }
-    let drops = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|fact| fact.target() == UnitDropTarget::Named(root))
-        .collect::<Vec<_>>();
+    let drops = if let Some(facts) = formation {
+        facts.to_vec()
+    } else {
+        owned
+            .drops()
+            .iter()
+            .copied()
+            .filter(|fact| fact.target() == UnitDropTarget::Named(root))
+            .collect::<Vec<_>>()
+    };
     let terminal_body = matches!(
         body_exit,
         UnitIterationExitKind::Break(_) | UnitIterationExitKind::Return(_)

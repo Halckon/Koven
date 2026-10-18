@@ -2,6 +2,7 @@
 mod facts;
 mod graph;
 mod sources;
+mod boundaries;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -94,6 +95,10 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
         lowered.as_ref().map(|(_, entry)| entry)
     );
     let (program, _) = lowered?;
+    report.query(
+        "reassignment independent SSA identities",
+        &graph::check(case, &sources, &parsed, &program, unit),
+    );
     let verified =
         crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA verifier", e));
     report.query("reassignment actual SSA verifier", &verified);

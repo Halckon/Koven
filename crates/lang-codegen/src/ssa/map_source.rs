@@ -88,3 +88,132 @@ pub(super) fn future_reference(
             matches!(node.payload(), Expression::Lambda { .. }) && contains(node.span(), point)
         })
 }
+
+/// A replacement RHS finishes while the old binding still owns its value.
+/// Its cleanup belongs to that old epoch; the new epoch begins after this point.
+pub(super) fn in_formation<R>(
+    parsed: &ParsedFile,
+    formation: &Formation<R>,
+    point: lang_frontend::source::Span,
+) -> Result<bool, LoweringError> {
+    let bad = || LoweringError {
+        kind: LoweringErrorKind::MissingFact,
+        span: Some(point),
+    };
+    if point.source_id() != formation.binding.source_id() {
+        return Err(bad());
+    }
+    let end = formation
+        .replacement
+        .map(|id| {
+            parsed
+                .ast()
+                .expressions()
+                .get(id)
+                .map(|n| n.span().end())
+                .map_err(|_| bad())
+        })
+        .transpose()?;
+    Ok(point.end() > formation.binding.end() && end.is_none_or(|end| point.end() <= end))
+}
+
+pub(super) fn drop_span(
+    parsed: &ParsedFile,
+    point: lang_frontend::ownership_checking::DropPoint,
+) -> Option<lang_frontend::source::Span> {
+    use lang_frontend::ownership_checking::DropPoint as P;
+    match point {
+        P::AfterExpression(e) | P::CallReturn(e) | P::ControlTransfer(e) => {
+            parsed.ast().expressions().get(e).ok().map(|n| n.span())
+        }
+        P::AfterStatement(s) | P::LoopExit(s) => {
+            parsed.ast().statements().get(s).ok().map(|n| n.span())
+        }
+        _ => None,
+    }
+}
+
+pub(super) fn unit_drop_span(
+    parsed: &ParsedFile,
+    point: lang_frontend::ownership_checking::UnitDropPoint,
+) -> Option<lang_frontend::source::Span> {
+    use lang_frontend::ownership_checking::UnitDropPoint as P;
+    match point {
+        P::AfterExpression(e) | P::CallReturn(e) | P::ControlTransfer(e) => parsed
+            .ast()
+            .expressions()
+            .get(e.expression())
+            .ok()
+            .map(|n| n.span()),
+        P::AfterStatement(s) | P::LoopExit(s) => parsed
+            .ast()
+            .statements()
+            .get(s.statement())
+            .ok()
+            .map(|n| n.span()),
+        _ => None,
+    }
+}
+
+/// Every root Drop belongs to exactly one actual initializer/replacement event.
+/// Strict completion ordering keeps cleanup of the replaced value before installing the RHS.
+pub(super) fn epoch_at<'a, R>(
+    parsed: &ParsedFile,
+    formation: &'a Formation<R>,
+    point: lang_frontend::source::Span,
+) -> Result<&'a formation::BindingEpoch, LoweringError> {
+    let bad = || LoweringError {
+        kind: LoweringErrorKind::MissingFact,
+        span: Some(point),
+    };
+    let mut selected = None;
+    let mut end = None;
+    for (index, epoch) in formation.history.iter().enumerate() {
+        let at = parsed
+            .ast()
+            .expressions()
+            .get(epoch.rhs)
+            .map_err(|_| bad())?
+            .span();
+        if at.source_id() != point.source_id() {
+            return Err(bad());
+        }
+        // An unused initializer drops at its declaration boundary, which may
+        // share the RHS end. Replacement RHS cleanup still precedes installation.
+        if (at.end() < point.end() || (index == 0 && at.end() == point.end()))
+            && end.is_none_or(|end| at.end() > end)
+        {
+            selected = Some(epoch);
+            end = Some(at.end());
+        }
+    }
+    selected.ok_or_else(bad)
+}
+
+/// Canonical identity only; the actual source/type/ownership validators precede this check.
+pub(super) fn epoch_call(
+    parsed: &ParsedFile,
+    rhs: ExpressionId,
+) -> Result<ExpressionId, LoweringError> {
+    let mut id = rhs;
+    loop {
+        let node = parsed
+            .ast()
+            .expressions()
+            .get(id)
+            .map_err(|_| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: None,
+            })?;
+        match node.payload() {
+            Expression::Group { expression } => id = *expression,
+            Expression::Call { .. } => return Ok(id),
+            _ => {
+                return Err(LoweringError {
+                    kind: LoweringErrorKind::UnsupportedNode,
+                    span: Some(node.span()),
+                });
+            }
+        }
+    }
+}

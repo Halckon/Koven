@@ -47,7 +47,7 @@ pub(super) fn qualify_formed(
     names: &NameResolution,
     owned: &OwnershipCheckedFile,
     plan: &MapIterationOwnershipPlan,
-    root: (SymbolId, ExpressionId),
+    root: (SymbolId, &crate::ssa::map_source::Formation<SymbolId>),
     body: StatementId,
     body_exit: IterationExitKind,
 ) -> Result<Proof, LoweringError> {
@@ -67,7 +67,10 @@ fn qualify_with_birth(
     names: &NameResolution,
     owned: &OwnershipCheckedFile,
     plan: &MapIterationOwnershipPlan,
-    root: (SymbolId, Option<ExpressionId>),
+    root: (
+        SymbolId,
+        Option<&crate::ssa::map_source::Formation<SymbolId>>,
+    ),
     body: StatementId,
     body_exit: IterationExitKind,
 ) -> Result<Proof, LoweringError> {
@@ -97,12 +100,16 @@ fn qualify_with_birth(
         IterationExitKind::Exhaustion => return Err(missing()),
     };
     let exhaustion_point = DropPoint::LoopExit(descriptor.statement());
-    let source_drops = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|fact| fact.target() == DropTarget::Named(symbol))
-        .collect::<Vec<_>>();
+    let source_drops = if let Some(formation) = birth {
+        formed::drops(parsed, owned, symbol, formation)?
+    } else {
+        owned
+            .drops()
+            .iter()
+            .copied()
+            .filter(|fact| fact.target() == DropTarget::Named(symbol))
+            .collect::<Vec<_>>()
+    };
     if source_drops
         .iter()
         .any(|fact| fact.value_origin() != origin)
@@ -149,7 +156,7 @@ fn qualify_with_birth(
         return Err(missing());
     };
     let available = if let Some(birth) = birth {
-        formed_condition(parsed, owned, (symbol, birth), seed.source(), span)?
+        formed_condition(parsed, owned, (symbol, birth.producer), seed.source(), span)?
     } else {
         provenance::parameter(owned, symbol, origin, seed.source(), span)?
     };
@@ -212,7 +219,7 @@ fn qualify_with_birth(
         .iter()
         .copied()
         .filter(|fact| {
-            fact.target() == DropTarget::Named(symbol)
+            source_drops.contains(fact)
                 || fact.owner().is_some_and(|owner| {
                     [seed.source(), header.owner(), exit.owner()].contains(&owner)
                 })

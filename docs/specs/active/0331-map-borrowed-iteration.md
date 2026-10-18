@@ -974,3 +974,13 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   测试独审指出的terminal current列及首后用source链缺口已修复复核；最终冻结回归仍待。
   重新赋值专属查询另核真实old/new形成、全部incoming、Drop边界与Unit assignment-origin，
   当前仅完成接线，仍须对应生产支持与真实绿，不能据本检查点外推G2整体完成。
+
+- 重新赋值生产候选检查点：完整首root BindingEpoch history与outer RHS边界已接入，
+  每个same-root Drop先确定实际epoch再核birth/owner/condition；Unit另核实际assignment
+  origin，未被For认领的旧Pure Drop也回溯其原Call。旧mutation不污染fresh epoch，
+  当前mutation与未测factory实参保持原For Unsupported。首轮严格36结果为28成功、
+  4条旧Pure initializer声明边界的lower Missing、4条Pure Exit Never的查询失败。
+  后者已修正为Never/空incoming；前者定位到首initializer完成与declaration共享end，
+  仅首initializer允许同end，replacement RHS仍按严格完成前清理旧值。修后串行验收仍在跑。
+  三层Group RHS的12条及非当前epoch arity的4条邻控已接线，Group独立深身份/native仍待补；
+  本检查点不作最终验收，不将旧头CI覆盖到当前未推送生产候选。

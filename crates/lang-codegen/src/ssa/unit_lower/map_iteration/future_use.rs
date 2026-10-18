@@ -8,9 +8,13 @@ pub(super) fn qualify(
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     plan: &UnitMapIterationOwnershipPlan,
-    kind: UnitIterationExitKind,
+    kind: (
+        UnitIterationExitKind,
+        Option<&crate::ssa::map_source::Formation<UnitSymbolId>>,
+    ),
     span: Span,
 ) -> Result<Option<UnitDropFact>, LoweringError> {
+    let (kind, formation) = kind;
     let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
     let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
     if plan.source_access() != UnitIterationSourceAccess::Owned
@@ -25,12 +29,16 @@ pub(super) fn qualify(
         return Err(bad());
     }
     let root = place.root();
-    let drops = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|f| f.target() == UnitDropTarget::Named(root))
-        .collect::<Vec<_>>();
+    let drops = if let Some(formation) = formation {
+        formed::drops(parsed, owned, root, formation)?
+    } else {
+        owned
+            .drops()
+            .iter()
+            .copied()
+            .filter(|f| f.target() == UnitDropTarget::Named(root))
+            .collect::<Vec<_>>()
+    };
     let local = |point| plan.exits().iter().any(|e| e.point() == point);
     if drops.iter().all(|drop| local(drop.point())) {
         return Ok(None);
@@ -78,7 +86,7 @@ pub(super) fn qualify(
         .and_then(|s| s.resolution().symbols().get(root.symbol().index()))
         .ok_or_else(bad)?
         .span();
-    if drop.value_origin() != origin {
+    if drop.value_origin() != formation.map_or(origin, |f| f.origin) {
         return Err(bad());
     }
     if !crate::ssa::map_source::future_reference(

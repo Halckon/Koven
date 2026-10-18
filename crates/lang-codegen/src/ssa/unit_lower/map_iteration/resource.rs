@@ -15,9 +15,13 @@ pub(super) fn qualify(
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     plan: &UnitMapIterationOwnershipPlan,
-    root: UnitSymbolId,
+    root: (
+        UnitSymbolId,
+        Option<&crate::ssa::map_source::Formation<UnitSymbolId>>,
+    ),
     kind: UnitIterationExitKind,
 ) -> Result<Proof, LoweringError> {
+    let (root, formation) = root;
     let d = plan.descriptor();
     let statement = d.statement();
     let span = parsed
@@ -51,13 +55,18 @@ pub(super) fn qualify(
     {
         return Err(unsupported());
     }
+    let origin = formation.map_or(origin, |f| f.origin);
     let scope = scope(parsed, statement.statement(), origin, span)?;
-    let drops = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|f| f.target() == UnitDropTarget::Named(root))
-        .collect::<Vec<_>>();
+    let drops = if let Some(formation) = formation {
+        formed::drops(parsed, owned, root, formation)?
+    } else {
+        owned
+            .drops()
+            .iter()
+            .copied()
+            .filter(|f| f.target() == UnitDropTarget::Named(root))
+            .collect::<Vec<_>>()
+    };
     let returning = match kind {
         UnitIterationExitKind::Return(e) => Some(e),
         _ => None,
@@ -97,7 +106,8 @@ pub(super) fn qualify(
     let drop = normal.next().ok_or_else(bad)?;
     if normal.next().is_some()
         || drops.iter().any(|d| d.value_origin() != origin)
-        || !normal_point(parsed, scope, span, statement.source_unit(), drop.point())
+        || (!normal_point(parsed, scope, span, statement.source_unit(), drop.point())
+            && !matches!((formation.and_then(|f| f.replacement), drop.point()), (Some(expected), UnitDropPoint::AfterExpression(actual)) if actual.source_unit() == root.source_unit() && actual.expression() == expected))
     {
         return Err(bad());
     }

@@ -42,7 +42,8 @@ pub(super) fn validate_birth(
     };
     source::validate_temporary_birth(lowerer, initializer, *anchor, birth.block, span)?;
     transport::from_anchor(lowerer.function, current, *anchor, span)?;
-    if lowerer
+    if lowerer.bindings.iter().any(|(other, value)| *other != root && matches!(value, LoweredValue::Value(v) if EntityId::Value(*v) == current || EntityId::Value(*v) == *anchor))
+        || lowerer
         .temporaries
         .values()
         .any(|value| EntityId::Value(*value) == current || EntityId::Value(*value) == *anchor)

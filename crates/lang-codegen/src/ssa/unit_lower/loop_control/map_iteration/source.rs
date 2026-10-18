@@ -42,11 +42,7 @@ impl UnitExpressionLowerer<'_> {
                         .ok_or_else(missing)?,
                     span,
                 )?;
-                if formation.producer != initializer.expression()
-                    || formation.roots.iter().skip(1).any(|root| {
-                        self.bindings.contains_key(root) || self.borrow_bindings.contains_key(root)
-                    })
-                {
+                if formation.producer != initializer.expression() {
                     return Err(missing());
                 }
                 let anchor = local::validate_birth(self, root, initializer, current, span)?;
@@ -301,6 +297,7 @@ impl UnitExpressionLowerer<'_> {
         };
         let bad = || lowering_error(LoweringErrorKind::MissingFact, fact.value_origin());
         let mut relevant = false;
+        let mut other_epoch = None;
         for descriptor in self.typed.map_iterations() {
             if descriptor.statement().source_unit() != self.source_unit {
                 continue;
@@ -329,17 +326,6 @@ impl UnitExpressionLowerer<'_> {
             if actual != root {
                 continue;
             }
-            relevant = true;
-            if ![
-                qualified.source_drop,
-                qualified.late_drop,
-                qualified.transfer_drop,
-            ]
-            .into_iter()
-            .any(|candidate| candidate == Some(fact))
-            {
-                continue;
-            }
             let span = self
                 .parsed
                 .ast()
@@ -356,10 +342,32 @@ impl UnitExpressionLowerer<'_> {
                 descriptor.source_type(),
                 span,
             )?;
+            if !map_iteration::formed::drops(self.parsed, self.owned, root, &formation)?
+                .contains(&fact)
+            {
+                let point = crate::ssa::map_source::unit_drop_span(self.parsed, fact.point())
+                    .ok_or_else(bad)?;
+                let epoch = crate::ssa::map_source::epoch_at(self.parsed, &formation, point)?;
+                let call = crate::ssa::map_source::epoch_call(self.parsed, epoch.rhs)?;
+                let call = UnitExpressionId::new(root.source_unit(), call);
+                if other_epoch.is_some_and(|previous| previous != call) {
+                    return Err(bad());
+                }
+                other_epoch = Some(call);
+                continue;
+            }
+            relevant = true;
+            if ![
+                qualified.source_drop,
+                qualified.late_drop,
+                qualified.transfer_drop,
+            ]
+            .into_iter()
+            .any(|candidate| candidate == Some(fact))
+            {
+                continue;
+            }
             if formation.producer != producer.expression()
-                || formation.roots.iter().skip(1).any(|root| {
-                    self.bindings.contains_key(root) || self.borrow_bindings.contains_key(root)
-                })
                 || self.borrow_bindings.contains_key(&root)
                 || self
                     .bindings
@@ -373,6 +381,15 @@ impl UnitExpressionLowerer<'_> {
         }
         if relevant {
             return Err(bad());
+        }
+        if let Some(producer) = other_epoch {
+            local::validate_birth(
+                self,
+                root,
+                producer,
+                EntityId::Value(owner),
+                fact.value_origin(),
+            )?;
         }
         Ok(())
     }

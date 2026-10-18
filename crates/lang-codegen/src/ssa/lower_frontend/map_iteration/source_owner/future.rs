@@ -7,7 +7,10 @@ pub(super) fn qualify(
     names: &NameResolution,
     owned: &OwnershipCheckedFile,
     plan: &MapIterationOwnershipPlan,
-    root: (SymbolId, Option<ExpressionId>),
+    root: (
+        SymbolId,
+        Option<&crate::ssa::map_source::Formation<SymbolId>>,
+    ),
     body_exit: IterationExitKind,
     span: Span,
 ) -> Result<Proof, LoweringError> {
@@ -25,12 +28,16 @@ pub(super) fn qualify(
     {
         return Err(unsupported());
     }
-    let drops = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|f| f.target() == DropTarget::Named(symbol))
-        .collect::<Vec<_>>();
+    let drops = if let Some(formation) = birth {
+        formed::drops(parsed, owned, symbol, formation)?
+    } else {
+        owned
+            .drops()
+            .iter()
+            .copied()
+            .filter(|f| f.target() == DropTarget::Named(symbol))
+            .collect::<Vec<_>>()
+    };
     let [drop] = drops.as_slice() else {
         return Err(unsupported());
     };
@@ -59,7 +66,9 @@ pub(super) fn qualify(
     let origin = names.symbols().get(symbol.index()).ok_or_else(bad)?.span();
     let conditions = owned.cleanup_conditions();
     let live = |owner| match birth {
-        Some(birth) => super::formed_condition(parsed, owned, (symbol, birth), owner, span),
+        Some(birth) => {
+            super::formed_condition(parsed, owned, (symbol, birth.producer), owner, span)
+        }
         None => super::provenance::parameter(owned, symbol, origin, owner, span),
     };
     for boundary in [IterationPhiBoundary::Header, IterationPhiBoundary::Exit] {

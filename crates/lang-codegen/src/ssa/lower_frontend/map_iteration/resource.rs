@@ -15,7 +15,10 @@ pub(super) fn qualify(
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
     plan: &MapIterationOwnershipPlan,
-    root: (SymbolId, Option<ExpressionId>),
+    root: (
+        SymbolId,
+        Option<&crate::ssa::map_source::Formation<SymbolId>>,
+    ),
     body_exit: IterationExitKind,
 ) -> Result<source_owner::Proof, LoweringError> {
     let (symbol, birth) = root;
@@ -46,12 +49,16 @@ pub(super) fn qualify(
         return Err(unsupported());
     }
     let scope = scope(parsed, d.statement(), origin, span)?;
-    let drops = owned
-        .drops()
-        .iter()
-        .copied()
-        .filter(|f| f.target() == DropTarget::Named(symbol))
-        .collect::<Vec<_>>();
+    let drops = if let Some(formation) = birth {
+        formed::drops(parsed, owned, symbol, formation)?
+    } else {
+        owned
+            .drops()
+            .iter()
+            .copied()
+            .filter(|f| f.target() == DropTarget::Named(symbol))
+            .collect::<Vec<_>>()
+    };
     let returning = match body_exit {
         IterationExitKind::Return(expression) => Some(expression),
         _ => None,
@@ -83,7 +90,10 @@ pub(super) fn qualify(
         return Err(unsupported());
     }
     let drop = unique(drops.iter().copied().filter(|d| Some(*d) != transfer)).ok_or_else(bad)?;
-    if !normal_point(parsed, scope, span, drop.point()) {
+    let replacement = birth.and_then(|f| f.replacement);
+    if !normal_point(parsed, scope, span, drop.point())
+        && !matches!((replacement, drop.point()), (Some(expected), DropPoint::AfterExpression(actual)) if expected == actual)
+    {
         return Err(bad());
     }
     let conditions = owned.cleanup_conditions();
@@ -110,9 +120,13 @@ pub(super) fn qualify(
         return Err(bad());
     };
     let available = match birth {
-        Some(birth) => {
-            source_owner::formed_condition(parsed, owned, (symbol, birth), seed.source(), span)?
-        }
+        Some(birth) => source_owner::formed_condition(
+            parsed,
+            owned,
+            (symbol, birth.producer),
+            seed.source(),
+            span,
+        )?,
         None => {
             if conditions.get(entry.available_when()) != Some(&CleanupCondition::Always)
                 || !matches!(conditions.owner_value(seed.source()), Some(CleanupOwnerValue::Parameter { symbol: s, origin: o }) if *s == symbol && *o == origin)
@@ -191,15 +205,15 @@ pub(super) fn qualify(
         .filter(|f| {
             f.owner()
                 .is_some_and(|o| [seed.source(), h.owner(), x.owner()].contains(&o))
-                || f.target() == DropTarget::Named(symbol)
+                || drops.contains(f)
         })
         .collect::<Vec<_>>();
     let (drop_owner, drop_condition) = if let Some(birth) = birth {
-        source_owner::formed_condition(parsed, owned, (symbol, birth), h.owner(), span)?;
-        source_owner::formed_condition(parsed, owned, (symbol, birth), x.owner(), span)?;
+        source_owner::formed_condition(parsed, owned, (symbol, birth.producer), h.owner(), span)?;
+        source_owner::formed_condition(parsed, owned, (symbol, birth.producer), x.owner(), span)?;
         let owner = drop.owner().ok_or_else(bad)?;
         let condition =
-            source_owner::formed_condition(parsed, owned, (symbol, birth), owner, span)?;
+            source_owner::formed_condition(parsed, owned, (symbol, birth.producer), owner, span)?;
         (owner, condition)
     } else {
         (x.owner(), x.availability_condition())

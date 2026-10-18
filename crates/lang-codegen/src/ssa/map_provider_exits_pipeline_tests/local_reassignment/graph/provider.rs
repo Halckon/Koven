@@ -133,7 +133,7 @@ pub(super) fn check<'a>(
     let xc = g.transported(when_false, EntityId::Value(hc))?;
     let leases = family(g, EntityId::Loan(source))?;
     let ends=g.instructions.iter().copied().filter(|i|matches!(i.operation,Operation::BorrowEnd{loan} if leases.contains(&EntityId::Loan(loan)))).collect::<Vec<_>>();
-    let end = one(ends, "only epoch exhaustion ends its source")?;
+    let end = one(ends.into_iter(), "only epoch exhaustion ends its source")?;
     need(
         matches!(end.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==xs)
             && end.block == when_false.target,

@@ -68,11 +68,6 @@ impl ExpressionLowerer<'_> {
         let [EntityId::Value(anchor)] = instruction.results.as_slice() else {
             return Err(bad());
         };
-        for root in formation.roots.iter().skip(1) {
-            if self.bindings.contains_key(root) || self.borrow_bindings.contains_key(root) {
-                return Err(bad());
-            }
-        }
         let current = if let Some(owner) = dropped {
             owner
         } else {

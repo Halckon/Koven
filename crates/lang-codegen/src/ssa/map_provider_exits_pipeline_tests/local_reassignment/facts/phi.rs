@@ -2,7 +2,7 @@
 use super::*;
 use lang_frontend::ownership_checking::{
     CleanupCondition as C, CleanupSelection, CleanupSelectorSource, DropFact,
-    IterationPhiIncomingKind as K, MapIterationOwnershipPlan,
+    IterationPhiIncomingKind as K, IterationPhiPresenceSource, MapIterationOwnershipPlan,
 };
 pub(super) fn check(
     site: &ast::Site,
@@ -70,14 +70,34 @@ pub(super) fn check(
             incoming.bindings().iter(),
             "epoch complete incoming binding",
         )?;
-        let value = one(binding.values().iter(), "epoch actual live incoming value")?;
         need(
             incoming.point() == point
                 && incoming.boundary() == phi.boundary()
                 && table.get(incoming.condition()) == Some(&C::Always)
                 && binding.target() == phi.owner()
                 && binding.availability_selector() == phi.availability_selector()
-                && value.condition() == binding.available_when()
+                && binding.capture_slots_to_clear().is_empty()
+                && binding.root_sources().is_empty()
+                && binding.selector_writes().is_empty()
+                && binding.origins().is_empty()
+                && binding.presence_source() == IterationPhiPresenceSource::StaticConditions,
+            "epoch complete incoming target, selector and non-capture layout",
+            incoming,
+        )?;
+        // Pure source cleanup consumes Header at LoopExit. Its Exit explicitly
+        // receives absence; Resource source instead transports its live owner.
+        if !resource && kind == K::Exhaustion {
+            need(
+                binding.values().is_empty()
+                    && table.get(binding.available_when()) == Some(&C::Never),
+                "Pure exhaustion writes exact absent Exit after Header Drop",
+                binding,
+            )?;
+            continue;
+        }
+        let value = one(binding.values().iter(), "epoch actual live incoming value")?;
+        need(
+            value.condition() == binding.available_when()
                 && if kind == K::Entry {
                     table.get(binding.available_when()) == Some(&C::Always)
                         && matches!(table.owner_value(value.source()),Some(O::Expression{expression,origin}) if *expression==birth && *origin==ast::expression(parsed,birth))
@@ -85,7 +105,7 @@ pub(super) fn check(
                     value.source() == h.owner()
                         && binding.available_when() == h.availability_condition()
                 },
-            "every epoch incoming derives current complete Call RHS, never declaration history",
+            "every live epoch incoming derives current complete Call RHS, never declaration history",
             incoming,
         )?;
     }
