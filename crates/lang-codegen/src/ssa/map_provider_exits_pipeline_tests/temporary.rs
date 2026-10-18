@@ -138,3 +138,9 @@ fn map_and_mutable_map_temporary_sources_reach_verified_llvm() {
          query失败与原阶段失败分账，UnsupportedNode不是成功oracle。\n{observations:#?}"
     );
 }
+
+mod query_body;
+mod query_cleanup;
+mod query_inputs;
+mod query_ssa;
+mod query_test;
