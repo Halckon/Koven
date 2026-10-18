@@ -32,7 +32,13 @@ pub(super) fn qualify(
     let bad = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     let origin = names.symbols().get(symbol.index()).ok_or_else(bad)?.span();
-    let Some(TypeKind::Nominal { nominal, arguments }) = typed.types().get(d.value_type()) else {
+    // Map storage already defines nullable class handles and their conditional drop glue.
+    // Inspect only the representation's inner class; component loans keep their nullable type.
+    let value_type = match typed.types().get(d.value_type()) {
+        Some(TypeKind::Nullable(inner)) => *inner,
+        _ => d.value_type(),
+    };
+    let Some(TypeKind::Nominal { nominal, arguments }) = typed.types().get(value_type) else {
         return Err(unsupported());
     };
     if d.kind() != lang_frontend::type_checking::MapIterationKind::Map

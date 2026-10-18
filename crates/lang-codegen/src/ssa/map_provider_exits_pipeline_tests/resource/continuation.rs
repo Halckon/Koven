@@ -1,6 +1,6 @@
 //! Real Resource Map continuations: lexical owner lifetime is independent of statement shape.
-mod borrowed;
-mod graph;
+pub(super) mod borrowed;
+pub(super) mod graph;
 use super::super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -79,6 +79,18 @@ pub(crate) fn sources() -> Vec<Case> {
 }
 
 pub(super) fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
+    observe_with(case, unit, |_, _, _, _| Ok(()))
+}
+pub(super) fn observe_with(
+    case: &Case,
+    unit: bool,
+    inspect: impl FnOnce(
+        &crate::ssa::model::Program,
+        &super::identity::Input,
+        &SourceMap,
+        &lang_frontend::parser::ParsedFile,
+    ) -> Result<(), Failure>,
+) -> Result<(), Failure> {
     let mut sources = SourceMap::new();
     let id = sources
         .add_source("provider.ko", &case.source)
@@ -127,6 +139,7 @@ pub(super) fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
     } else {
         borrowed::check(&program, &input, &parsed)?;
     }
+    inspect(&program, &input, &sources, &parsed)?;
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA verifier", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM verifier", e))?;
     Ok(())

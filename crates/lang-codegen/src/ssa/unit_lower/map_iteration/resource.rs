@@ -35,10 +35,15 @@ pub(super) fn qualify(
         .and_then(|s| s.resolution().symbols().get(root.symbol().index()))
         .ok_or_else(bad)?
         .span();
+    // Reuse the existing nullable Map payload ABI; never replace the descriptor/loan type.
+    let value_type = match typed.types().get(d.value_type()) {
+        Some(UnitTypeKind::Nullable(inner)) => *inner,
+        _ => d.value_type(),
+    };
     let Some(UnitTypeKind::Nominal {
         declaration,
         arguments,
-    }) = typed.types().get(d.value_type())
+    }) = typed.types().get(value_type)
     else {
         return Err(unsupported());
     };

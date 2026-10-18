@@ -61,7 +61,11 @@ String key 与无字段/泛型/接口且有显式 deinit 的直接 class value�
 以真实callable scope的Drop为依据，不限制循环前后普通语句的数量或调用形状：single 消费公开 Header/Exit phi、
 完整 incoming/Choice 与唯一 AfterStatement(scope) Drop，在 source loan 结束后保留实际
 当前 owner 至该词法点；unit 独立消费 qualified scope Drop 并运输自身 carrier。
-Borrow MutableMap 不取得或清理 caller owner。nullable Resource分量仍由真实well-typed邻控保留原For的UnsupportedNode。
+Borrow MutableMap 不取得或清理 caller owner。相同直接 class 的 nullable value 复用既有
+NullableHandle/条件析构 ABI；provider 保留原 nullable Shared loan，不提取、复制或消费 inner owner。
+七源双入口14条 pipeline 与14个普通 native 产物覆盖原 nullable fixture、Some/None 混合、全None、
+own/shared continue及后续CFG/source使用；presence只由原借用参数的 NullableLoanIsNull 读取。
+同次原AST查询还锁定 inner type 到实际 Resource.deinit 的函数 origin；不开放一般 nullable-place proof。
 Resource continue七源覆盖own Map及Borrow Map/MutableMap，单轮Guard先Drop，再逆序结束V/K并Next；
 owner/source在回边保留，耗尽结束本层provider lease，own源按原词法scope唯一Drop。Shared caller的
 原loan不在callee结束，caller返回后put/size恢复权限。双入口14条pipeline及14个正常native产物通过。
@@ -99,7 +103,7 @@ SSA 查询全部可达 block/incoming 的 owner/source/cursor 列、两分量/re
 重插、增长、碰撞墓碑之后调用真实provider；String/String覆盖own Map、Borrow Map与
 Borrow MutableMap，Resource覆盖不涉及remove的单项/覆盖/增长两种既有owner模式。
 双入口42条pipeline及42个普通native产物通过。它们补充0291链探针，而非用探针代替
-For执行；Resource marker只证明聚合数量和清理区间，不扩nullable或保证跨entry析构序。
+For执行；Resource marker只证明聚合数量和清理区间，该历史片不证明一般nullable或跨entry析构序。
 
 Resource 的空字段 payload 仍按 ADR-0008 获得独立 `malloc(1)` handle；heap runtime 保存真实
 target-derived payload size，仅在该大小非零时发出初始化 store。零字节 store 没有业务数据

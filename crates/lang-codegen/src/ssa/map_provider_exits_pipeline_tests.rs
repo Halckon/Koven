@@ -31,6 +31,7 @@ pub(crate) use nested::sources as nested_sources;
 pub(crate) use nested_exits::native_sources as nested_exit_sources;
 pub(crate) use resource::continuation::sources as resource_continuation_sources;
 pub(crate) use resource::continued::sources as resource_continue_sources;
+pub(crate) use resource::nullable::sources as resource_nullable_sources;
 pub(crate) use resource::sources as resource_sources;
 pub(crate) use sequential::sources as sequential_sources;
 pub(crate) use temporary::sources as temporary_sources;

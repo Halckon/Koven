@@ -708,3 +708,28 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   原String三退出、history42路、sequential20路与旧Resource等回归通过；fmt/workspace all-targets
   check/clippy(-D warnings)/build四门通过。输入摘要前后一致，独审finding及最小Shared补证已闭合。
   普通marker仍不替代逐对象内存计数/泄漏证明；本片尚无新提交CI。R2继续待验，0331保持active。
+
+
+## 42. Nullable Resource 分量复用既有表示（2026-10-18）
+
+- R2先核既有Map storage的nullable value admission、NullableHandle<HeapOwner>及conditional drop，
+  unit plan已递归调度inner deinit；不需要新Guide/ABI语义。两处Resource资格检查仅查看一层nullable
+  的inner class，descriptor及组件Shared loan仍保留原nullable类型；String key、直接显式deinit class、
+  无字段/泛型/接口及原source/owner/CFG门不变。通用nullable提取、non-null view/proof未开放。
+- 七份真实源码保留原boundary-nullable，另含Some/None混合、全None、own continue和Borrow Map/
+  MutableMap continue及后续size/put，均含非空/空调用。presence将原value==null比较结果先存Bool，
+  只使用现有NullableLoanIsNull；查询禁止获取/Drop Resource owner，允许分支println的String临时Drop。
+  初版查询误禁所有Drop的失败日志保留，修正仅针对实际nullable/Resource owner。最终查询在精确
+  `c6d71677`两生产文件旧字节重验：十条owned在原For Unsupported，四条Shared原本完整SSA/LLVM
+  成功，Rust实际0通过/1失败；finally逐字恢复候选。仓外收据判据曾误写Ok(())而输出实际为
+  Ok(FunctionId)，修正判据后重跑，未更改源码或既有红结果。
+- 最终七源双入口14条SSA/LLVM与14个正常native产物全部通过；同次FE完整owner/source事实与SSA
+  全incoming/operand、原callee/Shared参数和nullable表示一并核验，并从原Resource class的真实Deinit
+  span锁定module.deinits[inner]函数origin。混合与全None输出证明实际presence及资源析构聚合次数/顺序；
+  CFG查询另证明每条正常Return恰一次Map owner Drop，不能仅据相同marker宣称逐对象free或无泄漏。
+- 最终定向16项ordinary Rust通过，0失败/忽略；所选42个native产物（本片14、R1十四、R3十、原
+  Resource四）均严格exit0/golden/空stderr。fmt/workspace all-targets check/clippy(-D warnings)/build
+  四门通过，输入摘要前后一致；原String退出、history42路和sequential20路回归通过。独审提出的
+  inner→原Resource.deinit身份补证已闭合。三份旧boundary拒绝oracle已迁为各自硬成功，原fixture保留。
+  完整CI仍须绑定新提交，Mac sanitizer合同保持partial。Resource break/return仍未接通；0331继续
+  active，不归档、不合并、不启动D10。
