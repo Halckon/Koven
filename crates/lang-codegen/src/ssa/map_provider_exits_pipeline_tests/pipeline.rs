@@ -106,6 +106,9 @@ pub(super) fn single(fixture: &Fixture, report: &mut Report) -> Result<Lowered, 
     }
     facts::single(fixture, &names, &raw, &owned, report);
     entry_single(fixture, &names, &raw, &owned, report);
+    if report.identity_requested {
+        report.fe_identity = Some(super::query_inputs::single(fixture, &names, &raw, &owned));
+    }
     // 完整公共 validator 独立于只读 input query；失败保留原 reason/span。
     validate_iteration_facts(parsed, &names, complete.types(), &owned).map_err(|error| {
         at(
@@ -267,6 +270,14 @@ pub(super) fn unit(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Fa
     }
     facts::unit(fixture, &names, typed.types(), &owned, report);
     entry_unit(fixture, &names, typed.types(), &owned, report);
+    if report.identity_requested {
+        report.fe_identity = Some(super::query_inputs::unit(
+            fixture,
+            &names,
+            typed.types(),
+            &owned,
+        ));
+    }
     // 公开 validate 包括完整 iterations_are_valid；不是部分 query 代替生产资格。
     let owned = owned
         .validate()
