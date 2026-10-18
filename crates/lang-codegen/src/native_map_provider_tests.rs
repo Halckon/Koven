@@ -147,3 +147,6 @@ mod conditional_tests;
 
 #[path = "native_map_provider_temporary_tests.rs"]
 mod temporary_tests;
+
+#[path = "native_map_provider_nested_tests.rs"]
+mod nested_tests;
