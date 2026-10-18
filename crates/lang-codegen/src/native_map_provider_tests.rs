@@ -144,3 +144,6 @@ mod exits_tests;
 
 #[path = "native_map_provider_conditional_tests.rs"]
 mod conditional_tests;
+
+#[path = "native_map_provider_temporary_tests.rs"]
+mod temporary_tests;

@@ -10,7 +10,7 @@ use super::{
     identity, pipeline,
 };
 
-fn sources() -> [(&'static str, bool, &'static str, &'static str, &'static str); 2] {
+pub(crate) fn sources() -> [(&'static str, bool, &'static str, &'static str, &'static str); 2] {
     [
         (
             "map-temporary",

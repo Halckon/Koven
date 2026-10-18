@@ -14,6 +14,7 @@ mod query_test;
 mod temporary;
 
 pub(crate) use conditional::sources as conditional_sources;
+pub(crate) use temporary::sources as temporary_sources;
 
 use fixture::{Failure, Fixture};
 
