@@ -1,4 +1,9 @@
 //! Existing ordinary parameter delivery is shared by no-For controls and temporary sources.
+mod ast;
+#[path = "temporary_forms/cleanup.rs"]
+mod cleanup;
+mod facts;
+mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -128,11 +133,21 @@ fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
             &parsed,
             "provider.ko",
             &mut report,
-            |n, t, o, r| source_forms::facts::unit(&sources, &parsed, n, t, o, r),
+            |n, t, o, r| {
+                source_forms::facts::unit(&sources, &parsed, n, t, o, r);
+                r.query(
+                    "delivery qualified selected arguments/cleanup",
+                    &facts::unit(case, &sources, &parsed, n, t, o, control),
+                );
+            },
         )
     } else {
         pipeline::single_observed(&sources, &parsed, &mut report, |n, t, o, r| {
             source_forms::facts::single(&sources, &parsed, n, t, o, r);
+            r.query(
+                "delivery selected arguments/cleanup",
+                &facts::single(case, &sources, &parsed, n, t, o, control),
+            );
         })
     };
     println!(
@@ -140,12 +155,18 @@ fn observe(case: &Case, unit: bool, control: bool) -> Result<(), Failure> {
         case.label,
         lowered.as_ref().map(|(_, entry)| entry)
     );
-    if !report.passed() {
-        return Err(failure("original FE queries", report));
-    }
     let (program, _) = lowered?;
+    let deep = graph::check(case, &sources, &parsed, &program, control);
+    report.query("delivery actual SSA owner/argument graph", &deep);
+    println!(
+        "DELIVERY GRAPH {} unit={unit} control={control} deep={deep:?}",
+        case.label
+    );
     crate::ssa::verify::verify_program(&program).map_err(|e| failure("SSA", e))?;
     crate::llvm::render_verified_program(&program).map_err(|e| failure("LLVM", e))?;
+    if !report.passed() {
+        return Err(failure("original FE/SSA queries", report));
+    }
     Ok(())
 }
 

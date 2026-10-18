@@ -210,6 +210,57 @@ impl<'a> Graph<'a> {
         )?;
         Ok(i)
     }
+    /// Every visited incoming node must reach an actual source anchor. A cycle
+    /// cannot inherit proof merely because a different incoming reaches it.
+    pub fn anchored(&self, current: EntityId, anchors: &[EntityId]) -> Result<(), Failure> {
+        let mut pending = vec![current];
+        let mut seen = BTreeSet::new();
+        let mut dependencies = Vec::new();
+        while let Some(entity) = pending.pop() {
+            if anchors.contains(&entity) || !seen.insert(entity) {
+                continue;
+            }
+            let data = self
+                .function
+                .entity(entity)
+                .ok_or_else(|| failure("identity SSA transported entity", entity))?;
+            let Definition::BlockParameter { block, .. } = data.definition else {
+                return Err(failure(
+                    "identity SSA transport reaches another producer",
+                    data,
+                ));
+            };
+            let incoming = self.incoming(block);
+            need(
+                !incoming.is_empty(),
+                "identity SSA complete incoming exists",
+                entity,
+            )?;
+            for (_, edge) in incoming {
+                let argument = self.argument(edge, entity)?;
+                dependencies.push((entity, argument));
+                pending.push(argument);
+            }
+        }
+        let mut reached = anchors.iter().copied().collect::<BTreeSet<_>>();
+        loop {
+            let before = reached.len();
+            for &(entity, argument) in &dependencies {
+                if reached.contains(&argument) {
+                    reached.insert(entity);
+                }
+            }
+            if before == reached.len() {
+                break;
+            }
+        }
+        need(
+            seen.is_subset(&reached),
+            "identity SSA every incoming node anchored",
+            (current, seen, reached),
+        )
+    }
+
     pub fn position(&self, instruction: &Instruction) -> Result<usize, Failure> {
         one(
             self.block(instruction.block)?
