@@ -166,5 +166,6 @@ pub(super) fn qualify<'a>(
         body_exit,
         conditional: None,
         nested: None,
+        local: None,
     })
 }

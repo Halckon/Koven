@@ -3,6 +3,8 @@ mod carrier;
 mod conditional;
 mod exit_shape;
 mod exits;
+mod local;
+mod local_runtime;
 mod nested;
 mod nested_events;
 mod qualify;
@@ -28,7 +30,8 @@ pub(super) fn supported_drop(
     owned: &OwnershipCheckedFile,
     fact: lang_frontend::ownership_checking::DropFact,
 ) -> bool {
-    source_owner::supported_drop(parsed, names, typed, owned, fact)
+    local::supported_drop(parsed, names, typed, owned, fact)
+        || source_owner::supported_drop(parsed, names, typed, owned, fact)
         || nested::tail::supported_drop(parsed, names, typed, owned, fact)
 }
 
@@ -45,6 +48,7 @@ pub(super) fn storage(module: &Module, types: &BTreeMap<TypeId, SsaTypeId>) -> S
 #[derive(Default)]
 pub(super) struct State {
     entries: BTreeMap<SymbolId, EntityId>,
+    locals: BTreeMap<SymbolId, local_runtime::Carrier>,
     storage: Storage,
 }
 impl State {
@@ -67,6 +71,7 @@ impl State {
                 )
                 .collect(),
             storage: storage.clone(),
+            locals: BTreeMap::new(),
         }
     }
 }
@@ -118,6 +123,9 @@ impl ExpressionLowerer<'_> {
         let source_identity = qualified.source;
         let owner_proof = qualified.owner;
         let source_origin = qualified.origin;
+        if let Some(local) = &qualified.local {
+            self.validate_local_map_entry(local, span)?;
+        }
         let mapped = |ty| {
             self.resolve_type(ty, span).and_then(|ty| {
                 self.type_ids
@@ -177,7 +185,9 @@ impl ExpressionLowerer<'_> {
                 if source_identity.current_owner(self) != Some(owner) {
                     let kind = match source_identity {
                         SourceIdentity::Parameter(_) => LoweringErrorKind::UnsupportedNode,
-                        SourceIdentity::Temporary(_) => LoweringErrorKind::MissingFact,
+                        SourceIdentity::Local { .. } | SourceIdentity::Temporary(_) => {
+                            LoweringErrorKind::MissingFact
+                        }
                     };
                     return Err(error(kind, span));
                 }
@@ -489,7 +499,11 @@ impl ExpressionLowerer<'_> {
         self.emit_map_iteration_cleanup(exhaustion, &mut frame, owner, span)?;
         if !frame.finished
             || frame.source.is_some()
-            || owner.is_some_and(|(_, source, _)| source.current_owner(self).is_some())
+            || owner.is_some_and(|(proof, source, value)| {
+                let live = matches!(source, SourceIdentity::Local { .. })
+                    && proof.at(exhaustion.point()).is_none();
+                source.current_owner(self) != live.then_some(value)
+            })
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
@@ -520,7 +534,7 @@ impl ExpressionLowerer<'_> {
             context.breaks.push(self.branch_exit(LoweredValue::Unit));
             self.merge_exits(context.breaks, &baseline, span)?;
         }
-        carrier::Evidence {
+        let evidence = carrier::Evidence {
             function: self.function,
             conditional: state.conditional.as_ref(),
             nested: state.nested.as_ref(),
@@ -544,8 +558,19 @@ impl ExpressionLowerer<'_> {
             owner,
             source_origin,
             span,
+        };
+        evidence.validate()?;
+        if let Some(local) = qualified.local {
+            let completed = self.local_map_completion(local, evidence)?;
+            if self
+                .map_iteration_state
+                .locals
+                .insert(completed.root(), completed)
+                .is_some()
+            {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
         }
-        .validate()?;
         Ok(LoweredValue::Unit)
     }
 

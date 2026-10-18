@@ -3,7 +3,14 @@ use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(in super::super) enum SourceIdentity {
-    Parameter { root: UnitSymbolId, slot: usize },
+    Parameter {
+        root: UnitSymbolId,
+        slot: usize,
+    },
+    Local {
+        root: UnitSymbolId,
+        initializer: UnitExpressionId,
+    },
     Temporary(UnitExpressionId),
 }
 
@@ -14,7 +21,9 @@ impl SourceIdentity {
     ) -> Result<UnitSymbolId, LoweringError> {
         match self {
             Self::Parameter { root, .. } => Ok(root),
-            Self::Temporary(_) => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            Self::Local { .. } | Self::Temporary(_) => {
+                Err(lowering_error(LoweringErrorKind::MissingFact, span))
+            }
         }
     }
 
@@ -25,7 +34,7 @@ impl SourceIdentity {
     ) -> Result<EntityId, LoweringError> {
         let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
         match self {
-            Self::Parameter { root, .. } => match (
+            Self::Parameter { root, .. } | Self::Local { root, .. } => match (
                 lowerer.bindings.get(&root),
                 lowerer.borrow_bindings.get(&root),
             ) {
@@ -44,14 +53,14 @@ impl SourceIdentity {
 
     pub(in super::super) fn drop_target(self) -> UnitDropTarget {
         match self {
-            Self::Parameter { root, .. } => UnitDropTarget::Named(root),
+            Self::Parameter { root, .. } | Self::Local { root, .. } => UnitDropTarget::Named(root),
             Self::Temporary(expression) => UnitDropTarget::Temporary(expression),
         }
     }
 
     pub(in super::super) fn is_registered(self, lowerer: &UnitExpressionLowerer<'_>) -> bool {
         match self {
-            Self::Parameter { root, .. } => {
+            Self::Parameter { root, .. } | Self::Local { root, .. } => {
                 lowerer.bindings.contains_key(&root) || lowerer.borrow_bindings.contains_key(&root)
             }
             Self::Temporary(expression) => lowerer.temporaries.contains_key(&expression),

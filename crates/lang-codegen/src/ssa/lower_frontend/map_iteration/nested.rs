@@ -439,7 +439,7 @@ fn edges(function: &Function, from: BlockId) -> Vec<&Edge> {
         _ => Vec::new(),
     }
 }
-fn incoming(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)> {
+pub(super) fn incoming(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)> {
     function
         .blocks
         .iter()

@@ -2,6 +2,7 @@
 mod carrier;
 mod cleanup;
 mod conditional;
+mod local;
 mod nested;
 mod source;
 mod transport;
@@ -60,6 +61,7 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
         self.reject_live_if_proof(span)?;
+        self.finish_local_map_continuation(span)?;
         if !self.pending_call_frames.is_empty()
             || !self.temporaries.is_empty()
             || !self.nullable_proofs.is_empty()
@@ -397,6 +399,7 @@ impl UnitExpressionLowerer<'_> {
                 span,
             )?;
         }
+        self.finish_local_map_loop(qualified, carrier, false_block, retained_start, span)?;
         Ok(LoweredValue::Unit)
     }
 

@@ -262,6 +262,13 @@ impl UnitExpressionLowerer<'_> {
                     {
                         return Err(bad());
                     }
+                    if state.carrier.owned && !owner_dropped {
+                        self.validate_map_state_current(
+                            **state,
+                            state.terminal_block(point, span)?,
+                            span,
+                        )?;
+                    }
                 }
                 _ => return Err(bad()),
             }

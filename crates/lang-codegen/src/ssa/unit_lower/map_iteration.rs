@@ -1,6 +1,8 @@
 //! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
 mod conditional;
+mod local;
 mod nested;
+pub(super) use local::LocalContinuation;
 mod source_identity;
 mod temporary;
 use super::*;
@@ -23,6 +25,7 @@ pub(super) struct QualifiedMap {
     pub(super) statement: UnitStatementId,
     pub(super) source: SourceIdentity,
     pub(super) source_drop: Option<UnitDropFact>,
+    pub(super) late_drop: Option<UnitDropFact>,
     pub(super) transfer_drop: Option<UnitDropFact>,
     pub(super) body_exit: UnitIterationExitKind,
     pub(super) body_point: UnitDropPoint,
@@ -181,6 +184,30 @@ fn qualify_one(
         .get(root.source_unit().index())
         .and_then(|source| source.resolution().symbols().get(root.symbol().index()))
         .ok_or_else(missing)?;
+    if symbol.kind() == SymbolKind::Variable {
+        if symbol.id() != root.symbol()
+            || symbol.is_synthetic()
+            || symbol.span().source_id() != parsed.source_id()
+        {
+            return Err(missing());
+        }
+        if nested.is_some() {
+            return Err(unsupported());
+        }
+        return local::qualify(
+            parsed,
+            names,
+            typed,
+            owned,
+            descriptor,
+            local::Syntax {
+                body: *body,
+                root,
+                origin: symbol.span(),
+                span,
+            },
+        );
+    }
     if symbol.kind() != SymbolKind::ValueParameter {
         return Err(unsupported());
     }
@@ -379,6 +406,7 @@ fn qualify_one(
             slot: *parameter_slot,
         },
         source_drop,
+        late_drop: None,
         transfer_drop,
         body_exit,
         body_point,

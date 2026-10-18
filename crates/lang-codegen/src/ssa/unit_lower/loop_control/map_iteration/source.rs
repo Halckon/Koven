@@ -28,6 +28,22 @@ impl UnitExpressionLowerer<'_> {
                     anchor
                 }
             }
+            SourceIdentity::Local { root, initializer } => {
+                if access != UnitIterationSourceAccess::Owned {
+                    return Err(missing());
+                }
+                let current = identity.current(self, span)?;
+                let anchor = local::validate_birth(self, root, initializer, current, span)?;
+                if current != anchor
+                    || carrier::instruction(self.function, anchor, span)?.block != self.block
+                {
+                    return Err(missing());
+                }
+                if self.bindings.values().filter(|value| matches!(value, LoweredValue::Value(owner) if EntityId::Value(*owner) == current)).count() != 1 {
+                    return Err(missing());
+                }
+                current
+            }
             SourceIdentity::Temporary(expression) => {
                 if access != UnitIterationSourceAccess::Temporary
                     || expression.source_unit() != self.source_unit
@@ -63,7 +79,7 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             }
-            SourceIdentity::Temporary(_) => {
+            SourceIdentity::Local { .. } | SourceIdentity::Temporary(_) => {
                 if identity.current(self, span)? != seed {
                     return Err(missing());
                 }

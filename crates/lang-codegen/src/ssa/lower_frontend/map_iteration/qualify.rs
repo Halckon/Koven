@@ -16,6 +16,7 @@ pub(super) struct Qualified<'a> {
     pub(super) body_exit: IterationExitKind,
     pub(super) conditional: Option<conditional::Shape>,
     pub(super) nested: Option<nested::Pair>,
+    pub(super) local: Option<local::Proof>,
 }
 
 pub(in super::super) fn validate(
@@ -135,6 +136,12 @@ fn qualify_one<'a>(
         return Err(missing());
     }
     let data = names.symbols().get(symbol.index()).ok_or_else(missing)?;
+    if data.kind() == SymbolKind::Variable {
+        if nested.is_some() {
+            return Err(unsupported());
+        }
+        return local::qualify(parsed, names, typed, owned, plan, *body, span);
+    }
     if data.kind() != SymbolKind::ValueParameter {
         return Err(unsupported());
     }
@@ -250,6 +257,7 @@ fn qualify_one<'a>(
             body_exit,
             conditional,
             nested,
+            local: None,
         });
     }
     if let Some(pair) = nested.filter(|pair| pair.tail.is_some()) {
@@ -285,6 +293,7 @@ fn qualify_one<'a>(
         body_exit,
         conditional: None,
         nested,
+        local: None,
     })
 }
 

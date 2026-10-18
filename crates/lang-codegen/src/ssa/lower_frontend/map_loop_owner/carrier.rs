@@ -541,6 +541,7 @@ impl ExpressionLowerer<'_> {
     }
 
     pub(in super::super) fn validate_map_loop_carriers(&self) -> Result<(), LoweringError> {
+        self.validate_local_map_carriers()?;
         for carrier in &self.map_loop_owners.loops {
             let span = carrier.plan.drop.value_origin();
             let fail = || error(LoweringErrorKind::MissingFact, span);

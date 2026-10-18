@@ -341,17 +341,28 @@ impl Evidence<'_> {
             {
                 return Err(missing());
             }
-            let (drop_position, instruction) = unique(
-                exhausted_instructions
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, instruction)| {
-                        instruction.operation == Operation::Drop { owner: dropped }
-                    }),
-            )
-            .ok_or_else(missing)?;
-            if drop_position <= source_end || instruction.origin != Origin::Source(source_origin) {
-                return Err(missing());
+            let drops = exhausted_instructions
+                .iter()
+                .enumerate()
+                .filter(|(_, instruction)| {
+                    instruction.operation == Operation::Drop { owner: dropped }
+                })
+                .collect::<Vec<_>>();
+            let live = matches!(symbol, SourceIdentity::Local { .. })
+                && matches!(proof.drop.point(), DropPoint::CallReturn(_));
+            if live {
+                if !drops.is_empty() {
+                    return Err(missing());
+                }
+            } else {
+                let [(drop_position, instruction)] = drops.as_slice() else {
+                    return Err(missing());
+                };
+                if *drop_position <= source_end
+                    || instruction.origin != Origin::Source(source_origin)
+                {
+                    return Err(missing());
+                }
             }
             let Some((body_proof, body_symbol, body_value)) = body_owner else {
                 return Err(missing());

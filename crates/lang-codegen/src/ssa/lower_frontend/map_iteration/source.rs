@@ -5,13 +5,17 @@ use lang_frontend::type_checking::CallableTarget;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SourceIdentity {
     Parameter(SymbolId),
+    Local {
+        symbol: SymbolId,
+        initializer: ExpressionId,
+    },
     Temporary(ExpressionId),
 }
 
 impl SourceIdentity {
     pub(super) fn matches_slot(self, slot: &LinearBindingSlot) -> bool {
         match self {
-            Self::Parameter(symbol) => slot.symbol == Some(symbol),
+            Self::Parameter(symbol) | Self::Local { symbol, .. } => slot.symbol == Some(symbol),
             Self::Temporary(expression) => {
                 slot.symbol.is_none() && slot.temporaries.as_slice() == [expression.index()]
             }
@@ -20,10 +24,12 @@ impl SourceIdentity {
 
     pub(super) fn current_owner(self, lowerer: &ExpressionLowerer<'_>) -> Option<ValueId> {
         match self {
-            Self::Parameter(symbol) => match lowerer.bindings.get(&symbol) {
-                Some(LoweredValue::Value(owner)) => Some(*owner),
-                _ => None,
-            },
+            Self::Parameter(symbol) | Self::Local { symbol, .. } => {
+                match lowerer.bindings.get(&symbol) {
+                    Some(LoweredValue::Value(owner)) => Some(*owner),
+                    _ => None,
+                }
+            }
             Self::Temporary(expression) => lowerer.temporaries.get(&expression.index()).copied(),
         }
     }
@@ -38,7 +44,7 @@ impl SourceIdentity {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         match self {
-            Self::Parameter(symbol) => {
+            Self::Parameter(symbol) | Self::Local { symbol, .. } => {
                 lowerer.bindings.remove(&symbol);
             }
             Self::Temporary(expression) => {
@@ -92,6 +98,10 @@ impl ExpressionLowerer<'_> {
                 }
                 Ok(seed)
             }
+            SourceIdentity::Local {
+                symbol,
+                initializer,
+            } => self.local_map_seed(symbol, initializer, container, span),
             SourceIdentity::Temporary(expression) => {
                 let call = self.typed.call(expression).ok_or_else(missing)?;
                 let CallableTarget::Source(symbol) = call.target() else {

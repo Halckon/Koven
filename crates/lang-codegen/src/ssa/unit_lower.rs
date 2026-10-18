@@ -203,6 +203,8 @@ struct UnitExpressionLowerer<'a> {
     pending_operands: Vec<EntityId>,
     pending_call_frames: Vec<call_lifetimes::PendingCallFrame>,
     loops: Vec<loop_control::LoopContext>,
+    // One bounded normal Map continuation, discharged by its exact size CallReturn.
+    map_local_continuation: Option<map_iteration::LocalContinuation>,
     return_type: UnitTypeId,
 }
 

@@ -274,7 +274,9 @@ impl UnitExpressionLowerer<'_> {
                     })?;
             }
             let Some(fact) = facts.get(index) else { break };
-            self.emit_drop_fact(*fact)?;
+            if !self.emit_local_map_late_drop(*fact)? {
+                self.emit_drop_fact(*fact)?;
+            }
         }
         Ok(())
     }

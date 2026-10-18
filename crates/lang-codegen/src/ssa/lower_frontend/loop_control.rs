@@ -512,6 +512,9 @@ impl ExpressionLowerer<'_> {
         use lang_frontend::ownership_checking::{DropTarget, IterationCleanupAction as Action};
         match action {
             Action::Drop(fact) => {
+                if self.emit_local_map_drop(*fact)? {
+                    return Ok(());
+                }
                 if self.emit_outer_borrowed_drop(*fact)? {
                     return Ok(());
                 }

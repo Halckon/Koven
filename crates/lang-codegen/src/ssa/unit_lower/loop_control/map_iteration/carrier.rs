@@ -1,4 +1,5 @@
 //! Exact source identity and provider transport; no same-type or same-name owner substitution.
+mod local;
 use super::*;
 use crate::ssa::model::{Definition, Edge, Instruction};
 use lang_frontend::{ownership_checking::UnitDropFact, parser::Expression};
@@ -7,6 +8,8 @@ use lang_frontend::{ownership_checking::UnitDropFact, parser::Expression};
 pub(super) struct MapCarrier {
     pub(super) identity: SourceIdentity,
     pub(super) drop: Option<UnitDropFact>,
+    pub(super) owned: bool,
+    late_drop: Option<UnitDropFact>,
     transfer_drop: Option<UnitDropFact>,
     pub(super) body_point: UnitDropPoint,
     body_exit: UnitIterationExitKind,
@@ -69,6 +72,9 @@ impl MapCarrier {
                 }
                 anchor
             }
+            SourceIdentity::Local { root, initializer } => {
+                super::local::validate_birth(lowerer, root, initializer, seed, span)?
+            }
             SourceIdentity::Temporary(expression) => {
                 source::validate_temporary_birth(lowerer, expression, seed, preheader, span)?;
                 seed
@@ -79,32 +85,61 @@ impl MapCarrier {
         {
             return Err(bad());
         }
+        // Preserve old Parameter/Temporary lifetime gates. Only the qualified Local
+        // row separates owning storage from this provider's terminal Drop.
+        match qualified.source {
+            SourceIdentity::Local { .. } => {
+                if !matches!(seed, EntityId::Value(_))
+                    || qualified.source_drop.is_some() == qualified.late_drop.is_some()
+                    || qualified.transfer_drop.is_some()
+                    || qualified.conditional.is_some()
+                    || qualified.nested.is_some()
+                {
+                    return Err(bad());
+                }
+            }
+            _ => {
+                if !matches!(
+                    (seed, qualified.source_drop),
+                    (EntityId::Value(_), Some(_)) | (EntityId::Loan(_), None)
+                ) || qualified.late_drop.is_some()
+                {
+                    return Err(bad());
+                }
+            }
+        }
         let source_birth = instruction(function, EntityId::Loan(source), span)?;
-        if source_birth.block != preheader {
+        if source_birth.block != preheader
+            || (matches!(qualified.source, SourceIdentity::Local { .. })
+                && source_birth.origin != Origin::Source(span))
+        {
             return Err(bad());
         }
-        match (seed, &source_birth.operation, qualified.source_drop) {
+        match (seed, &source_birth.operation) {
             (
                 EntityId::Value(seed),
                 Operation::BorrowBegin {
                     place,
                     kind: LoanKind::Shared,
                 },
-                Some(_),
             ) => {
                 let root = instruction(function, EntityId::Place(*place), span)?;
                 if root.block != preheader
+                    || (matches!(qualified.source, SourceIdentity::Local { .. })
+                        && root.origin != Origin::Source(span))
                     || root.operation != (Operation::RootPlace { owner: seed })
                 {
                     return Err(bad());
                 }
             }
-            (EntityId::Loan(seed), Operation::SharedReborrow { source }, None)
-                if *source == seed => {}
+            (EntityId::Loan(seed), Operation::SharedReborrow { source }) if *source == seed => {}
             _ => return Err(bad()),
         }
         let first = instruction(function, EntityId::Value(cursor), span)?;
-        if first.block != preheader || first.operation != (Operation::MapIterationFirst { source })
+        if first.block != preheader
+            || first.operation != (Operation::MapIterationFirst { source })
+            || (matches!(qualified.source, SourceIdentity::Local { .. })
+                && first.origin != Origin::Source(span))
         {
             return Err(bad());
         }
@@ -124,6 +159,8 @@ impl MapCarrier {
             identity: qualified.source,
             conditional: qualified.conditional,
             drop: qualified.source_drop,
+            owned: matches!(seed, EntityId::Value(_)),
+            late_drop: qualified.late_drop,
             transfer_drop: qualified.transfer_drop,
             body_point: qualified.body_point,
             body_exit: qualified.body_exit,
@@ -162,6 +199,8 @@ impl MapCarrier {
         };
         let guard = instruction(function, EntityId::Value(*condition), span)?;
         if guard.block != header
+            || (matches!(qualified.source, SourceIdentity::Local { .. })
+                && guard.origin != Origin::Source(span))
             || guard.operation
                 != (Operation::MapIterationHasNext {
                     source: header_source,
@@ -235,15 +274,23 @@ impl MapCarrier {
         {
             return Err(bad());
         }
-        if self.nested.is_some() {
+        if self.nested.is_some() || matches!(self.identity, SourceIdentity::Local { .. }) {
             transport::from_anchor(lowerer.function, seed, self.anchor, span)?;
         }
-        if self.identity.current(lowerer, span)? != seed
-            || !matches!(
-                (seed, self.drop),
-                (EntityId::Value(_), Some(_)) | (EntityId::Loan(_), None)
-            )
-        {
+        let valid_role = match self.identity {
+            SourceIdentity::Local { .. } => {
+                self.owned
+                    && matches!(seed, EntityId::Value(_))
+                    && self.drop.is_some() != self.late_drop.is_some()
+            }
+            _ => {
+                matches!(
+                    (seed, self.drop),
+                    (EntityId::Value(_), Some(_)) | (EntityId::Loan(_), None)
+                ) && self.late_drop.is_none()
+            }
+        };
+        if self.identity.current(lowerer, span)? != seed || !valid_role {
             return Err(bad());
         }
         Ok(())
@@ -294,7 +341,7 @@ impl MapCarrier {
         {
             return Err(bad());
         }
-        if self.nested.is_some() {
+        if self.nested.is_some() || matches!(self.identity, SourceIdentity::Local { .. }) {
             let incoming = transport::incoming(lowerer.function, self.header);
             if incoming.len() != 2
                 || incoming
@@ -307,6 +354,9 @@ impl MapCarrier {
                 return Err(bad());
             }
             transport::from_anchor(lowerer.function, seed, self.anchor, span)?;
+        }
+        if matches!(self.identity, SourceIdentity::Local { .. }) {
+            self.validate_local_transport(lowerer, span)?;
         }
         Ok(())
     }
