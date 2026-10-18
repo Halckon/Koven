@@ -255,7 +255,7 @@ fn observe(case: &Case, unit: bool) -> Result<bool, String> {
         }
         let qualified = owned.diagnostics().is_empty()
             && validate_iteration_facts(&file, &names, &typed, &owned).is_ok();
-        // Declaration bindings and structural closure descriptors are not execution permits.
+        // Declaration bindings, closure descriptors and callable provenance are metadata, not execution permits.
         // Default cleanup conditions contain only Always/Never sentinels, with no owners or choices.
         let facts = [
             ("captures", owned.captures().is_empty()),
@@ -295,6 +295,10 @@ fn observe(case: &Case, unit: bool) -> Result<bool, String> {
                 owned.borrow_results().forwarded_source_loans().is_empty(),
             ),
             ("range uses", owned.borrow_results().range_uses().is_empty()),
+            (
+                "constant materializations",
+                owned.constant_materializations().is_none(),
+            ),
             ("loan ends", owned.loan_ends().is_empty()),
             ("cleanup steps", owned.cleanup_steps().is_empty()),
             (
@@ -356,7 +360,7 @@ fn observe(case: &Case, unit: bool) -> Result<bool, String> {
                 owned.deferred()
             ));
         }
-        // Declaration bindings and structural closure descriptors are not execution permits.
+        // Declaration bindings, closure descriptors and callable provenance are metadata, not execution permits.
         // Default cleanup conditions contain only Always/Never sentinels, with no owners or choices.
         let facts = [
             ("captures", owned.captures().is_empty()),
