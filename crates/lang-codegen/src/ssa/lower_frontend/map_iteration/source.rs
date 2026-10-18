@@ -160,18 +160,20 @@ impl ExpressionLowerer<'_> {
                 let LoweredValue::Value(owner) = self.lower(expression)? else {
                     return Err(missing());
                 };
+                if self.block != preheader {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                }
                 let seed = EntityId::Value(owner);
                 let instruction = carrier::definition(self.function, seed).ok_or_else(missing)?;
-                if self.block != preheader
-                    || instruction.block != preheader
+                if instruction.block != preheader
                     || instruction.origin != Origin::Source(origin)
                     || instruction.results != [seed]
-                    || instruction.operation
-                        != (Operation::DirectCall {
-                            callee: expected,
-                            receiver: None,
-                            arguments: Vec::new(),
-                        })
+                    // The ordinary call emitter already consumes the selected
+                    // argument mapping and closes its argument loans. This proof
+                    // anchors that emitted result, without evaluating operands again.
+                    || !matches!(&instruction.operation, Operation::DirectCall {
+                        callee, receiver: None, arguments,
+                    } if *callee == expected && arguments.len() == call.arguments().len())
                     || self.function.entity(seed).map(|entity| entity.ty)
                         != Some(EntityType::Value(container))
                     || source.current_owner(self) != Some(owner)

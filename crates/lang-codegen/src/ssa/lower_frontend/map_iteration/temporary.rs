@@ -45,7 +45,7 @@ pub(super) fn qualify<'a>(
         .expressions()
         .get(*callee)
         .map_err(|_| missing())?;
-    if callee_node.payload() != &Expression::Name || !arguments.is_empty() {
+    if callee_node.payload() != &Expression::Name {
         return Err(unsupported());
     }
     let call = typed.call(source).ok_or_else(missing)?;
@@ -77,7 +77,6 @@ pub(super) fn qualify<'a>(
         || signature.owner().is_some()
         || signature.receiver().is_some()
         || !signature.type_parameters().is_empty()
-        || !signature.parameters().is_empty()
     {
         return Err(unsupported());
     }
@@ -97,7 +96,8 @@ pub(super) fn qualify<'a>(
     };
     if !matches_factory
         || call.expression() != source
-        || !call.arguments().is_empty()
+        || call.arguments().len() != arguments.len()
+        || call.arguments().len() != signature.parameters().len()
         || call.return_type() != descriptor.source_type()
         || signature.return_type() != descriptor.source_type()
         || typed.expression_type(source) != Some(descriptor.source_type())

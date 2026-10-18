@@ -67,8 +67,8 @@ impl Evidence<'_> {
             if call.block != preheader
                 || call.origin != Origin::Source(source_origin)
                 || !matches!(&call.operation, Operation::DirectCall {
-                    receiver: None, arguments, ..
-                } if arguments.is_empty())
+                    receiver: None, ..
+                })
                 || unique(function.instructions.iter().filter(|instruction| {
                     instruction.origin == Origin::Source(source_origin)
                         && matches!(instruction.operation, Operation::DirectCall { .. })

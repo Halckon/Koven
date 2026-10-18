@@ -68,8 +68,11 @@ impl UnitExpressionLowerer<'_> {
                 let LoweredValue::Value(owner) = self.lower(expression.expression())? else {
                     return Err(missing());
                 };
+                if self.block != preheader {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
                 let seed = EntityId::Value(owner);
-                if self.block != preheader || identity.current(self, span)? != seed {
+                if identity.current(self, span)? != seed {
                     return Err(missing());
                 }
                 validate_temporary_birth(self, expression, seed, preheader, span)?;
@@ -170,12 +173,11 @@ pub(super) fn validate_temporary_birth(
     if !matches!(seed, EntityId::Value(_))
         || call.block != preheader
         || call.origin != Origin::Source(node.span())
-        || call.operation
-            != (Operation::DirectCall {
-                callee,
-                receiver: None,
-                arguments: Vec::new(),
-            })
+        // Argument evaluation and delivery belong to the normal call emitter;
+        // the provider consumes its actual selected Call result exactly once.
+        || !matches!(&call.operation, Operation::DirectCall {
+            callee: actual, receiver: None, arguments,
+        } if *actual == callee && arguments.len() == descriptor.arguments().len())
         || lowerer.function.entity(seed).map(|data| data.ty) != Some(EntityType::Value(ty))
     {
         return Err(missing());

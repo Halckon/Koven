@@ -42,7 +42,7 @@ pub(super) fn qualify(
         .expressions()
         .get(*callee)
         .map_err(|_| missing())?;
-    if !matches!(callee.payload(), Expression::Name) || !arguments.is_empty() {
+    if !matches!(callee.payload(), Expression::Name) {
         return Err(unsupported());
     }
     let call = typed.call(source).ok_or_else(missing)?;
@@ -66,7 +66,6 @@ pub(super) fn qualify(
         || call.result_source() != CallableResultSource::Owned
         || !call.instance().type_arguments().is_empty()
         || signature.receiver().is_some()
-        || !signature.parameters().is_empty()
         || !signature.type_parameters().is_empty()
         || !signature.has_body()
         || signature.result_source() != CallableResultSource::Owned
@@ -77,7 +76,8 @@ pub(super) fn qualify(
     // consumes the Unit Call/source/Drop identities independently of the payload shape.
     if call.expression() != source
         || call.return_type() != descriptor.source_type()
-        || !call.arguments().is_empty()
+        || call.arguments().len() != arguments.len()
+        || call.arguments().len() != signature.parameters().len()
         || typed.expression_category(source) != Some(ExpressionCategory::Temporary)
         || typed.copyability(descriptor.source_type()) != Copyability::MoveOnly
     {
