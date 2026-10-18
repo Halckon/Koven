@@ -43,6 +43,7 @@ struct Argument {
     birth: Option<Birth>,
     endpoint: Option<(Span, Span)>,
     literal: Option<Vec<u8>>,
+    literal_drop: Option<(Span, Span)>,
 }
 #[derive(Clone, Debug)]
 struct Drop {

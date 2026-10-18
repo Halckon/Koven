@@ -326,10 +326,19 @@ fn argument_use(
                     .filter(|i| i.operation == Operation::Drop { owner }),
                 "formation literal owner unique actual Drop",
             )?;
+            let (call_return, drop_origin) = argument.literal_drop.ok_or_else(|| {
+                failure(
+                    "formation literal original FE Temporary Drop bridge",
+                    argument,
+                )
+            })?;
             need(
-                drop.origin == Origin::Source(argument.at) && drop.block == call.block,
-                "formation original literal Drop origin and block",
-                drop,
+                call.origin == Origin::Source(call_return)
+                    && drop.origin == Origin::Source(drop_origin)
+                    && drop_origin == argument.at
+                    && drop.block == call.block,
+                "formation literal actual Drop matches original FE CallReturn point/origin",
+                (call, drop, argument),
             )?;
             uses.permit(EntityId::Value(owner), root);
             uses.permit(EntityId::Value(owner), drop);
@@ -365,8 +374,8 @@ fn argument_use(
                 "formation literal actual Drop after CallReturn",
             )?;
             need(
-                g.position(end)? < g.position(drop)?,
-                "formation original literal Drop follows unique synchronous loan End",
+                g.position(drop)? == g.position(end)? + 1,
+                "formation original literal CallReturn Drop immediately follows its unique loan End",
                 (end, drop),
             )?;
         }

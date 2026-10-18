@@ -102,7 +102,7 @@ pub(super) fn single(
                 None
             };
             let literal = literal(sources, parsed, argument.value)?;
-            if literal.is_some() {
+            let literal_drop = if literal.is_some() {
                 need(
                     typed.expression_type(argument.value).is_some_and(|ty| {
                         typed.types().get(ty)
@@ -114,7 +114,37 @@ pub(super) fn single(
                     "formation original literal actual String type/Temporary category",
                     argument,
                 )?;
-            }
+                let loan = one(
+                    loans.iter().copied(),
+                    "formation literal actual unique temporary loan",
+                )?;
+                need(
+                    root.is_none()
+                        && borrow
+                        && endpoint == Some((arg, at))
+                        && loan.kind() == LoanKind::Shared
+                        && loan.target() == &LoanTarget::Temporary(argument.value)
+                        && loan.begin_span() == arg
+                        && loan.end_span() == at,
+                    "formation literal exact original Temporary target and synchronous Shared loan",
+                    loan,
+                )?;
+                let drop = one(
+                    owned
+                        .drops()
+                        .iter()
+                        .filter(|drop| drop.target() == DropTarget::Temporary(argument.value)),
+                    "formation literal actual unique Temporary Drop fact",
+                )?;
+                need(
+                    drop.point() == DropPoint::CallReturn(id) && drop.value_origin() == arg,
+                    "formation literal original CallReturn Drop point and value origin",
+                    drop,
+                )?;
+                Some((at, drop.value_origin()))
+            } else {
+                None
+            };
             args.push(Argument {
                 at: arg,
                 root,
@@ -122,6 +152,7 @@ pub(super) fn single(
                 birth,
                 endpoint,
                 literal,
+                literal_drop,
             });
         }
         result.push(CallUse {
@@ -265,7 +296,7 @@ pub(super) fn unit(
                 None
             };
             let literal = literal(sources, parsed, argument.value)?;
-            if literal.is_some() {
+            let literal_drop = if literal.is_some() {
                 need(
                     typed
                         .expression_type(expression(argument.value))
@@ -280,7 +311,40 @@ pub(super) fn unit(
                     "formation qualified original literal String/Temporary",
                     argument,
                 )?;
-            }
+                let loan = one(
+                    owned.loans().iter().filter(|loan| {
+                        loan.call() == expression(id)
+                            && loan.argument() == expression(argument.value)
+                    }),
+                    "formation qualified literal actual unique temporary loan",
+                )?;
+                need(
+                    root.is_none()
+                        && borrow
+                        && endpoint == Some((arg, at))
+                        && loan.kind() == LoanKind::Shared
+                        && loan.target() == &UnitLoanTarget::Temporary(expression(argument.value))
+                        && loan.begin_span() == arg
+                        && loan.end_span() == at,
+                    "formation qualified literal exact Temporary expression and Shared loan",
+                    loan,
+                )?;
+                let drop = one(
+                    owned.drops().iter().filter(|drop| {
+                        drop.target() == UnitDropTarget::Temporary(expression(argument.value))
+                    }),
+                    "formation qualified literal actual unique Temporary Drop fact",
+                )?;
+                need(
+                    drop.point() == UnitDropPoint::CallReturn(expression(id))
+                        && drop.value_origin() == arg,
+                    "formation qualified literal original CallReturn Drop and origin",
+                    drop,
+                )?;
+                Some((at, drop.value_origin()))
+            } else {
+                None
+            };
             args.push(Argument {
                 at: arg,
                 root,
@@ -288,6 +352,7 @@ pub(super) fn unit(
                 birth,
                 endpoint,
                 literal,
+                literal_drop,
             });
         }
         result.push(CallUse {
