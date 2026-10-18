@@ -1,6 +1,7 @@
 //! SPEC-0331 的普通 Map provider 成功合同；十二条真实 pipeline 全收齐后统一断言。
 //! 不执行 native，不以当前 lower 的 UnsupportedNode 债务作为通过条件。
 
+mod conditional;
 mod facts;
 mod fixture;
 mod identity;

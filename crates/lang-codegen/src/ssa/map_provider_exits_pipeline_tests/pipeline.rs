@@ -10,25 +10,45 @@ use crate::ssa::{
 };
 use lang_frontend::{
     name_resolution::{
-        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
+        NameResolution, SourceUnitInput, SymbolKind, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
-        check_compilation_unit_ownership, check_ownership, owned_compilation_unit_view,
-        validate_iteration_facts,
+        CompilationUnitOwnership, OwnershipCheckedFile, check_compilation_unit_ownership,
+        check_ownership, owned_compilation_unit_view, validate_iteration_facts,
     },
-    parser::{Item, NameMarker},
+    parser::{Item, NameMarker, ParsedFile},
+    source::SourceMap,
     type_checking::{
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        CompilationUnitTypes, TypedFile, check_compilation_unit_types, check_types,
+        complete_compilation_unit_types, complete_file_types, standard_environments,
     },
 };
 
 type Lowered = (Program, FunctionId);
 
 pub(super) fn single(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
-    let sources = &fixture.sources;
-    let parsed = &fixture.parsed;
+    single_observed(
+        &fixture.sources,
+        &fixture.parsed,
+        report,
+        |names, raw, owned, report| {
+            facts::single(fixture, names, raw, owned, report);
+            entry_single(fixture, names, raw, owned, report);
+            if report.identity_requested {
+                report.fe_identity = Some(super::query_inputs::single(fixture, names, raw, owned));
+            }
+        },
+    )
+}
+
+// Test-local stage bridge: the observer sees this one analysis; it cannot replace any product.
+pub(super) fn single_observed(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    report: &mut Report,
+    observe: impl FnOnce(&NameResolution, &TypedFile, &OwnershipCheckedFile, &mut Report),
+) -> Result<Lowered, Failure> {
     report.check("single lex/parse clean", true, parsed.source_id());
     let (name_environment, environment) = standard_environments();
     let names = resolve_names(sources, parsed, &name_environment)
@@ -104,11 +124,7 @@ pub(super) fn single(fixture: &Fixture, report: &mut Report) -> Result<Lowered, 
             "raw/names mismatch",
         ));
     }
-    facts::single(fixture, &names, &raw, &owned, report);
-    entry_single(fixture, &names, &raw, &owned, report);
-    if report.identity_requested {
-        report.fe_identity = Some(super::query_inputs::single(fixture, &names, &raw, &owned));
-    }
+    observe(&names, &raw, &owned, report);
     // 完整公共 validator 独立于只读 input query；失败保留原 reason/span。
     validate_iteration_facts(parsed, &names, complete.types(), &owned).map_err(|error| {
         at(
@@ -136,19 +152,44 @@ pub(super) fn single(fixture: &Fixture, report: &mut Report) -> Result<Lowered, 
 }
 
 pub(super) fn unit(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Failure> {
-    let sources = &fixture.sources;
-    let parsed = &fixture.parsed;
+    unit_observed(
+        &fixture.sources,
+        &fixture.parsed,
+        fixture.path,
+        report,
+        |names, typed, owned, report| {
+            facts::unit(fixture, names, typed, owned, report);
+            entry_unit(fixture, names, typed, owned, report);
+            if report.identity_requested {
+                report.fe_identity = Some(super::query_inputs::unit(fixture, names, typed, owned));
+            }
+        },
+    )
+}
+
+pub(super) fn unit_observed(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    path: &str,
+    report: &mut Report,
+    observe: impl FnOnce(
+        &ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+        &CompilationUnitOwnership,
+        &mut Report,
+    ),
+) -> Result<Lowered, Failure> {
     // 不加 package、wrapper、标准库文件或第二 source；与 single 完全相同字节和逻辑路径。
     let inputs = [SourceUnitInput::new(
         "root",
-        fixture.path,
+        path,
         parsed.source_id(),
         parsed,
     )];
     report.check(
         "unit lex/parse and single original input",
         true,
-        (fixture.path, parsed.source_id()),
+        (path, parsed.source_id()),
     );
     let (name_environment, environment) = standard_environments();
     let index = index_compilation_unit(sources, &inputs)
@@ -268,16 +309,7 @@ pub(super) fn unit(fixture: &Fixture, report: &mut Report) -> Result<Lowered, Fa
             "typed identity mismatch",
         ));
     }
-    facts::unit(fixture, &names, typed.types(), &owned, report);
-    entry_unit(fixture, &names, typed.types(), &owned, report);
-    if report.identity_requested {
-        report.fe_identity = Some(super::query_inputs::unit(
-            fixture,
-            &names,
-            typed.types(),
-            &owned,
-        ));
-    }
+    observe(&names, typed.types(), &owned, report);
     // 公开 validate 包括完整 iterations_are_valid；不是部分 query 代替生产资格。
     let owned = owned
         .validate()
