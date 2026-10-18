@@ -258,3 +258,37 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - `df523c88/22b4d93f` 只追加4个tests接线路径、34行，保原两源/golden与native helper；有限check27.71秒无警告。native2-v1收据 `c47f0ff99409a47d5fe5ea4bae4c6952ab48d05e72e3c7a6e8146302cb3c6417` 两exact各actual1/0，首编1分03秒，single/unit运行0.20/0.19秒；四个case×entry marker在原helper严格Some(0)、A28行300字节/B36行356字节完整golden及空stderr断言后产生。helper没有内置硬超时，输出不证明精确factory或Drop动态次数、无泄漏，也不扩称独立子进程raw。
 - 同头engineering-local-v1收据 `6c20556f3a12f04b232d017bb1342ba9720ce1c68865c9ea46bd7c8051a68bd0` 四项全0，fmt空日志、check0.61秒、Clippy42.76秒、build22.71秒。regression47-v1收据 `9a877cce51edb9901fe649618feb9ecc6aca0d6c7d454a6383aa43f81812bd73` 全47唯一ordinary各actual1/0，严格原44完整对象加local pipeline与native两项；235raw与2771完整输入按后端34项、前端旧13项独审，全部绑定稳定。56个Map case×entry marker齐，旧CLI两个正常native另计；CLI本轮实际重新编译1.44/0.60秒，其余45项复用已有测试产物。原有限stagegate/whole成功、Group精准拒绝及旧CLI范围保留，不以拒绝oracle通过宣称对应来源已支持。
 - 本段只验收固定local A/B流水线/native与同头普通回归；同次FE→SSA独立全实体、全incoming、所有用途及B后用清理身份query仍为后继，原collector检查不替代它。行为受验头为`df523c88`，后继docs提交不冒称重跑。其他来源、nullable/Resource分量组合、更一般控制流、私有负控与双host CI仍待；0331保持active，远端备份范围另按真实ref记录。
+
+## 26. Mac 固定远端快照复验与文档差距（2026-10-18）
+
+- 本机主仓库与已有工作树先检查，保留主仓库全部未提交工作及其他工作树；独立 worktree
+  `/private/tmp/koven-spec0331-mac` 从重新 `ls-remote` 核实的0331远端
+  `60512fda0677b07abb77f10d88242f7a16edd1fb` 建立，tree
+  `a800dd86dd72dc2dd3c87331fc83f608201a7564`。同次远端 main 为
+  `a2a7e4b6833977fcae26d6420f193ea1ac7d53df`，不以旧报告代替远端核实。
+- 工具为 AArch64 macOS、Rust/cargo1.96.0、Homebrew LLVM/Clang21.1.8；显式
+  `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，普通 object 使用系统
+  `/usr/bin/clang`（Apple21.0.0）链接，符合平台 driver 合同。未全局升级工具或修改代理。
+- 固定快照的31项 Map provider exact（15项pipeline/身份+16项native）与13项共享回归
+  （3项stage/whole/Group，3项type_iteration，7项ownership_iteration）各实际1/exit0，
+  合44项通过、0失败、0 ignored；每次都核 libtest 实际命中，不以runner退出码替代。
+  统一命令形态为 `cargo test --locked --offline -p <crate> --lib <exact>` 或
+  `--test <suite> <exact>`，尾部均为 `-- --exact --nocapture --test-threads=1`，串行执行。
+  native56个case×entry均硬核exit0/完整golden/空stderr；不增加动态计数或泄漏结论。
+  31项运行前后2771个tracked输入摘要一致；13项回归仍在同一未改源码快照完成。
+- 本机原始日志与逐项命令/结果留仓外 `/tmp/koven-spec0331-mac-evidence/`，简要收据另存
+  本机任务目录；codegen-results.json SHA256
+  `3e7c7a6bfeea09bfce0e4209601b540343476e4d06e34cba7a9045ee9a29980a`，
+  regression-results.json SHA256
+  `eedc845ddea3a9abf247af9eb6185bc97bf4f7403c9c4fa55a0ee7791b4e9923`。
+  结果仅证明上述受验快照；后继文档提交不冒称生产重跑。README双语及Tour原先笼统
+  “Map遍历未交付”已改为[有限矩阵](../../architecture/map-borrowed-iteration.md)，不增加
+  fence/CLI库存、改变Guide或扩大Field/Inout/Group与其他staging边界。
+- 云后续13个提交对象本机均missing，包含c5bf4120和707d9b97。恢复中的闭包生产补丁
+  已在仓外按五文件base和全部七文件candidate SHA核同，重建patch SHA256为
+  `a9847b02ed483bb08d29d78c9ba6fa08af5568b1ce210555108933174d3c8da8`；
+  这不是完整父树/提交恢复，也尚未安装或执行。Borrow直接退出、Resource生产扩展、
+  local深查询、原20拒绝/10邻控及最后四源Unit结果不能从摘要升级为本机通过。
+- 本机未运行故障注入、校准、合成损坏、sanitizer故障对照；这些只交GitHub Actions。
+  macOS sanitizer仍为partial，本轮未新增sanitizer验收。完整工程/双host远端CI、独立审计
+  及F最终闭环尚待，不归档0331、不勾总合同；D10未开始。

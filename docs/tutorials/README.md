@@ -31,5 +31,5 @@ Map 两遍改写及新增增长病例已由 [SPEC-0295](../archive/specs/0295-ma
 | 预期结构化拒绝 | reject-typed/reject-ownership、[reject-immutable-place](koven-tour.md#reject-immutable-place)、[reject-iteration-move](koven-tour.md#reject-iteration-move) | 完整JSON类型、移动、不可变place及迭代活跃借用诊断；非法源码无产物 |
 | 分支资源退出 | [gap-scope-branch](koven-tour.md#gap-scope-branch) | 同一历史失败源码加入正常CLI合同，核对内层逆序清理与外层存活；验收见0273 |
 | argv词频 | [argv-word-frequency](koven-tour.md#argv-word-frequency) | 三文件、两遍argv与Map get/put/remove；当前9组argv，既有双宿主40命令验收及边界见0295，旧37命令证据保留 |
-| 集合、普通借用返回与范围 | [当前能力说明](koven-tour.md#collections-and-borrow-results) | 链接已有后端/公开CLI源码并区分入口；不增加本页执行库存，不将Map遍历或任意短路列为支持 |
+| 集合、普通借用返回与范围 | [当前能力说明](koven-tour.md#collections-and-borrow-results) | 链接已有后端/公开CLI源码并区分入口；不增加本页执行库存，Map遍历限后端矩阵，不外推任意短路 |
 | 未纳入本批 | 一般 nullable/Result、enum、闭包、Box/Rc、任意嵌套组合 | 不从上述例子推定全面支持；语义见Guide，实现边界见Architecture |

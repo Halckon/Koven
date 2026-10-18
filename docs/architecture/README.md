@@ -54,6 +54,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | 普通借用结果的短期同步实参消费与source终止 | [同步Borrow实参](synchronous-borrow-result-arguments.md) |
 | 普通多参数唯一来源 Borrow 返回与调用分流 | [多参数借用返回](multi-parameter-borrow-results.md) |
 | 通用 Map 的所有权、哈希表、析构与 native 边界 | [Map 原生执行](map-native-execution.md) |
+| Map 双分量插入序借用遍历的来源、退出与 staging 边界 | [Map 借用遍历](map-borrowed-iteration.md) |
 | owned Map删除结果的非消费proof、调用运输与storage边界 | [owned Map结果借用](map-owned-result-borrow.md) |
 | single 外层非Resource Map正常耗尽的phi/carrier与边界 | [Map loop owner运输](map-loop-owner-carry.md) |
 | Map receiver清理身份、key return与Group临时值 | [Map调用前缀](map-call-prefixes.md) |

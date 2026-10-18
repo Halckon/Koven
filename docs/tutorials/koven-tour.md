@@ -79,8 +79,14 @@ fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
 - 借用已有槽位另有 `requireValue` 与同步 `withValue`；前者缺失时 abort，后者在命中时调用
   Borrow callback。它们的值类型和清理边界见[Map 访问说明](../architecture/map-native-execution.md)，
   不能把返回借用当成取出一个 owned 值。
-- 当前不要使用未交付的 Map 遍历或集合 `forEach`/`map`/`filter`，也不要假设存在 Kotlin 的
-  其他集合/格式化 API。词频里的 `decimal` 是本页实现的普通函数，不是标准库格式化接口。
+- Map 的 `for ((key, value) in source)` 已有有限 single/unit 后端 native 子集：两个具名分量
+  共享借用，沿插入链遍历。[具名参数源码](../../crates/lang-codegen/tests/fixtures/map-provider-0331/map.ko)、
+  [temporary 源码](../../crates/lang-codegen/tests/fixtures/map-provider-temporary-0331/map-temporary.ko)与
+  [local 后用源码](../../crates/lang-codegen/tests/fixtures/map-provider-local-sources-0331/local-later-use.ko)
+  展示不同来源；具体 kind/access、退出和嵌套范围见[Map 支持矩阵](../architecture/map-borrowed-iteration.md)。
+  这些是后端回归来源，尚未新增本页公开 CLI 合同；Field/Inout、Group 及其他未验组合保持 staging 边界。
+- 集合 `forEach`/`map`/`filter` 与未列出的集合/格式化 API 仍未交付。词频里的 `decimal`
+  是本页实现的普通函数，不是标准库格式化接口。
 
 ### 普通返回与借用返回不同
 
