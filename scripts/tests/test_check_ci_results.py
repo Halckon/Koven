@@ -61,6 +61,21 @@ def stage_command_is_unfiltered(command):
 
 
 class CheckCiResultsTests(unittest.TestCase):
+    def test_spec0331_rebuilt_closure_targets_run_once_on_both_hosts(self):
+        root = Path(__file__).resolve().parents[2]
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        for target in ("unit_closure_assignment_recovery", "closure_assignment_safety_rebuild"):
+            selected = stage_target_occurrences(stage, target)
+            self.assertEqual(1, len(selected), f"{target} must execute exactly once")
+            self.assertTrue(stage_command_is_unfiltered(selected[0]))
+            self.assertTrue((root / f"crates/lang-frontend/tests/{target}.rs").is_file())
+        composition = (root / "scripts/check_integration.sh").read_text()
+        self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        job = workflow.split("  test:\n", 1)[1].split("  ci-passed:\n", 1)[0]
+        self.assertIn("os: [macos-14, ubuntu-24.04]", job)
+        self.assertIn("run: bash scripts/check_integration.sh", job)
+
     def test_final_type_admission_runs_once_without_filters_on_both_hosts(self):
         root = Path(__file__).resolve().parents[2]
         target = "final_type_admission"
