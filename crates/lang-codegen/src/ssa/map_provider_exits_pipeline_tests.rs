@@ -18,6 +18,7 @@ mod temporary;
 mod temporary_exits;
 
 pub(crate) use conditional::sources as conditional_sources;
+pub(crate) use local_sources::native_sources as local_native_sources;
 pub(crate) use nested::sources as nested_sources;
 pub(crate) use nested_exits::native_sources as nested_exit_sources;
 pub(crate) use temporary::sources as temporary_sources;

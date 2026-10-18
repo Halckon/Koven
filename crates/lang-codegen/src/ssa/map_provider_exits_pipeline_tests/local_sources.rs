@@ -143,3 +143,9 @@ fn owned_local_formation_and_later_use_sources_reach_verified_llvm() {
          32个FE site不代表32次lower，whole-set仅按真实首停记账。\n{observations:#?}"
     );
 }
+
+/// 同字节两源与完整 golden，供后续独立准入的普通 native 测试复用。
+/// 保持 sources 私有，不改变首证 collector 的任何阶段或成功条件。
+pub(crate) fn native_sources() -> [(&'static str, &'static str, &'static str); 2] {
+    sources().map(|(label, _, _, source, golden)| (label, source, golden))
+}
