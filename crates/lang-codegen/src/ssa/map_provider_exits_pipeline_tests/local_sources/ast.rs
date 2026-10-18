@@ -62,6 +62,21 @@ impl Input {
         Ok(elements)
     }
 
+    // parse_if → parse_control_body → parse_control_block 保留独立 ControlBody。
+    // 只供冻结 If 的两个花括号分支使用；普通函数/For 仍严格要求 Block。
+    fn control_elements(&self, id: StatementId) -> Result<&[StatementId], Failure> {
+        let n = self
+            .parsed
+            .ast()
+            .statements()
+            .get(id)
+            .map_err(|e| failure("local AST control body", e))?;
+        let Statement::ControlBody { elements } = n.payload() else {
+            return Err(failure("local AST actual ControlBody", (n, n.payload())));
+        };
+        Ok(elements)
+    }
+
     fn statement_expression(&self, id: StatementId) -> Result<ExpressionId, Failure> {
         let n = self
             .parsed
@@ -514,11 +529,11 @@ fn size(f: &Input, statement: StatementId, name: &str, empty: bool) -> Result<Si
         "local AST size member and exact expected integer",
         (node, right),
     )?;
-    let [success] = f.elements(*then_branch)? else {
+    let [success] = f.control_elements(*then_branch)? else {
         return Err(failure("local AST one success marker", then_branch));
     };
     f.marker(*success, if empty { "\"size-0\"" } else { "\"size-2\"" })?;
-    let [failure_statement] = f.elements(*other)? else {
+    let [failure_statement] = f.control_elements(*other)? else {
         return Err(failure("local AST one failure Call", other));
     };
     let failure_call = f.call(f.statement_expression(*failure_statement)?, "error", 1)?;
