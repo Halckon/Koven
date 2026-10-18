@@ -76,13 +76,39 @@ impl ExpressionLowerer<'_> {
             let Some(plan) = self.owned.map_iteration(descriptor.statement()) else {
                 continue;
             };
-            if let Some(formation) = formed::retained::proof(
+            if let Some(retained) = formed::retained::proof(
                 (self.parsed, self.names, self.typed, self.owned),
                 plan,
                 fact,
                 span,
             )? {
-                self.formed_map_anchor(&formation, Some(owner), span)?;
+                if let Some(formation) = retained.formation {
+                    self.formed_map_anchor(&formation, Some(owner), span)?;
+                } else {
+                    let SourceIdentity::Parameter(root) = retained.source else {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    };
+                    let anchor = *self
+                        .map_iteration_state
+                        .entries
+                        .get(&root)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                    let entry = self
+                        .function
+                        .entry_block()
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                    if !matches!(self.function.entity(anchor).map(|e|e.definition),Some(Definition::BlockParameter{block,..}) if block==entry)
+                        || !matches!(anchor, EntityId::Value(_))
+                        || self
+                            .bindings
+                            .values()
+                            .any(|v| *v == LoweredValue::Value(owner))
+                        || self.temporaries.values().any(|&v| v == owner)
+                    {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    }
+                    nested::transport(self.function, EntityId::Value(owner), anchor, span)?;
+                }
                 return Ok(true);
             }
         }

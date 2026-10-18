@@ -332,7 +332,7 @@ pub(in super::super) fn qualify(
     } else {
         match outside.as_slice() {
             [] => None,
-            [fact] if typed.is_resource_type(descriptor.source_type()) == Some(true) => {
+            [fact] => {
                 validate_source_fact(parsed, names, owned, flow, *fact, span)?;
                 let DropTarget::Named(root) = target else {
                     return Err(unsupported());
@@ -342,9 +342,29 @@ pub(in super::super) fn qualify(
                     .get(root.index())
                     .ok_or_else(missing)?
                     .span();
-                let scope = resource::scope(parsed, shape.statement, origin, span)?;
-                if !resource::normal_point(parsed, scope, span, fact.point()) {
-                    return Err(unsupported());
+                let resource = typed
+                    .is_resource_type(descriptor.source_type())
+                    .ok_or_else(missing)?;
+                if resource {
+                    let scope = resource::scope(parsed, shape.statement, origin, span)?;
+                    if !resource::normal_point(parsed, scope, span, fact.point()) {
+                        return Err(unsupported());
+                    }
+                } else {
+                    let event = crate::ssa::map_source::drop_event(parsed, fact.point())
+                        .ok_or_else(unsupported)?;
+                    if !crate::ssa::map_source::future_reference(
+                        parsed,
+                        span,
+                        event.span,
+                        names.references().iter().filter_map(|reference| {
+                            (reference.target()
+                                == &lang_frontend::name_resolution::ReferenceTarget::Symbol(root))
+                                .then_some(reference.span())
+                        }),
+                    ) {
+                        return Err(unsupported());
+                    }
                 }
                 let exit = source_owner::phi(
                     owned.cleanup_conditions(),
@@ -355,7 +375,10 @@ pub(in super::super) fn qualify(
                 )?;
                 let live =
                     source_owner::flow_condition(parsed, names, owned, flow, exit.owner(), span)?;
-                if fact.owner() != Some(exit.owner()) || fact.condition() != Some(live) {
+                if (resource
+                    && (fact.owner() != Some(exit.owner()) || fact.condition() != Some(live)))
+                    || owned.cleanup_conditions().get(live) == Some(&CleanupCondition::Never)
+                {
                     return Err(missing());
                 }
                 Some(*fact)

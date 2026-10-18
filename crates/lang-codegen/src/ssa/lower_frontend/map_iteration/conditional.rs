@@ -9,6 +9,7 @@ mod verify;
 
 use super::*;
 
+pub(super) use actions::validate_drop_ledger;
 pub(super) use facts::{qualify, source_drop};
 pub(super) use shape::shape;
 pub(super) use verify::validate;

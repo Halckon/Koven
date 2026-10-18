@@ -42,7 +42,7 @@ pub(super) fn source_drop(
 }
 
 /// Every real Drop at one point occurs once in its complete public sequence.
-pub(super) fn validate_drop_ledger(
+pub(in super::super) fn validate_drop_ledger(
     owned: &OwnershipCheckedFile,
     point: DropPoint,
     actions: &[IterationCleanupAction],

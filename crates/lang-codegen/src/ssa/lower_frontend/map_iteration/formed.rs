@@ -27,33 +27,8 @@ pub(super) fn formation(
         |root| {
             let symbol = names.symbols().get(root.index()).ok_or_else(missing)?;
             if symbol.kind() == SymbolKind::ValueParameter {
-                let function = parsed
-                    .ast()
-                    .items()
-                    .iter()
-                    .filter(|(_, node)| {
-                        matches!(node.payload(), Item::Function { .. })
-                            && node.span().start() <= span.start()
-                            && span.end() <= node.span().end()
-                    })
-                    .min_by_key(|(_, node)| node.span().end() - node.span().start())
-                    .ok_or_else(unsupported)?;
-                let Item::Function { parameters, .. } = function.1.payload() else {
-                    return Err(missing());
-                };
-                if !parameters
-                    .iter()
-                    .any(|p| p.name == NameMarker::Present(symbol.span()))
-                    || symbol.is_synthetic()
-                    || typed.symbol_type(root) != Some(storage)
-                    || typed.parameter_mode(root) != Some(ParameterMode::Value)
-                    || owned.binding_kind(root) != Some(OwnershipBindingKind::Owned)
-                {
-                    return Err(missing());
-                }
-                return Ok(BindingDeclaration::EntryParameter {
-                    marker: symbol.span(),
-                });
+                let marker = owned_parameter((parsed, names, typed, owned), root, storage, span)?;
+                return Ok(BindingDeclaration::EntryParameter { marker });
             }
             if symbol.kind() != SymbolKind::Variable {
                 return Err(unsupported());
@@ -113,6 +88,58 @@ pub(super) fn formation(
                 receiver: d.receiver(),
             })),
     )
+}
+
+/// The parameter belongs to this execution body, rather than an enclosing capture.
+pub(super) fn owned_parameter(
+    frontend: (
+        &ParsedFile,
+        &NameResolution,
+        &TypedFile,
+        &OwnershipCheckedFile,
+    ),
+    root: SymbolId,
+    storage: TypeId,
+    span: Span,
+) -> Result<Span, LoweringError> {
+    let (parsed, names, typed, owned) = frontend;
+    let missing = || error(LoweringErrorKind::MissingFact, span);
+    let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
+    let symbol = names.symbols().get(root.index()).ok_or_else(missing)?;
+    let function = parsed
+        .ast()
+        .items()
+        .iter()
+        .filter(|(_, node)| {
+            matches!(node.payload(), Item::Function { .. })
+                && node.span().source_id() == span.source_id()
+                && node.span().start() <= span.start()
+                && span.end() <= node.span().end()
+        })
+        .min_by_key(|(_, node)| node.span().end() - node.span().start())
+        .ok_or_else(unsupported)?;
+    let Item::Function { parameters, .. } = function.1.payload() else {
+        return Err(missing());
+    };
+    if parsed.ast().expressions().iter().any(|(_, node)| {
+        matches!(node.payload(), Expression::Lambda { .. })
+            && node.span().start() <= span.start()
+            && span.end() <= node.span().end()
+    }) {
+        return Err(unsupported());
+    }
+    if symbol.kind() != SymbolKind::ValueParameter
+        || symbol.is_synthetic()
+        || !parameters
+            .iter()
+            .any(|p| p.name == NameMarker::Present(symbol.span()))
+        || typed.symbol_type(root) != Some(storage)
+        || typed.parameter_mode(root) != Some(ParameterMode::Value)
+        || owned.binding_kind(root) != Some(OwnershipBindingKind::Owned)
+    {
+        return Err(missing());
+    }
+    Ok(symbol.span())
 }
 
 pub(super) fn qualify<'a>(

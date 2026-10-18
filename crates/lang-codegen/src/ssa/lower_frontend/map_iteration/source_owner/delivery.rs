@@ -32,11 +32,25 @@ pub(in super::super) fn qualify(
         | SourceIdentity::Formed { symbol: root, .. } => root,
         _ => return Err(unsupported()),
     };
-    if owned
-        .drops()
-        .iter()
-        .any(|f| f.target() == DropTarget::Named(root))
-    {
+    let has_drop = match flow.source {
+        SourceIdentity::Formed { symbol, .. } => {
+            let formation = formed::formation(
+                parsed,
+                names,
+                typed,
+                owned,
+                symbol,
+                plan.descriptor().source_type(),
+                span,
+            )?;
+            !formed::drops(parsed, owned, symbol, &formation)?.is_empty()
+        }
+        _ => owned
+            .drops()
+            .iter()
+            .any(|f| f.target() == DropTarget::Named(root)),
+    };
+    if has_drop {
         return Err(unsupported());
     }
     let storage = plan.descriptor().source_type();
@@ -149,6 +163,16 @@ impl ExpressionLowerer<'_> {
             };
             if delivery.argument != argument {
                 continue;
+            }
+            let exit = super::phi(
+                self.owned.cleanup_conditions(),
+                qualified.plan,
+                delivery.root,
+                IterationPhiBoundary::Exit,
+                span,
+            )?;
+            if exit.owner() != delivery.owner {
+                return Err(bad());
             }
             let call = self.typed.call(delivery.call).ok_or_else(bad)?;
             let mapping = unique(
