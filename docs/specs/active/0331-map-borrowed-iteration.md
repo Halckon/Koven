@@ -874,7 +874,7 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   所有简单正常Return恰一次，合起来覆盖有限迭代后退出；stdout不外推动态free/无泄漏。
 - 固定精确`d85e3437`十tracked生产文件旧字节执行最终同套测试，48观察均完整FE后原For
   Unsupported，FE查询false为0，Rust真实0通过/1失败/0忽略，finally逐字恢复候选。
-  独审发现Unit只按同root准入计划认领Drop过宽，已改为source/late/transfer fact精确匹配；
+  独审发现Unit只按同root准入计划认领Drop过宽，已改为source/late/transfer及已有conditional原路径fact精确匹配；
   相关参数存在却无计划认领时MissingFact，再逐全部incoming验证当前owner，复审通过。
 - `d85e3437`完整PR CI `39123400972/a1`现为success，当前三artifact独立只读核验无不符：
   Linux十二组plain/ASan/LSan、两host generated合法/非法与校准证据吻合；未执行下载产物。
@@ -884,3 +884,11 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 
 - 本地防丢失检查点：新增size/原If/双臂合流深查询48观察已通过且独审关闭finding；
   最终冻结源码后的完整定向回归、工程四门与新头CI仍待绑定。本检查点提交不表示F完成。
+
+- 冻结检查点`31fa6a37`后的最终验收：22项ordinary Rust、4项native Rust共26项全部通过，
+  0失败/忽略；所选112个native产物（本片48、既有Resource表示64）严格exit0/golden/空stderr。
+  fmt/workspace all-targets check/clippy(-D warnings)/build四门通过，源输入摘要前后相同；
+  docs704、尺寸护栏（38个历史超限，无新例外）及diffcheck通过。其后仅追加本文验收事实。
+  测试独审指出的size条件链已补齐：原size/count→0常量→Equal/Boolean→实际If双臂及
+  merge完整incoming，后续Borrow使用合流后当前owner；结果全部用途独立核验，48路重绿且复审。
+  single caller只声称Value契约/原root引用/无loan，不虚构Unit才公开的Move交付表。
