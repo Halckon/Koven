@@ -807,7 +807,7 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 
 | 组 | 实际范围与依赖 | 归属／当前状态 |
 |---|---|---|
-| G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，未闭合；在G9当前owner寿命基础上推进 |
+| G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，§48 Pure String/String即时N/C/B/R与factory alias首片；Resource/后用/复用/重赋值仍未闭合 |
 | G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，未闭合；条件依赖G7 |
 | G4 | own MutableMap参数N/C/B/R，复用已验证Value/Owned参数及原清理 | 0331，本节首片；d85e完整CI及三artifact独审通过 |
 | G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；d85e完整CI及三artifact独审通过，其他表示仍逐项验收 |
@@ -815,7 +815,7 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 | G7 | 一般合法Return operand、单If/两live arm、条件/checked组合；需逐路径cleanup | 0331，未闭合；不把普通合法表达式改成白名单 |
 | G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，未闭合；在单层source/CFG事实之后推进 |
 | G9 | 非Resource own参数在N/C/B后继续使用；须真实last-use寿命，不能套Resource词法延寿 | 0331，§47有限未来使用片；consume/其他root及一般CFG仍逐项验收 |
-| G10 | 透明Group、moved alias与Borrow-result；后两者分别依赖Move/continuation事实 | 0331，Group首片；alias未闭合，Borrow-result FE前置仍在 |
+| G10 | 透明Group、moved alias与Borrow-result；后两者分别依赖Move/continuation事实 | 0331，Group及§48 factory local alias首片；其他Move/birth与Borrow-result前置仍在 |
 
 G4仅在原kind/intrinsic K/V与mode/binding/access完全匹配后接通Value MutableMap，继续排除
 Inout/Field。Group共用纯透明映射：每层type/category相同，descriptor/loan.source及Entry point
@@ -916,3 +916,21 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   逐所有incoming回原Call，不再要求与birth同块或数值ID相等，旧local A/B专用合同保持。
   主24源48路强化FE/SSA/LLVM再次通过；Drop锁terminal当前owner列、N/C回边锁body当前列，
   独审无剩余阻断。prefix-CFG两路不是新增native证据；最终冻结回归与native重验待绑定。
+
+- G9固定`6b089590`的完整PR CI `39126979463/a1`已终态success，16 jobs全部成功、0 skipped；
+  当前三artifact已独立只读核ZIP/来源SHA与内容，无不符。Linux十二组plain/ASan/LSan、
+  generated校准与两host原合同吻合；Mac仍partial/requirements_met=false，UBSan未覆盖。
+  这份证据只属于G9固定头，不覆盖后续G2提交。
+- G2最终同套主查询在精确`6b089590`十四tracked生产文件旧字节上重验：48路全部完整FE
+  后原For Unsupported，FE query false为0，Rust真实0通过/1失败/0忽略；finally逐字恢复
+  候选。红绿48组原源码/golden SHA逐项相同；这是真实版本对照，未做损坏facts/故障注入。
+
+- 冻结生产检查点`d6d842ca`后的最终本机验收：24项ordinary Rust、6项native Rust共30项
+  全部通过，0失败/忽略；所选160个普通native产物（本片48、G9未来使用48、既有Resource
+  表示64）严格exit0/golden/空stderr。主24源48双入口观察全部完整FE/SSA/LLVM成功，
+  五类邻控10路硬锁8条原For Unsupported与2条prefix-CFG SSA/LLVM成功。fmt/workspace
+  all-targets check/clippy(-D warnings)/build四门通过，运行前后生产与测试源输入摘要相同；
+  docs704、尺寸护栏（38个历史超限、无新增例外）和diffcheck通过。生产与测试深身份独审
+  的finding已修复复核。其后仅追加验收文档；新头完整远端CI与当前产物独审须单独绑定。
+  本片仅覆盖Pure String/String factory形成与Move后local的即时N/C/B/R；Resource local、
+  local未来使用/重复遍历/重赋值及其他形成来源仍在§45，不提升为G2或F整体完成。

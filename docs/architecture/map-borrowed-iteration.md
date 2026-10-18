@@ -83,12 +83,6 @@ single在真实清理点按当前binding逐全部incoming追溯原owner，不冻
 产物核严格输出；独立CFG查询要求每条正常Return恰一次Map Drop，并核后续Borrow的callee/参数/End。
 多重early-return等尚未验的组合不由五源外推。
 
-两份源×双入口四路经独立原 AST/name/参数/caller、完整 SSA incoming/operand 使用及
-词法 Drop 查询后通过 verifier/LLVM；四个普通 native 产物 exit0/完整 golden/空 stderr。
-测试明确区分 single Borrow 的支配入口 loan 与需要运输的列，不虚构额外 seed 列；
-该片不是云端 Resource 提交的字节恢复，不扩称一般 Resource CFG 或无泄漏。
-
-
 ## local A/B 的独立深查询
 
 两份固定源码、single/unit 共四次 fresh 分析，各含四个 scanner、每个两个独立 local
@@ -138,7 +132,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 | own Map/MutableMap参数 | String/String | N/C/B/R、固定三段条件 | N/C/B后size、多次Borrow调用、CFG后再Borrow及同根重复For已验；R与其他CFG组合不外推 |
 | Borrow Map/MutableMap参数 | String/String | N/C/B/R、固定条件、同根双层 | caller恢复及有限sequential已验；更一般条件/层数未验 |
 | 零参直接factory temporary | String/String | N/C/B/R固定尾 | hidden owner已验；其他payload/条件/一般factory未接通 |
-| factory-formed owned local val/var | String/String | N | 固定立即Drop/size guard；C/B/R、资源payload、一般后用尚缺 |
+| factory-formed owned local val/var及moved alias | String/String | N/C/B/R即时Drop | G2有限退出片及原size guard；Resource、一般后用/复用/重赋值仍未闭合 |
 | own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；更多既有Resource表示见后续G5片 |
 | Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定 |
 | Borrow参数等既有admission | Int/String等 | 部分N及有限sequential | 不把静态通用component cleanup接纳当全payload native实证 |
@@ -192,3 +186,13 @@ single逐完整Header/Exit incoming证明当前owner仍连到真实own Parameter
 唯一Map Drop。size/调用的Drop在真实最后使用及ABI loan结束之后、后续marker之前；重复For
 在第二LoopExit清理。所有Map Drop均在CFG循环之外。该有限片不宣称consume/重赋值/alias、
 一般条件/嵌套CFG或其他payload的完整覆盖；具体余项继续由SPEC0331 §45单一账本跟踪。
+
+
+## factory 形成与 Move 后 local 的即时退出
+
+`local_exits` 的24源覆盖Map/MutableMap、val/var/moved alias及N/C/B/R；各运行非空/空输入。
+48条双入口FE/SSA/LLVM与48个普通native产物通过；独立查询锁实际Call birth、Move后的当前
+binding及完整incoming、终点Drop当前owner、Guard与loan清理和Return值。Formed身份独立于
+旧local A/B合同，不以声明邻接决定寿命。五个诊断邻控锁8条原For Unsupported及2条只读
+size-CFG SSA/LLVM成功（后两条未计native）。Resource local、后用/复用/重赋值及其他birth
+仍待验收；详细形成与诊断证据见[SPEC0331 §48](../specs/active/0331-map-borrowed-iteration.md#48-g2-local-形成与-move-退出的真实首红2026-10-18)。
