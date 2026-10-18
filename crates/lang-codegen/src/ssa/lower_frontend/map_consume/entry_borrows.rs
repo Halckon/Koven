@@ -1,5 +1,5 @@
-//! Narrow ordinary-consume exception for independent, actual String entry loans.
-//! StringOwner is a closed representation, not an arbitrary HeapOwner/type inequality.
+//! Ordinary consume can retain independently anchored String or Int entry loans.
+//! These are closed representations, not arbitrary HeapOwner/type inequalities.
 use super::*;
 use crate::ssa::model::{Definition, LoanKind};
 use lang_frontend::{ownership_checking::OwnershipBindingKind, parser::VariableKind};
@@ -7,7 +7,7 @@ use lang_frontend::{ownership_checking::OwnershipBindingKind, parser::VariableKi
 impl ExpressionLowerer<'_> {
     /// Only the nonnullable owned-local consume calls this, before and after its
     /// original receiver evaluation. No loan is ended, rebuilt or rebound here.
-    pub(super) fn ensure_map_consume_entry_strings(
+    pub(super) fn ensure_map_consume_entry_borrows(
         &self,
         root: SymbolId,
         span: Span,
@@ -106,7 +106,7 @@ impl ExpressionLowerer<'_> {
         {
             return Err(missing());
         }
-        let mut string = false;
+        let mut represented_entry = false;
         for (&symbol, &loan) in &self.borrow_bindings {
             let data = self
                 .names
@@ -139,8 +139,15 @@ impl ExpressionLowerer<'_> {
             let ty = self.resolve_type(parameter.ty, span)?;
             let expected = match builtin_type(self.typed, ty) {
                 Some(BuiltinType::String) => {
-                    string = true;
+                    represented_entry = true;
                     SsaTypeKind::StringOwner
+                }
+                Some(BuiltinType::Int) => {
+                    represented_entry = true;
+                    SsaTypeKind::Integer {
+                        bits: 32,
+                        signed: true,
+                    }
                 }
                 Some(BuiltinType::Boolean) => SsaTypeKind::Boolean,
                 _ => return Err(unsupported()),
@@ -170,7 +177,7 @@ impl ExpressionLowerer<'_> {
                 return Err(missing());
             }
         }
-        if !string {
+        if !represented_entry {
             return Err(unsupported());
         }
         Ok(())

@@ -111,7 +111,7 @@ impl ExpressionLowerer<'_> {
         match self.ensure_no_unresolved_while_proof_carriers(span) {
             Ok(()) => Ok(()),
             Err(previous) if previous.kind == LoweringErrorKind::UnsupportedNode => {
-                self.ensure_map_consume_entry_strings(root, span)
+                self.ensure_map_consume_entry_borrows(root, span)
             }
             Err(previous) => Err(previous),
         }
