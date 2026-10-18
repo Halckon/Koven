@@ -279,19 +279,17 @@ impl UnitExpressionLowerer<'_> {
                     })
                     .count()
             };
-            if let Some((_, owner)) = event.guard {
-                if count(Operation::Drop { owner }) != 1 {
-                    return Err(bad());
-                }
+            if let Some((_, owner)) = event.guard
+                && count(Operation::Drop { owner }) != 1
+            {
+                return Err(bad());
             }
             for loan in [event.key, event.value].into_iter().flatten() {
                 if count(Operation::BorrowEnd { loan }) != 1 {
                     return Err(bad());
                 }
             }
-            let terminal = actions
-                .iter()
-                .any(|action| *action == Action::EndSource(*statement));
+            let terminal = actions.contains(&Action::EndSource(*statement));
             if count(Operation::BorrowEnd { loan: event.source }) != usize::from(terminal) {
                 return Err(bad());
             }

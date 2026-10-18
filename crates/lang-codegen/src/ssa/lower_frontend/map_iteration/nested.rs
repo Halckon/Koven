@@ -199,10 +199,10 @@ impl ExpressionLowerer<'_> {
                 .ok_or_else(missing)
             })
             .transpose()?;
-        if let (Some(shape), Some(column)) = (pair.tail, guard_column) {
-            if carried.slots[column].symbol != Some(shape.outer_guard.symbol) {
-                return Err(missing());
-            }
+        if let (Some(shape), Some(column)) = (pair.tail, guard_column)
+            && carried.slots[column].symbol != Some(shape.outer_guard.symbol)
+        {
+            return Err(missing());
         }
         let guard_anchor = pair
             .tail

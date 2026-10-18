@@ -230,13 +230,13 @@ impl UnitExpressionLowerer<'_> {
     ) -> Result<(), LoweringError> {
         let state = self.map_state(checkpoint.statement, span)?;
         if ParentRoles::read(self, state, span)? != roles
-            || (!matches!(
+            || !(matches!(
                 state.phase,
                 MapPhase::Body {
                     key_live: true,
                     value_live: true
                 }
-            ) && !(restore_false && self.nested_parent_return_completed(state, span)?))
+            ) || (restore_false && self.nested_parent_return_completed(state, span)?))
             || !matches!(
                 checkpoint.phase,
                 MapPhase::Body {

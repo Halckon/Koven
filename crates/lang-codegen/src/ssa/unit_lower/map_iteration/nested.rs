@@ -72,10 +72,10 @@ pub(super) fn pair(
             .statements()
             .get(*child)
             .map_err(|_| missing())?;
-        if let Statement::For { .. } = child_node.payload() {
-            if inner.replace(*child).is_some() {
-                return Err(unsupported());
-            }
+        if let Statement::For { .. } = child_node.payload()
+            && inner.replace(*child).is_some()
+        {
+            return Err(unsupported());
         }
     }
     let inner = inner.ok_or_else(unsupported)?;

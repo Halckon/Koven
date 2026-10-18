@@ -465,14 +465,13 @@ impl MapCarrier {
     ) -> Result<BlockId, LoweringError> {
         if point == self.exhaustion_point {
             Ok(self.exhaustion)
-        } else if point == self.body_point
+        } else if (point == self.body_point
             && matches!(
                 self.body_exit,
                 UnitIterationExitKind::Break(_) | UnitIterationExitKind::Return(_)
-            )
+            ))
+            || self.nested_return_point() == Some(point)
         {
-            Ok(self.active_body())
-        } else if self.nested_return_point() == Some(point) {
             Ok(self.active_body())
         } else {
             Err(lowering_error(LoweringErrorKind::MissingFact, span))
