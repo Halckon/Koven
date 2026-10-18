@@ -902,3 +902,9 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   后在原For Unsupported，FE查询false为0，Rust实际0通过/1失败/0忽略；尚未运行native。
 - 本地红测试检查点仅保存源码与输入身份；当前尚未修改G2生产逻辑，不表示支持已接通。
   下一步依据实际Expression形成owner、alias Move保留的原birth与Header/Exit完整incoming推进。
+
+- G2候选检查点：固定24源的48双入口原FE查询/SSA/LLVM与48普通native产物已绿，
+  native严格exit0/golden/空stderr；尚未完成SSA全身份深查询及最终回归/独审。设计独审
+  指出合法重赋值/参数Move等其他形成历史可能被误判MissingFact，须修正分类后再验收；
+  不能据本片称通用formed-local或G2完成。根据用户新要求，Mac后续只做正常小提交/push
+  与必要验收收据，不再生成额外format-patch/压缩包/备份清单；已有文件保留。

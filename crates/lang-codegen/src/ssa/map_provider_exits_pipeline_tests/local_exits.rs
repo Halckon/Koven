@@ -1,4 +1,5 @@
 //! Real local formation and Move sources; red observations precede capability changes.
+mod facts;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
@@ -119,6 +120,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::unit(&sources, &parsed, names, typed, owned, report);
+                facts::unit(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
                     "G2 exactly two original qualified Map descriptors",
                     typed.map_iterations().len() == 2,
@@ -140,6 +142,7 @@ fn observe(case: &Case, unit: bool) -> Result<(), Failure> {
             &mut report,
             |names, typed, owned, report| {
                 source_forms::facts::single(&sources, &parsed, names, typed, owned, report);
+                facts::single(case, &sources, &parsed, names, typed, owned, report);
                 report.check(
                     "G2 exactly two original Map descriptors",
                     typed.map_iterations().len() == 2,

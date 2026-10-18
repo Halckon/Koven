@@ -143,7 +143,12 @@ fn qualify_one<'a>(
         if nested.is_some() {
             return Err(unsupported());
         }
-        return local::qualify(parsed, names, typed, owned, plan, *body, span);
+        return match local::qualify(parsed, names, typed, owned, plan, *body, span) {
+            Err(failure) if failure.kind == LoweringErrorKind::UnsupportedNode => {
+                formed::qualify(parsed, names, typed, owned, plan, *body, span)
+            }
+            result => result,
+        };
     }
     if data.kind() != SymbolKind::ValueParameter {
         return Err(unsupported());

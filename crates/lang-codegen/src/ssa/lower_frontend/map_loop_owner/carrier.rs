@@ -449,7 +449,9 @@ impl ExpressionLowerer<'_> {
         fact: DropFact,
         value: ValueId,
     ) -> Result<(), LoweringError> {
-        if self.validate_pure_map_parameter_drop(fact, value)? {
+        if self.validate_formed_map_drop(fact, value)?
+            || self.validate_pure_map_parameter_drop(fact, value)?
+        {
             return Ok(());
         }
         if fact.condition().is_none()

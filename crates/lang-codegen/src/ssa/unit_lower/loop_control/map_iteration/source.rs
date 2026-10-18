@@ -22,11 +22,33 @@ impl UnitExpressionLowerer<'_> {
                 transport::from_anchor(self.function, current, anchor, span)?;
                 current
             }
-            SourceIdentity::Local { root, initializer } => {
+            SourceIdentity::Local { root, initializer }
+            | SourceIdentity::Formed {
+                root,
+                producer: initializer,
+            } => {
                 if access != UnitIterationSourceAccess::Owned {
                     return Err(missing());
                 }
                 let current = identity.current(self, span)?;
+                let formation = map_iteration::formed::formation(
+                    self.parsed,
+                    self.names,
+                    self.typed,
+                    self.owned,
+                    root,
+                    self.typed
+                        .expression_type(initializer)
+                        .ok_or_else(missing)?,
+                    span,
+                )?;
+                if formation.producer != initializer.expression()
+                    || formation.roots.iter().skip(1).any(|root| {
+                        self.bindings.contains_key(root) || self.borrow_bindings.contains_key(root)
+                    })
+                {
+                    return Err(missing());
+                }
                 let anchor = local::validate_birth(self, root, initializer, current, span)?;
                 if current != anchor
                     || carrier::instruction(self.function, anchor, span)?.block != self.block
@@ -74,7 +96,9 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             }
-            SourceIdentity::Local { .. } | SourceIdentity::Temporary(_) => {
+            SourceIdentity::Local { .. }
+            | SourceIdentity::Formed { .. }
+            | SourceIdentity::Temporary(_) => {
                 if identity.current(self, span)? != seed {
                     return Err(missing());
                 }

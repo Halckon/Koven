@@ -69,9 +69,11 @@ impl MapCarrier {
                 transport::from_anchor(function, seed, anchor, span)?;
                 anchor
             }
-            SourceIdentity::Local { root, initializer } => {
-                super::local::validate_birth(lowerer, root, initializer, seed, span)?
-            }
+            SourceIdentity::Local { root, initializer }
+            | SourceIdentity::Formed {
+                root,
+                producer: initializer,
+            } => super::local::validate_birth(lowerer, root, initializer, seed, span)?,
             SourceIdentity::Temporary(expression) => {
                 source::validate_temporary_birth(lowerer, expression, seed, preheader, span)?;
                 seed
@@ -277,7 +279,10 @@ impl MapCarrier {
             return Err(bad());
         }
         if self.nested.is_some()
-            || matches!(self.identity, SourceIdentity::Parameter { .. })
+            || matches!(
+                self.identity,
+                SourceIdentity::Parameter { .. } | SourceIdentity::Formed { .. }
+            )
             || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {
@@ -350,7 +355,10 @@ impl MapCarrier {
             return Err(bad());
         }
         if self.nested.is_some()
-            || matches!(self.identity, SourceIdentity::Parameter { .. })
+            || matches!(
+                self.identity,
+                SourceIdentity::Parameter { .. } | SourceIdentity::Formed { .. }
+            )
             || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {

@@ -183,3 +183,6 @@ mod resource_forms;
 
 #[path = "native_map_provider_future_use_tests.rs"]
 mod future_use;
+
+#[path = "native_map_provider_local_exits_tests.rs"]
+mod local_exits;

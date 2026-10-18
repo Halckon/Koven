@@ -39,6 +39,39 @@ pub(super) fn qualify(
     body: StatementId,
     body_exit: IterationExitKind,
 ) -> Result<Proof, LoweringError> {
+    qualify_with_birth(parsed, names, owned, plan, (symbol, None), body, body_exit)
+}
+
+pub(super) fn qualify_formed(
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    owned: &OwnershipCheckedFile,
+    plan: &MapIterationOwnershipPlan,
+    root: (SymbolId, ExpressionId),
+    body: StatementId,
+    body_exit: IterationExitKind,
+) -> Result<Proof, LoweringError> {
+    qualify_with_birth(
+        parsed,
+        names,
+        owned,
+        plan,
+        (root.0, Some(root.1)),
+        body,
+        body_exit,
+    )
+}
+
+fn qualify_with_birth(
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    owned: &OwnershipCheckedFile,
+    plan: &MapIterationOwnershipPlan,
+    root: (SymbolId, Option<ExpressionId>),
+    body: StatementId,
+    body_exit: IterationExitKind,
+) -> Result<Proof, LoweringError> {
+    let (symbol, birth) = root;
     let descriptor = plan.descriptor();
     let node = parsed
         .ast()
@@ -82,6 +115,9 @@ pub(super) fn qualify(
             .iter()
             .any(|fact| fact.point() != exhaustion_point && Some(fact.point()) != transfer_point)
     {
+        if birth.is_some() {
+            return Err(unsupported());
+        }
         return future::qualify(parsed, names, owned, plan, symbol, body_exit, span);
     }
     let expected_incomings = if matches!(body_exit, IterationExitKind::Return(_)) {
@@ -115,7 +151,22 @@ pub(super) fn qualify(
     let [seed] = entry.values() else {
         return Err(missing());
     };
-    let available = provenance::parameter(owned, symbol, origin, seed.source(), span)?;
+    let available = if let Some(birth) = birth {
+        let node = parsed
+            .ast()
+            .expressions()
+            .get(birth)
+            .map_err(|_| missing())?;
+        if !matches!(conditions.owner_value(seed.source()), Some(CleanupOwnerValue::Expression { expression, origin })
+            if *expression == birth && *origin == node.span())
+            || conditions.get(seed.condition()) != Some(&CleanupCondition::Always)
+        {
+            return Err(missing());
+        }
+        seed.condition()
+    } else {
+        provenance::parameter(owned, symbol, origin, seed.source(), span)?
+    };
     if seed.condition() != entry.available_when() || seed.condition() != available {
         return Err(missing());
     }

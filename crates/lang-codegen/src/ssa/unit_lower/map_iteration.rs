@@ -1,5 +1,6 @@
 //! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
 mod conditional;
+pub(super) mod formed;
 mod future_use;
 mod local;
 mod nested;
@@ -200,19 +201,18 @@ fn qualify_one(
         if nested.is_some() {
             return Err(unsupported());
         }
-        return local::qualify(
-            parsed,
-            names,
-            typed,
-            owned,
-            descriptor,
-            local::Syntax {
-                body: *body,
-                root,
-                origin: symbol.span(),
-                span,
-            },
-        );
+        let syntax = || local::Syntax {
+            body: *body,
+            root,
+            origin: symbol.span(),
+            span,
+        };
+        return match local::qualify(parsed, names, typed, owned, descriptor, syntax()) {
+            Err(failure) if failure.kind == LoweringErrorKind::UnsupportedNode => {
+                formed::qualify(parsed, names, typed, owned, descriptor, syntax())
+            }
+            result => result,
+        };
     }
     if symbol.kind() != SymbolKind::ValueParameter {
         return Err(unsupported());

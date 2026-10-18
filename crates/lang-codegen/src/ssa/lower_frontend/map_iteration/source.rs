@@ -103,7 +103,24 @@ impl ExpressionLowerer<'_> {
             SourceIdentity::Local {
                 symbol,
                 initializer,
-            } => self.local_map_seed(symbol, initializer, container, span),
+            } => {
+                let formation = formed::formation(
+                    self.parsed,
+                    self.names,
+                    self.typed,
+                    self.owned,
+                    symbol,
+                    self.typed
+                        .expression_type(initializer)
+                        .ok_or_else(missing)?,
+                    span,
+                )?;
+                if formation.producer != initializer {
+                    return Err(missing());
+                }
+                self.formed_map_anchor(&formation, None, span)?;
+                self.local_map_seed(symbol, initializer, container, span)
+            }
             SourceIdentity::Temporary(expression) => {
                 let call = self.typed.call(expression).ok_or_else(missing)?;
                 let CallableTarget::Source(symbol) = call.target() else {

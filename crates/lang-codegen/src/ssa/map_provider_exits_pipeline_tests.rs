@@ -194,3 +194,5 @@ fn map_and_mutable_map_unconditional_exits_reach_verified_llvm() {
 }
 
 mod local_exits;
+
+pub(crate) use local_exits::sources as local_exits_sources;

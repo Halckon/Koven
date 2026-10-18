@@ -1,5 +1,6 @@
 //! Normal local owners use real declaration/initializer identities, never parameter capabilities.
 mod facts;
+pub(super) use facts::factory;
 mod family;
 use super::*;
 use lang_frontend::parser::{BinaryOperator, VariableKind};

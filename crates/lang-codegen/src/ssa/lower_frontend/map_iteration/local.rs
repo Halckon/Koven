@@ -4,6 +4,7 @@
 mod conditions;
 mod consumer;
 mod identity;
+pub(super) use identity::producer;
 mod topology;
 
 use super::*;

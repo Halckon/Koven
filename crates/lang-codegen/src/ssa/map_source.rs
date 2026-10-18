@@ -1,5 +1,7 @@
 //! Transparent source syntax does not change the validated type, category or owner.
+mod formation;
 use super::{LoweringError, LoweringErrorKind};
+pub(super) use formation::{Formation, named_formation};
 use lang_frontend::{
     ast::ExpressionId,
     parser::{Expression, ParsedFile},

@@ -2,7 +2,7 @@
 use super::*;
 use lang_frontend::ownership_checking::{LoanKind, UnitCallArgumentOwnershipKind};
 
-pub(super) fn factory(
+pub(in super::super) fn factory(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,

@@ -292,7 +292,7 @@ fn declaration(
     Ok((root, *initializer, *marker))
 }
 
-fn producer(
+pub(in super::super) fn producer(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
