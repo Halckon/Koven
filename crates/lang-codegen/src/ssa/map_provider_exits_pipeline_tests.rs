@@ -15,6 +15,7 @@ mod query_graph;
 mod query_inputs;
 mod query_ssa;
 mod query_test;
+mod resource;
 mod temporary;
 mod temporary_exits;
 

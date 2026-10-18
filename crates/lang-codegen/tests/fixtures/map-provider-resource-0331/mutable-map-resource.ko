@@ -1,0 +1,26 @@
+class Resource { deinit() { println("resource-drop") } }
+fun read(key: String, value: Resource): Unit {
+  println(key)
+  println("value-borrow")
+}
+fun makeMap(): MutableMap<String, Resource> {
+  var source = mutableMapOf<String, Resource>()
+  source.put("z".clone(), Resource())
+  source.put("a".clone(), Resource())
+  return source
+}
+fun scan(source: MutableMap<String, Resource>): Unit {
+  for ((key, value) in source) {
+    read(key, value)
+  }
+  println("exhausted")
+}
+fun entry(): Unit {
+  println("nonempty")
+  val populated = makeMap()
+  scan(populated)
+  println("empty")
+  val empty = mutableMapOf<String, Resource>()
+  scan(empty)
+  println("entry-end")
+}
