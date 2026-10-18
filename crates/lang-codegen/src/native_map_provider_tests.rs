@@ -168,3 +168,6 @@ mod resource_tests;
 
 #[path = "native_map_provider_history_tests.rs"]
 mod history_tests;
+
+#[path = "native_map_provider_sequential_tests.rs"]
+mod sequential_tests;

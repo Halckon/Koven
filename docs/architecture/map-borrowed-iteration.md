@@ -99,3 +99,12 @@ target-derived payload size，仅在该大小非零时发出初始化 store。�
 可写，LLVM 21 ASan 却会检查 `ptr + size - 1`，因此不能把它留在合法空对象构造中。
 OOM、provider、deinit 与 free 路径保持；该修复不增加字段或改变源/golden 来规避检测。
 普通 native 验收不替代 Linux ASan/LSan；动态通过须绑定新提交的完整 CI 产物。
+
+## Borrow 参数的顺序复用
+
+`sequential` 普通矩阵覆盖 Map/MutableMap String/String 参数的独立、同参重复和反序
+两个 For；Map 另验首轮空、break/continue及第二参数Int/String。两入口20条完整
+pipeline与20个普通native产物通过，Mutable caller随后put及size检查也通过。
+Unit用当前CFG loan建立provider，再以既有transport核所有入边到原参数root；entry
+anchor仅证明身份，不替代当前view。Borrow root不在callee结束，组件与provider按实际
+退出清理。owned参数、Field/Inout及一般CFG来源边界不由本片扩大。

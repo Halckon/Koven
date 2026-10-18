@@ -17,9 +17,10 @@ impl UnitExpressionLowerer<'_> {
             SourceIdentity::Parameter { slot, .. } => {
                 let entry = self.function.entry_block().ok_or_else(missing)?;
                 let anchor = transport::parameter(self.function, entry, slot, span)?;
-                if qualified
-                    .nested
-                    .is_some_and(|pair| pair.inner == qualified.statement)
+                if access == UnitIterationSourceAccess::Shared
+                    || qualified
+                        .nested
+                        .is_some_and(|pair| pair.inner == qualified.statement)
                 {
                     let current = identity.current(self, span)?;
                     transport::from_anchor(self.function, current, anchor, span)?;
@@ -74,7 +75,8 @@ impl UnitExpressionLowerer<'_> {
                     }
                     _ => return Err(missing()),
                 };
-                // Keep the existing named-parameter lifetime capability boundary.
+                // Borrow seeds are the current, anchor-proven CFG view. Owned parameters
+                // retain the existing entry/lifetime capability boundary.
                 if !current {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }

@@ -617,3 +617,43 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   store风险，本片不宣称该相邻路径或所有零字节访问已闭合。
 - 新头的工程门与完整远端CI须重新绑定，旧315/316项收据不自动继承。未在Mac执行
   exporter、故障、校准或sanitizer动态检查；Mac仍partial，F继续active，D10未开始。
+
+## 39. 连续 Borrow Map For 的当前视图运输（2026-10-18）
+
+- §37登记的双For缺口实际也影响反序与同参数重复。新普通十源固定覆盖
+  Map/MutableMap String/String的distinct/repeat/reverse六格，Map再加首轮empty、
+  Guard+break/continue、第二参数Int/String四格。修正测试源码与Continue查询oracle后，
+  在精确`c5a1e99b`生产基线上重新记录有效首红：single十路完整FE/SSA/LLVM及查询
+  全成功，unit十路均在第二个原For lower UnsupportedNode；Rust结果0通过/1失败。
+- 窄修仅改Unit的source/carrier两生产文件。Shared参数从qualified root的当前view
+  建立lease，以既有transport核完整incoming到原entry anchor；不把entry loan送第二轮。
+  birth、phase与backedge均复核运输；类型、原source fact及caller权限门不放宽。
+  Owned参数仍保留原能力门，未改变Guide或扩大Field/Inout及一般CFG。
+- 同次公开FE查询按原reference/parameter slot核Borrow root、两分量来源、完整cleanup
+  与无callee owner Drop；独立SSA按原AST For/read declaration/call span核真实callee、
+  receiver与实参，全入边列、root/current view/source/cursor/K/V的全部受保护operand
+  uses，以及Guard Drop→value End→key End→Next/EndSource。Continue取原transfer span。
+- 修复后新pipeline exact 1通过/0失败，20/20观察全部成功；native两个exact均通过，
+  共20产物exit0/golden/空stderr。Mutable caller之后put及两种caller size检查正常。
+  fresh独审补强callee/全部uses及纠正首红证据后复审通过，无本片新增阻断。
+  当前头的完整普通回归、工程门和远端CI另记，不继承c5a1的绿色；F仍active，D10未开始。
+
+## 40. c5a1 双host动态产物内容核验（2026-10-18）
+
+- run `39108060131` 的Targeted双host成功；受验源码头为`c5a1e99b`，synthetic checkout
+  为`510f7acbf71c73dd2ece8bbf35c2561a1b3d2ea8`。三个ZIP核对来源SHA后仅只读解包，
+  不在本机执行任何下载产物、故障或校准程序；整个run/Preview终态另由CI观察者记录。
+- Linux sanitizer artifact `12129547197` 内12组五文件SHA全部匹配，原plain及各
+  ASan/LSan的24份result/stdout/stderr均严格exit0/golden/空stderr；每组九个真实Koven
+  definition保留插桩，LSan为default roots与原worker/join adapter。generic clean与
+  user/runtime/drop ASan精准错误及leak LSan/disabled对照也逐实际输出核验。UBSan未覆盖。
+- Linux generated-owner artifact `12129815900` 的16组input SHA与逐case verdict核验：
+  八合法×counter/ASan/LSan共24产物正常，八非法精确ownership码/primary/label匹配。
+  calibration为pass，两个clean正常；address、leak、missing_deinit、premature free
+  均有对应实际故障输出；checker green/red及恢复SHA吻合。reduction明确为受控故障
+  缩减能力验证，不冒称现存编译器缺陷。
+- Mac artifact `12129144551` 的同16病例与八个普通counter产物吻合；calibration为
+  partial：address ASan skipped且detector-off已核，leak仅counter、LSan skipped。
+  acceptance为partial、requirements_met=false；missing deinit与premature free仍被
+  普通输出/计数对照拒绝，不将Mac提升为完整sanitizer pass。完整ZIP摘要及只读核验
+  收据留工作区`spec0331-mac-evidence/ci-c5a1-artifact-audit.json`，不上传大日志。

@@ -19,6 +19,7 @@ mod query_inputs;
 mod query_ssa;
 mod query_test;
 mod resource;
+mod sequential;
 mod temporary;
 mod temporary_exits;
 
@@ -29,6 +30,7 @@ pub(crate) use local_sources::native_sources as local_native_sources;
 pub(crate) use nested::sources as nested_sources;
 pub(crate) use nested_exits::native_sources as nested_exit_sources;
 pub(crate) use resource::sources as resource_sources;
+pub(crate) use sequential::sources as sequential_sources;
 pub(crate) use temporary::sources as temporary_sources;
 pub(crate) use temporary_exits::native_sources as temporary_exit_sources;
 
