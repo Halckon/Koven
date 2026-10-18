@@ -444,3 +444,39 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
 - 最终工程 fmt/check/clippy(workspace/all-targets、-D warnings)/build 四项通过；初次
   fmt发现一处测试reexport顺序，机械修正后重验。704页文档检查与相对main的Rust
   尺寸门通过，仍报告38个旧超限文件。大日志留仓外，格式补丁保留任务目录。
+
+
+## 31. local A/B 深查询与固定头有限复验（2026-10-18）
+
+- `37f8fb50` 仅增测试查询，无生产修改；原两份fixture字节及golden保持。新增一项
+  exact Rust 测试，执行两源×双入口四次fresh完整pipeline，每次八个For site，不能
+  将32个site记作32次lower或32项Rust测试；原collector独立保留原成功条件。
+- single 由原AST/name声明及source reference取得真实root，核selected factory形成的
+  Expression owner、全部Header/Exit、三类incoming、完整写集/Choice与路径条件；
+  A消费LoopExit当前Header Drop，B保活至原size的CallReturn Exit Drop。第二循环
+  前序死root独立核Never Entry、假presence回边和精确条件Drop，不能复活为SSA列。
+  unit仅查询自身qualified root、唯一last-use Drop及完整exhaustion清理，不拼裸symbol。
+- 独立SSA按原函数/For/factory/read span定位，逐所有真实入边核owner/source/cursor
+  列与全参数集合、key/value Shared loan、read后value→key结束再Next、EndSource后
+  当前owner Drop。B核原size当前false owner、i32结果/常量、比较、原If条件及完整
+  true/Abort incoming；保护owner/loan/cursor/component/size/常量全部指令用途，布尔
+  control另核仅真实Conditional消费。恰两个Map Drop，旧root无额外列或重复Drop。
+- 新查询曾真实编译/API失败及三次查询失败：误用SSA API、phi origin应为For、第二
+  loop受前一If路径控制、Exhaustion availability与edge路径分离；修正基于公开事实与
+  原AST。v7调用无公开getter的私有字段未编译，去掉多余断言后v8实际1/0/0通过。
+  fresh-context审计再发现死root Drop、比较operand及共享Abort放宽三项缺口，均补强
+  并复审关闭；Graph::new原合同不变，仅B显式用with_abort。未执行任何损坏/注入对照。
+- 固定HEAD `37f8fb504b4eea4062b27a685618a09b063ab997` / tree
+  `00e6c49494831c0f084737a3a23935617cf4c3a2` 串行52项ordinary exact实际全部通过，
+  0失败/忽略；各命中1项，未以collector退出码代替逐项结果。前后2804个tracked文件
+  输入摘要均 `8e721ef0b29886af5142c0b8c32fe6735e5319d0b2915789d458dcd8209cfca6`。
+  分账为18项pipeline/身份、20项native（68产物）、3项stage/whole/Group、10项前端
+  邻控及1项Resource边界；原196项前端套件未在该头重跑，保留§28原固定头收据。
+- README双语已有的有限后端边界保持，Tour增加两份新回归来源指针，未新增公开CLI
+  语义。Resource已备份至远端`b466c036`；新头完整CI由主线程独立监视另记，不能继承
+  `a2cf1f27`的旧绿色结果。F仍active，macOS sanitizer为partial；不进入D10。
+
+- 最终四项工程门 fmt/check/clippy(workspace/all-targets、-D warnings)/build 通过。
+  704页文档检查通过；首轮Tour新链接遗漏borrow已修正重验。Rust尺寸门相对main通过，
+  仍保留38个历史超限文件，新查询模块均低于1000行。日志仓外，binary/full-index
+  格式补丁及逐项稳定收据保留本机任务目录，不上传大日志。

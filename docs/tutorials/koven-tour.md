@@ -83,7 +83,9 @@ fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
   共享借用，沿插入链遍历。[具名参数源码](../../crates/lang-codegen/tests/fixtures/map-provider-0331/map.ko)、
   [temporary 源码](../../crates/lang-codegen/tests/fixtures/map-provider-temporary-0331/map-temporary.ko)与
   [local 后用源码](../../crates/lang-codegen/tests/fixtures/map-provider-local-sources-0331/local-later-use.ko)
-  展示不同来源；具体 kind/access、退出和嵌套范围见[Map 支持矩阵](../architecture/map-borrowed-iteration.md)。
+  展示不同来源；另有有界[Borrow 直接退出](../../crates/lang-codegen/tests/fixtures/map-provider-borrow-exits-0331/map-borrow-break.ko)
+  与[Resource 分量正常耗尽](../../crates/lang-codegen/tests/fixtures/map-provider-resource-0331/map-resource.ko)回归源码。
+  具体 kind/access、退出和嵌套范围见[Map 支持矩阵](../architecture/map-borrowed-iteration.md)。
   这些是后端回归来源，尚未新增本页公开 CLI 合同；Field/Inout、Group 及其他未验组合保持 staging 边界。
 - 集合 `forEach`/`map`/`filter` 与未列出的集合/格式化 API 仍未交付。词频里的 `decimal`
   是本页实现的普通函数，不是标准库格式化接口。

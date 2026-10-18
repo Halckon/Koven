@@ -19,7 +19,7 @@ source 求值、分量与 source 清理由已验证事实交付，SSA verifier �
 在该固定快照的本机复验为16项测试、56个 case×entry 产物，每个硬核 exit0、完整 golden
 及空 stderr。另15项普通 pipeline/身份测试保留独立 FE/SSA 查询并通过 LLVM verifier。
 具体命令及输入身份见0331本机账本；stdout 不证明精确动态分配/释放次数或无泄漏。
-local A/B 的独立全实体/全 incoming 深查询仍待，不用 collector 取代。
+local A/B 的独立同次 FE owner、全 incoming 与受保护 operand 深查询已补齐，见下节。
 
 Group 仍由真实源码阶段门精确拒绝；Field/Inout、direct Borrow-return continuation、
 更一般 source/CFG、nullable K/V 组合不由本表开放。body-local Guard 的析构
@@ -68,3 +68,20 @@ Resource 分量仍由真实 well-typed 邻控保留原 For 的 UnsupportedNode�
 词法 Drop 查询后通过 verifier/LLVM；四个普通 native 产物 exit0/完整 golden/空 stderr。
 测试明确区分 single Borrow 的支配入口 loan 与需要运输的列，不虚构额外 seed 列；
 该片不是云端 Resource 提交的字节恢复，不扩称一般 Resource CFG 或无泄漏。
+
+
+## local A/B 的独立深查询
+
+两份固定源码、single/unit 共四次 fresh 分析，各含四个 scanner、每个两个独立 local
+与 For。原 AST/name 的声明和 source reference、selected factory 与形成表达式绑定
+实际 owner；single 完整查询各 Header/Exit phi、Entry/Fallthrough/Exhaustion 写集、
+public Choice 与原 If 成功路径。A 在 EndSource 后按 LoopExit 清理，B 保留至真实 size
+的 CallReturn；第二循环前序 root 的 Never Entry、回边 presence 与条件 Drop 单独核对。
+unit 使用自身 qualified source、唯一 Drop 与完整 exhaustion 动作，不借 single 条件表。
+
+SSA 查询全部可达 block/incoming 的 owner/source/cursor 列、两分量/read/逆序 loan 结束、
+当前 false owner Drop 和 size 的 i32 结果/比较/原 If。两个 Map Drop 及受保护 entity 的
+完整操作数使用单独核验；已失效的前序 root 不新增 SSA 列或重复 Drop。后用源的失败
+分支是真实 Abort，只有此测试显式允许它；其他图查询保留原严格终止合同。
+四次完整 SSA/LLVM 通过；普通 local native 的四个产物也在同版固定头复验。该查询
+没有合成事实、调用 lower 私有资格证明或据 arena 数字认身份，不扩大 local/CFG 支持。
