@@ -125,14 +125,14 @@ pub(super) fn check(program: &Program, input: &Inputs) -> Result<(), Failure> {
         (&graph.blocks, &roles),
     )?;
     graph.incoming_from(pre, &[])?;
-    graph.incoming_from(
-        header,
-        if input.exit == Exit::Continue {
-            &[pre, body]
-        } else {
-            &[pre]
-        },
-    )?;
+    let entry_incoming = [pre];
+    let continue_incoming = [pre, body];
+    let header_incoming: &[BlockId] = if input.exit == Exit::Continue {
+        &continue_incoming
+    } else {
+        &entry_incoming
+    };
+    graph.incoming_from(header, header_incoming)?;
     graph.incoming_from(body, &[header])?;
     graph.incoming_from(exhausted, &[header])?;
     need(
