@@ -1,5 +1,6 @@
 //! Legal source replacement histories: ordinary FE/lowering observations precede repairs.
 mod boundaries;
+mod completed_epoch;
 mod facts;
 mod graph;
 mod sources;
