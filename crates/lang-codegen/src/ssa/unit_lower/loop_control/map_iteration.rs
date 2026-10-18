@@ -48,6 +48,7 @@ pub(super) struct MapState {
     carrier: MapCarrier,
     phase: MapPhase,
     conditional: Option<ConditionalState>,
+    nested: nested::NestedState,
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -276,6 +277,7 @@ impl UnitExpressionLowerer<'_> {
                 cursor_type,
                 carrier,
                 conditional,
+                nested: nested::NestedState::default(),
                 phase: MapPhase::Body {
                     key_live: true,
                     value_live: true,
@@ -326,11 +328,14 @@ impl UnitExpressionLowerer<'_> {
             self.validate_conditional_map_body(&context, span)?;
         } else if continues == 1 {
             current_carrier.validate_backedge(self, source_slot, cursor_slot, span)?;
-        } else if matches!(qualified.body_exit, UnitIterationExitKind::Return(_)) {
+        } else if matches!(qualified.body_exit, UnitIterationExitKind::Return(_))
+            && qualified.nested.and_then(|pair| pair.tail).is_none()
+        {
             carrier.validate_return(self, span)?;
         }
+        self.validate_nested_map_body(&mut context, span)?;
         if let Some(parent) = parent_transport {
-            parent.validate_backedge(self, span)?;
+            parent.validate_body_exit(self, qualified.body_exit, span)?;
         }
         self.restore_loop_state(&false_state);
         if let Some(parent) = parent_transport {
@@ -365,21 +370,24 @@ impl UnitExpressionLowerer<'_> {
             .pop()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         self.validate_conditional_map_complete(&context, span)?;
+        self.validate_nested_map_complete(&context, span)?;
         let mut exits = context
             .breaks
             .into_iter()
             .map(branch_exit)
             .collect::<Vec<_>>();
         exits.push(exit);
-        if qualified.nested.is_some() && exits.len() != 1 {
+        if qualified.nested.is_some() && exits.len() != breaks + 1 {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         self.merge_loop_exits(exits, span)?;
         if let Some(parent) = parent_transport {
-            parent.validate_retained(self, span)?;
+            parent.enter_continuation(self, breaks == 1, span)?;
         }
         if qualified.nested.is_some() {
-            if self.block != false_block || self.pending_operands.len() != retained_start {
+            if (breaks == 0 && self.block != false_block)
+                || self.pending_operands.len() != retained_start
+            {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
             transport::from_anchor(

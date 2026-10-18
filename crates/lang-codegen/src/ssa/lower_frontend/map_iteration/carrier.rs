@@ -7,6 +7,7 @@ pub(super) struct Evidence<'a> {
     pub(super) function: &'a Function,
     pub(super) conditional: Option<&'a conditional::State>,
     pub(super) nested: Option<&'a nested::State>,
+    pub(super) events: &'a [nested_events::Event],
     pub(super) cleanup_body: BlockId,
     pub(super) seed: EntityId,
     pub(super) source: LoanId,
@@ -34,6 +35,7 @@ impl Evidence<'_> {
             function,
             conditional,
             nested,
+            events: _,
             cleanup_body,
             seed,
             source,
@@ -175,6 +177,10 @@ impl Evidence<'_> {
         }
         if let Some(state) = conditional {
             return conditional::validate(self, state);
+        }
+        if let Some(nested) = nested.filter(|nested| nested.pair.tail.is_some()) {
+            nested.validate_tail_transport(self)?;
+            return nested_events::validate(self, nested);
         }
         let (body, body_source, body_cursor, key, value) = if let Some(nested) = nested {
             let roles = nested.validate(self)?;

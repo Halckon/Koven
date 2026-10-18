@@ -17,6 +17,7 @@ pub(in super::super) struct Context {
     pub(super) cleanup_start: Option<usize>,
     pub(super) conditional: Option<conditional::State>,
     pub(super) nested: Option<nested::State>,
+    pub(super) nested_events: Vec<nested_events::Event>,
 }
 
 impl ExpressionLowerer<'_> {
@@ -50,6 +51,9 @@ impl ExpressionLowerer<'_> {
         kind: IterationExitKind,
         span: Span,
     ) -> Result<(), LoweringError> {
+        if self.clean_nested_map_point(kind, None, span)? {
+            return Ok(());
+        }
         let missing = || error(LoweringErrorKind::MissingFact, span);
         let mut state = self
             .loops
@@ -190,6 +194,13 @@ impl ExpressionLowerer<'_> {
             let LoweredValue::Value(value) = result else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
+            if self.clean_nested_map_point(
+                IterationExitKind::Return(expression),
+                Some(value),
+                span,
+            )? {
+                return Ok(());
+            }
             self.clean_map_iteration_body(IterationExitKind::Return(expression), span)?;
             let state = self
                 .loops

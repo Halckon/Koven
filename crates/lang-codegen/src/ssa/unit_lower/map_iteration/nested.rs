@@ -1,8 +1,14 @@
 //! A closed two-provider topology, qualified independently of descriptor enumeration order.
+mod operand;
+mod tail;
 use super::*;
+pub(super) use tail::validate_cleanup as validate_tail_cleanup;
 
 pub(super) fn pair(
     parsed: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
     statement: UnitStatementId,
 ) -> Result<Option<QualifiedNested>, LoweringError> {
     let node = parsed
@@ -66,13 +72,10 @@ pub(super) fn pair(
             .statements()
             .get(*child)
             .map_err(|_| missing())?;
-        if let Statement::For { body, .. } = child_node.payload() {
+        if let Statement::For { .. } = child_node.payload() {
             if inner.replace(*child).is_some() {
                 return Err(unsupported());
             }
-            straight_body(parsed, *body, span)?;
-        } else {
-            straight_body(parsed, *child, span)?;
         }
     }
     let inner = inner.ok_or_else(unsupported)?;
@@ -84,9 +87,42 @@ pub(super) fn pair(
         kind: error.kind,
         span: Some(span),
     })?;
+    // Unacquired/dead-tail source-valid loops intentionally have no ownership plan.
+    for member in [outer, inner] {
+        let member = UnitStatementId::new(statement.source_unit(), member);
+        if typed.map_iteration(member).is_none() || owned.map_iteration(member).is_none() {
+            return Err(unsupported());
+        }
+    }
+    let tail = tail::shape(
+        parsed,
+        names,
+        typed,
+        owned,
+        [
+            UnitStatementId::new(statement.source_unit(), outer),
+            UnitStatementId::new(statement.source_unit(), inner),
+        ],
+        span,
+    )?;
+    if tail.is_none() {
+        for child in elements {
+            let node = parsed
+                .ast()
+                .statements()
+                .get(*child)
+                .map_err(|_| missing())?;
+            if let Statement::For { body, .. } = node.payload() {
+                straight_body(parsed, *body, span)?;
+            } else {
+                straight_body(parsed, *child, span)?;
+            }
+        }
+    }
     Ok(Some(QualifiedNested {
         outer: UnitStatementId::new(statement.source_unit(), outer),
         inner: UnitStatementId::new(statement.source_unit(), inner),
+        tail,
     }))
 }
 
@@ -169,9 +205,12 @@ pub(super) fn qualify(
             || qualified.source_drop.is_some()
             || qualified.transfer_drop.is_some()
             || qualified.conditional.is_some()
-            || qualified.body_exit != UnitIterationExitKind::Fallthrough
+            || (pair.tail.is_none() && qualified.body_exit != UnitIterationExitKind::Fallthrough)
         {
             return Err(unsupported());
+        }
+        if pair.tail.is_some() {
+            continue;
         }
         let actions = owned
             .iteration_cleanup_at(qualified.body_point)

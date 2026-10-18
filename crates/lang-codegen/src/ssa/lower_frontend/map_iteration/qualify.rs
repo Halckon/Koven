@@ -39,7 +39,7 @@ pub(super) fn qualify<'a>(
     owned: &'a OwnershipCheckedFile,
     descriptor: MapIterationDescriptor,
 ) -> Result<Qualified<'a>, LoweringError> {
-    let nested = nested::qualify::pair(parsed, typed, owned, descriptor)?;
+    let nested = nested::qualify::pair(parsed, names, typed, owned, descriptor)?;
     let qualified = qualify_one(parsed, names, typed, owned, descriptor, nested)?;
     if let Some(pair) = nested {
         let other = if descriptor.statement() == pair.outer {
@@ -207,18 +207,27 @@ fn qualify_one<'a>(
     } else {
         conditional::shape(parsed, names, typed, descriptor, *body, span)?
     };
-    let body_exit = if conditional.is_some() || nested.is_some() {
+    let tail = nested.and_then(|pair| pair.tail);
+    let body_exit = if let Some(pair) = nested {
+        pair.tail
+            .filter(|_| descriptor.statement() == pair.inner)
+            .map_or(IterationExitKind::Fallthrough, |shape| shape.kind)
+    } else if conditional.is_some() {
         IterationExitKind::Fallthrough
     } else {
         exit_shape::body_exit(parsed, names, typed, descriptor, *body, span)?
     };
     if descriptor.kind() == MapIterationKind::Map
         && mode == ParameterMode::Borrow
+        && tail.is_none()
         && (conditional.is_some() || body_exit != IterationExitKind::Fallthrough)
     {
         return Err(unsupported());
     }
-    if conditional.is_some() || matches!(body_exit, IterationExitKind::Return(_)) {
+    if conditional.is_some()
+        || matches!(body_exit, IterationExitKind::Return(_))
+        || tail.is_some_and(|shape| matches!(shape.kind, IterationExitKind::Return(_)))
+    {
         let callable = unique(
             typed
                 .callables()
@@ -243,9 +252,13 @@ fn qualify_one<'a>(
             nested,
         });
     }
-    exit_shape::cleanup(owned, plan, *body, body_exit, span)?;
-    if nested.is_some() {
-        nested::qualify::cleanup(owned, plan, *body, span)?;
+    if let Some(pair) = nested.filter(|pair| pair.tail.is_some()) {
+        nested::tail::validate_cleanup(owned, pair, pair.tail.ok_or_else(missing)?)?;
+    } else {
+        exit_shape::cleanup(owned, plan, *body, body_exit, span)?;
+        if nested.is_some() {
+            nested::qualify::cleanup(owned, plan, *body, span)?;
+        }
     }
     let exhaustion = unique(
         plan.exits()
@@ -258,7 +271,7 @@ fn qualify_one<'a>(
             parsed, names, owned, plan, symbol, *body, body_exit,
         )?)
     } else {
-        if exhaustion.actions().len() != 2 || !plan.closure_phis().is_empty() {
+        if exhaustion.actions().len() != 2 || (tail.is_none() && !plan.closure_phis().is_empty()) {
             return Err(unsupported());
         }
         None

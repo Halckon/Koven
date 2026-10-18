@@ -471,9 +471,20 @@ impl MapCarrier {
                 UnitIterationExitKind::Break(_) | UnitIterationExitKind::Return(_)
             )
         {
-            Ok(self.body)
+            Ok(self.active_body())
+        } else if self.nested_return_point() == Some(point) {
+            Ok(self.active_body())
         } else {
             Err(lowering_error(LoweringErrorKind::MissingFact, span))
+        }
+    }
+
+    fn nested_return_point(&self) -> Option<UnitDropPoint> {
+        match self.nested?.tail?.kind {
+            UnitIterationExitKind::Return(expression) => {
+                Some(UnitDropPoint::ControlTransfer(expression))
+            }
+            _ => None,
         }
     }
 
@@ -491,6 +502,7 @@ impl MapCarrier {
 
     pub(super) fn is_body_point(&self, point: UnitDropPoint) -> bool {
         point == self.body_point
+            || self.nested_return_point() == Some(point)
             || self.conditional.is_some_and(|shape| {
                 shape.transfers.iter().any(|kind| match kind {
                     UnitIterationExitKind::Continue(expression)

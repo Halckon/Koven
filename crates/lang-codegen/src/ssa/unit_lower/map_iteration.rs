@@ -34,6 +34,21 @@ pub(super) struct QualifiedMap {
 pub(super) struct QualifiedNested {
     pub(super) outer: UnitStatementId,
     pub(super) inner: UnitStatementId,
+    pub(super) tail: Option<QualifiedNestedTail>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) struct QualifiedNestedTail {
+    pub(super) kind: UnitIterationExitKind,
+    pub(super) guards: [QualifiedGuard; 2],
+    pub(super) operand: Option<UnitExpressionId>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) struct QualifiedGuard {
+    pub(super) symbol: UnitSymbolId,
+    pub(super) initializer: UnitExpressionId,
+    pub(super) origin: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -72,7 +87,7 @@ pub(super) fn qualify(
     owned: &CompilationUnitOwnership,
     descriptor: &UnitMapIterationDescriptor,
 ) -> Result<QualifiedMap, LoweringError> {
-    if let Some(pair) = nested::pair(parsed, descriptor.statement())? {
+    if let Some(pair) = nested::pair(parsed, names, typed, owned, descriptor.statement())? {
         return nested::qualify(parsed, names, typed, owned, descriptor, pair);
     }
     qualify_one(parsed, names, typed, owned, descriptor, None)
@@ -286,18 +301,27 @@ fn qualify_one(
     } else {
         conditional::qualify_body(parsed, names, typed, descriptor, *body, span)?
     };
-    let body_exit = if nested.is_some() || conditional.is_some() {
+    let body_exit = if let Some(pair) = nested {
+        pair.tail
+            .filter(|_| pair.inner == statement)
+            .map_or(UnitIterationExitKind::Fallthrough, |tail| tail.kind)
+    } else if conditional.is_some() {
         UnitIterationExitKind::Fallthrough
     } else {
         qualify_body(parsed, names, typed, descriptor, *body, span)?
     };
-    if descriptor.kind() == MapIterationKind::Map
+    if nested.is_none()
+        && descriptor.kind() == MapIterationKind::Map
         && parameter.mode() == ParameterMode::Borrow
         && (conditional.is_some() || body_exit != UnitIterationExitKind::Fallthrough)
     {
         return Err(unsupported());
     }
-    if (conditional.is_some() || matches!(body_exit, UnitIterationExitKind::Return(_)))
+    if (conditional.is_some()
+        || matches!(body_exit, UnitIterationExitKind::Return(_))
+        || nested
+            .and_then(|pair| pair.tail)
+            .is_some_and(|tail| matches!(tail.kind, UnitIterationExitKind::Return(_))))
         && builtin_type(typed, *return_type) != Some(BuiltinType::Int)
     {
         return Err(unsupported());
@@ -324,7 +348,11 @@ fn qualify_one(
             return Err(unsupported());
         }
     }
-    let (source_drop, transfer_drop) = if let Some(shape) = conditional.as_mut() {
+    let (source_drop, transfer_drop) = if let Some(pair) = nested.filter(|pair| pair.tail.is_some())
+    {
+        nested::validate_tail_cleanup(parsed, typed, owned, plan, pair, root, span)?;
+        (None, None)
+    } else if let Some(shape) = conditional.as_mut() {
         (
             conditional::validate_cleanup(
                 parsed,

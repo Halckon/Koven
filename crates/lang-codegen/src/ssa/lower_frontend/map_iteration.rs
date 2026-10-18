@@ -4,6 +4,7 @@ mod conditional;
 mod exit_shape;
 mod exits;
 mod nested;
+mod nested_events;
 mod qualify;
 mod source;
 mod source_owner;
@@ -20,7 +21,16 @@ use lang_frontend::ownership_checking::{
 pub(super) use exits::Context;
 pub(super) use qualify::validate;
 use source::SourceIdentity;
-pub(super) use source_owner::supported_drop;
+pub(super) fn supported_drop(
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    typed: &TypedFile,
+    owned: &OwnershipCheckedFile,
+    fact: lang_frontend::ownership_checking::DropFact,
+) -> bool {
+    source_owner::supported_drop(parsed, names, typed, owned, fact)
+        || nested::tail::supported_drop(parsed, names, typed, owned, fact)
+}
 
 type Storage = BTreeMap<SsaTypeId, (MapContainerKind, SsaTypeId, SsaTypeId)>;
 
@@ -409,6 +419,7 @@ impl ExpressionLowerer<'_> {
                 cleanup_start: None,
                 conditional: qualified.conditional.map(conditional::State::new),
                 nested,
+                nested_events: Vec::new(),
             }),
         });
         // The exact selected exit owns the body cleanup point. A real transfer
@@ -429,7 +440,7 @@ impl ExpressionLowerer<'_> {
             .loops
             .pop()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let state = context
+        let mut state = context
             .map_loop
             .take()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
@@ -447,6 +458,10 @@ impl ExpressionLowerer<'_> {
         if self.merge_exits(vec![false_exit], &baseline, span)? != LoweredValue::Unit {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
+        self.restore_map_parent_false(
+            state.nested.as_ref().and_then(|nested| nested.parent),
+            span,
+        )?;
         let exhausted_parameters = self.map_iteration_parameters(exhausted, span)?;
         let (exhausted_source, _) = roles(&exhausted_parameters, source_slot, cursor_slot, span)?;
         let mut frame = Frame {
@@ -478,16 +493,38 @@ impl ExpressionLowerer<'_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        self.restore_map_parent(state.nested.as_ref().and_then(|nested| nested.parent), span)?;
-        if qualified.nested.is_some() && !context.breaks.is_empty() {
-            return Err(error(LoweringErrorKind::MissingFact, span));
+        let parent = state.nested.as_ref().and_then(|nested| nested.parent);
+        if let Some(parent) = parent.filter(|_| {
+            qualified.nested.is_some_and(|pair| {
+                pair.tail
+                    .is_some_and(|shape| matches!(shape.kind, IterationExitKind::Break(_)))
+                    && statement == pair.inner
+            })
+        }) {
+            let [broken] = <[control::BranchExit; 1]>::try_from(context.breaks)
+                .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
+            let false_exit = self.branch_exit(LoweredValue::Unit);
+            let parent =
+                self.merge_map_nested_break(parent, broken, false_exit, &baseline, &carried, span)?;
+            state
+                .nested
+                .as_mut()
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                .parent = Some(parent);
+            self.restore_map_parent(Some(parent), span)?;
+        } else {
+            self.restore_map_parent(parent, span)?;
+            if qualified.nested.is_some() && !context.breaks.is_empty() {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            context.breaks.push(self.branch_exit(LoweredValue::Unit));
+            self.merge_exits(context.breaks, &baseline, span)?;
         }
-        context.breaks.push(self.branch_exit(LoweredValue::Unit));
-        self.merge_exits(context.breaks, &baseline, span)?;
         carrier::Evidence {
             function: self.function,
             conditional: state.conditional.as_ref(),
             nested: state.nested.as_ref(),
+            events: &state.nested_events,
             cleanup_body: state.body,
             seed,
             source: source_loan,

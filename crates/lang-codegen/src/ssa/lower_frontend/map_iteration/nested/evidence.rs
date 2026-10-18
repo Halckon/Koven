@@ -24,7 +24,9 @@ impl State {
         } = evidence;
         let missing = || error(LoweringErrorKind::MissingFact, span);
         let [preheader, header, body, exhausted] = blocks;
-        if body_exit != IterationExitKind::Fallthrough
+        if self.pair.tail.is_some()
+            || self.birth.guard.is_some()
+            || body_exit != IterationExitKind::Fallthrough
             || evidence.conditional.is_some()
             || evidence.owner.is_some()
             || evidence.body_owner.is_some()
@@ -173,6 +175,13 @@ impl Parent {
     fn validate(self, function: &Function, span: Span) -> Result<(), LoweringError> {
         let missing = || error(LoweringErrorKind::MissingFact, span);
         let [preheader, header, body, exhausted] = self.blocks;
+        if self.checkpoint.guard_column.is_some()
+            || self.checkpoint.guard_anchor.is_some()
+            || self.continuation != exhausted
+            || self.resumed_roles != self.exhausted
+        {
+            return Err(missing());
+        }
         let parameters = |block| {
             function
                 .block(block)
@@ -189,6 +198,7 @@ impl Parent {
             if forwarded(
                 function,
                 self.checkpoint.columns,
+                self.checkpoint.guard_column,
                 before,
                 &edge.arguments,
                 parameters(to)?,

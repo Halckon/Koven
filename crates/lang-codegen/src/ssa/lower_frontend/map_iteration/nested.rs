@@ -1,13 +1,18 @@
-//! Exact transport for one qualified two-level normal pair, never a generic loop stack.
+//! Exact transport for one qualified two-level pair, never a generic loop stack.
 mod evidence;
+mod evidence_tail;
 pub(super) mod qualify;
+pub(super) mod tail;
+mod transport_tail;
 
 use super::*;
+use transport_tail::PathCheckpoint;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Pair {
     pub(super) outer: StatementId,
     pub(super) inner: StatementId,
+    pub(super) tail: Option<tail::Shape>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,9 +22,10 @@ pub(super) struct Roles {
     pub(super) cursor: ValueId,
     pub(super) key: LoanId,
     pub(super) value: LoanId,
+    pub(super) guard: Option<ValueId>,
 }
 impl Roles {
-    fn entities(self) -> [EntityId; 5] {
+    fn base_entities(self) -> [EntityId; 5] {
         [
             EntityId::Loan(self.caller),
             EntityId::Loan(self.source),
@@ -28,6 +34,13 @@ impl Roles {
             EntityId::Loan(self.value),
         ]
     }
+
+    fn entities(self) -> Vec<EntityId> {
+        self.base_entities()
+            .into_iter()
+            .chain(self.guard.map(EntityId::Value))
+            .collect()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -35,6 +48,9 @@ pub(super) struct Checkpoint {
     statement: StatementId,
     before: Roles,
     columns: [usize; 5],
+    guard_column: Option<usize>,
+    guard_anchor: Option<ValueId>,
+    path: PathCheckpoint,
 }
 
 #[derive(Clone, Copy)]
@@ -44,6 +60,8 @@ pub(super) struct Parent {
     pub(super) header: Roles,
     pub(super) body: Roles,
     pub(super) exhausted: Roles,
+    pub(super) continuation: BlockId,
+    pub(super) resumed_roles: Roles,
     resume_start: Option<usize>,
 }
 
@@ -56,7 +74,7 @@ pub(super) struct State {
     pub(super) resumed: Option<Parent>,
 }
 
-fn frame_roles(
+pub(super) fn current_roles(
     lowerer: &ExpressionLowerer<'_>,
     state: &Context,
     span: Span,
@@ -85,6 +103,7 @@ fn frame_roles(
         cursor: state.cursor,
         key,
         value,
+        guard: transport_tail::current_guard(lowerer, state, span)?,
     })
 }
 
@@ -140,7 +159,7 @@ impl ExpressionLowerer<'_> {
         {
             return Err(missing());
         }
-        let before = frame_roles(self, state, span)?;
+        let before = current_roles(self, state, span)?;
         if EntityId::Loan(before.caller) != caller {
             return Err(missing());
         }
@@ -155,7 +174,7 @@ impl ExpressionLowerer<'_> {
             carried.slots.push(LinearBindingSlot::new(None, entity, ty));
         }
         let mut columns = [0; 5];
-        for (role, entity) in before.entities().into_iter().enumerate() {
+        for (role, entity) in before.base_entities().into_iter().enumerate() {
             columns[role] = unique(
                 carried
                     .slots
@@ -165,10 +184,40 @@ impl ExpressionLowerer<'_> {
             )
             .ok_or_else(missing)?;
         }
+        let guard_column = before
+            .guard
+            .map(|guard| {
+                unique(
+                    carried
+                        .slots
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, slot)| {
+                            (slot.source == EntityId::Value(guard)).then_some(index)
+                        }),
+                )
+                .ok_or_else(missing)
+            })
+            .transpose()?;
+        if let (Some(shape), Some(column)) = (pair.tail, guard_column) {
+            if carried.slots[column].symbol != Some(shape.outer_guard.symbol) {
+                return Err(missing());
+            }
+        }
+        let guard_anchor = pair
+            .tail
+            .map(|shape| transport_tail::constructor_anchor(self, shape.outer_guard, span))
+            .transpose()?;
+        if before.guard != guard_anchor || guard_column.is_some() != guard_anchor.is_some() {
+            return Err(missing());
+        }
         Ok(Some(Checkpoint {
             statement: pair.outer,
             before,
             columns,
+            guard_column,
+            guard_anchor,
+            path: PathCheckpoint::capture(state),
         }))
     }
 
@@ -189,6 +238,7 @@ impl ExpressionLowerer<'_> {
         let after = forwarded(
             self.function,
             checkpoint.columns,
+            checkpoint.guard_column,
             before,
             &edge.arguments,
             &parameters,
@@ -223,7 +273,7 @@ impl ExpressionLowerer<'_> {
             .first()
             .and_then(|context| context.map_loop.as_ref())
             .ok_or_else(missing)?;
-        if frame_roles(self, state, span)? != roles {
+        if current_roles(self, state, span)? != roles {
             return Err(missing());
         }
         Ok(())
@@ -265,6 +315,7 @@ impl ExpressionLowerer<'_> {
                 cursor,
                 key,
                 value,
+                guard: None,
             },
             parent,
             resumed: None,
@@ -280,10 +331,10 @@ impl ExpressionLowerer<'_> {
             return Ok(());
         };
         let missing = || error(LoweringErrorKind::MissingFact, span);
-        if self.loops.len() != 1 || self.block != parent.blocks[3] {
+        if self.loops.len() != 1 || self.block != parent.continuation {
             return Err(missing());
         }
-        self.install_map_parent(parent.checkpoint, parent.exhausted, span)?;
+        self.install_map_parent(parent.checkpoint, parent.resumed_roles, span)?;
         parent.resume_start = Some(
             self.function
                 .block(self.block)
@@ -323,7 +374,7 @@ impl ExpressionLowerer<'_> {
             .first()
             .and_then(|context| context.map_loop.as_ref())
             .ok_or_else(missing)?;
-        let roles = frame_roles(self, outer, span)?;
+        let roles = current_roles(self, outer, span)?;
         if column == parent.checkpoint.columns[1] {
             return Ok(Some(EntityId::Loan(roles.source)));
         }
@@ -351,6 +402,8 @@ pub(super) fn parent(
                 header: header.ok_or_else(missing)?,
                 body: body.ok_or_else(missing)?,
                 exhausted: exhausted.ok_or_else(missing)?,
+                continuation: blocks[3],
+                resumed_roles: exhausted.ok_or_else(missing)?,
                 resume_start: None,
             })
         })
@@ -378,6 +431,11 @@ fn edges(function: &Function, from: BlockId) -> Vec<&Edge> {
             when_false,
             ..
         }) => vec![when_true, when_false],
+        Some(TerminatorKind::NullableBranch {
+            when_null,
+            when_non_null,
+            ..
+        }) => vec![when_null, when_non_null],
         _ => Vec::new(),
     }
 }
@@ -397,6 +455,7 @@ fn incoming(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)> {
 fn forwarded(
     function: &Function,
     columns: [usize; 5],
+    guard_column: Option<usize>,
     before: Roles,
     arguments: &[EntityId],
     parameters: &[EntityId],
@@ -407,6 +466,17 @@ fn forwarded(
         return Err(missing());
     }
     let mut result = Vec::new();
+    if guard_column.is_some() != before.guard.is_some() {
+        return Err(missing());
+    }
+    let columns = columns.into_iter().chain(guard_column).collect::<Vec<_>>();
+    if columns
+        .iter()
+        .enumerate()
+        .any(|(index, column)| columns[..index].contains(column))
+    {
+        return Err(missing());
+    }
     for (column, entity) in columns.into_iter().zip(before.entities()) {
         if arguments.get(column) != Some(&entity)
             || arguments
@@ -418,29 +488,45 @@ fn forwarded(
             return Err(missing());
         }
         let actual = *parameters.get(column).ok_or_else(missing)?;
-        if function.entity(actual).map(|entity| entity.ty)
-            != function.entity(entity).map(|entity| entity.ty)
+        let actual_data = function.entity(actual).ok_or_else(missing)?;
+        let Definition::BlockParameter { block, index } = actual_data.definition else {
+            return Err(missing());
+        };
+        if actual_data.ty != function.entity(entity).ok_or_else(missing)?.ty
+            || index != column
+            || function
+                .block(block)
+                .map(|block| block.parameters.as_slice())
+                != Some(parameters)
         {
             return Err(missing());
         }
         result.push(actual);
     }
-    match result.as_slice() {
-        [
-            EntityId::Loan(caller),
-            EntityId::Loan(source),
-            EntityId::Value(cursor),
-            EntityId::Loan(key),
-            EntityId::Loan(value),
-        ] => Ok(Roles {
-            caller: *caller,
-            source: *source,
-            cursor: *cursor,
-            key: *key,
-            value: *value,
-        }),
-        _ => Err(missing()),
-    }
+    let [
+        EntityId::Loan(caller),
+        EntityId::Loan(source),
+        EntityId::Value(cursor),
+        EntityId::Loan(key),
+        EntityId::Loan(value),
+        rest @ ..,
+    ] = result.as_slice()
+    else {
+        return Err(missing());
+    };
+    let guard = match rest {
+        [] if before.guard.is_none() => None,
+        [EntityId::Value(guard)] if before.guard.is_some() => Some(*guard),
+        _ => return Err(missing()),
+    };
+    Ok(Roles {
+        caller: *caller,
+        source: *source,
+        cursor: *cursor,
+        key: *key,
+        value: *value,
+        guard,
+    })
 }
 
 /// Only exact edge-column transport is accepted. Every predecessor is visited,

@@ -4,6 +4,7 @@ use lang_frontend::type_checking::MapIterationDescriptor;
 
 pub(in super::super) fn pair(
     parsed: &ParsedFile,
+    names: &NameResolution,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
     descriptor: MapIterationDescriptor,
@@ -92,14 +93,25 @@ pub(in super::super) fn pair(
     else {
         return Err(missing());
     };
+    let mut normal = straight(parsed, typed, *inner_body)?;
     for &element in elements {
         if element != inner && !straight(parsed, typed, element)? {
-            return Err(unsupported());
+            normal = false;
         }
     }
-    if !straight(parsed, typed, *inner_body)? {
-        return Err(unsupported());
-    }
+    let tail = if normal {
+        None
+    } else {
+        Some(
+            super::tail::shape(parsed, names, typed, owned, outer, inner).map_err(|failure| {
+                if failure.kind == LoweringErrorKind::UnsupportedNode {
+                    unsupported()
+                } else {
+                    failure
+                }
+            })?,
+        )
+    };
     reject_aborting_body(parsed, typed, *outer_body, span)?;
     let first = owned.map_iteration(outer).ok_or_else(unsupported)?;
     let second = owned.map_iteration(inner).ok_or_else(unsupported)?;
@@ -117,7 +129,11 @@ pub(in super::super) fn pair(
         .iter()
         .any(|&ty| builtin_type(typed, ty) != Some(BuiltinType::String))
     {
-        return Err(unsupported());
+        return Err(if tail.is_some() {
+            missing()
+        } else {
+            unsupported()
+        });
     }
     if outer_descriptor.source() == inner_descriptor.source()
         || outer_descriptor
@@ -127,7 +143,7 @@ pub(in super::super) fn pair(
     {
         return Err(missing());
     }
-    Ok(Some(Pair { outer, inner }))
+    Ok(Some(Pair { outer, inner, tail }))
 }
 
 fn contains(outer: Span, inner: Span) -> bool {
@@ -136,7 +152,7 @@ fn contains(outer: Span, inner: Span) -> bool {
         && outer.end() >= inner.end()
 }
 
-fn straight(
+pub(super) fn straight(
     parsed: &ParsedFile,
     typed: &TypedFile,
     statement: StatementId,
