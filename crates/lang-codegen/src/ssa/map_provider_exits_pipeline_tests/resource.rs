@@ -1,5 +1,8 @@
 //! Newly rebuilt finite Map<String, Resource> normal-exhaustion pipelines.
 //! Resource values remain container-owned; the loop creates Shared component loans.
+mod boundaries;
+mod identity;
+
 use super::{
     Report,
     fixture::{Failure, clean, failure, verify_failure},
@@ -26,7 +29,7 @@ pub(crate) fn sources() -> [(&'static str, &'static str, &'static str); 2] {
     ]
 }
 
-fn observe(text: &str, unit: bool, report: &mut Report) -> Result<(), Failure> {
+fn observe(label: &str, text: &str, unit: bool, report: &mut Report) -> Result<(), Failure> {
     let mut sources = SourceMap::new();
     let id = sources
         .add_source("provider.ko", text)
@@ -35,13 +38,18 @@ fn observe(text: &str, unit: bool, report: &mut Report) -> Result<(), Failure> {
     clean(&sources, "lex diagnostics", lexed.diagnostics())?;
     let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
     clean(&sources, "parse diagnostics", parsed.diagnostics())?;
+    let input = identity::ast(&sources, &parsed, label == "map-resource")?;
     let (program, entry) = if unit {
         pipeline::unit_observed(
             &sources,
             &parsed,
             "provider.ko",
             report,
-            |_, typed, owned, report| {
+            |names, typed, owned, report| {
+                report.query(
+                    "resource original unit FE obligations",
+                    &identity::unit(&input, &parsed, names, typed, owned),
+                );
                 report.check(
                     "unit one actual Resource Map provider",
                     typed.map_iterations().len() == 1 && owned.map_iterations().len() == 1,
@@ -50,7 +58,11 @@ fn observe(text: &str, unit: bool, report: &mut Report) -> Result<(), Failure> {
             },
         )?
     } else {
-        pipeline::single_observed(&sources, &parsed, report, |_, typed, owned, report| {
+        pipeline::single_observed(&sources, &parsed, report, |names, typed, owned, report| {
+            report.query(
+                "resource original single FE obligations",
+                &identity::single(&input, &parsed, names, typed, owned),
+            );
             report.check(
                 "single one actual Resource Map provider",
                 typed.map_iterations().len() == 1 && owned.map_iterations().len() == 1,
@@ -58,6 +70,10 @@ fn observe(text: &str, unit: bool, report: &mut Report) -> Result<(), Failure> {
             );
         })?
     };
+    report.query(
+        "resource independent SSA incoming/current lexical drop",
+        &identity::ssa(&program, &input, unit),
+    );
     super::super::verify::verify_program(&program).map_err(|e| verify_failure(&sources, e))?;
     report.check("SSA verifier", true, entry);
     let llvm = crate::llvm::render_verified_program(&program)
@@ -72,7 +88,7 @@ fn resource_map_normal_sources_reach_verified_llvm_in_both_entries() {
     for (label, text, _) in sources() {
         for unit in [false, true] {
             let mut report = Report::default();
-            let outcome = observe(text, unit, &mut report);
+            let outcome = observe(label, text, unit, &mut report);
             println!(
                 "SPEC0331 RESOURCE case={label} unit={unit} outcome={outcome:?} report={report:#?}"
             );
