@@ -1,7 +1,6 @@
 //! Independent public FE formation and lexical Resource cleanup facts.
-#[path = "../local_exits/facts/ast.rs"]
-mod ast;
-mod nominal;
+use super::super::local_exits::facts::ast;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod nominal;
 mod owner;
 use super::super::{
     fixture::{Failure, failure, need},
@@ -91,7 +90,7 @@ pub(super) fn single(
     owned: &OwnershipCheckedFile,
     report: &mut Report,
 ) {
-    match sites(case, sources, parsed) {
+    match sites((case.mutable, case.form, case.exit), sources, parsed) {
         Ok(sites) => {
             for site in &sites {
                 report.query(
@@ -180,7 +179,7 @@ fn single_site(
         "Resource local original descriptor/type/category/Owned root",
         p,
     )?;
-    nominal::single(case, sources, parsed, names, typed, d.value_type())?;
+    nominal::single(case.nullable, sources, parsed, names, typed, d.value_type())?;
     let factory = one(
         names
             .symbols()
@@ -320,7 +319,7 @@ pub(super) fn unit(
     owned: &CompilationUnitOwnership,
     report: &mut Report,
 ) {
-    match sites(case, sources, parsed) {
+    match sites((case.mutable, case.form, case.exit), sources, parsed) {
         Ok(sites) => {
             for site in &sites {
                 report.query(
@@ -409,7 +408,7 @@ fn unit_site(
         "Resource qualified original type/category/Owned source",
         p,
     )?;
-    nominal::unit(case, sources, parsed, names, typed, d.value_type())?;
+    nominal::unit(case.nullable, sources, parsed, names, typed, d.value_type())?;
     let factory = one(
         typed.signatures().declarations().iter().filter(|d| {
             d.callable()

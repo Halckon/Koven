@@ -200,8 +200,7 @@ pub(super) fn single(
                 p,
             )?;
             phi::check(
-                &site,
-                l,
+                (&site, l),
                 lr,
                 p,
                 owned,

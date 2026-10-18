@@ -2,8 +2,7 @@
 mod anchors;
 mod continuation;
 mod provider;
-#[path = "../local_resources/graph/storage.rs"]
-mod storage;
+use super::super::local_resources::graph::storage;
 use super::Case;
 use crate::ssa::{
     map_provider_exits_pipeline_tests::{
@@ -84,7 +83,13 @@ pub(super) fn check(
                 && fg.blocks.iter().filter(|&&b| matches!(&fg.term(b).unwrap().kind,TerminatorKind::Return {values} if values.as_slice()==[value(empty).unwrap()])).count()==1,
                 "empty factory returns its original owner without payload construction", factory.id)?;
         }
-        let types = storage::check(case, sources, parsed, module, map_type)?;
+        let types = storage::check(
+            (case.mutable, case.nullable),
+            sources,
+            parsed,
+            module,
+            map_type,
+        )?;
         let q = Query {
             g: &g,
             module,

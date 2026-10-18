@@ -1,5 +1,5 @@
 //! Shared original AST anchors for local formation and control-transfer queries.
-use super::{Case, Failure, failure, need, one};
+use super::{Failure, failure, need, one};
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     ownership_checking::{DropPoint, IterationExitKind as E},
@@ -11,37 +11,40 @@ use lang_frontend::{
     type_checking::MapIterationKind,
 };
 #[derive(Debug)]
-pub(super) struct Local {
-    pub(super) marker: Span,
-    pub(super) initializer: ExpressionId,
-    pub(super) kind: VariableKind,
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Local {
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) marker: Span,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) initializer: ExpressionId,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) kind: VariableKind,
 }
 #[derive(Debug)]
-pub(super) struct Site {
-    pub(super) scan: Span,
-    pub(super) name: Span,
-    pub(super) factory: Span,
-    pub(super) result: Span,
-    pub(super) map_kind: MapIterationKind,
-    pub(super) entry: Span,
-    pub(super) root: Local,
-    pub(super) birth: Local,
-    pub(super) birth_span: Span,
-    pub(super) statement: StatementId,
-    pub(super) source: ExpressionId,
-    pub(super) span: Span,
-    pub(super) bindings: [Span; 2],
-    pub(super) guard: Local,
-    pub(super) guard_span: Span,
-    pub(super) kind: E,
-    pub(super) point: DropPoint,
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Site {
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) scan: Span,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) name: Span,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) factory: Span,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) result: Span,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) map_kind: MapIterationKind,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) entry: Span,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) root: Local,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) birth: Local,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) birth_span: Span,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) statement: StatementId,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) source: ExpressionId,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) span: Span,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) bindings: [Span; 2],
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) guard: Local,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) guard_span: Span,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) kind: E,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) point: DropPoint,
 }
-pub(super) fn within(outer: Span, inner: Span) -> bool {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn within(outer: Span, inner: Span) -> bool {
     outer.source_id() == inner.source_id()
         && outer.start() <= inner.start()
         && inner.end() <= outer.end()
 }
-pub(super) fn expression_span(parsed: &ParsedFile, id: ExpressionId) -> Result<Span, Failure> {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn expression_span(
+    parsed: &ParsedFile,
+    id: ExpressionId,
+) -> Result<Span, Failure> {
     parsed
         .ast()
         .expressions()
@@ -101,8 +104,8 @@ fn local(parsed: &ParsedFile, statement: StatementId) -> Result<Local, Failure> 
         kind: *kind,
     })
 }
-pub(super) fn sites(
-    case: &Case,
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn sites(
+    (mutable, formation, exit): (bool, usize, usize),
     sources: &SourceMap,
     parsed: &ParsedFile,
 ) -> Result<Vec<Site>, Failure> {
@@ -121,7 +124,7 @@ pub(super) fn sites(
         }),
         "G2 original result function root",
     )?;
-    let map_kind = if case.mutable {
+    let map_kind = if mutable {
         MapIterationKind::MutableMap
     } else {
         MapIterationKind::Map
@@ -189,7 +192,7 @@ pub(super) fn sites(
                 })
                 .collect::<Vec<_>>();
             need(
-                declarations.len() == if case.form == 2 { 2 } else { 1 },
+                declarations.len() == if formation == 2 { 2 } else { 1 },
                 "G2 actual local formation chain",
                 &declarations,
             )?;
@@ -200,7 +203,7 @@ pub(super) fn sites(
                     .ok_or_else(|| failure("G2 source declaration", &declarations))?,
             )?;
             let birth = local(parsed, declarations[0])?;
-            let wanted = if case.form == 1 {
+            let wanted = if formation == 1 {
                 VariableKind::Var
             } else {
                 VariableKind::Val
@@ -218,7 +221,7 @@ pub(super) fn sites(
                 "G2 original val/var root and Name source",
                 (&root, &birth, source),
             )?;
-            if case.form == 2 {
+            if formation == 2 {
                 need(
                     sources.slice(birth.marker) == Ok("original")
                         && sources.slice(expression_span(parsed, root.initializer)?)
@@ -312,7 +315,7 @@ pub(super) fn sites(
             };
             need(
                 matches!(
-                    (case.exit, kind),
+                    (exit, kind),
                     (0, E::Fallthrough)
                         | (1, E::Continue(_))
                         | (2, E::Break(_))
@@ -352,7 +355,7 @@ pub(super) fn sites(
 }
 
 /// The original Return operand and its two Name arguments, without any lowering inference.
-pub(super) fn returned(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn returned(
     site: &Site,
     parsed: &ParsedFile,
 ) -> Result<Option<(ExpressionId, [ExpressionId; 2])>, Failure> {

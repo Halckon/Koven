@@ -218,8 +218,8 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                     .expressions()
                     .get(canonical)
                     .map_err(|_| missing())?;
-                if !matches!(node.payload(), Expression::Call { .. })
-                    && !(epoch.rhs == initializer && node.payload() == &Expression::Name)
+                if !(matches!(node.payload(), Expression::Call { .. })
+                    || epoch.rhs == initializer && node.payload() == &Expression::Name)
                 {
                     return Err(unsupported());
                 }

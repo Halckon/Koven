@@ -1,5 +1,5 @@
 //! Real local formation plus future uses: preserve every public FE/lowering observation.
-mod facts;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
 mod graph;
 mod sources;
 use super::{

@@ -1,7 +1,7 @@
 //! Public local formation, multi-For live owner identity and actual Pure last-use facts.
-mod ast;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod ast;
 mod loans;
-mod owner;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod owner;
 use super::super::{
     fixture::{Failure, failure, need},
     query_inputs::one,
@@ -98,7 +98,7 @@ pub(super) fn single(
             && owned.map_iterations().len() == typed.map_iterations().len(),
         (typed.map_iterations(), owned.map_iterations()),
     );
-    match ast::scanners(case, sources, parsed) {
+    match ast::scanners((case.binding, case.exit, case.form), sources, parsed) {
         Ok(sites) => {
             for site in &sites {
                 report.query(
@@ -365,7 +365,7 @@ pub(super) fn unit(
             && owned.map_iterations().len() == typed.map_iterations().len(),
         (typed.map_iterations(), owned.map_iterations()),
     );
-    match ast::scanners(case, sources, parsed) {
+    match ast::scanners((case.binding, case.exit, case.form), sources, parsed) {
         Ok(sites) => {
             for site in &sites {
                 report.query(

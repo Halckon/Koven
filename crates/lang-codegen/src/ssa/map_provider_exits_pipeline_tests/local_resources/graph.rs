@@ -1,6 +1,6 @@
 //! Independent SSA proof for factory-formed Resource locals and their lexical cleanup.
 mod provider;
-mod storage;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod storage;
 use super::Case;
 use crate::ssa::{
     map_provider_exits_pipeline_tests::{
@@ -67,7 +67,13 @@ pub(super) fn check(
                 && fg.blocks.iter().filter(|&&b| matches!(&fg.term(b).unwrap().kind, TerminatorKind::Return { values } if matches!(result(empty), Ok(EntityId::Value(v)) if values.as_slice()==[v]))).count()==1,
                 "empty factory returns its original zero-entry owner without payload insertion", factory.id)?;
         }
-        let (kt, vt) = storage::check(case, sources, parsed, module, map_ty)?;
+        let (kt, vt) = storage::check(
+            (case.mutable, case.nullable),
+            sources,
+            parsed,
+            module,
+            map_ty,
+        )?;
         let owners = family(&g, anchor)?;
         let mut uses = Uses::default();
         for owner in &owners {
@@ -134,7 +140,15 @@ pub(super) fn check(
             uses.permit(EntityId::Value(owner), drop);
         }
         let after = marker(&g, sources, parsed, site.scan, "after")?;
-        let returned = returns(case, &g, module, sources, parsed, &site, &proof, &mut uses)?;
+        let returned = returns(
+            case,
+            &g,
+            module,
+            (sources, parsed),
+            &site,
+            &proof,
+            &mut uses,
+        )?;
         uses.check(&g, returned)?;
         paths(&g, producer, formed, after, &proof.ends, &drops)?;
     }
@@ -392,8 +406,7 @@ fn returns(
     case: &Case,
     g: &Graph<'_>,
     module: &Module,
-    sources: &SourceMap,
-    parsed: &ParsedFile,
+    (sources, parsed): (&SourceMap, &ParsedFile),
     site: &Site,
     p: &provider::Evidence<'_>,
     uses: &mut Uses,

@@ -4,13 +4,13 @@ use lang_frontend::parser::{
     ForBinding, FunctionBody, FunctionForm, Item, NameMarker, Statement, VariableKind,
 };
 #[derive(Debug)]
-pub(super) struct Local {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Local {
     pub marker: Span,
     pub initializer: ExpressionId,
     pub kind: VariableKind,
 }
 #[derive(Debug)]
-pub(super) struct Loop {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Loop {
     pub statement: StatementId,
     pub source: ExpressionId,
     pub span: Span,
@@ -21,7 +21,7 @@ pub(super) struct Loop {
     pub point: DropPoint,
 }
 #[derive(Debug)]
-pub(super) struct Scanner {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Scanner {
     pub name: Span,
     pub span: Span,
     pub factory: Span,
@@ -30,12 +30,15 @@ pub(super) struct Scanner {
     pub birth_span: Span,
     pub loops: Vec<Loop>,
 }
-pub(super) fn within(outer: Span, inner: Span) -> bool {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn within(outer: Span, inner: Span) -> bool {
     outer.source_id() == inner.source_id()
         && outer.start() <= inner.start()
         && inner.end() <= outer.end()
 }
-pub(super) fn span(parsed: &ParsedFile, id: ExpressionId) -> Result<Span, Failure> {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn span(
+    parsed: &ParsedFile,
+    id: ExpressionId,
+) -> Result<Span, Failure> {
     parsed
         .ast()
         .expressions()
@@ -72,8 +75,8 @@ fn declaration(parsed: &ParsedFile, id: StatementId) -> Result<Local, Failure> {
         kind: *kind,
     })
 }
-pub(super) fn scanners(
-    case: &Case,
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn scanners(
+    (binding, exit, continuation): (usize, usize, usize),
     sources: &SourceMap,
     parsed: &ParsedFile,
 ) -> Result<Vec<Scanner>, Failure> {
@@ -145,7 +148,7 @@ pub(super) fn scanners(
                 })
                 .collect::<Vec<_>>();
             need(
-                locals.len() == if case.binding == 2 { 2 } else { 1 },
+                locals.len() == if binding == 2 { 2 } else { 1 },
                 "local future actual binding chain",
                 &locals,
             )?;
@@ -156,7 +159,7 @@ pub(super) fn scanners(
                     .last()
                     .ok_or_else(|| failure("local future actual root declaration", &locals))?,
             )?;
-            let kind = if case.binding == 1 {
+            let kind = if binding == 1 {
                 VariableKind::Var
             } else {
                 VariableKind::Val
@@ -168,7 +171,7 @@ pub(super) fn scanners(
                 "local future binding selects val/var/alias independently of form",
                 (&root, &birth),
             )?;
-            if case.binding == 2 {
+            if binding == 2 {
                 need(
                     sources.slice(birth.marker) == Ok("original")
                         && sources.slice(span(parsed, root.initializer)?) == Ok("original")
@@ -267,7 +270,7 @@ pub(super) fn scanners(
                 };
                 need(
                     matches!(
-                        (if loops.is_empty() { case.exit } else { 0 }, kind),
+                        (if loops.is_empty() { exit } else { 0 }, kind),
                         (0, E::Fallthrough) | (1, E::Continue(_)) | (2, E::Break(_))
                     ),
                     "local future original first/second exit",
@@ -291,7 +294,7 @@ pub(super) fn scanners(
                 });
             }
             need(
-                loops.len() == if case.form == 2 { 2 } else { 1 },
+                loops.len() == if continuation == 2 { 2 } else { 1 },
                 "local future continuation form determines real For count",
                 &loops,
             )?;
@@ -308,7 +311,10 @@ pub(super) fn scanners(
         })
         .collect()
 }
-pub(super) fn argument(parsed: &ParsedFile, id: ExpressionId) -> Result<ExpressionId, Failure> {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn argument(
+    parsed: &ParsedFile,
+    id: ExpressionId,
+) -> Result<ExpressionId, Failure> {
     let node = parsed
         .ast()
         .expressions()

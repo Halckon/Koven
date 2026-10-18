@@ -331,8 +331,7 @@ pub(super) fn check<'a>(
         sources,
         parsed,
         site.body,
-        read,
-        component_ends[1],
+        (read, component_ends[1]),
         uses,
     )?;
     if case.exit >= 2 {
@@ -376,8 +375,7 @@ fn guard<'a>(
     sources: &SourceMap,
     parsed: &ParsedFile,
     body: StatementId,
-    read: &Instruction,
-    value_end: &Instruction,
+    (read, value_end): (&Instruction, &Instruction),
     uses: &mut Uses,
 ) -> Result<&'a Instruction, Failure> {
     let span = parsed.ast().statements().get(body).unwrap().span();

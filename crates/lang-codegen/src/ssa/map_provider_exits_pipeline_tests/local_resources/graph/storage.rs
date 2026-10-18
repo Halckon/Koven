@@ -1,8 +1,8 @@
 //! Representation is queried from the actual factory result, not from source type spelling.
 use super::*;
 
-pub(super) fn check(
-    case: &Case,
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check(
+    (mutable, nullable): (bool, bool),
     sources: &SourceMap,
     parsed: &ParsedFile,
     module: &Module,
@@ -12,7 +12,7 @@ pub(super) fn check(
         .map_container(map)
         .ok_or_else(|| failure("actual Resource Map storage", map))?;
     need(
-        kind == if case.mutable {
+        kind == if mutable {
             MapContainerKind::MutableMap
         } else {
             MapContainerKind::Map
@@ -20,7 +20,7 @@ pub(super) fn check(
         "actual Map kind and String key",
         (kind, key),
     )?;
-    let resource = match (case.nullable, module.type_kind(value)) {
+    let resource = match (nullable, module.type_kind(value)) {
         (true, Some(SsaTypeKind::NullableHandle { inner })) => *inner,
         (false, Some(SsaTypeKind::HeapOwner { .. })) => value,
         _ => {

@@ -1,33 +1,27 @@
 //! Original Resource formation and live cross-For owners; never infer Pure ASAP cleanup.
-#[path = "../local_future/facts/ast.rs"]
-mod ast;
+use super::super::local_future::facts::ast;
 mod borrows;
-#[path = "../local_resources/facts/nominal.rs"]
-mod nominal;
-#[path = "../local_future/facts/owner.rs"]
-mod owner;
+use super::super::local_future::facts::owner;
+use super::super::local_resources::facts::nominal;
 use super::super::{
     fixture::{Failure, failure, need},
     query_inputs::one,
 };
 use super::{Case, Report};
-use ast::{Loop, Scanner};
+use ast::Scanner;
 use lang_frontend::{
-    ast::{ExpressionId, StatementId},
+    ast::ExpressionId,
     name_resolution::{
         NameResolution, ReferenceTarget, SymbolId, SymbolKind, UnitReferenceTarget, UnitSymbolId,
         ValidatedCompilationUnitNames,
     },
     ownership_checking::{
-        CleanupCondition as C, CleanupConditionId, CleanupOwnerValue as O, CleanupOwnerValueId,
-        CleanupSelection, CleanupSelectorSource, CompilationUnitOwnership, DropPoint, DropTarget,
-        IterationCleanupAction as A, IterationExitKind as E, IterationPhiBoundary as B,
-        IterationPhiIncomingKind as K, IterationPhiPresenceSource, IterationSource, LoanEndPoint,
-        LoanKind, LoanTarget, MapIterationComponent, MapIterationOwnershipPlan,
-        MapIterationSourceAccess, OwnershipBindingKind, OwnershipCheckedFile,
-        UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget,
-        UnitIterationCleanupAction as UA, UnitIterationExitKind as UE, UnitIterationSourceAccess,
-        UnitLoanTarget,
+        CleanupOwnerValue as O, CompilationUnitOwnership, DropPoint, DropTarget,
+        IterationCleanupAction as A, IterationExitKind as E, IterationSource, LoanEndPoint,
+        LoanKind, LoanTarget, MapIterationComponent, MapIterationSourceAccess,
+        OwnershipBindingKind, OwnershipCheckedFile, UnitCallArgumentOwnershipKind, UnitDropPoint,
+        UnitDropTarget, UnitIterationCleanupAction as UA, UnitIterationExitKind as UE,
+        UnitIterationSourceAccess, UnitLoanTarget,
     },
     parser::{Expression, ParsedFile},
     source::{SourceMap, Span},
@@ -105,7 +99,7 @@ pub(super) fn single(
     owned: &OwnershipCheckedFile,
     report: &mut Report,
 ) {
-    match ast::scanners(case, sources, parsed) {
+    match ast::scanners((case.binding, case.exit, case.form), sources, parsed) {
         Ok(sites) => {
             for site in &sites {
                 report.query(
@@ -225,7 +219,7 @@ fn single_site(
             "Resource future actual original For source/Owned lineage",
             p,
         )?;
-        nominal::single(case, sources, parsed, names, typed, d.value_type())?;
+        nominal::single(case.nullable, sources, parsed, names, typed, d.value_type())?;
         for (index, binding) in d.bindings().into_iter().enumerate() {
             need(
                 names.symbols().iter().any(|s| {
@@ -356,7 +350,7 @@ pub(super) fn unit(
     owned: &CompilationUnitOwnership,
     report: &mut Report,
 ) {
-    match ast::scanners(case, sources, parsed) {
+    match ast::scanners((case.binding, case.exit, case.form), sources, parsed) {
         Ok(sites) => {
             for site in &sites {
                 report.query(
@@ -475,7 +469,7 @@ fn unit_site(
             "Resource future original qualified For/source/Owned identity",
             p,
         )?;
-        nominal::unit(case, sources, parsed, names, typed, d.value_type())?;
+        nominal::unit(case.nullable, sources, parsed, names, typed, d.value_type())?;
         for (index, binding) in d.bindings().into_iter().enumerate() {
             need(
                 marker(

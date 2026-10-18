@@ -1,5 +1,5 @@
 //! Public local formation, alias provenance and iteration cleanup identities.
-mod ast;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod ast;
 use super::super::{
     fixture::{Failure, failure, need},
     query_inputs::one,
@@ -302,7 +302,7 @@ pub(super) fn single(
         typed.map_iterations().len() == 2 && owned.map_iterations().len() == 2,
         (typed.map_iterations(), owned.map_iterations()),
     );
-    match sites(case, sources, parsed) {
+    match sites((case.mutable, case.form, case.exit), sources, parsed) {
         Ok(sites) => {
             for site in &sites {
                 report.query(
@@ -517,7 +517,7 @@ pub(super) fn unit(
         typed.map_iterations().len() == 2 && owned.map_iterations().len() == 2,
         (typed.map_iterations(), owned.map_iterations()),
     );
-    match sites(case, sources, parsed) {
+    match sites((case.mutable, case.form, case.exit), sources, parsed) {
         Ok(sites) => {
             for site in &sites {
                 report.query(

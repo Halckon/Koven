@@ -8,8 +8,7 @@ pub(super) struct Evidence<'a> {
 pub(super) fn check<'a>(
     g: &Graph<'a>,
     module: &Module,
-    sources: &SourceMap,
-    parsed: &ParsedFile,
+    (sources, parsed): (&SourceMap, &ParsedFile),
     l: &ast::Loop,
     anchor: EntityId,
     owners: &BTreeSet<EntityId>,
@@ -228,7 +227,15 @@ pub(super) fn check<'a>(
         "epoch read/VEnd/KEnd/Next order",
         &component_ends,
     )?;
-    guard(g, module, sources, parsed, l, read, component_ends[1], uses)?;
+    guard(
+        g,
+        module,
+        (sources, parsed),
+        l,
+        read,
+        component_ends[1],
+        uses,
+    )?;
     let inner = match module.type_kind(vt) {
         Some(SsaTypeKind::NullableHandle { inner }) => *inner,
         _ => vt,
@@ -247,8 +254,7 @@ pub(super) fn check<'a>(
 fn guard(
     g: &Graph<'_>,
     module: &Module,
-    sources: &SourceMap,
-    parsed: &ParsedFile,
+    (sources, parsed): (&SourceMap, &ParsedFile),
     l: &ast::Loop,
     read: &Instruction,
     vend: &Instruction,

@@ -66,8 +66,8 @@ fn class(sources: &SourceMap, parsed: &ParsedFile) -> Result<Class, Failure> {
         body,
     })
 }
-pub(super) fn single(
-    case: &Case,
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn single(
+    nullable: bool,
     sources: &SourceMap,
     parsed: &ParsedFile,
     names: &NameResolution,
@@ -75,7 +75,7 @@ pub(super) fn single(
     value: TypeId,
 ) -> Result<(), Failure> {
     let class = class(sources, parsed)?;
-    let inner = match (case.nullable, typed.types().get(value)) {
+    let inner = match (nullable, typed.types().get(value)) {
         (true, Some(TypeKind::Nullable(inner))) => *inner,
         (false, Some(TypeKind::Nominal { .. })) => value,
         other => {
@@ -121,8 +121,8 @@ pub(super) fn single(
     )?;
     Ok(())
 }
-pub(super) fn unit(
-    case: &Case,
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn unit(
+    nullable: bool,
     sources: &SourceMap,
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -130,7 +130,7 @@ pub(super) fn unit(
     value: UnitTypeId,
 ) -> Result<(), Failure> {
     let class = class(sources, parsed)?;
-    let inner = match (case.nullable, typed.types().get(value)) {
+    let inner = match (nullable, typed.types().get(value)) {
         (true, Some(UnitTypeKind::Nullable(inner))) => *inner,
         (false, Some(UnitTypeKind::Nominal { .. })) => value,
         other => return Err(failure("qualified exact nullable component", other)),

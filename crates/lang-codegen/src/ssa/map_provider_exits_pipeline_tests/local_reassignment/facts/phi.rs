@@ -5,8 +5,7 @@ use lang_frontend::ownership_checking::{
     IterationPhiIncomingKind as K, IterationPhiPresenceSource, MapIterationOwnershipPlan,
 };
 pub(super) fn check(
-    site: &ast::Site,
-    l: &ast::Loop,
+    (site, l): (&ast::Site, &ast::Loop),
     root: SymbolId,
     p: &MapIterationOwnershipPlan,
     owned: &OwnershipCheckedFile,

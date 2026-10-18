@@ -74,8 +74,7 @@ pub(super) fn check(
             providers.push(provider::check(
                 &g,
                 module,
-                sources,
-                parsed,
+                (sources, parsed),
                 l,
                 anchors[l.epoch],
                 &families[l.epoch],

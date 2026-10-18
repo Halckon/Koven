@@ -1,6 +1,6 @@
 //! Exact birth, live Exit-to-Header transport and final Pure ASAP owner obligation.
 use super::*;
-pub(super) fn check(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check(
     site: &Scanner,
     loop_site: &Loop,
     root: SymbolId,

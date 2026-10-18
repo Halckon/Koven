@@ -1,7 +1,7 @@
 //! Factory-formed Resource Map locals retain their original owner through all exits.
 mod boundaries;
-mod facts;
-mod graph;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},
