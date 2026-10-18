@@ -740,7 +740,9 @@ pub(super) fn ssa(program: &Program, input: &Input, unit: bool) -> Result<(), Fa
     }
     let entry = g.branch(pre)?;
     let back = g.branch(body)?;
-    let carries_seed = input.owned || unit;
+    // Ordinary Map frame transport may also carry the Single Borrow parameter.
+    // Prove that column's full incoming identity instead of requiring one SSA shape.
+    let carries_seed = input.owned || unit || entry.arguments.contains(seed);
     let (hseed, bseed, xseed) = if carries_seed {
         let h = g.transported(entry, *seed)?;
         (
@@ -803,6 +805,9 @@ pub(super) fn ssa(program: &Program, input: &Input, unit: bool) -> Result<(), Fa
         (source_end, marker),
     )?;
     let roles = [*seed, hseed, bseed, xseed];
+    for role in roles {
+        g.anchored(role, &[*seed])?;
+    }
     let drops = g.instructions.iter().copied().filter(|i| matches!(i.operation, Operation::Drop { owner } if roles.contains(&EntityId::Value(owner)))).collect::<Vec<_>>();
     if input.owned {
         need(
@@ -811,7 +816,7 @@ pub(super) fn ssa(program: &Program, input: &Input, unit: bool) -> Result<(), Fa
             &drops,
         )?;
     } else {
-        need(drops.is_empty() && !g.instructions.iter().any(|i| matches!(i.operation, Operation::BorrowEnd { loan } if EntityId::Loan(loan) == *seed)), "resource scanner protects caller loan", &drops)?;
+        need(drops.is_empty() && !g.instructions.iter().any(|i| matches!(i.operation, Operation::BorrowEnd { loan } if roles.contains(&EntityId::Loan(loan)))), "resource scanner protects every current caller-loan alias", &drops)?;
     }
     let reader = function(module, input.read)?;
     let read = one(
