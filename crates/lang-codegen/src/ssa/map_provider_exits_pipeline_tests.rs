@@ -14,6 +14,7 @@ mod query_inputs;
 mod query_ssa;
 mod query_test;
 mod temporary;
+mod temporary_exits;
 
 pub(crate) use conditional::sources as conditional_sources;
 pub(crate) use nested::sources as nested_sources;

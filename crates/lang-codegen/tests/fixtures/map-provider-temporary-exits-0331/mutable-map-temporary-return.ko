@@ -1,0 +1,46 @@
+class Guard { deinit() { println("local-drop") } }
+fun read(key: String, value: String): Unit {
+  println(key)
+  println(value)
+}
+fun makeMutable(): MutableMap<String, String> {
+  println("make-mutable-nonempty")
+  var source = mutableMapOf<String, String>()
+  source.put("z".clone(), "first".clone())
+  source.put("a".clone(), "second".clone())
+  return source
+}
+fun makeEmptyMutable(): MutableMap<String, String> {
+  println("make-mutable-empty")
+  var source = mutableMapOf<String, String>()
+  return source
+}
+fun operand(key: String, value: String): Int {
+  println("operand")
+  read(key, value)
+  return 7
+}
+fun scanNonempty(): Int {
+  for ((key, value) in makeMutable()) {
+    val local = Guard()
+    return operand(key, value)
+  }
+  println("exhausted")
+  return 0
+}
+fun scanEmpty(): Int {
+  for ((key, value) in makeEmptyMutable()) {
+    val local = Guard()
+    return operand(key, value)
+  }
+  println("exhausted")
+  return 0
+}
+fun entry(): Unit {
+  println("nonempty")
+  val result = scanNonempty()
+  if (result == 7) { println("returned-7") } else { println("unexpected-nonempty-result") }
+  println("empty")
+  val emptyResult = scanEmpty()
+  if (emptyResult == 0) { println("returned-0") } else { println("unexpected-empty-result") }
+}
