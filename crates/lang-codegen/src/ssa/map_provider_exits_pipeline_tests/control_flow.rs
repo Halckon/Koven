@@ -163,6 +163,142 @@ fn observe(label: &str, text: &str, unit: bool) -> Result<(), Failure> {
     Ok(())
 }
 
+/// Return operands differ in delivery, without changing the provider protocol.
+pub(crate) fn return_sources() -> Vec<Case> {
+    let mut cases = Vec::new();
+    for mutable in [false, true] {
+        let kind = if mutable { "MutableMap" } else { "Map" };
+        for tag in [
+            "literal-int",
+            "bare-unit",
+            "call-unit",
+            "owned-string",
+            "copyable-payload",
+            "int-key-checked",
+            "move-inline-payload",
+        ] {
+            let (declaration, key, value, put, read, actual) = match tag {
+                "copyable-payload" => (
+                    "",
+                    "Int",
+                    "Int",
+                    "result.put(1,11);result.put(2,22)",
+                    "if(key==1){println(\"key-one\")}else{if(key==2){println(\"key-two\")}else{error(\"bad-key\")}};if(value==11){println(\"value-eleven\")}else{if(value==22){println(\"value-twenty-two\")}else{error(\"bad-value\")}}",
+                    "key-one\nvalue-eleven\n",
+                ),
+                "int-key-checked" => (
+                    "",
+                    "Int",
+                    "String",
+                    "result.put(1,\"first\".clone());result.put(2,\"second\".clone())",
+                    "if(key==1){println(\"key-one\")}else{if(key==2){println(\"key-two\")}else{error(\"bad-key\")}};println(value)",
+                    "key-one\nfirst\n",
+                ),
+                "move-inline-payload" => (
+                    "value class Payload(val text:String)\n",
+                    "String",
+                    "Payload",
+                    "result.put(\"keep\".clone(),Payload(\"first\".clone()));result.put(\"tail\".clone(),Payload(\"second\".clone()))",
+                    "println(key);println(value.text)",
+                    "keep\nfirst\n",
+                ),
+                _ => (
+                    "",
+                    "String",
+                    "String",
+                    "result.put(\"keep\".clone(),\"first\".clone());result.put(\"tail\".clone(),\"second\".clone())",
+                    "println(key);println(value)",
+                    "keep\nfirst\n",
+                ),
+            };
+            let (return_type, operand, tail, marker) = match tag {
+                "bare-unit" => ("Unit", "return", "", ""),
+                "call-unit" => ("Unit", "unitOperand();return", "", "operand-unit\n"),
+                "owned-string" | "move-inline-payload" => (
+                    "String",
+                    "return \"delivered\".clone()",
+                    "return \"empty-result\".clone()",
+                    "",
+                ),
+                "int-key-checked" => ("Int", "return key+6", "return 0", ""),
+                _ => ("Int", "return 7", "return 0", ""),
+            };
+            let finish = if mutable {
+                "return result"
+            } else {
+                "val output=result.consume();return output"
+            };
+            let mut entry = String::new();
+            for (filled, suffix) in [(true, "Nonempty"), (false, "Empty")] {
+                let state = if filled { "nonempty" } else { "empty" };
+                entry.push_str(&format!(
+                    "println(\"{state}\");val source{suffix}=make({filled});"
+                ));
+                let call = format!("scan(source{suffix})");
+                match return_type {
+                    "Unit" => entry.push_str(&format!("{call};println(\"unit-returned\")")),
+                    "String" => entry.push_str(&format!(
+                        "val result{suffix}={call};println(result{suffix})"
+                    )),
+                    _ => entry.push_str(&check_result(&call, suffix)),
+                }
+                entry.push_str(&format!(";println(\"after-{state}\");"));
+            }
+            let returned = match return_type {
+                "Unit" => "unit-returned\n",
+                "String" => "delivered\n",
+                _ => "returned\n",
+            };
+            let empty = match return_type {
+                "Unit" => "unit-returned\n",
+                "String" => "empty-result\n",
+                _ => "zero\n",
+            };
+            let source = format!(
+                "class Guard{{deinit(){{println(\"guard-drop\")}}}}\n\
+                 {declaration}fun make(own filled:Boolean):{kind}<{key},{value}>{{println(\"factory\");var result=mutableMapOf<{key},{value}>();if(filled){{{put}}};{finish}}}\n\
+                 fun read(key:{key},value:{value}):Unit{{{read}}}\n\
+                 fun unitOperand():Unit{{println(\"operand-unit\")}}\n\
+                 fun scan(input:{kind}<{key},{value}>):{return_type}{{for((key,value) in input){{val guard=Guard();read(key,value);{operand}}};{tail}}}\n\
+                 fun entry():Unit{{{entry}}}\n"
+            );
+            cases.push(Case {
+                label: format!("ordinary-return-{kind}-{tag}"),
+                source,
+                golden: format!(
+                    "nonempty\nfactory\n{actual}{marker}guard-drop\n{returned}after-nonempty\nempty\nfactory\n{empty}after-empty\n"
+                ),
+                flow: Flow::Return,
+                mode: Source::Borrow,
+                mutable,
+            });
+        }
+    }
+    assert_eq!(cases.len(), 14);
+    cases
+}
+
+#[test]
+fn ordinary_return_delivery_reaches_both_pipelines() {
+    let mut outcomes = Vec::new();
+    for case in return_sources() {
+        for unit in [false, true] {
+            println!(
+                "ORDINARY RETURN INPUT case={} unit={unit} source={:?} golden={:?}",
+                case.label, case.source, case.golden
+            );
+            let result = observe(&case.label, &case.source, unit);
+            println!(
+                "ORDINARY RETURN CASE case={} unit={unit} result={result:?}",
+                case.label
+            );
+            outcomes.push(result);
+        }
+    }
+    assert_eq!(outcomes.len(), 28);
+    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+}
+
 #[test]
 fn ordinary_conditional_sources_reach_both_pipelines() {
     let mut outcomes = Vec::new();
