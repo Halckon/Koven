@@ -234,6 +234,6 @@ impl Body<'_, '_> {
             "temporary SSA no K/V or derived loan escapes body edges",
             &graph.edges,
         )?;
-        Ok(value(next)?)
+        value(next)
     }
 }
