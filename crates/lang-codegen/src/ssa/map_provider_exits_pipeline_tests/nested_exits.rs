@@ -2,6 +2,14 @@
 //! 十二次 fresh 同源 pipeline 全部观察后统一硬成功；不执行 native，不预言复杂 cleanup 拓扑。
 mod ast;
 mod guards;
+mod query_body;
+mod query_callers;
+mod query_graph;
+mod query_inputs;
+mod query_resources;
+mod query_ssa;
+mod query_tail;
+mod query_test;
 mod single;
 mod unit;
 
