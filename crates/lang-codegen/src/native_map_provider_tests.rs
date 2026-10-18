@@ -201,3 +201,6 @@ mod local_resource_future;
 
 #[path = "native_map_provider_temporary_forms_tests.rs"]
 mod temporary_forms;
+
+#[path = "native_map_provider_temporary_arguments_tests.rs"]
+mod temporary_arguments;

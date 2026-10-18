@@ -24,6 +24,7 @@ mod resource_forms;
 mod sequential;
 mod source_forms;
 mod temporary;
+mod temporary_argument_cfg;
 mod temporary_arguments;
 mod temporary_exits;
 mod temporary_forms;
@@ -45,6 +46,7 @@ pub(crate) use resource_forms::sources as resource_form_sources;
 pub(crate) use sequential::sources as sequential_sources;
 pub(crate) use source_forms::sources as source_form_sources;
 pub(crate) use temporary::sources as temporary_sources;
+pub(crate) use temporary_arguments::sources as temporary_argument_sources;
 pub(crate) use temporary_exits::native_sources as temporary_exit_sources;
 pub(crate) use temporary_forms::sources as temporary_form_sources;
 
