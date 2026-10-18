@@ -129,10 +129,13 @@ pub(in super::super) fn shape(
         if *source != descriptor.source() {
             return Err(missing());
         }
+        let canonical = crate::ssa::map_source::transparent_expression(parsed, *source, |id| {
+            typed.expression_type(id).zip(typed.expression_category(id))
+        })?;
         let node = parsed
             .ast()
             .expressions()
-            .get(*source)
+            .get(canonical)
             .map_err(|_| missing())?;
         if node.payload() != &Expression::Name {
             return Err(unsupported());

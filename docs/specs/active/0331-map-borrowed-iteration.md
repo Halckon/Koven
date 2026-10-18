@@ -788,3 +788,46 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   产物审查核12 Resource程序的24个ASan/LSan结果、两host generated16例及各自运行合同。Mac
   sanitizer仍partial/requirements_met=false，UBSan未覆盖。这些旧头证据不覆盖本片Break/Return；
   新头完整CI及产物审查仍待。横向矩阵继续列具体合同内缺口，0331仍active，不归档/合并或进入D10。
+
+## 45. F 单一缺口账本与 G4／Group 首片（2026-10-18）
+
+`3d333853`完整远端 CI `39119068150/a1` 已全绿；该轮三份当前 artifact 已独立只读核验，
+不再等待旧轮 CI。Linux Resource 12 plain／24 ASan/LSan 与 generated 两端各16病例均核对
+输入、诊断、原日志及校准记录；Mac generated 仍为 partial/requirements_met=false，UBSan未覆盖。
+这些证据只属于该固定头，不能覆盖后续提交。
+
+同头横向诊断83份普通源、166双入口观察：44条LLVM成功、120条Unsupported、2条FE L0164；
+Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48源/96观察为已有表示的For实现缺口，
+12源/24观察有nullable ABI前置，1源/2观察有Borrow-result continuation前置；22源/44观察成功，
+其中8源为正控制。G6的非nullable Borrow Int/String、Int/Int、MoveOnly payload N/C/B实际成功，
+撤回此前把它们全部列拒绝的判断；String?控制在无For时也受既有ABI前置阻塞。
+
+以下是F剩余工作的唯一里程碑账本；各项归属SPEC-0331，不转交D10，不把阶段边界当最终豁免。
+全部闭合及新头完整CI/独审之前，0331保持active、不归档或合并。
+
+| 组 | 实际范围与依赖 | 归属／当前状态 |
+|---|---|---|
+| G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，未闭合；在G9当前owner寿命基础上推进 |
+| G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，未闭合；条件依赖G7 |
+| G4 | own MutableMap参数N/C/B/R，复用已验证Value/Owned参数及原清理 | 0331，本节首片；新头CI待绑定 |
+| G5 | 有字段Resource、结构性Resource、非String key；先复用既有storage/Drop表示 | 0331，下一片；nullable结构ABI不据此新增 |
+| G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331 Return缺口未闭合；ABI前置另行明确验收，不能静默省略 |
+| G7 | 一般合法Return operand、单If/两live arm、条件/checked组合；需逐路径cleanup | 0331，未闭合；不把普通合法表达式改成白名单 |
+| G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，未闭合；在单层source/CFG事实之后推进 |
+| G9 | 非Resource own参数在N/C/B后继续使用；须真实last-use寿命，不能套Resource词法延寿 | 0331，未闭合；下一阶段owner未来使用基础 |
+| G10 | 透明Group、moved alias与Borrow-result；后两者分别依赖Move/continuation事实 | 0331，Group首片；alias未闭合，Borrow-result FE前置仍在 |
+
+G4仅在原kind/intrinsic K/V与mode/binding/access完全匹配后接通Value MutableMap，继续排除
+Inout/Field。Group共用纯透明映射：每层type/category相同，descriptor/loan.source及Entry point
+保持outer，临时source_kind/loan.origin/Drop和实际Call保持canonical leaf。仅lower leaf一次，
+不创建wrapper owner alias；原完整incoming、owner数量及清理证明不放松。local/nested也用该映射。
+
+首片41源包括四个own MutableMap N/C/B/R及37个triple Group对照，源码名单/唯一标签/82观察均硬锁。
+最终82条双入口完整FE/SSA/LLVM通过，37组各自与直接源的LLVM字节相等。独立查询分别核outer/leaf、
+真实参数mode、temporary Drop及Entry点；G4另核实际owner RootPlace、每个Drop的全部incoming到原参数，
+每条正常退出恰一次Map Drop。旧Group五路保留全部FE查询并要求真实entry/SSA/LLVM成功。
+82个普通native产物均exit0/完整golden/空stderr，覆盖非空/空输入；不证明动态free/无泄漏。
+最终16项ordinary Rust、fmt/workspace all-targets check/clippy(-D warnings)/build通过，输入摘要前后相同。
+独审发现的名单可能静默缩减、Unit mode缺查询均已补齐复核；初轮clippy失败日志保留。
+参考红用精确`3d333853`的10个tracked生产文件旧字节执行最终测试，82观察均停于原For Unsupported，
+Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障、校准、合成损坏或sanitizer。

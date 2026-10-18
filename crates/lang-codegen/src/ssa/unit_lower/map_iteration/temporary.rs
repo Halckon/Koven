@@ -15,7 +15,17 @@ pub(super) fn qualify(
     let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
     let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
     let statement = descriptor.statement();
-    let source = descriptor.source();
+    let source = UnitExpressionId::new(
+        statement.source_unit(),
+        crate::ssa::map_source::transparent_expression(
+            parsed,
+            descriptor.source().expression(),
+            |id| {
+                let id = UnitExpressionId::new(statement.source_unit(), id);
+                typed.expression_type(id).zip(typed.expression_category(id))
+            },
+        )?,
+    );
     let source_node = parsed
         .ast()
         .expressions()
@@ -123,7 +133,7 @@ pub(super) fn qualify(
             || binding.kind() != OwnershipBindingKind::Shared
             || owned.binding_kind(bindings[index]) != Some(OwnershipBindingKind::Shared)
             || loan.statement() != statement
-            || loan.source() != source
+            || loan.source() != descriptor.source()
             || loan.component() != component
             || loan.binding() != bindings[index]
             || loan.origin() != &UnitLoanTarget::Temporary(source)
@@ -335,10 +345,15 @@ fn qualify_transfer(
     let body_exit = qualify_body(parsed, names, typed, descriptor, body, span)?;
     let body_point = body_point(statement, body, body_exit);
     let plan = owned.map_iteration(statement).ok_or_else(bad)?;
+    let IterationSource::BorrowedSource(UnitLoanTarget::Temporary(source)) = plan.source_kind()
+    else {
+        return Err(bad());
+    };
+    let source = *source;
     let source_origin = parsed
         .ast()
         .expressions()
-        .get(descriptor.source().expression())
+        .get(source.expression())
         .map_err(|_| bad())?
         .span();
     let (source_drop, transfer_drop) = cleanup::qualify(
@@ -352,7 +367,7 @@ fn qualify_transfer(
     )?;
     Ok(Some(QualifiedMap {
         statement,
-        source: SourceIdentity::Temporary(descriptor.source()),
+        source: SourceIdentity::Temporary(source),
         source_drop: Some(source_drop),
         late_drop: None,
         transfer_drop,

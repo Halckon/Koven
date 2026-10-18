@@ -141,10 +141,14 @@ fn qualify_one(
     {
         return Err(missing());
     }
+    let canonical = crate::ssa::map_source::transparent_expression(parsed, *source, |id| {
+        let id = UnitExpressionId::new(statement.source_unit(), id);
+        typed.expression_type(id).zip(typed.expression_category(id))
+    })?;
     let source_node = parsed
         .ast()
         .expressions()
-        .get(*source)
+        .get(canonical)
         .map_err(|_| missing())?;
     if matches!(source_node.payload(), Expression::Call { .. }) {
         if nested.is_some() {
@@ -262,25 +266,11 @@ fn qualify_one(
     if binding != expected_binding || plan.source_access() != expected_access {
         return Err(missing());
     }
-    // Check whole supported rows, never a cross-product of independently accepted fields.
+    // Binding/access were checked against the actual parameter mode above;
+    // both intrinsic container kinds use the same owned/shared source protocol.
     let supported = matches!(
-        (
-            descriptor.kind(),
-            parameter.mode(),
-            binding,
-            plan.source_access()
-        ),
-        (
-            MapIterationKind::Map,
-            ParameterMode::Value,
-            OwnershipBindingKind::Owned,
-            UnitIterationSourceAccess::Owned
-        ) | (
-            MapIterationKind::Map | MapIterationKind::MutableMap,
-            ParameterMode::Borrow,
-            OwnershipBindingKind::Shared,
-            UnitIterationSourceAccess::Shared
-        )
+        parameter.mode(),
+        ParameterMode::Value | ParameterMode::Borrow
     );
     if !supported {
         return Err(unsupported());

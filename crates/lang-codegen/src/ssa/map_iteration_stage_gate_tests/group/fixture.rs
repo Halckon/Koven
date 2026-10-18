@@ -1,7 +1,7 @@
-//! 新 Group 边界的唯一精确拒绝合同；缺 oracle 与成功均不得冒充 U。
+//! Successful Group admission retains the original source-set and returned entry identities.
 pub(super) use super::super::fixture::{Fixture, Location, Stopped, clean, location, stopped};
 use crate::ssa::{
-    LoweringError, LoweringErrorKind,
+    LoweringError,
     model::{FunctionId, Origin, Program},
     verify::verify_program,
 };
@@ -13,6 +13,7 @@ pub(super) struct LowerOutcome {
     error: Option<LoweringError>,
     actual_rejection: Option<Location>,
     success: Option<String>,
+    verified: bool,
 }
 
 impl LowerOutcome {
@@ -22,6 +23,7 @@ impl LowerOutcome {
         expected_entry: Option<Location>,
         result: Result<(Program, FunctionId), LoweringError>,
     ) -> Self {
+        let mut verified = false;
         let (error, success) = match result {
             Err(error) => (Some(error), None),
             Ok((program, entry)) => {
@@ -41,6 +43,9 @@ impl LowerOutcome {
                 let verified_llvm_bytes = crate::llvm::render_verified_program(&program)
                     .map(|llvm| llvm.len())
                     .map_err(|error| format!("{error:?}"));
+                verified = entry_identity == Some(entry)
+                    && ssa_verifier.is_ok()
+                    && verified_llvm_bytes.is_ok();
                 (
                     None,
                     Some(format!(
@@ -58,19 +63,17 @@ impl LowerOutcome {
             error,
             actual_rejection,
             success,
+            verified,
         }
     }
 
     pub fn matches(&self) -> bool {
-        self.expected_rejection.as_ref().is_ok_and(|expected| {
-            self.error
-                == Some(LoweringError {
-                    kind: LoweringErrorKind::UnsupportedNode,
-                    span: Some(expected.span),
-                })
-                && self.actual_rejection.as_ref() == Some(expected)
-                && expected.text == super::FOR_GROUP
-                && self.success.is_none()
-        })
+        self.expected_rejection
+            .as_ref()
+            .is_ok_and(|original| original.text == super::FOR_GROUP)
+            && self.error.is_none()
+            && self.actual_rejection.is_none()
+            && self.success.is_some()
+            && self.verified
     }
 }

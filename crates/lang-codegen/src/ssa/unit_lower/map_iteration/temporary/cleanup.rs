@@ -13,6 +13,10 @@ pub(super) fn qualify(
     let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
     let descriptor = plan.descriptor();
     let statement = descriptor.statement();
+    let IterationSource::BorrowedSource(UnitLoanTarget::Temporary(source)) = plan.source_kind()
+    else {
+        return Err(bad());
+    };
     let terminal = match body_exit {
         UnitIterationExitKind::Continue(_) => false,
         UnitIterationExitKind::Break(_) | UnitIterationExitKind::Return(_) => true,
@@ -34,7 +38,7 @@ pub(super) fn qualify(
         .drops()
         .iter()
         .copied()
-        .filter(|fact| fact.target() == UnitDropTarget::Temporary(descriptor.source()))
+        .filter(|fact| fact.target() == UnitDropTarget::Temporary(*source))
         .collect::<Vec<_>>();
     if sources.len() != 1 + usize::from(terminal)
         || sources

@@ -1,4 +1,4 @@
-//! 新 Group whole-set 候选首证；不修改旧 stagegate6/whole5 的源码或 oracle。
+//! Group whole-set admission; original five fresh frontend identity paths remain required.
 //! 五次 fresh 实际管线全收集后断言；FE 红不能变成 Unsupported，查询红不能阻止 lower。
 mod ast;
 mod cleanup;
@@ -92,7 +92,7 @@ fn observe(pathway: Pathway, reverse_inputs: bool) -> Observation {
 }
 
 #[test]
-fn grouped_sources_reject_whole_set_at_first_actual_group_identity() {
+fn grouped_sources_reach_verified_llvm_with_actual_group_identity() {
     let mut observations = vec![observe(Pathway::Single, false)];
     for pathway in [Pathway::Basic, Pathway::Const] {
         for reverse in [false, true] {
@@ -113,8 +113,6 @@ fn grouped_sources_reject_whole_set_at_first_actual_group_identity() {
     }
     assert!(
         observations.len() == 5 && observations.iter().all(Observation::passed),
-        "新 Group 候选必须五路 fresh 完整 FE/ownership/validator/view 后，\
-         对真实 Group 集合按当轮 typed identity 精确 whole-For UnsupportedNode；\
-         未形成事实保持真实红，不把前置错误、MissingFact 或任意成功算作 U。\n{observations:#?}"
+        "Group whole-set must preserve every original FE identity query and reach verified LLVM on all five fresh paths.\n{observations:#?}"
     );
 }

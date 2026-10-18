@@ -20,6 +20,7 @@ mod query_ssa;
 mod query_test;
 mod resource;
 mod sequential;
+mod source_forms;
 mod temporary;
 mod temporary_exits;
 
@@ -36,6 +37,7 @@ pub(crate) use resource::sources as resource_sources;
 pub(crate) use resource::terminated::returning::sources as resource_return_sources;
 pub(crate) use resource::terminated::sources as resource_break_sources;
 pub(crate) use sequential::sources as sequential_sources;
+pub(crate) use source_forms::sources as source_form_sources;
 pub(crate) use temporary::sources as temporary_sources;
 pub(crate) use temporary_exits::native_sources as temporary_exit_sources;
 

@@ -86,8 +86,8 @@ fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
   展示不同来源；另有有界[Borrow 直接退出](../../crates/lang-codegen/tests/fixtures/map-provider-borrow-exits-0331/map-borrow-break.ko)
   与[Resource 分量正常耗尽](../../crates/lang-codegen/tests/fixtures/map-provider-resource-0331/map-resource.ko)回归源码。
   具体 kind/access、退出和嵌套范围见[Map 支持矩阵](../architecture/map-borrowed-iteration.md)。
-  这些是后端回归来源，尚未新增本页公开 CLI 合同；Field/Inout 原生按 Guide 延后，Group 与其他
-  未验组合仍按支持矩阵中的当前实现边界报告。
+  这些是后端回归来源，尚未新增本页公开 CLI 合同；Field/Inout 原生按 Guide 延后；own MutableMap 的 String/String 四种退出及透明 Group
+  来源补片见支持矩阵，其他未验组合仍按当前实现边界报告。
 - 集合 `forEach`/`map`/`filter` 与未列出的集合/格式化 API 仍未交付。词频里的 `decimal`
   是本页实现的普通函数，不是标准库格式化接口。
 

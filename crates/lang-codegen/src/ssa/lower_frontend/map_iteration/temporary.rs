@@ -24,7 +24,10 @@ pub(super) fn qualify<'a>(
     let missing = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     let descriptor = plan.descriptor();
-    let source = descriptor.source();
+    let source =
+        crate::ssa::map_source::transparent_expression(parsed, descriptor.source(), |id| {
+            typed.expression_type(id).zip(typed.expression_category(id))
+        })?;
     let node = parsed
         .ast()
         .expressions()
@@ -136,7 +139,7 @@ pub(super) fn qualify<'a>(
             || loan.binding() != symbol
             || loan.component() != component
             || loan.statement() != descriptor.statement()
-            || loan.source() != source
+            || loan.source() != descriptor.source()
             || loan.origin() != &LoanTarget::Temporary(source)
             || loan.kind() != lang_frontend::ownership_checking::LoanKind::Shared
             || typed.symbol_type(symbol)

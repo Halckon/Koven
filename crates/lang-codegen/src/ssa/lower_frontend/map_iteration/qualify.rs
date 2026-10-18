@@ -104,10 +104,13 @@ fn qualify_one<'a>(
     {
         return Err(missing());
     }
+    let canonical = crate::ssa::map_source::transparent_expression(parsed, *source, |id| {
+        typed.expression_type(id).zip(typed.expression_category(id))
+    })?;
     let source_node = parsed
         .ast()
         .expressions()
-        .get(*source)
+        .get(canonical)
         .map_err(|_| missing())?;
     if plan.source_access() == MapIterationSourceAccess::Temporary {
         return temporary::qualify(parsed, names, typed, owned, plan, *body, span);
@@ -162,13 +165,7 @@ fn qualify_one<'a>(
     if (binding, access) != expected_access {
         return Err(missing());
     }
-    if !matches!(
-        (descriptor.kind(), mode),
-        (
-            MapIterationKind::Map,
-            ParameterMode::Value | ParameterMode::Borrow
-        ) | (MapIterationKind::MutableMap, ParameterMode::Borrow)
-    ) {
+    if !matches!(mode, ParameterMode::Value | ParameterMode::Borrow) {
         return Err(unsupported());
     }
     let constructor = match descriptor.kind() {

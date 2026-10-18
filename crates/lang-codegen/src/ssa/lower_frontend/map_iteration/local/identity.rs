@@ -218,7 +218,14 @@ fn declaration(
     if symbol.is_synthetic()
         || *marker != symbol.span()
         || !owned.formed_owned_locals().contains(&root)
-        || reference(parsed, names, descriptor.source(), span)? != root
+        || reference(
+            parsed,
+            names,
+            crate::ssa::map_source::transparent_expression(parsed, descriptor.source(), |id| {
+                typed.expression_type(id).zip(typed.expression_category(id))
+            })?,
+            span,
+        )? != root
         || plan.source_kind() != &IterationSource::BorrowedSource(source.clone())
         || plan.source_access() != MapIterationSourceAccess::Owned
         || typed.expression_category(descriptor.source()) != Some(ExpressionCategory::Place)

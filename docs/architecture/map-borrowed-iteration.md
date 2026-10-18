@@ -21,7 +21,7 @@ source 求值、分量与 source 清理由已验证事实交付，SSA verifier �
 具体命令及输入身份见0331本机账本；stdout 不证明精确动态分配/释放次数或无泄漏。
 local A/B 的独立同次 FE owner、全 incoming 与受保护 operand 深查询已补齐，见下节。
 
-Group 仍由真实源码阶段门精确拒绝；Field/Inout、direct Borrow-return continuation、
+Group 的后续准入见下节；Field/Inout、direct Borrow-return continuation、
 更一般 source/CFG、nullable K/V 组合不由本表开放。body-local Guard 的析构
 正例不等于 Map 的 Resource 分量支持。Map Borrow 的直接退出
 补片和Unit闭包前端修复另见下节，本表不据云端摘要扩张。私有损坏事实与故障对照仅在
@@ -51,7 +51,7 @@ Pure 邻控。新重建的十份拒绝与五份合法源码均运行 single/unit
 清理路径，不取得caller owner。普通源码reference→scan参数root与caller Shared交接
 已有同次独立只读查询；八路SSA/LLVM及八个native产物正常exit/golden/空stderr通过。
 fixture目录为`map-provider-borrow-exits-0331`。这是有界重建，不宣称原云提交/collector
-恢复、任意CFG或动态释放计数；原Field/Inout/Group及Borrow-return来源阶段门保持。
+恢复、任意CFG或动态释放计数；原Field/Inout及Borrow-return来源阶段门保持，Group后续准入见下节。
 
 
 ## Resource 分量的有限遍历与退出
@@ -142,10 +142,23 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 | own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；Resource仍限显式deinit且无泛型/接口 |
 | Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；Resource的Mutable另验N | caller size/Mutable put已验；nullable Shared N尚无专门锁定 |
 | Borrow参数等既有admission | Int/String等 | 部分N及有限sequential | 不把静态通用component cleanup接纳当全payload native实证 |
-| own MutableMap参数 | 各payload | 未接通 | 不能由owned local MutableMap或Borrow MutableMap替代 |
-| Field/Inout来源 | 现有类型 | 前端合同 | Guide37.4明确native延后；Group阶段门保持 |
+| own MutableMap参数 | String/String | N/C/B/R | 本节后续G4首片；其他payload另验 |
+| Field/Inout来源 | 现有类型 | 前端合同 | Guide37.4明确native延后；不由Group准入扩大 |
 
 非Resource Return仍限制直接双Borrow分量调用且Int结果。Resource本片另验Unit/Int/String及直接checked加法；
 其他合法operand、ABI及更一般CFG尚未系统验收，不能把有限ordinary lowering接纳外推全部支持。
 以上非Field/Inout的具体能力缺口不能统称Guide staging；普通Resource类的字段/泛型/接口、
 其他key/value与更一般source/CFG需分别验收，不能在本轮Break/Return通过后宣称F全矩阵闭合。
+
+
+## own MutableMap 与透明 Group 来源
+
+`source_forms` 的四份own MutableMap String/String源覆盖N/C/B/R，另有37份triple Group源，
+分别复用已有参数、temporary、local和同根nested的源码与golden。每层Group只传递相同typed
+类型/category；descriptor和loan.source保留outer，temporary真实call/owner/Drop保留leaf，
+Entry点仍对应outer。只求值leaf一次，不放松owner alias或完整incoming校验。原五条fresh
+single/basic/const whole-set Group测试改为SSA/LLVM硬成功，保留全部原FE身份查询。
+
+41源共82条双入口SSA/LLVM通过，37组对照各自LLVM字节相等；82个普通native产物硬核
+exit0/golden/空stderr。四个own MutableMap及其Group变体另核实际RootPlace、Drop的全部
+incoming回到原参数，以及每条正常退出恰一次Map Drop。不是所有payload/CFG组合的验收完成。

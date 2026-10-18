@@ -17,7 +17,10 @@ pub(super) fn prove(
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     let descriptor = plan.descriptor();
     let statement = descriptor.statement();
-    let source = descriptor.source();
+    let IterationSource::BorrowedSource(LoanTarget::Temporary(source)) = plan.source_kind() else {
+        return Err(missing());
+    };
+    let source = *source;
     let origin = parsed
         .ast()
         .expressions()
@@ -40,7 +43,7 @@ pub(super) fn prove(
     let conditions = owned.cleanup_conditions();
     let mut incomings = vec![(
         IterationPhiIncomingKind::Entry,
-        DropPoint::AfterExpression(source),
+        DropPoint::AfterExpression(descriptor.source()),
         IterationPhiBoundary::Header,
     )];
     match kind {
@@ -363,7 +366,10 @@ fn normal(
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
     let descriptor = plan.descriptor();
     let statement = descriptor.statement();
-    let source = descriptor.source();
+    let IterationSource::BorrowedSource(LoanTarget::Temporary(source)) = plan.source_kind() else {
+        return Err(missing());
+    };
+    let source = *source;
     if !plan.closure_phis().is_empty()
         || !plan.closure_flow().header().is_empty()
         || !plan.closure_flow().exit().is_empty()
@@ -375,7 +381,7 @@ fn normal(
     let incoming_shapes = [
         (
             IterationPhiIncomingKind::Entry,
-            DropPoint::AfterExpression(source),
+            DropPoint::AfterExpression(descriptor.source()),
             IterationPhiBoundary::Header,
         ),
         (

@@ -199,10 +199,18 @@ pub(super) fn qualify(
         .iter()
         .filter(|reference| reference.target() == &UnitReferenceTarget::Symbol(root))
         .collect::<Vec<_>>();
+    let canonical = crate::ssa::map_source::transparent_expression(
+        parsed,
+        descriptor.source().expression(),
+        |id| {
+            let id = UnitExpressionId::new(source, id);
+            typed.expression_type(id).zip(typed.expression_category(id))
+        },
+    )?;
     let source_span = parsed
         .ast()
         .expressions()
-        .get(descriptor.source().expression())
+        .get(canonical)
         .map_err(|_| bad())?
         .span();
     let other_uses = references

@@ -174,3 +174,6 @@ mod sequential_tests;
 
 #[path = "native_map_provider_resource_continuation_tests.rs"]
 mod resource_continuation_tests;
+
+#[path = "native_map_provider_source_forms_tests.rs"]
+mod source_forms;
