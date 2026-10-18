@@ -5,6 +5,7 @@ mod conditional;
 mod facts;
 mod fixture;
 mod identity;
+mod local_sources;
 mod nested;
 mod nested_exits;
 mod pipeline;
