@@ -23,8 +23,8 @@ local A/B 的独立全实体/全 incoming 深查询仍待，不用 collector 取
 
 Group 仍由真实源码阶段门精确拒绝；Field/Inout、direct Borrow-return continuation、
 更一般 source/CFG、nullable/Resource K/V 组合不由本表开放。body-local Guard 的析构
-正例不等于 Map 的 Resource 分量支持。Map Borrow 的直接退出扩展
-尚未恢复；本表不据云端摘要宣称支持。Unit 闭包前端修复另见下节。私有损坏事实与故障对照仅在
+正例不等于 Map 的 Resource 分量支持。Map Borrow 的直接退出
+补片和Unit闭包前端修复另见下节，本表不据云端摘要扩张。私有损坏事实与故障对照仅在
 GitHub Actions 执行，本次本机未运行；macOS sanitizer 合同仍为 partial。
 
 
@@ -42,3 +42,13 @@ Pure 邻控。新重建的十份拒绝与五份合法源码均运行 single/unit
 执行事实撤销及同次身份；它们不是原 active20/10 或完整四源 collector 的字节恢复。
 本片不增加 closure native 支持，也不证明 opaque nullable/容器包装函数环境的一般资源
 分类；其他未验递归形状仍保留继承边界。
+
+
+## Borrow Map 直接退出补片
+
+四份重建String/String fixture保留既有C/B/R固定尾及三分支conditional形状，来源改为
+直接Borrow Map参数；single/unit各消费自身完整validated事实，复用既有Shared provider
+清理路径，不取得caller owner。普通源码reference→scan参数root与caller Shared交接
+已有同次独立只读查询；八路SSA/LLVM及八个native产物正常exit/golden/空stderr通过。
+fixture目录为`map-provider-borrow-exits-0331`。这是有界重建，不宣称原云提交/collector
+恢复、任意CFG或动态释放计数；原Field/Inout/Group及Borrow-return来源阶段门保持。

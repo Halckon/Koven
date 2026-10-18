@@ -377,3 +377,34 @@ source-set；缺失/损坏事实先作为内部合同失败，不被能力门遮
   实际新增两目标后为114；389项Python中1项失败。clippy/test/四preview均跳过，
   code-evidence和CI Passed失败，不能计通过。修正总数并追加两目标各一次硬断言；
   该helper含stub与失败注入分支，只交远端执行，本机不运行其整个class/suite。
+
+
+## 29. PR 完整范围核对与本机 Borrow Map 直接退出重建（2026-10-18）
+
+- 重新读取远端：main仍`a2a7e4b`，固定云备份仍`60512fda`，tree仍`a800dd86`。
+  PR119的base为同一main；至`6f5e33aa`真实范围是云备份96个Git提交加本机14个，
+  共110个，净371路径。固定备份是PR祖先，不遗漏此前未合入0331功能。检查所有主题
+  和净路径，包含Map迭代、必要pattern诊断/entry Borrow回归修复、闭包恢复、文档及CI；
+  Guide无改动。“云53提交”尚无逐项原身份映射，不能据此声称本机恢复53个原提交。
+  完整SHA/路径清单保留任务目录`pr119-scope-audit.json`，大清单不复制入仓。
+- 四份重建源码来自现有Map无条件C/B/R及conditional fixture，只去scan参数的own，
+  同字节golden保持；并非原云collector恢复。首编两处DropTarget误取引用报E0308，
+  仅修测试API调用后，`55ad1565`真实1测试失败：八路FE/ownership/完整validator与
+  新前置检查全真，随后各在原For的UnsupportedNode停止，没有SSA/LLVM通过。
+- `9cbec0b7`只删除single与unit各一条Borrow Map专属旧禁用guard（合14行）。来源
+  整行资格、固定尾/conditional形状、String/String限制与完整cleanup消费保持；沿既有
+  Shared source路径运输caller能力，不改变Guide，不开放Field/Inout/Group/直接Borrow
+  return来源或一般CFG。补片后同一八路pipeline全部到达SSA verifier及LLVM验证。
+- 独审发现测试先从plan自取root且未核caller交接，已补独立原names/source reference
+  到scan实际Borrow参数root的比对；2/5个原caller调用各核真实selected scan、Borrow
+  参数映射、Shared loan及原argument root，unit另核SharedLoan合同且无Move delivery。
+  补强后exact实际1/0，八路全部检查通过，不称全实体/全incoming深query。
+- `47948fd2`接线两项普通native测试，四源×双入口八产物全部exit0/完整golden/空stderr；
+  沿用原helper，外层bounded运行未超时，不添加故障/计数/sanitizer对照。旧§26同44项
+  ordinary exact同生产源码复验，各实际1/0，56个旧native marker齐且provider运行前后
+  tracked摘要稳定。本片新增3个Rust测试，不将8条pipeline或8产物当8个独立Rust测试。
+  Resource分量后端与local深身份仍待；远端CI由主线程独立监视，未据新提交预报通过。
+
+- 本片最终fresh-context复审确认来源/caller证据finding关闭，未发现该有界组合新阻断；
+  fmt/check/clippy(-D warnings)/build四项全通过，文档704页检查通过。旧日志和新的逐项
+  收据、格式补丁均保留任务仓外；不据stdout扩称无泄漏或精确动态析构次数。
