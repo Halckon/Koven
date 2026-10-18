@@ -189,14 +189,43 @@ pub(super) fn observe(
         );
     }
     for (index, call) in a.scans.iter().enumerate() {
-        let local = symbol(names, a.locals[index].0);
+        let (marker, initializer) = a.locals[index];
+        let local = symbol(names, marker);
+        let initializer_type = typed.expression_type(initializer);
+        let initializer_call = typed.call(initializer);
+        let initializer_map = typed.map_construction(initializer);
+        // AST 已核真实 Val/initializer；formed 只证明形成历史，不授予当前可用性。
+        // 当前使用仍由下方真实 Borrow call/loan 与循环后的 size 引用独立核验。
         report.check(
-            "single nested actual caller owned local",
+            "single nested actual caller local formation and owned initializer",
             local.is_some_and(|id| {
-                owned.binding_kind(id) == Some(OwnershipBindingKind::Owned)
-                    && typed.symbol_type(id) == typed.expression_type(a.locals[index].1)
+                owned.formed_owned_locals().contains(&id)
+                    && names.symbols().iter().any(|symbol| {
+                        symbol.id() == id
+                            && symbol.span() == marker
+                            && symbol.kind() == SymbolKind::Variable
+                            && !symbol.is_synthetic()
+                    })
+                    && initializer_type.is_some_and(|ty| {
+                        typed.symbol_type(id) == Some(ty)
+                            && (initializer_call.is_some_and(|call| {
+                                call.expression() == initializer
+                                    && call.return_type() == ty
+                                    && call.result_source() == CallableResultSource::Owned
+                            }) || initializer_map.is_some_and(|map| {
+                                map.expression() == initializer && map.map_type() == ty
+                            }))
+                    })
             }),
-            (a.locals[index], local),
+            (
+                marker,
+                initializer,
+                local,
+                initializer_type,
+                initializer_call,
+                initializer_map,
+                owned.formed_owned_locals(),
+            ),
         );
         if let Some(local) = local {
             borrow_call(f, a, call, names, (typed, owned), &[local], report);
