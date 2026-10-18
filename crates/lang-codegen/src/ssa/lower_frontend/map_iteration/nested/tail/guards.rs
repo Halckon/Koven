@@ -10,7 +10,7 @@ use lang_frontend::{
     type_checking::{ConstructionTarget, NominalKind},
 };
 
-pub(super) fn local(
+pub(in super::super::super) fn local(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,

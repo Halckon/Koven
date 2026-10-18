@@ -2,7 +2,7 @@
 mod operand;
 mod tail;
 use super::*;
-pub(super) use tail::validate_cleanup as validate_tail_cleanup;
+pub(super) use tail::{guard as qualify_guard, validate_cleanup as validate_tail_cleanup};
 
 pub(super) fn pair(
     parsed: &ParsedFile,

@@ -1,11 +1,10 @@
-//! The observed temporary source has an Expression owner, not parameter closure phis.
+//! Temporary source exits retain the real Expression owner without parameter closure phis.
+mod cleanup;
+mod tail;
 use super::*;
 use lang_frontend::{
     name_resolution::ReferenceTarget,
-    ownership_checking::{
-        CleanupOwnerValue, DropTarget, IterationPhiBoundary, IterationPhiIncomingKind,
-        IterationSource, MapIterationComponent, OwnershipBindingKind,
-    },
+    ownership_checking::{IterationSource, MapIterationComponent, OwnershipBindingKind},
     parser::NameMarker,
     type_checking::{
         CallableResultSource, CallableTarget, ExpressionCategory, IntrinsicTypeConstructor,
@@ -146,148 +145,26 @@ pub(super) fn qualify<'a>(
             return Err(missing());
         }
     }
-    if qualify::has_enclosing_control(parsed, span)
-        || !qualify::straight_statement(parsed, typed, body)?
-    {
+    if qualify::has_enclosing_control(parsed, span) {
         return Err(unsupported());
     }
-    let proof = owner_proof(owned, plan, body, origin, span)?;
+    let body_exit = exit_shape::body_exit(parsed, names, typed, *descriptor, body, span)?;
+    let guard = if body_exit == IterationExitKind::Fallthrough {
+        None
+    } else {
+        Some(tail::guard(
+            parsed, names, typed, owned, body, body_exit, span,
+        )?)
+    };
+    let proof = cleanup::prove(parsed, owned, plan, body, body_exit, guard, span)?;
     Ok(qualify::Qualified {
         plan,
         source: SourceIdentity::Temporary(source),
         body,
         origin,
         owner: Some(proof),
-        body_exit: IterationExitKind::Fallthrough,
+        body_exit,
         conditional: None,
         nested: None,
-    })
-}
-
-fn owner_proof(
-    owned: &OwnershipCheckedFile,
-    plan: &MapIterationOwnershipPlan,
-    body: StatementId,
-    origin: Span,
-    span: Span,
-) -> Result<source_owner::Proof, LoweringError> {
-    let missing = || error(LoweringErrorKind::MissingFact, span);
-    let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
-    let descriptor = plan.descriptor();
-    let statement = descriptor.statement();
-    let source = descriptor.source();
-    if !plan.closure_phis().is_empty()
-        || !plan.closure_flow().header().is_empty()
-        || !plan.closure_flow().exit().is_empty()
-        || !plan.capture_graph().nodes().is_empty()
-    {
-        return Err(unsupported());
-    }
-    let conditions = owned.cleanup_conditions();
-    let incoming_shapes = [
-        (
-            IterationPhiIncomingKind::Entry,
-            DropPoint::AfterExpression(source),
-            IterationPhiBoundary::Header,
-        ),
-        (
-            IterationPhiIncomingKind::Fallthrough,
-            DropPoint::AfterStatement(body),
-            IterationPhiBoundary::Header,
-        ),
-        (
-            IterationPhiIncomingKind::Exhaustion,
-            DropPoint::LoopExit(statement),
-            IterationPhiBoundary::Exit,
-        ),
-    ];
-    for (kind, point, boundary) in incoming_shapes {
-        let incoming = unique(
-            plan.closure_phi_incomings()
-                .iter()
-                .filter(|incoming| incoming.kind() == kind),
-        )
-        .ok_or_else(missing)?;
-        if incoming.point() != point
-            || incoming.boundary() != boundary
-            || conditions.get(incoming.condition()) != Some(&CleanupCondition::Always)
-            || !incoming.bindings().is_empty()
-        {
-            return Err(missing());
-        }
-    }
-    if plan.closure_phi_incomings().len() != incoming_shapes.len() {
-        return Err(unsupported());
-    }
-    let drop = unique(
-        owned
-            .drops()
-            .iter()
-            .copied()
-            .filter(|fact| fact.target() == DropTarget::Temporary(source)),
-    )
-    .ok_or_else(missing)?;
-    if drop.point() != DropPoint::LoopExit(statement)
-        || drop.value_origin() != origin
-        || drop.condition().is_some()
-        || drop.capture_slot().is_some()
-        || drop.instance_address().is_some()
-    {
-        return Err(missing());
-    }
-    let owner = drop.owner().ok_or_else(missing)?;
-    if conditions.owner_value(owner)
-        != Some(&CleanupOwnerValue::Expression {
-            expression: source,
-            origin,
-        })
-        || owned
-            .drops()
-            .iter()
-            .any(|fact| fact.owner() == Some(owner) && *fact != drop)
-    {
-        return Err(missing());
-    }
-    exit_shape::cleanup(owned, plan, body, IterationExitKind::Fallthrough, span)?;
-    let body_plan = unique(
-        plan.exits()
-            .iter()
-            .filter(|exit| exit.kind() == IterationExitKind::Fallthrough),
-    )
-    .ok_or_else(missing)?;
-    let exhaustion = unique(
-        plan.exits()
-            .iter()
-            .filter(|exit| exit.kind() == IterationExitKind::Exhaustion),
-    )
-    .ok_or_else(missing)?;
-    let body_actions = [
-        IterationCleanupAction::EndBinding {
-            statement,
-            symbol: descriptor.value_binding(),
-        },
-        IterationCleanupAction::EndBinding {
-            statement,
-            symbol: descriptor.key_binding(),
-        },
-    ];
-    // Body-local owner combinations need their own first evidence. Do not silently
-    // extend this temporary source slice merely because generic straight-line AST fits.
-    if body_plan.actions() != body_actions {
-        return Err(unsupported());
-    }
-    if exhaustion.actions()
-        != [
-            IterationCleanupAction::FinishProvider(statement),
-            IterationCleanupAction::EndSource(statement),
-            IterationCleanupAction::Drop(drop),
-        ]
-    {
-        return Err(missing());
-    }
-    Ok(source_owner::Proof {
-        drop,
-        transfer: None,
-        conditional_return: None,
     })
 }

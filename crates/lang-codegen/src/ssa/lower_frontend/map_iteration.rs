@@ -731,6 +731,13 @@ impl ExpressionLowerer<'_> {
                         fact.value_origin(),
                     )?;
                 }
+                IterationCleanupAction::Drop(fact)
+                    if owner.is_some_and(|(_, source, _)| {
+                        matches!(source, SourceIdentity::Temporary(_))
+                    }) =>
+                {
+                    self.emit_temporary_map_local_drop(*fact, exit.point(), span)?;
+                }
                 IterationCleanupAction::Drop(_) => {
                     self.emit_iteration_cleanup_action(action, span)?
                 }

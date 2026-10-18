@@ -125,7 +125,7 @@ fn elements(
     Ok(elements)
 }
 
-fn guard(
+pub(in super::super) fn guard(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,

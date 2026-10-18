@@ -1,6 +1,7 @@
 //! A finite inner tail and two real Resource owners, before any SSA is allocated.
 mod guards;
 mod operand;
+pub(in super::super) use guards::local as qualify_guard;
 
 use super::*;
 use lang_frontend::{
