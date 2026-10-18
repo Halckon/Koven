@@ -21,6 +21,27 @@ pub(in super::super::super) struct Inputs {
     drops: Vec<Drop>,
     representation: Option<representation::Representation>,
     guard: Option<representation::Guard>,
+    kind: lang_frontend::type_checking::MapIterationKind,
+    components: [Span; 2],
+    uses: Vec<CallUse>,
+    clones: Vec<(Span, Span)>,
+    births: Vec<(ExpressionId, Span)>,
+    sizes: Vec<(Span, Span)>,
+}
+#[derive(Clone, Debug)]
+struct CallUse {
+    at: Span,
+    target: Option<Span>,
+    print: bool,
+    args: Vec<Argument>,
+}
+#[derive(Clone, Debug)]
+struct Argument {
+    at: Span,
+    root: Option<Span>,
+    borrow: bool,
+    birth: Option<Birth>,
+    endpoint: Option<(Span, Span)>,
 }
 #[derive(Clone, Debug)]
 struct Drop {

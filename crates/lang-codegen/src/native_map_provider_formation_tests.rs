@@ -4,6 +4,7 @@ use crate::{
     native_tests::emit_link_and_run,
     ssa::map_provider_exits_pipeline_tests::{
         alternate_local_sources, formation_runtime_sources, future_transfer_sources,
+        populated_future_transfer_sources,
     },
 };
 
@@ -68,5 +69,29 @@ fn unit_resource_formations_and_owner_transfers_preserve_cleanup() {
     for case in formation_runtime_sources() {
         let run = run_unit(&case.label, &case.source);
         assert_result(&case.label, "unit", &run, &case.golden);
+    }
+}
+
+#[test]
+fn single_populated_future_transfers_execute_original_conditional_body() {
+    for (mutable, source) in populated_future_transfer_sources() {
+        let label = format!(
+            "populated-future-transfer-{}",
+            if mutable { "MutableMap" } else { "Map" }
+        );
+        let run = emit_link_and_run("provider.ko", &source, "entry");
+        assert_result(&label, "single", &run, "key\nsink\n");
+    }
+}
+
+#[test]
+fn unit_populated_future_transfers_execute_original_conditional_body() {
+    for (mutable, source) in populated_future_transfer_sources() {
+        let label = format!(
+            "populated-future-transfer-{}",
+            if mutable { "MutableMap" } else { "Map" }
+        );
+        let run = run_unit(&label, &source);
+        assert_result(&label, "unit", &run, "key\nsink\n");
     }
 }

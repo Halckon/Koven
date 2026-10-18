@@ -589,120 +589,162 @@ pub(crate) fn future_transfer_sources() -> Vec<(bool, String)> {
     cases
 }
 
-#[test]
-fn ordinary_future_source_transfer_reaches_verified_llvm() {
+fn observe_future_transfer(mutable: bool, text: &str, unit: bool) -> Result<(), Failure> {
     use lang_frontend::{
         ownership_checking::{DropTarget, UnitDropTarget},
         parser::Statement,
     };
+
+    let mut sources = SourceMap::new();
+    let id = sources
+        .add_source("provider.ko", text)
+        .map_err(|e| failure("source", e))?;
+    let lexed = lex(&sources, id).map_err(|e| failure("lex", e))?;
+    clean(&sources, "lex", lexed.diagnostics())?;
+    let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
+    clean(&sources, "parse", parsed.diagnostics())?;
+    let for_span =
+        super::query_inputs::one(
+            parsed.ast().statements().iter().filter_map(|(_, n)| {
+                matches!(n.payload(), Statement::For { .. }).then_some(n.span())
+            }),
+            "actual future-transfer For",
+        )?;
+    let mut report = Report::default();
+    let mut identity = None;
+    let result = if unit {
+        pipeline::unit_observed(
+            &sources,
+            &parsed,
+            "provider.ko",
+            &mut report,
+            |names, typed, owned, report| {
+                let observed =
+                    super::local_exits::formation::unit(&sources, &parsed, names, typed, owned);
+                report.query("future-transfer qualified original identities", &observed);
+                identity = Some(observed);
+                let resolution = names.names().source_units().first().unwrap().resolution();
+                let symbols = resolution
+                    .symbols()
+                    .iter()
+                    .filter(|s| s.name() == "source")
+                    .map(|s| s.id())
+                    .collect::<Vec<_>>();
+                report.check("future-transfer original owner has no Drop", symbols.len()==1 && !owned.drops().iter().any(|d|
+                            matches!(d.target(), UnitDropTarget::Named(s) if symbols.contains(&s.symbol()))), (&symbols, owned.drops()));
+            },
+        )
+    } else {
+        pipeline::single_observed(
+            &sources,
+            &parsed,
+            &mut report,
+            |names, typed, owned, report| {
+                let observed =
+                    super::local_exits::formation::single(&sources, &parsed, names, typed, owned);
+                report.query("future-transfer Single original identities", &observed);
+                identity = Some(observed);
+                let symbols = names
+                    .symbols()
+                    .iter()
+                    .filter(|s| s.name() == "source")
+                    .map(|s| s.id())
+                    .collect::<Vec<_>>();
+                report.check(
+                    "future-transfer original owner has no Drop",
+                    symbols.len() == 1
+                        && !owned.drops().iter().any(
+                            |d| matches!(d.target(), DropTarget::Named(s) if symbols.contains(&s)),
+                        ),
+                    (&symbols, owned.drops()),
+                );
+            },
+        )
+    };
+    if let (Some(Ok(input)), Ok((program, _))) = (&identity, &result) {
+        report.query(
+            "future-transfer exact live current Value delivered once",
+            &super::local_exits::formation::check(&sources, &parsed, program, input),
+        );
+    }
+    if let Ok((program, _)) = &result {
+        report.query(
+            "future-transfer actual SSA verifier",
+            &crate::ssa::verify::verify_program(program).map_err(|e| failure("SSA", e)),
+        );
+        report.query(
+            "future-transfer actual LLVM renderer",
+            &crate::llvm::render_verified_program(program)
+                .map(|_| ())
+                .map_err(|e| failure("LLVM", e)),
+        );
+    }
+    let sealed = if unit {
+        "unit full ownership validator"
+    } else {
+        "single full iteration validator"
+    };
+    println!(
+        "ORDINARY CFG FUTURE TRANSFER ORIGINAL mutable={mutable} unit={unit} for_span={for_span:?} report={report:#?} result={:?}",
+        result.as_ref().map(|(_, entry)| entry)
+    );
+    if !report.passed()
+        || !report
+            .checks
+            .iter()
+            .any(|(name, pass, _)| *name == sealed && *pass)
+    {
+        return Err(failure("future-transfer sealed original FE", &report));
+    }
+    result?;
+    Ok(())
+}
+
+#[test]
+fn ordinary_future_source_transfer_reaches_verified_llvm() {
     let mut outcomes = Vec::new();
     for (mutable, text) in future_transfer_sources() {
         for unit in [false, true] {
-            let observed = (|| -> Result<(), Failure> {
-                let mut sources = SourceMap::new();
-                let id = sources
-                    .add_source("provider.ko", &text)
-                    .map_err(|e| failure("source", e))?;
-                let lexed = lex(&sources, id).map_err(|e| failure("lex", e))?;
-                clean(&sources, "lex", lexed.diagnostics())?;
-                let parsed = parse_file(&sources, &lexed).map_err(|e| failure("parse", e))?;
-                clean(&sources, "parse", parsed.diagnostics())?;
-                let for_span = super::query_inputs::one(
-                    parsed.ast().statements().iter().filter_map(|(_, n)| {
-                        matches!(n.payload(), Statement::For { .. }).then_some(n.span())
-                    }),
-                    "actual future-transfer For",
-                )?;
-                let mut report = Report::default();
-                let mut identity = None;
-                let result = if unit {
-                    pipeline::unit_observed(
-                        &sources,
-                        &parsed,
-                        "provider.ko",
-                        &mut report,
-                        |names, typed, owned, report| {
-                            let observed = super::local_exits::formation::unit(
-                                &sources, &parsed, names, typed, owned,
-                            );
-                            report
-                                .query("future-transfer qualified original identities", &observed);
-                            identity = Some(observed);
-                            let resolution =
-                                names.names().source_units().first().unwrap().resolution();
-                            let symbols = resolution
-                                .symbols()
-                                .iter()
-                                .filter(|s| s.name() == "source")
-                                .map(|s| s.id())
-                                .collect::<Vec<_>>();
-                            report.check("future-transfer original owner has no Drop", symbols.len()==1 && !owned.drops().iter().any(|d|
-                            matches!(d.target(), UnitDropTarget::Named(s) if symbols.contains(&s.symbol()))), (&symbols, owned.drops()));
-                        },
-                    )
-                } else {
-                    pipeline::single_observed(
-                        &sources,
-                        &parsed,
-                        &mut report,
-                        |names, typed, owned, report| {
-                            let observed = super::local_exits::formation::single(
-                                &sources, &parsed, names, typed, owned,
-                            );
-                            report.query("future-transfer Single original identities", &observed);
-                            identity = Some(observed);
-                            let symbols = names
-                                .symbols()
-                                .iter()
-                                .filter(|s| s.name() == "source")
-                                .map(|s| s.id())
-                                .collect::<Vec<_>>();
-                            report.check("future-transfer original owner has no Drop", symbols.len()==1 && !owned.drops().iter().any(|d|
-                            matches!(d.target(), DropTarget::Named(s) if symbols.contains(&s))), (&symbols, owned.drops()));
-                        },
-                    )
-                };
-                if let (Some(Ok(input)), Ok((program, _))) = (&identity, &result) {
-                    report.query(
-                        "future-transfer exact live current Value delivered once",
-                        &super::local_exits::formation::check(&sources, &parsed, program, input),
-                    );
-                }
-                if let Ok((program, _)) = &result {
-                    report.query(
-                        "future-transfer actual SSA verifier",
-                        &crate::ssa::verify::verify_program(program).map_err(|e| failure("SSA", e)),
-                    );
-                    report.query(
-                        "future-transfer actual LLVM renderer",
-                        &crate::llvm::render_verified_program(program)
-                            .map(|_| ())
-                            .map_err(|e| failure("LLVM", e)),
-                    );
-                }
-                let sealed = if unit {
-                    "unit full ownership validator"
-                } else {
-                    "single full iteration validator"
-                };
-                println!(
-                    "ORDINARY CFG FUTURE TRANSFER ORIGINAL mutable={mutable} unit={unit} for_span={for_span:?} report={report:#?} result={:?}",
-                    result.as_ref().map(|(_, entry)| entry)
-                );
-                if !report.passed()
-                    || !report
-                        .checks
-                        .iter()
-                        .any(|(name, pass, _)| *name == sealed && *pass)
-                {
-                    return Err(failure("future-transfer sealed original FE", &report));
-                }
-                result?;
-                Ok(())
-            })();
+            let observed = observe_future_transfer(mutable, &text, unit);
             println!(
                 "ORDINARY CFG FUTURE TRANSFER mutable={mutable} unit={unit} source={text:?} result={observed:?}"
             );
+            outcomes.push(observed);
+        }
+    }
+    assert_eq!(outcomes.len(), 4);
+    assert!(outcomes.iter().all(Result::is_ok), "{outcomes:#?}");
+}
+
+/// The original scanner and sinks are retained byte for byte. Only the entry
+/// now constructs one real pair, so the same conditional body executes natively.
+pub(crate) fn populated_future_transfer_sources() -> Vec<(bool, String)> {
+    future_transfer_sources()
+        .into_iter()
+        .map(|(mutable, text)| {
+            let (scanner, _) = text.split_once("fun entry():Unit").unwrap();
+            let transfer = if mutable {
+                "scan(filled)"
+            } else {
+                "val input=filled.consume();scan(input)"
+            };
+            let entry=format!("fun entry():Unit{{var filled=mutableMapOf<String,String>();filled.put(\"key\".clone(),\"value\".clone());{transfer}}}\n");
+            (mutable, format!("{scanner}{entry}"))
+        })
+        .collect()
+}
+
+#[test]
+fn populated_future_source_transfer_reaches_verified_llvm() {
+    let mut outcomes = vec![];
+    for (mutable, text) in populated_future_transfer_sources() {
+        for unit in [false, true] {
+            println!(
+                "POPULATED FUTURE INPUT mutable={mutable} unit={unit} source={text:?} golden={:?}",
+                "key\nsink\n"
+            );
+            let observed = observe_future_transfer(mutable, &text, unit);
+            println!("POPULATED FUTURE CASE mutable={mutable} unit={unit} result={observed:?}");
             outcomes.push(observed);
         }
     }

@@ -6,7 +6,9 @@ use crate::ssa::{
     },
     model::*,
 };
+mod conditional;
 mod paths;
+mod uses;
 use std::collections::BTreeSet;
 
 fn family(g: &Graph<'_>, seed: EntityId) -> Result<BTreeSet<EntityId>, Failure> {
@@ -52,7 +54,7 @@ fn original_call<'a>(
 }
 
 pub(in super::super::super::super) fn check(
-    sources: &SourceMap,
+    _sources: &SourceMap,
     parsed: &ParsedFile,
     program: &Program,
     input: &Inputs,
@@ -270,123 +272,26 @@ pub(in super::super::super::super) fn check(
         "formation independent actual K/V",
         components,
     )?;
-    let mut component_family = [family(&g, components[0])?, family(&g, components[1])?];
-    // Ordinary calls may either forward a component or establish a temporary
-    // child reborrow. Only actual child instructions create extra endpoints.
-    for i in &g.instructions {
-        if let Operation::SharedReborrow { source } = i.operation {
-            for set in &mut component_family {
-                if set.contains(&EntityId::Loan(source)) {
-                    set.insert(result(i)?);
-                }
-            }
-        }
-    }
+    let component_family = [family(&g, components[0])?, family(&g, components[1])?];
     need(
         component_family[0].is_disjoint(&component_family[1]),
-        "formation K/V families never mix",
+        "formation independent original K/V transport families",
         &component_family,
     )?;
     for set in &component_family {
-        for &e in set {
-            uses.protect(e);
+        for &entity in set {
+            uses.protect(entity);
         }
     }
-    for i in &g.instructions {
-        match &i.operation {
-            Operation::RootPlace { owner }
-                if owners.contains(&EntityId::Value(*owner))
-                    || original_owners.contains(&EntityId::Value(*owner)) =>
-            {
-                uses.permit(EntityId::Value(*owner), i)
-            }
-            Operation::MapPut { owner, .. }
-                if original_owners.contains(&EntityId::Value(*owner)) =>
-            {
-                uses.permit(EntityId::Value(*owner), i)
-            }
-            Operation::Drop { owner }
-                if owners.contains(&EntityId::Value(*owner))
-                    || original_owners.contains(&EntityId::Value(*owner)) =>
-            {
-                uses.permit(EntityId::Value(*owner), i)
-            }
-            Operation::BorrowEnd { loan } if leases.contains(&EntityId::Loan(*loan)) => {
-                uses.permit(EntityId::Loan(*loan), i)
-            }
-            Operation::SharedReborrow { source } => {
-                uses.permit(EntityId::Loan(*source), i);
-            }
-            Operation::BorrowEnd { loan } => {
-                uses.permit(EntityId::Loan(*loan), i);
-            }
-            Operation::PrintString { value } => {
-                uses.permit(EntityId::Loan(*value), i);
-            }
-            Operation::DirectCall { arguments, .. } => {
-                for &e in arguments {
-                    uses.permit(e, i);
-                }
-            }
-            _ => {}
-        }
-    }
-    for i in &g.instructions {
-        if let Operation::MapSize { owner } = i.operation {
-            let Origin::Source(at) = i.origin else {
-                return Err(failure("formation actual MapSize origin", i));
-            };
-            let property = one(
-                parsed.ast().expressions().iter().filter_map(|(id, n)| {
-                    (n.span() == at && matches!(n.payload(), Expression::Member { .. }))
-                        .then_some(id)
-                }),
-                "formation actual original size property",
-            )?;
-            need(
-                inside(span(parsed, property), input.site.scan)
-                    && (owners.contains(&owner) || original_owners.contains(&owner)),
-                "formation size belongs to original scanner",
-                i,
-            )?;
-            uses.permit(owner, i);
-        }
-    }
-    if input.site.sink.is_none() {
-        let read = one(
-            input.calls.iter().filter_map(|(at, target)| {
-                function(sources, parsed, "read")
-                    .ok()
-                    .filter(|(s, _)| s == target)
-                    .map(|_| *at)
-            }),
-            "formation actual component reader Call",
-        )?;
-        let call = original_call(&g, module, input, read)?;
-        let Operation::DirectCall { arguments, .. } = &call.operation else {
-            unreachable!()
-        };
-        need(
-            arguments.len() == 2
-                && arguments
-                    .iter()
-                    .enumerate()
-                    .all(|(i, e)| component_family[i].contains(e)),
-            "formation reader ordered original K/V ABI",
-            call,
-        )?;
-    } else {
-        for (i, set) in component_family.iter().enumerate() {
-            let name = if i == 0 { "key" } else { "value" };
-            let argument=one(parsed.ast().expressions().iter().filter_map(|(_,n)|{
-                let Expression::Call{callee,arguments,..}=n.payload() else{return None};
-                (inside(n.span(),input.site.for_span) && sources.slice(span(parsed,*callee))==Ok("println")
-                    && matches!(arguments.as_slice(),[a] if sources.slice(span(parsed,a.value))==Ok(name))).then_some(n.span())
-            }),"formation actual conditional print Call")?;
-            one(g.instructions.iter().copied().filter(|v|v.origin==Origin::Source(argument)
-                && matches!(v.operation,Operation::PrintString{value} if set.contains(&EntityId::Loan(value)))),"formation conditional arm prints its original component")?;
-        }
-    }
+    uses::check(
+        &g,
+        module,
+        parsed,
+        input,
+        &mut uses,
+        (&component_family, &leases),
+    )?;
+    conditional::check(&g, parsed, input)?;
     super::representation::graph(module, &g, input, seed, next)?;
     paths::check(
         &g,

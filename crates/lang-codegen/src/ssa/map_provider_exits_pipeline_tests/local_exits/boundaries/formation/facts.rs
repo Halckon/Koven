@@ -1,4 +1,5 @@
 //! Public frontend observations from exactly the analysis used for lowering.
+mod calls;
 use super::*;
 use lang_frontend::{
     name_resolution::{
@@ -127,6 +128,22 @@ pub(in super::super::super::super) fn single(
             "formation exact original Move Name/root/type",
             (expression, original),
         )?;
+    }
+    for (_, node) in parsed.ast().expressions().iter() {
+        if let Expression::If { condition, .. } = node.payload()
+            && inside(node.span(), site.for_span)
+        {
+            need(
+                typed.expression_type(*condition).is_some_and(|ty| {
+                    typed.types().get(ty)
+                        == Some(&lang_frontend::type_checking::TypeKind::Builtin(
+                            lang_frontend::type_checking::BuiltinType::Boolean,
+                        ))
+                }),
+                "formation original If has actual same-analysis Boolean condition",
+                condition,
+            )?;
+        }
     }
     let table = owned.cleanup_conditions();
     // Some ownership-dead-at-For sources publish no owner phi. When present,
@@ -414,12 +431,35 @@ pub(in super::super::super::super) fn single(
     }
     let representation = representation::single(parsed, names, typed, p.descriptor().value_type())?;
     let guard = representation::single_guard(parsed, names, typed, owned, &site)?;
+    let components = (*p.descriptor().bindings()).map(|s| names.symbols()[s.index()].span());
+    let uses = calls::single(parsed, names, typed, owned, &site, &selected, components)?;
+    let clones = typed
+        .string_operations()
+        .iter()
+        .filter(|c| inside(span(parsed, c.expression()), site.scan))
+        .map(|c| (span(parsed, c.expression()), span(parsed, c.receiver())))
+        .collect();
+    let births = calls(parsed, site.scan)
+        .map(|id| (id, span(parsed, id)))
+        .collect();
+    let sizes = typed
+        .map_sizes()
+        .iter()
+        .filter(|d| inside(span(parsed, d.expression()), site.scan))
+        .map(|d| Ok((span(parsed, d.expression()), marker(d.receiver())?)))
+        .collect::<Result<Vec<_>, Failure>>()?;
     Ok(Inputs {
         site,
         calls: selected,
         drops,
         representation,
         guard,
+        kind: p.descriptor().kind(),
+        components,
+        uses,
+        clones,
+        births,
+        sizes,
     })
 }
 
@@ -518,6 +558,24 @@ pub(in super::super::super::super) fn unit(
             put,
         )?;
     }
+    for (_, node) in parsed.ast().expressions().iter() {
+        if let Expression::If { condition, .. } = node.payload()
+            && inside(node.span(), site.for_span)
+        {
+            need(
+                typed
+                    .expression_type(expression(*condition))
+                    .is_some_and(|ty| {
+                        typed.types().get(ty)
+                            == Some(&lang_frontend::type_checking::UnitTypeKind::Builtin(
+                                lang_frontend::type_checking::BuiltinType::Boolean,
+                            ))
+                    }),
+                "formation original qualified If condition is Boolean",
+                condition,
+            )?;
+        }
+    }
     let mut selected = vec![];
     for id in calls(parsed, site.scan) {
         let Some(c) = typed.call(expression(id)) else {
@@ -597,12 +655,48 @@ pub(in super::super::super::super) fn unit(
     }
     let representation = representation::unit(parsed, names, typed, p.descriptor().value_type())?;
     let guard = representation::unit_guard(parsed, names, typed, owned, &site)?;
+    let components = [
+        symbol_span(p.descriptor().key_binding())?,
+        symbol_span(p.descriptor().value_binding())?,
+    ];
+    let uses = calls::unit(parsed, names, typed, owned, &site, &selected, components)?;
+    let clones = typed
+        .string_operations()
+        .iter()
+        .filter(|c| inside(span(parsed, c.expression().expression()), site.scan))
+        .map(|c| {
+            (
+                span(parsed, c.expression().expression()),
+                span(parsed, c.receiver().expression()),
+            )
+        })
+        .collect();
+    let births = calls(parsed, site.scan)
+        .map(|id| (id, span(parsed, id)))
+        .collect();
+    let sizes = typed
+        .map_sizes()
+        .iter()
+        .filter(|d| inside(span(parsed, d.expression().expression()), site.scan))
+        .map(|d| {
+            Ok((
+                span(parsed, d.expression().expression()),
+                symbol_span(root(d.receiver().expression())?)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, Failure>>()?;
     Ok(Inputs {
         site,
         calls: selected,
         drops,
         representation,
         guard,
+        kind: p.descriptor().kind(),
+        components,
+        uses,
+        clones,
+        births,
+        sizes,
     })
 }
 

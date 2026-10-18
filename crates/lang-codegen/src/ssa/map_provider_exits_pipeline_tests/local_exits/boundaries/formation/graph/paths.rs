@@ -88,13 +88,7 @@ pub(super) fn check(
                         )?;
                     }
                     for (index, set) in components.iter().enumerate() {
-                        if set.contains(&EntityId::Loan(*loan))
-                            && matches!(
-                                g.definition(EntityId::Loan(*loan))?.operation,
-                                Operation::MapIterationKeyLoan { .. }
-                                    | Operation::MapIterationValueLoan { .. }
-                            )
-                        {
+                        if set.contains(&EntityId::Loan(*loan)) {
                             need(
                                 state.component_ends.as_slice()
                                     == if index == 1 { &[][..] } else { &[1][..] },
@@ -216,24 +210,10 @@ pub(super) fn check(
                             }
                         }
                         Point::Statement(at) => {
-                            let producer = g.definition(key)?;
-                            if inside(
-                                match producer.origin {
-                                    Origin::Source(s) => s,
-                                    _ => at,
-                                },
-                                at,
-                            ) {
+                            if inside(input.site.for_span, at) {
                                 need(
-                                    producer.block == block
-                                        && g.position(producer)? < g.position(i)?,
-                                    "formation unused declaration drops only after its actual initializer",
-                                    (producer, i),
-                                )?;
-                            } else {
-                                need(
-                                    inside(input.site.for_span, at) && state.loans.is_empty(),
-                                    "formation lexical source Drop only after completed original provider",
+                                    state.loans.is_empty(),
+                                    "formation lexical source Drop after completed provider",
                                     (i, fact, &state),
                                 )?;
                                 for operation in g.ops(block)? {
@@ -249,6 +229,26 @@ pub(super) fn check(
                                         )?;
                                     }
                                 }
+                            } else {
+                                let producer = g.definition(key)?;
+                                let original = match producer.origin {
+                                    Origin::Source(s) => s,
+                                    _ => {
+                                        return Err(failure(
+                                            "formation original initializer producer span",
+                                            producer,
+                                        ));
+                                    }
+                                };
+                                need(
+                                    at.end() < input.site.for_span.start()
+                                        && at.start() <= original.start()
+                                        && original.end() <= at.end()
+                                        && producer.block == block
+                                        && g.position(producer)? < g.position(i)?,
+                                    "formation early unused declaration Drop follows its actual complete initializer",
+                                    (producer, i, fact),
+                                )?;
                             }
                         }
                         other => {
@@ -425,6 +425,14 @@ pub(super) fn check(
 }
 fn sink_drop(module: &Module, sink: &Function, parameter: EntityId) -> Result<(), Failure> {
     let g = Graph::with_abort(sink)?;
+    need(
+        !g.instructions
+            .iter()
+            .any(|i| matches!(i.operation, Operation::DirectCall { .. })),
+        "formation original sink has only its closed print/size/error primitives",
+        sink.id,
+    )?;
+
     let drops=g.instructions.iter().copied().filter(|i|matches!(i.operation,Operation::Drop{owner} if map_value(module,&g,EntityId::Value(owner)))).collect::<Vec<_>>();
     let drop = one(
         drops.into_iter(),

@@ -42,6 +42,7 @@ pub(crate) use borrowed::sources as borrowed_exit_sources;
 pub(crate) use conditional::sources as conditional_sources;
 pub(crate) use control_flow::future_transfer_sources;
 pub(crate) use control_flow::neighbor_sources as ordinary_control_flow_neighbor_sources;
+pub(crate) use control_flow::populated_future_transfer_sources;
 pub(crate) use control_flow::return_sources as ordinary_return_sources;
 pub(crate) use control_flow::sources as ordinary_control_flow_sources;
 pub(crate) use formation_runtime::sources as formation_runtime_sources;

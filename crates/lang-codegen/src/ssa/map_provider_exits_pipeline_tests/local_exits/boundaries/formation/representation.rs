@@ -238,7 +238,23 @@ pub(super) fn unit_guard(
             .filter(|s| s.span() == marker),
         "formation qualified Guard root",
     )?;
-    let root = lang_frontend::name_resolution::UnitSymbolId::new(source.source_unit(), symbol.id());
+    let root = one(
+        owned.drops().iter().filter_map(|drop| match drop.target() {
+            UnitDropTarget::Named(root)
+                if root.source_unit() == source.source_unit()
+                    && root.symbol() == symbol.id()
+                    && source
+                        .resolution()
+                        .symbols()
+                        .get(root.symbol().index())
+                        .is_some_and(|original| original.span() == marker) =>
+            {
+                Some(root)
+            }
+            _ => None,
+        }),
+        "formation actual qualified Guard root from original Drop fact",
+    )?;
     let expression = UnitExpressionId::new(source.source_unit(), initializer);
     let construction = typed
         .construction(expression)
@@ -283,9 +299,19 @@ pub(super) fn graph(
         map_provider_exits_pipeline_tests::query_graph::{result, value},
         model::*,
     };
-    let (_, key, value_type) = module
+    let (kind, key, value_type) = module
         .map_container(g.function.entity(seed).unwrap().ty.semantic_type())
         .ok_or_else(|| failure("formation actual represented source", seed))?;
+    need(
+        kind == match input.kind {
+            lang_frontend::type_checking::MapIterationKind::Map => MapContainerKind::Map,
+            lang_frontend::type_checking::MapIterationKind::MutableMap => {
+                MapContainerKind::MutableMap
+            }
+        },
+        "formation represented container kind equals same-analysis descriptor",
+        (kind, input.kind),
+    )?;
     need(
         module.type_kind(key) == Some(&SsaTypeKind::StringOwner),
         "formation original String key represented storage",
