@@ -458,3 +458,10 @@ x02 双 UnsupportedNode，w06 双前端 L0135 但主诊断文本不同。两份 
 - 原测试迁移与邻控：旧 Guide 同源码、同 area entry 从拒绝迁为真实 SSA+LLVM 硬成功，保留其既有 basic analyze helper，未调用 complete，不冒充主证完整前置或 native。cross-file construction/TypeTest/projection/重排确定性及 MoveOnly、generic 拒绝三条也用旧 basic helper，未调用 complete；前者是 SSA/实体证据，后两项保原 UnsupportedNode。
 - 已执行：同当前实际 binary 的六个 exact 各一次，六项均 1 test pass / exit0，前五真绿后才执行双源 native；完整收据、原 libtest stdout/stderr、3269 输入、8tools、实际 exe 前后核验及独立终审通过。6 是 libtest 调用数，另有 2 次 clang driver 和 2 次实际 native 程序；不声称完整 OS 子进程跟踪。固定证据 manifest359194cb / SUMS d5129c3c / suite a6c5449c（全名与 SHA 见仓外 enum-result-manifest.json）。
 - 联合验收待办：独立 enum 工程未执行；后续在 v0.45 联合头做一次工程及 9 exact（8 普通行为＋1 真实生产依赖）验收，enum native 仍以前五 enum 项同头实际全绿为前置。不据独立六项行为绿宣称联合工程或全仓通过；workspace/全量/frontend/CLI、macOS/sanitizer、远端 CI、push/PR/merge 均未执行。原始日志与完整绑定保留于仓外 `e2-enum-repair/`；x01 对应证据保留于 `e2-x01-repair/`，原文件不入库，正式远端交付另登记稳定来源。
+
+## 30. v0.45 与兼容修复联合头验收（2026-10-19）
+
+- 以 actual `e591a9b0` 的 v0.45 树为基，按原顺序独立迁入 x01 四提交、enum 三提交及§28/29两个文档提交；唯一测试注册 EOF 冲突保三项注册，原实现/fixture/oracle不改。联合受验头 `4f8084bf57fac5055488bdaf2bc8ed0ca48ab4be` / tree `295bddd32179f27ecbbbebd107ae90dab9dfe07e`，19路径+1483/-45；未将冻结B2混入。
+- 唯一no-run141.368s/0产生实际exe `fad97513`；同头9唯一exact各1/0/exit0（8普通行为＋1真实生产依赖）。x01完整FE、SSA关系/LLVM与另一次public-native链成功，完整6997B与125b/734f逐字同。enum前五项真绿后双源native成功，原golden/exit0/stderr空与cleanup硬断言保持；成功child raw未另存。旧三nullable邻控只复用原734f/0e042历史证据，不声称联合头重跑。
+- fmt/check --tests/clippy --all-targets/diff分别12.244/46.342/67.637/0.016s，全部0；731文档和diff门在最终两节工作字节各一次0，随后提交的3291个输入文件逐字保持，因此不重复。9项与四工程各步3291个输入文件/12工具/新exe/HEAD/tree/clean前后核同；原日志和固定绑定留仓外 `d10-unit-integrated-validation/`，receipt `e8a5467e/a9c76350/c5fbbecf/d71f0aad`，发布时另登记精确远端头与CI。
+- 此验收关闭§28/29所列联合工程待办，不关闭单文件驱动迁Unit、w09或D10通用lowering目标；宽测试、CI-only合成/注入/校准、远端CI与其他宿主均未运行。
