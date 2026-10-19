@@ -440,3 +440,11 @@ x02 双 UnsupportedNode，w06 双前端 L0135 但主诊断文本不同。两份 
 
 附件三份144行矩阵没有完整源或原日志；仅22份源可追溯，不能声称144项可复跑。
 新增 ordinary 以完整测试体/helper 安全审查为前提；不得借扩大回归执行 CI-only 合成目标。
+
+## 28. 单源 Unit 兼容回退：x01 nullable class root Borrow（2026-10-19）
+
+- 原163字节 x01 源及成功oracle固定。actual91c旧生产首次红在SSA verifier：InvalidSsa，真实OperationContract为nullable owner错误构造inner RootPlace；r3随后真实红在use(n)的原live-If Call总门（UnsupportedNode，[124,130)）。两个停点和未到阶段均完整保留，未修改verifier或放宽测试。
+- 最小修复复用现NullableBranch/Shared view、原参数提交与ASAP End-before-Drop；按已发布当前callable/source-qualified事实选择class root Borrow，并在入口与adapter双边排除Map.remove来源。第四接点只给全部真实Borrow参数均有当前proof的普通同步source call资格，保留原Map机会及非候选门；没有复制single控制流模块。
+- 734f65af/tree7010362e首次原4exact全绿：x01完整FE、真实owner/view/入边/callee关系、verified SSA/LLVM、另一次public-native lowering/object、链接与进程exit0/stdout精确`retest\n`/stderr空。实际SSA证实use后先End/Drop，再进入内层If/println。三邻控为While retest、Map B3、无root Borrow后继续返回owner；与旧生产完整正文156572B逐字相等（各输出种类沿原exact），终态25件封包abb5dc2a独审通过。
+- 同头工程fmt/check绿，Clippy因新测试4个usize恒等cast报101；依首失败停止，diff/真实依赖/Resource-group尚未执行。原工程红15件b4321357独审保留。
+- 后继tests-only125b8d6f/tree60b33cdc仅删4个恒等cast，生产/fixture/oracle保持。新no-run112.486s/0，新exe5178的x01＋原Resource-group＋真实生产依赖3exact全绿；x01全文6997B与734f逐字同。四工程fmt/check/clippy/diff全部0（13.647/75.672/59.158/0.008s）。原三邻控历史实跑归734f65af/0e042bd8，不称新头已重跑。此项仅修单个真实兼容回退，不代表单文件入口已迁Unit或D10通用lowering完成。
