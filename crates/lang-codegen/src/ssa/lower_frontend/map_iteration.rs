@@ -125,8 +125,32 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         self.validate_map_parent(qualified.nesting, span)?;
-        if self.thunk_expression.is_some()
-            || self.readonly_receiver.is_some()
+        if let Some(lambda) = self.thunk_expression {
+            let missing = || error(LoweringErrorKind::MissingFact, span);
+            if qualified.local.is_none() {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let owner = self.source_token.ok_or_else(missing)?;
+            let plan = self
+                .source_closures
+                .lambdas
+                .get(&(owner, lambda.index()))
+                .ok_or_else(missing)?;
+            if plan.owner != owner
+                || plan.expression != lambda
+                || plan.thunk != self.function.id
+                || plan.return_type != self.return_type
+                || !plan.captures.is_empty()
+                || builtin_type(self.typed, plan.return_type) != Some(BuiltinType::Unit)
+                || local::lambda_body(self.parsed, self.typed, self.owned, plan.body, span)?
+                    != lambda
+                || !matches!(self.parsed.ast().statements().get(plan.body).map_err(|_| missing())?.payload(),
+                    Statement::LambdaBody { elements } if elements.contains(&statement))
+            {
+                return Err(missing());
+            }
+        }
+        if self.readonly_receiver.is_some()
             || !self.pending_call_loans.is_empty()
             || self
                 .temporaries

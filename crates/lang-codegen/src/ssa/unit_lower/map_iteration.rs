@@ -4,7 +4,7 @@ pub(super) mod formed;
 mod future_use;
 mod local;
 mod nested;
-pub(super) use local::LocalContinuation;
+pub(super) use local::{LocalContinuation, lambda_body as qualify_local_lambda};
 mod resource;
 mod source_identity;
 mod temporary;
@@ -572,6 +572,19 @@ pub(super) fn contains(outer: Span, inner: Span) -> bool {
     outer.source_id() == inner.source_id()
         && outer.start() <= inner.start()
         && inner.end() <= outer.end()
+}
+
+/// Locate the nearest execution scope; this is identity filtering, not capability.
+pub(super) fn enclosing_lambda(parsed: &ParsedFile, span: Span) -> Option<ExpressionId> {
+    parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter(|(_, node)| {
+            contains(node.span(), span) && matches!(node.payload(), Expression::Lambda { .. })
+        })
+        .min_by_key(|(_, node)| node.span().end() - node.span().start())
+        .map(|(id, _)| id)
 }
 
 fn reject_nested(

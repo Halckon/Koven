@@ -104,7 +104,6 @@ pub(super) fn qualify(
         descriptor.source_type(),
         span,
     )?;
-    reject_nested(parsed, statement.statement(), span)?;
     // The local and For must be adjacent in the same ordinary sequential block.
     // Reassignment, moves, aliases and CFG producers have separate capability boundaries.
     let parents = parsed
@@ -112,7 +111,9 @@ pub(super) fn qualify(
         .statements()
         .iter()
         .filter_map(|(id, node)| {
-            let Statement::Block { elements } = node.payload() else {
+            let (Statement::Block { elements } | Statement::LambdaBody { elements }) =
+                node.payload()
+            else {
                 return None;
             };
             let index = elements
@@ -144,8 +145,21 @@ pub(super) fn qualify(
             }
         })
         .count();
-    if functions != 1 {
-        return Err(unsupported());
+    if matches!(
+        parsed
+            .ast()
+            .statements()
+            .get(*block)
+            .map_err(|_| bad())?
+            .payload(),
+        Statement::LambdaBody { .. }
+    ) {
+        lambda_body(parsed, typed, owned, source, *block, span)?;
+    } else {
+        reject_nested(parsed, statement.statement(), span)?;
+        if functions != 1 {
+            return Err(unsupported());
+        }
     }
     if *index == 0 || elements[*index - 1] != *declaration {
         return Err(unsupported());
@@ -412,4 +426,61 @@ fn qualify_size_successor(
         return Err(unsupported());
     }
     Ok(())
+}
+
+/// Frontend scope proof for the direct local family in a capture-free Unit lambda.
+/// Runtime separately checks the actual source-qualified CallablePlan and thunk.
+pub(in super::super) fn lambda_body(
+    parsed: &ParsedFile,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    source: SourceUnitId,
+    body: StatementId,
+    span: Span,
+) -> Result<UnitExpressionId, LoweringError> {
+    let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
+    let unsupported = || lowering_error(LoweringErrorKind::UnsupportedNode, span);
+    if !matches!(
+        parsed
+            .ast()
+            .statements()
+            .get(body)
+            .map_err(|_| missing())?
+            .payload(),
+        Statement::LambdaBody { .. }
+    ) {
+        return Err(unsupported());
+    }
+    let lambdas = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(id, node)| {
+            matches!(node.payload(), Expression::Lambda { body: actual, .. } if *actual == body)
+                .then_some(UnitExpressionId::new(source, id))
+        })
+        .collect::<Vec<_>>();
+    let [lambda] = lambdas.as_slice() else {
+        return Err(missing());
+    };
+    if owned
+        .closure(*lambda)
+        .is_none_or(|fact| fact.expression() != *lambda)
+        || !owned.callable_origin(*lambda).is_some_and(|fact| {
+            fact.origin() == lang_frontend::ownership_checking::UnitCallableOrigin::Lambda(*lambda)
+        })
+    {
+        return Err(missing());
+    }
+    if owned.captures_of(*lambda).next().is_some() {
+        return Err(unsupported());
+    }
+    let ty = typed.expression_type(*lambda).ok_or_else(missing)?;
+    let Some(UnitTypeKind::Function { return_type, .. }) = typed.types().get(ty) else {
+        return Err(missing());
+    };
+    if builtin_type(typed, *return_type) != Some(BuiltinType::Unit) {
+        return Err(unsupported());
+    }
+    Ok(*lambda)
 }

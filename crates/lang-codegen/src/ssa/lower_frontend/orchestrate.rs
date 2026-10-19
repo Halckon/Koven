@@ -829,6 +829,11 @@ fn lower_scalar_file_product(
             loops: Vec::new(),
         };
         lowerer.bind_capture_views(plan)?;
+        lowerer.map_iteration_state = super::map_iteration::State::new(
+            &lowerer.bindings,
+            &lowerer.borrow_bindings,
+            &map_iteration_storage,
+        );
         let result = lowerer.lower_lambda_body(plan)?;
         if !matches!(result, LoweredValue::Diverged) {
             lowerer.end_thunk_capture_views(plan.span)?;

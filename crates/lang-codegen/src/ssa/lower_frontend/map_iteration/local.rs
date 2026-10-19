@@ -4,7 +4,7 @@
 mod conditions;
 mod consumer;
 mod identity;
-pub(super) use identity::producer;
+pub(super) use identity::{lambda_body, producer};
 mod topology;
 
 use super::*;

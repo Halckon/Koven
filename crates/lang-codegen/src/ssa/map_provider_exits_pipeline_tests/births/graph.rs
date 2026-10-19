@@ -2,7 +2,7 @@
 mod callable;
 mod control;
 mod intrinsic;
-mod provider;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod provider;
 use super::super::{
     fixture::{Failure, failure, need},
     query_graph::{Graph, Uses, function, loan, result, value},

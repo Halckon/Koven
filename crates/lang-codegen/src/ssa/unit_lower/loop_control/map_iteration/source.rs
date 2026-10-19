@@ -1,9 +1,16 @@
 //! Source evaluation and factory identity are established before a provider is created.
 use super::*;
+use crate::ssa::unit_lower::builtin_type;
 use lang_frontend::ownership_checking::{UnitDropTarget, UnitLoanTarget};
 use lang_frontend::type_checking::UnitCallTarget;
 
 impl UnitExpressionLowerer<'_> {
+    pub(super) fn map_in_current_callable(&self, span: Span) -> bool {
+        map_iteration::enclosing_lambda(self.parsed, span)
+            .map(|lambda| UnitExpressionId::new(self.source_unit, lambda))
+            == self.thunk_expression
+    }
+
     pub(super) fn map_source_seed(
         &mut self,
         qualified: map_iteration::QualifiedMap,
@@ -12,6 +19,40 @@ impl UnitExpressionLowerer<'_> {
         span: Span,
     ) -> Result<(EntityId, LoanId), LoweringError> {
         let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
+        if !self.map_in_current_callable(span) {
+            return Err(missing());
+        }
+        if let Some(lambda) = self.thunk_expression {
+            if !matches!(qualified.source, SourceIdentity::Local { .. }) {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let plan = self
+                .callable_plans
+                .get(&(self.closure_scope, lambda))
+                .ok_or_else(missing)?;
+            if plan.scope != self.closure_scope
+                || plan.source_token != self.source_token
+                || plan.source_unit != self.source_unit
+                || plan.expression != lambda
+                || plan.thunk != self.function.id
+                || plan.return_type != self.return_type
+                || !plan.captures.is_empty()
+                || builtin_type(self.typed, plan.return_type) != Some(BuiltinType::Unit)
+                || map_iteration::qualify_local_lambda(
+                    self.parsed,
+                    self.typed,
+                    self.owned,
+                    self.source_unit,
+                    plan.body,
+                    span,
+                )? != lambda
+                || !matches!(self.parsed.ast().statements().get(plan.body).map_err(|_| missing())?.payload(),
+                    lang_frontend::parser::Statement::LambdaBody { elements }
+                        if elements.contains(&qualified.statement.statement()))
+            {
+                return Err(missing());
+            }
+        }
         let identity = qualified.source;
         let seed = match identity {
             SourceIdentity::Parameter { slot, .. } => {

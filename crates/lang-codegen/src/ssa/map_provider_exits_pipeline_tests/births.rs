@@ -1,7 +1,7 @@
 //! Ordinary intrinsic births and Unit FunctionValue results reach the original providers.
-mod ast;
+pub(super) mod ast;
 mod facts;
-mod graph;
+pub(super) mod graph;
 mod sources;
 use super::{
     Report,

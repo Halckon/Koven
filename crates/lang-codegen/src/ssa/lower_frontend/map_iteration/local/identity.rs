@@ -40,25 +40,25 @@ pub(super) fn collect<'a>(
 ) -> Result<Vec<Site<'a>>, LoweringError> {
     let missing = || error(LoweringErrorKind::MissingFact, span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
-    if qualify::has_enclosing_control(parsed, span) {
-        return Err(unsupported());
-    }
-    let elements =
+    let (block, elements) =
         unique(
             parsed
                 .ast()
                 .statements()
                 .iter()
-                .filter_map(|(_, node)| match node.payload() {
-                    Statement::Block { elements }
+                .filter_map(|(id, node)| match node.payload() {
+                    Statement::Block { elements } | Statement::LambdaBody { elements }
                         if elements.contains(&current.descriptor().statement()) =>
                     {
-                        Some(elements)
+                        Some((id, elements))
                     }
                     _ => None,
                 }),
         )
         .ok_or_else(missing)?;
+    if qualify::has_enclosing_control(parsed, span) {
+        lambda_body(parsed, typed, owned, block, span)?;
+    }
     let mut sites = Vec::new();
     let mut covered = Vec::new();
     for (index, statement) in elements.iter().enumerate() {
@@ -164,6 +164,57 @@ pub(super) fn collect<'a>(
         }
     }
     Ok(sites)
+}
+
+/// A local family may execute in a real, capture-free Unit lambda body.
+/// This proves frontend scope only; the emitter also binds its actual thunk plan.
+pub(in super::super) fn lambda_body(
+    parsed: &ParsedFile,
+    typed: &TypedFile,
+    owned: &OwnershipCheckedFile,
+    body: StatementId,
+    span: Span,
+) -> Result<ExpressionId, LoweringError> {
+    let missing = || error(LoweringErrorKind::MissingFact, span);
+    let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
+    if !matches!(
+        parsed
+            .ast()
+            .statements()
+            .get(body)
+            .map_err(|_| missing())?
+            .payload(),
+        Statement::LambdaBody { .. }
+    ) {
+        return Err(unsupported());
+    }
+    let lambda = unique(parsed.ast().expressions().iter().filter_map(|(id, node)| {
+        matches!(node.payload(), Expression::Lambda { body: actual, .. } if *actual == body)
+            .then_some(id)
+    }))
+    .ok_or_else(missing)?;
+    if owned
+        .closure(lambda)
+        .is_none_or(|fact| fact.expression() != lambda)
+        || !owned.callable_origin(lambda).is_some_and(|fact| {
+            fact.origin() == lang_frontend::ownership_checking::CallableOrigin::Lambda(lambda)
+        })
+    {
+        return Err(missing());
+    }
+    if owned.captures_of(lambda).next().is_some() {
+        return Err(unsupported());
+    }
+    let ty = typed.expression_type(lambda).ok_or_else(missing)?;
+    let Some(lang_frontend::type_checking::TypeKind::Function { return_type, .. }) =
+        typed.types().get(ty)
+    else {
+        return Err(missing());
+    };
+    if builtin_type(typed, *return_type) != Some(BuiltinType::Unit) {
+        return Err(unsupported());
+    }
+    Ok(lambda)
 }
 
 fn declaration(

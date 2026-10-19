@@ -12,7 +12,7 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 #[derive(Debug)]
-pub(super) struct Site {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Site {
     pub statement: StatementId,
     pub span: Span,
     pub source: ExpressionId,

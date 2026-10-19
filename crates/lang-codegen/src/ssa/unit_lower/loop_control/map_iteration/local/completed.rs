@@ -23,7 +23,7 @@ impl UnitExpressionLowerer<'_> {
                 continue;
             }
             let span = self.statement_span(descriptor.statement().statement())?;
-            if !within(function_span, span) {
+            if !within(function_span, span) || !self.map_in_current_callable(span) {
                 continue;
             }
             let qualified = map_iteration::qualify(

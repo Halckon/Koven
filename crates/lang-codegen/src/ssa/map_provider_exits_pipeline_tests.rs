@@ -259,3 +259,6 @@ pub(crate) use births::{Kind as MapBirthKind, sources as map_birth_sources};
 
 mod scope_lowering;
 pub(crate) use scope_lowering::sources as scope_a1_sources;
+
+mod scope_lambda_body;
+pub(crate) use scope_lambda_body::sources as scope_a2_sources;
