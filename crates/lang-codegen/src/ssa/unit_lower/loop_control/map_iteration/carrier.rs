@@ -62,6 +62,9 @@ impl MapCarrier {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         let function = &lowerer.function;
         let anchor = match qualified.source {
+            SourceIdentity::BindingChoice(proof) => {
+                binding_choice::anchor(lowerer, proof, seed, span)?
+            }
             SourceIdentity::BorrowedBinding(proof) => {
                 lowerer.borrowed_map_anchor(proof, seed, span)?
             }

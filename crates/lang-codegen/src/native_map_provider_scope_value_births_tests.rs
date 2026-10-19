@@ -84,3 +84,40 @@ mod conditional_owner {
         run("P04-");
     }
 }
+
+mod owner_update {
+    use super::super::{assert_result, run_unit};
+    use crate::{
+        native_tests::emit_link_and_run,
+        ssa::map_provider_exits_pipeline_tests::scope_owner_update_sources,
+    };
+    fn run(unit: bool) {
+        let mut count = 0;
+        for c in scope_owner_update_sources() {
+            if !unit && c.code <= 8 {
+                continue;
+            }
+            let output = if unit {
+                run_unit(c.label, c.source)
+            } else {
+                emit_link_and_run("provider.ko", c.source, "entry")
+            };
+            assert_result(
+                c.label,
+                if unit { "unit" } else { "single" },
+                &output,
+                c.golden,
+            );
+            count += 1;
+        }
+        assert_eq!(count, if unit { 10 } else { 6 });
+    }
+    #[test]
+    fn single_original_owner_updates_keep_full_golden() {
+        run(false);
+    }
+    #[test]
+    fn unit_original_owner_updates_keep_full_golden() {
+        run(true);
+    }
+}

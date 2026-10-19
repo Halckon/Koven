@@ -1,11 +1,37 @@
 //! Ordinary formed locals consume actual source and terminal cleanup facts.
 use super::*;
 use crate::ssa::map_source::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
+pub(in super::super) mod epoch;
 mod parameter;
 use lang_frontend::parser::VariableKind;
 pub(in super::super) use parameter::entry_parameter;
 
 pub(in super::super) fn formation(
+    parsed: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    root: UnitSymbolId,
+    storage: UnitTypeId,
+    span: Span,
+) -> Result<Formation<UnitSymbolId>, LoweringError> {
+    let mut formation = raw_formation(parsed, names, typed, owned, root, storage, span)?;
+    for event in &formation.history {
+        let resolved = epoch::resolve(
+            (parsed, names, typed, owned),
+            root,
+            storage,
+            event.rhs,
+            span,
+        )?;
+        formation
+            .births
+            .push((event.rhs, resolved.root, resolved.birth));
+    }
+    Ok(formation)
+}
+
+fn raw_formation(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
@@ -197,6 +223,11 @@ pub(super) fn qualify(
         }
     }
     reject_nested(parsed, statement.statement(), span)?;
+    if let Some(qualified) =
+        binding_choice::qualify((parsed, names, typed, owned), plan, (body, root), span)?
+    {
+        return Ok(qualified);
+    }
     let formation = formation(
         parsed,
         names,
@@ -244,7 +275,16 @@ pub(super) fn qualify(
         if outer.span() == formation.binding {
             continue;
         }
-        let call = crate::ssa::map_source::epoch_call(parsed, epoch.rhs)?;
+        let resolved = epoch::resolve(
+            (parsed, names, typed, owned),
+            root,
+            descriptor.source_type(),
+            epoch.rhs,
+            span,
+        )?;
+        let Birth::Call(call) = resolved.birth else {
+            return Err(unsupported());
+        };
         let call = UnitExpressionId::new(statement.source_unit(), call);
         if typed.map_construction(call).is_some() || typed.map_consume(call).is_some() {
             local::factory(

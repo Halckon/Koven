@@ -54,6 +54,8 @@ pub(in super::super) struct Formation<R> {
     pub(in super::super) declaration: Span,
     /// Complete linear binding events of the first root, in actual source order.
     pub(in super::super) history: Vec<BindingEpoch>,
+    /// Each original RHS is resolved by the consumer at its own Move point.
+    pub(in super::super) births: Vec<(ExpressionId, R, Birth<R>)>,
     /// Completion boundary of the current root's actual initializer/replacement RHS.
     pub(in super::super) binding: Span,
     /// Current root declaration marker, or the complete assignment of its new epoch.
@@ -185,6 +187,7 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                 roots,
                 declaration: root_declaration.ok_or_else(missing)?,
                 history,
+                births: Vec::new(),
                 binding: binding.ok_or_else(missing)?,
                 origin: origin.ok_or_else(missing)?,
                 replacement,
@@ -277,9 +280,8 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                 rhs: write.value,
                 origin: write.span,
             }));
-            // Other epochs with Name RHS require their own Move graph proof.
-            // Keep those untested histories explicitly Unsupported; the current
-            // Name initializer still resolves through the actual alias chain.
+            // Each non-current Name is validated by the caller at that exact
+            // Move reference. Do not recursively scan its future history here.
             for epoch in &history {
                 let canonical = transparent_expression(parsed, epoch.rhs, &mut expression_type)?;
                 let node = parsed
@@ -287,7 +289,7 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                     .expressions()
                     .get(canonical)
                     .map_err(|_| missing())?;
-                if !(epoch.rhs == initializer && node.payload() == &Expression::Name) {
+                if node.payload() != &Expression::Name {
                     birth(canonical)?;
                 }
             }
@@ -322,6 +324,7 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                     roots,
                     declaration: root_declaration.ok_or_else(missing)?,
                     history,
+                    births: Vec::new(),
                     binding: binding.ok_or_else(missing)?,
                     origin: origin.ok_or_else(missing)?,
                     replacement,
@@ -358,9 +361,6 @@ fn collect_updates<R: Copy + Eq, T: Copy + Eq>(
             .get(receiver)
             .map_err(|_| error(LoweringErrorKind::MissingFact, cutoff))?;
         if node.payload() == &Expression::Name && reference(node.span())? == root {
-            if conditional_write(parsed, at) {
-                return Err(error(LoweringErrorKind::UnsupportedNode, cutoff));
-            }
             selected.push(update);
         }
     }

@@ -1,5 +1,6 @@
 //! Transparent source syntax does not change the validated type, category or owner.
 mod formation;
+pub(super) mod transport;
 use super::{LoweringError, LoweringErrorKind};
 pub(super) use formation::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
 use lang_frontend::{
@@ -208,32 +209,4 @@ pub(super) fn epoch_at<'a, R>(
         }
     }
     selected.ok_or_else(bad)
-}
-
-/// Canonical identity only; the actual source/type/ownership validators precede this check.
-pub(super) fn epoch_call(
-    parsed: &ParsedFile,
-    rhs: ExpressionId,
-) -> Result<ExpressionId, LoweringError> {
-    let mut id = rhs;
-    loop {
-        let node = parsed
-            .ast()
-            .expressions()
-            .get(id)
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?;
-        match node.payload() {
-            Expression::Group { expression } => id = *expression,
-            Expression::Call { .. } => return Ok(id),
-            _ => {
-                return Err(LoweringError {
-                    kind: LoweringErrorKind::UnsupportedNode,
-                    span: Some(node.span()),
-                });
-            }
-        }
-    }
 }

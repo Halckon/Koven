@@ -270,3 +270,4 @@ pub(crate) use scope_value_births::int_storage_sources as scope_int_storage_sour
 
 pub(crate) use scope_value_births::borrow_alias_sources as scope_borrow_alias_sources;
 pub(crate) use scope_value_births::conditional_owner_sources as scope_if_owner_sources;
+pub(crate) use scope_value_births::owner_update_sources as scope_owner_update_sources;

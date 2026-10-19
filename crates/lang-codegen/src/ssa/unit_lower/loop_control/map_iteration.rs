@@ -1,4 +1,5 @@
 //! Ordered Map providers carry one source lease and an opaque u64 cursor in pending slots.
+mod binding_choice;
 mod carrier;
 mod checked;
 mod cleanup;

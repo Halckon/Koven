@@ -21,6 +21,9 @@ impl UnitExpressionLowerer<'_> {
                 descriptor,
             )?;
             let Some(transfer) = qualified.future_transfer else {
+                if let SourceIdentity::BindingChoice(proof) = qualified.source {
+                    binding_choice::finish(self, proof, span)?;
+                }
                 continue;
             };
             let bad = || lowering_error(LoweringErrorKind::MissingFact, span);

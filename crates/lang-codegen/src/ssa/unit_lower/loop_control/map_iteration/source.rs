@@ -85,6 +85,14 @@ impl UnitExpressionLowerer<'_> {
         }
         let identity = qualified.source;
         let seed = match identity {
+            SourceIdentity::BindingChoice(proof) => {
+                if access != UnitIterationSourceAccess::Owned {
+                    return Err(missing());
+                }
+                let current = identity.current(self, span)?;
+                binding_choice::anchor(self, proof, current, span)?;
+                current
+            }
             SourceIdentity::BorrowedBinding(proof) => {
                 if access != UnitIterationSourceAccess::Shared {
                     return Err(missing());
@@ -174,6 +182,7 @@ impl UnitExpressionLowerer<'_> {
                 }
             }
             SourceIdentity::BorrowedBinding(_)
+            | SourceIdentity::BindingChoice(_)
             | SourceIdentity::Local { .. }
             | SourceIdentity::Formed { .. }
             | SourceIdentity::Temporary(_) => {
@@ -358,6 +367,13 @@ impl UnitExpressionLowerer<'_> {
                 self.owned,
                 descriptor,
             )?;
+            if let SourceIdentity::BindingChoice(proof) = qualified.source {
+                if proof.root == root {
+                    let span = self.statement_span(descriptor.statement().statement())?;
+                    return binding_choice::validate_drop(self, proof, fact, owner, span);
+                }
+                continue;
+            }
             let SourceIdentity::Formed {
                 root: actual,
                 birth,
@@ -390,8 +406,7 @@ impl UnitExpressionLowerer<'_> {
                 let point = crate::ssa::map_source::unit_drop_event(self.parsed, fact.point())
                     .ok_or_else(bad)?;
                 let epoch = crate::ssa::map_source::epoch_at(self.parsed, &formation, point)?;
-                let call = crate::ssa::map_source::epoch_call(self.parsed, epoch.rhs)?;
-                let call = UnitExpressionId::new(root.source_unit(), call);
+                let call = UnitExpressionId::new(root.source_unit(), epoch.rhs);
                 if other_epoch.is_some_and(|previous| previous != call) {
                     return Err(bad());
                 }

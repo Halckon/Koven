@@ -132,6 +132,15 @@ impl Roles {
     fn from_exit(state: MapState, exit: &BranchExit, span: Span) -> Result<Self, LoweringError> {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         let seed = match state.carrier.identity {
+            SourceIdentity::BindingChoice(proof) => {
+                match (
+                    exit.bindings.get(&proof.root),
+                    exit.borrow_bindings.get(&proof.root),
+                ) {
+                    (Some(LoweredValue::Value(owner)), None) => EntityId::Value(*owner),
+                    _ => return Err(bad()),
+                }
+            }
             SourceIdentity::BorrowedBinding(proof) => {
                 if exit.bindings.contains_key(&proof.binding) {
                     return Err(bad());

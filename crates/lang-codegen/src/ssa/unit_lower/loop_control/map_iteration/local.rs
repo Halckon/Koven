@@ -22,7 +22,30 @@ pub(super) fn validate_other_epoch_birth(
     current: EntityId,
     span: Span,
 ) -> Result<EntityId, LoweringError> {
-    validate_call_owner(lowerer, root, initializer, current, span)
+    let storage = lowerer
+        .typed
+        .symbol_type(root)
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let epoch = map_iteration::formed::epoch::resolve(
+        (lowerer.parsed, lowerer.names, lowerer.typed, lowerer.owned),
+        root,
+        storage,
+        initializer.expression(),
+        span,
+    )?;
+    if epoch.formation.is_some() {
+        return validate_formed_birth(lowerer, epoch.root, epoch.birth, current, epoch.at);
+    }
+    let crate::ssa::map_source::Birth::Call(call) = epoch.birth else {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    };
+    validate_call_owner(
+        lowerer,
+        root,
+        UnitExpressionId::new(root.source_unit(), call),
+        current,
+        span,
+    )
 }
 
 fn validate_call_owner(

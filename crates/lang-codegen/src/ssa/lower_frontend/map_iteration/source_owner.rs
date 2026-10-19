@@ -461,14 +461,32 @@ pub(in super::super) fn supported_drop(
     fact: DropFact,
 ) -> bool {
     typed.map_iterations().iter().any(|descriptor| {
-        qualify::qualify(parsed, names, typed, owned, *descriptor)
-            .ok()
-            .and_then(|q| q.owner)
-            .is_some_and(|proof| {
-                proof
-                    .at_checked(fact.point(), owned)
-                    .is_ok_and(|actual| actual == Some(fact))
-            })
+        let Ok(qualified) = qualify::qualify(parsed, names, typed, owned, *descriptor) else {
+            return false;
+        };
+        if qualified.owner.is_some_and(|proof| {
+            proof
+                .at_checked(fact.point(), owned)
+                .is_ok_and(|actual| actual == Some(fact))
+        }) {
+            return true;
+        }
+        let SourceIdentity::Formed { symbol, .. } = qualified.source else {
+            return false;
+        };
+        let Ok(node) = parsed.ast().statements().get(descriptor.statement()) else {
+            return false;
+        };
+        // This is only preflight capability for a different binding epoch. The
+        // emitter separately proves its exact Move/Call and current SSA owner.
+        formed::other_epoch_drop(
+            (parsed, names, typed, owned),
+            symbol,
+            descriptor.source_type(),
+            fact,
+            node.span(),
+        )
+        .is_ok_and(|supported| supported)
     })
 }
 

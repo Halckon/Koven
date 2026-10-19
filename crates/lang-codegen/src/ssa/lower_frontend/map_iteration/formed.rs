@@ -1,4 +1,5 @@
 //! General ordinary local formation uses original Expression ownership, not a lexical carrier.
+pub(super) mod epoch;
 pub(super) mod retained;
 use super::*;
 use crate::ssa::map_source::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
@@ -10,6 +11,31 @@ use lang_frontend::{
 };
 
 pub(super) fn formation(
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    typed: &TypedFile,
+    owned: &OwnershipCheckedFile,
+    root: SymbolId,
+    storage: TypeId,
+    span: Span,
+) -> Result<Formation<SymbolId>, LoweringError> {
+    let mut formation = raw_formation(parsed, names, typed, owned, root, storage, span)?;
+    for event in &formation.history {
+        let resolved = epoch::resolve(
+            (parsed, names, typed, owned),
+            root,
+            storage,
+            event.rhs,
+            span,
+        )?;
+        formation
+            .births
+            .push((event.rhs, resolved.root, resolved.birth));
+    }
+    Ok(formation)
+}
+
+fn raw_formation(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
@@ -227,7 +253,16 @@ pub(super) fn qualify<'a>(
         if outer.span() == formation.binding {
             continue;
         }
-        let call = crate::ssa::map_source::epoch_call(parsed, epoch.rhs)?;
+        let resolved = epoch::resolve(
+            (parsed, names, typed, owned),
+            root,
+            d.source_type(),
+            epoch.rhs,
+            span,
+        )?;
+        let Birth::Call(call) = resolved.birth else {
+            return Err(unsupported());
+        };
         if typed.map_construction(call).is_some() || typed.map_consume(call).is_some() {
             local::producer(parsed, names, typed, owned, call, d.source_type(), span)?;
             continue;
@@ -316,6 +351,35 @@ pub(super) fn replacement_point(formation: Option<&Formation<SymbolId>>, point: 
         (Some(expected),DropPoint::AfterExpression(actual)) if expected==actual)
 }
 
+/// Preflight a published non-current epoch without claiming the provider's current Drop.
+pub(super) fn other_epoch_drop(
+    frontend: (
+        &ParsedFile,
+        &NameResolution,
+        &TypedFile,
+        &OwnershipCheckedFile,
+    ),
+    root: SymbolId,
+    storage: TypeId,
+    fact: lang_frontend::ownership_checking::DropFact,
+    span: Span,
+) -> Result<bool, LoweringError> {
+    let (parsed, names, typed, owned) = frontend;
+    if fact.target() != lang_frontend::ownership_checking::DropTarget::Named(root)
+        || !owned.drops().contains(&fact)
+    {
+        return Ok(false);
+    }
+    let formation = formation(parsed, names, typed, owned, root, storage, span)?;
+    // This checks every original fact, including the other epoch's exact public
+    // owner, complete incoming provenance, condition and original Drop marker.
+    let current = drops(parsed, owned, root, &formation)?;
+    let event = crate::ssa::map_source::drop_event(parsed, fact.point())
+        .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.value_origin()))?;
+    Ok(!current.contains(&fact)
+        && !crate::ssa::map_source::in_formation(parsed, &formation, event)?)
+}
+
 /// Partition one named root by real binding/replacement events, never by spelling or adjacency.
 pub(super) fn drops(
     parsed: &ParsedFile,
@@ -344,7 +408,17 @@ pub(super) fn drops(
             }
             facts.push(fact);
         } else {
-            let producer = crate::ssa::map_source::epoch_call(parsed, epoch.rhs)?;
+            let (_, epoch_root, birth) = unique(
+                formation
+                    .births
+                    .iter()
+                    .copied()
+                    .filter(|(rhs, _, _)| *rhs == epoch.rhs),
+            )
+            .ok_or_else(bad)?;
+            let Birth::Call(producer) = birth else {
+                return Err(error(LoweringErrorKind::UnsupportedNode, point.span));
+            };
             let owner = fact.owner().ok_or_else(bad)?;
             let conditions = owned.cleanup_conditions();
             match conditions.owner_value(owner).ok_or_else(bad)? {
@@ -365,14 +439,23 @@ pub(super) fn drops(
                     }
                 }
                 CleanupOwnerValue::IterationPhi { .. } => {
-                    let available = source_owner::formed_condition(
+                    // The moved root may share this provider with other live roots.
+                    // Select its exact phi binding and prove every incoming to the
+                    // actual Move birth, rather than requiring a singleton set.
+                    let available = source_owner::birth_condition(
                         parsed,
                         owned,
-                        (root, Birth::Call(producer)),
+                        (epoch_root, birth),
                         owner,
                         point.span,
+                        true,
                     )?;
-                    if fact.value_origin() != formation.declaration
+                    if fact.value_origin()
+                        != if epoch_root == root {
+                            formation.declaration
+                        } else {
+                            epoch.origin
+                        }
                         || fact.condition() != Some(available)
                     {
                         return Err(bad());

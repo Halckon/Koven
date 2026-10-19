@@ -1,4 +1,5 @@
 //! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
+pub(super) mod binding_choice;
 pub(super) mod borrowed;
 mod conditional;
 pub(super) mod expression_birth;

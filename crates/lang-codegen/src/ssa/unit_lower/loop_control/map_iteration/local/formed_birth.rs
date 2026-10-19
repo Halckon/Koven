@@ -27,7 +27,7 @@ pub(in super::super) fn validate_formed_birth(
     {
         return Err(bad());
     }
-    let mut anchor = match expected {
+    let anchor = match expected {
         Birth::Call(expression) => {
             let expression = UnitExpressionId::new(root.source_unit(), expression);
             source::ordinary_birth(lowerer, expression, span)?
@@ -85,6 +85,7 @@ pub(in super::super) fn validate_formed_birth(
     if lowerer.function.entity(anchor).map(|e| e.ty) != Some(EntityType::Value(storage)) {
         return Err(bad());
     }
+    let mut updates = std::collections::BTreeMap::new();
     for update in &formation.updates {
         let expression = UnitExpressionId::new(root.source_unit(), update.expression);
         let receiver = UnitExpressionId::new(root.source_unit(), update.receiver);
@@ -140,14 +141,20 @@ pub(in super::super) fn validate_formed_birth(
         {
             return Err(bad());
         }
-        transport::from_anchor(lowerer.function, EntityId::Value(input), anchor, span)?;
-        anchor = EntityId::Value(result);
+        if updates
+            .insert(EntityId::Value(result), EntityId::Value(input))
+            .is_some()
+        {
+            return Err(bad());
+        }
     }
-    transport::from_anchor(lowerer.function, current, anchor, span)?;
+    crate::ssa::map_source::transport::check(lowerer.function, current, anchor, &updates, span)?;
     if lowerer.bindings.iter().any(|(other, value)| *other != root
         && matches!(value, LoweredValue::Value(v) if EntityId::Value(*v) == current || EntityId::Value(*v) == anchor))
         || lowerer.temporaries.values().any(|v| EntityId::Value(*v) == current || EntityId::Value(*v) == anchor)
         || lowerer.pending_operands.iter().any(|v| *v == current || *v == anchor)
     { return Err(bad()); }
-    Ok(anchor)
+    // The provider carries this fully proved acquisition view; later loop edges
+    // transport it without replaying mutations from an untaken ordinary arm.
+    Ok(if updates.is_empty() { anchor } else { current })
 }

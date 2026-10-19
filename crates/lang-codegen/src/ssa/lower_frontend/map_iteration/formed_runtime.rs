@@ -20,28 +20,7 @@ impl ExpressionLowerer<'_> {
             let SourceIdentity::Formed { symbol, birth } = qualified.source else {
                 continue;
             };
-            if symbol != root
-                || qualified.local.is_some()
-                || (qualified.conditional.is_some()
-                    && !qualified
-                        .plan
-                        .exits()
-                        .iter()
-                        .any(|exit| exit.point() == fact.point())
-                    && !qualified
-                        .owner
-                        .and_then(|proof| proof.flow)
-                        .and_then(|flow| flow.late)
-                        .is_some_and(|late| late == fact))
-            {
-                continue;
-            }
-            let matched = qualified
-                .owner
-                .map(|proof| proof.at_checked(fact.point(), self.owned))
-                .transpose()?
-                .flatten();
-            if matched != Some(fact) {
+            if symbol != root || qualified.local.is_some() {
                 continue;
             }
             let span = self
@@ -62,6 +41,43 @@ impl ExpressionLowerer<'_> {
             )?;
             if formation.birth != birth {
                 return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            let bad = || error(LoweringErrorKind::MissingFact, fact.value_origin());
+            let event =
+                crate::ssa::map_source::drop_event(self.parsed, fact.point()).ok_or_else(bad)?;
+            if !crate::ssa::map_source::in_formation(self.parsed, &formation, event)? {
+                // Qualification above checked this epoch's exact public owner/condition.
+                let epoch = crate::ssa::map_source::epoch_at(self.parsed, &formation, event)?;
+                let resolved = formed::epoch::resolve(
+                    (self.parsed, self.names, self.typed, self.owned),
+                    root,
+                    descriptor.source_type(),
+                    epoch.rhs,
+                    event.span,
+                )?;
+                if let Some(formation) = resolved.formation {
+                    self.formed_map_anchor(&formation, Some(owner), resolved.at)?;
+                } else {
+                    let Birth::Call(producer) = resolved.birth else {
+                        return Err(bad());
+                    };
+                    let anchor = self.map_call_birth(producer, event.span)?;
+                    nested::transport(
+                        self.function,
+                        EntityId::Value(owner),
+                        EntityId::Value(anchor),
+                        event.span,
+                    )?;
+                }
+                return Ok(true);
+            }
+            let matched = qualified
+                .owner
+                .map(|proof| proof.at_checked(fact.point(), self.owned))
+                .transpose()?
+                .flatten();
+            if matched != Some(fact) {
+                return Err(bad());
             }
             self.formed_map_anchor(&formation, Some(owner), span)?;
             return Ok(true);
