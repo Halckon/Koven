@@ -64,6 +64,7 @@ provider builder 有状态，不把它或 ownership/CFG 状态机称作纯函数
    不提前触及。入口保留上表身份、能力与来源适配，真实不等价的领域策略有明确边界；不能
    用大量可选字段隐藏旧 driver。每域删除被取代副本、补依赖门禁，核全部已支持退出及资源
    路径。未证等价的共同责任继续开放，不能强行让 single 包装 unit 或默默删能力。
+   从已验证输入事实、输出SSA与状态所有者推导单一职责边界，保持低耦合、高内聚；入口仅保真实身份、来源及必要能力差异，共同语义决策和构造算法只有一份，不以减行、巨trait、万能context或隐藏在回调内的重复算法作为收敛证据。
 5. **E：最终结构与行为审计。** 对 A 的全部条目核对唯一实现/消费者，真实差异逐项给出
    必要性、源位置及固定回归。独立审查确认两入口已是薄适配、没有同一事实解释/构造算法的
    双份生产实现；行为矩阵、资源证据、工程门与精确头双宿主 CI 齐备后才可关闭。
@@ -259,3 +260,14 @@ iteration角色逐项建立状态合同，最后收敛driver骨架。此节不�
 - 同头再验前两片27项去掉重复的生产依赖guard与paired_print后25项，全部各1/exit0。合39个唯一ordinary exact，6个native测试沿原helper共12次正常运行，stdout/exit/stderr原硬断通过；不外推释放次数、泄漏或完整资源证明。
 - `cargo check --locked --offline -p lang-codegen --tests`35.32s/0；fmt通过；Clippy（同§11命令）1m07s/0。尺寸门`python3 scripts/check_rust_sizes.py --base fbb50f06`为1837手写Rust/历史38超限通过，无新增例外；首次size调用漏`--base`仅usage退出，正确补基线后通过，原失败保留。测试命令沿§9逐exact串行，原日志仅仓外`d10-readonly/logs/statement-*`，后继docs提交不冒称重跑行为。
 - 本轮未运行任何合成坏依赖/缺事实/非法SSA/注入/校准；新statement依赖负控留CI。§12前两项及本地普通验收成立，精确新远端头双hostCI待验；C/D/E及CFG/owner/loan/pending/receiver/iteration/driver共用责任继续开放。
+
+## 14. C/D control-tail顺序核心小片（待实施）
+
+本片只收敛已支持control-tail的顺序执行与body cleanup时点；不关闭CFG/cleanup/driver或D10。设计/安装基线为 `64461b187e34d721bfa4f6a1402abe053be195de` / tree `93aa3fc098c4845bc147952f942d87a96d71d55c`；既有39个ordinary的原结果不继承为新生产头通过。
+
+- 在既有statement_core复用StatementLowering两端口：空elements直接Unit；prefix经共享Unit sequence，错误或Diverged立即停；末项经共享statement wrapper保留三态，非Diverged才发body AfterStatement。两入口删除原重复循环和末项收尾。
+- 适配保留原AST查询/错误Span、single只识别ControlBody、unit另识别LambdaBody及原clone/fallback；source-qualified DropPoint仍由unit现场构造。core不持有或解释bindings、owner、loan、pending、receiver、CFG状态，不新增trait/context或尾循环回调。
+- 原branch结果交付/BranchExit、single lambda空体cleanup与结果合同、return/break/continue/Abort、iteration专用cleanup不动；Diverged不得替换为terminator检查。不触及0321、0291或0333–0340。
+- 验收优先复用第三片39个ordinary的完整exact及已审helper，按本次实际影响选取并逐项记实际命中；补小型真实源码pair锁tail Value交付及prefix/末项提前退出，复用既有source/Span/owner定义使用查询，不新建大型query模块。空tail/fallback保原行为；不可达的人工错误只留CI。
+- [ ] 两消费者经唯一tail算法，原两段重复删除；空/正常/Value/Diverged/错误顺序与原资源关系保持。
+- [ ] 普通SSA/LLVM/native完整输出、依赖门、工程门及独审记录实际结果；人工缺事实/非法SSA/合成禁边/注入/校准仅CI，精确头双宿主CI另账。普通native不证明释放次数或无泄漏。
