@@ -237,3 +237,6 @@ mod scope_value_births;
 
 #[path = "native_map_provider_scope_member_parameter_tests.rs"]
 mod scope_member_parameter;
+
+#[path = "native_map_provider_scope_future_tests.rs"]
+mod scope_future;

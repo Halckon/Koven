@@ -79,7 +79,35 @@ impl ExpressionLowerer<'_> {
             if matched != Some(fact) {
                 return Err(bad());
             }
-            self.formed_map_anchor(&formation, Some(owner), span)?;
+            let terminal = crate::ssa::map_source::continuation(
+                self.parsed,
+                &formation,
+                event,
+                span,
+                |id| {
+                    self.typed
+                        .expression_type(id)
+                        .zip(self.typed.expression_category(id))
+                },
+                |at| self.references.get(&span_key(at)).copied().ok_or_else(bad),
+                self.typed
+                    .map_puts()
+                    .iter()
+                    .map(|d| crate::ssa::map_source::OwnerUpdate {
+                        expression: d.expression(),
+                        receiver: d.receiver(),
+                    })
+                    .chain(self.typed.map_removes().iter().map(|d| {
+                        crate::ssa::map_source::OwnerUpdate {
+                            expression: d.expression(),
+                            receiver: d.receiver(),
+                        }
+                    })),
+            )?;
+            if !formation.same_epoch(&terminal) {
+                return Err(bad());
+            }
+            self.formed_map_anchor(&terminal, Some(owner), event.span)?;
             return Ok(true);
         }
         for descriptor in self.typed.map_iterations() {

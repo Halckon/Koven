@@ -31,6 +31,8 @@ mod query_temporary_cleanup;
 mod query_test;
 mod resource;
 mod resource_forms;
+mod scope_future_observer;
+pub(crate) use scope_future_observer::cases as scope_future_sources;
 mod sequential;
 mod source_forms;
 mod stack;

@@ -449,7 +449,8 @@ impl ExpressionLowerer<'_> {
         fact: DropFact,
         value: ValueId,
     ) -> Result<(), LoweringError> {
-        if self.validate_formed_map_drop(fact, value)?
+        if self.validate_map_handoff_drop(fact, value)?
+            || self.validate_formed_map_drop(fact, value)?
             || self.validate_pure_map_parameter_drop(fact, value)?
         {
             return Ok(());
@@ -546,6 +547,7 @@ impl ExpressionLowerer<'_> {
     }
 
     pub(in super::super) fn validate_map_loop_carriers(&self) -> Result<(), LoweringError> {
+        self.finish_map_handoffs()?;
         self.validate_local_map_carriers()?;
         for carrier in &self.map_loop_owners.loops {
             let span = carrier.plan.drop.value_origin();

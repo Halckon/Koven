@@ -416,8 +416,15 @@ pub(in super::super) fn qualify(
     let drop = late
         .or_else(|| source_facts.first().copied())
         .or_else(|| inherited.then(|| outside.first().copied()).flatten());
+    let handoff = if drop.is_none() {
+        source_owner::handoff::qualify((parsed, names, typed, owned), flow, span)?
+    } else {
+        None
+    };
     let disposition = if let Some(drop) = drop {
         source_owner::Disposition::Drop(drop)
+    } else if let Some(proof) = handoff {
+        source_owner::Disposition::Handoff(proof)
     } else {
         source_owner::Disposition::Delivery(source_owner::delivery::qualify(
             parsed, names, typed, owned, flow, span,
@@ -432,7 +439,14 @@ pub(in super::super) fn qualify(
         return Err(missing());
     }
     Ok(Some(source_owner::Proof {
-        flow: Some(source_owner::Flow { late, ..flow }),
+        flow: Some(source_owner::Flow {
+            late: handoff
+                .map(|proof| proof.drop(owned))
+                .transpose()?
+                .flatten()
+                .or(late),
+            ..flow
+        }),
         disposition,
         transfer: None,
         conditional_return: None,

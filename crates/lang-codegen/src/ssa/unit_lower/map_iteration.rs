@@ -5,6 +5,7 @@ mod conditional;
 pub(super) mod expression_birth;
 pub(super) mod formed;
 mod future_use;
+pub(super) mod handoff;
 mod local;
 mod nested;
 pub(super) use local::{LocalContinuation, lambda_body as qualify_local_lambda};

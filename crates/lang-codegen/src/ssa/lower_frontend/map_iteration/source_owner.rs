@@ -3,6 +3,7 @@
 //! No shape is inferred from Sequential loops or accepted from a presence bit alone.
 pub(super) mod delivery;
 mod future;
+pub(super) mod handoff;
 pub(super) use delivery::Delivery;
 pub(super) mod provenance;
 use super::*;
@@ -25,6 +26,7 @@ pub(super) struct Proof {
 pub(super) enum Disposition {
     Drop(DropFact),
     Delivery(Delivery),
+    Handoff(handoff::Proof),
 }
 
 /// A small capability handle into the same immutable ownership product.
@@ -64,13 +66,14 @@ impl Proof {
     pub(super) fn drop(self) -> Option<DropFact> {
         match self.disposition {
             Disposition::Drop(fact) => Some(fact),
-            Disposition::Delivery(_) => None,
+            Disposition::Delivery(_) | Disposition::Handoff(_) => None,
         }
     }
     pub(super) fn origin(self) -> Span {
         match self.disposition {
             Disposition::Drop(fact) => fact.value_origin(),
             Disposition::Delivery(delivery) => delivery.origin,
+            Disposition::Handoff(proof) => proof.origin,
         }
     }
     pub(super) fn at(self, point: DropPoint) -> Option<DropFact> {

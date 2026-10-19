@@ -64,6 +64,22 @@ pub(in super::super) struct Formation<R> {
     pub(in super::super) replacement: Option<ExpressionId>,
 }
 
+impl<R: Eq> Formation<R> {
+    /// Later mutations may change the SSA owner, but not its binding epoch.
+    pub(in super::super) fn same_epoch(&self, other: &Self) -> bool {
+        self.birth == other.birth
+            && self.roots == other.roots
+            && self.declaration == other.declaration
+            && self.binding == other.binding
+            && self.origin == other.origin
+            && self
+                .history
+                .iter()
+                .map(|e| (e.rhs, e.origin))
+                .eq(other.history.iter().map(|e| (e.rhs, e.origin)))
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Write {
     span: Span,
@@ -172,7 +188,7 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                 parsed,
                 &updates,
                 &mut selected_updates,
-                (marker.end(), cutoff, current),
+                (marker.end(), cutoff, current, None),
                 &same_callable,
                 &mut expression_type,
                 &mut reference,
@@ -298,7 +314,7 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
             parsed,
             &updates,
             &mut selected_updates,
-            (outer.span().end(), cutoff, current),
+            (outer.span().end(), cutoff, current, None),
             &same_callable,
             &mut expression_type,
             &mut reference,
@@ -334,16 +350,50 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
     }
 }
 
+/// Extend only completed mutations of the already proved binding epoch. A lexical
+/// Block span starts before its locals, but its AfterStatement executes at the end.
+pub(in super::super) fn continuation<R: Copy + Eq, T: Copy + Eq>(
+    parsed: &ParsedFile,
+    formation: &Formation<R>,
+    event: DropEvent,
+    acquisition: Span,
+    mut expression_type: impl FnMut(ExpressionId) -> Option<T>,
+    mut reference: impl FnMut(Span) -> Result<R, LoweringError>,
+    updates: impl Iterator<Item = OwnerUpdate>,
+) -> Result<Formation<R>, LoweringError> {
+    let bad = || error(LoweringErrorKind::MissingFact, event.span);
+    if acquisition.source_id() != event.span.source_id() || !in_formation(parsed, formation, event)?
+    {
+        return Err(bad());
+    }
+    let mut terminal = formation.clone();
+    if event.span.end() > acquisition.end() {
+        let root = *formation.roots.first().ok_or_else(bad)?;
+        let updates = updates.collect::<Vec<_>>();
+        collect_updates(
+            parsed,
+            &updates,
+            &mut terminal.updates,
+            (acquisition.end(), event.span, root, Some(event.span.end())),
+            &|at| handoff::same_callable(parsed, acquisition, at),
+            &mut expression_type,
+            &mut reference,
+        )?;
+        terminal.updates = sorted_updates(parsed, terminal.updates)?;
+    }
+    Ok(terminal)
+}
+
 fn collect_updates<R: Copy + Eq, T: Copy + Eq>(
     parsed: &ParsedFile,
     updates: &[OwnerUpdate],
     selected: &mut Vec<OwnerUpdate>,
-    window: (usize, Span, R),
+    window: (usize, Span, R, Option<usize>),
     same_callable: &impl Fn(Span) -> bool,
     typed: &mut impl FnMut(ExpressionId) -> Option<T>,
     reference: &mut impl FnMut(Span) -> Result<R, LoweringError>,
 ) -> Result<(), LoweringError> {
-    let (start, cutoff, root) = window;
+    let (start, cutoff, root, completed_end) = window;
     for &update in updates {
         let operation = parsed
             .ast()
@@ -351,7 +401,9 @@ fn collect_updates<R: Copy + Eq, T: Copy + Eq>(
             .get(update.expression)
             .map_err(|_| error(LoweringErrorKind::MissingFact, cutoff))?;
         let at = operation.span();
-        if !same_callable(at) || start >= at.start() || at.end() >= cutoff.start() {
+        let completed =
+            completed_end.map_or_else(|| at.end() < cutoff.start(), |end| at.end() <= end);
+        if !same_callable(at) || start >= at.start() || !completed {
             continue;
         }
         let receiver = transparent_expression(parsed, update.receiver, &mut *typed)?;

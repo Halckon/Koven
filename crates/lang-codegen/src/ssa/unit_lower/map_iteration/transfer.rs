@@ -6,6 +6,7 @@ use lang_frontend::ownership_checking::{UnitValueDeliveryFact, UnitValueDelivery
 pub(in super::super) struct QualifiedTransfer {
     pub(in super::super) statement: UnitStatementId,
     pub(in super::super) source: SourceIdentity,
+    pub(in super::super) handoff: Option<handoff::Proof>,
 }
 
 impl QualifiedTransfer {
@@ -146,8 +147,28 @@ pub(super) fn qualify(
     let handle = QualifiedTransfer {
         statement: plan.descriptor().statement(),
         source,
+        handoff: None,
     };
-    Ok((!handle.deliveries(parsed, names, typed, owned)?.is_empty()).then_some(handle))
+    if !handle.deliveries(parsed, names, typed, owned)?.is_empty() {
+        return Ok(Some(handle));
+    }
+    let span = parsed
+        .ast()
+        .statements()
+        .get(plan.descriptor().statement().statement())
+        .map_err(|_| LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?
+        .span();
+    Ok(
+        handoff::qualify((parsed, names, typed, owned), plan, source, span)?.map(|proof| {
+            QualifiedTransfer {
+                handoff: Some(proof),
+                ..handle
+            }
+        }),
+    )
 }
 
 fn same_callable(parsed: &ParsedFile, left: Span, right: Span) -> bool {

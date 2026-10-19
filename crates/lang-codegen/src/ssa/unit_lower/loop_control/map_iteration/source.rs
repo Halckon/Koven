@@ -439,7 +439,55 @@ impl UnitExpressionLowerer<'_> {
             {
                 return Err(bad());
             }
-            local::validate_formed_birth(self, root, birth, EntityId::Value(owner), span)?;
+            let event = crate::ssa::map_source::unit_drop_event(self.parsed, fact.point())
+                .ok_or_else(bad)?;
+            let terminal = crate::ssa::map_source::continuation(
+                self.parsed,
+                &formation,
+                event,
+                span,
+                |id| {
+                    let id = UnitExpressionId::new(self.source_unit, id);
+                    self.typed
+                        .expression_type(id)
+                        .zip(self.typed.expression_category(id))
+                },
+                |at| {
+                    self.references
+                        .get(&super::super::super::span_key(at))
+                        .copied()
+                        .ok_or_else(bad)
+                },
+                self.typed
+                    .map_puts()
+                    .iter()
+                    .filter(|d| d.expression().source_unit() == self.source_unit)
+                    .map(|d| crate::ssa::map_source::OwnerUpdate {
+                        expression: d.expression().expression(),
+                        receiver: d.receiver().expression(),
+                    })
+                    .chain(
+                        self.typed
+                            .map_removes()
+                            .iter()
+                            .filter(|d| d.expression().source_unit() == self.source_unit)
+                            .map(|d| crate::ssa::map_source::OwnerUpdate {
+                                expression: d.expression().expression(),
+                                receiver: d.receiver().expression(),
+                            }),
+                    ),
+            )?;
+            if !formation.same_epoch(&terminal) {
+                return Err(bad());
+            }
+            local::validate_formed_formation(
+                self,
+                root,
+                birth,
+                EntityId::Value(owner),
+                event.span,
+                &terminal,
+            )?;
             return Ok(());
         }
         if relevant {

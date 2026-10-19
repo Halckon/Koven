@@ -68,6 +68,10 @@ impl UnitExpressionLowerer<'_> {
                 _ => return Err(bad()),
             };
             transport::from_anchor(self.function, EntityId::Value(seed), anchor, span)?;
+            if let Some(proof) = transfer.handoff {
+                handoff::finish(self, proof, seed, span)?;
+                continue;
+            }
             for fact in transfer.deliveries(self.parsed, self.names, self.typed, self.owned)? {
                 let node = self
                     .parsed

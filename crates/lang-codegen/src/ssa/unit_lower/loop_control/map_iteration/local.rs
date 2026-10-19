@@ -2,7 +2,7 @@
 mod completed;
 mod formed_birth;
 use super::*;
-pub(super) use formed_birth::validate_formed_birth;
+pub(super) use formed_birth::{validate_formed_birth, validate_formed_formation};
 use lang_frontend::ownership_checking::UnitDropFact;
 
 pub(super) fn validate_birth(

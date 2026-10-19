@@ -20,6 +20,19 @@ pub(in super::super) fn validate_formed_birth(
         storage,
         span,
     )?;
+    validate_formed_formation(lowerer, root, expected, current, span, &formation)
+}
+
+pub(in super::super) fn validate_formed_formation(
+    lowerer: &UnitExpressionLowerer<'_>,
+    root: UnitSymbolId,
+    expected: Birth<UnitSymbolId>,
+    current: EntityId,
+    span: Span,
+    formation: &crate::ssa::map_source::Formation<UnitSymbolId>,
+) -> Result<EntityId, LoweringError> {
+    let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
+    let storage = lowerer.typed.symbol_type(root).ok_or_else(bad)?;
     if formation.birth != expected
         || !lowerer.owned.formed_owned_locals().contains(&root)
         || lowerer.borrow_bindings.contains_key(&root)

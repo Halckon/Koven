@@ -1,7 +1,10 @@
 //! Transparent source syntax does not change the validated type, category or owner.
 mod formation;
+pub(super) mod handoff;
+pub(super) mod handoff_runtime;
 pub(super) mod transport;
 use super::{LoweringError, LoweringErrorKind};
+pub(super) use formation::continuation;
 pub(super) use formation::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
 use lang_frontend::{
     ast::ExpressionId,
