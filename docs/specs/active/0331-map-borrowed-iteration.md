@@ -1504,3 +1504,25 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - A2原两失败关闭，固定B=6、C=8、D=6共20个原失败观察仍必修；普通前置合同保持。
   最终固定头联合回归、新头CI/三产物独审、文档收尾与最小归档/正常合并仍待；F保持active，
   PR保持draft，D10未启动，后续开发按用户要求交云端。
+
+## 68. B / P06 已有 Int 存储与复制读取（2026-10-19）
+
+- 固定P06-for/control两份原source/golden逐字保全，Single/Unit四目标不变。两端formed来源
+  移除非Resource Map的String-only准入；typed intrinsic K/V、真实工厂出生、当前epoch、
+  Shared component、完整incoming和退出/唯一Drop校验保持，不改普通参数ABI或Field/Inout边界。
+- 四次同分析深查询/SSA/LLVM全部成功：实际makeInt构造MutableMap<Int,Int>，put字面量1/2，
+  consume交付最新owner并Return；scan从该真实Call取得Map。reader仍按实际Borrow Int32参数
+  ABI，通过Read复制值后比较key==1/value==2，原CFG仅在两者成立时输出int；全provider三列、
+  入边、受保护uses、component结束及当前owner Drop均核对。control核MapSize后ASAP唯一Drop。
+- v1实际查询为3/4成功，Rust0/1/0，无native；Unit control没有调用readInt，测试错误要求其
+  reachable函数。仅将mandatory reader查询移入实际For分支，For仍缺函数即失败；未改源/golden。
+  v2四深查询和四唯一严格native全部成功，Rust1+2无失败/忽略，3196输入指纹前后相同；每个
+  native核exit0、完整原golden及空stderr，不以收集器退出码代替逐例成功。
+- A2共享owner测试适配器仅显式传原site/birth/span三事实，原4782字节断言正文逐字保留；
+  A2原四深查询和四严格native另行复验全绿，输入与P06 v2相同。strict Clippy首轮真实
+  needless_range_loop已等价改参数枚举，mandatory长度2及断言正文保持，独审机械反向核实。
+- 七项工程门最终全部成功，含strict Clippy、712份文档与尺寸护栏；独审复核生产、原四目标、
+  完整proof、原始日志身份、A2回归及等价循环改写。本机未执行故障/校准/合成损坏/sanitizer。
+- P06原两For失败关闭；B剩P05双端和P03/04 Unit共4，C=8、D=6，共18条原For失败仍必修。
+  最终固定头联合回归、新头CI三产物独审、README/Tour/Architecture、最小归档与正常合并仍待；
+  F保持active，PR保持draft，D10未启动，后续开发按用户要求交云端。
