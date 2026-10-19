@@ -1,7 +1,10 @@
 //! Source evaluation and factory identity are established before a provider is created.
+pub(super) mod expression_birth;
 use super::*;
+use crate::ssa::model::Definition;
 use crate::ssa::unit_lower::builtin_type;
 use lang_frontend::ownership_checking::{UnitDropTarget, UnitLoanTarget};
+use lang_frontend::parser::Expression;
 use lang_frontend::type_checking::UnitCallTarget;
 
 impl UnitExpressionLowerer<'_> {
@@ -216,8 +219,18 @@ pub(super) fn validate_temporary_birth(
     span: Span,
 ) -> Result<(), LoweringError> {
     validate_ordinary_birth(lowerer, expression, seed, span)?;
-    let call = carrier::instruction(lowerer.function, seed, span)?;
-    if call.block != preheader {
+    let block = match lowerer
+        .function
+        .entity(seed)
+        .map(|entity| entity.definition)
+    {
+        Some(Definition::InstructionResult { instruction, .. }) => {
+            lowerer.function.instruction(instruction).map(|i| i.block)
+        }
+        Some(Definition::BlockParameter { block, index: 0 }) => Some(block),
+        _ => None,
+    };
+    if block != Some(preheader) {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     }
     Ok(())
@@ -446,6 +459,13 @@ pub(super) fn validate_ordinary_birth(
         .expressions()
         .get(expression.expression())
         .map_err(|_| bad())?;
+    if matches!(node.payload(), Expression::If { .. }) {
+        return if expression_birth::anchor(lowerer, expression, span)? == seed {
+            Ok(())
+        } else {
+            Err(bad())
+        };
+    }
     let result_type = lowerer.typed.expression_type(expression).ok_or_else(bad)?;
     let ty = lowerer.iteration_type(result_type, span)?;
     let call = carrier::instruction(lowerer.function, seed, span)?;
@@ -564,6 +584,15 @@ pub(super) fn ordinary_birth(
     span: Span,
 ) -> Result<EntityId, LoweringError> {
     let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
+    if lowerer
+        .parsed
+        .ast()
+        .expressions()
+        .get(expression.expression())
+        .is_ok_and(|node| matches!(node.payload(), Expression::If { .. }))
+    {
+        return expression_birth::anchor(lowerer, expression, span);
+    }
     let origin = lowerer
         .parsed
         .ast()

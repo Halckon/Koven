@@ -32,6 +32,11 @@ pub(in super::super) fn validate_formed_birth(
             let expression = UnitExpressionId::new(root.source_unit(), expression);
             source::ordinary_birth(lowerer, expression, span)?
         }
+        Birth::Expression(expression) => source::expression_birth::anchor(
+            lowerer,
+            UnitExpressionId::new(root.source_unit(), expression),
+            span,
+        )?,
         Birth::EntryParameter {
             root: parameter,
             reference,

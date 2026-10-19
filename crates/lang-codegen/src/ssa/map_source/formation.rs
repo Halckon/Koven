@@ -17,6 +17,8 @@ pub(in super::super) struct BindingEpoch {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in super::super) enum Birth<R> {
     Call(ExpressionId),
+    /// The original expression's owned result, independently witnessed by its consumer.
+    Expression(ExpressionId),
     EntryParameter {
         root: R,
         reference: ExpressionId,
@@ -70,6 +72,7 @@ struct Write {
 
 /// Resolve formation only. The caller still proves the complete FE current-owner
 /// graph and the actual SSA Call/transport identity before publishing capability.
+#[allow(clippy::too_many_arguments)]
 pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
     parsed: &ParsedFile,
     statement: Span,
@@ -77,6 +80,7 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
     mut declaration: impl FnMut(R) -> Result<BindingDeclaration, LoweringError>,
     mut reference: impl FnMut(Span) -> Result<R, LoweringError>,
     mut expression_type: impl FnMut(ExpressionId) -> Option<T>,
+    mut birth: impl FnMut(ExpressionId) -> Result<Birth<R>, LoweringError>,
     updates: impl Iterator<Item = OwnerUpdate>,
 ) -> Result<Formation<R>, LoweringError> {
     let missing = || error(LoweringErrorKind::MissingFact, statement);
@@ -283,10 +287,8 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                     .expressions()
                     .get(canonical)
                     .map_err(|_| missing())?;
-                if !(matches!(node.payload(), Expression::Call { .. })
-                    || epoch.rhs == initializer && node.payload() == &Expression::Name)
-                {
-                    return Err(unsupported());
+                if !(epoch.rhs == initializer && node.payload() == &Expression::Name) {
+                    birth(canonical)?;
                 }
             }
         }
@@ -306,9 +308,16 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
             .get(initializer)
             .map_err(|_| missing())?;
         match node.payload() {
-            Expression::Call { .. } => {
+            Expression::Name => {
+                // Resolve the consumed owner as it existed at this exact Move
+                // reference. A later rebinding of that old root is another epoch.
+                cutoff = node.span();
+                last_reference = Some(initializer);
+                current = reference(cutoff)?;
+            }
+            _ => {
                 return Ok(Formation {
-                    birth: Birth::Call(initializer),
+                    birth: birth(initializer)?,
                     updates: sorted_updates(parsed, selected_updates)?,
                     roots,
                     declaration: root_declaration.ok_or_else(missing)?,
@@ -318,14 +327,6 @@ pub(in super::super) fn named_formation<R: Copy + Eq, T: Copy + Eq>(
                     replacement,
                 });
             }
-            Expression::Name => {
-                // Resolve the consumed owner as it existed at this exact Move
-                // reference. A later rebinding of that old root is another epoch.
-                cutoff = node.span();
-                last_reference = Some(initializer);
-                current = reference(cutoff)?;
-            }
-            _ => return Err(unsupported()),
         }
     }
 }

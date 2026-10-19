@@ -33,15 +33,27 @@ pub(super) fn qualify(
         .map_err(|_| missing())?;
     // Formation follows the same ordinary selected Call as a bound local;
     // source-qualified temporary lifetime and cleanup remain separate below.
-    local::factory(
-        parsed,
-        names,
-        typed,
-        owned,
-        source,
-        descriptor.source_type(),
-        span,
-    )?;
+    if matches!(source_node.payload(), Expression::If { .. }) {
+        expression_birth::qualify(
+            parsed,
+            names,
+            typed,
+            owned,
+            source,
+            descriptor.source_type(),
+            span,
+        )?;
+    } else {
+        local::factory(
+            parsed,
+            names,
+            typed,
+            owned,
+            source,
+            descriptor.source_type(),
+            span,
+        )?;
+    }
     if typed.copyability(descriptor.source_type()) != Copyability::MoveOnly {
         return Err(missing());
     }

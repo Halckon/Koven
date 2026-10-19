@@ -493,6 +493,7 @@ pub(super) fn birth_condition(
 ) -> Result<lang_frontend::ownership_checking::CleanupConditionId, LoweringError> {
     use crate::ssa::map_source::Birth;
     match root.1 {
+        Birth::Expression(_) => Err(error(LoweringErrorKind::UnsupportedNode, span)),
         Birth::Call(expression) => {
             let origin = parsed
                 .ast()

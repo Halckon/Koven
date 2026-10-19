@@ -89,6 +89,24 @@ pub(in super::super) fn formation(
             let id = UnitExpressionId::new(source, id);
             typed.expression_type(id).zip(typed.expression_category(id))
         },
+        |id| {
+            let expression = UnitExpressionId::new(source, id);
+            match parsed
+                .ast()
+                .expressions()
+                .get(id)
+                .map_err(|_| bad())?
+                .payload()
+            {
+                Expression::Call { .. } => Ok(Birth::Call(id)),
+                _ => {
+                    expression_birth::qualify(
+                        parsed, names, typed, owned, expression, storage, span,
+                    )?;
+                    Ok(Birth::Expression(id))
+                }
+            }
+        },
         typed
             .map_puts()
             .iter()
@@ -188,8 +206,8 @@ pub(super) fn qualify(
         descriptor.source_type(),
         span,
     )?;
-    if let Birth::Call(producer) = formation.birth {
-        local::factory(
+    match formation.birth {
+        Birth::Call(producer) => local::factory(
             parsed,
             names,
             typed,
@@ -197,7 +215,19 @@ pub(super) fn qualify(
             UnitExpressionId::new(statement.source_unit(), producer),
             descriptor.source_type(),
             span,
-        )?;
+        )?,
+        Birth::Expression(expression) => {
+            expression_birth::qualify(
+                parsed,
+                names,
+                typed,
+                owned,
+                UnitExpressionId::new(statement.source_unit(), expression),
+                descriptor.source_type(),
+                span,
+            )?;
+        }
+        Birth::EntryParameter { .. } => {}
     }
     let source = SourceIdentity::Formed {
         root,

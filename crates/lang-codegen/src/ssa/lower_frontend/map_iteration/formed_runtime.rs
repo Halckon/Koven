@@ -125,6 +125,7 @@ impl ExpressionLowerer<'_> {
         let bad = || error(LoweringErrorKind::MissingFact, span);
         let anchor = match formation.birth {
             Birth::Call(producer) => self.map_call_birth(producer, span)?,
+            Birth::Expression(_) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
             Birth::EntryParameter {
                 root,
                 reference,

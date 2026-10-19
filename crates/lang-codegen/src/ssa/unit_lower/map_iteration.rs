@@ -1,6 +1,7 @@
 //! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
 pub(super) mod borrowed;
 mod conditional;
+pub(super) mod expression_birth;
 pub(super) mod formed;
 mod future_use;
 mod local;
@@ -162,7 +163,10 @@ fn qualify_one(
         .expressions()
         .get(canonical)
         .map_err(|_| missing())?;
-    if matches!(source_node.payload(), Expression::Call { .. }) {
+    if matches!(
+        source_node.payload(),
+        Expression::Call { .. } | Expression::If { .. }
+    ) {
         return temporary::qualify(parsed, names, typed, owned, descriptor, *body, span);
     }
     if !matches!(source_node.payload(), Expression::Name) {

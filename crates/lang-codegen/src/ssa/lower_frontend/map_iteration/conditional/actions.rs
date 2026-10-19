@@ -360,6 +360,9 @@ pub(super) fn binding_condition(
     use lang_frontend::ownership_checking::CleanupOwnerValue;
     let birth = binding_anchor(parsed, names, typed, owned, root, span)?;
     let (expression, origin) = match birth {
+        crate::ssa::map_source::Birth::Expression(_) => {
+            return Err(error(LoweringErrorKind::UnsupportedNode, span));
+        }
         crate::ssa::map_source::Birth::Call(expression) => (
             Some(expression),
             parsed

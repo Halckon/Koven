@@ -76,6 +76,16 @@ pub(super) fn formation(
             }
         },
         |id| typed.expression_type(id).zip(typed.expression_category(id)),
+        |id| match parsed
+            .ast()
+            .expressions()
+            .get(id)
+            .map_err(|_| missing())?
+            .payload()
+        {
+            Expression::Call { .. } => Ok(Birth::Call(id)),
+            _ => Err(unsupported()),
+        },
         typed
             .map_puts()
             .iter()

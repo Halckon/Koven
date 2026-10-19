@@ -307,6 +307,7 @@ impl MapCarrier {
             SourceIdentity::BorrowedBinding(_)
                 | SourceIdentity::Parameter { .. }
                 | SourceIdentity::Formed { .. }
+                | SourceIdentity::Temporary(_)
         ) || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {
@@ -389,6 +390,7 @@ impl MapCarrier {
             SourceIdentity::BorrowedBinding(_)
                 | SourceIdentity::Parameter { .. }
                 | SourceIdentity::Formed { .. }
+                | SourceIdentity::Temporary(_)
         ) || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {
