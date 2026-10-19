@@ -475,3 +475,10 @@ x02 双 UnsupportedNode，w06 双前端 L0135 但主诊断文本不同。两份 
 - 上述四项真绿后，`native_map_provider_tests::d10_w09`的single/unit两个原w09 exact各一次1 pass/exit0；真实object/link/program硬验程序exit0、stdout为`map-temp`加一个LF、stderr空。native薄片2文件+29/-2，只参数化Unit helper的path/entry，旧wrapper默认值及行为保持；single旧native helper未调用complete，完整双臂前置来自独立ordinary。同源精确输出覆盖正常累加，未新增checked失败/全部resume incoming独立结构query。成功child输出由原assert消费，未另存child raw；helper无内置timeout，外层120s自身进程组覆盖clang/program后代。两exact不等于OS总进程数2。
 - 同头随后fmt、`cargo check --locked --offline -p lang-codegen --tests`、`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`及固定4f→e0的diff --check各一次0；controller含前后核验耗时13.725/49.372/72.022/1.618s。各步全输入/工具/exe前后稳定，无超时/重试；原始stdout/stderr、JSON artifact与收据留仓外`e2-w09-final-validation/`，manifest `78b293ed`、77项SUMS `d186ad2e`。原普通红及两轮Nothing红证据保留；原35/70矩阵本节未重跑，精确远端CI及其他宿主另验。
 - 本片修复w09能力回退，并明确记录full-plan复用新增的Unit Nothing支持；不关闭单文件driver迁Unit、B2或D10全域目标。发布集成保留§30、按六原提交父序迁入且完整行为字节比对；纯docs后继不冒称重跑行为，正式远端头另登记。
+
+## 32. 固定35源场景修后双臂对照（2026-10-19，终态已独核）
+
+- 在实际修复头 `e0e960c1`（tree `80766ed4`）的独立树，仅安装原403行probe＋4行test-only注册；原35场景/34唯一源码、Source显示名/逻辑路径、entry、argv与7个FE-only硬门全字节保持，无生产CLI切换。唯一bin no-run exit0；70臂各一次真实采集完整，无超时、漂移或重试，不等于70源码全成功。
+- 两臂FE各28、public-native各25；single native exit0仍12，Unit19→23。w09、x01及两enum的4个旧Unit退化全部实际到达public-native/link/run exit0；12个双native的exit/stdout/stderr全部相同。其余66份完整trace对旧actual91c逐字相同（single35、Unit31），只4份Unit trace变化，未规范化；本轮没有独立SSA关系/完整SSA-model-LLVM对照。
+- 保留11个Unit-only收益（w01/02/03/04/07/10/11/13/14/17/19），single仍原MissingFact；保留3组诊断差：w06同L0135但loan冲突文案不同，moved诊断Unit多参数声明label，mixed为single Lexer首停与Unit names聚合4码。7诊断案例的同臂全文均与旧轮相同。x02和显式参数化entry边界、3个原driver无目标原样记录，后者不是Unit后端拒绝。
+- 本轮为22附件＋13仓内源码回放，不称原exact全集/外部144源（仍缺122源），无标准源注入；最终统一driver/package/root/import协议及single退役另验。完整仓外结果 `e2-single-unit-rebound-experiment/`；run-binding `8941964c`，实际exe `b35f6506`，controller receipt `ecb1263d`，outcome-summary `53b9ec92`、逐臂对照 `ed0dae17`；3294输入/8工具稳定，旧310件封包保持。
