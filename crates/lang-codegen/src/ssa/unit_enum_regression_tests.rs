@@ -2,7 +2,13 @@
 //! 首证只运行 pipeline exact。native exact 须在双源 SSA/LLVM 真绿后独立准入。
 mod queries;
 
-use std::{fmt::Debug, process::Command};
+use std::{
+    fmt::Debug,
+    fs,
+    path::PathBuf,
+    process::Command,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use lang_frontend::{
     diagnostic::Diagnostic,
@@ -18,7 +24,47 @@ use lang_frontend::{
     },
 };
 
-use crate::{emit_native_owned_unit_object, native_tests::TestDirectory};
+use crate::emit_native_owned_unit_object;
+
+struct NativeDirectory {
+    path: PathBuf,
+    cleaned: bool,
+}
+
+impl NativeDirectory {
+    fn create() -> Result<Self, String> {
+        static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+        let path = std::env::temp_dir().join(format!(
+            "koven-unit-enum-native-{}-{}",
+            std::process::id(),
+            NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed),
+        ));
+        fs::create_dir(&path).map_err(|error| format!("native directory create: {error}"))?;
+        Ok(Self {
+            path,
+            cleaned: false,
+        })
+    }
+
+    fn join(&self, name: &str) -> PathBuf {
+        self.path.join(name)
+    }
+
+    fn cleanup(&mut self) -> Result<(), String> {
+        let result = fs::remove_dir_all(&self.path)
+            .map_err(|error| format!("native directory cleanup: {error}"));
+        self.cleaned = result.is_ok();
+        result
+    }
+}
+
+impl Drop for NativeDirectory {
+    fn drop(&mut self) {
+        if !self.cleaned {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 struct Case {
@@ -214,29 +260,38 @@ fn observe(case: Case, native: bool, stages: &mut Vec<&'static str>) -> Result<(
     if native {
         // Same ordinary object/link/run flow as native_tests::emit_link_and_run;
         // this entry uses the original ordinary owned-unit view, never a const adapter.
-        let directory = TestDirectory::create();
-        let object = directory.join("program.o");
-        let executable = directory.join("program");
-        emit_native_owned_unit_object(&view, entry.id(), &object)
-            .map_err(|error| at(&sources, "public native object", &error, error.span()))?;
-        stages.push("public native object:ok");
-        let linked = Command::new(crate::test_support::clang())
-            .arg(&object)
-            .arg("-o")
-            .arg(&executable)
-            .output()
-            .map_err(|error| format!("link launch: {error:?}"))?;
-        require(linked.status.success(), "link status", &linked)?;
-        stages.push("link:ok");
-        let run = Command::new(&executable)
-            .output()
-            .map_err(|error| format!("run launch: {error:?}"))?;
-        require(
-            run.status.code() == Some(0) && run.stdout == case.stdout && run.stderr.is_empty(),
-            "exit=0, exact original stdout, empty stderr",
-            run,
-        )?;
-        stages.push("native golden:ok");
+        let mut directory = NativeDirectory::create()?;
+        let result: Result<(), String> = (|| {
+            let object = directory.join("program.o");
+            let executable = directory.join("program");
+            emit_native_owned_unit_object(&view, entry.id(), &object)
+                .map_err(|error| at(&sources, "public native object", &error, error.span()))?;
+            stages.push("public native object:ok");
+            let linked = Command::new(crate::test_support::clang())
+                .arg(&object)
+                .arg("-o")
+                .arg(&executable)
+                .output()
+                .map_err(|error| format!("link launch: {error:?}"))?;
+            require(linked.status.success(), "link status", &linked)?;
+            stages.push("link:ok");
+            let run = Command::new(&executable)
+                .output()
+                .map_err(|error| format!("run launch: {error:?}"))?;
+            require(
+                run.status.code() == Some(0) && run.stdout == case.stdout && run.stderr.is_empty(),
+                "exit=0, exact original stdout, empty stderr",
+                run,
+            )?;
+            stages.push("native golden:ok");
+            Ok(())
+        })();
+        let cleanup = directory.cleanup();
+        match (result, cleanup) {
+            (Ok(()), Ok(())) => stages.push("native cleanup:ok"),
+            (Err(error), Ok(())) | (Ok(()), Err(error)) => return Err(error),
+            (Err(error), Err(cleanup)) => return Err(format!("{error}; {cleanup}")),
+        }
     } else {
         stages.push("ordinary unit lower:entered");
         let (program, driver) =
