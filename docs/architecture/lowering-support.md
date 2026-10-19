@@ -48,7 +48,7 @@ temporary/capture角色后继见下节，其它角色和CFG责任继续开放。
 ## typed alias carry 核心
 
 `ssa::carry` 以Temporary/CaptureLoan/ResultSourceLoan固定typed角色统一保序数据收集、首个同source
-物理列复用、miss时才查询完整EntityType并追加；角色只包装Value/Loan，三存储端口仅投影source、
+物理列复用、miss时才查询完整EntityType并追加；角色只包装Value/Loan，alias端口仅投影source、
 借用对应key字段；空槽构造委托SourceSlot。local/source-qualified key不转换，seed不去重，命中列
 不提前查type；缺失错误由原入口传中立Copy数据，temporary/capture为InvalidModel、result-source为MissingFact。
 核心分别拥有平面key fan-out及symbol/index的entry/resize/赋位，使用实际当前列实体而非旧source替换表。
