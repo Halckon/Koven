@@ -234,3 +234,6 @@ mod scope_lambda_body;
 
 #[path = "native_map_provider_scope_value_births_tests.rs"]
 mod scope_value_births;
+
+#[path = "native_map_provider_scope_member_parameter_tests.rs"]
+mod scope_member_parameter;

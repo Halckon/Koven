@@ -1581,3 +1581,21 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - B原六条For失败至此关闭；C=8、D=6共14条仍必修，P24 Unit既有成功另需原双目标完整回归。
   最终固定头联合回归、新头完整CI三产物独审、README/Tour/Architecture、最小归档与正常合并
   仍待；F保持active，PR保持draft，D10未启动，本机无故障/校准/合成损坏/sanitizer执行。
+
+## 71. P24 Unit 既有成员参数来源的完整回归（2026-10-19）
+
+- 固定P24-for/control两份原source/golden逐字保全，仅验原Unit两个目标；Single成员Call
+  前置仍归0333，不新增成功范围。本片涉及八个测试/注册文件，未改生产、Guide或Field/Inout边界。
+- 同次公开FE从原Reader classifier.members找到真实scan Symbol、selected instance、Borrow
+  receiver与独立Borrow Map参数，核actual member Call、receiver/argument contract及loan；
+  For消费自己的完整source/plan/exits/actions，callee不Drop caller owner。control保持原observe。
+- SSA按真实entry、method origin与receiver前缀/显式source槽区分身份；provider全incoming、
+  当前source/cursor、真实reader K/V与逆序End、最终lease End均独立核，receiver与Map参数
+  不互代。caller的原Reader构造与make结果分别沿RootPlace/Call真实身份借出、结束并各唯一Drop。
+  实际SSA verifier和带真实entry桥接的LLVM验证均通过，不据相同type或arena序号挑owner。
+- 原两个深查询/SSA/LLVM及两个唯一严格native全绿，Rust1+2无失败/忽略，3224份输入前后
+  指纹相同；每个native逐例核exit0、完整原golden与空stderr。独立静审及本片格式/diff检查
+  通过，实际日志/输入身份独审已核；普通native不证明无泄漏，本机无故障/校准/sanitizer执行。
+- 原四条既有For成功已随A1及本片保完整回归；最终原74个case/entry目标集合不变。C=8、
+  D=6共14条原失败仍必修；最终固定头联合门、新头完整CI/三产物独审、文档收尾与最小归档
+  尚待，不继承旧头工程或CI结论到未来代码。0331保持active，PR保持draft，D10未启动。
