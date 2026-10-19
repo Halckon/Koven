@@ -198,3 +198,17 @@ SSA仍逐全部入边验证当前owner，最终Drop/own Call消费恢复owner，
 普通调用/ABI前置分别保留0291 §19、approved0333与draft0334–0340的原目标，不以Unsupported
 统称Guide staging；Unit已验provider不移交Single普通调用前置。最终联合门与动态证据绑定精确头，
 普通native只证明exit0、完整golden、空stderr，不证明动态free或无泄漏；Mac sanitizer保持partial。
+
+## Temporary 的 Unit full-plan 路径
+
+Unit 对已验证factory/source descriptor、MoveOnly owner与双Shared loan的Temporary，统一复用
+现conditional/full-plan及原完整exit/cleanup、checked角色运输门；旧straight/guard-transfer
+专用链已删除，共享straight helper和nested关系路径保留。原222字节w09的String/Int累加
+在single/Unit均完成完整ordinary SSA/LLVM及真实native，程序exit0、stdout精确为map-temp加LF、
+stderr空；source Call→实际main/owner/provider身份有窄SSA查询，正常累加由原输出证明，
+不称checked失败或全部resume incoming的独立结构证明。
+同182字节body error():Nothing新增Unit SSA/LLVM支持：真实Acquire、仅Exhaustion而无
+Fallthrough，实际header真分支到error-origin Abort，无Next/回边；false耗尽清理沿完整
+full-plan/Unit lower门校验。该源不执行native/Abort，不新增unwind；legacy single原拒绝仍保留。
+原temporary正常/空源及C/B/R普通邻控保持；验收与native helper边界见
+[SPEC-0341 §31](../specs/active/0341-shared-lowering-core.md#31-单源-unit-兼容回退w09-temporary-map-累加2026-10-19)，不外推全部payload/source/CFG组合或动态释放计数。
