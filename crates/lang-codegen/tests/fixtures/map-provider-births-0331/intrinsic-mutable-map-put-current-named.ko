@@ -1,0 +1,2 @@
+fun read(key:String,value:String):Unit{println(key);println(value)}
+fun entry():Unit{println("begin");var source=mutableMapOf<String,String>();source.put("key".clone(),"value".clone());for((key,value) in source){read(key,value)};println("after")}

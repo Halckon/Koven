@@ -30,29 +30,7 @@ pub(in super::super) fn validate_formed_birth(
     let mut anchor = match expected {
         Birth::Call(expression) => {
             let expression = UnitExpressionId::new(root.source_unit(), expression);
-            let node = lowerer
-                .parsed
-                .ast()
-                .expressions()
-                .get(expression.expression())
-                .map_err(|_| bad())?;
-            let births = lowerer
-                .function
-                .instructions
-                .iter()
-                .filter(|i| {
-                    i.origin == Origin::Source(node.span())
-                        && matches!(i.operation, Operation::DirectCall { .. })
-                })
-                .collect::<Vec<_>>();
-            let [birth] = births.as_slice() else {
-                return Err(bad());
-            };
-            let [owner @ EntityId::Value(_)] = birth.results.as_slice() else {
-                return Err(bad());
-            };
-            source::validate_ordinary_birth(lowerer, expression, *owner, span)?;
-            *owner
+            source::ordinary_birth(lowerer, expression, span)?
         }
         Birth::EntryParameter {
             root: parameter,

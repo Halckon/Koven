@@ -222,3 +222,6 @@ mod formation_paths;
 
 #[path = "native_map_provider_local_arguments_tests.rs"]
 mod local_arguments;
+
+#[path = "native_map_provider_births_tests.rs"]
+mod births;

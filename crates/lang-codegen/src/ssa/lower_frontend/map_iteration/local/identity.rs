@@ -314,6 +314,32 @@ pub(in super::super) fn producer(
     else {
         return Err(unsupported());
     };
+    if typed.expression_type(initializer) != Some(storage)
+        || typed.expression_category(initializer) != Some(ExpressionCategory::Temporary)
+    {
+        return Err(missing());
+    }
+    if let Some(construction) = typed.map_construction(initializer) {
+        return if construction.expression() == initializer
+            && construction.map_type() == storage
+            && arguments.is_empty()
+        {
+            Ok(())
+        } else {
+            Err(missing())
+        };
+    }
+    if let Some(consume) = typed.map_consume(initializer) {
+        return if consume.expression() == initializer
+            && consume.result_type() == storage
+            && arguments.is_empty()
+            && typed.expression_type(consume.receiver()) == Some(consume.receiver_type())
+        {
+            Ok(())
+        } else {
+            Err(missing())
+        };
+    }
     let callee = parsed
         .ast()
         .expressions()

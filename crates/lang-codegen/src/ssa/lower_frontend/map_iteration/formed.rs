@@ -223,10 +223,11 @@ pub(super) fn qualify<'a>(
             continue;
         }
         let call = crate::ssa::map_source::epoch_call(parsed, epoch.rhs)?;
-        if typed.map_construction(call).is_some()
-            || typed.map_consume(call).is_some()
-            || typed.map_with_value(call).is_some()
-        {
+        if typed.map_construction(call).is_some() || typed.map_consume(call).is_some() {
+            local::producer(parsed, names, typed, owned, call, d.source_type(), span)?;
+            continue;
+        }
+        if typed.map_with_value(call).is_some() {
             return Err(unsupported());
         }
         let ordinary = typed.call(call).ok_or_else(missing)?;

@@ -32,25 +32,8 @@ impl UnitExpressionLowerer<'_> {
                 continue;
             };
             let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
-            let initializer_span = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(initializer.expression())
-                .map_err(|_| bad())?
-                .span();
-            let births = self
-                .function
-                .instructions
-                .iter()
-                .filter(|instruction| {
-                    instruction.origin == Origin::Source(initializer_span)
-                        && matches!(instruction.operation, Operation::DirectCall { .. })
-                })
-                .collect::<Vec<_>>();
-            let [birth] = births.as_slice() else {
-                return Err(bad());
-            };
+            let anchor = source::ordinary_birth(self, initializer, span)?;
+            let birth = carrier::instruction(self.function, anchor, span)?;
             if previous_success.is_some_and(|block| birth.block != block) {
                 return Err(bad());
             }

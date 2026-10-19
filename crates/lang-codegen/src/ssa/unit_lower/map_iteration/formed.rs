@@ -223,10 +223,19 @@ pub(super) fn qualify(
         }
         let call = crate::ssa::map_source::epoch_call(parsed, epoch.rhs)?;
         let call = UnitExpressionId::new(statement.source_unit(), call);
-        if typed.map_construction(call).is_some()
-            || typed.map_consume(call).is_some()
-            || typed.map_with_value(call).is_some()
-        {
+        if typed.map_construction(call).is_some() || typed.map_consume(call).is_some() {
+            local::factory(
+                parsed,
+                names,
+                typed,
+                owned,
+                call,
+                descriptor.source_type(),
+                span,
+            )?;
+            continue;
+        }
+        if typed.map_with_value(call).is_some() {
             return Err(unsupported());
         }
         let ordinary = typed.call(call).ok_or_else(bad)?;
@@ -234,6 +243,7 @@ pub(super) fn qualify(
             ordinary.target(),
             lang_frontend::type_checking::UnitCallTarget::Declaration(_)
                 | lang_frontend::type_checking::UnitCallTarget::Symbol(_)
+                | lang_frontend::type_checking::UnitCallTarget::FunctionValue
         ) {
             return Err(unsupported());
         }

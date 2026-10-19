@@ -1,0 +1,2 @@
+fun read(key:String,value:String):Unit{println(key);println(value)}
+fun entry():Unit{println("begin");val source=mutableMapOf<String,String>();if(source.size==0){println("control")}else{error("bad-size")};println("after")}

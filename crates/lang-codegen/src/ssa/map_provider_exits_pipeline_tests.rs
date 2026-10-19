@@ -253,3 +253,6 @@ pub(crate) use local_reassignment::completed_epoch_sources as local_completed_ep
 
 pub(crate) use local_exits::alias_rebound_source as local_alias_rebound_source;
 pub(crate) use local_exits::alternate_sources as alternate_local_sources;
+
+mod births;
+pub(crate) use births::{Kind as MapBirthKind, sources as map_birth_sources};

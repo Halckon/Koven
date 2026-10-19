@@ -1,0 +1,2 @@
+fun read(key:String,value:String):Unit{println(key);println(value)}
+fun entry():Unit{println("begin");for((key,value) in mutableMapOf<String,String>()){read(key,value)};println("after")}

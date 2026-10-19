@@ -85,10 +85,17 @@ impl Evidence<'_> {
                 || !matches!(
                     &call.operation,
                     Operation::DirectCall { receiver: None, .. }
+                        | Operation::MapConstruct { .. }
+                        | Operation::MapConsume { .. }
                 )
                 || unique(function.instructions.iter().filter(|instruction| {
                     instruction.origin == Origin::Source(source_origin)
-                        && matches!(instruction.operation, Operation::DirectCall { .. })
+                        && matches!(
+                            instruction.operation,
+                            Operation::DirectCall { .. }
+                                | Operation::MapConstruct { .. }
+                                | Operation::MapConsume { .. }
+                        )
                 }))
                 .map(|instruction| instruction.id)
                     != Some(call.id)

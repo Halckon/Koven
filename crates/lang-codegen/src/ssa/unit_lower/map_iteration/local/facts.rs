@@ -6,7 +6,7 @@ pub(in super::super) fn factory(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    _owned: &CompilationUnitOwnership,
+    owned: &CompilationUnitOwnership,
     initializer: UnitExpressionId,
     ty: UnitTypeId,
     span: Span,
@@ -24,6 +24,33 @@ pub(in super::super) fn factory(
     else {
         return Err(unsupported());
     };
+    if typed.expression_type(initializer) != Some(ty)
+        || typed.expression_category(initializer) != Some(ExpressionCategory::Temporary)
+    {
+        return Err(bad());
+    }
+    if let Some(construction) = typed.map_construction(initializer) {
+        return if construction.expression() == initializer
+            && construction.map_type() == ty
+            && arguments.is_empty()
+        {
+            Ok(())
+        } else {
+            Err(bad())
+        };
+    }
+    if let Some(consume) = typed.map_consume(initializer) {
+        return if consume.expression() == initializer
+            && consume.result_type() == ty
+            && arguments.is_empty()
+            && consume.receiver().source_unit() == initializer.source_unit()
+            && typed.expression_type(consume.receiver()) == Some(consume.receiver_type())
+        {
+            Ok(())
+        } else {
+            Err(bad())
+        };
+    }
     let callee = parsed.ast().expressions().get(*callee).map_err(|_| bad())?;
     if !matches!(
         callee.payload(),
@@ -32,6 +59,41 @@ pub(in super::super) fn factory(
         return Err(unsupported());
     }
     let call = typed.call(initializer).ok_or_else(bad)?;
+    if call.target() == UnitCallTarget::FunctionValue {
+        let callee_id = match node.payload() {
+            Expression::Call { callee, .. } => {
+                UnitExpressionId::new(initializer.source_unit(), *callee)
+            }
+            _ => return Err(bad()),
+        };
+        let callee_type = typed.expression_type(callee_id).ok_or_else(bad)?;
+        let Some(UnitTypeKind::Function {
+            parameters,
+            return_type,
+            ..
+        }) = typed.types().get(callee_type)
+        else {
+            return Err(bad());
+        };
+        if callee.payload() != &Expression::Name {
+            return Err(unsupported());
+        }
+        if call.expression() != initializer
+            || call.return_type() != ty
+            || call.result_source() != CallableResultSource::Owned
+            || call.receiver().is_some()
+            || call.aborts()
+            || call.prints_line()
+            || !call.instance().type_arguments().is_empty()
+            || call.arguments().len() != arguments.len()
+            || call.arguments().len() != parameters.len()
+            || *return_type != ty
+            || owned.callable_origin(callee_id).is_none()
+        {
+            return Err(bad());
+        }
+        return Ok(());
+    }
     let target = match call.target() {
         UnitCallTarget::Declaration(target) => UnitCallableTarget::Declaration(target),
         UnitCallTarget::Symbol(target) => UnitCallableTarget::Symbol(target),

@@ -12,7 +12,7 @@ pub(super) fn validate_birth(
     current: EntityId,
     span: Span,
 ) -> Result<EntityId, LoweringError> {
-    validate_call_owner(lowerer, root, (initializer, true), current, span)
+    validate_call_owner(lowerer, root, initializer, current, span)
 }
 
 pub(super) fn validate_other_epoch_birth(
@@ -22,17 +22,16 @@ pub(super) fn validate_other_epoch_birth(
     current: EntityId,
     span: Span,
 ) -> Result<EntityId, LoweringError> {
-    validate_call_owner(lowerer, root, (initializer, false), current, span)
+    validate_call_owner(lowerer, root, initializer, current, span)
 }
 
 fn validate_call_owner(
     lowerer: &UnitExpressionLowerer<'_>,
     root: UnitSymbolId,
-    birth: (UnitExpressionId, bool),
+    initializer: UnitExpressionId,
     current: EntityId,
     span: Span,
 ) -> Result<EntityId, LoweringError> {
-    let (initializer, provider) = birth;
     let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
     if root.source_unit() != lowerer.source_unit
         || initializer.source_unit() != lowerer.source_unit
@@ -42,58 +41,24 @@ fn validate_call_owner(
     {
         return Err(bad());
     }
-    // A different epoch is not a provider. Reuse the ordinary direct-call
-    // route, and report other unimplemented birth kinds before looking for an
-    // instruction belonging to that route.
-    if !provider {
-        let call = lowerer.typed.call(initializer).ok_or_else(bad)?;
-        if !matches!(
-            call.target(),
-            lang_frontend::type_checking::UnitCallTarget::Declaration(_)
-                | lang_frontend::type_checking::UnitCallTarget::Symbol(_)
-        ) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-    }
-    let node = lowerer
-        .parsed
-        .ast()
-        .expressions()
-        .get(initializer.expression())
-        .map_err(|_| bad())?;
-    let births = lowerer
-        .function
-        .instructions
-        .iter()
-        .filter(|instruction| {
-            instruction.origin == Origin::Source(node.span())
-                && matches!(instruction.operation, Operation::DirectCall { .. })
-        })
-        .collect::<Vec<_>>();
-    let [birth] = births.as_slice() else {
-        return Err(bad());
-    };
-    let [anchor @ EntityId::Value(_)] = birth.results.as_slice() else {
-        return Err(bad());
-    };
-    source::validate_ordinary_birth(lowerer, initializer, *anchor, span)?;
-    transport::from_anchor(lowerer.function, current, *anchor, span)?;
+    let anchor = source::ordinary_birth(lowerer, initializer, span)?;
+    transport::from_anchor(lowerer.function, current, anchor, span)?;
     if lowerer.bindings.iter().any(|(other, value)| {
         *other != root
             && matches!(value, LoweredValue::Value(v)
-            if EntityId::Value(*v) == current || EntityId::Value(*v) == *anchor)
+            if EntityId::Value(*v) == current || EntityId::Value(*v) == anchor)
     }) || lowerer
         .temporaries
         .values()
-        .any(|value| EntityId::Value(*value) == current || EntityId::Value(*value) == *anchor)
+        .any(|value| EntityId::Value(*value) == current || EntityId::Value(*value) == anchor)
         || lowerer
             .pending_operands
             .iter()
-            .any(|entity| *entity == current || *entity == *anchor)
+            .any(|entity| *entity == current || *entity == anchor)
     {
         return Err(bad());
     }
-    Ok(*anchor)
+    Ok(anchor)
 }
 
 impl UnitExpressionLowerer<'_> {

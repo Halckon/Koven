@@ -369,43 +369,138 @@ pub(super) fn validate_ordinary_birth(
         .expressions()
         .get(expression.expression())
         .map_err(|_| bad())?;
-    let descriptor = lowerer.typed.call(expression).ok_or_else(bad)?;
-    if !matches!(
-        descriptor.target(),
-        UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
-    ) {
-        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-    }
-    let resolved = lowerer
-        .source_plan
-        .call_site(lowerer.source_token, expression)
-        .ok_or_else(bad)?;
-    let callee = *lowerer.function_ids.get(resolved.key()).ok_or_else(bad)?;
+    let result_type = lowerer.typed.expression_type(expression).ok_or_else(bad)?;
+    let ty = lowerer.iteration_type(result_type, span)?;
     let call = carrier::instruction(lowerer.function, seed, span)?;
-    let ty = lowerer.iteration_type(descriptor.return_type(), span)?;
     if expression.source_unit() != lowerer.source_unit
-        || descriptor.expression() != expression
-        || descriptor.result_source() != lang_frontend::type_checking::CallableResultSource::Owned
         || call.origin != Origin::Source(node.span())
         || lowerer.function.entity(seed).map(|e| e.ty) != Some(EntityType::Value(ty))
-        || !matches!(&call.operation, Operation::DirectCall { callee: actual, receiver, arguments }
-            if *actual == callee
-                && receiver.is_some() == descriptor.receiver().is_some()
-                && arguments.len() == descriptor.arguments().len())
     {
         return Err(bad());
     }
-    let calls = lowerer
-        .function
-        .instructions
-        .iter()
-        .filter(|i| {
-            i.origin == Origin::Source(node.span())
-                && matches!(i.operation, Operation::DirectCall { .. })
-        })
-        .collect::<Vec<_>>();
+    if let Some(construction) = lowerer.typed.map_construction(expression) {
+        if construction.expression() != expression
+            || construction.map_type() != result_type
+            || call.operation != (Operation::MapConstruct { map_type: ty })
+        {
+            return Err(bad());
+        }
+    } else if let Some(consume) = lowerer.typed.map_consume(expression) {
+        let Operation::MapConsume { owner, map_type } = call.operation else {
+            return Err(bad());
+        };
+        if consume.expression() != expression
+            || consume.result_type() != result_type
+            || consume.receiver().source_unit() != expression.source_unit()
+            || map_type != ty
+            || lowerer
+                .function
+                .entity(EntityId::Value(owner))
+                .map(|data| data.ty)
+                != Some(EntityType::Value(
+                    lowerer.iteration_type(consume.receiver_type(), span)?,
+                ))
+        {
+            return Err(bad());
+        }
+    } else {
+        let descriptor = lowerer.typed.call(expression).ok_or_else(bad)?;
+        if descriptor.expression() != expression
+            || descriptor.return_type() != result_type
+            || descriptor.result_source()
+                != lang_frontend::type_checking::CallableResultSource::Owned
+        {
+            return Err(bad());
+        }
+        match descriptor.target() {
+            UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_) => {
+                let resolved = lowerer
+                    .source_plan
+                    .call_site(lowerer.source_token, expression)
+                    .ok_or_else(bad)?;
+                let callee = *lowerer.function_ids.get(resolved.key()).ok_or_else(bad)?;
+                if !matches!(&call.operation, Operation::DirectCall { callee: actual, receiver, arguments }
+                    if *actual == callee && receiver.is_some() == descriptor.receiver().is_some()
+                        && arguments.len() == descriptor.arguments().len())
+                {
+                    return Err(bad());
+                }
+            }
+            UnitCallTarget::FunctionValue => {
+                let lang_frontend::parser::Expression::Call { callee, .. } = node.payload() else {
+                    return Err(bad());
+                };
+                let callee = UnitExpressionId::new(expression.source_unit(), *callee);
+                let expected = lowerer.callable_abi.expression_type(
+                    lowerer.source_plan,
+                    lowerer.typed,
+                    lowerer.owned,
+                    lowerer.source_token,
+                    callee,
+                    span,
+                )?;
+                if descriptor.receiver().is_some()
+                    || !matches!(&call.operation, Operation::CallableInvoke { callable, arguments }
+                        if lowerer.function.entity(EntityId::Value(*callable)).map(|data| data.ty)
+                            == Some(EntityType::Value(expected))
+                            && arguments.len() == descriptor.arguments().len())
+                {
+                    return Err(bad());
+                }
+            }
+            _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
+        }
+    }
+    let calls = birth_instructions(lowerer, node.span());
     if !matches!(calls.as_slice(), [actual] if actual.id == call.id) {
         return Err(bad());
     }
     Ok(())
+}
+
+fn birth_instructions<'a>(
+    lowerer: &'a UnitExpressionLowerer<'_>,
+    origin: Span,
+) -> Vec<&'a crate::ssa::model::Instruction> {
+    lowerer
+        .function
+        .instructions
+        .iter()
+        .filter(|instruction| {
+            instruction.origin == Origin::Source(origin)
+                && matches!(
+                    instruction.operation,
+                    Operation::DirectCall { .. }
+                        | Operation::CallableInvoke { .. }
+                        | Operation::MapConstruct { .. }
+                        | Operation::MapConsume { .. }
+                )
+        })
+        .collect()
+}
+
+/// Recover the one actual result before validating its selected typed birth.
+/// This never evaluates a receiver, callable or argument a second time.
+pub(super) fn ordinary_birth(
+    lowerer: &UnitExpressionLowerer<'_>,
+    expression: UnitExpressionId,
+    span: Span,
+) -> Result<EntityId, LoweringError> {
+    let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
+    let origin = lowerer
+        .parsed
+        .ast()
+        .expressions()
+        .get(expression.expression())
+        .map_err(|_| bad())?
+        .span();
+    let births = birth_instructions(lowerer, origin);
+    let [birth] = births.as_slice() else {
+        return Err(bad());
+    };
+    let [owner @ EntityId::Value(_)] = birth.results.as_slice() else {
+        return Err(bad());
+    };
+    validate_ordinary_birth(lowerer, expression, *owner, span)?;
+    Ok(*owner)
 }
