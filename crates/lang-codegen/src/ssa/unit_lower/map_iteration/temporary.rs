@@ -31,77 +31,18 @@ pub(super) fn qualify(
         .expressions()
         .get(source.expression())
         .map_err(|_| missing())?;
-    let Expression::Call {
-        callee, arguments, ..
-    } = source_node.payload()
-    else {
-        return Err(unsupported());
-    };
-    let callee = parsed
-        .ast()
-        .expressions()
-        .get(*callee)
-        .map_err(|_| missing())?;
-    if !matches!(callee.payload(), Expression::Name) {
-        return Err(unsupported());
-    }
-    let call = typed.call(source).ok_or_else(missing)?;
-    let UnitCallTarget::Declaration(factory) = call.target() else {
-        return Err(unsupported());
-    };
-    let signature = typed
-        .signatures()
-        .declaration(factory)
-        .and_then(|item| item.callable())
-        .ok_or_else(missing)?;
-    if signature.target() != UnitCallableTarget::Declaration(factory)
-        || signature.return_type() != call.return_type()
-        || signature.result_source() != call.result_source()
-    {
-        return Err(missing());
-    }
-    if call.receiver().is_some()
-        || call.aborts()
-        || call.prints_line()
-        || call.result_source() != CallableResultSource::Owned
-        || !call.instance().type_arguments().is_empty()
-        || signature.receiver().is_some()
-        || !signature.type_parameters().is_empty()
-        || !signature.has_body()
-        || signature.result_source() != CallableResultSource::Owned
-    {
-        return Err(unsupported());
-    }
-    // The shared storage planner owns represented payload admission; this proof
-    // consumes the Unit Call/source/Drop identities independently of the payload shape.
-    if call.expression() != source
-        || call.return_type() != descriptor.source_type()
-        || call.arguments().len() != arguments.len()
-        || call.arguments().len() != signature.parameters().len()
-        || typed.expression_category(source) != Some(ExpressionCategory::Temporary)
-        || typed.copyability(descriptor.source_type()) != Copyability::MoveOnly
-    {
-        return Err(missing());
-    }
-    let references = names
-        .names()
-        .references()
-        .iter()
-        .filter(|reference| {
-            reference.source_unit() == source.source_unit()
-                && reference.namespace() == Some(Namespace::Value)
-                && reference.span() == callee.span()
-        })
-        .collect::<Vec<_>>();
-    let [reference] = references.as_slice() else {
-        return Err(missing());
-    };
-    let matches_factory = match reference.target() {
-        UnitReferenceTarget::Declaration(target) => *target == factory,
-        UnitReferenceTarget::OverloadSet(targets) => targets.contains(&factory),
-        _ => false,
-    };
-    if !matches_factory {
+    // Formation follows the same ordinary selected Call as a bound local;
+    // source-qualified temporary lifetime and cleanup remain separate below.
+    local::factory(
+        parsed,
+        names,
+        typed,
+        owned,
+        source,
+        descriptor.source_type(),
+        span,
+    )?;
+    if typed.copyability(descriptor.source_type()) != Copyability::MoveOnly {
         return Err(missing());
     }
     // Unlike named parameters, a factory result has no parameter-origin or unit phi table.

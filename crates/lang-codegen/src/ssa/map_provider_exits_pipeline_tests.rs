@@ -13,6 +13,11 @@ mod future_use;
 mod history;
 mod identity;
 mod local_arguments;
+pub(crate) use local_arguments::{
+    generic_prerequisite_sources as local_generic_argument_prerequisite_sources,
+    generic_sources as local_generic_argument_sources, sources as local_argument_sources,
+};
+
 mod local_sources;
 mod nested;
 mod nested_exits;

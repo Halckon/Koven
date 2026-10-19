@@ -134,12 +134,6 @@ impl ExpressionLowerer<'_> {
                 Ok(EntityId::Value(owner))
             }
             SourceIdentity::Temporary(expression) => {
-                let call = self.typed.call(expression).ok_or_else(missing)?;
-                let CallableTarget::Source(symbol) = call.target() else {
-                    return Err(missing());
-                };
-                let instance = FunctionInstanceKey::new(symbol, Vec::new());
-                let expected = *self.function_ids.get(&instance).ok_or_else(missing)?;
                 let LoweredValue::Value(owner) = self.lower(expression)? else {
                     return Err(missing());
                 };
@@ -150,17 +144,13 @@ impl ExpressionLowerer<'_> {
                 let instruction = carrier::definition(self.function, seed).ok_or_else(missing)?;
                 if instruction.block != preheader
                     || instruction.origin != Origin::Source(origin)
-                    || instruction.results != [seed]
-                    // The ordinary call emitter already consumes the selected
-                    // argument mapping and closes its argument loans. This proof
-                    // anchors that emitted result, without evaluating operands again.
-                    || !matches!(&instruction.operation, Operation::DirectCall {
-                        callee, receiver: None, arguments,
-                    } if *callee == expected && arguments.len() == call.arguments().len())
+                    || self.map_call_birth(expression, span)? != owner
                     || self.function.entity(seed).map(|entity| entity.ty)
                         != Some(EntityType::Value(container))
                     || source.current_owner(self) != Some(owner)
-                    || self.temporaries.iter().any(|(&key, &value)| key != expression.index() && !self.active_map_temporary(key, value))
+                    || self.temporaries.iter().any(|(&key, &value)| {
+                        key != expression.index() && !self.active_map_temporary(key, value)
+                    })
                     || !self.pending_call_loans.is_empty()
                     || !self.capture_loans.is_empty()
                     || !self.result_source_loans.is_empty()
@@ -174,6 +164,66 @@ impl ExpressionLowerer<'_> {
 }
 
 impl ExpressionLowerer<'_> {
+    /// Anchor the result already emitted by ordinary argument lowering. This
+    /// consumes no operands and does not reconstruct argument/loan delivery.
+    pub(super) fn map_call_birth(
+        &self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let missing = || error(LoweringErrorKind::MissingFact, span);
+        let origin = self.expression_span(expression)?;
+        let call = self.typed.call(expression).ok_or_else(missing)?;
+        let CallableTarget::Source(target) = call.target() else {
+            return Err(missing());
+        };
+        let instance = if let Some(source) = self.source_token {
+            self.instance_plan
+                .call_site(source, expression)
+                .cloned()
+                .ok_or_else(missing)?
+        } else {
+            let type_arguments = call
+                .instance()
+                .type_arguments()
+                .iter()
+                .map(|ty| self.resolve_type(*ty, span))
+                .collect::<Result<Vec<_>, _>>()?;
+            FunctionInstanceKey::new(target, type_arguments)
+        };
+        let expected = *self.function_ids.get(&instance).ok_or_else(missing)?;
+        let instruction = unique(self.function.instructions.iter().filter(|instruction| {
+            instruction.origin == Origin::Source(origin)
+                && matches!(instruction.operation, Operation::DirectCall { .. })
+        }))
+        .ok_or_else(missing)?;
+        let [EntityId::Value(owner)] = instruction.results.as_slice() else {
+            return Err(missing());
+        };
+        if instance.symbol() != target
+            || call.expression() != expression
+            || call.result_source() != lang_frontend::type_checking::CallableResultSource::Owned
+            || self.typed.expression_type(expression) != Some(call.return_type())
+            || !matches!(&instruction.operation, Operation::DirectCall {
+                callee, receiver: None, arguments,
+            } if *callee == expected && arguments.len() == call.arguments().len())
+            || self
+                .function
+                .entity(EntityId::Value(*owner))
+                .map(|data| (data.ty, data.definition))
+                != Some((
+                    EntityType::Value(self.expression_ssa_type(expression, span)?),
+                    Definition::InstructionResult {
+                        instruction: instruction.id,
+                        index: 0,
+                    },
+                ))
+        {
+            return Err(missing());
+        }
+        Ok(*owner)
+    }
+
     pub(in super::super) fn validate_pure_map_parameter_drop(
         &self,
         fact: lang_frontend::ownership_checking::DropFact,

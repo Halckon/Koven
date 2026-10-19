@@ -1,6 +1,6 @@
 //! One lexical Resource local; ordinary lowering owns return operand delivery.
 use super::*;
-use lang_frontend::ownership_checking::ClosureCaptureSource;
+use lang_frontend::{name_resolution::ReferenceTarget, ownership_checking::ClosureCaptureSource};
 
 pub(super) fn guard(
     parsed: &ParsedFile,

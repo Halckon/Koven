@@ -3,13 +3,8 @@ mod cleanup;
 mod tail;
 use super::*;
 use lang_frontend::{
-    name_resolution::ReferenceTarget,
     ownership_checking::{IterationSource, MapIterationComponent, OwnershipBindingKind},
-    parser::NameMarker,
-    type_checking::{
-        CallableResultSource, CallableTarget, ExpressionCategory, IntrinsicTypeConstructor,
-        MapIterationKind,
-    },
+    type_checking::{IntrinsicTypeConstructor, MapIterationKind},
 };
 
 pub(super) fn qualify<'a>(
@@ -34,75 +29,18 @@ pub(super) fn qualify<'a>(
         .get(source)
         .map_err(|_| missing())?;
     let origin = node.span();
-    let Expression::Call {
-        callee, arguments, ..
-    } = node.payload()
-    else {
-        return Err(unsupported());
-    };
-    let callee_node = parsed
-        .ast()
-        .expressions()
-        .get(*callee)
-        .map_err(|_| missing())?;
-    if callee_node.payload() != &Expression::Name {
-        return Err(unsupported());
-    }
-    let call = typed.call(source).ok_or_else(missing)?;
-    let CallableTarget::Source(target) = call.target() else {
-        return Err(unsupported());
-    };
-    let symbol = names.symbols().get(target.index()).ok_or_else(missing)?;
-    let signature = unique(
-        typed
-            .callables()
-            .iter()
-            .filter(|callable| callable.symbol() == target),
-    )
-    .ok_or_else(missing)?;
-    if signature.result_source() != call.result_source() {
-        return Err(missing());
-    }
-    if symbol.kind() != SymbolKind::Function
-        || !parsed.roots().iter().any(|item| {
-            parsed.ast().items().get(*item).is_ok_and(|node| {
-                matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. }
-                    if *name == symbol.span())
-            })
-        })
-        || call.receiver().is_some()
-        || call.aborts()
-        || call.result_source() != CallableResultSource::Owned
-        || !call.instance().type_arguments().is_empty()
-        || signature.owner().is_some()
-        || signature.receiver().is_some()
-        || !signature.type_parameters().is_empty()
-    {
-        return Err(unsupported());
-    }
-    let reference = unique(
-        names
-            .references()
-            .iter()
-            .filter(|reference| reference.span() == callee_node.span()),
-    )
-    .ok_or_else(missing)?;
-    // Name resolution publishes function overload sets even for one declaration;
-    // the typed Call already identifies the selected factory.
-    let matches_factory = match reference.target() {
-        ReferenceTarget::Symbol(symbol) => *symbol == target,
-        ReferenceTarget::OverloadSet(symbols) => symbols.contains(&target),
-        _ => false,
-    };
-    if !matches_factory
-        || call.expression() != source
-        || call.arguments().len() != arguments.len()
-        || call.arguments().len() != signature.parameters().len()
-        || call.return_type() != descriptor.source_type()
-        || signature.return_type() != descriptor.source_type()
-        || typed.expression_type(source) != Some(descriptor.source_type())
-        || typed.expression_category(source) != Some(ExpressionCategory::Temporary)
-        || typed.copyability(descriptor.source_type()) != Some(Copyability::MoveOnly)
+    // Named and temporary providers consume the same selected ordinary Call
+    // formation; only the source lifetime/cleanup proof differs below.
+    local::producer(
+        parsed,
+        names,
+        typed,
+        owned,
+        source,
+        descriptor.source_type(),
+        span,
+    )?;
+    if typed.copyability(descriptor.source_type()) != Some(Copyability::MoveOnly)
         || plan.source_access() != MapIterationSourceAccess::Temporary
         || plan.source_kind() != &IterationSource::BorrowedSource(LoanTarget::Temporary(source))
     {

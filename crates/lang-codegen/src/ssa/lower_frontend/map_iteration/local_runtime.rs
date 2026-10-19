@@ -54,33 +54,12 @@ impl ExpressionLowerer<'_> {
         {
             return Err(missing());
         }
-        let origin = self.expression_span(initializer)?;
-        let call = self.typed.call(initializer).ok_or_else(missing)?;
-        let CallableTarget::Source(callee) = call.target() else {
-            return Err(missing());
-        };
-        let callee = *self
-            .function_ids
-            .get(&FunctionInstanceKey::new(callee, Vec::new()))
-            .ok_or_else(missing)?;
         let seed = EntityId::Value(owner);
         let instruction = carrier::definition(self.function, seed).ok_or_else(missing)?;
         if instruction.block != self.block
-            || instruction.origin != Origin::Source(origin)
-            || instruction.operation
-                != (Operation::DirectCall {
-                    callee,
-                    receiver: None,
-                    arguments: Vec::new(),
-                })
+            || self.map_call_birth(initializer, span)? != owner
             || self.function.entity(seed).map(|entity| entity.ty)
                 != Some(EntityType::Value(container))
-            || unique(self.function.instructions.iter().filter(|candidate| {
-                candidate.origin == Origin::Source(origin)
-                    && matches!(candidate.operation, Operation::DirectCall { .. })
-            }))
-            .map(|candidate| candidate.id)
-                != Some(instruction.id)
         {
             return Err(missing());
         }

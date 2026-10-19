@@ -10,14 +10,14 @@ use lang_frontend::{
 };
 
 #[derive(Debug)]
-pub(super) struct Function {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Function {
     pub span: Span,
     pub name: Span,
     pub parameter: Option<Span>,
 }
 
 #[derive(Debug)]
-pub(super) struct Loop {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Loop {
     pub statement: StatementId,
     pub span: Span,
     pub body: StatementId,
@@ -26,7 +26,7 @@ pub(super) struct Loop {
     pub arguments: [ExpressionId; 2],
 }
 
-pub(super) struct Input {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Input {
     pub entry: Function,
     pub argument: Function,
     pub factory: Function,
@@ -39,17 +39,20 @@ pub(super) struct Input {
     pub after: Span,
 }
 
-pub(super) fn span(parsed: &ParsedFile, id: ExpressionId) -> Span {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn span(
+    parsed: &ParsedFile,
+    id: ExpressionId,
+) -> Span {
     parsed.ast().expressions().get(id).unwrap().span()
 }
 
-pub(super) fn inside(inner: Span, outer: Span) -> bool {
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn inside(inner: Span, outer: Span) -> bool {
     inner.source_id() == outer.source_id()
         && inner.start() > outer.start()
         && inner.end() < outer.end()
 }
 
-pub(super) fn function(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn function(
     sources: &SourceMap,
     parsed: &ParsedFile,
     wanted: &str,
@@ -111,7 +114,7 @@ fn calls(
     )
 }
 
-pub(super) fn input(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn input(
     sources: &SourceMap,
     parsed: &ParsedFile,
     control: bool,

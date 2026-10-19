@@ -25,7 +25,7 @@ use lang_frontend::{
     },
 };
 
-pub(super) fn single(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn single(
     case: &Case,
     sources: &SourceMap,
     parsed: &ParsedFile,
@@ -263,7 +263,7 @@ pub(super) fn single(
     Ok(())
 }
 
-pub(super) fn unit(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn unit(
     case: &Case,
     sources: &SourceMap,
     parsed: &ParsedFile,

@@ -6,7 +6,7 @@ pub(in super::super) fn factory(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    _owned: &CompilationUnitOwnership,
     initializer: UnitExpressionId,
     ty: UnitTypeId,
     span: Span,
@@ -19,75 +19,82 @@ pub(in super::super) fn factory(
         .get(initializer.expression())
         .map_err(|_| bad())?;
     let Expression::Call {
-        callee,
-        arguments,
-        type_arguments,
-        ..
+        callee, arguments, ..
     } = node.payload()
     else {
         return Err(unsupported());
     };
     let callee = parsed.ast().expressions().get(*callee).map_err(|_| bad())?;
-    if callee.payload() != &Expression::Name || !arguments.is_empty() || !type_arguments.is_empty()
-    {
+    if !matches!(
+        callee.payload(),
+        Expression::Name | Expression::Member { .. }
+    ) {
         return Err(unsupported());
     }
     let call = typed.call(initializer).ok_or_else(bad)?;
-    let UnitCallTarget::Declaration(target) = call.target() else {
-        return Err(unsupported());
+    let target = match call.target() {
+        UnitCallTarget::Declaration(target) => UnitCallableTarget::Declaration(target),
+        UnitCallTarget::Symbol(target) => UnitCallableTarget::Symbol(target),
+        _ => return Err(unsupported()),
     };
-    let signature = typed
-        .signatures()
-        .declaration(target)
-        .and_then(|item| item.callable())
-        .ok_or_else(bad)?;
-    if call.receiver().is_some()
-        || call.aborts()
+    let signature =
+        crate::ssa::unit_plan::unit_callable_signature(typed, target).ok_or_else(bad)?;
+    if call.aborts()
         || call.prints_line()
         || call.result_source() != CallableResultSource::Owned
-        || !call.instance().type_arguments().is_empty()
-        || signature.receiver().is_some()
-        || !signature.parameters().is_empty()
-        || !signature.type_parameters().is_empty()
-        || !signature.has_body()
+        || (matches!(target, UnitCallableTarget::Declaration(_)) && !signature.has_body())
     {
         return Err(unsupported());
     }
     if call.expression() != initializer
         || call.return_type() != ty
-        || !call.arguments().is_empty()
+        || call.arguments().len() != arguments.len()
+        || call.arguments().len() != signature.parameters().len()
+        || typed.expression_type(initializer) != Some(ty)
         || typed.expression_category(initializer) != Some(ExpressionCategory::Temporary)
-        || signature.target() != UnitCallableTarget::Declaration(target)
-        || signature.return_type() != ty
+        || signature.target() != target
+        || (call.instance().type_arguments().is_empty() && signature.return_type() != ty)
         || signature.result_source() != call.result_source()
-        || owned
-            .call_argument_contracts_for(initializer)
-            .next()
-            .is_some()
-        || owned.loans_ending_at(initializer).next().is_some()
+        || signature.receiver().is_some() != call.receiver().is_some()
     {
         return Err(bad());
     }
-    let references = names
-        .names()
-        .references()
-        .iter()
-        .filter(|reference| {
-            reference.source_unit() == initializer.source_unit()
-                && reference.namespace() == Some(Namespace::Value)
-                && reference.span() == callee.span()
-        })
-        .collect::<Vec<_>>();
-    let [reference] = references.as_slice() else {
-        return Err(bad());
-    };
-    if !match reference.target() {
-        UnitReferenceTarget::Declaration(actual) => *actual == target,
-        UnitReferenceTarget::OverloadSet(targets) => targets.contains(&target),
-        _ => false,
-    } {
-        return Err(bad());
+    if callee.payload() == &Expression::Name {
+        let references = names
+            .names()
+            .references()
+            .iter()
+            .filter(|reference| {
+                reference.source_unit() == initializer.source_unit()
+                    && reference.namespace() == Some(Namespace::Value)
+                    && reference.span() == callee.span()
+            })
+            .collect::<Vec<_>>();
+        let [reference] = references.as_slice() else {
+            return Err(bad());
+        };
+        if !match (reference.target(), target) {
+            (UnitReferenceTarget::Declaration(actual), UnitCallableTarget::Declaration(target)) => {
+                *actual == target
+            }
+            (
+                UnitReferenceTarget::OverloadSet(targets),
+                UnitCallableTarget::Declaration(target),
+            ) => targets.contains(&target),
+            (UnitReferenceTarget::Symbol(actual), UnitCallableTarget::Symbol(target)) => {
+                *actual == target
+            }
+            (UnitReferenceTarget::Symbols(targets), UnitCallableTarget::Symbol(target)) => {
+                targets.contains(&target)
+            }
+            _ => false,
+        } {
+            return Err(bad());
+        }
     }
+    // Member selection, receiver ownership, argument delivery and any effective
+    // override/delegation route belong to the ordinary call planner and emitter.
+    // The provider anchors their actual result, without replaying those operands.
     Ok(())
 }
 

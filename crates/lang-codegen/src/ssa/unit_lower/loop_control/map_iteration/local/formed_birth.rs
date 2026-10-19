@@ -51,7 +51,7 @@ pub(in super::super) fn validate_formed_birth(
             let [owner @ EntityId::Value(_)] = birth.results.as_slice() else {
                 return Err(bad());
             };
-            source::validate_temporary_birth(lowerer, expression, *owner, birth.block, span)?;
+            source::validate_ordinary_birth(lowerer, expression, *owner, span)?;
             *owner
         }
         Birth::EntryParameter {

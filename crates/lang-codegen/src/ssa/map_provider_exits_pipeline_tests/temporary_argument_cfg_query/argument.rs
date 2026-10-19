@@ -1,10 +1,17 @@
 //! Both original argument arms and all scalar/loan uses through the actual selected Call.
 use super::*;
+/// Actual source anchors shared by the original temporary and named-local adapters.
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Input {
+    pub call: Span,
+    pub argument: Span,
+    pub flag: Span,
+    pub arms: [Span; 2],
+}
 #[allow(clippy::too_many_arguments)]
-pub(super) fn check<'p>(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check<'p>(
     sources: &SourceMap,
     parsed: &ParsedFile,
-    input: &ast::Input,
+    input: &Input,
     module: &Module,
     g: &Graph<'p>,
     factory: &Function,

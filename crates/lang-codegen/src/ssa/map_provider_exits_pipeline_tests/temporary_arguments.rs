@@ -1,7 +1,7 @@
 //! A real selected factory takes an evaluated argument through the ordinary call ABI.
-mod ast;
-mod facts;
-mod graph;
+pub(super) mod ast;
+pub(super) mod facts;
+pub(super) mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},

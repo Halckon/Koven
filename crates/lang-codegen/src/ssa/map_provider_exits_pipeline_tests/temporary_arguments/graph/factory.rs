@@ -20,7 +20,7 @@ fn original_call(
     }),"argument factory original selected body Call")
 }
 
-pub(super) fn check(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check(
     case: &Case,
     sources: &SourceMap,
     parsed: &ParsedFile,

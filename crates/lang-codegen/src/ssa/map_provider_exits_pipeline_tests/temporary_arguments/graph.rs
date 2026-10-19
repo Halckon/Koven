@@ -1,6 +1,6 @@
 //! Selected argument evaluation, ordinary Borrow ABI and the actual returned owner.
-mod factory;
-mod provider;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod factory;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod provider;
 use super::{Case, ast};
 use crate::ssa::{
     map_provider_exits_pipeline_tests::{

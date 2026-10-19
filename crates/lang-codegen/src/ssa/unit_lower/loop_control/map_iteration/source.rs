@@ -1,8 +1,7 @@
 //! Source evaluation and factory identity are established before a provider is created.
 use super::*;
-use crate::ssa::unit_plan::UnitFunctionInstanceKey;
 use lang_frontend::ownership_checking::{UnitDropTarget, UnitLoanTarget};
-use lang_frontend::type_checking::{UnitCallTarget, UnitCallableTarget};
+use lang_frontend::type_checking::UnitCallTarget;
 
 impl UnitExpressionLowerer<'_> {
     pub(super) fn map_source_seed(
@@ -139,59 +138,10 @@ pub(super) fn validate_temporary_birth(
     preheader: BlockId,
     span: Span,
 ) -> Result<(), LoweringError> {
-    let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
-    let node = lowerer
-        .parsed
-        .ast()
-        .expressions()
-        .get(expression.expression())
-        .map_err(|_| missing())?;
-    let descriptor = lowerer.typed.call(expression).ok_or_else(missing)?;
-    let UnitCallTarget::Declaration(factory) = descriptor.target() else {
-        return Err(missing());
-    };
-    let resolved = lowerer
-        .source_plan
-        .call_site(lowerer.source_token, expression)
-        .ok_or_else(missing)?;
-    let expected_key = UnitFunctionInstanceKey::new(factory, Vec::new());
-    if expression.source_unit() != lowerer.source_unit
-        || descriptor.expression() != expression
-        || resolved.key() != &expected_key
-        || resolved.key().target() != UnitCallableTarget::Declaration(factory)
-        || !resolved.delegation().is_empty()
-    {
-        return Err(missing());
-    }
-    let callee = *lowerer
-        .function_ids
-        .get(&expected_key)
-        .ok_or_else(missing)?;
+    validate_ordinary_birth(lowerer, expression, seed, span)?;
     let call = carrier::instruction(lowerer.function, seed, span)?;
-    let ty = lowerer.iteration_type(descriptor.return_type(), span)?;
-    if !matches!(seed, EntityId::Value(_))
-        || call.block != preheader
-        || call.origin != Origin::Source(node.span())
-        // Argument evaluation and delivery belong to the normal call emitter;
-        // the provider consumes its actual selected Call result exactly once.
-        || !matches!(&call.operation, Operation::DirectCall {
-            callee: actual, receiver: None, arguments,
-        } if *actual == callee && arguments.len() == descriptor.arguments().len())
-        || lowerer.function.entity(seed).map(|data| data.ty) != Some(EntityType::Value(ty))
-    {
-        return Err(missing());
-    }
-    let calls = lowerer
-        .function
-        .instructions
-        .iter()
-        .filter(|instruction| {
-            instruction.origin == Origin::Source(node.span())
-                && matches!(instruction.operation, Operation::DirectCall { .. })
-        })
-        .collect::<Vec<_>>();
-    if !matches!(calls.as_slice(), [actual] if actual.id == call.id) {
-        return Err(missing());
+    if call.block != preheader {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     }
     Ok(())
 }
@@ -403,8 +353,9 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
-/// Other binding epochs use the normal, already validated call emitter. Their
-/// arguments do not grant provider-source capability or require a new ABI.
+/// Anchor the selected normal call result for formed owners and other binding
+/// epochs. Argument/receiver delivery and effective routes stay with the ordinary
+/// planner and emitter; their operands are never evaluated again here.
 pub(super) fn validate_ordinary_birth(
     lowerer: &UnitExpressionLowerer<'_>,
     expression: UnitExpressionId,

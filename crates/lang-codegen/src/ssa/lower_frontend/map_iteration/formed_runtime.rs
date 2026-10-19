@@ -123,36 +123,7 @@ impl ExpressionLowerer<'_> {
     ) -> Result<ValueId, LoweringError> {
         let bad = || error(LoweringErrorKind::MissingFact, span);
         let anchor = match formation.birth {
-            Birth::Call(producer) => {
-                let birth_span = self.expression_span(producer)?;
-                let instruction = unique(self.function.instructions.iter().filter(|i| {
-                    i.origin == Origin::Source(birth_span)
-                        && matches!(i.operation, Operation::DirectCall { .. })
-                }))
-                .ok_or_else(bad)?;
-                let [EntityId::Value(anchor)] = instruction.results.as_slice() else {
-                    return Err(bad());
-                };
-                let call = self.typed.call(producer).ok_or_else(bad)?;
-                let lang_frontend::type_checking::CallableTarget::Source(target) = call.target()
-                else {
-                    return Err(bad());
-                };
-                let callee = self
-                    .function_ids
-                    .get(&FunctionInstanceKey::new(target, Vec::new()))
-                    .ok_or_else(bad)?;
-                if instruction.operation
-                    != (Operation::DirectCall {
-                        callee: *callee,
-                        receiver: None,
-                        arguments: Vec::new(),
-                    })
-                {
-                    return Err(bad());
-                }
-                *anchor
-            }
+            Birth::Call(producer) => self.map_call_birth(producer, span)?,
             Birth::EntryParameter {
                 root,
                 reference,

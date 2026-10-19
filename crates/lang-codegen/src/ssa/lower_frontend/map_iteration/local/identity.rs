@@ -296,7 +296,7 @@ pub(in super::super) fn producer(
     parsed: &ParsedFile,
     names: &NameResolution,
     typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
+    _owned: &OwnershipCheckedFile,
     initializer: ExpressionId,
     storage: TypeId,
     span: Span,
@@ -319,7 +319,7 @@ pub(in super::super) fn producer(
         .expressions()
         .get(*callee)
         .map_err(|_| missing())?;
-    if callee.payload() != &Expression::Name || !arguments.is_empty() {
+    if callee.payload() != &Expression::Name {
         return Err(unsupported());
     }
     let call = typed.call(initializer).ok_or_else(missing)?;
@@ -342,8 +342,7 @@ pub(in super::super) fn producer(
             matches!(node.payload(), Item::Function { name: NameMarker::Present(name), .. } if *name == symbol.span())
         }))
         || call.receiver().is_some() || call.aborts() || call.result_source() != CallableResultSource::Owned
-        || !call.instance().type_arguments().is_empty() || signature.owner().is_some()
-        || signature.receiver().is_some() || !signature.type_parameters().is_empty() || !signature.parameters().is_empty()
+        || signature.owner().is_some() || signature.receiver().is_some()
     {
         return Err(unsupported());
     }
@@ -358,18 +357,17 @@ pub(in super::super) fn producer(
     };
     if !selected
         || call.expression() != initializer
-        || !call.arguments().is_empty()
+        || call.arguments().len() != arguments.len()
+        || call.arguments().len() != signature.parameters().len()
         || call.return_type() != storage
-        || signature.return_type() != storage
+        || (call.instance().type_arguments().is_empty() && signature.return_type() != storage)
         || typed.expression_category(initializer) != Some(ExpressionCategory::Temporary)
-        || owned.loans().iter().any(|loan| loan.call() == initializer)
-        || owned
-            .loan_ends()
-            .iter()
-            .any(|end| end.call() == initializer)
+        || typed.expression_type(initializer) != Some(storage)
     {
         return Err(missing());
     }
+    // Ordinary call lowering consumes the selected argument mapping and its
+    // ownership facts before this result is installed in the local binding.
     Ok(())
 }
 

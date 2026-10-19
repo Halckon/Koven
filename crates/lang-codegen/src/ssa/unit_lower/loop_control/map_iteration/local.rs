@@ -76,11 +76,7 @@ fn validate_call_owner(
     let [anchor @ EntityId::Value(_)] = birth.results.as_slice() else {
         return Err(bad());
     };
-    if provider {
-        source::validate_temporary_birth(lowerer, initializer, *anchor, birth.block, span)?;
-    } else {
-        source::validate_ordinary_birth(lowerer, initializer, *anchor, span)?;
-    }
+    source::validate_ordinary_birth(lowerer, initializer, *anchor, span)?;
     transport::from_anchor(lowerer.function, current, *anchor, span)?;
     if lowerer.bindings.iter().any(|(other, value)| {
         *other != root

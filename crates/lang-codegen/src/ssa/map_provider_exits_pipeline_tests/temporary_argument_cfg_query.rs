@@ -1,5 +1,5 @@
 //! Read-only proof for the empty-Map factory's ordinary argument CFG and hidden owner.
-mod argument;
+pub(super) mod argument;
 mod ast;
 mod provider;
 mod wrapper;
@@ -61,8 +61,21 @@ pub(super) fn check(
     wrapper::check(sources, parsed, module, scan)?;
     let g = Graph::with_abort(scan)?;
     let mut uses = Uses::default();
-    let (call, argument_end) =
-        argument::check(sources, parsed, &input, module, &g, factory, &mut uses)?;
+    let argument_input = argument::Input {
+        call: input.call,
+        argument: input.argument,
+        flag: input.flag,
+        arms: input.arms,
+    };
+    let (call, argument_end) = argument::check(
+        sources,
+        parsed,
+        &argument_input,
+        module,
+        &g,
+        factory,
+        &mut uses,
+    )?;
     let owner = value(call)?;
     let map = scan
         .entity(EntityId::Value(owner))
