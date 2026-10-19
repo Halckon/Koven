@@ -327,7 +327,7 @@ fn package_mismatch(
     input: &CanonicalInput<'_>,
     source_unit: SourceUnitId,
 ) -> Result<Option<PackagePathMismatch>, CompilationUnitInputError> {
-    if has_malformed_package_header(input.parsed) {
+    if !input.parsed.initial_package_header_is_complete() {
         return Ok(None);
     }
     let declared = input
@@ -493,13 +493,6 @@ fn push_declaration(
         visibility,
     ));
     Ok(())
-}
-
-fn has_malformed_package_header(parsed: &ParsedFile) -> bool {
-    parsed
-        .diagnostics()
-        .iter()
-        .any(|diagnostic| diagnostic.code().to_string() == codes::EXPECTED_PACKAGE_NAME)
 }
 
 fn build_index_diagnostics(

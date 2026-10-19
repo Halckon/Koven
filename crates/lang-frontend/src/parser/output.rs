@@ -11,6 +11,8 @@ use super::{ExpressionAst, SyntaxAst};
 pub struct ParsedFile {
     pub(crate) ast: SyntaxAst,
     pub(crate) package: Option<PackageDirective>,
+    // 只记录初始 package 名称及紧随它的分隔符；没有初始 package 时为 true。
+    pub(super) initial_package_header_complete: bool,
     pub(crate) imports: Vec<ImportDirective>,
     pub(crate) roots: Vec<ItemId>,
     pub(crate) diagnostics: Vec<Diagnostic>,
@@ -33,6 +35,12 @@ impl ParsedFile {
     #[must_use]
     pub const fn package(&self) -> Option<&PackageDirective> {
         self.package.as_ref()
+    }
+
+    /// 初始 package 名称和紧随它的分隔符是否完整；无初始 package 时为 true。
+    #[must_use]
+    pub(crate) const fn initial_package_header_is_complete(&self) -> bool {
+        self.initial_package_header_complete
     }
 
     /// 返回按源码顺序排列的 import directives。
@@ -349,6 +357,7 @@ mod tests {
     #[test]
     fn initial_package_header_fact_preserves_parser_products() {
         let (sources, file) = parsed("val x=1");
+        assert!(file.initial_package_header_complete);
         assert_eq!(file.package(), None);
         assert!(file.imports().is_empty());
         assert_diagnostics(&sources, &file, &[]);
@@ -360,6 +369,7 @@ mod tests {
             ("package a.b;val x=1", Some(12)),
         ] {
             let (sources, file) = parsed(text);
+            assert!(file.initial_package_header_complete, "{text}");
             assert_eq!(
                 file.package(),
                 Some(&package(&sources, &file, 11, &[(8, 9), (10, 11)]))
@@ -425,6 +435,7 @@ mod tests {
             },
         ] {
             let (sources, file) = parsed(case.text);
+            assert!(!file.initial_package_header_complete, "{}", case.text);
             assert_eq!(
                 file.package(),
                 Some(&package(&sources, &file, case.package_end, case.segments))
@@ -435,6 +446,7 @@ mod tests {
         }
 
         let (sources, file) = parsed("package $ junk\nimport valid.name\nval x=1");
+        assert!(!file.initial_package_header_complete);
         assert_eq!(file.package(), Some(&package(&sources, &file, 14, &[])));
         assert_eq!(
             file.imports(),
@@ -449,6 +461,7 @@ mod tests {
 
         let (sources, file) = parsed("package a.b\nval x:Int=1");
         let s = |start, end| span(&sources, &file, start, end);
+        assert!(file.initial_package_header_complete);
         assert_eq!(
             file.package(),
             Some(&package(&sources, &file, 11, &[(8, 9), (10, 11)]))
@@ -508,6 +521,7 @@ mod tests {
             ("package a.b\n@\nval x=1", "L0017", "expected declaration"),
         ] {
             let (sources, file) = parsed(text);
+            assert!(file.initial_package_header_complete, "{text}");
             assert_eq!(
                 file.package(),
                 Some(&package(&sources, &file, 11, &[(8, 9), (10, 11)]))
@@ -518,6 +532,7 @@ mod tests {
         }
 
         let (sources, file) = parsed("package a.b\nimport q.X val x=1");
+        assert!(file.initial_package_header_complete);
         assert_eq!(
             file.package(),
             Some(&package(&sources, &file, 11, &[(8, 9), (10, 11)]))
@@ -534,6 +549,7 @@ mod tests {
         assert_variable_tail(&sources, &file, 23, &[]);
 
         let (sources, file) = parsed("package a.b\nimport\nval x=1");
+        assert!(file.initial_package_header_complete);
         assert_eq!(
             file.package(),
             Some(&package(&sources, &file, 11, &[(8, 9), (10, 11)]))
@@ -550,6 +566,7 @@ mod tests {
         assert_variable_tail(&sources, &file, 19, &[]);
 
         let (sources, file) = parsed("import q.X\npackage\nval x=1");
+        assert!(file.initial_package_header_complete);
         assert_eq!(file.package(), None);
         assert_eq!(
             file.imports(),
@@ -567,6 +584,7 @@ mod tests {
 
         let (sources, file) = parsed("package a.b\npackage\nfun main(){missing}");
         let s = |start, end| span(&sources, &file, start, end);
+        assert!(file.initial_package_header_complete);
         assert_eq!(
             file.package(),
             Some(&package(&sources, &file, 11, &[(8, 9), (10, 11)]))
