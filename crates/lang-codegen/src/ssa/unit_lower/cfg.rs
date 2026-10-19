@@ -1,5 +1,6 @@
 //! compilation-unit CFG 中跨 edge 携带 value/loan 与出口合流的共享基元。
 
+mod alias_slots;
 mod nullable;
 mod pending_child;
 mod range;
@@ -16,7 +17,7 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    carry::{self, AliasSlot, CaptureLoan, Temporary},
+    carry::{self, CaptureLoan, Temporary},
     model::{
         BlockId, Edge, EntityId, EntityType, LoanId, Operation, Origin, TerminatorKind, ValueId,
     },
@@ -68,27 +69,6 @@ pub(super) struct CarriedBinding {
     temporaries: Vec<UnitExpressionId>,
 }
 
-impl AliasSlot<Temporary, UnitExpressionId> for CarriedBinding {
-    fn source(&self) -> EntityId {
-        EntityId::Value(self.source)
-    }
-
-    fn keys_mut(&mut self) -> &mut Vec<UnitExpressionId> {
-        &mut self.temporaries
-    }
-
-    fn from_alias(source: ValueId, ty: EntityType) -> Self {
-        Self {
-            symbol: None,
-            receiver: None,
-            source,
-            ty,
-            pending: Vec::new(),
-            temporaries: Vec::new(),
-        }
-    }
-}
-
 #[derive(Clone)]
 pub(super) struct CarriedAccess {
     nullable_proofs: Vec<nullable::CarriedNullableProof>,
@@ -100,30 +80,6 @@ pub(super) struct CarriedAccess {
     source: EntityId,
     ty: EntityType,
     pending: Vec<usize>,
-}
-
-impl AliasSlot<CaptureLoan, (UnitExpressionId, usize)> for CarriedAccess {
-    fn source(&self) -> EntityId {
-        self.source
-    }
-
-    fn keys_mut(&mut self) -> &mut Vec<(UnitExpressionId, usize)> {
-        &mut self.captures
-    }
-
-    fn from_alias(source: LoanId, ty: EntityType) -> Self {
-        Self {
-            nullable_proofs: Vec::new(),
-            nullable_children: Vec::new(),
-            range_sources: Vec::new(),
-            captures: Vec::new(),
-            symbol: None,
-            receiver: None,
-            source: EntityId::Loan(source),
-            ty,
-            pending: Vec::new(),
-        }
-    }
 }
 
 impl UnitExpressionLowerer<'_> {
@@ -243,9 +199,9 @@ impl UnitExpressionLowerer<'_> {
         }
         carry::collect_aliases::<CaptureLoan, _, _>(
             self.function,
-            &self.capture_loans,
+            self.capture_loans.iter().map(|(&key, &id)| (key, id)),
             &mut carried,
-            span,
+            lowering_error(LoweringErrorKind::InvalidModel, span),
         )?;
         self.carry_range_sources(&mut carried, span)?;
         self.carry_nullable_proofs(&mut carried, span)?;
@@ -302,9 +258,9 @@ impl UnitExpressionLowerer<'_> {
         // A pending borrowed temporary needs its owner as well as its loan on each edge.
         carry::collect_aliases::<Temporary, _, _>(
             self.function,
-            &self.temporaries,
+            self.temporaries.iter().map(|(&key, &id)| (key, id)),
             bindings,
-            span,
+            lowering_error(LoweringErrorKind::InvalidModel, span),
         )?;
         self.bind_nullable_columns(bindings, loans, span)?;
         self.bind_pending_child_columns(bindings, loans, span)?;

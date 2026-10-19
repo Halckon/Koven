@@ -1,6 +1,6 @@
 //! Construct and restore explicit linear CFG storage slots.
 use super::*;
-use crate::ssa::carry::{self, AliasSlot, CaptureLoan, Temporary};
+use crate::ssa::carry::{self, AliasSlot, CaptureLoan, ResultSourceLoan, Temporary};
 use crate::ssa::model::LoanId;
 
 impl AliasSlot<Temporary, usize> for LinearBindingSlot {
@@ -24,6 +24,20 @@ impl AliasSlot<CaptureLoan, (usize, usize)> for LinearBindingSlot {
 
     fn keys_mut(&mut self) -> &mut Vec<(usize, usize)> {
         &mut self.captures
+    }
+
+    fn from_alias(source: LoanId, ty: EntityType) -> Self {
+        Self::new(None, EntityId::Loan(source), ty)
+    }
+}
+
+impl AliasSlot<ResultSourceLoan, (SymbolId, usize)> for LinearBindingSlot {
+    fn source(&self) -> EntityId {
+        self.source
+    }
+
+    fn keys_mut(&mut self) -> &mut Vec<(SymbolId, usize)> {
+        &mut self.result_sources
     }
 
     fn from_alias(source: LoanId, ty: EntityType) -> Self {
@@ -68,9 +82,9 @@ impl ExpressionLowerer<'_> {
         }
         carry::collect_aliases::<Temporary, _, _>(
             self.function,
-            &self.temporaries,
+            self.temporaries.iter().map(|(&key, &id)| (key, id)),
             &mut carried,
-            span,
+            error(LoweringErrorKind::InvalidModel, span),
         )?;
         for (&key, &loan) in self.pending_call_loans.iter() {
             let Some(loan) = loan else {
@@ -92,9 +106,9 @@ impl ExpressionLowerer<'_> {
         }
         carry::collect_aliases::<CaptureLoan, _, _>(
             self.function,
-            &self.capture_loans,
+            self.capture_loans.iter().map(|(&key, &id)| (key, id)),
             &mut carried,
-            span,
+            error(LoweringErrorKind::InvalidModel, span),
         )?;
         for (&symbol, &proof) in &self.non_null_bindings {
             self.validate_non_null_proof(symbol, proof, bindings, span)?;
@@ -130,23 +144,12 @@ impl ExpressionLowerer<'_> {
                 carried.push(slot);
             }
         }
-        for (&symbol, loans) in &self.result_source_loans {
-            for (index, &loan) in loans.iter().enumerate() {
-                let source = EntityId::Loan(loan);
-                if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                    slot.result_sources.push((symbol, index));
-                } else {
-                    let ty = self
-                        .function
-                        .entity(source)
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-                        .ty;
-                    let mut slot = LinearBindingSlot::new(None, source, ty);
-                    slot.result_sources.push((symbol, index));
-                    carried.push(slot);
-                }
-            }
-        }
+        carry::collect_aliases::<ResultSourceLoan, _, _>(
+            self.function,
+            carry::indexed_aliases(&self.result_source_loans),
+            &mut carried,
+            error(LoweringErrorKind::MissingFact, span),
+        )?;
         for context in &self.loops {
             let Some(ref for_data) = context.for_loop else {
                 continue;
@@ -304,15 +307,15 @@ impl ExpressionLowerer<'_> {
                 };
                 self.borrow_bindings.insert(*symbol, loan);
             }
-            for &(symbol, index) in &slot.result_sources {
+            if !slot.result_sources.is_empty() {
                 let EntityId::Loan(loan) = parameter else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
-                let loans = self.result_source_loans.entry(symbol).or_default();
-                if loans.len() <= index {
-                    loans.resize(index + 1, loan);
-                }
-                loans[index] = loan;
+                carry::apply_indexed_alias_column(
+                    &slot.result_sources,
+                    loan,
+                    &mut self.result_source_loans,
+                );
             }
             for &stmt in &slot.for_sources {
                 let EntityId::Loan(loan) = parameter else {
