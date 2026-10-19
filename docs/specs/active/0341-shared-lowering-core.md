@@ -492,3 +492,12 @@ x02 双 UnsupportedNode，w06 双前端 L0135 但主诊断文本不同。两份 
 - 两臂FE各28、public-native各25；single native exit0仍12，Unit19→23。w09、x01及两enum的4个旧Unit退化全部实际到达public-native/link/run exit0；12个双native的exit/stdout/stderr全部相同。其余66份完整trace对旧actual91c逐字相同（single35、Unit31），只4份Unit trace变化，未规范化；本轮没有独立SSA关系/完整SSA-model-LLVM对照。
 - 保留11个Unit-only收益（w01/02/03/04/07/10/11/13/14/17/19），single仍原MissingFact；保留3组诊断差：w06同L0135但loan冲突文案不同，moved诊断Unit多参数声明label，mixed为single Lexer首停与Unit names聚合4码。7诊断案例的同臂全文均与旧轮相同。x02和显式参数化entry边界、3个原driver无目标原样记录，后者不是Unit后端拒绝。
 - 本轮为22附件＋13仓内源码回放，不称原exact全集/外部144源（仍缺122源），无标准源注入；最终统一driver/package/root/import协议及single退役另验。完整仓外结果 `e2-single-unit-rebound-experiment/`；run-binding `8941964c`，实际exe `b35f6506`，controller receipt `ecb1263d`，outcome-summary `53b9ec92`、逐臂对照 `ed0dae17`；3294输入/8工具稳定，旧310件封包保持。
+
+## 34. 统一 Unit driver 直接前置 A0：project 核心与中立错误（2026-10-19）
+
+- 固定母基 `f2d8bf7a` / tree `71e01208`，保留§32。独立 docs `7cba5bf4`、test-only `efd10243` / tree `678f24bb`，原生产先验；生产提取 `a6a1ef53` / tree `960f6b65` 仅五个 CLI 文件，普通测试源码及 oracle 不变。
+- `unit_build::emit_unit_object` 借原 `UnitNameSnapshot`、同轮类型环境、project selector 与 object 路径，唯一推进 names gate→types→complete→basic/const→ownership validation→entry→sealed view→emit；project 外壳保输入/路径、呈现、exit 与产物生命周期。标准 loader 及共同阶段只用一份 `UnitBuildError`，project entry 小型失败包装保原完整文本，未加未用 single 策略或万能接口。
+- 旧生产 test-only 与候选各18个完整 ordinary exact，逐项一次均 actual1 passed / 0 failed / 0 ignored / exit0，无超时、漂移或重试。仅 selector exact 从 `project_build::tests` 迁至 `unit_build::tests`，其余17名与全部断言保持；三 std、九 project basic/const ownership、names/operational/final-admission 与新 entry 全文回归覆盖原阶段顺序及输出。新 entry 测试在旧实现已绿，本片是行为中性前后比较，不声称语言行为红测。
+- 两头唯一 no-run 分别62.362s/0、4.596s/0，实际 Cargo JSON 各绑定正常 CLI 与三个测试 executable；3293→3294输入、12工具与四exe在各自受验轮前后核同。两 integration exe 在候选本次合法增量仍同旧 SHA；生产 CLI 与 bin-test 为新字节，未按旧缓存猜测身份。
+- 同候选随后 fmt、CLI standalone build、CLI all-targets clippy、docs、尺寸与固定 f2d→a6a diff 六项各一次 exit0；controller 含前后核验耗时15.691/2.675/33.235/5.191/7.516/2.300s。731份文档通过；1849个手写Rust文件中38个历史超限照报，未放宽尺寸policy。Python checker用 `-B` 抑制导入缓存，全文审查确认只读真实树，无附带synthetic测试。
+- 完整原始绑定/输出/收据留仓外 `e2-unit-driver-a0-validation/`；基线 result `9339314b` / SUMS `d1e61611`，候选18+6 result `cb65d894` / SUMS `0d41c2f9`。18是libtest调用数，不冒充其CLI/link/native子进程总数。未执行整 target、合成事实、故障注入/计数/校准、预期 Abort、sanitizer、远端 CI 或其它宿主。真实 single 与 frontend API 未切换；A1 parse-once、A2 single 和 CLI/LSP/其它全部生产消费者的旧 checker 退役仍开放，本节不关闭 D10。
