@@ -768,3 +768,43 @@ fun start(args: Array<String>): Unit {
     assert_eq!(executed.stdout, "克隆\n克隆\n克隆\n".as_bytes());
     assert!(executed.stderr.is_empty(), "{executed:?}");
 }
+
+#[test]
+fn project_entry_failures_preserve_complete_operational_messages() {
+    let project = TestProject::create("entry-messages");
+    let manifest = project.manifest(&["src"]);
+    project.write(
+        "src/app/Entry.ko",
+        "package app\n\
+         private fun hidden(): Unit {}\n\
+         fun invalid(value: Int): Unit {}\n\
+         fun ambiguous(): Unit {}\n\
+         fun ambiguous(args: Array<String>): Unit {}\n",
+    );
+    for (entry, detail) in [
+        ("app.missing", "project entry `app.missing` was not found"),
+        ("app.hidden", "project entry `app.hidden` is private"),
+        (
+            "app.invalid",
+            "project entry `app.invalid` has no supported process shape; expected `fun invalid(): Unit` or `fun invalid(args: Array<String>): Unit`",
+        ),
+        (
+            "app.ambiguous",
+            "project entry `app.ambiguous` is ambiguous (2 valid candidates)",
+        ),
+    ] {
+        for format in ["human", "json"] {
+            let executable = project.join(&format!("{entry}-{format}"));
+            let output = project_build(&manifest, entry, &executable, Some(format));
+            assert_eq!(output.status.code(), Some(1), "{output:?}");
+            assert!(output.stdout.is_empty(), "{output:?}");
+            assert_eq!(
+                output.stderr,
+                format!("error: project build failed: {detail}\n").as_bytes(),
+                "{output:?}"
+            );
+            assert!(!executable.exists());
+            assert_no_build_temporaries(project.path());
+        }
+    }
+}
