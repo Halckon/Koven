@@ -808,3 +808,31 @@ fn project_entry_failures_preserve_complete_operational_messages() {
         }
     }
 }
+
+#[test]
+fn project_standard_key_collision_preserves_the_complete_operational_error() {
+    let project = TestProject::create("standard-key-collision");
+    let manifest = project.manifest(&["koven-std"]);
+    project.write(
+        "koven-std/koven/algorithms/ranges.ko",
+        "package koven.algorithms\nfun main(): Unit {}\n",
+    );
+    for format in ["human", "json"] {
+        let executable = project.join(&format!("standard-collision-{format}"));
+        let output = project_build(
+            &manifest,
+            "koven.algorithms.main",
+            &executable,
+            Some(format),
+        );
+        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert!(output.stdout.is_empty(), "{output:?}");
+        assert_eq!(
+            output.stderr,
+            b"error: project build failed: source setup failed: source name \"koven-std/koven/algorithms/ranges.ko\" is already registered\n",
+            "{output:?}"
+        );
+        assert!(!executable.exists());
+        assert_no_build_temporaries(project.path());
+    }
+}
