@@ -41,8 +41,19 @@ UnsupportedNode，unit 仍为 MissingFact。整数小片当时保留两份 `chec
 读取与恢复自身角色。append后才收集carry；错误Span与原首错、Value/access列顺序保持。
 Abort不新增cleanup。核心依赖SSA model，位于中立support之外，依赖扫描覆盖整个子树。
 [0341 checked验收](../specs/active/0341-shared-lowering-core.md#17-checked-scalar-cfg-小片实际验收2026-10-19)
-记录普通SSA/LLVM与正常native结果。carry的槽关联、alias索引、参数重绑和其它CFG责任仍未统一；
+记录普通SSA/LLVM与正常native结果。该checked小片当时未统一carry槽关联、alias索引与参数重绑；
+temporary角色后继见下节，其它角色和CFG责任继续开放。
 原single linear/Map与unit pending/receiver/loan恢复helper继续保留，不把差异隐藏为永久策略。
+
+## temporary alias carry 核心
+
+`ssa::carry` 统一temporary key有序收集、首个同source物理列复用、miss时才查询完整EntityType并追加，
+以及该列全部key向当前Value的写回。single与unit删除四段重复循环，三存储端口仅投影source、
+借用key字段及构造其它角色为空的槽；local/source-qualified key不转换。seed不去重，不能按旧source
+全局合并参数，命中列不提前查询type。原single逐列temporary/capture/proof交错、unit独立恢复阶段，
+以及长度/kind/clear/首错时点保留。[0341 temporary验收](../specs/active/0341-shared-lowering-core.md#19-temporary-alias-carry-小片实际验收2026-10-19)
+记录真实Borrow Group配对与普通回归；capture loan、named/pending等其它角色和多入边合流仍待统一。
+核心依赖model、中立error与Span，不反向读取checked/driver/planner/LLVM；IR/support禁止依赖carry。
 
 ## 普通 statement 顺序核心
 
