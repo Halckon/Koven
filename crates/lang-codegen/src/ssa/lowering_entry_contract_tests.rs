@@ -1,5 +1,6 @@
 //! SPEC-0255: 两入口只比较已支持的 String 事实，使用逻辑来源而非 arena ID。
 
+mod carry_join;
 mod temporary_alias;
 
 use lang_frontend::{
@@ -8,8 +9,11 @@ use lang_frontend::{
         resolve_names,
     },
     ownership_checking::{check_compilation_unit_constant_ownership, check_ownership},
+    parser::ParsedFile,
     source::{SourceMap, Span},
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{
+        ParameterMode, check_compilation_unit_types, check_types, standard_environments,
+    },
 };
 
 use super::{
@@ -89,6 +93,28 @@ fn paired_in_order_observed(
     entry_first: bool,
     observe: impl Fn(&SourceMap, &Program, FunctionId),
 ) -> Vec<Event> {
+    paired_in_order_observed_entry(
+        text,
+        constants,
+        entry_first,
+        |sources, _, program, entry, _, _| {
+            observe(sources, program, entry);
+        },
+    )
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EntryKind {
+    Single,
+    Unit,
+}
+
+fn paired_in_order_observed_entry(
+    text: &str,
+    constants: bool,
+    entry_first: bool,
+    observe: impl Fn(&SourceMap, &ParsedFile, &Program, FunctionId, EntryKind, Option<&[ParameterMode]>),
+) -> Vec<Event> {
     let mut sources = SourceMap::new();
     // Identical names in an unrelated logical source must not affect entry facts. Reversed
     // inputs exercise source-qualified lookup without comparing raw source or type IDs.
@@ -115,17 +141,35 @@ fn paired_in_order_observed(
         .find(|symbol| symbol.name() == "entry" && symbol.kind() == SymbolKind::Function)
         .unwrap()
         .id();
+    let modes = typed
+        .callables()
+        .iter()
+        .find(|callable| callable.symbol() == entry)
+        .map(|callable| {
+            callable
+                .parameters()
+                .iter()
+                .map(|parameter| parameter.mode)
+                .collect::<Vec<_>>()
+        });
     let (single, entry) =
         lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry).unwrap();
     let expected = events(&sources, &single, entry);
     let expected_relations = string_relations(&sources, &single, entry);
-    observe(&sources, &single, entry);
+    observe(
+        &sources,
+        &file,
+        &single,
+        entry,
+        EntryKind::Single,
+        modes.as_deref(),
+    );
     let inputs = [
         SourceUnitInput::new("root", "other/entry.ko", other_source, &other),
         SourceUnitInput::new("root", "pair/entry.ko", source, &file),
     ];
     for inputs in [inputs, [inputs[1], inputs[0]]] {
-        let (unit, entry) = if constants {
+        let (unit, entry, modes) = if constants {
             let index = index_compilation_unit(&sources, &inputs).unwrap();
             let names =
                 resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
@@ -149,28 +193,56 @@ fn paired_in_order_observed(
             .unwrap()
             .validate()
             .unwrap();
-            lower_constant_unit_with_entry(
+            let declaration = declaration(&names, "pair", "entry");
+            let modes = typed
+                .types()
+                .signatures()
+                .declaration(declaration)
+                .and_then(|signature| signature.callable())
+                .map(|callable| {
+                    callable
+                        .parameters()
+                        .iter()
+                        .map(|parameter| parameter.mode())
+                        .collect::<Vec<_>>()
+                });
+            let (program, entry) = lower_constant_unit_with_entry(
                 &sources,
                 &inputs,
                 &names,
                 &environment,
                 &typed,
                 &owned,
-                declaration(&names, "pair", "entry"),
+                declaration,
             )
-            .unwrap()
+            .unwrap();
+            (program, entry, modes)
         } else {
             let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
-            lower_scalar_unit_with_entry(
+            let declaration = declaration(&names, "pair", "entry");
+            let modes = typed
+                .types()
+                .signatures()
+                .declaration(declaration)
+                .and_then(|signature| signature.callable())
+                .map(|callable| {
+                    callable
+                        .parameters()
+                        .iter()
+                        .map(|parameter| parameter.mode())
+                        .collect::<Vec<_>>()
+                });
+            let (program, entry) = lower_scalar_unit_with_entry(
                 &sources,
                 &inputs,
                 &names,
                 &environment,
                 &typed,
                 &owned,
-                declaration(&names, "pair", "entry"),
+                declaration,
             )
-            .unwrap()
+            .unwrap();
+            (program, entry, modes)
         };
         assert_eq!(events(&sources, &unit, entry), expected, "{text}");
         assert_eq!(
@@ -178,7 +250,14 @@ fn paired_in_order_observed(
             expected_relations,
             "{text}"
         );
-        observe(&sources, &unit, entry);
+        observe(
+            &sources,
+            &file,
+            &unit,
+            entry,
+            EntryKind::Unit,
+            modes.as_deref(),
+        );
     }
     expected
 }
@@ -411,8 +490,8 @@ fn assert_direct_string_returns(
     }
     expected_owners.sort_by_key(|owner| owner.index());
     returned.sort_by_key(|owner| owner.index());
-    // Each fixture has one normal branch and one direct-return branch, so the
-    // original one-exit merge forwards the literal owner without a phi.
+    // These fixtures have at most one normal branch. Direct returns and the
+    // original one-exit merge forward the literal owners without a result phi.
     assert_eq!(
         returned, expected_owners,
         "every exact owner reaches Return once"

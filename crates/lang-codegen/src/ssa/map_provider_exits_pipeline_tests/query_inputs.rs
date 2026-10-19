@@ -20,7 +20,7 @@ use lang_frontend::{
     },
 };
 
-pub(super) fn one<T>(
+pub(in crate::ssa) fn one<T>(
     mut values: impl Iterator<Item = T>,
     stage: &'static str,
 ) -> Result<T, Failure> {

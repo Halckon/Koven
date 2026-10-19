@@ -6,7 +6,7 @@ use super::{
 use crate::ssa::model::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(super) struct Graph<'a> {
+pub(in crate::ssa) struct Graph<'a> {
     pub function: &'a Function,
     pub blocks: Vec<BlockId>,
     pub edges: Vec<(BlockId, &'a Edge)>,

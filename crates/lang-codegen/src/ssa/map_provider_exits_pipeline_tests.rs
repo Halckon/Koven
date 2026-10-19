@@ -24,6 +24,8 @@ mod nested_exits;
 mod pipeline;
 mod query_cleanup;
 mod query_graph;
+pub(in crate::ssa) use query_graph::Graph as OrdinaryGraph;
+pub(in crate::ssa) use query_inputs::one as one_query;
 mod query_inputs;
 mod query_map_normal_body;
 mod query_ssa;
