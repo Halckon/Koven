@@ -1,10 +1,10 @@
 //! SPEC-0025 Stage 2 package/import/visibility 名称解析契约。
 
 use lang_frontend::{
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, Severity},
     lexer::lex,
     name_resolution::{
-        CompilationUnitNames, NameEnvironment, SourceUnitInput, UnitReferenceTarget,
+        CompilationUnitNames, NameEnvironment, Namespace, SourceUnitInput, UnitReferenceTarget,
         index_compilation_unit, resolve_compilation_unit_names,
     },
     parser::{ParsedFile, parse_file},
@@ -453,4 +453,271 @@ fn static_members_require_qualified_use_and_do_not_expose_private_symbols() {
         .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
         .collect::<Vec<_>>();
     assert_eq!(primary_names, ["open", "hidden", "secret"]);
+}
+
+#[test]
+fn unloaded_exact_alias_and_wildcard_imports_explain_the_source_set() {
+    let mut sources = SourceMap::new();
+    let text = "package app\n// 界é😀\nimport q.value\nimport q.Missing_pkg.value as Alias\nimport q.Missing_pkg.*\nval localValue = 1\nval seen = localValue";
+    let (app_id, app) = parsed(&mut sources, "app.ko", text);
+    let inputs = [SourceUnitInput::new("root", "app/app.ko", app_id, &app)];
+    let names = resolve(&sources, &inputs, &NameEnvironment::new());
+    let code = lang_frontend::diagnostic::codes::catalog()
+        .unwrap()
+        .resolve("L0148")
+        .unwrap();
+    let mut expected = Vec::new();
+    for (start, length, message, package) in [
+        (
+            text.find("q.value").unwrap() + 2,
+            5,
+            "unresolved exact import target",
+            "q",
+        ),
+        (
+            text.find("q.Missing_pkg.value").unwrap() + 14,
+            5,
+            "unresolved exact import target",
+            "q.Missing_pkg",
+        ),
+        (
+            text.find("q.Missing_pkg.*").unwrap() + 2,
+            11,
+            "unresolved wildcard import package",
+            "q.Missing_pkg",
+        ),
+    ] {
+        let mut diagnostic = Diagnostic::new(
+            &sources,
+            Severity::Error,
+            code,
+            message,
+            sources.span(app_id, start, start + length).unwrap(),
+        )
+        .unwrap();
+        diagnostic
+            .add_note(format!(
+                "package '{package}' is not loaded in this compilation unit"
+            ))
+            .unwrap();
+        diagnostic
+            .add_help(
+                "include the required sources in the explicit project source set; single-file commands can use --project",
+            )
+            .unwrap();
+        expected.push(diagnostic);
+    }
+    assert_eq!(names.diagnostics(), expected);
+    for import in app.imports() {
+        assert!(!names.references().iter().any(|reference| {
+            reference.span().source_id() == app_id
+                && reference.span().start() >= import.span.start()
+                && reference.span().end() <= import.span.end()
+        }));
+    }
+    let local_value = names
+        .index()
+        .declarations()
+        .iter()
+        .find(|declaration| declaration.name() == "localValue")
+        .unwrap();
+    assert_eq!(local_value.name_span().source_id(), app_id);
+    let start = text.rfind("localValue").unwrap();
+    let span = sources
+        .span(app_id, start, start + "localValue".len())
+        .unwrap();
+    assert_eq!(
+        names
+            .references()
+            .iter()
+            .find(|reference| reference.span() == span)
+            .map(|reference| reference.target()),
+        Some(&UnitReferenceTarget::Declaration(local_value.id()))
+    );
+}
+
+#[test]
+fn loaded_missing_member_tail_and_unclassified_imports_keep_original_diagnostics() {
+    let mut sources = SourceMap::new();
+    // This is an ordinary user source in this package, with no loader authority.
+    let (algorithms_id, algorithms) = parsed(
+        &mut sources,
+        "algorithms.ko",
+        "package koven.algorithms\nval present = 1",
+    );
+    let (p_id, p) = parsed(
+        &mut sources,
+        "p.ko",
+        "package p\nclass Type { companion object { fun member(): Unit {} } }",
+    );
+    let (short_id, short) = parsed(&mut sources, "short.ko", "package short\nclass Branch");
+    let (long_id, long) = parsed(
+        &mut sources,
+        "long.ko",
+        "package short.Branch\nval present = 1",
+    );
+    let text = "package app\nimport koven.algorithms.absent\nimport p.Type.member\nimport short.Branch.deep.value\nimport Item\nval ok = 1";
+    let (app_id, app) = parsed(&mut sources, "app.ko", text);
+    let inputs = [
+        SourceUnitInput::new(
+            "root",
+            "koven/algorithms/algorithms.ko",
+            algorithms_id,
+            &algorithms,
+        ),
+        SourceUnitInput::new("root", "p/p.ko", p_id, &p),
+        SourceUnitInput::new("root", "short/short.ko", short_id, &short),
+        SourceUnitInput::new("root", "short/Branch/long.ko", long_id, &long),
+        SourceUnitInput::new("root", "app/app.ko", app_id, &app),
+    ];
+    let (environment, _) = standard_environments();
+    let names = resolve(&sources, &inputs, &environment);
+    let code = lang_frontend::diagnostic::codes::catalog()
+        .unwrap()
+        .resolve("L0148")
+        .unwrap();
+    let expected = ["absent", "member", "value", "Item"]
+        .into_iter()
+        .map(|terminal| {
+            let start = text.find(terminal).unwrap();
+            Diagnostic::new(
+                &sources,
+                Severity::Error,
+                code,
+                "unresolved exact import target",
+                sources.span(app_id, start, start + terminal.len()).unwrap(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(names.diagnostics(), expected);
+    let algorithms_package = names
+        .index()
+        .source_units()
+        .iter()
+        .find(|unit| unit.source_id() == algorithms_id)
+        .unwrap()
+        .package();
+    let import_references = names
+        .references()
+        .iter()
+        .filter(|reference| {
+            reference.span().source_id() == app_id
+                && app.imports().iter().any(|import| {
+                    reference.span().start() >= import.span.start()
+                        && reference.span().end() <= import.span.end()
+                })
+        })
+        .map(|reference| {
+            (
+                reference.span(),
+                reference.namespace(),
+                reference.target().clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let expected_references = app.imports()[0].segments[..2]
+        .iter()
+        .map(|segment| {
+            (
+                segment.span,
+                None,
+                UnitReferenceTarget::Package(algorithms_package),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(import_references, expected_references);
+}
+
+#[test]
+fn default_package_and_real_long_package_imports_keep_declaration_targets() {
+    let mut sources = SourceMap::new();
+    let (default_id, default) = parsed(&mut sources, "default.ko", "class Item");
+    let (short_id, short) = parsed(&mut sources, "short.ko", "package p\nclass Type");
+    let (long_id, long) = parsed(&mut sources, "long.ko", "package p.Type\nval member = 1");
+    let text = "package app\nimport Item\nimport p.Type.member as Selected\nfun use(x: Item): Item = x\nval chosen = Selected";
+    let (app_id, app) = parsed(&mut sources, "app.ko", text);
+    let inputs = [
+        SourceUnitInput::new("root", "default.ko", default_id, &default),
+        SourceUnitInput::new("root", "p/short.ko", short_id, &short),
+        SourceUnitInput::new("root", "p/Type/long.ko", long_id, &long),
+        SourceUnitInput::new("root", "app/app.ko", app_id, &app),
+    ];
+    let names = resolve(&sources, &inputs, &NameEnvironment::new());
+    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+    let item = names
+        .index()
+        .declarations()
+        .iter()
+        .find(|declaration| declaration.name() == "Item")
+        .unwrap();
+    let member = names
+        .index()
+        .declarations()
+        .iter()
+        .find(|declaration| declaration.name() == "member")
+        .unwrap();
+    assert_eq!(item.name_span().source_id(), default_id);
+    assert_eq!(member.name_span().source_id(), long_id);
+    let import_references = names
+        .references()
+        .iter()
+        .filter(|reference| {
+            reference.span().source_id() == app_id
+                && app.imports().iter().any(|import| {
+                    reference.span().start() >= import.span.start()
+                        && reference.span().end() <= import.span.end()
+                })
+        })
+        .map(|reference| {
+            (
+                reference.span(),
+                reference.namespace(),
+                reference.target().clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let imports = app.imports();
+    assert_eq!(
+        import_references,
+        [
+            (
+                imports[0].segments[0].span,
+                Some(Namespace::Type),
+                UnitReferenceTarget::Declaration(item.id()),
+            ),
+            (
+                imports[1].segments[0].span,
+                None,
+                UnitReferenceTarget::Package(member.package()),
+            ),
+            (
+                imports[1].segments[1].span,
+                None,
+                UnitReferenceTarget::Package(member.package()),
+            ),
+            (
+                imports[1].segments[2].span,
+                Some(Namespace::Value),
+                UnitReferenceTarget::Declaration(member.id()),
+            ),
+            (
+                imports[1].alias.unwrap().name_span,
+                Some(Namespace::Value),
+                UnitReferenceTarget::Declaration(member.id()),
+            ),
+        ]
+    );
+    let start = text.rfind("Selected").unwrap();
+    let span = sources
+        .span(app_id, start, start + "Selected".len())
+        .unwrap();
+    assert_eq!(
+        names
+            .references()
+            .iter()
+            .find(|reference| reference.span() == span)
+            .map(|reference| reference.target()),
+        Some(&UnitReferenceTarget::Declaration(member.id()))
+    );
 }
