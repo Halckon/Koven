@@ -28,11 +28,21 @@ single 与 unit 仍按各自原顺序查询 descriptor/materialization、验证�
 receiver 一次求值、三态传播、结果 SSA type 查询时点及 inv/checked conversion 提交选择。
 两入口以原生 local/qualified ID 的窄接口桥接事实和提交，共享原 `LoweredValue` 三态；
 原 dispatch、外层 temporary/drop 时点及结果类型错误差异保持。single 的缺映射仍为
-UnsupportedNode，unit 仍为 MissingFact。两份 `checked.rs` 的 CFG、carry/pending/loan
-运输继续原策略，尚未统一。依赖扫描覆盖新核心，禁止反向依赖 driver/planner/LLVM。
+UnsupportedNode，unit 仍为 MissingFact。整数小片当时保留两份 `checked.rs` 的 CFG；后继共同构造见下节。依赖扫描覆盖新核心，禁止反向依赖 driver/planner/LLVM。
 真实来源反序、basic/const 配对、一次求值、Borrow 实体链及控制退出 native 已按
 [0341 整数小片](../specs/active/0341-shared-lowering-core.md#11-整数小片实际验收2026-10-19)验收；
 这不关闭整体表达式、语句、driver 与 CFG/cleanup 收敛责任。
+
+## checked scalar CFG 核心
+
+`ssa::expression_core::checked` 统一checked算术及转换的Boolean事实查询、双Value结果append、
+有序角色读取、同型failure/success块与边、真边Abort、success角色恢复和原scalar交付。
+两入口删除对应完整CFG算法及arithmetic操作构造，只通过四窄端口读取事实、借出IR cursor、
+读取与恢复自身角色。append后才收集carry；错误Span与原首错、Value/access列顺序保持。
+Abort不新增cleanup。核心依赖SSA model，位于中立support之外，依赖扫描覆盖整个子树。
+[0341 checked验收](../specs/active/0341-shared-lowering-core.md#17-checked-scalar-cfg-小片实际验收2026-10-19)
+记录普通SSA/LLVM与正常native结果。carry的槽关联、alias索引、参数重绑和其它CFG责任仍未统一；
+原single linear/Map与unit pending/receiver/loan恢复helper继续保留，不把差异隐藏为永久策略。
 
 ## 普通 statement 顺序核心
 
