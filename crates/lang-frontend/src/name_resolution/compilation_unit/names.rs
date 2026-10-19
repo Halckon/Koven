@@ -264,10 +264,10 @@ impl<'a> UnitResolver<'a> {
         segments: &[String],
     ) -> Result<(), CompilationUnitNameError> {
         let Some(package) = self.package_ids.get(segments).copied() else {
-            self.push_diagnostic(
-                codes::UNRESOLVED_IMPORT_TARGET,
+            self.push_unresolved_import(
                 "unresolved wildcard import package",
                 import.segments.last().expect("non-empty import").span,
+                Some(segments),
             )?;
             return Ok(());
         };
@@ -296,10 +296,11 @@ impl<'a> UnitResolver<'a> {
         }
         let (terminal, package_segments) = segments.split_last().expect("non-empty import");
         let Some(package) = self.package_ids.get(package_segments).copied() else {
-            self.push_diagnostic(
-                codes::UNRESOLVED_IMPORT_TARGET,
+            let unloaded_package = self.unloaded_exact_import_package(package_segments);
+            self.push_unresolved_import(
                 "unresolved exact import target",
                 import.segments.last().expect("terminal").span,
+                unloaded_package,
             )?;
             return Ok(());
         };
@@ -383,6 +384,52 @@ impl<'a> UnitResolver<'a> {
             }
             self.diagnostics.push(diagnostic);
         }
+        Ok(())
+    }
+
+    // Called only after the exact package-prefix lookup failed. A declaration under
+    // any shorter loaded prefix may make this a member tail, so leave it unclassified.
+    fn unloaded_exact_import_package<'p>(
+        &self,
+        package_segments: &'p [String],
+    ) -> Option<&'p [String]> {
+        if package_segments.is_empty() {
+            return None;
+        }
+        for prefix_len in (0..package_segments.len()).rev() {
+            let Some(package) = self.package_ids.get(&package_segments[..prefix_len]) else {
+                continue;
+            };
+            for namespace in [Namespace::Type, Namespace::Value] {
+                if self.declarations.contains_key(&(
+                    *package,
+                    namespace_rank(namespace),
+                    package_segments[prefix_len].clone(),
+                )) {
+                    return None;
+                }
+            }
+        }
+        Some(package_segments)
+    }
+
+    fn push_unresolved_import(
+        &mut self,
+        message: &str,
+        span: Span,
+        unloaded_package: Option<&[String]>,
+    ) -> Result<(), CompilationUnitNameError> {
+        let mut diagnostic = self.new_diagnostic(codes::UNRESOLVED_IMPORT_TARGET, message, span)?;
+        if let Some(package) = unloaded_package {
+            diagnostic.add_note(format!(
+                "package '{}' is not loaded in this compilation unit",
+                package.join("."),
+            ))?;
+            diagnostic.add_help(
+                "include the required sources in the explicit project source set; single-file commands can use --project",
+            )?;
+        }
+        self.diagnostics.push(diagnostic);
         Ok(())
     }
 
