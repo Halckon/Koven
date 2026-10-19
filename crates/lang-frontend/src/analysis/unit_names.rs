@@ -177,28 +177,44 @@ pub fn analyze_unit_names(
     descriptors: Vec<UnitSourceDescriptor>,
     environment: NameEnvironment,
 ) -> Result<UnitNameSnapshot, UnitNameAnalysisError> {
-    let parsed_files = descriptors
-        .iter()
+    let parsed_sources = descriptors
+        .into_iter()
         .map(|unit| {
             let lexed = lex(&sources, unit.source_id()).map_err(UnitNameAnalysisError::Lexer)?;
-            parse_file(&sources, &lexed).map_err(UnitNameAnalysisError::Parser)
+            let parsed = parse_file(&sources, &lexed).map_err(UnitNameAnalysisError::Parser)?;
+            Ok((unit, parsed))
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    let source_inputs = inputs(&descriptors, &parsed_files);
+        .collect::<Result<Vec<_>, UnitNameAnalysisError>>()?;
+    analyze_parsed_unit_names(sources, parsed_sources, environment)
+}
+
+// 续接既有解析产物；配对与原 SourceMap 一起移动，不重新 lex/parse 或登记 SourceId。
+fn analyze_parsed_unit_names(
+    sources: SourceMap,
+    mut parsed_sources: Vec<(UnitSourceDescriptor, ParsedFile)>,
+    environment: NameEnvironment,
+) -> Result<UnitNameSnapshot, UnitNameAnalysisError> {
+    let source_inputs = parsed_sources
+        .iter()
+        .map(|(unit, parsed)| {
+            SourceUnitInput::new(
+                unit.root_identity(),
+                unit.logical_path(),
+                unit.source_id(),
+                parsed,
+            )
+        })
+        .collect::<Vec<_>>();
     let index =
         index_compilation_unit(&sources, &source_inputs).map_err(UnitNameAnalysisError::Input)?;
     let names = resolve_compilation_unit_names(&sources, &source_inputs, &index, &environment)
         .map_err(UnitNameAnalysisError::Name)?;
     // 移动完整配对而非 AST clone，公开连续 ParsedFile 切片与 index 共用规范顺序。
-    let mut paired = descriptors
-        .into_iter()
-        .zip(parsed_files)
-        .collect::<Vec<_>>();
-    paired.sort_by(|(left, _), (right, _)| {
+    parsed_sources.sort_by(|(left, _), (right, _)| {
         (left.root_identity(), left.logical_path())
             .cmp(&(right.root_identity(), right.logical_path()))
     });
-    let (descriptors, parsed_files) = paired.into_iter().unzip();
+    let (descriptors, parsed_files) = parsed_sources.into_iter().unzip();
     let names = names.validate();
     Ok(UnitNameSnapshot {
         sources,
@@ -207,4 +223,238 @@ pub fn analyze_unit_names(
         environment,
         names,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ast::AstNode, diagnostic::Severity, type_checking::standard_environments};
+
+    fn assert_nodes<'a, Id: fmt::Debug + Eq, Payload: fmt::Debug + Eq + 'a>(
+        actual: impl ExactSizeIterator<Item = (Id, &'a AstNode<Payload>)>,
+        expected: impl ExactSizeIterator<Item = (Id, &'a AstNode<Payload>)>,
+    ) {
+        // ExactSizeIterator 的长度先相等，zip 不会静默截断任一 AST table。
+        assert_eq!(actual.len(), expected.len());
+        for ((actual_id, actual), (expected_id, expected)) in actual.zip(expected) {
+            assert_eq!(actual_id, expected_id);
+            assert_eq!(actual.span(), expected.span());
+            assert_eq!(actual.payload(), expected.payload());
+        }
+    }
+
+    fn paired(
+        sources: SourceMap,
+        descriptors: Vec<UnitSourceDescriptor>,
+        environment: NameEnvironment,
+    ) -> UnitNameSnapshot {
+        // 独立真实手工前缀是 oracle，不调用待测续接或生产 inputs helper。
+        let expected_parsed = descriptors
+            .iter()
+            .map(|unit| {
+                let lexed = lex(&sources, unit.source_id()).expect("manual lex");
+                parse_file(&sources, &lexed).expect("manual parse")
+            })
+            .collect::<Vec<_>>();
+        let manual_inputs = descriptors
+            .iter()
+            .zip(&expected_parsed)
+            .map(|(unit, parsed)| {
+                SourceUnitInput::new(
+                    unit.root_identity(),
+                    unit.logical_path(),
+                    unit.source_id(),
+                    parsed,
+                )
+            })
+            .collect::<Vec<_>>();
+        let index = index_compilation_unit(&sources, &manual_inputs).expect("manual index");
+        let expected =
+            resolve_compilation_unit_names(&sources, &manual_inputs, &index, &environment)
+                .expect("manual names");
+        let expected_valid = !expected
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.severity() == Severity::Error);
+        let expected_environment = environment.clone();
+        let original_sources = descriptors
+            .iter()
+            .map(|unit| {
+                let id = unit.source_id();
+                (
+                    id,
+                    sources.source_name(id).unwrap().to_owned(),
+                    sources.source_text(id).unwrap().to_owned(),
+                )
+            })
+            .collect::<Vec<_>>();
+        // 待测输入另经真实 lex/parse 产生，随后只按值移动，不 clone AST。
+        let parsed_sources = descriptors
+            .into_iter()
+            .map(|unit| {
+                let lexed = lex(&sources, unit.source_id()).expect("input lex");
+                let parsed = parse_file(&sources, &lexed).expect("input parse");
+                (unit, parsed)
+            })
+            .collect::<Vec<_>>();
+        let original_roots = parsed_sources
+            .iter()
+            .filter(|(_, parsed)| !parsed.roots().is_empty())
+            .map(|(unit, parsed)| (unit.source_id(), parsed.roots().as_ptr()))
+            .collect::<Vec<_>>();
+        let snapshot = analyze_parsed_unit_names(sources, parsed_sources, environment)
+            .expect("preparsed prefix");
+        // 派生等值覆盖全部 names/index facts、内部 hints 及有序诊断的每个字段。
+        assert_eq!(snapshot.names(), &expected);
+        assert_eq!(snapshot.environment(), &expected_environment);
+        assert!(std::sync::Arc::ptr_eq(
+            &snapshot.environment().owner(),
+            &expected_environment.owner(),
+        ));
+        assert_eq!(snapshot.validated_names().is_some(), expected_valid);
+        let inputs = snapshot.inputs();
+        let count = expected_parsed.len();
+        assert_eq!(inputs.len(), count);
+        assert_eq!(snapshot.descriptors().len(), count);
+        assert_eq!(snapshot.parsed_files().len(), count);
+        assert_eq!(snapshot.names().index().source_units().len(), count);
+        for (position, input) in inputs.iter().enumerate() {
+            let descriptor = &snapshot.descriptors()[position];
+            let unit = &snapshot.names().index().source_units()[position];
+            let actual = &snapshot.parsed_files()[position];
+            assert_eq!(descriptor.source_id(), unit.source_id());
+            assert_eq!(descriptor.root_identity(), unit.key().root().as_str());
+            assert_eq!(
+                descriptor.logical_path(),
+                unit.key().logical_path().as_str()
+            );
+            assert_eq!(input.source_id(), descriptor.source_id());
+            assert_eq!(input.root_identity(), descriptor.root_identity());
+            assert_eq!(input.logical_path(), descriptor.logical_path());
+            assert_eq!(actual.source_id(), unit.source_id());
+            assert!(std::ptr::eq(input.parsed(), actual));
+            let old = expected_parsed
+                .iter()
+                .find(|old| old.source_id() == unit.source_id())
+                .unwrap();
+            assert_eq!(actual.package(), old.package());
+            assert_eq!(actual.imports(), old.imports());
+            assert_eq!(actual.roots(), old.roots());
+            assert_eq!(actual.diagnostics(), old.diagnostics());
+            assert_nodes(actual.ast().items().iter(), old.ast().items().iter());
+            assert_nodes(
+                actual.ast().statements().iter(),
+                old.ast().statements().iter(),
+            );
+            assert_nodes(
+                actual.ast().expressions().iter(),
+                old.ast().expressions().iter(),
+            );
+            assert_nodes(
+                actual.ast().type_refs().iter(),
+                old.ast().type_refs().iter(),
+            );
+        }
+        for (id, name, text) in original_sources {
+            assert_eq!(snapshot.sources().source_name(id).unwrap(), name);
+            assert_eq!(snapshot.sources().source_text(id).unwrap(), text);
+        }
+        // 非空 roots 指针只佐证向量被移动；不解引用旧指针，不代替以上语义等值。
+        for (id, roots) in original_roots {
+            let parsed = snapshot
+                .parsed_files()
+                .iter()
+                .find(|parsed| parsed.source_id() == id)
+                .unwrap();
+            assert_eq!(parsed.roots().as_ptr(), roots);
+        }
+        snapshot
+    }
+
+    #[test]
+    fn preparsed_sources_preserve_canonical_names_and_ast() {
+        let empty = paired(SourceMap::new(), vec![], NameEnvironment::new());
+        assert!(empty.validated_names().is_some());
+        assert!(empty.inputs().is_empty());
+        for order in [vec![0], vec![1, 0], vec![0, 1]] {
+            let mut sources = SourceMap::new();
+            let excluded = sources
+                .add_source("excluded", "#\nval ignored = absent")
+                .unwrap();
+            let library = sources
+                .add_source(
+                    "z-display",
+                    "package lib\npublic fun make(value: Int): Int { val result = value\nreturn result }",
+                )
+                .unwrap();
+            let app = sources
+                .add_source(
+                    "a-display",
+                    "package app\nimport lib.make as alias\nfun use(): Int = alias(7)",
+                )
+                .unwrap();
+            let fixtures = [
+                ("a-root", "lib/api.ko", library),
+                ("z-root", "app/main.ko", app),
+            ];
+            let descriptors = order
+                .into_iter()
+                .map(|position| {
+                    let (root, path, id) = fixtures[position];
+                    UnitSourceDescriptor::new(root, path, id)
+                })
+                .collect();
+            let (environment, _) = standard_environments();
+            let snapshot = paired(sources, descriptors, environment);
+            assert!(snapshot.names().diagnostics().is_empty());
+            assert!(snapshot.validated_names().is_some());
+            assert_eq!(snapshot.descriptors()[0].source_id(), library);
+            assert_eq!(
+                snapshot.sources().source_text(excluded).unwrap(),
+                "#\nval ignored = absent"
+            );
+        }
+    }
+
+    #[test]
+    fn preparsed_sources_preserve_mixed_diagnostics_once() {
+        let mut sources = SourceMap::new();
+        let text =
+            "// 界é\n#\nval first = absent\nval duplicate = 1\nval duplicate = 2\nval syntax =\n";
+        let source = sources.add_source("z-display", text).unwrap();
+        let later = sources
+            .add_source("a-display", "fun typeBad(): Int = true")
+            .unwrap();
+        let (environment, _) = standard_environments();
+        let snapshot = paired(
+            sources,
+            vec![
+                UnitSourceDescriptor::new("z-root", "later.ko", later),
+                UnitSourceDescriptor::new("a-root", "mixed.ko", source),
+            ],
+            environment,
+        );
+        assert!(snapshot.validated_names().is_none());
+        let diagnostics = snapshot.names().diagnostics();
+        assert_eq!(
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>(),
+            ["L0001", "L0080", "L0079", "L0009"]
+        );
+        let spans = [
+            (text.find('#').unwrap(), 1),
+            (text.find("absent").unwrap(), 6),
+            (text.rfind("duplicate").unwrap(), 9),
+            (text.len(), 0),
+        ];
+        assert_eq!(diagnostics.len(), spans.len());
+        for (diagnostic, (start, len)) in diagnostics.iter().zip(spans) {
+            let span = diagnostic.primary_span();
+            assert_eq!(span.source_id(), source);
+            assert_eq!((span.start(), span.end()), (start, start + len));
+        }
+        assert!(!diagnostics[2].details().is_empty());
+    }
 }
