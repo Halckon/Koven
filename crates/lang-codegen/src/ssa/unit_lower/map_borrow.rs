@@ -194,7 +194,7 @@ impl UnitExpressionLowerer<'_> {
 }
 
 // Follow actual SSA owner transport, not a type match or another remove in the function.
-fn owned_remove_origin(function: &Function, owner: ValueId) -> bool {
+pub(super) fn owned_remove_origin(function: &Function, owner: ValueId) -> bool {
     let mut pending = vec![owner];
     let mut seen = BTreeSet::new();
     let mut origin: Option<InstructionId> = None;

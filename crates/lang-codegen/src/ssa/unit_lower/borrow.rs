@@ -60,6 +60,11 @@ impl UnitExpressionLowerer<'_> {
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
+        if let Some(loan) =
+            self.lower_nullable_root_borrow(argument, fact.target(), target, span)?
+        {
+            return Ok((loan, Vec::new(), fact.end_span()));
+        }
         if let Some(proof) =
             self.lower_owned_map_borrow(call, argument, fact.target(), target, span)?
         {
@@ -199,6 +204,91 @@ impl UnitExpressionLowerer<'_> {
             ));
         };
         Ok((loan, vec![loan], fact.end_span()))
+    }
+
+    /// The current proof owns this loan; the call must not end it as a child.
+    fn lower_nullable_root_borrow(
+        &self,
+        argument: ExpressionId,
+        loan_target: &UnitLoanTarget,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<Option<LoanId>, LoweringError> {
+        let UnitLoanTarget::Place(path) = loan_target else {
+            return Ok(None);
+        };
+        if !path.is_root() {
+            return Ok(None);
+        }
+        let root = path.root();
+        let Some(proof) = self.nullable_proofs.get(&root).copied() else {
+            return Ok(None);
+        };
+        let owner_type = self
+            .function
+            .entity(EntityId::Value(proof.owner))
+            .map(|data| data.ty);
+        if !matches!(owner_type, Some(EntityType::Value(storage))
+            if matches!(self.ssa_types.get(storage.index()), Some(SsaTypeKind::NullableHandle { inner })
+                if matches!(self.ssa_types.get(inner.index()), Some(SsaTypeKind::HeapOwner { .. }))))
+            || super::map_borrow::owned_remove_origin(self.function, proof.owner)
+        {
+            return Ok(None);
+        }
+        let mut operand = UnitExpressionId::new(self.source_unit, argument);
+        let Some(use_fact) = self.typed.non_null_use(operand) else {
+            return Ok(None);
+        };
+        self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
+        let storage = self
+            .typed
+            .symbol_type(root)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let concrete =
+            |ty| resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span);
+        let declared = concrete(storage)?;
+        let narrowed = concrete(use_fact.narrowed_type())?;
+        if root.source_unit() != self.source_unit
+            || !matches!(self.typed.types().get(declared), Some(UnitTypeKind::Nullable(inner))
+                if *inner == narrowed)
+            || self.type_ids.get(&narrowed) != Some(&target)
+            || proof.inner != target
+            || owner_type != self.type_ids.get(&declared).copied().map(EntityType::Value)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        loop {
+            let fact = self
+                .typed
+                .non_null_use(operand)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            if operand.source_unit() != self.source_unit
+                || fact.expression() != operand
+                || fact.symbol() != root
+                || fact.declared_type() != storage
+                || fact.narrowed_type() != use_fact.narrowed_type()
+                || self.typed.expression_type(operand) != Some(fact.narrowed_type())
+                || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
+            {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(operand.expression())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            match node.payload() {
+                Expression::Group { expression } => {
+                    operand = UnitExpressionId::new(self.source_unit, *expression);
+                }
+                Expression::Name if self.references.get(&span_key(node.span())) == Some(&root) => {
+                    break;
+                }
+                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+            }
+        }
+        Ok(Some(proof.loan))
     }
 
     fn lower_borrow_place(
