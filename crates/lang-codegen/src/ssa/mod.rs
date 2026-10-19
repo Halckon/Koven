@@ -3,6 +3,7 @@
 mod closure;
 mod constant_materialization;
 mod deinit;
+mod expression_core;
 mod integer;
 mod integer_range;
 mod integer_range_type;
@@ -161,6 +162,8 @@ mod checked_integer_conversion_backend_tests;
 mod checked_integer_conversion_contract_tests;
 #[cfg(test)]
 mod checked_integer_conversion_tests;
+#[cfg(test)]
+mod integer_core_contract_tests;
 
 #[cfg(test)]
 mod deinit_tests;

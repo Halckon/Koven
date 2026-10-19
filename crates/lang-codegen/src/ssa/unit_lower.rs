@@ -93,12 +93,7 @@ use super::{
     verify::verify_program,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LoweredValue {
-    Unit,
-    Value(ValueId),
-    Diverged,
-}
+use super::expression_core::LoweredValue;
 
 enum FunctionPlanBody {
     Expression(ExpressionId),

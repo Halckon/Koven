@@ -80,12 +80,7 @@ use pending_call::PendingCallLoans;
 pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
 use super::lowering_support::{error, string_literal};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LoweredValue {
-    Unit,
-    Value(ValueId),
-    Diverged,
-}
+use super::expression_core::LoweredValue;
 
 fn builtin_type(typed: &TypedFile, ty: TypeId) -> Option<BuiltinType> {
     match typed.types().get(ty) {
