@@ -12,6 +12,7 @@ mod formation_runtime;
 mod future_use;
 mod history;
 mod identity;
+mod local_arguments;
 mod local_sources;
 mod nested;
 mod nested_exits;
