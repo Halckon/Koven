@@ -112,17 +112,21 @@ fn observe_products(
     observe: impl Fn(&SourceMap, &ParsedFile, &Program, FunctionId, EntryKind, Option<&[ParameterMode]>),
 ) {
     let observations = std::cell::RefCell::new(Vec::new());
-    let query =
-        |sources: &SourceMap, parsed: &ParsedFile, program: &Program, entry, kind, modes| {
-            // Catch only the new read-only query; all real product gates remain direct.
-            observations
-                .borrow_mut()
-                .push(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-                    || {
-                        observe(sources, parsed, program, entry, kind, modes);
-                    },
-                )));
-        };
+    let query = |sources: &SourceMap,
+                 parsed: &ParsedFile,
+                 program: &Program,
+                 entry,
+                 kind,
+                 modes: Option<&[ParameterMode]>| {
+        // Catch only the new read-only query; all real product gates remain direct.
+        observations
+            .borrow_mut()
+            .push(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                || {
+                    observe(sources, parsed, program, entry, kind, modes);
+                },
+            )));
+    };
     let first = paired_in_order_observed_entry(text, constants, false, query);
     let second = paired_in_order_observed_entry(text, constants, true, query);
     let observations = observations.into_inner();
