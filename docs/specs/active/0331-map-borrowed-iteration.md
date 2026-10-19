@@ -1479,3 +1479,28 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - A1原11个provider独有失败已关闭；A2=2、B=6、C=8、D=6共22个原失败观察继续必修，
   §65全部普通前置合同和原输入保持。最终固定头联合回归、完整新头CI/三产物独审、README/Tour/
   Architecture、最小归档及正常合并仍待；F保持active，未启动D10，本机未执行故障/校准/sanitizer。
+
+## 67. A2 真实 LambdaBody 的有限来源准入（2026-10-19）
+
+- 固定P15-for/control两份原source/golden逐字保全，Single/Unit四个原目标不变；原两条
+  For拒绝与原两条noFor成功均重新验收。callback为真实零参、无capture、Unit结果lambda，
+  内部named Map仍由原make/produce普通工厂形成，不把外scan函数身份当作thunk。
+- Single复用公开closure/callable origin与typed Function→Unit，按SourceToken、lambda、body
+  和实际ClosurePlan.thunk对齐执行函数；thunk在原capture binding完成后接入既有Module Map
+  storage。Unit按source-qualified source_token/closure_scope/lambda/thunk/body核同一计划，
+  完成与transfer钩子按最近真实lambda分隔外函数/内thunk，并在thunk终点执行原完成校验。
+  仅扩直接LambdaBody内原local资格，原birth/current epoch、所有incoming及唯一Drop证明保留；
+  不扩captured lambda、parameter/temp/formed来源或Single函数值Map结果ABI。
+- 四次同分析FE/SSA/LLVM深查询全部成功：外层从真实FunctionAddress.target找到lambda-origin
+  thunk，核Fn0 Unit、无environment、实际Copy→Invoke及原callback的唯一CallReturn Drop；
+  内部核真实make出生、原source owner、完整provider三列/全部incoming/受保护uses、逆序loan
+  结束和当前owner Drop，再执行done并返回Unit。control保持真实observe借用及其End/Drop。
+- 四个唯一严格native产物均exit0、完整原golden、空stderr，Rust1+2无失败/忽略，执行输入
+  指纹前后相同。共享出生provider仅五行可见性调整，原6607字节断言函数逐字保全；未复制
+  module或删减断言。首次库检查的缺失import与测试的唯一未用import已窄修，不放宽警告。
+- 七项工程门含strict Clippy全部成功；既有出生套件另复验26次深查询/SSA/LLVM及26次严格
+  native，Rust1+2无失败/忽略、输入稳定。独审复核10个生产文件、真实callable scope、原四目标
+  与共享断言身份。普通native不证明无泄漏；本机无故障/校准/合成损坏/sanitizer执行。
+- A2原两失败关闭，固定B=6、C=8、D=6共20个原失败观察仍必修；普通前置合同保持。
+  最终固定头联合回归、新头CI/三产物独审、文档收尾与最小归档/正常合并仍待；F保持active，
+  PR保持draft，D10未启动，后续开发按用户要求交云端。
