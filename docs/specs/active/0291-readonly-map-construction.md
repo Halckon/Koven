@@ -557,3 +557,27 @@ nullable consume 提取、CI7动态链、CI2反序及新增私有拒绝门、pro
 
 原两轮失败日志保留。新监测433=ordinary362+CI-only71，包含原420之外12旧消费者与
 新增普通身份控制；集合监测不代替全CI其他测试。provider/其余有界范围与合并条件不变。
+
+
+## 19. 0331 收尾发现的独立泛型 consume 前置（2026-10-19）
+
+0331 的 named/temporary provider 应消费已经由普通调用形成的真实 owner；它不负责修复
+callee 内部尚未闭合的 consume。新增原 direct 泛型六源保留在
+[真实 fixture](../../../crates/lang-codegen/tests/fixtures/map-provider-prerequisites/generic-consume/)：
+Map/MutableMap 各 noFor、direct temporary、named 三形态，原 source/golden 逐字保持，
+由 [生成器与身份断言](../../../crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/local_arguments/generic.rs)
+锁定；不按入口或 kind 删去失败项，也不把 Unsupported 转为成功拒绝 oracle。
+
+- 固定本机候选输入的 v2 实跑为12观察：9条完整 SSA/LLVM，3条 Single Map 在 generic
+  `produce<T>` 内 `result.consume()` 的241..257报 lower Unsupported；无For对照同样失败，
+  尚未抵达 provider。Rust 实际1通过/1失败/0忽略、exit101，不是泛型 Map 全支持。
+- 本片承接完整六源×双入口12项硬成功目标，先闭合真实泛型实例中具体 K/V、当前 owned
+  本地根及 MapConsume 的同存储移交，再验全部形态的清理、SSA/LLVM和严格 native；
+  不以仅Unit或仅MutableMap成功子集替代，也不扩大一般 nullable ABI、Field/Inout资格或Guide。
+- 0331另加独立标签的泛型 wrapper 正例：构造/consume 仍在已支持的 nongeneric impl，
+  wrapper 原参数Borrow→真实Call→唯一返回owner及caller实际generic出生链均独立查询。
+  它只证明已完成普通callee前置后的provider，不替代上述原12项consume修复义务。
+
+原失败收据为仓外 `f-local-argument-query-v2.json`、原始日志
+`/tmp/koven-local-arguments-query-v2.log`；六源/golden身份收据
+`f-generic-consume-prerequisite-inputs.json`。该缺口未修复；0291保持in-progress。

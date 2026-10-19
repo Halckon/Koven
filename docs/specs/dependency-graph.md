@@ -22,6 +22,9 @@ subgraph Gdrafts_v044["v0.44（draft）"]
   S0335["S0335<br/>Map Borrow 结果的 caller continuation 证明"]
 end
 S0291 --> S0331
+S0331 --> S0333
+S0331 --> S0334
+S0331 --> S0335
 ARCH --> S0292
 ```
 

@@ -1363,3 +1363,35 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   新代码头完整CI/产物只以[PR119](https://github.com/Halckon/Koven/pull/119)精确提交的独立证据为准，
   不继承`4514ea50`或更旧绿色；本机验收不推定远端通过。Mac sanitizer仍partial/requirements_met=false，
   UBSan未覆盖。F仍active；未归档/合并，未启动D10，Guide、Field/Inout及其他ABI/source/CFG边界不变。
+
+## 64. 最终独审的普通实参工厂出生缺口与前置归属（2026-10-19）
+
+- fresh 独审发现 named factory 仍额外要求零实参：原G3的 `produce(argument())` temporary
+  已支持，保同一工厂/参数/golden先绑定local再For却在两源四入口全部For Unsupported。
+  `f0b2bf88`保全真实首红；Rust0通过/1失败/0忽略、exit101，不将此F出生缺口交给共享调用后继。
+- Single沿真实instance-plan call site取得实际callee，Unit沿冻结source plan的resolved key
+  锚定同次普通Call唯一Map返回值。named、formed、temporary共享实际出生校验，实参顺序、
+  named重排、Move/Borrow、receiver和CallReturn仍由普通Call完成，只在其真实完成块创建provider；
+  current epoch、全部incoming、原source-qualified facts及唯一Drop/own交付判据保持。
+- 新核心18源30观察覆盖两kind、Borrow/owned Resource、同Map实参借用、named重排、argument CFG，
+  以及Unit实际current-member/override/Borrow静态委托出生和对应direct temporary。另新增六源12观察
+  验泛型wrapper的noFor/direct/named：FE核原input与精确callee/参数槽，SSA核impl Call的完整loan
+  lineage和唯一同owner Return；impl原构造/put/consume查询及caller实际generic Call出生均保留。
+- 稳定v4真实2条Rust/42 FE查询、SSA verifier和LLVM观察全部成功；4条Rust/42唯一严格native均
+  exit0、完整stdout golden、空stderr，0失败/0忽略。3008输入前后SHA-256同为
+  `5e5c21bed555beca0b04c94b0c8002a4c3b548835fbb106e373a0ecfa47c87b3`。
+  首次编译两错、query的CFG/Span误断及wrapper helper eager索引越界均保留原失败；不把它们算支持。
+- 原direct泛型六源12观察仍9成功、3条Single Map在callee `result.consume()` Unsupported，
+  noFor同样失败。完整原source/golden保为真实fixture及身份断言，硬成功归属[0291 §19](0291-readonly-map-construction.md#19-0331-收尾发现的独立泛型-consume-前置2026-10-19)；
+  新wrapper不是改写这些原输入，也不表示一般泛型consume支持。
+- 原共享调用12源在main `a2a7e4b`、备份 `60512fda`、固定 `91e8be08` 三个独立target各24观察，
+  共72观察；每头3个noFor Unit严格native，共9次。无For实际结果逐字一致，本有界集合没有
+  成功→失败回归；previous/future真正For owner来自顶层make()，不能冒称当前member出生验收。
+  这批原15失败的完整24项成功目标由[0333](0333-static-map-callers.md)承接；其余12源nullable String
+  ABI由[0334 draft](../drafts/v0.44/0334-nullable-string-map-abi.md)、原Borrow caller proof由
+  [0335 draft](../drafts/v0.44/0335-map-borrow-caller-proof.md)分别承接。Guide、Field/Inout和D10不扩。
+- `91e8be08`的PR CI `39179726534/a1`为16/16 success、reuse=false；三artifact独审2513静态
+  断言通过。它只覆盖该旧头，不覆盖本节生产修复。Mac为partial/requirements_met=false、UBSan
+  未覆盖、LLDB1 ignored；reducer deadline边界使用mock时钟，不冒称真实120秒编译器超时。
+- 本节有限42行为及出生证明已由fresh独审关闭；最终固定新头工程/全普通回归、新CI/artifact
+  与最终范围账仍待。0331继续active；未归档/合并，未启动D10。本机未执行任何故障或sanitizer测试。
