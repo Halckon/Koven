@@ -63,4 +63,11 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test parser_stress_matrix --test parser_standalone_poison_stress_matrix \
   --test parser_owner_stress_matrix
 
+# SPEC-0341: only the five reviewed ordinary initial-package index regressions.
+run cargo test --locked -p lang-frontend --no-fail-fast --test compilation_unit_index poisoned_initial_package_does_not_create_path_mismatch -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test compilation_unit_index missing_initial_header_separator_does_not_create_path_mismatch -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test compilation_unit_index later_bad_package_does_not_hide_initial_path_mismatch -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test compilation_unit_index malformed_package_recovery_does_not_create_a_second_package_diagnostic -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test compilation_unit_index package_mismatch_reports_l0146_with_source_anchored_primary_spans -- --exact
+
 exit "$status"
