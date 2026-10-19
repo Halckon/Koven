@@ -148,17 +148,32 @@ fn range_single_and_unit_for_deliver_only_shared_elements() {
 
 #[test]
 fn range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans() {
-    for exit in ["", "break", "continue"] {
+    for (case, exit) in ["", "break", "continue"].into_iter().enumerate() {
         let consumer = format!(
             "class Item(val text:String){{}}\nfun consume(own source:List<Item>):Unit{{}}\nfun main():Unit{{val source=listOf(Item(\"first\"),Item(\"excluded\"));{{borrow val part=take(source,1);for(item in part){{println(item.text);{exit}}}}};consume(source)}}"
         );
-        for program in [
-            single(&consumer),
-            unit(&format!(
-                "package app\nimport koven.algorithms.take\n{consumer}"
-            )),
+        for (entry, program) in [
+            ("single", single(&consumer)),
+            (
+                "unit",
+                unit(&format!(
+                    "package app\nimport koven.algorithms.take\n{consumer}"
+                )),
+            ),
         ] {
-            crate::llvm::render_verified_program(&program).unwrap();
+            let llvm = crate::llvm::render_verified_program(&program).unwrap();
+            for (kind, text) in [
+                ("ssa", super::render_program(&program)),
+                ("model", format!("{:#?}", program.modules)),
+                ("llvm", llvm),
+            ] {
+                println!(
+                    "\nBEGIN result-source case={case} entry={entry} kind={kind} bytes={}",
+                    text.len()
+                );
+                print!("{text}");
+                println!("\nEND result-source case={case} entry={entry} kind={kind}");
+            }
         }
     }
 }
