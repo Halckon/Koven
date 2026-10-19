@@ -1,5 +1,7 @@
 //! SPEC-0255: 两入口只比较已支持的 String 事实，使用逻辑来源而非 arena ID。
 
+mod temporary_alias;
+
 use lang_frontend::{
     name_resolution::{
         SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
