@@ -19,6 +19,7 @@ use super::{
     ExpressionLowerer, LoweredValue, LoweringError, LoweringErrorKind, NonNullProof, builtin_type,
     error, value,
 };
+use crate::ssa::carry::{self, IncomingColumns, IncomingRole};
 use crate::ssa::model::{
     BlockId, ComparisonOperator, Edge, EntityId, EntityType, Operation, Origin, ScalarConstant,
     TerminatorKind, ValueId,
@@ -53,6 +54,41 @@ enum MergeSlot {
     ForElement(usize),
     MapSource(usize),
     MapCursor(usize),
+}
+
+struct MergeProjection {
+    slot: MergeSlot,
+    span: Span,
+}
+
+impl IncomingRole<BranchExit> for MergeProjection {
+    fn current(&self, exit: &BranchExit) -> Result<EntityId, LoweringError> {
+        match self.slot {
+            MergeSlot::Result => lowered_entity(exit.result, self.span),
+            MergeSlot::ResultSource(symbol, index) => {
+                Ok(EntityId::Loan(exit.result_source_loans[&symbol][index]))
+            }
+            MergeSlot::CaptureLoan(key) => Ok(EntityId::Loan(exit.capture_loans[&key])),
+            MergeSlot::NonNullView(symbol) => Ok(EntityId::Loan(exit.views[&symbol].loan)),
+            MergeSlot::Temporary(key) => Ok(EntityId::Value(exit.temporaries[&key])),
+            MergeSlot::PendingLoan(key) => exit.loans[&key]
+                .map(EntityId::Loan)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, self.span)),
+            MergeSlot::Binding(symbol) => lowered_entity(
+                exit.bindings
+                    .get(&symbol)
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, self.span))?,
+                self.span,
+            ),
+            MergeSlot::BorrowBinding(symbol) => Ok(EntityId::Loan(exit.borrow_bindings[&symbol])),
+            MergeSlot::ForSource(stmt) => Ok(EntityId::Loan(exit.for_sources[&stmt])),
+            MergeSlot::ForElement(stmt) => Ok(EntityId::Loan(exit.for_elements[&stmt])),
+            MergeSlot::MapSource(_) | MergeSlot::MapCursor(_) => {
+                map_frames::map_slot(&exit.map_paths, self.slot, self.span)
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -1046,60 +1082,23 @@ impl ExpressionLowerer<'_> {
         self.map_merge_slots(&exits, &map_paths, &mut slots, &mut parameter_types, span)?;
 
         // Group 等表达式记录可指向同一实体；所有入边都相同时共享一个参数。
-        let mut columns = Vec::new();
+        let mut columns = IncomingColumns::new(&exits);
         let mut unique_types = Vec::new();
-        let mut slot_parameters = Vec::with_capacity(slots.len());
-        for (slot, ty) in slots.iter().zip(parameter_types) {
-            let column = exits
-                .iter()
-                .map(|exit| match slot {
-                    MergeSlot::Result => lowered_entity(exit.result, span),
-                    MergeSlot::ResultSource(symbol, index) => {
-                        Ok(EntityId::Loan(exit.result_source_loans[symbol][*index]))
-                    }
-                    MergeSlot::CaptureLoan(key) => Ok(EntityId::Loan(exit.capture_loans[key])),
-                    MergeSlot::NonNullView(symbol) => Ok(EntityId::Loan(exit.views[symbol].loan)),
-                    MergeSlot::Temporary(key) => Ok(EntityId::Value(exit.temporaries[key])),
-                    MergeSlot::PendingLoan(key) => exit.loans[key]
-                        .map(EntityId::Loan)
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span)),
-                    MergeSlot::Binding(symbol) => lowered_entity(
-                        exit.bindings
-                            .get(symbol)
-                            .copied()
-                            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?,
-                        span,
-                    ),
-                    MergeSlot::BorrowBinding(symbol) => {
-                        Ok(EntityId::Loan(exit.borrow_bindings[symbol]))
-                    }
-                    MergeSlot::ForSource(stmt) => Ok(EntityId::Loan(exit.for_sources[stmt])),
-                    MergeSlot::ForElement(stmt) => Ok(EntityId::Loan(exit.for_elements[stmt])),
-                    MergeSlot::MapSource(_) | MergeSlot::MapCursor(_) => {
-                        map_frames::map_slot(&exit.map_paths, *slot, span)
-                    }
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let parameter = if let Some(index) = columns.iter().position(|other| *other == column) {
-                if unique_types[index] != ty {
-                    return Err(error(LoweringErrorKind::MissingFact, span));
-                }
-                index
-            } else {
-                let index = columns.len();
-                columns.push(column);
-                unique_types.push(ty);
-                index
-            };
-            slot_parameters.push(parameter);
+        for (&slot, ty) in slots.iter().zip(parameter_types) {
+            let choice = columns.associate(&MergeProjection { slot, span })?;
+            carry::record_type(
+                &mut unique_types,
+                choice,
+                ty,
+                error(LoweringErrorKind::MissingFact, span),
+            )?;
         }
-        self.validate_pending_field_merge_columns(&exits, &columns, span)?;
+        self.validate_pending_field_merge_columns(&exits, columns.columns(), span)?;
         let merge = self
             .function
             .add_block(unique_types, Origin::Source(span))
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
-        for (index, exit) in exits.iter().enumerate() {
-            let arguments = columns.iter().map(|column| column[index]).collect();
+        for (exit, arguments) in exits.iter().zip(columns.arguments()) {
             self.function
                 .set_terminator(
                     exit.block,
@@ -1130,8 +1129,8 @@ impl ExpressionLowerer<'_> {
             })
             .collect::<BTreeMap<_, _>>();
         let mut view_parameters = Vec::new();
-        for (slot, index) in slots.into_iter().zip(slot_parameters) {
-            let parameter = parameters[index];
+        for (slot, column) in slots.into_iter().zip(columns.role_columns()) {
+            let parameter = parameters[column.index()];
             if matches!(slot, MergeSlot::MapSource(_) | MergeSlot::MapCursor(_)) {
                 map_frames::rebind_merge_slot(&mut map_paths, slot, parameter, span)?;
                 continue;

@@ -8,6 +8,8 @@ mod rebind;
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use alias_slots::{MergeProjection, MergeRole};
+
 use lang_frontend::{
     name_resolution::UnitSymbolId,
     source::Span,
@@ -17,7 +19,7 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    carry::{self, CaptureLoan, Temporary},
+    carry::{self, CaptureLoan, IncomingColumns, Temporary},
     model::{
         BlockId, Edge, EntityId, EntityType, LoanId, Operation, Origin, TerminatorKind, ValueId,
     },
@@ -37,26 +39,6 @@ pub(super) struct BranchExit {
     pub(super) closure_bindings: BTreeMap<UnitSymbolId, UnitExpressionId>,
     pub(super) capture_loans: BTreeMap<(UnitExpressionId, usize), LoanId>,
     pub(super) result_source_loans: BTreeMap<UnitSymbolId, Vec<LoanId>>,
-}
-
-impl BranchExit {
-    fn base_arguments(&self) -> Vec<EntityId> {
-        let mut arguments = match self.result {
-            LoweredValue::Value(value) => vec![EntityId::Value(value)],
-            _ => Vec::new(),
-        };
-        arguments.extend(self.receiver.map(|receiver| receiver.entity));
-        arguments.extend(self.bindings.values().filter_map(|value| match value {
-            LoweredValue::Value(value) => Some(EntityId::Value(*value)),
-            _ => None,
-        }));
-        arguments.extend(
-            self.borrow_bindings
-                .values()
-                .map(|loan| EntityId::Loan(*loan)),
-        );
-        arguments
-    }
 }
 
 #[derive(Clone)]
@@ -471,52 +453,52 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
         parameter_types.extend(loan_types);
-        let mut edge_arguments = exits
-            .iter()
-            .map(BranchExit::base_arguments)
-            .collect::<Vec<_>>();
+        let mut columns = IncomingColumns::new(&exits);
+        for role in result_type
+            .map(|_| MergeRole::Result)
+            .into_iter()
+            .chain(first.receiver.map(|_| MergeRole::Receiver))
+            .chain(value_symbols.iter().copied().map(MergeRole::NamedValue))
+            .chain(loan_symbols.iter().copied().map(MergeRole::NamedBorrow))
+        {
+            columns.seed(&MergeProjection { role, span })?;
+        }
+        let prefix_count = columns.role_columns().len();
         if exits
             .iter()
             .any(|exit| exit.pending_operands.len() != first.pending_operands.len())
         {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let carried_operands = exits
-            .iter()
-            .map(|exit| {
-                exit.pending_operands
-                    .iter()
+        for role in (0..first.pending_operands.len())
+            .map(MergeRole::Pending)
+            .chain(first.temporaries.keys().copied().map(MergeRole::Temporary))
+            .chain(
+                first
+                    .capture_loans
+                    .keys()
+                    .map(|&(call, index)| MergeRole::Capture(call, index)),
+            )
+            .chain(
+                range::keys(&first.result_source_loans)
+                    .into_iter()
+                    .map(|(symbol, index)| MergeRole::ResultSource(symbol, index)),
+            )
+            .chain(
+                first
+                    .nullable_proofs
+                    .keys()
                     .copied()
-                    .chain(exit.temporaries.values().copied().map(EntityId::Value))
-                    .chain(exit.capture_loans.values().copied().map(EntityId::Loan))
-                    .chain(range::arguments(&exit.result_source_loans))
-                    .chain(
-                        exit.nullable_proofs
-                            .values()
-                            .map(|proof| EntityId::Loan(proof.loan)),
-                    )
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        // An alias is reusable only if the same slot aliases it on every incoming edge.
-        let mut pending_indices = Vec::new();
-        for index in 0..carried_operands[0].len() {
-            let slot = (0..edge_arguments[0].len())
-                .find(|slot| {
-                    carried_operands
-                        .iter()
-                        .zip(&edge_arguments)
-                        .all(|(operands, arguments)| arguments[*slot] == operands[index])
-                })
-                .unwrap_or_else(|| {
-                    let slot = edge_arguments[0].len();
-                    for (operands, arguments) in carried_operands.iter().zip(&mut edge_arguments) {
-                        arguments.push(operands[index]);
-                    }
-                    slot
-                });
-            pending_indices.push(slot);
+                    .map(MergeRole::NullableProof),
+            )
+        {
+            columns.associate(&MergeProjection { role, span })?;
         }
+        let pending_indices = columns.role_columns()[prefix_count..]
+            .iter()
+            .map(|column| column.index())
+            .collect::<Vec<_>>();
+        let edge_arguments = columns.arguments().collect::<Vec<_>>();
         for entity in &edge_arguments[0][parameter_types.len()..] {
             parameter_types.push(
                 self.function

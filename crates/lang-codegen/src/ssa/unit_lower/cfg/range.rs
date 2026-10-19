@@ -8,11 +8,6 @@ pub(super) fn keys(sources: &BTreeMap<UnitSymbolId, Vec<LoanId>>) -> Vec<(UnitSy
         .flat_map(|(symbol, loans)| (0..loans.len()).map(|index| (*symbol, index)))
         .collect()
 }
-pub(super) fn arguments(
-    sources: &BTreeMap<UnitSymbolId, Vec<LoanId>>,
-) -> impl Iterator<Item = EntityId> + '_ {
-    sources.values().flatten().copied().map(EntityId::Loan)
-}
 pub(super) fn rebind(
     sources: &BTreeMap<UnitSymbolId, Vec<LoanId>>,
     parameters: impl Iterator<Item = EntityId>,

@@ -1,4 +1,8 @@
 //! Ordered aliases share a physical carry column and its current typed entity.
+mod columns;
+
+pub(in crate::ssa) use columns::{IncomingColumns, IncomingRole, record_type};
+
 use std::collections::BTreeMap;
 
 use super::{
