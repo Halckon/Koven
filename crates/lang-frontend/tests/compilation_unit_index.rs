@@ -480,6 +480,173 @@ fn malformed_package_recovery_does_not_create_a_second_package_diagnostic() {
     assert!(index.validate().is_err());
 }
 
+fn header_diagnostic(
+    sources: &SourceMap,
+    source_id: SourceId,
+    code: &str,
+    message: &str,
+    start: usize,
+    end: usize,
+) -> Diagnostic {
+    let code = diagnostic_codes::catalog()
+        .expect("production code catalog")
+        .resolve(code)
+        .expect("registered code");
+    Diagnostic::new(
+        sources,
+        Severity::Error,
+        code,
+        message,
+        sources.span(source_id, start, end).expect("fixture span"),
+    )
+    .expect("fixed complete diagnostic oracle")
+}
+
+fn assert_incomplete_header_index(
+    text: &str,
+    code: &str,
+    message: &str,
+    start: usize,
+    end: usize,
+) {
+    let mut sources = SourceMap::new();
+    let (source_id, parsed) = parsed_source(&mut sources, "header.ko", text);
+    let expected = [header_diagnostic(
+        &sources, source_id, code, message, start, end,
+    )];
+    assert_eq!(parsed.diagnostics(), expected);
+    let inputs = [SourceUnitInput::new("root", "wrong/F.ko", source_id, &parsed)];
+    let index = index_compilation_unit(&sources, &inputs).expect("real unit input");
+    // 完整 Eq 固定内容、details、数量与顺序，也保留旧生产的具体红差异。
+    assert_eq!(index.diagnostics(), expected);
+    assert!(index.package_path_mismatches().is_empty());
+    assert_eq!(index.source_units().len(), 1);
+    let unit = &index.source_units()[0];
+    assert_eq!(unit.source_id(), source_id);
+    assert_eq!(unit.key().root().as_str(), "root");
+    assert_eq!(unit.key().logical_path().as_str(), "wrong/F.ko");
+    assert_eq!(index.declarations().len(), 1);
+    let declaration = &index.declarations()[0];
+    assert_eq!(declaration.source_unit(), unit.id());
+    assert_eq!(declaration.root(), parsed.roots()[0]);
+    assert_eq!(declaration.name(), "x");
+    assert_eq!(declaration.namespace(), Namespace::Value);
+    assert_eq!(declaration.kind(), SymbolKind::Variable);
+    assert_eq!(declaration.visibility(), DeclarationVisibility::Public);
+    assert_eq!(sources.slice(declaration.name_span()).expect("name"), "x");
+    assert!(index.validate().is_err());
+}
+
+#[test]
+fn poisoned_initial_package_does_not_create_path_mismatch() {
+    assert_incomplete_header_index(
+        "package $ junk\nimport valid.name\nval x=1",
+        "L0001",
+        "unexpected character",
+        8,
+        9,
+    );
+    assert_incomplete_header_index(
+        "package a.$ junk\nval x=1",
+        "L0001",
+        "unexpected character",
+        10,
+        11,
+    );
+}
+
+#[test]
+fn missing_initial_header_separator_does_not_create_path_mismatch() {
+    assert_incomplete_header_index(
+        "package a.b val x=1",
+        "L0053",
+        "expected file header separator",
+        12,
+        15,
+    );
+}
+
+#[test]
+fn later_bad_package_does_not_hide_initial_path_mismatch() {
+    let mut sources = SourceMap::new();
+    let (source_id, parsed) = parsed_source(
+        &mut sources,
+        "header.ko",
+        "package a.b\npackage\nfun main(){missing}",
+    );
+    let expected_parse = [
+        header_diagnostic(
+            &sources,
+            source_id,
+            "L0051",
+            "misplaced package directive",
+            12,
+            19,
+        ),
+        header_diagnostic(
+            &sources,
+            source_id,
+            "L0048",
+            "expected package name",
+            20,
+            20,
+        ),
+    ];
+    assert_eq!(parsed.diagnostics(), expected_parse);
+    for (logical_path, mismatched) in [("wrong/F.ko", true), ("a/b/F.ko", false)] {
+        let inputs = [SourceUnitInput::new("root", logical_path, source_id, &parsed)];
+        let index = index_compilation_unit(&sources, &inputs).expect("real unit input");
+        let mut expected = Vec::new();
+        if mismatched {
+            expected.push(header_diagnostic(
+                &sources,
+                source_id,
+                "L0146",
+                "package declaration does not match logical source path",
+                0,
+                11,
+            ));
+        }
+        expected.extend(expected_parse.iter().cloned());
+        assert_eq!(index.diagnostics(), expected, "{logical_path}");
+        assert_eq!(
+            index.package_path_mismatches().len(),
+            usize::from(mismatched)
+        );
+        assert_eq!(index.source_units().len(), 1);
+        let unit = &index.source_units()[0];
+        assert_eq!(unit.source_id(), source_id);
+        assert_eq!(unit.key().root().as_str(), "root");
+        assert_eq!(unit.key().logical_path().as_str(), logical_path);
+        if mismatched {
+            let mismatch = &index.package_path_mismatches()[0];
+            assert_eq!(mismatch.source_unit(), unit.id());
+            assert_eq!(mismatch.expected().segments(), ["wrong"]);
+            assert_eq!(
+                mismatch.declared().expect("initial package").segments(),
+                ["a", "b"]
+            );
+            assert_eq!(
+                mismatch.primary_span(),
+                sources.span(source_id, 0, 11).expect("header")
+            );
+        }
+        assert_eq!(index.declarations().len(), 1);
+        let declaration = &index.declarations()[0];
+        assert_eq!(declaration.source_unit(), unit.id());
+        assert_eq!(declaration.root(), parsed.roots()[1]);
+        assert_eq!(declaration.name(), "main");
+        assert_eq!(declaration.namespace(), Namespace::Value);
+        assert_eq!(declaration.kind(), SymbolKind::Function);
+        assert_eq!(declaration.visibility(), DeclarationVisibility::Public);
+        assert_eq!(
+            declaration.name_span(),
+            sources.span(source_id, 24, 28).expect("main")
+        );
+        assert!(index.validate().is_err());
+    }
+}
+
 #[test]
 fn unit_diagnostic_order_rejects_diagnostics_from_outside_the_unit() {
     let mut sources = SourceMap::new();
