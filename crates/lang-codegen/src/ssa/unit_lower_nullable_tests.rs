@@ -82,8 +82,8 @@ fn original_nullable_class_borrow_nested_if_reaches_verified_native() {
     let main = declaration("main");
     let use_function = declaration("use");
     let main_offset = SOURCE.find("fun main").unwrap() + "fun ".len();
-    assert_eq!(main.name_span().start() as usize, main_offset);
-    assert_eq!(main.name_span().end() as usize, main_offset + "main".len());
+    assert_eq!(main.name_span().start(), main_offset);
+    assert_eq!(main.name_span().end(), main_offset + "main".len());
     let use_span = parsed
         .ast()
         .items()
@@ -128,7 +128,7 @@ fn assert_original_borrow(program: &Program, entry: FunctionId, use_span: Span) 
     let main = module.function(entry).unwrap();
     let original = |span: Span| {
         assert_eq!(span.source_id(), use_span.source_id());
-        &SOURCE[span.start() as usize..span.end() as usize]
+        &SOURCE[span.start()..span.end()]
     };
     let branches = main
         .blocks
