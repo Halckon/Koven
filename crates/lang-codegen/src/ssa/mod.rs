@@ -258,3 +258,6 @@ mod unit_lower_nullable_tests;
 
 #[cfg(test)]
 mod unit_lower_nullable_neighbor_tests;
+
+#[cfg(test)]
+mod unit_enum_regression_tests;

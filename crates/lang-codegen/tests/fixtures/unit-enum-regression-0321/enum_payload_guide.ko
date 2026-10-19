@@ -1,0 +1,23 @@
+package demo.enums
+
+enum class Shape {
+    Circle(radius: Int),
+    Rectangle(width: Int, height: Int),
+    Point
+}
+
+fun area(s: Shape): Int {
+    return when (s) {
+        is Shape.Circle -> 3 * s.radius * s.radius
+        is Shape.Rectangle -> s.width * s.height
+        Shape.Point -> 0
+    }
+}
+fun entry(): Unit {
+    val circle: Shape = Shape.Circle(2)
+    val rectangle: Shape = Shape.Rectangle(4, 5)
+    val point: Shape = Shape.Point
+    if (area(circle) == 12) println("12") else println("bad-circle")
+    if (area(rectangle) == 20) println("20") else println("bad-rectangle")
+    if (area(point) == 0) println("0") else println("bad-point")
+}
