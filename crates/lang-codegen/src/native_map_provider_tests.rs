@@ -47,8 +47,11 @@ fn assert_result(case: &str, entry: &str, run: &Output, expected: &str) {
 }
 
 fn run_unit(case: &str, source_text: &str) -> Output {
+    run_unit_with_entry(case, "provider.ko", source_text, "entry")
+}
+
+fn run_unit_with_entry(case: &str, path: &str, source_text: &str, entry_name: &str) -> Output {
     // 与四 pipeline gate 保持同一默认包、逻辑路径、原字节及真实 entry。
-    let path = "provider.ko";
     let mut sources = SourceMap::new();
     let source = sources
         .add_source(path, source_text)
@@ -80,7 +83,7 @@ fn run_unit(case: &str, source_text: &str) -> Output {
         .declarations()
         .iter()
         .filter(|declaration| {
-            declaration.name() == "entry"
+            declaration.name() == entry_name
                 && declaration.kind() == SymbolKind::Function
                 && declaration.source_unit() == source_unit.id()
                 && declaration.package() == source_unit.package()
@@ -147,6 +150,9 @@ mod conditional_tests;
 
 #[path = "native_map_provider_temporary_tests.rs"]
 mod temporary_tests;
+
+#[path = "native_map_provider_d10_w09_tests.rs"]
+mod d10_w09;
 
 #[path = "native_map_provider_nested_tests.rs"]
 mod nested_tests;
