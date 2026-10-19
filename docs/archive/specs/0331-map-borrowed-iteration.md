@@ -1,16 +1,16 @@
 # SPEC-0331: Map 双分量借用式插入序遍历
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：实现或验收 Map 借用遍历时 · **唯一真源**：本片实施范围与验收；语言语义以 Guide v0.44 为准
+> **性质**：实施合同 · **状态**：done · **读取时机**：实现或验收 Map 借用遍历时 · **唯一真源**：本片实施范围与验收；语言语义以 Guide v0.44 为准
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P2-0331` |
 | 所属 Phase | Phase 2–6 |
 | 基线 | PR117 正常合并后的 main `864b6423849156c36fdad5e342cbf4bd09c3868d`，tree `031f2ddf2e0dce4a5797b3e005bb11942f94fa52` |
 | 分支 | `feature/spec-0331-map-borrowed-iteration` |
 | 批准依据 | 用户同意 PR117 正常合并并保留分支，随后以新 Spec 推进 Map 借用遍历 |
-| 前置 Spec | [SPEC-0291 插入序共享存储与 consume](0291-readonly-map-construction.md)，只承接已交付能力，不将其 active 待项改记完成 |
+| 前置 Spec | [SPEC-0291 插入序共享存储与 consume](../../specs/active/0291-readonly-map-construction.md)，只承接已交付能力，不将其 active 待项改记完成 |
 | 语言规范 | [Guide12 Map 独立迭代合同](../../guide/12-collections-destructuring.md#整数-range-与-map-的独立迭代合同)、[provider 清理](../../guide/12-collections-destructuring.md#373-source-loan退出清理与冲突) |
 | 影响范围 | frontend typed/ownership、typed SSA/verifier、LLVM、普通与 CI-only 测试 |
 | 语言语义变更 | 否 |
@@ -1382,14 +1382,14 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   `5e5c21bed555beca0b04c94b0c8002a4c3b548835fbb106e373a0ecfa47c87b3`。
   首次编译两错、query的CFG/Span误断及wrapper helper eager索引越界均保留原失败；不把它们算支持。
 - 原direct泛型六源12观察仍9成功、3条Single Map在callee `result.consume()` Unsupported，
-  noFor同样失败。完整原source/golden保为真实fixture及身份断言，硬成功归属[0291 §19](0291-readonly-map-construction.md#19-0331-收尾发现的独立泛型-consume-前置2026-10-19)；
+  noFor同样失败。完整原source/golden保为真实fixture及身份断言，硬成功归属[0291 §19](../../specs/active/0291-readonly-map-construction.md#19-0331-收尾发现的独立泛型-consume-前置2026-10-19)；
   新wrapper不是改写这些原输入，也不表示一般泛型consume支持。
 - 原共享调用12源在main `a2a7e4b`、备份 `60512fda`、固定 `91e8be08` 三个独立target各24观察，
   共72观察；每头3个noFor Unit严格native，共9次。无For实际结果逐字一致，本有界集合没有
   成功→失败回归；previous/future真正For owner来自顶层make()，不能冒称当前member出生验收。
-  这批原15失败的完整24项成功目标由[0333](0333-static-map-callers.md)承接；其余12源nullable String
-  ABI由[0334 draft](../drafts/v0.44/0334-nullable-string-map-abi.md)、原Borrow caller proof由
-  [0335 draft](../drafts/v0.44/0335-map-borrow-caller-proof.md)分别承接。Guide、Field/Inout和D10不扩。
+  这批原15失败的完整24项成功目标由[0333](../../specs/active/0333-static-map-callers.md)承接；其余12源nullable String
+  ABI由[0334 draft](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md)、原Borrow caller proof由
+  [0335 draft](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md)分别承接。Guide、Field/Inout和D10不扩。
 - `91e8be08`的PR CI `39179726534/a1`为16/16 success、reuse=false；三artifact独审2513静态
   断言通过。它只覆盖该旧头，不覆盖本节生产修复。Mac为partial/requirements_met=false、UBSan
   未覆盖、LLDB1 ignored；reducer deadline边界使用mock时钟，不冒称真实120秒编译器超时。
@@ -1435,12 +1435,12 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - 4条既有For成功为P12 Unit、P17/18 Single、P24 Unit，随相应门保完整回归。P02原前端
   unacquired源码保持；Field/Inout继续按Guide明示延后，损坏事实仍严格拒绝，不作为本表能力失败。
 - 11条普通无For失败各有具体成功目标：P03/04/07/08 Single的条件Map owner归
-  [0337](../drafts/v0.44/0337-single-map-conditional-owner.md)；P01双端return条件归
-  [0338](../drafts/v0.44/0338-never-condition-evaluation.md)；P22双端Unit值实参/参数ABI归
-  [0339](../drafts/v0.44/0339-unit-call-argument-values.md)；P23双端实际node view读取归
-  [0340](../drafts/v0.44/0340-nullable-nominal-retest-view.md)；P24 Single成员Call归0333具体receiver邻控。
+  [0337](../../specs/drafts/v0.44/0337-single-map-conditional-owner.md)；P01双端return条件归
+  [0338](../../specs/drafts/v0.44/0338-never-condition-evaluation.md)；P22双端Unit值实参/参数ABI归
+  [0339](../../specs/drafts/v0.44/0339-unit-call-argument-values.md)；P23双端实际node view读取归
+  [0340](../../specs/drafts/v0.44/0340-nullable-nominal-retest-view.md)；P24 Single成员Call归0333具体receiver邻控。
   它们的全部原For/control及双入口目标保持；Unit B/C中的四For仍须先在0331修，不能转交0337。
-- Single函数值Map结果前置另归[0336](../drafts/v0.44/0336-single-map-callable-results.md)，
+- Single函数值Map结果前置另归[0336](../../specs/drafts/v0.44/0336-single-map-callable-results.md)，
   普通泛型consume归0291§19；原共享调用/nullable String ABI/borrow-result证明仍分别归0333/0334/0335。
   各draft未实施或取得Guide语义权限，不能统一把Unsupported/MissingFact称为staging。
 - 完整固定头普通回归、工程门、新双宿主CI三artifact独审、§45最终逐组对账与README/Tour/Architecture、
@@ -1711,3 +1711,42 @@ manifest，不再扩任意组合。README/Tour仅说明当前backend实测能力
 取得自己的合法CI终态，只有自动验证同PR/base/双checkout非豁免指纹的真实H证据才可继承。
 继承不是J新构建；若不满足复用条件则按现行fail-closed门重跑。Mac sanitizer partial、
 requirements_met=false，LLDB ignored与UBSan未覆盖如实登记。本机不执行故障/校准/损坏辅助。
+
+## 75. F 最终固定头有限验收与归档（2026-10-19）
+
+- 最后物理源码头H `7c38bcf3d16525f49bed3796dab3846d8655cc64`，tree `25b4532979b4a1621ed29133784b295b8269eaf6`；
+  D代码`38c270b1`、最终README/Tour与§73–74均纳入H。原§1–74的失败、阶段和历史未完成状态保留，
+  本段承接最终当前结论；归档仅机械改两处状态元数据和相对链接，不倒改历史checklist。
+- 同一干净H的89/89命令全部成功：82普通选择、七工程门；实际171个不同Rust测试
+  零失败/零忽略。非作者独审1555项断言、逐份raw及原test名单复核，旧131个普通Rust目标完整纳入，
+  不以收集器退出0代替子门。
+  严格native共1064次，case/entry去重1063个；原Unit old-alias在既有local与formation
+  各执行一次，次数与独立病例不混淆。每次exit0、完整golden、空stderr，不证明动态free或无泄漏。
+- 原74个正目标深查询/SSA/LLVM及74native的集合、数量和身份均逐名硬核：37 For、37control，
+  无缺漏/重复/替换；A1/A2/B/C/P24/D原输入与golden保全，其他22条普通前置不改作负例成功。
+  §63原七源十四入口及九条旧For拒绝均为硬正成功。全部3249份输入前后SHA-256同为
+  `b70c3d320f098f4e1b5b493ba01c5067c5371531c73a38811920a7aac179e50d`；fmt/all-targets check/strictClippy/build/docs/size/diff七门实际exit0。
+- [H完整PR119 CI](https://github.com/Halckon/Koven/actions/runs/39217973375) attempt1终态16/16 success，
+  actual reuse=false；base `a2a7e4b6833977fcae26d6420f193ea1ac7d53df`，synthetic
+  `e4a37c70bace811e59260e5edcfafa49d72d1272` / tree `25b4532979b4a1621ed29133784b295b8269eaf6`，真实双父为base与H。
+  双宿主required code/preview producer/独立consumer及汇总均按实际raw核验。G4两个native Rust及
+  Borrow退出三个Rust另由本轮CI逐名确认，固定穷举定义分别桥接每host 41源双入口82native与
+  四源双入口八查询/八native；成功stdout被捕获时不虚称raw已打印全部病例，不混入本机1064计数。
+  H的183项既有provider Rust库存另按双host原日志逐名核：本机157项在该库存内，其余26项
+  （25普通与一项CI-only损坏）仅以新CI实证补齐，不称本机82选择是全部合同全集。
+  §9非法pattern的精确Rust测试
+  双宿主确实执行成功，固定测试定义保七源十四观察，不声称本机82选择运行了该前端测试。
+- 三指定新产物：native-sanitizers-Linux ID12171330805 SHA011b7d160831；generated-owners-Linux ID12170863733 SHA07d65d69518b；generated-owners-macOS ID12171088015 SHAda6cfd9a8335。
+  ZIP/API摘要、producer身份、CRC、全部原日志与输入/IR ledger由非作者新核3052项断言，
+  无finding/待验；Linux provider十二plain/十二ASan/十二LSan、双host各八valid/八精确诊断及真实校准/
+  checker恢复/reduction边界另按新产物核。本机只读下载内容，未执行故障、校准、合成损坏、mock、
+  reduction或sanitizer helper；UBSan未覆盖。Mac维持partial/requirements_met=false，两项平台原因、
+  LLDB一项ignored如实保留，不因CI overall success宣称Mac sanitizer完全通过。
+- §74 G2–G10有限义务与真实Source/Span/callable/current epoch/完整incoming/cleanup证明已闭合。
+  active0291§19、approved0333、draft0334–0340逐项原前置保持；Field/Inout仅按Guide37.4明示延后，
+  不把普通Call/ABI失败统称staging，不扩任意笛卡尔积或Guide，不实施D10。README/Tour保持后端实证与
+  公开CLI合同区别；用户额外询问literal put的四个普通CLI运行单独收据，不纳入上述冻结计数。
+- 以上H真实门完成后才迁移为done并同步库存2 active/316 archive、全部入链与四份DAG。归档头J
+  仍须自己的合法CI终态；只有自动重验同PR/base、head+merge非豁免输入及精确H来源时可继承代码
+  证据，继承不是J新构建；不满足就按现行门重跑。J最终CI/正常merge/main身份另在PR与仓外收据
+  核验，不能在此提前宣称已合并或main CI成功。后续D10只接实际合并后的准确main SHA。

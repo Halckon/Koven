@@ -6,7 +6,7 @@
 |---|---|
 | 状态 | draft |
 | Goal ID | `KOV-P4-0336` |
-| 前置 Spec | [SPEC-0331 provider范围对账](../../active/0331-map-borrowed-iteration.md)；从实际合并main另建分支，当前不实施 |
+| 前置 Spec | [SPEC-0331 provider范围对账](../../../archive/specs/0331-map-borrowed-iteration.md)；从实际合并main另建分支，当前不实施 |
 | 语言规范 | [Guide07函数值与闭包](../../../guide/07-calls-lambdas-closures.md)、[Guide12 Map](../../../guide/12-collections-destructuring.md)；不新增语义 |
 | 阻塞项 | 具体callable的owned Map结果、调用ABI及唯一交付设计/验收尚未完成；不借此扩大动态interface或借用结果 |
 | 当前状态 | 原无For调用已失败，独立于0331 provider；保留全部原输入与成功目标 |

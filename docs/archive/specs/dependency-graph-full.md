@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，315 份）"]
+subgraph Garchive["已完成（archive，316 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -323,11 +323,11 @@ subgraph Garchive["已完成（archive，315 份）"]
   S0328["S0328<br/>IntRange / LongRange 普通值首片"]
   S0329["S0329<br/>整数 Range 的 owned 值 for"]
   S0330["S0330<br/>while 条件收窄与保守循环流事实"]
+  S0331["S0331<br/>Map 双分量借用式插入序遍历"]
   S0332["S0332<br/>Rc nullable while 既有路径回归修复"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
-  S0331["S0331<br/>Map 双分量借用式插入序遍历"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -1712,9 +1712,9 @@ S0331 --> S0340
 | SPEC-0328 | archive | [0328-integer-range-values.md](0328-integer-range-values.md) |
 | SPEC-0329 | archive | [0329-integer-range-iteration.md](0329-integer-range-iteration.md) |
 | SPEC-0330 | archive | [0330-while-conservative-flow.md](0330-while-conservative-flow.md) |
+| SPEC-0331 | archive | [0331-map-borrowed-iteration.md](0331-map-borrowed-iteration.md) |
 | SPEC-0332 | archive | [0332-rc-nullable-while-regression.md](0332-rc-nullable-while-regression.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
-| SPEC-0331 | active | [0331-map-borrowed-iteration.md](../../specs/active/0331-map-borrowed-iteration.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |

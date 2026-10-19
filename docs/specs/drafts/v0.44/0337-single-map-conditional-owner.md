@@ -6,7 +6,7 @@
 |---|---|
 | 状态 | draft |
 | Goal ID | `KOV-P4-0337` |
-| 前置 Spec | [SPEC-0331有限范围对账](../../active/0331-map-borrowed-iteration.md)；从实际合并main另建分支，当前未实施 |
+| 前置 Spec | [SPEC-0331有限范围对账](../../../archive/specs/0331-map-borrowed-iteration.md)；从实际合并main另建分支，当前未实施 |
 | 语言规范 | [Guide06控制流](../../../guide/06-blocks-control-flow.md)、[Guide07调用](../../../guide/07-calls-lambdas-closures.md)、[Guide10所有权](../../../guide/10-ownership-borrowing-drop.md)；不新增语义 |
 | 阻塞项 | 本片普通lowering/ABI实施计划尚未批准；草案仅保留精确失败和硬成功目标 |
 

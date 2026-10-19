@@ -1,8 +1,8 @@
 # Map 双分量借用遍历当前边界
 
-> **性质**：当前实现事实 · **状态**：current · **读取时机**：选择 Map 借用迭代来源和退出组合时 · **唯一真源**：代码与测试；验收见 [SPEC-0331](../specs/active/0331-map-borrowed-iteration.md)
+> **性质**：当前实现事实 · **状态**：current · **读取时机**：选择 Map 借用迭代来源和退出组合时 · **唯一真源**：代码与测试；验收见 [SPEC-0331](../archive/specs/0331-map-borrowed-iteration.md)
 
-[SPEC-0331](../specs/active/0331-map-borrowed-iteration.md)记录有限验收与独立前置；首表保留历史快照
+[SPEC-0331](../archive/specs/0331-map-borrowed-iteration.md)记录有限验收与独立前置；首表保留历史快照
 `60512fda0677b07abb77f10d88242f7a16edd1fb` 的有限支持，后续补片分节列出；不改写 Guide 的来源资格。
 `for ((key, value) in source)`沿插入链取得两个独立 Shared loan，不构造 Pair 或 entry owner。
 source 求值、分量与 source 清理由已验证事实交付，SSA verifier 后再生成 LLVM。
@@ -133,7 +133,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 | own Map/MutableMap参数 | String/有String字段Resource、结构性Payload(Resource)、Int/Resource、String/nullable字段Resource | N/C/B/R；String字段Resource另验同根双层N/条件R | G5复用既有表示；G8核内层/外层Guard与source清理；不承诺entry间析构序 |
 | Field/Inout来源 | 现有类型 | 前端合同 | Guide37.4明确native延后；不由Group准入扩大 |
 
-Return的52源104条双入口SSA/LLVM及104个native见[§61](../specs/active/0331-map-borrowed-iteration.md#61-g3g7-共享普通控制流与非-nullable-return-有限验收2026-10-18)；G8另有原7源与34个非空/空路径runtime源，共82条双入口SSA/LLVM、68个严格native通过。
+Return的52源104条双入口SSA/LLVM及104个native见[§61](../archive/specs/0331-map-borrowed-iteration.md#61-g3g7-共享普通控制流与非-nullable-return-有限验收2026-10-18)；G8另有原7源与34个非空/空路径runtime源，共82条双入口SSA/LLVM、68个严格native通过。
 G8按每层当前source/cursor/K/V/owner、最近Break/全层Return、精确词法Drop与调用终点验收；固定7f21e1c6复验82/68通过。§63另验有限循环后own交付；String? ABI及其他CFG不外推。
 以上非Field/Inout的具体能力缺口不能统称Guide staging；普通Resource类的字段/泛型/接口、
 其他key/value与更一般source/CFG不由有限代表外推；具体调用/ABI前置按末节分别登记。

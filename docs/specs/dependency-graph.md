@@ -8,10 +8,9 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 315 份"))
+ARCH(("已完成<br/>archive 316 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
-  S0331["S0331<br/>Map 双分量借用式插入序遍历"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -26,16 +25,15 @@ subgraph Gdrafts_v044["v0.44（draft）"]
   S0339["S0339<br/>Unit 值实参与待决调用求值"]
   S0340["S0340<br/>名义类型 nullable retest view 的普通读取"]
 end
-S0291 --> S0331
-S0331 --> S0333
-S0331 --> S0334
-S0331 --> S0335
-S0331 --> S0336
-S0331 --> S0337
-S0331 --> S0338
-S0331 --> S0339
-S0331 --> S0340
 ARCH --> S0292
+ARCH --> S0333
+ARCH --> S0334
+ARCH --> S0335
+ARCH --> S0336
+ARCH --> S0337
+ARCH --> S0338
+ARCH --> S0339
+ARCH --> S0340
 ```
 
 ## 节点链接
@@ -43,7 +41,6 @@ ARCH --> S0292
 | 节点 | 分区 | 文档 |
 |---|---|---|
 | SPEC-0291 | active | [0291-readonly-map-construction.md](active/0291-readonly-map-construction.md) |
-| SPEC-0331 | active | [0331-map-borrowed-iteration.md](active/0331-map-borrowed-iteration.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](active/0333-static-map-callers.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
@@ -53,4 +50,4 @@ ARCH --> S0292
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（315 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（316 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

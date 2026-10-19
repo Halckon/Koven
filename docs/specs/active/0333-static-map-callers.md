@@ -8,7 +8,7 @@
 | Goal ID | `KOV-P4-0333` |
 | 批准依据 | 用户要求将0331范围审计确认的独立旧调用缺口登记为明确后继，不扩大F或转交D10 |
 | 基线 | main `a2a7e4b6833977fcae26d6420f193ea1ac7d53df`、备份 `60512fda0677b07abb77f10d88242f7a16edd1fb`、验收头 `91e8be08187413afa4c5af9bcb62cff89c70f753` |
-| 前置 Spec | [SPEC-0331 Map provider](0331-map-borrowed-iteration.md)的已交付事实；后续从实际合并main另建 `feature/spec-0333-static-map-callers`，当前未实施 |
+| 前置 Spec | [SPEC-0331 Map provider](../../archive/specs/0331-map-borrowed-iteration.md)的已交付事实；后续从实际合并main另建 `feature/spec-0333-static-map-callers`，当前未实施 |
 | 合同 | [Guide08成员/companion](../../guide/08-class-family-members.md)、[Guide10借用](../../guide/10-ownership-borrowing-drop.md)；不新增语义 |
 | 影响范围 | 单文件调用选择/receiver与owned结果、Unit companion可达模板、完整调用/Drop及provider组合回归 |
 

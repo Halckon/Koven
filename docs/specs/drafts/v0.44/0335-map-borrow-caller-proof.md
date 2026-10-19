@@ -6,7 +6,7 @@
 |---|---|
 | 状态 | draft |
 | Goal ID | `KOV-P3-0335` |
-| 前置 Spec | [SPEC-0331范围对账](../../active/0331-map-borrowed-iteration.md)；不由0291或D10承接 |
+| 前置 Spec | [SPEC-0331范围对账](../../../archive/specs/0331-map-borrowed-iteration.md)；不由0291或D10承接 |
 | 合同 | [Guide10普通确定借用结果](../../../guide/10-ownership-borrowing-drop.md)、[ADR0029](../../../adr/accepted/0029-ordinary-borrow-result-continuation.md)、[Guide37.4](../../../guide/12-collections-destructuring.md#374-irphase-交接与非目标) |
 | 阻塞项 | caller来源/continuation/终止点证明与provider交接设计未闭合；本草案不授权猜测origin或绕过L0164 |
 | 语言语义变更 | 不启用条件借用或新借用类型；普通确定借用结果已启用，不得误写成整体未启用 |

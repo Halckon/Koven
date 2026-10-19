@@ -2,7 +2,7 @@
 
 > **性质**：当前变更索引 · **状态**：current · **读取时机**：查找已批准或实施中的 Goal 时 · **唯一真源**：本目录 Spec
 
-当前 active另登记[0333静态Map返回调用](0333-static-map-callers.md)（approved、未实施，原源/失败保留）；当前实施中：[0291](0291-readonly-map-construction.md)保持有界交付待项；[0331 Map 双分量借用式插入序遍历](0331-map-borrowed-iteration.md)保留已备份父链并同步真实 main `a2a7e4b6` 后恢复，首轮联合事实验收仍有待核查询。
+当前2份 active：[0291](0291-readonly-map-construction.md)保持有界交付待项；[0333静态Map返回调用](0333-static-map-callers.md)为approved、未实施，原源与失败保留。0331有限验收已归档，最终PR交付状态见[近期交付](../README.md#近期交付)。
 
 [0332 Rc nullable while 回归修复](../../archive/specs/0332-rc-nullable-while-regression.md)已由PR118正常合并为main `a2a7e4b6`，main CI另验；额外Rc边界由[v0.44后继](../drafts/v0.44/README.md)独立承接。
 

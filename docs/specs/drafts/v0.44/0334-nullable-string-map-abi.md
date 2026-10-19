@@ -6,7 +6,7 @@
 |---|---|
 | 状态 | draft |
 | Goal ID | `KOV-P4-0334` |
-| 前置 Spec | [SPEC-0331范围对账](../../active/0331-map-borrowed-iteration.md)；不是0291的一般ABI扩展 |
+| 前置 Spec | [SPEC-0331范围对账](../../../archive/specs/0331-map-borrowed-iteration.md)；不是0291的一般ABI扩展 |
 | 语言规范 | [Guide15 nullable实施边界](../../../guide/15-conformance-and-staging.md)已要求inline/tagged nullable独立ABI ADR与后继Spec |
 | 阻塞项 | 独立SSA/LLVM表示、参数/返回/存储与Drop ABI设计尚未批准；本草案不授权实施或扩大Guide |
 | 当前状态 | 只登记原12源及具体设计/验收义务，未宣称native支持 |

@@ -9,7 +9,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 
 ### Active
 
-- [Active 合同](active/README.md)：当前本树3份，[0291](active/0291-readonly-map-construction.md)保留有界交付待项；[0331 Map 双分量借用式插入序遍历](active/0331-map-borrowed-iteration.md)保留原父链并同步 PR118 合并后的 main `a2a7e4b6` 后恢复。 [0332 Rc nullable while 回归修复](../archive/specs/0332-rc-nullable-while-regression.md)已正常合并，main CI另验；0331 provider收尾仍在补普通带参factory的named出生证明；[0333静态Map调用](active/0333-static-map-callers.md)仅登记独立旧缺口，approved/未实施。
+- [Active 合同](active/README.md)：当前本树2份，[0291](active/0291-readonly-map-construction.md)保留有界交付待项；[0333静态Map调用](active/0333-static-map-callers.md)为approved、未实施。Map双分量借用遍历已按[0331有限合同](../archive/specs/0331-map-borrowed-iteration.md)验收归档，原调用/ABI前置分别保留。
 - owned source单条件Continue与Return已分别由0312/0314有界验收；更宽控制流保持独立边界。
 - [当前实现边界](../architecture/README.md)：Map 的代表场景、证据层级与未评估组合见 [Map 场景矩阵](../architecture/map-native-execution.md#编号场景与保留边界)。
 
@@ -55,7 +55,7 @@ Spec 定义一次可独立验证的 Goal；路线图或 proposal 不会自动批
 [范围能力门](../architecture/range-local-control-flow.md)与[普通借用后继](../architecture/synchronous-borrow-result-arguments.md)查询。
 广义 CFG/NLL、Inout 来源、N1b、Option、consume、通用 Clone、条件/多来源及借用存储/逃逸不捆入本轮；
 它们不是上述代表拒例的全域推论。需要 Guide 变化的候选须另形成版本并取得明确启用确认。
-List/Map 尚未选定的高层基础 API、Map 遍历、forEach/map/filter 与 file IO 留后续 v1 独立里程碑，
+List/Map 尚未选定的高层基础 API、forEach/map/filter 与 file IO 留后续 v1 独立里程碑，
 尚未据此建立新 Spec；已有顺序迭代及 take/drop/dropLast 不重新列待做，原有 draft/candidate 状态不变。
 后继A的[0319 最终类型消费准入](../archive/specs/0319-final-type-admission-diagnostics.md)已按实现head双宿主物理CI有界验收归档，并经归档head CI后合入main；
 随后B [0320 Enum case Borrow实参分类](../archive/specs/0320-enum-case-borrow-categories.md)已由PR102交付；
@@ -65,6 +65,8 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 通用循环和其他容器/API仍按原能力边界及独立后继处理。
 
 ### 近期交付
+
+- [0331 Map双分量借用遍历](../archive/specs/0331-map-borrowed-iteration.md)：H `7c38bcf3` 完成冻结普通联合门、完整[PR119实现CI](https://github.com/Halckon/Koven/actions/runs/39217973375)与三产物独审；原失败/独立调用与ABI前置及Mac partial保留。此为最小归档，归档头CI与正常merge/main状态另验，不称已合并。
 
 - [0329](../archive/specs/0329-integer-range-iteration.md)：[PR115实现CI](https://github.com/Halckon/Koven/actions/runs/38878529450/attempts/1)双host37exact各1通过，15实际success/1路径skip、非复用；Linux校准pass/macOS partial，归档head CI/main待验。
 - [0328](../archive/specs/0328-integer-range-values.md)：[PR114实现CI](https://github.com/Halckon/Koven/actions/runs/38861894139/attempts/1)15实际success、1路径skip、非复用；双host36exact各1通过，Holder校准正确检出，macOS partial限制保留；归档head CI/main待验。
