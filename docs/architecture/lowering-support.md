@@ -49,7 +49,7 @@ temporary/capture角色后继见下节，其它角色和CFG责任继续开放。
 
 `ssa::carry` 以Temporary/CaptureLoan/ResultSourceLoan固定typed角色统一保序数据收集、首个同source
 物理列复用、miss时才查询完整EntityType并追加；角色只包装Value/Loan，三存储端口仅投影source、
-借用对应key字段及构造其它角色为空的槽。local/source-qualified key不转换，seed不去重，命中列
+借用对应key字段；空槽构造委托SourceSlot。local/source-qualified key不转换，seed不去重，命中列
 不提前查type；缺失错误由原入口传中立Copy数据，temporary/capture为InvalidModel、result-source为MissingFact。
 核心分别拥有平面key fan-out及symbol/index的entry/resize/赋位，使用实际当前列实体而非旧source替换表。
 result-source保原Vec index与填充值，single在原clear后就地写回，unit保全部symbol的空Vec局部map且
@@ -66,6 +66,12 @@ role→layout-local ColumnId及逐边参数转置；exit数独立于列数，零
 原receiver normalize、零单出口、关系/IR写入和恢复清理保持；unit `range::arguments`已删除，
 `range::{keys,rebind}`尚留。A片[验收](../specs/active/0341-shared-lowering-core.md#25-完整-carry-域-a全入边列布局小片实际验收2026-10-19)
 以42真实关系查询和既有六Range产品18段逐字对照分证，不关闭单前沿全角色、恢复/关系消费者或完整carry域。
+单前沿`carry/source_columns`统一独立seed追加与首source关联；SourceSlot只投影source/entity/type及空槽，
+Known/Query保持原type求值时点，Added/Reused使nullable symbol与entry Borrow仍仅在原miss填入。
+三alias与named/pending/proof/Map共用该关联，Value/Entity双池和同源snapshot独立seed不合并；
+完整snapshot在原扫描后逐slot追加，当前参数恢复与关系/清理门仍由原状态所有者执行。
+B1[验收](../specs/active/0341-shared-lowering-core.md#26-完整-carry-域-b1单前沿-source-关联小片实际验收2026-10-19)
+记录68普通回归、snapshot全incoming关系及既有完整产物前后对照，未关闭普通恢复或完整carry域。
 核心只依赖model与中立error，不反向读取checked/driver/planner/LLVM；IR/support禁止依赖carry。
 
 ## 普通 statement 顺序核心
