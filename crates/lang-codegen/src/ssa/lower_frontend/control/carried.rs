@@ -1,5 +1,21 @@
 //! Construct and restore explicit linear CFG storage slots.
 use super::*;
+use crate::ssa::carry::{self, TemporarySlot};
+
+impl TemporarySlot<usize> for LinearBindingSlot {
+    fn source(&self) -> EntityId {
+        self.source
+    }
+
+    fn temporary_keys_mut(&mut self) -> &mut Vec<usize> {
+        &mut self.temporaries
+    }
+
+    fn from_temporary(source: ValueId, ty: EntityType) -> Self {
+        Self::new(None, EntityId::Value(source), ty)
+    }
+}
+
 impl ExpressionLowerer<'_> {
     pub(in super::super) fn linear_binding_slots(
         &self,
@@ -35,21 +51,7 @@ impl ExpressionLowerer<'_> {
                 ty,
             ));
         }
-        for (&key, &owner) in &self.temporaries {
-            let source = EntityId::Value(owner);
-            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                slot.temporaries.push(key);
-            } else {
-                let ty = self
-                    .function
-                    .entity(source)
-                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
-                    .ty;
-                let mut slot = LinearBindingSlot::new(None, source, ty);
-                slot.temporaries.push(key);
-                carried.push(slot);
-            }
-        }
+        carry::collect_temporaries(self.function, &self.temporaries, &mut carried, span)?;
         for (&key, &loan) in self.pending_call_loans.iter() {
             let Some(loan) = loan else {
                 continue;
@@ -243,8 +245,12 @@ impl ExpressionLowerer<'_> {
             }
         }
         for (slot, &parameter) in carried.slots.iter().zip(parameters) {
-            for key in &slot.temporaries {
-                self.temporaries.insert(*key, value(parameter));
+            if !slot.temporaries.is_empty() {
+                carry::apply_temporary_column(
+                    &slot.temporaries,
+                    value(parameter),
+                    &mut self.temporaries,
+                );
             }
             for key in &slot.captures {
                 let EntityId::Loan(loan) = parameter else {

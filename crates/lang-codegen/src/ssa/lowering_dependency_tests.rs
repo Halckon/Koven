@@ -3,7 +3,7 @@
 //! 只扫描已知职责文件及物理子树；忽略注释、字面量和精确的外层 #[cfg(test)]
 //! item，不解释 cfg_attr、宏展开、include!、#[path] 或扫描范围外的 re-export。
 //! 禁用名字是保守的 identifier 规则（同名局部变量也会拒绝），无需解析 Rust 类型。
-//! IR、常量物化、表达式与statement核心的 SSA 根 glob/module alias 另行禁止，避免藏起反向依赖；
+//! IR、carry、常量物化、表达式与statement核心的 SSA 根 glob/module alias 另行禁止，避免藏起反向依赖；
 //! IR 内部的 glob 仍允许。模块深度包含普通 inline mod，不做名称解析或 alias 数据流分析。
 
 use std::{fs, path::Path};
@@ -12,6 +12,7 @@ use std::{fs, path::Path};
 enum Boundary {
     Unit,
     Support,
+    Carry,
     ConstantMaterialization,
     ExpressionCore,
     StatementCore,
@@ -34,6 +35,7 @@ fn boundary(path: &Path) -> Option<Boundary> {
     match root {
         "unit_lower" | "unit_plan" => Some(Boundary::Unit),
         "lowering_support" => Some(Boundary::Support),
+        "carry" => Some(Boundary::Carry),
         "constant_materialization" => Some(Boundary::ConstantMaterialization),
         "expression_core" => Some(Boundary::ExpressionCore),
         "statement_core" => Some(Boundary::StatementCore),
@@ -259,8 +261,20 @@ fn forbidden(boundary: Boundary, name: &str) -> bool {
                 | "unit_plan"
                 | "llvm"
                 | "model"
+                | "carry"
                 | "constant_materialization"
                 | "expression_core"
+                | "statement_core"
+        ),
+        Boundary::Carry => matches!(
+            name,
+            "lower_frontend"
+                | "unit_lower"
+                | "unit_plan"
+                | "llvm"
+                | "constant_materialization"
+                | "expression_core"
+                | "checked"
                 | "statement_core"
         ),
         Boundary::ConstantMaterialization | Boundary::StatementCore => {
@@ -276,6 +290,7 @@ fn forbidden(boundary: Boundary, name: &str) -> bool {
                 | "unit_lower"
                 | "unit_plan"
                 | "lowering_support"
+                | "carry"
                 | "constant_materialization"
                 | "expression_core"
                 | "statement_core"
@@ -361,6 +376,7 @@ fn violations(path: &Path, source: &str) -> Vec<String> {
         } else if matches!(
             boundary,
             Boundary::Ir
+                | Boundary::Carry
                 | Boundary::ConstantMaterialization
                 | Boundary::ExpressionCore
                 | Boundary::StatementCore
@@ -431,6 +447,7 @@ fn production_lowering_dependencies_remain_directional() {
     for required in [
         "unit_lower.rs",
         "unit_plan.rs",
+        "carry.rs",
         "constant_materialization.rs",
         "expression_core.rs",
         "expression_core/checked.rs",
@@ -547,6 +564,60 @@ fn dependency_guard_rejects_reverse_imports_and_paths() {
     ] {
         let source = format!("use crate::ssa::{forbidden} as dependency;");
         assert!(!check("lowering_support/nested/helper.rs", &source).is_empty());
+    }
+}
+
+#[test]
+fn dependency_guard_checks_carry_boundary() {
+    for path in ["carry.rs", "carry/nested/helper.rs"] {
+        assert!(
+            check(
+                path,
+                "use crate::ssa::{lowering_support::{error, LoweringError, LoweringErrorKind}, model::{EntityId, EntityType, Function, ValueId}}; use lang_frontend::source::Span;"
+            )
+            .is_empty(),
+            "allowed carry edge rejected: {path}"
+        );
+        for forbidden in [
+            "lower_frontend",
+            "unit_lower",
+            "unit_plan",
+            "llvm",
+            "constant_materialization",
+            "expression_core",
+            "checked",
+            "statement_core",
+        ] {
+            let source = format!("use crate::ssa::{forbidden} as dependency;");
+            assert!(!check(path, &source).is_empty(), "unchecked edge: {path}");
+        }
+        for source in [
+            "use crate::ssa::*;",
+            "use crate::ssa as root;",
+            "use crate::*;",
+            "use crate as root;",
+        ] {
+            assert!(
+                !check(path, source).is_empty(),
+                "root import escaped: {path}"
+            );
+        }
+    }
+    assert!(!check("carry.rs", "use super::*;").is_empty());
+    assert!(!check("carry/nested/helper.rs", "use super::super::super as root;").is_empty());
+    for path in [
+        "model.rs",
+        "model/nested/helper.rs",
+        "types.rs",
+        "verify.rs",
+        "verify_ownership/nested/helper.rs",
+        "lowering_support.rs",
+        "lowering_support/nested/helper.rs",
+    ] {
+        assert!(
+            !check(path, "use crate::ssa::carry::collect_temporaries;").is_empty(),
+            "reverse edge escaped: {path}"
+        );
     }
 }
 

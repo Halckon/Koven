@@ -133,9 +133,7 @@ impl UnitExpressionLowerer<'_> {
             let EntityId::Value(value) = parameter else {
                 return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
             };
-            for expression in &slot.temporaries {
-                self.temporaries.insert(*expression, *value);
-            }
+            carry::apply_temporary_column(&slot.temporaries, *value, &mut self.temporaries);
         }
         let source_parameters = parameters[bindings.len()..].to_vec();
         self.rebind_range_sources(loans, &source_parameters, span)?;

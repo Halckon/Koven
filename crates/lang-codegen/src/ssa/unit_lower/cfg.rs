@@ -16,6 +16,7 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
+    carry::{self, TemporarySlot},
     model::{
         BlockId, Edge, EntityId, EntityType, LoanId, Operation, Origin, TerminatorKind, ValueId,
     },
@@ -65,6 +66,27 @@ pub(super) struct CarriedBinding {
     ty: EntityType,
     pending: Vec<usize>,
     temporaries: Vec<UnitExpressionId>,
+}
+
+impl TemporarySlot<UnitExpressionId> for CarriedBinding {
+    fn source(&self) -> EntityId {
+        EntityId::Value(self.source)
+    }
+
+    fn temporary_keys_mut(&mut self) -> &mut Vec<UnitExpressionId> {
+        &mut self.temporaries
+    }
+
+    fn from_temporary(source: ValueId, ty: EntityType) -> Self {
+        Self {
+            symbol: None,
+            receiver: None,
+            source,
+            ty,
+            pending: Vec::new(),
+            temporaries: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -271,25 +293,7 @@ impl UnitExpressionLowerer<'_> {
             }
         }
         // A pending borrowed temporary needs its owner as well as its loan on each edge.
-        for (expression, source) in &self.temporaries {
-            if let Some(slot) = bindings.iter_mut().find(|slot| slot.source == *source) {
-                slot.temporaries.push(*expression);
-            } else {
-                let ty = self
-                    .function
-                    .entity(EntityId::Value(*source))
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?
-                    .ty;
-                bindings.push(CarriedBinding {
-                    symbol: None,
-                    receiver: None,
-                    source: *source,
-                    ty,
-                    pending: Vec::new(),
-                    temporaries: vec![*expression],
-                });
-            }
-        }
+        carry::collect_temporaries(self.function, &self.temporaries, bindings, span)?;
         self.bind_nullable_columns(bindings, loans, span)?;
         self.bind_pending_child_columns(bindings, loans, span)?;
         Ok(())
