@@ -1,0 +1,2 @@
+fun make(): MutableMap<String, Int> { var m = mutableMapOf<String, Int>(); m.put("a", 3); m.put("b", 4); return m }
+fun main(): Unit { for ((k, v) in make()) { error("map-stop") } }

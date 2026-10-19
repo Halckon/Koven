@@ -8,7 +8,9 @@ use super::{
     query_inputs::one,
     query_temporary_cleanup,
 };
-use crate::ssa::model::{EntityId, FunctionId, LoanKind, Operation, Origin, Program};
+use crate::ssa::model::{
+    EntityId, FunctionId, LoanKind, Operation, Origin, Program, TerminatorKind,
+};
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     lexer::lex,
@@ -378,7 +380,9 @@ fn unit_facts(
 
 fn source_birth(
     sources: &SourceMap,
-    a: &Anchors,
+    main_span: Span,
+    make_span: Span,
+    source_span: Span,
     program: &Program,
     entry: FunctionId,
 ) -> Result<(), Failure> {
@@ -387,7 +391,7 @@ fn source_birth(
         .function(entry)
         .ok_or_else(|| failure("w09 returned entry", entry))?;
     need(
-        main.origin == Origin::Source(a.main),
+        main.origin == Origin::Source(main_span),
         "w09 returned main source identity",
         &main.origin,
     )?;
@@ -395,13 +399,13 @@ fn source_birth(
         sources,
         program,
         entry,
-        &[("main", a.main), ("make", a.make)],
+        &[("main", main_span), ("make", make_span)],
     )?;
     let make = one(
         module
             .functions
             .iter()
-            .filter(|f| f.origin == Origin::Source(a.make)),
+            .filter(|f| f.origin == Origin::Source(make_span)),
         "w09 real make function",
     )?;
     let graph = Graph::with_abort(main)?;
@@ -412,7 +416,7 @@ fn source_birth(
         "w09 unique reachable factory Call",
     )?;
     need(
-        call.origin == Origin::Source(a.source_span)
+        call.origin == Origin::Source(source_span)
             && matches!(&call.operation, Operation::DirectCall { receiver: None, arguments, .. } if arguments.is_empty()),
         "w09 actual source Call birth",
         call,
@@ -525,7 +529,7 @@ fn observe(unit: bool) -> Observation {
         let birth = anchors
             .as_ref()
             .map_err(|e| failure("w09 AST for SSA query", e))
-            .and_then(|a| source_birth(&sources, a, &program, entry));
+            .and_then(|a| source_birth(&sources, a.main, a.make, a.source_span, &program, entry));
         report.query(
             "w09 returned main and actual factory/provider birth",
             &birth,
@@ -559,5 +563,294 @@ fn w09_temporary_map_carry_reaches_verified_llvm() {
             .iter()
             .all(|o| o.report.passed() && o.outcome.is_ok()),
         "原222B w09 的 single/unit 两 fresh 必须完成同轮完整 FE/sealed、真实 main、SSA 与 LLVM；UnsupportedNode 不是成功 oracle。\n{observations:#?}"
+    );
+}
+
+// Separate source-level observation of the newly rerouted straight Nothing body.
+// This only builds/verifies IR. It never executes the resulting Abort or native code.
+const NOTHING_PATH: &str = "w09_map_temp_body_nothing.ko";
+const NOTHING_SOURCE: &str =
+    include_str!("../../../tests/fixtures/d10-unit-migration-0341/w09_map_temp_body_nothing.ko");
+const NOTHING_SHA256: &str = "8b3db5fda39cc1fdceb53b18779f4dee6d3ae668fd310f3a4fac82cb37d859d2";
+
+#[derive(Debug)]
+struct NothingSites {
+    main: Span,
+    make: Span,
+    statement: StatementId,
+    for_span: Span,
+    source: ExpressionId,
+    source_span: Span,
+    error: ExpressionId,
+    error_span: Span,
+}
+
+fn nothing_sites(sources: &SourceMap, parsed: &ParsedFile) -> Result<NothingSites, Failure> {
+    let (main, _) = function(sources, parsed, "main")?;
+    let (make, _) = function(sources, parsed, "make")?;
+    let (statement, node) = one(
+        parsed.ast().statements().iter().filter(|(_, n)| {
+            contains(main, n.span()) && matches!(n.payload(), Statement::For { .. })
+        }),
+        "Nothing actual main For",
+    )?;
+    let Statement::For { source, body, .. } = node.payload() else {
+        return Err(failure("Nothing For AST", node));
+    };
+    let body = parsed
+        .ast()
+        .statements()
+        .get(*body)
+        .map_err(|e| failure("Nothing body", e))?;
+    let source_node = parsed
+        .ast()
+        .expressions()
+        .get(*source)
+        .map_err(|e| failure("Nothing source", e))?;
+    let (error, error_node) = one(
+        parsed.ast().expressions().iter().filter(|(_, n)| {
+            contains(body.span(), n.span()) && matches!(n.payload(), Expression::Call { .. })
+        }),
+        "Nothing sole actual body Call",
+    )?;
+    need(
+        sources.source_name(parsed.source_id()) == Ok(NOTHING_PATH)
+            && matches!(source_node.payload(), Expression::Call { .. })
+            && sources.slice(source_node.span()) == Ok("make()")
+            && sources.slice(error_node.span()) == Ok("error(\"map-stop\")"),
+        "Nothing original source/body Call identities",
+        (source_node, error_node),
+    )?;
+    Ok(NothingSites {
+        main,
+        make,
+        statement,
+        for_span: node.span(),
+        source: *source,
+        source_span: source_node.span(),
+        error,
+        error_span: error_node.span(),
+    })
+}
+
+fn nothing_ssa(
+    sources: &SourceMap,
+    sites: &NothingSites,
+    program: &Program,
+    entry: FunctionId,
+) -> Result<(), Failure> {
+    source_birth(
+        sources,
+        sites.main,
+        sites.make,
+        sites.source_span,
+        program,
+        entry,
+    )?;
+    let module = one(program.modules.iter(), "Nothing actual module")?;
+    let main = module
+        .function(entry)
+        .ok_or_else(|| failure("Nothing actual returned main", entry))?;
+    let graph = Graph::with_abort(main)?;
+    let first = one(
+        graph
+            .instructions
+            .iter()
+            .copied()
+            .filter(|i| matches!(i.operation, Operation::MapIterationFirst { .. })),
+        "Nothing unique acquired provider in actual main",
+    )?;
+    let header = one(
+        graph.instructions.iter().copied().filter(|i| {
+            i.origin == Origin::Source(sites.for_span)
+                && matches!(i.operation, Operation::MapIterationHasNext { .. })
+        }),
+        "Nothing actual For header",
+    )?;
+    let has_next = value(header)?;
+    let header_term = graph.term(header.block)?;
+    let TerminatorKind::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &header_term.kind
+    else {
+        return Err(failure("Nothing actual provider branch", header_term));
+    };
+    let abort = graph.term(when_true.target)?;
+    let incoming = graph.incoming(header.block);
+    need(
+        first.origin == Origin::Source(sites.for_span)
+            && *condition == has_next
+            && when_false.target != when_true.target
+            && abort.origin == Origin::Source(sites.error_span)
+            && matches!(abort.kind, TerminatorKind::Abort)
+            && incoming.len() == 1
+            && incoming[0].0 == first.block
+            && first.block != header.block
+            && !graph
+                .instructions
+                .iter()
+                .any(|i| matches!(i.operation, Operation::MapIterationNext { .. })),
+        "Nothing acquired main provider has no body backedge or Next",
+        (first, header, header_term, incoming, abort),
+    )
+}
+
+fn observe_body_nothing(unit: bool) -> Observation {
+    let mut report = Report::default();
+    println!(
+        "D10 NOTHING INPUT unit={unit} path={NOTHING_PATH} bytes={} frozen_sha256={NOTHING_SHA256}",
+        NOTHING_SOURCE.len()
+    );
+    let outcome = (|| {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source(NOTHING_PATH, NOTHING_SOURCE)
+            .map_err(|e| failure("Nothing source", e))?;
+        let lexed = lex(&sources, source).map_err(|e| failure("Nothing lex", e))?;
+        clean(&sources, "Nothing lex diagnostics", lexed.diagnostics())?;
+        let parsed = parse_file(&sources, &lexed).map_err(|e| failure("Nothing parse", e))?;
+        clean(&sources, "Nothing parse diagnostics", parsed.diagnostics())?;
+        let sites = nothing_sites(&sources, &parsed);
+        report.query("Nothing real source/body sites", &sites);
+        let (program, entry) = if unit {
+            pipeline::unit_observed_with_entry(
+                &sources,
+                &parsed,
+                NOTHING_PATH,
+                "main",
+                &mut report,
+                |names, typed, owned, r| {
+                    let facts = sites
+                        .as_ref()
+                        .map_err(|e| failure("Nothing Unit sites", e))
+                        .and_then(|s| {
+                            let unit = one(
+                                names.names().source_units().iter(),
+                                "Nothing one Unit source",
+                            )?
+                            .source_unit();
+                            let statement = types::UnitStatementId::new(unit, s.statement);
+                            let source = types::UnitExpressionId::new(unit, s.source);
+                            let error = types::UnitExpressionId::new(unit, s.error);
+                            let d = typed
+                                .map_iteration(statement)
+                                .ok_or_else(|| failure("Nothing Unit descriptor", statement))?;
+                            let p = owned
+                                .map_iteration(statement)
+                                .ok_or_else(|| failure("Nothing Unit acquired plan", statement))?;
+                            let call = typed
+                                .call(error)
+                                .ok_or_else(|| failure("Nothing Unit typed Call", error))?;
+                            println!(
+                                "D10 NOTHING UNIT descriptor={d:#?} plan={p:#?} call={call:#?}"
+                            );
+                            need(
+                                d.source() == source
+                                    && p.descriptor() == d
+                                    && p.source_access()
+                                        == ownership::UnitIterationSourceAccess::Temporary
+                                    && call.aborts()
+                                    && typed.expression_type(error) == Some(call.return_type())
+                                    && typed.types().get(call.return_type())
+                                        == Some(&types::UnitTypeKind::Builtin(
+                                            types::BuiltinType::Nothing,
+                                        ))
+                                    && p.exits().len() == 1
+                                    && p.exits()[0].kind()
+                                        == ownership::UnitIterationExitKind::Exhaustion
+                                    && p.exits()[0].point()
+                                        == ownership::UnitDropPoint::LoopExit(statement),
+                                "Nothing Unit real abort Call/acquired exhaustive exit set",
+                                (d, p, call),
+                            )
+                        });
+                    r.query("Nothing Unit typed Call/Acquire/exits", &facts);
+                },
+            )
+        } else {
+            pipeline::single_observed_with_entry(
+                &sources,
+                &parsed,
+                "main",
+                &mut report,
+                |_, typed, owned, r| {
+                    let facts = sites
+                        .as_ref()
+                        .map_err(|e| failure("Nothing single sites", e))
+                        .and_then(|s| {
+                            let d = typed
+                                .map_iteration(s.statement)
+                                .ok_or_else(|| failure("Nothing single descriptor", s.statement))?;
+                            let p = owned.map_iteration(s.statement).ok_or_else(|| {
+                                failure("Nothing single acquired plan", s.statement)
+                            })?;
+                            let call = typed
+                                .call(s.error)
+                                .ok_or_else(|| failure("Nothing single typed Call", s.error))?;
+                            println!(
+                                "D10 NOTHING SINGLE descriptor={d:#?} plan={p:#?} call={call:#?}"
+                            );
+                            need(
+                                d.source() == s.source
+                                    && p.descriptor() == d
+                                    && p.source_access()
+                                        == ownership::MapIterationSourceAccess::Temporary
+                                    && call.aborts()
+                                    && typed.expression_type(s.error) == Some(call.return_type())
+                                    && typed.types().get(call.return_type())
+                                        == Some(&types::TypeKind::Builtin(
+                                            types::BuiltinType::Nothing,
+                                        ))
+                                    && p.exits().len() == 1
+                                    && p.exits()[0].kind()
+                                        == ownership::IterationExitKind::Exhaustion
+                                    && p.exits()[0].point()
+                                        == ownership::DropPoint::LoopExit(s.statement),
+                                "Nothing single real abort Call/acquired exhaustive exit set",
+                                (d, p, call),
+                            )
+                        });
+                    r.query("Nothing single typed Call/Acquire/exits", &facts);
+                },
+            )
+        }?;
+        let shape = sites
+            .as_ref()
+            .map_err(|e| failure("Nothing SSA sites", e))
+            .and_then(|s| nothing_ssa(&sources, s, &program, entry));
+        report.query(
+            "Nothing actual acquired main/Abort/no body backedge",
+            &shape,
+        );
+        crate::ssa::verify::verify_program(&program).map_err(|e| verify_failure(&sources, e))?;
+        report.check("Nothing original SSA verifier", true, entry);
+        let llvm = crate::llvm::render_verified_program(&program)
+            .map_err(|e| failure("Nothing LLVM render/verify", e))?;
+        report.check("Nothing original LLVM render/verify", true, llvm.len());
+        Ok(())
+    })();
+    Observation {
+        unit,
+        report,
+        outcome,
+    }
+}
+
+#[test]
+fn temporary_body_nothing_reaches_verified_llvm_without_execution() {
+    let observations = [observe_body_nothing(false), observe_body_nothing(true)];
+    for observation in &observations {
+        println!(
+            "D10 NOTHING OUTCOME unit={} report={:#?} outcome={:?}",
+            observation.unit, observation.report, observation.outcome
+        );
+    }
+    assert!(
+        observations
+            .iter()
+            .all(|o| o.report.passed() && o.outcome.is_ok()),
+        "真实Nothing body两fresh必须完成FE/sealed/SSA/LLVM；只构建IR，不执行Abort/native。\n{observations:#?}"
     );
 }
