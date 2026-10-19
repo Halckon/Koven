@@ -19,7 +19,7 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, resolve_concrete_type};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    carry::{self, CaptureLoan, IncomingColumns, Temporary},
+    carry::{self, CaptureLoan, IncomingColumns, SourceSlot, Temporary, TypeAtMiss},
     model::{
         BlockId, Edge, EntityId, EntityType, LoanId, Operation, Origin, TerminatorKind, ValueId,
     },
@@ -104,14 +104,9 @@ impl UnitExpressionLowerer<'_> {
                 .entity(EntityId::Value(source))
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            carried.push(CarriedBinding {
-                symbol: Some(*symbol),
-                receiver: None,
-                source,
-                ty,
-                pending: Vec::new(),
-                temporaries: Vec::new(),
-            });
+            let mut slot = CarriedBinding::empty(source, ty);
+            slot.symbol = Some(*symbol);
+            carry::seed_slot(&mut carried, slot);
         }
         if let Some(receiver) = self.current_receiver
             && let EntityId::Value(source) = receiver.entity
@@ -121,14 +116,9 @@ impl UnitExpressionLowerer<'_> {
                 .entity(receiver.entity)
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            carried.push(CarriedBinding {
-                symbol: None,
-                receiver: Some(receiver),
-                source,
-                ty,
-                pending: Vec::new(),
-                temporaries: Vec::new(),
-            });
+            let mut slot = CarriedBinding::empty(source, ty);
+            slot.receiver = Some(receiver);
+            carry::seed_slot(&mut carried, slot);
         }
         Ok(carried)
     }
@@ -138,27 +128,17 @@ impl UnitExpressionLowerer<'_> {
         loans: &BTreeMap<UnitSymbolId, LoanId>,
         span: Span,
     ) -> Result<Vec<CarriedAccess>, LoweringError> {
-        let mut carried = loans
-            .iter()
-            .map(|(symbol, source)| {
-                let ty = self
-                    .function
-                    .entity(EntityId::Loan(*source))
-                    .map(|entity| entity.ty)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                Ok(CarriedAccess {
-                    nullable_proofs: Vec::new(),
-                    nullable_children: Vec::new(),
-                    range_sources: Vec::new(),
-                    captures: Vec::new(),
-                    symbol: Some(*symbol),
-                    receiver: None,
-                    source: EntityId::Loan(*source),
-                    ty,
-                    pending: Vec::new(),
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let mut carried = Vec::new();
+        for (&symbol, &source) in loans {
+            let ty = self
+                .function
+                .entity(EntityId::Loan(source))
+                .map(|entity| entity.ty)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
+            let mut slot = CarriedAccess::empty(EntityId::Loan(source), ty);
+            slot.symbol = Some(symbol);
+            carry::seed_slot(&mut carried, slot);
+        }
         if let Some(receiver) = self.current_receiver
             && let EntityId::Loan(source) = receiver.entity
         {
@@ -167,17 +147,9 @@ impl UnitExpressionLowerer<'_> {
                 .entity(receiver.entity)
                 .map(|entity| entity.ty)
                 .ok_or_else(|| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-            carried.push(CarriedAccess {
-                nullable_proofs: Vec::new(),
-                nullable_children: Vec::new(),
-                range_sources: Vec::new(),
-                captures: Vec::new(),
-                symbol: None,
-                receiver: Some(receiver),
-                source: EntityId::Loan(source),
-                ty,
-                pending: Vec::new(),
-            });
+            let mut slot = CarriedAccess::empty(EntityId::Loan(source), ty);
+            slot.receiver = Some(receiver);
+            carry::seed_slot(&mut carried, slot);
         }
         carry::collect_aliases::<CaptureLoan, _, _>(
             self.function,
@@ -205,35 +177,24 @@ impl UnitExpressionLowerer<'_> {
                 .ty;
             match entity {
                 EntityId::Value(source) => {
-                    if let Some(slot) = bindings.iter_mut().find(|slot| slot.source == source) {
-                        slot.pending.push(index);
-                    } else {
-                        bindings.push(CarriedBinding {
-                            symbol: None,
-                            receiver: None,
-                            source,
-                            ty,
-                            pending: vec![index],
-                            temporaries: Vec::new(),
-                        });
-                    }
+                    let choice = carry::associate_source(
+                        self.function,
+                        bindings,
+                        source,
+                        TypeAtMiss::Known(ty),
+                        lowering_error(LoweringErrorKind::InvalidModel, span),
+                    )?;
+                    bindings[choice.column().index()].pending.push(index);
                 }
                 EntityId::Loan(_) | EntityId::Place(_) => {
-                    if let Some(slot) = loans.iter_mut().find(|slot| slot.source == entity) {
-                        slot.pending.push(index);
-                    } else {
-                        loans.push(CarriedAccess {
-                            nullable_proofs: Vec::new(),
-                            nullable_children: Vec::new(),
-                            range_sources: Vec::new(),
-                            captures: Vec::new(),
-                            symbol: None,
-                            receiver: None,
-                            source: entity,
-                            ty,
-                            pending: vec![index],
-                        });
-                    }
+                    let choice = carry::associate_source(
+                        self.function,
+                        loans,
+                        entity,
+                        TypeAtMiss::Known(ty),
+                        lowering_error(LoweringErrorKind::InvalidModel, span),
+                    )?;
+                    loans[choice.column().index()].pending.push(index);
                 }
             }
         }
@@ -285,7 +246,9 @@ impl UnitExpressionLowerer<'_> {
                 snapshots.push(snapshot);
             }
         }
-        bindings.extend(snapshots);
+        for snapshot in snapshots {
+            carry::seed_slot(bindings, snapshot);
+        }
         Ok(())
     }
 

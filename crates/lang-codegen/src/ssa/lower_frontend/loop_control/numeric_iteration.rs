@@ -79,9 +79,10 @@ impl ExpressionLowerer<'_> {
                     .entity(source)
                     .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
                     .ty;
-                carried
-                    .slots
-                    .push(LinearBindingSlot::new(Some(symbol), source, ty));
+                crate::ssa::carry::seed_slot(
+                    &mut carried.slots,
+                    LinearBindingSlot::new(Some(symbol), source, ty),
+                );
             }
         }
         let mut body_types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();

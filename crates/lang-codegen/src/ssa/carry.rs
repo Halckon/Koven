@@ -1,13 +1,19 @@
 //! Ordered aliases share a physical carry column and its current typed entity.
 mod columns;
+mod source_columns;
 
-pub(in crate::ssa) use columns::{IncomingColumns, IncomingRole, record_type};
+pub(in crate::ssa) use columns::{
+    ColumnId, ColumnMatch, IncomingColumns, IncomingRole, record_type,
+};
+pub(in crate::ssa) use source_columns::{
+    SourceSlot, TypeAtMiss, associate_source, require_column_type, seed_slot,
+};
 
 use std::collections::BTreeMap;
 
 use super::{
     lowering_support::LoweringError,
-    model::{EntityId, EntityType, Function, LoanId, ValueId},
+    model::{EntityId, Function, LoanId, ValueId},
 };
 
 /// Fixed storage roles only; callers retain validation and role scheduling.
@@ -46,10 +52,9 @@ impl AliasRole for ResultSourceLoan {
 }
 
 /// Storage projections only; the shared algorithm owns lookup, append and alias fan-out.
-pub(in crate::ssa) trait AliasSlot<R: AliasRole, K> {
-    fn source(&self) -> EntityId;
+pub(in crate::ssa) trait AliasSlot<R: AliasRole, K>: SourceSlot {
+    fn alias_source(source: R::Id) -> Self::Source;
     fn keys_mut(&mut self) -> &mut Vec<K>;
-    fn from_alias(source: R::Id, ty: EntityType) -> Self;
 }
 
 pub(in crate::ssa) fn collect_aliases<R: AliasRole, K: Copy + Ord, S: AliasSlot<R, K>>(
@@ -59,16 +64,14 @@ pub(in crate::ssa) fn collect_aliases<R: AliasRole, K: Copy + Ord, S: AliasSlot<
     missing: LoweringError,
 ) -> Result<(), LoweringError> {
     for (key, id) in aliases {
-        let source = R::entity(id);
-        // Keep seed columns and reuse only the first match; a hit never queries its type.
-        if let Some(slot) = slots.iter_mut().find(|slot| slot.source() == source) {
-            slot.keys_mut().push(key);
-        } else {
-            let ty = function.entity(source).ok_or(missing)?.ty;
-            let mut slot = S::from_alias(id, ty);
-            slot.keys_mut().push(key);
-            slots.push(slot);
-        }
+        let choice = associate_source(
+            function,
+            slots,
+            S::alias_source(id),
+            TypeAtMiss::Query,
+            missing,
+        )?;
+        slots[choice.column().index()].keys_mut().push(key);
     }
     Ok(())
 }

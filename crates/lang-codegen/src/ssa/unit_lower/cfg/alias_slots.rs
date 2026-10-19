@@ -6,20 +6,28 @@ use super::{
     lowering_error,
 };
 use crate::ssa::{
-    carry::{AliasSlot, CaptureLoan, IncomingRole, ResultSourceLoan, Temporary},
+    carry::{
+        AliasRole, AliasSlot, CaptureLoan, IncomingRole, ResultSourceLoan, SourceSlot, Temporary,
+    },
     model::{EntityId, EntityType, LoanId, ValueId},
 };
 
-impl AliasSlot<Temporary, UnitExpressionId> for CarriedBinding {
-    fn source(&self) -> EntityId {
-        EntityId::Value(self.source)
+impl SourceSlot for CarriedBinding {
+    type Source = ValueId;
+
+    fn source(&self) -> ValueId {
+        self.source
     }
 
-    fn keys_mut(&mut self) -> &mut Vec<UnitExpressionId> {
-        &mut self.temporaries
+    fn entity(source: ValueId) -> EntityId {
+        EntityId::Value(source)
     }
 
-    fn from_alias(source: ValueId, ty: EntityType) -> Self {
+    fn ty(&self) -> EntityType {
+        self.ty
+    }
+
+    fn empty(source: ValueId, ty: EntityType) -> Self {
         Self {
             symbol: None,
             receiver: None,
@@ -31,16 +39,22 @@ impl AliasSlot<Temporary, UnitExpressionId> for CarriedBinding {
     }
 }
 
-impl AliasSlot<CaptureLoan, (UnitExpressionId, usize)> for CarriedAccess {
+impl SourceSlot for CarriedAccess {
+    type Source = EntityId;
+
     fn source(&self) -> EntityId {
         self.source
     }
 
-    fn keys_mut(&mut self) -> &mut Vec<(UnitExpressionId, usize)> {
-        &mut self.captures
+    fn entity(source: EntityId) -> EntityId {
+        source
     }
 
-    fn from_alias(source: LoanId, ty: EntityType) -> Self {
+    fn ty(&self) -> EntityType {
+        self.ty
+    }
+
+    fn empty(source: EntityId, ty: EntityType) -> Self {
         Self {
             nullable_proofs: Vec::new(),
             nullable_children: Vec::new(),
@@ -48,34 +62,40 @@ impl AliasSlot<CaptureLoan, (UnitExpressionId, usize)> for CarriedAccess {
             captures: Vec::new(),
             symbol: None,
             receiver: None,
-            source: EntityId::Loan(source),
+            source,
             ty,
             pending: Vec::new(),
         }
     }
 }
 
+impl AliasSlot<Temporary, UnitExpressionId> for CarriedBinding {
+    fn alias_source(source: ValueId) -> ValueId {
+        source
+    }
+
+    fn keys_mut(&mut self) -> &mut Vec<UnitExpressionId> {
+        &mut self.temporaries
+    }
+}
+
+impl AliasSlot<CaptureLoan, (UnitExpressionId, usize)> for CarriedAccess {
+    fn alias_source(source: LoanId) -> EntityId {
+        CaptureLoan::entity(source)
+    }
+
+    fn keys_mut(&mut self) -> &mut Vec<(UnitExpressionId, usize)> {
+        &mut self.captures
+    }
+}
+
 impl AliasSlot<ResultSourceLoan, (UnitSymbolId, usize)> for CarriedAccess {
-    fn source(&self) -> EntityId {
-        self.source
+    fn alias_source(source: LoanId) -> EntityId {
+        ResultSourceLoan::entity(source)
     }
 
     fn keys_mut(&mut self) -> &mut Vec<(UnitSymbolId, usize)> {
         &mut self.range_sources
-    }
-
-    fn from_alias(source: LoanId, ty: EntityType) -> Self {
-        Self {
-            nullable_proofs: Vec::new(),
-            nullable_children: Vec::new(),
-            range_sources: Vec::new(),
-            captures: Vec::new(),
-            symbol: None,
-            receiver: None,
-            source: EntityId::Loan(source),
-            ty,
-            pending: Vec::new(),
-        }
     }
 }
 

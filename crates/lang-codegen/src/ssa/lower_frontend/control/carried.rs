@@ -1,47 +1,57 @@
 //! Construct and restore explicit linear CFG storage slots.
 use super::*;
-use crate::ssa::carry::{self, AliasSlot, CaptureLoan, ResultSourceLoan, Temporary};
+use crate::ssa::carry::{
+    self, AliasRole, AliasSlot, CaptureLoan, ResultSourceLoan, SourceSlot, Temporary, TypeAtMiss,
+};
 use crate::ssa::model::LoanId;
 
-impl AliasSlot<Temporary, usize> for LinearBindingSlot {
+impl SourceSlot for LinearBindingSlot {
+    type Source = EntityId;
+
     fn source(&self) -> EntityId {
         self.source
+    }
+
+    fn entity(source: EntityId) -> EntityId {
+        source
+    }
+
+    fn ty(&self) -> EntityType {
+        self.ty
+    }
+
+    fn empty(source: EntityId, ty: EntityType) -> Self {
+        Self::new(None, source, ty)
+    }
+}
+
+impl AliasSlot<Temporary, usize> for LinearBindingSlot {
+    fn alias_source(source: ValueId) -> EntityId {
+        Temporary::entity(source)
     }
 
     fn keys_mut(&mut self) -> &mut Vec<usize> {
         &mut self.temporaries
     }
-
-    fn from_alias(source: ValueId, ty: EntityType) -> Self {
-        Self::new(None, EntityId::Value(source), ty)
-    }
 }
 
 impl AliasSlot<CaptureLoan, (usize, usize)> for LinearBindingSlot {
-    fn source(&self) -> EntityId {
-        self.source
+    fn alias_source(source: LoanId) -> EntityId {
+        CaptureLoan::entity(source)
     }
 
     fn keys_mut(&mut self) -> &mut Vec<(usize, usize)> {
         &mut self.captures
     }
-
-    fn from_alias(source: LoanId, ty: EntityType) -> Self {
-        Self::new(None, EntityId::Loan(source), ty)
-    }
 }
 
 impl AliasSlot<ResultSourceLoan, (SymbolId, usize)> for LinearBindingSlot {
-    fn source(&self) -> EntityId {
-        self.source
+    fn alias_source(source: LoanId) -> EntityId {
+        ResultSourceLoan::entity(source)
     }
 
     fn keys_mut(&mut self) -> &mut Vec<(SymbolId, usize)> {
         &mut self.result_sources
-    }
-
-    fn from_alias(source: LoanId, ty: EntityType) -> Self {
-        Self::new(None, EntityId::Loan(source), ty)
     }
 }
 
@@ -74,11 +84,10 @@ impl ExpressionLowerer<'_> {
             if !matches!(ty, EntityType::Value(_)) {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
             }
-            carried.push(LinearBindingSlot::new(
-                Some(symbol),
-                EntityId::Value(source),
-                ty,
-            ));
+            carry::seed_slot(
+                &mut carried,
+                LinearBindingSlot::new(Some(symbol), EntityId::Value(source), ty),
+            );
         }
         carry::collect_aliases::<Temporary, _, _>(
             self.function,
@@ -91,18 +100,14 @@ impl ExpressionLowerer<'_> {
                 continue;
             };
             let source = EntityId::Loan(loan);
-            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                slot.loans.push(key);
-            } else {
-                let ty = self
-                    .function
-                    .entity(source)
-                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
-                    .ty;
-                let mut slot = LinearBindingSlot::new(None, source, ty);
-                slot.loans.push(key);
-                carried.push(slot);
-            }
+            let choice = carry::associate_source(
+                self.function,
+                &mut carried,
+                source,
+                TypeAtMiss::Query,
+                error(LoweringErrorKind::InvalidModel, span),
+            )?;
+            carried[choice.column().index()].loans.push(key);
         }
         carry::collect_aliases::<CaptureLoan, _, _>(
             self.function,
@@ -113,36 +118,28 @@ impl ExpressionLowerer<'_> {
         for (&symbol, &proof) in &self.non_null_bindings {
             self.validate_non_null_proof(symbol, proof, bindings, span)?;
             let source = EntityId::Loan(proof.loan);
-            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                slot.views.push((symbol, proof));
-            } else {
-                let ty = self
-                    .function
-                    .entity(source)
-                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
-                    .ty;
-                let mut slot = LinearBindingSlot::new(None, source, ty);
-                slot.views.push((symbol, proof));
-                carried.push(slot);
-            }
+            let choice = carry::associate_source(
+                self.function,
+                &mut carried,
+                source,
+                TypeAtMiss::Query,
+                error(LoweringErrorKind::InvalidModel, span),
+            )?;
+            carried[choice.column().index()].views.push((symbol, proof));
         }
         for (&symbol, &loan) in &self.borrow_bindings {
             if self.is_entry_loan(loan) {
                 continue;
             }
             let source = EntityId::Loan(loan);
-            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                slot.borrow_symbols.push(symbol);
-            } else {
-                let ty = self
-                    .function
-                    .entity(source)
-                    .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
-                    .ty;
-                let mut slot = LinearBindingSlot::new(None, source, ty);
-                slot.borrow_symbols.push(symbol);
-                carried.push(slot);
-            }
+            let choice = carry::associate_source(
+                self.function,
+                &mut carried,
+                source,
+                TypeAtMiss::Query,
+                error(LoweringErrorKind::InvalidModel, span),
+            )?;
+            carried[choice.column().index()].borrow_symbols.push(symbol);
         }
         carry::collect_aliases::<ResultSourceLoan, _, _>(
             self.function,
@@ -158,34 +155,26 @@ impl ExpressionLowerer<'_> {
             let body_source_loan = for_data.body_source;
             if !self.is_entry_loan(body_source_loan) {
                 let source = EntityId::Loan(body_source_loan);
-                if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                    slot.for_sources.push(stmt);
-                } else {
-                    let ty = self
-                        .function
-                        .entity(source)
-                        .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
-                        .ty;
-                    let mut slot = LinearBindingSlot::new(None, source, ty);
-                    slot.for_sources.push(stmt);
-                    carried.push(slot);
-                }
+                let choice = carry::associate_source(
+                    self.function,
+                    &mut carried,
+                    source,
+                    TypeAtMiss::Query,
+                    error(LoweringErrorKind::InvalidModel, span),
+                )?;
+                carried[choice.column().index()].for_sources.push(stmt);
             }
             let element_loan = for_data.guarded_element.loan();
             if !self.is_entry_loan(element_loan) {
                 let source = EntityId::Loan(element_loan);
-                if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                    slot.for_elements.push(stmt);
-                } else {
-                    let ty = self
-                        .function
-                        .entity(source)
-                        .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
-                        .ty;
-                    let mut slot = LinearBindingSlot::new(None, source, ty);
-                    slot.for_elements.push(stmt);
-                    carried.push(slot);
-                }
+                let choice = carry::associate_source(
+                    self.function,
+                    &mut carried,
+                    source,
+                    TypeAtMiss::Query,
+                    error(LoweringErrorKind::InvalidModel, span),
+                )?;
+                carried[choice.column().index()].for_elements.push(stmt);
             }
         }
         let map_paths = self.map_path_snapshots();

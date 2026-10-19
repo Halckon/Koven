@@ -115,33 +115,24 @@ impl UnitExpressionLowerer<'_> {
         self.validate_nullable_proofs(&self.bindings, &self.nullable_proofs, span)?;
         for (&root, &proof) in &self.nullable_proofs {
             let source = EntityId::Loan(proof.loan);
-            if let Some(slot) = carried.iter_mut().find(|slot| slot.source == source) {
-                // Share the physical entity slot, never collapse distinct root/scope roles.
-                slot.nullable_proofs.push(CarriedNullableProof {
+            let choice = carry::associate_source(
+                self.function,
+                carried,
+                source,
+                TypeAtMiss::Known(EntityType::Loan {
+                    kind: crate::ssa::model::LoanKind::Shared,
+                    target: proof.inner,
+                }),
+                lowering_error(LoweringErrorKind::MissingFact, span),
+            )?;
+            // Share the physical entity slot, never collapse distinct root/scope roles.
+            carried[choice.column().index()]
+                .nullable_proofs
+                .push(CarriedNullableProof {
                     root,
                     proof,
                     owner_column: None,
                 });
-            } else {
-                carried.push(CarriedAccess {
-                    nullable_children: Vec::new(),
-                    nullable_proofs: vec![CarriedNullableProof {
-                        root,
-                        proof,
-                        owner_column: None,
-                    }],
-                    range_sources: Vec::new(),
-                    captures: Vec::new(),
-                    symbol: None,
-                    receiver: None,
-                    source,
-                    ty: EntityType::Loan {
-                        kind: crate::ssa::model::LoanKind::Shared,
-                        target: proof.inner,
-                    },
-                    pending: Vec::new(),
-                });
-            }
         }
         Ok(())
     }

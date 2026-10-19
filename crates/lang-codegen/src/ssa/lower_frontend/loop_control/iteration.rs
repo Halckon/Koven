@@ -161,9 +161,10 @@ impl ExpressionLowerer<'_> {
                         .entity(source_ent)
                         .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
                         .ty;
-                    carried
-                        .slots
-                        .push(LinearBindingSlot::new(Some(symbol), source_ent, ty));
+                    crate::ssa::carry::seed_slot(
+                        &mut carried.slots,
+                        LinearBindingSlot::new(Some(symbol), source_ent, ty),
+                    );
                 }
                 LoweredValue::Diverged => return Err(error(LoweringErrorKind::MissingFact, span)),
             }

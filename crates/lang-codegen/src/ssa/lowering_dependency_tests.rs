@@ -449,6 +449,7 @@ fn production_lowering_dependencies_remain_directional() {
         "unit_plan.rs",
         "carry.rs",
         "carry/columns.rs",
+        "carry/source_columns.rs",
         "constant_materialization.rs",
         "expression_core.rs",
         "expression_core/checked.rs",

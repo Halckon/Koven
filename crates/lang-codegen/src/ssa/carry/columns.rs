@@ -8,6 +8,10 @@ use crate::ssa::{
 pub(in crate::ssa) struct ColumnId(usize);
 
 impl ColumnId {
+    pub(super) fn from_index(index: usize) -> Self {
+        Self(index)
+    }
+
     pub(in crate::ssa) fn index(self) -> usize {
         self.0
     }
@@ -20,7 +24,7 @@ pub(in crate::ssa) enum ColumnMatch {
 }
 
 impl ColumnMatch {
-    fn column(self) -> ColumnId {
+    pub(in crate::ssa) fn column(self) -> ColumnId {
         match self {
             Self::Added(column) | Self::Reused(column) => column,
         }

@@ -314,22 +314,17 @@ impl ExpressionLowerer<'_> {
         let baseline = self.bindings.clone();
         let mut carried = self.linear_binding_slots(&baseline, span)?;
         // Copyable nullable subjects also need a parameter for the proof owner.
-        if !carried
-            .slots
-            .iter()
-            .any(|slot| slot.source == EntityId::Value(owner))
-        {
-            carried.slots.push(LinearBindingSlot::new(
-                Some(symbol),
-                EntityId::Value(owner),
-                EntityType::Value(nullable),
-            ));
+        let choice = carry::associate_source(
+            self.function,
+            &mut carried.slots,
+            EntityId::Value(owner),
+            carry::TypeAtMiss::Known(EntityType::Value(nullable)),
+            error(LoweringErrorKind::MissingFact, span),
+        )?;
+        if let carry::ColumnMatch::Added(column) = choice {
+            carried.slots[column.index()].symbol = Some(symbol);
         }
-        let owner_slot = carried
-            .slots
-            .iter()
-            .position(|slot| slot.source == EntityId::Value(owner))
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let owner_slot = choice.column().index();
         let branch_types = |proven| {
             let mut types: Vec<_> = carried.slots.iter().map(|slot| slot.ty).collect();
             if proven {

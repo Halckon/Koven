@@ -315,23 +315,24 @@ impl ExpressionLowerer<'_> {
                 .entity(entity)
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
                 .ty;
-            carried
-                .slots
-                .push(LinearBindingSlot::new(Some(binding), entity, ty));
+            crate::ssa::carry::seed_slot(
+                &mut carried.slots,
+                LinearBindingSlot::new(Some(binding), entity, ty),
+            );
         }
         // An entry Borrow source has a real caller column too. Reuse ordinary
         // bindings so all later providers see the transported current root loan.
         if let (SourceIdentity::Parameter(symbol), EntityId::Loan(loan)) = (source_identity, seed) {
             let entity = EntityId::Loan(loan);
-            if !carried.slots.iter().any(|slot| slot.source == entity) {
-                let ty = self
-                    .function
-                    .entity(entity)
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-                    .ty;
-                let mut slot = LinearBindingSlot::new(None, entity, ty);
-                slot.borrow_symbols.push(symbol);
-                carried.slots.push(slot);
+            let choice = crate::ssa::carry::associate_source(
+                self.function,
+                &mut carried.slots,
+                entity,
+                crate::ssa::carry::TypeAtMiss::Query,
+                error(LoweringErrorKind::MissingFact, span),
+            )?;
+            if let crate::ssa::carry::ColumnMatch::Added(column) = choice {
+                carried.slots[column.index()].borrow_symbols.push(symbol);
             }
         }
         let source_slot = carried.slots.len();
