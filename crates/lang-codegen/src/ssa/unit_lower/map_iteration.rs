@@ -48,13 +48,6 @@ pub(super) struct QualifiedNested {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) struct QualifiedGuard {
-    pub(super) symbol: UnitSymbolId,
-    pub(super) initializer: UnitExpressionId,
-    pub(super) origin: Span,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct QualifiedConditional {
     pub(super) statement: UnitStatementId,
     pub(super) body: UnitStatementId,
