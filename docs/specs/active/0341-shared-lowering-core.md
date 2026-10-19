@@ -1,110 +1,98 @@
-# SPEC-0341: D10 共享 lowering 核心与薄入口适配
+# SPEC-0341: D10 统一 compilation-unit 检查与代码生成管线
 
-> **性质**：分阶段实施合同 · **状态**：in-progress · **读取时机**：实施或验收 single/unit lowering 收敛时 · **唯一真源**：本片目标、边界与验收；语言语义以 Guide 为准
+> **性质**：分阶段实施合同 · **状态**：in-progress · **读取时机**：实施或验收单文件与 project 管线统一时 · **唯一真源**：本片目标、边界与验收；语言语义以 Guide 为准
 
 | 字段 | 值 |
 |---|---|
 | 状态 | in-progress |
 | Goal ID | `KOV-P4-0341` |
-| 所属 Phase | Phase 4；消费已验证 frontend facts，不重推语言语义 |
-| 语言规范 | 现行 [Guide v0.44](../../guide/README.md)、[阶段交接](../../guide/15-conformance-and-staging.md#phase-边界)与[常量交接](../../guide/05-declarations-callables.md#36-无运行时存储的关联常量与封闭求值) |
-| 批准依据 | 用户要求“先合并两条管线、改用通用的代码生成”及“完成F收尾且合并后，后续D10任务交回给云端执行”；本页落实该方向，不称用户已逐条审定本文 |
-| 基线 | main `c0c5156a5f28d206b5a87986173f2bbf5bae6611`，tree `cd1041238c466546aa5463b959cee0a2fb3a02d7`；分支 `feature/spec-0341-shared-lowering-core` |
-| 前置 Spec | [SPEC-0255](../../archive/specs/0255-neutral-lowering-support.md)、[SPEC-0331](../../archive/specs/0331-map-borrowed-iteration.md)已归档且代码在上述 main；不继承旧头测试结论 |
-| 前置 ADR | 无；后续若引入新的长期状态协议或改变既有架构决定，先独立 ADR |
-| 影响范围 | `lang-codegen::ssa` 的共享 lowering、single/unit 入口、直接测试及当前事实文档 |
-| 语言语义变更 | 否 |
+| 所属 Phase | driver 与 Phase 2–4 接线；各阶段消费真实同轮产物，不重推或伪造事实 |
+| 语言规范 | 现行 [Guide v0.45](../../guide/README.md)、[单文件 Unit](../../guide/02-names-files-packages.md#单文件输入与共同名称解析)与[一致性边界](../../guide/15-conformance-and-staging.md#v045-启用边界) |
+| 批准依据 | 2026-10-19 用户明确 D10 终态为单文件和 project 共用 compilation-unit 检查与代码生成；共享 lowering 核心只作迁移步骤；另批准 v0.45 import/root/入口规则与审后启用 |
+| 基线 | 原 main `c0c5156a5f28d206b5a87986173f2bbf5bae6611`；迁移实验使用 actual `91c53596c126f90745acee24d783739d7cc9dcc8`、tree `dbb6b85be5eb8906be0d2721c1f78c946df779ad`；仍在 `feature/spec-0341-shared-lowering-core` 范围，不另开 PR |
+| 前置 Spec | [SPEC-0255](../../archive/specs/0255-neutral-lowering-support.md)、[SPEC-0331](../../archive/specs/0331-map-borrowed-iteration.md)；旧验收不继承为本次迁移通过 |
+| 前置 ADR | [ADR-0031](../../adr/accepted/0031-single-file-compilation-unit-adapter.md)局部扩展单文件 root adapter；既有 unit、entry、标准源与 ABI 决定保持 |
+| 影响范围 | CLI 单文件/source-set/entry 适配、frontend 共同分析链、compilation-unit lowering、重复旧实现退役、直接测试及事实文档 |
+| 语言语义变更 | 仅用户批准并在 Guide v0.45 启用的 import/root/阶段一致性边界；其余语义不变 |
 
 ## 1. Goal
 
-将 single 与 unit 已实现的共同 lowering 责任收敛到共享核心，入口仅保留输入、来源、能力与
-必要的差异适配；共同语义决策与构造算法不再各维护一份。按领域逐片替换并可独立回退，
-保留当前成功、拒绝、诊断和资源合同。仅抽出常量映射不能关闭本 Spec 或宣称 D10 完成。
+D10 的终态是单文件和 project 共用 compilation-unit 名称、类型、所有权检查及代码生成
+管线；入口只承担真实 source-set、身份、entry 选择和诊断呈现适配。独立 single checker/
+`lower_frontend` 生产副本在能力与迁移验收完成后退役，不能把共同 helper 抽取当成终态。
+共同语义的生产解释与构造责任只有一份，不用万能 context、巨 trait 或回调隐藏双份算法。
 
-## 2. 基线与固定边界
+原审计 E2/E3 编号正文尚未定位，本 Spec 不自行替它们命名或宣布达标。统一路由与旧副本
+退役本身，也不能证明既有 Unit 中类型×控制流特化已达到通用 lowering 目标；该目标需与
+原审计正文另行对账。剩余共享抽取只按实际迁移需要进行，不延长旧 15 域或 carry B/C 清单。
 
-unit-basic 与 unit-const 已共用 `lower_unit_from_facts`，single 有独立 driver；它们是可选入口，
-不是每次编译依次运行的两套阶段。已有 error/String decoder、`CallableArena`、整数/Range
-纯映射、borrow-result helpers、运输证明与顺序 provider builder，不重复发明这些共享能力。
-provider builder 有状态，不把它或 ownership/CFG 状态机称作纯函数。
+## 2. 输入、兼容与不可退让边界
 
-| 责任 | 必须保留的差异 |
-|---|---|
-| 输入与身份 | single raw products 的校验次序；unit sealed basic/const view 的同轮来源证明；源码相同不代表分析相同 |
-| 来源与规划 | local 与 source-qualified ID；single 原根集合与 unit 显式 entry 可达规划；StaticSelf/deinit/callback key、recipe 与预算 |
-| validator | schema/diagnostics/deferred 与 backend capability 分层；单文件内校验和 unit factory 的阻断位置不互换 |
-| 诊断 | 错误 kind、来源与 Span、None span、多重失败的原优先级；不为配对成功修改拒绝边界 |
-| CFG 与 cleanup | 各自 bindings、pending frames、receiver、loan、Group alias、iteration 与条件 drop 事实；正常提交、提前退出与 Abort 分流 |
-| 已知能力差 | single 的 receiver/nullable factory 等原限制及 basic/const 分界；共享不表示支持面取并集 |
+- 源码集合、root、import 与标准环境只遵守 Guide 的唯一规则；单文件不扫描兄弟文件，
+  frontend 不读文件系统、不从 package 拼造路径。内建环境与标准源加载两模式相同，
+  不把环境等价解释为自动导入，不额外提供 Pair/Result；既有 s01/s02 继续 L0080，E4 独立。
+- 单文件 conventional main、显式零参数 `--entry`、private 可选及 argv 保留既有 driver
+  合同；project 的 qualified selector 与可见性保留。一旦选中同一声明，后续语义一致。
+- unit 的 sealed basic/const capability、同轮来源、DeclarationId、typed/ownership facts、
+  planner 预算、验证与失败原子性保持；不能用伪造事实或跳过 validator 令旧 single 通过。
+- 迁移既不假定 Unit 是能力超集，也不以能力交集作为终态。现有成功能力必须保全；Unit
+  enum UnsupportedNode 等真实回退先修复并验证，不能隐藏成 entry 差异或共同拒绝。
+- schema、语言诊断、backend capability 和内部 InvalidSsa 分层；错误 kind、Span、label、
+  顺序与操作错误必须单独核验，不能以布尔接受性掩盖诊断回退。内部 ID 不作跨轮裸值比较。
+- owner/loan/pending/receiver/Group alias、drop、正常及提前退出/Abort 运输以真实事实证明；
+  保留末端 verifier。普通 native 成功不能替代释放次数、无泄漏或来源身份的资源证据。
 
-两入口保留末端 `verify_program`。不得以重新求值 initializer、推断 owner 或重新分析 AST
-替代缺失的 frontend fact；输出原子发布和宿主行为不在本片迁移范围。
+## 3. 迁移步骤与回退清单
 
-## 3. 分阶段实施
+1. **规范与证据固定。** 完成 v0.45 文档治理与独审，正式启用单独记账。以 actual91c 和
+   固定普通源码建立两模式差异表；22 个附件只作接线首证，扩展到全部经安全筛选的仓内
+   普通目标，不把缺源码的 144 项矩阵视为可复跑集合。
+2. **补齐真实回退。** 逐项选择已定位的普通失败，先保存原单文件成功与 Unit 红结果，
+   再做最小责任修复。当前至少追踪 enum payloadless/payload Unit UnsupportedNode、
+   附件普通程序的 Unit/SSA 缺口、诊断全文差异、import/root/标准源 driver 新合同。
+   不将合成损坏、故障注入、计数校准或 sanitizer 混入普通云端目标。
+3. **生产入口切换。** 由单文件 adapter 构造真实有限 unit，复用同一检查和 native 链；
+   保留 entry、来源和操作失败身份。切换以本页验收为门槛，不能用永久回退旧 checker/
+   lowerer 掩盖尚未统一的责任。
+4. **删除重复实现。** 在实际调用方迁移后移除独立 single checker/lowering 副本及无消费者
+   专用壳，保留有效普通回归；确认依赖方向与所有公开入口。旧共享 helper 仅在新链仍有
+   真实消费者时保留，不为满足旧计划继续制造层次。
+5. **交付审计。** 固定输入/环境与选中声明，审核管线唯一性、能力保全、诊断/运行结果和
+   资源证据，完成工程门及精确头双宿主 CI。通用 lowering 尚未对账的目标明确保持开放。
 
-每一阶段先列出具体生产责任、输入/输出、调用点及普通/CI-only 验收目标，再修改；同一时间
-只推进一个未完成步骤。后续阶段可以继续细分提交，不能通过改名、搬两份代码或删除验收来完成。
-
-1. **A：冻结责任与配对合同。** 以固定基线盘点常量/字面量、整数/Range、借用事实查询、
-   callable/实例、容器/provider、普通表达式/CFG、loan/drop 七类责任。逐项记已共享、待收敛
-   或真实差异，定位当前消费者与测试；source-order/同名 symbol/泛型/const/receiver/drop
-   配对按逻辑 source key、Span、definition→use、owner/loan 关系核验，不比较裸 TypeId。
-2. **B：常量纯映射首片。** 仅提取已验证 `ConstantMaterializationKind`、`&ConstValue` 与
-   `SsaTypeId` 到 `Result<Operation, LoweringErrorKind>` 的选择。保持 Boolean、Integer、Char
-   与 StringTemporary 四路及非法配对的 `MismatchedAnalysis`，不新增值、类型或接受能力。
-   两适配仍分别查 descriptor/plan、核完整身份、取得 span/type，再调用、append 和登记
-   temporary/drop；原顺序与 unit 常量 Group origin 规则不动。
-3. **C：事实查询与只读校验收敛。** 从 A 的待收敛清单逐个提取已证等价的责任；每片明确
-   原 local/source-qualified 查询及错误映射，先复用现有 helpers。只共享无入口状态的算法，
-   不把 Map proof、全套 validator 或来源身份压成宽 context。此阶段不能只清空候选表便称完成。
-4. **D：共同 lowering 核心与薄入口。** 按表达式操作、语句/控制转移、driver 骨架逐层
-   收敛，生产消费者经共享的事实消费/SSA 构造实现。CFG/cleanup 先建立两入口的语义接口
-   与状态角色映射，明确 owner、loan、pending、receiver、source/element 和退出动作，再抽取
-   等价状态算法；它们是后续必要收敛责任，不能永远排除。每个小片先独立设计 review，首片
-   不提前触及。入口保留上表身份、能力与来源适配，真实不等价的领域策略有明确边界；不能
-   用大量可选字段隐藏旧 driver。每域删除被取代副本、补依赖门禁，核全部已支持退出及资源
-   路径。未证等价的共同责任继续开放，不能强行让 single 包装 unit 或默默删能力。
-   从已验证输入事实、输出SSA与状态所有者推导单一职责边界，保持低耦合、高内聚；入口仅保真实身份、来源及必要能力差异，共同语义决策和构造算法只有一份，不以减行、巨trait、万能context或隐藏在回调内的重复算法作为收敛证据。
-5. **E：最终结构与行为审计。** 对 A 的全部条目核对唯一实现/消费者，真实差异逐项给出
-   必要性、源位置及固定回归。独立审查确认两入口已是薄适配、没有同一事实解释/构造算法的
-   双份生产实现；行为矩阵、资源证据、工程门与精确头双宿主 CI 齐备后才可关闭。
-
-B 通过时只记录“常量映射首片已验”，C/D/E 仍开放。若后续证明既定目标需要语言变更、
-新能力或新的长期合同，应停在该责任并提出独立决定，不将未完成项改写成完成的非目标。
+每片保持可独立审阅和回退。回退是恢复上一已验证提交与记录未完成缺口，不能静默更改
+源码集合、降低期望、删测试或切回双管线而仍称统一完成。新增长期协议另行 ADR。
 
 ## 4. 模块与依赖
 
-首片采用 SSA 同层私有模块，与 `integer_range::operation` 相同职责层；具体模块名由实现
-确定。它可以依赖 frontend 的已验证值类型、SSA model 及中立 error kind，不能依赖 driver、
-planner、LLVM 或宿主，也不读写 lowerer。没有必要时不增加 trait、crates、公开 capability 或依赖。
+driver 负责 source descriptor、受信任标准源授权、entry 选择与诊断输出；frontend 负责
+语言分析，codegen 只消费 validated facts。保持 unit→旧 single 禁边、support 不依赖 model
+的既有合同及 IR core 单向边界；实际新依赖进入现有生产扫描，不用模块改名逃出门禁。
+无需新的 crate、宽 trait 或公开 capability；确需新增 API 时先给直接 caller 与最窄可见度。
 
-不能将返回 `Operation` 的 helper 塞进 `lowering_support`：0255 的该层明确禁止 model。
-保留 unit→single 禁边、support 原边界及 IR core 不反向读取 adapter/support；扩展现有词法
-门禁覆盖新核心实际生产树，明确允许 model 的单向边，不用新模块逃出扫描。这仍是有界
-词法护栏，不声称完整 Rust 依赖图；新增合法边不能成为整个旧门禁的豁免。
+## 5. 非目标与历史计划
 
-## 5. 非目标
-
-- 不改变 Guide v0.44、公开输入能力、frontend 语义、LLVM ABI、标准库或 native 接受范围。
-- 不接入或关闭0291、0333–0340；它们的调用、ABI、owner、Never、实参和 nullable 缺口独立保留。
-- 不顺带修复0321或重排 append 与交付时点：single 按具体 MoveOnly ValueId 清别名，unit
-  消费精确 source-qualified ValueDelivery，两者不是可直接互换的状态更新算法。
-- 不以缩短文件、删除行数或一次运行耗时宣称性能收益，不要求两入口生成完全同形 SSA。
-- 不将 F 的未评估组合、既有 sanitizer partial 或其他阶段欠账转交 D10 处理或宣称关闭。
+- 不自动关闭 0291、0333–0340 或 E4，不新增批准范围之外的语言规则、标准包、prelude、ABI、并发或依赖系统。
+- 不以净行数、单次耗时或完全同形 SSA 证明结构/性能/语义；不把阶段接线当通用算法已达标。
+- §7 及 §9 起的历史实施与验收保留原义。其旧 A–E、carry B/C/D 未来任务安排由本次
+  §1–6 取代，不再作为必须继续抽取 helper 的承诺；已发生的成功、误选和失败不删除。
+- 本地 B2 `505eb20583457271a33401b12424fb455d86f87c` / tree
+  `c274c3e8d0c669baa15407cb1ac16d04e26b6f4e` 的 check exit101（E0282/E0283）冻结且未推送；
+  不修、不随文档发布，不能作为可用实验/迁移基线。文档安装须使用干净 actual91c 后继。
 
 ## 6. 验收标准
 
-- [ ] A 的有限责任清单、共同合同与真实差异均有生产位置和直接测试；没有仅按函数名判等价。
-- [x] B 四路值/字节/Char/SSA 类型映射保持，常量声明无运行时初始化；配对 String use 保留
-  独立 owner、原 Group origin、source 顺序与专用 const capability。
-- [ ] C/D 每片移除一份真正重复的生产责任，全部消费者调用共享实现；原 diagnostics、identity、
-  capability、planner roots、budget、verify 与失败原子性不变。
-- [ ] CFG/loan/drop 被触及的片逐条证明借用结束先于 drop、alias/owner 唯一消费、pending
-  实参与 receiver 运输、正常/return/break/continue/Abort 分流；未触及者不声称重新验收。
-- [ ] E 完整结构审计通过；薄适配与专用策略边界有依据，无开放共同责任被静默排除。
-- [ ] 对应普通 SSA/LLVM/native 正反例、完整 stdout/exit/stderr 与必要资源身份分别核验；
-  普通 native 成功不证明无泄漏，静态 verifier 与动态资源证据不可相互替代。
-- [ ] 工程门、独立审查及精确交付头双宿主 CI 通过；Architecture 只记录实际落地的阶段。
+- [ ] v0.45 审查、全文保全与治理门通过，正式启用收据和实现进度分开记录。
+- [ ] 单文件与 project 的生产调用链共用 compilation-unit 检查及代码生成；独立 single
+  checker/`lower_frontend` 重复实现退役，真实适配逐项有来源及必要性。
+- [ ] 固定且持续扩展的普通源码集合、环境与 entry 映射可追溯；两模式不一致数和
+  InvalidSsa 数均为 0，原成功能力无回退。不能靠两边拒绝、删样例、筛除失败或重写目标凑零。
+- [ ] import/root/标准加载及 entry 兼容普通正负例通过；诊断 kind/message/Span/label/order
+  和阶段差异有明确核对。选中同一声明后无按模式分叉的语义解释。
+- [ ] SSA/verifier、LLVM/native stdout/exit/stderr 与必要 owner/loan/drop 资源证据分别通过；
+  不把基本 validated capability 自动升级为 const 或其他新增能力。
+- [ ] 工程门、独立审查和精确交付头双宿主 CI 通过；Architecture 只更新实际已实现事实。
+- [ ] 原审计的通用 lowering 目标已定位并独立对账；无证据时保持开放，不借统一路由宣称完成。
 
 ## 7. 验证账本与执行边界
 
@@ -149,10 +137,9 @@ A0 实际命令为 `cargo test --locked --offline -p lang-codegen --lib <exact> 
 
 ## 8. 提交与收尾
 
-在上述专属分支内完成合同、生产片和直接验收，每个提交只属于 SPEC-0341，保持可构建、
-可验证；建议按“冻结合同”“共享常量映射”“逐域核心收敛”“最终审计”划界。首片提交后
-Spec 继续 in-progress，不归档为 done。完整验收后同步状态/路径、库存、索引与依赖图，
-再按仓库 PR/CI/合并要求闭环；发布和合并按用户当前授权执行。
+继续在现有 SPEC-0341 分支/PR 范围内提交，文档启用、每项回退修复、入口切换和重复实现
+退役分别保留可审提交与实际收据。文档不得携带冻结 B2 失败生产树；每片只宣称真实执行的
+验收。完整目标与门槛未满足时保持 in-progress，不归档 D10；交付/发布按用户最新授权。
 
 ## 9. B 首片实际验收（2026-10-19）
 
@@ -425,3 +412,31 @@ single普通loop slot仅views全量复核而unit另查所有alias/type，列为�
 - 68唯一ordinary严格原67加上述snapshot，逐项各1 passed/0 failed/0 ignored/exit0，首编1m34s；原42合流关系、4 proof产品、6 temporary观察、closure及8 native exact共40正常产物保持。原helper完整安全分类不变，实际生产依赖扫描第10项通过；CI-only缺事实/坏依赖/非法SSA/注入与校准未在本地运行。3263 tracked输入及工具绑定稳定，正式清单`b2c138bd`、结果`efea4013`、两全文比较`1fbfe2ec/9b769683`已独审。
 - 有限all-targets check44.94s/0无warning，fmt0、Clippy1m01s/0，尺寸`--base fabe96b6`为1844手写Rust/历史38超限通过、无新增例外；文档713份与diff检查通过。原日志/全文仅仓外保留，后继docs头不冒称重跑。前片carry-A精确远端CI与三包只读审计已在§24更新，不借给本B1新头。
 - 本片仅关闭单前沿首source关联的重复责任；普通恢复投影及其共享fan-out接线仍归B2，既有平面/indexed写回核心继续复用，dense连续性只有unit一份时保留真实状态所有者，不把搬helper称删除重复。C的完整edge/关系消费者与single loop alias验证差距、D全域证据和§24其它领域继续开放，0341保持active，后继精确远端CI另验。
+
+
+## 27. 统一管线目标纠偏与隔离接线证据（2026-10-19）
+
+用户确认共享 lowering 只作迁移步骤，终态改按§1；v0.45 的 import/root/入口合同另经明确
+批准。此目标修订不追认 B2 红头为可用基线，也不把旧 helper 里程碑当成管线统一完成。
+
+隔离实验基 actual `91c53596c126f90745acee24d783739d7cc9dcc8`，原 bootstrap 385 行逐字
+保持，仅加 test-only adapter；35 场景为附件22、仓内 enum2/entry5/diagnostic6，共70个独立
+single/unit 进程。唯一 no-run build exit0/61.969s；一次串行采样 exit0/57.199s、70/70完整，
+输入/工具绑定无漂移。run-binding SHA `d222dcd066678f75779ee1a1b7238b3195d9f3cc8a564a9aadc75a94e41b2b1c`，
+controller receipt SHA `8f83b736ec389b62adf85066f39562383e40836513ca8a52bdf8b48b0dbfbebc`；
+原始 trace/日志与完整输入清单保留于仓外 `e2-single-unit-experiment/`，不入生产测试框架。
+
+两份 enum 原 single 均 native 成功，Unit 在已通过名称/类型/ownership/view 后因
+UnsupportedNode 拒绝，属于真实能力回退；缺失/非法/歧义 entry 的 single 选择失败被保留，
+并未记为 Unit native 成功。显式零参数 entry 双模式成功，显式参数化 entry 双模式按旧合同
+拒绝。lexer/parser/names/types 四诊断全文相同但阶段前缀不同；ownership 的 Unit 多一个参数
+声明 label；mixed 单文件首停 L0001，Unit 聚合四码。w06 和六诊断场景固定 frontend-only。
+附件22份另账：11份仅 Unit native 成功，7份双 native 成功且完整进程输出相同；
+w09 仅 single 成功、Unit UnsupportedNode，x01 仅 single 成功、Unit InvalidSsa；
+x02 双 UnsupportedNode，w06 双前端 L0135 但主诊断文本不同。两份 enum 加上 w09/x01
+共4份真实 single 成功而 Unit 拒绝，不能按总成功率掩盖回退。
+实验仍保原 single 环境，未注入 ranges 标准源码，也未实施 v0.45 新 import/root 合同。
+这些只是接线和差异证据，不证明整套迁移就绪；后续仓内扩展继续逐项记账。
+
+附件三份144行矩阵没有完整源或原日志；仅22份源可追溯，不能声称144项可复跑。
+新增 ordinary 以完整测试体/helper 安全审查为前提；不得借扩大回归执行 CI-only 合成目标。

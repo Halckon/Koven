@@ -1,8 +1,8 @@
-# Koven v0.44：声明与 Callable
+# Koven v0.45：声明与 Callable
 
-> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审声明、函数签名、参数与返回契约时 · **唯一真源**：本页
 
-本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## Callable 与函数值
 
@@ -351,13 +351,12 @@ type/value target、visibility 与 companion scope 均由 typed selection 决定
   可见顶层类型、顶层值或同 package 函数 overload set；enum case、companion/object member
   都不是 import target。v0.37 不改变该既有边界；`import p.Type.CONST` 使用 L0148，应写
   `import p.Type` 后使用 `Type.CONST`，或使用绝对 `p.Type.CONST`。wildcard 同样不导入 member。
-- 单文件 Phase 2 发布 associated target、typed ConstValue、依赖图与 use descriptor；不得
-  将跨文件事实伪装成单文件结果。Phase 3 消费这些 facts，发布 scalar inline 与 String temporary
-  materialization 的 ownership/liveness/drop/capture facts；Phase 4 再消费已验证产物。
-- compilation-unit Phase 2 使用稳定 DeclarationId 与 visibility/import facts 复用同一 evaluator，
-  发布 const-enabled typed capability；既有基础 validated unit 不因此自动取得常量能力。
-  跨文件 ownership/native 必须通过独立后继 Spec 显式消费该 capability 与物化事实，不能通过
-  改写已完成基础阶段的验收含义提前接线。
+- 单文件和 project 的共同 compilation-unit Phase 2 使用稳定 DeclarationId 与
+  visibility/import facts，发布 associated target、typed ConstValue、依赖图、use descriptor
+  与 const-enabled typed capability；不得伪造另一轮分析的来源或能力。
+- Phase 3 显式消费该 capability，发布 scalar inline 与 String temporary materialization 的
+  ownership/liveness/drop/capture facts；Phase 4 再消费已验证产物。基础 validated unit
+  不自动取得常量能力；两模式遵守同一交接合同，规范启用不证明各阶段已经实现。
 
 本节不实现 associated function 调用、object instance method、用户可观察常量地址、runtime
 global/init、序列化 constant object、跨 compilation-unit ABI 或通用 CTFE VM。Boolean、整数和

@@ -2,7 +2,7 @@
 
 > **性质**：当前教程 · **状态**：current · **读取时机**：运行最小示例时 · **唯一真源**：本页源码，Guide 定义语义
 
-本页依据现行 [Guide v0.44](../guide/README.md)，仅覆盖继承的已交付子集；每个具名 Koven fence 都已在库存登记。
+本页依据现行 [Guide v0.45](../guide/README.md)，仅覆盖继承的已交付子集；每个具名 Koven fence 都已在库存登记。
 可执行与诊断示例有输出合同；`planned-thread` 仅登记状态和原因，尚无输出合同，不计通过。
 单文件例使用 `kovenc build source.ko -o program`，运行生成产物，再使用 `kovenc run source.ko`。
 输出合同见 `examples.json`；尚未执行的恢复验收不会标为通过。

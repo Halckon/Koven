@@ -329,7 +329,7 @@ end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
-  S0341["S0341<br/>D10 共享 lowering 核心与薄入口适配"]
+  S0341["S0341<br/>D10 统一 compilation-unit 检查与代码生成管线"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]

@@ -1,8 +1,8 @@
-# Koven v0.44：一致性、Phase 与实施边界
+# Koven v0.45：一致性、Phase 与实施边界
 
-> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：判断规范权限、Phase 归属、实现门禁和明确非目标时 · **唯一真源**：本页
 
-本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 不支持自定义属性 Getter/Setter
 
@@ -128,8 +128,9 @@ Phase 1 保留普通 expression AST；Phase 2 根据[关联常量与封闭求值
 Phase 4 只消费已验证产物生成 scalar/Char constant 或 String literal owner。
 常量声明没有运行时初始化；缺少对应阶段 facts 的产物不得进入下游。
 
-单文件与 compilation-unit 产物分别验收。跨文件 typed const capability 不能被既有 unit
-ownership/codegen 自动接受，必须由独立后继 Spec 显式接线。规范启用不表示这些阶段已经实现。
+单文件与 project 通过共同 compilation-unit 管线验收同一阶段合同；在相同声明、等价源码集合
+和环境下，结果必须一致，模式造成的差异作为缺陷跟踪。typed const capability 仍须由
+ownership/codegen 显式消费，不能让基础能力绕过阶段证明。规范启用不表示这些阶段已经实现。
 
 ## Nullable 的阶段交接
 
@@ -408,6 +409,24 @@ fun main(): Unit {
 while true facts、IntRange/LongRange 与 in/基本 for、八整数 checked 转换、插入序 Map
 借用遍历及 MutableMap.consume 只读移交。具体规则只由相应领域页定义。
 未完成的类型、所有权、SSA 或 native 路径必须结构化拒绝，不能伪造事实或把 Deferred
-当成功；版本启用不等于全部实现、资源验收或 native 通过。single/unit 均需验收，可共享实现。
+当成功；版本启用不等于全部实现、资源验收或 native 通过。两模式的一致性须按下述 v0.45 边界验收。
 不启用 Abort 输出保证、subject 驱动 enum case 类型推断、顶层 runtime val/var 禁用，
 亦不附赠可变 capture、borrow var、FFI/unsafe、并发、N1b 或一般泛型 lambda 结果推导。
+
+
+## v0.45 启用边界
+
+v0.45 完整继承 v0.44，仅启用[单文件 Unit 与 import/root 合同](02-names-files-packages.md#单文件输入与共同名称解析)，
+并统一单文件与 project 的名称、类型、所有权和代码生成管线。入口选择仍由
+[driver 合同](13-program-runtime-standard-library.md#conventional-main)区分；选中同一声明后，
+等价的实际源码集合和环境必须获得相同的接受/拒绝、诊断和程序可观察结果。
+环境等价不表示所有名称自动 import，不额外启用 `Pair`/`Result` prelude 或其他标准包。
+
+迁移时，以前单文件忽略的 import 现在参与解析；不存在的 import 报错，显式
+`koven.algorithms` import 生效。原合法程序的能力不能通过改成两模式共同拒绝来“对齐”；
+诊断次序、类别和来源差异也不能只比较是否成功而忽略。具体诊断仍以各领域规则为准。
+
+切换前必须固定并持续扩展经安全筛选的普通源码回归集合，分别记录两模式不一致数和
+`InvalidSsa` 数，二者均降至零；保留原成功能力和真实失败样例，不删除测试、缩小源集合
+或隐藏差异来满足门槛。该一致性不要求内部 ID 或 SSA 文本逐字相等；verifier、资源身份与
+动态释放证据仍各自验收。规范正式启用和实现切换完成分别记录，未完成路径继续记缺陷。

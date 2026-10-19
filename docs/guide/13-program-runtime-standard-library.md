@@ -1,8 +1,8 @@
-# Koven v0.44：程序入口、Runtime 与标准库
+# Koven v0.45：程序入口、Runtime 与标准库
 
-> **性质**：规范性语言规范 · **状态**：current（v0.44） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
+> **性质**：规范性语言规范 · **状态**：current（v0.45） · **读取时机**：实现或评审 main、project、String、Rc、IO、并发或标准库边界时 · **唯一真源**：本页
 
-本页是现行 Koven v0.44 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
+本页是现行 Koven v0.45 规范的一部分。规则正文优先于示例；未在本页定义的相邻概念通过链接转交给对应领域页面。
 
 ## 线程、Channel 与 Move Closure
 
@@ -40,7 +40,8 @@ File.writeText("out.txt", "hello")
 ### Conventional `main`
 
 `main` 不是关键字，也不获得新的名称解析优先级。公开单文件 `kovenc build/run` 在调用者没有
-显式传入 `--entry` 时，只在该源码文件的顶层值命名空间中选择名为 `main` 的具名函数。合法
+显式传入 `--entry` 时，只在该源码文件所属 package 中、由该文件声明的顶层值命名空间里
+选择名为 `main` 的具名函数；import 或标准库中的同名函数不是候选。合法
 conventional entry 只有以下两个完整单态签名：
 
 ```kotlin
@@ -54,7 +55,8 @@ fun main(args: Array<String>): Unit { ... }
   分别形成稳定的 missing、invalid-shape 或 ambiguous entry selection failure。它们属于构建
   操作错误，不分配语言诊断码，也不得被伪装成 Parser/type diagnostic。
 - 显式 `--entry <name>` 使用 `() -> Unit` 契约，并完全关闭
-  conventional lookup；它可以选择任意满足该形状的顶层函数，包括名为 `main` 的函数。
+  conventional lookup；它只选择该文件声明、满足该形状的顶层函数，包括名为 `main` 的函数。
+  文件内 `private` 候选保持可选；不复用 project 的 public/internal 筛选来缩窄单文件入口。
 - `main(args)` 收到不含可执行文件名的命令行参数，保持原顺序。native wrapper 拥有新建的
   `Array<String>`，在 entry 调用期间建立 Borrow，并在返回后按逆序析构；源平台参数不能转换
   为合法 UTF-8 时，在调用 Koven entry 前形成 operational failure，不以替换字符静默改写。
@@ -64,6 +66,17 @@ fun main(args: Array<String>): Unit { ... }
 
 `main(args)` 必须使用一般 `String` runtime 与真实 `Array<String>` owner；不得用 literal-only
 String、Rust `String` 或宿主指针替代该 ABI。
+
+单文件调用形式为：
+
+```text
+kovenc build <source.ko> [--source-root <dir>] [--entry <name>] -o <executable>
+kovenc run <source.ko> [--source-root <dir>] [--entry <name>] [-- <program-arg>...]
+```
+
+source set、package/path 与可选 root 的唯一规则见[单文件输入](02-names-files-packages.md#单文件输入与共同名称解析)。
+入口选择差异仅属于 driver 合同；一旦选中同一声明，且实际源码集合与环境等价，后续检查、
+所有权与代码生成必须一致，不能借入口模式改变语言语义或丢失已有接受能力。
 
 ### `Rc<T>` 的共享所有权契约
 
@@ -190,7 +203,8 @@ kovenc run --project <project.toml> --entry <qualified-name> [-- <program-arg>..
   [project source-set loader](../adr/accepted/0022-minimal-project-manifest-source-discovery.md)；CLI
   不从 cwd、源码路径或祖先目录
   搜索 manifest，也不按参数是文件还是目录猜测模式。现有 `build/run <source.ko> ...` 单文件
-  形式及本页的 [conventional `main`](#conventional-main) 行为完全不变。
+  形式保留；其 source set/import/root 遵守[单文件 Unit 规则](02-names-files-packages.md#单文件输入与共同名称解析)，
+  入口选择继续遵守本页的 [conventional `main`](#conventional-main) 兼容合同。
 - project mode 强制 `--entry`，不扫描整个 unit 寻找 `main`，不读取 manifest target/entry
   默认值，也不猜默认 package。`main` 在 project mode 仍只是普通函数名。
 - selector 是一个或多个点分 Koven Identifier：最后一段是顶层函数名，之前各段是绝对 package；
