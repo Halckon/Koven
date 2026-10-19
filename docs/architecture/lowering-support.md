@@ -53,13 +53,19 @@ temporary/capture角色后继见下节，其它角色和CFG责任继续开放。
 不提前查type；缺失错误由原入口传中立Copy数据，temporary/capture为InvalidModel、result-source为MissingFact。
 核心分别拥有平面key fan-out及symbol/index的entry/resize/赋位，使用实际当前列实体而非旧source替换表。
 result-source保原Vec index与填充值，single在原clear后就地写回，unit保全部symbol的空Vec局部map且
-全成功才提交；公共多入边`range::{keys,arguments,rebind}`尚未替换。unit纯存储投影集中于`cfg/alias_slots.rs`。
+全成功才提交；unit纯存储投影集中于`cfg/alias_slots.rs`。
 原single逐列temporary/capture/proof交错、unit各阶段及长度/kind/首错时点保持，Shared父槽与Follow子loan
 仍分别运输并子先父后结束。[temporary验收](../specs/active/0341-shared-lowering-core.md#19-temporary-alias-carry-小片实际验收2026-10-19)
 与[capture验收](../specs/active/0341-shared-lowering-core.md#21-capture-loan-alias-小片实际验收2026-10-19)记录身份与普通回归；
 [result-source验收](../specs/active/0341-shared-lowering-core.md#23-result-source-indexed-alias-小片实际验收2026-10-19)
 记录六真实产品三种既有完整输出的零规范化前后对照，不称新增独立生命周期证明。
-三片删除各角色两入口共十二段对应收集/写回重复责任；named/pending、关系proof、多入边合流及其它CFG/cleanup/driver仍开放。
+三片删除各角色两入口共十二段对应收集/写回重复责任；named/pending、关系proof、多入边合流的状态/关系责任及其它CFG/cleanup/driver仍开放。
+多入边布局由`carry/columns`统一每角色完整incoming签名、独立seed追加、首个整列相等复用、
+role→layout-local ColumnId及逐边参数转置；exit数独立于列数，零列merge仍保全边。
+两入口保原固定role次序/单exit身份投影，single先保全role/type/Map准备再逐role复用type门，unit后缀后全表门仍在原位置。
+原receiver normalize、零单出口、关系/IR写入和恢复清理保持；unit `range::arguments`已删除，
+`range::{keys,rebind}`尚留。A片[验收](../specs/active/0341-shared-lowering-core.md#25-完整-carry-域-a全入边列布局小片实际验收2026-10-19)
+以42真实关系查询和既有六Range产品18段逐字对照分证，不关闭单前沿全角色、恢复/关系消费者或完整carry域。
 核心只依赖model与中立error，不反向读取checked/driver/planner/LLVM；IR/support禁止依赖carry。
 
 ## 普通 statement 顺序核心
