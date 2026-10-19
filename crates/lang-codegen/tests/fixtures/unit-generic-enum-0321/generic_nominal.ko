@@ -1,0 +1,20 @@
+value class Wrapped(val item: Int)
+class Holder(val item: Int)
+class Resource {}
+enum class Maybe<T> { Some(item: T), None }
+enum class Owned<T> { Some(item: T), None }
+fun bootstrap(): Unit {
+val wrapped = Wrapped(11)
+val (item) = wrapped
+if (item != 11) { error("bad value destructuring") }
+val holder = Holder(12)
+if (holder.item != 12) { error("bad class projection") }
+val maybe: Maybe<Int> = Maybe.Some(13)
+val selected: Int = when (maybe) {
+is Maybe.Some<Int> -> maybe.item
+is Maybe.None<Int> -> 0
+}
+if (selected != 13) { error("bad enum tag") }
+val boxed = Box(Wrapped(14))
+val owned: Owned<Resource> = Owned.Some(Resource())
+}

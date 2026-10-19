@@ -1,0 +1,30 @@
+package test
+enum class Pair<T> { Item(first: T, second: T), Empty }
+fun ints(): Pair<Int> = Pair.Item(second = 2, first = 40)
+fun longs(): Pair<Long> = Pair.Item(second = 3L, first = 5000000000L)
+fun emptyInts(): Pair<Int> = Pair.Empty
+fun emptyLongs(): Pair<Long> = Pair.Empty
+fun readInt(own input: Pair<Int>): Int = when (input) {
+    is Pair.Item<Int> -> input.first * 10 + input.second
+    is Pair.Empty<Int> -> 0
+}
+fun readLong(own input: Pair<Long>): Long = when (input) {
+    is Pair.Item<Long> -> input.first * 10L + input.second
+    is Pair.Empty<Long> -> 0L
+}
+fun intTag(own input: Pair<Int>): Boolean = input is Pair.Item<Int>
+fun longTag(own input: Pair<Long>): Boolean = input !is Pair.Empty<Long>
+fun entry(): Unit {
+    val first = readInt(ints())
+    val second = readLong(longs())
+    val emptyFirst = readInt(emptyInts())
+    val emptySecond = readLong(emptyLongs())
+    val intPresent = intTag(ints())
+    val longPresent = longTag(longs())
+    if (first != 402) { error("bad Int instance") }
+    if (second != 50000000003L) { error("bad Long instance") }
+    if (emptyFirst != 0) { error("bad Int empty") }
+    if (emptySecond != 0L) { error("bad Long empty") }
+    if (!intPresent) { error("bad Int tag") }
+    if (!longPresent) { error("bad Long tag") }
+}

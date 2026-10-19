@@ -1,0 +1,19 @@
+value class Wrapped(val item: Int)
+class Holder(val item: Int)
+class Resource {}
+enum class Flag { On, Off }
+enum class Maybe<T> { Some(item: T), None }
+enum class Owned<T> { Some(item: T), None }
+fun wrapped(): Wrapped = Wrapped(1)
+fun holder(): Holder = Holder(2)
+fun boxed(): Box<Wrapped> = Box(Wrapped(3))
+fun flag(): Flag = Flag.On
+fun some(): Maybe<Int> = Maybe.Some(4)
+fun enumProjected(): Int { val maybe: Maybe<Int> = Maybe.Some(8) val result: Int = when (maybe) {
+is Maybe.Some<Int> -> maybe.item
+is Maybe.None<Int> -> 0
+} return result }
+fun projected(): Int { val wrapped = Wrapped(5) return wrapped.item }
+fun destructured(): Int { val (item) = Wrapped(6) return item }
+fun classProjected(): Int { val holder = Holder(7) return holder.item }
+fun dropEnum(): Unit { val event: Owned<Resource> = Owned.Some(Resource()) }
