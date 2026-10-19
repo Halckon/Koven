@@ -18,6 +18,7 @@ pub(crate) mod model;
 #[allow(dead_code)]
 pub(crate) mod provider;
 mod render;
+mod statement_core;
 #[cfg(test)]
 pub(crate) fn render_program(program: &model::Program) -> String {
     render::render_program(program)

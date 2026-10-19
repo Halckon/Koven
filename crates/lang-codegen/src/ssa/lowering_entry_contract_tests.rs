@@ -228,6 +228,64 @@ fn paired_print_concat_and_drop_preserve_lifetimes() {
 }
 
 #[test]
+fn paired_statement_sequences_keep_empty_nested_blocks_and_cleanup_order() {
+    for constants in [false, true] {
+        let declaration = if constants {
+            "const val UNUSED = 17\n"
+        } else {
+            ""
+        };
+        let text = format!(
+            "package pair\n{declaration}fun entry(): Unit {{\n\
+             {{}}\nval unused = \"unused\"\nprintln(\"first\")\n\
+             {{ {{}}; println(\"nested\"); 7 }}\n\
+             println(\"last\")\n}}"
+        );
+        let events = paired(&text, constants);
+        let [Event::Literal(_, unused), Event::Drop(_), remaining @ ..] = events.as_slice() else {
+            panic!("unused local must be dropped after its statement: {events:?}");
+        };
+        assert_eq!(unused.as_slice(), b"unused");
+        assert_statement_events(remaining, &[b"first", b"nested", b"last"]);
+    }
+}
+
+#[test]
+fn paired_statement_return_stops_inner_and_outer_sequences() {
+    for constants in [false, true] {
+        let declaration = if constants {
+            "const val UNUSED = 17\n"
+        } else {
+            ""
+        };
+        let text = format!(
+            "package pair\n{declaration}fun entry(): Unit {{\n\
+             println(\"before\")\n\
+             {{ return; println(\"inner-unreachable\") }}\n\
+             println(\"outer-unreachable\")\n}}"
+        );
+        assert_statement_events(&paired(&text, constants), &[b"before"]);
+    }
+}
+
+fn assert_statement_events(events: &[Event], bytes: &[&[u8]]) {
+    assert_eq!(events.len(), bytes.len() * 5, "{events:?}");
+    for (events, expected) in events.chunks_exact(5).zip(bytes) {
+        let [
+            Event::Literal(_, actual),
+            Event::Borrow(_),
+            Event::Print(_),
+            Event::EndBorrow(_),
+            Event::Drop(_),
+        ] = events
+        else {
+            panic!("each statement must finish its borrow and owner before the next: {events:?}");
+        };
+        assert_eq!(actual.as_slice(), *expected);
+    }
+}
+
+#[test]
 fn paired_abort_preserves_no_unwind_boundary() {
     let events = paired(
         "package pair\nfun entry(): Unit { val stop = error(\"failure\0界\") }",

@@ -42,6 +42,7 @@ mod range;
 mod rc;
 mod receiver;
 mod scalar;
+mod statement;
 mod string_clone;
 mod type_lower;
 mod type_plan;
@@ -514,14 +515,7 @@ impl UnitExpressionLowerer<'_> {
     }
 
     fn lower_statement(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
-        let result = self.lower_statement_inner(statement)?;
-        if result != LoweredValue::Diverged {
-            self.emit_drops(UnitDropPoint::AfterStatement(UnitStatementId::new(
-                self.source_unit,
-                statement,
-            )))?;
-        }
-        Ok(result)
+        super::statement_core::lower_statement(self, statement)
     }
 
     fn lower_statement_inner(
@@ -542,12 +536,7 @@ impl UnitExpressionLowerer<'_> {
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
             | Statement::ControlBody { elements } => {
-                for element in elements {
-                    if self.lower_statement(*element)? == LoweredValue::Diverged {
-                        return Ok(LoweredValue::Diverged);
-                    }
-                }
-                Ok(LoweredValue::Unit)
+                super::statement_core::lower_sequence(self, elements.iter().copied())
             }
             Statement::LocalVariable { declaration } => {
                 self.lower_local_variable(*declaration, span)

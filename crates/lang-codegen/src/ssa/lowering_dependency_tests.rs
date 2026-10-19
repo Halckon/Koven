@@ -3,7 +3,7 @@
 //! 只扫描已知职责文件及物理子树；忽略注释、字面量和精确的外层 #[cfg(test)]
 //! item，不解释 cfg_attr、宏展开、include!、#[path] 或扫描范围外的 re-export。
 //! 禁用名字是保守的 identifier 规则（同名局部变量也会拒绝），无需解析 Rust 类型。
-//! IR、常量物化与表达式核心的 SSA 根 glob/module alias 另行禁止，避免藏起反向依赖；
+//! IR、常量物化、表达式与statement核心的 SSA 根 glob/module alias 另行禁止，避免藏起反向依赖；
 //! IR 内部的 glob 仍允许。模块深度包含普通 inline mod，不做名称解析或 alias 数据流分析。
 
 use std::{fs, path::Path};
@@ -14,6 +14,7 @@ enum Boundary {
     Support,
     ConstantMaterialization,
     ExpressionCore,
+    StatementCore,
     Ir,
 }
 
@@ -35,6 +36,7 @@ fn boundary(path: &Path) -> Option<Boundary> {
         "lowering_support" => Some(Boundary::Support),
         "constant_materialization" => Some(Boundary::ConstantMaterialization),
         "expression_core" => Some(Boundary::ExpressionCore),
+        "statement_core" => Some(Boundary::StatementCore),
         "model" | "types" => Some(Boundary::Ir),
         _ if root.starts_with("verify") && !root.ends_with("_tests") => Some(Boundary::Ir),
         _ => None,
@@ -259,10 +261,15 @@ fn forbidden(boundary: Boundary, name: &str) -> bool {
                 | "model"
                 | "constant_materialization"
                 | "expression_core"
+                | "statement_core"
         ),
-        Boundary::ConstantMaterialization | Boundary::ExpressionCore => {
+        Boundary::ConstantMaterialization | Boundary::StatementCore => {
             matches!(name, "lower_frontend" | "unit_lower" | "unit_plan" | "llvm")
         }
+        Boundary::ExpressionCore => matches!(
+            name,
+            "lower_frontend" | "unit_lower" | "unit_plan" | "llvm" | "statement_core"
+        ),
         Boundary::Ir => matches!(
             name,
             "lower_frontend"
@@ -271,6 +278,7 @@ fn forbidden(boundary: Boundary, name: &str) -> bool {
                 | "lowering_support"
                 | "constant_materialization"
                 | "expression_core"
+                | "statement_core"
                 | "LoweringError"
                 | "LoweringErrorKind"
                 | "string_literal"
@@ -352,7 +360,10 @@ fn violations(path: &Path, source: &str) -> Vec<String> {
             Some(format!("forbidden identifier `{}`", token.text))
         } else if matches!(
             boundary,
-            Boundary::Ir | Boundary::ConstantMaterialization | Boundary::ExpressionCore
+            Boundary::Ir
+                | Boundary::ConstantMaterialization
+                | Boundary::ExpressionCore
+                | Boundary::StatementCore
         ) && token.text == "use"
         {
             let end = tokens[index + 1..]
@@ -422,6 +433,7 @@ fn production_lowering_dependencies_remain_directional() {
         "unit_plan.rs",
         "constant_materialization.rs",
         "expression_core.rs",
+        "statement_core.rs",
         "model.rs",
         "types.rs",
         "verify.rs",
@@ -479,6 +491,10 @@ fn dependency_guard_accepts_allowed_edges() {
             "use super::{lowering_support::{error, LoweringError, LoweringErrorKind}, model::{Operation, SsaTypeId, ValueId}}; use lang_frontend::type_checking::IntegerOperationKind;",
         ),
         (
+            "statement_core.rs",
+            "use super::{expression_core::LoweredValue, lowering_support::LoweringError}; use lang_frontend::ast::StatementId;",
+        ),
+        (
             "types.rs",
             "use super::model::*; use crate::ssa::verify::{self, VerifyError};",
         ),
@@ -526,6 +542,7 @@ fn dependency_guard_rejects_reverse_imports_and_paths() {
         "model",
         "constant_materialization",
         "expression_core",
+        "statement_core",
     ] {
         let source = format!("use crate::ssa::{forbidden} as dependency;");
         assert!(!check("lowering_support/nested/helper.rs", &source).is_empty());
@@ -584,6 +601,42 @@ fn dependency_guard_checks_expression_core_boundary() {
     for path in ["model.rs", "verify.rs", "lowering_support.rs"] {
         assert!(
             !check(path, "use crate::ssa::expression_core::LoweredValue;").is_empty(),
+            "reverse edge escaped: {path}"
+        );
+    }
+}
+
+#[test]
+fn dependency_guard_checks_statement_core_boundary() {
+    for path in ["statement_core.rs", "statement_core/nested/helper.rs"] {
+        for forbidden in ["lower_frontend", "unit_lower", "unit_plan", "llvm"] {
+            let source = format!("use crate::ssa::{forbidden} as dependency;");
+            assert!(!check(path, &source).is_empty(), "unchecked edge: {path}");
+        }
+        for source in ["use crate::ssa::*;", "use crate::ssa as root;"] {
+            assert!(
+                !check(path, source).is_empty(),
+                "root import escaped: {path}"
+            );
+        }
+    }
+    assert!(!check("statement_core.rs", "use super::*;").is_empty());
+    assert!(
+        !check(
+            "statement_core/nested/helper.rs",
+            "use super::super::super as root;"
+        )
+        .is_empty()
+    );
+    for path in [
+        "model.rs",
+        "verify.rs",
+        "lowering_support.rs",
+        "expression_core.rs",
+        "expression_core/nested/helper.rs",
+    ] {
+        assert!(
+            !check(path, "use crate::ssa::statement_core::lower_statement;").is_empty(),
             "reverse edge escaped: {path}"
         );
     }
