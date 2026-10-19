@@ -3,8 +3,8 @@
 //! 只扫描已知职责文件及物理子树；忽略注释、字面量和精确的外层 #[cfg(test)]
 //! item，不解释 cfg_attr、宏展开、include!、#[path] 或扫描范围外的 re-export。
 //! 禁用名字是保守的 identifier 规则（同名局部变量也会拒绝），无需解析 Rust 类型。
-//! IR 的 SSA 根 glob/module alias 另行禁止，避免藏起 support-owned 名字；IR 内部
-//! 的 glob 仍允许。模块深度包含普通 inline mod，不做名称解析或 alias 数据流分析。
+//! IR 和常量物化映射的 SSA 根 glob/module alias 另行禁止，避免藏起反向依赖；
+//! IR 内部的 glob 仍允许。模块深度包含普通 inline mod，不做名称解析或 alias 数据流分析。
 
 use std::{fs, path::Path};
 
@@ -12,6 +12,7 @@ use std::{fs, path::Path};
 enum Boundary {
     Unit,
     Support,
+    ConstantMaterialization,
     Ir,
 }
 
@@ -31,6 +32,7 @@ fn boundary(path: &Path) -> Option<Boundary> {
     match root {
         "unit_lower" | "unit_plan" => Some(Boundary::Unit),
         "lowering_support" => Some(Boundary::Support),
+        "constant_materialization" => Some(Boundary::ConstantMaterialization),
         "model" | "types" => Some(Boundary::Ir),
         _ if root.starts_with("verify") && !root.ends_with("_tests") => Some(Boundary::Ir),
         _ => None,
@@ -248,14 +250,23 @@ fn forbidden(boundary: Boundary, name: &str) -> bool {
         Boundary::Unit => name == "lower_frontend",
         Boundary::Support => matches!(
             name,
-            "lower_frontend" | "unit_lower" | "unit_plan" | "llvm" | "model"
+            "lower_frontend"
+                | "unit_lower"
+                | "unit_plan"
+                | "llvm"
+                | "model"
+                | "constant_materialization"
         ),
+        Boundary::ConstantMaterialization => {
+            matches!(name, "lower_frontend" | "unit_lower" | "unit_plan" | "llvm")
+        }
         Boundary::Ir => matches!(
             name,
             "lower_frontend"
                 | "unit_lower"
                 | "unit_plan"
                 | "lowering_support"
+                | "constant_materialization"
                 | "LoweringError"
                 | "LoweringErrorKind"
                 | "string_literal"
@@ -335,7 +346,9 @@ fn violations(path: &Path, source: &str) -> Vec<String> {
     for (index, token) in tokens.iter().enumerate() {
         let reason = if forbidden(boundary, token.text) {
             Some(format!("forbidden identifier `{}`", token.text))
-        } else if boundary == Boundary::Ir && token.text == "use" {
+        } else if matches!(boundary, Boundary::Ir | Boundary::ConstantMaterialization)
+            && token.text == "use"
+        {
             let end = tokens[index + 1..]
                 .iter()
                 .position(|token| token.text == ";")
@@ -401,6 +414,7 @@ fn production_lowering_dependencies_remain_directional() {
     for required in [
         "unit_lower.rs",
         "unit_plan.rs",
+        "constant_materialization.rs",
         "model.rs",
         "types.rs",
         "verify.rs",
@@ -450,6 +464,10 @@ fn dependency_guard_accepts_allowed_edges() {
             "use super::{error, LoweringError, LoweringErrorKind};",
         ),
         (
+            "constant_materialization.rs",
+            "use super::{lowering_support::LoweringErrorKind, model::{Operation, ScalarConstant, SsaTypeId}}; use lang_frontend::{ownership_checking::ConstantMaterializationKind, type_checking::ConstValue};",
+        ),
+        (
             "types.rs",
             "use super::model::*; use crate::ssa::verify::{self, VerifyError};",
         ),
@@ -489,10 +507,44 @@ fn dependency_guard_rejects_reverse_imports_and_paths() {
             );
         }
     }
-    for forbidden in ["lower_frontend", "unit_lower", "unit_plan", "llvm", "model"] {
+    for forbidden in [
+        "lower_frontend",
+        "unit_lower",
+        "unit_plan",
+        "llvm",
+        "model",
+        "constant_materialization",
+    ] {
         let source = format!("use crate::ssa::{forbidden} as dependency;");
         assert!(!check("lowering_support/nested/helper.rs", &source).is_empty());
     }
+}
+
+#[test]
+fn dependency_guard_checks_constant_materialization_boundary() {
+    for path in [
+        "constant_materialization.rs",
+        "constant_materialization/nested/helper.rs",
+    ] {
+        for forbidden in ["lower_frontend", "unit_lower", "unit_plan", "llvm"] {
+            let source = format!("use crate::ssa::{forbidden} as dependency;");
+            assert!(!check(path, &source).is_empty(), "unchecked edge: {path}");
+        }
+        for source in ["use crate::ssa::*;", "use crate::ssa as root;"] {
+            assert!(
+                !check(path, source).is_empty(),
+                "root import escaped: {path}"
+            );
+        }
+    }
+    assert!(!check("constant_materialization.rs", "use super::*;").is_empty());
+    assert!(
+        !check(
+            "model.rs",
+            "use crate::ssa::constant_materialization::operation;"
+        )
+        .is_empty()
+    );
 }
 
 #[test]

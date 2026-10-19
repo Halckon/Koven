@@ -1,5 +1,5 @@
 //! Re-materialize validated values at each use; never traverse declaration initializers.
-use lang_frontend::{ownership_checking::ConstantMaterializationKind, type_checking::ConstValue};
+use crate::ssa::constant_materialization;
 
 use super::*;
 
@@ -39,24 +39,8 @@ impl ExpressionLowerer<'_> {
             return Err(error(LoweringErrorKind::MismatchedAnalysis, span));
         }
         let ty = self.expression_ssa_type(expression, span)?;
-        let operation = match (plan.kind(), descriptor.value()) {
-            (ConstantMaterializationKind::InlineCopy, ConstValue::Boolean(value)) => {
-                Operation::Constant(ScalarConstant::Boolean(*value))
-            }
-            (ConstantMaterializationKind::InlineCopy, ConstValue::Integer { value, .. }) => {
-                Operation::Constant(ScalarConstant::Integer(*value))
-            }
-            (ConstantMaterializationKind::InlineCopy, ConstValue::Char(value)) => {
-                Operation::Constant(ScalarConstant::Char(u32::from(*value)))
-            }
-            (ConstantMaterializationKind::StringTemporary, ConstValue::String(bytes)) => {
-                Operation::StringLiteral {
-                    string: ty,
-                    bytes: bytes.to_vec(),
-                }
-            }
-            _ => return Err(error(LoweringErrorKind::MismatchedAnalysis, span)),
-        };
+        let operation = constant_materialization::operation(plan.kind(), descriptor.value(), ty)
+            .map_err(|kind| error(kind, span))?;
         let (_, results) = self.append(operation, vec![EntityType::Value(ty)], span)?;
         Ok(Some(LoweredValue::Value(value(results[0]))))
     }

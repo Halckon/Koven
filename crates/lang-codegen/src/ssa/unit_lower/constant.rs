@@ -1,13 +1,13 @@
 //! 专用常量入口只消费同一轮物化事实；不重访声明 initializer。
 use super::*;
+use crate::ssa::constant_materialization;
 use lang_frontend::{
     name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{
-        ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, ConstantMaterializationKind,
-        const_owned_compilation_unit_view,
+        ConstEnabledOwnedUnit, ConstOwnedCompilationUnitView, const_owned_compilation_unit_view,
     },
     source::{SourceMap, Span},
-    type_checking::{ConstEnabledTypedUnit, ConstValue, TypeEnvironment, UnitExpressionId},
+    type_checking::{ConstEnabledTypedUnit, TypeEnvironment, UnitExpressionId},
 };
 
 /// 私有交付切片：先验证完整来源，再进入共享 driver；不提供基础 capability 转换。
@@ -92,24 +92,8 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::MismatchedAnalysis, span));
         }
         let ty = self.expression_ssa_type(expression.expression(), span)?;
-        let operation = match (plan.kind(), descriptor.value()) {
-            (ConstantMaterializationKind::InlineCopy, ConstValue::Boolean(value)) => {
-                Operation::Constant(ScalarConstant::Boolean(*value))
-            }
-            (ConstantMaterializationKind::InlineCopy, ConstValue::Integer { value, .. }) => {
-                Operation::Constant(ScalarConstant::Integer(*value))
-            }
-            (ConstantMaterializationKind::InlineCopy, ConstValue::Char(value)) => {
-                Operation::Constant(ScalarConstant::Char(u32::from(*value)))
-            }
-            (ConstantMaterializationKind::StringTemporary, ConstValue::String(bytes)) => {
-                Operation::StringLiteral {
-                    string: ty,
-                    bytes: bytes.to_vec(),
-                }
-            }
-            _ => return Err(lowering_error(LoweringErrorKind::MismatchedAnalysis, span)),
-        };
+        let operation = constant_materialization::operation(plan.kind(), descriptor.value(), ty)
+            .map_err(|kind| lowering_error(kind, span))?;
         self.append_scalar(operation, ty, span).map(Some)
     }
 }
