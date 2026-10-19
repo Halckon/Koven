@@ -5,7 +5,7 @@
 [Guide v0.44](../../../guide/README.md)已启用选定的类型、控制流、Range、转换与 Map 合同，
 不表示实现完成。[SPEC-0291](../../active/0291-readonly-map-construction.md)已从真实 main
 `37e80526` 重基为 active，落实 owned 本地 receiver、插入序共享布局与资源验收；旧历史
-候选通过固定提交追溯。本目录当前无待实施 draft，不授权其他 consume 家族或复制转换。
+候选通过固定提交追溯。本目录保留[0334 String? ABI](0334-nullable-string-map-abi.md)及[0335 caller证明](0335-map-borrow-caller-proof.md)两份设计前置draft；均未实施，不授权其他consume家族或复制转换。
 [SPEC-0325](../../../archive/specs/0325-simple-variable-assignment-types.md)已有限归档并由PR111合入main `aa42bdc5`。
 [SPEC-0326](../../../archive/specs/0326-closed-control-branch-join.md)已按合B后的联合CI双host39exact有界归档；
 其余v0.44范围不因此获得实现完成状态。
