@@ -520,3 +520,13 @@ x02 双 UnsupportedNode，w06 双前端 L0135 但主诊断文本不同。两份 
 - 随后 fmt、frontend build、frontend all-targets check/clippy（build/check/clippy 均 offline/locked，clippy `-D warnings`）、docs、尺寸及 diff 七项各一次 exit0。3297输入、12工具、14配置检查与六产物前后核同，无漂移、重试或超时；731文档通过，1849手写 Rust 中38项历史超限照报，修改文件460行，无新尺寸例外。
 - 原始 JSON/stdout/stderr/receipt 留仓外 `e2-unit-names-a1-validation/`：基线3结果 `33c47af8`、独立5结果 `f91f5566`；合成11结果 `f26b8c35`，最终11＋7 manifest `45469a1e` / 189件SUMS `1b50f453`，均独审。六个合成受验 binary 的原字节另存只读副本，index `141e1457`；target 后继复用不改历史收据。11是 libtest 调用数，不冒充 CLI/link/native 子进程总数。
 - 本片仅完成 A2 的 parse-once 直接前置；CLI single 尚未切换，A2 的 root/import/entry、真正跨 crate caller 与可见度、旧 single checker/lowerer 退役及 D10 终态仍开放。未运行整 target/全仓、合成事实或外部 rustc 编译契约、注入/计数/校准、预期 Abort、sanitizer、其它宿主或远端 CI；纯 docs 后继不声称重跑行为。
+
+## 37. 统一 Unit driver 直接前置 A2：初始 package 完整性事实（2026-10-19）
+
+- parser 仅在原 qualified-name 失败分支记录名称完整性，与初始 package 的原 separator 结果合取；separator 仍无条件按原次序调用，无 package 为 true，后续 package/import/body 错误不污染。原 bump/recover/emit、公开 headers/roots、四 AST 表 ID/Span/payload 与诊断保持；真实 crate-private getter 供 index 消费，不提前公开 API。
+- index 删除全文件 L0048 扫描，唯一 mismatch gate 改用上述初始事实：poison 或初始 L0053 不制造假 L0146；初始合法、后续 package 损坏时仍按真实路径报告 L0146。其余校验、声明收集与完整诊断排序不变。相对§36源头 `561393f5`，最终五文件+646/-36净610，其中四生产文件的生产区+45/-36净9，两测试区+601（parser 同模块430、index integration171），新增五个 ordinary exact。
+- 先在旧生产 `29005eb8` 以两 exact 固定17份真实源码完整公开产物/四 AST payload 与 Diagnostic oracle，均1/0/0/exit0；再在 tests-only `452e877f` 各采三项真实 index 红，均0/1/0/原exit101：poison 与缺 separator 多报 L0146，late package 错误掩盖应报 L0146。红轮每项只计首失败 Eq；第二 poison、late 匹配路径及后续结构断言归绿轮，不冒领红覆盖。
+- 合成§36文档后的 `42e44c9b` 原15 exact 全绿，但工程首 fmt 实际 exit1，后六门未执行；后继只改三文件空白与五处可选尾逗号，fixture/oracle 字节保持。最终受验 HEAD `06a55c80f78e438d61d44e8f23e21054bf6c7976` / tree `8450f3b3cebac6c801ace68bfefdb377cbabd551`，clean；原红、旧15绿与 fmt 失败分别保留。
+- 新头唯一 frontend lib＋三个 integration 定向 no-run 54.66s/0，实际 JSON 绑定四 executable；原15 ordinary exact 各一次1/0/0/exit0，包含 parser 两项与10个新位断言、新 index 三项、既有 index/parser_file 五项及 A1 五项。原17源 oracle 全部保持，三个真实诊断红同 oracle 转绿，之前未到的分支全部走完；旧 A1 Debug/两遍断言只按原强度记账。
+- 随后 fmt、frontend build、frontend all-targets check/clippy、docs、尺寸及 diff 原七门各一次 exit0；build/check/clippy 保持 offline/locked，clippy `-D warnings`。3297输入、12工具、配置/环境与四产物前后核同，无漂移或超时；731文档与1849手写 Rust/38项历史超限通过，无新尺寸豁免。仓外 `e2-header-fact-validation/` 保完整绑定/raw/receipt：baseline 27件 `34365fc9`、index 红33件 `9d52a1ba`、旧头 fmt 失败170件 `d4bca8fc`、最终15＋7的200件 `97b5fa5d`；各受验 binary 原字节另存独立只读副本，后继复用 target 不回写历史。
+- 本片完成初始 header 事实与 index 诊断纠偏，A2 统一 driver 尚未接线；root/import/entry、真正跨 crate caller/可见度、CLI single 切换、LSP/其它生产消费者与旧 single checker/lowerer 退役仍待，D10保持开放。未整跑 target/全仓、合成事实、故障/计数/校准、预期 Abort、CI-only、其它宿主或远端 CI；纯文档后继不声称重跑行为。
