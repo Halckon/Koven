@@ -1633,3 +1633,81 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   后继本段文档不冒称重跑行为。最终干净固定头联合回归和新CI仍须另验。
   D原六条provider失败仍须逐项验收，F保持active/PR draft，D10未开始；本机未执行故障、
   校准、合成损坏、mock/reduction或sanitizer测试。
+
+## 73. D 后续 Map Return、Move 与更新 owner（2026-10-19）
+
+- 固定P19/P20/P21原For/control六份源码及golden，Single/Unit共12个原目标不增减。
+  observer v1已收齐12观察，但错用lambda body参数表使P19/P20的For/control四个Unit FE查询误断；
+  修为实际scanner声明签名的唯一parameter symbol、Value模式和Map类型，保原Owned binding。
+  可靠v2确认For六条真实lower失败（P19/P20 Unsupported四条、P21 MissingFact两条），六条control
+  完整同次FE/SSA/LLVM与实际路径证明成功；真实Rust0/1/0、native零，原失败与首次静审漏点保留。
+- Single/Unit分别消费自身公开owner与退出事实：P19按真实Owned签名交付实际Return Name，caller
+  消费返回Map并在原observe后唯一Drop；P20交付给实际successor Move，按原fact清理current owner；
+  P21保留实际循环后put和新SSA结果，逻辑FE Exit owner不被fresh mutation结果冒充。
+  共用的仅为AST terminal选择和SSA模型上的完整incoming/真实更新运输，不合并两条lowering管线。
+- For查询强核当前source/cursor/owner、完整所有incoming与CFG边、真实K/V reader及逆序End、唯一
+  lease End和实际Return/Move/Borrow/Drop；Unit不用Single cleanup DAG。control证明原body仅有一次
+  保持短路顺序的if-let链等价语法改写，其余断言不弱化；不再声称整段字节相同，原版本哈希仍保留。
+- 生产v1首轮lib check真实E0433两处，缺Expression/ExpressionCategory导入，查询/native均未运行；
+  补精确导入后的v2原12完整查询/12native全绿，但旧formation邻控28条中20条Resource词法退出回归，
+  OwnerTransfer八条通过，native未运行。DropEvent的AfterStatement覆盖整个词法block，错误使用
+  span.start作为形成截止点会早于声明；原错误位置不是执行时点，不能据它推导birth缺失。
+- v3保留真实acquisition formation，按实际完成的DropEvent及完整history核同epoch，只纳入For之后、
+  event完成前的同root/callable typed canonicalName更新；保AfterRHS与AfterAssignment安装边界。
+  Unit沿用已证明formation，不伪造Span，不豁免缺plan，不改原输入。原28formation深查询全部恢复，
+  D原12完整同次FE/SSA/LLVM与12严格native、八个共享邻控选择全部通过。邻控为16 Rust、96深查询、
+  114唯一严格native，包含C原16、formation28查询/46native、Pure未来使用48、lambda四路。
+- 工程首轮fmt/check成功、strict Clippy因测试helper nested-if失败，后四门未运行；仅等价合并
+  let-chain后v4重验原12查询/12native及上述完整邻控，3249份输入e0003ebe前后相同。七工程门全部exit0，
+  含strict Clippy、712份文档与尺寸护栏；1831手写Rust，38项历史超限未提高例外。
+  原始结果和最终30文件（18生产/12测试注册）由非作者独审后保存，不用收集器替代子命令。
+- D关闭原六条provider失败后，原33条provider独有失败均有对应修复；最终原74个positive目标
+  集合不变，其余22条普通前置另记具体后继。F最终固定干净头联合回归、新完整CI与三产物独审仍待；
+  0331保持active、PR draft，D10未启动。普通native逐例exit0/完整golden/空stderr不证明无泄漏，
+  本机没有执行故障、校准、合成损坏、mock/reduction或sanitizer helper。
+
+## 74. F 冻结有限履约表与最终门（2026-10-19）
+
+以下承接§45 G2–G10和§63–73全部原范围；旧失败、未验状态与原source/golden不改写。
+本节形成最终物理CI头前的输入账，最终同头联合门、完整PR CI及三产物独审尚待，不授予done。
+
+| obligation | 本轮有限实现与独立证明 | 精确保留的前置/边界 |
+|---|---|---|
+| G2 | §48–52/63 local形成、Resource词法退出、后用/复用/替换；§64实参、§66外CFG、§68–73真实出生/epoch/Return/Move | 原普通调用或ABI前置逐项登记，不因已验local外推所有source/CFG |
+| G3 | §56/59–61 temporary表示、实参交付、条件与Return；§64普通named/generic wrapper、§65 intrinsic/Unit callable出生 | direct generic consume归0291§19，Single Map函数值结果归0336 |
+| G4 | §45 own MutableMap N/C/B/R与透明Group，全incoming/真实原Drop保持 | Field/Inout native仅按Guide37.4明确延后 |
+| G5 | §46既有字段/结构性/nullable Resource及非String key；真实storage/deinit与源清理 | 不扩一般布局、泛型/接口或未验key/value ABI |
+| G6 | §61非nullable Borrow/MoveOnly payload Return，普通N/C/B正控保持 | 原12份String? ABI源24目标归0334；不是全部nullable |
+| G7 | §61合法Return operand/checked、§66有限body/外CFG、§73真实Map Return与caller接收/Drop | P01 return-as-condition四目标归0338，不能用缺Drop代替交付 |
+| G8 | §62同异root/own/temp/Resource/三层，82深查询、68native的逐层frame与最近退出 | 有限层数/路径，不声称笛卡尔积或任意嵌套 |
+| G9 | §47/63 Pure ASAP及真实未来使用，§69实际Borrow alias端点，§72/73 old/new/next、Move/put当前owner | 不给Pure套Resource词法延寿；不得复活旧alias |
+| G10 | Group、真实参数Move/alias epoch、§69独立Borrowed binding/原end proof | 原Borrow caller continuation两L0164归0335，不撤回普通Borrow-result支持 |
+
+原P01–P24的48份For/control固定源码与golden产生96条阶段观察；最终硬成功目标是原74个
+case/entry（37 For、37 control）：P02/P05/P06/P09–P21双入口64个，P03/P04/P07/P08/P24 Unit十个。
+分片对应A1=28、A2=4、P06=4、P05=4、P03/04=4、C=16、P24=2、D=12，目标不增减。
+原33条provider独有失败由A1十一、A2两、B六、C八、D六逐项修复；原另22条普通前置目标
+保留实际失败，不能改作负向成功oracle。最终普通联合门须逐名核同头0失败/0忽略、严格native
+exit0/完整golden/空stderr与输入前后指纹；旧62命令/131Rust/922次native是旧a25头历史结果。
+
+独立前置仍按原目标完整保留，非本片实现或统一staging：
+
+| 合同 | 原目标与状态 |
+|---|---|
+| active 0291§19 | direct generic consume六源十二目标，原9成功/3 Single callee consume Unsupported（含noFor） |
+| active approved 0333 | 原共享调用24目标加P24 Single receiver For/control四目标，共28；未实施 |
+| draft 0334 | 原String? ABI十二源24目标 |
+| draft 0335 | 原Borrow caller continuation一源双入口L0164，需实际origin/end proof |
+| draft 0336 | 六Map/MutableMap FunctionValue形态源十二完整目标；Unit四For出生已在F修复 |
+| draft 0337 | P03/04/07/08条件owner十六目标；Single普通前置保留，Unit四原For已在F修复 |
+| draft 0338 | P01 return-as-condition四目标及NoAcquire/无分配/无source-owner Drop |
+| draft 0339 | P22 Unit值实参ABI/pending Borrow四目标 |
+| draft 0340 | P23 nullable nominal实际view读取四目标 |
+
+原83源166观察的140 LLVM/24 lower Unsupported/2 L0164和原共享调用三快照72观察/九noFor
+native仍绑定原历史头，不能称新头全通过。§63原七份合法形成源码的十四入口（首红九条For拒绝现为硬成功）等必验回归保留在最终
+manifest，不再扩任意组合。README/Tour仅说明当前backend实测能力，不新增公开CLI合同。
+最后物理代码头H须完整同头联合门、七工程门和完整PR CI/三ZIP独审；之后最小归档头J还须
+取得自己的合法CI终态，只有自动验证同PR/base/双checkout非豁免指纹的真实H证据才可继承。
+继承不是J新构建；若不满足复用条件则按现行fail-closed门重跑。Mac sanitizer partial、
+requirements_met=false，LLDB ignored与UBSan未覆盖如实登记。本机不执行故障/校准/损坏辅助。

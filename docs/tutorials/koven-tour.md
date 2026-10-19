@@ -87,14 +87,14 @@ fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
   与[Resource 分量正常耗尽](../../crates/lang-codegen/tests/fixtures/map-provider-resource-0331/map-resource.ko)回归源码。
   具体 kind/access、退出和嵌套范围见[Map 支持矩阵](../architecture/map-borrowed-iteration.md)。
   这些是后端回归来源，尚未新增本页公开 CLI 合同；Field/Inout 原生按 Guide 延后。
-  支持矩阵另列own MutableMap的String/String四种退出、透明Group、既有Resource表示、
-  Pure own参数后用/同根重复For、零参temporary的已验Resource/Resource?/Int键normal，以及local的N/C/B/R、词法清理、
-  后续Borrow/重复遍历与重新赋值epoch；另验own参数Move到local、前置put、旧alias来源重绑及循环后own交付，
-  覆盖String/String与既有String字段Resource的实测组合；temporary另验普通Borrow/owned Resource交付、具名实参重排、
-  Int/Boolean重载及空Map工厂的实参if。参数和temporary的String/String另验普通单if的C/B/R与两live arm，
-  有限Resource邻控覆盖多break、return operand中的if及checked；Int/Unit/owned String返回也有
-  [双入口回归](../../crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/control_flow.rs)。
-  这些不构成所有source、payload、条件或返回ABI组合的支持，具体范围仍见矩阵。
+  已验组合还包括 own MutableMap、透明 Group、既有 Resource/nullable payload、Pure 后用与重复遍历，
+  以及实参交付、intrinsic/Unit callable 出生、有限 If/When/外层循环与真实 lambda body。
+  local/alias 按实际声明、Move、替换 epoch 运输当前 owner；原后续
+  [Map Return](../../crates/lang-codegen/tests/fixtures/map-provider-scope-0331/P19-for.ko)、
+  [Move](../../crates/lang-codegen/tests/fixtures/map-provider-scope-0331/P20-for.ko)与
+  [put](../../crates/lang-codegen/tests/fixtures/map-provider-scope-0331/P21-for.ko)
+  的双入口回归分别核真实交付、successor owner 与更新后的 SSA owner。
+  这些有限代表不构成所有 source、payload、条件或返回 ABI 组合的支持；具体调用/ABI 前置见矩阵。
 - 集合 `forEach`/`map`/`filter` 与未列出的集合/格式化 API 仍未交付。词频里的 `decimal`
   是本页实现的普通函数，不是标准库格式化接口。
 

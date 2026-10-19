@@ -56,7 +56,7 @@
 | 数字字面量、资源清理及迭代退出 | [numbers-bitwise](docs/tutorials/koven-tour.md#numbers-bitwise)、[scope-cleanup](docs/tutorials/koven-tour.md#scope-cleanup)、[unit-loop-cleanup](docs/tutorials/koven-tour.md#unit-loop-cleanup) |
 | 可变place与迭代借用诊断 | [reject-immutable-place](docs/tutorials/koven-tour.md#reject-immutable-place)、[reject-iteration-move](docs/tutorials/koven-tour.md#reject-iteration-move) |
 
-函数声明以`own param: T`表达所有权交付，默认或`borrow param: T`表达共享借用，`inout param: T`表达可变借用；调用点的可变place交付使用`&place`，Borrow不写调用marker。类家族、nullable与Result等语义见[Guide](docs/guide/README.md)，具体native表示与未支持组合以[Architecture](docs/architecture/README.md)为准。词频示例借用参数数组两遍，使用 Map 的 `get`/`put`/`remove`，并不遍历 Map。List/View 的 `take`/`drop`/`dropLast` 通过 project CLI 导入 `koven.algorithms`；单文件 CLI 不加载这些标准库源码。Map 借用遍历已有有界 single/unit 后端子集，来源和退出组合见[支持矩阵](docs/architecture/map-borrowed-iteration.md)；这不新增公开 CLI tour 合同，也不表示 SPEC-0331 完成。集合 `forEach`/`map`/`filter`、未列出的集合 API、String 分词和通用整数格式化仍不能从 Kotlin 经验外推。
+函数声明以`own param: T`表达所有权交付，默认或`borrow param: T`表达共享借用，`inout param: T`表达可变借用；调用点的可变place交付使用`&place`，Borrow不写调用marker。类家族、nullable与Result等语义见[Guide](docs/guide/README.md)，具体native表示与未支持组合以[Architecture](docs/architecture/README.md)为准。词频示例借用参数数组两遍，使用 Map 的 `get`/`put`/`remove`，并不遍历 Map。List/View 的 `take`/`drop`/`dropLast` 通过 project CLI 导入 `koven.algorithms`；单文件 CLI 不加载这些标准库源码。Map 借用遍历已有有界 single/unit 后端子集，覆盖已验参数、temporary、local/alias 来源、真实实参/callable 出生、有限控制流与替换 epoch、嵌套 provider，以及循环后 owner 返回、Move 或更新；确切组合和独立调用/ABI 前置见[支持矩阵](docs/architecture/map-borrowed-iteration.md)。这些后端回归不新增公开 CLI tour 合同；Field/Inout 原生来源仍按 Guide 延后。集合 `forEach`/`map`/`filter`、未列出的集合 API、String 分词和通用整数格式化仍不能从 Kotlin 经验外推。
 
 ---
 

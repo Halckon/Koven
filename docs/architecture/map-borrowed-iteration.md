@@ -2,7 +2,7 @@
 
 > **性质**：当前实现事实 · **状态**：current · **读取时机**：选择 Map 借用迭代来源和退出组合时 · **唯一真源**：代码与测试；验收见 [SPEC-0331](../specs/active/0331-map-borrowed-iteration.md)
 
-[SPEC-0331](../specs/active/0331-map-borrowed-iteration.md)仍在实施；首表保留固定快照
+[SPEC-0331](../specs/active/0331-map-borrowed-iteration.md)记录有限验收与独立前置；首表保留历史快照
 `60512fda0677b07abb77f10d88242f7a16edd1fb` 的有限支持，后续补片分节列出；不改写 Guide 的来源资格。
 `for ((key, value) in source)`沿插入链取得两个独立 Shared loan，不构造 Pair 或 entry owner。
 source 求值、分量与 source 清理由已验证事实交付，SSA verifier 后再生成 LLVM。
@@ -125,7 +125,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 | own Map/MutableMap参数 | String/String | N/C/B/R、普通单If C/B/R及两live arm；同根双层N/条件R | N/C/B后size、多次Borrow调用、CFG后再Borrow及同根重复For已验；其他CFG组合不外推 |
 | Borrow Map/MutableMap参数 | String/String | N/C/B/R、普通单If C/B/R、两live arm；同/不同root双层、同根三层N/内层B/全层R | caller恢复及有限sequential已验；不是任意层数/CFG的完整覆盖 |
 | 直接factory temporary | String/String；字段/结构Resource、Resource?、Int键Resource/String | 零参固定尾N/C/B/R与五表示N；普通实参N及空Map实参if；String/String单If C/B/R与两live arm；内层Resource temporary N/B/R | 实参复用原求值/形参ABI；Resource另验Return内if/checked；其他payload/CFG组合不外推 |
-| factory-formed owned local val/var及moved alias | String/String、owned String字段Resource及混合Resource? | N/C/B/R；后用/复用/替换按末节实测组合 | 按真实Call、Move与epoch运输当前owner；其他birth/一般CFG仍未闭合 |
+| factory-formed owned local val/var及moved alias | String/String、owned String字段Resource及混合Resource? | N/C/B/R；后用/复用/替换按末节实测组合 | 按真实Call、Move、Unit If/callable出生及epoch运输当前owner；仅限实测组合 |
 | own Map参数 | String/直接空字段Resource或Resource? | N/C/B/R | 普通多调用/后续Borrow/size CFG；更多既有Resource表示见后续G5片 |
 | Borrow Map/MutableMap参数 | String/Resource或Resource? | C/B/R；同根Resource双层N/条件R、Resource?双层N/内层B/全层R | caller size/readBack/Mutable put已验；Some/None native输出不单独证明两个Some payload身份 |
 | Borrow参数等既有admission | Int/Int、Int/String、String/pure MoveOnly inline payload等 | 部分N、有限sequential及非nullable Return | Return的具体operand见§61测试；不把通用component cleanup接纳当全payload实证 |
@@ -136,7 +136,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 Return的52源104条双入口SSA/LLVM及104个native见[§61](../specs/active/0331-map-borrowed-iteration.md#61-g3g7-共享普通控制流与非-nullable-return-有限验收2026-10-18)；G8另有原7源与34个非空/空路径runtime源，共82条双入口SSA/LLVM、68个严格native通过。
 G8按每层当前source/cursor/K/V/owner、最近Break/全层Return、精确词法Drop与调用终点验收；固定7f21e1c6复验82/68通过。§63另验有限循环后own交付；String? ABI及其他CFG不外推。
 以上非Field/Inout的具体能力缺口不能统称Guide staging；普通Resource类的字段/泛型/接口、
-其他key/value与更一般source/CFG需分别验收，不能在本轮Break/Return通过后宣称F全矩阵闭合。
+其他key/value与更一般source/CFG不由有限代表外推；具体调用/ABI前置按末节分别登记。
 
 ## own MutableMap 与透明 Group 来源
 
@@ -175,7 +175,7 @@ single逐完整Header/Exit incoming证明当前owner仍连到真实own Parameter
 独立查询核provider与K/V的全部受保护使用、Guard/deinit、N/C/B清理与Next、每条正常退出
 唯一Map Drop。size/调用的Drop在真实最后使用及ABI loan结束之后、后续marker之前；重复For
 在第二LoopExit清理。所有Map Drop均在CFG循环之外。该有限片不宣称consume/重赋值/alias、
-一般条件/嵌套CFG或其他payload的完整覆盖；具体余项继续由SPEC0331 §45单一账本跟踪。
+一般条件/嵌套CFG或其他payload的完整覆盖；后继有限组合与独立前置见SPEC0331最终账。
 
 ## factory local 的形成、后用与 epoch
 
@@ -190,10 +190,11 @@ single逐完整Header/Exit incoming证明当前owner仍连到真实own Parameter
 出生、binding epoch及typed更新结果证明当前owner，Drop与Value delivery显式区分，不据缺Drop保活。
 Resource替换取原RHS完成点；同epoch重复provider的全部FE incoming须经过前一Exit，不能只同出生。
 SSA仍逐全部入边验证当前owner，最终Drop/own Call消费恢复owner，不复活alias或重复清理。
-原7源保字节提升成功，另14个空/非空Resource源与2个非空条件体邻控，共46双入口深查询/SSA/LLVM
+形成相关源保留原7源，并覆盖空/非空Resource与非空条件体邻控；28条双入口深查询/SSA/LLVM
 及46普通native通过；独审另核If真K/假V、FE→SSA kind和每个受保护用途的真实实参/loan/Drop端点。
-
-其他epoch普通实参Call的2源/4双入口/native已验；Unit member/override/delegation保真实callee/receiver。
-保留的15个Single成员调用及Single/Unit companion入口均在Call或更早FE阶段失败；3个future For原挡点已移至后续Call。
-它们仍是共享实现债，不能计为完整For支持或Guide staging；其他ABI/origin前置见0331 §45/63账本。
-普通native只证明exit0、完整golden、空stderr；不证明动态free/无泄漏，不据本片称G2或F全闭合。
+普通实参、intrinsic/Unit callable、外CFG与lambda body、If出生及old/new/next epoch的有限代表
+见0331 §64–73；各自使用真实声明、selected Call、完整FE事实和当前SSA owner，不合并lowering管线。
+原P19/20/21双入口12目标另核For后的实际Map Return、successor Move、put结果及精确End/Drop。
+普通调用/ABI前置分别保留0291 §19、approved0333与draft0334–0340的原目标，不以Unsupported
+统称Guide staging；Unit已验provider不移交Single普通调用前置。最终联合门与动态证据绑定精确头，
+普通native只证明exit0、完整golden、空stderr，不证明动态free或无泄漏；Mac sanitizer保持partial。
