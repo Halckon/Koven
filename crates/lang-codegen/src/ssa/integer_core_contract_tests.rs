@@ -18,8 +18,8 @@ use lang_frontend::{
 use super::{
     lower_scalar_file_with_entry,
     model::{
-        Definition, EntityId, EntityType, Function, FunctionId, Operation, Program, ScalarConstant,
-        SsaTypeKind, TerminatorKind,
+        Definition, EntityId, EntityType, Function, FunctionId, LoanKind, Operation, PlaceAccess,
+        Program, ScalarConstant, SsaTypeKind, TerminatorKind,
     },
     unit_lower::{constant::lower_constant_unit_with_entry, lower_scalar_unit_with_entry},
     unit_lower_test_support::{declaration, parsed},
@@ -42,21 +42,46 @@ fn text_key(text: &str, fragment: &str) -> SourceKey {
     SourceKey("pair/entry.ko".to_owned(), start, start + fragment.len())
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OperationKey {
+    IntegerConstant,
+    Read,
+    RootPlace,
+    SharedBorrow,
+    Call,
+    Invert,
+    Convert,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum DefinitionKey {
-    Instruction(SourceKey, usize),
+    Instruction(SourceKey, OperationKey, usize),
     Parameter(SourceKey, usize),
 }
 
 fn definition_key(sources: &SourceMap, function: &Function, entity: EntityId) -> DefinitionKey {
     match function.entity(entity).unwrap().definition {
-        Definition::InstructionResult { instruction, index } => DefinitionKey::Instruction(
-            source_key(
-                sources,
-                function.instruction(instruction).unwrap().origin.span(),
-            ),
-            index,
-        ),
+        Definition::InstructionResult { instruction, index } => {
+            let instruction = function.instruction(instruction).unwrap();
+            let operation = match instruction.operation {
+                Operation::Constant(ScalarConstant::Integer(_)) => OperationKey::IntegerConstant,
+                Operation::Read { .. } => OperationKey::Read,
+                Operation::RootPlace { .. } => OperationKey::RootPlace,
+                Operation::BorrowBegin {
+                    kind: LoanKind::Shared,
+                    ..
+                } => OperationKey::SharedBorrow,
+                Operation::DirectCall { .. } => OperationKey::Call,
+                Operation::IntegerNot { .. } => OperationKey::Invert,
+                Operation::CheckedIntegerConvert { .. } => OperationKey::Convert,
+                _ => panic!("unexpected definition in the integer fixture"),
+            };
+            DefinitionKey::Instruction(
+                source_key(sources, instruction.origin.span()),
+                operation,
+                index,
+            )
+        }
         Definition::BlockParameter { block, index } => DefinitionKey::Parameter(
             source_key(sources, function.block(block).unwrap().origin.span()),
             index,
@@ -82,9 +107,17 @@ struct Call {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+struct Transport {
+    source: DefinitionKey,
+    result: DefinitionKey,
+    value_type: SsaTypeKind,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 struct Contract {
     intrinsics: Vec<Intrinsic>,
     calls: Vec<Call>,
+    transports: Vec<Transport>,
     constants: Vec<(SourceKey, i128, SsaTypeKind)>,
     returned: Vec<DefinitionKey>,
 }
@@ -103,6 +136,7 @@ fn contract(sources: &SourceMap, program: &Program, entry: FunctionId) -> Contra
     let mut result = Contract {
         intrinsics: Vec::new(),
         calls: Vec::new(),
+        transports: Vec::new(),
         constants: Vec::new(),
         returned: Vec::new(),
     };
@@ -164,6 +198,53 @@ fn contract(sources: &SourceMap, program: &Program, entry: FunctionId) -> Contra
                     assert_eq!(values.len(), 1);
                     assert_eq!(definition(EntityId::Value(values[0])), value);
                 }
+            }
+            Operation::Read {
+                source: PlaceAccess::Loan(loan),
+            } => {
+                assert_eq!(instruction.results.len(), 1);
+                assert!(matches!(
+                    function.entity(EntityId::Loan(*loan)).unwrap().ty,
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        ..
+                    }
+                ));
+                result.transports.push(Transport {
+                    source: definition(EntityId::Loan(*loan)),
+                    result: definition(instruction.results[0]),
+                    value_type: kind(instruction.results[0]),
+                });
+            }
+            Operation::RootPlace { owner } => {
+                assert!(matches!(
+                    instruction.results.as_slice(),
+                    [EntityId::Place(_)]
+                ));
+                result.transports.push(Transport {
+                    source: definition(EntityId::Value(*owner)),
+                    result: definition(instruction.results[0]),
+                    value_type: kind(EntityId::Value(*owner)),
+                });
+            }
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            } => {
+                assert!(matches!(
+                    instruction.results.as_slice(),
+                    [EntityId::Loan(_)]
+                ));
+                let ty = function
+                    .entity(EntityId::Place(*place))
+                    .unwrap()
+                    .ty
+                    .semantic_type();
+                result.transports.push(Transport {
+                    source: definition(EntityId::Place(*place)),
+                    result: definition(instruction.results[0]),
+                    value_type: module.types[ty.index()].clone(),
+                });
             }
             Operation::DirectCall {
                 callee,
@@ -260,6 +341,11 @@ fn paired(text: &str, other_text: &str, constants: bool) -> Contract {
                     .unwrap();
             let recovery =
                 check_compilation_unit_types(&sources, &inputs, &names, &environment).unwrap();
+            assert!(
+                recovery.diagnostics().is_empty(),
+                "{:?}",
+                recovery.diagnostics()
+            );
             complete_compilation_unit_types(&sources, &inputs, &names, &environment, &recovery)
                 .unwrap();
             if constants {
@@ -347,14 +433,14 @@ fn assert_contract(text: &str, contract: Contract, target_bits: u16, constants: 
             Intrinsic {
                 origin: inverted.clone(),
                 inverted: true,
-                receiver: DefinitionKey::Instruction(call.clone(), 0),
+                receiver: DefinitionKey::Instruction(call.clone(), OperationKey::Call, 0),
                 receiver_type: int.clone(),
                 result_type: int.clone(),
             },
             Intrinsic {
                 origin: conversion.clone(),
                 inverted: false,
-                receiver: DefinitionKey::Instruction(inverted, 0),
+                receiver: DefinitionKey::Instruction(inverted, OperationKey::Invert, 0),
                 receiver_type: int.clone(),
                 result_type: SsaTypeKind::Integer {
                     bits: target_bits,
@@ -365,11 +451,34 @@ fn assert_contract(text: &str, contract: Contract, target_bits: u16, constants: 
     );
     let entry_start = text.find("fun entry").unwrap();
     let tick_start = text.find("fun tick").unwrap();
-    let argument = if constants {
-        DefinitionKey::Instruction(text_key(text, "SEED"), 0)
+    let receiver_use = text_key(text, "receiver");
+    let local_value = if constants {
+        DefinitionKey::Instruction(text_key(text, "SEED"), OperationKey::IntegerConstant, 0)
     } else {
-        DefinitionKey::Parameter(text_key(text, &text[entry_start..]), 0)
+        DefinitionKey::Instruction(text_key(text, "value"), OperationKey::Read, 0)
     };
+    let place = DefinitionKey::Instruction(receiver_use.clone(), OperationKey::RootPlace, 0);
+    let argument = DefinitionKey::Instruction(receiver_use, OperationKey::SharedBorrow, 0);
+    let mut transports = Vec::new();
+    if !constants {
+        transports.push(Transport {
+            source: DefinitionKey::Parameter(text_key(text, &text[entry_start..]), 0),
+            result: local_value.clone(),
+            value_type: int.clone(),
+        });
+    }
+    transports.push(Transport {
+        source: local_value,
+        result: place.clone(),
+        value_type: int.clone(),
+    });
+    transports.push(Transport {
+        source: place,
+        result: argument.clone(),
+        value_type: int.clone(),
+    });
+    // Keep the ordinary Borrow parameter's Read and both same-span transport nodes.
+    assert_eq!(contract.transports, transports);
     // One real side-effecting call supplies the inv receiver; convert uses that inv result.
     assert_eq!(
         contract.calls,
@@ -382,7 +491,11 @@ fn assert_contract(text: &str, contract: Contract, target_bits: u16, constants: 
     );
     assert_eq!(
         contract.returned,
-        vec![DefinitionKey::Instruction(conversion, 0)]
+        vec![DefinitionKey::Instruction(
+            conversion,
+            OperationKey::Convert,
+            0
+        )]
     );
     assert_eq!(
         contract.constants,
@@ -406,6 +519,6 @@ fn paired_integer_intrinsics_preserve_source_identity_and_receiver_use() {
 #[test]
 fn paired_const_integer_intrinsics_preserve_source_identity_and_receiver_use() {
     let text = fixture("pair", "Int", "Long", true);
-    let other = fixture("other", "UByte", "ULong", true).replace("= 17\n", "= 19\n");
+    let other = fixture("other", "UByte", "ULong", true).replace("= 17\n", "= 19u\n");
     assert_contract(&text, paired(&text, &other, true), 64, true);
 }
