@@ -63,6 +63,16 @@ D10 的终态是单文件和 project 共用 compilation-unit 名称、类型、�
 每片保持可独立审阅和回退。回退是恢复上一已验证提交与记录未完成缺口，不能静默更改
 源码集合、降低期望、删测试或切回双管线而仍称统一完成。新增长期协议另行 ADR。
 
+### 当前生产接线前置 A0
+
+先把现 project 唯一 Unit 编排与标准 loader 的中立错误抽至 CLI 内部共同入口；只借原
+`UnitNameSnapshot`、同轮类型环境、原 project selector 与 object 路径。names gate→types→
+complete→basic/const→ownership validation→entry→sealed view→emit 的既有顺序及诊断
+保持；project 外壳保输入/路径、呈现、exit 与产物生命周期。共同错误只有一份表示，不为
+尚无消费者的 single 策略预建 variant、trait、context 或回调。验收复用原普通 project/std
+及完整输出 oracle；本片属于行为中性提取，不声称行为红测或单文件已统一。A0 后紧接
+parse-once 接续 A1 和真实 single 接线 A2，不转成长周期 helper 抽取。
+
 ## 4. 模块与依赖
 
 driver 负责 source descriptor、受信任标准源授权、entry 选择与诊断输出；frontend 负责
