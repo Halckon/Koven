@@ -40,11 +40,16 @@ UnsupportedNode，unit 仍为 MissingFact。两份 `checked.rs` 的 CFG、carry/
 以及顺序执行、遇错误或 Diverged 即停、全正常返回 Unit 的循环。两入口的窄适配调用原
 inner 与原 emit_drops；unit 在适配内保留现场 source-qualified statement 身份。
 空容器由 wrapper 正常清理，单个 statement 的 Value 原样返回；single 的 Block/LambdaBody
-与 unit 另含 ControlBody 的能力差异保持。Map 专用 inner、control-tail/lambda 尾值、
-原 cleanup 执行器与 CFG 状态运输没有纳入本片。依赖门禁止 expression 反向读取 statement。
+与 unit 另含 ControlBody 的能力差异保持。普通statement小片当时未纳入 Map 专用 inner、
+control-tail/lambda 尾值、原 cleanup 执行器与 CFG 状态运输。依赖门禁止 expression 反向读取 statement。
 真实来源成对顺序、非空 AfterStatement、提前 return 和既有普通 SSA/native 已按
 [0341 statement 小片](../specs/active/0341-shared-lowering-core.md#13-普通-statement-小片实际验收2026-10-19)验收；
 共同 CFG、owner/loan、调用与 driver 层仍待收敛。
+
+同一核心的 `lower_tail_sequence` 还统一已支持control-tail的prefix顺序、末项三态保留和
+非Diverged body cleanup。空tail直接Unit；适配仍决定single ControlBody与unit额外LambdaBody
+能力及fallback，原branch结果交付/BranchExit不动。single独立lambda的空体清理和结果合同
+仍保留，不能与tail规则混合；[0341 tail验收](../specs/active/0341-shared-lowering-core.md#15-control-tail-小片实际验收2026-10-19)记录固定普通来源与保留边界。
 
 ## nullable 最后读取与 cleanup
 
