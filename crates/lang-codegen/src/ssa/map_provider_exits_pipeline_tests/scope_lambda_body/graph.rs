@@ -1,5 +1,5 @@
 //! Actual address selects the true thunk; its internal Map has an independent owner lifetime.
-mod factory;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod factory;
 use super::super::{
     births,
     fixture::{Failure, failure, need},
@@ -256,7 +256,16 @@ pub(super) fn check(
         "A2 actual concrete internal Map String/String owner",
         map,
     )?;
-    factory::check(sources, parsed, i, module, map)?;
+    factory::check(
+        sources,
+        parsed,
+        &factory::Input {
+            make: &i.make,
+            produce: &i.produce,
+        },
+        module,
+        map,
+    )?;
     let owners = family(&g, seed)?;
     let mut uses = Uses::default();
     for &e in &owners {

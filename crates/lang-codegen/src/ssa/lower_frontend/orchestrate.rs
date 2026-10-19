@@ -112,7 +112,7 @@ fn lower_scalar_file_product(
 ) -> Result<LoweredFile, LoweringError> {
     validate_inputs(sources, parsed, names, typed, owned)?;
     super::map_iteration::validate(parsed, names, typed, owned)?;
-    super::borrow_result::validate(parsed, typed, owned)?;
+    super::borrow_result::validate(parsed, names, typed, owned)?;
     if let Some(root) =
         owned.cleanup_steps().iter().find_map(|(_, action)| {
             match action {

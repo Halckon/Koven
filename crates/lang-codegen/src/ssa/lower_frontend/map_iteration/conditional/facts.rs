@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 
 pub(in super::super) fn source_target(source: SourceIdentity) -> DropTarget {
     match source {
+        SourceIdentity::BorrowedBinding(proof) => DropTarget::Named(proof.source),
         SourceIdentity::Parameter(root)
         | SourceIdentity::Local { symbol: root, .. }
         | SourceIdentity::Formed { symbol: root, .. } => DropTarget::Named(root),
@@ -251,6 +252,7 @@ pub(in super::super) fn qualify(
     // A future Drop is selected only from the validated parameter provenance or
     // the formed-local epoch ledger. An absent plan Drop never invents an owner.
     let (ledger, formation) = match shape.source {
+        SourceIdentity::BorrowedBinding(_) => return Err(missing()),
         SourceIdentity::Temporary(source) => (
             owned
                 .drops()
@@ -571,6 +573,7 @@ fn validate_source_fact(
         return Err(missing());
     }
     match flow.source {
+        SourceIdentity::BorrowedBinding(_) => return Err(missing()),
         SourceIdentity::Parameter(root) => {
             if fact.value_origin()
                 != names

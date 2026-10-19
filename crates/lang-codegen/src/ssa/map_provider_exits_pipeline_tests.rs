@@ -265,3 +265,5 @@ pub(crate) use scope_lambda_body::sources as scope_a2_sources;
 
 mod scope_value_births;
 pub(crate) use scope_value_births::int_storage_sources as scope_int_storage_sources;
+
+pub(crate) use scope_value_births::borrow_alias_sources as scope_borrow_alias_sources;

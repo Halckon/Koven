@@ -9,6 +9,7 @@ use lang_frontend::{
 
 mod local_if;
 mod short_circuit;
+pub(super) mod stable_map;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum CallAccess {
@@ -65,6 +66,7 @@ pub(super) fn declaration(parsed: &ParsedFile, marker: Span) -> Result<(), Lower
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn binding(
     parsed: &ParsedFile,
     marker: Span,
@@ -73,6 +75,7 @@ pub(super) fn binding(
     scope: Option<StatementId>,
     builtin: impl Fn(ExpressionId) -> Option<BuiltinType>,
     call_allowed: impl Fn(ExpressionId, CallAccess) -> bool,
+    iteration_allowed: impl Fn(StatementId) -> bool,
 ) -> Result<(), LoweringError> {
     let function = parsed
         .ast()
@@ -149,12 +152,14 @@ pub(super) fn binding(
             return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
         }
     }
-    for (_, node) in parsed.ast().statements().iter() {
+    for (statement, node) in parsed.ast().statements().iter() {
         if contains(function, node.span())
             && (matches!(
                 node.payload(),
                 Statement::While { .. } | Statement::Loop { .. }
-            ) || (!range && matches!(node.payload(), Statement::For { .. })))
+            ) || (!range
+                && matches!(node.payload(), Statement::For { .. })
+                && !iteration_allowed(statement)))
         {
             return Err(error(LoweringErrorKind::UnsupportedNode, node.span()));
         }

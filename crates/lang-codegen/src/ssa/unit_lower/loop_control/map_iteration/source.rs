@@ -11,6 +11,33 @@ impl UnitExpressionLowerer<'_> {
             == self.thunk_expression
     }
 
+    pub(super) fn borrowed_map_anchor(
+        &self,
+        proof: map_iteration::borrowed::Proof,
+        current: EntityId,
+        span: Span,
+    ) -> Result<EntityId, LoweringError> {
+        let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
+        if self.bindings.contains_key(&proof.binding)
+            || self
+                .result_source_loans
+                .get(&proof.binding)
+                .is_none_or(|loans| !loans.is_empty())
+        {
+            return Err(bad());
+        }
+        let entry = self.function.entry_block().ok_or_else(bad)?;
+        let parent = transport::parameter(self.function, entry, proof.slot, span)?;
+        crate::ssa::borrow_result_support::stable_map::seed(
+            self.function,
+            current,
+            parent,
+            proof.declaration,
+            span,
+            transport::from_anchor,
+        )
+    }
+
     pub(super) fn map_source_seed(
         &mut self,
         qualified: map_iteration::QualifiedMap,
@@ -55,6 +82,14 @@ impl UnitExpressionLowerer<'_> {
         }
         let identity = qualified.source;
         let seed = match identity {
+            SourceIdentity::BorrowedBinding(proof) => {
+                if access != UnitIterationSourceAccess::Shared {
+                    return Err(missing());
+                }
+                let current = identity.current(self, span)?;
+                self.borrowed_map_anchor(proof, current, span)?;
+                current
+            }
             SourceIdentity::Parameter { slot, .. } => {
                 let entry = self.function.entry_block().ok_or_else(missing)?;
                 let anchor = transport::parameter(self.function, entry, slot, span)?;
@@ -135,7 +170,8 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }
             }
-            SourceIdentity::Local { .. }
+            SourceIdentity::BorrowedBinding(_)
+            | SourceIdentity::Local { .. }
             | SourceIdentity::Formed { .. }
             | SourceIdentity::Temporary(_) => {
                 if identity.current(self, span)? != seed {

@@ -5,6 +5,7 @@ use lang_frontend::type_checking::CallableTarget;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SourceIdentity {
     Parameter(SymbolId),
+    BorrowedBinding(borrowed::Proof),
     Local {
         symbol: SymbolId,
         initializer: ExpressionId,
@@ -20,6 +21,7 @@ pub(super) enum SourceIdentity {
 impl SourceIdentity {
     pub(super) fn matches_slot(self, slot: &LinearBindingSlot) -> bool {
         match self {
+            Self::BorrowedBinding(_) => false,
             Self::Parameter(symbol) | Self::Local { symbol, .. } | Self::Formed { symbol, .. } => {
                 slot.symbol == Some(symbol)
             }
@@ -31,6 +33,7 @@ impl SourceIdentity {
 
     pub(super) fn current_owner(self, lowerer: &ExpressionLowerer<'_>) -> Option<ValueId> {
         match self {
+            Self::BorrowedBinding(_) => None,
             Self::Parameter(symbol) | Self::Local { symbol, .. } | Self::Formed { symbol, .. } => {
                 match lowerer.bindings.get(&symbol) {
                     Some(LoweredValue::Value(owner)) => Some(*owner),
@@ -51,6 +54,7 @@ impl SourceIdentity {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         match self {
+            Self::BorrowedBinding(_) => return Err(error(LoweringErrorKind::MissingFact, span)),
             Self::Parameter(symbol) | Self::Local { symbol, .. } | Self::Formed { symbol, .. } => {
                 lowerer.bindings.remove(&symbol);
             }
@@ -81,6 +85,7 @@ impl ExpressionLowerer<'_> {
     ) -> Result<EntityId, LoweringError> {
         let missing = || error(LoweringErrorKind::MissingFact, span);
         match source {
+            SourceIdentity::BorrowedBinding(proof) => self.borrowed_map_seed(proof, span),
             SourceIdentity::Parameter(symbol) => {
                 let seed = *self
                     .map_iteration_state

@@ -526,6 +526,7 @@ pub(super) fn flow_condition(
     let bad = || error(LoweringErrorKind::MissingFact, span);
     let plan = owned.map_iteration(flow.statement).ok_or_else(bad)?;
     match flow.source {
+        SourceIdentity::BorrowedBinding(_) => Err(bad()),
         SourceIdentity::Parameter(symbol) => {
             let origin = names.symbols().get(symbol.index()).ok_or_else(bad)?.span();
             provenance::flow(owned, symbol, origin, None, owner, span)

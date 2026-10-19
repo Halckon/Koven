@@ -1,10 +1,14 @@
 //! The internal make() result returns the same fully populated factory owner.
 use super::super::super::temporary_arguments;
 use super::*;
-pub(super) fn check(
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Input<'a> {
+    pub make: &'a temporary_arguments::ast::Function,
+    pub produce: &'a temporary_arguments::ast::Function,
+}
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn check(
     sources: &SourceMap,
     parsed: &ParsedFile,
-    i: &ast::Input,
+    i: &Input<'_>,
     module: &Module,
     map: SsaTypeId,
 ) -> Result<(), Failure> {

@@ -3,6 +3,7 @@ use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(in super::super) enum SourceIdentity {
+    BorrowedBinding(borrowed::Proof),
     Parameter {
         root: UnitSymbolId,
         slot: usize,
@@ -26,9 +27,10 @@ impl SourceIdentity {
     ) -> Result<UnitSymbolId, LoweringError> {
         match self {
             Self::Parameter { root, .. } => Ok(root),
-            Self::Local { .. } | Self::Formed { .. } | Self::Temporary(_) => {
-                Err(lowering_error(LoweringErrorKind::MissingFact, span))
-            }
+            Self::BorrowedBinding(_)
+            | Self::Local { .. }
+            | Self::Formed { .. }
+            | Self::Temporary(_) => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
         }
     }
 
@@ -39,6 +41,17 @@ impl SourceIdentity {
     ) -> Result<EntityId, LoweringError> {
         let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
         match self {
+            Self::BorrowedBinding(proof) => {
+                if lowerer.bindings.contains_key(&proof.binding) {
+                    return Err(missing());
+                }
+                lowerer
+                    .borrow_bindings
+                    .get(&proof.binding)
+                    .copied()
+                    .map(EntityId::Loan)
+                    .ok_or_else(missing)
+            }
             Self::Parameter { root, .. } | Self::Local { root, .. } | Self::Formed { root, .. } => {
                 match (
                     lowerer.bindings.get(&root),
@@ -60,6 +73,7 @@ impl SourceIdentity {
 
     pub(in super::super) fn drop_target(self) -> UnitDropTarget {
         match self {
+            Self::BorrowedBinding(proof) => UnitDropTarget::Named(proof.source),
             Self::Parameter { root, .. } | Self::Local { root, .. } | Self::Formed { root, .. } => {
                 UnitDropTarget::Named(root)
             }
@@ -69,6 +83,7 @@ impl SourceIdentity {
 
     pub(in super::super) fn is_registered(self, lowerer: &UnitExpressionLowerer<'_>) -> bool {
         match self {
+            Self::BorrowedBinding(proof) => lowerer.borrow_bindings.contains_key(&proof.binding),
             Self::Parameter { root, .. } | Self::Local { root, .. } | Self::Formed { root, .. } => {
                 lowerer.bindings.contains_key(&root) || lowerer.borrow_bindings.contains_key(&root)
             }

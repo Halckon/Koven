@@ -1,4 +1,5 @@
 //! Narrow Map capability gate. This runs after the sealed frontend view, before Module creation.
+pub(super) mod borrowed;
 mod conditional;
 pub(super) mod formed;
 mod future_use;
@@ -95,6 +96,21 @@ pub(super) fn qualify(
     qualify_one(parsed, names, typed, owned, descriptor)
 }
 
+/// Reuse complete provider qualification for this exact stable binding's For.
+pub(super) fn stable_borrow_provider(
+    parsed: &ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    statement: UnitStatementId,
+    binding: UnitSymbolId,
+) -> bool {
+    typed.map_iteration(statement).is_some_and(|descriptor| {
+        qualify(parsed, names, typed, owned, descriptor).is_ok_and(|qualified|
+            matches!(qualified.source, SourceIdentity::BorrowedBinding(proof) if proof.binding == binding))
+    })
+}
+
 fn qualify_one(
     parsed: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -169,9 +185,14 @@ fn qualify_one(
                 && reference.span() == source_node.span()
         })
         .collect::<Vec<_>>();
-    if !matches!(references.as_slice(), [reference]
-        if reference.target() == &UnitReferenceTarget::Symbol(root))
-        || root.source_unit() != statement.source_unit()
+    let source_binding = match references.as_slice() {
+        [reference] => match reference.target() {
+            UnitReferenceTarget::Symbol(binding) => *binding,
+            _ => return Err(missing()),
+        },
+        _ => return Err(missing()),
+    };
+    if root.source_unit() != statement.source_unit()
         || typed.symbol_type(root) != Some(descriptor.source_type())
     {
         return Err(missing());
@@ -293,9 +314,18 @@ fn qualify_one(
         }
     }
     reject_nested(parsed, statement.statement(), span)?;
-    let source_identity = SourceIdentity::Parameter {
-        root,
-        slot: *parameter_slot,
+    let source_identity = if source_binding == root {
+        SourceIdentity::Parameter {
+            root,
+            slot: *parameter_slot,
+        }
+    } else {
+        SourceIdentity::BorrowedBinding(borrowed::prove(
+            (parsed, names, typed, owned),
+            plan,
+            (source_binding, *parameter_slot),
+            span,
+        )?)
     };
     if let Some(qualified) = conditional::qualify(
         parsed,
@@ -365,10 +395,7 @@ fn qualify_one(
     let body_point = body_point(statement, *body, body_exit);
     Ok(QualifiedMap {
         statement,
-        source: SourceIdentity::Parameter {
-            root,
-            slot: *parameter_slot,
-        },
+        source: source_identity,
         source_drop,
         future_transfer: None,
         late_drop,

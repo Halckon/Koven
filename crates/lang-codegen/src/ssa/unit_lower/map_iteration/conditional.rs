@@ -20,6 +20,9 @@ impl QualifiedConditional {
             return Err(bad());
         }
         let matches = match (source, plan.source()) {
+            (SourceIdentity::BorrowedBinding(proof), Some(UnitLoanTarget::Place(place))) => {
+                place.is_root() && place.root() == proof.source
+            }
             (
                 SourceIdentity::Parameter { root, .. }
                 | SourceIdentity::Formed { root, .. }

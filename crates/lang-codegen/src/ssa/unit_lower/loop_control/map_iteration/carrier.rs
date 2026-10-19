@@ -62,6 +62,9 @@ impl MapCarrier {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         let function = &lowerer.function;
         let anchor = match qualified.source {
+            SourceIdentity::BorrowedBinding(proof) => {
+                lowerer.borrowed_map_anchor(proof, seed, span)?
+            }
             SourceIdentity::Parameter { slot, .. } => {
                 let entry = function.entry_block().ok_or_else(bad)?;
                 let anchor = transport::parameter(function, entry, slot, span)?;
@@ -301,7 +304,9 @@ impl MapCarrier {
         }
         if matches!(
             self.identity,
-            SourceIdentity::Parameter { .. } | SourceIdentity::Formed { .. }
+            SourceIdentity::BorrowedBinding(_)
+                | SourceIdentity::Parameter { .. }
+                | SourceIdentity::Formed { .. }
         ) || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {
@@ -381,7 +386,9 @@ impl MapCarrier {
         }
         if matches!(
             self.identity,
-            SourceIdentity::Parameter { .. } | SourceIdentity::Formed { .. }
+            SourceIdentity::BorrowedBinding(_)
+                | SourceIdentity::Parameter { .. }
+                | SourceIdentity::Formed { .. }
         ) || matches!(self.identity, SourceIdentity::Local { .. })
             || self.late_drop.is_some()
         {

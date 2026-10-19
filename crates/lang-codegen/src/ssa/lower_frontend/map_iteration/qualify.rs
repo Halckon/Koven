@@ -116,10 +116,23 @@ fn qualify_one<'a>(
         .iter()
         .filter(|reference| reference.span() == source_node.span())
         .collect::<Vec<_>>();
-    if !matches!(references.as_slice(), [reference] if reference.target() == &ReferenceTarget::Symbol(symbol))
-    {
-        return Err(missing());
-    }
+    let binding = match references.as_slice() {
+        [reference] => match reference.target() {
+            ReferenceTarget::Symbol(binding) => *binding,
+            _ => return Err(missing()),
+        },
+        _ => return Err(missing()),
+    };
+    let borrowed = if binding == symbol {
+        None
+    } else {
+        Some(borrowed::prove(
+            (parsed, names, typed, owned),
+            plan,
+            binding,
+            span,
+        )?)
+    };
     let data = names.symbols().get(symbol.index()).ok_or_else(missing)?;
     if data.kind() == SymbolKind::Variable {
         return match local::qualify(parsed, names, typed, owned, plan, *body, span) {
@@ -189,15 +202,10 @@ fn qualify_one<'a>(
     if has_enclosing_control(parsed, span) {
         return Err(unsupported());
     }
-    let conditional = conditional::shape(
-        parsed,
-        names,
-        typed,
-        descriptor,
-        *body,
-        SourceIdentity::Parameter(symbol),
-        span,
-    )?;
+    let identity = borrowed
+        .map(SourceIdentity::BorrowedBinding)
+        .unwrap_or(SourceIdentity::Parameter(symbol));
+    let conditional = conditional::shape(parsed, names, typed, descriptor, *body, identity, span)?;
     let body_exit = if conditional.is_some() {
         IterationExitKind::Fallthrough
     } else {
@@ -207,7 +215,7 @@ fn qualify_one<'a>(
         let owner = conditional::qualify(parsed, names, typed, owned, plan, shape, span)?;
         return Ok(Qualified {
             plan,
-            source: SourceIdentity::Parameter(symbol),
+            source: identity,
             body: *body,
             origin: data.span(),
             owner,
@@ -240,7 +248,7 @@ fn qualify_one<'a>(
     };
     Ok(Qualified {
         plan,
-        source: SourceIdentity::Parameter(symbol),
+        source: identity,
         body: *body,
         origin: data.span(),
         owner,

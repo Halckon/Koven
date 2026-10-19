@@ -25,14 +25,16 @@ pub(in super::super) struct Context {
 // plan, source proof and cumulative conditional/nested evidence stay in place.
 impl Context {
     pub(in super::super) fn path_snapshot(&self) -> Option<control::map_frames::Snapshot> {
+        let owner = match self.owner {
+            Some((_, source, owner)) => Some((path_owner_root(source)?, owner)),
+            None => None,
+        };
         Some(control::map_frames::Snapshot {
             statement: self.frame.statement,
             source: self.frame.source,
             components: self.frame.components,
             finished: self.frame.finished,
-            owner: self
-                .owner
-                .map(|(_, source, owner)| (path_owner_root(source), owner)),
+            owner,
             body: self.body,
             cursor: self.cursor,
             cursor_type: self.cursor_type,
@@ -49,11 +51,17 @@ impl Context {
         path: control::map_frames::Snapshot,
         span: Span,
     ) -> Result<(), LoweringError> {
+        let root = match self.owner {
+            Some((_, source, _)) => Some(
+                path_owner_root(source)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?,
+            ),
+            None => None,
+        };
         if self.frame.statement != path.statement
             || self.plan.descriptor().statement() != path.statement
             || self.cursor_type != path.cursor_type
-            || self.owner.map(|(_, source, _)| path_owner_root(source))
-                != path.owner.map(|(root, _)| root)
+            || root != path.owner.map(|(root, _)| root)
             || self.frame.components.map(|(symbol, _)| symbol)
                 != path.components.map(|(symbol, _)| symbol)
         {
@@ -76,9 +84,10 @@ impl Context {
     }
 }
 
-fn path_owner_root(source: SourceIdentity) -> control::map_frames::OwnerRoot {
+fn path_owner_root(source: SourceIdentity) -> Option<control::map_frames::OwnerRoot> {
     use control::map_frames::OwnerRoot;
-    match source {
+    Some(match source {
+        SourceIdentity::BorrowedBinding(_) => return None,
         SourceIdentity::Parameter(symbol) => OwnerRoot::Parameter(symbol),
         SourceIdentity::Local {
             symbol,
@@ -89,7 +98,7 @@ fn path_owner_root(source: SourceIdentity) -> control::map_frames::OwnerRoot {
         },
         SourceIdentity::Formed { symbol, birth } => OwnerRoot::Formed { symbol, birth },
         SourceIdentity::Temporary(expression) => OwnerRoot::Temporary(expression),
-    }
+    })
 }
 
 impl ExpressionLowerer<'_> {

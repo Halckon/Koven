@@ -1,7 +1,7 @@
 //! A2 preserves the two original P15 programs and their real lambda/body identities.
 mod ast;
 pub(super) mod facts;
-mod graph;
+pub(super) mod graph;
 mod sources;
 use super::{
     Report,

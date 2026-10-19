@@ -132,6 +132,12 @@ impl Roles {
     fn from_exit(state: MapState, exit: &BranchExit, span: Span) -> Result<Self, LoweringError> {
         let bad = || lowering_error(LoweringErrorKind::MissingFact, span);
         let seed = match state.carrier.identity {
+            SourceIdentity::BorrowedBinding(proof) => {
+                if exit.bindings.contains_key(&proof.binding) {
+                    return Err(bad());
+                }
+                EntityId::Loan(*exit.borrow_bindings.get(&proof.binding).ok_or_else(bad)?)
+            }
             SourceIdentity::Temporary(e) => exit
                 .temporaries
                 .get(&e)

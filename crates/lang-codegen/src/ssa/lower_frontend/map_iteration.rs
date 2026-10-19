@@ -1,4 +1,5 @@
 //! Bounded two-component Map provider; independent from Sequential snapshots.
+mod borrowed;
 mod carrier;
 mod checked;
 mod cleanup;
@@ -107,6 +108,21 @@ struct Frame {
     finished: bool,
 }
 
+/// Reuse complete provider qualification for this exact stable binding's For.
+pub(super) fn stable_borrow_provider(
+    parsed: &ParsedFile,
+    names: &NameResolution,
+    typed: &TypedFile,
+    owned: &OwnershipCheckedFile,
+    statement: StatementId,
+    binding: SymbolId,
+) -> bool {
+    typed.map_iteration(statement).is_some_and(|descriptor| {
+        qualify::qualify(parsed, names, typed, owned, *descriptor).is_ok_and(|qualified|
+            matches!(qualified.source, SourceIdentity::BorrowedBinding(proof) if proof.binding == binding))
+    })
+}
+
 impl ExpressionLowerer<'_> {
     pub(super) fn lower_map_iteration(
         &mut self,
@@ -158,7 +174,10 @@ impl ExpressionLowerer<'_> {
                 .any(|(&key, &value)| !self.active_map_temporary(key, value))
             || !self.non_null_bindings.is_empty()
             || !self.capture_loans.is_empty()
-            || !self.result_source_loans.is_empty()
+            || self.result_source_loans.iter().any(|(binding, loans)| {
+                !matches!(qualified.source, SourceIdentity::BorrowedBinding(proof)
+                    if proof.binding == *binding && loans.is_empty())
+            })
         {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
@@ -223,7 +242,8 @@ impl ExpressionLowerer<'_> {
                 if source_identity.current_owner(self) != Some(owner) {
                     let kind = match source_identity {
                         SourceIdentity::Parameter(_) => LoweringErrorKind::UnsupportedNode,
-                        SourceIdentity::Local { .. }
+                        SourceIdentity::BorrowedBinding(_)
+                        | SourceIdentity::Local { .. }
                         | SourceIdentity::Formed { .. }
                         | SourceIdentity::Temporary(_) => LoweringErrorKind::MissingFact,
                     };
@@ -247,8 +267,10 @@ impl ExpressionLowerer<'_> {
                 )?
             }
             (MapIterationSourceAccess::Shared, EntityId::Loan(loan)) => {
-                let SourceIdentity::Parameter(symbol) = source_identity else {
-                    return Err(error(LoweringErrorKind::MissingFact, span));
+                let symbol = match source_identity {
+                    SourceIdentity::Parameter(symbol) => symbol,
+                    SourceIdentity::BorrowedBinding(proof) => proof.binding,
+                    _ => return Err(error(LoweringErrorKind::MissingFact, span)),
                 };
                 if self.borrow_bindings.get(&symbol) != Some(&loan)
                     || self.function.entity(seed).map(|entity| entity.ty)

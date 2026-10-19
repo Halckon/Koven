@@ -20,7 +20,7 @@ pub(super) fn lower_unit_from_facts(
     // Both sealed views have already checked the complete frontend identity chain.
     // This whole-set capability check must precede instance planning and Module creation.
     super::map_iteration::validate(&parsed_by_source, names, typed, owned)?;
-    super::borrow_result::validate(&parsed_by_source, typed, owned)?;
+    super::borrow_result::validate(&parsed_by_source, names, typed, owned)?;
     let instance_plan = plan_unit_instances_from_facts(
         &parsed_by_source,
         names,
