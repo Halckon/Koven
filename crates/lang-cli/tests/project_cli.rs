@@ -829,7 +829,7 @@ fn project_standard_key_collision_preserves_the_complete_operational_error() {
         assert!(output.stdout.is_empty(), "{output:?}");
         assert_eq!(
             output.stderr,
-            b"error: project build failed: source setup failed: source name \"koven-std/koven/algorithms/ranges.ko\" is already registered\n",
+            b"error: project build failed: compilation-unit input failed: duplicate source key (\"koven-std\", \"koven/algorithms/ranges.ko\")\n",
             "{output:?}"
         );
         assert!(!executable.exists());
