@@ -1526,3 +1526,32 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - P06原两For失败关闭；B剩P05双端和P03/04 Unit共4，C=8、D=6，共18条原For失败仍必修。
   最终固定头联合回归、新头CI三产物独审、README/Tour/Architecture、最小归档与正常合并仍待；
   F保持active，PR保持draft，D10未启动，后续开发按用户要求交云端。
+
+## 69. B / P05 参数 storage 的稳定 Borrow alias（2026-10-19）
+
+- 固定P05-for/control两份原source/golden逐字保全，双入口四目标不变。公开BorrowBindingFact
+  为BorrowedStorage、原initializer Name、canonical参数origin、无parent/source_loan；For的
+  source语法引用alias，permission仍指原Borrow参数。独立BorrowedBinding身份保留两者，不把
+  alias当作参数或owner。canonical参数仍核原Borrow/Shared，typed K/V与全部provider事实不变。
+- 同次原始观察真实记录For双端MissingFact、control双端FE/SSA/LLVM及alias链成功；借用
+  预检只准入该alias对应的已完整校验For，range仍false。runtime精确查原声明SharedReborrow，
+  分别按全部incoming证明其source到原entry参数、当前alias到该出生结果；provider从实际当前
+  alias再建独立lease。组件、provider清理之后，alias沿原普通Borrow结束逻辑结束，不结束或
+  Drop caller参数。原end_result_bindings逐字未改，不延长published lifetime。
+- 首轮库检查E0004暴露Unit条件出口漏新variant；仅补精确exit.borrow_bindings[alias]，
+  若存在owned冲突或缺失则MissingFact，未用canonical参数替代。后续库检查成功。首次正向
+  v1四查询仍全失败、Rust0/1/0、无native：For两条因错误把参数专用binding_kind表用于alias；
+  control两条因测试误把真实observe表达式语句的AfterStatement当作函数body结束点。
+  已删除错表依赖，仍完整校验BorrowedStorage/声明/typed Place/实际SharedReborrow；control按
+  原AST唯一observe语句取精确终点，For仍按原scanner body终点。失败及首次静审漏点均保留。
+- For退出后alias End取实际false-edge当前alias列，origin为原For；control取原声明origin。
+  这由block parameter的真实origin及普通End逻辑确定；查询禁止旧birth/header loan代替当前列。
+  v2原四同分析深查询/SSA/LLVM及四唯一严格native全绿，Rust1+2无失败/忽略，3205输入指纹
+  前后相同；逐例核exit0、完整golden、空stderr，caller两次真实make/scan及调用后唯一Drop另核。
+- A2工厂helper仅适配原make/produce两个Function引用，原3828字节断言正文逐字保留。
+  八条既有邻控命令共10 Rust全绿：四个普通Borrow-result/stable-place SSA正例、顺序遍历
+  20次FE/SSA/LLVM及20个严格native、A2原四深查询及四native；输入指纹与P05 v2相同。
+  七项工程门含strict Clippy、712份文档及尺寸护栏全部成功；生产/查询/原始日志独审已核。
+- P05原两For失败关闭；B剩P03/04 Unit共2，C=8、D=6，共16条原For失败仍必修。
+  最终固定头联合回归、新头完整CI三产物独审、文档收尾与最小归档/正常合并仍待。F保持
+  active、PR保持draft，D10未启动；本机无故障/校准/合成损坏/sanitizer执行，普通native不证无泄漏。
