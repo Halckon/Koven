@@ -7,7 +7,7 @@
   <rect width="12504" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="9784" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="4932" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，316 份）</text>
-  <rect x="9888" y="30" width="280" height="436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="9888" y="30" width="280" height="6838" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10028" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="10232" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="10372" y="8012" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
@@ -973,6 +973,7 @@
   <path d="M 444 6366 C 444 6398, 972 6434, 972 6466" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 6366 C 444 6398, 1500 6434, 1500 6466" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6540 C 972 6572, 1764 6590, 1764 6622" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1884 6668 C 5896 6668, 5896 6815, 9908 6815" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 708 5966, 708 5998" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 444 500, 444 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 708 432 C 708 464, 2028 5672, 2028 5704" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1063,6 +1064,7 @@
   <path d="M 1620 257 C 6636 257, 6636 413, 11652 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1620 257 C 6768 257, 6768 413, 11916 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1620 257 C 6900 257, 6900 422, 12180 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 5764 257, 5764 6815, 9908 6815" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2429,4 +2431,8 @@
   <text x="12300" y="417" text-anchor="middle" font-size="13">名义类型 nullable </text>
   <text x="12300" y="435" text-anchor="middle" font-size="13">retest view 的普</text>
   <text x="12300" y="453" text-anchor="middle" font-size="13">通读取</text>
+  <rect x="9908" y="6778" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="10028" y="6801" text-anchor="middle" font-size="13" font-weight="600">SPEC-0341</text>
+  <text x="10028" y="6819" text-anchor="middle" font-size="13">D10 共享 lowerin</text>
+  <text x="10028" y="6837" text-anchor="middle" font-size="13">g 核心与薄入口适配</text>
 </svg>
