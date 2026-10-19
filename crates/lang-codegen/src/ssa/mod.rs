@@ -252,3 +252,9 @@ pub(crate) mod map_provider_pipeline_tests;
 
 #[cfg(test)]
 pub(crate) mod map_provider_exits_pipeline_tests;
+
+#[cfg(test)]
+mod unit_lower_nullable_tests;
+
+#[cfg(test)]
+mod unit_lower_nullable_neighbor_tests;
