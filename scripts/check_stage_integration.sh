@@ -70,4 +70,14 @@ run cargo test --locked -p lang-frontend --no-fail-fast --test compilation_unit_
 run cargo test --locked -p lang-frontend --no-fail-fast --test compilation_unit_index malformed_package_recovery_does_not_create_a_second_package_diagnostic -- --exact
 run cargo test --locked -p lang-frontend --no-fail-fast --test compilation_unit_index package_mismatch_reports_l0146_with_source_anchored_primary_spans -- --exact
 
+# SPEC-0341: only the eight reviewed ordinary import-name regressions.
+run cargo test --locked -p lang-frontend --no-fail-fast --test multifile_name_resolution unloaded_exact_alias_and_wildcard_imports_explain_the_source_set -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test multifile_name_resolution loaded_missing_member_tail_and_unclassified_imports_keep_original_diagnostics -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test multifile_name_resolution default_package_and_real_long_package_imports_keep_declaration_targets -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test multifile_name_resolution exact_alias_same_package_and_input_permutation_publish_stable_declarations -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test multifile_name_resolution private_exact_is_l0149_and_blocks_validated_view -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test multifile_name_resolution exact_alias_conflict_is_per_namespace_and_repeated_target_is_idempotent -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test multifile_name_resolution wildcard_conflict_is_lazy_and_exact_import_wins -- --exact
+run cargo test --locked -p lang-frontend --no-fail-fast --test multifile_name_resolution exact_member_is_l0148_while_longest_package_prefix_resolves_top_level -- --exact
+
 exit "$status"

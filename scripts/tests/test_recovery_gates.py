@@ -90,10 +90,12 @@ class CompositionContracts(unittest.TestCase):
         self.assertEqual(0, status)
         cargo = [line for line in calls if line.startswith("cargo ")]
         targets = [target for line in cargo for target in re.findall(r"--test ([a-z0-9_]+)", line)]
-        other_targets = [target for target in targets if target != "compilation_unit_index"]
+        other_targets = [target for target in targets
+                         if target not in ("compilation_unit_index", "multifile_name_resolution")]
         self.assertEqual(len(other_targets), len(set(other_targets)))
         self.assertEqual(118, len(other_targets))
         self.assertEqual(5, targets.count("compilation_unit_index"))
+        self.assertEqual(8, targets.count("multifile_name_resolution"))
         self.assertEqual(1, targets.count("unit_closure_assignment_recovery"))
         self.assertEqual(1, targets.count("closure_assignment_safety_rebuild"))
         for target in ("ownership_constants", "ownership_structural", "ownership_nullable_when", "map_closure_lifetime_matrix"):
@@ -107,7 +109,7 @@ class CompositionContracts(unittest.TestCase):
         self.assertEqual(1, targets.count("integer_range_iteration_ownership"))
         self.assertEqual(1, targets.count("canonical_type_tables"))
         self.assertEqual(1, targets.count("enum_case_borrow_categories"))
-        self.assertEqual(15, len(cargo))
+        self.assertEqual(23, len(cargo))
         self.assertTrue(calls[-1].endswith("scripts/check_tutorial.py"))
 
     def test_each_phase_propagates_failure_and_stops_following_phases(self):
