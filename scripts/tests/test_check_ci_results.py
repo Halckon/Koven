@@ -61,6 +61,35 @@ def stage_command_is_unfiltered(command):
 
 
 class CheckCiResultsTests(unittest.TestCase):
+    def test_initial_package_header_index_exacts_run_once_on_both_hosts(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        job = re.split(r"^  [a-z][a-z-]+:\s*$",
+                       workflow.split("  test:\n", 1)[1], maxsplit=1, flags=re.M)[0]
+        self.assertIn("os: [macos-14, ubuntu-24.04]", job)
+        self.assertEqual(1, job.count("run: bash scripts/check_integration.sh\n"))
+        composition = (root / "scripts/check_integration.sh").read_text()
+        self.assertEqual(1, composition.count("bash scripts/check_stage_integration.sh\n"))
+        names = (
+            "poisoned_initial_package_does_not_create_path_mismatch",
+            "missing_initial_header_separator_does_not_create_path_mismatch",
+            "later_bad_package_does_not_hide_initial_path_mismatch",
+            "malformed_package_recovery_does_not_create_a_second_package_diagnostic",
+            "package_mismatch_reports_l0146_with_source_anchored_primary_spans",
+        )
+        source = (root / "crates/lang-frontend/tests/compilation_unit_index.rs").read_text()
+        for name in names:
+            self.assertEqual(1, len(re.findall(r"(?m)^fn " + re.escape(name) + r"\(\)", source)))
+        stage = (root / "scripts/check_stage_integration.sh").read_text()
+        selected = stage_target_occurrences(stage, "compilation_unit_index")
+        expected = [
+            ["run", "cargo", "test", "--locked", "-p", "lang-frontend", "--no-fail-fast",
+             "--test", "compilation_unit_index", name, "--", "--exact"]
+            for name in names
+        ]
+        self.maxDiff = None
+        self.assertEqual(expected, [shlex.split(command) for command in selected])
+
     def test_spec0331_rebuilt_closure_targets_run_once_on_both_hosts(self):
         root = Path(__file__).resolve().parents[2]
         stage = (root / "scripts/check_stage_integration.sh").read_text()
