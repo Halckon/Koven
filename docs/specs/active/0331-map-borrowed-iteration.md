@@ -807,15 +807,15 @@ Rust真实0通过/1失败/0忽略，未运行native。按最小程序归因：48
 
 | 组 | 实际范围与依赖 | 归属／当前状态 |
 |---|---|---|
-| G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，§48–52有限factory local的Resource/后用/复用/重赋值轴已接通；其他birth/一般CFG及新头CI仍逐项闭合 |
+| G2 | owned local N/C/B/R、Resource、后续Borrow、同根复用/重赋值；需真实形成/Move与未来使用运输 | 0331，§48–52及§63已验factory/参数Move、Resource/后用/复用/重赋值、前置put及alias重绑；共享调用与其他CFG仍逐项闭合 |
 | G3 | temporary Resource/Int key、实际factory实参及条件退出；需hidden owner与真实call delivery | 0331，§56/59/60 normal表示、实参交付/CFG及§61有限String/String条件C/B/R、Resource Return内if/checked已验；其他callable与组合仍待 |
 | G4 | own MutableMap参数N/C/B/R，复用已验证Value/Owned参数及原清理 | 0331，本节首片；d85e完整CI及三artifact独审通过 |
 | G5 | 有字段Resource、结构性Resource、非String key；复用既有storage/Drop表示 | 0331，§46有限表示片；d85e完整CI及三artifact独审通过，其他表示仍逐项验收 |
 | G6 | 其他payload的Return及String? ABI前置；非nullable Borrow N/C/B已有正控 | 0331，§61有限非nullable Borrow Int/Int、Int/String及pure MoveOnly inline payload Return已验；String? ABI前置仍独立待验，不外推原83源全矩阵 |
 | G7 | 一般合法Return operand、单If/两live arm、条件/checked组合；需逐路径cleanup | 0331，§61有限普通Return operand、单If/两live arm及checked已验；其他控制流/source/寿命组合仍待，不设AST白名单 |
-| G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，§62逐层frame、精确词法Drop/调用终点82观察/68 native及最终普通回归已验；完整新头CI与artifact独审仍待 |
-| G9 | 非Resource own参数在N/C/B后继续使用；须真实last-use寿命，不能套Resource词法延寿 | 0331，§47有限未来使用片；consume/其他root及一般CFG仍逐项验收 |
-| G10 | 透明Group、moved alias与Borrow-result；后两者分别依赖Move/continuation事实 | 0331，Group及§48 factory local alias首片；其他Move/birth与Borrow-result前置仍在 |
+| G8 | 不同root/own/temp/三层/条件嵌套；需每层provider与源owner完整运输 | 0331，§62逐层frame82观察/68 native及§63后继完整普通回归已验；远端证据按PR119精确新头独立核验 |
+| G9 | 非Resource own参数在N/C/B后继续使用；须真实last-use寿命，不能套Resource词法延寿 | 0331，§47及§63有限未来使用/循环后own交付已验；consume/其他root及一般CFG仍逐项验收 |
+| G10 | 透明Group、moved alias与Borrow-result；后两者分别依赖Move/continuation事实 | 0331，Group、§48及§63实际参数Move/alias epoch已验；共享调用、其他birth及Borrow-result前置仍在 |
 
 G4仅在原kind/intrinsic K/V与mode/binding/access完全匹配后接通Value MutableMap，继续排除
 Inout/Field。Group共用纯透明映射：每层type/category相同，descriptor/loan.source及Entry point
@@ -1328,3 +1328,38 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
 - 本机有限G8不等于F完整收尾；完整新头CI及对应artifact独审仍待，不继承f95绿色。0331保持
   active；Field/Inout、String? ABI与其他未验组合不扩大，Mac sanitizer仍partial/
   requirements_met=false、UBSan未覆盖。本机未运行故障注入、校准或合成损坏；不归档、合并或提前D10。
+
+## 63. 合法形成与循环后 own 交付的有限收尾（2026-10-19）
+
+- `4612d423`将原7份合法源码保持字节提升为硬成功目标：首红14观察为5 LLVM/9原For Unsupported，
+  Rust实际0通过/2失败。9条为参数Move两入口、前置put两入口、old alias原变量重绑Single，
+  及Map/MutableMap循环后own sink两入口；不得把此前负向边界通过算作语言能力完成。
+- Single/Unit分别消费实际Call/入口参数出生、Move binding epoch与typed put/remove当前结果链；
+  显式区分真实Drop和原Value交付，不以“找不到Drop”推断保活。退出后由普通Call消费唯一恢复owner。
+  原FE owner/availability、全部incoming、实际SSA current值、K/V/provider End和alias失效均保留。
+- 原7源另加14份空/非空String字段Resource源、2份保留原条件体的非空邻控，共23源46双入口
+  完整身份查询/SSA/LLVM及46严格native通过。原源码/golden均未为验收改写；所有新增断言独审闭合。
+  查询分别核原If selector与真K/假V、容器kind、typed实参槽位/mode/root、真实reborrow/End，
+  literal的Temporary loan与CallReturn Drop也来自同次公开FE事实，不宽放任意Call/Print/clone。
+- 首轮生产/编译/query回归均保留原失败，未把collector退出0计作通过。`8f5f9599`修Exit phi原For位置；
+  `00b4538f`保Resource当前epoch至真实replacement RHS完成；`a25bc6be`修同epoch重复provider。
+  后者要求最终owner的全部FE incoming经过当前Exit cut：旁路birth、无种子闭环或另一epoch均拒绝，
+  runtime仍核实际current角色、全部SSA incoming及最终Drop。回归中的9个重赋值拒绝观测、14条重复For MissingFact
+  经同选择实际重验成功；20项定向Rust不重复计入下述131个不同测试。
+- 固定生产/查询头`a25bc6be30d263fc2c23aa206ab17672dc1cd25d`完整普通验收62/62命令通过，
+  131个不同Rust测试0失败/0忽略；922次严格native执行全部exit0/完整stdout golden/空stderr。
+  case/入口去重为921项：Unit old-alias在既有local与本轮formation套件各执行一次，不能称922独立源。
+  fmt、workspace all-targets check、Clippy -D warnings、workspace build、704文档、尺寸门与whitespace通过；
+  1720手写Rust文件、38项既有超限，未提高例外；2977输入文件前后SHA-256同为
+  `a08f98845e159570e03e5b6cc4539380754e71e9a0cde8623274f192aae75814`。
+- 同头原83源仍166观察：140 LLVM、24 lower Unsupported、2 ownership L0164；70源双入口成功，
+  12源nullable String ABI和1源Borrow-result continuation前置保持。Rust0通过/1失败/0忽略、exit101，
+  未运行native，不能记83源全过。全部原字节、原阶段与临时注册恢复已核。
+- 全tracked边界库存另保留12原源/15共享调用入口：当前9条Call Unsupported、3条Call MissingFact、
+  2条L0165、1条complete Internal。三条future的原For挡点现移至其真实后续Call；15仍全部失败，
+  Rust0通过/1失败/0忽略、exit101，无native。无For控制失败不免除For证明义务，也不是Guide ABI豁免。
+  其他FE origin/end-proof、非法源码和CI-only损坏合同分别登记，不把保留源码或旧注释当作支持。
+- 本片只运行普通真实源码，故障注入、校准、合成损坏/reduction和sanitizer故障对照留GitHub Actions。
+  新代码头完整CI/产物只以[PR119](https://github.com/Halckon/Koven/pull/119)精确提交的独立证据为准，
+  不继承`4514ea50`或更旧绿色；本机验收不推定远端通过。Mac sanitizer仍partial/requirements_met=false，
+  UBSan未覆盖。F仍active；未归档/合并，未启动D10，Guide、Field/Inout及其他ABI/source/CFG边界不变。

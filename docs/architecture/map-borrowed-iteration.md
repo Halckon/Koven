@@ -134,7 +134,7 @@ N/C/B/R分别指正常耗尽、continue、break、return；下表没有声明完
 | Field/Inout来源 | 现有类型 | 前端合同 | Guide37.4明确native延后；不由Group准入扩大 |
 
 Return的52源104条双入口SSA/LLVM及104个native见[§61](../specs/active/0331-map-borrowed-iteration.md#61-g3g7-共享普通控制流与非-nullable-return-有限验收2026-10-18)；G8另有原7源与34个非空/空路径runtime源，共82条双入口SSA/LLVM、68个严格native通过。
-G8按每层当前source/cursor/K/V/owner、最近Break/全层Return、精确词法Drop与调用终点验收；固定7f21e1c6复验82/68通过。String? ABI、未来own转移无Drop及其他CFG不外推。
+G8按每层当前source/cursor/K/V/owner、最近Break/全层Return、精确词法Drop与调用终点验收；固定7f21e1c6复验82/68通过。§63另验有限循环后own交付；String? ABI及其他CFG不外推。
 以上非Field/Inout的具体能力缺口不能统称Guide staging；普通Resource类的字段/泛型/接口、
 其他key/value与更一般source/CFG需分别验收，不能在本轮Break/Return通过后宣称F全矩阵闭合。
 
@@ -179,22 +179,21 @@ single逐完整Header/Exit incoming证明当前owner仍连到真实own Parameter
 
 ## factory local 的形成、后用与 epoch
 
-`local_exits` 的24源覆盖Map/MutableMap、val/var/moved alias及N/C/B/R，48双入口与48普通native
-通过。`local_resources` 另以48源96双入口/native覆盖owned String字段Resource与混合Some/None；
-Resource owner在实际词法退出清理，Return先交付结果；所有源均实际运行非空/空scanner。
-`local_future` 的54源108双入口/native覆盖Pure local N/C/B后多次Borrow、size两臂合流后Borrow、
-同根第二For后Borrow；按真实最后使用清理，不套Resource词法寿命。`local_resource_future` 的24源
-48双入口/native覆盖Resource N/C/B后多次Borrow/size及第二For后Borrow；val/var/alias各分配8源，
-不是formation全积。size CFG两臂与第二For携带当前owner，最终Drop在tail及返回值求值之后。
+`local_exits` 的24源覆盖Map/MutableMap、val/var/moved alias和N/C/B/R，48双入口/native通过。
+`local_resources` 的48源/96双入口/native覆盖String字段Resource与混合Some/None，清理取实际词法点。
+`local_future` 的54源/108双入口/native核Pure后用、分支后Borrow和同根第二For；
+`local_resource_future` 的24源/48双入口/native核Resource后用及第二For后Borrow，非formation全积。
+`local_reassignment` 的18源/36双入口/native核替换与Move，另6源/12路Group、4源/8路Pure新值立即Drop。
+尚存旧值在完整RHS完成后清理，已死Pure不复活；outer Group与inner Call保留各自身份。
 
-`local_reassignment` 的18源36双入口/native核首For前替换、两For间替换、替换后Move，包含Pure、
-Resource及nullable；另6源12双入口/native核Group，4源8双入口/native核新Pure值赋值完成后立即Drop。
-完整history区分实际事件：尚存旧值在RHS完成后清理，已死Pure不复活；outer Group与inner Call分别验证。
-当前local provider仍用零参factory合同；temporary普通实参交付及空Map实参if见上表。其他epoch普通实参Call的2源4双入口/native已验；Unit既有
-member/override/delegation路线另核真实resolved callee/receiver，不新增ABI。Single相同路线及
-companion在无For控制已有失败，属于共享调用前置，不能计为For支持或Guide staging。
+新增own参数Move到local、前置put、旧Move来源重绑及循环后own交付；Single/Unit各沿实际Call/Parameter
+出生、binding epoch及typed更新结果证明当前owner，Drop与Value delivery显式区分，不据缺Drop保活。
+Resource替换取原RHS完成点；同epoch重复provider的全部FE incoming须经过前一Exit，不能只同出生。
+SSA仍逐全部入边验证当前owner，最终Drop/own Call消费恢复owner，不复活alias或重复清理。
+原7源保字节提升成功，另14个空/非空Resource源与2个非空条件体邻控，共46双入口深查询/SSA/LLVM
+及46普通native通过；独审另核If真K/假V、FE→SSA kind和每个受保护用途的真实实参/loan/Drop端点。
 
-每个已验源独立查询原FE形成/Move、全部Header/Exit incoming与实际最后Drop，SSA另锁当前
-owner、Guard、K/V loan及所有受保护使用；普通native只证明exit0/完整golden/空stderr。
-原五源邻控为5条原For Unsupported与5条SSA/LLVM成功；Unit重绑另验两owner身份及1个native。其他实参组合、
-其他birth/非当前epoch专用Map或函数值Call、一般CFG等仍归0331缺口账本，不据本片称G2或F全闭合。
+其他epoch普通实参Call的2源/4双入口/native已验；Unit member/override/delegation保真实callee/receiver。
+保留的15个Single成员调用及Single/Unit companion入口均在Call或更早FE阶段失败；3个future For原挡点已移至后续Call。
+它们仍是共享实现债，不能计为完整For支持或Guide staging；其他ABI/origin前置见0331 §45/63账本。
+普通native只证明exit0、完整golden、空stderr；不证明动态free/无泄漏，不据本片称G2或F全闭合。

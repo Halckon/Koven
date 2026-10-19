@@ -89,7 +89,8 @@ fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
   这些是后端回归来源，尚未新增本页公开 CLI 合同；Field/Inout 原生按 Guide 延后。
   支持矩阵另列own MutableMap的String/String四种退出、透明Group、既有Resource表示、
   Pure own参数后用/同根重复For、零参temporary的已验Resource/Resource?/Int键normal，以及local的N/C/B/R、词法清理、
-  后续Borrow/重复遍历与重新赋值epoch；temporary另验普通Borrow/owned Resource交付、具名实参重排、
+  后续Borrow/重复遍历与重新赋值epoch；另验own参数Move到local、前置put、旧alias来源重绑及循环后own交付，
+  覆盖String/String与既有String字段Resource的实测组合；temporary另验普通Borrow/owned Resource交付、具名实参重排、
   Int/Boolean重载及空Map工厂的实参if。参数和temporary的String/String另验普通单if的C/B/R与两live arm，
   有限Resource邻控覆盖多break、return operand中的if及checked；Int/Unit/owned String返回也有
   [双入口回归](../../crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/control_flow.rs)。
