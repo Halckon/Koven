@@ -22,6 +22,18 @@ single 与 unit 仍按各自原顺序查询 descriptor/materialization、验证�
 实际生产依赖扫描覆盖新模块与子树，并保留 IR/support 不能反向依赖它的边界。
 这只是 D10 第一片；两入口其余 driver、CFG 与 cleanup 的收敛仍由 active Spec 分阶段推进。
 
+## 整数表达式共享流程
+
+`ssa::expression_core::lower_integer` 统一 descriptor/类型/receiver 身份校验、八整数准入、
+receiver 一次求值、三态传播、结果 SSA type 查询时点及 inv/checked conversion 提交选择。
+两入口以原生 local/qualified ID 的窄接口桥接事实和提交，共享原 `LoweredValue` 三态；
+原 dispatch、外层 temporary/drop 时点及结果类型错误差异保持。single 的缺映射仍为
+UnsupportedNode，unit 仍为 MissingFact。两份 `checked.rs` 的 CFG、carry/pending/loan
+运输继续原策略，尚未统一。依赖扫描覆盖新核心，禁止反向依赖 driver/planner/LLVM。
+真实来源反序、basic/const 配对、一次求值、Borrow 实体链及控制退出 native 已按
+[0341 整数小片](../specs/active/0341-shared-lowering-core.md#11-整数小片实际验收2026-10-19)验收；
+这不关闭整体表达式、语句、driver 与 CFG/cleanup 收敛责任。
+
 ## nullable 最后读取与 cleanup
 
 两入口 scalar nullable comparison 先按 typed null descriptor 和已登记的 aggregate/pointer

@@ -177,7 +177,8 @@ append/cleanup 顺序，新增实际生产依赖边界。没有新增接受能�
 普通native输出不证明动态释放次数或无泄漏。新依赖门禁的合成禁边负控仅CI，当前尚无本PR CI结果。
 本docs后继不冒称重新运行生产测试；B首片已验，A全域责任冻结及C/D/E仍开放，不归档D10。
 
-## 10. C/D 整数表达式核心小片（待验）
+## 10. C/D 整数表达式核心小片
+
 
 本片接续已验B，收敛整数intrinsic事实校验与完整表达式流程；不代表C/D整体完成。
 实现输入为本地 `365dc53697306e248911b9ff5d043808c43055c1`、tree
@@ -201,16 +202,16 @@ append/cleanup 顺序，新增实际生产依赖边界。没有新增接受能�
 - 依赖门禁显式扫描新核心及子树，禁止core反向引用driver/planner/LLVM、IR/support引用
   core及core的SSA根glob/alias；既有禁边继续保持。既有integer纯helper不另复制。
 
-### 待验标准
+### 小片验收标准（实际结果见§11）
 
-- [ ] 两个消费者均调用唯一核心；adapter只桥接事实和提交，没有重复kind分支或整段验证。
-- [ ] 八型Invert、两入口128种转换、一次receiver求值、live/pending String owner和既有
+- [x] 两个消费者均调用唯一核心；adapter只桥接事实和提交，没有重复kind分支或整段验证。
+- [x] 八型Invert、两入口128种转换、一次receiver求值、live/pending String owner和既有
   非intrinsic源码成员拒绝边界保持；复用已全文审阅的ordinary exact，不用宽过滤器。
-- [ ] 新真实源码配对核逻辑source名、精确span、整数宽度/符号及definition→use；反转source
+- [x] 新真实源码配对核逻辑source名、精确span、整数宽度/符号及definition→use；反转source
   建立/inputs顺序且加入同名其它source；unit-basic与unit-const正常wrapper保留能力门。
-- [ ] 原真实控制流native覆盖receiver条件return与正常求值路径，核完整stdout/exit/stderr；
+- [x] 原真实控制流native覆盖receiver条件return与正常求值路径，核完整stdout/exit/stderr；
   SSA/LLVM/native结果分账，不据普通native宣称动态资源计数或所有pending/Place组合已验。
-- [ ] MissingFact人工删除、foreign-analysis错配、非法SSA及新合成依赖禁边负控只在CI。
+- [x] MissingFact人工删除、foreign-analysis错配、非法SSA及新合成依赖禁边负控只在CI。
   `namespace_constants_need_no_storage_initializer_or_closure_capture`末尾人工None使完整exact
   继续排除普通选择；新增测试及helper先全文审阅，不把部分正常前缀当作完整ordinary资格。
 - [ ] fmt、受影响crate clippy、docs、尺寸/diff、独立审查与精确头双宿主CI完成后另记实际账本。
@@ -218,3 +219,13 @@ append/cleanup 顺序，新增实际生产依赖边界。没有新增接受能�
 本小片后仍按表达式→语句/控制转移→driver推进：优先审共同block顺序与非Diverged的
 AfterStatement cleanup，保留unit ControlBody等能力差；再对CFG/owner/loan/pending/receiver/
 iteration角色逐项建立状态合同，最后收敛driver骨架。此节不勾选§6的C/D/E完成项。
+
+## 11. 整数小片实际验收（2026-10-19）
+
+- 合同先提交 `43948dae`；实现 `79366871` 新增唯一整数流程与共享三态，两端薄适配保原生ID/查询次序/诊断，两个 `checked.rs` 字节未变。受验最终为测试修正提交 `1daebd9856e5458900660b9b7ff5fa1494516f29`、tree `b2ea55b8396701ad6c5657b31a9a4a27d9dc471a`；后继docs不冒称重跑。
+- 既有11个ordinary基线及首轮复验均各实际1/exit0。新增2项首轮各命中1、failed1/exit101：普通配对误把默认Borrow实参期待成直接Parameter；const配对的other源写成UByte常量19，缺u后缀，在unit完整type前置报缺descriptor，尚未进入unit lowering。后者由Guide和原子撤回代码解释，原日志未打印具体诊断码。原红日志保留，不记生产回归。
+- 测试单文件修正保原完整资格门：显式查询参数Loan→Read→RootPlace→SharedBorrow→call，操作tag区分同span生产者；other源改19u，raw diagnostics增加空集硬断。生产与FE均未修改。修后13个完整exact各1 passed/0 failed/0 ignored/exit0，首编1m31s；八型inv、两入口128转换、一次求值、live/pending owner、自然同名成员拒绝、真实生产依赖门及2个正常native均保持。
+- 新 `ssa::integer_core_contract_tests::{paired_integer_intrinsics_preserve_source_identity_and_receiver_use, paired_const_integer_intrinsics_preserve_source_identity_and_receiver_use}` 分别完整exact通过：真实source建立/inputs正逆、同名other source、逻辑来源/字节Span、整数类型、Borrow及call→inv→convert全定义使用链；unit-basic/const分别走正常资格入口。const源码的basic拒绝保持。
+- 同头另复验B首片15项中除已重复生产guard外的14个ordinary，均各1/exit0；完整函数/helper与原受验版本逐字核同。合计27个唯一ordinary exact，其中4个native测试覆盖9个正常产物，完整stdout/exit/stderr原硬断通过，不外推计数或泄漏。
+- `cargo check --locked --offline -p lang-codegen --tests`：实现47.91s、测试修正39.11s均0；`cargo fmt --all -- --check`与`cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings`均0，后者57.37s；尺寸门1834手写Rust/历史38超限通过，无新增例外。测试均沿§9同工具链和逐exact串行命令，原日志仅仓外 `d10-readonly/logs/integer-*`，README保精简命令与分类。
+- 本片没有执行合成缺事实/非法SSA/故障注入/校准；§7既有误纳历史不删除。精确新远端头双宿主CI仍待验；§6的A/C/D/E均继续开放。下一责任是共同block/statement执行顺序及cleanup端口设计，不将checked/CFG长期差异视为D10完成。
