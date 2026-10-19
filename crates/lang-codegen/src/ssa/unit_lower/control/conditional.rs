@@ -34,6 +34,8 @@ impl UnitExpressionLowerer<'_> {
             .is_none()
             .then(|| self.require_expression_value(condition))
             .transpose()?;
+        let map_checkpoint =
+            self.checkpoint_map_conditional(control, result_required, else_branch.is_some(), span)?;
         let baseline = self.bindings.clone();
         let baseline_borrows = self.borrow_bindings.clone();
         let baseline_closures = self.closure_bindings.clone();
@@ -202,6 +204,7 @@ impl UnitExpressionLowerer<'_> {
         if let Some(guard) = guard.filter(|guard| guard.non_null_when_true()) {
             self.map_borrow_guards.insert(guard.symbol(), guard);
         }
+        self.enter_map_conditional_arm(&map_checkpoint, then_block, span)?;
         if let Some(exit) = self.lower_if_branch(
             then_block,
             then_branch,
@@ -228,6 +231,7 @@ impl UnitExpressionLowerer<'_> {
         if let Some(guard) = guard.filter(|guard| !guard.non_null_when_true()) {
             self.map_borrow_guards.insert(guard.symbol(), guard);
         }
+        self.enter_map_conditional_arm(&map_checkpoint, else_block, span)?;
         if let Some(else_branch) = else_branch {
             if let Some(exit) = self.lower_if_branch(
                 else_block,
@@ -291,6 +295,9 @@ impl UnitExpressionLowerer<'_> {
         if ordinary_if {
             self.retire_if_exit_proofs(control, &mut exits, span)?;
         }
-        self.merge_unit_exits(exits, span)
+        let map_exits = self.map_conditional_exits(&map_checkpoint, &exits, span)?;
+        let result = self.merge_unit_exits(exits, span)?;
+        self.finish_map_conditional_merge(&map_checkpoint, map_exits, result, span)?;
+        Ok(result)
     }
 }

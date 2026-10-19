@@ -1,6 +1,6 @@
 //! Bounded path-correlated loan provenance for provider places; no may-origin union.
 use super::super::{
-    model::{BlockId, EntityId, Function, LoanId, Operation, PlaceId, TerminatorKind},
+    model::{BlockId, EntityId, Function, LoanId, Operation, PlaceId, TerminatorKind, ValueId},
     verify::{VerifyError, VerifyErrorKind, VerifyLocation},
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -22,6 +22,8 @@ struct Reference {
 struct State {
     loans: BTreeMap<LoanId, Reference>,
     places: BTreeMap<PlaceId, Reference>,
+    // Only First/Next define cursor provenance; CFG edges transport it unchanged.
+    cursors: BTreeMap<ValueId, Reference>,
 }
 
 impl State {
@@ -40,7 +42,12 @@ impl State {
             })
             .copied()
             .unwrap_or(loan);
-        for reference in self.loans.values_mut().chain(self.places.values_mut()) {
+        for reference in self
+            .loans
+            .values_mut()
+            .chain(self.places.values_mut())
+            .chain(self.cursors.values_mut())
+        {
             if reference.lineage.contains(&token) {
                 reference.live = false;
             }
@@ -52,7 +59,13 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
     if !function.instructions.iter().any(|instruction| {
         matches!(
             instruction.operation,
-            Operation::ContainerElementPlace { .. } | Operation::RangeElementPlace { .. }
+            Operation::ContainerElementPlace { .. }
+                | Operation::RangeElementPlace { .. }
+                | Operation::MapIterationFirst { .. }
+                | Operation::MapIterationHasNext { .. }
+                | Operation::MapIterationNext { .. }
+                | Operation::MapIterationKeyLoan { .. }
+                | Operation::MapIterationValueLoan { .. }
         )
     }) {
         return;
@@ -97,6 +110,35 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
             let instruction = function.instruction(*id).expect("verified instruction");
             let result = instruction.results.first().copied();
             let inherited = match instruction.operation {
+                Operation::MapIterationFirst { source } => {
+                    match map_reference(&state, source, None) {
+                        Ok(reference) => Some(reference),
+                        Err(kind) => {
+                            errors.push(VerifyError {
+                                kind,
+                                location: VerifyLocation::Instruction(*id),
+                                origin: Some(instruction.origin.clone()),
+                            });
+                            return;
+                        }
+                    }
+                }
+                Operation::MapIterationHasNext { source, cursor }
+                | Operation::MapIterationNext { source, cursor }
+                | Operation::MapIterationKeyLoan { source, cursor }
+                | Operation::MapIterationValueLoan { source, cursor } => {
+                    match map_reference(&state, source, Some(cursor)) {
+                        Ok(reference) => Some(reference),
+                        Err(kind) => {
+                            errors.push(VerifyError {
+                                kind,
+                                location: VerifyLocation::Instruction(*id),
+                                origin: Some(instruction.origin.clone()),
+                            });
+                            return;
+                        }
+                    }
+                }
                 Operation::ContainerElementPlace {
                     owner: EntityId::Loan(loan),
                     ..
@@ -136,6 +178,16 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
                 _ => None,
             };
             match result {
+                Some(EntityId::Value(value)) => {
+                    state.cursors.remove(&value);
+                    if matches!(
+                        instruction.operation,
+                        Operation::MapIterationFirst { .. } | Operation::MapIterationNext { .. }
+                    ) && let Some(reference) = inherited
+                    {
+                        state.cursors.insert(value, reference);
+                    }
+                }
                 Some(EntityId::Loan(loan)) => {
                     let mut reference = inherited.unwrap_or(Reference {
                         lineage: BTreeSet::new(),
@@ -161,13 +213,23 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
             for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
                 match (argument, parameter) {
                     (EntityId::Loan(from), EntityId::Loan(to)) => {
+                        // Remove the previous visit's target before rebuilding this edge.
+                        successor.loans.remove(to);
                         if let Some(reference) = state.loans.get(from) {
                             successor.loans.insert(*to, reference.clone());
                         }
                     }
                     (EntityId::Place(from), EntityId::Place(to)) => {
+                        successor.places.remove(to);
                         if let Some(reference) = state.places.get(from) {
                             successor.places.insert(*to, reference.clone());
+                        }
+                    }
+                    (EntityId::Value(from), EntityId::Value(to)) => {
+                        successor.cursors.remove(to);
+                        // Read only immutable predecessor state, including self-edges.
+                        if let Some(reference) = state.cursors.get(from) {
+                            successor.cursors.insert(*to, reference.clone());
                         }
                     }
                     _ => {}
@@ -192,4 +254,31 @@ pub(super) fn verify(function: &Function, errors: &mut Vec<VerifyError>) {
             queue.push_back((edge.target, successor));
         }
     }
+}
+
+/// A cursor belongs to one live provider lease, not merely the same Map storage root.
+fn map_reference(
+    state: &State,
+    source: LoanId,
+    cursor: Option<ValueId>,
+) -> Result<Reference, VerifyErrorKind> {
+    let reference = state
+        .loans
+        .get(&source)
+        .filter(|reference| reference.live)
+        .ok_or(VerifyErrorKind::LoanInactive { loan: source })?;
+    if let Some(cursor) = cursor {
+        let cursor = state
+            .cursors
+            .get(&cursor)
+            .ok_or(VerifyErrorKind::OperationContract {
+                reason: "Map cursor must originate from First/Next and explicit CFG transport",
+            })?;
+        if !cursor.live || cursor.lineage != reference.lineage {
+            return Err(VerifyErrorKind::OperationContract {
+                reason: "Map cursor and source must belong to the same live provider lease",
+            });
+        }
+    }
+    Ok(reference.clone())
 }

@@ -4,6 +4,7 @@ use lang_frontend::{ownership_checking::BorrowSourceLoan, type_checking::BorrowR
 
 pub(super) fn validate(
     parsed: &ParsedFile,
+    names: &lang_frontend::name_resolution::NameResolution,
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
 ) -> Result<(), LoweringError> {
@@ -109,6 +110,16 @@ pub(super) fn validate(
                                     mode_allowed(receiver.mode(), receiver.ty())
                                 })))
                 })
+            },
+            |statement| {
+                super::map_iteration::stable_borrow_provider(
+                    parsed,
+                    names,
+                    typed,
+                    owned,
+                    statement,
+                    fact.binding(),
+                )
             },
         )?;
         if !matches!(fact.origin(), LoanTarget::Place(place) if place.elements().is_empty()) {
@@ -476,6 +487,7 @@ impl ExpressionLowerer<'_> {
             None,
             |_| None,
             |_, _| false,
+            |_| false,
         )?;
         if arguments.len() != descriptor.arguments().len() {
             return Err(error(LoweringErrorKind::MissingFact, span));

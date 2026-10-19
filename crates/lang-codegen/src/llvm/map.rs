@@ -18,6 +18,7 @@ use super::{LlvmAdapterError, runtime::RuntimeAbi, type_map::TypeMap};
 
 mod drop;
 mod hash;
+pub(super) mod iteration;
 mod lookup;
 mod mutation;
 mod order;

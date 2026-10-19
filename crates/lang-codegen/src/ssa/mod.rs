@@ -7,6 +7,7 @@ mod integer_range;
 mod integer_range_type;
 mod lower_frontend;
 mod map_result;
+mod map_source;
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
@@ -236,3 +237,12 @@ mod rc_nullable_while_observation_tests;
 
 #[cfg(test)]
 pub(crate) mod rc_nullable_while_bounded_tests;
+
+#[cfg(test)]
+mod map_iteration_stage_gate_tests;
+
+#[cfg(test)]
+pub(crate) mod map_provider_pipeline_tests;
+
+#[cfg(test)]
+pub(crate) mod map_provider_exits_pipeline_tests;

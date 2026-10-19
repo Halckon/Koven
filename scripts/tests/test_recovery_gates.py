@@ -91,7 +91,11 @@ class CompositionContracts(unittest.TestCase):
         cargo = [line for line in calls if line.startswith("cargo ")]
         targets = [target for line in cargo for target in re.findall(r"--test ([a-z0-9_]+)", line)]
         self.assertEqual(len(targets), len(set(targets)))
-        self.assertEqual(112, len(targets))
+        self.assertEqual(118, len(targets))
+        self.assertEqual(1, targets.count("unit_closure_assignment_recovery"))
+        self.assertEqual(1, targets.count("closure_assignment_safety_rebuild"))
+        for target in ("ownership_constants", "ownership_structural", "ownership_nullable_when", "map_closure_lifetime_matrix"):
+            self.assertEqual(1, targets.count(target))
         self.assertEqual(1, targets.count("final_type_admission"))
         self.assertEqual(1, targets.count("control_branch_join"))
         self.assertEqual(1, targets.count("while_flow_facts"))
@@ -111,6 +115,17 @@ class CompositionContracts(unittest.TestCase):
                 self.assertEqual(37, status)
                 if fail != "check_tutorial":
                     self.assertFalse(any("check_tutorial.py" in line for line in calls))
+
+
+
+class StaticStageSelectionContracts(unittest.TestCase):
+    def test_shared_ownership_targets_present_exactly_once(self):
+        # Pure inspection: do not invoke the shell stub or its failure controls.
+        stage = (ROOT / "scripts/check_stage_integration.sh").read_text()
+        targets = re.findall(r"--test ([a-z0-9_]+)", stage)
+        for target in ("ownership_constants", "ownership_structural", "ownership_nullable_when", "map_closure_lifetime_matrix"):
+            with self.subTest(target=target):
+                self.assertEqual(1, targets.count(target))
 
 
 if __name__ == "__main__":

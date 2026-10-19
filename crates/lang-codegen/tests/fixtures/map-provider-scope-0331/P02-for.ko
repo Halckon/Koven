@@ -1,0 +1,5 @@
+fun scan(): Unit {
+  return
+  for ((key, value) in mutableMapOf<Int, Int>()) {}
+}
+fun entry():Unit{scan()}

@@ -1,0 +1,2 @@
+fun scan(): Unit { return; mutableMapOf<Int, Int>() }
+fun entry():Unit{scan()}

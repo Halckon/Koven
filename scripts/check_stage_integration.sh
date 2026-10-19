@@ -37,6 +37,9 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test resource_deinit_type_facts --test ownership_resource_deinit \
   --test ownership_checking --test ownership_containers \
   --test ownership_construction --test ownership_closures \
+  --test ownership_constants --test ownership_structural --test ownership_nullable_when \
+  --test unit_closure_assignment_recovery --test closure_assignment_safety_rebuild \
+  --test map_closure_lifetime_matrix \
   --test ownership_rc --test multifile_ownership_checking
 run cargo test --locked -p lang-frontend --no-fail-fast \
   --test parser_contextual_type_ref --test parser_class_family \

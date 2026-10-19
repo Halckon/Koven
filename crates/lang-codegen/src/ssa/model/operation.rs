@@ -265,6 +265,27 @@ pub(crate) enum Operation {
         index: ValueId,
         value: ValueId,
     },
+    /// Snapshot the first insertion-chain slot as a target-independent unsigned 64-bit cursor.
+    MapIterationFirst {
+        source: LoanId,
+    },
+    MapIterationHasNext {
+        source: LoanId,
+        cursor: ValueId,
+    },
+    /// Advance only after both component loans and their descendants have ended.
+    MapIterationNext {
+        source: LoanId,
+        cursor: ValueId,
+    },
+    MapIterationKeyLoan {
+        source: LoanId,
+        cursor: ValueId,
+    },
+    MapIterationValueLoan {
+        source: LoanId,
+        cursor: ValueId,
+    },
     MapConstruct {
         map_type: SsaTypeId,
     },
@@ -531,6 +552,13 @@ impl Operation {
                 EntityId::Value(*index),
                 EntityId::Value(*value),
             ],
+            Self::MapIterationFirst { source } => vec![EntityId::Loan(*source)],
+            Self::MapIterationHasNext { source, cursor }
+            | Self::MapIterationNext { source, cursor }
+            | Self::MapIterationKeyLoan { source, cursor }
+            | Self::MapIterationValueLoan { source, cursor } => {
+                vec![EntityId::Loan(*source), EntityId::Value(*cursor)]
+            }
             Self::MapConstruct { .. } => Vec::new(),
             Self::MapConsume { owner, .. } => vec![EntityId::Value(*owner)],
             Self::MapSize { owner } => vec![*owner],

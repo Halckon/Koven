@@ -322,6 +322,7 @@ impl Shape {
         lowerer.loops.push(LoopContext {
             entry_views: BTreeMap::new(),
             outer_borrowed_while: None,
+            map_loop: None,
             header: self.header,
             carried,
             continues: Vec::new(),
@@ -439,6 +440,7 @@ impl Shape {
         lowerer.loops.push(LoopContext {
             entry_views: BTreeMap::new(),
             outer_borrowed_while: Some(self.relation.clone()),
+            map_loop: None,
             header: guard.header,
             carried,
             continues: Vec::new(),

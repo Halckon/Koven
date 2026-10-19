@@ -7,6 +7,7 @@ use lang_frontend::{
 
 pub(super) fn validate(
     parsed: &[&lang_frontend::parser::ParsedFile],
+    names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
 ) -> Result<(), LoweringError> {
@@ -152,6 +153,17 @@ pub(super) fn validate(
                                         mode_allowed(receiver.mode(), receiver.ty())
                                     })))
                     })
+            },
+            |statement| {
+                let statement = UnitStatementId::new(fact.binding().source_unit(), statement);
+                super::map_iteration::stable_borrow_provider(
+                    file,
+                    names,
+                    typed,
+                    owned,
+                    statement,
+                    fact.binding(),
+                )
             },
         )?;
         if !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.element().is_none()) {
@@ -553,6 +565,7 @@ impl UnitExpressionLowerer<'_> {
             None,
             |_| None,
             |_, _| false,
+            |_| false,
         )?;
         for mapping in descriptor.arguments() {
             let concrete = resolve_concrete_type(

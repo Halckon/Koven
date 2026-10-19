@@ -1,0 +1,104 @@
+//! Source identity selects the current slot; an entry owner never stands in for a carried owner.
+use super::*;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in super::super) enum SourceIdentity {
+    BindingChoice(binding_choice::Proof),
+    BorrowedBinding(borrowed::Proof),
+    Parameter {
+        root: UnitSymbolId,
+        slot: usize,
+    },
+    Local {
+        root: UnitSymbolId,
+        initializer: UnitExpressionId,
+    },
+    /// A formed local with ordinary exit cleanup, separate from the old size-continuation row.
+    Formed {
+        root: UnitSymbolId,
+        birth: crate::ssa::map_source::Birth<UnitSymbolId>,
+    },
+    Temporary(UnitExpressionId),
+}
+
+impl SourceIdentity {
+    pub(in super::super) fn parameter_root(
+        self,
+        span: Span,
+    ) -> Result<UnitSymbolId, LoweringError> {
+        match self {
+            Self::Parameter { root, .. } => Ok(root),
+            Self::BorrowedBinding(_)
+            | Self::BindingChoice(_)
+            | Self::Local { .. }
+            | Self::Formed { .. }
+            | Self::Temporary(_) => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
+        }
+    }
+
+    pub(in super::super) fn current(
+        self,
+        lowerer: &UnitExpressionLowerer<'_>,
+        span: Span,
+    ) -> Result<EntityId, LoweringError> {
+        let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
+        match self {
+            Self::BindingChoice(proof) => match (
+                lowerer.bindings.get(&proof.root),
+                lowerer.borrow_bindings.get(&proof.root),
+            ) {
+                (Some(LoweredValue::Value(owner)), None) => Ok(EntityId::Value(*owner)),
+                _ => Err(missing()),
+            },
+            Self::BorrowedBinding(proof) => {
+                if lowerer.bindings.contains_key(&proof.binding) {
+                    return Err(missing());
+                }
+                lowerer
+                    .borrow_bindings
+                    .get(&proof.binding)
+                    .copied()
+                    .map(EntityId::Loan)
+                    .ok_or_else(missing)
+            }
+            Self::Parameter { root, .. } | Self::Local { root, .. } | Self::Formed { root, .. } => {
+                match (
+                    lowerer.bindings.get(&root),
+                    lowerer.borrow_bindings.get(&root),
+                ) {
+                    (Some(LoweredValue::Value(owner)), None) => Ok(EntityId::Value(*owner)),
+                    (None, Some(loan)) => Ok(EntityId::Loan(*loan)),
+                    _ => Err(missing()),
+                }
+            }
+            Self::Temporary(expression) => lowerer
+                .temporaries
+                .get(&expression)
+                .copied()
+                .map(EntityId::Value)
+                .ok_or_else(missing),
+        }
+    }
+
+    pub(in super::super) fn drop_target(self) -> UnitDropTarget {
+        match self {
+            Self::BindingChoice(proof) => UnitDropTarget::Named(proof.root),
+            Self::BorrowedBinding(proof) => UnitDropTarget::Named(proof.source),
+            Self::Parameter { root, .. } | Self::Local { root, .. } | Self::Formed { root, .. } => {
+                UnitDropTarget::Named(root)
+            }
+            Self::Temporary(expression) => UnitDropTarget::Temporary(expression),
+        }
+    }
+
+    pub(in super::super) fn is_registered(self, lowerer: &UnitExpressionLowerer<'_>) -> bool {
+        match self {
+            Self::BindingChoice(proof) => lowerer.bindings.contains_key(&proof.root),
+            Self::BorrowedBinding(proof) => lowerer.borrow_bindings.contains_key(&proof.binding),
+            Self::Parameter { root, .. } | Self::Local { root, .. } | Self::Formed { root, .. } => {
+                lowerer.bindings.contains_key(&root) || lowerer.borrow_bindings.contains_key(&root)
+            }
+            Self::Temporary(expression) => lowerer.temporaries.contains_key(&expression),
+        }
+    }
+}

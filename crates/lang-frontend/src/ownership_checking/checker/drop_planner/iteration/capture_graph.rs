@@ -354,6 +354,11 @@ impl DropPlanner<'_, '_> {
                     .iter()
                     .any(|binding| binding.symbol() == symbol)
             })
+            && !self.checker.map_iterations.values().any(|plan| {
+                plan.bindings()
+                    .iter()
+                    .any(|binding| binding.symbol() == symbol)
+            })
     }
 
     fn phi_capture_origins(

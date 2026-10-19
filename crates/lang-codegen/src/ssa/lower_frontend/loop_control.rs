@@ -62,6 +62,7 @@ pub(super) struct LoopContext {
     pub(super) breaks: Vec<BranchExit>,
     pub(super) for_loop: Option<ForLoopData>,
     pub(super) numeric_loop: Option<numeric_iteration::NumericLoopData>,
+    pub(super) map_loop: Option<super::map_iteration::Context>,
 }
 
 impl LoopContext {
@@ -328,6 +329,7 @@ impl ExpressionLowerer<'_> {
             breaks: Vec::new(),
             for_loop: None,
             numeric_loop: None,
+            map_loop: None,
         })
     }
 
@@ -336,6 +338,13 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self
+            .loops
+            .last()
+            .is_some_and(|context| context.map_loop.is_some())
+        {
+            return self.lower_map_iteration_break(expression, span);
+        }
         if self
             .loops
             .last()
@@ -379,6 +388,13 @@ impl ExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
+        if self
+            .loops
+            .last()
+            .is_some_and(|context| context.map_loop.is_some())
+        {
+            return self.lower_map_iteration_continue(expression, span);
+        }
         if self
             .loops
             .last()
@@ -496,6 +512,9 @@ impl ExpressionLowerer<'_> {
         use lang_frontend::ownership_checking::{DropTarget, IterationCleanupAction as Action};
         match action {
             Action::Drop(fact) => {
+                if self.emit_local_map_drop(*fact)? {
+                    return Ok(());
+                }
                 if self.emit_outer_borrowed_drop(*fact)? {
                     return Ok(());
                 }

@@ -28,6 +28,46 @@ def write_json(path, value):
 
 def run_reduction(executor, root_dir):
     root_dir.mkdir(parents=True, exist_ok=True)
+    # Checker mutation builds have their own build budget. Do not inherit the
+    # earlier generated-case deadline after those independent builds complete.
+    started = time.monotonic()
+    previous_deadline = executor.deadline
+    executor.deadline = started + 120
+    budget = dict(phase="reduction", budget_seconds=120, max_candidates=32,
+                  starts_at="phase-entry", includes=["original-clean", "original-fault",
+                  "minimize", "three-confirmations", "one-step-exhaustion"],
+                  independent_of_previous_phase=True, previous_deadline=previous_deadline,
+                  started_monotonic=started, deadline_monotonic=executor.deadline,
+                  status="running")
+    write_json(root_dir / "budget.json", budget)
+    primary_error = None
+    try:
+        result = _run_reduction(executor, root_dir)
+        budget["status"] = "completed"
+        return result
+    except BaseException as error:
+        primary_error = error
+        raise
+    finally:
+        budget["elapsed_seconds"] = time.monotonic() - started
+        if budget["status"] != "completed":
+            budget["status"] = "failed"
+        try:
+            write_json(root_dir / "budget.json", budget)
+        except OSError as error:
+            if primary_error is None:
+                raise
+            evidence = dict(stage="reduction-budget", kind="tool_or_harness_failure",
+                            witness="budget-write-failed", detail=str(error),
+                            primary_failure=primary_error.record() if isinstance(primary_error, Failure)
+                            else dict(type=type(primary_error).__name__, detail=str(primary_error)))
+            try:
+                write_json(root_dir / "budget-write-failure.json", evidence)
+            except OSError:
+                print(f"reduction budget evidence write failed: {error}", file=sys.stderr)
+
+
+def _run_reduction(executor, root_dir):
     # Select a V2 case with redundant extra locals and move operations
     # 'v2-3-83' has 9 operations: Holder, Leaf, extra0, extra1, move, replace, inspect, return_if, marker
     original_case = copy.deepcopy(next(c for c in model.cases() if c["id"] == "v2-3-83"))
@@ -64,8 +104,6 @@ def run_reduction(executor, root_dir):
 
     reductions_dir = root_dir / "reduction"
     reductions_dir.mkdir(parents=True, exist_ok=True)
-    executor.deadline = time.monotonic() + 120
-
     attempt_log = []
 
     def replay(candidate, attempt):
@@ -229,6 +267,12 @@ def run_reduction(executor, root_dir):
             write_json(root_dir / "reduction.json", reduced)
             raise Failure("reduction", "tool_or_harness_failure", "minimal-was-not-1-minimal")
 
+    if time.monotonic() >= executor.deadline:
+        reduced["is_1_minimal"] = False
+        reduced["one_step_exhaustion"] = one_step_exhaustion
+        reduced["failure_reason"] = "reduction-execution-budget-exhausted"
+        write_json(root_dir / "reduction.json", reduced)
+        raise Failure("reduction", "timeout", "execution-budget")
     reduced["is_1_minimal"] = True
     reduced["one_step_exhaustion"] = one_step_exhaustion
     write_json(root_dir / "reduction.json", reduced)

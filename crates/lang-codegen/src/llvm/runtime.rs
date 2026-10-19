@@ -40,7 +40,7 @@ pub(super) struct RuntimeAbi<'ctx> {
     abort: Option<FunctionValue<'ctx>>,
     write: Option<FunctionValue<'ctx>>,
     free: Option<FunctionValue<'ctx>>,
-    allocation_sizes: BTreeMap<SsaTypeId, u64>,
+    payload_sizes: BTreeMap<SsaTypeId, u64>,
     shared_allocation_sizes: BTreeMap<SsaTypeId, u64>,
     zst_sentinel: Option<PointerValue<'ctx>>,
     drop_functions: BTreeMap<SsaTypeId, FunctionValue<'ctx>>,
@@ -111,7 +111,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
                 Some(global.as_pointer_value())
             };
 
-        let mut allocation_sizes = BTreeMap::new();
+        let mut payload_sizes = BTreeMap::new();
         for owner in requirements.allocated_owners {
             let payload = module.heap_payload(owner).ok_or_else(|| {
                 LlvmAdapterError::InvalidSsa("heap owner 缺少已定义 payload".to_owned())
@@ -124,14 +124,13 @@ impl<'ctx> RuntimeAbi<'ctx> {
                 target.get_store_size(&types.basic_type(payload)?)
             } else {
                 types.aggregate_layout(target, payload)?.store_size
-            }
-            .max(1);
-            if size > max_buffer_bytes {
+            };
+            if size.max(1) > max_buffer_bytes {
                 return Err(LlvmAdapterError::Unsupported(
                     "heap allocation exceeds pointer index range".to_owned(),
                 ));
             }
-            allocation_sizes.insert(owner, size);
+            payload_sizes.insert(owner, size);
         }
         let mut shared_allocation_sizes = BTreeMap::new();
         for owner in requirements.shared_allocated_owners {
@@ -163,7 +162,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
             abort,
             write,
             free,
-            allocation_sizes,
+            payload_sizes,
             shared_allocation_sizes,
             zst_sentinel,
             drop_functions,
@@ -183,7 +182,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
         payload: BasicValueEnum<'ctx>,
         name: &str,
     ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
-        let size = self.allocation_sizes.get(&owner).copied().ok_or_else(|| {
+        let size = self.payload_sizes.get(&owner).copied().ok_or_else(|| {
             LlvmAdapterError::InvalidSsa("heap allocation 缺少 target-derived size".to_owned())
         })?;
         let malloc = self
@@ -192,7 +191,7 @@ impl<'ctx> RuntimeAbi<'ctx> {
         let call = builder.build_call(
             malloc,
             &[BasicMetadataValueEnum::from(
-                self.size_type.const_int(size, false),
+                self.size_type.const_int(size.max(1), false),
             )],
             name,
         )?;
@@ -223,7 +222,11 @@ impl<'ctx> RuntimeAbi<'ctx> {
         builder.build_unreachable()?;
 
         builder.position_at_end(initialized);
-        builder.build_store(allocation, payload)?;
+        // Empty payloads still own a unique allocation, but have no bytes to initialize.
+        // An empty aggregate store also makes ASan check the invalid endpoint ptr - 1.
+        if size != 0 {
+            builder.build_store(allocation, payload)?;
+        }
         Ok(allocation)
     }
 

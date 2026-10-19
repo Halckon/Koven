@@ -134,7 +134,7 @@ impl Checker<'_> {
                     return Ok(Flows::next(state));
                 }
                 let diagnostic_count = self.diagnostics.len();
-                let closure = self.closure_origin(initializer, &state)?;
+                let closure = self.closure_origins(initializer, &state)?;
                 let moved_closure = self.expression_root_symbol(initializer)?;
                 let mut flows = self.check_expression(
                     initializer,
@@ -151,9 +151,17 @@ impl Checker<'_> {
                     if let Some(source) = moved_closure {
                         next.closures.remove(&source);
                     }
+                    let closure = if closure.is_empty() {
+                        next.closure_results
+                            .get(&self.unit_expression(initializer))
+                            .cloned()
+                            .unwrap_or_default()
+                    } else {
+                        closure
+                    };
                     if self.diagnostics.len() == diagnostic_count
                         && let Some(symbol) = self.marker_symbol(name).copied()
-                        && let Some(closure) = closure
+                        && !closure.is_empty()
                     {
                         next.closures.insert(symbol, closure);
                     }
@@ -395,7 +403,7 @@ impl Checker<'_> {
         Ok(flows)
     }
 
-    fn check_maybe_loop(
+    pub(super) fn check_maybe_loop(
         &mut self,
         mut prefix: Flows,
         body: StatementId,
@@ -620,7 +628,7 @@ impl Checker<'_> {
                         },
                     );
                 }
-                self.check_assignment(target, operator, value, state)
+                self.check_assignment(id, target, operator, value, state)
             }
             Expression::Member {
                 receiver,

@@ -17,7 +17,10 @@ pub(super) fn lower_unit_from_facts(
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
     let parsed_by_source = super::super::unit_source_query::parsed_by_source_unit(inputs, names)?;
-    super::borrow_result::validate(&parsed_by_source, typed, owned)?;
+    // Both sealed views have already checked the complete frontend identity chain.
+    // This whole-set capability check must precede instance planning and Module creation.
+    super::map_iteration::validate(&parsed_by_source, names, typed, owned)?;
+    super::borrow_result::validate(&parsed_by_source, names, typed, owned)?;
     let instance_plan = plan_unit_instances_from_facts(
         &parsed_by_source,
         names,
@@ -482,6 +485,7 @@ pub(super) fn lower_unit_from_facts(
             pending_operands: Vec::new(),
             pending_call_frames: Vec::new(),
             loops: Vec::new(),
+            map_local_continuation: None,
             return_type: plan.return_type,
         };
         lowerer.emit_drops(UnitDropPoint::FunctionEntry(UnitItemId::new(
@@ -510,6 +514,7 @@ pub(super) fn lower_unit_from_facts(
             }
             FunctionPlanBody::Block(statement) => (lowerer.lower_statement(statement)?, None),
         };
+        lowerer.finish_local_map_function(plan.instance.span())?;
         if result == LoweredValue::Diverged {
             continue;
         }
@@ -608,6 +613,7 @@ pub(super) fn lower_unit_from_facts(
             pending_operands: Vec::new(),
             pending_call_frames: Vec::new(),
             loops: Vec::new(),
+            map_local_continuation: None,
             return_type: plan.return_type,
         };
         closure::finish_thunk(&mut lowerer, plan)?;

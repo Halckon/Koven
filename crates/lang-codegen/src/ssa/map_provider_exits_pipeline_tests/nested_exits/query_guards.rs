@@ -1,0 +1,173 @@
+//! 两个真实 Resource 构造/析构身份；形成历史与当前 owner 运输分开验证。
+use super::super::ast::{Anchors, Input};
+use super::{Failure, failure, need, one, single_bridge, unit_bridge};
+use lang_frontend::{
+    name_resolution::{
+        NameResolution, Namespace, SourceUnitId, SymbolId, SymbolKind, UnitSymbolId,
+        ValidatedCompilationUnitNames,
+    },
+    ownership_checking::{CompilationUnitOwnership, OwnershipCheckedFile},
+    type_checking::{
+        CompilationUnitTypes, ConstructionTarget, ExpressionCategory, NominalKind, ParameterMode,
+        TypeKind, TypedFile, UnitConstructionTarget, UnitExpressionId, UnitItemId, UnitStatementId,
+        UnitTypeKind,
+    },
+};
+
+pub(super) fn single(
+    f: &Input,
+    a: &Anchors,
+    names: &NameResolution,
+    typed: &TypedFile,
+    owned: &OwnershipCheckedFile,
+) -> Result<[SymbolId; 2], Failure> {
+    let mut locals = Vec::new();
+    let mut classes = Vec::new();
+    let mut types = Vec::new();
+    for guard in &a.guards {
+        let local = single_bridge::symbol(names, guard.marker, SymbolKind::Variable)?;
+        let class = single_bridge::symbol(names, guard.class_marker, SymbolKind::Classifier)?;
+        let nominal = one(
+            typed.nominals().iter().filter(|n| n.id().symbol() == class),
+            "nested exits FE unique actual Guard nominal",
+        )?;
+        let construction = typed
+            .construction(guard.initializer)
+            .ok_or_else(|| failure("nested exits FE actual Guard construction", guard))?;
+        let deinit = nominal
+            .deinit()
+            .ok_or_else(|| failure("nested exits FE actual Guard deinit", nominal))?;
+        need(
+            nominal.kind() == NominalKind::Class
+                && nominal.fields().is_empty()
+                && nominal.type_parameters().is_empty()
+                && nominal.direct_interfaces().is_empty()
+                && nominal.interfaces().is_empty()
+                && nominal.variants().is_empty()
+                && deinit.owner() == nominal.id()
+                && deinit.item() == guard.deinit_item
+                && deinit.body() == guard.deinit_body
+                && deinit.receiver_mode() == ParameterMode::Borrow
+                && deinit.receiver_type() == construction.result_type()
+                && construction.expression() == guard.initializer
+                && construction.arguments().is_empty()
+                && construction.instance().type_arguments().is_empty()
+                && construction.target() == ConstructionTarget::Nominal(nominal.id())
+                && matches!(typed.types().get(construction.result_type()),
+                Some(TypeKind::Nominal { nominal: id, arguments }) if *id == nominal.id() && arguments.is_empty())
+                && typed.expression_type(guard.initializer) == Some(construction.result_type())
+                && typed.expression_category(guard.initializer)
+                    == Some(ExpressionCategory::Temporary)
+                && typed.symbol_type(local) == Some(construction.result_type())
+                && typed.is_resource_type(construction.result_type()) == Some(true)
+                && owned.formed_owned_locals().contains(&local),
+            "nested exits FE exact Guard Resource formation, nominal and real deinit",
+            (guard, local, nominal, construction, deinit),
+        )?;
+        single_bridge::callee(f, names, guard.initializer, class, Namespace::Type)?;
+        locals.push(local);
+        classes.push(class);
+        types.push(construction.result_type());
+    }
+    need(
+        locals.len() == 2
+            && locals[0] != locals[1]
+            && classes[0] != classes[1]
+            && types[0] != types[1],
+        "nested exits FE Guard locals, nominal identities and types stay distinct",
+        (&locals, classes, types),
+    )?;
+    locals
+        .try_into()
+        .map_err(|v| failure("nested exits FE two actual Guard locals", v))
+}
+
+pub(super) fn unit(
+    f: &Input,
+    a: &Anchors,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    unit: SourceUnitId,
+) -> Result<[UnitSymbolId; 2], Failure> {
+    let mut locals = Vec::new();
+    let mut classes = Vec::new();
+    let mut types = Vec::new();
+    for guard in &a.guards {
+        // 普通 Guard 无 Name 读取；只从真实 formed 表取 qualified ID，再回核 names marker。
+        let local = one(
+            owned.formed_owned_locals().iter().copied().filter(|id| {
+                id.source_unit() == unit
+                    && unit_bridge::binding_at(names, *id, guard.marker, SymbolKind::Variable)
+                        .is_ok()
+            }),
+            "nested exits FE unique actual qualified Guard formation",
+        )?;
+        unit_bridge::binding_at(names, local, guard.marker, SymbolKind::Variable)?;
+        let class = one(
+            names.names().index().declarations().iter().filter(|d| {
+                d.source_unit() == unit
+                    && d.root() == guard.class_item
+                    && d.name_span() == guard.class_marker
+                    && d.kind() == SymbolKind::Classifier
+                    && d.namespace() == Namespace::Type
+            }),
+            "nested exits FE unique actual qualified Guard declaration",
+        )?
+        .id();
+        let nominal = one(
+            typed
+                .signatures()
+                .declarations()
+                .iter()
+                .filter(|d| d.declaration() == class)
+                .filter_map(|d| d.nominal()),
+            "nested exits FE unique qualified Guard nominal",
+        )?;
+        let expression = UnitExpressionId::new(unit, guard.initializer);
+        let construction = typed
+            .construction(expression)
+            .ok_or_else(|| failure("nested exits FE actual qualified Guard construction", guard))?;
+        let deinit = nominal
+            .deinit()
+            .ok_or_else(|| failure("nested exits FE actual qualified Guard deinit", nominal))?;
+        need(
+            nominal.declaration() == class
+                && nominal.kind() == NominalKind::Class
+                && nominal.fields().is_empty()
+                && nominal.type_parameters().is_empty()
+                && deinit.owner() == class
+                && deinit.item() == UnitItemId::new(unit, guard.deinit_item)
+                && deinit.body() == UnitStatementId::new(unit, guard.deinit_body)
+                && deinit.receiver_mode() == ParameterMode::Borrow
+                && deinit.receiver_type() == construction.result_type()
+                && construction.expression() == expression
+                && construction.arguments().is_empty()
+                && construction.instance().type_arguments().is_empty()
+                && construction.target() == UnitConstructionTarget::Nominal(class)
+                && matches!(typed.types().get(construction.result_type()),
+                Some(UnitTypeKind::Nominal { declaration, arguments }) if *declaration == class && arguments.is_empty())
+                && typed.expression_type(expression) == Some(construction.result_type())
+                && typed.expression_category(expression) == Some(ExpressionCategory::Temporary)
+                && typed.symbol_type(local) == Some(construction.result_type())
+                && typed.is_resource_type(construction.result_type()) == Some(true),
+            "nested exits FE qualified Guard Resource formation, nominal and real deinit",
+            (guard, local, nominal, construction, deinit),
+        )?;
+        unit_bridge::callee(f, names, guard.initializer, class, Namespace::Type)?;
+        locals.push(local);
+        classes.push(class);
+        types.push(construction.result_type());
+    }
+    need(
+        locals.len() == 2
+            && locals[0] != locals[1]
+            && classes[0] != classes[1]
+            && types[0] != types[1],
+        "nested exits FE qualified Guard identities stay distinct",
+        (&locals, classes, types),
+    )?;
+    locals
+        .try_into()
+        .map_err(|v| failure("nested exits FE two actual qualified Guard locals", v))
+}

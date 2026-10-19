@@ -1,0 +1,2 @@
+fun ignore(value:String?):Unit{println("ignored")}
+fun entry():Unit{ignore(null)}

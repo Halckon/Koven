@@ -12,7 +12,7 @@ Map 的实现按具体 K/V 实例建立布局，不以 `Map<String, Int>` 特例
 变异要求 mutable receiver 的 Inout 权限；普通调用事实和下标赋值遍历都执行检查。
 SSA 的查询键是 Value 或 active Shared Loan，exclusive/失效 loan 被 verifier 拒绝。
 `MapPut` 消费旧 owner、键和值，产生更新后的 owner；`MapRemove` 消费旧 owner，
-产生更新后的 owner 和 owned nullable 结果。for owner 运输见[Map loop owner](map-loop-owner-carry.md)；调用前缀/return 清理见[Map调用前缀](map-call-prefixes.md)。
+产生更新后的 owner 和 owned nullable 结果。双分量借用遍历见[有限支持矩阵](map-borrowed-iteration.md)。for owner 运输见[Map loop owner](map-loop-owner-carry.md)；调用前缀/return 清理见[Map调用前缀](map-call-prefixes.md)。
 
 资源类型规划递归检查 Map 的 K/V，登记元素 drop glue。LLVM Map drop 遍历 Occupied 槽位，
 分别析构 MoveOnly 键和值，再释放 buffer。覆盖先析构旧键和值，再存入新条目。

@@ -172,9 +172,12 @@ impl ExpressionLowerer<'_> {
                 }
             }
         }
+        let map_paths = self.map_path_snapshots();
+        self.carry_map_paths(&map_paths, bindings, &mut carried, span)?;
         self.bind_pending_field_columns(bindings, &mut carried, span)?;
         Ok(LinearBindings {
             slots: carried,
+            map_paths,
             forwarded_loans: self
                 .pending_call_loans
                 .iter()
@@ -321,6 +324,14 @@ impl ExpressionLowerer<'_> {
         }
         let parameters = parameters.clone();
         self.restore_pending_field_columns(&bindings, &carried.slots, &parameters, span)?;
+        self.rebind_map_paths(
+            &carried.map_paths,
+            &bindings,
+            &carried.slots,
+            &parameters,
+            block,
+            span,
+        )?;
         Ok(bindings)
     }
 }

@@ -163,7 +163,7 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
 
 `bash scripts/check_integration.sh`依次选择core、ownership_iteration、stage、尚未覆盖的guide_litmus、
 真实CLI教程。独立stage/Guide入口保留，不增加任意skip开关。core包含lang-std源码资产，
-组合为105个唯一frontend integration和10次Cargo调用；接线与失败传播由Python合同测试核验。
+组合为118个唯一frontend integration和10次Cargo调用；接线与失败传播由Python合同测试核验。
 SPEC-0290 补齐 PR69 改动目标中的 23 个遗漏选择；stage policy 锁定相关 25 个目标
 （含此前已选择的 2 个）各恰一次且不带过滤器。range/N1a 测试进入门禁不表示启用其语义，
 脚本接线与 Python policy 通过也不表示新增 Rust 目标已实际运行。
@@ -192,4 +192,6 @@ LSan的clean/leak及检测开关都使用同一C worker入口，join完成后再
 该入口复用 Cargo 现有 target，使用已缓存依赖的 `--offline` 精确选取一次导出测试；CI 在
 正常组合测试之后运行。错误类别与退出状态共同判定，超时/缺工具/零匹配一律失败；失败
 产物不清理，CI 无论成功失败均上传完整检测目录。地址测试禁用泄漏，LSan 独立执行，
+SPEC-0331 的Resource provider另导出六份真实history的双入口12程序；Linux逐项ASan/LSan，
+执行前落完整输入SHA账本，失败仍保留身份。该动态接线不改变macOS partial合同。
 不得把关闭接线后普通崩溃当成检测成功。合同与未覆盖项见[0266](../archive/specs/0266-native-sanitizer-wiring.md)。

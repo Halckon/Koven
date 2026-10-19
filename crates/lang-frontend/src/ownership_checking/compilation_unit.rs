@@ -12,6 +12,9 @@ mod construction;
 pub(super) mod contracts;
 mod iteration;
 mod iteration_validation;
+mod map_iteration;
+mod map_iteration_validation;
+pub use map_iteration::*;
 #[cfg(test)]
 mod iteration_validation_tests;
 pub use iteration::*;
@@ -596,6 +599,9 @@ pub struct CompilationUnitOwnership {
     )>,
     iteration_loan_ends: Vec<(UnitDropPoint, UnitIterationCleanupAction)>,
     iterations: Vec<UnitIterationOwnershipPlan>,
+    map_iterations: Vec<UnitMapIterationOwnershipPlan>,
+    map_iteration_templates: Vec<UnitMapIterationOwnershipPlan>,
+    map_iteration_inputs: Vec<crate::type_checking::UnitMapIterationDescriptor>,
     iteration_templates: Vec<UnitIterationOwnershipPlan>,
     iteration_required_exits: Vec<(
         crate::type_checking::UnitStatementId,
@@ -738,6 +744,13 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
+            map_iterations: if successful && dataflow.deferred.is_empty() {
+                dataflow.map_iterations
+            } else {
+                Vec::new()
+            },
+            map_iteration_templates: dataflow.map_iteration_templates,
+            map_iteration_inputs: typed.map_iterations().to_vec(),
             iteration_templates: dataflow.iteration_templates,
             iteration_required_exits: dataflow.iteration_required_exits,
             short_circuits: (successful && dataflow.deferred.is_empty())

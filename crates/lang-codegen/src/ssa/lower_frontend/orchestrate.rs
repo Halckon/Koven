@@ -111,7 +111,8 @@ fn lower_scalar_file_product(
     owned: &OwnershipCheckedFile,
 ) -> Result<LoweredFile, LoweringError> {
     validate_inputs(sources, parsed, names, typed, owned)?;
-    super::borrow_result::validate(parsed, typed, owned)?;
+    super::map_iteration::validate(parsed, names, typed, owned)?;
+    super::borrow_result::validate(parsed, names, typed, owned)?;
     if let Some(root) =
         owned.cleanup_steps().iter().find_map(|(_, action)| {
             match action {
@@ -676,6 +677,8 @@ fn lower_scalar_file_product(
         })
         .collect::<BTreeMap<_, _>>();
 
+    let map_iteration_storage = super::map_iteration::storage(module, &type_ids);
+
     for plan in plans {
         let function = module
             .functions
@@ -715,6 +718,11 @@ fn lower_scalar_file_product(
         }
         let mut lowerer = ExpressionLowerer {
             map_loop_owners: super::map_loop_owner::Carriers::new(&bindings),
+            map_iteration_state: super::map_iteration::State::new(
+                &bindings,
+                &borrow_bindings,
+                &map_iteration_storage,
+            ),
             parsed,
             names,
             typed,
@@ -788,6 +796,7 @@ fn lower_scalar_file_product(
         let entry = function.entry_block().expect("planned thunk entry exists");
         let mut lowerer = ExpressionLowerer {
             map_loop_owners: super::map_loop_owner::Carriers::default(),
+            map_iteration_state: super::map_iteration::State::default(),
             parsed,
             names,
             typed,
@@ -820,6 +829,11 @@ fn lower_scalar_file_product(
             loops: Vec::new(),
         };
         lowerer.bind_capture_views(plan)?;
+        lowerer.map_iteration_state = super::map_iteration::State::new(
+            &lowerer.bindings,
+            &lowerer.borrow_bindings,
+            &map_iteration_storage,
+        );
         let result = lowerer.lower_lambda_body(plan)?;
         if !matches!(result, LoweredValue::Diverged) {
             lowerer.end_thunk_capture_views(plan.span)?;

@@ -75,3 +75,6 @@ mod replacement_snapshots;
 mod sibling_source_loans;
 #[path = "ownership_iteration/source_loans.rs"]
 mod source_loans;
+
+#[path = "ownership_iteration/map_borrowed.rs"]
+mod map_borrowed;

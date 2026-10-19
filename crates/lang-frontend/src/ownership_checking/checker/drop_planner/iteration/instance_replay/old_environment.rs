@@ -152,6 +152,8 @@ val used = final()
             drops: owned.drops().to_vec(),
             loan_ends: owned.loan_ends().to_vec(),
             iterations: owned.iterations().to_vec(),
+            map_iterations: owned.map_iterations().to_vec(),
+            map_iteration_required_exits: owned.map_iteration_required_exits.clone(),
             deferred: Vec::new(),
         }
     };

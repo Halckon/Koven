@@ -9,6 +9,9 @@ impl DropPlanner<'_, '_> {
         let Some(ty) = self.checker.typed.symbol_type(symbol) else {
             return false;
         };
+        if state.closures.contains_key(&symbol) {
+            return state.closure_asap.get(&symbol) == Some(&true);
+        }
         if let Some(resource) = self.checker.typed.is_resource_type(ty) {
             return !resource;
         }
@@ -26,23 +29,53 @@ impl DropPlanner<'_, '_> {
         ) {
             return false;
         }
-        if self
-            .checker
+        self.checker
             .typed
             .signatures()
             .declarations()
             .iter()
             .filter_map(|declaration| declaration.nominal())
             .all(|nominal| !nominal.has_deinit())
-        {
-            return true;
+    }
+
+    /// Read the replacement environment before Consume removes its captured owners.
+    /// Facts remain per current binding, so repeated lambda sites cannot overwrite aliases.
+    pub(super) fn closure_value_asap(
+        &self,
+        expression: ExpressionId,
+        state: &ValueState,
+    ) -> Result<Option<bool>, super::OwnershipCheckingError> {
+        let node = self.checker.parsed.ast().expressions().get(expression)?;
+        match node.payload() {
+            crate::parser::Expression::Group { expression } => {
+                self.closure_value_asap(*expression, state)
+            }
+            crate::parser::Expression::Name => Ok(self
+                .checker
+                .reference_symbol(node.span())
+                .filter(|symbol| state.closures.contains_key(symbol))
+                .map(|symbol| state.closure_asap.get(&symbol) == Some(&true))),
+            crate::parser::Expression::Lambda { .. } => {
+                let pure = self.checker.captures_of(expression).all(|capture| {
+                    if capture.mode() != crate::ownership_checking::ClosureCaptureMode::Owned {
+                        return true;
+                    }
+                    if let crate::ownership_checking::UnitClosureCaptureSource::Symbol(symbol) =
+                        capture.source()
+                        && state.closures.contains_key(&symbol)
+                    {
+                        return state.closure_asap.get(&symbol) == Some(&true);
+                    }
+                    // An ordinary function type cannot prove its unknown environment pure.
+                    !matches!(
+                        self.checker.typed.types().get(capture.ty()),
+                        Some(crate::type_checking::UnitTypeKind::Function { .. })
+                    ) && self.checker.typed.is_resource_type(capture.ty()) == Some(false)
+                });
+                Ok(Some(pure))
+            }
+            _ => Ok(None),
         }
-        state.closures.get(&symbol).is_some_and(|&closure| {
-            self.checker.captures_of(closure).all(|capture| {
-                capture.mode() != crate::ownership_checking::ClosureCaptureMode::Owned
-                    || self.checker.typed.is_resource_type(capture.ty()) == Some(false)
-            })
-        })
     }
 
     pub(super) fn drop_named_asap(

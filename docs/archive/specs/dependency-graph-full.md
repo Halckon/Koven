@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，315 份）"]
+subgraph Garchive["已完成（archive，316 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -323,13 +323,24 @@ subgraph Garchive["已完成（archive，315 份）"]
   S0328["S0328<br/>IntRange / LongRange 普通值首片"]
   S0329["S0329<br/>整数 Range 的 owned 值 for"]
   S0330["S0330<br/>while 条件收窄与保守循环流事实"]
+  S0331["S0331<br/>Map 双分量借用式插入序遍历"]
   S0332["S0332<br/>Rc nullable while 既有路径回归修复"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
+  S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
+end
+subgraph Gdrafts_v044["v0.44（draft）"]
+  S0334["S0334<br/>String nullable 表示与 Map 组合 ABI 前置"]
+  S0335["S0335<br/>Map Borrow 结果的 caller continuation 证明"]
+  S0336["S0336<br/>Single 函数值的 owned Map 结果交付"]
+  S0337["S0337<br/>Single Map 条件结果与重绑 owner 运输"]
+  S0338["S0338<br/>Never 条件的普通求值与 provider 不获取"]
+  S0339["S0339<br/>Unit 值实参与待决调用求值"]
+  S0340["S0340<br/>名义类型 nullable retest view 的普通读取"]
 end
 S0001 --> S0002
 S0001 --> S0004
@@ -1344,6 +1355,7 @@ S0288 --> S0305
 S0289 --> S0292
 S0289 --> S0298
 S0290 --> S0294
+S0291 --> S0331
 S0293 --> S0304
 S0294 --> S0295
 S0294 --> S0297
@@ -1372,6 +1384,14 @@ S0315 --> S0317
 S0319 --> S0320
 S0320 --> S0321
 S0330 --> S0332
+S0331 --> S0333
+S0331 --> S0334
+S0331 --> S0335
+S0331 --> S0336
+S0331 --> S0337
+S0331 --> S0338
+S0331 --> S0339
+S0331 --> S0340
 ```
 
 ## 节点链接
@@ -1692,6 +1712,15 @@ S0330 --> S0332
 | SPEC-0328 | archive | [0328-integer-range-values.md](0328-integer-range-values.md) |
 | SPEC-0329 | archive | [0329-integer-range-iteration.md](0329-integer-range-iteration.md) |
 | SPEC-0330 | archive | [0330-while-conservative-flow.md](0330-while-conservative-flow.md) |
+| SPEC-0331 | archive | [0331-map-borrowed-iteration.md](0331-map-borrowed-iteration.md) |
 | SPEC-0332 | archive | [0332-rc-nullable-while-regression.md](0332-rc-nullable-while-regression.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
+| SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
+| SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
+| SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
+| SPEC-0336 | drafts/v0.44 | [0336-single-map-callable-results.md](../../specs/drafts/v0.44/0336-single-map-callable-results.md) |
+| SPEC-0337 | drafts/v0.44 | [0337-single-map-conditional-owner.md](../../specs/drafts/v0.44/0337-single-map-conditional-owner.md) |
+| SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](../../specs/drafts/v0.44/0338-never-condition-evaluation.md) |
+| SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](../../specs/drafts/v0.44/0339-unit-call-argument-values.md) |
+| SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](../../specs/drafts/v0.44/0340-nullable-nominal-retest-view.md) |

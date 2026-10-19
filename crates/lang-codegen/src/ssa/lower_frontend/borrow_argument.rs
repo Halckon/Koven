@@ -21,6 +21,7 @@ impl ExpressionLowerer<'_> {
         span: Span,
     ) -> Result<ValueId, LoweringError> {
         let value = self.require_value(argument)?;
+        self.validate_map_value_delivery(argument, value, span)?;
         if self
             .typed
             .expression_type(argument)

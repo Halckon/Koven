@@ -15,7 +15,12 @@ mod error;
 mod handoff;
 mod iteration;
 mod iteration_source;
+mod map_iteration;
+mod map_iteration_validation;
 pub use iteration_source::IterationSource;
+pub use map_iteration::{
+    MapIterationComponent, MapIterationLoan, MapIterationOwnershipPlan, MapIterationSourceAccess,
+};
 mod model;
 mod non_null_assertion;
 mod nullable_when;
@@ -55,12 +60,12 @@ pub use compilation_unit::{
     UnitConstructionRootDropObligation, UnitDelegationOwnershipPlan, UnitDropFact, UnitDropPoint,
     UnitDropTarget, UnitIterationCleanupAction, UnitIterationExitKind, UnitIterationExitPlan,
     UnitIterationOwnershipPlan, UnitIterationSourceAccess, UnitLoanFact, UnitLoanTarget,
-    UnitNonNullAssertionOwnershipPlan, UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact,
-    UnitOwnershipPlace, UnitRcOwnershipEffect, UnitReceiverOwnershipFact,
-    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, UnitShortCircuitPlan,
-    UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
-    ValidatedCompilationUnitOwnership, check_compilation_unit_constant_ownership,
-    check_compilation_unit_ownership,
+    UnitMapIterationLoan, UnitMapIterationOwnershipPlan, UnitNonNullAssertionOwnershipPlan,
+    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
+    UnitRcOwnershipEffect, UnitReceiverOwnershipFact, UnitReceiverOwnershipKind,
+    UnitReceiverOwnershipTarget, UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact,
+    UnitValueDeliveryKind, UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
+    check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
 };
 pub use const_handoff::{ConstOwnedCompilationUnitView, const_owned_compilation_unit_view};
 pub use constant::{

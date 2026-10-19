@@ -1,0 +1,11 @@
+fun argument():Int{println("argument");return 1}
+fun produce(input:Int):Map<String,String>{if(input!=1){error("bad-input")};println("factory");var result=mutableMapOf<String,String>();result.put("key".clone(),"value".clone());val output=result.consume();return output}
+fun make():Map<String,String>{return produce(argument())}
+fun makeMutable():MutableMap<String,String>{var result=mutableMapOf<String,String>();result.put("key".clone(),"value".clone());return result}
+fun read(key:String,value:String):Unit{println(key);println(value)}
+fun observe(source:Map<String,String>):Unit{if(source.size==1){println("control")}else{error("bad-size")}}
+fun observeMutable(source:MutableMap<String,String>):Unit{if(source.size==1){println("control")}else{error("bad-size")}}
+class Node{}
+fun use(node:Node):Unit{}
+fun scan(source:Map<String,String>,node:Node?):Unit{if(node!=null){use(node);for((key,value) in source){read(key,value)};use(node)}}
+fun entry():Unit{val source=make();val node:Node?=Node();scan(source,node);scan(source,null)}

@@ -1,0 +1,34 @@
+class Guard { deinit() { println("local-drop") } }
+fun read(key: String, value: String): Unit {
+  println(key)
+  println(value)
+}
+fun makeMutable(): MutableMap<String, String> {
+  var source = mutableMapOf<String, String>()
+  source.put("z".clone(), "first".clone())
+  source.put("a".clone(), "second".clone())
+  return source
+}
+fun operand(key: String, value: String): Int {
+  println("operand")
+  read(key, value)
+  return 7
+}
+fun scan(source: MutableMap<String, String>): Int {
+  for ((key, value) in source) {
+    val local = Guard()
+    return operand(key, value)
+  }
+  println("exhausted")
+  return 0
+}
+fun entry(): Unit {
+  println("nonempty")
+  val populated = makeMutable()
+  val result = scan(populated)
+  if (result == 7) { println("returned") } else { println("fallback") }
+  println("empty")
+  val empty = mutableMapOf<String, String>()
+  val emptyResult = scan(empty)
+  if (emptyResult == 0) { println("fallback") } else { println("unexpected") }
+}

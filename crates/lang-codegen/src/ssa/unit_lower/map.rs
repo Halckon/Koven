@@ -103,6 +103,7 @@ impl UnitExpressionLowerer<'_> {
                     .0
             }
         };
+        self.check_local_map_size(id, owner, span)?;
         let int_ty = self.expression_ssa_type(expression, span)?;
         let result_id = self
             .function
@@ -116,7 +117,9 @@ impl UnitExpressionLowerer<'_> {
         let Some(EntityId::Value(val)) = result_id.1.first().copied() else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
+        self.record_local_map_size(id, owner, val, span)?;
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
+        self.finish_local_map_size(id, span)?;
         Ok(LoweredValue::Value(val))
     }
 

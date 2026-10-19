@@ -541,6 +541,7 @@ pub(super) fn finish_thunk(
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, plan.span))?;
         lowerer.transfer_owned_expression(expression, value, plan.span)?;
     }
+    lowerer.finish_local_map_function(plan.span)?;
     // Abort does not unwind its operand-prefix owners; ordinary Return already
     // consumed its frontend cleanup facts and is checked by the SSA verifier.
     if result == LoweredValue::Diverged {

@@ -29,6 +29,7 @@ mod loop_control;
 mod map;
 mod map_borrow;
 mod map_consume;
+mod map_iteration;
 mod map_require;
 mod map_result;
 mod map_with;
@@ -202,6 +203,8 @@ struct UnitExpressionLowerer<'a> {
     pending_operands: Vec<EntityId>,
     pending_call_frames: Vec<call_lifetimes::PendingCallFrame>,
     loops: Vec<loop_control::LoopContext>,
+    // One bounded normal Map continuation, discharged by its exact size CallReturn.
+    map_local_continuation: Option<map_iteration::LocalContinuation>,
     return_type: UnitTypeId,
 }
 
@@ -471,6 +474,11 @@ impl UnitExpressionLowerer<'_> {
         } else {
             self.end_pending_abi_call_slots(0, span)?;
         }
+        self.record_map_return_delivery(
+            UnitExpressionId::new(self.source_unit, expression),
+            result,
+            span,
+        )?;
         self.emit_drops(UnitDropPoint::ControlTransfer(UnitExpressionId::new(
             self.source_unit,
             expression,
@@ -554,7 +562,17 @@ impl UnitExpressionLowerer<'_> {
                 condition, body, ..
             } => self.lower_while(statement, *condition, *body, span),
             Statement::Loop { body, .. } => self.lower_loop(statement, *body, span),
-            Statement::For { source, body, .. } => self.lower_for(statement, *source, *body, span),
+            Statement::For { source, body, .. } => {
+                if self
+                    .typed
+                    .map_iteration(UnitStatementId::new(self.source_unit, statement))
+                    .is_some()
+                {
+                    self.lower_map_for(statement, *source, *body, span)
+                } else {
+                    self.lower_for(statement, *source, *body, span)
+                }
+            }
             Statement::LocalDestructuring { initializer, .. } => {
                 self.lower_destructuring(statement, *initializer, span)
             }

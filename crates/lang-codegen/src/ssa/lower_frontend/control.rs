@@ -1,6 +1,7 @@
 //! `if` 与短路 Boolean 表达式的 CFG 和 block-parameter lowering。
 
 mod carried;
+pub(super) mod map_frames;
 mod proof_join;
 
 use std::collections::BTreeMap;
@@ -35,6 +36,7 @@ pub(super) struct BranchExit {
     pub(super) result_source_loans: BTreeMap<SymbolId, Vec<super::LoanId>>,
     pub(super) for_sources: BTreeMap<usize, super::LoanId>,
     pub(super) for_elements: BTreeMap<usize, super::LoanId>,
+    pub(super) map_paths: map_frames::Paths,
 }
 
 #[derive(Clone, Copy)]
@@ -49,12 +51,15 @@ enum MergeSlot {
     ResultSource(SymbolId, usize),
     ForSource(usize),
     ForElement(usize),
+    MapSource(usize),
+    MapCursor(usize),
 }
 
 #[derive(Clone)]
 pub(super) struct LinearBindings {
     pub(super) slots: Vec<LinearBindingSlot>,
     forwarded_loans: Vec<(usize, usize)>,
+    pub(super) map_paths: map_frames::Paths,
 }
 
 #[derive(Clone)]
@@ -70,10 +75,16 @@ pub(super) struct LinearBindingSlot {
     pub(super) result_sources: Vec<(SymbolId, usize)>,
     pub(super) for_sources: Vec<usize>,
     pub(super) for_elements: Vec<usize>,
+    map_sources: Vec<usize>,
+    map_cursors: Vec<usize>,
     pub(super) ty: EntityType,
 }
 
 impl LinearBindingSlot {
+    pub(super) fn has_map_role(&self) -> bool {
+        !self.map_sources.is_empty() || !self.map_cursors.is_empty()
+    }
+
     pub(super) fn new(symbol: Option<SymbolId>, source: EntityId, ty: EntityType) -> Self {
         Self {
             symbol,
@@ -87,6 +98,8 @@ impl LinearBindingSlot {
             result_sources: Vec::new(),
             for_sources: Vec::new(),
             for_elements: Vec::new(),
+            map_sources: Vec::new(),
+            map_cursors: Vec::new(),
             ty,
         }
     }
@@ -125,6 +138,7 @@ impl ExpressionLowerer<'_> {
             views: self.non_null_bindings.clone(),
             borrow_bindings: self.borrow_bindings.clone(),
             result_source_loans: self.result_source_loans.clone(),
+            map_paths: self.map_path_snapshots(),
             for_sources: self
                 .loops
                 .iter()
@@ -527,6 +541,8 @@ impl ExpressionLowerer<'_> {
         let mut unmatched_loans = self.pending_call_loans.clone();
         let mut unmatched_views = self.non_null_bindings.clone();
         let mut unmatched_captures = self.capture_loans.clone();
+        let mut unmatched_maps = self.map_path_snapshots();
+        let mut unmatched_borrows = self.borrow_bindings.clone();
         let mut exits = Vec::new();
         let mut has_else = false;
         for (entry_index, entry) in entries.iter().enumerate() {
@@ -534,6 +550,15 @@ impl ExpressionLowerer<'_> {
             self.pending_call_loans.clone_from(&unmatched_loans);
             self.non_null_bindings.clone_from(&unmatched_views);
             self.capture_loans.clone_from(&unmatched_captures);
+            self.borrow_bindings.clone_from(&unmatched_borrows);
+            if !unmatched_maps.is_empty() {
+                self.restore_map_paths(
+                    &unmatched_maps,
+                    &unmatched_bindings,
+                    unmatched_block,
+                    entry.span,
+                )?;
+            }
             if entry.else_span.is_some() {
                 has_else = true;
                 if let Some(exit) =
@@ -585,6 +610,8 @@ impl ExpressionLowerer<'_> {
                 unmatched_loans = self.pending_call_loans.clone();
                 unmatched_views = self.non_null_bindings.clone();
                 unmatched_captures = self.capture_loans.clone();
+                unmatched_maps = self.map_path_snapshots();
+                unmatched_borrows = self.borrow_bindings.clone();
             }
 
             self.merge_exits(matches, &entry_baseline, entry.span)?;
@@ -616,7 +643,8 @@ impl ExpressionLowerer<'_> {
                     loans: unmatched_loans,
                     capture_loans: unmatched_captures,
                     views: unmatched_views,
-                    borrow_bindings: self.borrow_bindings.clone(),
+                    borrow_bindings: unmatched_borrows,
+                    map_paths: unmatched_maps,
                     result_source_loans: self.result_source_loans.clone(),
                     for_sources: self
                         .loops
@@ -863,6 +891,7 @@ impl ExpressionLowerer<'_> {
         };
         self.validate_non_null_exit_proofs(&exits, span)?;
         self.validate_pending_field_exits(&exits, span)?;
+        let mut map_paths = self.map_merge_paths(&exits, span)?;
         if exits.len() == 1 {
             self.block = first.block;
             self.bindings = first.bindings.clone();
@@ -882,6 +911,7 @@ impl ExpressionLowerer<'_> {
                     }
                 }
             }
+            self.restore_map_paths(&first.map_paths, &first.bindings, first.block, span)?;
             return Ok(first.result);
         }
 
@@ -1027,6 +1057,8 @@ impl ExpressionLowerer<'_> {
             slots.push(MergeSlot::ForElement(stmt));
         }
 
+        self.map_merge_slots(&exits, &map_paths, &mut slots, &mut parameter_types, span)?;
+
         // Group 等表达式记录可指向同一实体；所有入边都相同时共享一个参数。
         let mut columns = Vec::new();
         let mut unique_types = Vec::new();
@@ -1057,9 +1089,15 @@ impl ExpressionLowerer<'_> {
                     }
                     MergeSlot::ForSource(stmt) => Ok(EntityId::Loan(exit.for_sources[stmt])),
                     MergeSlot::ForElement(stmt) => Ok(EntityId::Loan(exit.for_elements[stmt])),
+                    MergeSlot::MapSource(_) | MergeSlot::MapCursor(_) => {
+                        map_frames::map_slot(&exit.map_paths, *slot, span)
+                    }
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let parameter = if let Some(index) = columns.iter().position(|other| *other == column) {
+                if unique_types[index] != ty {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
                 index
             } else {
                 let index = columns.len();
@@ -1108,6 +1146,10 @@ impl ExpressionLowerer<'_> {
         let mut view_parameters = Vec::new();
         for (slot, index) in slots.into_iter().zip(slot_parameters) {
             let parameter = parameters[index];
+            if matches!(slot, MergeSlot::MapSource(_) | MergeSlot::MapCursor(_)) {
+                map_frames::rebind_merge_slot(&mut map_paths, slot, parameter, span)?;
+                continue;
+            }
             if let MergeSlot::ResultSource(symbol, index) = slot {
                 let EntityId::Loan(loan) = parameter else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
@@ -1174,7 +1216,9 @@ impl ExpressionLowerer<'_> {
                 | MergeSlot::BorrowBinding(_)
                 | MergeSlot::ResultSource(_, _)
                 | MergeSlot::ForSource(_)
-                | MergeSlot::ForElement(_) => {
+                | MergeSlot::ForElement(_)
+                | MergeSlot::MapSource(_)
+                | MergeSlot::MapCursor(_) => {
                     unreachable!("handled loan parameter")
                 }
                 MergeSlot::Binding(symbol) => {
@@ -1209,6 +1253,7 @@ impl ExpressionLowerer<'_> {
                 }
             }
         }
+        self.finish_map_merge(&map_paths, span)?;
         Ok(result)
     }
 

@@ -22,6 +22,7 @@ pub(super) struct IterationFrame {
     pub(super) source_root: Option<UnitSymbolId>,
     temporary: Option<(ExpressionId, Span)>,
     element_active: bool,
+    has_element: bool,
     borrowed: bool,
     scope_depth: usize,
     loop_depth: usize,
@@ -53,17 +54,22 @@ impl DropPlanner<'_, '_> {
             return Ok(false);
         }
         let statement_id = UnitStatementId::new(self.checker.source_unit, statement);
-        let plan = self.checker.iterations.get(&statement_id).ok_or(
-            OwnershipCheckingError::InvalidUnitArgumentPlace {
+        let map_plan = self.checker.map_iterations.get(&statement_id);
+        let plan = self.checker.iterations.get(&statement_id);
+        if plan.is_none() && map_plan.is_none() {
+            return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
                 source_unit: self.checker.source_unit.index(),
                 expression: source.index(),
-            },
-        )?;
-        let source_root = match plan.source() {
+            });
+        }
+        let origin = plan
+            .and_then(|plan| plan.source())
+            .or_else(|| map_plan.and_then(|plan| plan.source()));
+        let source_root = match origin {
             Some(UnitLoanTarget::Place(place)) => Some(place.root()),
             _ => None,
         };
-        let temporary = match plan.source() {
+        let temporary = match origin {
             Some(UnitLoanTarget::Temporary(owner)) => Some((
                 owner.expression(),
                 self.checker
@@ -83,6 +89,7 @@ impl DropPlanner<'_, '_> {
             source_root,
             temporary,
             element_active: false,
+            has_element: map_plan.is_none(),
             borrowed,
             scope_depth: self.scope_depth,
             loop_depth: self.loop_boundaries.len() + 1,
@@ -127,8 +134,19 @@ impl DropPlanner<'_, '_> {
         if !frame.element_active {
             return;
         }
-        if let Some(plan) = self.checker.iterations.get(&statement) {
-            for binding in plan.bindings().iter().rev() {
+        let bindings = self
+            .checker
+            .iterations
+            .get(&statement)
+            .map(|plan| plan.bindings())
+            .or_else(|| {
+                self.checker
+                    .map_iterations
+                    .get(&statement)
+                    .map(|plan| plan.bindings().as_slice())
+            });
+        if let Some(bindings) = bindings {
+            for binding in bindings.iter().rev() {
                 self.iteration_actions.push((
                     point,
                     Action::EndBinding {
@@ -138,8 +156,10 @@ impl DropPlanner<'_, '_> {
                 ));
             }
         }
-        self.iteration_actions
-            .push((point, Action::EndElement(statement)));
+        if frame.has_element {
+            self.iteration_actions
+                .push((point, Action::EndElement(statement)));
+        }
         frame.element_active = false;
     }
 
@@ -289,11 +309,45 @@ impl DropPlanner<'_, '_> {
     ) -> Result<Vec<UnitIterationOwnershipPlan>, OwnershipCheckingError> {
         self.planned_iterations
             .iter()
+            .filter(|statement| self.checker.iterations.contains_key(statement))
             .map(|statement| {
                 let mut plan = self.checker.iterations.get(statement).cloned().ok_or(
                     OwnershipCheckingError::InvalidUnitArgumentPlace {
                         source_unit: statement.source_unit().index(),
                         expression: 0,
+                    },
+                )?;
+                for &(owner, kind, point) in &self.iteration_exits {
+                    if owner == *statement {
+                        plan.exits.push(UnitIterationExitPlan {
+                            kind,
+                            point: point.into_unit(self.checker.source_unit),
+                            actions: self
+                                .iteration_actions
+                                .iter()
+                                .filter(|(at, _)| *at == point)
+                                .map(|(_, action)| action.clone())
+                                .collect(),
+                        });
+                    }
+                }
+                Ok(plan)
+            })
+            .collect()
+    }
+    /// Map 不发布 element access；实际出口仍引用共享栈生成的同点完整序列。
+    pub(super) fn map_iteration_plans(
+        &self,
+    ) -> Result<Vec<crate::ownership_checking::UnitMapIterationOwnershipPlan>, OwnershipCheckingError>
+    {
+        self.planned_iterations
+            .iter()
+            .filter(|statement| self.checker.map_iterations.contains_key(statement))
+            .map(|statement| {
+                let mut plan = self.checker.map_iterations.get(statement).cloned().ok_or(
+                    OwnershipCheckingError::InvalidMapIteration {
+                        source_unit: Some(statement.source_unit().index()),
+                        statement: statement.statement().index(),
                     },
                 )?;
                 for &(owner, kind, point) in &self.iteration_exits {

@@ -1,0 +1,1 @@
+fun entry():Unit{val s=mapOf<String,String?>();println("done")}

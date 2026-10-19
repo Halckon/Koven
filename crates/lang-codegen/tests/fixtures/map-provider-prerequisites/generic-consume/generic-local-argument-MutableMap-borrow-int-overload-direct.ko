@@ -1,0 +1,5 @@
+fun argument():Int{println("argument");return 1}
+fun <T> produce(input:Int):MutableMap<String,String>{if(input!=1){error("bad-input")};println("factory");var result=mutableMapOf<String,String>();result.put("key".clone(),"value".clone());return result}
+fun produce(input:Boolean):MutableMap<String,String>{println("wrong-overload");return mutableMapOf<String,String>()}
+fun read(key:String,value:String):Unit{println(key);println(value)}
+fun entry():Unit{println("begin");for((key,value) in produce<Int>(argument())){read(key,value)};println("after")}

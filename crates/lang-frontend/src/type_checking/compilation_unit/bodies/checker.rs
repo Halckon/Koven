@@ -304,11 +304,16 @@ impl<'a> BodyChecker<'a> {
             self.parts.integer_operations.clear();
             self.parts.integer_range_operations.clear();
             self.parts.iterations.clear();
+            self.parts.map_descriptors.iterations.clear();
         }
         self.parts
             .integer_range_operations
             .sort_by_key(|fact| fact.expression());
         self.parts.iterations.sort_by_key(|plan| plan.statement());
+        self.parts
+            .map_descriptors
+            .iterations
+            .sort_by_key(|plan| plan.statement());
         self.parts
             .ownership_primitives
             .sort_by_key(|fact| fact.expression());

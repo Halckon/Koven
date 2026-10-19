@@ -1,4 +1,6 @@
 //! Private mutations of real analyzed products; no public capability mutation.
+#[path = "iteration_validation_tests/map_ci.rs"]
+mod map_ci;
 #[path = "iteration_validation_tests/numeric_snapshot.rs"]
 mod numeric_snapshot;
 

@@ -9,12 +9,59 @@ pub(super) fn verify_map_ownership(
     function: &Function,
     operation: &Operation,
     aliases: &AliasRoots,
+    reborrows: &ReborrowDependencies,
     state: &mut BlockState,
     location: VerifyLocation,
     origin: &Origin,
     errors: &mut Vec<VerifyError>,
 ) {
     match operation {
+        Operation::MapIterationFirst { source } => {
+            check_map_read_owner(
+                module,
+                function,
+                EntityId::Loan(*source),
+                state,
+                location,
+                origin,
+                errors,
+            );
+        }
+        Operation::MapIterationHasNext { source, cursor }
+        | Operation::MapIterationNext { source, cursor }
+        | Operation::MapIterationKeyLoan { source, cursor }
+        | Operation::MapIterationValueLoan { source, cursor } => {
+            check_map_read_owner(
+                module,
+                function,
+                EntityId::Loan(*source),
+                state,
+                location.clone(),
+                origin,
+                errors,
+            );
+            require_value(
+                module,
+                function,
+                *cursor,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            );
+            if matches!(operation, Operation::MapIterationNext { .. })
+                && let Some(dependent) = reborrows.active_descendant(*source, aliases, state)
+            {
+                errors.push(error(
+                    VerifyErrorKind::LoanDependencyActive {
+                        parent: *source,
+                        dependent,
+                    },
+                    location,
+                    origin,
+                ));
+            }
+        }
         Operation::MapConsume { owner, .. } => {
             check_and_consume_container_owner(
                 module, function, *owner, aliases, state, location, origin, errors,

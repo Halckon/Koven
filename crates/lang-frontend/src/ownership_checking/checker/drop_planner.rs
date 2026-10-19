@@ -57,6 +57,9 @@ pub(super) struct DropPlan {
         Vec<crate::ownership_checking::BorrowBindingEndFact<SymbolId, DropPoint>>,
     pub(super) loan_ends: Vec<LoanEndFact>,
     pub(super) iterations: Vec<IterationOwnershipPlan>,
+    pub(super) map_iterations: Vec<crate::ownership_checking::MapIterationOwnershipPlan>,
+    pub(super) map_iteration_required_exits:
+        Vec<crate::ownership_checking::map_iteration::MapIterationRequiredExit>,
     pub(super) deferred: Vec<OwnershipDeferredFact>,
 }
 
@@ -299,6 +302,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
     /// 组装已检查的候选事实；调用方必须先处理 deferred，不能直接发布。
     fn into_candidate_facts(self) -> DropPlan {
         let iterations = self.iteration_plans();
+        let map_iterations = self.map_iteration_plans();
+        let map_iteration_required_exits = self.map_iteration_required_exits();
         DropPlan {
             cleanup_steps: self.cleanup,
             cleanup_conditions: self.conditions,
@@ -306,6 +311,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             borrow_ends: self.borrow_ends,
             loan_ends: self.loan_ends,
             iterations,
+            map_iterations,
+            map_iteration_required_exits,
             deferred: Vec::new(),
         }
     }

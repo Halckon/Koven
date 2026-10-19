@@ -204,7 +204,7 @@ impl UnitExpressionLowerer<'_> {
     pub(super) fn emit_drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
         self.end_result_bindings(point)?;
         if let Some(actions) = self.owned.iteration_cleanup_at(point).map(<[_]>::to_vec) {
-            return self.emit_iteration_cleanup(&actions);
+            return self.emit_iteration_cleanup(point, &actions);
         }
         let conditional = self
             .owned
@@ -274,7 +274,9 @@ impl UnitExpressionLowerer<'_> {
                     })?;
             }
             let Some(fact) = facts.get(index) else { break };
-            self.emit_drop_fact(*fact)?;
+            if !self.emit_local_map_late_drop(*fact)? {
+                self.emit_drop_fact(*fact)?;
+            }
         }
         Ok(())
     }
@@ -355,6 +357,8 @@ impl UnitExpressionLowerer<'_> {
                 ));
             }
         };
+        self.validate_formed_map_drop(fact, owner)?;
+        self.validate_pure_map_parameter_drop(fact, owner)?;
         self.function
             .append_instruction(
                 self.block,

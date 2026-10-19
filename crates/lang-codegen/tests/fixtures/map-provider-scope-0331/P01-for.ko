@@ -1,0 +1,4 @@
+fun scan(): Unit {
+  for ((key, value) in if (return) mapOf<Int, Int>() else mapOf<Int, Int>()) {}
+}
+fun entry():Unit{scan()}

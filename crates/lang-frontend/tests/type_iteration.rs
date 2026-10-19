@@ -1,4 +1,7 @@
 //! SPEC-0179：compiler-bound 借用迭代的 Phase 2 契约。
+#[path = "type_iteration/map_binding_controls/analysis.rs"]
+mod map_binding_analysis;
+
 use lang_frontend::{
     name_resolution::{NameResolution, resolve_names},
     parser::ParsedFile,
@@ -8,6 +11,15 @@ use lang_frontend::{
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
+
+#[path = "type_iteration/map_borrowed.rs"]
+mod map_borrowed;
+
+#[path = "type_iteration/map_binding_controls.rs"]
+mod map_binding_controls;
+
+#[path = "type_iteration/pattern_recovery_neighbors.rs"]
+mod pattern_recovery_neighbors;
 
 fn checked(text: &str) -> (SourceMap, TypedFile) {
     let (sources, _, _, typed) = analyzed(text);

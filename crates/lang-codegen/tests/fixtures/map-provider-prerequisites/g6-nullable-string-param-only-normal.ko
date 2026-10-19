@@ -1,0 +1,1 @@
+fun entry(source:Map<String,String?>):Unit{for((key,value) in source){println(key)}}

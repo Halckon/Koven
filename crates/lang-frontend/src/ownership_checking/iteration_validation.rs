@@ -14,8 +14,8 @@ use std::{collections::BTreeSet, error::Error, fmt};
 /// A published iteration contract is inconsistent with its typed/source authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IterationFactError {
-    span: Option<Span>,
-    reason: &'static str,
+    pub(super) span: Option<Span>,
+    pub(super) reason: &'static str,
 }
 impl IterationFactError {
     /// Source span at the rejected published provider.
@@ -44,6 +44,7 @@ pub fn validate_iteration_facts(
     typed: &TypedFile,
     owned: &OwnershipCheckedFile,
 ) -> Result<(), IterationFactError> {
+    super::map_iteration_validation::validate_map_iteration_facts(parsed, names, typed, owned)?;
     let mut seen = BTreeSet::new();
     for plan in owned.iterations() {
         let descriptor = plan.descriptor();

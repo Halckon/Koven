@@ -79,8 +79,24 @@ fun main(): Unit { val cell = Cell("borrowed"); inspect(cell); inspect(cell) }
 - 借用已有槽位另有 `requireValue` 与同步 `withValue`；前者缺失时 abort，后者在命中时调用
   Borrow callback。它们的值类型和清理边界见[Map 访问说明](../architecture/map-native-execution.md)，
   不能把返回借用当成取出一个 owned 值。
-- 当前不要使用未交付的 Map 遍历或集合 `forEach`/`map`/`filter`，也不要假设存在 Kotlin 的
-  其他集合/格式化 API。词频里的 `decimal` 是本页实现的普通函数，不是标准库格式化接口。
+- Map 的 `for ((key, value) in source)` 已有有限 single/unit 后端 native 子集：两个具名分量
+  共享借用，沿插入链遍历。[具名参数源码](../../crates/lang-codegen/tests/fixtures/map-provider-0331/map.ko)、
+  [temporary 源码](../../crates/lang-codegen/tests/fixtures/map-provider-temporary-0331/map-temporary.ko)与
+  [local 后用源码](../../crates/lang-codegen/tests/fixtures/map-provider-local-sources-0331/local-later-use.ko)
+  展示不同来源；另有有界[Borrow 直接退出](../../crates/lang-codegen/tests/fixtures/map-provider-borrow-exits-0331/map-borrow-break.ko)
+  与[Resource 分量正常耗尽](../../crates/lang-codegen/tests/fixtures/map-provider-resource-0331/map-resource.ko)回归源码。
+  具体 kind/access、退出和嵌套范围见[Map 支持矩阵](../architecture/map-borrowed-iteration.md)。
+  这些是后端回归来源，尚未新增本页公开 CLI 合同；Field/Inout 原生按 Guide 延后。
+  已验组合还包括 own MutableMap、透明 Group、既有 Resource/nullable payload、Pure 后用与重复遍历，
+  以及实参交付、intrinsic/Unit callable 出生、有限 If/When/外层循环与真实 lambda body。
+  local/alias 按实际声明、Move、替换 epoch 运输当前 owner；原后续
+  [Map Return](../../crates/lang-codegen/tests/fixtures/map-provider-scope-0331/P19-for.ko)、
+  [Move](../../crates/lang-codegen/tests/fixtures/map-provider-scope-0331/P20-for.ko)与
+  [put](../../crates/lang-codegen/tests/fixtures/map-provider-scope-0331/P21-for.ko)
+  的双入口回归分别核真实交付、successor owner 与更新后的 SSA owner。
+  这些有限代表不构成所有 source、payload、条件或返回 ABI 组合的支持；具体调用/ABI 前置见矩阵。
+- 集合 `forEach`/`map`/`filter` 与未列出的集合/格式化 API 仍未交付。词频里的 `decimal`
+  是本页实现的普通函数，不是标准库格式化接口。
 
 ### 普通返回与借用返回不同
 
@@ -125,6 +141,11 @@ Map 的返回表达式也有窄范围支持：[已有回归源码](../../crates/
 `remove`/`contains` 后正常返回并清理。
 这是 single/unit 后端 native 的代表源码，不是 Map 遍历，也不是本页新增的公开 CLI 合同；
 不能外推所有容器、嵌套循环或任意返回表达式。具体范围见[Map owner 与循环](../architecture/map-loop-owner-carry.md)。
+
+Map 双分量借用遍历已有 single/unit 后端的有限嵌套回归：同根与不同 root、own Resource、
+temporary/nullable payload，以及三层遍历的内层 break 和全层 return 清理。
+来源、类型与退出组合见[当前矩阵](../architecture/map-borrowed-iteration.md)；Field/Inout 和
+String? ABI 边界仍保留，这些后端回归不增加本页公开 CLI 的可执行合同。
 
 ## root-replace-swap
 

@@ -26,8 +26,11 @@ impl EntryProjection {
         state
             .places
             .retain(|place, _| self.available(function, block, EntityId::Place(*place)));
+        state
+            .cursors
+            .retain(|value, _| self.available(function, block, EntityId::Value(*value)));
         let mut pending = loans.iter().copied().collect::<Vec<_>>();
-        for reference in state.places.values() {
+        for reference in state.places.values().chain(state.cursors.values()) {
             pending.extend(reference.lineage.iter().copied());
         }
         let mut expanded = BTreeSet::new();

@@ -1,0 +1,10 @@
+
+class Guard{deinit(){println("guard-drop")}}
+fun read(key:String,value:String):Unit{println(key);println(value)}
+fun operand(key:String,value:String):Int{read(key,value);return 7}
+fun make():Map<String,String>{return mapOf<String,String>()}
+fun makeMutable():MutableMap<String,String>{return mutableMapOf<String,String>()}
+fun readMap(source:Map<String,String>):Unit{if(source.size==0){println("zero")}else{println("nonzero")}}
+fun same(source:Map<String,String>):borrow Map<String,String> from source{return source}
+fun scan(source:Map<String,String>):Unit{for((key,value) in same(source)){read(key,value)}}
+fun entry():Unit{val s=make();scan(s)}

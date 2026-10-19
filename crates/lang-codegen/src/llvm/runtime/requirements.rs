@@ -115,7 +115,10 @@ impl RuntimeRequirements {
                         requirements.needs_abort = true;
                     }
                     Operation::ContainerElementPlace { .. }
-                    | Operation::RangeElementPlace { .. } => {
+                    | Operation::RangeElementPlace { .. }
+                    | Operation::MapIterationNext { .. }
+                    | Operation::MapIterationKeyLoan { .. }
+                    | Operation::MapIterationValueLoan { .. } => {
                         requirements.needs_abort = true;
                     }
                     Operation::ContainerAppend { owner, .. }

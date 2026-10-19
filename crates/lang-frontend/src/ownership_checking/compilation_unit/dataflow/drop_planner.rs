@@ -1,3 +1,4 @@
+mod assignment;
 mod binding;
 mod borrow_result;
 mod control;
@@ -17,13 +18,12 @@ use crate::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::UnitSymbolId,
     parser::{
-        AssignmentOperator, BinaryOperator, Expression, FunctionBody, FunctionForm, Item,
-        Statement, StringPart, WhenCondition,
+        BinaryOperator, Expression, FunctionBody, FunctionForm, Item, Statement, StringPart,
+        WhenCondition,
     },
     type_checking::{
         BuiltinType, Copyability, DestructuringMode, ExpressionCategory, NominalKind,
-        ParameterMode, UnitAggregateProjectionKind, UnitCallReceiverOrigin, UnitExpressionId,
-        UnitStatementId, UnitTypeKind,
+        ParameterMode, UnitCallReceiverOrigin, UnitExpressionId, UnitStatementId, UnitTypeKind,
     },
 };
 
@@ -53,6 +53,7 @@ pub(super) struct Analysis {
         crate::ownership_checking::UnitIterationCleanupAction,
     )>,
     pub(super) iterations: Vec<crate::ownership_checking::UnitIterationOwnershipPlan>,
+    pub(super) map_iterations: Vec<crate::ownership_checking::UnitMapIterationOwnershipPlan>,
     pub(super) iteration_required_exits: Vec<(
         UnitStatementId,
         crate::ownership_checking::UnitIterationExitKind,
@@ -81,6 +82,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         .collect();
     let planner = DropPlanner::new(checker, liveness).run()?;
     let iterations = planner.iteration_plans()?;
+    let map_iterations = planner.map_iteration_plans()?;
     let mut iteration_owner_scopes: Vec<_> = planner
         .iteration_scope_depths
         .iter()
@@ -139,6 +141,7 @@ pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingE
         iteration_owner_scopes,
         iteration_loan_ends,
         iterations,
+        map_iterations,
         iteration_required_exits,
         drops,
         conditional_receiver_drops,
@@ -834,143 +837,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 operator,
                 value,
                 ..
-            } => {
-                if self
-                    .checker
-                    .typed
-                    .map_put(self.checker.unit_expression(target))
-                    .is_some()
-                {
-                    return self.map_assignment(id, target, state);
-                }
-                if let Some(descriptor) = self.checker.element_place_descriptor(target)? {
-                    self.expression(
-                        descriptor.receiver().expression(),
-                        DropExpressionUse::Place,
-                        state,
-                    )?;
-                    self.expression(
-                        descriptor.index().expression(),
-                        DropExpressionUse::Read,
-                        state,
-                    )?;
-                    self.expression(value, DropExpressionUse::Consume, state)?;
-                    if self.checker.typed.copyability(descriptor.element_type())
-                        == Copyability::MoveOnly
-                    {
-                        self.push_fact(PlannerDropFact::new(
-                            PlannerDropPoint::AfterReplacement(id),
-                            PlannerDropTarget::ReplacedElement(id),
-                            self.checker.parsed.ast().expressions().get(target)?.span(),
-                        ));
-                    }
-                    if let Some(temporary) = self
-                        .checker
-                        .temporary_element_owner(target)?
-                        .map(UnitExpressionId::expression)
-                    {
-                        self.push_fact(PlannerDropFact::new(
-                            PlannerDropPoint::AfterExpression(id),
-                            PlannerDropTarget::Temporary(temporary),
-                            self.checker
-                                .parsed
-                                .ast()
-                                .expressions()
-                                .get(temporary)?
-                                .span(),
-                        ));
-                    } else if let Some(place) = self.checker.place(target)?
-                        && !self.liveness.expression_after[id.index()].contains(&place.root())
-                    {
-                        self.drop_named_asap(
-                            PlannerDropPoint::AfterExpression(id),
-                            place.root(),
-                            state,
-                        );
-                    }
-                    return Ok(true);
-                }
-                let root = self
-                    .checker
-                    .place(target)?
-                    .filter(|place| place.is_root())
-                    .map(|place| place.root());
-                if let Some(root) = root {
-                    state.replacements.push(root);
-                }
-                let continues = self.expression(value, DropExpressionUse::Consume, state)?;
-                if root.is_some() {
-                    state.replacements.pop();
-                }
-                if !continues {
-                    return Ok(false);
-                }
-                let assignment = UnitExpressionId::new(self.checker.source_unit, id);
-                let assignment_target = UnitExpressionId::new(self.checker.source_unit, target);
-                let assignment_value = UnitExpressionId::new(self.checker.source_unit, value);
-                if operator == AssignmentOperator::Assign
-                    && self
-                        .checker
-                        .typed
-                        .assignment(assignment)
-                        .is_some_and(|descriptor| {
-                            descriptor.expression() == assignment
-                                && descriptor.target() == assignment_target
-                                && descriptor.value() == assignment_value
-                                && descriptor.operator() == AssignmentOperator::Assign
-                                && descriptor.falls_through()
-                        })
-                    && let Some(projection) =
-                        self.checker.typed.aggregate_projection(assignment_target)
-                    && projection.kind() == UnitAggregateProjectionKind::Field
-                    && self.checker.typed.copyability(projection.ty()) == Copyability::MoveOnly
-                {
-                    self.push_fact(PlannerDropFact::new(
-                        PlannerDropPoint::BeforeReplacement(id),
-                        PlannerDropTarget::ReplacedField {
-                            assignment: id,
-                            field: projection.field(),
-                        },
-                        self.checker.parsed.ast().expressions().get(target)?.span(),
-                    ));
-                }
-                if let Some(place) = self.checker.place(target)?
-                    && place.is_root()
-                {
-                    let symbol = place.root();
-                    if operator != AssignmentOperator::Assign {
-                        self.expression(target, DropExpressionUse::Read, state)?;
-                    }
-                    let old = state.remove_value(symbol);
-                    state.closures.remove(&symbol);
-                    if let Some(old) = old {
-                        self.push_fact(PlannerDropFact::new(
-                            PlannerDropPoint::AfterExpression(value),
-                            PlannerDropTarget::Named(symbol),
-                            old.origin,
-                        ));
-                    }
-                    if self.checker.is_move_only_variable(symbol) {
-                        state.insert(OwnedValue {
-                            symbol,
-                            origin: node.span(),
-                            declaration: self.checker.symbol_span(symbol)?,
-                            scope_depth: old
-                                .map(|value| value.scope_depth)
-                                .or_else(|| self.binding_depths.get(&symbol).copied())
-                                .unwrap_or(self.scope_depth),
-                        });
-                        if !self.liveness.expression_after[id.index()].contains(&symbol) {
-                            self.drop_named_asap(
-                                PlannerDropPoint::AfterExpression(id),
-                                symbol,
-                                state,
-                            );
-                        }
-                    }
-                }
-                Ok(true)
-            }
+            } => self.assignment(id, target, operator, value, state),
             Expression::Member { receiver, .. } => {
                 if let Some(place) = self.checker.place(id)? {
                     let root = place.root();
@@ -1375,50 +1242,60 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 return;
             }
         }
-        let closure = state.closures.remove(&symbol);
+        let closure = state.take_closure(symbol);
         if let Some(value) = state.remove_value(symbol) {
-            let mut shared_sources = Vec::new();
-            if let Some(closure) = closure {
-                let captures = self.checker.captures_of(closure).collect::<Vec<_>>();
-                for capture in captures.into_iter().rev() {
-                    if capture.mode() == ClosureCaptureMode::Shared {
-                        self.iteration_actions.push((
-                            point,
-                            crate::ownership_checking::UnitIterationCleanupAction::EndCaptureLoan {
-                                closure: self.checker.unit_expression(closure),
-                                source: capture.source(),
-                            },
-                        ));
-                    }
-                    if capture.mode() == ClosureCaptureMode::Owned
-                        && capture.effect() == ClosureCaptureEffect::Move
-                    {
-                        self.push_fact(PlannerDropFact::new(
-                            point,
-                            PlannerDropTarget::Captured {
-                                closure,
-                                source: capture.source(),
-                            },
-                            capture.reference_span(),
-                        ));
-                    } else if capture.mode() == ClosureCaptureMode::Shared
-                        && let UnitClosureCaptureSource::Symbol(source) = capture.source()
-                    {
-                        shared_sources.push(source);
-                    }
+            self.drop_owned_value(point, value, closure, state);
+        }
+    }
+
+    fn drop_owned_value(
+        &mut self,
+        point: PlannerDropPoint,
+        value: OwnedValue,
+        closure: Option<ExpressionId>,
+        state: &mut ValueState,
+    ) {
+        let mut shared_sources = Vec::new();
+        if let Some(closure) = closure {
+            let captures = self.checker.captures_of(closure).collect::<Vec<_>>();
+            for capture in captures.into_iter().rev() {
+                if capture.mode() == ClosureCaptureMode::Shared {
+                    self.iteration_actions.push((
+                        point,
+                        crate::ownership_checking::UnitIterationCleanupAction::EndCaptureLoan {
+                            closure: self.checker.unit_expression(closure),
+                            source: capture.source(),
+                        },
+                    ));
+                }
+                if capture.mode() == ClosureCaptureMode::Owned
+                    && capture.effect() == ClosureCaptureEffect::Move
+                {
+                    self.push_fact(PlannerDropFact::new(
+                        point,
+                        PlannerDropTarget::Captured {
+                            closure,
+                            source: capture.source(),
+                        },
+                        capture.reference_span(),
+                    ));
+                } else if capture.mode() == ClosureCaptureMode::Shared
+                    && let UnitClosureCaptureSource::Symbol(source) = capture.source()
+                {
+                    shared_sources.push(source);
                 }
             }
-            self.push_fact(PlannerDropFact::new(
-                point,
-                PlannerDropTarget::Named(symbol),
-                value.origin,
-            ));
-            for source in shared_sources {
-                if !self.has_live_shared_capture(state, source)
-                    && !self.live_after(point).contains(&source)
-                {
-                    self.drop_named_asap(point, source, state);
-                }
+        }
+        self.push_fact(PlannerDropFact::new(
+            point,
+            PlannerDropTarget::Named(value.symbol),
+            value.origin,
+        ));
+        for source in shared_sources {
+            if !self.has_live_shared_capture(state, source)
+                && !self.live_after(point).contains(&source)
+            {
+                self.drop_named_asap(point, source, state);
             }
         }
     }

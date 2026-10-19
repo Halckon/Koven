@@ -220,6 +220,12 @@ impl Builder<'_, '_> {
                     .typed
                     .sequential_iteration(UnitStatementId::new(self.checker.source_unit, id))
                     .map(|plan| plan.binding().symbols().collect::<Vec<_>>())
+                    .or_else(|| {
+                        self.checker
+                            .typed
+                            .map_iteration(UnitStatementId::new(self.checker.source_unit, id))
+                            .map(|plan| plan.bindings().to_vec())
+                    })
                     .unwrap_or_default();
                 let mut header = live_after.clone();
                 loop {

@@ -476,6 +476,7 @@ impl<E: Copy, T: Copy, S: Copy> MapConsumeDescriptor<E, T, S> {
 /// 单文件中所有 Map 相关的结构化操作描述符集合。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct MapDescriptors {
+    pub(crate) iterations: Vec<super::MapIterationDescriptor>,
     pub(crate) constructions: Vec<MapConstructionDescriptor>,
     pub(crate) consumes: Vec<MapConsumeDescriptor>,
     pub(crate) sizes: Vec<MapSizeDescriptor>,

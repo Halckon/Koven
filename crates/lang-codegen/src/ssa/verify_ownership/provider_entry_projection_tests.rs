@@ -214,6 +214,7 @@ fn place_only_seed_retains_non_dominating_ancestor_tokens() {
         ]
         .into(),
         places: [(surviving, reference(&[child], false))].into(),
+        cursors: Default::default(),
     };
     assert_eq!(state, expected);
     projection.retain_entry(&function, join, &mut state);
@@ -457,6 +458,7 @@ fn nullable_non_null_proof_birth_is_retained_at_its_entry() {
     let mut state = State {
         loans: [(view, reference(&[view], true))].into(),
         places: Default::default(),
+        cursors: Default::default(),
     };
     let born = state.clone();
     projection.retain_entry(function, non_null, &mut state);

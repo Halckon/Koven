@@ -15,7 +15,10 @@ use crate::{
         BuiltinType, DeferredReason, ExpressionUse, TypeCheckingError, collect_expression_uses,
     },
 };
-use std::{collections::BTreeSet, thread};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    thread,
+};
 
 type Result<T> = std::result::Result<T, Internal>;
 
@@ -24,7 +27,7 @@ pub(super) fn check<F: Facts + Sync>(
     files: &[(&ParsedFile, F)],
     definition_order: &[(usize, ItemId)],
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<()> {
+) -> Result<Vec<Vec<StatementId>>> {
     // 同一显式工作栈覆盖全部 source-set，跨文件依赖不引入宿主栈递归。
     thread::scope(|scope| {
         thread::Builder::new()
@@ -44,13 +47,14 @@ fn check_roots<F: Facts>(
     files: &[(&ParsedFile, F)],
     definition_order: &[(usize, ItemId)],
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<()> {
+) -> Result<Vec<Vec<StatementId>>> {
     let mut states = files
         .iter()
         .map(|(parsed, _)| FileState {
             uses: collect_expression_uses(parsed),
             expressions: vec![None; parsed.ast().expressions().len()],
             items: vec![None; parsed.ast().items().len()],
+            visited_for: BTreeMap::new(),
         })
         .collect::<Vec<_>>();
     let mut poisoned = BTreeSet::new();
@@ -71,6 +75,7 @@ fn check_roots<F: Facts>(
             uses: &state.uses,
             expressions: &mut state.expressions,
             items: &mut state.items,
+            visited_for: &mut state.visited_for,
         };
         for &item in items {
             if !checker.item(item)? && first_incomplete.is_none() {
@@ -102,12 +107,16 @@ fn check_roots<F: Facts>(
             kind: "root failure diagnostic",
         });
     }
-    Ok(())
+    Ok(states
+        .into_iter()
+        .map(|state| state.visited_for.into_values().collect())
+        .collect())
 }
 struct FileState {
     uses: Vec<ExpressionUse>,
     expressions: Vec<Option<bool>>,
     items: Vec<Option<bool>>,
+    visited_for: BTreeMap<usize, StatementId>,
 }
 struct Checker<'a, F: Facts> {
     sources: &'a SourceMap,
@@ -118,6 +127,7 @@ struct Checker<'a, F: Facts> {
     poisoned: &'a mut BTreeSet<F::Symbol>,
     expressions: &'a mut [Option<bool>],
     items: &'a mut [Option<bool>],
+    visited_for: &'a mut BTreeMap<usize, StatementId>,
 }
 impl<F: Facts> Checker<'_, F> {
     fn missing(&self, span: Span, kind: &'static str) -> Internal {
@@ -391,13 +401,33 @@ impl<F: Facts> Checker<'_, F> {
                 body,
                 ..
             } => {
+                self.visited_for.insert(id.index(), id);
                 complete &= self.expression(*source, false)?;
                 match binding {
                     ForBinding::Name(name) => complete &= self.binding(*name, complete, true)?,
-                    ForBinding::Destructuring { names, .. } => {
-                        let source_complete = complete;
+                    ForBinding::Destructuring {
+                        names,
+                        left_paren_span,
+                        right_paren_span,
+                    } => {
+                        if let Some(right_paren_span) = right_paren_span {
+                            let pattern = self
+                                .sources
+                                .span(
+                                    left_paren_span.source_id(),
+                                    left_paren_span.start(),
+                                    right_paren_span.end(),
+                                )
+                                .map_err(TypeCheckingError::from)?;
+                            // 完整 pattern 的原根因恢复其 bindings；不扩大单个 marker 的错误。
+                            complete &= !self.diagnostics.iter().any(|diagnostic| {
+                                diagnostic.severity() == Severity::Error
+                                    && diagnostic.primary_span() == pattern
+                            });
+                        }
+                        let binding_complete = complete;
                         for name in names {
-                            complete &= self.binding(*name, source_complete, true)?;
+                            complete &= self.binding(*name, binding_complete, true)?;
                         }
                     }
                 }

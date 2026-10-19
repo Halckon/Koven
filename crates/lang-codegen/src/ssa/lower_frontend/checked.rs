@@ -45,6 +45,8 @@ impl ExpressionLowerer<'_> {
         )?;
         let baseline = self.bindings.clone();
         let carried = self.linear_binding_slots(&baseline, span)?;
+        self.carry_checked_map(&carried, span)?;
+        let previous_block = self.block;
         let parameter_types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
         let arguments = carried
             .slots
@@ -81,6 +83,7 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
         self.block = success;
         self.bindings = self.rebind_linear_bindings(&baseline, success, &carried, span)?;
+        self.resume_checked_map(previous_block, &carried, span)?;
         Ok(LoweredValue::Value(value(results[0])))
     }
 }

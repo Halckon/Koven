@@ -1,0 +1,4 @@
+fun directMap(own source: Map<Int, String>): Unit {
+  for ((key, value) in source) { val copied: Int = key; println(value) }
+  println("exhausted")
+}

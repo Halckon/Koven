@@ -54,10 +54,10 @@
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": {
       "max_lines": 1248,
-      "reason": "SPEC-0265 只增加迭代分析产物传递、独立loan owner冲突接线；provider算法单列dataflow/iteration。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅接入来源collector与正常delivery打包；有限图和callable判定分别在独立子模块。 SPEC-0288接手本轮：仅注册独立 dataflow/map 模块；Map 下标交付算法不放入父 checker。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法",
+      "reason": "SPEC-0265 只增加迭代分析产物传递、独立loan owner冲突接线；provider算法单列dataflow/iteration。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅接入来源collector与正常delivery打包；有限图和callable判定分别在独立子模块。 SPEC-0288接手本轮：仅注册独立 dataflow/map 模块；Map 下标交付算法不放入父 checker。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法 SPEC-0331 本轮：仅注册 Map source helper、保存并传递 source-qualified Map 计划及真实 acquisition 模板；provider/source 算法留在 iteration 与 map_iteration_source 子模块。",
       "owner": "lang-frontend compilation-unit iteration",
       "split_plan": "后续按Checker输入构造与source单元分析归并边界拆分；本次仅接线provider产物，不搬迁调用/loan检查。",
-      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1248；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1189→1191 行已逐行审阅，保留原上限与拆分计划"
+      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1248；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1189→1191 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1191→1206 行（+15）；原 max_lines=1248、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs": {
       "max_lines": 1155,
@@ -82,31 +82,31 @@
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit.rs": {
       "max_lines": 1149,
-      "reason": "SPEC-0265 只增加迭代计划及验证witness存储、模块注册与validate接线；实现分别位于iteration和iteration_validation。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅在既有sealed产物登记同链只读callable事实，未增加另一份validated身份。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法",
+      "reason": "SPEC-0265 只增加迭代计划及验证witness存储、模块注册与validate接线；实现分别位于iteration和iteration_validation。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0279 仅在既有sealed产物登记同链只读callable事实，未增加另一份validated身份。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法 SPEC-0331 本轮：仅登记 Map 模型/验证模块并保存 typed 输入、acquisition 模板及成功发布的计划；完整校验仍由既有 basic/const validate 链调用专用子模块。",
       "owner": "lang-frontend compilation-unit iteration",
       "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
-      "review": "SPEC-0279 独立完整审阅核本次有界接线；超过1149行或扩展职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1090→1092 行已逐行审阅，保留原上限与拆分计划"
+      "review": "SPEC-0279 独立完整审阅核本次有界接线；超过1149行或扩展职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1090→1092 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1092→1105 行（+13）；原 max_lines=1149、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/drop_planner.rs": {
       "max_lines": 1669,
-      "reason": "SPEC-0265 在实际drop、call前缀求值、closure释放和控制转移点接入有序清理；provider frame和schema动作组装独立于父planner。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0274本轮：增加size同步读取及RHS旧owner保护，必须与既有assignment及drop_named状态协作；独立模型字段已在model子模块。 SPEC-0288接手本轮：Map size 与 intrinsic owning 分类接线，复用已有 receiver 保护和 drop planner。 SPEC-0288 第二轮：仅登记 Map 下标与普通短路子模块并作 descriptor/operator 路由；分支清理算法在子模块。 SPEC-0288 第三轮：仅按 source-qualified Map put descriptor 分派下标赋值，消费与 pending 清理算法位于 drop_planner/map.rs。",
+      "reason": "SPEC-0265 在实际drop、call前缀求值、closure释放和控制转移点接入有序清理；provider frame和schema动作组装独立于父planner。 归档前补齐conditional receiver有序动作、形成scope义务与验证产物接线。 SPEC-0274本轮：增加size同步读取及RHS旧owner保护，必须与既有assignment及drop_named状态协作；独立模型字段已在model子模块。 SPEC-0288接手本轮：Map size 与 intrinsic owning 分类接线，复用已有 receiver 保护和 drop planner。 SPEC-0288 第二轮：仅登记 Map 下标与普通短路子模块并作 descriptor/operator 路由；分支清理算法在子模块。 SPEC-0288 第三轮：仅按 source-qualified Map put descriptor 分派下标赋值，消费与 pending 清理算法位于 drop_planner/map.rs。 SPEC-0331 本轮：仅从共用 planner 提取并传递独立 Map ownership 计划；frame 与退出算法留在 iteration 子模块。",
       "owner": "lang-frontend unit drop planner",
       "split_plan": "后续抽取完整assignment/replacement职责，保留return与loop scope cleanup合同。",
-      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1669 行；不声称独立评审。再次增长或职责增加前重新审阅。"
+      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1669 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1615→1618 行（+3）；原 max_lines=1669、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies.rs": {
       "max_lines": 1385,
-      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。 SPEC-0280本轮：仅3行新增container_appends产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0281本轮：仅3行新增container_clears产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0282本轮：仅3行新增container_remove_ats产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0283本轮：仅3行新增container_remove_lasts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0284本轮：仅3行新增container_remove_firsts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0288本轮：仅3行新增map_descriptors产物字段与构造传递，descriptor定义与方法收敛于独立map子模块。",
+      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。 SPEC-0280本轮：仅3行新增container_appends产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0281本轮：仅3行新增container_clears产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0282本轮：仅3行新增container_remove_ats产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0283本轮：仅3行新增container_remove_lasts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0284本轮：仅3行新增container_remove_firsts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0288本轮：仅3行新增map_descriptors产物字段与构造传递，descriptor定义与方法收敛于独立map子模块。 SPEC-0331 本轮：仅在 basic/const 既有类型准入接入 Map 表验证；不复制验证算法。",
       "owner": "lang-frontend unit types",
       "split_plan": "后续按公开产物/调用描述职责拆分公开模型，保持跨crate接口。",
-      "review": "SPEC-0288独立完整审阅核对此次有界增长与既有职责；超过1385行或增加职责前重新审阅。"
+      "review": "SPEC-0288独立完整审阅核对此次有界增长与既有职责；超过1385行或增加职责前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1354→1356 行（+2）；原 max_lines=1385、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": {
       "max_lines": 1226,
-      "reason": "SPEC-0265 注册独立iteration模块、传入statement identity及错误原子清空；算法未放入父checker。SPEC-0291 unit nullable-when仅增加私有flow版本字段/初始化并替换既有inout失效接线，算法留在flow/when子模块。",
+      "reason": "SPEC-0265 注册独立iteration模块、传入statement identity及错误原子清空；算法未放入父checker。SPEC-0291 unit nullable-when仅增加私有flow版本字段/初始化并替换既有inout失效接线，算法留在flow/when子模块。 SPEC-0331 本轮：仅在既有完成点接入独立 Map 迭代表的错误原子清空与确定性排序；producer 与验证算法保留在专用子模块。",
       "owner": "lang-frontend compilation-unit iteration",
       "split_plan": "保留原baseline欠账；未来新增职责前按producer或planner自然边界独立评审，不为此次有限接线机械切片。",
-      "review": "SPEC-0265 fresh review核本次有界增长。SPEC-0291独立审阅核对两行私有flow状态接线及12消费者成对恢复；max/baseline不升，超过精确上限或职责扩展前重新审阅。"
+      "review": "SPEC-0265 fresh review核本次有界增长。SPEC-0291独立审阅核对两行私有flow状态接线及12消费者成对恢复；max/baseline不升，超过精确上限或职责扩展前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1151→1156 行（+5）；原 max_lines=1226、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/tests/multifile_constant_ownership.rs": {
       "max_lines": 1011,
@@ -145,17 +145,17 @@
     },
     "crates/lang-frontend/src/ownership_checking/checker.rs": {
       "max_lines": 1429,
-      "reason": "仅7行size descriptor路由，读取实现复用既有string子模块；不在checker添加第二份算法。 SPEC-0279 仅接入只读callable来源状态、实际entry参数seed与最终打包；图、来源分析及return统计在单职责子模块。 SPEC-0281 仅增加 2 行诊断防护，避免 receiver 检查与 contract 检查重复报错。 SPEC-0288接手本轮：Map 调用 receiver/参数合同委托及下标路由，领域算法在 checker/map 模块。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法",
+      "reason": "仅7行size descriptor路由，读取实现复用既有string子模块；不在checker添加第二份算法。 SPEC-0279 仅接入只读callable来源状态、实际entry参数seed与最终打包；图、来源分析及return统计在单职责子模块。 SPEC-0281 仅增加 2 行诊断防护，避免 receiver 检查与 contract 检查重复报错。 SPEC-0288接手本轮：Map 调用 receiver/参数合同委托及下标路由，领域算法在 checker/map 模块。；SPEC-0291 仅增加两行 CI-only formed history 私有测试注册，发布/回滚守卫全部在独立 formed_tests 子模块，不增加父文件算法 SPEC-0331 本轮：登记独立 Map checker、保存真实 acquisition 模板、打包双 Shared binding 与 Map 产物，并在既有入口接入保留真实失败位置的验证；source/loan 与退出算法留在专用子模块。",
       "owner": "lang-frontend single ownership",
       "split_plan": "后续单文件checker路由按领域迁移，保持状态与事实交接一致。",
-      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1429；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1304→1306 行已逐行审阅，保留原上限与拆分计划"
+      "review": "SPEC-0288本轮逐行核对增长接线与单职责子模块，精确上限1429；再次超出或增加职责前重新审阅。；2026-10-17 SPEC-0291 注册增长 1304→1306 行已逐行审阅，保留原上限与拆分计划 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1306→1371 行（+65）；原 max_lines=1429、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner.rs": {
       "max_lines": 1681,
-      "reason": "仅同步header读取的CallReturn清理分支；共享receiver与assignment保护复用现有planner，不新增规划器。 SPEC-0288接手本轮：Map size 读取与 intrinsic owning 分类接线；短路出口算法放在独立 short_circuit 模块。 SPEC-0288 第二轮：仅登记独立 map 模块与 Map 下标清理路由；同步 receiver/key 完成点算法在子模块。 SPEC-0288 第三轮：仅按 Map put descriptor 分派下标赋值，消费与 pending 清理算法位于 drop_planner/map.rs。",
+      "reason": "仅同步header读取的CallReturn清理分支；共享receiver与assignment保护复用现有planner，不新增规划器。 SPEC-0288接手本轮：Map size 读取与 intrinsic owning 分类接线；短路出口算法放在独立 short_circuit 模块。 SPEC-0288 第二轮：仅登记独立 map 模块与 Map 下标清理路由；同步 receiver/key 完成点算法在子模块。 SPEC-0288 第三轮：仅按 Map put descriptor 分派下标赋值，消费与 pending 清理算法位于 drop_planner/map.rs。 SPEC-0331 本轮：仅传递独立 Map ownership 计划与真实 required-exit 产物；共用 frame 的动作构造留在 iteration 子模块。",
       "owner": "lang-frontend single drop planner",
       "split_plan": "后续按表达式清理职责整体抽取，保持drop顺序与replacement栈。",
-      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1681 行；不声称独立评审。再次增长或职责增加前重新审阅。"
+      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1681 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1589→1596 行（+7）；原 max_lines=1681、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/checker/expression.rs": {
       "max_lines": 1207,

@@ -25,7 +25,7 @@ fn narrow_target_checks_physical_buffer_and_logical_length_bridge() {
         abort: Some(abort),
         write: None,
         free: None,
-        allocation_sizes: BTreeMap::new(),
+        payload_sizes: BTreeMap::new(),
         shared_allocation_sizes: BTreeMap::new(),
         zst_sentinel: Some(sentinel.as_pointer_value()),
         drop_functions: BTreeMap::new(),

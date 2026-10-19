@@ -1,0 +1,59 @@
+class Guard { deinit() { println("local-drop") } }
+fun read(key: String, value: String): Unit {
+  println(key)
+  println(value)
+}
+fun makeMutable(firstKey: String): MutableMap<String, String> {
+  var source = mutableMapOf<String, String>()
+  source.put(firstKey.clone(), "first".clone())
+  source.put("tail".clone(), "second".clone())
+  return source
+}
+fun operand(key: String, value: String): Int {
+  println("operand")
+  read(key, value)
+  return 7
+}
+fun scan(source: MutableMap<String, String>): Int {
+  for ((key, value) in source) {
+    val local = Guard()
+    if (key == "skip") {
+      println("continue-edge")
+      continue
+    }
+    if (key == "stop") {
+      println("break-edge")
+      read(key, value)
+      break
+    }
+    if (key == "return") {
+      return operand(key, value)
+    }
+    read(key, value)
+    println("body-tail")
+  }
+  println("after-loop")
+  return 0
+}
+fun entry(): Unit {
+  println("case-continue")
+  val continueSource = makeMutable("skip")
+  val continueResult = scan(continueSource)
+  if (continueResult == 0) { println("continue-result-0") } else { println("unexpected-continue-result") }
+  println("case-break")
+  val breakSource = makeMutable("stop")
+  val breakResult = scan(breakSource)
+  if (breakResult == 0) { println("break-result-0") } else { println("unexpected-break-result") }
+  println("case-return")
+  val returnSource = makeMutable("return")
+  val returnResult = scan(returnSource)
+  if (returnResult == 7) { println("return-result-7") } else { println("unexpected-return-result") }
+  println("case-fallthrough")
+  val fallthroughSource = makeMutable("pass")
+  val fallthroughResult = scan(fallthroughSource)
+  if (fallthroughResult == 0) { println("fallthrough-result-0") } else { println("unexpected-fallthrough-result") }
+  println("case-empty")
+  val emptySource = mutableMapOf<String, String>()
+  val emptyResult = scan(emptySource)
+  if (emptyResult == 0) { println("empty-result-0") } else { println("unexpected-empty-result") }
+}

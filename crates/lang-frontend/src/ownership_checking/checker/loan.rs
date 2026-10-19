@@ -40,6 +40,11 @@ pub(super) enum ActiveLoanOwner {
     ReservedReceiver(ExpressionId),
     IterationSource(StatementId),
     IterationElement(StatementId),
+    MapIterationBinding {
+        statement: StatementId,
+        source: ExpressionId,
+        component: crate::ownership_checking::MapIterationComponent,
+    },
     Closure(ExpressionId),
 }
 

@@ -99,6 +99,8 @@ impl AliasRoots {
                     Operation::SharedReborrow { source }
                     | Operation::SharedReferenceFollow { source }
                     | Operation::BorrowCall { source, .. }
+                    | Operation::MapIterationKeyLoan { source, .. }
+                    | Operation::MapIterationValueLoan { source, .. }
                     | Operation::MapRequireValue { source, .. } => {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Loan(*source));

@@ -727,7 +727,7 @@ fn index_calls(
     Ok(calls)
 }
 
-fn unit_callable_signature(
+pub(super) fn unit_callable_signature(
     typed: &CompilationUnitTypes,
     target: UnitCallableTarget,
 ) -> Option<&UnitCallableSignature> {

@@ -1,0 +1,92 @@
+fun read(key: String, value: String): Unit {
+  println(key)
+  println(value)
+}
+fun makeMap(): Map<String, String> {
+  var source = mutableMapOf<String, String>()
+  source.put("z".clone(), "first".clone())
+  source.put("a".clone(), "second".clone())
+  val result = source.consume()
+  return result
+}
+fun makeEmptyMap(): Map<String, String> {
+  var source = mutableMapOf<String, String>()
+  val result = source.consume()
+  return result
+}
+fun makeMutable(): MutableMap<String, String> {
+  var source = mutableMapOf<String, String>()
+  source.put("z".clone(), "first".clone())
+  source.put("a".clone(), "second".clone())
+  return source
+}
+fun makeEmptyMutable(): MutableMap<String, String> {
+  var source = mutableMapOf<String, String>()
+  return source
+}
+fun scanMapVal(): Unit {
+  val source = makeMap()
+  for ((key, value) in source) {
+    read(key, value)
+  }
+  if (source.size == 2) { println("size-2") } else { error("unexpected populated size") }
+  println("map-val-after-populated")
+  val empty = makeEmptyMap()
+  for ((key, value) in empty) {
+    read(key, value)
+  }
+  if (empty.size == 0) { println("size-0") } else { error("unexpected empty size") }
+  println("map-val-after-empty")
+}
+fun scanMapVar(): Unit {
+  var source = makeMap()
+  for ((key, value) in source) {
+    read(key, value)
+  }
+  if (source.size == 2) { println("size-2") } else { error("unexpected populated size") }
+  println("map-var-after-populated")
+  var empty = makeEmptyMap()
+  for ((key, value) in empty) {
+    read(key, value)
+  }
+  if (empty.size == 0) { println("size-0") } else { error("unexpected empty size") }
+  println("map-var-after-empty")
+}
+fun scanMutableVal(): Unit {
+  val source = makeMutable()
+  for ((key, value) in source) {
+    read(key, value)
+  }
+  if (source.size == 2) { println("size-2") } else { error("unexpected populated size") }
+  println("mutable-val-after-populated")
+  val empty = makeEmptyMutable()
+  for ((key, value) in empty) {
+    read(key, value)
+  }
+  if (empty.size == 0) { println("size-0") } else { error("unexpected empty size") }
+  println("mutable-val-after-empty")
+}
+fun scanMutableVar(): Unit {
+  var source = makeMutable()
+  for ((key, value) in source) {
+    read(key, value)
+  }
+  if (source.size == 2) { println("size-2") } else { error("unexpected populated size") }
+  println("mutable-var-after-populated")
+  var empty = makeEmptyMutable()
+  for ((key, value) in empty) {
+    read(key, value)
+  }
+  if (empty.size == 0) { println("size-0") } else { error("unexpected empty size") }
+  println("mutable-var-after-empty")
+}
+fun entry(): Unit {
+  println("map-val")
+  scanMapVal()
+  println("map-var")
+  scanMapVar()
+  println("mutable-val")
+  scanMutableVal()
+  println("mutable-var")
+  scanMutableVar()
+}

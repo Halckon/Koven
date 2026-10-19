@@ -2,6 +2,7 @@
 
 mod iteration;
 mod iteration_cleanup;
+mod map_iteration;
 mod nullable_while;
 mod numeric_iteration;
 

@@ -1,0 +1,60 @@
+class Guard { deinit() { println("local-drop") } }
+fun read(key: String, value: String): Unit {
+  println(key)
+  println(value)
+}
+fun makeMap(firstKey: String): Map<String, String> {
+  var source = mutableMapOf<String, String>()
+  source.put(firstKey.clone(), "first".clone())
+  source.put("tail".clone(), "second".clone())
+  val result = source.consume()
+  return result
+}
+fun operand(key: String, value: String): Int {
+  println("operand")
+  read(key, value)
+  return 7
+}
+fun scan(own source: Map<String, String>): Int {
+  for ((key, value) in source) {
+    val local = Guard()
+    if (key == "skip") {
+      println("continue-edge")
+      continue
+    }
+    if (key == "stop") {
+      println("break-edge")
+      read(key, value)
+      break
+    }
+    if (key == "return") {
+      return operand(key, value)
+    }
+    read(key, value)
+    println("body-tail")
+  }
+  println("after-loop")
+  return 0
+}
+fun entry(): Unit {
+  println("case-continue")
+  val continueSource = makeMap("skip")
+  val continueResult = scan(continueSource)
+  if (continueResult == 0) { println("continue-result-0") } else { println("unexpected-continue-result") }
+  println("case-break")
+  val breakSource = makeMap("stop")
+  val breakResult = scan(breakSource)
+  if (breakResult == 0) { println("break-result-0") } else { println("unexpected-break-result") }
+  println("case-return")
+  val returnSource = makeMap("return")
+  val returnResult = scan(returnSource)
+  if (returnResult == 7) { println("return-result-7") } else { println("unexpected-return-result") }
+  println("case-fallthrough")
+  val fallthroughSource = makeMap("pass")
+  val fallthroughResult = scan(fallthroughSource)
+  if (fallthroughResult == 0) { println("fallthrough-result-0") } else { println("unexpected-fallthrough-result") }
+  println("case-empty")
+  val emptySource = mapOf<String, String>()
+  val emptyResult = scan(emptySource)
+  if (emptyResult == 0) { println("empty-result-0") } else { println("unexpected-empty-result") }
+}
