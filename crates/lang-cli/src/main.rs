@@ -13,6 +13,7 @@ mod project;
 mod project_build;
 mod project_command;
 mod standard_sources;
+mod unit_build;
 
 use std::{ffi::OsString, io::Write, process::ExitCode};
 

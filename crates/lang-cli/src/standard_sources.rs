@@ -1,5 +1,5 @@
 //! 编译器自带 Koven 源码资产的加载边界；授权只绑定宿主新建的 SourceId。
-use crate::project_build::ProjectBuildError;
+use crate::unit_build::UnitBuildError;
 use lang_frontend::{
     analysis::UnitSourceDescriptor, source::SourceMap, type_checking::TypeEnvironment,
 };
@@ -12,16 +12,16 @@ pub(crate) fn append_standard_sources(
     sources: &mut SourceMap,
     descriptors: &mut Vec<UnitSourceDescriptor>,
     types: &mut TypeEnvironment,
-) -> Result<(), ProjectBuildError> {
+) -> Result<(), UnitBuildError> {
     let source = sources
         .add_source(format!("{STANDARD_ROOT}/{RANGE_PATH}"), RANGE_TEXT)
-        .map_err(ProjectBuildError::Source)?;
+        .map_err(UnitBuildError::Source)?;
     types
         .authorize_range_source(sources, source)
-        .map_err(ProjectBuildError::StandardSource)?;
+        .map_err(UnitBuildError::StandardSource)?;
     types
         .authorize_range_extension_source(sources, source)
-        .map_err(ProjectBuildError::StandardSource)?;
+        .map_err(UnitBuildError::StandardSource)?;
     descriptors.push(UnitSourceDescriptor::new(STANDARD_ROOT, RANGE_PATH, source));
     Ok(())
 }
