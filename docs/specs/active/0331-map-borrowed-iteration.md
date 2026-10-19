@@ -1445,3 +1445,37 @@ Rust真实0通过/1失败/0忽略，finally逐字恢复。未执行本机故障�
   各draft未实施或取得Guide语义权限，不能统一把Unsupported/MissingFact称为staging。
 - 完整固定头普通回归、工程门、新双宿主CI三artifact独审、§45最终逐组对账与README/Tour/Architecture、
   最小归档及正常合并仍待。F保持active，PR保持draft，D10未启动，本机无故障/校准/sanitizer执行。
+
+## 66. A1 普通外层控制流、正常 body 与未 acquire 的收尾（2026-10-19）
+
+- 固定P02/12/13/14/16/17/18的14份For/control源码和golden逐字保全，双入口28个目标不变。
+  合法dead-tail的原For保持typed descriptor，但尚未AcquireProvider；普通Return之后不产生
+  Map构造、provider或source Drop。预检及whole-function完成/交付钩子消费已验证的实际plan集合，
+  真实运行到的For仍强取同源plan；完整FE模板/required exits验证在前，不以缺plan豁免损坏事实。
+- 普通If/When/while/数值For按原lowering拥有外层CFG；Map ancestry及清理钩子仅枚举真实Map
+  frame，仍保原loop index、最内层归属、actions顺序与全部incoming/current role校验。
+  Unit正常body按完整Fallthrough/Exhaustion计划交给普通语句lowering，赋值与String.clone不再
+  受旧AST白名单限制；完整cleanup/Drop/transfer证明保持。
+- Single的Entry激活由公开Control selector、selection与origin精确绑定原For所在If分支或When
+  alternative；沿普通CFG已经选中的分支到Always，不重算条件或使用全局最近choice，Never、
+  未知/损坏条件仍拒绝。全条件DAG、每个exit condition及相应incoming/action继续完整核对；
+  不扩跨join的owner实例或一般multi-alternative selector运输。
+- v1实际28观察仅9深查询成功，四Single For仍MissingFact；其余查询中，未引用Unit形参的
+  qualified ID、普通cloned local的参数能力表、control直接借用及外层Choice条件有误断。
+  它们已改用原declaration formal、formed local/Clone effect/真实NamedDrop、完整anchored loan
+  family及精确原Control条件，不改源码或K/V Shared断言。v2为24完整深查询成功、四生产失败。
+- 两处资格/Map frame修复后v3为27成功；P14 Single实际仍InvalidSsa。普通原程序的临时错误
+  观察确认唯一NonDominatingUse：When后分支沿用了前匹配body耗尽后的Loan。诊断首版因Program
+  无Debug编译失败，0观察；后版仅输出原verifier错误，未造/删事实或放宽拒绝。临时输出已逐字
+  移除，orchestrate与原基线相同。普通When现对每entry及隐式else恢复其真实unmatched Borrow
+  快照；Map path门、merge_exits与verifier不变。
+- 最终v4原28深查询/SSA/LLVM及28唯一严格native全部成功，Rust1+2无失败/忽略，3176输入
+  前后指纹相同；每次native核exit0、完整golden、空stderr。独审复核14源/golden、原11个
+  A1失败目标、全部入边/受保护用途、真实checked赋值及Clone/Drop、13生产文件身份与诊断移除。
+  严格Clippy实际single_match已等价改if let；内部body反向重构字节与v4相同，未删断言。
+- 七项工程门（fmt、workspace all-targets check、Clippy -D warnings、build、712份文档结构、
+  尺寸与whitespace）全部成功；三个既有普通When owner/分支/Shared callback邻控各1 Rust通过，
+  无失败/忽略。它们是共享控制流回归，不计新增For组合或native产物。
+- A1原11个provider独有失败已关闭；A2=2、B=6、C=8、D=6共22个原失败观察继续必修，
+  §65全部普通前置合同和原输入保持。最终固定头联合回归、完整新头CI/三产物独审、README/Tour/
+  Architecture、最小归档及正常合并仍待；F保持active，未启动D10，本机未执行故障/校准/sanitizer。
