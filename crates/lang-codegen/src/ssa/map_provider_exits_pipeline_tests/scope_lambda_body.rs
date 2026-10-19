@@ -1,6 +1,6 @@
 //! A2 preserves the two original P15 programs and their real lambda/body identities.
 mod ast;
-mod facts;
+pub(super) mod facts;
 mod graph;
 mod sources;
 use super::{

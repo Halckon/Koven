@@ -1,5 +1,5 @@
 //! Same raw analysis: actual Fn0 Unit callback and the Map born inside its LambdaBody.
-mod owner;
+pub(in crate::ssa::map_provider_exits_pipeline_tests) mod owner;
 mod unit;
 use super::super::{
     fixture::{Failure, failure, need},
@@ -183,7 +183,17 @@ pub(super) fn single(
             "A2 For source is actual lambda-local owned result",
             p,
         )?;
-        owner::single(i, source, p, owned, source_drop)?;
+        owner::single(
+            &owner::Input {
+                site: i.site.as_ref(),
+                birth: i.birth,
+                birth_span: i.birth_span,
+            },
+            source,
+            p,
+            owned,
+            source_drop,
+        )?;
         let read = typed
             .call(site.read)
             .ok_or_else(|| failure("A2 actual read Call", site.read))?;

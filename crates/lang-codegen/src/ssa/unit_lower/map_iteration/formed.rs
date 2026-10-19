@@ -147,13 +147,6 @@ pub(super) fn qualify(
     let resource = typed
         .is_resource_type(descriptor.source_type())
         .ok_or_else(bad)?;
-    if !resource
-        && [descriptor.key_type(), descriptor.value_type()]
-            .iter()
-            .any(|t| builtin_type(typed, *t) != Some(BuiltinType::String))
-    {
-        return Err(unsupported());
-    }
     let constructor = match descriptor.kind() {
         MapIterationKind::Map => IntrinsicTypeConstructor::Map,
         MapIterationKind::MutableMap => IntrinsicTypeConstructor::MutableMap,

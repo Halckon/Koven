@@ -231,3 +231,6 @@ mod scope_lowering;
 
 #[path = "native_map_provider_scope_lambda_body_tests.rs"]
 mod scope_lambda_body;
+
+#[path = "native_map_provider_scope_value_births_tests.rs"]
+mod scope_value_births;

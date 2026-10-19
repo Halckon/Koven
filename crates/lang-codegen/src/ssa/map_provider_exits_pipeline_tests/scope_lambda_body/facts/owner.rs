@@ -4,8 +4,13 @@ use lang_frontend::ownership_checking::{
     CleanupCondition as C, CleanupOwnerValue as O, IterationPhiBoundary as B,
     IterationPhiIncomingKind as K,
 };
-pub(super) fn single(
-    i: &ast::Input,
+pub(in crate::ssa::map_provider_exits_pipeline_tests) struct Input<'a> {
+    pub site: Option<&'a crate::ssa::map_provider_exits_pipeline_tests::births::ast::Site>,
+    pub birth: lang_frontend::ast::ExpressionId,
+    pub birth_span: Span,
+}
+pub(in crate::ssa::map_provider_exits_pipeline_tests) fn single(
+    i: &Input<'_>,
     root: SymbolId,
     p: &MapIterationOwnershipPlan,
     owned: &OwnershipCheckedFile,

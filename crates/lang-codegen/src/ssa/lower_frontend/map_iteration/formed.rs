@@ -172,12 +172,7 @@ pub(super) fn qualify<'a>(
     let resource = typed
         .is_resource_type(d.source_type())
         .ok_or_else(missing)?;
-    if qualify::has_enclosing_control(parsed, span)
-        || (!resource
-            && [d.key_type(), d.value_type()]
-                .iter()
-                .any(|t| builtin_type(typed, *t) != Some(BuiltinType::String)))
-    {
+    if qualify::has_enclosing_control(parsed, span) {
         return Err(unsupported());
     }
     let constructor = match d.kind() {

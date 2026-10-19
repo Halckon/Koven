@@ -262,3 +262,6 @@ pub(crate) use scope_lowering::sources as scope_a1_sources;
 
 mod scope_lambda_body;
 pub(crate) use scope_lambda_body::sources as scope_a2_sources;
+
+mod scope_value_births;
+pub(crate) use scope_value_births::int_storage_sources as scope_int_storage_sources;
