@@ -715,8 +715,8 @@ impl UnitExpressionLowerer<'_> {
         let WhenCondition::Expression(expression) = condition else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
-        if subject.is_some_and(|(_, tagged)| tagged.is_some()) {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        if let Some((owner, Some(tagged))) = subject {
+            return self.lower_copyable_enum_case_condition(owner, tagged, *expression, span);
         }
         let candidate = self.require_expression_value(*expression)?;
         let Some((subject, None)) = subject else {

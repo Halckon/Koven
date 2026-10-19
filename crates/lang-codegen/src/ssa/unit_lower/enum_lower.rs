@@ -4,7 +4,7 @@ use lang_frontend::{
     ast::ExpressionId,
     source::Span,
     type_checking::{
-        NominalKind, UnitAggregateProjectionDescriptor, UnitConstructionDescriptor,
+        Copyability, NominalKind, UnitAggregateProjectionDescriptor, UnitConstructionDescriptor,
         UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
     },
 };
@@ -12,10 +12,57 @@ use lang_frontend::{
 use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, Operation, Origin, PlaceAccess},
+    model::{EntityId, EntityType, Operation, Origin, PlaceAccess, SsaTypeId, ValueId},
 };
 
 impl UnitExpressionLowerer<'_> {
+    pub(super) fn lower_copyable_enum_case_condition(
+        &mut self,
+        owner: ValueId,
+        tagged: SsaTypeId,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<ValueId, LoweringError> {
+        let id = UnitExpressionId::new(self.source_unit, expression);
+        if self.typed.construction(id).is_none_or(|descriptor| {
+            !matches!(descriptor.target(), UnitConstructionTarget::EnumCase(_))
+        }) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let descriptor = self.construction_descriptor(expression, span)?;
+        if !descriptor.arguments().is_empty() {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        match self.typed.copyability(descriptor.result_type()) {
+            Copyability::Copyable => {}
+            Copyability::MoveOnly => {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            Copyability::Unknown | Copyability::Error => {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+        }
+        let (variant, _) = self.validate_enum_construction(&descriptor, span)?;
+        if self.typed.expression_type(id) != Some(descriptor.result_type())
+            || self.expression_ssa_type(expression, span)? != tagged
+            || self
+                .function
+                .entity(EntityId::Value(owner))
+                .map(|entity| entity.ty)
+                != Some(EntityType::Value(tagged))
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        // 零参数路径只验证完整 construction/ownership 身份，不求值或构造条件值。
+        if !self
+            .lower_construction_fields(&descriptor, span)?
+            .is_empty()
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        self.lower_enum_tag_test(owner, variant, false, span)
+    }
+
     pub(super) fn lower_enum_construction(
         &mut self,
         expression: ExpressionId,

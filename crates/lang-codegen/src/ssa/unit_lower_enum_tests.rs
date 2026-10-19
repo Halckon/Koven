@@ -397,7 +397,7 @@ fn function<'a>(module: &'a super::model::Module, name: &str) -> &'a Function {
 }
 
 #[test]
-fn guide_litmus_04_unit_enum_expression_condition_remains_an_explicit_boundary() {
+fn guide_litmus_04_unit_enum_expression_condition_reaches_verified_llvm() {
     let mut sources = SourceMap::new();
     let text = crate::native_tests::return_control_tests::guide_litmus_04();
     let (source, parsed) = parsed(&mut sources, "demo/enums/litmus4.ko", text);
@@ -409,7 +409,7 @@ fn guide_litmus_04_unit_enum_expression_condition_remains_an_explicit_boundary()
     )];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let error = lower_scalar_unit_with_entry(
+    let (program, _) = lower_scalar_unit_with_entry(
         &sources,
         &inputs,
         &names,
@@ -418,13 +418,7 @@ fn guide_litmus_04_unit_enum_expression_condition_remains_an_explicit_boundary()
         &owned,
         declaration(&names, "demo.enums", "area"),
     )
-    .err()
-    .expect("unit enum expression conditions remain outside the single-file slice");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert_eq!(
-        sources
-            .slice(error.span.expect("condition entry range"))
-            .unwrap(),
-        "Shape.Point -> 0"
-    );
+    .expect("original Guide area accepts its payloadless enum case condition");
+    super::verify::verify_program(&program).expect("original Guide area reaches verified SSA");
+    render_verified_program(&program).expect("original Guide area reaches verified LLVM");
 }
