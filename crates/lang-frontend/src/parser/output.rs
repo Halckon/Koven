@@ -213,8 +213,8 @@ mod tests {
         diagnostic::{Severity, codes},
         lexer::lex,
         parser::{
-            Expression, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker,
-            Statement, TypePathSegment, TypeRef, VariableKind, parse_file,
+            Expression, FunctionForm, IntegerLiteralKind, Item, LiteralKind, NameMarker, Statement,
+            TypePathSegment, TypeRef, VariableKind, parse_file,
         },
         source::SourceMap,
     };
@@ -236,7 +236,9 @@ mod tests {
 
     fn parsed(text: &str) -> (SourceMap, ParsedFile) {
         let mut sources = SourceMap::new();
-        let source = sources.add_source("header.ko", text).expect("unique source");
+        let source = sources
+            .add_source("header.ko", text)
+            .expect("unique source");
         let lexed = lex(&sources, source).expect("real source lexes");
         let parsed = parse_file(&sources, &lexed).expect("real lexed file parses");
         assert_eq!(parsed.source_id(), source);
@@ -289,11 +291,7 @@ mod tests {
         }
     }
 
-    fn assert_diagnostics(
-        sources: &SourceMap,
-        parsed: &ParsedFile,
-        expected: &[DiagnosticOracle],
-    ) {
+    fn assert_diagnostics(sources: &SourceMap, parsed: &ParsedFile, expected: &[DiagnosticOracle]) {
         let catalog = codes::catalog().expect("production code catalog");
         let expected: Vec<_> = expected
             .iter()
@@ -347,7 +345,11 @@ mod tests {
         ));
         assert_nodes!(parsed.ast().items(), items);
         assert_eq!(
-            parsed.roots().iter().map(|id| id.index()).collect::<Vec<_>>(),
+            parsed
+                .roots()
+                .iter()
+                .map(|id| id.index())
+                .collect::<Vec<_>>(),
             (0..=errors.len()).collect::<Vec<_>>()
         );
         assert!(parsed.ast().statements().is_empty());
@@ -452,11 +454,7 @@ mod tests {
             file.imports(),
             [exact_import(&sources, &file, 15, 32, &[(22, 27), (28, 32)])]
         );
-        assert_diagnostics(
-            &sources,
-            &file,
-            &[("L0001", "unexpected character", 8, 9)],
-        );
+        assert_diagnostics(&sources, &file, &[("L0001", "unexpected character", 8, 9)]);
         assert_variable_tail(&sources, &file, 33, &[]);
 
         let (sources, file) = parsed("package a.b\nval x:Int=1");
@@ -554,10 +552,7 @@ mod tests {
             file.package(),
             Some(&package(&sources, &file, 11, &[(8, 9), (10, 11)]))
         );
-        assert_eq!(
-            file.imports(),
-            [exact_import(&sources, &file, 12, 18, &[])]
-        );
+        assert_eq!(file.imports(), [exact_import(&sources, &file, 12, 18, &[])]);
         assert_diagnostics(
             &sources,
             &file,
@@ -606,7 +601,13 @@ mod tests {
             file.ast().statements(),
             [
                 (0, s(31, 38), Statement::Expression { expression }),
-                (1, s(30, 39), Statement::Block { elements: vec![element] }),
+                (
+                    1,
+                    s(30, 39),
+                    Statement::Block {
+                        elements: vec![element]
+                    }
+                ),
             ]
         );
         assert_nodes!(

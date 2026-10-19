@@ -9,13 +9,14 @@ impl Parser<'_> {
     pub(super) fn parse_file_header(
         &mut self,
     ) -> Result<(Option<PackageDirective>, Vec<ImportDirective>, bool), ParserInternalError> {
-        let (package, initial_package_header_complete) = if self.current_is_keyword(Keyword::Package) {
-            let (directive, name_complete) = self.parse_package_directive()?;
-            let separator_complete = self.consume_file_header_separator()?;
-            (Some(directive), name_complete && separator_complete)
-        } else {
-            (None, true)
-        };
+        let (package, initial_package_header_complete) =
+            if self.current_is_keyword(Keyword::Package) {
+                let (directive, name_complete) = self.parse_package_directive()?;
+                let separator_complete = self.consume_file_header_separator()?;
+                (Some(directive), name_complete && separator_complete)
+            } else {
+                (None, true)
+            };
 
         let mut imports = Vec::new();
         while self.current_is_keyword(Keyword::Import) {

@@ -502,20 +502,19 @@ fn header_diagnostic(
     .expect("fixed complete diagnostic oracle")
 }
 
-fn assert_incomplete_header_index(
-    text: &str,
-    code: &str,
-    message: &str,
-    start: usize,
-    end: usize,
-) {
+fn assert_incomplete_header_index(text: &str, code: &str, message: &str, start: usize, end: usize) {
     let mut sources = SourceMap::new();
     let (source_id, parsed) = parsed_source(&mut sources, "header.ko", text);
     let expected = [header_diagnostic(
         &sources, source_id, code, message, start, end,
     )];
     assert_eq!(parsed.diagnostics(), expected);
-    let inputs = [SourceUnitInput::new("root", "wrong/F.ko", source_id, &parsed)];
+    let inputs = [SourceUnitInput::new(
+        "root",
+        "wrong/F.ko",
+        source_id,
+        &parsed,
+    )];
     let index = index_compilation_unit(&sources, &inputs).expect("real unit input");
     // 完整 Eq 固定内容、details、数量与顺序，也保留旧生产的具体红差异。
     assert_eq!(index.diagnostics(), expected);
@@ -594,7 +593,12 @@ fn later_bad_package_does_not_hide_initial_path_mismatch() {
     ];
     assert_eq!(parsed.diagnostics(), expected_parse);
     for (logical_path, mismatched) in [("wrong/F.ko", true), ("a/b/F.ko", false)] {
-        let inputs = [SourceUnitInput::new("root", logical_path, source_id, &parsed)];
+        let inputs = [SourceUnitInput::new(
+            "root",
+            logical_path,
+            source_id,
+            &parsed,
+        )];
         let index = index_compilation_unit(&sources, &inputs).expect("real unit input");
         let mut expected = Vec::new();
         if mismatched {
