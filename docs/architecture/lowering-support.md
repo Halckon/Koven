@@ -47,16 +47,20 @@ temporary/capture角色后继见下节，其它角色和CFG责任继续开放。
 
 ## typed alias carry 核心
 
-`ssa::carry` 统一temporary与capture key有序收集、首个同source物理列复用、miss时才查询完整
-EntityType并追加，以及该列全部key向当前实体的写回。Temporary/CaptureLoan编译期角色只包装
-Value/Loan，三存储端口仅投影source、借用对应key字段及构造其它角色为空的槽；local/source-qualified
-key不转换，两种角色没有各自的算法副本。两片共删除两入口八段对应重复循环。seed不去重，
-不能按旧source全局合并参数，命中列不提前查询type。原single逐列temporary/capture/proof交错、
-unit各阶段及长度/kind/clear/首错时点保持；Shared父槽和Follow子loan仍分别运输并子先父后结束。
-[0341 temporary验收](../specs/active/0341-shared-lowering-core.md#19-temporary-alias-carry-小片实际验收2026-10-19)
-与[capture验收](../specs/active/0341-shared-lowering-core.md#21-capture-loan-alias-小片实际验收2026-10-19)
-记录真实身份与普通回归；named/pending/result-source等其它角色和多入边合流仍待统一。
-核心依赖model、中立error与Span，不反向读取checked/driver/planner/LLVM；IR/support禁止依赖carry。
+`ssa::carry` 以Temporary/CaptureLoan/ResultSourceLoan固定typed角色统一保序数据收集、首个同source
+物理列复用、miss时才查询完整EntityType并追加；角色只包装Value/Loan，三存储端口仅投影source、
+借用对应key字段及构造其它角色为空的槽。local/source-qualified key不转换，seed不去重，命中列
+不提前查type；缺失错误由原入口传中立Copy数据，temporary/capture为InvalidModel、result-source为MissingFact。
+核心分别拥有平面key fan-out及symbol/index的entry/resize/赋位，使用实际当前列实体而非旧source替换表。
+result-source保原Vec index与填充值，single在原clear后就地写回，unit保全部symbol的空Vec局部map且
+全成功才提交；公共多入边`range::{keys,arguments,rebind}`尚未替换。unit纯存储投影集中于`cfg/alias_slots.rs`。
+原single逐列temporary/capture/proof交错、unit各阶段及长度/kind/首错时点保持，Shared父槽与Follow子loan
+仍分别运输并子先父后结束。[temporary验收](../specs/active/0341-shared-lowering-core.md#19-temporary-alias-carry-小片实际验收2026-10-19)
+与[capture验收](../specs/active/0341-shared-lowering-core.md#21-capture-loan-alias-小片实际验收2026-10-19)记录身份与普通回归；
+[result-source验收](../specs/active/0341-shared-lowering-core.md#23-result-source-indexed-alias-小片实际验收2026-10-19)
+记录六真实产品三种既有完整输出的零规范化前后对照，不称新增独立生命周期证明。
+三片删除各角色两入口共十二段对应收集/写回重复责任；named/pending、关系proof、多入边合流及其它CFG/cleanup/driver仍开放。
+核心只依赖model与中立error，不反向读取checked/driver/planner/LLVM；IR/support禁止依赖carry。
 
 ## 普通 statement 顺序核心
 
