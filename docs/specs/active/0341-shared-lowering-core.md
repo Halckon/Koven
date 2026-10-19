@@ -94,7 +94,7 @@ planner、LLVM 或宿主，也不读写 lowerer。没有必要时不增加 trait
 ## 6. 验收标准
 
 - [ ] A 的有限责任清单、共同合同与真实差异均有生产位置和直接测试；没有仅按函数名判等价。
-- [ ] B 四路值/字节/Char/SSA 类型映射保持，常量声明无运行时初始化；配对 String use 保留
+- [x] B 四路值/字节/Char/SSA 类型映射保持，常量声明无运行时初始化；配对 String use 保留
   独立 owner、原 Group origin、source 顺序与专用 const capability。
 - [ ] C/D 每片移除一份真正重复的生产责任，全部消费者调用共享实现；原 diagnostics、identity、
   capability、planner roots、budget、verify 与失败原子性不变。
@@ -107,15 +107,15 @@ planner、LLVM 或宿主，也不读写 lowerer。没有必要时不增加 trait
 
 ## 7. 验证账本与执行边界
 
-遵守[测试与分层验收](../../development/testing.md#证据保留)。除 A0 外，下表是待执行选择，
-不是通过记录；每片补精确输入 SHA/tree、命令/完整身份、实际命中数、结果、未运行原因与稳定来源。
+遵守[测试与分层验收](../../development/testing.md#证据保留)。下表保留首片前的选择记录；B 的实际结果见§9，其余待执行项不是通过记录；
+每片补精确输入 SHA/tree、命令/完整身份、实际命中数、结果、未运行原因与稳定来源。
 现有测试先核实现再选择；禁止宽过滤器夹带合成损坏、计数/故障注入、校准或 sanitizer。
 这些只在 CI，云端及用户本机均不执行；普通源码负例与普通 native 另账。
 
 | 验收项 / 目标 | 执行位置与当前结果 |
 |---|---|
 | A0 原 main 基线，精确选择与误选更正见下 | 上述 c0c5156a/tree，9个普通目标各命中1/passed1/exit0；另1个含人工MissingFact的CI-only混合目标被误执行、passed1/exit0，单列保留，不计允许的普通验收；新映射未安装 |
-| B 合法四路纯映射、八整数宽度、Char 与 String 字节/独立 owner | 云端普通定向；待实施与实际记录 |
+| B 合法四路纯映射、八整数宽度、Char 与 String 字节/独立 owner | 云端普通定向；B首片实际结果见§9 |
 | `ssa::lowering_entry_contract_tests::paired_const_string_uses_original_specialized_capability` | 普通源码；未在本候选编写任务运行 |
 | 同模块 `paired_literals_preserve_bytes_group_origin_and_string_owner_kind`、`receiver_string_borrow_keeps_existing_single_unit_capability_difference` | 普通源码/既有能力差；待实际记录 |
 | `ssa::lower_frontend_tests::constant_lowering_tests` 的 namespace、精确scalar/Char、独立String owner、unused constant 四个普通目标 | 逐名选择；待实际记录 |
@@ -152,3 +152,27 @@ A0 实际命令为 `cargo test --locked --offline -p lang-codegen --lib <exact> 
 可验证；建议按“冻结合同”“共享常量映射”“逐域核心收敛”“最终审计”划界。首片提交后
 Spec 继续 in-progress，不归档为 done。完整验收后同步状态/路径、库存、索引与依赖图，
 再按仓库 PR/CI/合并要求闭环；发布和合并按用户当前授权执行。
+
+## 9. B 首片实际验收（2026-10-19）
+
+生产受验提交 `4a7bdc812a1cda456f2af49a6c97758ac514201a`，tree
+`b3ca54fdf01fc6ae4ce1d8ab2936fe88b525900d`（基于合同提交 `0b8af21d`）。
+五个 Rust 文件与独审候选逐字一致：四路映射移到同层私有模块，两 caller 保留原验证/类型/Span/
+append/cleanup 顺序，新增实际生产依赖边界。没有新增接受能力或公开 API。
+
+| 实际目标 | 结果 |
+|---|---|
+| A0 上列9个普通 exact 原样复验 | 各实际1 passed、0 failed、0 ignored、exit0 |
+| `ssa::constant_materialization::tests::{boolean_plan_maps_to_scalar, integer_plan_preserves_exact_value, char_plan_preserves_unicode_scalar, string_plan_preserves_bytes_and_supplied_type}` | 分别使用完整 exact，4项各1 passed/exit0；从正常源码获得真实同轮plan，无手工缺事实 |
+| `native_tests::associated_constants_reach_native_scalar_char_and_string_operations` | 1项1产物，完整stdout/成功exit/空stderr原断言通过 |
+| `native::unit_tests::constants::all_constant_types_run_across_files_and_namespaces` | 1项6个namespace产物，完整stdout/成功exit/空stderr原断言通过 |
+| `cargo fmt --all -- --check` | exit0 |
+| `cargo clippy --locked --offline -p lang-codegen --all-targets -- -D warnings` | exit0，实际1m08s；编译检查不执行测试 |
+| `python3 scripts/check_rust_sizes.py --base c0c5156a5f28d206b5a87986173f2bbf5bae6611`、`git diff --check` | 通过；1832手写Rust文件、历史38超限原样报告，无新增尺寸例外 |
+
+以上15个测试逐条完整 `--exact --nocapture` 串行，均使用 `cargo test --locked --offline -p lang-codegen --lib`；
+首项实际编译1m24s，其余复用。Rust/Cargo1.96.0，LLVM/Clang21.1.8，Linux x86_64。
+原日志保留云端 `cloud-recovery-20261018/d10-readonly/logs/after-{1..15}.log` 和退出码；精简README保留选择与命令。
+本轮15项经完整测试体/helper复核，不包含A0误纳项或其他合成损坏/故障注入/校准；A0历史不删除。
+普通native输出不证明动态释放次数或无泄漏。新依赖门禁的合成禁边负控仅CI，当前尚无本PR CI结果。
+本docs后继不冒称重新运行生产测试；B首片已验，A全域责任冻结及C/D/E仍开放，不归档D10。

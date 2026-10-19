@@ -12,6 +12,16 @@ StringOwner结构和definition→use关系，不比较裸TypeId。单文件Borro
 UnsupportedNode，unit保留原支持；const与basic能力不混用。实际源码词法依赖护栏禁止unit回依赖
 single adapter与IR core反向读取support；它不是完整Rust依赖图，也不代表P4全部收敛。
 
+## 常量物化操作共享核心
+
+[0341 首片](../specs/active/0341-shared-lowering-core.md)在 SSA 同层私有
+`constant_materialization::operation` 共享 Boolean/Integer/Char/StringTemporary 四路操作映射。
+single 与 unit 仍按各自原顺序查询 descriptor/materialization、验证身份、取得 SSA type，
+随后将共享映射错误附回原 Span 并经原 append 路径发布；Group origin、owner/drop 和入口能力不变。
+它依赖已验证值类型及 SSA model，不属于禁止 model 依赖的 `lowering_support`。
+实际生产依赖扫描覆盖新模块与子树，并保留 IR/support 不能反向依赖它的边界。
+这只是 D10 第一片；两入口其余 driver、CFG 与 cleanup 的收敛仍由 active Spec 分阶段推进。
+
 ## nullable 最后读取与 cleanup
 
 两入口 scalar nullable comparison 先按 typed null descriptor 和已登记的 aggregate/pointer
