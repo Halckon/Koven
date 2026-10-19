@@ -12,7 +12,7 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
     parser::{Expression, LiteralKind, TypeRef, WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{BuiltinType, Copyability, UnitExpressionId},
+    type_checking::{BuiltinType, Copyability, UnitExpressionId, UnitTypeKind, UnitTypeRefId},
 };
 
 use super::{
@@ -696,18 +696,26 @@ impl UnitExpressionLowerer<'_> {
                 })
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
-            let case = self
+            let target = self
                 .typed
-                .signatures()
-                .declarations()
-                .iter()
-                .filter_map(|signature| signature.nominal())
-                .flat_map(|nominal| nominal.enum_cases())
-                .find(|case| case.type_symbol() == symbol)
+                .type_ref_type(UnitTypeRefId::new(self.source_unit, *type_ref))
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
+            let Some(UnitTypeKind::EnumCase { case, root }) = self.typed.types().get(target) else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+            };
+            let root = resolve_concrete_type(
+                self.typed,
+                *root,
+                self.substitutions,
+                self.static_self,
+                node.span(),
+            )?;
+            if *case != symbol || self.type_ids.get(&root) != Some(&tagged) {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+            }
             let (variant, _) = self
                 .enum_payloads
-                .get(&(tagged, case.type_symbol()))
+                .get(&(tagged, symbol))
                 .copied()
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, node.span()))?;
             return self.lower_enum_tag_test(owner, variant, *negated, span);

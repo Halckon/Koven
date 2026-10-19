@@ -15,7 +15,7 @@ use super::lowering_error;
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{Module, SequentialContainerKind as SsaContainerKind, SsaTypeId, SsaTypeKind},
-    unit_plan::resolve_nominal_runtime_field_types,
+    unit_plan::{resolve_enum_runtime_payload_types, resolve_nominal_runtime_field_types},
 };
 
 /// unit lowering 共享的 concrete type identity 与 nominal layout metadata。
@@ -481,7 +481,9 @@ impl UnitTypeLowering {
         if arguments.len() != nominal.type_parameters().len() {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        if !nominal.type_parameters().is_empty() && nominal.kind() != NominalKind::Class {
+        if !nominal.type_parameters().is_empty()
+            && !matches!(nominal.kind(), NominalKind::Class | NominalKind::EnumClass)
+        {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if nominal.kind() == NominalKind::EnumClass {
@@ -561,16 +563,20 @@ impl UnitTypeLowering {
         cases: &[lang_frontend::type_checking::UnitEnumCaseSignature],
         span: Span,
     ) -> Result<SsaTypeId, LoweringError> {
+        let concrete_payloads = resolve_enum_runtime_payload_types(typed, ty, span)?;
+        if cases.len() != concrete_payloads.len() {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         if cases.is_empty() || !self.active_inline.insert(ty) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let result = (|| {
             let mut payloads = Vec::with_capacity(cases.len());
-            for (variant, case) in cases.iter().enumerate() {
+            for ((variant, case), concrete) in cases.iter().enumerate().zip(concrete_payloads) {
                 for (field, payload) in case.payloads().iter().enumerate() {
                     if self
                         .field_indices
-                        .insert((case.case_type(), payload.symbol()), field)
+                        .insert((ty, payload.symbol()), field)
                         .is_some()
                     {
                         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
@@ -579,7 +585,8 @@ impl UnitTypeLowering {
                 let fields = case
                     .payloads()
                     .iter()
-                    .map(|payload| self.intern_inner(module, typed, payload.ty(), payload.span()))
+                    .zip(concrete)
+                    .map(|(payload, ty)| self.intern_inner(module, typed, ty, payload.span()))
                     .collect::<Result<Vec<_>, _>>()?;
                 let payload = module
                     .add_aggregate_type(
@@ -600,7 +607,6 @@ impl UnitTypeLowering {
                 )
                 .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
             for (variant, (case, payload)) in payloads.into_iter().enumerate() {
-                self.type_ids.insert(case.case_type(), tagged);
                 self.enum_payloads
                     .insert((tagged, case.value_symbol()), (variant, payload));
                 self.enum_payloads
@@ -654,6 +660,7 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
             matches!(arguments.as_slice(), [key, val] if is_supported_storage_type(typed, *key) && is_supported_storage_type(typed, *val))
         }
         Some(UnitTypeKind::Nullable(inner)) => is_supported_nullable_inner(typed, *inner),
+        Some(UnitTypeKind::EnumCase { root, .. }) => is_supported_storage_type(typed, *root),
         Some(UnitTypeKind::Nominal {
             declaration,
             arguments,
@@ -672,9 +679,19 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
                                 | NominalKind::Object
                         )
                     } else {
-                        nominal.kind() == NominalKind::Class
-                            && resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)
-                                .is_ok()
+                        match nominal.kind() {
+                            NominalKind::Class => {
+                                resolve_nominal_runtime_field_types(typed, ty, nominal, arguments)
+                                    .is_ok()
+                            }
+                            NominalKind::EnumClass => {
+                                nominal.enum_cases().first().is_some_and(|case| {
+                                    resolve_enum_runtime_payload_types(typed, ty, case.name_span())
+                                        .is_ok()
+                                })
+                            }
+                            _ => false,
+                        }
                     }
             }),
         _ => false,

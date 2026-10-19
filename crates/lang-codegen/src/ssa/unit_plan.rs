@@ -44,7 +44,7 @@ pub(super) use call_routes::{
 use callable_instances::CallablePlanner;
 pub(crate) use callable_instances::UnitCallablePlan;
 use concrete_types::contains_type_parameter;
-pub(crate) use concrete_types::resolve_concrete_type;
+pub(crate) use concrete_types::{resolve_concrete_type, resolve_enum_runtime_payload_types};
 use recipe_preflight::{
     collect_frontier_unit_recipe_failures, pending_recipe_frontier, preflight_unit_call_recipes,
     stable_recipe_failure,

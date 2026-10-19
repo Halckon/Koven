@@ -6,8 +6,8 @@ use lang_frontend::{
     name_resolution::UnitSymbolId,
     source::Span,
     type_checking::{
-        CompilationUnitTypes, IntrinsicTypeConstructor, UnitFunctionParameterType, UnitTypeId,
-        UnitTypeKind,
+        CompilationUnitTypes, IntrinsicTypeConstructor, NominalKind, UnitFunctionParameterType,
+        UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -189,6 +189,76 @@ pub(super) fn resolve_direct_type_argument(
         Some(_) => Ok(ty),
         None => Err(lowering_error(LoweringErrorKind::MissingFact, span)),
     }
+}
+
+/// 只把 exact enum root 的 direct/closed payload 映射为 frontend 已发布的类型。
+/// 所有 case 都参与布局；模板 refinement 不成为任一 concrete root 的别名。
+pub(crate) fn resolve_enum_runtime_payload_types(
+    typed: &CompilationUnitTypes,
+    root: UnitTypeId,
+    span: Span,
+) -> Result<Vec<Vec<UnitTypeId>>, LoweringError> {
+    let Some(UnitTypeKind::Nominal {
+        declaration,
+        arguments,
+    }) = typed.types().get(root)
+    else {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    };
+    let nominal = typed
+        .signatures()
+        .declaration(*declaration)
+        .and_then(|signature| signature.nominal())
+        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    if nominal.kind() != NominalKind::EnumClass
+        || nominal.declaration() != *declaration
+        || nominal.type_parameters().len() != arguments.len()
+    {
+        return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+    }
+    for &argument in arguments {
+        let kind = typed
+            .types()
+            .get(argument)
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        // A valid generic callable template is an unmigrated boundary, not a missing fact.
+        if contains_type_parameter(typed, kind) || matches!(kind, UnitTypeKind::StaticSelf(_)) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+    }
+    let substitutions = nominal
+        .type_parameters()
+        .iter()
+        .copied()
+        .zip(arguments.iter().copied())
+        .collect::<BTreeMap<_, _>>();
+    nominal
+        .enum_cases()
+        .iter()
+        .map(|case| {
+            if !matches!(typed.types().get(case.case_type()),
+            Some(UnitTypeKind::EnumCase { case: symbol, root })
+                if *symbol == case.type_symbol() && *root == nominal.ty())
+            {
+                return Err(lowering_error(
+                    LoweringErrorKind::MissingFact,
+                    case.name_span(),
+                ));
+            }
+            case.payloads()
+                .iter()
+                .map(|payload| {
+                    resolve_direct_type_argument(
+                        typed,
+                        payload.ty(),
+                        &substitutions,
+                        None,
+                        payload.span(),
+                    )
+                })
+                .collect()
+        })
+        .collect()
 }
 
 pub(super) fn contains_type_parameter(typed: &CompilationUnitTypes, kind: &UnitTypeKind) -> bool {
